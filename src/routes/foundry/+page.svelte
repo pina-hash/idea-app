@@ -45,6 +45,7 @@
 		FoundryPlayStatsTransport
 	} from '$lib/foundry/transports';
 	import { foundryCoverUrl } from '$lib/foundry/covers';
+	import { foundryHouseReleases } from '$lib/foundry/major';
 
 	let { data } = $props();
 
@@ -169,6 +170,15 @@
 		}
 	};
 
+	/**
+	 * IDEA GREENLINE AND IDEA VANGUARD, AS LINK CARDS AT THE END OF THE MAJOR
+	 * RELEASES SECTION (report 927b1c69, which named them as what the section
+	 * is for). Built from `PORTAL_APPS`, read once here. THIS PROP IS THE WHOLE
+	 * SWITCH: the gallery draws no house card without it, so taking them off
+	 * the page is deleting this line and the attribute below.
+	 */
+	const houseReleases = foundryHouseReleases();
+
 	function select(slug: string | null) {
 		const target = slug ? `/foundry?app=${encodeURIComponent(slug)}` : '/foundry';
 		// `keepFocus` so picking a card with the keyboard does not throw focus
@@ -205,6 +215,7 @@
 		{staffHref}
 		{playStats}
 		{myPlayStats}
+		{houseReleases}
 		onSelect={select}
 	/>
 </FoundryPage>

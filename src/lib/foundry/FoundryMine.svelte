@@ -46,6 +46,8 @@
 	} from './surface.ts';
 	import type { FoundryApp, FoundryAppSummary, FoundryMineTransports } from './transports.ts';
 	import FoundryCard from './FoundryCard.svelte';
+	import FoundryMajorMark from './FoundryMajorMark.svelte';
+	import { isMajorRelease } from './major.ts';
 	import { foundryCoverFailed } from './covers.ts';
 
 	let {
@@ -305,6 +307,13 @@
 										{#if row.hidden_at}
 											<ForgeStatus tone="shelved" word="Hidden by staff" />
 										{/if}
+										<!-- WHERE A STUDENT LEARNS STAFF MADE THEIR GAME A MAJOR
+										     RELEASE (0233): the same mark the gallery draws, beside
+										     the lifecycle chips and not one of them, because it is
+										     not a lifecycle state. -->
+										{#if isMajorRelease(row)}
+											<FoundryMajorMark tone="room" />
+										{/if}
 									</span>
 								</span>
 							</button>
@@ -467,7 +476,12 @@
 							be faithful is the SHAPE and the plate, and both are.
 						-->
 						<span class="fdy-cover-preview">
-							<FoundryCard {app} href="/foundry?app={app.slug}" {coverUrl} />
+							<FoundryCard
+								{app}
+								href="/foundry?app={app.slug}"
+								{coverUrl}
+								major={isMajorRelease(app)}
+							/>
 						</span>
 						<p class="fdy-cover-note">
 							This picture <strong>is</strong> your card in the gallery, at whatever shape

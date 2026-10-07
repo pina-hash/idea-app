@@ -237,6 +237,15 @@ export interface FoundryApp extends FoundryAuthor {
 	published_version_id: string | null;
 	metadata_flagged_at: string | null;
 	hidden_at: string | null;
+	/**
+	 * 0233. WHEN AN ADMIN MADE THIS APP A MAJOR RELEASE, or null. `isMajorRelease`
+	 * in `major.ts` is the one reader. OPTIONAL because a deployment without 0233
+	 * is a real state and the key is genuinely absent there, which
+	 * `majorReleaseReady` reads as "cannot tell" and offers no control for;
+	 * and because every hand-built fixture predates it. Who marked it is in the
+	 * row and is projected by no function.
+	 */
+	major_release_at?: string | null;
 	created_at: string;
 	updated_at: string;
 	versions: FoundryVersion[];
@@ -294,6 +303,8 @@ export interface FoundryAppSummary extends FoundryAuthor {
 	live_unreviewed_version_id?: string | null;
 	metadata_flagged_at: string | null;
 	hidden_at: string | null;
+	/** 0233. See `FoundryApp.major_release_at`; the list projects it to every caller. */
+	major_release_at?: string | null;
 	/**
 	 * WHEN THE APP WAS LAST TOUCHED, which a metadata edit moves. It is what
 	 * `foundry_list_apps` orders on and therefore what the "Recent" sort means.
@@ -503,6 +514,14 @@ export interface FoundryReviewTransports extends FoundryGalleryTransports {
 	 * puts it back. Admin only in the RPC's own body.
 	 */
 	setHidden?: (appId: string, hidden: boolean, reason: string) => Promise<FoundryOutcome>;
+	/**
+	 * `foundry_set_app_major` (0233). Admin only in the RPC's own body; absent
+	 * removes the inspector's Major release section entirely. `changed` is
+	 * false when the app was already in the asked-for state (a double click, a
+	 * second tab), so the console says so rather than claiming a write. It
+	 * never moves `updated_at`: curation is not an edit.
+	 */
+	setMajor?: (appId: string, major: boolean) => Promise<FoundryOutcome<{ changed: boolean }>>;
 	/**
 	 * `foundry_delete_app`, through `/api/foundry/delete`. GONE: the app, every
 	 * version, every file row and every stored object, with no undo and nothing

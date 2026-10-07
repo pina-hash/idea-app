@@ -801,8 +801,10 @@ show.
       apply-time guard raises if the column ever appears, and
       `tests/db/foundry-play-boards.test.ts` asserts the absence with the
       per-app read as its positive control.
-  - **THE GALLERY IS ONE LIST WITH ONE SORT CONTROL, AND THERE ARE NO RANKED
-    SECTIONS AND NO BOARD PAGE** (decision 39, `docs/decisions/entries/39-*`).
+  - **THE GALLERY IS ONE LIST WITH ONE SORT CONTROL AND ONE CURATED SECTION,
+    AND THERE ARE NO RANKED SECTIONS AND NO BOARD PAGE** (decision 39,
+    `docs/decisions/entries/39-*`, narrowed, not reversed, by Mr. Pina's
+    report 927b1c69 of 2026-10-07).
     This rule used to read "THE GALLERY'S RANKED SECTIONS ARE THE
     LEADERBOARDS": 0221 answered reports 30 and 32b with up to four
     sideways-scrolling "boards" above the list, and Mr. Pina filed that on
@@ -817,6 +819,27 @@ show.
     implementation over the same counts. A new order is an arm in
     `foundrySortScore` plus an option; it is never a new page or a new section.
     The order stays out of the URL (decision 04).
+    - **MAJOR RELEASES IS THE ONE SECTION, AND IT IS AN ADMIN'S CURATION OF AN
+      APP, NOT A RANKING AND NOT A PERSON.** `foundry_set_app_major` (0233) is
+      the one writer: `is_admin()`, no identity parameter, idempotent both ways
+      (`changed: false`), structured refusals `not_found`, `hidden` and
+      `not_published` (unmarking is always allowed; hiding keeps the flag), and
+      it NEVER moves `updated_at`, because curation is not an edit and
+      `updated_at` is what Recently updated and the list's own order read.
+      `major_release_by` is a uuid because `student_apps` carries a table-wide
+      select grant, and no function projects it. The section is the SAME
+      multicol mosaic (`foundryMosaicStyle`) under its own class,
+      `fdy-gal-major-grid`, so `.fdy-gal-mosaic` still means the full list to
+      every probe; its cards are `ordered.filter(isMajorRelease)`, so the one
+      control orders both; it renders only while it has a card, the gallery is
+      not empty and nobody is searching; and the full list under "All apps"
+      still holds every app, a marked one badged. The control is
+      `FoundryInspector`'s alone, offered only with `setMajor` AND a payload
+      carrying the key (`majorReleaseReady`: absent is "cannot tell", never
+      "no"). IDEA GREENLINE and VANGUARD are link cards (`FoundryHouseCard`,
+      `foundryHouseReleases` over `PORTAL_APPS`, never an admin-only entry) that
+      reach the gallery only through the `houseReleases` prop the /foundry
+      route passes; they are outside the sort, the search and every count.
     - **"TRENDING" IS A FORMULA AND NOT A WORD:** plays in the last seven days
       MINUS plays in the seven before that (`foundryTrendScore`). A RISE, not a
       level -- "Most played" is already the all-time level and "Played this
@@ -6369,7 +6392,11 @@ properly. That is a bundle, not a line.
   statement of the IA (the contract has a TOP-LEVEL tab of its own; only the
   starter still resolves to the `submit` tab); the shell's Review tab renders
   for admins only, with the pending count asked only for admins in the layout
-  load -- null, never zero, for everyone else.
+  load -- null, never zero, for everyone else. A major release is not a
+  lifecycle state and is not a `ForgeStatus` tone: `FoundryMajorMark` is its one
+  mark, a star and the word in the violet family, pinned on a cover and
+  `--violet-ink` in a page, and nothing in this room draws it in gold or amber,
+  which sit inside `FOUNDRY_HEAT_HUE_BAND`.
 - **`.glb` -- GREENLINE brand** (`Greenline Art Direction Reference.html`,
   direction "1A / IMPACT"). Chrome/steel dominant; **GREEN is surgical** (one
   signature thread, the player's own machine); **AMBER is impact state only**, never

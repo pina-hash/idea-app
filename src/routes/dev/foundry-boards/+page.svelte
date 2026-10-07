@@ -14,10 +14,35 @@
 	 * rather than stubbed silently, and a drive that clicks a card can read the
 	 * slug back off the page.
 	 */
+	import { page } from '$app/state';
+
 	import '$lib/foundry/forge.css';
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
+	import { foundryHouseReleases } from '$lib/foundry/major';
 
 	let { data } = $props();
+
+	/* THE HOUSE CARDS, under `?fixture=major` only, exactly as the /foundry
+	   route passes them; every other fixture mounts the gallery without the
+	   prop, which is its default of none. */
+	const houseReleases = $derived(data.major ? foundryHouseReleases() : []);
+
+	/* `?theme=space-white`, the /dev/foundry-room harness's own effect: a
+	   harness holds no session, so the attribute is written here to measure
+	   the light twin, re-written once after ThemeRoot's first effect, and
+	   removed on teardown. */
+	const themeParam = page.url.searchParams.get('theme');
+	$effect(() => {
+		if (themeParam !== 'space-white') return;
+		const el = document.documentElement;
+		const apply = () => el.setAttribute('data-theme', 'space-white');
+		apply();
+		const t = setTimeout(apply, 0);
+		return () => {
+			clearTimeout(t);
+			el.removeAttribute('data-theme');
+		};
+	});
 
 	let picked = $state('(nothing picked yet)');
 </script>
@@ -35,11 +60,18 @@
 			through its description, "cookei" finds Cookie Press at one edit, "Reyes" finds three apps
 			by author, and "xylophone" finds nothing.
 		</p>
+		{#if data.major}
+			<p class="note">
+				Major fixture: Maze Maker and Tide Pool are marked as major releases, and the house
+				cards for IDEA GREENLINE and IDEA VANGUARD are passed, as the /foundry route passes them.
+			</p>
+		{/if}
 		<p class="note" data-testid="harness-picked">Last card selected: {picked}</p>
 		<div class="stage">
 			<FoundryGallery
 				apps={data.apps}
 				playCounts={data.playCounts}
+				{houseReleases}
 				onSelect={(slug) => (picked = slug ?? '(cleared)')}
 			/>
 		</div>

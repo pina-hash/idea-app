@@ -135,6 +135,46 @@ export function foundryMosaicFill(cardCount: number, widthColumns: number): numb
 }
 
 /**
+ * THE COLUMN CEILING, RAISED FROM FIVE TO EIGHT (ledger 0360, report
+ * 162057f0). Five 15rem columns is 78rem, which was enough while the page
+ * was capped at 92rem; with the room's measure at the window, a 2560px
+ * monitor's list pane is about 156rem and five columns would be five
+ * 30rem cards. Eight keeps a card near 19rem there. Each step from two up
+ * has its own fill value and its own container query in the gallery, at
+ * `c * 15 + (c - 1) * 0.75` rem, which is the arithmetic multicol itself
+ * cuts columns with.
+ *
+ * THESE TWO LIVED INSIDE `FoundryGallery.svelte` until the gallery had a
+ * second mosaic (the Major releases section, 2026-10-07). Two lists reading
+ * one ceiling and one set of steps is one decision; a copy of either in the
+ * component would be the second spelling that stops matching.
+ */
+export const FOUNDRY_MOSAIC_MAX_COLUMNS = 8;
+export const FOUNDRY_MOSAIC_FILL_STEPS = [2, 3, 4, 5, 6, 7, 8] as const;
+
+/**
+ * THE INLINE STYLE A MOSAIC LIST CARRIES: its column ceiling (capped at the
+ * card count, `foundryMosaicColumns`) and the columns a balanced mosaic will
+ * actually fill at each width step (`foundryMosaicFill`), handed to CSS as
+ * data so a container query can pick the one for the pane it is in.
+ *
+ * EXACTLY THE STRING THE GALLERY BUILT INLINE BEFORE IT WAS MOVED HERE, and
+ * `tests/foundry-major.test.ts` holds it to a golden generated from that
+ * inline code, so the full list's style did not move by a character. Both of
+ * the gallery's lists call this; there is no second arithmetic for the
+ * section.
+ */
+export function foundryMosaicStyle(
+	cardCount: number,
+	maxColumns: number = FOUNDRY_MOSAIC_MAX_COLUMNS,
+	steps: readonly number[] = FOUNDRY_MOSAIC_FILL_STEPS
+): string {
+	return [`--fdy-cols: ${foundryMosaicColumns(cardCount, maxColumns)}`]
+		.concat(steps.map((c) => `--fdy-fill-${c}: ${foundryMosaicFill(cardCount, c)}`))
+		.join('; ');
+}
+
+/**
  * THE HEAT BAND, IN DEGREES, THAT A GENERATED COVER MAY NEVER LAND IN.
  *
  * `forge.css` gives the amber `--fg-heat-*` scale ONE meaning in this room --

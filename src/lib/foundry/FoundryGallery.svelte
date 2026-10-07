@@ -24,6 +24,17 @@
 	 * mosaic below is multicol, which has no rows to lock, so the same covers
 	 * pack with no gap.
 	 *
+	 * AND ONE CURATED SECTION ABOVE IT, WHICH IS DECISION 39 NARROWED, NOT
+	 * REVERSED (report 927b1c69, Mr. Pina, 2026-10-07). "Major releases" is the
+	 * apps an administrator marked as high-effort originals, plus IDEA's own
+	 * games as link cards when the route hands them over. It is curation and
+	 * not a ranking: the ONE sort control above both orders it with the same
+	 * comparator, it is the same multicol mosaic (never a flex row, never a
+	 * sideways scroller), and the full list below it still holds every app,
+	 * the marked ones included. It is drawn only while it has a card, the
+	 * gallery is not empty and nobody is searching, so a gallery nobody has
+	 * marked anything on renders exactly as it did.
+	 *
 	 * SELECTION LIVES IN THE URL, so an app is linkable, the back button works,
 	 * and a reload lands where the viewer was. The route owns the read; this owns
 	 * the arrangement and the intent.
@@ -50,8 +61,16 @@
 
 	import FoundryCard from './FoundryCard.svelte';
 	import FoundryDetail from './FoundryDetail.svelte';
+	import FoundryHouseCard from './FoundryHouseCard.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
-	import { foundryMosaicColumns, foundryMosaicFill } from './mosaic.ts';
+	import {
+		FOUNDRY_ALL_APPS_TITLE,
+		FOUNDRY_MAJOR_SECTION_NOTE,
+		FOUNDRY_MAJOR_SECTION_TITLE,
+		isMajorRelease,
+		type FoundryHouseRelease
+	} from './major.ts';
+	import { foundryMosaicStyle } from './mosaic.ts';
 	import { foundrySearch, foundrySearchEmptyNote } from './search.ts';
 	import {
 		FOUNDRY_GALLERY_DEFAULT_SORT,
@@ -157,7 +176,16 @@
 		 * no argument here or in the function behind it through which another
 		 * student could be named.
 		 */
-		myPlayStats = undefined
+		myPlayStats = undefined,
+		/**
+		 * IDEA'S OWN GAMES, AS LINK CARDS AT THE END OF THE MAJOR RELEASES
+		 * SECTION (`foundryHouseReleases`). The /foundry route passes them; the
+		 * default is none, so every harness and test that mounts the gallery
+		 * without this renders exactly as before, and taking them off the real
+		 * page is deleting the one prop there. They are outside the sort, the
+		 * search and every count: they have no Foundry data to order by.
+		 */
+		houseReleases = []
 	}: {
 		apps: FoundryAppSummary[];
 		selected?: FoundryApp | null;
@@ -171,6 +199,7 @@
 		staffHref?: string | null;
 		playStats?: FoundryPlayStatsTransport | undefined;
 		myPlayStats?: FoundryMyPlayStatsTransport | undefined;
+		houseReleases?: FoundryHouseRelease[];
 	} = $props();
 
 	/**
@@ -196,18 +225,9 @@
 	 * where the choice is stored did not, and decision 04 says so in as many
 	 * words -- reversing that rule would be its own decision.
 	 */
-	/**
-	 * THE COLUMN CEILING, RAISED FROM FIVE TO EIGHT (ledger 0360, report
-	 * 162057f0). Five 15rem columns is 78rem, which was enough while the page
-	 * was capped at 92rem; with the room's measure at the window, a 2560px
-	 * monitor's list pane is about 156rem and five columns would be five
-	 * 30rem cards. Eight keeps a card near 19rem there. Each step from two up
-	 * has its own fill value and its own container query below, at
-	 * `c * 15 + (c - 1) * 0.75` rem, which is the arithmetic multicol itself
-	 * cuts columns with.
-	 */
-	const FOUNDRY_MOSAIC_MAX_COLUMNS = 8;
-	const FOUNDRY_MOSAIC_FILL_STEPS = [2, 3, 4, 5, 6, 7, 8] as const;
+	/* The column ceiling and its width steps (eight, ledger 0360) live in
+	   `mosaic.ts` beside the arithmetic, since both of this page's lists read
+	   them. */
 
 	let sort = $state<FoundryGallerySort>(FOUNDRY_GALLERY_DEFAULT_SORT);
 
@@ -253,12 +273,19 @@
 	const sortNote = $derived(foundrySortNote(apps, playCounts, sort, playCountsKnown));
 
 	/**
-	 * THE COLUMN CEILING, CAPPED AT THE NUMBER OF CARDS.
+	 * THE COLUMN CEILING, CAPPED AT THE NUMBER OF CARDS, AND THE COLUMNS A
+	 * BALANCED MOSAIC WILL ACTUALLY FILL AT EACH WIDTH (`foundryMosaicStyle`).
 	 *
 	 * `CLAUDE.md`'s multicol rule: multicol has no `auto-fit`, so it cuts every
 	 * column the width holds and leaves the spare ones EMPTY -- three apps in a
 	 * five-column container is three narrow columns and two columns of void.
-	 * The arithmetic is `mosaic.ts`'s and is asserted there without a browser.
+	 * And balance minimises height, not spread: nine cards of one shape in a
+	 * pane that holds four columns fill three and leave the fourth EMPTY. The
+	 * width is CSS's to know and the count is ours, so every width's answer is
+	 * handed over as data and a container query below picks the one for the
+	 * pane it is in -- no script measures anything, and the server render is
+	 * already right. The arithmetic is `mosaic.ts`'s and is asserted there
+	 * without a browser.
 	 *
 	 * IT RIDES AN INLINE CUSTOM PROPERTY, which this repo is otherwise wary of
 	 * (an inline property beats every class rule, which is what made the
@@ -267,26 +294,23 @@
 	 * nothing in a stylesheet could ever have set it, so nothing in a stylesheet
 	 * is being overridden.
 	 */
-	const mosaicColumns = $derived(foundryMosaicColumns(ordered.length, FOUNDRY_MOSAIC_MAX_COLUMNS));
+	const mosaicStyle = $derived(foundryMosaicStyle(ordered.length));
 
 	/**
-	 * AND THE COLUMNS A BALANCED MOSAIC WILL ACTUALLY FILL AT EACH WIDTH, which
-	 * is fewer than the card count more often than it looks: nine cards of one
-	 * shape in a pane that holds four columns fill three and leave the fourth
-	 * EMPTY (`foundryMosaicFill` has the arithmetic). The width is CSS's to know
-	 * and the count is ours, so every width's answer is handed over as data and
-	 * a container query below picks the one for the pane it is in -- no script
-	 * measures anything, and the server render is already right.
+	 * THE MAJOR RELEASES SECTION: the marked apps IN THE ORDER IN FORCE, then
+	 * the house cards. Filtering `ordered` rather than sorting a second list is
+	 * what makes the one sort control order both, with the one comparator.
+	 *
+	 * IT NEEDS A CARD, A NON-EMPTY GALLERY AND NO SEARCH. The house cards alone
+	 * would otherwise draw the section over "Nothing has been published yet"
+	 * (the site switch off, an admin keeping the room), and a search is looking
+	 * for one app, which the section would only push down the page.
 	 */
-	const mosaicStyle = $derived(
-		[`--fdy-cols: ${mosaicColumns}`]
-			.concat(
-				FOUNDRY_MOSAIC_FILL_STEPS.map(
-					(c) => `--fdy-fill-${c}: ${foundryMosaicFill(ordered.length, c)}`
-				)
-			)
-			.join('; ')
+	const majors = $derived(searching ? [] : ordered.filter(isMajorRelease));
+	const showMajor = $derived(
+		!searching && apps.length > 0 && majors.length + houseReleases.length > 0
 	);
+	const majorStyle = $derived(foundryMosaicStyle(majors.length + houseReleases.length));
 </script>
 
 <ClassSplit hasDetail={selected !== null} narrow="swap" scroll="fill" detailWidth="roomy">
@@ -414,6 +438,46 @@
 				</div>
 			{/if}
 
+			{#if showMajor}
+				<!--
+					THE ONE CURATED SECTION (decision 39 narrowed). Its own list
+					class, `fdy-gal-major-grid`, beside the same mosaic rules: every
+					probe that reads `.fdy-gal-mosaic` means THE FULL LIST and keeps
+					meaning it. Its cards carry no badge, because the heading says it;
+					the figure is the order in force's own, as in the list.
+				-->
+				<section
+					class="fdy-gal-major"
+					aria-labelledby="fdy-gal-major-h"
+					data-testid="foundry-gallery-major-section"
+				>
+					<h3 id="fdy-gal-major-h" class="fdy-gal-sec-h">{FOUNDRY_MAJOR_SECTION_TITLE}</h3>
+					<p class="fdy-gal-major-note">{FOUNDRY_MAJOR_SECTION_NOTE}</p>
+					<ul class="fdy-gal-major-grid" data-testid="foundry-gallery-major" style={majorStyle}>
+						{#each majors as app (app.id)}
+							<li>
+								<FoundryCard
+									{app}
+									href="/foundry?app={app.slug}"
+									selected={selected?.slug === app.slug}
+									{coverUrl}
+									plays={foundrySortFigure(sort, app, playCounts[app.id])}
+									onselect={onSelect}
+								/>
+							</li>
+						{/each}
+						{#each houseReleases as release (release.id)}
+							<li>
+								<FoundryHouseCard {release} />
+							</li>
+						{/each}
+					</ul>
+				</section>
+				<h3 class="fdy-gal-sec-h fdy-gal-all-h" data-testid="foundry-gallery-all-heading">
+					{FOUNDRY_ALL_APPS_TITLE}
+				</h3>
+			{/if}
+
 			{#if apps.length === 0}
 				<div class="fdy-gal-empty">
 					<p>Nothing has been published yet.</p>
@@ -465,6 +529,7 @@
 								selected={selected?.slug === app.slug}
 								{coverUrl}
 								plays={playsLabel}
+								major={isMajorRelease(app)}
 								onselect={onSelect}
 							/>
 						</li>
@@ -790,7 +855,8 @@
 	   which a 2:1 card -- the widest shape the clamp permits -- still holds
 	   its name plate on one line at this type size.
 	   ====================================================================== */
-	.fdy-gal-mosaic {
+	.fdy-gal-mosaic,
+	.fdy-gal-major-grid {
 		list-style: none;
 		margin: 0;
 		padding: 0;
@@ -800,52 +866,100 @@
 	}
 
 	@container fdy-gal (min-width: 30.75rem) {
-		.fdy-gal-mosaic {
+		.fdy-gal-mosaic,
+		.fdy-gal-major-grid {
 			column-count: var(--fdy-fill-2, var(--fdy-cols, 1));
 		}
 	}
 
 	@container fdy-gal (min-width: 46.5rem) {
-		.fdy-gal-mosaic {
+		.fdy-gal-mosaic,
+		.fdy-gal-major-grid {
 			column-count: var(--fdy-fill-3, var(--fdy-cols, 1));
 		}
 	}
 
 	@container fdy-gal (min-width: 62.25rem) {
-		.fdy-gal-mosaic {
+		.fdy-gal-mosaic,
+		.fdy-gal-major-grid {
 			column-count: var(--fdy-fill-4, var(--fdy-cols, 1));
 		}
 	}
 
 	@container fdy-gal (min-width: 78rem) {
-		.fdy-gal-mosaic {
+		.fdy-gal-mosaic,
+		.fdy-gal-major-grid {
 			column-count: var(--fdy-fill-5, var(--fdy-cols, 1));
 		}
 	}
 
 	@container fdy-gal (min-width: 93.75rem) {
-		.fdy-gal-mosaic {
+		.fdy-gal-mosaic,
+		.fdy-gal-major-grid {
 			column-count: var(--fdy-fill-6, var(--fdy-cols, 1));
 		}
 	}
 
 	@container fdy-gal (min-width: 109.5rem) {
-		.fdy-gal-mosaic {
+		.fdy-gal-mosaic,
+		.fdy-gal-major-grid {
 			column-count: var(--fdy-fill-7, var(--fdy-cols, 1));
 		}
 	}
 
 	@container fdy-gal (min-width: 125.25rem) {
-		.fdy-gal-mosaic {
+		.fdy-gal-mosaic,
+		.fdy-gal-major-grid {
 			column-count: var(--fdy-fill-8, var(--fdy-cols, 1));
 		}
 	}
 
 	/* Multicol has no row gap, so the gap between two cards in one column is
 	   the card's own bottom margin. */
-	.fdy-gal-mosaic li {
+	.fdy-gal-mosaic li,
+	.fdy-gal-major-grid li {
 		break-inside: avoid;
 		margin: 0 0 var(--space-3, 0.75rem);
+	}
+
+	/* -------------------------------------------------------------------
+	   THE MAJOR RELEASES SECTION AND THE HEADING OVER THE FULL LIST.
+
+	   The section's list is the mosaic above under its own class, so its
+	   arithmetic is the list's and nothing here sizes a card. The pane's own
+	   flex gap separates the section from the heading under it; the rule
+	   above "All apps" is DECORATION (a rule between two blocks of reading
+	   matter, not a control edge), so it is `--hairline` and unmeasured.
+	   ------------------------------------------------------------------- */
+	.fdy-gal-major {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2, 0.5rem);
+		min-width: 0;
+	}
+
+	.fdy-gal-sec-h {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		color: var(--text-1, var(--white));
+	}
+
+	.fdy-gal-major-note {
+		margin: 0;
+		max-width: 62ch;
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		line-height: 1.5;
+		color: var(--text-2, var(--dim));
+	}
+
+	/* The section's last row of cards carries its own bottom margin, so the
+	   gap between the two lists is that margin plus the pane's flex gap and
+	   this rule's padding, and nothing else. */
+	.fdy-gal-all-h {
+		padding-top: var(--space-3, 0.75rem);
+		border-top: 1px solid var(--hairline);
 	}
 
 	.fdy-gal-detail {
