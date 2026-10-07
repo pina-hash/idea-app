@@ -141,3 +141,180 @@ export const ACTIVITY: ArmoryChange[] = [
 ];
 
 export const START_RELEASE = { tag: 'v0.1.0', size: 36909480, name: 'IDEA-Armory-Setup-v0.1.0.exe' };
+
+// ---- Armory v0.3 on the website (round of 2026-10-07): many, team, search ----
+// Every name here is invented for the harness.
+
+/** The members of the small project, as 0233's team read answers them. */
+export const MEMBERS_LINKED: ArmoryMember[] = [
+	{ email: 'apina@boscotech.edu', role: 'mentor', name: 'Mr. Pina', avatar: 'preset:hex', avatar_url: null, pathway: 'IDEA', has_account: true, devices: [], checkouts: [] },
+	{ email: 'maria.lopez@boscotech.net', role: 'cad_lead', name: 'Maria Lopez', avatar: 'preset:owl', avatar_url: null, pathway: 'IDEA', has_account: true, devices: [], checkouts: [] },
+	{ email: 'ana.reyes@boscotech.net', role: 'student', name: 'Ana Reyes', avatar: 'preset:fox', avatar_url: null, pathway: 'ACE', has_account: true, devices: [], checkouts: [] },
+	{ email: 'ben.okafor@boscotech.net', role: 'student', name: 'Ben Okafor', avatar: null, avatar_url: null, pathway: 'MSET', has_account: true, devices: [], checkouts: [] }
+];
+
+const MANY_FOLDERS = ['Arm', 'Bumpers', 'Climber', 'Drivetrain', 'Electrical', 'Elevator', 'Field Elements', 'Frame', 'Hardware', 'Intake', 'Sensors', 'Shooter'];
+const MANY_SUB: Record<string, string> = {
+	Arm: 'Wrist',
+	Climber: 'Hooks',
+	Drivetrain: 'Wheels',
+	Elevator: 'Carriage',
+	Intake: 'Rollers',
+	Shooter: 'Flywheel'
+};
+const PART = ['Plate', 'Bracket', 'Spacer', 'Shaft', 'Gusset', 'Hub', 'Mount', 'Cover', 'Rail', 'Tube'];
+const HOLDERS = [
+	{ email: 'ana.reyes@boscotech.net', device: 'Lab PC 3', id: 'd-lab3' },
+	{ email: 'ben.okafor@boscotech.net', device: 'Ben laptop', id: 'd-ben' },
+	{ email: 'diego.marin@boscotech.net', device: 'Lab PC 5', id: 'd-lab5' },
+	{ email: 'priya.natarajan@boscotech.net', device: 'Lab PC 8', id: 'd-lab8' },
+	{ email: 'sam.whitfield@boscotech.net', device: 'Sam laptop', id: 'd-sam' },
+	{ email: 'apina@boscotech.edu', device: 'Room 214 desk', id: 'd-pina' }
+];
+
+/**
+ * THE MANY FIXTURE: 240 files in 12 top-level folders (six with a subfolder),
+ * 60 of them checked out by 6 people on 7 computers. Deterministic: no
+ * Math.random, every value from the index.
+ */
+export const MANY_FILES: ArmoryFile[] = Array.from({ length: 240 }, (_, i) => {
+	const top = MANY_FOLDERS[i % 12];
+	const n = Math.floor(i / 12);
+	const folder = MANY_SUB[top] && n >= 14 ? `${top}/${MANY_SUB[top]}` : top;
+	// Five of each folder's twenty are checked out, by the six holders in turn.
+	const out = n % 4 === (i % 12) % 4;
+	const holder = HOLDERS[out ? Math.floor(i / 4) % 6 : (i % 6)];
+	// Ana works on two computers: the second half of her checkouts are from home.
+	const device = out && holder.email === 'ana.reyes@boscotech.net' && i > 120 ? { device: 'Ana laptop', id: 'd-home' } : holder;
+	return {
+		id: `m-${String(i).padStart(3, '0')}`,
+		folder,
+		name: `${top.split(' ')[0]} ${PART[n % 10]} ${String(n + 1).padStart(2, '0')}.SLDPRT`,
+		deleted: false,
+		created_at: at(9000 - i),
+		current: version(`mv-${i}`, holder.email, 600 + i * 3, 'abcdef'[i % 6]),
+		lock: out ? lock(holder.email, device.device, device.id, 20 + i * 7) : null
+	};
+});
+export const MANY_SEEN: Record<string, number> = {
+	'd-lab3': NOW - 60_000,
+	'd-home': NOW - 60 * 60_000 * 30,
+	'd-ben': NOW - 3 * 60_000,
+	'd-lab5': NOW - 40_000,
+	'd-lab8': NOW - 60 * 60_000 * 3,
+	'd-sam': NOW - 90_000,
+	'd-pina': NOW - 5 * 60_000
+};
+
+const NAMES: Record<string, string> = {
+	'apina@boscotech.edu': 'Mr. Pina',
+	'ana.reyes@boscotech.net': 'Ana Reyes',
+	'ben.okafor@boscotech.net': 'Ben Okafor',
+	'diego.marin@boscotech.net': 'Diego Marin',
+	'priya.natarajan@boscotech.net': 'Priya Natarajan',
+	'sam.whitfield@boscotech.net': 'Sam Whitfield',
+	'maria.lopez@boscotech.net': 'Maria Lopez'
+};
+export const manyCheckouts = (files: ArmoryFile[]): ArmoryCheckout[] =>
+	checkoutsFromFiles(files).map((c) => ({ ...c, holder_name: NAMES[c.holder_email] ?? null }));
+
+const seenAt = (minutesAgo: number | null) => (minutesAgo === null ? null : new Date(NOW - minutesAgo * 60_000).toISOString());
+const dev = (id: string, name: string, minutesAgo: number | null, state: string | null = 'idle', app = '0.3.0') => ({
+	id,
+	name,
+	registered_at: at(60 * 24 * 20),
+	last_seen: seenAt(minutesAgo),
+	app_version: minutesAgo === null ? null : app,
+	state: minutesAgo === null ? null : state
+});
+const outOf = (email: string) =>
+	MANY_FILES.filter((f) => f.lock && f.lock.holder_email === email).map((f) => ({
+		file_id: f.id,
+		folder: f.folder,
+		name: f.name,
+		path: `${f.folder}/${f.name}`,
+		since: f.lock!.acquired_at,
+		device_id: f.lock!.holder_device_id
+	}));
+
+/**
+ * THE TEAM FIXTURE: eighteen members with every presence the page can say.
+ * `jordan.vance@` chose the display name "Shadow"; the team read carries only
+ * that name, and a student viewer must never see the address it hides.
+ */
+export const TEAM: ArmoryMember[] = [
+	{ email: 'apina@boscotech.edu', role: 'mentor', name: 'Mr. Pina', avatar: 'preset:hex', avatar_url: null, pathway: 'IDEA', has_account: true, devices: [dev('d-pina', 'Room 214 desk', 5)], checkouts: outOf('apina@boscotech.edu') },
+	{ email: 'maria.lopez@boscotech.net', role: 'cad_lead', name: 'Maria Lopez', avatar: 'preset:owl', avatar_url: null, pathway: 'IDEA', has_account: true, devices: [dev('d-maria', 'Lab PC 1', 1, 'syncing')], checkouts: [] },
+	{ email: 'ana.reyes@boscotech.net', role: 'student', name: 'Ana Reyes', avatar: 'preset:fox', avatar_url: null, pathway: 'ACE', has_account: true, devices: [dev('d-lab3', 'Lab PC 3', 1), dev('d-home', 'Ana laptop', 60 * 30)], checkouts: outOf('ana.reyes@boscotech.net') },
+	{ email: 'ben.okafor@boscotech.net', role: 'student', name: 'Ben Okafor', avatar: null, avatar_url: null, pathway: 'MSET', has_account: true, devices: [dev('d-ben', 'Ben laptop', 3)], checkouts: outOf('ben.okafor@boscotech.net') },
+	{ email: 'diego.marin@boscotech.net', role: 'student', name: 'Diego Marin', avatar: 'preset:gear', avatar_url: null, pathway: 'BMET', has_account: true, devices: [dev('d-lab5', 'Lab PC 5', 1)], checkouts: outOf('diego.marin@boscotech.net') },
+	{ email: 'priya.natarajan@boscotech.net', role: 'student', name: 'Priya Natarajan', avatar: 'preset:orbit', avatar_url: null, pathway: 'CSEE', has_account: true, devices: [dev('d-lab8', 'Lab PC 8', 60 * 3)], checkouts: outOf('priya.natarajan@boscotech.net') },
+	{ email: 'sam.whitfield@boscotech.net', role: 'student', name: 'Sam Whitfield', avatar: null, avatar_url: null, pathway: 'MAT', has_account: true, devices: [dev('d-sam', 'Sam laptop', 1, 'offline-soon')], checkouts: outOf('sam.whitfield@boscotech.net') },
+	{ email: 'jordan.vance@boscotech.net', role: 'student', name: 'Shadow', avatar: 'preset:cat', avatar_url: null, pathway: 'IDEA', has_account: true, devices: [dev('d-jv', 'Lab PC 9', null)], checkouts: [] },
+	{ email: 'lena.osei@boscotech.net', role: 'student', name: 'Lena Osei', avatar: 'preset:bolt', avatar_url: null, pathway: 'ACE', has_account: true, devices: [], devices_total: 0, checkouts: [] },
+	{ email: 'tomas.ruiz@boscotech.net', role: 'student', name: 'Tomas Ruiz', avatar: null, avatar_url: null, pathway: 'BMET', has_account: true, devices: [], devices_total: 2, checkouts: [] },
+	{ email: 'kai.nakamura@boscotech.net', role: 'student', name: 'Kai Nakamura', avatar: 'preset:wave', avatar_url: null, pathway: 'CSEE', has_account: true, devices: [dev('d-kai', 'Kai laptop', 60 * 24 * 2)], checkouts: [] },
+	{ email: 'noor.haddad@boscotech.net', role: 'student', name: 'Noor Haddad', avatar: 'preset:compass', avatar_url: null, pathway: 'MSET', has_account: true, devices: [dev('d-noor', 'Lab PC 11', 45)], checkouts: [] },
+	{ email: 'eli.brandt@boscotech.net', role: 'student', name: 'Eli Brandt', avatar: null, avatar_url: null, pathway: 'MAT', has_account: true, devices: [dev('d-eli', 'Lab PC 12', 1)], checkouts: [] },
+	{ email: 'grace.ifeanyi@boscotech.net', role: 'student', name: 'Grace Ifeanyi', avatar: 'preset:triad', avatar_url: null, pathway: 'IDEA', has_account: true, devices: [], checkouts: [] },
+	{ email: 'owen.park@boscotech.net', role: 'instructor', name: 'Owen Park', avatar: 'preset:reticle', avatar_url: null, pathway: null, has_account: true, devices: [dev('d-owen', 'Lab PC 2', 12)], checkouts: [] },
+	{ email: 'zara.mendes@boscotech.net', role: 'student', name: 'Zara Mendes', avatar: 'preset:delta', avatar_url: null, pathway: 'ACE', has_account: true, devices: [dev('d-zara', 'Zara laptop', 60 * 7)], checkouts: [] },
+	{ email: 'hugo.lind@boscotech.net', role: 'student', name: 'Hugo Lind', avatar: null, avatar_url: null, pathway: 'CSEE', has_account: true, devices: [dev('d-hugo', 'Lab PC 14', 1)], checkouts: [] },
+	{ email: 'new.student@boscotech.net', role: 'student', has_account: false, devices: [], checkouts: [] }
+];
+
+/** People with a site account, for the in-memory search. */
+export const DIRECTORY: Array<{ email: string; name: string; avatar: string | null; pathway: string | null }> = [
+	...TEAM.filter((m) => m.has_account).map((m) => ({ email: m.email, name: m.name!, avatar: m.avatar ?? null, pathway: m.pathway ?? null })),
+	{ email: 'anaya.cole@boscotech.net', name: 'Anaya Cole', avatar: 'preset:axolotl', pathway: 'IDEA' },
+	{ email: 'andre.silva@boscotech.net', name: 'Andre Silva', avatar: null, pathway: 'MSET' },
+	{ email: 'hana.kim@boscotech.net', name: 'Hana Kim', avatar: 'preset:bear', pathway: 'ACE' },
+	{ email: 'ivan.petrov@boscotech.net', name: 'Ivan Petrov', avatar: 'preset:turbine', pathway: 'BMET' },
+	{ email: 'mila.santos@boscotech.edu', name: 'Ms. Santos', avatar: 'preset:circuit', pathway: null }
+];
+
+/** Forty change-feed rows for the many fixture, newest first. */
+export const MANY_ACTIVITY: ArmoryChange[] = Array.from({ length: 40 }, (_, i) => {
+	const f = MANY_FILES[(i * 7) % 240];
+	const by = HOLDERS[i % 6].email;
+	const kinds = ['lock_acquired', 'version', 'lock_released', 'file_created'] as const;
+	const kind = kinds[i % 4];
+	return {
+		cursor: 5000 - i,
+		kind,
+		entity_id: kind === 'version' ? `mv-${i}` : f.id,
+		payload:
+			kind === 'version'
+				? { file_id: f.id, device_id: HOLDERS[i % 6].id }
+				: kind === 'file_created'
+					? { name: f.name, folder: f.folder, by }
+					: { holder: by, device_id: HOLDERS[i % 6].id },
+		created_at: at(3 + i * 11)
+	};
+});
+
+export const MANY_STORAGE = { bytes: 1_288_490_188, files: 1_204 };
+
+export const MANY_PROJECT: ArmoryProject = { id: '6b1f6c1e-0000-4000-8000-000000000005', name: 'Robot 2027', season: null, role: 'mentor', archived: false };
+
+/** What Delete forever would remove from the archived project. */
+export const PURGE_PREVIEW = {
+	name: 'Robot 2025',
+	folder: null,
+	files: 212,
+	live_files: 198,
+	versions: 1_604,
+	side_versions: 37,
+	checkouts: 2,
+	blobs: 1_390,
+	bytes: 3_221_225_472
+};
+
+/** The index's cards, with the counts 0233's summaries read adds. */
+export const SUMMARIES = [
+	{ ...PROJECT, files: 5, removed: 0, checked_out: 2, mine: 0, members: 4, versions: 31, side_versions: 3, bytes: 41_225_884, stored: 14, last_change_at: at(6) },
+	{ ...PROJECTS[1], files: 48, removed: 2, checked_out: 9, mine: 2, members: 6, versions: 220, side_versions: 4, bytes: 210_000_000, stored: 160, last_change_at: at(95) },
+	{ ...PROJECTS[2], files: 412, removed: 30, checked_out: 37, mine: 0, members: 12, versions: 2_812, side_versions: 51, bytes: 2_400_000_000, stored: 1_900, last_change_at: at(60 * 26) },
+	{ ...PROJECTS[3], files: 212, removed: 14, checked_out: 0, mine: 0, members: 9, versions: 1_604, side_versions: 37, bytes: 3_221_225_472, stored: 1_390, last_change_at: at(60 * 24 * 120) },
+	{ id: '6b1f6c1e-0000-4000-8000-000000000006', name: 'Freshman Drawbot', season: null, role: null, archived: false, files: 26, removed: 0, checked_out: 3, mine: 0, members: 5, versions: 90, side_versions: 0, bytes: 30_000_000, stored: 60, last_change_at: at(300) }
+];

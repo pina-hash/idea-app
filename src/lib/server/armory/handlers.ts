@@ -12,14 +12,25 @@
  *                      the code, which is NOT consumed), 401 used, 410 expired,
  *                      401 wrong verifier (which consumes the code), 200
  *
+ * And two the WEBSITE calls, with the browser's own session (0233, Armory
+ * v0.3 item 3), at the end of this file:
+ *
+ *   purge              401, 400, the RPC's refusal in words (404 for a
+ *                      non-admin, the same answer as a project that is gone),
+ *                      200 the moment the RPC returns, then the sweep
+ *   sweep              401, 404 for a non-admin, 200
+ *
  * A backend that cannot be reached answers 503, which the agent reads as
  * offline and retries; it is never folded into a refusal.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { armoryNotReady } from '$lib/armory/view';
 import { CONNECT_CODE_LIFETIME_MS, loopbackCallbackUrl, validateConnect } from '$lib/armory/connect';
 import { ArmoryBackendUnavailable, type ArmoryUser } from './backend';
 import type { ArmoryDeps } from './deps';
 import { blobExists, MAX_PUT_BYTES, signBlob } from './storage';
+import { ArmorySweepRefused, sweepArmoryOrphans, type ArmorySweepDeps } from './sweep';
 
 const NO_STORE = { 'cache-control': 'no-store' };
 
@@ -224,6 +235,91 @@ export async function handleConnectExchange(request: Request, clientIp: string, 
 		});
 	} catch (e) {
 		if (e instanceof ArmoryBackendUnavailable) return UNAVAILABLE();
+		throw e;
+	}
+}
+
+// ---- The website's purge and sweep (0233, Armory v0.3 item 3) ----
+
+/** Bodyless, the same for "not yours" and "not there" (CLAUDE.md, "Probing must reveal nothing"). */
+const NOT_FOUND = () => new Response(null, { status: 404, headers: NO_STORE });
+
+/**
+ * The purge RPC's refusals, in words. Mapped from the SQLSTATE the contract
+ * names, never passed through: a raw database message is not a sentence for a
+ * person, and its text is the RPC owner's to change.
+ */
+function purgeRefusalWords(code: string | undefined): string {
+	switch (code) {
+		case '55000':
+			return 'Archive the project first. Delete forever is offered only for an archived project.';
+		case '22023':
+			return 'The name you typed does not match the project name exactly, so nothing was deleted.';
+		default:
+			return 'That did not work, and nothing was deleted. Try again in a minute.';
+	}
+}
+
+/**
+ * POST /api/armory/purge `{ projectId, confirmName, operation }`.
+ *
+ * `armory_purge_project` runs on the CALLER's client (`locals.supabase`), so
+ * the database's own `is_admin()` decides, and this route is not the boundary.
+ * `ok` IS TRUE THE MOMENT THE RPC RETURNS: the rows are gone, and reporting a
+ * completed delete as an error is how somebody presses it again. The storage
+ * sweep follows within its budget, and anything it could not finish is a
+ * `storageProblem` sentence beside the confirmation, never a failure.
+ */
+export async function handlePurge(
+	request: Request,
+	supabase: SupabaseClient,
+	signedIn: boolean,
+	deps: ArmorySweepDeps
+): Promise<Response> {
+	if (!signedIn) return error(401, 'unauthorized', 'Sign in first.');
+	const body = await readJson(request);
+	if (!isObject(body)) return error(400, 'bad_request', 'The body must be a JSON object.');
+	const { projectId, confirmName, operation } = body;
+	if (typeof projectId !== 'string' || !UUID.test(projectId)) return error(400, 'bad_request', 'projectId must be a uuid.');
+	if (typeof operation !== 'string' || !UUID.test(operation)) return error(400, 'bad_request', 'operation must be a uuid.');
+	if (typeof confirmName !== 'string' || confirmName.trim() === '' || confirmName.length > 400) {
+		return error(400, 'bad_request', 'Type the project name to confirm.');
+	}
+
+	const { data, error: refused } = await supabase.rpc('armory_purge_project', {
+		p_project: projectId.toLowerCase(),
+		p_confirm_name: confirmName.trim().normalize('NFC'),
+		p_operation: operation.toLowerCase()
+	});
+	if (refused) {
+		if (refused.code === '42501' || refused.code === 'P0002') return NOT_FOUND();
+		if (armoryNotReady(refused)) return json(503, { ok: false, message: 'Delete forever is not switched on yet.' });
+		return json(400, { ok: false, message: purgeRefusalWords(refused.code) });
+	}
+
+	let storageProblem: string | null = null;
+	let swept = 0;
+	let left: number | null = null;
+	try {
+		const sweep = await sweepArmoryOrphans(supabase, deps);
+		storageProblem = sweep.problem;
+		swept = sweep.swept;
+		left = sweep.left;
+	} catch (e) {
+		deps.log(`armory purge: the storage sweep failed after a purge committed: ${e instanceof Error ? e.message : String(e)}`);
+		storageProblem = 'The project is deleted. Removing its stored files did not finish; Storage cleanup on the Armory page finishes it.';
+	}
+	return json(200, { ok: true, result: isObject(data) ? data : null, swept, left, storageProblem });
+}
+
+/** POST /api/armory/sweep: the admin's Finish cleanup. A non-admin gets the bodyless 404. */
+export async function handleSweep(supabase: SupabaseClient, signedIn: boolean, deps: ArmorySweepDeps): Promise<Response> {
+	if (!signedIn) return error(401, 'unauthorized', 'Sign in first.');
+	try {
+		const sweep = await sweepArmoryOrphans(supabase, deps);
+		return json(200, { ok: true, swept: sweep.swept, left: sweep.left, problem: sweep.problem });
+	} catch (e) {
+		if (e instanceof ArmorySweepRefused) return NOT_FOUND();
 		throw e;
 	}
 }

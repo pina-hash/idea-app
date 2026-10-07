@@ -13,6 +13,16 @@ import { pollSignedOut } from '$lib/classroom/poll-session';
 
 export const ARMORY_POLL_MS = 15_000;
 
+/**
+ * REALTIME FIRES ONE EVENT PER ROW, AND A CHANGE IS A RELOAD, SO THEY ARE
+ * COALESCED. A "check out all" of sixty files is sixty inserts in a second;
+ * reloading the project on each was sixty full reads of its files, team and
+ * storage (report of 2026-10-07). A trailing timer of this length turns a burst
+ * into ONE reload after it settles, and a single change still lands within a
+ * second.
+ */
+export const ARMORY_CHANGE_COALESCE_MS = 1000;
+
 export type LiveMode = 'live' | 'polling' | 'off';
 
 export function watchArmoryProject(
@@ -24,6 +34,15 @@ export function watchArmoryProject(
 ): () => void {
 	let poller: Poller | null = null;
 	let stopped = false;
+	let pending: ReturnType<typeof setTimeout> | null = null;
+	const changed = () => {
+		if (stopped) return;
+		if (pending !== null) clearTimeout(pending);
+		pending = setTimeout(() => {
+			pending = null;
+			if (!stopped) onChange();
+		}, ARMORY_CHANGE_COALESCE_MS);
+	};
 	const startPolling = () => {
 		if (poller || stopped) return;
 		onMode('polling');
@@ -36,7 +55,7 @@ export function watchArmoryProject(
 					if (isSignedOutFailure(error)) throw new PollSignedOut();
 					return 'failed';
 				}
-				if (Array.isArray(data) && data.length > 0) onChange();
+				if (Array.isArray(data) && data.length > 0) changed();
 				return 'ok';
 			}
 		});
@@ -46,7 +65,7 @@ export function watchArmoryProject(
 		.on(
 			'postgres_changes',
 			{ event: 'INSERT', schema: 'public', table: 'armory_change_feed', filter: `project_id=eq.${projectId}` },
-			() => onChange()
+			() => changed()
 		)
 		.subscribe((status) => {
 			if (status === 'SUBSCRIBED') {
@@ -59,6 +78,7 @@ export function watchArmoryProject(
 		});
 	return () => {
 		stopped = true;
+		if (pending !== null) clearTimeout(pending);
 		poller?.stop();
 		void supabase.removeChannel(channel);
 	};

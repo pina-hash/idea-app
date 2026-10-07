@@ -11,6 +11,15 @@
  * The website never touches file bytes. It signs one URL, for one method, one
  * object and (for a PUT) one byte count, that lives fifteen minutes; the agent
  * talks to R2 directly.
+ *
+ * SINCE 0233 IT ALSO DELETES, AND ONLY ONE KIND OF OBJECT: a stored file that
+ * no version and no side version in ANY project names any more, handed to it
+ * by the database's orphan queue after a purge (`$lib/server/armory/sweep.ts`).
+ * Storage is content-addressed ACROSS projects, so the database, never this
+ * module, decides what is unreferenced. A delete is confirmed only by a HEAD
+ * answering 404 (`blobStatus`): R2 answers 204 to a DELETE of a key that was
+ * never there, and `blobExists` reads every failure as "not stored", which is
+ * right for an upload and wrong for confirming a removal.
  */
 import { env } from '$env/dynamic/private';
 import { presignUrl } from './sigv4';
@@ -140,5 +149,61 @@ export async function blobExists(
 		return response.status === 200;
 	} catch {
 		return false;
+	}
+}
+
+function presigned(config: ArmoryStorageConfig, hash: string, method: 'HEAD' | 'DELETE', now: Date): string {
+	return presignUrl({
+		accessKey: config.accessKeyId,
+		secretKey: config.secretAccessKey,
+		region: 'auto',
+		url: objectUrl(config, contentObjectKey(hash)),
+		method,
+		now,
+		lifetimeSeconds: 60
+	});
+}
+
+/**
+ * A presigned DELETE of one content-addressed object. The answer is the HTTP
+ * status, or null when the request never got one. It PROVES NOTHING about the
+ * object (a 204 comes back for a key that never existed); `blobStatus` does.
+ */
+export async function deleteBlob(
+	config: ArmoryStorageConfig,
+	hash: string,
+	now: Date,
+	fetcher: typeof fetch = fetch
+): Promise<number | null> {
+	try {
+		const response = await fetcher(presigned(config, hash, 'DELETE', now), {
+			method: 'DELETE',
+			signal: AbortSignal.timeout(5000)
+		});
+		return response.status;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Whether an object is stored, as THREE answers: 200 is present, 404 is absent,
+ * and anything else (a 403, a 5xx, a timeout) is unknown. Only `absent` may be
+ * recorded as a completed removal.
+ */
+export async function blobStatus(
+	config: ArmoryStorageConfig,
+	hash: string,
+	now: Date,
+	fetcher: typeof fetch = fetch
+): Promise<'present' | 'absent' | 'unknown'> {
+	try {
+		const response = await fetcher(presigned(config, hash, 'HEAD', now), {
+			method: 'HEAD',
+			signal: AbortSignal.timeout(5000)
+		});
+		return response.status === 200 ? 'present' : response.status === 404 ? 'absent' : 'unknown';
+	} catch {
+		return 'unknown';
 	}
 }

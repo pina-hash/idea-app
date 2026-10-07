@@ -34,6 +34,7 @@ export type FeedbackExclusionId =
 	| 'greenline'
 	| 'vanguard'
 	| 'coins'
+	| 'armory'
 	| 'error';
 
 export interface FeedbackExclusionRule {
@@ -282,6 +283,19 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// own floating control; only the served-HTML surface is excluded.
 		match: (routeId) => routeId === '/coins' || routeId === '/coins/[...path]',
 		samples: ['/coins', '/coins/[...path]']
+	},
+	{
+		id: 'armory',
+		label: 'IDEA Armory',
+		relocatedTo: 'the Armory header, before the profile menu, at every width',
+		// The floating pill sat over Armory's own controls: the file filters at
+		// 375 and the Add people box at the foot of a 1440 window (the committed
+		// screenshots of 2026-10-06). Every Armory page renders ArmoryFrame, whose
+		// header mounts SiteFeedback at place="relocated" (decision of 2026-10-07),
+		// and so does the /dev/armory harness, which is listed so a measurement
+		// there sees the production arrangement.
+		match: (routeId) => under('/armory')(routeId) || under('/dev/armory')(routeId),
+		samples: ['/armory', '/armory/[project]', '/armory/[project]/file/[file]', '/armory/start', '/dev/armory']
 	},
 	{
 		id: 'error',

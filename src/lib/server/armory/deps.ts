@@ -7,6 +7,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { createRateLimiter, type RateLimiter } from '$lib/server/rate-limit';
 import { supabaseArmoryBackend, type ArmoryBackend } from './backend';
 import { armoryStorageConfig, type ArmoryStorageConfig } from './storage';
+import type { ArmorySweepDeps } from './sweep';
 
 export interface ConnectRateLimits {
 	startPerIp: number;
@@ -46,5 +47,20 @@ export function armoryDeps(): ArmoryDeps {
 		fetch: (...args) => fetch(...args),
 		randomBytes: (n) => randomBytes(n),
 		uuid: () => randomUUID()
+	};
+}
+
+/**
+ * What the purge and the sweep need, and nothing else: the R2 configuration,
+ * a fetch, a clock and a log line. Deliberately NOT `armoryDeps()`: those two
+ * routes run on the caller's own Supabase client and must never reach the
+ * backend that holds the service-role key.
+ */
+export function armorySweepDeps(): ArmorySweepDeps {
+	return {
+		storage: () => armoryStorageConfig(),
+		fetch: (...args) => fetch(...args),
+		now: () => Date.now(),
+		log: (message) => console.error(message)
 	};
 }

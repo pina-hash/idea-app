@@ -151,7 +151,7 @@
 				<span>
 					<strong>Add people.</strong>
 					{#if mentor.project}
-						Paste a whole list of school emails at once on <a href={`/armory/${mentor.project.id}#people`}>the project page</a>, and choose their role.
+						Find people by name, or paste a list of school emails, on <a href={`/armory/${mentor.project.id}?view=team`}>the project's Team view</a>, and choose their role.
 					{:else}
 						After the project exists.
 					{/if}

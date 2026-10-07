@@ -911,7 +911,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   not one of them grows by a pixel; what changes is that it is set INTO
 	   the surface instead of drawn on it. A chip that is a LINK or a BUTTON
 	   is excluded here and is a raised key (below), because it is pressable. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed, .feed-flag, .course-badge, .td-owed, .medium-chip, .strike-chip, .type-chip, .status-tag, .fg-chip, .mp-chip, .ar-tag, .chip-count, .pl-chip, :where(.ar-root) .ar-chip, :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed, .feed-flag, .course-badge, .td-owed, .medium-chip, .strike-chip, .type-chip, .status-tag, .fg-chip, .mp-chip, .ar-tag, .chip-count, .pl-chip, :where(.ar-root) :is(.ar-chip, .ar-readout), :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
 		border-color: transparent;
 		border-radius: var(--plate-r-small);
 		background-color: var(--plate-chip-ground);
@@ -1246,7 +1246,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   accent, slightly proud, with a slim accent thumb in a faint recessed
 	   track inside the well's right edge. Titles stay sentence case in the
 	   reading face. The only colour in the list is the accent. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.card.group-card, .todo-group) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card.group-card, .todo-group, :where(.ar-root) .ar-well) {
 		border: 1px solid var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-list-face);
@@ -1268,7 +1268,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	/* A divider is ETCHED: the dark line (the only separator between two
 	   interactive rows, so it holds the 3:1 boundary floor) with a light line
 	   under it, so it reads as a cut in the well rather than a rule on it. */
-	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap {
+	:root :scope:is(.cr-plate, .site-plate) :is(.group-card .row-wrap, :where(.ar-root) .ar-well > li, :where(.ar-root) .ar-well > tbody > tr) {
 		border-top-color: transparent;
 		background-image:
 			linear-gradient(to right, transparent 0, var(--plate-divider) 12px, var(--plate-divider) calc(100% - 12px), transparent 100%),
@@ -1277,7 +1277,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 		background-position: 2px 0, 2px 1px;
 		background-repeat: no-repeat;
 	}
-	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:first-child {
+	:root :scope:is(.cr-plate, .site-plate) :is(.group-card .row-wrap, :where(.ar-root) .ar-well > li, :where(.ar-root) .ar-well > tbody > tr):first-child {
 		background-image: none;
 	}
 	/* The row box carries the selected face as its background colour, so the
@@ -1446,7 +1446,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   a near-white face and a bright white inner rim glow (a faint green one
 	   on a dark theme), the LED in the accent, plus `aria-current` and the
 	   heavier word, so the glow is never the only signal. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.ar-tabs) .ar-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab) {
 		position: relative;
 		border: 3px solid transparent;
 		border-radius: var(--plate-r-pad);
@@ -1466,7 +1466,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	:root :scope:is(.cr-plate, .site-plate) .cr-header .cls-icon {
 		padding-inline: 0.25rem calc(0.25rem + 7px);
 	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab)::after {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.ar-tabs) .ar-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab)::after {
 		content: '';
 		position: absolute;
 		right: 2px;
@@ -1480,7 +1480,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 			radial-gradient(circle at 50% 30%, var(--plate-cup-in) 0 2.1px, var(--plate-cup) 3.5px);
 		box-shadow: 0 1px 0 0 var(--plate-bezel-hi);
 	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon.current, .sec-tabs .sec-tab.active, :where(.fg-tabs) .fg-tab[aria-current='page'], :where(.desk-nav) .active, :where(.section-tabs) .tab:is(.active, [aria-selected='true'])) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon.current, .sec-tabs .sec-tab.active, :where(.fg-tabs) .fg-tab[aria-current='page'], :where(.ar-tabs) .ar-tab[aria-current='page'], :where(.desk-nav) .active, :where(.section-tabs) .tab:is(.active, [aria-selected='true'])) {
 		background:
 			linear-gradient(to bottom, var(--plate-lit-top), var(--plate-lit-bot)) padding-box,
 			linear-gradient(to bottom, var(--plate-band-top), var(--plate-band-bot)) border-box;
@@ -1496,7 +1496,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 			0 5px 8px -3px var(--plate-drop-far);
 		color: var(--plate-ink);
 	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon.current, .sec-tabs .sec-tab.active, :where(.fg-tabs) .fg-tab[aria-current='page'], :where(.desk-nav) .active, :where(.section-tabs) .tab:is(.active, [aria-selected='true']))::after {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon.current, .sec-tabs .sec-tab.active, :where(.fg-tabs) .fg-tab[aria-current='page'], :where(.ar-tabs) .ar-tab[aria-current='page'], :where(.desk-nav) .active, :where(.section-tabs) .tab:is(.active, [aria-selected='true']))::after {
 		background:
 			radial-gradient(circle, var(--plate-accent-glow) 0 0.5px, var(--plate-accent) 1.5px, var(--plate-led-ring) 2.1px 2.4px, transparent 2.8px),
 			radial-gradient(circle at 50% 30%, var(--plate-cup-in) 0 2.1px, var(--plate-cup) 3.5px);
@@ -1527,7 +1527,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	}
 	/* A pad's hover turns its whole band to the hover ink, the edge a class
 	   icon and a tab have always turned (decision 40 item 1). */
-	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.ar-tabs) .ar-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab):hover {
 		border-color: var(--hover-ink);
 	}
 	:root :scope:is(.cr-plate, .site-plate) .sec-tabs .sec-tab:hover {

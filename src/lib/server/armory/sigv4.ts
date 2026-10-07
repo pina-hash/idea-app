@@ -26,7 +26,8 @@ export interface PresignInput {
 	region: string;
 	service?: string;
 	url: string;
-	method: 'GET' | 'PUT' | 'HEAD';
+	/** DELETE since 0233: the site removes a stored file no project names any more (the sweep). */
+	method: 'GET' | 'PUT' | 'HEAD' | 'DELETE';
 	now: Date;
 	lifetimeSeconds: number;
 	/** Extra headers to sign, e.g. `content-length` on a PUT. Host is always signed. */

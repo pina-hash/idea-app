@@ -38,7 +38,11 @@ declare global {
 			supabase?: SupabaseClient;
 			userProfile?: import('$lib/profile').UserProfile | null;
 		}
-		// interface PageState {}
+		interface PageState {
+			/** Armory: a project just deleted forever, shown on /armory, the page that survives it. */
+			armoryDeleted?: string;
+			armoryStorageProblem?: string | null;
+		}
 		// interface Platform {}
 	}
 }

@@ -16,13 +16,39 @@ export interface ArmoryProject {
 	name: string;
 	/** Null since 0232: a project need not belong to a season. Never shown. */
 	season: number | null;
-	role: ArmoryRole;
+	/**
+	 * The caller's role in the project. NULL only for a site admin who is not a
+	 * member (0233's `armory_project_summaries`, decision of 2026-10-07): they
+	 * may read the project and act as an admin, and its folder is on none of
+	 * their computers, because `armory_my_projects` stays membership-only.
+	 */
+	role: ArmoryRole | null;
 	pinned_release?: number;
 	release_gate?: string;
 	/** 0232. Absent on a database without it, which reads as not archived. */
 	archived?: boolean;
 	archived_at?: string | null;
 }
+
+/**
+ * What `armory_project_summaries()` (0233) adds to a project: the counts the
+ * index cards, the project header and Delete forever read. Every key is
+ * optional, because a database without 0233 answers `armory_my_projects`
+ * instead and the page must render from that alone.
+ */
+export interface ArmoryProjectCounts {
+	files: number;
+	removed: number;
+	checked_out: number;
+	mine: number;
+	members: number;
+	versions: number;
+	side_versions: number;
+	bytes: number;
+	stored: number;
+	last_change_at: string | null;
+}
+export type ArmoryProjectSummary = ArmoryProject & Partial<ArmoryProjectCounts>;
 
 /** One element of `armory_project_checkouts` (0232, contract C7). */
 export interface ArmoryCheckout {
@@ -40,8 +66,11 @@ export interface ArmoryDevice {
 	id: string;
 	name: string;
 	registered_at: string;
-	/** The latest change-feed write from it, or its registration, in ms. */
+	/** The latest change-feed write from it, its registration, or its 0.3 heartbeat, in ms. */
 	last_seen: number;
+	/** 0233's heartbeat columns, when this database has them and the app sent one. */
+	app_version?: string | null;
+	state?: string | null;
 }
 
 /** One change-feed row, as the activity panel reads it. */
@@ -80,9 +109,49 @@ export interface ArmoryFile {
 	lock: ArmoryLock | null;
 }
 
+/** One computer of a member, as `armory_team_status` (0233) reports it. */
+export interface ArmoryTeamDevice {
+	id: string;
+	name: string;
+	registered_at?: string | null;
+	/** The app's last heartbeat. NULL from an app older than 0.3. */
+	last_seen: string | null;
+	app_version?: string | null;
+	/** 'idle', 'syncing' or 'offline-soon'; anything else reads as no state. */
+	state?: string | null;
+}
+
+/** One file a member has checked out, as `armory_team_status` reports it. */
+export interface ArmoryTeamCheckout {
+	file_id: string;
+	folder: string;
+	name: string;
+	path?: string;
+	since: string;
+	device_id?: string | null;
+}
+
+/**
+ * A member. The two keys every database answers are `email` and `role` (the
+ * `armory_members` table); the rest is 0233's `armory_team_status`, which
+ * LINKS the address to the person's site account at read time: their chosen
+ * name (a display name replaces the full name, never both), their picture
+ * (the Google photo withheld behind a chosen one), their pathway, and whether
+ * they have signed in to ideabosco.com at all. Absent keys are an older
+ * database, never "no account".
+ */
 export interface ArmoryMember {
 	email: string;
 	role: ArmoryRole;
+	name?: string | null;
+	avatar?: string | null;
+	avatar_url?: string | null;
+	pathway?: string | null;
+	has_account?: boolean;
+	devices?: ArmoryTeamDevice[];
+	checkouts?: ArmoryTeamCheckout[];
+	/** Every registration, when the server counts them; the device list may be filtered. */
+	devices_total?: number;
 }
 
 export interface ArmoryHistoryEntry {
@@ -135,8 +204,10 @@ export function fileState(file: ArmoryFile, now: number, deviceLastSeen: Readonl
 
 /**
  * THE WORDS ARE THE CONTRACT'S (C8): a file is "Checked out" or "Available".
- * "Check out", "Check in", "Undo check out" and "Take back" are the four verbs
- * the website and the Windows app share.
+ * "Check out", "Check in", "Undo check out" and "Force check in" are the four
+ * verbs the website and the Windows app share. The fourth was "Take back"
+ * until Armory v0.3 named the button "Force check in" (decision of
+ * 2026-10-07); `VERBS.takeBack` keeps its key so every reader moved at once.
  */
 export const STATE_WORDS: Record<FileState, { label: string; glyph: string; tone: string }> = {
 	editing: { label: 'Checked out', glyph: '✎', tone: 'editing' },
@@ -150,7 +221,7 @@ export const VERBS = {
 	checkOut: 'Check out',
 	checkIn: 'Check in',
 	undo: 'Undo check out',
-	takeBack: 'Take back'
+	takeBack: 'Force check in'
 } as const;
 
 /** The first part of a school address, which is how people know each other here. */
@@ -212,7 +283,7 @@ export function stateDetail(
 		case 'editing-quiet':
 			return ` by ${holderName(lock?.holder_email, names)} on ${device}, since ${whenWords(lock!.acquired_at, now)}. That computer has gone quiet and may be off; ask them to open Armory and check it in.`;
 		case 'synced':
-			return `. Last saved by ${personName(file.current!.author)}, ${whenWords(file.current!.created_at, now)}`;
+			return `. Last saved by ${holderName(file.current!.author, names)}, ${whenWords(file.current!.created_at, now)}`;
 		case 'waiting':
 			return '. Nothing has been saved to it yet';
 		case 'removed':
@@ -282,6 +353,23 @@ export function deviceLastSeen(changes: ReadonlyArray<{ payload: unknown; create
 export function armoryNotReady(error: { code?: string; message?: string } | null | undefined): boolean {
 	const code = error?.code ?? '';
 	return code === 'PGRST202' || code === '42883' || code === '42P01' || code === 'PGRST205';
+}
+
+/**
+ * Plain words for `armory_break_lock`'s refusals (Force check in). The RPC's
+ * own texts are P0001 messages the 0.2 app also reads, so they are matched as
+ * text and never by SQLSTATE: 'only a mentor or cad_lead may break a lock'
+ * (unchanged by 0233, which admits a site admin too) and, on a database
+ * without 0233, 'device is not registered to caller' when the site sends no
+ * computer of the caller's own.
+ */
+export function breakLockWords(message: string): string {
+	if (/nothing changed/i.test(message)) return 'It was already checked in.';
+	if (/mentor or cad_lead/i.test(message)) return 'Only a mentor, a CAD lead or a site admin can force a check in.';
+	if (/device is not registered/i.test(message)) {
+		return 'Force check in needs one of your computers connected until the server has the Armory 0.3 update.';
+	}
+	return 'That did not work. Try again in a minute.';
 }
 
 /** Plain words for the member RPCs' refusals. */
@@ -397,13 +485,39 @@ export function storageUsed(rows: ReadonlyArray<{ content_sha256: string; byte_l
 	return { bytes, files: seen.size };
 }
 
-/** The latest moment each computer was heard from: the feed, or its registration. */
+/**
+ * The latest moment each computer was heard from: the feed, its registration,
+ * or (0233) the app's own heartbeat, whichever is newest. `last_seen` on the
+ * ROW is the heartbeat's timestamptz; on the result it is milliseconds.
+ */
 export function devicesWithLastSeen(
-	devices: ReadonlyArray<{ id: string; name: string; registered_at: string }>,
+	devices: ReadonlyArray<{
+		id: string;
+		name: string;
+		registered_at: string;
+		last_seen?: string | null;
+		app_version?: string | null;
+		state?: string | null;
+	}>,
 	seen: ReadonlyMap<string, number>
 ): ArmoryDevice[] {
 	return devices
-		.map((d) => ({ ...d, last_seen: Math.max(Date.parse(d.registered_at), seen.get(d.id) ?? Number.NEGATIVE_INFINITY) }))
+		.map((d) => {
+			const beat = d.last_seen ? Date.parse(d.last_seen) : Number.NaN;
+			const out: ArmoryDevice = {
+				id: d.id,
+				name: d.name,
+				registered_at: d.registered_at,
+				last_seen: Math.max(
+					Date.parse(d.registered_at),
+					seen.get(d.id) ?? Number.NEGATIVE_INFINITY,
+					Number.isNaN(beat) ? Number.NEGATIVE_INFINITY : beat
+				)
+			};
+			if (d.app_version !== undefined) out.app_version = d.app_version;
+			if (d.state !== undefined) out.state = d.state;
+			return out;
+		})
 		.sort((a, b) => b.last_seen - a.last_seen);
 }
 
@@ -423,9 +537,15 @@ function plural(n: number, one: string, many: string): string {
  * One change-feed row in plain words, or null for a kind the page does not
  * show. `fileName` resolves a file id to its current name.
  */
-export function activityWords(change: ArmoryChange, fileName: (id: string) => string | null, checkedIn = false): string | null {
+export function activityWords(
+	change: ArmoryChange,
+	fileName: (id: string) => string | null,
+	checkedIn = false,
+	names?: ReadonlyMap<string, string | null>
+): string | null {
 	const p = change.payload ?? {};
-	const by = personName(str(p.by) ?? str(p.holder));
+	const who = (email: string | null) => (email ? holderName(email, names) : 'Someone');
+	const by = who(str(p.by) ?? str(p.holder));
 	const file = (id: unknown) => (typeof id === 'string' ? fileName(id) : null) ?? 'a file';
 	const where = (folder: unknown) => (str(folder) ? ` in ${str(folder)}` : '');
 	switch (change.kind) {
@@ -438,11 +558,11 @@ export function activityWords(change: ArmoryChange, fileName: (id: string) => st
 		case 'project_restored':
 			return `${by} restored the project`;
 		case 'member_added':
-			return `${by} added ${personName(str(p.email))} as ${ROLE_WORDS[p.role as ArmoryRole] ?? 'a member'}`;
+			return `${by} added ${who(str(p.email))} as ${ROLE_WORDS[p.role as ArmoryRole] ?? 'a member'}`;
 		case 'member_role_changed':
-			return `${by} made ${personName(str(p.email))} ${ROLE_WORDS[p.role as ArmoryRole] ?? 'a member'}`;
+			return `${by} made ${who(str(p.email))} ${ROLE_WORDS[p.role as ArmoryRole] ?? 'a member'}`;
 		case 'member_removed':
-			return `${by} removed ${personName(str(p.email))}`;
+			return `${by} removed ${who(str(p.email))}`;
 		case 'file_created':
 			return `${by} added ${str(p.name) ?? 'a file'}${where(p.folder)}`;
 		case 'file_revived':
@@ -457,6 +577,11 @@ export function activityWords(change: ArmoryChange, fileName: (id: string) => st
 			const n = num(p.files);
 			return `${by} removed the folder ${str(p.folder) ?? ''}${n !== null ? ` (${plural(n, 'file', 'files')}, history kept)` : ''}`;
 		}
+		case 'folder_purged': {
+			// 0233: the app's Delete forever of an already-removed folder.
+			const n = num(p.files);
+			return `${by} deleted the folder ${str(p.folder) ?? ''} forever${n !== null ? ` (${plural(n, 'file', 'files')})` : ''}`;
+		}
 		case 'version':
 			return `Someone saved a new version of ${file(p.file_id)}`;
 		case 'side_version':
@@ -468,7 +593,7 @@ export function activityWords(change: ArmoryChange, fileName: (id: string) => st
 		case 'lock_released':
 			return `${file(change.entity_id)} was ${checkedIn ? 'checked in' : 'let go (check out undone)'}`;
 		case 'lock_broken':
-			return `${by} took back ${file(change.entity_id)} from ${personName(str(p.former_holder))}`;
+			return `${by} forced a check in of ${file(change.entity_id)} from ${who(str(p.former_holder))}`;
 		case 'pinned_release_raised':
 			return `${by} moved the project to SolidWorks ${num(p.release) ?? ''}`;
 		case 'release_gate_changed':

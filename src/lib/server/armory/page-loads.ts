@@ -5,6 +5,17 @@
  * that does not exist. A database without the Armory schema yet is a page that
  * says so, never a 500; a database without 0232 (ledger 0366) still renders,
  * with the checkout list read off the file list and no chosen names.
+ *
+ * AND A DATABASE WITHOUT 0233 STILL RENDERS. Every 0233 read has its own rung:
+ * `armory_project_summaries` falls back to `armory_my_projects` (no counts, no
+ * admin reach), `armory_team_status` to the `armory_members` table (no names,
+ * pictures or presence), and a select naming a heartbeat column retries without
+ * it on 42703. `v033Ready` says the summaries rung answered, which is also what
+ * licenses the page to send `p_device: null` to `armory_break_lock` (the
+ * contract's widening lands in the same file).
+ *
+ * NO LOAD HERE READS THE URL. The project page's views live in `?view=` and are
+ * the component's to read, so pressing a tab reruns none of this.
  */
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -20,7 +31,8 @@ import {
 	type ArmoryFile,
 	type ArmoryHistoryEntry,
 	type ArmoryMember,
-	type ArmoryProject
+	type ArmoryProject,
+	type ArmoryProjectSummary
 } from '$lib/armory/view';
 import { armoryStorageConfig } from './storage';
 
@@ -51,14 +63,48 @@ export async function loadMyProjects(supabase: SupabaseClient): Promise<{ notRea
 }
 
 /**
+ * The projects with their counts (0233 `armory_project_summaries`): every
+ * project the caller is a member of, and every project for a site admin, with
+ * `role` null where the admin is not a member. On a database without it, the
+ * caller's own projects with no counts (`ready` false).
+ *
+ * NOT FOR THE SETUP PAGE: its "Your projects" step is the projects a computer
+ * syncs, which is `armory_my_projects` and membership only.
+ */
+export async function loadSummaries(
+	supabase: SupabaseClient
+): Promise<{ notReady: boolean; ready: boolean; projects: ArmoryProjectSummary[] }> {
+	const { data, error: e } = await supabase.rpc('armory_project_summaries');
+	if (e) {
+		if (!armoryNotReady(e)) failed(e);
+		const mine = await loadMyProjects(supabase);
+		return { notReady: mine.notReady, ready: false, projects: mine.projects };
+	}
+	return { notReady: false, ready: true, projects: (Array.isArray(data) ? data : []) as ArmoryProjectSummary[] };
+}
+
+/** The admin's pending storage cleanup (0233); null for anyone else and on any failure. */
+export async function loadOrphanCount(supabase: SupabaseClient): Promise<number | null> {
+	const { data, error: e } = await supabase.rpc('armory_orphans_count');
+	if (e) return null;
+	const n = Number(data);
+	return Number.isFinite(n) ? n : null;
+}
+
+/**
  * The caller's own connected computers (RLS: own rows only), each with when
  * it was last heard from in any of their projects' change feeds. A failure
  * reads as none: this is a convenience, never a gate.
  */
 export async function loadMyDevices(supabase: SupabaseClient): Promise<ArmoryDevice[]> {
-	const devices = await supabase.from('armory_devices').select('id, name, registered_at').order('registered_at', { ascending: false }).limit(50);
+	const read = (columns: string) =>
+		supabase.from('armory_devices').select(columns).order('registered_at', { ascending: false }).limit(50);
+	// The 0233 heartbeat columns, then the narrow select on a database without them.
+	let devices = await read('id, name, registered_at, last_seen, app_version, state');
+	if (devices.error?.code === '42703') devices = await read('id, name, registered_at');
 	if (devices.error || !devices.data?.length) return [];
-	const ids = devices.data.map((d) => d.id as string);
+	const rows = devices.data as unknown as Array<{ id: string; name: string; registered_at: string; last_seen?: string | null }>;
+	const ids = rows.map((d) => d.id);
 	const feed = await supabase
 		.from('armory_change_feed')
 		.select('payload, created_at')
@@ -66,7 +112,7 @@ export async function loadMyDevices(supabase: SupabaseClient): Promise<ArmoryDev
 		.order('cursor', { ascending: false })
 		.limit(500);
 	const seen = deviceLastSeen((feed.data ?? []) as Array<{ payload: unknown; created_at: string }>);
-	return devicesWithLastSeen(devices.data as Array<{ id: string; name: string; registered_at: string }>, seen);
+	return devicesWithLastSeen(rows, seen);
 }
 
 async function changeFeed(supabase: SupabaseClient, projectId: string) {
@@ -115,35 +161,95 @@ async function loadStorage(supabase: SupabaseClient, fileIds: string[]): Promise
 	return storageUsed(rows);
 }
 
+/**
+ * Side versions per file. A per-file `side_versions` key on the file list, when
+ * the server sends one, is the whole answer; otherwise the side-version rows
+ * are read in chunks of 100 file ids (a URL carries about 37 bytes per id) and
+ * pages of 1000 rows (PostgREST caps a response at 1000 WITHOUT an error, and
+ * the old single read at `.limit(5000)` was silently short past it).
+ */
+async function loadSideCounts(supabase: SupabaseClient, files: ArmoryFile[]): Promise<Record<string, number>> {
+	const counts: Record<string, number> = {};
+	const keyed = files.every((f) => typeof (f as { side_versions?: unknown }).side_versions === 'number');
+	if (keyed) {
+		for (const f of files) {
+			const n = (f as unknown as { side_versions: number }).side_versions;
+			if (n > 0) counts[f.id] = n;
+		}
+		return counts;
+	}
+	for (let i = 0; i < files.length; i += 100) {
+		const chunk = files.slice(i, i + 100).map((f) => f.id);
+		for (let from = 0; ; from += 1000) {
+			const page = await supabase.from('armory_side_versions').select('id, file_id').in('file_id', chunk).order('id').range(from, from + 999);
+			if (page.error) return counts;
+			const rows = (page.data ?? []) as Array<{ file_id: string }>;
+			for (const r of rows) counts[r.file_id] = (counts[r.file_id] ?? 0) + 1;
+			if (rows.length < 1000) break;
+		}
+	}
+	return counts;
+}
+
+/**
+ * The team, linked to site accounts (0233 `armory_team_status`): names,
+ * pictures, pathways, computers with their heartbeat, and each member's
+ * checkouts. On a database without it, the `armory_members` table (`ready`
+ * false), and the page says what it cannot show.
+ */
+export async function loadTeam(supabase: SupabaseClient, projectId: string): Promise<{ ready: boolean; members: ArmoryMember[] }> {
+	const team = await supabase.rpc('armory_team_status', { p_project: projectId });
+	if (!team.error) return { ready: true, members: (Array.isArray(team.data) ? team.data : []) as ArmoryMember[] };
+	if (!armoryNotReady(team.error)) failed(team.error);
+	const members = await supabase.from('armory_members').select('email, role').eq('project_id', projectId).order('email');
+	if (members.error) failed(members.error);
+	return { ready: false, members: (members.data ?? []) as ArmoryMember[] };
+}
+
+/** The heartbeat (0233) counts as hearing from a computer, beside the change feed. */
+function mergeHeartbeats(seen: Record<string, number>, team: readonly ArmoryMember[]): Record<string, number> {
+	const out = { ...seen };
+	for (const m of team) {
+		for (const d of m.devices ?? []) {
+			const at = d.last_seen ? Date.parse(d.last_seen) : Number.NaN;
+			if (!Number.isNaN(at) && !(out[d.id] >= at)) out[d.id] = at;
+		}
+	}
+	return out;
+}
+
 export async function loadProject(supabase: SupabaseClient, projectId: string, full = true) {
 	if (!UUID.test(projectId)) error(404, 'Not found');
-	const mine = await loadMyProjects(supabase);
-	if (mine.notReady) return { notReady: true as const };
-	const project = mine.projects.find((p) => p.id === projectId.toLowerCase());
+	const summaries = await loadSummaries(supabase);
+	if (summaries.notReady) return { notReady: true as const };
+	const project = summaries.projects.find((p) => p.id === projectId.toLowerCase());
 	if (!project) error(404, 'Not found');
 	const files = await supabase.rpc('armory_project_files', { p_project: project.id });
 	if (files.error) failed(files.error);
 	const list = (files.data ?? []) as ArmoryFile[];
-	const members = await supabase.from('armory_members').select('email, role').eq('project_id', project.id).order('email');
-	if (members.error) failed(members.error);
-	const sideCounts: Record<string, number> = {};
-	if (list.length > 0) {
-		const sides = await supabase.from('armory_side_versions').select('file_id').in('file_id', list.map((f) => f.id)).limit(5000);
-		for (const r of (sides.data ?? []) as Array<{ file_id: string }>) sideCounts[r.file_id] = (sideCounts[r.file_id] ?? 0) + 1;
-	}
-	const [feed, checkouts, storage, devices] = await Promise.all([
+	const [team, feed, checkouts, sideCounts, devices] = await Promise.all([
+		full ? loadTeam(supabase, project.id) : Promise.resolve({ ready: summaries.ready, members: [] as ArmoryMember[] }),
 		changeFeed(supabase, project.id),
 		loadCheckouts(supabase, project.id, list),
-		full ? loadStorage(supabase, list.map((f) => f.id)) : Promise.resolve(null),
+		full ? loadSideCounts(supabase, list) : Promise.resolve({} as Record<string, number>),
 		full ? loadMyDevices(supabase) : Promise.resolve([] as ArmoryDevice[])
 	]);
+	// Storage from the summary when the server counts it; the paged read is only the pre-0233 rung.
+	const counted = summaries.ready && typeof project.bytes === 'number' && typeof project.stored === 'number';
+	const storage = !full
+		? null
+		: counted
+			? { bytes: Number(project.bytes), files: Number(project.stored) }
+			: await loadStorage(supabase, list.map((f) => f.id));
 	return {
 		notReady: false as const,
-		project,
+		project: project as ArmoryProjectSummary,
 		files: list,
-		members: (members.data ?? []) as ArmoryMember[],
+		members: team.members,
+		teamReady: team.ready,
+		v033Ready: summaries.ready,
 		sideCounts,
-		deviceSeen: feed.deviceSeen,
+		deviceSeen: mergeHeartbeats(feed.deviceSeen, team.members),
 		cursor: feed.cursor,
 		activity: feed.activity,
 		checkouts,
