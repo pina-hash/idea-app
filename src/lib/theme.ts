@@ -66,6 +66,21 @@ export function readStoredTheme(raw: string | null): SiteTheme | null {
 	return SITE_THEMES.includes(raw as SiteTheme) ? (raw as SiteTheme) : null;
 }
 
+/**
+ * THE THEME ANOTHER WINDOW JUST CHOSE, read off a `storage` event, or NULL when
+ * the event is not about the theme (bug 145c0352: the projector is a second
+ * window with no switch of its own, so it has to HEAR the control view's
+ * choice). `key === null` is `localStorage.clear()`. A removal and an id this
+ * build does not know (a newer build's theme in another tab) both read as the
+ * default HERE -- and nothing in this function, or in its one caller, writes
+ * storage back: repairing an unknown id from a follower window would be two
+ * builds removing each other's value across tabs.
+ */
+export function themeFromStorageEvent(key: string | null, newValue: string | null): SiteTheme | null {
+	if (key !== null && key !== SITE_THEME_KEY) return null;
+	return readStoredTheme(key === null ? null : newValue) ?? DEFAULT_SITE_THEME;
+}
+
 export const SITE_THEME_LABELS: Record<SiteTheme, string> = {
 	idea: 'IDEA',
 	matrix: 'Matrix',

@@ -62,6 +62,8 @@
 		type WallActivityInput,
 		type WallPick
 	} from './projector';
+	import { wallClockFace as readWallClockFace, type WallClockFace } from './wall-clock';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
 	import { pickerOne, pickerPool, pickerSeedFrom, pickerSeedLabel } from '$lib/classroom/picker';
 	import { PRESENCE_POLL_MS, type PresencePayload } from '$lib/classroom/presence/state';
 	import type { PresenceTransports } from '$lib/classroom/presence/transports';
@@ -537,13 +539,37 @@
 				}
 			: null
 	);
+
+	/*
+	 * THE CLOCK FACE (idea 26033e4b): off by default, so the wall is exactly
+	 * what it was until the teacher presses it. A STANDING CHOICE ON THIS
+	 * COMPUTER, kept in the classroom preference store's device group
+	 * (`display.wallClock`), because the projector is driven from one machine
+	 * at the front of the room and a wall's look is a property of that screen;
+	 * Settings shows the same choice. With no store in context (a harness that
+	 * provides none) it lasts the visit. The projector's own frames never move
+	 * it: `onMessage` adopts the timer and only the timer.
+	 */
+	const prefStore = classroomPreferences();
+	const prefs = prefStore ? reactivePreferences(prefStore) : null;
+	let localClockFace = $state<WallClockFace>('digits');
+	const clockFace = $derived<WallClockFace>(
+		readWallClockFace(prefs ? prefs.current.display.wallClock : localClockFace)
+	);
+	function toggleClockFace() {
+		const next: WallClockFace = clockFace === 'dial' ? 'digits' : 'dial';
+		if (prefStore) prefStore.set('display', { ...prefStore.current.display, wallClock: next });
+		else localClockFace = next;
+	}
+
 	const wallInput = $derived({
 		agenda: wallAgenda(lines),
 		timer,
 		hallPass: hallState,
 		pick: shownPick,
 		next: wallNext ? comingUp : [],
-		activity: activityInput
+		activity: activityInput,
+		clockFace
 	});
 	/** The counts exactly as the wall will paint them: the same projection, read back. */
 	const wallActivityShown = $derived(
@@ -860,8 +886,24 @@
 						<span aria-hidden="true">{wallActivity === 'names' ? '●' : '○'}</span>
 						Names too
 					</button>
+					<button
+						type="button"
+						class="lc-seg"
+						aria-pressed={clockFace === 'dial'}
+						data-testid="live-wall-clock"
+						onclick={toggleClockFace}
+					>
+						<span aria-hidden="true">{clockFace === 'dial' ? '●' : '○'}</span>
+						Clock face
+					</button>
 				</div>
 				<p class="lc-wall-note" data-testid="live-wall-activity-state">{activityState}</p>
+				{#if clockFace === 'dial' && timer}
+					<!-- The face is on and nothing changed on the wall: say why. -->
+					<p class="lc-wall-help" data-testid="live-wall-clock-note">
+						The clock face shows on the wall when there is no timer. Clear the timer to bring it back.
+					</p>
+				{/if}
 				<p id="lc-wall-names-help" class="lc-wall-help" data-testid="live-wall-names-help">
 					Activity is counts first. Names are a second step, and the whole class can read them. Students who are
 					working, and whoever is out on the hall pass, are counted and never named.

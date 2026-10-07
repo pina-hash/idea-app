@@ -50,7 +50,8 @@ import {
 	themeBootHarnessSession,
 	themeBootScript,
 	themeBootTable,
-	themeColorFor
+	themeColorFor,
+	themeFromStorageEvent
 } from '../src/lib/theme';
 import { runInNewContext } from 'node:vm';
 
@@ -322,5 +323,63 @@ describe('the pre-paint writer agrees with ThemeRoot, case for case', () => {
 		expect(themeBootHarnessSession('/dev/classroom-split/s-1', null)).toBe(false);
 		expect(themeBootHarnessSession('/dev/themes-lookalike', null)).toBe(false);
 		expect(themeBootHarnessSession('/classroom', null)).toBe(false);
+	});
+});
+
+/*
+ * ANOTHER WINDOW'S CHANGE (bug 145c0352). The classroom projector is a second
+ * window with no theme control of its own and is never reloaded by a deploy,
+ * so it follows the control view's choice through the `storage` event. Two
+ * properties here are silent if broken: an unrelated write must move nothing
+ * (the projector's own frame key fires the same event every few seconds), and
+ * adopting a choice must never WRITE storage, or a follower window repairing an
+ * id it does not know would fight another build's window over the key.
+ *
+ * The real two-window drive is `tools/browser-verify/_theme-follow.mjs` (two
+ * pages of one browser context) and `tests/dom/theme-follow-mount.test.ts`
+ * (the real ThemeRoot, a dispatched event); this file holds the pure half and
+ * the source shape.
+ */
+describe("another window's change", () => {
+	const reactive = src('../src/lib/theme.svelte.ts');
+	const root = src('../src/lib/design-system/themes/ThemeRoot.svelte');
+
+	it('reads the theme key, a removal and a clear, and an unknown id as the default', () => {
+		expect(themeFromStorageEvent(SITE_THEME_KEY, 'space-white')).toBe('space-white');
+		expect(themeFromStorageEvent(SITE_THEME_KEY, 'matrix')).toBe('matrix');
+		// setSiteTheme REMOVES the key to turn the theme off, so the event's
+		// newValue is null and the follower must read that as the default.
+		expect(themeFromStorageEvent(SITE_THEME_KEY, null)).toBe(DEFAULT_SITE_THEME);
+		// localStorage.clear() fires one event with key null.
+		expect(themeFromStorageEvent(null, null)).toBe(DEFAULT_SITE_THEME);
+		// A newer build's theme in another tab shows as the default here.
+		expect(themeFromStorageEvent(SITE_THEME_KEY, 'bogus')).toBe(DEFAULT_SITE_THEME);
+		for (const t of SITE_THEMES) expect(themeFromStorageEvent(SITE_THEME_KEY, t)).toBe(t);
+	});
+
+	it('NEGATIVE CONTROL: a write to any other key moves nothing', () => {
+		for (const key of ['idea_live_projector:harness-teacher:s-live', 'idea_live_projector:x:y:signal', 'idea_notebook_theme', 'vanguard_save']) {
+			expect(themeFromStorageEvent(key, 'space-white'), key).toBeNull();
+			expect(themeFromStorageEvent(key, null), key).toBeNull();
+		}
+	});
+
+	it('ThemeRoot adds the storage listener and removes it on teardown', () => {
+		// Anchored at the start of a line, so a commented-out call does not count.
+		expect(root).toMatch(/^\s*window\.addEventListener\('storage', onStorage\);/m);
+		expect(root).toMatch(/^\s*return \(\) => window\.removeEventListener\('storage', onStorage\);/m);
+		expect(root).toMatch(/themeFromStorageEvent\(e\.key, e\.newValue\)/);
+		expect(root).toMatch(/adoptSiteTheme\(next\)/);
+	});
+
+	it('adopting writes no storage: not localStorage, not setSiteTheme, not the repairing read', () => {
+		const start = reactive.indexOf('export function adoptSiteTheme');
+		expect(start).toBeGreaterThan(0);
+		const body = reactive.slice(start, reactive.indexOf('\n}', start) + 2);
+		// Positive control: the slice is the function, and it does move the state.
+		expect(body).toMatch(/theme = next;/);
+		expect(body).not.toContain('localStorage');
+		expect(body).not.toContain('setSiteTheme(');
+		expect(body).not.toMatch(/\bread\(\)/);
 	});
 });

@@ -6,6 +6,7 @@
 	import LiveControl from '$lib/classroom/live-class/LiveControl.svelte';
 	import { classroomCrumbs, classroomMeasure, locateClassroom, sectionTabs } from '$lib/classroom/nav';
 	import { createClassroomPreferences } from '$lib/preferences/classroom';
+	import { provideClassroomPreferences } from '$lib/preferences/context';
 	import type { PaletteSources } from '$lib/shell/palette';
 	import { browser } from '$app/environment';
 	import { buildProjectorFrame, projectorStorageKey } from '$lib/classroom/live-class/projector';
@@ -49,6 +50,11 @@
 		t.id === 'live' ? { ...t, href: BASE } : t
 	);
 	const preferences = createClassroomPreferences({ viewer: 'harness-live', account: null });
+	/* PROVIDED, as src/routes/classroom/+layout.svelte provides it, so the live
+	   control view's Clock face toggle writes the same device store the real
+	   route does (a harness must mirror the whole mechanism). Each browser pass
+	   page is a fresh context, so nothing persists between specs. */
+	provideClassroomPreferences(preferences);
 	const palette: PaletteSources = { section: SECTION, items: items(), units: [], sections: [SECTION], checkIns: [] };
 
 	const presenceOff = page.url.searchParams.get('presence') === 'off';

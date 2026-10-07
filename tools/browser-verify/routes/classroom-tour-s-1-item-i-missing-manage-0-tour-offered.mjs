@@ -119,7 +119,7 @@ export default {
 			selector: 'dialog[data-testid="classroom-settings"]',
 			label: "a student's settings: list width and the to-do default, not a teacher's",
 			must: ['List width', 'Standard', 'To-do opens on', 'This device', 'Your account', 'Classroom tour'],
-			mustNot: ['Density', 'Grades lists by']
+			mustNot: ['Density', 'Grades lists by', 'Projector clock']
 		}
 	],
 	contrast: [

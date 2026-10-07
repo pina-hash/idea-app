@@ -240,3 +240,68 @@ export const EVERY_CUT_SAID = `() => {
 	}
 	return ['agenda ' + agenda, 'next ' + next, total > 0 && said === total ? 'every name accounted for' : 'names said ' + said + ' of ' + total];
 }`;
+
+/**
+ * THE CLOCK FACE'S HANDS, WASHED (idea 26033e4b). The dial is drawn on the same
+ * Plate ring as the timer, over the same SVG radial-gradient face the contrast
+ * walk cannot see, so this reads the face's two RESOLVED stops and each hand's
+ * own computed stroke, composited through the same model `RING_FACE_CONTRAST`
+ * uses (`contrast` null is plain WCAG). The hour and minute hands and the
+ * indices are the time and are held to 4.5; the second hand is a graphical
+ * object, 3; and every hand against its own halo (the band that keeps a light
+ * hand legible where it crosses the ring's light segments), 3. Reports the
+ * weakest of each so the reading is auditable, on `window.__bvDialInks`.
+ */
+export const DIAL_HANDS_CONTRAST = (contrast, ambient, { word = 'washed' } = {}) => `() => {
+	const toRgb = (s) => { const m = String(s).match(/rgba?\\(([^)]+)\\)/); if (!m) return null; const p = m[1].split(/[ ,\\/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2] }; };
+	const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+	const lum = (c) => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+	const wash = (l) => ${contrast === null ? 'l' : `l * (1 - 1 / ${contrast}) + 1 / ${contrast} + ${ambient}`};
+	const flare = ${contrast === null ? 0.05 : 0};
+	const ratio = (a, b) => { const [x, y] = [wash(lum(a)), wash(lum(b))].sort((p, q) => q - p); return (x + flare) / (y + flare); };
+	const dial = document.querySelector('[data-testid="projector-dial"]');
+	if (!dial) return ['no dial'];
+	const stops = [...dial.querySelectorAll('[data-testid="plate-ring"] radialGradient stop')].map((s) => toRgb(getComputedStyle(s).stopColor));
+	if (stops.length !== 2) return ['face stops ' + stops.length];
+	const ink = (sel) => toRgb(getComputedStyle(dial.querySelector(sel)).stroke);
+	const onFace = (c) => Math.min(...stops.map((s) => ratio(c, s)));
+	const hands = Math.min(onFace(ink('.wc-hour .wc-ink')), onFace(ink('.wc-min .wc-ink')), onFace(ink('.wc-index')));
+	const second = onFace(ink('.wc-sec-ink'));
+	const halo = Math.min(
+		ratio(ink('.wc-hour .wc-ink'), ink('.wc-hour .wc-halo')),
+		ratio(ink('.wc-min .wc-ink'), ink('.wc-min .wc-halo')),
+		ratio(ink('.wc-sec-ink'), ink('.wc-sec .wc-halo'))
+	);
+	window.__bvDialInks = 'hands ' + hands.toFixed(2) + ':1, second ' + second.toFixed(2) + ':1, halo ' + halo.toFixed(2) + ':1 (${word})';
+	return [
+		hands >= 4.5 ? 'hands and indices clear 4.5 ${word} on the face' : 'hands ' + hands.toFixed(2) + ':1 ${word}',
+		second >= 3 ? 'the second hand clears 3 ${word} on the face' : 'second hand ' + second.toFixed(2) + ':1 ${word}',
+		halo >= 3 ? 'every hand clears 3 ${word} on its halo' : 'halo ' + halo.toFixed(2) + ':1 ${word}'
+	];
+}`;
+
+/** The same, by WCAG, for a theme the projector model does not judge. */
+export const DIAL_HANDS_WCAG = DIAL_HANDS_CONTRAST(null, 0, { word: 'WCAG' });
+
+/**
+ * THE DIAL TELLS THE TIME THE DIGITS UNDER IT SAY, AND FILLS THE HERO. The
+ * hands' angles (the dial's own data attributes) against the reading parsed off
+ * the digits, within half a degree; the dial's height against the window's
+ * (half of it, landscape), and the digits sitting wholly under the dial.
+ */
+export const DIAL_READS = `() => {
+	const dial = document.querySelector('[data-testid="projector-dial"]');
+	const read = document.querySelector('.lp-dial-read');
+	if (!dial || !read) return ['no dial'];
+	const m = read.textContent.replace(/\\s+/g, '').match(/^(\\d{1,2}):(\\d{2})([AP]M)$/);
+	if (!m) return ['digits unreadable: ' + read.textContent.trim()];
+	const h = +m[1] % 12, min = +m[2];
+	const near = (a, b) => Math.abs(((+a - b) % 360 + 540) % 360 - 180) <= 0.5;
+	const d = dial.getBoundingClientRect(), r = read.getBoundingClientRect();
+	const portrait = innerWidth < innerHeight;
+	return [
+		near(dial.dataset.hour, (h + min / 60) * 30) && near(dial.dataset.minute, min * 6) ? 'the hands agree with the digits' : 'hands ' + dial.dataset.hour + '/' + dial.dataset.minute + ' against ' + m[0],
+		portrait || d.height >= 0.5 * innerHeight ? 'the dial fills the hero' : 'dial ' + Math.round(d.height) + 'px < ' + Math.round(0.5 * innerHeight) + 'px',
+		r.top >= d.bottom - 1 && r.width > 0 ? 'the digits sit under the dial' : 'digits at ' + Math.round(r.top) + ', dial ends ' + Math.round(d.bottom)
+	];
+}`;

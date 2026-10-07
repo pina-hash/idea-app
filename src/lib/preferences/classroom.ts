@@ -14,7 +14,10 @@
  *   display   DEVICE.  The right density depends on the screen in front of the
  *                      teacher, not on the teacher: the projector at the wall and
  *                      the laptop at the desk want different answers from the same
- *                      person, the same reason the theme is per device.
+ *                      person, the same reason the theme is per device. The wall's
+ *                      clock face (`wallClock`) is here for the same reason: the
+ *                      projector is driven from one machine at the front of the
+ *                      room, and its look is a property of that screen.
  *   classView ACCOUNT. Which filter a class opens on is a working habit, not a
  *                      property of a screen; it should greet a student the same
  *                      way on a phone and on a lab computer.
@@ -51,6 +54,7 @@
 import { GRADING_ORDER_DEFAULT, GRADING_ORDER_OPTIONS, type GradingOrderKey } from '$lib/classroom/grading-order';
 import { TODO_VIEW_LABELS, type TodoView } from '$lib/classroom/todo';
 import { panelSummary, readPanelLayout, type PanelLayout, type PanelPage } from '$lib/classroom/panel-layout';
+import { WALL_CLOCK_FACES, type WallClockFace } from '$lib/classroom/live-class/wall-clock';
 import {
 	LocalPreferenceStore,
 	MemoryPreferenceStore,
@@ -175,7 +179,8 @@ const CLASS_KEY = /^[A-Za-z0-9._-]{1,64}$/;
 const HINT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export interface ClassroomPreferences {
-	display: { density: Density; navWidth: number | null };
+	/** `wallClock`: the projector's hero clock, digits or the analog face (idea 26033e4b). */
+	display: { density: Density; navWidth: number | null; wallClock: WallClockFace };
 	classView: { opensOn: ClassOpensOn; todoOpensOn: TodoOpensOn };
 	grading: { advanceAfterReturn: boolean; gradesOrder: GradingOrderKey };
 	guidance: { retiredHints: string[]; tours: Record<ClassroomTourId, TourState> };
@@ -212,7 +217,7 @@ export const CLASSROOM_PREFERENCE_HOMES: Readonly<Record<ClassroomPreferenceGrou
 
 export function defaultClassroomPreferences(): ClassroomPreferences {
 	return {
-		display: { density: 'comfortable', navWidth: null },
+		display: { density: 'comfortable', navWidth: null, wallClock: 'digits' },
 		classView: { opensOn: 'all', todoOpensOn: 'assigned' },
 		grading: { advanceAfterReturn: false, gradesOrder: GRADING_ORDER_DEFAULT },
 		guidance: { retiredHints: [], tours: { teacher: 'unseen', student: 'unseen' } },
@@ -251,7 +256,8 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 			// Out of range is clamped rather than dropped: somebody who dragged the
 			// list as wide as it went meant "wide", and a later, tighter clamp
 			// should keep them at its own widest rather than snapping them back.
-			navWidth: clampNavWidth(display.navWidth)
+			navWidth: clampNavWidth(display.navWidth),
+			wallClock: oneOf(display.wallClock, WALL_CLOCK_FACES, d.display.wallClock)
 		},
 		classView: {
 			opensOn: oneOf(classView.opensOn, CLASS_OPENS_ON, d.classView.opensOn),
@@ -464,6 +470,18 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 			'How wide the list of posts stays beside an open item on a wide screen. Go wider to read long titles, narrower to give the open item more room. You can also drag the line between the two.',
 		roles: ['student', 'manager'],
 		field: 'navWidth'
+	},
+	{
+		group: 'display',
+		title: 'Projector clock',
+		help:
+			'What the class projector shows as its big clock when no timer is set: the time in large numbers, or a clock face with hands and the time under it. The live class page has the same switch.',
+		roles: ['manager'],
+		field: 'wallClock',
+		options: () => [
+			{ value: 'digits', label: 'Numbers' },
+			{ value: 'dial', label: 'Clock face' }
+		]
 	},
 	{
 		group: 'classView',

@@ -132,3 +132,72 @@ describe('the wall ring, through the projector model', () => {
 		expect(w(site('space-white', '--green'), plate('space-white', '--plate-ring-rest-b'))).toBeLessThan(2);
 	});
 });
+
+/*
+ * THE CLOCK FACE ON THE SAME RING (idea 26033e4b). `WallClock.svelte` draws
+ * hands and indices over the ring's face; the face is the same SVG gradient the
+ * contrast walk cannot see, so the hands are judged here too, with the token
+ * names READ OUT OF THE COMPONENT so the test and the paint name the same ink:
+ *
+ *   - the hour and minute hands and the twelve indices, which the class reads
+ *     the time from: 4.5 washed on both face stops (they are the text tier);
+ *   - the second hand: 3 washed on both stops (a graphical object);
+ *   - every hand against its own halo, which is what keeps a light hand legible
+ *     where it crosses the ring's light glowing segments: 3 washed.
+ *
+ * NEGATIVE CONTROL: the Plate's own tick colour, the obvious ink for an index,
+ * fails on Space White (about 1.6 washed), which is why the indices do not use it.
+ */
+const clockSrc = readFileSync('src/lib/classroom/live-class/WallClock.svelte', 'utf8');
+function strokeOf(selector: string, prop: 'stroke' | 'fill' = 'stroke'): string | undefined {
+	const at = clockSrc.indexOf(`\n\t${selector} {`);
+	if (at < 0) return undefined;
+	const body = clockSrc.slice(at, clockSrc.indexOf('}', at));
+	return body.match(new RegExp(`\\n\\s*${prop}: var\\((--[a-z0-9-]+)\\);`))?.[1];
+}
+const HOUR_INK = strokeOf('.wc-hour .wc-ink');
+const MIN_INK = strokeOf('.wc-min .wc-ink');
+const INDEX_INK = strokeOf('.wc-index');
+const SEC_INK = strokeOf('.wc-sec-ink');
+const HALO = strokeOf('.wc-halo');
+const token = (theme: Theme, name: string) => (name.startsWith('--plate-ring-') ? plate(theme, name) : site(theme, name));
+
+describe('the clock face, through the projector model', () => {
+	it("reads the dial's own inks out of the component", () => {
+		expect(HOUR_INK).toBe('--text-1');
+		expect(MIN_INK).toBe('--text-1');
+		expect(INDEX_INK).toBe('--text-1');
+		expect(SEC_INK).toBe('--plate-ring-text');
+		expect(HALO).toBe('--plate-ring-band');
+	});
+
+	for (const theme of THEMES) {
+		it(`${theme}: the hour and minute hands and the indices clear 4.5 washed on both face stops`, () => {
+			for (const ink of [HOUR_INK!, MIN_INK!, INDEX_INK!]) {
+				for (const stop of ['--plate-ring-face', '--plate-ring-face-hi'] as const) {
+					expect(w(token(theme, ink), face(theme, stop)), `${theme} ${ink} on ${stop}`).toBeGreaterThanOrEqual(4.5);
+				}
+			}
+		});
+
+		it(`${theme}: the second hand clears 3 washed on both face stops`, () => {
+			for (const stop of ['--plate-ring-face', '--plate-ring-face-hi'] as const) {
+				expect(w(token(theme, SEC_INK!), face(theme, stop)), `${theme} ${stop}`).toBeGreaterThanOrEqual(3);
+			}
+		});
+
+		it(`${theme}: every hand stands off its own halo by 3 washed`, () => {
+			for (const ink of [HOUR_INK!, SEC_INK!]) {
+				expect(w(token(theme, ink), token(theme, HALO!)), `${theme} ${ink}`).toBeGreaterThanOrEqual(3);
+			}
+		});
+	}
+
+	it("NEGATIVE CONTROL: the Plate's tick colour would fail as an index on Space White", () => {
+		const worst = Math.min(
+			w(plate('space-white', '--plate-ring-ticks'), face('space-white', '--plate-ring-face')),
+			w(plate('space-white', '--plate-ring-ticks'), face('space-white', '--plate-ring-face-hi'))
+		);
+		expect(worst).toBeLessThan(3);
+	});
+});

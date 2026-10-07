@@ -47,20 +47,26 @@
 	 *   full     the fit stress: twelve agenda lines, three Coming up, the hall
 	 *            pass, a pick, and a class of thirty with names on
 	 *   clock    no timer: the clock is the hero, with side cards
+	 *   bare     no timer and nothing else: the clock alone, the side empty
 	 *   stale    demo counts whose activity is older than the wall keeps
 	 *   final|paused|done|stopwatch   that timer alone (the fixture's `demoTimer`)
 	 *
 	 * `?clock=pinned` stops this page's clock at load, which is what lets a spec
 	 * read the last seconds and the finish exactly; `?theme=space-white` or
-	 * `?theme=matrix` forces the theme attribute (no session here).
+	 * `?theme=matrix` forces the theme attribute (no session here);
+	 * `?face=dial` seeds the clock face; `?session=1` fakes a signed-in teacher
+	 * so the page follows the site theme like the real projector (+page.ts).
 	 */
 	const demo = page.url.searchParams.get('demo');
+	const face = page.url.searchParams.get('face') === 'dial' ? 'dial' : 'digits';
 	const themeParam = page.url.searchParams.get('theme');
 	const pinned = page.url.searchParams.get('clock') === 'pinned';
 	const PIN = Date.now();
 	const clock = pinned ? () => PIN : () => Date.now();
 	const TIMER_KINDS = ['final', 'paused', 'done', 'stopwatch'];
 	const timerOnly = demo === 'timer' || TIMER_KINDS.includes(demo ?? '');
+	/** Nothing on the wall but the clock: the side is empty and the hero takes the whole width. */
+	const bare = demo === 'bare';
 
 	const AGENDA = [
 		'Notebook check-in: Gearbox teardown',
@@ -123,12 +129,12 @@
 			if (demo) {
 				const now = PIN;
 				const full = demo === 'full';
-				const withSide = !timerOnly;
+				const withSide = !timerOnly && !bare;
 				const frame = buildProjectorFrame({
 					day: today(now),
 					at: now,
-					agenda: timerOnly ? [] : full ? AGENDA_FULL : AGENDA,
-					timer: demo === 'clock' ? null : demoTimer(timerOnly && demo !== 'timer' ? demo : 'running', now),
+					agenda: timerOnly || bare ? [] : full ? AGENDA_FULL : AGENDA,
+					timer: demo === 'clock' || bare ? null : demoTimer(timerOnly && demo !== 'timer' ? demo : 'running', now),
 					hallPass: withSide ? hallPass(now) : null,
 					pick: withSide && demo !== 'clock' ? { name: 'Cruz Delgado', seed: 'K7Q2' } : null,
 					next: withSide
@@ -151,7 +157,8 @@
 								)
 							: wallComingUp(items(now), today(now), now)
 						: [],
-					activity: activityFor(demo, now)
+					activity: activityFor(demo, now),
+					clockFace: face
 				});
 				localStorage.setItem(key, JSON.stringify(frame));
 			}
@@ -170,6 +177,16 @@
 			clearTimeout(t);
 			el.removeAttribute('data-theme');
 		};
+	});
+
+	/* HYDRATED, SAID ON THE BODY. The projector's clock digits are server-
+	   rendered, so a spec waiting on them can act before ThemeRoot's storage
+	   listener exists (measured: the follow spec's first write landed before
+	   hydration at 1440 and was lost). Effects run in the hydration flush, so a
+	   spec that sees this attribute sees every effect of the page attached. */
+	$effect(() => {
+		document.body.setAttribute('data-projector-hydrated', 'true');
+		return () => document.body.removeAttribute('data-projector-hydrated');
 	});
 
 	const build = describeBuild({ sha: 'harness', complete: false }, null);

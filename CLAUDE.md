@@ -1443,6 +1443,30 @@ random picker; `/classroom/<id>/live/projector` is `+page@.svelte`, a reset to
 the ROOT layout, so it inherits the site theme and drops the classroom chrome.
 It loads the class label and nothing that names a person.
 
+- **THE WALL FOLLOWS A THEME CHANGE LIVE, AND NEVER THROUGH THE FRAME (bug
+  145c0352).** The projector has no theme control and a deploy never reloads
+  it, so `ThemeRoot` listens for the `storage` event another window's write
+  fires, reads it with `themeFromStorageEvent` and hands it to
+  `adoptSiteTheme`, which moves the state and NEVER writes storage (a follower
+  that repaired an unknown id would fight another build's tab over the key).
+  Every open window of the browser follows; the session gate and Space White's
+  scope still decide what paints. Theme in the frame was the rejected shape: a
+  second writer of `data-theme` that fixed one window. With site data blocked
+  nothing persists, so nothing follows. `tools/browser-verify/_theme-follow.mjs`
+  drives four pages of one context and reddens with the listener removed.
+- **THE CLOCK FACE IS THE FRAME'S TENTH KEY, `clockFace`, OFF BY DEFAULT (idea
+  26033e4b).** `digits` is the wall as it was; `dial` is `WallClock` (an analog
+  face on `PlateRing`, digits under it), the hero ONLY while no timer is up,
+  because the ring already means time left. The choice is the control view's
+  Clock face key, remembered per device in `display.wallClock` (a Settings row
+  too). The hands come from `clockHandAngles` in school time, the hour and
+  minute hands stepping once a minute; the second hand is not drawn under
+  `reduce`, and no hand is ever moved by a CSS transition (354 to 0 would sweep
+  backwards). Hands and indices are `--text-1` (5.78 washed at worst, Space
+  White), the second hand `--plate-ring-text` (3.43), each over a
+  `--plate-ring-band` halo; the Plate's tick colour fails as an index (1.58).
+  The dial sizes on its own `--lp-dial`, never a re-pointed `--lp-ring`.
+
 - **`buildProjectorFrame` IS THE ONE PROJECTION AND `parseProjectorFrame`
   RE-VALIDATES ON THE WAY IN.** A frame crosses a same-browser `BroadcastChannel`
   (with a `localStorage` fallback), and the projector keeps only
