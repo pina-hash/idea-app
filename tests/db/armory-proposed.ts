@@ -10,7 +10,9 @@
 // completion: exactly the database production held before the apply (the
 // chain-0230 shape). 0231 then goes on top. It used to be "every file but
 // 0231", which put 0232 (built on 0231) in front of the file it builds on.
-// 0232, Armory v2 (ledger 0366), goes on top of that.
+// 0232, Armory v2 (ledger 0366), goes on top of that. 0233 is the round file
+// of 2026-10-07: two of its parts are Armory v0.3, so it joins the Armory
+// series, resolved by its number because its name is the round's.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -49,5 +51,16 @@ export const WITH_ARMORY: readonly string[] = [...PRE_ARMORY, PROPOSED_ENTRY];
 export const V2_NAME = '0232_armory_v2.sql';
 export const V2_SQL = readFileSync(join(MIGRATIONS_DIR, V2_NAME), 'utf8');
 
+/**
+ * Armory v0.3 (the 2026-10-07 round file, parts armory-reports and
+ * armory-core). Found by its number: the file is named for the round.
+ */
+const FILES_0233 = ALL_MIGRATIONS.filter((f) => f.startsWith('0233_'));
+if (FILES_0233.length !== 1) {
+	throw new Error(`expected exactly one 0233 migration, found ${FILES_0233.length}`);
+}
+export const V3_NAME = FILES_0233[0];
+export const V3_SQL = readFileSync(join(MIGRATIONS_DIR, V3_NAME), 'utf8');
+
 /** The Armory migrations, in order: the only files that may name armory_. */
-export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME];
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME];

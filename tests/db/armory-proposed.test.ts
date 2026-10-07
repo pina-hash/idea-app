@@ -6,7 +6,8 @@
 // (tests/db/armory-proposed.ts) on top of every other committed migration. What is
 // held here, and why each is a silent regression rather than a visible one:
 //
-//   - NO OTHER MIGRATION NAMES armory_, so 0231 is the one place the schema lives.
+//   - NO MIGRATION OUTSIDE THE ARMORY SERIES (0231, 0232, 0233) NAMES armory_,
+//     so the series is the one place the schema lives.
 //   - NO NAME COLLIDES. The file uses `create ... if not exists`, so a
 //     collision with an existing object would apply cleanly and leave the OLD
 //     object in place; only a catalog read before the apply can see that.
@@ -34,7 +35,8 @@ import {
 	PRE_ARMORY,
 	PROPOSED_ENTRY,
 	PROPOSED_NAME,
-	PROPOSED_SQL
+	PROPOSED_SQL,
+	V3_NAME
 } from './armory-proposed';
 
 const HASH_A = 'a'.repeat(64);
@@ -93,14 +95,15 @@ afterAll(async () => {
 	await db?.stop();
 });
 
-describe('the Armory schema is migration 0231 and nothing else names it', () => {
+describe('the Armory schema is the Armory series (0231, 0232, 0233) and nothing else names it', () => {
 	test('0231_armory.sql exists in supabase/migrations', () => {
 		expect(PROPOSED_NAME).toBe('0231_armory.sql');
 		expect(PROPOSED_ENTRY).toBe('0231_armory.sql');
 		expect(ALL_MIGRATIONS).toContain('0231_armory.sql');
 	});
 	test('no migration but the Armory series names armory_ in its filename or body', () => {
-		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql']);
+		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql', V3_NAME]);
+		expect(V3_NAME).toMatch(/^0233_/);
 		const others = ALL_MIGRATIONS.filter((f) => !ARMORY_MIGRATIONS.includes(f));
 		const named = others.filter((f) => /armory/i.test(f));
 		const mentioning = others.filter((f) => /armory_/i.test(readFileSync(join(MIGRATIONS_DIR, f), 'utf8')));
