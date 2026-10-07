@@ -6,9 +6,10 @@
 -- WHY TWO TABLES OF THEIR OWN, AND NOT app_feedback. app_feedback is the one
 -- queue for every WEBSITE surface. The Windows app sends a different payload:
 -- a required app version, the computer's name, up to 8000 characters, a
--- context object (log lines), and, for an incident, a report of up to 1 MiB
--- that is kept for 90 days. Mr. Pina's v0.3 request names these tables, and
--- they are shown as their own two tabs in the same /admin/feedback console.
+-- context object (log lines) of at most 128 KiB, and, for an incident, a
+-- report of up to 1 MiB that is kept for 90 days. Mr. Pina's v0.3 request
+-- names these tables, and they are shown as their own two tabs in the same
+-- /admin/feedback console.
 --
 -- WHO READS. Rows are read by a site admin directly (RLS is_admin(), select
 -- granted to authenticated), so the console can fetch a whole incident report
@@ -50,7 +51,10 @@ create table if not exists public.armory_app_feedback (
 	kind text not null check (kind in ('bug', 'idea', 'other')),
 	body text not null check (char_length(body) between 1 and 8000),
 	context jsonb not null default '{}'::jsonb
-		check (jsonb_typeof(context) = 'object' and pg_column_size(context) <= 1048576),
+		-- 128 KiB, by pg_column_size. A CHECK sees the value before it is
+		-- compressed, so this is the size as sent, the same number the submit
+		-- refuses on. The admin list returns context whole, so it stays small.
+		check (jsonb_typeof(context) = 'object' and pg_column_size(context) <= 131072),
 	status text not null default 'new' check (status in ('new', 'seen', 'resolved', 'spam')),
 	reviewed_at timestamptz,
 	reviewed_by text,
@@ -108,7 +112,8 @@ drop policy if exists armory_app_incidents_admin_read on public.armory_app_incid
 create policy armory_app_incidents_admin_read on public.armory_app_incidents
 	for select to authenticated using (public.is_admin());
 
--- A note from the Windows app. Twenty an hour per account.
+-- A note from the Windows app. Twenty an hour per account; a context of at
+-- most 128 KiB (131072 bytes, the size as sent).
 create or replace function public.armory_submit_app_feedback(
 	p_kind text, p_body text, p_app_version text, p_device_name text, p_context jsonb
 ) returns uuid
@@ -146,9 +151,9 @@ begin
 			detail = jsonb_build_object('reason', 'not_object', 'field', 'context')::text;
 	end if;
 	v_size := pg_column_size(v_context);
-	if v_size > 1048576 then
-		raise exception 'The context is % bytes; the limit is 1048576.', v_size using errcode = '22023',
-			detail = jsonb_build_object('reason', 'too_large', 'field', 'context', 'limit', 1048576, 'size', v_size)::text;
+	if v_size > 131072 then
+		raise exception 'The context is % bytes; the limit is 131072.', v_size using errcode = '22023',
+			detail = jsonb_build_object('reason', 'too_large', 'field', 'context', 'limit', 131072, 'size', v_size)::text;
 	end if;
 
 	-- The capacity check holds a lock on the account, so two notes at once cannot both pass.
@@ -471,7 +476,15 @@ $ar$;
 -- ordered against the apply. A 0.2.x Windows app reads exactly the answers it
 -- read before, refusal text and SQLSTATE included, except one deliberate
 -- change: armory_break_lock with a null device used to refuse 'device is not
--- registered to caller' and now reaches the role check.
+-- registered to caller' and now reaches the role check. armory_add_member and
+-- armory_remove_member admit a site admin with a mentor's reach (the website
+-- offers a site admin the people of every project); every member's call
+-- answers exactly as before.
+--
+-- TRUNCATE. It skips a row-level trigger, so on the three immutable history
+-- tables it is a way past armory_refuse_version_mutation that needs neither the
+-- marker nor the owner. service_role held it by the hosted default privileges
+-- and no app path truncates anything, so this part revokes it there.
 --
 -- UNDO, before any client depends on it: paste back the 0231 and 0232 bodies
 -- of the functions replaced here and the 0231 policy expressions, then drop
@@ -856,6 +869,82 @@ end $ac$;
 -- 0231 or 0232 body with only the marked lines changed.
 -- ---------------------------------------------------------------------------
 
+-- The people of a project. 0231's bodies with only the marked lines changed:
+-- a site admin manages any project's members with a mentor's reach, because
+-- the website offers them the people search everywhere. Everyone else meets
+-- 0231's role check, its text and its SQLSTATE, unchanged.
+create or replace function public.armory_add_member(p_project uuid, p_email text, p_role public.armory_member_role, p_operation uuid) returns boolean
+language plpgsql security definer set search_path = '' as $ac$
+declare e text := public.armory_current_email(); r jsonb; caller public.armory_member_role; target text; old public.armory_member_role; mentors int; answer boolean;
+begin
+	r := public.armory_replay(p_operation, 'armory_add_member');
+	if r is not null then return (r->>'result')::boolean; end if;
+	-- Serialize every membership change in a project so the last-mentor rule cannot race.
+	perform 1 from public.armory_projects where id = p_project for update;
+	-- 0233: a site admin acts as a mentor of any project; a project that does not exist is said so.
+	if coalesce(public.is_admin(), false) then
+		if not exists (select 1 from public.armory_projects where id = p_project) then
+			raise exception 'project not found' using errcode = 'P0002';
+		end if;
+		caller := 'mentor';
+	else
+		caller := public.armory_require_role(p_project, array['mentor', 'cad_lead']::public.armory_member_role[], 'only a mentor or CAD lead may add members');
+	end if;
+	if p_role is null then raise exception 'a role is required' using errcode = '22023'; end if;
+	target := lower(btrim(coalesce(p_email, '')));
+	if target !~ '^[^@[:space:]]+@[^@[:space:]]+$' then raise exception 'a valid email is required' using errcode = '22023'; end if;
+	if p_role in ('mentor', 'cad_lead') and caller <> 'mentor' then raise exception 'only a mentor may grant mentor or cad_lead' using errcode = '42501'; end if;
+	select role into old from public.armory_members where project_id = p_project and email = target;
+	if old in ('mentor', 'cad_lead') and caller <> 'mentor' then raise exception 'only a mentor may change a mentor or cad_lead' using errcode = '42501'; end if;
+	if old = 'mentor' and p_role <> 'mentor' then
+		select count(*) into mentors from public.armory_members where project_id = p_project and role = 'mentor';
+		if mentors <= 1 then raise exception 'A project always keeps at least one mentor.' using errcode = 'P0001'; end if;
+	end if;
+	if old is null then
+		insert into public.armory_members(project_id, email, role) values (p_project, target, p_role);
+		answer := true;
+		perform public.armory_add_change(p_project, 'member_added', p_project, jsonb_build_object('email', target, 'role', p_role, 'by', e));
+	elsif old <> p_role then
+		update public.armory_members set role = p_role where project_id = p_project and email = target;
+		answer := true;
+		perform public.armory_add_change(p_project, 'member_role_changed', p_project, jsonb_build_object('email', target, 'role', p_role, 'previous_role', old, 'by', e));
+	else
+		answer := false;
+	end if;
+	perform public.armory_remember(p_operation, 'armory_add_member', jsonb_build_object('result', answer));
+	return answer;
+end $ac$;
+
+create or replace function public.armory_remove_member(p_project uuid, p_email text, p_operation uuid) returns boolean
+language plpgsql security definer set search_path = '' as $ac$
+declare e text := public.armory_current_email(); r jsonb; target text; old public.armory_member_role; mentors int; answer boolean;
+begin
+	r := public.armory_replay(p_operation, 'armory_remove_member');
+	if r is not null then return (r->>'result')::boolean; end if;
+	perform 1 from public.armory_projects where id = p_project for update;
+	-- 0233: a site admin removes from any project; a project that does not exist is said so.
+	if coalesce(public.is_admin(), false) then
+		if not exists (select 1 from public.armory_projects where id = p_project) then
+			raise exception 'project not found' using errcode = 'P0002';
+		end if;
+	else
+		perform public.armory_require_role(p_project, array['mentor']::public.armory_member_role[], 'only a mentor may remove members');
+	end if;
+	target := lower(btrim(coalesce(p_email, '')));
+	select role into old from public.armory_members where project_id = p_project and email = target;
+	if old = 'mentor' then
+		select count(*) into mentors from public.armory_members where project_id = p_project and role = 'mentor';
+		if mentors <= 1 then raise exception 'A project always keeps at least one mentor.' using errcode = 'P0001'; end if;
+	end if;
+	answer := old is not null;
+	if answer then
+		delete from public.armory_members where project_id = p_project and email = target;
+		perform public.armory_add_change(p_project, 'member_removed', p_project, jsonb_build_object('email', target, 'role', old, 'by', e));
+	end if;
+	perform public.armory_remember(p_operation, 'armory_remove_member', jsonb_build_object('result', answer));
+	return answer;
+end $ac$;
+
 create or replace function public.armory_set_project_archived(p_project uuid, p_archived boolean, p_operation uuid) returns boolean
 language plpgsql security definer set search_path = '' as $ac$
 declare e text := public.armory_current_email(); r jsonb; was timestamptz; answer boolean;
@@ -1080,18 +1169,25 @@ begin
 	), '[]'::jsonb);
 end $ac$;
 
--- Find a school account to add to a project: a mentor of the project, or a site
--- admin. Matches the SHOWN name and the address's local part, never a full name
--- a display name replaced; returns no account id; at most 25.
+-- Find a school account to add to a project: a site admin, or a mentor of the
+-- project whose own address is a school teacher account. The search is a
+-- name-to-address directory of every school account, and a mentor can grant
+-- mentor to a student address, so a student holding the mentor role (or a
+-- mentor on another domain) is refused and uses Add by email. Matches the SHOWN
+-- name and the address's local part, never a full name a display name
+-- replaced; returns no account id; at most 25.
 create or replace function public.armory_people_search(p_project uuid, p_query text, p_limit integer default 12) returns jsonb
 language plpgsql stable security definer set search_path = '' as $ac$
 declare
+	e text := public.armory_current_email();
 	v_q text := lower(regexp_replace(coalesce(p_query, ''), '^\s+|\s+$', '', 'g'));
 	v_words text[];
 	v_limit integer := least(greatest(coalesce(p_limit, 12), 1), 25);
 begin
-	if not coalesce(public.is_admin(), false) then
-		perform public.armory_require_role(p_project, array['mentor']::public.armory_member_role[], 'only a mentor or a site admin may search for people');
+	if not (coalesce(public.is_admin(), false)
+		or (public.role_for_email(e) = 'teacher'
+			and exists (select 1 from public.armory_members m where m.project_id = p_project and m.email = e and m.role = 'mentor'))) then
+		raise exception 'only a teacher mentor or a site admin may search for people' using errcode = '42501';
 	end if;
 	if char_length(regexp_replace(v_q, '\s', '', 'g')) < 2 then return '[]'::jsonb; end if;
 	v_words := regexp_split_to_array(v_q, '\s+');
@@ -1129,7 +1225,8 @@ end $ac$;
 -- ---------------------------------------------------------------------------
 
 -- The Windows app says it is running. Writes no feed row; a call within 20
--- seconds that changes nothing writes nothing at all.
+-- seconds that changes nothing writes nothing at all. An empty or null version
+-- or state keeps what is stored, so a bare liveness ping never erases them.
 create or replace function public.armory_heartbeat(p_device uuid, p_app_version text, p_state text) returns void
 language plpgsql security definer set search_path = '' as $ac$
 declare
@@ -1145,10 +1242,12 @@ begin
 		raise exception 'The state is one word.' using errcode = '22023',
 			detail = jsonb_build_object('reason', 'state', 'field', 'state')::text;
 	end if;
-	update public.armory_devices set last_seen = now(), app_version = v_version, state = v_state
+	update public.armory_devices
+	set last_seen = now(), app_version = coalesce(v_version, app_version), state = coalesce(v_state, state)
 	where id = p_device
 		and (last_seen is null or last_seen < now() - interval '20 seconds'
-			or app_version is distinct from v_version or state is distinct from v_state);
+			or (v_version is not null and app_version is distinct from v_version)
+			or (v_state is not null and state is distinct from v_state));
 end $ac$;
 
 -- Check out many files: armory_acquire_lock per file, in id order (two batches
@@ -1556,6 +1655,13 @@ revoke all on function
 from public, anon, authenticated, service_role;
 revoke all on function public.armory_refuse_version_mutation() from public, anon, authenticated;
 
+-- TRUNCATE skips the row-level immutability trigger, so on the three history
+-- tables it would empty a project's history with no marker and no owner test.
+-- service_role held it by the hosted default privileges and no app path uses
+-- it. The owner keeps it, as an owner always does.
+revoke truncate on public.armory_versions, public.armory_side_versions, public.armory_version_releases
+	from service_role;
+
 -- Named inside RLS policies, so evaluated as the querying role.
 revoke all on function public.armory_can_view(uuid) from public, anon, authenticated;
 grant execute on function public.armory_can_view(uuid) to authenticated;
@@ -1569,6 +1675,8 @@ revoke all on function
 	public.armory_tombstone(uuid, uuid, uuid, uuid),
 	public.armory_move_file(uuid, text, text, uuid, uuid),
 	public.armory_create_file(uuid, text, text, uuid, uuid),
+	public.armory_add_member(uuid, text, public.armory_member_role, uuid),
+	public.armory_remove_member(uuid, text, uuid),
 	public.armory_set_project_archived(uuid, boolean, uuid),
 	public.armory_my_projects(),
 	public.armory_project_files(uuid),
@@ -1598,6 +1706,8 @@ grant execute on function
 	public.armory_tombstone(uuid, uuid, uuid, uuid),
 	public.armory_move_file(uuid, text, text, uuid, uuid),
 	public.armory_create_file(uuid, text, text, uuid, uuid),
+	public.armory_add_member(uuid, text, public.armory_member_role, uuid),
+	public.armory_remove_member(uuid, text, uuid),
 	public.armory_set_project_archived(uuid, boolean, uuid),
 	public.armory_my_projects(),
 	public.armory_project_files(uuid),
@@ -1635,6 +1745,7 @@ declare
 		'armory_save_side_version(uuid, uuid, text, text, bigint, text, uuid, uuid)',
 		'armory_commit_version(uuid, uuid, text, text, bigint, uuid, uuid)', 'armory_tombstone(uuid, uuid, uuid, uuid)',
 		'armory_move_file(uuid, text, text, uuid, uuid)', 'armory_create_file(uuid, text, text, uuid, uuid)',
+		'armory_add_member(uuid, text, public.armory_member_role, uuid)', 'armory_remove_member(uuid, text, uuid)',
 		'armory_set_project_archived(uuid, boolean, uuid)', 'armory_my_projects()', 'armory_project_files(uuid)',
 		'armory_file_history(uuid)', 'armory_list_changes(uuid, bigint)', 'armory_project_checkouts(uuid)',
 		'armory_project_summaries(uuid)', 'armory_team_status(uuid)', 'armory_people_search(uuid, text, integer)',
@@ -1697,6 +1808,12 @@ begin
 		end if;
 	end loop;
 
+	foreach v_t in array array['armory_versions', 'armory_side_versions', 'armory_version_releases'] loop
+		if pg_catalog.has_table_privilege('service_role', 'public.' || v_t, 'truncate') then
+			raise exception '0233 armory-core: service_role holds truncate on public.%', v_t;
+		end if;
+	end loop;
+
 	select count(*) into v_n from pg_catalog.pg_attribute a
 	where not a.attisdropped and a.attnum > 0 and (
 		(a.attrelid = 'public.armory_devices'::regclass and a.attname in ('last_seen', 'app_version', 'state'))
@@ -1718,7 +1835,7 @@ begin
 		raise exception '0233 armory-core: the purge function''s owner is not a member of all three history tables'' owners (% of 3)', v_n;
 	end if;
 
-	raise notice '0233 armory-core: % client functions and % private, 0 executable by anon; 2 tables with RLS and no policy; 10 read policies on armory_can_view; 4 columns',
+	raise notice '0233 armory-core: % client functions and % private, 0 executable by anon; 2 tables with RLS and no policy; 10 read policies on armory_can_view; 4 columns; 0 of 3 history tables truncatable by service_role',
 		cardinality(v_client), cardinality(v_private);
 end
 $ac$;

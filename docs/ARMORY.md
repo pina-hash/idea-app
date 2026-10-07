@@ -253,7 +253,9 @@ banner saying so. That is decided by the phase 0 spike, not guessed.
   grading a team project without asking who did what. An assignment links to its project.
 - **Roles.** Student, CAD lead, mentor, instructor. Leads and mentors break locks
   (Force check in), and so does a site admin on any project (v0.3, decision 3 below),
-  release parts and manage the COTS library.
+  release parts and manage the COTS library. A site admin also manages any project's
+  people with a mentor's reach, and only a site admin or a teacher who mentors the
+  project may search the school's accounts by name (v0.3, 0233).
 
 ## Design
 
@@ -347,17 +349,20 @@ Added 2026-10-07 for Mr. Pina's "IDEA Armory website requests v0.3". The schema 
 parts of `supabase/migrations/0233_feedback_round_and_armory_v3.sql` (parts
 `armory-reports` and `armory-core`); `migrate.yml` applies it on the push that lands it.
 Every function a 0.2.x app already calls keeps its signature and answers exactly as it
-did, refusal text and SQLSTATE included (tests/db/armory-v3.test.ts holds a corpus of
-calls to that), with one deliberate change: `armory_break_lock` with a null device used
-to refuse "device is not registered to caller" and now reaches the role check.
+did for every member, refusal text and SQLSTATE included (tests/db/armory-v3.test.ts
+holds a corpus of calls to that, membership calls among them), with one deliberate
+change: `armory_break_lock` with a null device used to refuse "device is not registered
+to caller" and now reaches the role check. What widens is a site admin's reach (Force
+check in, archive, people), never a member's.
 
 **Refusals keep the Armory convention**: a raised error with a SQLSTATE and, where there
 is more to say, a JSON `DETAIL` (`reason`, plus `names` and `total`, or `field`,
-`limit` and `size`). PostgREST answers `22023`, `23505` and `P0001` with HTTP 400,
-`42501` with 403, a `PTxyz` code with HTTP `xyz`, and class 55 and `P0002` with 500.
-Never `54000`: PostgREST answers it with 500, which a retrying client reads as
-transient. (The HTTP mapping is PostgREST's documented behaviour; it was not measured
-here.)
+`limit` and `size`). PostgREST answers `22023` and `P0001` with HTTP 400, `23505` (a
+name already taken) and `23503` with **409**, `42501` with 403 (401 with no session), a
+`PTxyz` code with HTTP `xyz`, and class 55 and `P0002` with 500. Never `54000`:
+PostgREST answers it with 500, which a retrying client reads as transient. (The HTTP
+mapping is PostgREST's documented behaviour; it was not measured here.) Branch on the
+SQLSTATE and `DETAIL.reason`, never on the status alone.
 
 ### Item 1: live updates (already live)
 
@@ -377,6 +382,8 @@ does), or it receives every project's changes.
 | `armory_break_lock(p_file uuid, p_device uuid, p_operation uuid) returns boolean` | Unchanged signature. A site admin may call it on any project; `p_device` may be NULL (the website has no computer); a device that is named must still be the caller's. The refusal is unchanged: `only a mentor or cad_lead may break a lock` (P0001). The app sends `p_device` exactly as before. |
 | `armory_my_projects() returns jsonb` | Each row gains `can_take_back` (mentor, CAD lead, or site admin). The `role` is never rewritten, and the list stays MEMBERSHIP-ONLY: it is what a computer syncs, so an admin's computer never starts syncing every project. |
 | `armory_set_project_archived(p_project, p_archived, p_operation)` | A site admin may archive or restore any project (a purge needs it archived). A nonexistent project answers `project not found` (P0002). |
+| `armory_add_member(p_project uuid, p_email text, p_role armory_member_role, p_operation uuid) returns boolean` | Unchanged signature. A site admin may add a member to, or change a role in, any project with a mentor's reach (so they may grant mentor and CAD lead), because the website offers them the people search on every project. The last-mentor rule holds for them too (`A project always keeps at least one mentor.`, P0001); a nonexistent project answers `project not found` (P0002) to an admin only. Everyone else meets 0231's refusals unchanged: `only a mentor or CAD lead may add members`, `only a mentor may grant mentor or cad_lead`, `only a mentor may change a mentor or cad_lead` (all 42501). Adding a member does not make the admin one. |
+| `armory_remove_member(p_project uuid, p_email text, p_operation uuid) returns boolean` | Unchanged signature. A site admin may remove from any project, last-mentor rule included; P0002 for a nonexistent project, to an admin only. Everyone else: `only a mentor may remove members` (42501), unchanged. |
 
 ### Item 3: Delete forever
 
@@ -392,6 +399,13 @@ does), or it receives every project's changes.
 member policy die with the project, so realtime would deliver nothing. It leaves a receipt
 instead (`armory_purged_projects`: the id, the name, when, which admin, the counts; no
 member address is kept).
+
+**Nothing else deletes history, TRUNCATE included.** The immutability trigger is a row
+trigger, and TRUNCATE never fires one, so on `armory_versions`, `armory_side_versions`
+and `armory_version_releases` it would empty history with no marker and no owner test.
+`service_role` held it through the hosted default privileges (measured: it emptied the
+release rows with no refusal); 0233 revokes it there, and no client role ever held it.
+Only the tables' owner keeps it.
 
 **Stored contents are shared.** A file's bytes live at `blobs/sha256/<2>/<2>/<hash>`, so
 one object can back files in several projects. A purge queues, in `armory_orphaned_blobs`,
@@ -410,10 +424,11 @@ take no identity: the address is the signed-in account's.
 
 | RPC | Limits and refusals |
 |---|---|
-| `armory_submit_app_feedback(p_kind text, p_body text, p_app_version text, p_device_name text, p_context jsonb) returns uuid` | `kind` is bug, idea or other (any case). `body` 1 to 8000 characters after trimming. `app_version` 1 to 64. `device_name` trimmed and cut to 120 (never refused). `context` a JSON object of at most 1 MiB (null is `{}`). Bad input: 22023 `{reason: kind / empty / too_long / not_object / too_large, field}`; `too_large` and `too_long` carry `limit` and `size`. **20 an hour per account**, then `PT429` `{reason: rate_limited, limit: 20, window_seconds: 3600, retry_after_seconds}`. |
+| `armory_submit_app_feedback(p_kind text, p_body text, p_app_version text, p_device_name text, p_context jsonb) returns uuid` | `kind` is bug, idea or other (any case). `body` 1 to 8000 characters after trimming. `app_version` 1 to 64. `device_name` trimmed and cut to 120 (never refused). `context` a JSON object of at most **128 KiB** (131072 bytes by `pg_column_size`, the size as sent; null is `{}`). The same limit is a CHECK on the table, and the admin list returns `context` whole, which is why it is small. Bad input: 22023 `{reason: kind / empty / too_long / not_object / too_large, field}`; `too_large` and `too_long` carry `limit` and `size`. **20 an hour per account**, then `PT429` `{reason: rate_limited, limit: 20, window_seconds: 3600, retry_after_seconds}`. |
 | `armory_submit_app_incident(p_kind text, p_summary text, p_app_version text, p_device_name text, p_project uuid, p_report jsonb, p_feedback uuid) returns uuid` | `kind` matches `^[A-Za-z][A-Za-z0-9_-]{0,39}$` (a word, so a kind a later app adds still lands; known: crash, slowAction, slowPass, repeatedFailure, repairedCheckout, readOnlyBroken, userReport). `summary` 1 to 500. `report` a JSON object of at most **1 MiB** (1048576 bytes, measured as sent); null is `{}`. `p_project` is kept only when that project exists (a purged project's id is stored as no project, never refused). `p_feedback` must be one of the caller's own notes: otherwise 22023 `{reason: feedback_not_found}`, the same for not found and not yours. **30 an hour per account**, then `PT429` with `limit: 30`. **Every submit deletes every incident older than 90 days.** |
 
-Admin only (42501 otherwise): `armory_app_feedback_admin_list(p_limit integer)` and
+Admin only (42501 otherwise): `armory_app_feedback_admin_list(p_limit integer)` (which
+carries each note's `context` whole) and
 `armory_app_incidents_admin_list(p_limit integer)` (newest first, at most 1000; the
 incident list leaves out `report`, hides anything older than 90 days, and adds
 `report_bytes`, `project_name`, `feedback_body` and `submitter_name`, the chosen display
@@ -433,7 +448,7 @@ withheld, `email` and `submitter_name` are left out.
 
 | RPC | What it does |
 |---|---|
-| `armory_heartbeat(p_device uuid, p_app_version text, p_state text) returns void` | The caller's own computer only (`device is not registered to caller`, P0001). Stamps `armory_devices.last_seen`, `app_version` (at most 40) and `state` (one word; known: idle, syncing, offline-soon). A call within 20 seconds that changes nothing writes nothing. Writes no change. 22023 for an overlong version or a state that is not one word. |
+| `armory_heartbeat(p_device uuid, p_app_version text, p_state text) returns void` | The caller's own computer only (`device is not registered to caller`, P0001). Stamps `armory_devices.last_seen`, `app_version` (at most 40) and `state` (one word; known: idle, syncing, offline-soon). A null or empty `p_app_version` or `p_state` keeps the stored value, so a bare liveness ping never erases them; a value replaces it at once. A call within 20 seconds that changes nothing writes nothing. Writes no change. 22023 for an overlong version or a state that is not one word. |
 | `armory_team_status(p_project uuid) returns jsonb` | Members and site admins (42501 otherwise). One entry per member: `{email, role, name, avatar, avatar_url, pathway, has_account, devices_total, devices: [{id, name, registered_at, last_seen, app_version, state}], checkouts: [{file_id, folder, name, path, since, device_id}]}`. A member with no account carries `has_account: false` and no name or picture. Devices are those heard from or registered in the last 30 days, or holding a live checkout in this project; `devices_total` counts all of them. |
 
 The website says "Armory open" or "Last heard from <time>", never "offline": a quiet
@@ -462,9 +477,14 @@ lists the caller's projects, and every project for a site admin with `role` null
 are not a member: `{id, name, season, role, pinned_release, release_gate, archived,
 archived_at, created_at, files, removed, checked_out, mine, members, versions,
 side_versions, bytes, stored, last_change_at}`. `armory_people_search(p_project, p_query,
-p_limit default 12)` is for the project's mentors and site admins (42501 otherwise): school
-accounts only, matched by the SHOWN name and the address's local part, at most 25,
-`{email, name, avatar, avatar_url, pathway, member_role}`.
+p_limit default 12)` is for a site admin, or a mentor of the project whose own address is
+a school teacher account (`@boscotech.edu`); anyone else, a student holding the mentor
+role and a mentor on another domain included, gets 42501 `only a teacher mentor or a site
+admin may search for people` and adds people by email. The search is a name-to-address
+directory of every school account, and a mentor can grant mentor to a student, which is
+why the role alone does not open it. School accounts only, matched by the SHOWN name and
+the address's local part, at most 25, `{email, name, avatar, avatar_url, pathway,
+member_role}`.
 
 ### What the Windows app must do
 
@@ -480,9 +500,10 @@ accounts only, matched by the SHOWN name and the address's local part, at most 2
 - Send `p_device` on `armory_break_lock` exactly as before. Show the take-back control when
   `can_take_back` is true.
 - Send `armory_heartbeat` while running (about every 30 to 60 seconds, and on a state
-  change).
+  change). A ping with a null version or state keeps what was last sent.
 - On `PT429`, wait `retry_after_seconds` before sending again. On 22023 `too_large` or
-  `too_long`, shorten and send once; never retry the same payload.
+  `too_long`, shorten and send once; never retry the same payload. A feedback note's
+  `context` is at most 128 KiB; an incident's `report` stays at 1 MiB.
 - Filter any realtime subscription and direct table read by project: an admin's session
   now reads every project.
 

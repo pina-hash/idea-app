@@ -11,7 +11,9 @@
 //     file as themselves; the address stored is the caller's own.
 //   - THE LIMITS ARE THE CONTRACT THE APP CODES AGAINST: 22023 with a DETAIL
 //     reason for bad input (too_large carries the limit and the size), PT429
-//     with the limit and the window for a rate limit. Never 54000.
+//     with the limit and the window for a rate limit. Never 54000. A note's
+//     context is at most 128 KiB, in the submit AND in the table's CHECK (which
+//     a raw insert as the owner meets), because the admin list returns it whole.
 //   - AN INCIDENT LIVES 90 DAYS: deleted by the next submit, and hidden from
 //     the console's list even before one arrives. The list NEVER carries the
 //     report (up to 1 MiB a row); report_bytes is its positive control.
@@ -126,12 +128,36 @@ describe('a feedback note from the Windows app', () => {
 		expect(reason(await bad(['bug', 'x', '  ', null, '{}']))).toEqual(['22023', 'empty']);
 		expect(reason(await bad(['bug', 'x', 'v'.repeat(65), null, '{}']))).toEqual(['22023', 'too_long']);
 		expect(reason(await bad(['bug', 'x', '1', null, '[1, 2]']))).toEqual(['22023', 'not_object']);
-		const big = await bad(['bug', 'x', '1', null, JSON.stringify({ log: 'y'.repeat(1_100_000) })]);
+		const big = await bad(['bug', 'x', '1', null, JSON.stringify({ log: 'y'.repeat(200_000) })]);
 		expect(big.code).toBe('22023');
 		const detail = JSON.parse(big.detail!);
-		expect(detail).toMatchObject({ reason: 'too_large', field: 'context', limit: 1048576 });
-		expect(detail.size).toBeGreaterThan(1048576);
+		expect(detail).toMatchObject({ reason: 'too_large', field: 'context', limit: 131072 });
+		expect(detail.size).toBeGreaterThan(131072);
 		expect(await api.one<{ ok: boolean }>(ana, 'select public.armory_submit_app_feedback($1, $2, $3, null, null) is not null as ok', ['bug', 'x'.repeat(8000), '1'])).toEqual({ ok: true });
+	});
+	test('a context of exactly 128 KiB is accepted and one byte more is refused with the limit and the size', async () => {
+		const sizeOf = async (n: number) => (await db.sql<{ s: number }>(`select pg_column_size(jsonb_build_object('log', repeat('x', $1::int))) as s`, [n])).rows[0].s;
+		const base = 131_072 - 64;
+		const n = base + (131_072 - (await sizeOf(base)));
+		expect(await sizeOf(n)).toBe(131_072);
+		const u = await person(db, 'ctx@boscotech.net', 'Cy Context');
+		const id = (await note(u, 'a long log', { context: { log: 'x'.repeat(n) } })).id;
+		expect((await db.sql<{ s: number }>('select length(context->>$2)::int as s from public.armory_app_feedback where id = $1', [id, 'log'])).rows[0].s).toBe(n);
+		const e = await api.fails(u, FEEDBACK, ['bug', 'x', '1', null, JSON.stringify({ log: 'x'.repeat(n + 1) })]);
+		expect(e.code).toBe('22023');
+		expect(JSON.parse(e.detail!)).toEqual({ reason: 'too_large', field: 'context', limit: 131072, size: 131073 });
+	});
+	test("the table's CHECK holds the same 128 KiB against a raw insert as the owner, on the size before compression", async () => {
+		// x repeated compresses to a few hundred bytes, so a CHECK that saw the stored size would let this through.
+		const raw = (n: number) =>
+			db.sql(`insert into public.armory_app_feedback (email, app_version, kind, body, context) values ('raw@boscotech.net', '1', 'bug', 'raw', jsonb_build_object('log', repeat('x', $1::int))) returning id`, [n]);
+		const sizeOf = async (n: number) => (await db.sql<{ s: number }>(`select pg_column_size(jsonb_build_object('log', repeat('x', $1::int))) as s`, [n])).rows[0].s;
+		const n = 131_072 - 64 + (131_072 - (await sizeOf(131_072 - 64)));
+		expect((await raw(n)).rows).toHaveLength(1); // positive control: exactly the limit lands
+		const stored = (await db.sql<{ s: number }>(`select pg_column_size(context) as s from public.armory_app_feedback where email = 'raw@boscotech.net'`)).rows[0].s;
+		expect(stored).toBeLessThan(131_072); // compressed in the table
+		await expect(raw(n + 1)).rejects.toMatchObject({ code: '23514', constraint: 'armory_app_feedback_context_check' });
+		await db.sql(`delete from public.armory_app_feedback where email = 'raw@boscotech.net'`);
 	});
 	test('twenty an hour per account: the 21st is PT429 with the limit and the window; another account is untouched', async () => {
 		const u = await person(db, 'busy@boscotech.net', 'Bea Busy');
@@ -168,8 +194,12 @@ describe('only a site admin reads a note', () => {
 		expect(Object.keys(list[0]).sort()).toEqual(
 			['app_version', 'body', 'context', 'created_at', 'device_name', 'email', 'id', 'kind', 'reviewed_at', 'reviewed_by', 'status', 'submitter_name'].sort()
 		);
-		const all = (await api.one<{ l: Array<{ email: string; submitter_name: string | null }> }>(admin2, 'select public.armory_app_feedback_admin_list(1000) as l')).l;
+		const all = (await api.one<{ l: Array<{ email: string; submitter_name: string | null; context: { log?: unknown } }> }>(admin2, 'select public.armory_app_feedback_admin_list(1000) as l')).l;
 		expect(all.find((r) => r.email === ben.email)!.submitter_name).toBe('Benny');
+		// The list still carries the context, whole: the 128 KiB note comes back with every character of its log.
+		const ctx = all.find((r) => r.email === 'ctx@boscotech.net')!;
+		expect(typeof ctx.context.log).toBe('string');
+		expect((ctx.context.log as string).length).toBeGreaterThan(130_000);
 		expect(all.find((r) => r.email === ana.email)!.submitter_name).toBe('Ana Reyes');
 		const e = await api.fails(ana, 'select public.armory_app_feedback_admin_list(10)');
 		expect([e.code, e.message]).toEqual(['42501', 'Only a site admin can read Armory feedback.']);

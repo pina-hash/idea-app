@@ -111,6 +111,14 @@
 // holds grants no client has, and a CHECK constraint's function runs as the
 // WRITING role (0131), so narrowing it breaks direct server writes. 0137 left
 // it alone for the same reason.
+//
+//   F. THE ONE NAMED EXCEPTION: TRUNCATE on IDEA Armory's three immutable
+//      history tables (0233). TRUNCATE skips a row-level trigger, so it is the
+//      one statement that empties a project's history past
+//      armory_refuse_version_mutation, and service_role held it by the hosted
+//      default privileges. It is asserted BY NAME over those three tables
+//      only, with a probe table proving the role really can hold TRUNCATE, so
+//      the absence is not vacuous. Nothing else about service_role is swept.
 
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { readdirSync } from 'node:fs';
@@ -982,6 +990,39 @@ describe('grant surface: the migrations against the catalog', () => {
 
 		it('pins the list length so an entry added silently fails', () => {
 			expect(Object.keys(VIEW_SURFACE).length).toBe(VIEW_SURFACE_SIZE);
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// F. TRUNCATE on Armory's immutable history.
+	// -----------------------------------------------------------------------
+	describe("F. TRUNCATE on IDEA Armory's immutable history", () => {
+		const HISTORY = ['armory_versions', 'armory_side_versions', 'armory_version_releases'];
+		it('service_role CAN hold TRUNCATE in this fixture, so the absence below means something', async () => {
+			await db.sql(`create table if not exists public.zz_service_truncate_probe (id int)`);
+			try {
+				const { rows } = await db.sql<{ held: boolean }>(
+					`select has_table_privilege('service_role', 'public.zz_service_truncate_probe', 'truncate') as held`
+				);
+				expect(rows[0].held, 'A new table inherits TRUNCATE for service_role from the hosted default privileges.').toBe(true);
+			} finally {
+				await db.sql(`drop table if exists public.zz_service_truncate_probe`);
+			}
+		});
+		it('no role but the owner may TRUNCATE the three history tables; service_role keeps DELETE, which the trigger refuses', async () => {
+			const { rows } = await db.sql<{ t: string; role: string; truncate: boolean; del: boolean }>(
+				`select t, r as role, has_table_privilege(r, 'public.' || t, 'truncate') as truncate,
+				        has_table_privilege(r, 'public.' || t, 'delete') as del
+				   from unnest($1::text[]) t cross join unnest(array['service_role', 'authenticated', 'anon']) r
+				  order by t, r`,
+				[HISTORY]
+			);
+			expect(rows).toHaveLength(9);
+			expect(
+				rows.filter((r) => r.truncate).map((r) => `${r.role} on ${r.t}`),
+				'TRUNCATE skips armory_refuse_version_mutation; 0233 revoked it from service_role by name, and 0231 from the client roles.'
+			).toEqual([]);
+			expect(rows.filter((r) => r.role === 'service_role' && r.del).length, 'Only TRUNCATE moved.').toBe(3);
 		});
 	});
 

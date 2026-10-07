@@ -19,14 +19,18 @@
 //     policies and four read functions admit armory_can_view; my_projects (what
 //     a computer syncs) stays membership-only; an outsider still reads nothing.
 //   - THE IMMUTABILITY TRIGGER still refuses every UPDATE, every DELETE of an
-//     unmarked file, and every DELETE by service_role even with the marker.
+//     unmarked file, and every DELETE by service_role even with the marker; and
+//     TRUNCATE, which skips the trigger altogether (measured before 0233), is no
+//     longer service_role's on the three history tables.
+//   - A SITE ADMIN MANAGES ANY PROJECT'S PEOPLE, with a mentor's reach, while
+//     every member's add and remove answers exactly as before (in the corpus).
 
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { scanFile } from '../../tools/apply-migration.mjs';
 import { startTestDb, type SeededUser, type TestDb } from './harness';
 import { PRE_0233, SQL_0233, catalogFingerprint, overloads, part0233, pasteTrap, tablePrivileges } from './chain-0233';
-import { armoryRpc, hash, makeAdmin, person, waitForLockWait } from './armory-v3-helpers';
+import { armoryRpc, hash, makeAdmin, person, waitForLockWait, type Refusal } from './armory-v3-helpers';
 
 let db: TestDb;
 let api: ReturnType<typeof armoryRpc>;
@@ -128,6 +132,27 @@ async function corpus(P: string): Promise<Record<string, Outcome>> {
 	await call('archive lead', lead, 'select public.armory_set_project_archived($1, true, $2) as ok', [P, randomUUID()]);
 	await call('archive null', admin, 'select public.armory_set_project_archived($1, null, $2) as ok', [P, randomUUID()]);
 	await call('part number outsider', outsider, 'select part_number from public.armory_allocate_part_number($1, 3, null, $2)', [P, randomUUID()]);
+	// The people of the project, as members manage them from a 0.2.x app or the website.
+	const ADD = 'select public.armory_add_member($1, $2, $3::public.armory_member_role, $4) as ok';
+	const REMOVE = 'select public.armory_remove_member($1, $2, $3) as ok';
+	await call('member add student', ana, ADD, [P, 'newbie@boscotech.net', 'student', randomUUID()]);
+	await call('member add outsider', outsider, ADD, [P, 'newbie@boscotech.net', 'student', randomUUID()]);
+	await call('member add no project', lead, ADD, [randomUUID(), 'newbie@boscotech.net', 'student', randomUUID()]);
+	await call('member add lead', lead, ADD, [P, ' NewBie@BoscoTech.net ', 'student', randomUUID()]);
+	await call('member add lead again', lead, ADD, [P, 'newbie@boscotech.net', 'student', randomUUID()]);
+	await call('member lead grants mentor', lead, ADD, [P, 'newbie@boscotech.net', 'mentor', randomUUID()]);
+	await call('member lead changes mentor', lead, ADD, [P, admin.email, 'student', randomUUID()]);
+	await call('member null role', lead, ADD, [P, 'newbie@boscotech.net', null, randomUUID()]);
+	await call('member bad email', lead, ADD, [P, 'not an address', 'student', randomUUID()]);
+	await call('member mentor promotes', admin, ADD, [P, 'newbie@boscotech.net', 'cad_lead', randomUUID()]);
+	await call('member demote last mentor', admin, ADD, [P, admin.email, 'student', randomUUID()]);
+	await call('member remove lead', lead, REMOVE, [P, 'newbie@boscotech.net', randomUUID()]);
+	await call('member remove student', ana, REMOVE, [P, 'newbie@boscotech.net', randomUUID()]);
+	await call('member remove outsider', outsider, REMOVE, [P, 'newbie@boscotech.net', randomUUID()]);
+	await call('member remove no project', lead, REMOVE, [randomUUID(), 'newbie@boscotech.net', randomUUID()]);
+	await call('member remove last mentor', admin, REMOVE, [P, admin.email, randomUUID()]);
+	await call('member remove', admin, REMOVE, [P, 'newbie@boscotech.net', randomUUID()]);
+	await call('member remove absent', admin, REMOVE, [P, 'newbie@boscotech.net', randomUUID()]);
 	// What a member reads back: the feed's kinds and payload keys in order, the file
 	// list's keys, and the checkout list. The keys 0233 ADDS are set aside here and
 	// asserted on their own.
@@ -170,6 +195,26 @@ async function folderCrossesCheckout(P: string, folder: string, file: string, u:
 let preDeadlock: { folder: string; checkout: string };
 let preCorpus: Record<string, Outcome>;
 let preNullDeviceBreak: Outcome;
+let preAdminAdd: Outcome;
+let preAdminRemove: Outcome;
+let preTruncate: { held: string[][]; before: number; after: number };
+
+const HISTORY = ['armory_versions', 'armory_side_versions', 'armory_version_releases'];
+
+/** service_role empties armory_version_releases with TRUNCATE inside a transaction it rolls back. */
+async function serviceRoleTruncates(): Promise<{ before: number; after: number }> {
+	return db.asServiceRole(async (q) => {
+		await q('begin');
+		try {
+			const before = (await q('select count(*)::int as n from public.armory_version_releases')).rows[0].n as number;
+			await q('truncate public.armory_version_releases');
+			const after = (await q('select count(*)::int as n from public.armory_version_releases')).rows[0].n as number;
+			return { before, after };
+		} finally {
+			await q('rollback');
+		}
+	});
+}
 
 beforeAll(async () => {
 	db = await startTestDb(PRE_0233);
@@ -250,6 +295,9 @@ beforeAll(async () => {
 	if (preDeadlock.checkout === 'ok=true') expect(await api.release(ben, race1, dev.ben)).toBe(true);
 	preCorpus = await corpus(corpusPre);
 	preNullDeviceBreak = await attempt(lead, 'select public.armory_break_lock($1, null, $2) as ok', [plate, randomUUID()], (r) => r.ok);
+	preAdminAdd = await attempt(admin2, 'select public.armory_add_member($1, $2, $3::public.armory_member_role, $4) as ok', [corpusPre, 'newcomer@boscotech.net', 'student', randomUUID()], (r) => r.ok);
+	preAdminRemove = await attempt(admin2, 'select public.armory_remove_member($1, $2, $3) as ok', [corpusPre, ben.email, randomUUID()], (r) => r.ok);
+	preTruncate = { held: await Promise.all(HISTORY.map((t) => tablePrivileges(db, 'service_role', t))), ...(await serviceRoleTruncates()) };
 
 	preFingerprint = await catalogFingerprint(db);
 	await db.sql(SQL_0233);
@@ -417,7 +465,28 @@ describe('a 0.2.x app reads the same answers', () => {
 		post = await corpus(corpusPost);
 	}, 120_000);
 	test('the corpus covers what it says it does', () => {
-		expect(Object.keys(preCorpus).length).toBeGreaterThanOrEqual(40);
+		expect(Object.keys(preCorpus).length).toBeGreaterThanOrEqual(60);
+		// The membership calls answer what 0231 says they answer, so the comparison below is not of two blanks.
+		expect(Object.entries(preCorpus).filter(([k]) => k.startsWith('member ')).map(([k, o]) => [k, o.ok ? o.value : `${(o as { code: string }).code} ${(o as { message: string }).message}`])).toEqual([
+			['member add student', '42501 only a mentor or CAD lead may add members'],
+			['member add outsider', '42501 only a mentor or CAD lead may add members'],
+			['member add no project', '42501 only a mentor or CAD lead may add members'],
+			['member add lead', true],
+			['member add lead again', false],
+			['member lead grants mentor', '42501 only a mentor may grant mentor or cad_lead'],
+			['member lead changes mentor', '42501 only a mentor may change a mentor or cad_lead'],
+			['member null role', '22023 a role is required'],
+			['member bad email', '22023 a valid email is required'],
+			['member mentor promotes', true],
+			['member demote last mentor', 'P0001 A project always keeps at least one mentor.'],
+			['member remove lead', '42501 only a mentor may remove members'],
+			['member remove student', '42501 only a mentor may remove members'],
+			['member remove outsider', '42501 only a mentor may remove members'],
+			['member remove no project', '42501 only a mentor may remove members'],
+			['member remove last mentor', 'P0001 A project always keeps at least one mentor.'],
+			['member remove', true],
+			['member remove absent', false]
+		]);
 		const refusals = Object.values(preCorpus).filter((o) => !o.ok);
 		expect(new Set(refusals.map((o) => (o as { code: string }).code))).toEqual(new Set(['P0001', '42501', '22023', '23505']));
 	});
@@ -549,6 +618,56 @@ describe('item 2: Force check in', () => {
 });
 
 // ===========================================================================
+describe("item 2b: a site admin manages any project's people", () => {
+	const ADD = 'select public.armory_add_member($1, $2, $3::public.armory_member_role, $4) as ok';
+	const REMOVE = 'select public.armory_remove_member($1, $2, $3) as ok';
+	test("before 0233 a site admin in no project was refused 0231's text on both", () => {
+		expect(preAdminAdd).toEqual({ ok: false, code: '42501', message: 'only a mentor or CAD lead may add members', detail: undefined });
+		expect(preAdminRemove).toEqual({ ok: false, code: '42501', message: 'only a mentor may remove members', detail: undefined });
+	});
+	test('after it, the same admin adds, promotes and removes with a mentor\'s reach; the feed says who', async () => {
+		expect((await api.one<{ ok: boolean }>(admin2, ADD, [corpusPost, 'newcomer@boscotech.net', 'student', randomUUID()])).ok).toBe(true);
+		expect((await api.one<{ ok: boolean }>(admin2, ADD, [corpusPost, 'newcomer@boscotech.net', 'cad_lead', randomUUID()])).ok).toBe(true);
+		const role = await db.sql<{ role: string }>('select role from public.armory_members where project_id = $1 and email = $2', [corpusPost, 'newcomer@boscotech.net']);
+		expect(role.rows).toEqual([{ role: 'cad_lead' }]);
+		const feed = await db.sql<{ kind: string; by: string }>(
+			`select kind, payload->>'by' as by from public.armory_change_feed where project_id = $1 and payload->>'email' = 'newcomer@boscotech.net' order by cursor`,
+			[corpusPost]
+		);
+		expect(feed.rows).toEqual([{ kind: 'member_added', by: admin2.email }, { kind: 'member_role_changed', by: admin2.email }]);
+		expect((await api.one<{ ok: boolean }>(admin2, REMOVE, [corpusPost, 'newcomer@boscotech.net', randomUUID()])).ok).toBe(true);
+		expect((await api.one<{ ok: boolean }>(admin2, REMOVE, [corpusPost, 'newcomer@boscotech.net', randomUUID()])).ok).toBe(false);
+		// Still in no project: managing people did not make them a member, so their computer syncs nothing.
+		expect((await api.one<{ p: unknown[] }>(admin2, 'select public.armory_my_projects() as p')).p).toEqual([]);
+	});
+	test('the last-mentor rule holds for an admin too, and a project that does not exist is P0002', async () => {
+		for (const [sql, params] of [
+			[ADD, [corpusPost, admin.email, 'student', randomUUID()]],
+			[REMOVE, [corpusPost, admin.email, randomUUID()]]
+		] as const) {
+			const e = await api.fails(admin2, sql, [...params]);
+			expect([e.code, e.message]).toEqual(['P0001', 'A project always keeps at least one mentor.']);
+		}
+		const a = await api.fails(admin2, ADD, [randomUUID(), 'x@boscotech.net', 'student', randomUUID()]);
+		const r = await api.fails(admin2, REMOVE, [randomUUID(), 'x@boscotech.net', randomUUID()]);
+		expect([a.code, a.message, r.code, r.message]).toEqual(['P0002', 'project not found', 'P0002', 'project not found']);
+	});
+	test("everyone else still meets 0231's refusal, text and SQLSTATE unchanged", async () => {
+		const refused = async (u: SeededUser, sql: string, params: unknown[]) => {
+			const e = await api.fails(u, sql, params);
+			return [e.code, e.message];
+		};
+		expect(await refused(outsider, ADD, [corpusPost, 'y@boscotech.net', 'student', randomUUID()])).toEqual(['42501', 'only a mentor or CAD lead may add members']);
+		expect(await refused(ben, ADD, [corpusPost, 'y@boscotech.net', 'student', randomUUID()])).toEqual(['42501', 'only a mentor or CAD lead may add members']);
+		expect(await refused(lead, ADD, [corpusPost, 'y@boscotech.net', 'mentor', randomUUID()])).toEqual(['42501', 'only a mentor may grant mentor or cad_lead']);
+		expect(await refused(outsider, REMOVE, [corpusPost, ben.email, randomUUID()])).toEqual(['42501', 'only a mentor may remove members']);
+		expect(await refused(lead, REMOVE, [corpusPost, ben.email, randomUUID()])).toEqual(['42501', 'only a mentor may remove members']);
+		const { rows } = await db.sql('select 1 from public.armory_members where project_id = $1 and email = $2', [corpusPost, ben.email]);
+		expect(rows).toHaveLength(1);
+	});
+});
+
+// ===========================================================================
 describe('the immutability trigger keeps every door but the purge shut', () => {
 	test("an UPDATE, as the owner, still raises 55000", async () => {
 		await expect(db.sql(`update public.armory_versions set byte_length = 1 where id = $1`, [trigVersion])).rejects.toMatchObject({ code: '55000' });
@@ -569,6 +688,19 @@ describe('the immutability trigger keeps every door but the purge shut', () => {
 			db.asServiceRole((q) => q(`select public._armory_purge_files($1, array[$2]::uuid[], 'project_purged')`, [A, trig]), admin.id)
 		).rejects.toThrow(/permission denied/);
 		expect(await db.sql<{ ok: boolean }>(`select has_function_privilege('service_role', 'public.armory_purge_project(uuid, text, uuid)', 'execute') as ok`).then((r) => r.rows[0].ok)).toBe(true);
+	});
+	test('TRUNCATE skips the trigger, so service_role no longer holds it on the three history tables', async () => {
+		// Measured before 0233: service_role held TRUNCATE on all three, and used it to empty the release rows with no 55000.
+		expect(preTruncate.held.map((h) => h.includes('truncate'))).toEqual([true, true, true]);
+		expect(preTruncate.before).toBeGreaterThan(0);
+		expect(preTruncate.after).toBe(0);
+		// After it: none of the three, and the same statement is refused before it touches a row.
+		const now = await Promise.all(HISTORY.map((t) => tablePrivileges(db, 'service_role', t)));
+		expect(now.map((h) => h.includes('truncate'))).toEqual([false, false, false]);
+		await expect(serviceRoleTruncates()).rejects.toMatchObject({ code: '42501' });
+		// Only TRUNCATE moved: service_role keeps what 0233 did not name, here and on a table it did not touch.
+		expect(now.map((h) => h.includes('delete'))).toEqual([true, true, true]);
+		expect(await tablePrivileges(db, 'service_role', 'armory_files')).toContain('truncate');
 	});
 	test('positive control: the owner, with the marker set, gets through (the half the purge uses)', async () => {
 		await db.sql('delete from public.armory_version_releases where file_id = $1', [trig]);
@@ -591,6 +723,28 @@ describe('item 5: heartbeat and team status', () => {
 		expect(again.last_seen.getTime()).toBe(first.last_seen.getTime());
 		await api.one(ana, `select public.armory_heartbeat($1, '0.3.0', 'syncing')`, [dev.ana]);
 		expect((await db.sql<{ state: string }>('select state from public.armory_devices where id = $1', [dev.ana])).rows[0].state).toBe('syncing');
+	});
+	test('an empty or null version or state keeps what is stored; a value still replaces it', async () => {
+		const row = async () =>
+			(await db.sql<{ last_seen: Date; app_version: string | null; state: string | null }>('select last_seen, app_version, state from public.armory_devices where id = $1', [dev.ana])).rows[0];
+		await db.sql(`update public.armory_devices set last_seen = now() - interval '1 minute' where id = $1`, [dev.ana]);
+		const stale = (await row()).last_seen.getTime();
+		// A bare liveness ping: stamped, nothing erased.
+		await api.one(ana, 'select public.armory_heartbeat($1, null, null)', [dev.ana]);
+		const pinged = await row();
+		expect(pinged.last_seen.getTime()).toBeGreaterThan(stale);
+		expect([pinged.app_version, pinged.state]).toEqual(['0.3.0', 'syncing']);
+		// Blank strings are the same as null, and inside 20 seconds they change nothing and write nothing.
+		await api.one(ana, `select public.armory_heartbeat($1, '  ', '')`, [dev.ana]);
+		const blank = await row();
+		expect([blank.last_seen.getTime(), blank.app_version, blank.state]).toEqual([pinged.last_seen.getTime(), '0.3.0', 'syncing']);
+		// The other direction: a value is written at once, even inside 20 seconds, one field at a time.
+		await api.one(ana, `select public.armory_heartbeat($1, '0.3.1', null)`, [dev.ana]);
+		expect([(await row()).app_version, (await row()).state]).toEqual(['0.3.1', 'syncing']);
+		await api.one(ana, `select public.armory_heartbeat($1, null, 'idle')`, [dev.ana]);
+		expect([(await row()).app_version, (await row()).state]).toEqual(['0.3.1', 'idle']);
+		await api.one(ana, `select public.armory_heartbeat($1, '0.3.0', 'syncing')`, [dev.ana]);
+		expect([(await row()).app_version, (await row()).state]).toEqual(['0.3.0', 'syncing']);
 	});
 	test('refusals: another person\'s computer, a malformed state, an overlong version', async () => {
 		expect((await api.fails(ben, `select public.armory_heartbeat($1, '0.3.0', 'idle')`, [dev.ana])).message).toBe('device is not registered to caller');
@@ -647,11 +801,39 @@ describe('people search', () => {
 		expect(await search(mentor, '@boscotech', 25)).toEqual([]);
 		expect(await search(mentor, '%%')).toEqual([]);
 	});
+	const REFUSAL = ['42501', 'only a teacher mentor or a site admin may search for people'];
+	const gate = async (u: SeededUser, project: string) => {
+		try {
+			const r = await api.one<{ r: unknown[] }>(u, 'select public.armory_people_search($1, $2) as r', [project, 'reyes']);
+			return `listed ${r.r.length}`;
+		} catch (e) {
+			const err = e as Refusal;
+			return [err.code, err.message];
+		}
+	};
 	test('a site admin may search any project; a CAD lead, a student and an outsider are refused 42501', async () => {
 		expect((await search(admin2, 'lea')).map((r) => r.email)).toEqual([lead.email]);
-		for (const u of [lead, ana, outsider]) {
-			expect((await api.fails(u, 'select public.armory_people_search($1, $2)', [A, 'reyes'])).code).toBe('42501');
-		}
+		for (const u of [lead, ana, outsider]) expect(await gate(u, A)).toEqual(REFUSAL);
+	});
+	test("a mentor is admitted only when their own address is a school teacher's: a student mentor and a visitor mentor use Add by email", async () => {
+		// One project, four mentors-to-be: a teacher, a student, a visitor account, and the teacher again as CAD lead first.
+		await api.member(admin, corpusPre, mentor.email, 'cad_lead');
+		expect(await gate(mentor, corpusPre)).toEqual(REFUSAL); // a teacher, but not a mentor of THIS project
+		await api.member(admin, corpusPre, mentor.email, 'mentor');
+		expect(await gate(mentor, corpusPre)).toEqual('listed 1'); // the same teacher, now its mentor
+		await api.member(admin, corpusPre, ana.email, 'mentor');
+		expect(await gate(ana, corpusPre)).toEqual(REFUSAL); // a student address holding the mentor role
+		await api.member(admin, corpusPre, guest.email, 'mentor');
+		expect(await gate(guest, corpusPre)).toEqual(REFUSAL); // a mentor on a non-school address
+		const roles = await db.sql<{ email: string; role: string }>(
+			'select email, role from public.armory_members where project_id = $1 and email = any($2::text[]) order by email',
+			[corpusPre, [mentor.email, ana.email, guest.email]]
+		);
+		expect(roles.rows.map((r) => r.role)).toEqual(['mentor', 'mentor', 'mentor']);
+		// A teacher mentor of one project is not a searcher of another.
+		expect(await gate(mentor, corpusPost)).toEqual(REFUSAL);
+		// And a site admin on a project with none of these people is admitted.
+		expect(await gate(admin2, corpusPre)).toEqual('listed 1');
 	});
 });
 

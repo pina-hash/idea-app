@@ -262,6 +262,10 @@ only because the trigger passes a DELETE when the row's file carries
     so a marker alone is a door any server with the key could open, and a custom
     setting was refused because any role can set one. 0233's self-check refuses
     to apply where the purge function's owner is not a member of their owner.
+    **TRUNCATE never fires a row trigger**, so it is the one statement past the
+    trigger with no marker and no owner test; 0233 revokes it on the three
+    history tables from `service_role` (no client role ever held it), and its
+    self-check refuses an apply that leaves it there.
   - **EVERY ARMORY WRITER TAKES ITS PROJECT ROW FIRST.** Folder operations and
     purges hold `armory_projects` FOR UPDATE; every per-file writer takes it FOR
     KEY SHARE before any other row lock. The other way round (the file first,
@@ -283,7 +287,15 @@ only because the trigger passes a DELETE when the row's file carries
     limit `PT429`.
   - **`armory_my_projects` IS MEMBERSHIP-ONLY**: it is what a computer syncs. A
     site admin's wider READ is `armory_can_view`, behind the ten member-read
-    policies and the website's read functions, each keeping its own refusal.
+    policies and the website's read functions, each keeping its own refusal. A
+    site admin's wider WRITES (Force check in, archive, Delete forever, adding
+    and removing people with a mentor's reach) leave every member's answer
+    byte-identical, which the 0.2.x corpus in `tests/db/armory-v3.test.ts`
+    holds.
+  - **`armory_people_search` IS A DIRECTORY, SO A ROLE ALONE DOES NOT OPEN IT.**
+    It names every school account by its shown name, and a mentor can grant
+    mentor to a student address, so it admits a site admin or a mentor whose own
+    address is a teacher's (`role_for_email`); everyone else adds by email.
 
 **FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
 `foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
@@ -4464,10 +4476,11 @@ inside the function fails closed rather than falling through to a weaker path.
     (0233, v0.3 items 4 and 4b):** its notes and incidents are
     `armory_app_feedback` and `armory_app_incidents`, tables of their own because
     the payload is (a required app version, the computer's name, 8000
-    characters, an incident report of up to 1 MiB), shown as two tabs of the same
-    console. Only an admin reads a row (RLS on `is_admin()`), the list functions
-    never carry `report`, and an incident is DELETED by the next submit 90 days
-    after it arrived, Mr. Pina's retention and the one report that is not kept.
+    characters, a context of at most 128 KiB, an incident report of up to 1 MiB),
+    shown as two tabs of the same console. Only an admin reads a row (RLS on
+    `is_admin()`), the list functions never carry `report`, and an incident is
+    DELETED by the next submit 90 days after it arrived, Mr. Pina's retention and
+    the one report that is not kept.
     - **IT IS A SITE PAGE, NOT A CLASSROOM ONE (report R03).** The portal's app
       header, the root layout's report control and the site plate, and no
       `.cr-root` around it, so `FeedbackConsole` may style nothing through
