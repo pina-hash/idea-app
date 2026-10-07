@@ -30,6 +30,7 @@
  * the panel under the pointer that is using it.
  */
 import { bumpUsage, rankByUse, readUsage, type AppUsage } from '$lib/portal-apps';
+import { REPORT_LABEL } from '$lib/feedback/context';
 
 export interface ConsolePanel {
 	id: string;
@@ -53,7 +54,7 @@ export const CONSOLE_PANELS: ConsolePanel[] = [
 	{
 		id: 'feedback',
 		title: 'Feedback',
-		blurb: 'Everything sent from the Report a problem control, anywhere in the portal.'
+		blurb: `Everything sent from the ${REPORT_LABEL} control, anywhere in the portal, and from the Armory app.`
 	},
 	{
 		id: 'roster',

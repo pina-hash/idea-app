@@ -42,7 +42,7 @@ export default {
 		{ label: 'opens on the welcome, ends on Take the tour', evaluate: FIRST_AND_LAST, expected: ['Welcome to IDEA', 'Take the tour'] },
 		{
 			label: 'the page a teacher can see is walked',
-			evaluate: titlesInclude(['Your profile', 'Your classes', 'Apps', 'IDEA // GAUNTLET', 'Report a problem', 'Take the tour']),
+			evaluate: titlesInclude(['Your profile', 'Your classes', 'Apps', 'IDEA // GAUNTLET', 'Send feedback', 'Take the tour']),
 			expected: ['true', 'true', 'true', 'true', 'true', 'true']
 		},
 		{

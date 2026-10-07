@@ -5,7 +5,7 @@
 	import ProjectorView from '$lib/classroom/live-class/ProjectorView.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
-	import { describeBuild } from '$lib/feedback/context';
+	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import type { PageData } from './$types';
 
 	/**
@@ -42,7 +42,7 @@
 			{build}
 			{submit}
 			{anonymous}
-			label="Report"
+			label={REPORT_LABEL_SHORT}
 		/>
 	{/snippet}
 </ProjectorView>

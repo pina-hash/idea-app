@@ -27,7 +27,7 @@ export default {
 		{ selector: '#idea-legacy-report input[type="text"]', label: 'the optional contact field (signed out only)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [
-		{ selector: '#idea-legacy-report-btn', label: 'the control carries its word', must: ['Report'] },
+		{ selector: '#idea-legacy-report-btn', label: 'the control carries its word', must: ['Feedback'] },
 		{ selector: '#idea-legacy-report > div > div:nth-child(2)', label: 'the note says this report carries no name', must: ['not signed in', 'no name'], mustNot: ['carries your account'] }
 	],
 	contrast: [

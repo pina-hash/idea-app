@@ -29,7 +29,7 @@ export default {
 		{ selector: `${TOGGLES}[aria-expanded="true"]`, label: 'exactly one month open', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [
-		{ selector: '[data-testid="updates-lead"]', label: 'the intro names the control by its printed word', must: ['Report'], mustNot: ['Feedback button'] }
+		{ selector: '[data-testid="updates-lead"]', label: 'the intro names the control by its printed word', must: ['Feedback'], mustNot: ['Feedback button'] }
 	],
 	contrast: [
 		{ selector: '[data-testid="updates-lead"]', label: 'intro', min: 4.5 },

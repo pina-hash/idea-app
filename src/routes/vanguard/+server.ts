@@ -9,7 +9,12 @@ import {
 	FEEDBACK_MAX_LEN,
 	FEEDBACK_REFUSALS
 } from '$lib/feedback/feedback';
-import { describeBuild } from '$lib/feedback/context';
+import {
+	describeBuild,
+	FEEDBACK_PROMPT,
+	REPORT_LABEL,
+	REPORT_LABEL_SHORT
+} from '$lib/feedback/context';
 import { normalizeStored, type StoredSave } from '$lib/vanguard-save';
 import { injectVersionBadge } from '$lib/version-badge';
 import { isAdmin } from '$lib/server/admin';
@@ -66,7 +71,7 @@ function injectionScript(
 	const profileJson = escapeForScript(JSON.stringify(profile));
 	const runStatesJson = escapeForScript(JSON.stringify(Array.isArray(runStates) ? runStates : []));
 
-	// --- REPORT A PROBLEM: everything the injected box needs, resolved here ----
+	// --- SEND FEEDBACK: everything the injected box needs, resolved here -------
 	// Every value below already exists in exactly one place in the app, so the
 	// bootstrap is handed them rather than growing its own copy: the kind list
 	// and the refusal wording come from $lib/feedback/feedback.ts (the same
@@ -78,6 +83,11 @@ function injectionScript(
 		JSON.stringify({
 			kinds: FEEDBACK_KINDS,
 			refusals: FEEDBACK_REFUSALS,
+			// The control's words, from the one place the site's own control
+			// reads them (report e36c5437), never typed into the script below.
+			label: REPORT_LABEL,
+			labelShort: REPORT_LABEL_SHORT,
+			prompt: FEEDBACK_PROMPT,
 			maxLen: FEEDBACK_MAX_LEN,
 			contactMax: FEEDBACK_CONTACT_MAX,
 			// Signed in goes to the authenticated route, which performs the
@@ -471,7 +481,7 @@ function injectionScript(
 		return b;
 	}
 
-	// --- REPORT A PROBLEM -------------------------------------------------------
+	// --- SEND FEEDBACK ----------------------------------------------------------
 	// The shell mounts the portal's report control on Svelte layouts. VANGUARD
 	// renders none, so until now the one surface a class spends a whole period
 	// inside was the one surface with no way to say anything about it. Injected
@@ -627,14 +637,14 @@ function injectionScript(
 		card.style.cssText = 'width:100%;max-width:420px;max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:14px 16px;background:rgba(2,10,4,0.97);border:1px solid rgba(0,255,65,0.35);border-radius:6px;color:#E8FFE8;box-shadow:0 10px 40px rgba(0,0,0,0.6);';
 
 		var head = document.createElement('div');
-		head.textContent = 'REPORT A PROBLEM';
+		head.textContent = FB.label.toUpperCase();
 		head.style.cssText = 'font-size:12px;font-weight:700;letter-spacing:0.12em;color:#00FF41;text-shadow:0 0 8px rgba(0,255,65,0.4);';
 		card.appendChild(head);
 
 		var note = document.createElement('div');
 		note.textContent = SIGNED_IN
-			? 'Something confusing, broken, or missing? Where you are in the game, your browser and the build are attached automatically.'
-			: 'Something confusing, broken, or missing? You are not signed in, so this report carries no name. Where you are in the game, your browser and the build are attached automatically.';
+			? FB.prompt + ' Where you are in the game, your browser and the build are attached automatically.'
+			: FB.prompt + ' You are not signed in, so this report carries no name. Where you are in the game, your browser and the build are attached automatically.';
 		note.style.cssText = 'font-size:11px;line-height:1.45;color:#9FB8A6;';
 		card.appendChild(note);
 
@@ -878,8 +888,8 @@ function injectionScript(
 		var fbSep = document.createElement('span');
 		fbSep.style.cssText = 'width:1px;height:14px;background:rgba(0,255,65,0.25);';
 		nav.appendChild(fbSep);
-		var report = mkBtn('Report', function (e) { e.stopPropagation(); fbOpen(); });
-		report.title = 'Report a problem with VANGUARD';
+		var report = mkBtn(FB.labelShort, function (e) { e.stopPropagation(); fbOpen(); });
+		report.title = FB.label + ' about VANGUARD';
 		// The nav is a sibling of the game's stage, so this never reaches its
 		// handlers -- stopped here anyway, the way every button in the game does.
 		report.addEventListener('pointerdown', function (e) { e.stopPropagation(); });

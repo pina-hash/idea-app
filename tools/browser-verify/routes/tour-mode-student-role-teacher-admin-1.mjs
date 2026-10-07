@@ -37,7 +37,7 @@ export default {
 		{ label: 'opens on the welcome, ends on Take the tour', evaluate: FIRST_AND_LAST, expected: ['Welcome to IDEA', 'Take the tour'] },
 		{
 			label: 'the admin cards are steps, with the rest of the page',
-			evaluate: titlesInclude(['Coin Desk', 'Admin', 'Your profile', 'Your classes', 'Apps', 'Report a problem']),
+			evaluate: titlesInclude(['Coin Desk', 'Admin', 'Your profile', 'Your classes', 'Apps', 'Send feedback']),
 			expected: ['true', 'true', 'true', 'true', 'true', 'true']
 		},
 		{ label: 'no to-do step for staff', evaluate: titlesInclude(['Your to-do']), expected: ['false'] },

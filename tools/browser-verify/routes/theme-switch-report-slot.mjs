@@ -44,7 +44,7 @@ export default {
 		{ selector: '.pm-trigger', label: 'the profile menu beside it (the row is measured at its real width)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [
-		{ selector: '.shell-report .sfb-trigger', label: 'the control carries its word, not only its glyph', must: ['Report'] }
+		{ selector: '.shell-report .sfb-trigger', label: 'the control carries its word, not only its glyph', must: ['Feedback'] }
 	],
 	contrast: [
 		{ selector: '.shell-report .sfb-word', label: 'the Report word in the header', min: 4.5 }

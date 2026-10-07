@@ -159,7 +159,7 @@ export default {
 			selector: '#idea-ledger-report',
 			label: 'the panel says what a signed-out report carries, before it is sent',
 			must: [
-				'REPORT A PROBLEM',
+				'SEND FEEDBACK',
 				'not signed in',
 				'this report carries no name',
 				'A way to reach you (optional)'

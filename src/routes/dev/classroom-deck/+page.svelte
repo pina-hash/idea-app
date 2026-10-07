@@ -14,7 +14,7 @@
 	} from '$lib/classroom/deck';
 	import { DeckUploadCancelled, postDeckZip } from '$lib/classroom/deck-upload';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { describeBuild } from '$lib/feedback/context';
+	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 
 	/**
 	 * /dev/classroom-deck -- the deck harness (404 in production, no auth, no
@@ -334,7 +334,7 @@
 				role="teacher"
 				build={describeBuild({ sha: 'a1b2c3d', complete: true }, null)}
 				submit={async () => ({ error: null, retryable: false })}
-				label="Report"
+				label={REPORT_LABEL_SHORT}
 			/>
 		{/snippet}
 	</DeckViewer>

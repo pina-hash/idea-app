@@ -5,7 +5,14 @@ import {
 	FEEDBACK_MAX_LEN,
 	FEEDBACK_REFUSALS
 } from '$lib/feedback/feedback';
-import { describeBuild, type BuildStamp } from '$lib/feedback/context';
+import {
+	describeBuild,
+	FEEDBACK_GLYPH,
+	FEEDBACK_PROMPT,
+	REPORT_LABEL,
+	REPORT_LABEL_SHORT,
+	type BuildStamp
+} from '$lib/feedback/context';
 
 /**
  * A REPORT-A-PROBLEM CONTROL FOR A PAGE THAT RENDERS NO LAYOUT.
@@ -159,6 +166,13 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 			anonymousEndpoint: ANONYMOUS_FEEDBACK_ENDPOINT,
 			kinds: FEEDBACK_KINDS,
 			refusals: FEEDBACK_REFUSALS,
+			// THE CONTROL'S WORDS AND MARK, from the one place the site's own
+			// control reads them (report e36c5437), so this panel cannot go on
+			// calling itself something the rest of the site stopped saying.
+			label: REPORT_LABEL,
+			labelShort: REPORT_LABEL_SHORT,
+			prompt: FEEDBACK_PROMPT,
+			glyph: FEEDBACK_GLYPH,
 			maxLen: FEEDBACK_MAX_LEN,
 			contactMax: FEEDBACK_CONTACT_MAX,
 			app: opts.app,
@@ -294,10 +308,10 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		if (noteEl) {
 			var where = CFG.tab ? 'The tab you are on' : 'The page you are on';
 			noteEl.textContent = session === true
-				? 'Something confusing, broken, or missing? This report carries your account. ' + where + ', your browser and the build are attached automatically.'
+				? CFG.prompt + ' This report carries your account. ' + where + ', your browser and the build are attached automatically.'
 				: session === false
-					? 'Something confusing, broken, or missing? You are not signed in, so this report carries no name. ' + where + ', your browser and the build are attached automatically.'
-					: 'Something confusing, broken, or missing? ' + where + ', your browser and the build are attached automatically.';
+					? CFG.prompt + ' You are not signed in, so this report carries no name. ' + where + ', your browser and the build are attached automatically.'
+					: CFG.prompt + ' ' + where + ', your browser and the build are attached automatically.';
 		}
 		/* OFFERED ONLY WHERE THERE IS NO ACCOUNT, and optional in the LABEL
 		   rather than only in a placeholder. It is NEVER an identity: nothing
@@ -410,7 +424,7 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		panel = document.createElement('div');
 		panel.id = ID;
 		panel.setAttribute('role', 'dialog');
-		panel.setAttribute('aria-label', 'Report a problem');
+		panel.setAttribute('aria-label', CFG.label);
 		/* Above everything the page itself draws: a floating panel opens over a
 		   page whose own overlays reach z-index 9999. */
 		panel.style.cssText = 'position:fixed;inset:0;z-index:' + (CFG.mount === 'float' ? '2147483600' : '2000') + ';display:flex;align-items:center;justify-content:center;padding:16px;background:' + P.shade + ';font-family:' + P.font + ';';
@@ -419,7 +433,7 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		card.style.cssText = 'width:100%;max-width:420px;max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:16px;background:' + P.card + ';border:1px solid ' + P.cardEdge + ';border-left:3px solid ' + P.rule + ';border-radius:4px;color:' + P.ink + ';box-shadow:0 10px 40px rgba(0,0,0,0.6);';
 
 		var head = document.createElement('div');
-		head.textContent = 'REPORT A PROBLEM';
+		head.textContent = CFG.label.toUpperCase();
 		head.style.cssText = 'font-family:' + P.title + ';font-size:0.7rem;font-weight:700;letter-spacing:0.15em;color:' + P.head + ';';
 		card.appendChild(head);
 
@@ -503,7 +517,7 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		btn.type = 'button';
 		/* A VISIBLE WORD, never a glyph alone: a title tooltip is not
 		   discoverable and a phone cannot hover. */
-		btn.setAttribute('aria-label', 'Report a problem');
+		btn.setAttribute('aria-label', CFG.label);
 		btn.addEventListener('click', function (e) { e.stopPropagation(); open(); });
 		return btn;
 	}
@@ -538,13 +552,13 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		btn.style.cssText = 'font-family:' + P.title + ';font-size:0.52rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;background:' + P.trigBg + ';border:1px solid ' + P.trigEdge + ';border-radius:2px;color:' + P.trigInk + ';padding:0.25rem 0.65rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;white-space:nowrap;';
 		btn.addEventListener('mouseenter', function () { btn.style.color = P.hoverInk; btn.style.borderColor = P.hoverEdge; });
 		btn.addEventListener('mouseleave', function () { btn.style.color = P.trigInk; btn.style.borderColor = P.trigEdge; });
-		btn.textContent = 'Report';
+		btn.textContent = CFG.labelShort;
 		host.appendChild(btn);
 	}
 
 	/* A PAGE WITH NO HEADER TO PUT IT IN: a floating trigger in the bottom-left
-	   corner, clear of the safe area, with the warning glyph the portal's own
-	   control carries beside the word. Its outer edge is the only thing
+	   corner, clear of the safe area, with the speech-bubble glyph the portal's
+	   own control carries beside the word. Its outer edge is the only thing
 	   separating it from the page, so the edge is a load-bearing one (3:1), and
 	   it is left out of a printout -- several of these pages are printed. */
 	function mountFloat() {
@@ -566,14 +580,14 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		svg.setAttribute('stroke-width', '1.7');
 		svg.setAttribute('stroke-linecap', 'round');
 		svg.setAttribute('stroke-linejoin', 'round');
-		['M12 3l9 16H3z', 'M12 9v4', 'M12 16.5v.01'].forEach(function (d) {
+		CFG.glyph.forEach(function (d) {
 			var path = document.createElementNS(svgNs, 'path');
 			path.setAttribute('d', d);
 			svg.appendChild(path);
 		});
 		btn.appendChild(svg);
 		var word = document.createElement('span');
-		word.textContent = 'Report';
+		word.textContent = CFG.labelShort;
 		btn.appendChild(word);
 		var print = document.createElement('style');
 		print.textContent = '@media print { #' + BTN_ID + ', #' + ID + ' { display: none !important; } }';
