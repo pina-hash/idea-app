@@ -2357,18 +2357,21 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
   at read time (display name, else full name, never both; the Google photo
   withheld behind a chosen avatar). A big project's folders arrive closed
   (`$lib/Disclosure`, latched past 40 live files).
-- **THE PEOPLE SEARCH (`armory_people_search`) IS A GATED DIRECTORY**: a
-  site admin, or a mentor of the project whose own address is a school
-  teacher's (0233 refuses anyone else with 42501, because a mentor can grant
-  mentor to a student address), school accounts only, at most a dozen, never a
-  uuid, and a display name is shown alone. `peopleSearchOffered` in
-  `$lib/armory/team.ts` is the one predicate the page asks, so nobody is
-  offered a search whose only answer is a refusal, and it also says why the
-  paste box is the way in. It runs from the input handler with a debounce and
-  a request counter, never from an `$effect`. A site admin manages people on
-  any project as a mentor would once 0233 is in (`memberManagerRole`). A
-  member's role is staged in its select and written only by its "Change to"
-  key, for the reason the classroom teams' Move to is a worded button.
+- **THE PEOPLE SEARCH IS OFFERED BY ONE PREDICATE, `peopleSearchOffered`**
+  in `$lib/armory/team.ts`, which mirrors the database's gate (the "IS A
+  DIRECTORY" rule in the Armory history paragraph above), so nobody is offered
+  a search whose only answer is a refusal, and it also says why the paste box
+  is the way in. It runs from the input handler with a debounce and a request
+  counter, never from an `$effect`. A site admin manages people on any project
+  as a mentor would once 0233 is in (`memberManagerRole`).
+- **AN ADD IS NEVER A ROLE CHANGE.** `armory_add_member` (0231) overwrites an
+  existing member's role and answers true, so a batch added "As Student" would
+  demote a mentor in it and call that "Added". `addPeople`, the one loop under
+  the picker and the paste box, never sends somebody `members` already holds
+  (it lists them in `otherRole`, with their role, in words), and the picker
+  never trays a row marked "Already a ...". A role moves only on the member's
+  own row: staged in its select and written by its "Change to" key, for the
+  reason the classroom teams' Move to is a worded button.
 - **A REFUSAL IS READ FROM ITS SQLSTATE AND `DETAIL.reason`, NEVER ITS HTTP
   STATUS**: PostgREST answers 23505 as 409 and 55000, 55006 and P0002 as 500,
   which say nothing about what happened (`purgeRefusalWords`,
@@ -2384,11 +2387,13 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
 - **DELETE FOREVER IS ROWS, THEN THE QUEUE, THEN OBJECTS** (`POST
   /api/armory/purge`, `handlePurge`): the RPC runs on the caller's client, `ok`
   is true the moment it returns, and the sweep (`sweepArmoryOrphans`) deletes
-  only hashes `armory_orphans_pending` handed over, marking one swept only when
-  a HEAD then answers 404. Storage is content-addressed ACROSS projects, so the
-  database alone decides what is unreferenced. One residual race is known: an
-  app whose HEAD saw the object between the re-check and the DELETE could skip
-  its upload. The type-the-name key is one predicate (`purgeCanSend`, NFC and
+  only the hashes the queue hands over (what is queued, and when a hash counts
+  as swept, is the "STORED CONTENT IS SHARED" rule above). One residual race is
+  known: an app whose HEAD saw the object between the re-check and the DELETE
+  could skip its upload. Every storage request is cut short at the sweep's
+  deadline (`ARMORY_SWEEP_BUDGET`), and an answer that never arrived is said as
+  `PURGE_ANSWER_LOST`, never as "nothing was deleted", because the rows go
+  first. The type-the-name key is one predicate (`purgeCanSend`, NFC and
   trimmed, as the RPC compares), `aria-disabled` and never `disabled`, and the
   acknowledgement is shown on `/armory` through `page.state`.
 

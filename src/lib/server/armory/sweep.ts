@@ -47,6 +47,15 @@ export interface ArmorySweepDeps {
 export interface SweepBudget {
 	/** Stop starting new removals after this long. */
 	ms: number;
+	/**
+	 * Every request in flight ends by this long after the start (default `ms`
+	 * plus two seconds). Without it a removal started at the last moment ran
+	 * its DELETE and its HEAD to their own five seconds each, so a purge could
+	 * answer about eighteen seconds after its rows were gone, and a platform
+	 * that cut the function off there showed a failure for a delete that had
+	 * happened. A request cut short leaves its file queued, which is safe.
+	 */
+	deadlineMs?: number;
 	/** Ask the queue for at most this many. */
 	max: number;
 	/** Removals in flight at once. */
@@ -54,7 +63,11 @@ export interface SweepBudget {
 }
 
 /** About 8 seconds, inside a serverless function's limit, and 400 objects (two requests each, six at a time). */
-export const ARMORY_SWEEP_BUDGET: SweepBudget = { ms: 8000, max: 400, concurrency: 6 };
+export const ARMORY_SWEEP_BUDGET: SweepBudget = { ms: 8000, deadlineMs: 10_000, max: 400, concurrency: 6 };
+
+/** One storage request's own ceiling, and the shortest it is ever given. */
+const REQUEST_MS = 5000;
+const REQUEST_MIN_MS = 250;
 
 export interface SweepOutcome {
 	/** How many the queue handed over. */
@@ -118,6 +131,8 @@ export async function sweepArmoryOrphans(
 	const stayed: string[] = [];
 	let notTried = 0;
 	let next = 0;
+	const deadline = started + (budget.deadlineMs ?? budget.ms + 2000);
+	const requestMs = () => Math.max(REQUEST_MIN_MS, Math.min(REQUEST_MS, deadline - deps.now()));
 	const worker = async () => {
 		while (next < hashes.length) {
 			if (deps.now() - started > budget.ms) {
@@ -126,8 +141,8 @@ export async function sweepArmoryOrphans(
 				return;
 			}
 			const hash = hashes[next++];
-			await deleteBlob(storage, hash, new Date(deps.now()), deps.fetch);
-			const status = await blobStatus(storage, hash, new Date(deps.now()), deps.fetch);
+			await deleteBlob(storage, hash, new Date(deps.now()), deps.fetch, requestMs());
+			const status = await blobStatus(storage, hash, new Date(deps.now()), deps.fetch, requestMs());
 			(status === 'absent' ? gone : stayed).push(hash);
 		}
 	};

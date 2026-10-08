@@ -261,6 +261,43 @@ describe('POST /api/armory/sweep', () => {
 		expect(body).toMatchObject({ ok: true, swept: 0, problem: null });
 		expect(w.requests).toEqual([]);
 	});
+
+	// A REMOVAL STARTED LATE ENDS BY THE DEADLINE. The budget stops STARTING
+	// removals at 8s; without a deadline each one then ran its DELETE and its
+	// HEAD to five seconds apiece, so a purge could answer about eighteen
+	// seconds after its rows were gone. Every request's timeout is read off
+	// AbortSignal.timeout itself.
+	test('every storage request is capped so the sweep ends by its deadline', async () => {
+		const { sweepArmoryOrphans, ARMORY_SWEEP_BUDGET } = await import('../src/lib/server/armory/sweep');
+		const asked: number[] = [];
+		const real = AbortSignal.timeout.bind(AbortSignal);
+		const spy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+			asked.push(ms);
+			return real(ms);
+		});
+		try {
+			const start = Date.UTC(2026, 9, 7, 18, 0, 0);
+			// The clock reads 7.9s in on every read after the first, so each removal
+			// is started just inside the 8s budget with 2.1s left to the deadline.
+			let reads = 0;
+			const late = { ...deps, now: () => (reads++ === 0 ? start : start + 7900) };
+			const out = await sweepArmoryOrphans(fakeSupabase() as never, late, ARMORY_SWEEP_BUDGET);
+			expect(out.swept).toBe(3);
+			expect(asked.length).toBe(6);
+			const deadline = ARMORY_SWEEP_BUDGET.deadlineMs ?? 0;
+			expect(deadline).toBeGreaterThan(ARMORY_SWEEP_BUDGET.ms);
+			// Every request fits in what is left before the deadline, never the full five seconds.
+			for (const ms of asked) expect(ms).toBeLessThanOrEqual(deadline - 7900);
+			// Positive control: with time to spare, a request gets its own full ceiling.
+			asked.length = 0;
+			w.pending = [H('d')];
+			w.stored.add(keyOf(H('d')));
+			await sweepArmoryOrphans(fakeSupabase() as never, { ...deps, now: () => start }, ARMORY_SWEEP_BUDGET);
+			expect(asked).toEqual([5000, 5000]);
+		} finally {
+			spy.mockRestore();
+		}
+	});
 });
 
 describe('the presigned DELETE', () => {

@@ -12,6 +12,7 @@
 	import {
 		PEOPLE_SEARCH_LIMIT,
 		peopleSearchOffered,
+		PURGE_ANSWER_LOST,
 		type ArmoryPersonResult,
 		type ArmoryPurgePreview,
 		type PeopleSearchAnswer,
@@ -120,9 +121,10 @@
 							| null;
 						if (response.ok && body?.ok) return { ok: true, storageProblem: body.storageProblem ?? null };
 						if (body && !body.ok && body.message) return { ok: false, message: body.message };
-						return { ok: false, message: 'That did not work, and nothing was deleted. Try again in a minute.' };
+						// No worded answer came back, so the rows may already be gone: say so, never "nothing was deleted".
+						return { ok: false, message: PURGE_ANSWER_LOST };
 					} catch {
-						return { ok: false, message: 'The request did not reach the server. Nothing was deleted; check the connection and try again.' };
+						return { ok: false, message: PURGE_ANSWER_LOST };
 					}
 				}
 			: null

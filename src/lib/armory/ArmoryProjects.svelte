@@ -165,8 +165,12 @@
 	{:else}
 		No computer of yours is connected yet.
 	{/if}
-	{#if myOut > 0 && outMine[0]}
-		· <a href={`/armory/${outMine[0].id}${projectViewHref('checked-out')}&who=me`} data-testid="armory-mine-link">You have {plural(myOut, 'file', 'files')} checked out</a>
+	<!-- One link only where the files are in ONE project; across several the
+	     count is said in words and each card's "yours" readout says where. -->
+	{#if myOut > 0 && outMine.length === 1}
+		· <a href={`/armory/${outMine[0].id}${projectViewHref('checked-out')}&who=me`} data-testid="armory-mine-link">You have {plural(myOut, 'file', 'files')} checked out in {outMine[0].name}</a>
+	{:else if myOut > 0}
+		· <span data-testid="armory-mine-total">You have {plural(myOut, 'file', 'files')} checked out across {outMine.length} projects; each card says how many are yours</span>
 	{/if}
 </p>
 
@@ -184,19 +188,26 @@
 	</section>
 {/if}
 
-{#if sweep && waiting > 0}
+<!-- The panel stays while it has something to say: a sweep that empties the
+     queue must not take its own "Removed N" away with it (CLAUDE.md, "AN
+     ACKNOWLEDGEMENT MUST SURVIVE THE ACT IT REPORTS"). -->
+{#if sweep && (waiting > 0 || sweepMessage)}
 	<section class="ar-panel" aria-labelledby="ar-cleanup-h" data-testid="armory-cleanup">
 		<h2 id="ar-cleanup-h">Storage cleanup</h2>
-		<p class="ar-message">
-			{plural(waiting, 'stored file', 'stored files')} from deleted projects {waiting === 1 ? 'is' : 'are'} waiting to be removed from
-			file storage. Only files no project uses any more are removed.
-		</p>
-		<div class="ar-row-actions">
-			<button class="btn ar-btn" type="button" aria-disabled={sweeping} data-testid="armory-cleanup-key" onclick={runSweep}>
-				{sweeping ? 'Removing…' : 'Finish cleanup'}
-			</button>
-		</div>
-		{#if sweepMessage}<p class={`ar-message ${sweepBad ? 'bad' : ''}`} role="status">{sweepMessage}</p>{/if}
+		{#if waiting > 0}
+			<p class="ar-message">
+				{plural(waiting, 'stored file', 'stored files')} from deleted projects {waiting === 1 ? 'is' : 'are'} waiting to be removed from
+				file storage. Only files no project uses any more are removed.
+			</p>
+			<div class="ar-row-actions">
+				<button class="btn ar-btn" type="button" aria-disabled={sweeping} data-testid="armory-cleanup-key" onclick={runSweep}>
+					{sweeping ? 'Removing…' : 'Finish cleanup'}
+				</button>
+			</div>
+		{:else}
+			<p class="ar-message" data-testid="armory-cleanup-done">Nothing from deleted projects is waiting to be removed from file storage.</p>
+		{/if}
+		{#if sweepMessage}<p class={`ar-message ${sweepBad ? 'bad' : ''}`} role="status" data-testid="armory-cleanup-message">{sweepMessage}</p>{/if}
 	</section>
 {/if}
 

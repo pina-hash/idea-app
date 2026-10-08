@@ -173,12 +173,13 @@ export async function deleteBlob(
 	config: ArmoryStorageConfig,
 	hash: string,
 	now: Date,
-	fetcher: typeof fetch = fetch
+	fetcher: typeof fetch = fetch,
+	timeoutMs = 5000
 ): Promise<number | null> {
 	try {
 		const response = await fetcher(presigned(config, hash, 'DELETE', now), {
 			method: 'DELETE',
-			signal: AbortSignal.timeout(5000)
+			signal: AbortSignal.timeout(timeoutMs)
 		});
 		return response.status;
 	} catch {
@@ -195,12 +196,13 @@ export async function blobStatus(
 	config: ArmoryStorageConfig,
 	hash: string,
 	now: Date,
-	fetcher: typeof fetch = fetch
+	fetcher: typeof fetch = fetch,
+	timeoutMs = 5000
 ): Promise<'present' | 'absent' | 'unknown'> {
 	try {
 		const response = await fetcher(presigned(config, hash, 'HEAD', now), {
 			method: 'HEAD',
-			signal: AbortSignal.timeout(5000)
+			signal: AbortSignal.timeout(timeoutMs)
 		});
 		return response.status === 200 ? 'present' : response.status === 404 ? 'absent' : 'unknown';
 	} catch {

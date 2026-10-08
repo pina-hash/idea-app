@@ -16,7 +16,7 @@
 	 * reload would carry a student's school address to the server's logs.
 	 */
 	import { untrack } from 'svelte';
-	import { CHECKOUT_PAGE, filterCheckouts, holderChips, type HolderFilter } from './checkouts';
+	import { CHECKOUT_PAGE, filterCheckouts, holderChips, holderFilterOf, type HolderFilter } from './checkouts';
 	import type { ForceCheckIn } from './force-check-in.svelte';
 	import { holderWords } from './team';
 	import { holderName, VERBS, whenWords, type ArmoryCheckout } from './view';
@@ -48,7 +48,13 @@
 	let limit = $state(CHECKOUT_PAGE);
 
 	const chips = $derived(holderChips(checkouts, me, names));
-	const shown = $derived(filterCheckouts(checkouts, holder, query, me, names));
+	/* The filter IN FORCE is asked of the list every read: a person who has
+	   checked everything in since the filter was chosen (a reload, the Team
+	   view's link) names nobody, so the view shows everyone and says why
+	   rather than "0 of N shown" under keys none of which is pressed. */
+	const active = $derived(holderFilterOf(holder, checkouts));
+	const gone = $derived(active !== holder ? holderName(holder, names) : null);
+	const shown = $derived(filterCheckouts(checkouts, active, query, me, names));
 	const rows = $derived(shown.slice(0, limit));
 
 	function pick(id: HolderFilter) {
@@ -82,7 +88,7 @@
 					<button
 						class="btn secondary ar-btn ar-filter"
 						type="button"
-						aria-pressed={holder === chip.id}
+						aria-pressed={active === chip.id}
 						data-testid="armory-holder"
 						data-holder={chip.id === 'all' || chip.id === 'me' ? chip.id : 'person'}
 						data-count={chip.count}
@@ -96,7 +102,7 @@
 				<span>Checked out by</span>
 				<select
 					class="plate-well"
-					value={holder}
+					value={active}
 					data-testid="armory-holder-select"
 					onchange={(e) => pick((e.currentTarget as HTMLSelectElement).value)}
 				>
@@ -104,6 +110,9 @@
 				</select>
 			</label>
 		</div>
+		{#if gone}
+			<p class="ar-message" data-testid="armory-holder-gone">{gone} has nothing checked out now, so everyone is shown.</p>
+		{/if}
 		<p class="ar-message ar-count" role="status" data-testid="armory-out-count">
 			{shown.length === checkouts.length
 				? `${checkouts.length} ${checkouts.length === 1 ? 'file' : 'files'} checked out, oldest first.`
@@ -120,30 +129,39 @@
 		{#if shown.length === 0}
 			<p class="ar-message" data-testid="armory-out-none">Nothing checked out matches that.</p>
 		{:else}
-			<table class="ar-well ar-out-table" data-testid="armory-out-table">
-				<thead>
-					<tr>
-						<th scope="col">File and folder</th>
-						<th scope="col">Checked out by</th>
-						<th scope="col">Computer</th>
-						<th scope="col">Since</th>
-						<th scope="col"><span class="ar-visually-hidden">{VERBS.takeBack}</span></th>
+			<!-- The rows change `display` below 48rem, which some engines (Safari
+			     among them) take as leaving the table, so the roles are written
+			     out and the column headers are still announced. They restate the
+			     implicit roles on purpose, hence each ignore. -->
+			<!-- svelte-ignore a11y_no_redundant_roles -->
+			<table class="ar-well ar-out-table" role="table" data-testid="armory-out-table">
+				<!-- svelte-ignore a11y_no_redundant_roles -->
+				<thead role="rowgroup">
+					<!-- svelte-ignore a11y_no_redundant_roles -->
+					<tr role="row">
+						<th scope="col" role="columnheader">File and folder</th>
+						<th scope="col" role="columnheader">Checked out by</th>
+						<th scope="col" role="columnheader">Computer</th>
+						<th scope="col" role="columnheader">Since</th>
+						<th scope="col" role="columnheader"><span class="ar-visually-hidden">{VERBS.takeBack}</span></th>
 					</tr>
 				</thead>
-				<tbody>
+				<!-- svelte-ignore a11y_no_redundant_roles -->
+				<tbody role="rowgroup">
 					{#each rows as c (c.file_id)}
-						<tr class="ar-out-row" data-testid="armory-checkout">
-							<td class="ar-out-file">
+						<!-- svelte-ignore a11y_no_redundant_roles -->
+						<tr class="ar-out-row" role="row" data-testid="armory-checkout">
+							<td class="ar-out-file" role="cell">
 								<a href={`/armory/${projectId}/file/${c.file_id}`} title={`${c.folder ? `${c.folder}/` : ''}${c.name}`}>
 									<span class="ar-file-glyph ar-tone-editing" aria-hidden="true">✎</span>
 									<span class="ar-out-name">{c.name}</span>
 									{#if c.folder}<span class="ar-out-folder">{c.folder}</span>{/if}
 								</a>
 							</td>
-							<td class="ar-out-who">{holderWords(c.holder_email, me, names)}</td>
-							<td class="ar-out-device">{c.device_name ?? 'a computer'}</td>
-							<td class="ar-out-since">{whenWords(c.since, now)}</td>
-							<td class="ar-out-key">
+							<td class="ar-out-who" role="cell">{holderWords(c.holder_email, me, names)}</td>
+							<td class="ar-out-device" role="cell">{c.device_name ?? 'a computer'}</td>
+							<td class="ar-out-since" role="cell">{whenWords(c.since, now)}</td>
+							<td class="ar-out-key" role="cell">
 								{#if force && c.holder_email !== me}
 									<button
 										class={`btn ar-btn ar-row-key ${force.armed === c.file_id ? 'danger' : 'secondary'}`}
@@ -158,8 +176,9 @@
 							</td>
 						</tr>
 						{#if force && force.armed === c.file_id}
-							<tr class="ar-out-warn-row">
-								<td colspan="5">
+							<!-- svelte-ignore a11y_no_redundant_roles -->
+							<tr class="ar-out-warn-row" role="row">
+								<td colspan="5" role="cell">
 									<p class="ar-message bad ar-warn" role="alert" data-testid="armory-take-back-warning">
 										Press {VERBS.takeBack} again. Anything {holderName(c.holder_email, names)} has not saved on
 										{c.device_name ?? 'their computer'} is kept as a side version when that computer next connects, and
