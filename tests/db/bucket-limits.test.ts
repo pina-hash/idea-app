@@ -41,7 +41,7 @@
 // NO MIGRATION FILE IS EDITED, AT ANY POINT, FOR ANY REASON. The mutations in
 // D are rows inserted into a disposable database, never a change to the file.
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -103,6 +103,25 @@ const BEFORE: { id: string; limit: number | null; public: boolean }[] = [
 
 /** 45 MiB. Written out rather than imported, so the test states the number. */
 const PORTAL = 47185920;
+
+/**
+ * Buckets created by a migration AFTER 0185, read off the files on disk, with
+ * the file that creates each. `extra` lets the test plant a statement as its
+ * positive control.
+ */
+function bucketsCreatedAfter0185(extra?: string): Map<string, string> {
+	const dir = fileURLToPath(new URL('../../supabase/migrations/', import.meta.url));
+	const found = new Map<string, string>();
+	const scan = (file: string, sql: string) => {
+		const re = /insert\s+into\s+storage\.buckets\s*\([^)]*\)\s*values\s*\(\s*'([^']+)'/gi;
+		for (const m of sql.matchAll(re)) if (!found.has(m[1])) found.set(m[1], file);
+	};
+	for (const f of readdirSync(dir).filter((f) => /^\d{4}_.*\.sql$/.test(f) && f > FILE_0185).sort()) {
+		scan(f, readFileSync(dir + f, 'utf8'));
+	}
+	if (extra) scan('(planted)', extra);
+	return found;
+}
 
 async function seedBuckets(db: TestDb) {
 	for (const b of BEFORE) {
@@ -223,11 +242,19 @@ describe('B. the fifteen buckets, before and after', () => {
 	it('E. agrees with the registry every shipping surface reads', () => {
 		expect(PORTAL_UPLOAD_MAX_BYTES).toBe(PORTAL);
 		const problems: string[] = [];
+		const later = bucketsCreatedAfter0185();
+		// The scanner finds a bucket when there is one (positive control), so an
+		// empty map below can only mean no later migration made a bucket.
+		expect(bucketsCreatedAfter0185(`insert into storage.buckets (id, name) values ('zz-probe', 'zz-probe')`).has('zz-probe')).toBe(true);
 		for (const row of UPLOAD_CEILING_LIST) {
 			if (!row.bucket) continue;
 			const real = after.get(row.bucket);
 			if (real === undefined) {
-				problems.push(`${row.id}: bucket ${row.bucket} is not in the census`);
+				// A bucket a LATER migration creates is not 0185's to census. Its
+				// number is the static twin's (tests/upload-limits.test.ts parses
+				// the whole chain) and its own migration's self-check; here it
+				// must at least be a bucket some migration after 0185 creates.
+				if (!later.has(row.bucket)) problems.push(`${row.id}: bucket ${row.bucket} is not in the census`);
 			} else if (row.maxBytes == null) {
 				problems.push(`${row.id}: registry says null against a bucket stating ${real}`);
 			} else if (real == null || row.maxBytes > real) {
