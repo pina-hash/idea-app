@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.17 - 2026-10-07**
+**Version 1.18 - 2026-10-08**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -618,6 +618,14 @@ a rule for any assignment of that shape.
 - **A pasted picture goes to the box the student means.** Honor the last box they touched
   only while it is on screen; clear it when they focus any other field; otherwise take the
   first empty box on screen. A paste once landed three screens away, in the wrong stage.
+- **A box inside a closed `<details>` is never a paste target.** Chromium gives content in
+  a closed `<details>` a layout parent, so an `offsetParent` test calls it visible, and a
+  plate screenshot landed in Hook 03's optional, folded V3 stress box. Filter
+  `closest('details:not([open])')` out of the paste-target list as well as `hidden`.
+- **A later version's file card reuses the hand-in code, keyed on the slot.** Derive the
+  version and piece from the slot name (`v3A` is V3, piece A) rather than adding a second
+  name checker, and name the previous version back to the student ("That is V2") when it
+  lands in the new slot.
 - **The document's sentence counter is the portal's.** Port `countSentences` from
   `src/lib/classroom/assignment-spec.ts` exactly (abbreviations, decimals, ellipses, split
   on `.!?`). A second counter disagreed on "Se rompe allí." and on any answer without a
@@ -872,6 +880,9 @@ short videos Mr. Pina recorded, built into the live post so no live demo is need
 
 ## Changelog
 
+- **1.18 (2026-10-08).** Ledger 0370. Section 13: a box in a closed `<details>` is never a
+  paste target, and a later version's file card reuses the hand-in code keyed on the slot.
+  From Hook 03 Stage 3 (V3, the call and the team print plate).
 - **1.17 (2026-10-07).** Ledger 0369. Section 10b: retrofitting a posted document with one
   manifest-keyed reporter that re-sends from a `MutationObserver`, and why a file card with
   its own keys reports no box. Applied to Hook 01, SolidWorks Day, Hook 02 and Hook 03.
