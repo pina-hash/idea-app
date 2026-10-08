@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-08",
+			"title": "Videos in an assignment can start at a step",
+			"body": "When an assignment has a long walkthrough video, each step can now play the video from that step, right in the assignment. No new tab.",
+			"tags": ["assignments"]
+		},
+		{
+			"date": "2026-10-08",
 			"title": "The Report button is now called Feedback",
 			"body": "The button for telling us something about the site is now called Send feedback. In a class header it just says Feedback. It is for ideas and things you liked as well as problems, so it has a speech-bubble icon instead of a warning sign. It is in the same place and works the same way.",
 			"tags": ["feedback"]

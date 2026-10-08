@@ -486,7 +486,7 @@ describe('idea:video: the parent plays a video over a box the document holds ope
 
 	it('accepts a YouTube id with a rectangle, and closes on a null id', () => {
 		const open = ask({ videoId: 'Ctw7eI7A1IE', rect: RECT, clipTop: 40 });
-		expect(open).toEqual({ ok: true, message: { kind: 'video', videoId: 'Ctw7eI7A1IE', rect: RECT, clipTop: 40 } });
+		expect(open).toEqual({ ok: true, message: { kind: 'video', videoId: 'Ctw7eI7A1IE', rect: RECT, clipTop: 40, start: 0 } });
 		expect(ask({ videoId: null })).toEqual({ ok: true, message: { kind: 'video-close' } });
 	});
 
@@ -521,6 +521,17 @@ describe('idea:video: the parent plays a video over a box the document holds ope
 
 	it('still demands provenance first', () => {
 		expect(hxReceive(fromFrame({ type: HX_VIDEO_TYPE, videoId: 'Ctw7eI7A1IE', rect: RECT }, { source: OTHER_WINDOW }), gate()).ok).toBe(false);
+	});
+
+	// Ledger 0373: a chaptered walkthrough plays from each step inside the assignment.
+	it('carries a whole-second start, and reads anything else as the beginning', () => {
+		const at = (start: unknown) => { const v = ask({ videoId: 'Ctw7eI7A1IE', rect: RECT, start }); return v.ok && v.message.kind === 'video' ? v.message.start : 'refused'; };
+		expect(at(137)).toBe(137);
+		expect(at(86400)).toBe(86400);
+		for (const bad of [undefined, 0, -5, 1.5, '137', 86401, Number.NaN, null]) expect(at(bad), String(bad)).toBe(0);
+		expect(hxVideoEmbedUrl('Ctw7eI7A1IE', 137)).toBe('https://www.youtube-nocookie.com/embed/Ctw7eI7A1IE?autoplay=1&rel=0&playsinline=1&modestbranding=1&start=137');
+		expect(hxVideoEmbedUrl('Ctw7eI7A1IE', 0)).toBe(hxVideoEmbedUrl('Ctw7eI7A1IE'));
+		expect(hxVideoEmbedUrl('Ctw7eI7A1IE', -3)).toBe(hxVideoEmbedUrl('Ctw7eI7A1IE'));
 	});
 
 	it('builds the player on youtube-nocookie from the id alone, and refuses to build one from anything else', () => {

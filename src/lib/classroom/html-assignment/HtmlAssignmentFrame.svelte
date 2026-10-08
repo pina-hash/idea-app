@@ -255,8 +255,8 @@
 				onheight?.(message.px);
 				break;
 			case 'video': {
-				const opening = video?.videoId !== message.videoId;
-				video = { videoId: message.videoId, rect: message.rect, clipTop: message.clipTop };
+				const opening = video?.videoId !== message.videoId || video?.start !== message.start;
+				video = { videoId: message.videoId, rect: message.rect, clipTop: message.clipTop, start: message.start };
 				if (opening) post(hxVideoStateMessage(message.videoId, true));
 				break;
 			}
@@ -516,7 +516,7 @@
 	 * parent's: a player framed inside the sandbox renders nothing. Keyed on the
 	 * id so a rect update moves the player and never reloads it.
 	 */
-	let video = $state<{ videoId: string; rect: HxVideoRect; clipTop: number } | null>(null);
+	let video = $state<{ videoId: string; rect: HxVideoRect; clipTop: number; start: number } | null>(null);
 </script>
 
 <div class="hx-frame-wrap" data-hx-ready={ready ? 'yes' : 'no'} data-hx-listening={listening ? 'yes' : 'no'}>
@@ -584,7 +584,7 @@
 				data-hx-frame
 			></iframe>
 			{#if video}
-				{#key video.videoId}
+				{#key `${video.videoId}:${video.start}`}
 					<div
 						class="hx-video"
 						data-hx-video={video.videoId}
@@ -595,7 +595,7 @@
 						     it gets. -->
 						<iframe
 							class="hx-video-player"
-							src={hxVideoEmbedUrl(video.videoId)}
+							src={hxVideoEmbedUrl(video.videoId, video.start)}
 							title="Video"
 							allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
 							allowfullscreen

@@ -158,7 +158,7 @@ export type HxFrameMessage =
 	| { type: 'idea:image-remove'; field: string }
 	| { type: 'idea:image-caption'; field: string; caption: string }
 	| { type: 'idea:height'; px: number }
-	| { type: typeof HX_VIDEO_TYPE; videoId: string | null; rect?: HxVideoRect; clipTop?: number }
+	| { type: typeof HX_VIDEO_TYPE; videoId: string | null; rect?: HxVideoRect; clipTop?: number; start?: number }
 	| { type: typeof HX_IMAGE_BOX_TYPE; field: string; rect: HxVideoRect | null; clipTop?: number };
 
 /**
@@ -214,10 +214,25 @@ export interface HxImageBox {
 /** YouTube's video id alphabet and length. Anything else is refused. */
 export const HX_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 
+/** The longest start offset a document may ask for, in seconds: a day. */
+export const HX_VIDEO_MAX_START_S = 86400;
+
+/**
+ * Where a video starts, in whole seconds, from what a document sent (ledger 0373, Mr.
+ * Pina's report of 2026-10-08: a chaptered walkthrough has to play from each step
+ * INSIDE the assignment, not in a new tab). Anything but a whole number from 1 to a
+ * day is the start of the video, so a document that predates the field, or sends
+ * nonsense, gets exactly the player it always got.
+ */
+export function hxVideoStart(value: unknown): number {
+	return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= HX_VIDEO_MAX_START_S ? value : 0;
+}
+
 /** The player a parent draws for an accepted id, and nothing else. */
-export function hxVideoEmbedUrl(videoId: string): string {
+export function hxVideoEmbedUrl(videoId: string, start = 0): string {
 	if (!HX_VIDEO_ID.test(videoId)) throw new Error('not a video id');
-	return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
+	const s = hxVideoStart(start);
+	return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1${s ? `&start=${s}` : ''}`;
 }
 
 /**
@@ -360,7 +375,7 @@ export type HxAccepted =
 	| { kind: 'image-remove'; blockId: string; field: string }
 	| { kind: 'image-caption'; blockId: string; field: string; caption: string }
 	| { kind: 'height'; px: number }
-	| { kind: 'video'; videoId: string; rect: HxVideoRect; clipTop: number }
+	| { kind: 'video'; videoId: string; rect: HxVideoRect; clipTop: number; start: number }
 	| { kind: 'video-close' }
 	/** `rect` null is the document withdrawing the box; `clipTop` is then 0. */
 	| { kind: 'image-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number };
@@ -666,7 +681,7 @@ export function hxReceive(incoming: HxIncoming, gate: HxGate): HxVerdict {
 			if (typeof box === 'string') return { ok: false, reason: 'video', detail: `idea:video ${box}` };
 			return {
 				ok: true,
-				message: { kind: 'video', videoId: data.videoId, rect: box.rect, clipTop: box.clipTop }
+				message: { kind: 'video', videoId: data.videoId, rect: box.rect, clipTop: box.clipTop, start: hxVideoStart(data.start) }
 			};
 		}
 

@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.6 - 2026-10-07**
+**Version 1.7 - 2026-10-08**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -737,7 +737,7 @@ Frame to parent (`HxFrameMessage`):
 | `idea:image-remove` | `field: string` |
 | `idea:image-caption` | `field: string`, `caption: string` |
 | `idea:height` | `px: number` |
-| `idea:video` | `videoId: string \| null`, `rect: { x, y, w, h }` (document pixels), `clipTop?: number` |
+| `idea:video` | `videoId: string \| null`, `rect: { x, y, w, h }` (document pixels), `clipTop?: number`, `start?: number` (whole seconds) |
 | `idea:image-box` | `field: string`, `rect: { x, y, w, h } \| null` (document pixels; null withdraws), `clipTop?: number` |
 
 Parent to frame (`HxParentMessage`):
@@ -817,6 +817,11 @@ null id closes it, and the parent answers each open and close with `idea:video-s
   and `hxVideoEmbedUrl` builds the `youtube-nocookie.com` URL from it, so no document can
   point the parent's frame anywhere else. What it still admits is any public YouTube video,
   over the document's own area, which is less than the popup flags already grant.
+- **A video may start partway in (1.7, ledger 0373).** `start` is whole seconds from 1 to
+  a day (`hxVideoStart`); anything else, and a document that never sends it, plays from the
+  beginning exactly as before. A new id or a new start is a new player, so a document
+  stepping through a chaptered walkthrough sends the same id with each chapter's start and
+  the parent swaps the player in place.
 - **The document's CSP does not move.** It still has no `frame-src`; the player is the
   parent's.
 - **A document must keep a fallback.** A portal that predates 1.2, or a document opened on
@@ -1513,6 +1518,8 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
+- **1.7 (2026-10-08).** Ledger 0373. `idea:video` carries an optional `start` in whole
+  seconds, so a document plays a chaptered video from a step inside the assignment.
 - **1.6 (2026-10-07).** Ledger 0368, two of Mr. Pina's reports from grading on 2026-10-06.
   **The sandbox gains `allow-downloads`** (sections 5, 5.2 and the new 5.7), on his report
   that a document's Download button did nothing: Chromium refuses a download a sandboxed

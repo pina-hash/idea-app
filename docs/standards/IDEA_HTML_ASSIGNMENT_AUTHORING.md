@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.20 - 2026-10-08**
+**Version 1.21 - 2026-10-08**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -803,8 +803,8 @@ portal does: at 1440px the stage went from 4834px tall to 2581px with every move
   stage, and the progress bar that follows the reader carries one key per stage (V2, Sim,
   V3), pressed while open. Either key lands the page on that stage's header. With many
   segments the bar drops its segment words below 1700px and keeps the Next line.
-- **Group a long video's chapters rather than spending all of them.** One time key per
-  step, five steps or fewer per list, and a step text of one line where it can be.
+- **Group a long video's chapters rather than spending all of them.** Six steps or fewer
+  per chapter player, a step text of one line where it can be.
 - **A closed header still says what is inside it**: the number, the title, a one-line
   summary of the answer ("Neck", "46.8 g, under the cap", "0 of 4 answered"), a Done or To
   do chip, and the word Show or Hide beside the chevron. A collapsed section that hides
@@ -886,17 +886,23 @@ short videos Mr. Pina recorded, built into the live post so no live demo is need
   leaves the other alone. Re-upload over the same post: the rubric regenerates for the new
   module and every stored answer still renders.
 
-- **One long video, many steps: embed it once per move and give each step a time key.**
-  The portal plays a YouTube id and takes no start time, so a chaptered walkthrough cannot
-  jump inside the frame. Each step carries a 44px key labeled with its chapter time that
-  opens `https://www.youtube.com/watch?v=<id>&t=<seconds>s` in a new tab through the same
-  `window.open` path as every other outside link. Steps follow the chapter order, and a
-  step shared with an earlier chapter carries no second key.
+- **One long video, many steps: a chapter player, played inside the assignment.** Hold a
+  16:9 box open in the move with its steps listed beside it (below it under 900px). Each
+  step is a button with its chapter time; pressing it sends `idea:video` with the id, the
+  box and `start` in whole seconds (`IDEA_HTML_ASSIGNMENT_SPEC.md` 1.7), so the portal plays
+  it in that box from that step, and another step swaps the same box. A poster with a play
+  button starts the first step; a Stop video key brings the poster back. Never send a
+  student to a new tab for a chapter: Mr. Pina, 2026-10-08, found per-step YouTube links
+  "really annoying". The step text is a title and one line, because the video carries the
+  rest. Group chapters that serve one step; skip the ones a step does not need.
 
 ---
 
 ## Changelog
 
+- **1.21 (2026-10-08).** Ledger 0373. Section 18: a chaptered video is a chapter player that
+  plays each step inside the assignment (`idea:video` gains `start`), replacing the 1.19
+  time keys that opened YouTube in a new tab.
 - **1.20 (2026-10-08).** Ledger 0372. Section 17: only the next move opens on arrival, done
   stages arrive folded, a whole stage folds from its header or from keys in the following
   bar, and a long video's chapters are grouped. From Mr. Pina's read of Hook 03 Stage 3.

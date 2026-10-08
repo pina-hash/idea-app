@@ -2077,7 +2077,8 @@ nothing (measured: the same embed drew its player from an ordinary page and an e
 under `HX_SANDBOX_FLAGS`), and the only document-side repair is `allow-same-origin`. So the
 document sends `idea:video` with a YouTube id and its box's rectangle, and
 `HtmlAssignmentFrame` draws the player over the frame there. **The document names an id and
-never a URL** (`HX_VIDEO_ID`, `hxVideoEmbedUrl` on youtube-nocookie), and the served CSP
+never a URL** (`HX_VIDEO_ID`, `hxVideoEmbedUrl` on youtube-nocookie), plus optionally a whole-second `start`
+(`hxVideoStart`, ledger 0373, so a chaptered walkthrough plays from a step), and the served CSP
 still has no `frame-src`. Do not widen `frame-src` in `hxDocumentCsp` to move the player
 inside: it would not play there anyway.
 
