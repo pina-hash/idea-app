@@ -1,11 +1,16 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import type { FeedbackScreenshotBytes } from '$lib/feedback/archive';
-	import type { FeedbackHorizon, FeedbackStatus } from '$lib/feedback/feedback';
+	import {
+		feedbackRetryable,
+		type FeedbackEditInput,
+		type FeedbackEditResult,
+		type FeedbackHorizon,
+		type FeedbackStatus
+	} from '$lib/feedback/feedback';
 	import { FEEDBACK_MEDIA_BUCKET } from '$lib/feedback/screenshot';
+	import { isTransientSqlstate } from '$lib/pg-errors';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -38,6 +43,46 @@
 		if (error) return { ok: false, message: error.message };
 		void invalidateAll();
 		return { ok: true };
+	}
+
+	/**
+	 * AN ADMIN'S CORRECTION OF A FILED REPORT (0233, report d362bfb3): one RPC
+	 * on the admin's own client, which re-checks `is_admin()` inside itself and
+	 * answers a structured refusal for anything the form can fix. Handed to the
+	 * console ONLY when the load saw the `edit` key the same apply adds, so a
+	 * deployment that could only refuse an edit is never offered one.
+	 *
+	 * A CODELESS ERROR IS THE NETWORK and may be re-sent, and so is a NAMED
+	 * transient SQLSTATE (a deadlock, a statement timeout), which
+	 * `$lib/pg-errors` is the one list of; every other code is the database
+	 * saying no, answered once. A re-send is safe because the database answers
+	 * words it already holds as unchanged before it asks about staleness.
+	 *
+	 * EVERY ANSWER THAT SAYS OK RELOADS, `changed` or not: a retry whose first
+	 * attempt landed reads `changed: false` at a newer revision, and the card
+	 * has to catch up to it either way.
+	 */
+	async function editFeedback(id: string, input: FeedbackEditInput): Promise<FeedbackEditResult> {
+		const { data: answer, error } = await supabase.rpc('app_feedback_edit', {
+			p_id: id,
+			p_kind: input.kind,
+			p_message: input.message,
+			p_tried: input.tried,
+			p_base_revision: input.baseRevision
+		});
+		if (error) {
+			return {
+				ok: false,
+				message: error.message,
+				retryable: feedbackRetryable(error.code) || isTransientSqlstate(error.code)
+			};
+		}
+		const r = (answer ?? {}) as { ok?: unknown; changed?: unknown; revision?: unknown; reason?: unknown };
+		if (r.ok === true) {
+			void invalidateAll();
+			return { ok: true, changed: r.changed === true, revision: Number(r.revision) || 0 };
+		}
+		return { ok: false, reason: typeof r.reason === 'string' ? r.reason : 'unknown' };
 	}
 
 	/**
@@ -82,21 +127,8 @@
 	}
 </script>
 
-<!--
-	THE PORTAL'S OWN CHROME (report R03). The console reads reports from every
-	surface on the site, so it sits in the admin area with the header every
-	other /admin page carries, the site plate the root layout puts on /admin,
-	and the report control the root layout mounts. The way back is the admin
-	console's Feedback panel, where the queue's new-report count is.
--->
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
-		<a class="btn secondary" href="/dashboard#panel-feedback">&lsaquo; Admin console</a>
-		<ProfileMenu />
-	</div>
-</div>
-
+<!-- The portal header and the three-source strip are the area's layout
+     (src/routes/admin/feedback/+layout.svelte); this page is the site queue. -->
 <FeedbackConsole
 	ready={data.ready}
 	rows={data.rows}
@@ -108,4 +140,5 @@
 	horizonUnavailable={data.horizonReady
 		? null
 		: 'Moving a report between Fix soon and Long-term ideas needs a database update that has not been applied yet. Reports marked long-term when they were sent still show under their own tab.'}
+	editFeedback={data.editReady ? editFeedback : undefined}
 />

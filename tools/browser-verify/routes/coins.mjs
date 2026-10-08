@@ -159,7 +159,7 @@ export default {
 			selector: '#idea-ledger-report',
 			label: 'the panel says what a signed-out report carries, before it is sent',
 			must: [
-				'REPORT A PROBLEM',
+				'SEND FEEDBACK',
 				'not signed in',
 				'this report carries no name',
 				'A way to reach you (optional)'
@@ -183,6 +183,42 @@ export default {
 			evaluate:
 				'() => { const src = [...document.scripts].map((s) => s.textContent || "").find((t) => t.indexOf("idea-ledger-report-btn") !== -1); if (!src) return ["NO INJECTED SCRIPT"]; const m = /"endpoint":"([^"]+)"/.exec(src); return [m ? m[1] : "NO ENDPOINT IN CONFIG"]; }',
 			expected: ['/api/feedback']
+		},
+		{
+			/* THE LONGER WORD (2026-10-07, "Feedback" for "Report") MUST STILL
+			   SIT INSIDE THE VIEWPORT. This page sets `body { overflow-x: hidden }`,
+			   so a trigger pushed past the right edge would add no scroll for the
+			   horizontal-scroll check to see and would simply be unreachable, the
+			   defect that unfroze the tab bar. So the box is read against the
+			   window and hit-tested at its own centre.
+
+			   THE PANEL IS OPEN WHEN THIS RUNS (the prepare step opened it), and
+			   it is `position: fixed; inset: 0` over the whole page, so a plain
+			   hit test answers the panel's shade. That is read FIRST, as the
+			   positive control that this hit test can see a covered trigger at
+			   all; then the panel is lifted (`visibility: hidden`, which
+			   elementFromPoint skips) for the real read and put back exactly as
+			   it was. */
+			label: 'the header Feedback button sits inside the window and answers a tap at its centre',
+			evaluate: `() => {
+				const b = document.getElementById('idea-ledger-report-btn');
+				if (!b) return ['NO TRIGGER'];
+				const p = document.getElementById('idea-ledger-report');
+				const r = b.getBoundingClientRect();
+				const at = () => document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+				const covered = p && p.contains(at()) ? 'covered by the open panel' : 'PANEL NOT OVER IT';
+				const was = p ? p.style.visibility : '';
+				if (p) p.style.visibility = 'hidden';
+				const hit = at();
+				if (p) p.style.visibility = was;
+				return [
+					r.left >= -0.5 && r.right <= window.innerWidth + 0.5 ? 'inside the window' : 'PAST THE EDGE: right ' + r.right + ' of ' + window.innerWidth,
+					covered,
+					hit && b.contains(hit) ? 'answers at its centre once the panel is lifted' : 'COVERED at its centre by ' + (hit ? hit.tagName + '.' + hit.className : 'nothing'),
+					b.textContent.trim()
+				];
+			}`,
+			expected: ['inside the window', 'covered by the open panel', 'answers at its centre once the panel is lifted', 'Feedback']
 		},
 		{
 			label: 'no part of the injected control contributes to the overflow, at either width',

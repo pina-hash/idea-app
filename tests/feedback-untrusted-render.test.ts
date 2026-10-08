@@ -39,8 +39,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import FeedbackConsole from '../src/lib/classroom/FeedbackConsole.svelte';
+import ArmoryFeedbackConsole from '../src/lib/feedback/ArmoryFeedbackConsole.svelte';
+import ArmoryIncidentConsole from '../src/lib/feedback/ArmoryIncidentConsole.svelte';
 import { feedbackJson, feedbackMarkdown } from '../src/lib/feedback/console';
-import type { FeedbackRow } from '../src/lib/feedback/feedback';
+import type { FeedbackEdit, FeedbackRow } from '../src/lib/feedback/feedback';
+import type { ArmoryFeedbackRow, ArmoryIncidentRow } from '../src/lib/feedback/armory-reports';
 
 const ROOT = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, ROOT), 'utf8').replace(/\r\n/g, '\n');
@@ -115,9 +118,25 @@ function renderConsole(rows: FeedbackRow[]): string {
 			ready: true,
 			rows,
 			setStatus: async () => ({ ok: true }),
+			// The edit transport, as the page hands it in once 0233 is applied, so
+			// the Edit control and an edited card's chrome are in every render.
+			editFeedback: async () => ({ ok: true, changed: true, revision: 1 }),
 			now: () => Date.parse('2026-08-21T10:00:00.000Z')
 		}
 	}).body;
+}
+
+/** An admin's correction (0233), benign unless a field is overridden. */
+function edit(over: Partial<FeedbackEdit> = {}): FeedbackEdit {
+	return {
+		revision: 1,
+		kind: 'idea',
+		message: BENIGN,
+		tried: BENIGN,
+		edited_by: 'apina@boscotech.edu',
+		edited_at: '2026-08-21T09:30:00.000Z',
+		...over
+	};
 }
 
 const BASELINE_MESSAGE = countElements(renderConsole([row({})]));
@@ -195,6 +214,123 @@ describe('the contact string is untrusted in exactly the same way', () => {
 	});
 });
 
+describe('an admin\'s correction is rendered as text too, and so is what it replaced', () => {
+	// The edited card carries more chrome (the Edited tag, the "Edited by" line
+	// and the As sent panel), so it gets its own baseline.
+	const BASELINE_EDIT = countElements(renderConsole([row({ edit: edit() })]));
+
+	it('renders the edited words, the tag and the As sent panel (the baseline is a real edited card)', () => {
+		const html = renderConsole([row({ message: 'the reporter typed this', edit: edit({ message: 'an admin corrected this' }) })]);
+		expect(html).toContain('an admin corrected this');
+		expect(html).toContain('the reporter typed this');
+		expect(html).toContain('Edited');
+		expect(html).toContain('As sent');
+		expect(BASELINE_EDIT).toBeGreaterThan(BASELINE_MESSAGE);
+	});
+
+	it.each(HOSTILE)('$name in an edited message adds no elements', ({ text }) => {
+		expect(countElements(renderConsole([row({ edit: edit({ message: text }) })])) - BASELINE_EDIT).toBe(0);
+	});
+
+	it.each(HOSTILE)('$name in an edited "tried" adds no elements', ({ text }) => {
+		expect(countElements(renderConsole([row({ edit: edit({ tried: text }) })])) - BASELINE_EDIT).toBe(0);
+	});
+
+	it.each(HOSTILE)('$name in the original, shown under As sent, adds no elements', ({ text }) => {
+		expect(countElements(renderConsole([row({ message: text, edit: edit() })])) - BASELINE_EDIT).toBe(0);
+	});
+});
+
+// ===========================================================================
+// THE ARMORY APP'S NOTES AND INCIDENTS (0233). Any signed-in Armory user writes
+// these strings into a screen only admins see, so they are asserted the same
+// way and with the same instrument.
+// ===========================================================================
+
+function armoryNote(over: Partial<ArmoryFeedbackRow> = {}): ArmoryFeedbackRow {
+	return {
+		id: 'n1',
+		created_at: '2026-10-07T17:00:00.000Z',
+		email: 'stu@boscotech.net',
+		device_name: 'LAB-PC-07',
+		app_version: '0.3.0',
+		kind: 'bug',
+		body: BENIGN,
+		context: { screen: 'files', note: BENIGN },
+		status: 'new',
+		reviewed_at: null,
+		reviewed_by: null,
+		submitter_name: 'Stu Dent',
+		...over
+	};
+}
+
+function armoryIncident(over: Partial<ArmoryIncidentRow> = {}): ArmoryIncidentRow {
+	return {
+		id: 'i1',
+		created_at: '2026-10-07T17:00:00.000Z',
+		email: 'stu@boscotech.net',
+		device_name: 'LAB-PC-07',
+		app_version: '0.3.0',
+		kind: 'crash',
+		summary: BENIGN,
+		project_id: 'p1',
+		project_name: 'Robot 2027',
+		feedback_id: 'n1',
+		feedback_body: BENIGN,
+		report_bytes: 2048,
+		status: 'new',
+		reviewed_at: null,
+		reviewed_by: null,
+		submitter_name: 'Stu Dent',
+		...over
+	};
+}
+
+const NOW = () => Date.parse('2026-10-07T18:00:00.000Z');
+function renderNotes(rows: ArmoryFeedbackRow[]): string {
+	return render(ArmoryFeedbackConsole, { props: { rows, setStatus: async () => ({ ok: true }), now: NOW } }).body;
+}
+function renderIncidents(rows: ArmoryIncidentRow[]): string {
+	return render(ArmoryIncidentConsole, {
+		props: { rows, setStatus: async () => ({ ok: true }), fetchReports: async () => new Map(), now: NOW }
+	}).body;
+}
+
+describe('the Armory consoles render every string as text', () => {
+	const BASE_NOTES = countElements(renderNotes([armoryNote()]));
+	const BASE_INCIDENTS = countElements(renderIncidents([armoryIncident()]));
+
+	it('the baselines are real consoles with the fields on them', () => {
+		const notes = renderNotes([armoryNote()]);
+		expect(BASE_NOTES).toBeGreaterThan(20);
+		expect(notes).toContain(BENIGN);
+		expect(notes).toContain('LAB-PC-07');
+		const incidents = renderIncidents([armoryIncident()]);
+		expect(BASE_INCIDENTS).toBeGreaterThan(20);
+		expect(incidents).toContain('Robot 2027');
+		expect(incidents).toContain('Their note');
+	});
+
+	it.each(HOSTILE)('$name in a note body, its device or its context adds no elements', ({ text }) => {
+		expect(countElements(renderNotes([armoryNote({ body: text })])) - BASE_NOTES).toBe(0);
+		expect(countElements(renderNotes([armoryNote({ device_name: text })])) - BASE_NOTES).toBe(0);
+		expect(countElements(renderNotes([armoryNote({ context: { screen: text, [text]: text } })])) - BASE_NOTES).toBe(0);
+	});
+
+	it.each(HOSTILE)('$name in an incident summary, its linked note or its project adds no elements', ({ text }) => {
+		expect(countElements(renderIncidents([armoryIncident({ summary: text })])) - BASE_INCIDENTS).toBe(0);
+		expect(countElements(renderIncidents([armoryIncident({ feedback_body: text })])) - BASE_INCIDENTS).toBe(0);
+		expect(countElements(renderIncidents([armoryIncident({ project_name: text })])) - BASE_INCIDENTS).toBe(0);
+		expect(countElements(renderIncidents([armoryIncident({ device_name: text })])) - BASE_INCIDENTS).toBe(0);
+	});
+
+	it('the instrument moves on these renders too (the positive control)', () => {
+		const html = renderNotes([armoryNote()]);
+		expect(countElements(html + HOSTILE[1].text) - BASE_NOTES).toBe(1);
+	});
+});
+
 describe('the reporter hash never reaches a screen or an export', () => {
 	// It is not in 0127's payload at all, so the strongest statement available
 	// here is that no surface reads a field by that name and none renders one
@@ -233,7 +369,14 @@ describe('no surface in this path renders raw markup', () => {
 			'src/lib/classroom/FeedbackConsole.svelte',
 			'src/lib/feedback/FeedbackBox.svelte',
 			'src/lib/feedback/SiteFeedback.svelte',
-			'src/routes/admin/feedback/+page.svelte'
+			'src/lib/feedback/FeedbackEditForm.svelte',
+			'src/lib/feedback/FeedbackSourcesNav.svelte',
+			'src/lib/feedback/ArmoryFeedbackConsole.svelte',
+			'src/lib/feedback/ArmoryIncidentConsole.svelte',
+			'src/routes/admin/feedback/+page.svelte',
+			'src/routes/admin/feedback/+layout.svelte',
+			'src/routes/admin/feedback/armory/+page.svelte',
+			'src/routes/admin/feedback/incidents/+page.svelte'
 		]) {
 			expect([file, read(file).includes('{@html')]).toEqual([file, false]);
 		}

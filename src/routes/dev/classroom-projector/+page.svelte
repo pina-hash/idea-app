@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import ProjectorView from '$lib/classroom/live-class/ProjectorView.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { describeBuild } from '$lib/feedback/context';
+	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import {
 		buildProjectorFrame,
 		projectorStorageKey,
@@ -204,7 +204,7 @@
 			{build}
 			{submit}
 			anonymous={false}
-			label="Report"
+			label={REPORT_LABEL_SHORT}
 		/>
 	{/snippet}
 </ProjectorView>

@@ -39,6 +39,6 @@ export default {
 		{ label: 'the replay: every step on screen, at least 16', evaluate: walkVerdict(16), expected: ['none', 'true'] },
 		{ label: 'the replay opens on sign-in and ends on Take the tour', evaluate: FIRST_AND_LAST, expected: ['Sign in with Google', 'Take the tour'] },
 		{ label: 'no step for a control a visitor does not have', evaluate: titlesInclude(['Your profile', 'Your to-do', 'Coin Desk']), expected: ['false', 'false', 'false'] },
-		{ label: 'and the rest of the page is there', evaluate: titlesInclude(['Welcome to IDEA', 'Apps', 'Your classes', 'IDEA Maps', 'Report a problem']), expected: ['true', 'true', 'true', 'true', 'true'] }
+		{ label: 'and the rest of the page is there', evaluate: titlesInclude(['Welcome to IDEA', 'Apps', 'Your classes', 'IDEA Maps', 'Send feedback']), expected: ['true', 'true', 'true', 'true', 'true'] }
 	]
 };

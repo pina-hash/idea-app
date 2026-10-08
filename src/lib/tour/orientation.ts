@@ -41,7 +41,8 @@
  * dragged layout reorders the cards. The steps marked `flow` are therefore
  * sorted by where their controls sit on the page (`orderFlow`), so the
  * spotlight moves down the page rather than bouncing around it. The welcome
- * opens the tour and Report and the tour control close it wherever they are.
+ * opens the tour and the feedback control and the tour control close it
+ * wherever they are.
  *
  * A TARGET IS A STABLE HOOK, NEVER A STYLE CLASS: `data-tour` on the home
  * page's own controls, `data-testid` where another surface already carries
@@ -50,8 +51,8 @@
  * THE WORDS ARE WRITTEN FOR SOMEBODY WHO WAS NEVER SHOWN ANYTHING: one idea
  * per step, never more than two short sentences, and every control named by
  * the word printed on it. The report control's word is `REPORT_LABEL`, read
- * here and never typed, because the update log pointed at a "Feedback button"
- * for weeks after the button changed its name.
+ * here and never typed, because the update log pointed at a button by an old
+ * name for weeks after the button changed it.
  */
 
 import type { TourStep } from './tour';
@@ -330,7 +331,7 @@ export function homeTourDefs(tour: HomeTourId, isAdmin: boolean): HomeTourStep[]
 				{
 					target: hook('report'),
 					title: REPORT_LABEL,
-					body: `Press ${REPORT_LABEL} on any page when something is broken or confusing. In a class it sits in the header as ${REPORT_LABEL_SHORT}.`
+					body: `Press ${REPORT_LABEL} on any page to tell us about a problem, an idea or something that works. In a class it sits in the header as ${REPORT_LABEL_SHORT}.`
 				}
 			]
 		},

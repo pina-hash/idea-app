@@ -14,7 +14,7 @@
 	} from '$lib/classroom/assignment-spec';
 	import type { ClassroomItem } from '$lib/classroom/classroom';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { describeBuild } from '$lib/feedback/context';
+	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import { appendLog } from './harness';
 
 	/**
@@ -139,7 +139,7 @@
 				role="teacher"
 				build={describeBuild({ sha: 'a1b2c3d', complete: true }, null)}
 				submit={async () => ({ error: null, retryable: false })}
-				label="Report"
+				label={REPORT_LABEL_SHORT}
 			/>
 		{/snippet}
 	</DeckViewer>

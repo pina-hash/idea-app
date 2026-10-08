@@ -81,7 +81,7 @@ export default {
 		{
 			selector: '#idea-ledger-report',
 			label: 'the panel says the report carries an account, and never that it does not',
-			must: ['REPORT A PROBLEM', 'carries your account'],
+			must: ['SEND FEEDBACK', 'carries your account'],
 			mustNot: ['not signed in', 'this report carries no name', 'A way to reach you']
 		}
 	],

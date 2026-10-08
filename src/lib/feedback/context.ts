@@ -67,11 +67,37 @@ const under = (prefix: string) => (routeId: string) =>
  * THE REPORT CONTROL'S WORD, spelled once (ledger 0297, LEARN). The floating
  * pill reads the long form; the classroom header docks it with the short one.
  * A page that tells somebody where to report reads it from here, because the
- * update log's intro pointed at a "Feedback button" for months after the
- * control stopped being called that.
+ * update log's intro pointed at the control by an old name for months after
+ * the control stopped being called that.
+ *
+ * "SEND FEEDBACK" AND "FEEDBACK" SINCE 2026-10-07 (report e36c5437): the box
+ * takes a bug, an idea, something somebody liked, or anything else, and "Report
+ * a problem" told people it was only for the first. The IDENTIFIERS keep their
+ * names, and so does every hook a tour or a spec names (`data-tour="report"`,
+ * `shell-report`, `.sfb-*`, the legacy panels' ids), because those are
+ * addresses, not words. The legacy panel and VANGUARD receive both words
+ * through their config JSON, never as literals.
  */
-export const REPORT_LABEL = 'Report a problem';
-export const REPORT_LABEL_SHORT = 'Report';
+export const REPORT_LABEL = 'Send feedback';
+export const REPORT_LABEL_SHORT = 'Feedback';
+
+/**
+ * THE ONE LINE THAT OPENS THE BOX'S NOTE, on the site's box, the legacy panel
+ * and VANGUARD's panel alike. It names all three kinds of thing the box is for,
+ * which is the whole reason the control was renamed.
+ */
+export const FEEDBACK_PROMPT = 'A problem, an idea, or something you liked?';
+
+/**
+ * THE CONTROL'S GLYPH, as SVG path data on a 24-unit box (stroked, no fill):
+ * a speech bubble, because the control is for saying something. The warning
+ * triangle stays for the ONE place a report is a problem report by definition,
+ * the error page, whose title says so ("Report this 500"). Both lists are read
+ * by the Svelte control and by the legacy panel's injected script, so the two
+ * cannot draw different marks for one control.
+ */
+export const FEEDBACK_GLYPH: readonly string[] = ['M4 5h16v10H10l-4.5 4v-4H4z'];
+export const PROBLEM_GLYPH: readonly string[] = ['M12 3l9 16H3z', 'M12 9v4', 'M12 16.5v.01'];
 
 /**
  * WHERE THE REPORTS GO, for an admin (report R15, 2026-09-30): the report box
@@ -234,14 +260,14 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'vanguard',
 		label: 'VANGUARD',
-		relocatedTo: "VANGUARD's own Report button, beside the IDEA link at the top right",
+		relocatedTo: "VANGUARD's own Feedback button, beside the IDEA link at the top right",
 		// VANGUARD is served as legacy HTML from a +server.ts endpoint and
 		// renders no layout at all, so this rule excludes nothing the shell
 		// mount could ever have reached. It stands so that a VANGUARD surface
 		// which DOES render the shell inherits the exclusion rather than
 		// discovering it in front of a class. The game now carries a real
 		// report control -- injected into the served HTML by
-		// src/routes/vanguard/+server.ts, opening a "REPORT A PROBLEM" panel --
+		// src/routes/vanguard/+server.ts, opening a "SEND FEEDBACK" panel --
 		// that reaches the SAME feedback system as everything else: signed in
 		// posts through /api/vanguard-feedback (the RLS-scoped insert, as the
 		// caller), signed out through the shared anonymous route. It is not the
@@ -262,7 +288,7 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'coins',
 		label: 'IDEA Coin Ledger',
-		relocatedTo: "the Ledger's own Report button, in the page header beside Share",
+		relocatedTo: "the Ledger's own Feedback button, in the page header beside Share",
 		// The Ledger is carried-over legacy HTML served from a `+server.ts`
 		// (`src/routes/coins/[...path]/+server.ts`) and renders no layout at all,
 		// so this rule excludes nothing the shell mount could ever have reached

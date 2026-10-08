@@ -389,6 +389,13 @@ export function feedbackArchiveReadme(archive: {
 		'- **tried** -- what the reporter says they tried first. Prose they typed, not a fact.'
 	);
 	lines.push(
+		"- **edited** -- a site admin corrected this report's kind, message or what they tried"
+	);
+	lines.push(
+		"  after it was filed. The report shows the corrected words; `index.json` keeps the reporter's"
+	);
+	lines.push('  own words on the row and the latest correction beside them under `edit`.');
+	lines.push(
 		'- **contact** -- on an anonymous report only, an unverified string the reporter typed.'
 	);
 	lines.push('  Nobody signed in to leave it and nothing checked it. It is not an identity.');

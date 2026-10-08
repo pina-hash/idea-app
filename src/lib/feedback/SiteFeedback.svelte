@@ -14,6 +14,9 @@
 		contextOf,
 		feedbackConsoleHref,
 		feedbackExclusion,
+		FEEDBACK_GLYPH,
+		FEEDBACK_PROMPT,
+		PROBLEM_GLYPH,
 		REPORT_LABEL,
 		type BuildStamp
 	} from './context';
@@ -191,7 +194,7 @@
 	 */
 	$effect(() => {
 		if (!open) return;
-		return holdDeployReload('a problem report is open');
+		return holdDeployReload('a feedback box is open');
 	});
 
 	/**
@@ -368,8 +371,8 @@
 	const noteFor = $derived(
 		status === null
 			? anonymous
-				? 'Something confusing, broken, or missing? You are not signed in, so this report carries no name. The page you are on, your browser and the build are attached automatically.'
-				: 'Something confusing, broken, or missing? The page you are on, your role, your browser and the build are attached automatically.'
+				? `${FEEDBACK_PROMPT} You are not signed in, so this report carries no name. The page you are on, your browser and the build are attached automatically.`
+				: `${FEEDBACK_PROMPT} The page you are on, your role, your browser and the build are attached automatically.`
 			: anonymous
 				? `This page failed with a ${status}. You are not signed in, so this report carries no name. The status, the route, your browser and the build are attached automatically, so say what you were trying to do.`
 				: `This page failed with a ${status}. The status, the route, your browser and the build are attached automatically, so say what you were trying to do.`
@@ -397,9 +400,12 @@
 					stroke-linecap="round"
 					stroke-linejoin="round"
 				>
-					<path d="M12 3l9 16H3z" />
-					<path d="M12 9v4" />
-					<path d="M12 16.5v.01" />
+					<!-- A speech bubble, from the one list in context.ts; the error
+					     page keeps the warning triangle, because a report there is a
+					     problem report by definition. -->
+					{#each status === null ? FEEDBACK_GLYPH : PROBLEM_GLYPH as d (d)}
+						<path {d} />
+					{/each}
 				</svg>
 			</span>
 			<span class="sfb-word">{label}</span>

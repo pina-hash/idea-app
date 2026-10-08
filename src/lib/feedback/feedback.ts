@@ -610,6 +610,95 @@ export function feedbackIsAnonymous(
  */
 export type FeedbackStatus = 'new' | 'seen' | 'resolved' | 'spam';
 
+/**
+ * THE ONE LIST OF STATUSES, with the words a console shows, and every status
+ * control on every feedback console is derived from it -- the per-row buttons,
+ * the bulk bar and the filter tabs of the site queue, and the same three on the
+ * Armory app's two tabs (decision D5 of the 2026-10-07 round: one vocabulary
+ * across the three, so there is one list in code and no new words to learn).
+ * Adding `spam` (0188) touched exactly this array, which is the point of it
+ * being one; it moved here from FeedbackConsole when a second console needed it.
+ */
+export const FEEDBACK_STATUSES: { id: FeedbackStatus; label: string }[] = [
+	{ id: 'new', label: 'New' },
+	{ id: 'seen', label: 'Seen' },
+	{ id: 'resolved', label: 'Resolved' },
+	{ id: 'spam', label: 'Spam' }
+];
+
+/**
+ * AN ADMIN'S CORRECTION OF A FILED REPORT (0233, report d362bfb3): the latest
+ * numbered revision of its kind, message and "what you tried", as the console
+ * read projects it beside the reporter's own words. The reporter's row never
+ * changes; `rowEdit` in console.ts is the one reader that validates this
+ * shape, and `rowMessage` / `rowKind` / `rowTried` are what every surface reads.
+ */
+export interface FeedbackEdit {
+	revision: number;
+	kind: string;
+	message: string;
+	tried: string | null;
+	edited_by: string | null;
+	edited_at: string;
+}
+
+/**
+ * The words for each refusal `app_feedback_edit` answers with, shown verbatim
+ * beside the edit form. An admin reads these, so they say what to do next.
+ */
+export const FEEDBACK_EDIT_REFUSALS: Record<string, string> = {
+	kind: 'Pick one of the four kinds.',
+	empty: 'The message cannot be empty. A report has to say something.',
+	too_long: `The message is longer than ${FEEDBACK_MAX_LEN} characters. Shorten it and save again.`,
+	tried_too_long: `"What they tried" is longer than ${FEEDBACK_TRIED_MAX} characters. Shorten it and save again.`,
+	stale:
+		'Another admin changed this report while you were editing it. Reload to see their version, then edit again.'
+};
+
+/** What the edit form sends: the words it wants, and the revision it opened on. */
+export interface FeedbackEditInput {
+	kind: string;
+	message: string;
+	tried: string | null;
+	/** The revision the form was opened on; 0 for a report never edited. */
+	baseRevision: number;
+}
+
+/**
+ * AN OPEN EDIT'S UNSAVED WORDS, kept by the console rather than by the form.
+ * The form is mounted inside its report's card, and a card moves between the
+ * list and the console's "Being edited" section when a filter or a bulk move
+ * hides it, which remounts the form; the console hands these back so the new
+ * mount opens on what was typed, against the revision it was typed against.
+ */
+export interface FeedbackEditDraft {
+	kind: string;
+	message: string;
+	tried: string;
+	/** The revision the edit was opened on, so a save after a remount is still checked against it. */
+	baseRevision: number;
+}
+
+/**
+ * What `app_feedback_edit` answered, as the edit transport hands it back.
+ * `reason` is the database's own structured refusal (FEEDBACK_EDIT_REFUSALS);
+ * `message` is a transport failure, with whether sending again could help.
+ */
+export type FeedbackEditResult =
+	| { ok: true; changed: boolean; revision: number }
+	| { ok: false; reason?: string; message?: string; retryable?: boolean };
+
+/** The console's optional edit transport. Absent removes every Edit control. */
+export type FeedbackEditTransport = (
+	id: string,
+	input: FeedbackEditInput
+) => Promise<FeedbackEditResult>;
+
+/** A refusal's words, or the reason itself named, so a new one is never blurred. */
+export function feedbackEditRefusalWords(reason: string): string {
+	return FEEDBACK_EDIT_REFUSALS[reason] ?? `The database refused that edit (${reason}).`;
+}
+
 /** One row as app_feedback_admin_list returns it. */
 export interface FeedbackRow {
 	id: string;
@@ -658,4 +747,13 @@ export interface FeedbackRow {
 	 * to `meta.tried`.
 	 */
 	horizon?: string | null;
+	/**
+	 * AN ADMIN'S LATEST CORRECTION, or null when the report was never edited
+	 * (0233). ABSENT on a payload from a backend before 0233, and the absence
+	 * is the signal: the console offers the Edit control only when the load
+	 * saw this key on a row, so a client deployed before the apply offers
+	 * nothing it cannot write. `kind`, `message` and `tried` above stay the
+	 * reporter's own words whatever this holds.
+	 */
+	edit?: FeedbackEdit | null;
 }

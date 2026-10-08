@@ -6,14 +6,14 @@
  * side by side under "Both".
  *
  * `/dev/feedback?view=console` mounts the REAL FeedbackConsole under the site
- * plate, as /admin/feedback does, over a sink of eight reports: six on "fix
- * soon" and two long-term ideas, one carried in the column and one only in
+ * plate, as /admin/feedback does, over a sink of nine reports: seven on "fix
+ * soon" (one of them already corrected by an admin, 0233) and two long-term ideas, one carried in the column and one only in
  * `meta.horizon` (a report written against a backend before 0230), which is
  * also the oldest row in the sink. The console opens on Fix soon; the prepare
  * step presses "Both", and the predicate is the long-term list existing.
  *
  * WHAT IS MEASURED: both lists render with their own headings and the right
- * counts (8 reports, 2 long-term chips, a move control on all 8); the chip
+ * counts (9 reports, 2 long-term chips, a move control on all 9); the chip
  * word, the headings and the horizon tabs at 4.5:1 on their real grounds; the
  * tabs and the move controls at 44px.
  */
@@ -51,10 +51,10 @@ export const HORIZON_CHECKS = {
 		},
 		{
 			selector: '[data-testid="fbc-group-now"] article.fb-row',
-			label: 'the six reports to fix soon, in theirs',
-			expectPresent: 6,
-			maxPresent: 6,
-			expectVisible: 6
+			label: 'the seven reports to fix soon, in theirs',
+			expectPresent: 7,
+			maxPresent: 7,
+			expectVisible: 7
 		},
 		{
 			selector: '[data-testid="fbc-long-term-chip"]',
@@ -66,9 +66,9 @@ export const HORIZON_CHECKS = {
 		{
 			selector: '[data-testid^="fbc-horizon-move-"]',
 			label: 'a move control on every report',
-			expectPresent: 8,
-			maxPresent: 8,
-			expectVisible: 8
+			expectPresent: 9,
+			maxPresent: 9,
+			expectVisible: 9
 		}
 	],
 	textContains: [
