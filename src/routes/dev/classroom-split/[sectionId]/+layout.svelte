@@ -31,6 +31,22 @@
 	}
 
 	/**
+	 * `?names=long` LATCHES like `?manage=1` (the row links carry no query) and
+	 * renames ONE existing unit and ONE existing assignment in place, with no
+	 * new rows (several specs pin the fixture's twenty rows): the unit name and
+	 * the kind of title that broke mid-word in the narrow list pane (report
+	 * R09, ledger 0368, "HOOK COMPETITIO N", "Solidwork s Day").
+	 */
+	let namesLatch = false;
+	export function harnessLongNames(url: URL): boolean {
+		if (url.searchParams.get('names') === 'long') namesLatch = true;
+		if (url.searchParams.get('names') === 'short') namesLatch = false;
+		return namesLatch;
+	}
+	export const LONG_UNIT = { id: 'u-2', name: 'Hook Design Competition' };
+	export const LONG_ITEM = { id: 'i-draft', title: 'Solidworks Day: modeling the hook and its mounting plate' };
+
+	/**
 	 * THE COMPOSER'S OWN LEDGER, at module scope so it survives navigation
 	 * between items -- which is exactly the span the composer is meant to
 	 * survive, so a counter that reset with the page would prove nothing.
@@ -131,8 +147,25 @@
 	 * groups (the item page's panel layout among them) live in memory for the
 	 * session, which is the store's own harness answer.
 	 */
-	provideClassroomPreferences(createClassroomPreferences({ viewer: 'split-harness', account: null, storage: null }));
+	const harnessPrefs = createClassroomPreferences({ viewer: 'split-harness', account: null, storage: null });
+	/* `?nav=<rem>` seeds the list pane's width beside an open item, read once at
+	   mount (the store keeps it after that), so a narrow-pane spec does not
+	   depend on key presses at the separator. Clamped by the store's own rule. */
+	{
+		const navParam = Number(page.url.searchParams.get('nav') ?? '');
+		if (Number.isFinite(navParam) && navParam > 0) {
+			harnessPrefs.set('display', { ...harnessPrefs.current.display, navWidth: navParam });
+		}
+	}
+	provideClassroomPreferences(harnessPrefs);
 	const seededState = $derived(harnessState(page.url));
+	const longNames = $derived(harnessLongNames(page.url));
+	const shownUnits = $derived(
+		longNames ? data.units.map((u) => (u.id === LONG_UNIT.id ? { ...u, name: LONG_UNIT.name } : u)) : data.units
+	);
+	const shownItems = $derived(
+		longNames ? data.items.map((i) => (i.id === LONG_ITEM.id ? { ...i, title: LONG_ITEM.title } : i)) : data.items
+	);
 
 	const ok = <T,>(value: T): Promise<TxResult<T>> => Promise.resolve({ ok: true, data: value });
 
@@ -528,8 +561,8 @@
 {#snippet classList()}
 	<ClassView
 		section={data.section}
-		items={data.items}
-		units={data.units}
+		items={shownItems}
+		units={shownUnits}
 		{selectedItemId}
 		{collapsed}
 		canManage={manage}

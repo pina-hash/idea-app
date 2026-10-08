@@ -34,8 +34,16 @@ export default {
 				const before = page.getBoundingClientRect().height;
 				const dt = new DataTransfer();
 				dt.items.add(new File(['x'], 'bench.png', { type: 'image/png' }));
-				for (const t of ['dragenter', 'dragover']) row.dispatchEvent(new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: dt }));
-				await new Promise((r) => setTimeout(r, 200));
+				/* PAINT IS NOT INTERACTIVITY (CLAUDE.md): the new-post key the
+				   prepare step waits for is server-rendered, and a drag sent before
+				   hydration attaches the page's drop action does nothing (measured:
+				   "NO WORDS" at one width or the other on about one run in three).
+				   So drag in until the words appear, up to ten seconds; only the
+				   drag that produced them was counted, so one leave ends it. */
+				for (let i = 0; i < 50 && !page.querySelector('[data-testid="class-page-drop-overlay"]'); i++) {
+					for (const t of ['dragenter', 'dragover']) row.dispatchEvent(new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: dt }));
+					await new Promise((r) => setTimeout(r, 200));
+				}
 				const label = page.querySelector('[data-testid="class-page-drop-overlay"] .page-drop-label');
 				const r = label ? label.getBoundingClientRect() : null;
 				const out = [

@@ -3,7 +3,8 @@
 	import { page } from '$app/state';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import QuickPostComposer from '$lib/classroom/QuickPostComposer.svelte';
-	import type { ClassroomSection } from '$lib/classroom/classroom';
+	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
+	import type { ClassroomAttachment, ClassroomSection } from '$lib/classroom/classroom';
 	import type { ClassroomLive } from '$lib/classroom/live';
 	import { PollSignedOut, startPoller, type Poller, type PollOutcome } from '$lib/classroom/poll';
 	import { pollSessionKey, pollSignedOut } from '$lib/classroom/poll-session';
@@ -13,6 +14,8 @@
 		QUICK_POST_NOTICE_JITTER_MS,
 		QUICK_POST_SHOWN,
 		quickPostClassWords,
+		quickPostFileSrc,
+		quickPostLimits,
 		quickPostLinks,
 		quickPostNextChange,
 		quickPostPostedWords,
@@ -20,10 +23,12 @@
 		quickPostRuns,
 		quickPostShowing,
 		quickPostSkewMs,
+		quickPostSplit,
 		quickPostUntilWords,
 		type QuickPost,
 		type QuickPostBoard,
 		type QuickPostCreateResult,
+		type QuickPostFile,
 		type QuickPostTransports
 	} from '$lib/classroom/quick-posts';
 
@@ -54,6 +59,16 @@
 	 * or the database has no quick posts yet) renders nothing and polls nothing.
 	 * No `transports` means no refresh, no take down and no composer. A student
 	 * never sees a manager's line or a Take down key: the board says who manages.
+	 *
+	 * A LONG NOTICE SHOWS A LEAD AND FOLDS THE REST (0233, report R04: "quick
+	 * post shouldnt take up too much screen space ... if its a longer one it
+	 * should be collapsible"). `quickPostSplit` is the one rule of where the
+	 * lead ends; the rest is the one `Disclosure`, closed on arrival for
+	 * everyone, a person's own press remembered per notice, and in the DOM
+	 * either way so it prints. A notice's files sit under its words: pictures as
+	 * small tiles that open the Lightbox on that notice's whole picture set,
+	 * everything else as a download row (`AttachmentList compact`), each through
+	 * the notice-file route, which signs a download and never serves inline.
 	 */
 	let {
 		board,
@@ -65,7 +80,8 @@
 		sections = [],
 		viewerEmail = null,
 		pollMs = QUICK_POSTS_POLL_MS,
-		noticeJitterMs = QUICK_POST_NOTICE_JITTER_MS
+		noticeJitterMs = QUICK_POST_NOTICE_JITTER_MS,
+		fileSrc = quickPostFileSrc
 	}: {
 		/** The page load's read. Null: no region, no poll. */
 		board: QuickPostBoard | null;
@@ -85,6 +101,8 @@
 		pollMs?: number;
 		/** The live notice's random wait. A harness and a test pass 0. */
 		noticeJitterMs?: number;
+		/** Where a notice file's bytes come from. The class page never passes it; a harness does. */
+		fileSrc?: (fileId: string) => string;
 	} = $props();
 
 	/**
@@ -220,7 +238,17 @@
 		for (const id of new Set(ids)) live?.announce(id, 'quick-posts');
 	}
 
-	function created(res: Extract<QuickPostCreateResult, { ok: true }>, body: string) {
+	/**
+	 * THE DATABASE MADE THE NOTICE. With no files to follow it is announced and
+	 * the composer closes, as it always did. With files, the classes hear about
+	 * it once the first upload pass has finished (`filesLanded`), so a student's
+	 * re-read arrives with the pictures on it rather than a moment before them.
+	 * That first pass announces WHATEVER landed, nothing included: a notice
+	 * whose every file failed (a phone video over the cap is refused before any
+	 * transfer) is still a notice, and the classes must not wait for the floor
+	 * poll to read "Fire drill during third block".
+	 */
+	function created(res: Extract<QuickPostCreateResult, { ok: true }>, body: string, filesPending: number) {
 		const nowAt = Date.now() + skew;
 		ack = quickPostPostedWords(res.section_ids.length, res.expires_at, nowAt);
 		problem = null;
@@ -231,11 +259,16 @@
 				created_at: res.created_at,
 				expires_at: res.expires_at,
 				section_ids: [...res.section_ids],
-				can_take_down: true
+				can_take_down: true,
+				files: []
 			};
 			local = { over: board, board: { ...shown, posts: [post, ...shown.posts.filter((p) => p.id !== post.id)] } };
 		}
 		nowMs = Date.now();
+		if (filesPending > 0) {
+			pending = { id: res.id, sections: [...res.section_ids], announced: false };
+			return;
+		}
 		announce(res.section_ids);
 		oncomposerclose?.();
 	}
@@ -268,6 +301,54 @@
 
 	const classCount = (p: QuickPost) => Math.max(1, p.section_ids?.length ?? 1);
 
+	/**
+	 * A NOTICE WHOSE FILES ARE STILL GOING ON. The composer stays mounted while
+	 * it holds one, even if the header's Quick post key is pressed again: an
+	 * unmounted panel would drop the files that did not attach and every
+	 * sentence about why.
+	 */
+	let pending = $state<{ id: string; sections: string[]; announced: boolean } | null>(null);
+	const limits = $derived(quickPostLimits(shown));
+
+	function withFiles(postId: string, files: QuickPostFile[]) {
+		if (!shown || !files.length) return;
+		const at = shown.posts.findIndex((p) => p.id === postId);
+		if (at < 0) return;
+		const post = shown.posts[at];
+		const merged = [...(post.files ?? []), ...files.filter((f) => !(post.files ?? []).some((g) => g.id === f.id))];
+		const posts = [...shown.posts];
+		posts[at] = { ...post, files: merged };
+		local = { over: board, board: { ...shown, posts } };
+	}
+
+	/**
+	 * After each upload pass: show what landed, tell the classes, close when
+	 * nothing is left. The FIRST pass always tells them, landed or not; a later
+	 * pass (Attach the rest, a row's Retry) tells them only when a file landed.
+	 */
+	function filesLanded(postId: string, landed: QuickPostFile[], left: number) {
+		withFiles(postId, landed);
+		const ours = pending?.id === postId ? pending : null;
+		const sections = ours ? ours.sections : [sectionId];
+		if (landed.length || (ours && !ours.announced)) announce(sections);
+		if (ours && !ours.announced) pending = { ...ours, announced: true };
+		if (left === 0) {
+			pending = null;
+			oncomposerclose?.();
+		}
+	}
+
+	/**
+	 * The composer let go: a cancel, or Close on a posted notice. A notice let go
+	 * of before its first pass reported (Close pressed mid-upload) is announced
+	 * here, so no posted notice ever goes unannounced.
+	 */
+	function composerClosed() {
+		if (pending && !pending.announced) announce(pending.sections);
+		pending = null;
+		oncomposerclose?.();
+	}
+
 	/** The composer's one write, through this board's transports. */
 	const createPost: QuickPostTransports['create'] = (ids, body, expiresAt) =>
 		transports
@@ -275,8 +356,21 @@
 			: Promise.resolve({ ok: false, reason: 'unavailable', message: quickPostRefusalWords('unavailable') });
 </script>
 
+{#snippet runs(text: string)}
+	{#each quickPostRuns(text) as run, i (i)}{#if run.href}<a
+				class="qp-link"
+				href={run.href}
+				target="_blank"
+				rel="noopener noreferrer">{run.text}</a
+			>{:else}{run.text}{/if}{/each}
+{/snippet}
+
 {#snippet notice(post: QuickPost)}
 	{@const links = quickPostLinks(post.body)}
+	{@const split = quickPostSplit(post.body)}
+	{@const files = (post.files ?? []).map(
+		(f): ClassroomAttachment => ({ id: f.id, filename: f.filename, mime_type: 'application/octet-stream', size_bytes: f.size_bytes })
+	)}
 	<article class="card qp-card" data-testid="quick-post" data-post={post.id}>
 		<span class="qp-stripe" aria-hidden="true"></span>
 		<p class="qp-head">
@@ -284,14 +378,23 @@
 			<span class="qp-word">Notice</span>
 			<span class="chip qp-until" data-testid="quick-post-until">{quickPostUntilWords(post.expires_at, at)}</span>
 		</p>
-		<p class="qp-body" data-testid="quick-post-body">
-			{#each quickPostRuns(post.body) as run, i (i)}{#if run.href}<a
-						class="qp-link"
-						href={run.href}
-						target="_blank"
-						rel="noopener noreferrer">{run.text}</a
-					>{:else}{run.text}{/if}{/each}
-		</p>
+		<p class="qp-body" data-testid="quick-post-body">{@render runs(split.lead)}</p>
+		{#if split.rest !== null}
+			<!-- The rest of a long notice: in the DOM either way, closed on arrival. -->
+			<Disclosure
+				label="Rest of the notice"
+				scope={`quick-post:${post.id}`}
+				collapseWhen={true}
+				testId="quick-post-more"
+			>
+				<p class="qp-body qp-rest" data-testid="quick-post-rest">{@render runs(split.rest)}</p>
+			</Disclosure>
+		{/if}
+		{#if files.length}
+			<div class="qp-files" data-testid="quick-post-files">
+				<AttachmentList attachments={files} compact resolveSrc={(a) => fileSrc(a.id)} />
+			</div>
+		{/if}
 		{#if links.length}
 			<div class="qp-links">
 				{#each links as l (l.href)}
@@ -342,16 +445,19 @@
 {/snippet}
 
 {#if loaded}
-	{#if visible.length || (composing && transports && manages) || ack || problem}
+	{#if visible.length || ((composing || pending) && transports && manages) || ack || problem}
 		<section class="qp" aria-label="Class notices" data-testid="quick-posts">
-			{#if composing && transports && manages}
+			{#if (composing || pending) && transports && manages}
 				<QuickPostComposer
 					{sections}
 					currentSectionId={sectionId}
 					{viewerEmail}
 					create={createPost}
 					oncreated={created}
-					oncancel={() => oncomposerclose?.()}
+					oncancel={composerClosed}
+					onfiles={filesLanded}
+					uploadFile={transports.uploadFile ?? null}
+					{limits}
 				/>
 			{/if}
 			{#if ack}
@@ -443,6 +549,13 @@
 		line-height: 1.45;
 		white-space: pre-line;
 		overflow-wrap: break-word;
+	}
+	.qp-rest {
+		margin-top: var(--space-2);
+	}
+	.qp-files {
+		margin-top: var(--space-1);
+		min-width: 0;
 	}
 	.qp-link {
 		color: var(--body-link, var(--cyan));

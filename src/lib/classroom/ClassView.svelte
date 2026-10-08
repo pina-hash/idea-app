@@ -198,7 +198,9 @@
 		 * There is an open DETAIL PANE beside this list, so the list is no longer
 		 * the main content of the page.
 		 *
-		 * Purely a landmark switch, and it tracks the detail rather than the split
+		 * A landmark switch on ONE element (a `role`, never a changed tag: a
+		 * changed tag rebuilt every child, ledger 0368), plus the `as-pane`
+		 * class the compact list rows key on. It tracks the detail rather than the split
 		 * for a reason found at 375px: below the breakpoint the detail pane is the
 		 * only pane on screen when something is open, and the list is the only one
 		 * when nothing is. Keying on "is this a split" instead left the class page
@@ -1841,7 +1843,10 @@
 							so a menu with space below opens where it always did; `gap: 3`
 							is that 0.2rem. No ancestor carries a `transform`, `filter` or
 							`contain` (measured on the whole chain up to `<body>`), which is
-							the one precondition the action cannot check for itself.
+							the one precondition the action cannot check for itself. The
+							stream's `container-type: inline-size` (ledger 0368) was measured
+							NOT to capture a fixed descendant or to stack it (Chromium 141),
+							and the narrow-list spec opens this menu and hit-tests it.
 						-->
 						<div
 							class="menu"
@@ -2012,11 +2017,20 @@
 	<title>{sectionTitle(section)} // IDEA Classroom</title>
 </svelte:head>
 
-<svelte:element
-	this={asPane ? 'section' : 'main'}
+<!--
+	ONE ELEMENT, WHATEVER THE PANE IS DOING (ledger 0368, report R02). This was a
+	`<svelte:element this={asPane ? 'section' : 'main'}>`, and a changed tag
+	builds a NEW element and re-runs every child: opening or closing an item
+	rebuilt the whole class page (the banner's arrival replayed, the pollers
+	restarted, a half-typed quick post was lost). The landmark is a `role` on one
+	stable element instead, so nothing under it is touched.
+-->
+<section
 	class="classroom-page"
+	class:as-pane={asPane}
 	class:page-dropping={pageDropActive}
 	class:edit-layer-open={editable && editing !== null}
+	role={asPane ? undefined : 'main'}
 	aria-label={asPane ? 'Class content' : undefined}
 	use:classPageDrop={{ enabled: pageDropOn }}
 >
@@ -2569,7 +2583,7 @@
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
 	</footer>
-</svelte:element>
+</section>
 
 <style>
 	/* SPACING COMES FROM THE SCALE, NOT FROM LITERALS.
@@ -2590,6 +2604,13 @@
 	   masthead (`.app-header`, also 1, later in the page) painted over its title
 	   row and its Close: measured by hit test at 375 and 1440. While a row is
 	   being edited the page gives up its stacking context, and only then. */
+	/* What `src/app.css` gives every `main`, for the one stable element that is
+	   the page's main only while no item is open (ledger 0368). `:where` keeps
+	   it below the edit-layer rule after it, whatever the order. */
+	.classroom-page:where([role='main']) {
+		position: relative;
+		z-index: 1;
+	}
 	.classroom-page.edit-layer-open {
 		z-index: auto;
 	}
@@ -2697,6 +2718,8 @@
 	.stream {
 		column-width: var(--cr-stream-col);
 		column-gap: var(--space-5);
+		/* The compact rows below ask THIS box how wide it is (ledger 0368). */
+		container: class-stream / inline-size;
 	}
 	.stream > :global(*) {
 		/* A card must never be split down a column boundary: half a unit at the
@@ -3529,6 +3552,67 @@
 		margin-top: var(--space-4);
 		display: flex;
 		justify-content: flex-start;
+	}
+	/* The version stamp is one `nowrap` line, 52px wider than the list at its
+	   18rem floor (measured, ledger 0368): beside an open item it may wrap at
+	   its own spaces rather than push the pane sideways. */
+	.classroom-page.as-pane .page-footer :global(.version-badge) {
+		min-width: 0;
+		white-space: normal;
+	}
+
+	/* THE LIST BESIDE AN OPEN ITEM, NARROWED (ledger 0368, report R09: "This
+	   kind of squishing ... is unacceptable"). Measured on /dev/classroom-split
+	   with a long unit name and a long title, before this: at the 18rem pane a
+	   manager's row spent ~155px on controls (checkbox 30, grip 44, expand 30,
+	   menu 32, gaps) of 208px, so the title had 71px and "HOOK COMPETITION" broke
+	   mid-word beside its Select all key; at 24rem nothing broke. So the rows
+	   shed what they can do without, keyed on the STREAM's own width (a
+	   breakpoint inside a nested pane is dead code until measured there), and
+	   only beside an open item (`.as-pane`): a phone keeps its 44px grip, which
+	   was made visible there on purpose.
+
+	   FROM THE DEFAULT 26rem PANE DOWN (the stream at 25rem or less; the
+	   stream is the pane less 26px, measured: 390px at 26rem, 422px at 28rem), the drag
+	   grip and a collapsed expand arrow step aside. Reordering stays in the row
+	   menu's Move up / Move down and in the full-width list; an expanded row
+	   keeps its arrow, because that is how it closes, and an arrow that HOLDS
+	   FOCUS stays until focus leaves it (`:not(:focus)`): Collapse pressed from
+	   the keyboard would otherwise hide the very button the focus is on and drop
+	   it to the body. The unit header wraps its Select all / File here keys
+	   under the name before the name is squeezed. */
+	@container class-stream (max-width: 25rem) {
+		.classroom-page.as-pane .row-grip,
+		.classroom-page.as-pane .row-expand:not([aria-expanded='true']):not(:focus) {
+			display: none;
+		}
+		.classroom-page.as-pane .group-bar {
+			flex-wrap: wrap;
+		}
+		.classroom-page.as-pane .group-head {
+			flex: 1 1 11rem;
+		}
+	}
+	/* BELOW A 22rem PANE (the stream at 20rem or less: 294px at 20rem, 326px
+	   at 22rem) the kind WORD leaves the meta line visually: the kind glyph
+	   beside the title still says it, and the word stays in the accessible
+	   tree. Every other meta field stays, whole where it fits (ledger 0281:
+	   nothing Mr. Pina acts on is cut or hidden). The unit card has no side
+	   padding of its own to give back (measured 0px at every width), so the
+	   rows already run edge to edge. */
+	@container class-stream (max-width: 20rem) {
+		.classroom-page.as-pane .row-kind {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			margin: -1px;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+			white-space: nowrap;
+		}
+		.classroom-page.as-pane .row-kind + .meta-bit > .meta-sep {
+			display: none;
+		}
 	}
 
 	/* THE UNITS PROMPT. A card, because it is teaching a capability rather than

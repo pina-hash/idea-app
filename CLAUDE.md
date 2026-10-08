@@ -1022,10 +1022,10 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
     before 0133, which the old twelve-type allowlist had already filtered.
     Adding a type there can only weaken the legacy path.
 - **THE KEY LAYOUT IS THE AUTHORIZATION.** `<owner_id>/<uuid>.<ext>`, where the
-  owner is the classroom item or the submission, and every storage policy reads
-  the FIRST PATH SEGMENT and asks the classroom's own existing predicate about
-  it (`classroom_can_read_item`, `_classroom_manages_item`,
-  `classroom_can_review_submission`). There is no second authorization model:
+  owner is the classroom item, the submission or (0233) the class notice, and
+  every storage policy reads the FIRST PATH SEGMENT and asks the classroom's own
+  existing predicate about it (`classroom_can_read_item`, `_classroom_manages_item`,
+  `classroom_can_review_submission`, `classroom_can_read_quick_post_object`). There is no second authorization model:
   nothing about who may see a handout is restated in the migration.
   `_classroom_storage_prefix_uuid` is the ONE reader of that layout and returns
   NULL for anything that is not a bare uuid in segment 1, with every caller
@@ -1044,11 +1044,11 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
   handle and keeps serving through the same route, and the ONE place that
   branches is the serve route. Do not write a migration that moves them: the
   branch is cheaper than the move and the move can only lose bytes.
-- **ONE UPLOAD PATH AND ONE COMPONENT, ALL THREE SIDES.**
+- **ONE UPLOAD PATH AND ONE COMPONENT, FOUR ROLES.**
   `$lib/classroom/file-upload.ts` does sign -> PUT -> record for a student-facing
-  attachment, a student hand-in and (since 0135) an instructor-only answer key
-  alike, gated by a `role` that changes only the wording and which pair of routes
-  is called; `ENDPOINTS` is that map, a literal rather than a string built from
+  attachment, a student hand-in, (since 0135) an instructor-only answer key and
+  (since 0233) a file on a class notice alike, gated by a `role` that changes
+  only the wording and which pair of routes is called; `ENDPOINTS` is that map, a literal rather than a string built from
   the role, so a typo is a type error and grepping for a route finds its caller.
   A role is THREE things or it is none: a `sign` route naming its own bucket, a
   `record` route naming its own RPC, and a `DENIED_REASON` sentence that says
@@ -1056,7 +1056,11 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
   `FileUploadPanel.svelte` is the picker, the per-file progress, the per-file
   error and the Retry, mounted by ContentComposer TWICE (student-facing files and
   the instructor-only list, both staged and uploaded on save), by
-  AssignmentEngine (immediate) and by SpecRenderer per imageZone. **Two
+  AssignmentEngine (immediate), by SpecRenderer per imageZone and by
+  QuickPostComposer (staged, uploaded once Post has made the notice). The
+  `quick-post` role's own 45 MB guard is `uploadQuickPostFile` in
+  `$lib/classroom/quick-posts.ts` and its sign route, because the shared
+  uploader's browser guard is the other buckets' 200 MB. **Two
   implementations of "upload a file" is two sets of failure semantics** -- which
   is precisely how the student side ended up with a loop that stopped at the
   first failure and silently abandoned every file after it, with nothing left
@@ -1366,7 +1370,27 @@ have put every notice into every items reader and into `materials/`.
   links are `quickPostRuns` through `safeHref`, rendered as elements, with a
   44px Open key each when a notice carries three or fewer.
 - **POST IS ONE PREDICATE** (`quickPostSendCheck`, the `reviewCanSend` rule),
-  and the composer holds a deploy reload while it has writing in it.
+  and the composer holds a deploy reload while it has writing, staged files or
+  an upload in it.
+- **A NOTICE HOLDS 4000 CHARACTERS AND UP TO TEN FILES (0233, ledger 0368,
+  report R04), AND THE READ SAYS WHICH DATABASE THIS IS.** Files are
+  `classroom_quick_post_files` rows (RLS on, no policy, no grant, written only
+  by `classroom_quick_post_add_file`, which only the notice's AUTHOR may call
+  while it is up) over the private `quick-post-files` bucket, 45 MiB a file,
+  served only by `classroom_quick_post_file` and a signed download, never
+  inline. The read projects `files` (never a key or an address), `files_ready`
+  (the bucket's insert policy is there: the storage half sits in a guarded
+  block that NOTICEs rather than refuses where the applying role cannot write
+  storage) and `limits`; `quickPostLimits` reads a board without them as 1000
+  characters and no files, so a client ahead of the migration never offers
+  what the database refuses. Post creates the notice FIRST and then uploads
+  onto it; a file that fails stays staged with its Retry, "Attach the rest"
+  goes to the SAME notice, and the classes hear of it after the first pass.
+  A long notice shows a lead (`quickPostSplit`: a line break, then a sentence
+  end, then a space, never inside a word) and folds the rest in one
+  `Disclosure`, closed on arrival; files sit under it through `AttachmentList
+  compact` (every picture a tile opening the Lightbox on the notice's set,
+  every other file a download row).
 
 **THE CLASS PATTERN MOVES ON ITS OWN LAYER, BOUNDED, AND NEVER UNDER `reduce`
 (ledger 0360, report R21).** The pattern is a real `aria-hidden` element in
@@ -1375,11 +1399,19 @@ own stroke at its own alpha and painted over the wash and under the words by
 TREE ORDER among positioned boxes, with no z-index, so the banner is still no
 stacking context. The arrival drift is 4.2s and ends on the still frame
 (WCAG 2.2.2's five seconds), and it loops only under `:hover` with
-`(hover: hover)`. Transform only. Stripes and rays carry a 24px overscan their
-motion never uncovers; rings and ripples only grow about their own centre.
-`class-header-pattern-*.mjs` pause the drift at every tenth and hold the moving
-layer over the whole banner; `classroom-theme.mjs`'s `motion` row measures
-both media states.
+`(hover: hover)`. Transform only. **A HOVER PAUSES AND RESUMES THE LOOP; IT
+NEVER SWAPS THE ANIMATION (ledger 0368, report R02).** A rule that replaced the
+arrival on `:hover` restarted it from its first frame whenever the pointer left
+(a name re-entering `animation-name` is a new animation), so the arrival sits on
+the inner `.ct-pattern` and the loop on the outer `.ct-pattern-loop`, attached
+from the start and `paused`; a `:hover` rule sets `animation-play-state` and
+nothing else (`tests/classroom-class-theme-render.test.ts` holds it), and
+`transform-origin` is set on both layers because it is not inherited. Stripes
+carry a 24px overscan and rays 72px, which a 2.5deg turn about a corner needs
+on the split's 92rem; rings and ripples only grow about their own centre.
+`class-header-pattern-*.mjs` compose every tenth of the arrival with the loop
+at its start, middle and end and hold the layers over the whole banner;
+`classroom-theme.mjs`'s `motion` row measures both media states.
 
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
@@ -4176,6 +4208,16 @@ inside the function fails closed rather than falling through to a weaker path.
   centred in the room it was just given is the same defect one level in. ClassView
   lays its unit groups out in COLUMNS for exactly this (see the column rule
   below for why they are multi-column and not a grid).
+- **THE CLASS LIST BESIDE AN OPEN ITEM GOES COMPACT BY ITS OWN WIDTH (ledger
+  0368, report R09).** `.stream` in ClassView is a size container
+  (`class-stream`, measured not to capture the row menu's fixed panel), and two
+  `@container` tiers, scoped to `.classroom-page.as-pane` so a phone keeps its
+  44px grip, step the drag grip and a collapsed expand arrow aside and wrap the
+  unit header's keys under its name at the default 26rem pane and below, then
+  hide the kind WORD visually below 22rem (the glyph still says it).
+  No meta field is ellipsized or hidden (ledger 0281). The instrument is
+  `tools/browser-verify/routes/_narrow-list.mjs`, which steps the REAL
+  separator from 18rem to 30rem and counts overflow and broken words.
 - **A BREAKPOINT INSIDE A NESTED PANE IS DEAD CODE UNTIL IT IS MEASURED THERE,
   and nothing warns.** A container query whose threshold the container never
   reaches simply never fires: no unused-selector notice, no `svelte-check`
@@ -5271,6 +5313,16 @@ These have each cost a debugging session. They are not hypothetical.
   cleared its preview on unmount and left a consumed sketch drawn. Guard the
   teardown on the child's own state (it clears only what it set) and make the
   clearing function idempotent.
+- **A `<svelte:element this={...}>` WHOSE TAG CHANGES BUILDS A NEW ELEMENT AND
+  RE-RUNS EVERY CHILD**, state, pollers, animations and focus with it (Svelte
+  5.56 keys the block on the tag). ClassView's root was `this={asPane ?
+  'section' : 'main'}`, so every item open and close rebuilt the class page: the
+  banner's arrival replayed, the header's pollers restarted and a half-typed
+  quick post was lost (ledger 0368, report R02). Switch a landmark with `role`
+  on ONE stable element. A remount renders the same markup, so the instrument
+  is node identity across the flip
+  (`tests/dom/class-view-pane-keeps-children.svelte.test.ts`). A tag switch
+  around a bare text node (ClassHeader's h1/h2) is harmless and is not this.
 
 ### DOM
 

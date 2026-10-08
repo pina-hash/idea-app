@@ -41,6 +41,19 @@
 	 * so the compositor carries it, and nothing at all under
 	 * `prefers-reduced-motion: reduce`, where the layer is the still frame.
 	 *
+	 * HOVER PAUSES AND RESUMES; IT NEVER SWAPS THE ANIMATION (ledger 0368,
+	 * report R02, "buggy and dont really work"). The hover rule used to REPLACE
+	 * the arrival with the loop, and a name that re-enters `animation-name` is a
+	 * NEW animation, so every time the pointer left the banner (which wraps every
+	 * key in the class header, so it crossed the edge constantly) the arrival
+	 * restarted from its first frame, a visible jump (measured, Chromium 141:
+	 * +5.67px hovering, -14.97px just after leaving). So the arrival and the
+	 * loop live on TWO nested layers, each its own compositor animation. The
+	 * inner `.ct-pattern` carries the arrival, the outer `.ct-pattern-loop`
+	 * carries the loop, which is attached from the start and `paused`, and the
+	 * hover sets `animation-play-state` and nothing else. Leaving holds the loop
+	 * where it is, coming back resumes it, and the arrival never replays.
+	 *
 	 * Both twins of every colour arrive inline from `classThemeVars`; the
 	 * stylesheet below picks one into a used property of its own, and picks the
 	 * Space White twin under that theme. It never redeclares a `--ct-*` name the
@@ -81,7 +94,9 @@
 			<!-- The clip, not the banner, hides the layer's overscan, so a focus
 			     ring on a key inside the header is never clipped. -->
 			<span class="ct-pattern-clip" aria-hidden="true"
-				><span class="ct-pattern" data-testid="class-banner-pattern"></span></span
+				><span class="ct-pattern-loop"
+					><span class="ct-pattern" data-testid="class-banner-pattern"></span></span
+				></span
 			>
 		{/if}
 		{#if theme.badge.paths.length > 0 && !badgeInline}
@@ -134,26 +149,39 @@
 		border-radius: inherit;
 		pointer-events: none;
 	}
+	/* The loop's layer. It carries the overscan, and the pattern fills it. */
+	.ct-pattern-loop {
+		position: absolute;
+		inset: 0;
+	}
 	.ct-pattern {
 		position: absolute;
 		inset: 0;
 		background-image: var(--ct-p);
 	}
-	/* Stripes and rays move by sliding and turning, so their layer carries a
+	/* Stripes and rays move by sliding and turning, so their layers carry a
 	   margin the motion never uncovers. Stripes are uniform, so the margin moves
-	   only their phase; the rays' centre moves 24px past the corner, out of
-	   sight under the border. Rings and ripples only ever grow about their own
-	   centre, which can never uncover the box, so they need none. */
-	.ct-banner:is([data-pattern='stripes'], [data-pattern='rays']) .ct-pattern {
+	   only their phase (24px against a 16.97px slide each way). The rays turn
+	   about a centre 72px past the corner, out of sight under the border, and
+	   72px is what a 2.5deg turn needs on the widest banner the class page
+	   draws (the split's 92rem, 1472px: the far corner moves (w + 72) sin 2.5deg,
+	   about 67px; COVERS in tools/browser-verify measures it at 1920). Rings and
+	   ripples only ever grow about their own centre, which can never uncover the
+	   box, so they need none. `transform-origin` is not inherited, so it is set
+	   on BOTH layers: the arrival and the loop turn or grow about one point. */
+	.ct-banner[data-pattern='stripes'] .ct-pattern-loop {
 		inset: -24px;
 	}
-	.ct-banner[data-pattern='rings'] .ct-pattern {
+	.ct-banner[data-pattern='rays'] .ct-pattern-loop {
+		inset: -72px;
+	}
+	.ct-banner[data-pattern='rings'] :is(.ct-pattern-loop, .ct-pattern) {
 		transform-origin: 100% 50%;
 	}
-	.ct-banner[data-pattern='rays'] .ct-pattern {
+	.ct-banner[data-pattern='rays'] :is(.ct-pattern-loop, .ct-pattern) {
 		transform-origin: 100% 100%;
 	}
-	.ct-banner[data-pattern='ripples'] .ct-pattern {
+	.ct-banner[data-pattern='ripples'] :is(.ct-pattern-loop, .ct-pattern) {
 		transform-origin: 0% 100%;
 	}
 	.ct-badge {
@@ -171,11 +199,12 @@
 		min-width: 0;
 	}
 
-	/* THE MOTION: an arrival that ends on the still frame, and a loop only under
-	   a hovering pointer. One period of the stripes along the x axis is 12px over
-	   cos 45deg, so the loop is seamless; a ring breathes about its centre; the
-	   rays turn less than a degree, which is all their 24px margin allows on the
-	   widest banner the class pane can draw. */
+	/* THE MOTION: an arrival on the inner layer that ends on the still frame,
+	   and a loop on the outer layer that is attached from the start, paused, and
+	   runs only under a hovering pointer. One period of the stripes along the x
+	   axis is 12px over cos 45deg, so the loop is seamless and may stop at any
+	   phase; a ring breathes about its centre; the rays turn 2.5deg each way,
+	   which is a quarter of one ray's 9deg period and reads as a turn. */
 	@media (prefers-reduced-motion: no-preference) {
 		.ct-banner[data-pattern='stripes'] .ct-pattern {
 			animation: ct-stripes-in 4.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
@@ -187,17 +216,21 @@
 		.ct-banner[data-pattern='rays'] .ct-pattern {
 			animation: ct-turn-in 4.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 		}
+		.ct-banner[data-pattern='stripes'] .ct-pattern-loop {
+			animation: ct-stripes-drift 3s linear infinite paused;
+		}
+		.ct-banner[data-pattern='rings'] .ct-pattern-loop,
+		.ct-banner[data-pattern='ripples'] .ct-pattern-loop {
+			animation: ct-breathe 3.2s ease-in-out infinite alternate paused;
+		}
+		.ct-banner[data-pattern='rays'] .ct-pattern-loop {
+			animation: ct-turn 4s ease-in-out infinite alternate paused;
+		}
 	}
+	/* The hover only lets the loop run. Leaving pauses it where it is. */
 	@media (prefers-reduced-motion: no-preference) and (hover: hover) {
-		.ct-banner[data-pattern='stripes']:hover .ct-pattern {
-			animation: ct-stripes-drift 3s linear infinite;
-		}
-		.ct-banner[data-pattern='rings']:hover .ct-pattern,
-		.ct-banner[data-pattern='ripples']:hover .ct-pattern {
-			animation: ct-breathe 3.2s ease-in-out infinite alternate;
-		}
-		.ct-banner[data-pattern='rays']:hover .ct-pattern {
-			animation: ct-turn 4s ease-in-out infinite alternate;
+		.ct-banner:hover .ct-pattern-loop {
+			animation-play-state: running;
 		}
 	}
 	@keyframes ct-stripes-in {
@@ -234,7 +267,7 @@
 	}
 	@keyframes ct-turn-in {
 		from {
-			transform: rotate(-0.9deg);
+			transform: rotate(-2.5deg);
 		}
 		to {
 			transform: none;
@@ -245,7 +278,7 @@
 			transform: none;
 		}
 		to {
-			transform: rotate(0.9deg);
+			transform: rotate(2.5deg);
 		}
 	}
 	.sr-only {

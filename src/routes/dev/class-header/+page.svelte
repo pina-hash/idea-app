@@ -22,9 +22,13 @@
 	import { classroomMeasure, locateClassroom } from '$lib/classroom/nav';
 	import { laCalendarDay } from '$lib/classroom/school-calendar';
 	import {
+		QUICK_POST_FILE_MAX_BYTES,
+		QUICK_POST_LEGACY_MAX_CHARS,
 		QUICK_POST_MAX_AHEAD_DAYS,
 		QUICK_POST_MAX_CHARS,
+		QUICK_POST_MAX_FILES,
 		type QuickPostBoard,
+		type QuickPostFile,
 		type QuickPostTransports
 	} from '$lib/classroom/quick-posts';
 	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
@@ -55,6 +59,15 @@
 	const noTeams = params.get('teams') === '0';
 	const pollParam = Number(params.get('poll') ?? '');
 	const themeParam = params.get('theme');
+	/* `?files=N` puts N files on the first notice (pictures first, then a PDF
+	   and a CAD part), `?long=1` makes the first notice long enough to fold,
+	   and `?db=old` answers as a database without 0233: no `files_ready`, no
+	   `limits`, so the composer counts to 1000 and offers no picker (ledger
+	   0368, report R04). A file whose name holds "fail" is refused by the
+	   in-memory upload, which is how the partial-failure path is driven. */
+	const filesParam = Math.max(0, Math.min(10, Number(params.get('files') ?? '0') || 0));
+	const longParam = params.get('long') === '1';
+	const oldDb = params.get('db') === 'old';
 	/* `?view=class`: the REAL ClassView under the header, handed the section
 	   layout's own snippets, so where the class content starts is measured on
 	   the page as it ships rather than on the header alone. */
@@ -192,10 +205,27 @@
 	/* ---------------------------------------------------------------- *
 	 * THE NOTICES, IN MEMORY, AS 0230 KEEPS THEM.
 	 * ---------------------------------------------------------------- */
-	type Stored = { id: string; body: string; created_at: string; expires_at: string | null; sections: string[]; down: boolean };
+	type Stored = {
+		id: string;
+		body: string;
+		created_at: string;
+		expires_at: string | null;
+		sections: string[];
+		down: boolean;
+		files: QuickPostFile[];
+	};
 	const seeded: Stored[] = [];
+	const LONG_BODY =
+		'Special schedule today: we meet in the shop for the first 20 minutes, then move to the lab for the bridge load test.\n' +
+		'Bring safety glasses, your bridge, and the load sheet from Friday. If your bridge is not finished, bring what you have: we will test it anyway and you can rebuild it next week. ' +
+		'Groups of three: one person loads, one person reads the gauge, one person writes the numbers down. Swap roles after every bridge so everybody does each job once.\n' +
+		'After the test, upload a photo of your bridge at its failure point and a sentence on where it broke and why you think it broke there. The photo of the test rig below shows where the gauge sits.\n' +
+		'Slides for the test: https://docs.google.com/presentation/d/example';
+	const FILE_NAMES = ['test-rig.jpg', 'bridge-failure.png', 'load-chart.png', 'load-sheet.pdf', 'gusset.SLDPRT', 'span-2.jpg', 'span-3.jpg', 'notes.txt', 'span-4.jpg', 'span-5.jpg'];
 	const bodies = [
-		'Special schedule today: we meet in the shop for the first 20 minutes.\nBring safety glasses.',
+		longParam
+			? LONG_BODY
+			: 'Special schedule today: we meet in the shop for the first 20 minutes.\nBring safety glasses.',
 		'Slides for the bridge build: https://docs.google.com/presentation/d/example',
 		'Fire drill during third block. Leave your laptops closed.',
 		'Reminder: the truss sketch is due Friday.'
@@ -207,7 +237,11 @@
 			created_at: iso(now - (i + 1) * HOUR),
 			expires_at: i === 0 ? iso(now + 6 * HOUR) : i === 1 ? null : iso(now + (i + 1) * DAY),
 			sections: i === 1 ? ['s-2', 's-4', 's-6'] : ['s-2'],
-			down: false
+			down: false,
+			files:
+				i === 0
+					? FILE_NAMES.slice(0, filesParam).map((filename, n) => ({ id: `qpf-${n + 1}`, filename, size_bytes: 180_000 + n * 91_000 }))
+					: []
 		});
 	}
 	if (expiring) {
@@ -217,7 +251,8 @@
 			created_at: iso(now - 60_000),
 			expires_at: iso(now + 4_000),
 			sections: ['s-2'],
-			down: false
+			down: false,
+			files: []
 		});
 	}
 	let store = seeded;
@@ -229,6 +264,12 @@
 	function boardFor(sectionId: string): QuickPostBoard {
 		const at = Date.now();
 		return {
+			...(oldDb
+				? {}
+				: {
+						filesReady: true,
+						limits: { maxChars: QUICK_POST_MAX_CHARS, maxFiles: QUICK_POST_MAX_FILES, maxBytes: QUICK_POST_FILE_MAX_BYTES }
+					}),
 			manages: teacher,
 			now: iso(at),
 			posts: store
@@ -240,7 +281,8 @@
 					created_at: p.created_at,
 					expires_at: p.expires_at,
 					section_ids: teacher ? p.sections.filter((s) => managed.has(s)) : null,
-					can_take_down: teacher
+					can_take_down: teacher,
+					...(oldDb ? {} : { files: p.files.map((f) => ({ ...f })) })
 				}))
 		};
 	}
@@ -259,7 +301,8 @@
 			}
 			const text = body.replace(/^\s+|\s+$/g, '');
 			if (!text) return { ok: false, reason: 'empty', message: 'Write something to post first.' };
-			if (text.length > QUICK_POST_MAX_CHARS) return { ok: false, reason: 'too_long', message: 'Too long.' };
+			const cap = oldDb ? QUICK_POST_LEGACY_MAX_CHARS : QUICK_POST_MAX_CHARS;
+			if (text.length > cap) return { ok: false, reason: 'too_long', message: `Too long (${cap}).` };
 			const at = Date.now();
 			if (expiresAt && Date.parse(expiresAt) <= at) return { ok: false, reason: 'expiry_passed', message: 'Passed.' };
 			if (expiresAt && Date.parse(expiresAt) > at + QUICK_POST_MAX_AHEAD_DAYS * DAY) {
@@ -267,8 +310,26 @@
 			}
 			const id = `qp-new-${++seq}`;
 			const sorted = [...new Set(ids)].sort();
-			store = [{ id, body: text, created_at: iso(at), expires_at: expiresAt, sections: sorted, down: false }, ...store];
+			store = [{ id, body: text, created_at: iso(at), expires_at: expiresAt, sections: sorted, down: false, files: [] }, ...store];
 			return { ok: true, id, section_ids: sorted, created_at: iso(at), expires_at: expiresAt };
+		},
+		/* The in-memory upload, 0233's add-file rules: the author's live notice,
+		   ten files at most, and a name holding "fail" refused as storage would
+		   refuse it, so the partial-failure path can be driven. */
+		async uploadFile(postId, file, onProgress) {
+			log = [...log, `upload ${postId} ${file.name}`];
+			onProgress(0.5);
+			await new Promise((r) => setTimeout(r, 60));
+			const post = store.find((p) => p.id === postId);
+			if (!post || post.down) return { ok: false, gate: 'denied', message: 'This notice has ended or was taken down.', retryable: false };
+			if (/fail/i.test(file.name)) {
+				return { ok: false, gate: 'network', message: `The connection dropped while "${file.name}" was uploading. It is still here.`, retryable: true };
+			}
+			if (post.files.length >= QUICK_POST_MAX_FILES) return { ok: false, gate: 'denied', message: 'Too many files.', retryable: false };
+			const row = { id: `qpf-up-${++seq}`, filename: file.name, size_bytes: file.size };
+			post.files = [...post.files, row];
+			onProgress(1);
+			return { ok: true, storageKey: `${postId}/${row.id}`, row };
 		},
 		async takeDown(postId) {
 			log = [...log, `takeDown ${postId}`];
@@ -279,6 +340,12 @@
 		}
 	};
 	const live = createMemoryClassroomLive();
+	/* The real route needs a session; a picture here draws the site's own icon
+	   and any other file points at a harmless static path. */
+	function harnessFileSrc(id: string): string {
+		const f = store.flatMap((p) => p.files).find((x) => x.id === id);
+		return f && /\.(jpe?g|png|gif|webp)$/i.test(f.filename) ? '/IDEA/icon-512.png' : `/IDEA/icon-192.png?file=${id}`;
+	}
 	let composing = $state(params.get('compose') === '1' && teacher);
 	/* `?view=class` hands a teacher's ClassView write transports so its New post
 	   and Units keys render as they do on the class page; nothing presses them. */
@@ -428,6 +495,7 @@
 		viewerEmail={ME}
 		pollMs={Number.isFinite(pollParam) && pollParam > 0 ? pollParam : undefined}
 		noticeJitterMs={0}
+		fileSrc={harnessFileSrc}
 	/>
 {/snippet}
 

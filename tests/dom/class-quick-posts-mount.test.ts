@@ -33,6 +33,8 @@ import { createMemoryClassroomLive } from '../../src/lib/classroom/live';
 import { _resetPollSession } from '../../src/lib/classroom/poll-session';
 import type { ClassroomSection } from '../../src/lib/classroom/classroom';
 import { mountInto, type Mounted } from './mount';
+import { dropEvent } from './drag-events';
+import type { UploadOutcome } from '../../src/lib/classroom/file-upload';
 
 const NOW = Date.parse('2026-09-24T17:00:00.000Z'); // Thu 10:00 AM Pacific
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -276,5 +278,316 @@ describe('posting in three actions', () => {
 		const m = mountPosts({ board: boardOf([post('a')], false), transports: fake(boardOf([])).transports, composing: true });
 		expect(m.all('[data-testid="quick-post-composer"]').length).toBe(0);
 		expect(m.all('[data-testid="quick-post"]').length).toBe(1);
+	});
+});
+
+/*
+ * 0233 (ledger 0368, report R04): a long notice folds, a notice carries its
+ * files, and a teacher attaches them in the same Post. Structure and call
+ * counts only; the heights, tiles and the Lightbox are
+ * tools/browser-verify/routes/class-header-*-long-1-files-*.mjs.
+ */
+const READY = { filesReady: true, limits: { maxChars: 4000, maxFiles: 10, maxBytes: 47185920 } };
+const LONG = 'Bring safety glasses and your bridge. '.repeat(12).trim();
+
+describe('a long notice shows a lead and folds the rest, a short one does not fold', () => {
+	it('one closed fold for the long notice, with the rest still in the DOM, and none for the short one', () => {
+		const m = mountPosts({ board: boardOf([post('long', { body: LONG }), post('short')]) });
+		const folds = m.all('[data-post="long"] [data-testid="quick-post-more"]');
+		expect(folds.length).toBe(1);
+		expect(m.all('[data-post="short"] [data-testid="quick-post-more"]').length).toBe(0);
+		expect(m.expanded('quick-post-more')).toBe('false');
+		const lead = m.one('[data-post="long"] [data-testid="quick-post-body"]').textContent ?? '';
+		const rest = m.one('[data-post="long"] [data-testid="quick-post-rest"]').textContent ?? '';
+		expect(lead.length).toBeGreaterThan(0);
+		expect(lead.length).toBeLessThanOrEqual(281);
+		// Nothing is lost between the two halves.
+		expect(`${lead} ${rest}`.replace(/\s+/g, ' ').trim()).toBe(LONG);
+		// The short notice is whole, in the one paragraph.
+		expect(m.one('[data-post="short"] [data-testid="quick-post-body"]').textContent?.trim()).toBe('Notice short');
+	});
+});
+
+describe("a notice's files", () => {
+	it('pictures are tiles that open the viewer, other files are download rows, through the notice-file route', () => {
+		const files = [
+			{ id: 'f1', filename: 'rig.jpg', size_bytes: 1000 },
+			{ id: 'f2', filename: 'span.png', size_bytes: 1000 },
+			{ id: 'f3', filename: 'failure.jpeg', size_bytes: 1000 },
+			{ id: 'f4', filename: 'load-sheet.pdf', size_bytes: 1000 },
+			{ id: 'f5', filename: 'gusset.SLDPRT', size_bytes: 1000 }
+		];
+		const m = mountPosts({ board: boardOf([post('p', { files }), post('plain', { files: [] })]) });
+		expect(m.all('[data-post="p"] [data-testid="attach-gallery-tile"]').length).toBe(3);
+		expect(m.all('[data-post="p"] [data-testid="attach-row"]').length).toBe(2);
+		const hrefs = m.all<HTMLAnchorElement>('[data-post="p"] a.attach-name').map((a) => a.getAttribute('href'));
+		expect(hrefs).toEqual(['/api/classroom/quick-post-file/f4', '/api/classroom/quick-post-file/f5']);
+		// No files, no strip at all.
+		expect(m.all('[data-post="plain"] [data-testid="quick-post-files"]').length).toBe(0);
+		expect(m.all('[data-post="p"] [data-testid="quick-post-files"]').length).toBe(1);
+	});
+});
+
+describe('the picker is offered only where files are possible', () => {
+	const uploads: string[] = [];
+	const withUpload = (): QuickPostTransports => {
+		const t = fake(boardOf([])).transports;
+		t.uploadFile = async (postId, file) => {
+			uploads.push(`${postId}:${file.name}`);
+			return { ok: true, storageKey: `${postId}/x`, row: { id: `up-${file.name}`, filename: file.name, size_bytes: file.size } };
+		};
+		return t;
+	};
+	const inputs = (board: QuickPostBoard, transports: QuickPostTransports) => {
+		const m = mountInto(QuickPosts as never, { sectionId: 's-2', board, transports, composing: true, sections: SECTIONS, viewerEmail: 'apina@boscotech.edu' });
+		try {
+			return m.all('[data-testid="quick-post-composer"] input[type="file"]').length;
+		} finally {
+			void m.stop();
+		}
+	};
+
+	it('1 file input with files_ready and an upload transport; 0 without either, 0 on a database without 0233', () => {
+		expect(inputs({ ...boardOf([], true), ...READY }, withUpload())).toBe(1);
+		expect(inputs({ ...boardOf([], true), ...READY }, fake(boardOf([])).transports)).toBe(0);
+		expect(inputs({ ...boardOf([], true), ...READY, filesReady: false }, withUpload())).toBe(0);
+		expect(inputs(boardOf([], true), withUpload())).toBe(0);
+	});
+
+	it('the counter counts to the database ceiling: 4,000 with 0233, 1,000 without', () => {
+		const count = (board: QuickPostBoard) => {
+			const m = mountInto(QuickPosts as never, { sectionId: 's-2', board, transports: withUpload(), composing: true, sections: SECTIONS });
+			try {
+				return m.one('[data-testid="quick-post-count"]').textContent?.replace(/\s+/g, ' ').trim();
+			} finally {
+				void m.stop();
+			}
+		};
+		expect(count({ ...boardOf([], true), ...READY })).toMatch(/^0 of 4,000 characters/);
+		expect(count(boardOf([], true))).toMatch(/^0 of 1,000 characters/);
+	});
+});
+
+describe('Post makes the notice once, then attaches its files to it', () => {
+	function type(m: Mounted, text: string) {
+		const box = m.one<HTMLTextAreaElement>('[data-testid="quick-post-text"]');
+		box.value = text;
+		box.dispatchEvent(new Event('input', { bubbles: true }));
+		m.flush();
+	}
+	function stage(m: Mounted, names: string[]) {
+		const input = m.one<HTMLInputElement>('[data-testid="quick-post-composer"] input[type="file"]');
+		const dt = new DataTransfer();
+		for (const n of names) dt.items.add(new File(['bytes'], n));
+		Object.defineProperty(input, 'files', { value: dt.files, configurable: true });
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+		m.flush();
+	}
+
+	it('a file that fails stays, Attach the rest goes to the SAME notice, and nothing posts twice', async () => {
+		const live = createMemoryClassroomLive();
+		const f = fake(boardOf([]));
+		let failOnce = true;
+		const uploads: string[] = [];
+		f.transports.uploadFile = async (postId, file): Promise<UploadOutcome> => {
+			uploads.push(`${postId}:${file.name}`);
+			if (file.name === 'b.pdf' && failOnce) {
+				failOnce = false;
+				return { ok: false, gate: 'network', message: 'The connection dropped while "b.pdf" was uploading. It is still here.', retryable: true };
+			}
+			return { ok: true, storageKey: `${postId}/k`, row: { id: `id-${file.name}`, filename: file.name, size_bytes: file.size } };
+		};
+		const closed = vi.fn();
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			live,
+			composing: true,
+			oncomposerclose: closed,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Photos from the test.');
+		stage(m, ['a.jpg', 'b.pdf']);
+		expect(m.all('[data-testid="fup-row"]').length).toBe(2);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(f.creates.length).toBe(1);
+		expect(uploads).toEqual(['new-1:a.jpg', 'new-1:b.pdf']);
+		expect(m.one('[data-testid="quick-post-posted"]').textContent).toContain('1 file did not attach');
+		expect(m.all('[data-testid="fup-row"]').length).toBe(1);
+		expect(closed).toHaveBeenCalledTimes(0);
+		// The landed picture is already on the notice, and the classes heard.
+		expect(m.all('[data-post="new-1"] [data-testid="attach-gallery-tile"]').length).toBe(1);
+		expect(live.announced).toEqual([{ sectionId: 's-2', topic: 'quick-posts' }]);
+
+		m.one<HTMLButtonElement>('[data-testid="quick-post-attach-rest"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(f.creates.length).toBe(1);
+		expect(uploads).toEqual(['new-1:a.jpg', 'new-1:b.pdf', 'new-1:b.pdf']);
+		expect(closed).toHaveBeenCalledTimes(1);
+		expect(m.all('[data-post="new-1"] [data-testid="attach-row"]').length).toBe(1);
+	});
+
+	it('a notice whose every file fails is still announced once, after the first pass and before Close', async () => {
+		// The time-sensitive case: "Fire drill during third block" with a phone
+		// video over the cap. Nothing lands, and the classes must not wait for the
+		// 600s floor poll to read the words.
+		const live = createMemoryClassroomLive();
+		const f = fake(boardOf([]));
+		const uploads: string[] = [];
+		f.transports.uploadFile = async (postId, file): Promise<UploadOutcome> => {
+			uploads.push(`${postId}:${file.name}`);
+			return { ok: false, gate: 'too_large', message: `"${file.name}" is over the limit for a notice.`, retryable: false };
+		};
+		const closed = vi.fn();
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			live,
+			composing: true,
+			oncomposerclose: closed,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Fire drill during third block.');
+		stage(m, ['drill.mov', 'map.mov']);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(f.creates.length).toBe(1);
+		expect(uploads).toEqual(['new-1:drill.mov', 'new-1:map.mov']);
+		expect(m.all('[data-testid="fup-row"]').length).toBe(2);
+		expect(closed).toHaveBeenCalledTimes(0);
+		// Announced after the first pass, with nothing landed, before any Close.
+		expect(live.announced).toEqual([{ sectionId: 's-2', topic: 'quick-posts' }]);
+
+		// A retry that lands nothing again says nothing again.
+		m.one<HTMLButtonElement>('[data-testid="quick-post-attach-rest"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(uploads.length).toBe(4);
+		expect(live.announced.length).toBe(1);
+
+		// Close without them, two presses: no second announcement.
+		m.one<HTMLButtonElement>('[data-testid="quick-post-cancel"]').click();
+		m.flush();
+		m.one<HTMLButtonElement>('[data-testid="quick-post-cancel"]').click();
+		m.flush();
+		expect(closed).toHaveBeenCalledTimes(1);
+		expect(live.announced.length).toBe(1);
+	});
+
+	it('Close pressed while the first pass is still uploading announces the notice once', async () => {
+		const live = createMemoryClassroomLive();
+		const f = fake(boardOf([]));
+		let release: (o: UploadOutcome) => void = () => {};
+		f.transports.uploadFile = () => new Promise<UploadOutcome>((resolve) => (release = resolve));
+		const closed = vi.fn();
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			live,
+			composing: true,
+			oncomposerclose: closed,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Room change: 214.');
+		stage(m, ['sign.jpg']);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(f.creates.length).toBe(1);
+		// The upload is still in flight, so nobody has been told yet.
+		expect(live.announced.length).toBe(0);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-cancel"]').click();
+		m.flush();
+		m.one<HTMLButtonElement>('[data-testid="quick-post-cancel"]').click();
+		m.flush();
+		expect(closed).toHaveBeenCalledTimes(1);
+		expect(live.announced).toEqual([{ sectionId: 's-2', topic: 'quick-posts' }]);
+		// The pass then ends with nothing landed: still exactly one announcement.
+		release({ ok: false, gate: 'network', message: 'The connection dropped.', retryable: true });
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(live.announced.length).toBe(1);
+	});
+
+	it('files already on the notice count toward the ten: Attach the rest is refused past it, with the sentence', async () => {
+		const f = fake(boardOf([]));
+		const uploads: string[] = [];
+		f.transports.uploadFile = async (postId, file): Promise<UploadOutcome> => {
+			uploads.push(file.name);
+			if (file.name === 'b.pdf') return { ok: false, gate: 'network', message: 'The connection dropped.', retryable: true };
+			return { ok: true, storageKey: `${postId}/k`, row: { id: `id-${file.name}`, filename: file.name, size_bytes: file.size } };
+		};
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			composing: true,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Photos from the test.');
+		stage(m, ['a.jpg', 'b.pdf']);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		// 1 on the notice, 1 still staged: under the cap, Attach the rest offered.
+		expect(m.all('[data-testid="quick-post-too-many"]').length).toBe(0);
+		expect(m.one('[data-testid="quick-post-attach-rest"]').getAttribute('aria-disabled')).toBe('false');
+		// 9 more staged: 1 on the notice + 10 staged = 11, over the ten.
+		stage(m, Array.from({ length: 9 }, (_, i) => `more-${i}.jpg`));
+		expect(m.all('[data-testid="fup-row"]').length).toBe(10);
+		expect(m.one('[data-testid="quick-post-too-many"]').textContent).toContain('up to 10 files');
+		expect(m.one('[data-testid="quick-post-attach-rest"]').getAttribute('aria-disabled')).toBe('true');
+		const before = uploads.length;
+		m.one<HTMLButtonElement>('[data-testid="quick-post-attach-rest"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(uploads.length).toBe(before);
+	});
+
+	it('a file dropped on the card while the files are uploading is staged there, never handed to the class page', async () => {
+		const live = createMemoryClassroomLive();
+		const f = fake(boardOf([]));
+		let release: (o: UploadOutcome) => void = () => {};
+		f.transports.uploadFile = (postId, file) =>
+			new Promise<UploadOutcome>((resolve) => {
+				release = resolve;
+				void postId;
+				void file;
+			});
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			live,
+			composing: true,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Lab photos.');
+		stage(m, ['a.jpg']);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(m.one('[data-testid="quick-post-posted"]').textContent).toContain('Attaching the files now');
+		const drop = dropEvent([new File(['x'], 'late.png')]);
+		m.one('[data-testid="quick-post-posted"]').dispatchEvent(drop);
+		m.flush();
+		expect(drop.defaultPrevented).toBe(true);
+		expect(m.all('.fup-name').map((n) => n.textContent?.trim())).toEqual(['a.jpg', 'late.png']);
+		release({ ok: true, storageKey: 'new-1/k', row: { id: 'id-a', filename: 'a.jpg', size_bytes: 5 } });
+		for (let i = 0; i < 4; i++) await drain(m);
+		// The late file waits for Attach the rest; the notice was announced once.
+		expect(m.all('.fup-name').map((n) => n.textContent?.trim())).toEqual(['late.png']);
+		expect(m.all('[data-testid="quick-post-attach-rest"]').length).toBe(1);
+		expect(live.announced.length).toBe(1);
+	});
+
+	it('a drop on the composer card stages there and does not bubble on as a new drop', () => {
+		const t = fake(boardOf([])).transports;
+		t.uploadFile = async () => ({ ok: true, storageKey: 'x' });
+		const m = mountPosts({ board: { ...boardOf([], true), ...READY }, transports: t, composing: true, sections: SECTIONS });
+		const card = m.one('[data-testid="quick-post-text"]');
+		const drop = dropEvent([new File(['x'], 'dropped.png')]);
+		card.dispatchEvent(drop);
+		m.flush();
+		expect(drop.defaultPrevented).toBe(true);
+		expect(m.all('.fup-name').map((n) => n.textContent?.trim())).toEqual(['dropped.png']);
 	});
 });

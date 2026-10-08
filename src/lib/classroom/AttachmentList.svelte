@@ -49,7 +49,8 @@
 		onreorder = null,
 		onrename = null,
 		renameBlocked = null,
-		gallery = false
+		gallery = false,
+		compact = false
 	}: {
 		attachments: ClassroomAttachment[];
 		/** Teacher-only; omitted entirely on the student-facing views. */
@@ -118,6 +119,15 @@
 		 * list somebody is editing reads better as rows.
 		 */
 		gallery?: boolean;
+		/**
+		 * A SMALL STRIP, for a place where files sit under somebody's words and
+		 * must not take the screen (a class notice, ledger 0368, report R04).
+		 * Given, on a list that carries no authoring control, EVERY picture --
+		 * one included -- is a 4.5rem tile in one wrapping row, and each tile
+		 * opens the lightbox on the whole set; every other file stays a
+		 * download row. Absent, nothing here renders differently.
+		 */
+		compact?: boolean;
 	} = $props();
 
 	const srcOf = (a: ClassroomAttachment) => resolveSrc?.(a) ?? attachmentSrc(a.id);
@@ -185,9 +195,13 @@
 		const at = pictures.findIndex((p) => p.id === a.id);
 		if (at >= 0) openAt = at;
 	}
-	/** Tiles only on a read surface, and only when there is a set to page. */
+	/** Tiles only on a read surface, and only when there is a set to page
+	 *  (or, `compact`, whenever there is a picture at all). */
 	const asGallery = $derived(
-		gallery && pictures.length >= 2 && !onreorder && !onrename && !onremove
+		((gallery && pictures.length >= 2) || (compact && pictures.length >= 1)) &&
+			!onreorder &&
+			!onrename &&
+			!onremove
 	);
 	const rows = $derived(
 		asGallery ? attachments.filter((a) => !(isImageAttachment(a) && !broken[a.id])) : attachments
@@ -304,7 +318,7 @@
 	     class stream uses for panels of unequal height. Each tile is ONE
 	     button that opens the whole set at that picture; the filename under
 	     it is the visible word. -->
-	<ul class="attach-gallery" data-testid="attach-gallery">
+	<ul class="attach-gallery" class:strip={compact} data-testid="attach-gallery">
 		{#each pictures as a (a.id)}
 			<li class="gallery-tile" data-testid="attach-gallery-tile">
 				<button
@@ -322,7 +336,7 @@
 					/>
 					<EnlargeCue />
 				</button>
-				<span class="gallery-name">{a.filename}</span>
+				<span class="gallery-name" title={compact ? a.filename : undefined}>{a.filename}</span>
 				{#if figureRefs}
 					<button
 						type="button"
@@ -596,6 +610,22 @@
 		flex-direction: column;
 		gap: 0.3rem;
 		min-width: 0;
+	}
+	/* THE STRIP (`compact`): small square tiles in one wrapping row, so a
+	   notice's pictures cost a line of its height rather than a grid of it. */
+	.attach-gallery.strip {
+		display: flex;
+		flex-wrap: wrap;
+		margin-top: var(--space-2);
+	}
+	.attach-gallery.strip .gallery-tile {
+		width: 4.5rem;
+	}
+	.attach-gallery.strip .gallery-open {
+		aspect-ratio: 1;
+	}
+	.attach-gallery.strip .gallery-name {
+		font-size: 0.7rem;
 	}
 	.gallery-open {
 		appearance: none;

@@ -75,6 +75,7 @@ import {
 } from '../src/lib/upload-limits';
 import { notebookPhotoRefusal } from '../src/lib/notebook/photo-prepare';
 import { CLASSROOM_UPLOAD_MAX_BYTES } from '../src/lib/classroom/file-upload';
+import { QUICK_POST_FILE_MAX_BYTES } from '../src/lib/classroom/quick-posts';
 import { DECK_UPLOAD_MAX_ZIP_BYTES } from '../src/lib/classroom/deck';
 import { MAPS_MEDIA_MAX_BYTES } from '../src/lib/maps/media';
 import { FEEDBACK_SCREENSHOT_MAX_BYTES } from '../src/lib/feedback/screenshot';
@@ -242,11 +243,12 @@ describe('the registry is a transcription, not a second opinion', () => {
 	 * A registry that grew a row nobody checked is a registry back to being a
 	 * place numbers are typed.
 	 */
-	it('covers exactly the thirteen upload paths this sweep knows about', () => {
+	it('covers exactly the fourteen upload paths this sweep knows about', () => {
 		expect(UPLOAD_CEILING_LIST.map((c) => c.id)).toEqual([
 			'classroom-attachment',
 			'classroom-submission',
 			'classroom-instructor',
+			'classroom-quick-post',
 			'classroom-deck',
 			'notebook-photo',
 			'maps-photo',
@@ -296,6 +298,7 @@ describe('the registry is a transcription, not a second opinion', () => {
 		['classroom-attachment', CLASSROOM_UPLOAD_MAX_BYTES],
 		['classroom-submission', CLASSROOM_UPLOAD_MAX_BYTES],
 		['classroom-instructor', CLASSROOM_UPLOAD_MAX_BYTES],
+		['classroom-quick-post', QUICK_POST_FILE_MAX_BYTES],
 		['classroom-deck', DECK_UPLOAD_MAX_ZIP_BYTES],
 		['notebook-photo', MAX_PHOTO_BYTES],
 		['maps-photo', MAPS_MEDIA_MAX_BYTES],
@@ -374,6 +377,7 @@ describe('the registry is a transcription, not a second opinion', () => {
 		// below would pass vacuously. `least(...)` in 0185 is why the first
 		// three are what they are and the fourth is untouched.
 		expect(chain.get('classroom-attachments')).toBe(PORTAL_UPLOAD_MAX_BYTES);
+		expect(chain.get('quick-post-files')).toBe(PORTAL_UPLOAD_MAX_BYTES);
 		expect(chain.get('foundry-uploads')).toBe(PORTAL_UPLOAD_MAX_BYTES);
 		expect(chain.get('avatars')).toBe(PORTAL_UPLOAD_MAX_BYTES);
 		expect(chain.get('greenline-decals')).toBe(1048576);

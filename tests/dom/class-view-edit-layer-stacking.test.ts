@@ -55,7 +55,7 @@ function state(m: Mounted) {
 	const open = m.all('.classroom-page.edit-layer-open');
 	const layers = m.all('.composer-screen');
 	return {
-		pages: m.all('main.classroom-page').length,
+		pages: m.all('.classroom-page[role="main"]').length,
 		openClass: open.length,
 		layers: layers.length,
 		layerInsideOpenPage: layers.length === 1 && open.length === 1 && open[0].contains(layers[0])

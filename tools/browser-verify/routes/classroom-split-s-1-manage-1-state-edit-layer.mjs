@@ -36,7 +36,7 @@ export default {
 	],
 	presence: [
 		{ selector: '.composer-screen', label: 'the edit layer, open', expectPresent: 1, maxPresent: 1, expectVisible: 1, maxVisible: 1 },
-		{ selector: 'main.classroom-page.edit-layer-open', label: 'the class page has dropped its stacking context while editing', expectPresent: 1, maxPresent: 1 }
+		{ selector: '.classroom-page[role="main"].edit-layer-open', label: 'the class page has dropped its stacking context while editing', expectPresent: 1, maxPresent: 1 }
 	],
 	orderResult: [
 		{ label: "the layer's Close, its title and its form are all hit as the layer", evaluate: LAYER_HITS, expected: ['close reachable', 'title reachable', 'form on top'] },

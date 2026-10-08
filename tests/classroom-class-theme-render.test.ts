@@ -90,7 +90,10 @@ describe('the pattern layer', () => {
 	it('one aria-hidden layer for a patterned theme, none for the plain one', () => {
 		const patterned = banner(THEME);
 		expect(layers(patterned)).toBe(1);
-		expect(patterned).toMatch(/<span class="ct-pattern-clip[^"]*" aria-hidden="true"><span class="ct-pattern[^"]*" data-testid="class-banner-pattern"><\/span><\/span>/);
+		// Two nested layers since ledger 0368: the loop's, then the arrival's.
+		expect(patterned).toMatch(
+			/<span class="ct-pattern-clip[^"]*" aria-hidden="true"><span class="ct-pattern-loop[^"]*"><span class="ct-pattern[^"]*" data-testid="class-banner-pattern"><\/span><\/span><\/span>/
+		);
 		const plain = banner(resolveClassTheme({ winners: { palette: 'ocean', pattern: 'plain' }, accent: 'gold' }));
 		expect(plain).toContain('class="ct-banner');
 		expect(layers(plain)).toBe(0);
@@ -112,6 +115,32 @@ describe('the pattern layer', () => {
 		const gate = src.indexOf('@media (prefers-reduced-motion: no-preference)');
 		expect(gate).toBeGreaterThan(-1);
 		expect(src.slice(0, gate).match(/\banimation:/g) ?? []).toEqual([]);
+		// Three arrivals and three loops, each loop declared once, paused.
 		expect((src.slice(gate).match(/\banimation:/g) ?? []).length).toBe(6);
+		expect((src.slice(gate).match(/\banimation:[^;]*\bpaused;/g) ?? []).length).toBe(3);
+	});
+
+	/*
+	 * HOVER PAUSES AND RESUMES, NEVER SWAPS (ledger 0368, report R02). A hover
+	 * rule that declares `animation` (or `animation-name`) replaces the arrival,
+	 * and a name re-entering the list is a NEW animation: on every mouse-out the
+	 * arrival restarted from its first frame, which is the jump that was
+	 * reported. So every rule whose selector holds `:hover` may set only
+	 * `animation-play-state`, and there must be such a rule (the positive
+	 * control: a file with no hover rule at all would pass the first half).
+	 */
+	it('a hover rule sets only animation-play-state, never animation or animation-name', () => {
+		const css = readFileSync('src/lib/classroom/ClassThemeBanner.svelte', 'utf8').split('<style>')[1] ?? '';
+		const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1].trim(), body: m[2] }));
+		const hover = rules.filter((r) => r.selector.includes(':hover'));
+		expect(hover.length).toBeGreaterThan(0);
+		for (const r of hover) {
+			expect(r.body, r.selector).not.toMatch(/\banimation(-name)?\s*:/);
+			const props = r.body
+				.split(';')
+				.map((d) => d.split(':')[0].trim())
+				.filter(Boolean);
+			expect(props, r.selector).toEqual(['animation-play-state']);
+		}
 	});
 });
