@@ -109,6 +109,17 @@
 	 * the head is never a sliver (report 7933566a), and the card beside a name.
 	 */
 	const linksState = $derived(viewState === 'answers' || viewState === 'qa' || viewState === 'present');
+	/**
+	 * LEDGER 0368. `boxed` points the frame at the `/hx/photo` fixture, which
+	 * holds a box open for its `photo` field and reports it with
+	 * `idea:image-box`, so Alice's stored picture is drawn OVER the document at
+	 * that box rather than in the list under it. `boxed-file` is the same
+	 * document with the stored file renamed `dogtag.SLDPRT` and its bytes not a
+	 * picture, which is the Dogtag's hand-in: the box shows a file tile with a
+	 * Download, and nothing asks an `<img>` to decode a part file.
+	 */
+	const boxed = $derived(viewState === 'boxed' || viewState === 'boxed-file');
+	const boxedFile = $derived(viewState === 'boxed-file');
 	const roster30 = $derived(page.url.searchParams.get('roster') === '30');
 
 	const ITEM_ID = 'i-hx-smoke';
@@ -311,6 +322,8 @@
 	 */
 	const PNG =
 		'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAFCAIAAAD38zoCAAAAEUlEQVR4nGOIWpCHFTHQQQIAucA4QbqkH88AAAAASUVORK5CYII=';
+	/** `boxed-file`: a part file's bytes, which are not a picture. */
+	const PART = 'data:application/octet-stream;base64,SVNPLTEwMzAzLTIxIFNMRFBSVCBmaXh0dXJl';
 	// REGISTERED AT MODULE SCOPE AND NOT FROM AN `$effect`, which was the first
 	// shape and is measurably wrong: `hxImagesFromFiles` reads
 	// `submissionFileSrc` while the console builds its rows, which happens
@@ -319,7 +332,11 @@
 	// svelte-ignore state_referenced_locally
 	registerLocalSubmissionFileUrl(
 		'f-photo-1',
-		page.url.searchParams.get('state') === 'broken' ? 'data:image/png;base64,Zm9v' : PNG
+		page.url.searchParams.get('state') === 'broken'
+			? 'data:image/png;base64,Zm9v'
+			: page.url.searchParams.get('state') === 'boxed-file'
+				? PART
+				: PNG
 	);
 
 	/**
@@ -638,7 +655,15 @@
 								: linksState
 									? LINKS_RESPONSES
 									: RESPONSES,
-					files: roster30 ? [] : wantEmpty || partial ? [] : exporting ? EXPORT_FILES : FILES,
+					files: roster30
+						? []
+						: wantEmpty || partial
+							? []
+							: exporting
+								? EXPORT_FILES
+								: boxedFile
+									? FILES.map((f) => ({ ...f, filename: 'dogtag.SLDPRT', caption: null }))
+									: FILES,
 					filesStorageReady: true,
 					extraCreditReady: true,
 					approvals: []
@@ -682,7 +707,7 @@
 	 * (the dev and preview configuration).
 	 */
 	const HX = $derived<HtmlAssignmentData>({
-		documentId: 'worksheet',
+		documentId: boxed ? 'photo' : 'worksheet',
 		manifest,
 		filename: 'worksheet.html',
 		updatedAt: null
@@ -890,6 +915,8 @@
 			<a class="hx-state" class:is-on={viewState === 'qa'} href="/dev/html-assignment-grading?state=qa">answers by question</a>
 			<a class="hx-state" class:is-on={viewState === 'present'} href="/dev/html-assignment-grading?state=present">present links</a>
 			<a class="hx-state" class:is-on={roster30} href="/dev/html-assignment-grading?roster=30">thirty students</a>
+			<a class="hx-state" class:is-on={viewState === 'boxed'} href="/dev/html-assignment-grading?state=boxed">photo in its box</a>
+			<a class="hx-state" class:is-on={boxedFile} href="/dev/html-assignment-grading?state=boxed-file">part file in its box</a>
 		</nav>
 		{/if}
 	</header>

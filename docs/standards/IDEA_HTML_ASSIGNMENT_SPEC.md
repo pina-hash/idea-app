@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.5 - 2026-10-01**
+**Version 1.6 - 2026-10-07**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -368,7 +368,7 @@ section is defence in depth around that one absence.
 The flag set is `HX_SANDBOX_FLAGS`:
 
 ```
-allow-scripts allow-popups allow-popups-to-escape-sandbox
+allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads
 ```
 
 An `<iframe>` sandboxed without `allow-same-origin` puts the document in a unique OPAQUE
@@ -381,10 +381,15 @@ learn anything about the session. Everything it wants to record it says in a
 They do not touch the absence above; they let the document open a link in a new tab, which
 without them it cannot do at all.
 
-**TWO FLAGS ARE REFUSED IN EVERY CONFIGURATION**, because neither is about what a document
-may do to ITSELF: `allow-top-navigation` (a redirect out of the worksheet, in the tab the
-student is working in) and `allow-forms` (a form inside the document submitting somewhere,
-which `form-action 'none'` refuses a second way).
+**`allow-downloads` IS THE SECOND DELIBERATE WIDENING (1.6), AND SECTION 5.7 STATES WHAT IT
+COSTS.** It does not touch the absence above either; it lets a document's own Download
+button work, which without it does nothing.
+
+**BESIDE `allow-same-origin`, THREE FLAGS ARE REFUSED IN EVERY CONFIGURATION**:
+`allow-top-navigation` (a redirect out of the worksheet, in the tab the student is working
+in), `allow-forms` (a form inside the document submitting somewhere, which `form-action
+'none'` refuses a second way) and `allow-modals` (so `print()` and `alert()` stay dead; no
+report has asked for them, and the downloads widening was granted alone).
 
 **THE PAIR CANCELS THE SANDBOX OUTRIGHT.** A document that is same-origin with its parent
 can reach `parent.document`, strip the `sandbox` attribute off its own `<iframe>` element
@@ -419,26 +424,32 @@ body -- it is NOT the `hooks.server.ts` host branch that cost Foundry two lanes.
 `hxDocumentCsp(portalOrigin)` in `src/routes/hx/_headers.ts`:
 
 ```
-sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox;
+sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads;
 default-src 'none';
 script-src 'unsafe-inline';
 style-src 'unsafe-inline';
 img-src data: blob:;
+font-src data:;
 connect-src 'none';
 form-action 'none';
 frame-ancestors <portal origin>
 ```
 
-- **`sandbox`** -- sections 5.3 (why the directive exists) and 5.6 (the popup flags).
-  **A popup is a NEW browsing context with its own policy**, so nothing else in this list
-  is weakened by them: `connect-src`, `form-action` and `frame-ancestors` still govern
-  THIS document exactly as they did.
+- **`sandbox`** -- sections 5.3 (why the directive exists), 5.6 (the popup flags) and 5.7
+  (the downloads flag). **A popup is a NEW browsing context with its own policy, and a
+  download is bytes saved to disk rather than a response this document can read**, so
+  nothing else in this list is weakened by them: `connect-src`, `form-action` and
+  `frame-ancestors` still govern THIS document exactly as they did. The document ETag folds
+  this header, so a change to the flags revalidates every cached document once.
 - **`script-src` / `style-src` `'unsafe-inline'`** -- a ported document is one file with
   its script and its style inline. **No host is admitted on either**, deliberately: there
   is no CDN reach here, and that is the difference between this and a Foundry bundle.
 - **`img-src data: blob:`** -- a pasted photograph, as bytes the document already holds.
   No remote image, so no document can phone home by setting an `<img src>`, which is the
-  exfiltration channel a `connect-src` alone leaves open.
+  exfiltration channel a `connect-src` alone leaves open. A STORED picture is drawn by the
+  parent, over a box the document holds open (section 6.1), never inside the document.
+- **`font-src data:`** -- a typeface the document carries in itself (1.4, section 6.3). No
+  host.
 - **`connect-src 'none'`** -- THE ONE THAT STOPS AN UPLOADED DOCUMENT EXFILTRATING STUDENT
   ANSWERS. `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` and `sendBeacon` all
   refused. **It is an INDEPENDENT lever from the sandbox and neither is evidence about the
@@ -633,9 +644,77 @@ opens a convincing page in its own tab is not.
 **THE MITIGATION ON RECORD IS THAT IMPORT IS ADMIN-ONLY**, a first-season decision. There
 is no content scan, no URL allowlist and no interstitial: the person who uploads a document
 is trusted, and that trust is the whole of the control. If documents are ever accepted from
-a wider set of authors than admins, **this is the decision that has to be revisited first**,
-and the narrower answer is to drop `allow-popups-to-escape-sandbox` (accepting that slide
-links stop working) rather than to add a scanner.
+a wider set of authors than admins, **this is the decision that has to be revisited first,
+together with `allow-downloads` (section 5.7)**, and the narrower answers are to drop
+`allow-popups-to-escape-sandbox` (accepting that slide links stop working) and
+`allow-downloads` (accepting that a document's own Download button stops working, and
+falling back to the `idea:download` design 5.7 records) rather than to add a scanner.
+
+### 5.7 The downloads flag: what it buys, what it costs, and what was measured
+
+**GRANTED ON MR. PINA'S REPORT OF 2026-10-06, SHIPPED BY LEDGER 0368.** Grading a ported
+worksheet he wrote: "download button to download a file from an html is not working". That
+report is the authorisation, recorded in the decision log. The set gained
+`allow-downloads`. Like 5.6, this is a WIDENING of the boundary and is recorded as one.
+
+**WHY THE BUTTON WAS DEAD.** Chromium refuses every download whose INITIATOR is a document
+sandboxed without `allow-downloads`, and that includes the FIRST navigation of a popup the
+document opens. The teacher Download button AUTHORING section 9b prescribed completes the
+stored file URL against `https://ideabosco.com` and opens it in a new tab; the route answers
+302 to a signed storage URL with an attachment disposition, so that navigation is a
+download and was silently dropped.
+
+**WHAT IT BUYS, MEASURED.** Container Chromium 141.0.7390.37, the flags on the `<iframe>`
+AND as the CSP `sandbox` directive beside this section's other directives, a trusted click
+inside the frame. `tools/browser-verify/_hx-downloads.mjs` reads the constant out of
+`bridge.ts` and re-runs this table:
+
+| clicked control | downloads, without the flag | downloads, with it |
+| --- | --- | --- |
+| popup link to a URL that 302s to an attachment (the 9b button) | 0 | 1 |
+| `window.open(url)` | 0 | 1 |
+| `window.open(url, '_blank', 'noopener')` | 0 | 1 |
+| same-frame `<a href download>` | 0 | 1 |
+| `<a href="data:..." download>` | 0 | 1 |
+| a pre-built `blob:` anchor | 0 | 1 |
+
+**WHAT IT COSTS, STATED PLAINLY. A DOCUMENT CAN NOW PUT A FILE ON A VIEWER'S DISK WITHOUT
+A CLICK.** Same instrument, no gesture at all:
+
+| no click | without the flag | with it |
+| --- | --- | --- |
+| an anchor clicked from script on load | 0 | 1 |
+| a same-frame download link clicked on load | 0 | 1 |
+| `location.href` set to an attachment | 0 | 1 |
+| an anchor clicked from a timer | 0 | 1 |
+
+Before the flag the only route to a download was a popup that navigated itself, and a real
+Chrome's popup blocker refuses `window.open` without user activation (the harness launches
+with `--disable-popup-blocking`, which is why the no-click rows use no popup). So every
+student opening a worksheet, and a teacher on every student switch in the grading console,
+can be handed a file unasked. Chrome's own prompt before a SECOND automatic download from
+one page was not exercised. Firefox and Safari were not measured.
+
+**THE MITIGATION ON RECORD IS THE SAME AS 5.6'S: IMPORT IS ADMIN-ONLY.**
+
+**WHAT IT DOES NOT CHANGE.** No bytes come DOWN to the document: a download goes from the
+document to the disk, and `connect-src 'none'` still refuses every request whose response
+the document could read. The flag is in `HX_SANDBOX_FLAGS`, so the frame attribute and the
+CSP directive moved together.
+
+**THE ALTERNATIVE, RECORDED SO IT IS THE FALLBACK AND NOT A REDISCOVERY.** An
+`idea:download { field }` message, where the document names a field (never a URL) and the
+parent starts the download of its own minted URL, needs no sandbox change. It was not taken
+because every deployed document's own Download button would have stayed broken until it was
+re-authored and re-uploaded, which is the opposite of what the report asked. If the flag is
+ever withdrawn, that is the design. An HTML "bounce" page on the portal that navigates
+itself to the file works with no flag too, and is refused: it adds an HTML branch to a
+file-serving route, which CLAUDE.md's classroom-files rules forbid.
+
+**THE PARENT'S OWN DOWNLOADS NEED NO FLAG.** Since 1.6 every stored file has a worded
+Download in parent chrome: on its tile in the document's box, on its row in the list under
+the frame, inside the Lightbox, and beside it in the grading console's Answers view. They
+are `<a download>` links to the same proxy URL, on the portal's page, not the document's.
 
 ---
 
@@ -659,6 +738,7 @@ Frame to parent (`HxFrameMessage`):
 | `idea:image-caption` | `field: string`, `caption: string` |
 | `idea:height` | `px: number` |
 | `idea:video` | `videoId: string \| null`, `rect: { x, y, w, h }` (document pixels), `clipTop?: number` |
+| `idea:image-box` | `field: string`, `rect: { x, y, w, h } \| null` (document pixels; null withdraws), `clipTop?: number` |
 
 Parent to frame (`HxParentMessage`):
 
@@ -668,9 +748,50 @@ Parent to frame (`HxParentMessage`):
 | `idea:saved` | `at: string`, `ok: boolean`, `schemaVersion: 3`, `reason?: string` (only when `ok` is false) |
 | `idea:video-state` | `videoId: string`, `open: boolean` |
 | `idea:theme` | `theme: 'light' \| 'dark'` |
+| `idea:image-box-state` | `field: string`, `shown: boolean` |
 
 The outbound messages are built by `hxStateMessage`, `hxSavedMessage`,
-`hxVideoStateMessage` and `hxThemeMessage` so the component cannot invent another.
+`hxVideoStateMessage`, `hxThemeMessage` and `hxImageBoxStateMessage` so the component
+cannot invent another.
+
+**A STORED PICTURE IS DRAWN BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN (1.6).** Mr.
+Pina, 2026-10-06: "I need for images to show within html assignments not under them. I
+should also be able to click on and expand an image with view controls." The document still
+cannot draw a stored picture (section 6.5), so it keeps a box open where the picture belongs
+and sends `idea:image-box` with the field and the box's rectangle in its own coordinates;
+`HtmlAssignmentFrame` draws the stored copy over the frame at that rectangle, the video
+precedent one message over. A click opens the classroom Lightbox (zoom, pan controls,
+Download, previous and next). A field whose stored file is not a picture by its name
+(`isImageFilename`, the one rule) is drawn as a tile with its kind, its name and a worded
+Download, and no image request is made for it.
+- **The document names a field, never a URL or a block id.** `hxReceive` resolves it
+  through the parent's own map, exactly as `idea:change`, so a box can only be drawn for a
+  block the stored manifest declares, holding the picture the parent itself minted. The
+  rectangle goes through `hxBoxOf`, the same rule as a video box. Refusals: no field is
+  `shape`, an undeclared field is `field`, a bad rectangle or `clipTop` is `image-box`.
+- **`rect: null` withdraws the box** (a hidden stage, the document's own modal over it), and
+  the picture returns to the list under the frame. **`hxImagePlacement` is the rule that a
+  stored picture is drawn in exactly one place**: over its box when the document reports
+  one, in the list under the frame otherwise, never both and never neither. A document that
+  predates 1.6 reports no box, so every picture it holds stays in the list, which since 1.6
+  also opens in the Lightbox and offers Download.
+- **The overlay has an opaque ground**, so the document's own fallback inside the box
+  ("Saved: <name>") is covered rather than drawn twice, and it takes the clicks in its
+  rectangle: a document keeps its Choose and Remove controls OUTSIDE the box.
+- **Only the document can see a reflow, so only the document re-sends.** The frame is as
+  tall as its document, so a page scroll moves the frame and the overlay together and needs
+  nothing (measured: the drawn rectangle equals the asked one to the pixel, before and after
+  the grading console's own scroller moves 300px). A fold opening above the box, a stage
+  change or a resize moves the box inside the document, and the document sends again.
+- **`idea:image-box-state` is advisory.** The parent says when it starts or stops drawing
+  over a field's box; a document may use it, and must never wait on it, because a portal that
+  predates 1.6 drops `idea:image-box` (reason `type`) and never answers.
+- **The document's CSP does not move.** Still `img-src data: blob:` with no host, and no
+  bytes go down.
+- **Keyboard order:** the overlay comes after the frame, so a keyboard reaches a picture
+  after the document that asks for it.
+- The `photo` dev fixture (`/dev/html-assignment?doc=photo`, and
+  `/dev/html-assignment-grading?state=boxed` and `?state=boxed-file`) is the instrument.
 
 **THE PORTAL SAYS WHICH THEME IT IS IN (1.3).** A sandboxed document cannot read the
 portal's `<html data-theme>` and has no storage to remember a choice, so without help it can
@@ -824,7 +945,8 @@ Plus two ceilings, each a REFUSAL and never a clamp or a truncation:
 
 **A DROP IS REPORTED, NEVER SILENT.** Every refusal comes back as
 `{ ok: false, reason, detail }` with `reason` drawn from a closed union (`origin`,
-`source`, `shape`, `type`, `schema`, `field`, `value`, `caption`, `height`). These are
+`source`, `shape`, `type`, `schema`, `field`, `value`, `caption`, `height`, `video`,
+`image-box`). These are
 DISTINCT on purpose: "a message from somewhere else" and "a field this document does not
 declare" are different events, and a surface counting them wants to tell them apart.
 Silence would make a renamed field indistinguishable from a working one.
@@ -867,9 +989,11 @@ further frame-to-parent messages:
 **A RESTORED PICTURE STILL CANNOT RENDER INSIDE THE DOCUMENT.** `HxImageState.url` is a
 same-origin portal proxy URL, the served CSP is `img-src data: blob:` with no host on it,
 and the request would arrive credential-free at a route that needs a session even if the
-policy admitted it. **The repair that needs no weakening of the CSP is to render a restored
-picture in PARENT CHROME beside the frame, where Submit already lives.** Widening `img-src`
-is the one that does not work anyway.
+policy admitted it. **So a restored picture is drawn in PARENT CHROME: over the box the
+document reports with `idea:image-box` (1.6, section 6.1), or in the list under the frame
+when it reports none.** Either way it opens in the classroom Lightbox and has a Download.
+Widening `img-src` is the one repair that does not work anyway, and sending the bytes back
+down is refused for the three reasons above.
 
 ### 6.6 A frame naming a `block_id` gets nowhere, and the mechanism is absence
 
@@ -919,8 +1043,9 @@ Stated together so nobody discovers one of these during a port.
   bridge.** (Foundry solves the same problem with an injected shim; that is not available
   here, because injecting anything into a document would end the byte rule that lets a
   reviewer read what executes.)
-- **DOWNLOADS DO NOT FIRE** without `allow-downloads`, which is not granted. A "Download
-  with Data" control in a ported document is inert.
+- **DOWNLOADS FIRE SINCE 1.6** (`allow-downloads`, section 5.7), clicked or not. A
+  download is still never a save path: answers save through the bridge, and a "Download
+  with Data" control is not a hand-in.
 - **`window.print()` IS DEAD AND SAYS NOTHING.** Chromium logs `Ignored call to 'print()'.
   The document is sandboxed, and the 'allow-modals' keyword is not set.` and `print()`
   returns without throwing. A Print / Export PDF control is silently inert.
@@ -929,7 +1054,8 @@ Stated together so nobody discovers one of these during a port.
 - **NO NETWORK OF ANY KIND.** `connect-src 'none'`, no host on any fetching directive.
 - **NO FONT HOST.** A font the document carries as a `data:` URI renders (0351); a font
   from anywhere else does not. Section 6.3.
-- **NO TOP-LEVEL NAVIGATION**, and no popups escaping the sandbox.
+- **NO TOP-LEVEL NAVIGATION.** Popups are allowed and do escape the sandbox since 1.1
+  (section 5.6); a popup cannot navigate the worksheet's tab or its parent.
 - **SUBMIT IS NOT THE DOCUMENT'S.** A Submit inside the document would be a button whose
   handler the document itself wrote. It is a parent control in parent chrome, and so is
   the completeness check (`hxIncompleteBlocks`, counting sentences in the STORED values
@@ -1309,7 +1435,23 @@ does.
 ## 13. Verification
 
 - **`tests/html-assignment-bridge.test.ts`** -- the pure message gate against hostile
-  input, mutation-proved. 48 tests at ledger 0126.
+  input, mutation-proved. 48 tests at ledger 0126. Since 1.6 it also pins `idea:image-box`
+  and `hxImagePlacement`'s one-place rule, each mutation-proved.
+- **`tools/browser-verify/_hx-downloads.mjs`** -- section 5.7's two tables, counted as real
+  `download` events under `HX_SANDBOX_FLAGS` and under the same set without
+  `allow-downloads`.
+- **`tools/browser-verify/_hx-photo-box.mjs`** -- the student side of section 6.1's picture
+  box, driven from INSIDE the `photo` fixture with trusted presses, at 375 and 1440: the
+  picture over the box at the asked rectangle and no list under the frame; the fixture's
+  Hide (a null rect) moving it into the list and back; the document hearing
+  `idea:image-box-state` both ways; and the fixture's own Download button through the real
+  `/hx/` route counting 1 download under the constant and 0 with `allow-downloads` taken off
+  the frame. A route spec cannot do any of this, because its reads run in the parent page.
+- **`tools/browser-verify/routes/html-assignment-grading-state-boxed.mjs`** and
+  **`...-boxed-file.mjs`** -- the grading console's half: the pair (one picture over, no
+  list), the drawn rectangle equal to the asked one before and after the console's own
+  scroller moves, a hit test at the picture's centre, the Lightbox opening, and a part file
+  drawn as a tile with a hit-tested 44px Download and no image element.
 - **`tests/html-assignment-manifest.test.ts`** and **`tests/db/html-assignment-manifest.test.ts`**
   -- the TypeScript validator and 0195's SQL boundary, asserted against each other.
 - **`tests/html-assignment-manifest-parity.test.ts`** -- reads
@@ -1364,8 +1506,6 @@ Both variables are documented in `.env.example`.
 - **Whether a served font route is still wanted** (section 6.3). 0351 admits embedded
   `data:` fonts, which costs each document about 80 KB and needs no origin; a
   `/_platform`-shaped route would save the bytes and is not built.
-- **Where a restored photograph renders.** Parent chrome is the answer that needs no CSP
-  change; the surface is not designed.
 - **Whether a teacher can preview an unpublished document**, and by what second read
   (section 5.5).
 
@@ -1373,6 +1513,23 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
+- **1.6 (2026-10-07).** Ledger 0368, two of Mr. Pina's reports from grading on 2026-10-06.
+  **The sandbox gains `allow-downloads`** (sections 5, 5.2 and the new 5.7), on his report
+  that a document's Download button did nothing: Chromium refuses a download a sandboxed
+  document initiates without the flag, including the first navigation of a popup it opens.
+  Section 5.7 carries the measured tables and states the cost plainly, that a document can
+  now put a file on a viewer's disk with no click, with admin-only import as the mitigation
+  on record and the `idea:download` design recorded as the fallback; 5.6's closing
+  sentence names the new flag. `allow-modals` is now named as refused. **A stored picture
+  is drawn over a box the document holds open** (section 6.1): the new frame-to-parent
+  message `idea:image-box` and the advisory answer `idea:image-box-state`, judged by the
+  same rectangle rule as a video box, with `hxImagePlacement` putting every stored picture
+  in exactly one place, over its box or in the list under the frame. Every picture opens
+  in the classroom Lightbox, every stored file has a Download, and a file that is not a
+  picture by its name is a tile, never an image request. Section 6.5's last paragraph,
+  section 7's downloads bullet and the stale "no popups escaping the sandbox" are edited in
+  place; "Where a restored photograph renders" leaves section 15; 5.2's policy block gains
+  the `font-src data:` line 1.4 added to the tree.
 - **1.5 (2026-10-01).** Ledger 0360. Section 4.1's block gains three optional keys,
   `optional`, `prompt` and `link: "presentation"`. The new section 4.8 says what each one
   changes (`prompt` and `link` what a reader sees, never what may be written), what every

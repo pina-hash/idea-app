@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.15 - 2026-10-07**
+**Version 1.16 - 2026-10-07**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -113,10 +113,11 @@ The full list is SPEC section 7. The ones that bite an author:
 | Network of any kind | Refused. No fetch, no image URL, no analytics. |
 | Web fonts | A font HOST is refused. A font the document carries as a `data:` URI renders since ledger 0351 (`font-src data:`). Use the site's faces: Rajdhani 500/600/700 for text and Share Tech Mono 400 for labels, from `@fontsource`, about 80 KB as woff2. Measure a font claim by rendered width against a fallback, never `document.fonts.check()`. |
 | `window.print()` | Returns silently and does nothing. A Print button is inert. |
-| Downloads | Do not fire. A "download with data" control is inert. |
+| Downloads | **Fire** since ledger 0368 (`allow-downloads`, SPEC 5.7), a link to the stored file, a `data:` or `blob:` link, and a new-tab open alike. A download is still never a save path: answers save through the bridge. |
 | File upload by the document | Impossible. Image bytes go up as `idea:image` and the parent uploads them. |
 | Submit | Not the document's. Hand-in is a parent control in parent chrome. |
 | Popups | **Allowed** since ledger 0153. `allow-popups allow-popups-to-escape-sandbox` are both granted and both required. |
+| A stored picture | The document cannot draw it (the URL is the portal's). Hold a box open and report it with `idea:image-box`; the portal draws it there (section 10b). |
 
 State is seeded by the parent through `idea:state` and saved through `idea:change`. A
 document that does not send `idea:ready` never gets seeded and loses everything a student
@@ -213,7 +214,9 @@ every resize, with `overflow: hidden`, and size the count as
 **An element that follows the reader** (the Dogtag hand-in card) sits in a wrapper that
 stretches to its grid row, and is moved with `translateY`, clamped between 0 and the
 wrapper's height minus its own. Only in the layout where it has a column of its own:
-stacked on a phone, it stays in normal flow.
+stacked on a phone, it stays in normal flow. **Never report a picture box (section 10b)
+inside an element that follows the reader**: it moves on every parent scroll, so the
+portal's picture would lag behind it unless the document re-sends the box on every move.
 
 **Never change layout inside a `ResizeObserver` callback.** Rebuilding probes there, or
 posting `idea:height` so the parent resizes the frame, raises "ResizeObserver loop completed
@@ -306,12 +309,16 @@ extension intact. That is how the Dogtag takes a `.SLDPRT` and an `.xs`.
 - **Replace means remove first.** A second `idea:image` on a field that already holds a
   file is not specified to replace it. Offer Remove, which sends `idea:image-remove`, and
   only then a new pick.
-- **The teacher needs a Download button in the document.** A file handed in through an
-  HTML block has a block id, so it does not appear under the grading console's files
-  handed in, and the frame's photo list has no download link (as read 2026-09-22). The
-  stored URL is a path on Classroom's own site, so the document completes it against
-  `https://ideabosco.com` and opens it in a new tab, where the teacher's session fetches
-  it. **Untested in production as of 2026-09-25.**
+- **A Download button in the document works since ledger 0368.** It did nothing before:
+  the sandbox refused every download the document started, including the new tab it
+  opened (Mr. Pina's report of 2026-10-06), and `allow-downloads` fixed every deployed
+  document's button with no re-upload. The stored URL is a path on Classroom's own site, so
+  the document completes it against `https://ideabosco.com` and opens it in a new tab,
+  where the teacher's session fetches it. **The portal now offers the file too, so the
+  button is a convenience rather than the only way**: a stored file has a worded Download
+  in its box (section 10b) or on its row in the list under the frame, in the Lightbox, and
+  in the grading console's Answers view. A file whose name is not a picture is shown as a
+  file with a Download, never as a broken image.
 - The document caps a file at 50 MB; the server's own cap is higher.
 
 ---
@@ -359,8 +366,9 @@ Every document is rendered at least three ways: blank for a new student, seeded 
 values, and read-only for a closed assignment or a teacher looking at somebody's work.
 
 - `idea:state` seeds every `[data-field]`, the table JSON and any stored image.
-- A stored image comes back as a URL, not bytes. Show that it exists; do not expect to
-  redraw it from what was pasted.
+- A stored image comes back as a URL, not bytes. Show that it exists ("Saved: <name>")
+  inside the box you report for it (section 10b), where the portal draws the stored copy
+  over your text; do not expect to redraw it from what was pasted.
 - `readOnly` disables every `[data-field]` and every control that would mutate one.
 - **Anything without a `data-field` stays live in read-only.** That is how a tool section
   (a work order form, a calculator) keeps working after the assignment is closed for
@@ -394,6 +402,64 @@ empty and then filled, so "seed once" is not a fix either. Three rules:
   every cell blank. Exclude hidden stores from the generic loop (`:not([hidden])`). The
   reload check found this on Hook 01; the echo check could not, because the table's cells
   were already dirty there.
+
+---
+
+## 10b. Showing a stored picture in its place (ledger 0368)
+
+Mr. Pina, 2026-10-06: "I need for images to show within html assignments not under them."
+The document cannot draw a stored picture: the portal hands back a link the sandbox may
+not load, and bytes never come back down (SPEC 6.5). So the document holds a BOX open
+where the picture belongs and tells the portal where it is, and the portal draws the
+stored picture over it, in its own chrome, with Enlarge into the classroom Lightbox and a
+Download. A file that is not a picture by its name is drawn there as a file with a
+Download. **A document that reports no box keeps every picture in the list under the
+frame**, which is where all of them are until a document is re-uploaded with this reporter.
+Re-uploading changes no block id, so every stored answer still renders.
+
+Mark each picture area with its field, and report every box:
+
+```js
+// One box per image field: <div class="photo-box" data-image-box="photo">Saved: ...</div>
+function sendImageBoxes() {
+  document.querySelectorAll('[data-image-box]').forEach(function (el) {
+    var r = el.getBoundingClientRect();
+    var showing = r.width > 0 && r.height > 0 && !document.body.classList.contains('modal-open');
+    parent.postMessage({
+      type: 'idea:image-box',
+      field: el.getAttribute('data-image-box'),
+      rect: showing ? { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY),
+                        w: Math.round(r.width), h: Math.round(r.height) } : null,
+      clipTop: 0
+    }, '*');
+  });
+}
+var imageBoxTimer = 0;
+function queueImageBoxes() { clearTimeout(imageBoxTimer); imageBoxTimer = setTimeout(sendImageBoxes, 100); }
+addEventListener('resize', queueImageBoxes);
+```
+
+- **Send after every `idea:state`** (the seed, every echo, read-only), after a fold or a
+  stage change, and on a resize through the timeout above. Only the document can see its
+  own layout move; the portal never measures inside the frame. Never send from inside a
+  `ResizeObserver` callback (section 7).
+- **`rect: null` while the box is hidden** (a closed fold, another stage) **or while the
+  document's own modal is over it**. The portal then lists the picture under the frame
+  again, so it is never lost.
+- **`clipTop` is how many pixels of the box's top a following header covers**, so the
+  portal hides that strip rather than painting over the header.
+- **Keep Choose, Remove and caption controls OUTSIDE the box.** The portal's picture is
+  opaque and takes every click in the rectangle.
+- **Size the box for a picture and for a file**: at least 160px wide and 120px tall, so a
+  file's kind, its name and a 44px Download fit. Give it an `aspect-ratio`, so it holds its
+  shape at every width.
+- **Keep your own fallback text inside the box** ("No photo yet", "Saved: <name>"). The
+  portal's picture covers it; a portal that predates ledger 0368 does not, and the student
+  still sees the right words. The portal answers with `idea:image-box-state` (`field`,
+  `shown`); listening is optional and nothing may wait on it.
+- **Never report a box inside an element that follows the reader** (section 7).
+- **Report boxes in the read-only grading view too.** That is where a teacher reads the
+  hand-in, and the reporter sends nothing a student typed.
 
 ---
 
@@ -747,12 +813,14 @@ portal does: at 1440px the stage went from 4834px tall to 2581px with every move
   panel rule matched the progress bar's `.pseg.next` state and drew the current segment as
   a box. Before reusing an earlier document's CSS, search it for every bare class the new
   markup uses as a state.
-- **A picture shows inside the document only until the page reloads.** On upload the
-  document draws it from the bytes it already holds. After a reload the portal hands back a
-  link the sandbox is not allowed to load, so the document can only say "Saved: <name>",
-  and the grading view lists the picture under the hand-in's files rather than in the
-  document. That is the platform (`CLAUDE.md`, "bytes go frame-to-parent only"), not
-  something a document can fix. Never tell students the picture stays in the worksheet.
+- **A picture shows inside the document from its own bytes only until the upload lands.**
+  On upload the document draws it from the bytes it already holds. After that, and after
+  every reload, the portal hands back a link the sandbox is not allowed to load, so the
+  document can only say "Saved: <name>" -- and the portal draws the stored picture over the
+  box the document reports (section 10b, ledger 0368). A document with no box reporter
+  leaves the picture in the list under the frame, in the student's view and the grading
+  view alike. That is the platform (`CLAUDE.md`, "bytes go frame-to-parent only"). Tell
+  students the picture stays in the worksheet only when the document reports its box.
 
 ## 18. A video tutorial stage, and adding a stage to a live post (2026-10-07)
 
@@ -796,6 +864,17 @@ short videos Mr. Pina recorded, built into the live post so no live demo is need
 
 ## Changelog
 
+- **1.16 (2026-10-07).** Ledger 0368, two of Mr. Pina's reports from 2026-10-06. Section
+  4: downloads fire (`allow-downloads`), and a stored picture is the portal's to draw.
+  New section 10b: a copy-paste reporter for `idea:image-box`, so the portal draws a stored
+  picture (or a file with a Download) over the box the document holds open, and its rules
+  (send after every state, fold, stage change and resize; null while hidden or under the
+  document's own modal; `clipTop` under a following header; controls outside the box; at
+  least 160 by 120; the fallback text kept; never inside a following element; until a
+  document is re-uploaded with it, its pictures stay in the list under the frame). Section
+  9b: the in-document Download button works now and the portal offers the file too.
+  Section 7: no picture box inside an element that follows the reader. Sections 10 and 17
+  edited in place for the box.
 - **1.15 (2026-10-07).** Ledger 0367. New section 18: a video tutorial stage built from the
   teacher's own videos (they outrank older handouts), one move per video with a "You
   should see" end frame and a "That's not what I see" fix list, screenshot evidence at the

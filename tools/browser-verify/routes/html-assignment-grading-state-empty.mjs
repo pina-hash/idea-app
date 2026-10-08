@@ -47,10 +47,12 @@ export default {
 					'ready=' + (wrap?.getAttribute('data-hx-ready') ?? 'absent'),
 					/* No photograph, so no strip at all -- not an empty one. */
 					'strip=' + document.querySelectorAll('.hx-images').length,
-					'thumbs=' + document.querySelectorAll('.hx-image-thumb').length
+					'thumbs=' + document.querySelectorAll('.hx-image-thumb').length,
+					/* And nothing drawn over the document either (ledger 0368). */
+					'over=' + document.querySelectorAll('.hx-image-over').length
 				];
 			}`,
-			expected: ['frames=1', 'ready=yes', 'strip=0', 'thumbs=0']
+			expected: ['frames=1', 'ready=yes', 'strip=0', 'thumbs=0', 'over=0']
 		}
 	],
 

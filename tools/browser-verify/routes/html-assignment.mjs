@@ -201,8 +201,14 @@ export default {
 					the escape flag reddens here too -- `allow-popups` alone opens a
 					tab that inherits this sandbox, at an opaque origin, which is a tab
 					Slides cannot run in.
+
+					`allow-downloads` IS THE SECOND WIDENING (ledger 0368, Mr. Pina's
+					report of 2026-10-06: his document's Download button did nothing).
+					Its cost is in bridge.ts and SPEC 5.7: a document can now save a
+					file to a viewer's disk, with no click needed. Pinned here with the
+					rest, so it cannot arrive or leave without this row moving.
 				*/
-				'sandbox=allow-scripts allow-popups allow-popups-to-escape-sandbox',
+				'sandbox=allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads',
 				/*
 					`"null"`, NOT THE DOCUMENT ORIGIN, AND THAT IS MEASURED. The
 					sandbox makes the document's origin opaque and `postMessage`

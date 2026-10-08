@@ -36,14 +36,20 @@ export default {
 				'name=' + (document.querySelector('.hx-image-name')?.textContent ?? 'absent'),
 				'field=' + (document.querySelector('.hx-image-field')?.textContent ?? 'absent'),
 				/* A control absent for a reason says the reason. */
-				'says=' + [...document.querySelectorAll('.hx-image-caption')].some((n) => n.textContent.includes('could not be shown'))
+				'says=' + [...document.querySelectorAll('.hx-image-caption')].some((n) => n.textContent.includes('could not be shown')),
+				/* LEDGER 0368: the fallback row is not a dead end. The file is
+				   still offered, worded, at the same proxy URL. */
+				'downloads=' + document.querySelectorAll('[data-testid="hx-image-download"]').length,
+				'open=' + document.querySelectorAll('[data-testid="hx-image-open"]').length
 			]`,
 			expected: [
 				'thumbs=0',
 				'fallbacks=1',
 				'name=blade-root-fillet.png',
 				'field=photo',
-				'says=true'
+				'says=true',
+				'downloads=1',
+				'open=0'
 			]
 		}
 	],

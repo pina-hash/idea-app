@@ -18,15 +18,17 @@
 	 * the change is wrong.
 	 *
 	 * THE SET ALSO CARRIES THE TWO POPUP FLAGS, deliberately, so a document can
-	 * open a link in a new tab -- `bridge.ts` carries the decision, what it costs
-	 * and what was measured. The opened tab is a separate browsing context at its
-	 * own origin and reaches nothing of this one.
+	 * open a link in a new tab, and since ledger 0368 `allow-downloads`, so a
+	 * document's own Download button works -- `bridge.ts` carries both decisions,
+	 * what each costs and what was measured. The opened tab is a separate
+	 * browsing context at its own origin and reaches nothing of this one.
 	 *
 	 * WHAT THE SANDBOX STILL COSTS, SO NOBODY DISCOVERS IT: `localStorage` THROWS
 	 * in an opaque origin, so a ported document's autosave has to go through the
-	 * bridge; downloads do not fire without `allow-downloads`; and the document
-	 * cannot upload a file itself, so image bytes come up as `idea:image` and the
-	 * PARENT uploads them.
+	 * bridge; the document cannot upload a file itself, so image bytes come up as
+	 * `idea:image` and the PARENT uploads them; and it cannot draw a stored
+	 * picture, so the parent draws it, over the box the document reports
+	 * (`idea:image-box`) or in the list under the frame.
 	 *
 	 * THIS COMPONENT OWNS THE ELEMENT AND THE LISTENER. IT OWNS NO RULES. Every
 	 * decision about whether a message counts is `hxReceive` in `bridge.ts`,
@@ -41,9 +43,15 @@
 	 * a Submit inside the document would be a button whose handler the document
 	 * itself wrote.
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { fileKindLabel, isImageFilename } from '$lib/classroom/classroom';
+	import Lightbox from '$lib/media/Lightbox.svelte';
+	import EnlargeCue from '$lib/media/EnlargeCue.svelte';
+	import type { LightboxImage } from '$lib/media/lightbox';
 	import {
 		HX_SANDBOX_FLAGS,
+		hxImageBoxStateMessage,
+		hxImagePlacement,
 		hxPostTarget,
 		hxReceive,
 		hxSavedMessage,
@@ -53,6 +61,7 @@
 		hxThemeMessage,
 		hxThemeOf,
 		type HxAccepted,
+		type HxImageBox,
 		type HxVideoRect,
 		type HxImageState,
 		type HxDropReason,
@@ -206,6 +215,13 @@
 		switch (message.kind) {
 			case 'ready':
 				ready = true;
+				// A document that announces itself again has reloaded and knows
+				// nothing: its boxes and its player are gone, and it re-reports
+				// boxes after the state below (the authoring rule). Stale rects from
+				// the previous load would otherwise be drawn over the new one.
+				boxes = {};
+				announced = new Set();
+				video = null;
 				onready?.(message.schemaVersion);
 				// The document is listening now, so the state it should open on goes
 				// down immediately. Sent BEFORE the callback could change anything, so
@@ -248,6 +264,13 @@
 				if (video) post(hxVideoStateMessage(video.videoId, false));
 				video = null;
 				break;
+			case 'image-box': {
+				// Immutable, so the derived placement sees a new object. A null
+				// rect withdraws the box and the picture returns to the list.
+				const { [message.field]: _withdrawn, ...rest } = boxes;
+				boxes = message.rect ? { ...rest, [message.field]: { rect: message.rect, clipTop: message.clipTop } } : rest;
+				break;
+			}
 		}
 	}
 
@@ -367,7 +390,8 @@
 	});
 
 	/**
-	 * THE RESTORED PHOTOGRAPHS, AS PARENT CHROME, BECAUSE THEY CANNOT GO INSIDE.
+	 * THE RESTORED PHOTOGRAPHS, AS PARENT CHROME, BECAUSE THE DOCUMENT CANNOT
+	 * DRAW THEM -- AND SINCE LEDGER 0368, OVER THE BOX THE DOCUMENT HOLDS OPEN.
 	 *
 	 * `idea:state` carries an image's URL down to the document and the document
 	 * CANNOT RENDER IT: the URL is a portal proxy the sandbox CSP admits no host
@@ -375,7 +399,12 @@
 	 * anyway. Weakening the CSP to let it in is the rejected fix -- `img-src
 	 * data:` would happily render a round-tripped data URI, which would quietly
 	 * make a student's document the system of record for their photograph. So a
-	 * restored picture belongs BESIDE the frame, in chrome we own.
+	 * restored picture is drawn in chrome we own: OVER the box a document reports
+	 * with `idea:image-box` (Mr. Pina, 2026-10-06: "I need for images to show
+	 * within html assignments not under them"), and in the list UNDER the frame
+	 * for every picture with no box, which is every picture in a document that
+	 * predates the message. `hxImagePlacement` is the one rule, and a picture is
+	 * always in exactly one of the two.
 	 *
 	 * IT LIVES IN THIS COMPONENT AND NOT AT EITHER CALL SITE, and that is the
 	 * repo's parity rule rather than convenience: an instructor's view of
@@ -383,27 +412,103 @@
 	 * THE SAME RENDER PATH. A strip built in the grading console would be a
 	 * second view of a student's evidence that the student cannot see, free to
 	 * drift from theirs; built here, the item page and the grading console get
-	 * one implementation because both mount this.
-	 *
-	 * SORTED BY FIELD so two graders reading one hand-in read it in one order.
-	 * `Object.entries` follows insertion order, which is whatever order the rows
-	 * came back in.
+	 * one implementation because both mount this. The overlay, the Lightbox and
+	 * every Download are READS, so the read-only grading mount gets them too and
+	 * no write callback is involved.
 	 */
-	const imageList = $derived(
-		Object.entries(images)
-			.map(([field, state]) => ({ field, ...state }))
-			.sort((a, b) => a.field.localeCompare(b.field))
-	);
+	let boxes = $state<Record<string, HxImageBox>>({});
+	const placement = $derived(hxImagePlacement(images, boxes));
 
 	/**
 	 * A THUMBNAIL THAT WILL NOT DECODE FALLS BACK TO ITS ROW, never to a broken
 	 * image icon. The proxy answers `application/octet-stream` with an
 	 * attachment disposition, which an `<img>` decodes perfectly (measured in
-	 * Chromium, CLAUDE.md's classroom-files section) -- but the object may be a
-	 * `.SLDPRT` a document called a photo, or a file whose bytes never landed,
-	 * and the honest answer then is the name and a marker.
+	 * Chromium, CLAUDE.md's classroom-files section) -- but bytes may never have
+	 * landed, and the honest answer then is the name, a marker and a Download.
+	 *
+	 * KEYED ON THE URL, NOT THE FIELD. The file id changes on every upload, so a
+	 * student who replaces a picture that would not decode gets the new one TRIED
+	 * rather than inheriting the old one's failure.
 	 */
 	let undecodable = $state<Record<string, true>>({});
+	function markUndecodable(url: string) {
+		undecodable = { ...undecodable, [url]: true };
+	}
+
+	/**
+	 * PICTURE OR FILE IS `isImageFilename`, THE ONE RULE (CLAUDE.md, classroom
+	 * files), and never a decode attempt. An image block stores whatever it is
+	 * sent -- the Dogtag takes a `.SLDPRT` -- and asking an `<img>` to find out
+	 * fetched the whole part through the proxy only to fail. A name that says
+	 * picture is tried; the `onerror` is the second rung, for bytes that lied.
+	 */
+	function isPicture(image: HxImageState): boolean {
+		return isImageFilename(image.name) && !undecodable[image.url];
+	}
+	function imageLabel(image: HxImageState): string {
+		return image.caption || image.name;
+	}
+
+	/**
+	 * EVERY PICTURE OPENS IN THE CLASSROOM LIGHTBOX (CLAUDE.md), one viewer over
+	 * every decodable picture, boxed and listed alike, in field order -- so the
+	 * arrows walk a student's pictures in the order the grader reads them.
+	 * Download inside it is an `<a href>` to the same proxy URL, which answers
+	 * with an attachment disposition, so no serve route changed.
+	 */
+	const pictures = $derived(
+		[...placement.over, ...placement.under]
+			.filter((p) => isPicture(p.image))
+			.sort((a, b) => a.field.localeCompare(b.field))
+	);
+	const lightboxImages = $derived<LightboxImage[]>(
+		pictures.map((p) => ({
+			key: p.field,
+			src: p.image.url,
+			alt: imageLabel(p.image),
+			caption: p.image.caption ? `${p.image.caption} (${p.image.name})` : p.image.name,
+			downloadHref: p.image.url,
+			downloadName: p.image.name
+		}))
+	);
+	let openAt = $state<number | null>(null);
+	/* The viewer is mounted only while there is a picture, so an open index
+	   left behind when the last one goes would reopen it unbidden on the next. */
+	$effect(() => {
+		if (!lightboxImages.length) openAt = null;
+	});
+	function openPicture(field: string) {
+		const at = pictures.findIndex((p) => p.field === field);
+		if (at >= 0) openAt = at;
+	}
+	/** The heading names what is in the list, so a list holding a part file is
+	    not called Photos. */
+	const listHeading = $derived(
+		placement.under.every((u) => isImageFilename(u.image.name)) ? 'Photos' : 'Photos and files'
+	);
+
+	/**
+	 * THE PARENT TELLS THE DOCUMENT WHICH BOXES IT IS DRAWING OVER
+	 * (`idea:image-box-state`), advisory, posted on a change of the set and
+	 * never on a re-render. `announced` is a PLAIN Set, not state, and the post
+	 * happens inside `untrack`: the effect is about the set of shown fields and
+	 * whether the document is listening, and nothing the post touches may join
+	 * that. The string is derived outside the effect so the effect reads one
+	 * value rather than walking prop data.
+	 */
+	let announced = new Set<string>();
+	const shownFields = $derived(placement.over.map((o) => o.field).join('\n'));
+	$effect(() => {
+		const shown = shownFields;
+		if (!ready) return;
+		untrack(() => announceBoxes(shown === '' ? [] : shown.split('\n')));
+	});
+	function announceBoxes(shown: string[]) {
+		const next = new Set(shown);
+		for (const field of next) if (!announced.has(field)) post(hxImageBoxStateMessage(field, true));
+		for (const field of announced) if (!next.has(field)) post(hxImageBoxStateMessage(field, false));
+		announced = next;
+	}
 
 	/**
 	 * THE ONE VIDEO THE DOCUMENT HAS ASKED FOR, DRAWN OVER THE FRAME AT THE BOX
@@ -499,6 +604,66 @@
 					</div>
 				{/key}
 			{/if}
+			<!--
+				A STORED PICTURE, OVER THE BOX THE DOCUMENT HOLDS OPEN (ledger 0368).
+				The rect is in the document's own pixels and starts at this box's
+				padding edge, where the frame starts, exactly as the video's does,
+				so a page scroll moves the frame and the picture together. The
+				ground is opaque, so the document's own fallback inside the box is
+				covered rather than drawn twice. `data-hx-image-box` is the rect the
+				document asked for, so a browser pass can compare it with where the
+				picture was actually drawn.
+
+				AFTER THE FRAME IN TAB ORDER, deliberately: a keyboard reaches the
+				picture once it has been through the document, which is the order
+				the work is read in. Putting it first would put a student's own
+				photograph before the worksheet that asks for it.
+			-->
+			{#each placement.over as o (o.field)}
+				<div
+					class="hx-image-over"
+					data-hx-image-box="{o.rect.x},{o.rect.y},{o.rect.w},{o.rect.h}"
+					data-hx-image-field={o.field}
+					style="left: {o.rect.x}px; top: {o.rect.y}px; width: {o.rect.w}px; height: {o.rect.h}px; clip-path: inset({o.clipTop}px 0 0 0);"
+				>
+					{#if isPicture(o.image)}
+						<button
+							type="button"
+							class="hx-image-over-open"
+							aria-label="Open {imageLabel(o.image)} larger"
+							data-testid="hx-image-over"
+							onclick={() => openPicture(o.field)}
+						>
+							<!-- `loading="eager"`: a lazy image never requests in a pane
+							     that does not fire IntersectionObserver. -->
+							<img
+								class="hx-image-over-img"
+								src={o.image.url}
+								alt={imageLabel(o.image)}
+								loading="eager"
+								onerror={() => markUndecodable(o.image.url)}
+							/>
+							<EnlargeCue />
+						</button>
+					{:else}
+						<!-- A FILE THAT IS NOT A PICTURE IS A TILE, never a doomed
+						     `<img>`: its kind, its name and a worded Download. -->
+						<div class="hx-image-over-file" data-testid="hx-image-over-file">
+							<span class="hx-file-glyph" aria-hidden="true">{fileKindLabel(o.image.name, null)}</span>
+							<span class="hx-image-over-name">{o.image.name}</span>
+							{#if isImageFilename(o.image.name)}
+								<span class="hx-image-over-note">This file could not be shown as a picture.</span>
+							{/if}
+							<a
+								class="hx-image-download"
+								href={o.image.url}
+								download={o.image.name}
+								data-testid="hx-image-over-download">Download</a
+							>
+						</div>
+					{/if}
+				</div>
+			{/each}
 		{:else}
 			<!-- Not a pending state to dress up: it lasts one frame after hydration
 			     and a spinner here would be a flash on every load. The box holds its
@@ -507,34 +672,48 @@
 		{/if}
 	</div>
 
-	{#if imageList.length}
-		<section class="hx-images" aria-label="Photos attached to this worksheet">
-			<h3 class="hx-images-head">Photos</h3>
+	{#if placement.under.length}
+		<section class="hx-images" aria-label="Photos and files attached to this worksheet">
+			<h3 class="hx-images-head">{listHeading}</h3>
 			<ul class="hx-image-list">
-				{#each imageList as image (image.field)}
+				{#each placement.under as entry (entry.field)}
+					{@const image = entry.image}
 					<li class="hx-image">
-						{#if undecodable[image.field]}
+						{#if !isImageFilename(image.name)}
+							<!-- NOT A PICTURE BY ITS NAME, so nothing is fetched to find
+							     out: the file's kind in place of a thumbnail. -->
+							<span class="hx-image-file" aria-hidden="true">{fileKindLabel(image.name, null)}</span>
+						{:else if undecodable[image.url]}
 							<!-- A control absent for a reason says the reason. -->
 							<span class="hx-image-missing" aria-hidden="true">!</span>
 						{:else}
-							<!-- `loading="eager"`: a lazy image never requests in a pane that
-							     does not fire IntersectionObserver, and every assertion about
-							     it then passes vacuously. -->
-							<img
-								class="hx-image-thumb"
-								src={image.url}
-								alt={image.caption || image.name}
-								loading="eager"
-								onerror={() => (undecodable = { ...undecodable, [image.field]: true })}
-							/>
+							<button
+								type="button"
+								class="hx-image-open"
+								aria-label="Open {imageLabel(image)} larger"
+								data-testid="hx-image-open"
+								onclick={() => openPicture(entry.field)}
+							>
+								<!-- `loading="eager"`: a lazy image never requests in a pane that
+								     does not fire IntersectionObserver, and every assertion about
+								     it then passes vacuously. -->
+								<img
+									class="hx-image-thumb"
+									src={image.url}
+									alt={imageLabel(image)}
+									loading="eager"
+									onerror={() => markUndecodable(image.url)}
+								/>
+								<EnlargeCue />
+							</button>
 						{/if}
 						<div class="hx-image-meta">
-							<span class="hx-image-field">{image.field}</span>
+							<span class="hx-image-field">{entry.field}</span>
 							<span class="hx-image-name">{image.name}</span>
 							{#if image.caption}
 								<span class="hx-image-caption">{image.caption}</span>
 							{/if}
-							{#if undecodable[image.field]}
+							{#if isImageFilename(image.name) && undecodable[image.url]}
 								<!-- ITS OWN LINE, NOT AN `{:else}` ON THE CAPTION, and that was
 								     the first shape. A student who wrote a caption still gets a
 								     file that will not decode, and folding the two together
@@ -546,11 +725,32 @@
 									>This file could not be shown as a picture.</span
 								>
 							{/if}
+							<!-- EVERY ROW CAN BE DOWNLOADED, picture or not, decoded or not:
+							     the same proxy URL, which answers with an attachment
+							     disposition. Before ledger 0368 a file handed in through a
+							     block had no download anywhere in the frame. -->
+							<a
+								class="hx-image-download"
+								href={image.url}
+								download={image.name}
+								data-testid="hx-image-download">Download</a
+							>
 						</div>
 					</li>
 				{/each}
 			</ul>
 		</section>
+	{/if}
+
+	{#if lightboxImages.length}
+		<Lightbox
+			images={lightboxImages}
+			index={openAt}
+			label="Photos in this worksheet"
+			onIndex={(n) => (openAt = n)}
+			onClose={() => (openAt = null)}
+			testId="hx-lightbox"
+		/>
 	{/if}
 </div>
 
@@ -565,6 +765,118 @@
 		width: 100%;
 		height: 100%;
 		border: 0;
+	}
+	/*
+		A STORED PICTURE OVER THE DOCUMENT'S BOX. Opaque, so the document's own
+		fallback underneath is covered rather than read twice; `--surface-2` so a
+		picture narrower than its box sits on the room's ground rather than on
+		whatever the document painted. No animation: it appears where the box is.
+	*/
+	.hx-image-over {
+		position: absolute;
+		z-index: 1;
+		display: flex;
+		background: var(--surface-2, var(--bg2));
+		overflow: hidden;
+	}
+	.hx-image-over-open {
+		/* The anchor for EnlargeCue, which is absolutely placed in its corner. */
+		position: relative;
+		flex: 1;
+		min-width: 0;
+		display: block;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		cursor: zoom-in;
+		line-height: 0;
+	}
+	.hx-image-over-open:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: -2px;
+	}
+	.hx-image-over-img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+	.hx-image-over-file {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		padding: 0.6rem;
+		text-align: center;
+		background: var(--surface-1, var(--bg1));
+		border: 1px solid var(--boundary);
+	}
+	.hx-image-over-name {
+		font-size: 0.9rem;
+		color: var(--text-1);
+		overflow-wrap: anywhere;
+		max-width: 100%;
+	}
+	.hx-image-over-note {
+		font-size: 0.8rem;
+		color: var(--text-2);
+	}
+	.hx-file-glyph,
+	.hx-image-file {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--font-mono);
+		font-weight: 600;
+		letter-spacing: 0.03em;
+		color: var(--hover-ink, var(--text-1));
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+	}
+	.hx-file-glyph {
+		min-height: 1.6rem;
+		padding: 0 0.5rem;
+		font-size: 0.7rem;
+	}
+	/*
+		A WORDED DOWNLOAD, 44px IN EVERY DENSITY. It is the frame's own rule and
+		not `.btn tiny`, which drops to 24px in a compact instructor surface --
+		and this component is the STUDENT's page too, so it takes the student
+		floor everywhere (CLAUDE.md, 44px on every student-facing surface).
+	*/
+	.hx-image-download {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		align-self: flex-start;
+		min-height: 44px;
+		padding: 0 0.9rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-1);
+		background: var(--surface-1, var(--bg1));
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		text-decoration: none;
+	}
+	.hx-image-over-file .hx-image-download {
+		align-self: center;
+	}
+	.hx-image-download:hover {
+		color: var(--hover-ink, var(--text-1));
+		text-decoration: none;
+	}
+	.hx-image-download:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	/*
 		A NOTICE, NOT A WARNING. Nothing has gone wrong -- an instructor closed an
@@ -633,18 +945,47 @@
 		background: var(--surface-1, var(--bg1));
 	}
 
-	.hx-image-thumb {
-		width: 5rem;
-		height: 5rem;
+	/* A real button now (it opens the Lightbox), wide enough for the Enlarge
+	   word in its corner, and its own UA chrome goes. */
+	.hx-image-open {
+		position: relative;
 		flex: none;
-		object-fit: cover;
+		width: 6rem;
+		height: 6rem;
+		margin: 0;
+		padding: 0;
+		border: 1px solid var(--hairline, var(--boundary));
 		border-radius: var(--radius-sm, 4px);
+		overflow: hidden;
+		background: var(--surface-2, var(--bg2));
+		color: inherit;
+		font: inherit;
+		line-height: 0;
+		cursor: zoom-in;
+	}
+	.hx-image-open:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+
+	.hx-image-thumb {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 		background: var(--surface-2, var(--bg2));
 	}
 
+	.hx-image-file {
+		width: 6rem;
+		height: 6rem;
+		flex: none;
+		font-size: 0.85rem;
+	}
+
 	.hx-image-missing {
-		width: 5rem;
-		height: 5rem;
+		width: 6rem;
+		height: 6rem;
 		flex: none;
 		display: flex;
 		align-items: center;

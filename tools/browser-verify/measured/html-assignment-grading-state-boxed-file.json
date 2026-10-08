@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "html-assignment-grading-state-qa.mjs",
+	"spec": "html-assignment-grading-state-boxed-file.mjs",
 	"date": "2026-10-08T00:05:02.195Z",
 	"sha": "4ccad2362fcf85ba4307400af02b97880681dfd4",
 	"dirty": false,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 46,
+	"measurements": 28,
 	"outsideRows": [],
 	"ms": 6673
 }
