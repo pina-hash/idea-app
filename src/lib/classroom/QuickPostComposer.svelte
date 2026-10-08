@@ -118,10 +118,18 @@
 	let closeArmed = $state(false);
 	/** The files that landed in the current pass, in order. */
 	let landed: QuickPostFile[] = [];
+	/**
+	 * How many files are already ON the posted notice. Every one came through
+	 * this composer, so this is the whole count, and the cap below adds it to
+	 * what is still staged: a file staged after the notice was posted counts
+	 * against the same ten as the ones already on it.
+	 */
+	let onNotice = $state(0);
 
 	function onUploaded(row: UploadedFileRow | undefined) {
 		if (!row?.id || !row.filename) return;
 		const file: QuickPostFile = { id: row.id, filename: row.filename, size_bytes: row.size_bytes ?? null };
+		onNotice += 1;
 		if (uploading) {
 			landed.push(file);
 			return;
@@ -142,7 +150,7 @@
 	 * same notice: a retry never makes a second post.
 	 */
 	async function attach(postId: string) {
-		if (!panel || uploading) return;
+		if (!panel || uploading || tooManyFiles) return;
 		uploading = true;
 		landed = [];
 		try {
@@ -179,7 +187,8 @@
 	const check = $derived(quickPostSendCheck({ body, preset, custom, sectionIds }, nowMs, maxChars));
 	const count = $derived(new Set(sectionIds).size);
 	const tooLong = $derived(body.trim().length > maxChars);
-	const tooManyFiles = $derived(filesOn && staged > maxFiles);
+	/** ONE PREDICATE for Post, Attach the rest and the sentence under the panel. */
+	const tooManyFiles = $derived(filesOn && staged + onNotice > maxFiles);
 
 	// An autofocus keyed on the ELEMENT, not on mount (CLAUDE.md).
 	$effect(() => {
@@ -196,6 +205,10 @@
 	 * page underneath (whose own drop opens New post). The upload panel takes a
 	 * drop on itself and says so (`defaultPrevented`); this takes the rest of the
 	 * card, the box included, the class page's own pattern. Off without files.
+	 * ON DURING AN UPLOAD TOO: the panel's own zone is off while it runs, so a
+	 * file let go here then would otherwise fall through to the class page and
+	 * open New post. `runAll` keeps a file added mid-pass staged (it is not in
+	 * the batch), so it waits for Attach the rest.
 	 */
 	function composerDrop(node: HTMLElement, initial: { enabled: boolean }) {
 		let enabled = initial.enabled;
@@ -305,7 +318,7 @@
 	role="group"
 	aria-label="Quick post"
 	data-testid="quick-post-composer"
-	use:composerDrop={{ enabled: filesOn && !uploading }}
+	use:composerDrop={{ enabled: filesOn }}
 >
 	{#if postedId}
 		<!-- POSTED; ITS FILES ARE THE ONLY THING LEFT. The words say what landed
@@ -461,7 +474,7 @@
 				<button
 					type="button"
 					class="btn tiny qp-post"
-					aria-disabled={uploading}
+					aria-disabled={uploading || tooManyFiles}
 					data-testid="quick-post-attach-rest"
 					onclick={() => postedId && void attach(postedId)}
 				>

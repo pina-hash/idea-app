@@ -510,6 +510,75 @@ describe('Post makes the notice once, then attaches its files to it', () => {
 		expect(live.announced.length).toBe(1);
 	});
 
+	it('files already on the notice count toward the ten: Attach the rest is refused past it, with the sentence', async () => {
+		const f = fake(boardOf([]));
+		const uploads: string[] = [];
+		f.transports.uploadFile = async (postId, file): Promise<UploadOutcome> => {
+			uploads.push(file.name);
+			if (file.name === 'b.pdf') return { ok: false, gate: 'network', message: 'The connection dropped.', retryable: true };
+			return { ok: true, storageKey: `${postId}/k`, row: { id: `id-${file.name}`, filename: file.name, size_bytes: file.size } };
+		};
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			composing: true,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Photos from the test.');
+		stage(m, ['a.jpg', 'b.pdf']);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		// 1 on the notice, 1 still staged: under the cap, Attach the rest offered.
+		expect(m.all('[data-testid="quick-post-too-many"]').length).toBe(0);
+		expect(m.one('[data-testid="quick-post-attach-rest"]').getAttribute('aria-disabled')).toBe('false');
+		// 9 more staged: 1 on the notice + 10 staged = 11, over the ten.
+		stage(m, Array.from({ length: 9 }, (_, i) => `more-${i}.jpg`));
+		expect(m.all('[data-testid="fup-row"]').length).toBe(10);
+		expect(m.one('[data-testid="quick-post-too-many"]').textContent).toContain('up to 10 files');
+		expect(m.one('[data-testid="quick-post-attach-rest"]').getAttribute('aria-disabled')).toBe('true');
+		const before = uploads.length;
+		m.one<HTMLButtonElement>('[data-testid="quick-post-attach-rest"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(uploads.length).toBe(before);
+	});
+
+	it('a file dropped on the card while the files are uploading is staged there, never handed to the class page', async () => {
+		const live = createMemoryClassroomLive();
+		const f = fake(boardOf([]));
+		let release: (o: UploadOutcome) => void = () => {};
+		f.transports.uploadFile = (postId, file) =>
+			new Promise<UploadOutcome>((resolve) => {
+				release = resolve;
+				void postId;
+				void file;
+			});
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			live,
+			composing: true,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Lab photos.');
+		stage(m, ['a.jpg']);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(m.one('[data-testid="quick-post-posted"]').textContent).toContain('Attaching the files now');
+		const drop = dropEvent([new File(['x'], 'late.png')]);
+		m.one('[data-testid="quick-post-posted"]').dispatchEvent(drop);
+		m.flush();
+		expect(drop.defaultPrevented).toBe(true);
+		expect(m.all('.fup-name').map((n) => n.textContent?.trim())).toEqual(['a.jpg', 'late.png']);
+		release({ ok: true, storageKey: 'new-1/k', row: { id: 'id-a', filename: 'a.jpg', size_bytes: 5 } });
+		for (let i = 0; i < 4; i++) await drain(m);
+		// The late file waits for Attach the rest; the notice was announced once.
+		expect(m.all('.fup-name').map((n) => n.textContent?.trim())).toEqual(['late.png']);
+		expect(m.all('[data-testid="quick-post-attach-rest"]').length).toBe(1);
+		expect(live.announced.length).toBe(1);
+	});
+
 	it('a drop on the composer card stages there and does not bubble on as a new drop', () => {
 		const t = fake(boardOf([])).transports;
 		t.uploadFile = async () => ({ ok: true, storageKey: 'x' });

@@ -63,6 +63,46 @@ const CONTROLS = `() => {
 	];
 }`;
 
+/**
+ * AND A COLLAPSE PRESSED WITH THE FOCUS ON IT KEEPS THE FOCUS. The compact tier
+ * hides a collapsed expand arrow; without `:not(:focus)` the arrow a keyboard
+ * user just pressed Collapse on became `display: none` under the focus and the
+ * focus fell to the body. Both directions, at 18rem: the focused arrow stays
+ * displayed and focused after Collapse, and steps aside once focus moves on.
+ * Runs last, because it expands and collapses a row.
+ */
+const FOCUS_KEPT = `async () => {
+	const wide = window.matchMedia('(min-width: 1024px)').matches;
+	const nav = document.querySelector('[data-testid="class-nav-pane"]');
+	if (!wide) {
+		const t = !nav || getComputedStyle(nav).display === 'none' || nav.getBoundingClientRect().width === 0 ? 'yes' : 'no-list-on-screen';
+		return ['an expanded row keeps its arrow:' + t, 'Collapse with the focus on it keeps the focus and the arrow:' + t, 'the arrow steps aside once the focus leaves:' + t];
+	}
+	const expand = nav.querySelector('[data-testid="row-expand"]');
+	if (!expand) return ['fixture:no-expandable-row'];
+	const settle = () => new Promise((r) => setTimeout(r, 350));
+	const shown = () => getComputedStyle(expand).display !== 'none';
+	expand.closest('[data-testid="item-row"]')?.scrollIntoView({ block: 'center', behavior: 'instant' });
+	if (expand.getAttribute('aria-expanded') !== 'true') { expand.click(); await settle(); }
+	const opened = expand.getAttribute('aria-expanded') === 'true' && shown();
+	expand.focus();
+	await settle();
+	expand.click();
+	await settle();
+	const collapsed = expand.getAttribute('aria-expanded') === 'false';
+	const kept = collapsed && document.activeElement === expand && shown();
+	const keptWhy = 'no-collapsed=' + collapsed + '-active=' + (document.activeElement?.getAttribute('data-testid') || document.activeElement?.tagName) + '-shown=' + shown();
+	const sep = document.querySelector('[data-testid="split-separator"]');
+	sep?.focus();
+	await settle();
+	const aside = document.activeElement !== expand && !shown();
+	return [
+		'an expanded row keeps its arrow:' + (opened ? 'yes' : 'no'),
+		'Collapse with the focus on it keeps the focus and the arrow:' + (kept ? 'yes' : keptWhy),
+		'the arrow steps aside once the focus leaves:' + (aside ? 'yes' : 'no-shown=' + shown())
+	];
+}`;
+
 export default {
 	path: '/dev/classroom-split/s-1/item/i-crowded?manage=1&names=long&nav=18',
 	label: 'Class list beside an open item, narrowed from 18rem to 30rem: readable at every width',
@@ -93,6 +133,15 @@ export default {
 			label: 'at 18rem the compact row keeps a hit-testable checkbox and row menu, and the menu opens on screen',
 			evaluate: CONTROLS,
 			expected: ['grip and collapsed expand step aside:yes', 'checkbox hit at its centre:yes', 'row menu hit at its centre:yes', 'opened menu on screen and on top:yes']
+		},
+		{
+			label: 'at 18rem a collapse pressed with the focus on the arrow keeps the focus, and the arrow steps aside only once the focus leaves',
+			evaluate: FOCUS_KEPT,
+			expected: [
+				'an expanded row keeps its arrow:yes',
+				'Collapse with the focus on it keeps the focus and the arrow:yes',
+				'the arrow steps aside once the focus leaves:yes'
+			]
 		}
 	],
 	/* The crowded item's own image attachment asks the real proxy, which

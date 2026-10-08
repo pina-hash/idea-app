@@ -3576,11 +3576,14 @@
 	   stream is the pane less 26px, measured: 390px at 26rem, 422px at 28rem), the drag
 	   grip and a collapsed expand arrow step aside. Reordering stays in the row
 	   menu's Move up / Move down and in the full-width list; an expanded row
-	   keeps its arrow, because that is how it closes. The unit header wraps its
-	   Select all / File here keys under the name before the name is squeezed. */
+	   keeps its arrow, because that is how it closes, and an arrow that HOLDS
+	   FOCUS stays until focus leaves it (`:not(:focus)`): Collapse pressed from
+	   the keyboard would otherwise hide the very button the focus is on and drop
+	   it to the body. The unit header wraps its Select all / File here keys
+	   under the name before the name is squeezed. */
 	@container class-stream (max-width: 25rem) {
 		.classroom-page.as-pane .row-grip,
-		.classroom-page.as-pane .row-expand:not([aria-expanded='true']) {
+		.classroom-page.as-pane .row-expand:not([aria-expanded='true']):not(:focus) {
 			display: none;
 		}
 		.classroom-page.as-pane .group-bar {
