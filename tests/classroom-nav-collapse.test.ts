@@ -186,6 +186,7 @@ describe('canCollapseNav: only where a list pane actually sits beside something'
 			because: 'nothing is open yet -- the list already has the whole split (split.css :not(.has-detail))'
 		},
 		{ place: 'people', expected: false, because: 'never splits' },
+		{ place: 'student', expected: false, because: 'never splits (one student, the 2026-10-07 round)' },
 		{ place: 'grades', expected: false, because: 'never splits' },
 		{ place: 'settings', expected: false, because: 'never splits (report R06)' },
 		{ place: 'item', expected: true, because: 'the one place a list pane sits beside an open item' },

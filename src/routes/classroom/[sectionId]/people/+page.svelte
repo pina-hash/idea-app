@@ -3,6 +3,7 @@
 	import PeoplePanel from '$lib/classroom/PeoplePanel.svelte';
 	import { createClassroomTransports } from '$lib/classroom/transports';
 	import { createTeamTransports } from '$lib/classroom/teams';
+	import { studentPageHref } from '$lib/classroom/nav';
 	import type { SectionGrid } from '$lib/notebook-review';
 	import type { PageData } from './$types';
 
@@ -48,5 +49,6 @@
 	{transports}
 	{teams}
 	{loadNotebookGrid}
+	studentHref={(email) => studentPageHref(data.section.id, email)}
 	onchanged={() => invalidateAll()}
 />

@@ -1759,8 +1759,9 @@ Undated work is never Missing and never counted; it is listed last.
   or a close does), so a finished worksheet with none gets a derived draft row.
   **The state is never moved to `submitted`**: that locks saves (0197). A read
   that cannot answer changes nothing.
-  - **THE READ IS PINNED TO THE CALLER'S OWN ADDRESS, ALWAYS, AND THE TEACHER'S
-    HOME TALLY DOES NOT GET ONE.** `classroom_responses` is policed per row
+  - **THE READ IS PINNED TO ONE ADDRESS, ALWAYS -- THE CALLER'S OWN, OR ON ONE
+    STUDENT'S PAGE THE ONE STUDENT A MANAGER OPENED -- AND THE TEACHER'S HOME
+    TALLY DOES NOT GET ONE.** `classroom_responses` is policed per row
     (own address, or `classroom_can_review_submission`), so an answers read
     with no `student_email` filter visits every classmate's answer to refuse
     it: measured on the test cluster, one 60-block worksheet in four classes of
@@ -1797,6 +1798,42 @@ Undated work is never Missing and never counted; it is listed last.
   reads no clock; `formatDue` prints in America/Los_Angeles and names no
   weekday. A browser's own zone deciding "due today" is the evening bug the
   notebook grid already had.
+
+### ONE STUDENT'S PAGE -- one class, one student, and a printout that names nobody else
+
+**A MANAGER OPENS ONE STUDENT'S WORK, NOTEBOOK AND ACTIVITY IN ONE CLASS AT
+`/classroom/<id>/people/<email>` (the 2026-10-07 round, reports 792eb6b1 and
+63fb1c49).** The People roster's name and the palette's `@` row are its doors,
+through `studentPageHref`; it is a place under the People tab, not a tab.
+`StudentOverview.svelte` is the one renderer, mounted by the route and by
+`/dev/classroom-student`, over the page `buildStudentPage` in
+`$lib/classroom/student-overview.ts` makes from the route's reads.
+- **EVERY REFUSAL IS THE SAME 404**: not a manager (the section layout's own
+  `canManage`), an address `studentEmailParam` rejects (it never decodes a
+  second time, which threw a 500), no roster row, and a row that manages the
+  class (0138).
+- **EVERY READ IS A MANAGER'S OWN READ WITH AN ATTRIBUTION FILTER, PLUS ONE
+  DEFINER READ.** `classroom_student_overview` answers only what a manager
+  could not read before: this class's hall passes, item views and song counts,
+  and coins as the public Ledger projects them, never the note or who logged
+  it. It answers NULL for every refusal, identically, and adds no policy to any
+  table. Item views reaching a teacher reverses 0085's "no surface shows it",
+  on Mr. Pina's request.
+- **ONLY THE ONE STUDENT'S SLICE LEAVES THE SERVER.** The grid, the team board
+  and the roster carry the whole class and are reduced in the load; a team is a
+  name and a size, never its members, and the notebook's presence pre-fill is
+  not shown. No Foundry play is shown (decisions 05 and 07). There is no
+  percent and no letter grade: points are summed over returned work only.
+- **PRESENCE SPEAKS THROUGH `presenceLineKind`, AND AN OPEN RECORD OUTRANKS ITS
+  VERDICT** as work does; `presenceCoverageNote` is printed verbatim once,
+  under the assignments table, because paper has no hover.
+- **PRINTING IS `beforeprint`/`afterprint`**: the page sits on Space White for
+  the print and restores the attribute exactly, every print rule naming
+  something outside the component carries `body:has(.so-root)`, and each
+  section's "Include when printing" box starts ticked and is never stored.
+  `tools/browser-verify/_student-print.mjs` measures it. No poll, ever.
+- **A REPORT FILED FROM AN ADDRESS-BEARING PATH CARRIES `:student`**, never the
+  address: `captureMeta` runs `scrubAddressSegments`.
 
 ### PORTED HTML ASSIGNMENTS -- a second origin split, and the ONE rule that outranks the rest
 
@@ -2743,8 +2780,9 @@ on decision 19, and the reasoning is
 
 - **A surface a caller may not see answers 404, not 403 and not a redirect** --
   `/admin`, `/coin-desk`, the teacher tabs under `/classroom/[sectionId]`, the
-  per-student notebook review page. Such routes are deliberately NOT in
-  `authedPrefixes`, because the prefix guard's redirect would confirm they exist.
+  per-student notebook review page, one student's page in a class. Such routes
+  are deliberately NOT in `authedPrefixes`, because the prefix guard's redirect
+  would confirm they exist.
 - **A redirect is correct only where the surface is known to exist for everyone**
   (the `/dashboard` non-admin redirect to `/`).
 - **"Not found" and "not yours" answer identically**, so an id cannot be probed.

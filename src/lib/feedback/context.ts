@@ -108,6 +108,7 @@ export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/classroom-profile-menu',
 	'/dev/classroom-split',
 	'/dev/classroom-stream',
+	'/dev/classroom-student',
 	'/dev/classroom-theme',
 	'/dev/classroom-todo',
 	'/dev/classroom-tour',
@@ -458,11 +459,24 @@ export interface FeedbackContextInput {
 	errorId?: string | null;
 }
 
+/** A path with every email-shaped segment (raw `@` or encoded `%40`) replaced by `:student`. */
+export function scrubAddressSegments(pathname: string): string {
+	return pathname.replace(/[^/]*(?:@|%40)[^/]*/gi, ':student');
+}
+
 /** The `meta` jsonb, assembled in exactly one place. */
 export function captureMeta(input: FeedbackContextInput): Record<string, unknown> {
 	const meta: Record<string, unknown> = {
 		route: input.routeId ?? null,
-		path: input.pathname,
+		/*
+		 * AN ADDRESS IN THE PATH IS NOT KEPT (the 2026-10-07 round). One student's
+		 * page and their read-only notebook carry the student's email as a path
+		 * segment, and a report filed from either would put that address into the
+		 * feedback queue, its exports and a public triage. Any segment holding an
+		 * `@`, raw or encoded, becomes `:student`; the route id already names the
+		 * parameter, so nothing a reader needs is lost.
+		 */
+		path: scrubAddressSegments(input.pathname),
 		role: input.role ?? null,
 		section: input.sectionId ?? null,
 		viewport: input.viewport ? `${input.viewport.w}x${input.viewport.h}` : null,

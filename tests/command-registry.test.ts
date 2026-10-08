@@ -404,10 +404,8 @@ describe('the palette rows', () => {
 		// `@` finds a person for the manager and nothing for the student.
 		expect(searchPalette('@ana', manager).map((e) => e.key)).toEqual(['student:ana@boscotech.net']);
 		expect(searchPalette('@ana', student)).toEqual([]);
-		// A student's door is their notebook in this class, not their address.
-		expect(manager.find((e) => e.kind === 'student')!.href).toBe(
-			'/classroom/notebook/review/student/ana%40boscotech.net?section=s-1'
-		);
+		// A student's door is their page in this class (the 2026-10-07 round).
+		expect(manager.find((e) => e.kind === 'student')!.href).toBe('/classroom/s-1/people/ana%40boscotech.net');
 	});
 
 	it('items and units of the class on screen, other classes, and never the class on screen as a jump', () => {

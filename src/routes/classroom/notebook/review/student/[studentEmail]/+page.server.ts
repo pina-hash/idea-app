@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { notebookAccess } from '$lib/server/notebook-access';
 import { normalizeSectionRow, sectionTitle } from '$lib/classroom/classroom';
-import { classNotebookHref, notebookReviewHref, type Crumb } from '$lib/classroom/nav';
+import { classNotebookHref, notebookReviewHref, studentEmailParam, type Crumb } from '$lib/classroom/nav';
 import type { NotebookEntry, NotebookSession } from '$lib/notebook';
 import type { NotebookFolder } from '$lib/notebook-folders';
 import type { PageServerLoad } from './$types';
@@ -47,7 +47,11 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params, url, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
-	const studentEmail = decodeURIComponent(params.studentEmail).trim().toLowerCase();
+	// NO SECOND DECODE: kit has already decoded the param once, so decoding it
+	// again threw on a segment like `a%25zz` and answered 500 where every other
+	// probe gets 404 (the 2026-10-07 round). `studentEmailParam` is the one guard.
+	const studentEmail = studentEmailParam(params.studentEmail);
+	if (!studentEmail) error(404, 'Not found');
 
 	const [access, { data, error: rpcError }] = await Promise.all([
 		notebookAccess(supabase, claims.sub, claims.email as string | undefined),

@@ -65,6 +65,12 @@ export type ClassroomPlace =
 	| 'home'
 	| 'section'
 	| 'people'
+	/**
+	 * ONE STUDENT'S PAGE IN ONE CLASS (`/classroom/<id>/people/<email>`, the
+	 * 2026-10-07 round): a place UNDER the People tab, not a tab of its own, so
+	 * `sectionTabs` is untouched and `activeTab` answers `people`.
+	 */
+	| 'student'
 	| 'grades'
 	/** The class's own details, archive and delete (report R06, 2026-09-28). */
 	| 'settings'
@@ -140,7 +146,9 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 
 	const sectionId = head;
 	if (rest.length === 1) return { place: 'section', sectionId, itemId: null };
-	if (rest[1] === 'people') return { place: 'people', sectionId, itemId: null };
+	if (rest[1] === 'people') {
+		return rest[2] ? { place: 'student', sectionId, itemId: null } : { place: 'people', sectionId, itemId: null };
+	}
 	if (rest[1] === 'grades') return { place: 'grades', sectionId, itemId: null };
 	if (rest[1] === 'settings') return { place: 'settings', sectionId, itemId: null };
 	if (rest[1] === 'duplicates') return { place: 'duplicates', sectionId, itemId: null };
@@ -307,6 +315,42 @@ export function studentNotebookHref(
 }
 
 /**
+ * ONE STUDENT'S PAGE IN ONE CLASS, as a URL (the 2026-10-07 round, reports
+ * 792eb6b1 and 63fb1c49). One spelling, read by the People roster's name link
+ * and the palette's `@` door, so the two cannot point two ways. The address is
+ * a path segment, encoded, exactly as `studentNotebookHref` does: the roster is
+ * keyed on (section, email) and there is no enrollment id to name instead.
+ *
+ * IT IS A DOOR, NOT A GATE: the page 404s for anybody who does not manage the
+ * section, and for an address that is not a student row in it, whoever built
+ * the link.
+ */
+export function studentPageHref(sectionId: string, email: string, basePath = '/classroom'): string {
+	return `${basePath}/${encodeURIComponent(sectionId)}/people/${encodeURIComponent(email)}`;
+}
+
+/** The longest address the page accepts: RFC 5321's path ceiling, and no real roster row comes near it. */
+export const STUDENT_EMAIL_MAX = 320;
+
+/**
+ * A `[studentEmail]` ROUTE PARAM AS AN ADDRESS, OR NULL.
+ *
+ * NO SECOND DECODE. SvelteKit has already run `decodeURIComponent` over every
+ * route param, so decoding again turns a segment like `a%25zz` (kit hands over
+ * `a%zz`) into a thrown URIError, which is a 500 where every other probe gets a
+ * 404 ("Probing must reveal nothing"). This trims and lowercases, the way the
+ * roster stores an address, and answers null for anything that is not one
+ * plausible address: no `@`, whitespace or a slash inside, two `@`, too long.
+ * Null is the caller's 404.
+ */
+export function studentEmailParam(raw: string | null | undefined): string | null {
+	if (typeof raw !== 'string') return null;
+	const email = raw.trim().toLowerCase();
+	if (!email || email.length > STUDENT_EMAIL_MAX) return null;
+	return /^[^\s@/]+@[^\s@/]+$/.test(email) ? email : null;
+}
+
+/**
  * THE DUPLICATE-DATE REFUSAL, WITH ITS DESTINATION (prompt 0081 wrote the
  * sentence, prompt 0086 corrected where it points, prompt 0098 landed it,
  * ledger 0297 moved it into the class).
@@ -402,6 +446,8 @@ export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 	if (loc.place === 'notebook') return 'notebook';
 	if (loc.place === 'live') return 'live';
 	if (loc.place === 'people') return 'people';
+	// One student's page sits under People, which is where it was opened from.
+	if (loc.place === 'student') return 'people';
 	if (loc.place === 'grades') return 'grades';
 	if (loc.place === 'settings') return 'settings';
 	/* `duplicates` is NOT a tab (ledger 0298): it answers null, as an item
@@ -465,6 +511,9 @@ export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | nul
 		 * class page takes and lay their own columns out inside it.
 		 */
 		case 'people':
+		/* ONE STUDENT'S PAGE TAKES ITS TAB'S WIDTH: a table of their work and
+		   panels in columns, not a reading column (the 2026-10-07 round). */
+		case 'student':
 		case 'grades':
 		case 'duplicates':
 		/* SETTINGS TAKES ITS SIBLINGS' WIDTH so the tab bar does not jump when a
@@ -548,7 +597,10 @@ export function classroomCrumbs(
 	labels: {
 		section?: string | null;
 		item?: string | null;
-		/** The student whose notebook a reviewer is reading (`notebook-student`). */
+		/**
+		 * The student whose notebook a reviewer is reading (`notebook-student`),
+		 * or whose page in this class a manager opened (`student`).
+		 */
 		student?: string | null;
 		/**
 		 * WHERE A READ-ONLY STUDENT NOTEBOOK GOES BACK TO. That page has no class
@@ -573,6 +625,13 @@ export function classroomCrumbs(
 			return [home, section(true)];
 		case 'people':
 			return [home, section(false), { label: 'People' }];
+		case 'student':
+			return [
+				home,
+				section(false),
+				{ label: 'People', href: `${basePath}/${loc.sectionId}/people` },
+				{ label: labels.student || 'Student' }
+			];
 		case 'grades':
 			return [home, section(false), { label: 'Grades' }];
 		case 'settings':
