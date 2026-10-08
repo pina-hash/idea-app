@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.16 - 2026-10-07**
+**Version 1.17 - 2026-10-07**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -460,6 +460,14 @@ addEventListener('resize', queueImageBoxes);
 - **Never report a box inside an element that follows the reader** (section 7).
 - **Report boxes in the read-only grading view too.** That is where a teacher reads the
   hand-in, and the reporter sends nothing a student typed.
+- **Retrofitting a document already posted: one reporter, keyed on the manifest
+  (ledger 0369).** Read the image fields out of `#idea-manifest`, find each box by
+  `[data-image-box="<field>"]` (set it where the document paints the box), send `null` for
+  a field with no box on screen, and queue a send from a `MutationObserver` on the body as
+  well as on `idea:state` and resize: a fold, a stepper moving to the next step, and the
+  following bar moving all change the DOM, so nothing has to remember to call it. Send only
+  what changed. A file hand-in whose box holds its own Remove or Download keeps no box and
+  stays in the list under the frame, because the portal's drawing would cover those keys.
 
 ---
 
@@ -864,6 +872,9 @@ short videos Mr. Pina recorded, built into the live post so no live demo is need
 
 ## Changelog
 
+- **1.17 (2026-10-07).** Ledger 0369. Section 10b: retrofitting a posted document with one
+  manifest-keyed reporter that re-sends from a `MutationObserver`, and why a file card with
+  its own keys reports no box. Applied to Hook 01, SolidWorks Day, Hook 02 and Hook 03.
 - **1.16 (2026-10-07).** Ledger 0368, two of Mr. Pina's reports from 2026-10-06. Section
   4: downloads fire (`allow-downloads`), and a stored picture is the portal's to draw.
   New section 10b: a copy-paste reporter for `idea:image-box`, so the portal draws a stored
