@@ -6027,9 +6027,11 @@ the source of truth; **do not invent colours or swap fonts.**
     override that had been taken as "3.13:1" had been measured against the wrong
     ground.
   - **THE LAUNCHER'S `--acc-edge` IS THE SAME CONTRACT WITH AN IDENTITY COLOUR
-    IN IT**, and is the one place that spells it separately: a card's edge
-    carries the app's brand, and swapping in a neutral grey would delete eleven
-    deliberate identity decisions to satisfy a rule the accent already meets.
+    IN IT**, and is the one place that spells it separately: on the dark themes
+    a card's edge carries the app's brand, and swapping in a neutral grey would
+    delete eleven deliberate identity decisions to satisfy a rule the accent
+    already meets. On Space White it IS the neutral line, the plate's
+    `--plate-hair` (see the light-twin rule below).
   - **MEASURE BY PAINTING TO A CANVAS AND READING THE PIXEL BACK.** These
     resolve to `color(srgb ...)` and `color-mix(...)`, which a regex over
     computed styles skips silently and then reports the plate instead of the
@@ -6053,7 +6055,8 @@ the source of truth; **do not invent colours or swap fonts.**
     0346).** Six of the textures are ruled fills or grids, which the no-grid rule
     removes, so `site-plate.css` replaces every texture rather than sorting them;
     the card keeps its `--acc-edge`, its ink and its `--bg1` face (the ground its
-    Space White twin was measured on) and takes only the plate's depth. A texture
+    Space White ink was measured on) and takes only the plate's depth; what those
+    are on Space White is AppLauncher's own theme-keyed rule. A texture
     is still worth declaring for `SITE_PLATE = ''`, and costs nothing otherwise.
   - **A CARD QUOTES ITS OWN ROOM OR IT DECLARES NOTHING.** Those are the only two
     honest answers. A pair invented for a card whose app has no colours of its own
@@ -6102,7 +6105,9 @@ the source of truth; **do not invent colours or swap fonts.**
       `--bg0` / `--bg1` / `--bg2` -- not a near-miss, unreadable), and
       `Pathway.ink` in `src/lib/pathways.ts` beside `Pathway.color`. In each the
       IDENTITY paints the fill and the edge and the INK paints the word and the
-      glyph, the ink DEFAULTS to the identity where the identity already carries
+      glyph (the one exception is the launcher under Space White, below, where
+      the words are one green and the twin paints the strip), the ink DEFAULTS
+      to the identity where the identity already carries
       text (three of the six pathways do, and simply repeat it), and the move is
       lightness only. `pathwayInk()` sits beside `pathwayColor()` so "tint this
       name in the pathway colour" has a right answer to reach for.
@@ -6110,8 +6115,10 @@ the source of truth; **do not invent colours or swap fonts.**
     IDENTITY COLOUR IN IT** (see the `--boundary` rule above for the contract
     itself). It draws the card edge, the only thing separating a card from the
     page, so it clears 3:1. `--acc-line` outlines the CTA pill, which decorates
-    a label nobody can operate on its own, and stays faint. This is the ONE
-    place the neutral token cannot be used: the edge carries the brand.
+    a label nobody can operate on its own, and stays faint. On the dark themes
+    this is the ONE place the neutral token cannot be used: the edge carries the
+    brand. On Space White it is the plate's hairline (3.27:1 on the plate's
+    page), with `--boundary` behind it for the `SITE_PLATE = ''` revert.
   - **A HOVER FILL IS PINNED, NEVER MIXED FROM THE INK ABOVE IT.** The CTA
     pill's hover background was `color-mix(ink 12%)`, so lightening the ink
     lightened its own ground with it: sweeping FRC from 80% to 40% brand red
@@ -6156,7 +6163,20 @@ the source of truth; **do not invent colours or swap fonts.**
     avatar preset, `AVATAR_TINTS_ON_LIGHT`, and a Space White `--acc-ink` per
     launcher card: the identity color never moves, the twin moves lightness
     only. `tests/space-white-inks.test.ts` parses the real grounds out of the
-    theme file. A hover wash under a light theme mixes into `--bg1`, never into
+    theme file.
+    - **ON SPACE WHITE A LAUNCHER CARD'S TWIN PAINTS ONLY ITS 2px STRIP, AND
+      EVERY CARD'S WORD, GLYPH AND CALL TO ACTION ARE ONE GREEN (round
+      2026-10-07, on Mr. Pina's report that "a lot of the colors look off"
+      there).** The twins as words were nine inks on a white console, and two
+      of them are the case the ink rule above says to stop at: the Coin
+      Ledger's neon lands on olive and the Foundry's amber on brown, the family
+      decision 40 item 1 took `--gold` out of, beside an FRC title in the red
+      reserved for errors. So the theme's own `.app-card` rule in
+      `AppLauncher.svelte` sets `--acc` to `--green`, the edge to `--plate-hair`
+      and the strip to the card's `--acc-ink`, solid; an app is told apart by
+      its mark's shape, its title, its strip and the FIRST logo. Every
+      declaration sits under the theme attribute, so IDEA and Matrix are
+      byte-identical, and the identity pair is untouched. A hover wash under a light theme mixes into `--bg1`, never into
     transparent, or it disappears on white. A theme difference inside a
     component is a theme-keyed override there, never a new token in the theme
     file: theme files hold tokens only.
@@ -6195,16 +6215,21 @@ the source of truth; **do not invent colours or swap fonts.**
     `--li-*` room hooks so a light theme can point them at its inks. App marks
     follow the once-only standard `IdeaCadMark` set: one pass, rest frame held,
     nothing hidden in a base state, and the launcher mounts every mark `once`.
-  - **THE HOME PARTICLES STAY ON SPACE WHITE (Mr. Pina, 2026-09-29; ledger
-    0360).** Their ink and glow are room hooks on `#bg-canvas` (`--li-particle`,
-    `--li-particle-blur`) that the home page re-reads on a theme change. Space
-    White draws the brand green with no blur at full opacity, matched to IDEA's
-    field by composited contrast; Matrix still hides the canvas.
+  - **THE HOME PARTICLES ARE OFF ON SPACE WHITE (Mr. Pina, 2026-10-07,
+    reversing his 2026-09-29 answer that kept them).** The theme takes the
+    canvas away the way Matrix does, and the page's frame loop stops while the
+    canvas has no box (`data-particles` reads `paused`) and restarts from the
+    same theme watch that re-reads the field's ink. IDEA keeps the field: its
+    ink and glow are room hooks on `#bg-canvas` (`--li-particle`,
+    `--li-particle-blur`), the brand green with a glow of 4 at 35%.
   - **HOVER IS A ROLE, `--hover-ink`, NOT A HUE** (decision 40 item 1): brass on
     the dark themes, Space White's green ink there, because a lightness-only
     gold over white is brown (#715d22). A `:hover` rule that wants the brass
-    reads the role. The launcher's four accent-less cards take the green ink on
-    Space White for the same reason; gold stays for true special callouts.
+    reads the role. Every launcher card's word and glyph take the green ink on
+    Space White (the four accent-less cards since decision 40, the rest since
+    round 2026-10-07), and the home page's last gold words, the class feed's
+    Updated flag and the change log's Visual tag, moved off it with them; gold
+    stays for true special callouts.
     Classroom words and glyphs that painted `--gold` (the assignment glyph,
     file badges, rubric points, course codes, small links, My Classes' card
     ink) read `--hover-ink` since report R14; `--gold` stays only on pins,

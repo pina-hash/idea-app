@@ -57,9 +57,11 @@ body:has(.site-plate) {
 /* --- The launcher's cards are link panels, and keep their identity. ------
    Each card is a panel that is itself a link, which is what a classroom
    class card is, so it takes the panel face and the long soft shadow. Its
-   EDGE is untouched: `--acc-edge` is the card's own load-bearing boundary
-   with the app's brand in it (AppLauncher.svelte), and so are its ink, its
-   strip and its mark.
+   EDGE, ink, strip and mark are the card's own (`--acc-edge` and the rest,
+   AppLauncher.svelte), and nothing here moves them: on the dark themes the
+   edge carries the app's brand, and under Space White the card itself takes
+   one green ink and the plate's hairline (round 2026-10-07), keyed on the
+   theme there rather than here, because no rule in this file names a theme.
 
    ITS INTERIOR TEXTURE GOES, BY THE NO-GRID RULE. Six of the per-app
    textures are ruled fills or grids (GREENLINE's is a literal 24px grid, the
@@ -86,6 +88,19 @@ body:has(.site-plate) {
 		0 0 0 1px var(--plate-rim-out),
 		0 2px 3px 0 var(--plate-drop),
 		0 8px 14px -6px var(--plate-drop-far);
+}
+
+/* --- The home page's section labels are plate captions. ------------------
+   "Apps", "Your classes" and "Portal updates" join plate.css's caption lists
+   (size, tracking, case and the caption ink); what is left of their own
+   look -- an Orbitron face and a cyan glow from before the plate -- is
+   replaced here with the plate's mono label face and no glow, in every theme.
+   The base `.year-label` rule is left as it was for the `SITE_PLATE = ''`
+   revert. (0,4,0), to beat the launcher's own scoped heading rule. */
+:root .site-plate :is(.legacy-index .year-label, .launcher .launcher-title) {
+	font-family: var(--font-mono);
+	font-weight: 400;
+	text-shadow: none;
 }
 
 /* --- The home stats plate is a plate panel. ------------------------------

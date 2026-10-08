@@ -129,6 +129,33 @@ const FETCH_PROBE = `() => {
    rows below are the verdict. */
 const CARD_INKS = `() => [...document.querySelectorAll('.launcher .app-card[data-app]')].map((c) => c.dataset.app + ' ' + getComputedStyle(c.querySelector('.app-title')).color).join('; ')`;
 
+/* HOW MANY INKS THE LAUNCHER SPEAKS IN (round 2026-10-07, Mr. Pina's "a lot
+   of the colors look off" on Space White). Under that theme every card's
+   title, glyph and call to action are one green and every edge the plate's
+   hairline, and each strip is one solid colour (the card's own light ink)
+   rather than a neon gradient; the dark themes keep a colour per app, which
+   the prepare row prints and nothing pins. */
+const CARD_PALETTE = `() => {
+	const cards = [...document.querySelectorAll('.launcher .app-card[data-app]')];
+	const distinct = (f) => new Set(cards.map(f)).size;
+	const titles = distinct((c) => getComputedStyle(c.querySelector('.app-title')).color);
+	const glyphs = distinct((c) => getComputedStyle(c.querySelector('.app-icon')).color);
+	const edges = distinct((c) => getComputedStyle(c).borderTopColor);
+	const strips = cards.map((c) => c.querySelector('.app-strip')).filter(Boolean);
+	const gradients = strips.filter((s) => getComputedStyle(s).backgroundImage !== 'none').length;
+	return [
+		'cards ' + (cards.length ? 'measured' : 'NONE'),
+		'title colours ' + titles,
+		'glyph colours ' + glyphs,
+		'edge colours ' + edges,
+		'gradient strips ' + gradients
+	];
+}`;
+const CARD_PALETTE_PRINT = `() => {
+	const cards = [...document.querySelectorAll('.launcher .app-card[data-app]')];
+	return cards.map((c) => c.dataset.app + ' edge ' + getComputedStyle(c).borderTopColor + ' strip ' + (getComputedStyle(c.querySelector('.app-strip')).backgroundImage === 'none' ? getComputedStyle(c.querySelector('.app-strip')).backgroundColor : 'gradient')).join('; ');
+}`;
+
 export const homeThemeSpec = (theme) => {
 	const gateWall = theme === 'space-white';
 	const wall = (min) => (gateWall ? min : 0);
@@ -140,7 +167,8 @@ export const homeThemeSpec = (theme) => {
 		prepare: [
 			{ evaluate: SETTLE_ENTRANCE, waitMs: 150, label: 'settle the entrance' },
 			...reach(theme),
-			{ evaluate: CARD_INKS, label: 'what every card title computes' }
+			{ evaluate: CARD_INKS, label: 'what every card title computes' },
+			{ evaluate: CARD_PALETTE_PRINT, label: 'what every card edge and strip computes (printed, never pinned)' }
 		],
 		presence: [
 			theme === 'idea'
@@ -165,7 +193,7 @@ export const homeThemeSpec = (theme) => {
 			{ selector: '.launcher .app-card .app-icon', label: 'every card glyph at 34px on its card (3:1, graphical)', min: 3 },
 			{ selector: '.legacy-index .hero-stat .value.v-year', label: 'hero: the school year', min: 4.5 },
 			{ selector: '.launcher .app-card .app-cta', label: 'every card call to action', min: 4.5 },
-			{ selector: '.legacy-index .year-label', label: 'Your Classes heading', min: 4.5 },
+			{ selector: '.legacy-index .year-label', label: 'the Your classes and Portal updates headings', min: 4.5 },
 			{ selector: '[data-tour="classes"] .course-id', label: 'feed: course code', min: 4.5 },
 			{ selector: '[data-tour="classes"] .assignment-name', label: 'feed: row title', min: 4.5 },
 			/* The attention chip is an amber word on its own amber tint, and on
@@ -204,7 +232,22 @@ export const homeThemeSpec = (theme) => {
 				label: theme === 'space-white' ? 'the light pair was fetched (the dark pair is eager, so it was too)' : 'the lazy light pair cost this theme no bytes',
 				evaluate: FETCH_PROBE,
 				expected: ['dark emblem fetched yes', `light emblem fetched ${theme === 'space-white' ? 'yes' : 'no'}`]
-			}
+			},
+			...(theme === 'space-white'
+				? [
+						{
+							label: 'one ink for every card: one title colour, one glyph colour, one edge colour, and no gradient strip',
+							evaluate: CARD_PALETTE,
+							expected: ['cards measured', 'title colours 1', 'glyph colours 1', 'edge colours 1', 'gradient strips 0']
+						}
+					]
+				: [
+						{
+							label: 'control: the dark theme keeps a colour per app (more than one title colour) and the brand gradient strips',
+							evaluate: `() => { const r = (${CARD_PALETTE})(); const cards = document.querySelectorAll('.launcher .app-card[data-app]').length; return [r[0], Number(r[1].split(' ').pop()) > 1 ? 'title colours several' : r[1], Number(r[4].split(' ').pop()) === cards ? 'every strip a gradient' : r[4]]; }`,
+							expected: ['cards measured', 'title colours several', 'every strip a gradient']
+						}
+					])
 		]
 	};
 };

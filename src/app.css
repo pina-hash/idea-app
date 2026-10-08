@@ -2990,7 +2990,41 @@ a:hover {
    lived here and went with the section it dressed. `.courses` and `.course-card`
    stay: the classroom feed above still uses them. */
 
-/* Changelog */
+/* ==========================================================================
+   PORTAL UPDATES, IN THE PLATE'S LANGUAGE (round 2026-10-07; Mr. Pina's
+   report that the change log "is not consistent with the latest visual
+   design of the website").
+
+   The panel was the page's old dark-green register inside a page that wears
+   the plate, and it overflowed: the tag group was an unshrinkable
+   max-content flex item beside a 200px note floor, so a row with seven app
+   tags ran past the panel's edge and the panel scrolled sideways (measured
+   on the IDEA home harness before this block: 753px of horizontal overflow
+   at 375, 202px at 958, 60px at 1440). Now:
+
+   - A ROW IS A GRID: the date in a narrow first column, the sentence and its
+     tags stacked in the second, so the tags WRAP under the sentence instead
+     of pushing past the edge. Under the panel's own 34rem container width
+     the date goes above the sentence. Nothing is clipped: a region may not
+     hide its scrollbar, and an `overflow-x: hidden` would pass the overflow
+     measurement by hiding tags.
+   - EVERY WORD IS AT THE PLATE'S 11px LABEL FLOOR (`--plate-label-size`),
+     in the mono label face named through its token.
+   - THE PANEL, THE TAGS AND THE TYPE LAMP ARE THE PLATE'S OWN RECIPES. The
+     body joins plate.css's panel list, each tag its recessed-tag list, and a
+     feature, fix or visual tag the lamp rule, so the change type is a lamp AND
+     a word (never colour alone) and no tag paints its word in a tone ink --
+     which is what painted Visual brown on Space White. Everything here keeps
+     a fallback for the `SITE_PLATE = ''` revert, where the `--plate-*`
+     tokens are undefined.
+   - EVERY CONTROL IS 44px: the toggle and Clear through `.tap-44` (Clear
+     wears `.changelog-toggle`, as Show more does, so it is the same key in
+     the same list), the selects and the date fields here.
+
+   The hooks every changelog spec reads (`#changelog-btn`, `#changelog-body`,
+   `.changelog-entry`, `.changelog-date`, `.changelog-note`, `.cl-tags`,
+   `.cl-more`, `.cl-shown`, `.cl-sentinel`, `.cl-month`) are unchanged.
+   ========================================================================== */
 .legacy-index .changelog-wrap {
 	position: relative;
 	z-index: 1;
@@ -2998,15 +3032,20 @@ a:hover {
 	margin: 0 auto;
 	padding: 0 2rem 5rem;
 }
+/* The section's heading is the same label as "Apps" and "Your classes" above
+   it (it wears `.year-label`); this only sets its distance from the toggle. */
+.legacy-index .cl-head {
+	margin: 0 0 0.75rem;
+}
 .legacy-index .changelog-toggle {
 	background: none;
 	border: 1px solid color-mix(in srgb, var(--li-sage) 30%, transparent);
-	color: var(--dim);
-	font-family: 'Orbitron', sans-serif;
-	font-size: 0.58rem;
-	letter-spacing: 0.18em;
+	color: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: var(--plate-label-size, 0.6875rem);
+	letter-spacing: 0.08em;
 	text-transform: uppercase;
-	padding: 0.5rem 1rem;
+	padding: 0.4rem 1rem;
 	cursor: pointer;
 	border-radius: 2px;
 	transition:
@@ -3021,8 +3060,10 @@ a:hover {
 	color: var(--green);
 	border-color: color-mix(in srgb, var(--li-mint) 30%, transparent);
 }
-.legacy-index .changelog-arrow {
-	transition: transform 0.3s;
+@media (prefers-reduced-motion: no-preference) {
+	.legacy-index .changelog-arrow {
+		transition: transform 0.3s;
+	}
 }
 .legacy-index .changelog-toggle.open .changelog-arrow {
 	transform: rotate(180deg);
@@ -3034,7 +3075,11 @@ a:hover {
 	border: 1px solid color-mix(in srgb, var(--li-sage) 20%, transparent);
 	border-radius: 3px;
 	box-shadow: var(--bevel-raised);
-	padding: 1rem 1.5rem;
+	/* The panel's own width is what lays a row out, not the window's: the
+	   panel sits inside the page's 1100px measure and its gutters. */
+	container: cl / inline-size;
+	--cl-pad-x: 1.5rem;
+	padding: 0 var(--cl-pad-x) 1rem;
 	/* Tall enough to read a real run of entries rather than roughly ten, with a
 	   floor so a short viewport still gets a usable box. */
 	max-height: max(420px, 70vh);
@@ -3043,55 +3088,172 @@ a:hover {
 .legacy-index .changelog-body.open {
 	display: block;
 }
-/* Month heading: portal chrome, deliberately quieter than the entries under it.
-   Sticks to the top of the scroll box while its own month is in view, so the
-   negative margins + opaque fill are what stop entries showing through as they
-   scroll behind it. */
+@media (max-width: 768px) {
+	.legacy-index .changelog-body {
+		--cl-pad-x: 1rem;
+	}
+}
+/* The filters: two dropdowns, two dates and the count, on a line that wraps. */
+.legacy-index .changelog-filters {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	flex-wrap: wrap;
+	padding: 0.85rem 0 0.75rem;
+	border-bottom: 1px solid var(--hairline);
+}
+.legacy-index .cl-select,
+.legacy-index .cl-date input {
+	box-sizing: border-box;
+	min-height: 44px;
+	font-family: var(--font-mono);
+	font-size: var(--plate-label-size, 0.6875rem);
+	letter-spacing: 0.06em;
+	color: var(--text-1);
+	background: var(--bg2);
+	border: 1px solid color-mix(in srgb, var(--li-patina) 25%, transparent);
+	border-radius: 2px;
+	padding: 0 0.6rem;
+}
+.legacy-index .cl-select:focus-visible,
+.legacy-index .cl-date input:focus-visible {
+	outline: 1px solid var(--green);
+	outline-offset: 1px;
+}
+.legacy-index .cl-date {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-family: var(--font-mono);
+	font-size: var(--plate-label-size, 0.6875rem);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--plate-caption, var(--text-2));
+}
+.legacy-index .cl-date input::-webkit-calendar-picker-indicator {
+	filter: invert(0.7) sepia(1) hue-rotate(80deg);
+	cursor: pointer;
+}
+/* Clear is a key like the toggle (it wears `.changelog-toggle`), sized to its
+   word rather than the row. */
+.legacy-index .changelog-toggle.cl-clear {
+	width: auto;
+	justify-content: center;
+}
+.legacy-index .cl-count {
+	margin-left: auto;
+	font-family: var(--font-mono);
+	font-size: var(--plate-label-size, 0.6875rem);
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.08em;
+	color: var(--plate-caption, var(--text-2));
+}
+/* The month heading: a plate caption on the panel's own top face, with a
+   printed groove under it. It sticks to the top of the scroll box while its
+   month is in view, so it spans the panel's full width (the negative margins)
+   and is opaque, or the rows would show through as they scroll behind it. */
 .legacy-index .cl-month {
 	position: sticky;
 	top: 0;
 	z-index: 1;
-	margin: 0 -1.5rem;
-	padding: 0.5rem 1.5rem 0.35rem;
-	background: var(--bg1);
-	border-bottom: 1px solid color-mix(in srgb, var(--li-sage) 14%, transparent);
-	font-size: 0.6rem;
-	letter-spacing: 0.18em;
+	margin: 0 calc(-1 * var(--cl-pad-x));
+	padding: 0.6rem var(--cl-pad-x) 0.45rem;
+	background: var(--plate-panel-top, var(--bg1));
+	box-shadow:
+		inset 0 -1px 0 0 var(--plate-groove-dk, var(--hairline)),
+		inset 0 -2px 0 0 var(--plate-groove-lt, transparent);
+	font-family: var(--font-mono);
+	font-size: var(--plate-label-size, 0.6875rem);
+	letter-spacing: 0.14em;
 	text-transform: uppercase;
-	color: var(--dim);
+	color: var(--plate-caption, var(--text-2));
 }
 .legacy-index .cl-month ~ .cl-month {
-	margin-top: 0.7rem;
+	margin-top: 0.5rem;
 }
+/* A row: the date in its own column, the sentence and its tags under one
+   another in the second. A hairline between rows is decoration, not a
+   control edge, so it is `--hairline`. */
 .legacy-index .changelog-entry {
-	display: flex;
-	gap: 1.5rem;
+	display: grid;
+	grid-template-columns: 7.25rem minmax(0, 1fr);
+	column-gap: 1.25rem;
+	row-gap: 0.4rem;
 	align-items: baseline;
-	padding: 0.5rem 0;
-	border-bottom: 1px solid color-mix(in srgb, var(--li-sage) 10%, transparent);
-	font-size: 0.72rem;
+	padding: 0.7rem 0;
+	border-bottom: 1px solid var(--hairline);
 }
 .legacy-index .changelog-entry:last-child {
 	border-bottom: none;
 }
 .legacy-index .changelog-date {
-	color: var(--cyan);
+	font-family: var(--font-mono);
+	font-size: var(--plate-label-size, 0.6875rem);
+	font-variant-numeric: tabular-nums;
 	letter-spacing: 0.06em;
-	flex-shrink: 0;
-	min-width: 90px;
+	text-transform: uppercase;
+	white-space: nowrap;
+	color: var(--text-meta);
 }
 .legacy-index .changelog-note {
-	color: var(--dim);
-	line-height: 1.5;
-	flex: 1;
-	min-width: 200px;
+	grid-column: 2;
+	min-width: 0;
+	font-family: var(--font-display);
+	font-size: 0.95rem;
+	line-height: 1.4;
+	color: var(--plate-ink, var(--text-1));
+	/* A commit subject can carry a long path or identifier with no space in it. */
+	overflow-wrap: anywhere;
+}
+.legacy-index .cl-tags {
+	grid-column: 2;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+/* A tag is a recessed tag (plate.css's status-tag list paints the material);
+   this is its shape and its word, which is never a tone colour. */
+.legacy-index .cl-tag {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	min-height: 20px;
+	padding: 0 6px;
+	border: 1px solid var(--hairline);
+	border-radius: 5px;
+	font-family: var(--font-mono);
+	font-size: var(--plate-label-size, 0.6875rem);
+	line-height: 1;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	color: var(--plate-ink-2, var(--text-2));
+}
+/* The panel's narrow arrangement, against the PANEL's width: one column, the
+   date above its sentence. The panel's content box is about 293px at a 375px
+   window, which fires this, and about 830px at a 958px one, which does not. */
+@container cl (max-width: 34rem) {
+	.legacy-index .changelog-entry {
+		grid-template-columns: minmax(0, 1fr);
+		row-gap: 0.3rem;
+	}
+	.legacy-index .changelog-note,
+	.legacy-index .cl-tags {
+		grid-column: 1;
+	}
+}
+.legacy-index .cl-empty {
+	margin: 0.75rem 0;
+	color: var(--text-2);
 }
 /* The changelog's page controls (ledger 0360, report R24): one page of the log
    is rendered, and this key asks for the next. It wears `.changelog-toggle`, so
    it is the same raised key as the toggle above it (and joins the plate's key
    list through that class); its words are --text-2, not --dim, because --dim
    on --bg1 is 4.52:1 and a control's label is not the place to spend the last
-   0.02 of the floor. 11px at least, unlike the toggle's own 0.58rem caption. */
+   0.02 of the floor. */
 .legacy-index .changelog-toggle.cl-more {
 	margin-top: 0.75rem;
 	color: var(--text-2);
@@ -3116,85 +3278,6 @@ a:hover {
 .legacy-index .cl-sentinel {
 	height: 0;
 	pointer-events: none;
-}
-
-/* Changelog filters: page/app, change type, date range. */
-.legacy-index .changelog-filters {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	flex-wrap: wrap;
-	padding-bottom: 0.75rem;
-	margin-bottom: 0.5rem;
-	border-bottom: 1px solid color-mix(in srgb, var(--li-sage) 25%, transparent);
-}
-.legacy-index .cl-select,
-.legacy-index .cl-date input {
-	font-family: 'Share Tech Mono', monospace;
-	font-size: 0.66rem;
-	letter-spacing: 0.06em;
-	color: var(--cyan);
-	background: var(--bg2);
-	border: 1px solid color-mix(in srgb, var(--li-patina) 25%, transparent);
-	border-radius: 2px;
-	padding: 0.3rem 0.5rem;
-}
-.legacy-index .cl-select:focus-visible,
-.legacy-index .cl-date input:focus-visible {
-	outline: 1px solid var(--green);
-	outline-offset: 1px;
-}
-.legacy-index .cl-date {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.35rem;
-	font-size: 0.6rem;
-	letter-spacing: 0.1em;
-	text-transform: uppercase;
-	color: var(--dim);
-}
-.legacy-index .cl-date input::-webkit-calendar-picker-indicator {
-	filter: invert(0.7) sepia(1) hue-rotate(80deg);
-	cursor: pointer;
-}
-.legacy-index .cl-count {
-	margin-left: auto;
-	font-size: 0.62rem;
-	letter-spacing: 0.08em;
-	color: var(--dim);
-}
-.legacy-index .cl-tags {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.35rem;
-	flex-wrap: wrap;
-	flex-shrink: 0;
-}
-.legacy-index .cl-tag {
-	font-size: 0.55rem;
-	letter-spacing: 0.1em;
-	text-transform: uppercase;
-	color: var(--dim);
-	border: 1px solid color-mix(in srgb, var(--li-sage) 35%, transparent);
-	border-radius: 2px;
-	padding: 0.08rem 0.35rem;
-	white-space: nowrap;
-}
-.legacy-index .cl-tag.cl-type {
-	color: var(--cyan);
-	border-color: color-mix(in srgb, var(--li-patina) 30%, transparent);
-}
-.legacy-index .cl-tag.cl-type-feature {
-	color: var(--green);
-	border-color: color-mix(in srgb, var(--li-mint) 35%, transparent);
-}
-.legacy-index .cl-tag.cl-type-fix {
-	color: var(--amber);
-	border-color: color-mix(in srgb, var(--li-fix) 35%, transparent);
-}
-.legacy-index .cl-tag.cl-type-visual {
-	color: var(--gold);
-	border-color: color-mix(in srgb, var(--li-brass) 35%, transparent);
 }
 
 /* Footer */
@@ -3353,7 +3436,8 @@ a:hover {
    `/` is in Space White's route scope as an EXACT path (`THEME_SCOPE_EXACT`
    in src/lib/theme.ts). `/archive` shares this stylesheet, so these rules
    reach it too wherever the theme's scope admits it; the particle canvas is
-   the home page's alone. These rules live beside the page they style, never in the theme
+   the home page's alone, and this theme takes it away (below). These rules
+   live beside the page they style, never in the theme
    file: a theme is a token layer (tests/theme-tokens.test.ts) and a component
    decides how it looks under one, the way AppLauncher re-inks its own cards.
 
@@ -3367,17 +3451,29 @@ a:hover {
    projector does not, so the header's edge, the class cards, the stats plate,
    the changelog panel and every control's outer edge are `--boundary`
    (3:1 or better, measured by the home spec) rather than a tint that reads
-   1.4:1. Decoration -- a rule between two rows inside a card -- keeps its
-   tint.
+   1.4:1. Under the site plate, plate.css's panel and key rules outrank these
+   and draw the plate's own hairline; these are the edge on the
+   `SITE_PLATE = ''` revert. Decoration -- a rule between two rows inside a
+   card -- keeps its tint.
 
    AND NO BRASS (ledger 0298, decision 40 item 1). "Lightness only" applied
    to a yellow hue on a white ground lands on brown -- --gold is #715d22
-   here -- so the page's brass hook and the two words it painted in gold
-   (the class chip and the school year) take the theme's greens instead:
-   the chip is a way into the classroom, so it takes the green ink; the year
-   is a date, so it takes --cyan, the register's metadata ink. Hovers read
-   --hover-ink, which this theme points at the same green. The dark themes
-   keep every brass value they had.
+   here -- so the page's brass hook and the words it painted in gold take
+   the theme's inks instead: the class chip is a way into the classroom, so
+   it takes the green ink, and the class feed's Updated flag takes --cyan, as
+   the classroom's own Updated chip does. Hovers read --hover-ink, which this
+   theme points at the same green. The dark themes keep every brass value
+   they had.
+
+   AND THE STATS ARE WORDS, NOT A PALETTE (round 2026-10-07, Mr. Pina's
+   report that "a lot of the colors look off" here). The row of stats under
+   the title painted three inks across one line -- the count green, the year
+   and the first instructor teal, the second grey -- the IDEA theme's
+   per-value neon carried over value by value. Under this theme all of them
+   are the register's body ink, `--text-1`; their labels stay `--text-2`.
+   The rule names the home hero (`:not(.console-hero)`): the admin dashboard
+   is also `.legacy-index` and also in this theme's scope, and its stats are
+   not this page's.
    ========================================================================== */
 :root[data-theme='space-white'] .legacy-index {
 	--li-mint: var(--green);
@@ -3412,8 +3508,18 @@ a:hover {
 :root[data-theme='space-white'] .legacy-index .class-chip {
 	color: var(--green);
 }
-:root[data-theme='space-white'] .legacy-index .hero-stat .value.v-year {
+:root[data-theme='space-white'] .legacy-index .hero:not(.console-hero) .hero-stat :is(.value, .v-staff-a, .v-staff-b) {
+	color: var(--text-1);
+}
+/* The class feed's Updated flag painted its word in --gold, brown here. It
+   takes --cyan, the classroom's own Updated chip's ink. Wrapped in `:where()`
+   so the rule is (0,3,0): it ties the base flag rule and wins on order, and
+   still loses to plate.css's recessed-tag material, which draws the tag's
+   edge and ground under the site plate. */
+:where(:root[data-theme='space-white']) .legacy-index .feed-flag.tone-note {
 	color: var(--cyan);
+	border-color: color-mix(in srgb, var(--cyan) 30%, transparent);
+	background: color-mix(in srgb, var(--cyan) 6%, transparent);
 }
 /* The class feed's "Open class" link painted gold at rest too (its sibling
    "See all in To-do" is ClassroomFeed's own rule and moves there). Both take
@@ -3426,13 +3532,6 @@ a:hover {
 }
 :root[data-theme='space-white'] .legacy-index .feed-more:hover {
 	color: var(--green);
-}
-/* The changelog's "visual" tag keeps its gold word (a category, painted the
-   way every theme paints it), so its edge keeps the gold too: with the brass
-   hook pointed at green above, the chip would otherwise be a brown word in a
-   green frame, the "feature" tag's frame. */
-:root[data-theme='space-white'] .legacy-index .cl-tag.cl-type-visual {
-	border-color: color-mix(in srgb, var(--gold) 35%, transparent);
 }
 /* A still stat: an animation of a transparent shadow is a style recalc every
    frame for nothing. */
@@ -3448,27 +3547,17 @@ a:hover {
 :root[data-theme='space-white'] .legacy-index .cl-date input::-webkit-calendar-picker-indicator {
 	filter: none;
 }
-/* THE PARTICLES STAY, DRAWN THIS THEME'S WAY (ledger 0360; Mr. Pina: "Do not
-   remove the homepage particles. I do actually quite like how they look").
-   This rule used to switch the field off, on the grounds that it is a field of
-   blurred, glowing dots and this theme draws no glow. The glow is the half
-   that goes (`--li-particle-blur: 0`); the dots stay, in the SAME brand green
-   the IDEA field is drawn in (`--accent-field`, #78b870 here, which is for
-   large areas and carries no word -- a dot carries none), at full canvas
-   opacity. That pair is the one that matches the field he likes on both
-   measures at once, composited per dot: against --bg0 the faintest, median
-   and brightest dot read 1.14 / 1.44 / 1.84:1 here and 1.12 / 1.42 / 1.87:1
-   under IDEA, at a saturation of 0.21 to 0.33 here against 0.20 to 0.23
-   there. The theme's own green ink (#3b6c36) at 45% matched the contrast and
-   not the colour: saturation 0.12 to 0.14, which a screenshot showed as grey
-   specks on the white, closer to dust than to the field. Decoration, so no
-   floor applies. The canvas re-reads both hooks whenever the theme changes.
+/* NO PARTICLES ON THIS THEME (Mr. Pina, 2026-10-07, round 2026-10-07: "there
+   shouldn't be any floating particles in the background for the IDEA white
+   theme"). This reverses his 2026-09-29 answer, which had kept the field here
+   in the brand green with no glow. The canvas is taken away the way Matrix
+   takes it away (matrix.css), and the page's script stops drawing into a
+   canvas with no box and starts again when a theme gives it one back. IDEA
+   keeps the field, through the hooks on the base `#bg-canvas` rule above.
    Measured by
    tools/browser-verify/routes/home-order-role-student-classes-1-rows-3-state-particles-space-white.mjs. */
 :root[data-theme='space-white'] .legacy-index #bg-canvas {
-	opacity: 1;
-	--li-particle: var(--accent-field);
-	--li-particle-blur: 0;
+	display: none;
 }
 
 /* ==========================================================================

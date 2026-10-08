@@ -1158,9 +1158,10 @@
 	}
 
 	/* ======================================================================
-	   UNDER SPACE WHITE: LIGHT CARDS, RE-PINNED INKS (ledger 0297, package
-	   F1b). Two treatments were measured before this one was chosen, on the
-	   theme's own grounds (card #f7f9f9, page #e8eceb, CTA hover #edf1f0):
+	   UNDER SPACE WHITE: LIGHT CARDS IN ONE GREEN INK (ledger 0297, package
+	   F1b; round 2026-10-07). Two treatments were measured before the light
+	   card was chosen, on the theme's own grounds (card #f7f9f9, page #e8eceb,
+	   CTA hover #edf1f0):
 
 	   (a) LIGHT CARDS, each card's --acc-ink re-pinned for the light ground.
 	       Every identity as authored fails as text on the light card -- 1.12
@@ -1168,41 +1169,50 @@
 	       moves, LIGHTNESS ONLY, hue and saturation held to a tenth, to the
 	       BRIGHTEST value that clears 4.5 on the card, on its hover wash and on
 	       the CTA hover fill, 3:1 for the 75% edge against the page, and 3.0
-	       under the projector-washout model. Worst of the nine: 4.51 (FRC on
-	       its wash); washed 4.08 (FRC).
+	       under the projector-washout model.
 	   (b) DARK INSTRUMENT PLATES: every card keeps its dark ground on the
-	       light page. Identity untouched (6.23 to 12.78:1 on the plate, washed
-	       3.95 to 7.64), and the plate reads 12.68:1 against the page.
+	       light page. Identity untouched, but thirteen dark rectangles with
+	       their glows on a page whose whole character is no glow and no dark
+	       block, and a second copy of the dark token closure inside the cards.
 
-	   (a) SHIPS. (b) keeps thirteen dark rectangles with their glows on a page
-	   whose whole character is no glow and no dark block, and it needs a
-	   second copy of the dark token closure inside the cards, which is the
-	   drift the theme's own island block exists to avoid. What (a) costs is
-	   stated rather than hidden: at a lightness that carries text the greens
-	   converge (the tightest pair, Tournaments against Maps, falls from
-	   deltaE00 9.0 as authored to 3.5), so on this theme a card is told apart
-	   by its mark, its title and its 2px strip -- which keeps the identity
-	   pair at full brightness, because the strip is the brand and carries no
-	   word.
+	   (a) shipped, and until 2026-10-07 each card's twin painted its word, its
+	   glyph and its edge. On a white console that was nine inks, and two of
+	   them were exactly the lightness-only twins that stop being recognisable
+	   (CLAUDE.md: "If a colour cannot clear while staying recognisable, say so
+	   and stop"): the Coin Ledger's neon #c8ff00 lands on olive #587000 and the
+	   Foundry's amber #f6952f on brown #a15607 -- decision 40 item 1's own
+	   argument about gold on white -- beside an FRC title in the red this site
+	   reserves for errors. Mr. Pina's report: "A lot of the colors look off
+	   with the IDEA light theme on the home page in particular."
+
+	   SO ON THIS THEME EVERY CARD'S WORD, GLYPH AND CALL TO ACTION ARE ONE INK,
+	   the theme's green (`--acc`, which the title, the CTA and the mark all
+	   read), and its EDGE is the plate's own hairline rather than the brand at
+	   75%. An app is told apart by its mark's shape, its title and its 2px
+	   strip, which paints the card's own light ink, solid (below), and by the
+	   FIRST logo, which is an image and is untouched. The per-card twins below
+	   stay lightness-only and stay measured (tests/space-white-inks.test.ts);
+	   what they paint now is the strip. The identity pair (--acc-primary,
+	   --acc-secondary) is not moved, and nothing here reaches IDEA or Matrix:
+	   every declaration sits under the theme attribute.
 
 	   Nothing here is a theme file's: the theme may not declare an identity
-	   token (tests/theme-tokens.test.ts), so the card re-pins its OWN ink,
+	   token (tests/theme-tokens.test.ts), so the card re-pins its OWN inks,
 	   keyed on the attribute, exactly where its dark ink is declared.
-
-	   THE DEFAULT PAIR'S INK IS GREEN HERE, NOT GOLD (ledger 0298, decision
-	   40 item 1). This paragraph used to say the default needed no line
-	   because "--gold is already the theme's own ink" -- and it was: #715d22,
-	   the brown every lightness-only yellow lands on over white, which is what
-	   painted Classroom, My Notebook, Coin Desk and IdeaCAD olive. The four
-	   cards that declare no accent take the theme's green ink for their word,
-	   glyph and edge; the IDENTITY does not move, so the brass-to-green strip
-	   along each card's top edge still paints the shared pair at full
-	   strength. A card that re-pins its own ink below wins on specificity, so
-	   this reaches exactly the cards with nothing of their own.
 	   ====================================================================== */
 	:global(:root[data-theme='space-white']) .app-card {
-		/* #3b6c36: 5.88 on the card, 3.0+ washed; see the home spec. */
+		/* #3b6c36: 5.87 on the card, 4.70 washed on the wall. The four cards
+		   that declare no accent paint their strip in it too (the shared pair's
+		   first stop is --gold, which is the brown #715d22 here). */
 		--acc-ink: var(--green);
+		--acc: var(--green);
+		/* The card's edge is the plate's hairline (3.27:1 on the plate's page,
+		   the load-bearing 3:1), not the brand at 75%; the fallback is the
+		   theme's own boundary, for the `SITE_PLATE = ''` revert. */
+		--acc-edge: var(--plate-hair, var(--boundary));
+		--acc-edge-strong: var(--hover-ink);
+		--acc-line: color-mix(in srgb, var(--acc) 20%, transparent);
+		--acc-line-strong: color-mix(in srgb, var(--acc) 50%, transparent);
 		/* No glow and no blur: the halo tokens go flat, and the icon's
 		   drop-shadow filter goes with them rather than filtering nothing. */
 		--acc-glow: transparent;
@@ -1210,11 +1220,16 @@
 		/* The hover wash is laid over the CARD's own ground, not left
 		   transparent over the page. On the dark default the page is darker
 		   than the card and a see-through wash only adds contrast; here it is
-		   the other way round, and a 5% veil over #e8eceb took every card
-		   title under 4.5 on hover (measured: FRC 4.02, GAUNTLET 4.16). Mixed
-		   into --bg1 it is the same tint on the ground the inks were pinned
-		   against. */
-		--acc-wash: color-mix(in srgb, var(--acc-ink) 5%, var(--bg1));
+		   the other way round, and a 5% veil over #e8eceb took card titles
+		   under 4.5 on hover. Mixed into --bg1 it is the same tint on the
+		   ground the ink was pinned against. */
+		--acc-wash: color-mix(in srgb, var(--acc) 5%, var(--bg1));
+	}
+	/* The strip is the card's own light ink, solid: the brand pair is neon
+	   (#00ff41, #c8ff00, #00f0ff) and a neon gradient on near-white is the
+	   look this theme exists not to have. */
+	:global(:root[data-theme='space-white']) .app-strip {
+		background: var(--acc-ink);
 	}
 	:global(:root[data-theme='space-white']) .app-icon,
 	:global(:root[data-theme='space-white']) .app-icon.frc-icon :global(.frc-icon-img) {
@@ -1223,6 +1238,10 @@
 	:global(:root[data-theme='space-white']) a.app-card:hover .app-cta {
 		box-shadow: none;
 	}
+	/* THE STRIP INKS: each branded card's lightness-only light twin, hue and
+	   saturation held. Each still clears what it cleared when it painted words
+	   (tests/space-white-inks.test.ts), so the figures stand; it paints only
+	   the strip now. */
 	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'],
 	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] {
 		/* #00ff41, hsl(135.3 100% 50%): 5.03 on the card. */
@@ -1260,12 +1279,12 @@
 	/* GAUNTLET's and VANGUARD's marks paint their accent strokes from
 	   `var(--gold, ...)` -- the sketch and scan line, the thruster -- which on
 	   this theme is #715d22, brown, beside a green glyph. Inside the icon only,
-	   --gold points at the card's own re-pinned ink, the way the GAUNTLET room
-	   re-points it at its lime; the marks are not edited and the dark cards
-	   paint exactly what they did. */
+	   --gold points at the card's one ink, the way the GAUNTLET room re-points
+	   it at its lime; the marks are not edited and the dark cards paint
+	   exactly what they did. */
 	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'] .app-icon,
 	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] .app-icon {
-		--gold: var(--acc-ink);
+		--gold: var(--acc);
 	}
 	/* The bar's and the tools' own controls: their outer edge is the theme's
 	   load-bearing boundary, and the neon hover and pin tints become the

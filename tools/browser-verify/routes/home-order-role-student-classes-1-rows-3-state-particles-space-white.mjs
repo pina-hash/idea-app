@@ -2,25 +2,19 @@ import { SETTLE_ENTRANCE } from './_shared.mjs';
 import { reach } from './_home-theme.mjs';
 
 /**
- * THE HOME PAGE'S PARTICLES UNDER SPACE WHITE (ledger 0360; Mr. Pina: "Do not
- * remove the homepage particles. I do actually quite like how they look").
- *
- * Space White used to switch the field off (`display: none`), on the grounds
- * that it was a field of blurred, glowing dots and the theme draws no glow. It
- * now keeps the field and drops only the glow: the dots in the same brand
- * green the IDEA field uses (`--accent-field`), unblurred, at full canvas
- * opacity -- the pair that matches the IDEA field on contrast AND colour at
- * once (composited, faintest / median / brightest dot 1.14 / 1.44 / 1.84:1
- * against --bg0, IDEA 1.12 / 1.42 / 1.87:1 against its own). They are
- * decoration and carry no floor.
+ * THE HOME PAGE'S PARTICLES UNDER SPACE WHITE: NONE (Mr. Pina, 2026-10-07:
+ * "there shouldn't be any floating particles in the background for the IDEA
+ * white theme"). This reverses his 2026-09-29 answer, which had kept the field
+ * here in the brand green with no glow, and this spec used to gate that.
  *
  * WHAT IS MEASURED: the theme is reached through the shipping profile-menu
- * control; the canvas has a box, says it is running, draws with no blur, and
- * a readback of its pixels finds painted dots whose hue is green. Then the
+ * control; the canvas then has no box, its frame loop has stopped (`paused`),
+ * and after the probe clears the canvas and waits, NOTHING has been painted
+ * into it -- a field still running would repaint within the wait. Then the
  * same probe with the attribute set to Matrix and to IDEA, the two controls:
- * Matrix still takes the canvas away (its rain is that theme's field), and
- * IDEA paints exactly what it always did -- the brand green, a blur of 4 and
- * 35% opacity.
+ * Matrix still takes the canvas away, and IDEA paints exactly what it always
+ * did -- the brand green, a blur of 4 and 35% opacity -- which is also the
+ * positive control that the readback can see a painted field at all.
  */
 const PIXELS = `async () => {
 	const c = document.querySelector('#bg-canvas');
@@ -86,6 +80,16 @@ const UNDER = (theme) => `async () => {
 		'colour ' + cs.getPropertyValue('--li-particle').trim().toLowerCase(),
 		'blur ' + (c.dataset.particleBlur ?? 'unstamped')
 	];
+	if (cs.display !== 'none') {
+		/* A theme that gives the canvas its box back restarts the loop: clear,
+		   wait, and read back painted pixels. */
+		c.getContext('2d').clearRect(0, 0, c.width, c.height);
+		await new Promise((r) => setTimeout(r, 600));
+		const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+		let n = 0;
+		for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+		out.push('particles ' + (c.dataset.particles ?? 'unstamped'), n > 0 ? 'dots painted' : 'NOTHING PAINTED');
+	}
 	if (was === null) html.removeAttribute('data-theme'); else html.setAttribute('data-theme', was);
 	await new Promise((r) => setTimeout(r, 120));
 	return out;
@@ -93,7 +97,7 @@ const UNDER = (theme) => `async () => {
 
 export default {
 	path: '/dev/home-order?role=student&classes=1&rows=3&state=particles-space-white',
-	label: 'Home page particles under Space White: kept, in the brand green with no glow; IDEA and Matrix unchanged',
+	label: 'Home page particles under Space White: none, the loop stopped; IDEA and Matrix unchanged',
 	prepare: [
 		{ evaluate: SETTLE_ENTRANCE, waitMs: 150, label: 'settle the entrance' },
 		...reach('space-white'),
@@ -113,19 +117,19 @@ export default {
 	],
 	presence: [
 		{ selector: 'html[data-theme="space-white"]', label: 'the Space White attribute is on <html>', expectPresent: 1, maxPresent: 1 },
-		{ selector: '.legacy-index #bg-canvas', label: 'the particle canvas, painted', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.legacy-index #bg-canvas[data-particles="running"]', label: 'the field is running', expectPresent: 1, maxPresent: 1 }
+		{ selector: '.legacy-index #bg-canvas', label: 'the particle canvas is in the page and NOT visible', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 },
+		{ selector: '.legacy-index #bg-canvas[data-particles="paused"]', label: 'its frame loop has stopped', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 }
 	],
 	orderResult: [
 		{
-			label: 'under Space White the field is shown, running, unblurred, at full opacity, and paints brand-green dots',
+			label: 'under Space White the field is gone: no box, the loop stopped, and nothing painted after a clear and a wait',
 			evaluate: PIXELS,
-			expected: ['canvas display shown', 'opacity 1', 'particles running', 'blur 0', 'dots painted', 'hue green', 'ink the brand green']
+			expected: ['canvas display none', 'opacity 0.35', 'particles paused', 'blur 4', 'NOTHING PAINTED', 'hue none', 'ink none']
 		},
 		{
-			label: 'control: under IDEA the field is exactly what it was (brand green, blur 4, 35%)',
+			label: 'control: under IDEA the field is exactly what it was (brand green, blur 4, 35%), and the loop restarts',
 			evaluate: UNDER('idea'),
-			expected: ['canvas display shown', 'opacity 0.35', 'colour #78b870', 'blur 4']
+			expected: ['canvas display shown', 'opacity 0.35', 'colour #78b870', 'blur 4', 'particles running', 'dots painted']
 		},
 		{
 			label: 'control: under Matrix the field is still taken away (the rain is that theme\'s field)',
