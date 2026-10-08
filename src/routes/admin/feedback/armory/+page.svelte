@@ -23,6 +23,12 @@
 		void invalidateAll();
 		return { ok: true };
 	}
+
+	/** A five-minute link to a screenshot, through the bucket's admin read policy (0235). */
+	async function screenshotUrl(path: string): Promise<string | null> {
+		const { data: signed, error } = await supabase.storage.from('armory-feedback-shots').createSignedUrl(path, 300);
+		return error ? null : (signed?.signedUrl ?? null);
+	}
 </script>
 
 <svelte:head>
@@ -33,4 +39,5 @@
 	rows={data.rows}
 	unavailable={data.unavailable}
 	setStatus={data.unavailable ? undefined : setStatus}
+	screenshotUrl={data.unavailable ? undefined : screenshotUrl}
 />

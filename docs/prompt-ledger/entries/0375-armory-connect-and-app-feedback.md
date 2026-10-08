@@ -1,7 +1,7 @@
 # 0375 Armory 0.3.2: who is connecting, and the app's Send feedback matching the website's
 
 - Issued: 2026-10-08
-- By: Mr. Pina, in a Claude Code session, from pina-hash/idea-armory `docs/agent/website-requests-v0.3.2.md` (Armory 0.3.2). Mode: solo.
+- By: Mr. Pina, in a Claude Code session, from pina-hash/idea-armory `docs/agent/website-requests-v0.3.2.md` (Armory 0.3.2).
 - Repo: `pina-hash/idea-app`
 - Branch: `claude/adoring-archimedes-ywz3i5`
 - Owns: `supabase/migrations/0235_armory_app_feedback_v2.sql`, `tests/db/armory-app-feedback-v2.test.ts`, `tests/db/armory-proposed*.ts`, `src/lib/armory/**`, `src/routes/armory/**`, `src/lib/feedback/**` (the Armory console), `src/lib/upload-limits.ts`, `tests/upload-limits.test.ts`, the Armory dev harness and browser specs, `docs/ARMORY.md`, this entry, and its own `docs/history/` entry.

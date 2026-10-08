@@ -1,8 +1,8 @@
 ---
-title: "IDEA Armory website follow-ups for the Windows app 0.3.0 and 0.3.1: a three-minute presence window and offline-soon read at once, the app version and a Needs the new Armory link, Delete forever says files are moved on each computer as it next connects, the app feedback tabs explain linked notes, and migration `0234` adds `armory_break_locks`, Force check in for up to 500 files in one call"
+title: "IDEA Armory website follow-ups for the Windows app 0.3.0 and 0.3.1: a three-minute presence window and offline-soon read at once, the app version and a Needs the new Armory link, Delete forever says files are moved on each computer as it next connects, the app feedback tabs explain linked notes, and migration `0234` adds `armory_break_locks`, Force check in for up to 500 files in one call; then for 0.3.2 the connect page names who is connecting with Not you? Use another account, and migration `0235` gives the app's Send feedback what the website's form has"
 date: 2026-10-08
 branches: [claude/adoring-archimedes-ywz3i5]
-migrations: ["0234"]
+migrations: ["0234", "0235"]
 subsystems: ["IDEA Armory", "Feedback console", "Migrations"]
 ---
 
@@ -121,3 +121,33 @@ with a bare update (6 failed), reporting a refusal as a success (3), dropping th
 concurrent batch-versus-batch or batch-versus-folder-rename race was not driven; the
 order argument rests on each file going through `armory_break_lock` in id order, the
 same shape as 0233's other two batches.
+
+## Part three: Armory 0.3.2 (migration 0235, ledger 0375)
+
+Items 1 to 3 of the 0.3.2 request repeat the 0.3.1 ones and are 0234.
+
+- **The connect page names the person.** `ArmoryConnect` asks "Connect <device> as
+  <name>?", shows the address under it, and offers "Not you? Use another account"
+  (an `onSwitch` transport; absent, no control), which the route wires to
+  `signOutEverywhere` then `armorySignIn`, back to the same connect address. No protocol
+  change.
+- **0235: the app's note gets what the website's form has.** `praise`, `tried` (1000),
+  `area` (120, the app's stand-in for the page the website captures by itself), and a
+  PNG screenshot of the app window, 2 MiB, in a new private bucket keyed
+  `<auth uid>/<uuid>.png`. The wide eight-argument submit has no defaults; the
+  five-argument form became a wrapper that refuses `praise` with its own 0233 text, so a
+  0.3.x app's answers are unchanged (a ten-case corpus put to the deployed body and
+  again after, compared case for case). `armory_my_app_feedback` lists the caller's own
+  notes with status (spam reads `closed`); the website has no such list and no replies,
+  and replies are left to Mr. Pina. The console shows the three new fields and opens a
+  screenshot through a five-minute signed link.
+- **Measured.** `tests/db/armory-app-feedback-v2.test.ts`, 13 tests. Mutation proof, each
+  against that file: any folder accepted (1 failed), everyone's notes in "Your feedback"
+  (1), a default on the wide form (the file's own self-check refused the apply), the old
+  form taking praise (1), spam shown (1), any bucket accepted (1). Restored md5-identical.
+  Browser pass on the Armory and feedback harnesses: 746 measurements, 0 outside, the
+  switch key 264.8x44.
+- **Not verified.** A real Google round trip through "Use another account" (no session
+  here holds a Google account), the signed screenshot link against real Storage, and
+  Storage's own enforcement of the 2 MiB and PNG limits, which the test fixture does not
+  model.

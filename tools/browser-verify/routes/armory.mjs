@@ -103,6 +103,8 @@ export default {
 		{ selector: '[data-view="file-side"] [data-testid="armory-version-download"]', label: 'every version and side version downloads', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
 		{ selector: '[data-view="file-no-storage"] [data-testid="armory-version-download"]', label: 'no storage: no download links', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-view="connect"] [data-testid="armory-connect-form"]', label: 'the connect question', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="connect"] [data-testid="armory-connect-switch"]', label: 'Not you? Use another account', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="connect-bad"] [data-testid="armory-connect-switch"]', label: 'no switch on a bad link', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-view="download-none"] [data-testid="armory-flash-drive"]', label: 'no release: the flash-drive sentence', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="download-none"] [data-testid="armory-download-link"]', label: 'no release: no broken download link', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-view="download"] [data-testid="armory-download-link"]', label: 'two installer links', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
@@ -128,12 +130,13 @@ export default {
 		{ selector: '[data-view="file-side"]', label: 'a side version says why it exists', must: ['Side version', 'Nothing was lost'] },
 		{ selector: '[data-view="file-side"] [data-testid="armory-holder-line"]', label: 'the file page says who has it, as one sentence', must: ['Checked out by Ana Reyes on Lab PC 3, since'] },
 		{ selector: '[data-view="synced"] [data-testid="armory-file-line"]', label: 'no word is said twice', must: ['Available. Last saved by'], mustNot: ['Available. Available', 'Checked out. Checked out'] },
-		{ selector: '[data-view="connect"]', label: 'the contract 3b question', must: ['Connect Lab PC 3 to Armory as ana.reyes@boscotech.net?'] },
+		{ selector: '[data-view="connect"]', label: 'the contract 3b question', must: ['Connect Lab PC 3 as Ana Reyes?', 'Ana Reyes (ana.reyes@boscotech.net)', 'Not you? Use another account'] },
 		{ selector: '[data-view="download-none"]', label: 'the flash drive', must: ['Ask Mr. Pina for the Armory flash drive'] },
 		{ selector: '[data-view="download"]', label: 'WebView2 and the SHA-256', must: ['WebView2', 'Windows 11', '65f65ac9ccb90667ec42fd298cb95fffa3e1556de68b50ff52d10201d51cbcdd'] },
 		{ selector: '[data-view="projects"] [data-testid="armory-projects"]', label: 'cards in the classroom anatomy: counts, role and Open', must: ['48 files', '9 out', '2 yours', '6 people', 'Open'] }
 	],
 	tapTargets: [
+		{ selector: '[data-view="connect"] [data-testid="armory-connect-switch"]', label: 'Not you? Use another account', min: 44 },
 		{ selector: '[data-view="editing"] .ar-tab', label: 'the view tabs', min: 44 },
 		{ selector: '[data-view="editing"] a.ar-file', label: 'file rows', min: 44 },
 		{ selector: '[data-view="editing"] [data-testid="armory-take-back"]', label: 'Force check in on a row', min: 44 },

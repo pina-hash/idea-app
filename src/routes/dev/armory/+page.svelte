@@ -382,7 +382,7 @@
 	{:else if key === 'file-no-storage'}
 		<ArmoryFileView file={SIDE_FILE} history={SIDE_HISTORY} now={NOW} deviceSeen={EDITING_SEEN} />
 	{:else if key === 'connect'}
-		<ArmoryConnect request={CONNECT} problem={null} email="ana.reyes@boscotech.net" action="#" />
+		<ArmoryConnect request={CONNECT} problem={null} email="ana.reyes@boscotech.net" name="Ana Reyes" action="#" onSwitch={() => {}} />
 	{:else if key === 'connect-bad'}
 		<ArmoryConnect request={null} problem="port must be an integer from 1024 to 65535." email="ana.reyes@boscotech.net" />
 	{:else if key === 'download'}

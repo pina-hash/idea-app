@@ -591,6 +591,77 @@ five seconds after the first).
 on `PGRST202` (the migration not applied yet). Tests:
 `tests/db/armory-break-locks.test.ts`.
 
+## The v0.3.2 server contract (migration 0235)
+
+Added 2026-10-08 for Armory 0.3.2 (pina-hash/idea-armory
+`docs/agent/website-requests-v0.3.2.md`, ledger 0375). Its items 1 to 3 are the v0.3.1
+contract above (0234). Item 4 changes one page and no protocol; item 5 is
+`supabase/migrations/0235_armory_app_feedback_v2.sql`.
+
+### Item 4: who is being connected
+
+`/armory/connect` now asks "Connect <device> as <name>?" (the chosen display name, else
+the full name, else the address), says "Signed in to ideabosco.com as <name>
+(<address>)", and offers **Not you? Use another account**. That signs the browser out of
+ideabosco.com (`signOutEverywhere`) and starts the Google sign-in with the account picker
+(`prompt=select_account`), coming back to the same connect address, query included, so
+the next person approves the same request. The connect start and exchange routes, the
+code and the answer are unchanged.
+
+### Item 5: Send feedback, the same as the website's
+
+**What the website's form offers, against `armory_submit_app_feedback` as 0233 shipped it:**
+
+| The website's form | The app before 0235 | 0235 |
+|---|---|---|
+| Kinds bug, idea, praise, other | bug, idea, other | adds `praise` |
+| "What did you try?", up to 1000 characters (0170) | none | `p_tried` |
+| The page you were on, captured by itself | none (the app has no address) | `p_area`, a window or view name, up to 120 characters |
+| One screenshot (PNG, JPEG or WebP, 8 MiB, `feedback-media`) | none | `p_screenshot`: the app window only, PNG, 2 MiB, bucket `armory-feedback-shots` |
+| Dictation into the box | none | nothing on the server; the app's own choice |
+| A list of your own reports and their status | none | **the website has no such page**; the app gets `armory_my_app_feedback` |
+| Replies from the team | none | **the website has none either.** Not built: who may answer a student, and where, is Mr. Pina's to decide |
+
+**The signatures.** The five-argument form a 0.3.x app calls is unchanged in what it
+answers (it is now a thin wrapper that refuses `praise` with its 0233 text, then calls the
+wide form). The wide form has **no defaults**, so no call can match both.
+
+| RPC | What it does |
+|---|---|
+| `armory_submit_app_feedback(p_kind text, p_body text, p_app_version text, p_device_name text, p_context jsonb, p_tried text, p_area text, p_screenshot text) returns uuid` | A note with the new fields. Every 0233 rule holds, in 0233's order (kind, body, version, context), then `tried`, `area` and `screenshot`. Blank new fields are stored as nothing. Shares the 20-an-hour limit with the five-argument form. |
+| `armory_submit_app_feedback(p_kind text, p_body text, p_app_version text, p_device_name text, p_context jsonb) returns uuid` | Unchanged answers, refusals included (`praise` is refused here with `The kind of note is bug, idea or other.`). |
+| `armory_my_app_feedback(p_limit integer) returns jsonb` | The caller's own notes, newest first. `p_limit` is clamped to 1 to 200 (null is 50). Each note: `{id, created_at, kind, body, tried, area, has_screenshot, app_version, device_name, status, reviewed_at}`. `status` is `new`, `seen`, `resolved` or `closed`: a note an admin marked spam reads `closed`, so the app never calls a student's note spam. Never carries `context`, the screenshot key or who reviewed it. No session: 42501. |
+
+**Refusals of the wide form**, each 22023 with a JSON DETAIL (the 0233 ones are unchanged):
+
+| DETAIL | When |
+|---|---|
+| `{reason: kind, field: kind}` | Not bug, idea, praise or other. Message `The kind of note is bug, idea, praise or other.` |
+| `{reason: too_long, field: tried, limit: 1000, size}` | What was tried is over 1000 characters after trimming. |
+| `{reason: too_long, field: area, limit: 120, size}` | The area is over 120 characters after trimming. |
+| `{reason: bad_path, field: screenshot}` | The key is not `<the caller's auth uid>/<uuid>.png`, lowercase. |
+| `{reason: not_found, field: screenshot}` | No such object in `armory-feedback-shots` (upload it first). |
+| `{reason: in_use, field: screenshot}` | Another note already names that picture. |
+
+Rate limit, unchanged: `PT429 {reason: rate_limited, limit: 20, window_seconds: 3600, retry_after_seconds}`.
+
+**The screenshot.** Upload first, then send the note with its key. The bucket
+`armory-feedback-shots` is private, takes `image/png` only and at most **2097152 bytes**,
+and both are enforced by Storage on the upload itself (a larger or non-PNG upload is
+refused there, before any note exists). A signed-in person may upload only into their
+own folder, `<auth uid>/`, named `<uuid>.png`; nothing can update or delete an object;
+a site admin reads any (the console opens it through a five-minute signed link). The
+privacy rules are the note's: the app window only, no other person's address, no file
+contents; the app crops nothing, so the person sees exactly what is sent.
+
+**What the console shows.** `armory_app_feedback_admin_list` also returns `tried`, `area`
+and `screenshot_path`, and the Armory app tab shows them, with an Open the screenshot key.
+
+**Adopting it.** Send the wide form when present; on `PGRST202` fall back to the five
+arguments (and leave the new fields off). Show "Your feedback" from
+`armory_my_app_feedback`, and hide it on `PGRST202`. Tests:
+`tests/db/armory-app-feedback-v2.test.ts`.
+
 ## Decisions owed
 
 Each has the default that will be taken if he does not choose otherwise.

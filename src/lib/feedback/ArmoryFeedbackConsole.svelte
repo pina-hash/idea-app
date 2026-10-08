@@ -36,12 +36,15 @@
 		rows,
 		unavailable = null,
 		setStatus,
+		screenshotUrl,
 		now = () => Date.now()
 	}: {
 		rows: ArmoryFeedbackRow[];
 		/** Why there is nothing to show (the database is not updated, or the read failed). */
 		unavailable?: string | null;
 		setStatus?: (id: string, status: FeedbackStatus) => Promise<{ ok: boolean; message?: string }>;
+		/** 0235: a short-lived link to a note's screenshot, on the admin's own client. Absent, the note says one is attached. */
+		screenshotUrl?: (path: string) => Promise<string | null>;
 		now?: () => number;
 	} = $props();
 
@@ -53,6 +56,19 @@
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 	let note = $state<string | null>(null);
+	let shotError = $state<Record<string, string>>({});
+
+	async function openShot(row: ArmoryFeedbackRow) {
+		if (!screenshotUrl || !row.screenshot_path) return;
+		// Opened first, inside the click, so a popup blocker lets it through; filled once the link is signed.
+		const tab = window.open('about:blank', '_blank');
+		const url = await screenshotUrl(row.screenshot_path).catch(() => null);
+		if (url && tab) tab.location.href = url;
+		else {
+			tab?.close();
+			shotError = { ...shotError, [row.id]: 'The screenshot could not be opened. Try again in a minute.' };
+		}
+	}
 	let selected = $state<Set<string>>(new Set());
 	let includeSubmitter = $state(true);
 
@@ -264,7 +280,22 @@
 						<span class="af-when">{armoryWhen(row.created_at)}</span>
 						<span class="af-chip af-status-{statusOf(row)}">{statusOf(row)}</span>
 					</div>
+					{#if row.area}<p class="af-meta" data-testid="af-area">About: {row.area}</p>{/if}
 					<p class="af-body">{row.body}</p>
+					{#if row.tried}
+						<p class="af-meta af-tried-label">What they tried</p>
+						<p class="af-body" data-testid="af-tried">{row.tried}</p>
+					{/if}
+					{#if row.screenshot_path}
+						<p class="af-meta" data-testid="af-screenshot">
+							{#if screenshotUrl}
+								<button type="button" class="af-control btn secondary" onclick={() => openShot(row)}>Open the screenshot</button>
+							{:else}
+								A screenshot of the app window is attached.
+							{/if}
+							{#if shotError[row.id]}<span class="af-error" role="alert"> {shotError[row.id]}</span>{/if}
+						</p>
+					{/if}
 					<p class="af-meta">
 						From {armoryWho(row)}{#if row.submitter_name && row.email}<span class="af-email"> {row.email}</span>{/if}{#if row.device_name}, on {row.device_name}{/if}
 					</p>

@@ -274,6 +274,21 @@ const CEILINGS = [
 		advice: 'Crop it, or shrink it, and try again.'
 	},
 	{
+		/**
+		 * THE ARMORY WINDOWS APP'S SCREENSHOT (0235, ledger 0375): the app window
+		 * only, PNG, uploaded by the app, never by a browser here. The bucket is
+		 * the only guard this repository owns; the app checks the size before it
+		 * sends, which is idea-armory's code.
+		 */
+		id: 'armory-feedback-screenshot',
+		label: 'a screenshot on an Armory app note',
+		bucket: 'armory-feedback-shots',
+		maxBytes: 2097152,
+		guards: ['bucket'],
+		statedBy: '0235 file_size_limit 2097152 and allowed_mime_types image/png; the Armory app checks it before the upload',
+		advice: 'Send the note without the picture, or make the Armory window smaller and try again.'
+	},
+	{
 		id: 'greenline-decal',
 		label: 'a GREENLINE decal',
 		bucket: 'greenline-decals',

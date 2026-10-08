@@ -35,6 +35,9 @@ export default {
 		{ selector: '.cr-root', label: 'no classroom room around it', expectPresent: 0 }
 	],
 	textContains: [
+		{ selector: '[data-testid="af-tried"]', label: 'what they tried, under the note (0235)', must: ['Closed SOLIDWORKS first'] },
+		{ selector: '[data-testid="af-area"]', label: 'the area the note is about', must: ['About: Files'] },
+		{ selector: '[data-testid="af-screenshot"]', label: 'a screenshot is said, with no transport in the harness', must: ['A screenshot of the app window is attached.'] },
 		{ selector: '[data-testid="armory-report-link-help"]', label: 'how a note and an incident are linked', must: ['Send feedback', 'no incident linked', 'Report a problem'] },
 		{ selector: '[data-testid="af-status-new"]', label: 'the New tab counts', must: ['New (5)'] },
 		{ selector: '[data-testid="af-status-all"]', label: 'the All tab counts', must: ['All (6)'] },

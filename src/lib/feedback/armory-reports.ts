@@ -92,6 +92,10 @@ export interface ArmoryFeedbackRow {
 	reviewed_at: string | null;
 	reviewed_by: string | null;
 	submitter_name: string | null;
+	/** 0235: what the person tried, the app area the note is about, and the screenshot's key. Absent before 0235. */
+	tried?: string | null;
+	area?: string | null;
+	screenshot_path?: string | null;
 }
 
 export interface ArmoryIncidentRow {
@@ -152,7 +156,10 @@ export function parseArmoryFeedbackRows(data: unknown): ArmoryFeedbackRow[] {
 			status: status(r.status),
 			reviewed_at: str(r.reviewed_at),
 			reviewed_by: str(r.reviewed_by),
-			submitter_name: str(r.submitter_name)
+			submitter_name: str(r.submitter_name),
+			tried: str(r.tried),
+			area: str(r.area),
+			screenshot_path: str(r.screenshot_path)
 		});
 	}
 	return out;
@@ -204,6 +211,7 @@ export function armoryWho(row: { submitter_name: string | null; email: string })
 export const ARMORY_FEEDBACK_KINDS: { id: string; label: string }[] = [
 	{ id: 'bug', label: 'Bug' },
 	{ id: 'idea', label: 'Idea' },
+	{ id: 'praise', label: 'Praise' },
 	{ id: 'other', label: 'Other' }
 ];
 
@@ -441,11 +449,19 @@ export function armoryFeedbackMarkdown(
 		facts.push(`version: ${row.app_version || 'unknown'}`);
 		facts.push(`kind: ${row.kind}`);
 		if (row.device_name) facts.push(`device: ${row.device_name.replace(/\s+/g, ' ').trim()}`);
+		if (row.area) facts.push(`area: ${row.area.replace(/\s+/g, ' ').trim()}`);
+		if (row.screenshot_path) facts.push('screenshot: attached (read it on the console)');
 		facts.push(`status: ${row.status}`);
 		lines.push(facts.map((f) => `- ${f}`).join('\n'));
 		lines.push('');
 		lines.push(quoteMessage(row.body) || '>');
 		lines.push('');
+		if (row.tried) {
+			lines.push('What they tried:');
+			lines.push('');
+			lines.push(quoteMessage(row.tried));
+			lines.push('');
+		}
 		const context = JSON.stringify(row.context ?? {}, null, 2);
 		const fence = fenceFor(context);
 		lines.push('Context:');

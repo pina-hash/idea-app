@@ -36,7 +36,11 @@ export function armorySampleNotes(now: number): ArmoryFeedbackRow[] {
 			app_version: '0.3.0',
 			kind: 'bug',
 			body: 'Checking in a part froze the window for about ten seconds, then it came back.',
-			context: { screen: 'files', project: 'Robot 2027', lastAction: 'check in', durationMs: 10234 }
+			context: { screen: 'files', project: 'Robot 2027', lastAction: 'check in', durationMs: 10234 },
+			// 0235's three fields, so the console's rendering of them is in the harness.
+			area: 'Files',
+			tried: 'Closed SOLIDWORKS first, then tried again. Same freeze.',
+			screenshot_path: '00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002.png'
 		},
 		{
 			...base,
