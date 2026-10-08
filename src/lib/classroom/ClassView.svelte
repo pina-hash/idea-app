@@ -3591,16 +3591,13 @@
 		}
 	}
 	/* BELOW A 22rem PANE (the stream at 20rem or less: 294px at 20rem, 326px
-	   at 22rem) the card gives the rows
-	   half its side padding back (8px, still over the selected row's 4px plate
-	   overhang) and the kind WORD leaves the meta line visually: the kind glyph
+	   at 22rem) the kind WORD leaves the meta line visually: the kind glyph
 	   beside the title still says it, and the word stays in the accessible
 	   tree. Every other meta field stays, whole where it fits (ledger 0281:
-	   nothing Mr. Pina acts on is cut or hidden). */
+	   nothing Mr. Pina acts on is cut or hidden). The unit card has no side
+	   padding of its own to give back (measured 0px at every width), so the
+	   rows already run edge to edge. */
 	@container class-stream (max-width: 20rem) {
-		.classroom-page.as-pane .group-card {
-			padding-inline: var(--space-2);
-		}
 		.classroom-page.as-pane .row-kind {
 			position: absolute;
 			width: 1px;

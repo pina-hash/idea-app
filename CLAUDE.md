@@ -4118,7 +4118,7 @@ inside the function fails closed rather than falling through to a weaker path.
   `@container` tiers, scoped to `.classroom-page.as-pane` so a phone keeps its
   44px grip, step the drag grip and a collapsed expand arrow aside and wrap the
   unit header's keys under its name at the default 26rem pane and below, then
-  halve the card's side padding and hide the kind WORD visually below 22rem.
+  hide the kind WORD visually below 22rem (the glyph still says it).
   No meta field is ellipsized or hidden (ledger 0281). The instrument is
   `tools/browser-verify/routes/_narrow-list.mjs`, which steps the REAL
   separator from 18rem to 30rem and counts overflow and broken words.

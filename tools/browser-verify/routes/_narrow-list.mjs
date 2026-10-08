@@ -120,7 +120,7 @@ export const SWEEP = `async () => {
 			rem: shown,
 			pane: round(nav.getBoundingClientRect().width),
 			stream: stream ? round(stream.getBoundingClientRect().width) : -1,
-			cardPad: card ? getComputedStyle(card).paddingLeft : '?',
+			cardPad: card ? getComputedStyle(card).paddingLeft : '?', /* diagnostic: 0px at every width, which is why no tier pads it */
 			kindShown: kindWord ? kindWord.getBoundingClientRect().width > 2 : null,
 			overflow: round(nav.scrollWidth - nav.clientWidth),
 			past,
