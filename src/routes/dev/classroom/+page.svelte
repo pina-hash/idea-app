@@ -2942,6 +2942,7 @@
 		removalReady={peopleRemovalReady}
 		{transports}
 		loadNotebookGrid={notebookApplied ? loadNotebookGrid : null}
+		studentHref={(email) => `/dev/classroom-student?email=${encodeURIComponent(email)}`}
 	/>
 {:else if view === 'settings'}
 	<!-- The class's own Settings tab (report R06), on the same in-memory

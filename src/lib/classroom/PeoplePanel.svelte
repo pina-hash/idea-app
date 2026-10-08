@@ -91,6 +91,7 @@
 		transports,
 		loadNotebookGrid = null,
 		teams: teamTransports = null,
+		studentHref = null,
 		onchanged = null
 	}: {
 		section: ClassroomSection;
@@ -134,6 +135,14 @@
 		 * fail-soft state where the notebook migrations are not applied.
 		 */
 		loadNotebookGrid?: ReviewTransports['loadGrid'] | null;
+		/**
+		 * ONE STUDENT'S PAGE IN THIS CLASS (the 2026-10-07 round), as a URL for
+		 * an address. ABSENCE REMOVES THE LINK, the omitted-transport rule: every
+		 * harness that mounts this panel without it renders the roster exactly
+		 * as before. A row that MANAGES the class gets no link either way, because
+		 * that page answers 404 for a manager's own address (0138).
+		 */
+		studentHref?: ((email: string) => string) | null;
 		onchanged?: (() => void | Promise<void>) | null;
 	} = $props();
 
@@ -937,7 +946,20 @@
 		     Before 0179 is applied the columns are absent and every row is an
 		     initials tile, which is also what most rows are afterwards. -->
 		<Avatar subject={rosterSubject(e)} tintKey={e.student_email} size={28} />
-		<span class="roster-name person-name" title={e.display_name || e.student_email.split('@')[0]}>{e.display_name || e.student_email.split('@')[0]}</span>
+		{#if studentHref && e.manages !== true}
+			<!-- THE LINK OWNS ITS 44px BOX AND THE NAME INSIDE IT KEEPS ITS
+			     ELLIPSIS: a reach pseudo-element on the name itself would be
+			     clipped by the `overflow: hidden` the ellipsis needs. -->
+			<a
+				class="roster-link tap-44"
+				href={studentHref(e.student_email)}
+				data-testid="roster-student-link"
+				title={`${e.display_name || e.student_email.split('@')[0]}: their work and activity in this class`}
+				><span class="roster-name person-name">{e.display_name || e.student_email.split('@')[0]}</span></a
+			>
+		{:else}
+			<span class="roster-name person-name" title={e.display_name || e.student_email.split('@')[0]}>{e.display_name || e.student_email.split('@')[0]}</span>
+		{/if}
 		<span class="roster-email">{e.student_email}</span>
 		<span class="roster-status" data-tone={status.tone} data-testid="roster-status">
 			{status.label}
@@ -2178,6 +2200,14 @@
 		   The avatar carries `flex-shrink: 0` and an inline min-width, so it
 		   is the NAME that gives, which is the right way round. */
 		min-width: 0;
+	}
+	/* The name is the door to the student's own page. The room's link ink,
+	   with an underline, so it reads as a link without colour alone. */
+	.roster-link {
+		min-width: 0;
+		color: var(--body-link, var(--cyan));
+		text-decoration: underline;
+		text-underline-offset: 0.15em;
 	}
 	.roster-email {
 		font-family: var(--font-mono);

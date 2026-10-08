@@ -32,7 +32,7 @@ import {
 	type ClassCheckIn
 } from '$lib/classroom/class-check-ins';
 import { formatSectionLabel } from '$lib/section-label';
-import { studentNotebookHref } from '$lib/classroom/nav';
+import { studentPageHref } from '$lib/classroom/nav';
 import { ICONS, runnableCommands, type CommandEnv } from './commands';
 import { rankByQuery, type Searchable } from './search';
 
@@ -216,8 +216,9 @@ export function paletteEntries(sources: PaletteSources, env: CommandEnv): Palett
 		}
 	}
 
-	// People are a MANAGER'S search. Their notebook in this class is the door,
-	// the one per-student page every manager of the section can open.
+	// People are a MANAGER'S search. Their page in this class is the door (the
+	// 2026-10-07 round): their work, notebook and activity in one place, which
+	// links on to the full notebook.
 	if (env.role === 'manager' && env.sectionId) {
 		for (const p of sources.students ?? []) {
 			out.push({
@@ -225,9 +226,9 @@ export function paletteEntries(sources: PaletteSources, env: CommandEnv): Palett
 				kind: 'student',
 				name: p.name,
 				icon: ICONS.student,
-				detail: 'Notebook in this class',
+				detail: 'Work, notebook and activity in this class',
 				also: [p.email],
-				href: studentNotebookHref(p.email, env.sectionId)
+				href: studentPageHref(env.sectionId, p.email, env.basePath)
 			});
 		}
 	}

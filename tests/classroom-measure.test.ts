@@ -46,6 +46,12 @@ const SURFACES: { place: ClassroomPlace; path: string; file: string }[] = [
 	{ place: 'home', path: '/classroom', file: 'src/lib/classroom/MyClasses.svelte' },
 	{ place: 'section', path: '/classroom/s-1', file: 'src/lib/classroom/ClassView.svelte' },
 	{ place: 'people', path: '/classroom/s-1/people', file: 'src/lib/classroom/PeoplePanel.svelte' },
+	// One student's page in one class (the 2026-10-07 round): its tab's width.
+	{
+		place: 'student',
+		path: '/classroom/s-1/people/ana%40x.net',
+		file: 'src/lib/classroom/StudentOverview.svelte'
+	},
 	{ place: 'grades', path: '/classroom/s-1/grades', file: 'src/lib/classroom/GradesPanel.svelte' },
 	// The class's own Settings tab (report R06): its siblings' width, so the tab
 	// bar does not move between People, Grades and Settings.
@@ -117,6 +123,7 @@ describe('the classroom chrome is as wide as the page under it', () => {
 			'home',
 			'section',
 			'people',
+			'student',
 			'grades',
 			'settings',
 			'item',

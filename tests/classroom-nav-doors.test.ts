@@ -7,6 +7,8 @@ import {
 	classroomCrumbs,
 	locateClassroom,
 	sectionTabs,
+	studentEmailParam,
+	studentPageHref,
 	visibleSectionTabs,
 	type SectionTab
 } from '../src/lib/classroom/nav';
@@ -376,5 +378,53 @@ describe('the duplicates page and its doors stand or fall together', () => {
 		expect(await loadDuplicateDraftCount(throwing, 's-1')).toBeNull();
 		expect(duplicateDoorLabel(1)).toBe('1 duplicate draft');
 		expect(duplicateDoorLabel(3)).toBe('3 duplicate drafts');
+	});
+});
+
+describe("one student's page: a place under People, one spelling of its address, and a param that never throws", () => {
+	/**
+	 * THE 2026-10-07 ROUND (reports 792eb6b1, 63fb1c49). `student` is a PLACE,
+	 * not a tab: the tab bar keeps People lit, the trail goes back to People,
+	 * and `sectionTabs` is untouched. The address is one function both doors
+	 * read, and the param guard is what keeps a malformed address a 404 rather
+	 * than the 500 a second decode throws.
+	 */
+	it('the path is the student place, under the People tab, and People itself is unchanged', () => {
+		const loc = locateClassroom('/classroom/s-1/people/ana%40boscotech.net');
+		expect(loc).toEqual({ place: 'student', sectionId: 's-1', itemId: null });
+		expect(activeTab(loc)).toBe('people');
+		// POSITIVE CONTROL: the roster page itself is still `people`.
+		expect(locateClassroom('/classroom/s-1/people').place).toBe('people');
+		expect(locateClassroom('/classroom/s-1/people/').place).toBe('people');
+		// Not a tab: the bar has exactly the tabs it had.
+		expect(sectionTabs('s-1').map((t) => t.id)).not.toContain('student');
+	});
+
+	it('the trail ends People (a link back) then the student', () => {
+		const loc = locateClassroom('/classroom/s-1/people/ana%40boscotech.net');
+		const crumbs = classroomCrumbs(loc, { section: 'IDEA209H · Period 1', student: 'Ana Reyes' });
+		expect(crumbs.map((c) => c.label)).toEqual(['My Classes', 'IDEA209H · Period 1', 'People', 'Ana Reyes']);
+		expect(crumbs[2].href).toBe('/classroom/s-1/people');
+		expect(crumbs[3].href).toBeUndefined();
+		expect(classroomCrumbs(loc).at(-1)?.label).toBe('Student');
+	});
+
+	it('one spelling of the address, encoded, and the route file it names exists', () => {
+		expect(studentPageHref('s-1', 'ana@boscotech.net')).toBe('/classroom/s-1/people/ana%40boscotech.net');
+		expect(studentPageHref('s-1', 'ana@boscotech.net', '/dev/x')).toBe('/dev/x/s-1/people/ana%40boscotech.net');
+		expect(existsSync(new URL('../src/routes/classroom/[sectionId]/people/[studentEmail]/+page.svelte', import.meta.url))).toBe(true);
+		expect(existsSync(new URL('../src/routes/classroom/[sectionId]/people/[studentEmail]/+page.server.ts', import.meta.url))).toBe(true);
+	});
+
+	it('the param guard answers an address or null, and never decodes again', () => {
+		// What kit hands over is already decoded once.
+		expect(studentEmailParam('Ana@BoscoTech.net ')).toBe('ana@boscotech.net');
+		expect(studentEmailParam('a%zz@x.net')).toBe('a%zz@x.net');
+		// Each of these is a 404 rather than a throw.
+		for (const bad of ['a%zz', 'no-at-sign', 'two@@x.net', 'a@b@c.net', 'a b@x.net', 'a/b@x.net', '', '   ', 'x'.repeat(400) + '@x.net']) {
+			expect(studentEmailParam(bad), bad).toBeNull();
+		}
+		expect(studentEmailParam(undefined)).toBeNull();
+		expect(() => studentEmailParam('%E0%A4%A')).not.toThrow();
 	});
 });
