@@ -1,13 +1,14 @@
 ---
-title: "IDEA Armory website follow-ups for the Windows app 0.3.0: a three-minute presence window and offline-soon read at once, the app version and a Needs the new Armory link on the Team view, Delete forever says files are moved on each computer as it next connects, the app feedback tabs explain linked notes, and docs/ARMORY.md brought up to date"
+title: "IDEA Armory website follow-ups for the Windows app 0.3.0 and 0.3.1: a three-minute presence window and offline-soon read at once, the app version and a Needs the new Armory link, Delete forever says files are moved on each computer as it next connects, the app feedback tabs explain linked notes, and migration `0234` adds `armory_break_locks`, Force check in for up to 500 files in one call"
 date: 2026-10-08
 branches: [claude/adoring-archimedes-ywz3i5]
-migrations: []
-subsystems: ["IDEA Armory", "Feedback console"]
+migrations: ["0234"]
+subsystems: ["IDEA Armory", "Feedback console", "Migrations"]
 ---
 
 Armory 0.3.0 (pina-hash/idea-armory) shipped the Windows app half of the v0.3 server
-contract (0233). This bundle is the website's catch-up to it. No migration.
+contract (0233). Part one is the website's catch-up to it and needed no migration; part two
+(below) is migration 0234 for Armory 0.3.1.
 
 ## What changed
 
@@ -63,3 +64,60 @@ The Windows app's behavior (45-second cadence, the recovery folder, the 0.2.1 re
 upload rate) is taken from the request and the 0.3.0 release notes, not observed. What a
 0.2.x computer does with a deleted project before it updates was not checked; the
 confirm says it catches up once it updates.
+
+## Part two: `armory_break_locks` (migration 0234, ledger 0374)
+
+Armory 0.3.1 forces a check in of many files with one `armory_break_lock` per file, 16 at
+a time. Check out all and Check in all already had batches (0233). 0234 adds the third:
+`armory_break_locks(p_files uuid[], p_device uuid, p_operation uuid) returns jsonb`.
+
+### Load-bearing decisions
+
+- **The batch calls `armory_break_lock` itself for every file**, under
+  `armory_derived_operation(p_operation, 'break:' || file)`, exactly as 0233's
+  `armory_release_locks` calls `armory_release_lock`. So the role rule, the `lock_broken`
+  payload, the refusal text and SQLSTATE, and taking the project row first are that
+  function's, with no second copy to drift. The per-file exception block is what keeps
+  one refusal from stopping the rest, and its savepoint releases what a refused file's
+  call locked.
+- **A null device is allowed and a named one is checked once for the whole call**:
+  `armory_break_lock` allows null (the website has no computer), and
+  `armory_release_locks` checks a device up front rather than once per file.
+- **No defaults, one overload, granted to `authenticated` only**, revoked from `public`,
+  `anon` and `authenticated` by name first (the 0166 shape). The file's self-check
+  raises if anon can call it.
+- **Nothing else changes.** No existing function is replaced, so the 0233 corpus answers
+  stay byte-identical and there is no deploy ordering: the app falls back on `PGRST202`.
+
+### The site's bulk controls and Realtime (items 2 and 3)
+
+Checked, and nothing needed changing. The website has no bulk file action: Force check
+in is one file at a time (Files and Checked out views), and folder rename, folder delete
+and purge-folder are the Windows app's. The one multi-item loop on the site is adding
+several people from the Team view (`addPeople`), which already holds the reload and
+reloads once at the end. The project page's Realtime listener already folds a burst into
+one reload (`changeCoalescer`, 1 s after the last event, never more than 5 s after the
+first; report of 2026-10-07), so a 500-file batch is one reload, not 500.
+
+### Measured
+
+`tests/db/armory-break-locks.test.ts`, 16 tests on the chain through 0233 with data
+seeded through the real 0231 to 0233 RPCs and 0234 applied on top: success with the
+exact `lock_broken` payloads, mixed results (held, free, another project, an unknown id),
+per-file parity with `armory_break_lock`, the count limit (0, nulls only, 501, and 500 as
+the control), replay, a reused and a null operation id, a student, a student without a
+device and an outsider refused per file with nothing broken, a site admin in no project
+and a mentor allowed, anon refused, the apply scan, the paste trap and a clean re-paste.
+Mutation proof on the migration, each against that one file (14 tests at the time; the
+null-operation and unknown-id-for-an-admin cases came after), judged by the summary line:
+granting anon (the file's own self-check refused the apply), replacing the per-file call
+with a bare update (6 failed), reporting a refusal as a success (3), dropping the replay
+(1), and letting one refusal abort the call (4). Restored md5-identical.
+
+### Not verified
+
+0234 is not applied to production from this session: no session holds
+`IDEA_MIGRATION_URL`. `migrate.yml` applies it on the push that lands it on `main`. A
+concurrent batch-versus-batch or batch-versus-folder-rename race was not driven; the
+order argument rests on each file going through `armory_break_lock` in id order, the
+same shape as 0233's other two batches.

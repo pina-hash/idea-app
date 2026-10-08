@@ -539,6 +539,58 @@ Every item below shipped in the Windows app's 0.3.0 release (pina-hash/idea-armo
 - Filter any realtime subscription and direct table read by project: an admin's session
   now reads every project.
 
+## The v0.3.1 server contract (migration 0234)
+
+Added 2026-10-08 for Armory 0.3.1 (pina-hash/idea-armory
+`docs/agent/website-requests-v0.3.1.md`, ledger 0374). Force check in was the one bulk
+action with no batch RPC: Armory 0.3.1 calls `armory_break_lock` once per file, 16 at a
+time. `supabase/migrations/0234_armory_break_locks.sql` adds the batch. It is one new
+function and changes nothing else, so every existing call answers exactly as before.
+
+| RPC | What it does |
+|---|---|
+| `armory_break_locks(p_files uuid[], p_device uuid, p_operation uuid) returns jsonb` | Force check in for 1 to 500 files in one call. Each file goes through `armory_break_lock` itself, in id order, under an operation id derived from `p_operation` and the file, so every per-file rule is that function's: a mentor, a CAD lead or a site admin may (`can_take_back`); a broken lock writes the same `lock_broken` change, `{by, former_holder, former_device_id}`; a refusal has the same text and SQLSTATE. One file's refusal never stops the rest. Answers `{total, succeeded, refused, results}`, where each result is `{file_id, ok: true, broken}` or `{file_id, ok: false, code, message}`. `broken: false` means nobody had it checked out any more. `succeeded + refused = total`. |
+
+**Inputs.** Nulls and repeats in `p_files` are dropped before counting. `p_device` may be
+null (the website has no computer); a device that is named must be the caller's, checked
+once for the whole call, as `armory_release_locks` does. `p_operation` is required.
+
+**Refusals of the whole call**, before any file is touched:
+
+| SQLSTATE | Message | DETAIL | When |
+|---|---|---|---|
+| `22023` | `A batch is 1 to 500 files.` | `{"reason": "count", "total": N, "limit": 500}` | No files after dropping nulls and repeats, or more than 500. |
+| `P0001` | `device is not registered to caller` | none | `p_device` is not null and is not one of the caller's computers. |
+| `P0001` | `operation id is required` | none | `p_operation` is null. |
+| `P0001` | `operation id was already used by another caller or RPC` | none | `p_operation` was used by someone else, or for a different RPC (including `armory_break_lock`). |
+| `42501` | permission denied | none | No session (`anon`): the function is granted to `authenticated` only. |
+
+**Refusals of one file**, inside `results` as `{ok: false, code, message}`, are
+`armory_break_lock`'s: `P0001 only a mentor or cad_lead may break a lock` for a caller who
+is not a mentor, CAD lead or site admin on that file's project. A file id that does not
+exist answers the same refusal for a member, and `ok: true, broken: false` for a site
+admin, because that is what `armory_break_lock` answers for it.
+
+**Replay.** Calling again with the same `p_operation` answers exactly what the first call
+answered and writes nothing (`armory_replay` / `armory_remember`), even if a file was
+checked out again in between.
+
+**Lock order.** Each file's call takes its project row (FOR KEY SHARE) before its lock
+row, and files go in id order, the same order as `armory_lock_files` and
+`armory_release_locks`. So two batches over the same files, or a batch and a folder
+rename or purge (which hold the project row FOR UPDATE), queue instead of deadlocking.
+An app still retries a `40P01` or `40001` a bounded number of times, as for the other
+batches.
+
+**Realtime.** A batch writes one `armory_change_feed` row per file it checks in. The
+website's project page already folds a burst into one reload (`changeCoalescer` in
+`src/lib/armory/live.ts`: one reload a second after the last event, and never more than
+five seconds after the first).
+
+**Adopting it.** Call it when present, and fall back to one `armory_break_lock` per file
+on `PGRST202` (the migration not applied yet). Tests:
+`tests/db/armory-break-locks.test.ts`.
+
 ## Decisions owed
 
 Each has the default that will be taken if he does not choose otherwise.
