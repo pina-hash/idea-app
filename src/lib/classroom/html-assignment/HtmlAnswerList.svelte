@@ -75,6 +75,11 @@
 		}))
 	);
 	let openAt = $state<number | null>(null);
+	/* The viewer is mounted only while there is a picture, so an open index
+	   left behind when the last one goes would reopen it unbidden on the next. */
+	$effect(() => {
+		if (!lightboxImages.length) openAt = null;
+	});
 	function openPicture(image: HxImageState) {
 		const at = pictures.findIndex((p) => p.url === image.url);
 		if (at >= 0) openAt = at;

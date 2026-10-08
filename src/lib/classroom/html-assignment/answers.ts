@@ -115,9 +115,10 @@
  * policy, and would arrive credential-free at a route that needs a session even
  * if it were not. The URL is still produced here exactly as the contract
  * specifies, because that contract is frozen and this is not the file that
- * decides. The repair that needs NO weakening of the CSP is to render a
- * restored picture in PARENT CHROME beside the frame, which is where Submit
- * already lives; widening `img-src` is the one that does not work anyway.
+ * decides. The repair that needs NO weakening of the CSP is for the PARENT to
+ * draw a restored picture, over a box the document holds open or in the list
+ * under the frame (`hxImagePlacement`); widening `img-src` is the one that does
+ * not work anyway.
  *
  * ---------------------------------------------------------------------------
  * SUBMIT IS THE PARENT'S, AND SO IS THE COMPLETENESS CHECK

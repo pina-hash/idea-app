@@ -667,7 +667,6 @@ describe('hxImagePlacement: a stored picture is always in exactly one place', ()
 	it('puts every stored picture in exactly one of the two lists', () => {
 		const { over, under } = hxImagePlacement(images, boxes);
 		const placed = [...over.map((o) => o.field), ...under.map((u) => u.field)].sort();
-		console.log(`    [placement] over=${over.length} under=${under.length} images=${Object.keys(images).length}`);
 		expect(placed).toEqual(Object.keys(images).sort());
 		expect(new Set(placed).size).toBe(placed.length);
 	});
