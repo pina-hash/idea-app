@@ -2366,7 +2366,9 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
   offered a search whose only answer is a refusal, and it also says why the
   paste box is the way in. It runs from the input handler with a debounce and
   a request counter, never from an `$effect`. A site admin manages people on
-  any project as a mentor would once 0233 is in (`memberManagerRole`).
+  any project as a mentor would once 0233 is in (`memberManagerRole`). A
+  member's role is staged in its select and written only by its "Change to"
+  key, for the reason the classroom teams' Move to is a worded button.
 - **A REFUSAL IS READ FROM ITS SQLSTATE AND `DETAIL.reason`, NEVER ITS HTTP
   STATUS**: PostgREST answers 23505 as 409 and 55000, 55006 and P0002 as 500,
   which say nothing about what happened (`purgeRefusalWords`,

@@ -163,6 +163,24 @@
 		return [];
 	}
 
+	/*
+	 * A ROLE IS CHOSEN IN THE SELECT AND APPLIED BY A WORDED KEY, NEVER ON
+	 * `change`. A keyboard arrowing through a closed select fires `change` on
+	 * every step in Chrome, so a select that wrote on `change` made Student,
+	 * Instructor, CAD lead and Mentor in turn on the way past (CLAUDE.md, the
+	 * classroom teams' "Move to" rule). The choice waits here, per person,
+	 * until "Change to <role>" is pressed.
+	 */
+	let pendingRole = $state<Record<string, ArmoryRole>>({});
+
+	function withoutPending(email: string): Record<string, ArmoryRole> {
+		return Object.fromEntries(Object.entries(pendingRole).filter(([e]) => e !== email));
+	}
+
+	function chooseRole(member: ArmoryMember, next: ArmoryRole) {
+		pendingRole = next === member.role ? withoutPending(member.email) : { ...withoutPending(member.email), [member.email]: next };
+	}
+
 	async function changeRole(member: ArmoryMember, next: ArmoryRole) {
 		if (!addMember || busy || next === member.role) return;
 		busy = true;
@@ -170,6 +188,8 @@
 			const r = await addMember(member.email, next);
 			bad = !r.ok;
 			message = r.ok ? `${memberName(member)} is now ${ROLE_WORDS[next]}.` : memberErrorWords(r.message, r.code);
+			// Landed or refused, the select goes back to saying what the server holds.
+			pendingRole = withoutPending(member.email);
 		} finally {
 			busy = false;
 		}
@@ -324,18 +344,29 @@
 				</span>
 				<span class="ar-member-actions">
 					{#if choices.length > 0}
+						{@const picked = pendingRole[member.email] ?? member.role}
 						<label class="ar-role">
 							<span class="ar-visually-hidden">Role for {shown}</span>
 							<select
 								class="plate-well"
-								value={member.role}
-								aria-disabled={busy}
+								value={picked}
 								data-testid="armory-role-select"
-								onchange={(e) => changeRole(member, (e.currentTarget as HTMLSelectElement).value as ArmoryRole)}
+								onchange={(e) => chooseRole(member, (e.currentTarget as HTMLSelectElement).value as ArmoryRole)}
 							>
 								{#each choices as r (r)}<option value={r}>{ROLE_WORDS[r]}</option>{/each}
 							</select>
 						</label>
+						{#if picked !== member.role}
+							<button
+								class="btn ar-btn"
+								type="button"
+								aria-disabled={busy}
+								data-testid="armory-role-apply"
+								onclick={() => changeRole(member, picked)}
+							>
+								Change to {ROLE_WORDS[picked]}
+							</button>
+						{/if}
 					{/if}
 					{#if removeMember && powers.remove && member.email !== me && !(member.role === 'mentor' && mentorCount <= 1)}
 						<button
