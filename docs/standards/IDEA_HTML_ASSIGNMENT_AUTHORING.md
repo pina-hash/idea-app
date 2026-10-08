@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.18 - 2026-10-08**
+**Version 1.19 - 2026-10-08**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -877,9 +877,17 @@ short videos Mr. Pina recorded, built into the live post so no live demo is need
   module and every stored answer still renders.
 
 ---
+- **One long video, many steps: embed it once per move and give each step a time key.**
+  The portal plays a YouTube id and takes no start time, so a chaptered walkthrough cannot
+  jump inside the frame. Each step carries a 44px key labeled with its chapter time that
+  opens `https://www.youtube.com/watch?v=<id>&t=<seconds>s` in a new tab through the same
+  `window.open` path as every other outside link. Steps follow the chapter order, and a
+  step shared with an earlier chapter carries no second key.
 
 ## Changelog
 
+- **1.19 (2026-10-08).** Ledger 0371. Section 18: a chaptered walkthrough video is embedded
+  once per move, and each step gets a time key opening YouTube at its chapter.
 - **1.18 (2026-10-08).** Ledger 0370. Section 13: a box in a closed `<details>` is never a
   paste target, and a later version's file card reuses the hand-in code keyed on the slot.
   From Hook 03 Stage 3 (V3, the call and the team print plate).
