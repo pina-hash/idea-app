@@ -1,0 +1,174 @@
+name: Prune merged agent branches
+
+# Deletes every `claude/**` and `codex/**` branch whose tip is already in
+# `main` or `integration`, on every push to `main` (ledger 0376).
+#
+# WHY IT EXISTS: VERCEL STORAGE. Vercel never removes the latest deployment of
+# a branch that still exists, whatever the retention policy says, and that
+# deployment is billed storage. `vercel.json`'s `git.deploymentEnabled` stops
+# agent branches and `integration` building new previews; this stops the old
+# ones being pinned by refs that hold nothing. Measured on 2026-10-08: 105 of
+# 108 agent refs on the remote were already contained in `origin/main` or
+# `origin/integration`. In solo mode a session pushes straight to `main`, so
+# `integrate.yml`'s own contained-delete (which runs only when an agent
+# branch's CI finishes) never sees most of them.
+#
+# ---------------------------------------------------------------------------
+# THERE IS ONE CONTAINED-DELETE RULE AND IT LIVES IN `integrate.yml`.
+#
+# This file has no copy of it. The step below CUTS the text between
+# `# contained_delete_marker:begin` and `# contained_delete_marker:end` out of
+# `integrate.yml`, the way that file's own comment says the gate is meant to be
+# proved, and sources exactly those characters. So the protected names (`main`,
+# `integration`, the target), the agent-prefix refusal and the containment test
+# against REMOTE refs are the same characters in both workflows, and
+# `tests/workflows.test.ts` drives that same cut against throwaway repositories.
+# A cut that comes back empty, does not parse, or does not define
+# `contained_delete_gate` FAILS THE JOB before anything is deleted. The prefix
+# list is read out of `integrate.yml`'s `env:` for the same reason.
+#
+# Chosen over moving the rule into a shared script: a shared file would mean
+# rewriting `integrate.yml`'s busiest step and every proof that already cuts
+# its markers, to save one `sed`. The cut is the established shape here.
+#
+# WHAT THIS DOES NOT ASK, AND WHY THAT IS SAFE. `integrate.yml` holds a red
+# branch and a branch whose ledger entry reads `issued` before it ever asks
+# containment, because there the next step is a MERGE. Here nothing is merged:
+# a ref whose every commit is reachable from `origin/main` or
+# `origin/integration` holds nothing a delete can take away, and a session that
+# pushes to it again simply re-creates it.
+#
+# THIS WORKFLOW NEVER PUSHES A BRANCH. Its one push line is a lease-pinned
+# DELETE of an agent ref; the lease pins the tip this run measured, so a branch
+# that moved mid-run keeps its new commit. Every deletion is then checked with
+# `git ls-remote`, never with git's own push output.
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+
+# One prune at a time. Queued rather than cancelled: each run sweeps every
+# agent ref, so a dropped one costs nothing, and a cancelled one mid-delete
+# would leave a summary that says less than happened.
+concurrency:
+  group: prune-agent-branches
+  cancel-in-progress: false
+
+# contents: write -- delete a `claude/**` or `codex/**` ref. Nothing else.
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The whole history of `main` and `integration`, then every branch, so
+      # `merge-base --is-ancestor` reads real ancestry and never a grafted cone.
+      - name: Fetch main, integration and every branch, with history
+        run: |
+          git fetch --quiet --no-tags --unshallow origin '+refs/heads/main:refs/remotes/origin/main'
+          git fetch --quiet --no-tags --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Delete agent branches already in main or integration
+        run: |
+          set -euo pipefail
+          WORKFLOW=.github/workflows/integrate.yml
+
+          # THE PREFIX LIST, read from the one registry, never retyped.
+          AGENT_BRANCH_PREFIXES="$(sed -n "s/^  AGENT_BRANCH_PREFIXES:[[:space:]]*'\\(.*\\)'[[:space:]]*$/\\1/p" "$WORKFLOW" | head -n 1)"
+          if [ -z "$AGENT_BRANCH_PREFIXES" ]; then
+            echo "::error::no AGENT_BRANCH_PREFIXES in the env: block of $WORKFLOW; deleting nothing"
+            exit 1
+          fi
+          export AGENT_BRANCH_PREFIXES
+
+          # THE GATE, cut from integrate.yml. See the header for why.
+          GATE="$RUNNER_TEMP/contained-delete-gate.sh"
+          sed -n '/# contained_delete_marker:begin/,/# contained_delete_marker:end/p' "$WORKFLOW" >"$GATE"
+          if [ ! -s "$GATE" ] || ! bash -n "$GATE"; then
+            echo "::error::could not cut contained_delete_gate out of $WORKFLOW; deleting nothing"
+            exit 1
+          fi
+          # shellcheck disable=SC1090
+          . "$GATE"
+          if ! declare -F contained_delete_gate >/dev/null; then
+            echo "::error::the cut text does not define contained_delete_gate; deleting nothing"
+            exit 1
+          fi
+
+          # prune_loop_marker:begin
+          prune_agent_branches() {
+            # $1 the integration branch. Walks refs/remotes/origin, asks the
+            # gate about every agent ref, deletes on `origin` what it says to,
+            # and prints one line per agent ref:
+            #   deleted<TAB>branch<TAB>why    gone from the remote, by this run
+            #   gone<TAB>branch<TAB>why       gone, but this run's push did not do it
+            #   standing<TAB>branch<TAB>why   left on purpose
+            #   refused<TAB>branch<TAB>why    still on the remote after the delete
+            local target="$1" ref branch sha why pushed rc
+            for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
+              branch="${ref#origin/}"
+              # The loop's own filter. The gate refuses the same names again,
+              # first, so neither one alone is what keeps `main` standing.
+              case " $AGENT_BRANCH_PREFIXES " in
+                *" ${branch%%/*}/ "*) ;;
+                *) continue ;;
+              esac
+              sha="$(git rev-parse "$ref")"
+              if ! why="$(contained_delete_gate "$branch" "$sha" "$target")"; then
+                printf 'standing\t%s\t%s\n' "$branch" "${sha:0:7} is not in origin/main or origin/$target"
+                continue
+              fi
+              pushed=no
+              if git push --quiet origin --force-with-lease="refs/heads/$branch:$sha" ":refs/heads/$branch" >/dev/null 2>&1; then
+                pushed=yes
+              fi
+              # VERIFIED ON THE REMOTE, never from the push's own answer:
+              # `--exit-code` makes 2 mean "no such ref" and 0 "still there";
+              # anything else is a failed read, which proves nothing either way.
+              rc=0
+              git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null 2>&1 || rc=$?
+              if [ "$rc" = 2 ] && [ "$pushed" = yes ]; then
+                printf 'deleted\t%s\t%s\n' "$branch" "$why"
+              elif [ "$rc" = 2 ]; then
+                printf 'gone\t%s\t%s\n' "$branch" "$why, already removed by something else"
+              elif [ "$rc" = 0 ]; then
+                printf 'refused\t%s\t%s\n' "$branch" "$why, but it is still on the remote (it moved, or the delete was refused)"
+              else
+                printf 'refused\t%s\t%s\n' "$branch" "$why, but ls-remote could not answer (exit $rc), so the delete is unverified"
+              fi
+            done
+          }
+          # prune_loop_marker:end
+
+          RESULTS="$(prune_agent_branches integration)"
+          printf '%s\n' "$RESULTS"
+
+          section() {
+            # $1 the state, $2 the heading.
+            local rows
+            rows="$(printf '%s\n' "$RESULTS" | awk -F'\t' -v s="$1" '$1 == s { printf "- `%s` -- %s\n", $2, $3 }')"
+            echo "### $2 ($(printf '%s' "$rows" | grep -c . || true))"
+            echo
+            if [ -n "$rows" ]; then printf '%s\n' "$rows"; else echo "None."; fi
+            echo
+          }
+          {
+            echo "## Agent branches pruned after a push to main"
+            echo
+            section deleted "Deleted, and confirmed gone with git ls-remote"
+            section gone "Already gone"
+            section refused "Still on the remote after a delete"
+            section standing "Standing"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+          # A delete that did not land is a warning, never a failure: the next
+          # push to main tries again, and nothing is lost by a ref surviving.
+          if printf '%s\n' "$RESULTS" | grep -q '^refused'; then
+            echo "::warning::some contained agent branches are still on the remote; see the job summary"
+          fi

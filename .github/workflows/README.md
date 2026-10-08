@@ -570,9 +570,21 @@ normally underneath that red X; the summary is what tells you which is which.
   the sweep makes, the counts regeneration included: `integration` gets no CI
   run from its own pushes. Every commit on it was green on its source branch,
   and the MERGE RESULT is checked by the nightly schedule in `ci.yml` rather
-  than by the push -- see "Is `integration` green?". Vercel is unaffected: it
-  deploys through a GitHub App webhook, not through Actions, so `integration`
-  still gets a preview build.
+  than by the push -- see "Is `integration` green?". Vercel deploys through a
+  GitHub App webhook, not through Actions, but since ledger 0376 `vercel.json`'s
+  `git.deploymentEnabled` turns previews off for `integration`, `claude/**` and
+  `codex/**`; `main` and `lane/**` still build.
+
+## `prune.yml` -- merged agent branches are deleted on every push to `main`
+
+Vercel never removes the latest preview of a branch that still exists, and that
+preview is billed storage. So on every push to `main`, `prune.yml` deletes each
+`claude/**` and `codex/**` ref whose tip is already in `origin/main` or
+`origin/integration`, verifies each delete with `git ls-remote`, and lists what
+it deleted and what is standing in the job summary. It has no copy of the rule:
+it cuts `contained_delete_gate` out of `integrate.yml` between its markers and
+sources it, so `main`, `integration` and every non-agent branch are refused by
+the same characters in both workflows. Nobody needs to press anything.
 
 ## `backup.yml` -- and it is not part of the pipeline
 

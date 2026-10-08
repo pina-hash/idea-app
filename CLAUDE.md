@@ -6847,6 +6847,13 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
   reverts as one commit. Delete the branch once the merge lands.
 - **Verify the branch on its Vercel preview URL before merging.** A branch never
   opened in a browser bought nothing over pushing to `main`.
+- **ONLY `main` AND `lane/**` BUILD ON VERCEL; `claude/**`, `codex/**` AND
+  `integration` BUILD NO PREVIEW (`vercel.json` `git.deploymentEnabled`), AND
+  EVERY PUSH TO `main` DELETES THE AGENT REFS IT ALREADY CONTAINS
+  (`.github/workflows/prune.yml`, ledger 0376).** Vercel keeps the latest
+  preview of any branch that still exists, and that is billed storage. The
+  prune has no rule of its own: it cuts `contained_delete_gate` out of
+  `integrate.yml`, so keep that function between its markers.
 - **If a session ends with a branch still open, report the branch name and what
   is unfinished on it.** An unmerged branch is invisible work.
 - **A FINISHED `claude/**` BRANCH VANISHING ON ITS OWN IS CORRECT, NOT A

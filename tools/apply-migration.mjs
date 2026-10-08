@@ -557,6 +557,11 @@ export function renderAppliedRecord(r, url) {
 	lines.push(`file: ${r.migrationFile}`);
 	lines.push(`sha256: ${r.sha256}`);
 	lines.push(`applied_at: ${r.at}`);
+	// THE KIND OF RECORD, as a field (`docs/migrations-applied/README.md`):
+	// `record-applied.mjs` stamps `report`, this tool stamps `tool`, so the two
+	// are told apart by `grep` and never by tone. It was missing from 0231 to
+	// 0235, which reddened `tests/db/migrations-applied-record.test.ts` on `main`.
+	lines.push('source: tool');
 	lines.push(`ledger: "${r.ledgerId}"`);
 	lines.push(`branch: ${r.branch}`);
 	lines.push(`commit: ${r.commit}`);

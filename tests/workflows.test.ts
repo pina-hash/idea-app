@@ -404,7 +404,9 @@ const DELETE_REFSPEC = /(?:^|\s)['"]?:refs\/heads\/\S/;
  */
 const CUTTABLE_GATES = [
 	{ fn: 'ledger_gate', marker: 'ledger_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
-	{ fn: 'contained_delete_gate', marker: 'contained_delete_marker', harness: null },
+	// `prune.yml` cuts this one at RUNTIME and this file drives the same cut
+	// against throwaway repositories (ledger 0376), so it has a harness now.
+	{ fn: 'contained_delete_gate', marker: 'contained_delete_marker', harness: 'tests/workflows.test.ts' },
 	{ fn: 'target_push_gate', marker: 'target_push_marker', harness: null },
 	{ fn: 'auto_resolve', marker: 'auto_resolve_marker', harness: 'tools/integrate-gate-proof.sh' },
 	{ fn: 'ci_conclusion', marker: 'ci_gate_marker', harness: 'tools/integrate-gate-proof.sh' },
@@ -1504,7 +1506,10 @@ describe('the invariants these particular workflows have to hold', () => {
 			// set against that one directory before it runs. The look this map
 			// exists to force has been taken; the number is what it found.
 			'integrate.yml': 3,
-			'migrate.yml': 1
+			'migrate.yml': 1,
+			// `prune.yml`'s ONE push is the lease-pinned DELETE of an agent ref
+			// the cut `contained_delete_gate` said is contained (ledger 0376).
+			'prune.yml': 1
 		});
 	});
 
@@ -1587,9 +1592,10 @@ describe('the invariants these particular workflows have to hold', () => {
 
 		// And the harness is where the workflow says it is, still reading both
 		// marker names. A proof script that stopped naming them cut nothing.
-		// ONLY `ledger_gate` HAS ONE IN THE REPO; the other two rows carry
-		// `harness: null`, which integrate.yml's own comments say out loud at
-		// each site. Asserting that emptiness is what makes a harness ARRIVING
+		// `target_push_gate` IS THE ONE ROW STILL CARRYING `harness: null`,
+		// which integrate.yml's own comment says out loud at its site;
+		// `contained_delete_gate` gained one in ledger 0376 (the prune block at
+		// the end of this file). Asserting that emptiness is what makes a harness ARRIVING
 		// for one of them visible here rather than silent.
 		for (const g of CUTTABLE_GATES) {
 			if (g.harness === null) continue;
@@ -1605,7 +1611,7 @@ describe('the invariants these particular workflows have to hold', () => {
 		expect(
 			CUTTABLE_GATES.filter((g) => g.harness === null).map((g) => g.fn),
 			'a gate gained or lost its in-repo proof harness'
-		).toEqual(['contained_delete_gate', 'target_push_gate']);
+		).toEqual(['target_push_gate']);
 	});
 
 	it('the cross-branch gate is read once outside the loop, asked in the right place, and fails toward merging', () => {
@@ -2858,4 +2864,277 @@ describe('ledger 0335: the docs-only path runs every test file that reads a docu
 		expect(readsDocuments('/* see `docs/standards/REGISTER.md` */ const x = 1;')).toBe(false);
 		expect(readsDocuments("const x = 'no document here';")).toBe(false);
 	});
+});
+
+// ---------------------------------------------------------------------------
+// LEDGER 0376: AGENT BRANCHES BUILD NO VERCEL PREVIEW, AND MERGED ONES ARE
+// PRUNED ON EVERY PUSH TO `main`.
+//
+// Vercel keeps the latest preview of any branch that still exists, and that is
+// billed storage, so two things hold together: `vercel.json` stops agent
+// branches and `integration` building, and `prune.yml` deletes agent refs that
+// hold nothing. The delete rule is `integrate.yml`'s `contained_delete_gate`,
+// CUT at runtime -- so the proof below runs the prune step's own `run:` body,
+// verbatim, against throwaway repositories with the real `integrate.yml` copied
+// in, and the negative controls mutate exactly those characters.
+// ---------------------------------------------------------------------------
+
+const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url));
+
+/** `**` crosses slashes, `*` does not -- Vercel's branch-pattern reading. */
+const globMatches = (pattern: string, branch: string): boolean =>
+	new RegExp(
+		'^' +
+			pattern
+				.split('**')
+				.map((part) => part.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*'))
+				.join('.*') +
+			'$'
+	).test(branch);
+
+describe('vercel.json: agent branches and integration build no preview (ledger 0376)', () => {
+	const raw = readFileSync(join(REPO_ROOT, 'vercel.json'), 'utf8');
+	const config = JSON.parse(raw) as {
+		git?: { deploymentEnabled?: Record<string, boolean> };
+		ignoreCommand?: string;
+		redirects?: unknown[];
+	};
+	const enabled = config.git?.deploymentEnabled ?? {};
+
+	it('disables exactly claude/**, codex/** and integration', () => {
+		expect(enabled).toEqual({ 'claude/**': false, 'codex/**': false, integration: false });
+		// and the patterns really reach what they are meant to
+		expect(globMatches('claude/**', 'claude/inspiring-clarke-yp97hp')).toBe(true);
+		expect(globMatches('codex/**', 'codex/a/b')).toBe(true);
+	});
+
+	it('leaves main and lane/** deploying: no false pattern matches them', () => {
+		// The other direction. A lane's preview URL is how CLAUDE.md says a
+		// branch is verified before it merges, and `main` IS production.
+		const off = Object.entries(enabled)
+			.filter(([, v]) => v === false)
+			.map(([k]) => k);
+		expect(off.length).toBe(3); // positive control: the patterns were read
+		for (const branch of ['main', 'lane/feature', 'lane/a/b']) {
+			expect(off.filter((p) => globMatches(p, branch)), branch).toEqual([]);
+		}
+		// and the matcher itself can say yes, so the empty answers mean something
+		expect(globMatches('lane/**', 'lane/feature')).toBe(true);
+	});
+
+	it('carries no ignoreCommand, and the host redirect is untouched', () => {
+		// 30c0f403 removed it: it canceled real commits on main.
+		expect(config.ignoreCommand).toBeUndefined();
+		expect(raw).toContain('"has": [{ "type": "host", "value": "idea-app-sage.vercel.app" }]');
+		expect(config.redirects).toHaveLength(1);
+	});
+});
+
+describe('prune.yml: merged agent branches are deleted on a push to main (ledger 0376)', () => {
+	const pruneStep = (): RunBlock => {
+		const found = runBlocks('prune.yml').filter((b) => b.body.includes('prune_loop_marker:begin'));
+		expect(found, 'the prune step').toHaveLength(1);
+		return found[0];
+	};
+
+	it('runs on a push to main and nothing else, with contents: write only', () => {
+		expect(triggersOf('prune.yml')).toEqual(['push']);
+		expect(topLevelBlock('prune.yml', 'on')).toMatch(/^\s+branches: \[main\]$/m);
+		const perms = topLevelBlock('prune.yml', 'permissions')
+			.split('\n')
+			.filter((l) => l.trim() && !l.trim().startsWith('#'))
+			.map((l) => l.trim());
+		expect(perms).toEqual(['contents: write']);
+	});
+
+	it('cuts the one contained-delete rule from integrate.yml and carries no copy of it', () => {
+		const body = stripShellComments(pruneStep().body);
+		expect(body).toContain('/# contained_delete_marker:begin/,/# contained_delete_marker:end/p');
+		expect(body).toContain('WORKFLOW=.github/workflows/integrate.yml');
+		expect(body).toContain('declare -F contained_delete_gate');
+		// no second definition, and no second spelling of the prefix list
+		expect(body).not.toMatch(/contained_delete_gate\s*\(\)/);
+		expect(src('prune.yml')).not.toMatch(/claude\/ codex\//);
+		// the markers it cuts are really there
+		expect(cutRegion(src('integrate.yml'), 'contained_delete_marker')).toMatch(/contained_delete_gate\(\)/);
+	});
+
+	it('deletes only lease-pinned agent refs and verifies each with ls-remote', () => {
+		const body = stripShellComments(cutRegion(pruneStep().body, 'prune_loop_marker'));
+		const pushes = body.split('\n').filter((l) => /\bgit push\b/.test(l));
+		expect(pushes).toHaveLength(1);
+		expect(pushes[0]).toContain('--force-with-lease="refs/heads/$branch:$sha" ":refs/heads/$branch"');
+		expect(body).toContain('git ls-remote --exit-code --heads origin "refs/heads/$branch"');
+		expect(body).toContain('contained_delete_gate "$branch" "$sha" "$target"');
+		expect(body).toMatch(/case " \$AGENT_BRANCH_PREFIXES " in/);
+		expect(pruneStep().body).toContain('>>"$GITHUB_STEP_SUMMARY"');
+		expect(pruneStep().body).toContain('section standing');
+		expect(pruneStep().body).toContain('section deleted');
+	});
+
+	// --- the proof, against throwaway repositories ---------------------------
+
+	type Run = { status: number | null; stdout: string; summary: string; remote: string[] };
+
+	function proveOnce(integrateText: string, stepBody: string): Run {
+		const root = mkdtempSync(join(tmpdir(), 'prune-proof-'));
+		try {
+			const env = {
+				...process.env,
+				HOME: root,
+				GIT_CONFIG_NOSYSTEM: '1',
+				GIT_CONFIG_GLOBAL: join(root, 'gitconfig'),
+				GIT_AUTHOR_NAME: 't',
+				GIT_AUTHOR_EMAIL: 't@example.invalid',
+				GIT_COMMITTER_NAME: 't',
+				GIT_COMMITTER_EMAIL: 't@example.invalid'
+			};
+			writeFileSync(join(root, 'gitconfig'), '');
+			const sh = (cwd: string, script: string) => {
+				const r = spawnSync('bash', ['-c', `set -euo pipefail\n${script}`], { cwd, env, encoding: 'utf8' });
+				if (r.status !== 0) throw new Error(`fixture failed: ${script}\n${r.stderr}`);
+				return r.stdout;
+			};
+			sh(root, 'git init -q --bare -b main remote.git && git init -q -b main seed');
+			const seed = join(root, 'seed');
+			sh(
+				seed,
+				[
+					'c() { echo "$1" > f; git add f; git commit -q -m "$1"; }',
+					'c A; git branch lane/contained',
+					'c B',
+					'git checkout -q -b integration; c I',
+					'git branch codex/in-integration',
+					'git checkout -q main; c C; git branch claude/in-main',
+					'git checkout -q -b claude/outstanding main; c X',
+					'git checkout -q main',
+					'git remote add origin ../remote.git',
+					"git push -q origin 'refs/heads/*:refs/heads/*'"
+				].join('\n')
+			);
+			// The bare remote's HEAD names no branch, so nothing but the guards
+			// under test can stop `main` being deleted (a bare repository
+			// refuses to delete its CURRENT branch, which would otherwise let
+			// the negative control pass for a reason that is not the code's).
+			sh(root, 'git --git-dir=remote.git symbolic-ref HEAD refs/heads/no-such-branch');
+			sh(root, 'git clone -q --no-checkout remote.git runner 2>/dev/null');
+			const runner = join(root, 'runner');
+			sh(runner, "git fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*'");
+			sh(runner, 'mkdir -p .github/workflows');
+			writeFileSync(join(runner, '.github/workflows/integrate.yml'), integrateText);
+			const summary = join(root, 'summary.md');
+			writeFileSync(summary, '');
+			const r = spawnSync('bash', ['-e', '-c', stepBody], {
+				cwd: runner,
+				env: { ...env, RUNNER_TEMP: root, GITHUB_STEP_SUMMARY: summary },
+				encoding: 'utf8'
+			});
+			const remote = sh(root, "git ls-remote --heads remote.git | sed 's|.*refs/heads/||'")
+				.split('\n')
+				.filter(Boolean)
+				.sort();
+			return {
+				status: r.status,
+				stdout: r.stdout + r.stderr,
+				summary: readFileSync(summary, 'utf8'),
+				remote
+			};
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	}
+
+	const ALL = [
+		'claude/in-main',
+		'claude/outstanding',
+		'codex/in-integration',
+		'integration',
+		'lane/contained',
+		'main'
+	];
+	const KEPT = ['claude/outstanding', 'integration', 'lane/contained', 'main'];
+
+	/** Replace exactly once, so a control can never pass by mutating nothing. */
+	const mutate = (text: string, from: string, to: string): string => {
+		expect(text.split(from).length - 1, `mutation target not found once: ${from}`).toBe(1);
+		return text.replace(from, to);
+	};
+	const GATE_GUARD = `            case "$branch" in
+              main | integration | "$target") return 1 ;;
+            esac
+            case " $AGENT_BRANCH_PREFIXES " in
+              *" \${branch%%/*}/ "*) ;;
+              *) return 1 ;;
+            esac
+`;
+	const LOOP_GUARD = `              case " $AGENT_BRANCH_PREFIXES " in
+                *" \${branch%%/*}/ "*) ;;
+                *) continue ;;
+              esac
+`;
+
+	it('PROOF: a contained tip is deleted, an outstanding tip is kept, main, integration and a non-agent branch stand', () => {
+		const run = proveOnce(src('integrate.yml'), pruneStep().body);
+		expect(run.status, run.stdout).toBe(0);
+		// the fixture really had every ref, so the absences below are deletions
+		expect(run.remote.length).toBeLessThan(ALL.length);
+		expect(run.remote).toEqual(KEPT);
+		expect(run.stdout).toMatch(/^deleted\tclaude\/in-main\talready in main$/m);
+		expect(run.stdout).toMatch(/^deleted\tcodex\/in-integration\talready in integration$/m);
+		expect(run.stdout).toMatch(/^standing\tclaude\/outstanding\t/m);
+		expect(run.summary).toContain('### Deleted, and confirmed gone with git ls-remote (2)');
+		expect(run.summary).toContain('### Standing (1)');
+		expect(run.summary).toContain('`claude/outstanding`');
+	}, 60_000);
+
+	it('PROOF: the cut gate itself refuses main, integration and a non-agent branch whatever containment says', () => {
+		const gate = cutRegion(src('integrate.yml'), 'contained_delete_marker');
+		const script = `
+AGENT_BRANCH_PREFIXES='claude/ codex/'
+${gate}
+git() { return 0; }  # every ref "exists" and every tip is "contained"
+for b in main integration lane/x claude/y; do
+  if contained_delete_gate "$b" deadbeef integration >/dev/null; then echo "$b delete"; else echo "$b keep"; fi
+done`;
+		const r = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+		expect(r.stdout.trim().split('\n')).toEqual([
+			'main keep',
+			'integration keep',
+			'lane/x keep',
+			'claude/y delete' // positive control: containment alone does say delete
+		]);
+		// NEGATIVE CONTROL: the same calls with the guard removed delete all four.
+		const r2 = spawnSync('bash', ['-c', mutate(script, GATE_GUARD.trimEnd(), '')], { encoding: 'utf8' });
+		expect(r2.stdout.trim().split('\n')).toEqual([
+			'main delete',
+			'integration delete',
+			'lane/x delete',
+			'claude/y delete'
+		]);
+	});
+
+	it('NEGATIVE CONTROL: with both guards removed the proof fails, and each guard alone still holds', () => {
+		const integrateNoGuard = mutate(src('integrate.yml'), GATE_GUARD, '');
+		const loopNoGuard = mutate(pruneStep().body, LOOP_GUARD, '');
+
+		// Each layer alone keeps main, integration and the lane branch standing.
+		expect(proveOnce(integrateNoGuard, pruneStep().body).remote).toEqual(KEPT);
+		expect(proveOnce(src('integrate.yml'), loopNoGuard).remote).toEqual(KEPT);
+
+		// Both removed: the proof's own expectation is violated -- main,
+		// integration and the non-agent branch are deleted from the remote.
+		const broken = proveOnce(integrateNoGuard, loopNoGuard);
+		expect(broken.remote).not.toEqual(KEPT);
+		expect(broken.remote).not.toContain('main');
+		expect(broken.remote).not.toContain('lane/contained');
+		expect(broken.remote).toEqual(['claude/outstanding']);
+	}, 120_000);
+
+	it('NEGATIVE CONTROL: a cut that finds no markers fails the job and deletes nothing', () => {
+		const renamed = src('integrate.yml').replaceAll('contained_delete_marker:', 'renamed_marker:');
+		const run = proveOnce(renamed, pruneStep().body);
+		expect(run.status).not.toBe(0);
+		expect(run.stdout).toContain('could not cut contained_delete_gate');
+		expect(run.remote).toEqual(ALL);
+	}, 60_000);
 });

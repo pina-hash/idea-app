@@ -713,20 +713,17 @@ jobs:
           # testing a private copy of the rule. Do not rename the markers and do
           # not move the body out from between them.
           #
-          # THE HARNESS THAT CUTS THESE MARKERS IS NOT IN THE REPO YET, AND THAT
-          # IS A GAP RATHER THAN A DESIGN. Fourteen assertions were executed
-          # against throwaway `mktemp -d` repositories when this landed -- a
-          # contained tip deleted, a tip only `origin/main` contains deleted, an
-          # outstanding tip left, a red branch left (by the ORDERING above, which
-          # is asserted by line number: the gate alone would say delete, and the
-          # loop never asks it), and `main`, `integration`, the target by name
-          # and a non-agent branch all refused whatever the containment
-          # answer -- plus the single-delete-loop shape below, and a negative
-          # control confirming the cut refuses to run, loudly, when the markers
-          # are renamed. That harness belongs beside
-          # `tools/integrate-gate-proof.sh`, which does exactly this for
-          # `ledger_gate`; the bundle that wrote this owned this file and not
-          # `tools/`, so it is named here rather than smuggled in.
+          # THE HARNESS THAT CUTS THESE MARKERS IS IN THE REPO NOW, AND SO IS A
+          # SECOND CALLER (ledger 0376). `.github/workflows/prune.yml` cuts this
+          # exact text at RUNTIME and sources it, to delete merged agent
+          # branches on every push to `main`, so this is the ONE contained-delete
+          # rule for both workflows. `tests/workflows.test.ts` runs that step's
+          # own body against throwaway `mktemp -d` repositories with this file
+          # copied in: a contained tip deleted, an outstanding tip left, `main`,
+          # `integration` and a non-agent branch refused, and negative controls
+          # that strip this function's guard, the loop's, both, and rename the
+          # markers. Renaming the markers now FAILS the prune job, loudly, before
+          # it deletes anything.
           # contained_delete_marker:begin
           contained_delete_gate() {
             # $1 branch name, $2 the tip sha this run measured, $3 the target
