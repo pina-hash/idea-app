@@ -23,7 +23,8 @@
 	import FoundryReviewNav from '$lib/foundry/FoundryReviewNav.svelte';
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 	import { rejectReasonLabel } from '$lib/foundry/review';
-	import type { FoundryReviewTransports } from '$lib/foundry/transports';
+	import { majorRefusalSentence } from '$lib/foundry/major';
+	import { foundryRpcOutcome, type FoundryReviewTransports } from '$lib/foundry/transports';
 	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
 	import { foundryCoverUrl } from '$lib/foundry/covers';
 
@@ -197,6 +198,24 @@
 			if (error) return { ok: false, message: error.message };
 			await invalidateAll();
 			return { ok: true };
+		},
+
+		/**
+		 * A MAJOR RELEASE, and its reverse (0233). One RPC with a boolean, admin
+		 * only in its own body, straight from the browser client like the shelf
+		 * above. `foundryRpcOutcome` turns a structured refusal and a missing
+		 * function (`PGRST202`, a deployment without 0233) into a reason, and
+		 * `majorRefusalSentence` is the one place those become words.
+		 */
+		async setMajor(appId, major) {
+			const { data: r, error } = await data.supabase.rpc('foundry_set_app_major', {
+				p_app_id: appId,
+				p_major: major
+			});
+			const out = foundryRpcOutcome(r, error);
+			if (!out.ok) return { ok: false, message: majorRefusalSentence(out) };
+			await invalidateAll();
+			return { ok: true, changed: out.row.changed === true };
 		},
 
 		/**

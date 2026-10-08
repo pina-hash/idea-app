@@ -39,6 +39,7 @@
 	 *      name never depends on a visual state.
 	 */
 	import { foundryCoverFailed, foundryCoverMeasured } from './covers.ts';
+	import FoundryMajorMark from './FoundryMajorMark.svelte';
 	import { foundryGeneratedHue } from './mosaic.ts';
 	import { foundryAuthorName } from './surface.ts';
 	import type { FoundryAuthor } from './transports.ts';
@@ -66,6 +67,7 @@
 		selected = false,
 		coverUrl = (path: string) => path,
 		plays = '',
+		major = false,
 		onselect
 	}: {
 		app: FoundryCardApp;
@@ -80,6 +82,13 @@
 		 * that knows which ranking is in force.
 		 */
 		plays?: string;
+		/**
+		 * THIS APP IS A MAJOR RELEASE (0233), decided by the CALLER from
+		 * `isMajorRelease` rather than read here, so the card holds no opinion
+		 * about where a badge belongs: the gallery's Major releases section draws
+		 * its cards without one, because its heading already says it.
+		 */
+		major?: boolean;
 		/** Absent means the link simply navigates, which is what a preview wants. */
 		onselect?: (slug: string) => void;
 	} = $props();
@@ -97,6 +106,17 @@
 	 */
 	const made = $derived(!src && !app.cover_path);
 	const author = $derived(foundryAuthorName(app));
+
+	/**
+	 * THE LINK'S NAME CARRIES THE BADGE'S WORD, because `aria-label` overrides
+	 * the link's contents: a badge drawn inside the card and absent from the
+	 * label is a fact a screen reader never hears.
+	 */
+	const label = $derived(
+		[app.title, author ? `by ${author}` : null, major ? 'major release' : null]
+			.filter(Boolean)
+			.join(', ')
+	);
 </script>
 
 <!--
@@ -119,7 +139,7 @@
 	data-app-slug={app.slug}
 	data-fdy-card
 	data-testid="fdy-card"
-	aria-label={author ? `${app.title}, by ${author}` : app.title}
+	aria-label={label}
 	style={made ? `--fdy-hue: ${foundryGeneratedHue(app.id)}` : undefined}
 	onclick={(e) => {
 		if (!onselect) return;
@@ -159,6 +179,17 @@
 		-->
 		<span class="fdy-card-shot fdy-card-made" aria-hidden="true">
 			<span class="fdy-card-made-name">{app.title}</span>
+		</span>
+	{/if}
+
+	{#if major}
+		<!--
+			THE MAJOR RELEASE BADGE, top left and PERMANENT at every width: it is
+			not the name plate, so the hover rule below never hides it. It takes
+			no pointer events, so the whole card stays one tap target.
+		-->
+		<span class="fdy-card-major" data-testid="fdy-card-major">
+			<FoundryMajorMark tone="cover" />
 		</span>
 	{/if}
 
@@ -389,6 +420,14 @@
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--fdy-cover-ink-2);
+	}
+
+	.fdy-card-major {
+		position: absolute;
+		top: 0.5rem;
+		left: 0.5rem;
+		max-width: calc(100% - 1rem);
+		pointer-events: none;
 	}
 
 	@media (hover: hover) and (min-width: 48rem) {

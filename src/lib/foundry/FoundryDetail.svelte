@@ -24,7 +24,9 @@
 	import { env } from '$env/dynamic/public';
 
 	import AppStage from './AppStage.svelte';
+	import FoundryMajorMark from './FoundryMajorMark.svelte';
 	import FoundryShare from './FoundryShare.svelte';
+	import { isMajorRelease } from './major.ts';
 	import { foundryAuthorClass, foundryAuthorName } from './surface.ts';
 	import { foundryCoverFailed } from './covers.ts';
 	import type { FoundryApp, FoundryGalleryTransports } from './transports.ts';
@@ -81,6 +83,18 @@
 <article class="fdy-detail">
 	<header class="fdy-detail-head">
 		<h2 class="fdy-detail-title">{app.title}</h2>
+		<!--
+			A MAJOR RELEASE SAYS SO UNDER ITS TITLE, FOR EVERYONE. This is not a
+			staff branch: it is a fact about the app that the gallery shows every
+			reader, and the review queue mounts this same file, so a reviewer sees
+			exactly what a student does. The control that sets it is the
+			inspector's, beside this component and never in it.
+		-->
+		{#if isMajorRelease(app)}
+			<p class="fdy-detail-major" data-testid="foundry-detail-major">
+				<FoundryMajorMark tone="room" />
+			</p>
+		{/if}
 		{#if app.tagline}<p class="fdy-detail-tagline">{app.tagline}</p>{/if}
 		<!--
 			THE AUTHOR LINE, AND EVERY PART OF IT IS CONDITIONAL SEPARATELY.
@@ -206,6 +220,10 @@
 		font-family: var(--font-display);
 		font-size: 1.5rem;
 		color: var(--text-1, var(--white));
+	}
+
+	.fdy-detail-major {
+		margin: 0;
 	}
 
 	.fdy-detail-tagline {

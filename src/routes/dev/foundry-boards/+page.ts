@@ -24,6 +24,13 @@
  * a second route, so the apps and the component are byte-identical between the
  * two and only the counts differ.
  *
+ * `?fixture=major` IS THE SAME NINE APPS WITH TWO OF THEM MARKED AS MAJOR
+ * RELEASES (report 927b1c69): Maze Maker and Tide Pool, chosen because neither
+ * wins every order, so the section visibly follows the one sort control. The
+ * page passes the house cards (GREENLINE and VANGUARD) under this fixture only,
+ * so the section holds four cards and every other spec on this harness reads a
+ * gallery with no section, exactly as before.
+ *
  * THE SEARCH CASES ARE IN THE DATA rather than in the drive:
  *
  *   "Cookie Clicker"  finds COOKIE PRESS on the shared token alone, which is
@@ -208,6 +215,8 @@ const SEEDS: Seed[] = [
 export const load: PageLoad = ({ url }) => {
 	if (!dev) error(404, 'Not found');
 	const unplayed = url.searchParams.get('fixture') === 'unplayed';
+	const major = url.searchParams.get('fixture') === 'major';
+	const MARKED = new Set(['maze-maker', 'tide-pool']);
 
 	const apps: FoundryAppSummary[] = SEEDS.map((s, i) => ({
 		id: `app-${i}`,
@@ -228,7 +237,12 @@ export const load: PageLoad = ({ url }) => {
 		// The list arrives in `foundry_list_apps`'s own order, `updated_at desc`,
 		// which is what "Recent" means and what every tie falls back to.
 		updated_at: new Date(CLOCK - s.age * 86_400_000).toISOString(),
-		created_at: new Date(CLOCK - s.age * 86_400_000).toISOString()
+		created_at: new Date(CLOCK - s.age * 86_400_000).toISOString(),
+		// Only the major fixture carries the 0233 key, so every other fixture is
+		// the payload it always was.
+		...(major
+			? { major_release_at: MARKED.has(s.slug) ? new Date(CLOCK - 86_400_000).toISOString() : null }
+			: {})
 	})).sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
 
 	const playCounts: FoundryPlayCounts = {};
@@ -244,5 +258,5 @@ export const load: PageLoad = ({ url }) => {
 				};
 	}
 
-	return { apps, playCounts, unplayed };
+	return { apps, playCounts, unplayed, major };
 };

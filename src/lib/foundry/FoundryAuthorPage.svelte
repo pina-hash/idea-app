@@ -33,6 +33,7 @@
 	import Avatar from '$lib/Avatar.svelte';
 	import PathwayChip from '$lib/PathwayChip.svelte';
 	import FoundryCard from './FoundryCard.svelte';
+	import { isMajorRelease } from './major.ts';
 	import { foundryAuthorClass, foundryAuthorName } from './surface.ts';
 	import { playCountLabel, type FoundryPlayCounts } from './telemetry.ts';
 	import type { FoundryAppSummary, FoundryAuthorCard } from './transports.ts';
@@ -155,6 +156,7 @@
 					href="/foundry?app={app.slug}"
 					{coverUrl}
 					plays={plays ?? ''}
+					major={isMajorRelease(app)}
 				/>
 			</li>
 		{/each}

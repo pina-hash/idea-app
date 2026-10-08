@@ -16,6 +16,8 @@
 	 * for real, with the real headers and the real sandbox. Leave it unset and
 	 * there is no launch control at all, which is the shipping behaviour.
 	 */
+	import { page } from '$app/state';
+
 	import '$lib/foundry/forge.css';
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
 	import FoundryShell from '$lib/foundry/FoundryShell.svelte';
@@ -32,6 +34,24 @@
 	} from '$lib/foundry/transports';
 
 	let { data } = $props();
+
+	/* `?theme=space-white`, the /dev/foundry-room harness's own effect, so the
+	   major release mark's room tone (the detail pane and the inspector) can be
+	   measured on the light twin. A harness holds no session, so ThemeRoot
+	   decides "none"; the attribute is written here, re-written once after
+	   ThemeRoot's first effect, and removed on teardown. */
+	const themeParam = page.url.searchParams.get('theme');
+	$effect(() => {
+		if (themeParam !== 'space-white') return;
+		const el = document.documentElement;
+		const apply = () => el.setAttribute('data-theme', 'space-white');
+		apply();
+		const t = setTimeout(apply, 0);
+		return () => {
+			clearTimeout(t);
+			el.removeAttribute('data-theme');
+		};
+	});
 
 	const now = new Date('2026-08-24T12:00:00Z');
 
@@ -54,6 +74,35 @@
 	 * proving the panel reflects a write.
 	 */
 	let metaEdits = $state<Record<string, Partial<Record<string, string>>>>({});
+	/**
+	 * MAJOR RELEASES, DRIVEN FOR REAL (0233). Pressing Mark in the review half
+	 * has to put the app into the GALLERY half's Major releases section above,
+	 * and the detail panes on both halves have to say so, or the harness would
+	 * prove the button calls something without proving the page reflects it.
+	 *
+	 * THE KEY IS ADDED TO EVERY APP, null unless marked. The fixture predates
+	 * 0233 and carries no key, which the inspector correctly reads as "this
+	 * deployment cannot tell" -- so without this the control would never be
+	 * offered here at all.
+	 */
+	let majors = $state<Record<string, string | null>>({});
+	const withMajor = <T extends { id: string }>(a: T): T & { major_release_at: string | null } => ({
+		...a,
+		major_release_at: majors[a.id] ?? null
+	});
+
+	/**
+	 * THE ROUTE'S RE-READ, MIRRORED. On /foundry/review every write ends in
+	 * `invalidateAll()`, inside the transport AND again through `onDecided`,
+	 * and a reload hands the inspector a NEW app object and NEW version
+	 * objects with the SAME ids, AFTER its acknowledgement was set. A harness
+	 * with no `onDecided` never produced that second hand-over, which is how a
+	 * "Marked as a major release" that vanished one page load later passed a
+	 * browser spec. So the review half's `onDecided` bumps `reviewReads`, and
+	 * `reviewSelected` reads it and copies the versions too, the way a fresh
+	 * payload would.
+	 */
+	let reviewReads = $state(0);
 
 	/**
 	 * TELEMETRY FIXTURES FOR THE THREE MOUNTED APPS, keyed off the load's own
@@ -122,20 +171,29 @@
 		data.apps
 			.filter((a) => !removed.includes(a.id))
 			.map((a) => (a.id in hidden ? { ...a, hidden_at: hidden[a.id] } : a))
+			.map(withMajor)
 	);
+
+	/** The gallery half's list, with the same major overlay the review half reads. */
+	const galleryApps = $derived(data.apps.map(withMajor));
 
 	/** The shell's Review tab count, from the same arithmetic the queue uses. */
 	const pending = $derived(queueOrder(liveApps).length);
 
-	const gallerySelected = $derived(gallerySlug ? (data.details[gallerySlug] ?? null) : null);
+	const gallerySelected = $derived.by(() => {
+		const detail = gallerySlug ? (data.details[gallerySlug] ?? null) : null;
+		return detail ? withMajor(detail) : null;
+	});
 	const reviewSelected = $derived.by(() => {
+		void reviewReads;
 		if (!reviewSlug) return null;
 		const detail = data.details[reviewSlug] ?? null;
 		if (!detail || removed.includes(detail.id)) return null;
 		const withHidden =
 			detail.id in hidden ? { ...detail, hidden_at: hidden[detail.id] } : detail;
 		const edits = metaEdits[detail.id];
-		return edits ? { ...withHidden, ...edits } : withHidden;
+		const read = withMajor(edits ? { ...withHidden, ...edits } : withHidden);
+		return { ...read, versions: read.versions.map((v) => ({ ...v })) };
 	});
 
 	const galleryTransports: FoundryGalleryTransports = {};
@@ -205,6 +263,21 @@
 			hidden = { ...hidden, [appId]: hide ? '2026-08-24T12:00:00Z' : null };
 			return { ok: true };
 		},
+		/**
+		 * `foundry_set_app_major`, with the RPC's own rules mirrored so the
+		 * refusal and the already-in-that-state answers are reachable here too.
+		 */
+		async setMajor(appId, major) {
+			lastDecision = JSON.stringify({ setMajor: appId, major });
+			const was = majors[appId] ?? null;
+			if (major && was) return { ok: true, changed: false };
+			if (!major && !was) return { ok: true, changed: false };
+			if (major && hidden[appId]) {
+				return { ok: false, message: 'This app is hidden. Restore it before making it a major release.' };
+			}
+			majors = { ...majors, [appId]: major ? '2026-08-24T12:00:00Z' : null };
+			return { ok: true, changed: true };
+		},
 		async deleteApp(appId) {
 			lastDecision = JSON.stringify({ deleted: appId });
 			removed = [...removed, appId];
@@ -265,6 +338,10 @@
 		<p class="note">
 			Last decision handed to the transport: <code data-testid="last-decision">{lastDecision}</code>
 		</p>
+		<p class="note">
+			Review half re-reads after a write (the route's <code>invalidateAll()</code>):
+			<code data-testid="review-reads">{reviewReads}</code>
+		</p>
 	</header>
 
 	<!--
@@ -317,7 +394,7 @@
 		     correctly removes the frame AND the share link -- which would leave
 		     neither to drive. A literal here is what makes both real. -->
 		<FoundryGallery
-			apps={data.apps}
+			apps={galleryApps}
 			selected={gallerySelected}
 			transports={galleryTransports}
 			onSelect={(slug) => (gallerySlug = slug)}
@@ -346,6 +423,7 @@
 			selected={reviewSelected}
 			transports={reviewTransports}
 			onSelect={(slug) => (reviewSlug = slug)}
+			onDecided={() => (reviewReads += 1)}
 			onDeleted={() => (reviewSlug = null)}
 			{now}
 		/>

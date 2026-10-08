@@ -43,7 +43,17 @@
 	import { untrack } from 'svelte';
 	import { foundryDownloadUrl, foundryPreviewUrl } from './bundle-url.ts';
 	import ForgeStatus from './ForgeStatus.svelte';
+	import FoundryMajorMark from './FoundryMajorMark.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
+	import {
+		FOUNDRY_MAJOR_NOT_READY,
+		FOUNDRY_MAJOR_OFFER,
+		isMajorRelease,
+		majorAckSentence,
+		majorMarkBlocker,
+		majorRefusalSentence,
+		majorReleaseReady
+	} from './major.ts';
 	import { formatBytes } from './preflight.ts';
 	import { foundryCoverFailed } from './covers.ts';
 	import {
@@ -133,9 +143,21 @@
 	 * So the CALL is untracked, which is what this comment previously claimed
 	 * was already happening while no `untrack` was anywhere in the body. See the
 	 * injected-callback rule in CLAUDE.md.
+	 *
+	 * READING `version.id` ALSO READS THE `version` PROP, so the effect re-runs
+	 * whenever the object is replaced -- and every write on the review route
+	 * ends in `invalidateAll()`, which hands this component a NEW version object
+	 * with the SAME id. Unguarded, pressing Mark as a major release (or Hide, or
+	 * Save) closed the source file the reviewer was reading and threw away a
+	 * half-typed review note. So the reset runs only when the id really moved,
+	 * compared against `filesFor`, a plain variable on purpose: it is
+	 * bookkeeping for this effect, never something the page draws.
 	 */
+	let filesFor: string | null = null;
 	$effect(() => {
 		const id = version.id;
+		if (id === filesFor) return;
+		filesFor = id;
 		files = [];
 		filesProblem = null;
 		openPath = null;
@@ -315,14 +337,28 @@
 	 * A CHANGE OF APP CLEARS A HALF-TYPED EDIT. The queue keys this component on
 	 * the slug so it normally remounts, but the reset is stated rather than
 	 * rested on: a draft carried into another student's app is an edit made to
-	 * the wrong work. Only `app.id` is read tracked; the body only writes.
+	 * the wrong work.
+	 *
+	 * A CHANGE OF APP, NEVER A RE-READ OF THE SAME ONE. Reading `app.id` also
+	 * reads the `app` prop, and every write on the review route ends in
+	 * `invalidateAll()`, which hands this component a NEW object with the SAME
+	 * id -- after the acknowledgement has been set. Keyed on the object, this
+	 * reset wiped "Marked as a major release" and "Saved at 3:47." about one
+	 * page load after they appeared (CLAUDE.md: a success message set before a
+	 * refresh that clears it flashes and vanishes). `editsFor` is a plain
+	 * variable on purpose: it is bookkeeping for this effect and is never drawn.
 	 */
+	let editsFor: string | null = null;
 	$effect(() => {
-		void app.id;
+		const id = app.id;
+		if (id === editsFor) return;
+		editsFor = id;
 		editing = null;
 		draft = '';
 		metaProblem = null;
 		metaNote = null;
+		majorProblem = null;
+		majorNote = null;
 	});
 
 	/** The app is on the gallery, so an edit is visible the moment it lands. */
@@ -393,6 +429,41 @@
 			return transports.saveField!(app.id, 'cover_path', up.path);
 		}, 'Cover replaced');
 		if (ok) onDecided?.();
+	}
+
+	/* ------------------------------------------------------- a major release
+	 *
+	 * AN ADMIN'S CURATION OF THIS APP (0233), and the one control for it. One
+	 * press each way: marking is not destructive and is undone by the same
+	 * section, so it does not arm the way Hide and Delete do. The
+	 * acknowledgement is the LANDED write, and says when nothing changed.
+	 */
+	let majorBusy = $state(false);
+	let majorProblem = $state<string | null>(null);
+	let majorNote = $state<string | null>(null);
+
+	async function setMajor(major: boolean) {
+		if (!transports.setMajor || majorBusy) return;
+		majorBusy = true;
+		majorProblem = null;
+		majorNote = null;
+		try {
+			const r = await transports.setMajor(app.id, major);
+			if (!r.ok) {
+				majorProblem = r.message;
+				return;
+			}
+			majorNote = majorAckSentence(major, r.changed);
+			// On /foundry/review the transport has already re-read and this is a
+			// second `invalidateAll()`, kept DELIBERATELY like every other write
+			// here: a mount whose transports do not re-read relies on it, and the
+			// reset above is keyed on the id, so the note survives it.
+			onDecided?.();
+		} catch (e) {
+			majorProblem = e instanceof Error ? e.message : 'That did not go through. Try again.';
+		} finally {
+			majorBusy = false;
+		}
 	}
 
 	function stamp(iso: string | null): string {
@@ -755,6 +826,65 @@
 							/>
 						</label>
 					</div>
+				{/if}
+			{/if}
+		</section>
+	{/if}
+
+	{#if transports.setMajor}
+		<!--
+			A MAJOR RELEASE: ADMIN CURATION OF THE APP, so it sits with the other
+			app-level sections below the decision, never in it. Absence of the
+			transport removes the whole section.
+
+			EVERY STATE SAYS SOMETHING. A deployment that cannot tell (no key in
+			the payload) says so; an app that cannot be marked says why where the
+			button would have been; a control whose only answer is a refusal is
+			never offered.
+		-->
+		<section class="fdy-insp-section fdy-major-sec" data-testid="foundry-major-release">
+			<h4>Major release</h4>
+			{#if !majorReleaseReady(app)}
+				<p class="fdy-insp-note" data-testid="foundry-major-not-ready">{FOUNDRY_MAJOR_NOT_READY}</p>
+			{:else}
+				<!--
+					ALWAYS MOUNTED, AND ONLY ITS TEXT MOVES: several screen readers
+					announce only a live region they were already watching, so one
+					inserted together with its sentence can go unheard. Empty, it is
+					taken out of the column's flow (see `.fdy-major-said:empty`) and
+					costs no gap.
+				-->
+				<p class="fdy-major-said" role="status" data-testid="foundry-major-said">{majorNote ?? ''}</p>
+				{#if majorProblem}<p class="fdy-insp-problem" role="alert">{majorProblem}</p>{/if}
+				{#if isMajorRelease(app)}
+					<p class="fdy-major-state">
+						<FoundryMajorMark tone="room" />
+						<span class="fdy-insp-note">since {stamp(app.major_release_at ?? null)}</span>
+					</p>
+					<button
+						type="button"
+						class="btn tap-44"
+						disabled={majorBusy}
+						data-testid="foundry-major-remove"
+						onclick={() => setMajor(false)}
+					>
+						{majorBusy ? 'Saving...' : 'Remove major release'}
+					</button>
+				{:else if majorMarkBlocker(app) === null}
+					<p class="fdy-insp-note">{FOUNDRY_MAJOR_OFFER}</p>
+					<button
+						type="button"
+						class="btn tap-44"
+						disabled={majorBusy}
+						data-testid="foundry-major-mark"
+						onclick={() => setMajor(true)}
+					>
+						{majorBusy ? 'Saving...' : 'Mark as a major release'}
+					</button>
+				{:else}
+					<p class="fdy-insp-note" data-testid="foundry-major-blocked">
+						{majorRefusalSentence({ reason: majorMarkBlocker(app) ?? undefined })}
+					</p>
 				{/if}
 			{/if}
 		</section>
@@ -1176,6 +1306,36 @@
 		line-height: 1.5;
 		color: var(--text-2, var(--dim));
 		max-width: 62ch;
+	}
+
+	/* ----------------------------------------------------- a major release */
+
+	.fdy-major-sec {
+		align-items: flex-start;
+	}
+
+	.fdy-major-state {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 0.5rem;
+		margin: 0;
+	}
+
+	.fdy-major-said {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		line-height: 1.5;
+		color: var(--text-2, var(--dim));
+		max-width: 62ch;
+	}
+
+	/* The live region at rest: out of the flex column's flow, so it takes no
+	   gap, and never `display: none`, which would take it out of the
+	   accessibility tree a screen reader is watching. */
+	.fdy-major-said:empty {
+		position: absolute;
 	}
 
 	/* ----------------------------------------------------- hide beside delete */

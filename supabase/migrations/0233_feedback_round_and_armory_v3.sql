@@ -1,3 +1,29 @@
+-- ---------------------------------------------------------------------------
+-- 0233  THE 2026-10-07 FEEDBACK ROUND AND IDEA ARMORY v0.3 (ledger 0368).
+--
+-- ONE additive migration in six parts, each between its own BEGIN and END
+-- markers and each closed by its own self-check over its own objects by name:
+--
+--   armory-reports    the Windows app's feedback notes and incident reports
+--   armory-core       Armory v0.3: admin Force check in, Delete forever with
+--                     the orphaned-storage queue, team status and heartbeat,
+--                     batch locks, project-row-first lock order, the website
+--                     read predicate armory_can_view, people search, summaries
+--   feedback-edits    an admin's numbered corrections of a filed report
+--   student-overview  one student in one class, for a manager of that class
+--   quick-posts       4000-character notices that carry pictures and files
+--   foundry-major     an admin marks a Foundry app a major release
+--
+-- The first object this file creates is the armory_app_feedback table, and
+-- that is deliberate: the deploy probe derives 0233's applied-state check from
+-- the first object, and it must be one no earlier migration made.
+--
+-- migrate.yml applies this file on the push that deploys the client, so every
+-- surface that reads a new column or function degrades on PGRST202, 42883 and
+-- 42703 until it has applied. Undo, before any client depends on it: each part
+-- names what undoes it in its own header.
+-- ---------------------------------------------------------------------------
+
 -- ===== PART armory-reports BEGIN =====
 -- ---------------------------------------------------------------------------
 -- 0233 PART armory-reports: THE WINDOWS APP'S OWN FEEDBACK AND INCIDENT
@@ -425,6 +451,7 @@ begin
 end
 $ar$;
 -- ===== PART armory-reports END =====
+
 -- ===== PART armory-core BEGIN =====
 -- ---------------------------------------------------------------------------
 -- 0233 PART armory-core: IDEA ARMORY v0.3 ON THE SERVER. Items 1, 2, 3, 5 and
@@ -1840,3 +1867,1559 @@ begin
 end
 $ac$;
 -- ===== PART armory-core END =====
+
+-- ===== PART feedback-edits BEGIN =====
+-- ===========================================================================
+-- PART 30. FEEDBACK EDITS (report d362bfb3, Mr. Pina, 2026-10-07; decision D2
+-- of the round: site admins only; kind, message and what-you-tried; every edit
+-- a numbered revision; the reporter's original stays and is one tap away).
+--
+-- WHAT THIS DOES NOT DO IS THE POINT OF IT. 0053 made app_feedback an
+-- append-only log on purpose ("a truer record than a silently edited one"),
+-- and CLAUDE.md lists it among the tables where editing INSERTS a superseding
+-- row. So the reporter's own columns (kind, message, tried, meta) are never
+-- updated by anything here. A correction is a ROW in app_feedback_edits keyed
+-- (feedback_id, revision); the latest one is projected beside the original by
+-- the console read, and the console, the exports and the round digest read the
+-- latest through one reader each (rowMessage, rowKind and rowTried in
+-- src/lib/feedback/console.ts).
+--
+-- THE CHECKS USE THE REGEX OPERATOR AND NO FUNCTION, so the CHECK-runs-as-the-
+-- writing-role trap (0131) cannot open: there is no predicate to grant.
+--
+-- WHAT UNDOES IT, by hand in the SQL editor: drop the function
+-- public.app_feedback_edit(uuid, text, text, text, integer) and the table
+-- public.app_feedback_edits, then re-paste 0230's definition of the wide
+-- app_feedback_admin_list(text, integer, text) to put the list back without
+-- the edit key. No existing row is changed by this part.
+-- ===========================================================================
+
+create table if not exists public.app_feedback_edits (
+	feedback_id uuid not null references public.app_feedback (id) on delete cascade,
+	revision integer not null,
+	kind text not null,
+	message text not null,
+	tried text,
+	edited_by text not null,
+	edited_at timestamptz not null default now(),
+	constraint app_feedback_edits_pkey primary key (feedback_id, revision),
+	constraint app_feedback_edits_revision_positive check (revision >= 1),
+	constraint app_feedback_edits_kind check (kind in ('bug', 'idea', 'praise', 'other')),
+	-- A blank of newlines and tabs is empty to the admin who typed it, which is
+	-- why this is the regex and not a btrim length (CLAUDE.md, SQL traps).
+	constraint app_feedback_edits_message_shape check (message ~ '\S' and char_length(message) <= 2000),
+	constraint app_feedback_edits_tried_shape check (tried is null or (tried ~ '\S' and char_length(tried) <= 1000)),
+	constraint app_feedback_edits_editor check (edited_by <> '')
+);
+
+-- NO POLICY AND NO CLIENT GRANT. Nothing reads this table but the definer
+-- console read below and nothing writes it but app_feedback_edit, so either
+-- missing piece denies on its own.
+alter table public.app_feedback_edits enable row level security;
+revoke all on table public.app_feedback_edits from public, anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- The one writer. Structured refusals for what an admin can fix in the form;
+-- raises for misuse (no session, not an admin, no such report).
+-- ---------------------------------------------------------------------------
+create or replace function public.app_feedback_edit(
+	p_id uuid,
+	p_kind text,
+	p_message text,
+	p_tried text,
+	p_base_revision integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $fe$
+declare
+	v_kind text := lower(public._app_feedback_trim(p_kind));
+	v_message text := public._app_feedback_trim(p_message);
+	v_tried text := nullif(public._app_feedback_trim(p_tried), '');
+	v_row public.app_feedback%rowtype;
+	v_rev integer;
+	v_cur_kind text;
+	v_cur_message text;
+	v_cur_tried text;
+begin
+	if (select auth.uid()) is null then
+		raise exception 'You must be signed in.';
+	end if;
+	if not public.is_admin() then
+		raise exception 'Only a site admin can edit feedback.';
+	end if;
+
+	-- THE ROW LOCK SERIALIZES TWO ADMINS EDITING ONE REPORT, so the revision
+	-- read below is the one the insert follows. The primary key is the backstop.
+	select * into v_row from public.app_feedback f where f.id = p_id for update;
+	if not found then
+		raise exception 'That feedback does not exist.';
+	end if;
+
+	if v_kind not in ('bug', 'idea', 'praise', 'other') then
+		return jsonb_build_object('ok', false, 'reason', 'kind');
+	end if;
+	if v_message = '' then
+		return jsonb_build_object('ok', false, 'reason', 'empty');
+	end if;
+	if char_length(v_message) > public._app_feedback_message_max() then
+		return jsonb_build_object('ok', false, 'reason', 'too_long', 'max', public._app_feedback_message_max());
+	end if;
+	if v_tried is not null and char_length(v_tried) > public._app_feedback_tried_max() then
+		return jsonb_build_object('ok', false, 'reason', 'tried_too_long', 'max', public._app_feedback_tried_max());
+	end if;
+
+	-- WHAT THE REPORT SAYS NOW: the latest revision, else the reporter's own
+	-- words at revision 0, read the way the console reads them (the column,
+	-- then the meta blob a pre-0170 path left the answer in).
+	select e.revision, e.kind, e.message, e.tried
+	into v_rev, v_cur_kind, v_cur_message, v_cur_tried
+	from public.app_feedback_edits e
+	where e.feedback_id = p_id
+	order by e.revision desc
+	limit 1;
+	if not found then
+		v_rev := 0;
+		v_cur_kind := v_row.kind;
+		v_cur_message := public._app_feedback_trim(v_row.message);
+		v_cur_tried := coalesce(
+			nullif(public._app_feedback_trim(v_row.tried), ''),
+			nullif(public._app_feedback_trim(v_row.meta ->> 'tried'), '')
+		);
+	end if;
+
+	-- A SAVE THAT CHANGES NOTHING STAMPS NOTHING, whatever revision the form
+	-- was opened on. Asked BEFORE the staleness test on purpose: a retry of a
+	-- save whose answer was lost on the way back finds its own words already
+	-- there and is told so, rather than being told somebody else got in first.
+	if v_kind is not distinct from v_cur_kind
+		and v_message is not distinct from v_cur_message
+		and v_tried is not distinct from v_cur_tried then
+		return jsonb_build_object('ok', true, 'changed', false, 'id', p_id, 'revision', v_rev);
+	end if;
+
+	-- SOMEBODY ELSE SAVED FIRST. The form was opened on an older revision, so
+	-- writing over it would discard their correction without anyone seeing it.
+	if p_base_revision is distinct from v_rev then
+		return jsonb_build_object('ok', false, 'reason', 'stale', 'revision', v_rev);
+	end if;
+
+	insert into public.app_feedback_edits (feedback_id, revision, kind, message, tried, edited_by)
+	values (p_id, v_rev + 1, v_kind, v_message, v_tried, public.current_user_email());
+
+	return jsonb_build_object('ok', true, 'changed', true, 'id', p_id, 'revision', v_rev + 1);
+end;
+$fe$;
+
+revoke all on function public.app_feedback_edit(uuid, text, text, text, integer)
+	from public, anon, authenticated, service_role;
+grant execute on function public.app_feedback_edit(uuid, text, text, text, integer) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The console read, the WIDE form, replaced at its own signature (same three
+-- parameter names, still NO defaults, still jsonb), so the narrow two-argument
+-- wrapper 0230 left standing delegates to it unchanged and inherits the key.
+-- Its body is 0230's verbatim plus the lateral read of the latest revision.
+-- EVERY ROW CARRIES `edit`, null when never edited: the key's presence is the
+-- client's proof that this part is applied, which is what licenses the Edit
+-- control. message, kind and tried stay the reporter's own.
+-- ---------------------------------------------------------------------------
+create or replace function public.app_feedback_admin_list(p_app text, p_limit integer, p_horizon text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fe$
+declare
+	v_app text := nullif(btrim(coalesce(p_app, '')), '');
+	v_limit integer := least(greatest(coalesce(p_limit, 200), 1), 500);
+	v_h text := nullif(lower(btrim(coalesce(p_horizon, ''))), '');
+begin
+	if (select auth.uid()) is null then
+		raise exception 'You must be signed in.';
+	end if;
+	if not public.is_admin() then
+		raise exception 'Only a site admin can read the feedback queue.';
+	end if;
+	if v_h is not null and v_h not in ('now', 'long_term') then
+		raise exception 'Horizon must be now or long_term.';
+	end if;
+
+	return coalesce((
+		select jsonb_agg(row_to_json(t)::jsonb order by t.created_at desc)
+		from (
+			select f.id, f.app, f.context, f.kind, f.message, f.meta,
+				f.status, f.created_at, f.reviewed_at, f.reviewed_by,
+				-- Stated, not inferred (0127).
+				(f.user_id is null) as anonymous,
+				-- What somebody typed, never a verified identity (0127).
+				f.contact,
+				-- 0170: what they tried, and the key of the one screenshot.
+				f.tried,
+				f.screenshot_path,
+				-- 0230: fold in soon, or a big idea for later.
+				f.horizon,
+				case when f.user_id is null then null else
+					coalesce(nullif(btrim(p.display_name), ''), nullif(btrim(p.full_name), ''),
+						split_part(coalesce(p.email, ''), '@', 1))
+				end as submitter_name,
+				case when f.user_id is null then null else p.email end as submitter_email,
+				-- 0233: an admin's correction, the latest revision, or null.
+				case when le.revision is null then null else
+					jsonb_build_object(
+						'revision', le.revision,
+						'kind', le.kind,
+						'message', le.message,
+						'tried', le.tried,
+						'edited_by', le.edited_by,
+						'edited_at', le.edited_at
+					)
+				end as edit
+			from public.app_feedback f
+			left join public.profiles p on p.id = f.user_id
+			left join lateral (
+				select e.revision, e.kind, e.message, e.tried, e.edited_by, e.edited_at
+				from public.app_feedback_edits e
+				where e.feedback_id = f.id
+				order by e.revision desc
+				limit 1
+			) le on true
+			where (v_app is null or f.app = v_app)
+				and (v_h is null or f.horizon = v_h)
+			order by f.created_at desc
+			limit v_limit
+		) t
+	), '[]'::jsonb);
+end;
+$fe$;
+
+revoke all on function public.app_feedback_admin_list(text, integer, text)
+	from public, anon, authenticated, service_role;
+grant execute on function public.app_feedback_admin_list(text, integer, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The part's own self-check, BY NAME over its own objects and nothing else.
+-- ---------------------------------------------------------------------------
+do $fe$
+declare
+	v_rls boolean;
+	v_policies integer;
+	v_overloads integer;
+	v_priv text;
+	v_role text;
+	v_src text;
+begin
+	select c.relrowsecurity into v_rls
+	from pg_catalog.pg_class c
+	join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+	where n.nspname = 'public' and c.relname = 'app_feedback_edits' and c.relkind = 'r';
+	if v_rls is null then
+		raise exception '0233 feedback-edits: table public.app_feedback_edits is missing.';
+	end if;
+	if not v_rls then
+		raise exception '0233 feedback-edits: public.app_feedback_edits does not have row level security enabled.';
+	end if;
+
+	select count(*) into v_policies
+	from pg_catalog.pg_policies p
+	where p.schemaname = 'public' and p.tablename = 'app_feedback_edits';
+	if v_policies <> 0 then
+		raise exception '0233 feedback-edits: public.app_feedback_edits carries % policy/policies; it must have none.', v_policies;
+	end if;
+
+	foreach v_role in array array['anon', 'authenticated', 'service_role'] loop
+		foreach v_priv in array array['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger'] loop
+			if has_table_privilege(v_role, 'public.app_feedback_edits', v_priv) then
+				raise exception '0233 feedback-edits: % holds % on public.app_feedback_edits; the revoke must name the roles.', v_role, v_priv;
+			end if;
+		end loop;
+	end loop;
+
+	select count(*) into v_overloads
+	from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+	where n.nspname = 'public' and p.proname = 'app_feedback_edit';
+	if v_overloads <> 1 then
+		raise exception '0233 feedback-edits: app_feedback_edit has % overloads; it must have exactly one.', v_overloads;
+	end if;
+	if has_function_privilege('anon', 'public.app_feedback_edit(uuid, text, text, text, integer)', 'execute') then
+		raise exception '0233 feedback-edits: anon can execute app_feedback_edit; revoke from anon BY NAME, per 0166.';
+	end if;
+	if not has_function_privilege('authenticated', 'public.app_feedback_edit(uuid, text, text, text, integer)', 'execute') then
+		raise exception '0233 feedback-edits: authenticated cannot execute app_feedback_edit; the grant is missing.';
+	end if;
+
+	select count(*) into v_overloads
+	from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+	where n.nspname = 'public' and p.proname = 'app_feedback_admin_list';
+	if v_overloads <> 2 then
+		raise exception '0233 feedback-edits: app_feedback_admin_list has % overloads; it must have exactly two.', v_overloads;
+	end if;
+	if to_regprocedure('public.app_feedback_admin_list(text, integer)') is null then
+		raise exception '0233 feedback-edits: the narrow app_feedback_admin_list(text, integer) is gone; the deployed console calls it.';
+	end if;
+	if (select p.pronargdefaults from pg_catalog.pg_proc p
+		where p.oid = 'public.app_feedback_admin_list(text, integer, text)'::regprocedure) <> 0 then
+		raise exception '0233 feedback-edits: the wide app_feedback_admin_list declares a default; no payload may bind to both forms.';
+	end if;
+	select p.prosrc into v_src from pg_catalog.pg_proc p
+	where p.oid = 'public.app_feedback_admin_list(text, integer, text)'::regprocedure;
+	if position('app_feedback_edits' in v_src) = 0 then
+		raise exception '0233 feedback-edits: the wide app_feedback_admin_list does not read the edits.';
+	end if;
+	if has_function_privilege('anon', 'public.app_feedback_admin_list(text, integer, text)', 'execute') then
+		raise exception '0233 feedback-edits: anon can execute the wide app_feedback_admin_list.';
+	end if;
+	if not has_function_privilege('authenticated', 'public.app_feedback_admin_list(text, integer, text)', 'execute') then
+		raise exception '0233 feedback-edits: authenticated cannot execute the wide app_feedback_admin_list.';
+	end if;
+
+	raise notice '0233 feedback-edits: % edit revision(s) over % report(s); app_feedback_edit and the wide list checked.',
+		(select count(*) from public.app_feedback_edits),
+		(select count(distinct e.feedback_id) from public.app_feedback_edits e);
+end;
+$fe$;
+-- ===== PART feedback-edits END =====
+
+-- ===== PART student-overview BEGIN =====
+-- ---------------------------------------------------------------------------
+-- PART 40. ONE STUDENT IN ONE CLASS, FOR A MANAGER OF THAT CLASS
+-- (reports 792eb6b1 and 63fb1c49, Mr. Pina, 2026-10-03 and 2026-10-07: "a per
+-- student page with all their work and stats", "for parent teacher
+-- conferences to show the student's activity in the class").
+--
+-- WHAT THIS IS. classroom_student_overview(p_section_id, p_student_email) is
+-- the ONE new read behind the per-student page at
+-- /classroom/<section>/people/<email>. Everything else that page shows comes
+-- from reads a manager can already make under RLS (submissions, presence rows,
+-- the notebook grid, the team board, IdeaCAD documents), each with an
+-- attribution filter on the one student. This function answers the four
+-- things a manager could NOT read before: the student's whole hall pass
+-- history in this class, which of this class's items they opened, their song
+-- request counts in this class, and their IDEA Coin balance and history.
+--
+-- THE GATE IS classroom_manages_section (the 0138 wrapper, which folds
+-- is_admin in), asked first and inside the definer. EVERY REFUSAL IS NULL AND
+-- THEY ARE IDENTICAL: no session, a null argument, a section the caller does
+-- not manage, an address with no enrollment row in this section, and an
+-- address that can itself MANAGE the section (0138: a person who manages a
+-- section is never a student row in it). So an address cannot be probed: a
+-- classmate who does not exist and a teacher's own address answer the same.
+-- An INACTIVE enrollment (a student who left) is answered, because the work
+-- they did in this class is still theirs and the page labels them as not on
+-- the live roster.
+--
+-- SCOPE. Hall passes, song requests and item views are THIS SECTION's only:
+-- passes and songs by their own section_id, item views through
+-- classroom_postings, so an item the student opened in another class never
+-- appears. COINS ARE SCHOOL-WIDE, because the coin economy is, and they are
+-- projected exactly as the public IDEA Coin Ledger already projects them to
+-- anyone (0096 coin_public_student: when, amount, medium, category name, the
+-- newest 500), plus only the ids the one history renderer needs to collapse a
+-- transfer (id, category_id, category_kind, transfer_id). NEVER the note and
+-- NEVER actor_email: those are the two coin columns that are not public.
+--
+-- IT REVERSES ONE SENTENCE, ON MR. PINA'S REQUEST. 0085 wrote of
+-- classroom_item_views: "which items a student has opened is about the
+-- student, not about the class, and no surface in this module shows it to
+-- anyone else". Mr. Pina asked for "any telemetry collected from them", so the
+-- student's own teacher now sees the LAST-opened time per item of this class.
+-- NO POLICY IS ADDED TO THE TABLE: this definer read is the only door, and it
+-- answers only for the section's manager. Recorded as a decision of the
+-- 2026-10-07 round.
+--
+-- IT ADDS NOTHING TO PRESENCE AND GRADES NOTHING. presence_limits carries
+-- 0200's windows built by the SAME five helpers classroom_presence_state uses
+-- (a test pins the two objects equal), so the page's coverage sentence names
+-- this deployment's retention. The presence table itself is read by the page
+-- under its own RLS, unchanged (0200: do not make the presence table read
+-- work, and presence is never a grade input).
+--
+-- THE HALL PASS ROWS ARE THE MANAGER HISTORY'S OWN SHAPE (0174: pass_id,
+-- student_email, student_name, opened_at, closed_at, closed_by, opened_by),
+-- so the existing renderers read them verbatim. The newest 500 with a total
+-- beside them, and no flag at any duration: a long pass is a conversation, not
+-- a number this decides is too big.
+--
+-- ADDITIVE: no table, no column, no policy, no table grant, no DML. A client
+-- deployed first degrades on PGRST202 alone, so there is no deploy ordering.
+--
+-- UNDO:
+--   drop function if exists public.classroom_student_overview(uuid, text);
+-- Nothing else references it.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.classroom_student_overview(
+	p_section_id uuid,
+	p_student_email text
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $so$
+declare
+	v_email text := lower(btrim(coalesce(p_student_email, '')));
+	v_enr public.classroom_enrollments%rowtype;
+	v_uid uuid;
+	v_pass_total integer;
+	v_passes jsonb;
+	v_views jsonb;
+	v_songs jsonb;
+	v_coin_total integer;
+	v_coin_rows jsonb;
+begin
+	if coalesce(public.current_user_email(), '') = '' or p_section_id is null or v_email = '' then
+		return null;
+	end if;
+	if not public.classroom_manages_section(p_section_id) then
+		return null;
+	end if;
+
+	select e.* into v_enr
+	from public.classroom_enrollments e
+	where e.section_id = p_section_id and e.student_email = v_email;
+	if not found then
+		return null;
+	end if;
+
+	-- A person who manages the section is never a student row in it (0138),
+	-- whatever their enrollment says. Same NULL as every other refusal.
+	if public._classroom_manages_section_email(p_section_id, v_email) then
+		return null;
+	end if;
+
+	v_uid := public._notebook_user_id_for_email(v_email);
+
+	select count(*)::integer into v_pass_total
+	from public.classroom_hall_passes h
+	where h.section_id = p_section_id and h.student_email = v_email;
+
+	select coalesce(jsonb_agg(row_to_json(x)::jsonb order by x.opened_at desc), '[]'::jsonb)
+	into v_passes
+	from (
+		select h.id as pass_id, h.student_email, v_enr.display_name as student_name,
+			h.opened_at, h.closed_at, h.closed_by, h.opened_by
+		from public.classroom_hall_passes h
+		where h.section_id = p_section_id and h.student_email = v_email
+		order by h.opened_at desc
+		limit 500
+	) x;
+
+	select coalesce(jsonb_agg(jsonb_build_object('item_id', v.item_id, 'viewed_at', v.viewed_at)
+		order by v.viewed_at desc), '[]'::jsonb)
+	into v_views
+	from public.classroom_item_views v
+	where v.student_email = v_email
+		and exists (
+			select 1 from public.classroom_postings pg
+			where pg.item_id = v.item_id and pg.section_id = p_section_id
+		);
+
+	select jsonb_build_object(
+		'requested', count(*),
+		'approved', count(*) filter (where public._classroom_song_status(r.decided_at, r.rejection_reason) = 'approved'),
+		'rejected', count(*) filter (where public._classroom_song_status(r.decided_at, r.rejection_reason) = 'rejected'),
+		'pending', count(*) filter (where public._classroom_song_status(r.decided_at, r.rejection_reason) = 'pending'))
+	into v_songs
+	from public.classroom_song_requests r
+	where r.section_id = p_section_id and r.student_email = v_email;
+
+	select count(*)::integer into v_coin_total
+	from public.coin_transactions t
+	where t.student_email = v_email;
+
+	select coalesce(jsonb_agg(row_to_json(c)::jsonb order by c.created_at desc, c.id desc), '[]'::jsonb)
+	into v_coin_rows
+	from (
+		select t.id, t.category_id, cat.name as category_name, cat.kind as category_kind,
+			t.amount, t.medium, t.transfer_id, t.created_at
+		from public.coin_transactions t
+		join public.coin_categories cat on cat.id = t.category_id
+		where t.student_email = v_email
+		order by t.created_at desc, t.id desc
+		limit 500
+	) c;
+
+	return jsonb_build_object(
+		'section_id', p_section_id,
+		'student_email', v_email,
+		'display_name', v_enr.display_name,
+		'active', v_enr.active,
+		'enrolled_at', v_enr.created_at,
+		'has_account', v_uid is not null,
+		'user_id', v_uid,
+		'at', now(),
+		'hall_passes', jsonb_build_object(
+			'total', v_pass_total,
+			'entries', v_passes,
+			'limits', public._classroom_hall_pass_limits()),
+		'item_views', v_views,
+		'songs', v_songs,
+		'coins', jsonb_build_object(
+			'balance', public._coin_balance(v_email),
+			'physical_balance', public._coin_balance(v_email, 'physical'),
+			'digital_balance', public._coin_balance(v_email, 'digital'),
+			'total', v_coin_total,
+			'transactions', v_coin_rows),
+		'presence_limits', jsonb_build_object(
+			'input_window_seconds', extract(epoch from public._classroom_presence_input_window())::integer,
+			'away_window_seconds', extract(epoch from public._classroom_presence_away_window())::integer,
+			'heartbeat_seconds', extract(epoch from public._classroom_presence_heartbeat())::integer,
+			'min_gap_seconds', extract(epoch from public._classroom_presence_min_gap())::integer,
+			'retention_days', extract(day from public._classroom_presence_retention())::integer)
+	);
+end;
+$so$;
+
+comment on function public.classroom_student_overview(uuid, text) is
+'One student in one class, for a manager of that class (2026-10-07 round, the per-student page). NULL for every refusal, identically: no session, not a manager of the section, no enrollment row, or an address that manages the section. Hall passes, item views and song counts are this section only; coins are school-wide and projected as the public Ledger projects them, never with the note or who logged them. Item views reach the section manager through this read alone (reversing a sentence of 0085 on request); no policy was added to the table.';
+
+-- The 0166 shape: name every role, grant back exactly one.
+revoke all on function public.classroom_student_overview(uuid, text)
+	from public, anon, authenticated, service_role;
+grant execute on function public.classroom_student_overview(uuid, text) to authenticated;
+
+-- The self-check, over THIS function's own name only (the 0214 lesson: never a
+-- prefix sweep over somebody else's objects).
+do $so_check$
+declare
+	v_rows integer;
+	v_anon boolean;
+	v_auth boolean;
+	v_definer boolean;
+	v_path boolean;
+begin
+	select count(*)::integer into v_rows
+	from pg_catalog.pg_proc p
+	join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+	where n.nspname = 'public' and p.proname = 'classroom_student_overview';
+	if v_rows <> 1 then
+		raise exception '0233 student-overview: expected exactly one classroom_student_overview, found %', v_rows;
+	end if;
+
+	v_anon := has_function_privilege('anon', 'public.classroom_student_overview(uuid, text)', 'execute');
+	v_auth := has_function_privilege('authenticated', 'public.classroom_student_overview(uuid, text)', 'execute');
+	if v_anon then
+		raise exception '0233 student-overview: anon can execute classroom_student_overview';
+	end if;
+	if not v_auth then
+		raise exception '0233 student-overview: authenticated cannot execute classroom_student_overview';
+	end if;
+
+	select p.prosecdef,
+		coalesce(array_to_string(p.proconfig, ',') like '%search_path=%', false)
+	into v_definer, v_path
+	from pg_catalog.pg_proc p
+	where p.oid = 'public.classroom_student_overview(uuid, text)'::regprocedure;
+	if not v_definer then
+		raise exception '0233 student-overview: classroom_student_overview is not security definer';
+	end if;
+	if not v_path then
+		raise exception '0233 student-overview: classroom_student_overview has no pinned search_path';
+	end if;
+
+	raise notice '0233 student-overview: % function, anon execute %, authenticated execute %, security definer %, search_path pinned %',
+		v_rows, v_anon, v_auth, v_definer, v_path;
+end;
+$so_check$;
+-- ===== PART student-overview END =====
+
+-- ===== PART quick-posts BEGIN =====
+-- ===========================================================================
+-- 0233 PART quick-posts (ledger 0368, report R04, Mr. Pina: "quick post should
+-- support images and files and longer text limits ... embedded images and
+-- files so that students can pull them up in window and navigate them ... if
+-- its a longer one it should be collapsible").
+--
+-- WHAT THIS PART DOES, all of it additive:
+--   1. classroom_quick_post_files: one row per file on a notice. RLS on, no
+--      policy, no client grant; written only by classroom_quick_post_add_file
+--      and read only through classroom_quick_posts and classroom_quick_post_file.
+--   2. The body ceiling goes from 1000 characters to 4000, in the CHECK and in
+--      classroom_quick_post_create, whose signature does not change. Every row
+--      already stored passes the wider check.
+--   3. The files live in a NEW PRIVATE BUCKET, quick-post-files, 45 MiB a file
+--      (the project's real ceiling on the Free plan, 0185), with no mime list:
+--      the CLASSROOM FILES shape (0133). Objects are uploaded as
+--      application/octet-stream and read back only through a signed URL that
+--      carries download=, so nothing anybody uploads is ever navigated to as a
+--      document on a host of ours.
+--   4. THE KEY LAYOUT IS THE AUTHORIZATION: <post id>/<uuid>.<ext>. The two
+--      storage policies read the FIRST PATH SEGMENT through
+--      _classroom_storage_prefix_uuid (0133) and ask a quick-post predicate
+--      about it. The write predicate is the post's AUTHOR, while the post is
+--      still up; the read predicate is the notice's own audience (a manager of
+--      a class it went to, an active enrollee while it is live, its author).
+--   5. classroom_quick_posts (the read) gains per-post files and a top-level
+--      files_ready and limits, so a client deployed before this applies never
+--      offers what the database would refuse: it falls back to 1000 characters
+--      and no files when the keys are absent.
+--
+-- WHO MAY ATTACH: only the teacher who posted the notice, while it is up
+-- (decision taken for this round). Archive, never delete: there is no delete
+-- function, no delete grant and no delete policy; a file row goes only with
+-- its post's cascade, and a post is never deleted (0230 stamps a take down).
+--
+-- THE STORAGE HALF IS GUARDED. This is the first migration applied by
+-- migrate.yml that writes a storage.buckets row and storage.objects policies,
+-- and whether the applying role (idea_migrator) may do that has never been
+-- measured (supabase/roles/idea_migrator.sql says so). So the bucket and the
+-- two policies sit in ONE sub-block that catches insufficient_privilege, says
+-- so in a NOTICE and lets the rest of the round apply. files_ready in the read
+-- is computed from pg_policies, so the file picker stays off until a person
+-- re-pastes 0233 in the SQL editor, which is idempotent and finishes the
+-- storage half. Nothing is half-applied either way: the sub-block is a
+-- savepoint, all or nothing.
+--
+-- DEPLOY ORDERING: none. Every signature is unchanged or new.
+-- ===========================================================================
+
+-- 1. THE FILE ROWS. No uploader column: only the post's author may attach,
+--    and the RPC refuses anyone else, so it would always equal the post's own
+--    author_email (one fewer address-bearing column).
+create table if not exists public.classroom_quick_post_files (
+	id uuid primary key default gen_random_uuid(),
+	post_id uuid not null references public.classroom_quick_posts (id) on delete cascade,
+	-- The object key, <post id>/<uuid>.<ext>. Nothing a person typed is in it.
+	storage_key text not null,
+	-- What people see, verbatim (trimmed). Never part of the key.
+	filename text not null,
+	size_bytes bigint,
+	sort_order integer not null,
+	created_at timestamptz not null default now(),
+	constraint classroom_quick_post_files_key_unique unique (storage_key),
+	constraint classroom_quick_post_files_key_shape check (
+		storage_key ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}(\.[a-z0-9]{1,12})?$'
+		and public._classroom_storage_prefix_uuid(storage_key) is not distinct from post_id
+	),
+	constraint classroom_quick_post_files_name_shape check (char_length(filename) between 1 and 255),
+	constraint classroom_quick_post_files_size check (size_bytes is null or size_bytes >= 0)
+);
+
+create index if not exists classroom_quick_post_files_post_idx
+	on public.classroom_quick_post_files (post_id, sort_order);
+
+alter table public.classroom_quick_post_files enable row level security;
+revoke all on table public.classroom_quick_post_files from public, anon, authenticated;
+
+-- 2. THE BODY CEILING, 1000 -> 4000. A widening: every stored row passes.
+alter table public.classroom_quick_posts drop constraint if exists classroom_quick_posts_body_shape;
+alter table public.classroom_quick_posts add constraint classroom_quick_posts_body_shape
+	check (char_length(body) between 1 and 4000 and body ~ '[^[:space:]]');
+
+-- CREATE, the same signature and the 0230 body with the two 1000s at 4000.
+create or replace function public.classroom_quick_post_create(
+	p_section_ids uuid[],
+	p_body text,
+	p_expires_at timestamptz
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $qp$
+declare
+	v_email text := public.current_user_email();
+	v_now timestamptz := now();
+	v_ids uuid[];
+	v_id uuid;
+	v_body text;
+	v_post uuid;
+begin
+	if v_email = '' then
+		raise exception 'You must be signed in to post a class notice.';
+	end if;
+
+	select coalesce(array_agg(distinct x order by x), '{}'::uuid[])
+	into v_ids
+	from unnest(coalesce(p_section_ids, '{}'::uuid[])) as x
+	where x is not null;
+
+	if cardinality(v_ids) = 0 then
+		return jsonb_build_object('ok', false, 'reason', 'no_classes');
+	end if;
+	if cardinality(v_ids) > 50 then
+		raise exception 'Post to at most 50 classes at a time.';
+	end if;
+
+	foreach v_id in array v_ids loop
+		-- The existence check is not a second authorization rule: an admin
+		-- manages every id, real or not, and the foreign key would otherwise
+		-- answer an invented id with a constraint error naming the table.
+		if not exists (select 1 from public.classroom_sections s where s.id = v_id)
+			or public.classroom_manages_section(v_id) is not true then
+			raise exception 'Only a teacher of every chosen class can post to it.';
+		end if;
+	end loop;
+
+	v_body := regexp_replace(coalesce(p_body, ''), '^\s+|\s+$', '', 'g');
+	if v_body = '' then
+		return jsonb_build_object('ok', false, 'reason', 'empty');
+	end if;
+	if char_length(v_body) > 4000 then
+		return jsonb_build_object('ok', false, 'reason', 'too_long', 'limit', 4000);
+	end if;
+	if p_expires_at is not null and p_expires_at <= v_now then
+		return jsonb_build_object('ok', false, 'reason', 'expiry_passed');
+	end if;
+	if p_expires_at is not null and p_expires_at > v_now + interval '366 days' then
+		return jsonb_build_object('ok', false, 'reason', 'expiry_too_far');
+	end if;
+
+	insert into public.classroom_quick_posts (author_email, body, created_at, expires_at)
+	values (v_email, v_body, v_now, p_expires_at)
+	returning id into v_post;
+
+	insert into public.classroom_quick_post_sections (post_id, section_id)
+	select v_post, x from unnest(v_ids) as x;
+
+	return jsonb_build_object(
+		'ok', true,
+		'id', v_post,
+		'section_ids', to_jsonb(v_ids),
+		'created_at', v_now,
+		'expires_at', p_expires_at
+	);
+end;
+$qp$;
+
+revoke all on function public.classroom_quick_post_create(uuid[], text, timestamptz)
+	from public, anon, authenticated;
+grant execute on function public.classroom_quick_post_create(uuid[], text, timestamptz) to authenticated;
+
+-- 3. WHO MAY READ A NOTICE'S FILES: its own audience. A manager of any class
+--    it went to (an admin manages every section, through the manage rule); an
+--    ACTIVE enrollee of one of its classes while it is live; and its author.
+--    The empty address is refused, and a null post id answers false, so a key
+--    with no uuid prefix fails closed. Private: called from definers only.
+create or replace function public._classroom_quick_post_readable(p_post_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $qp$
+	select coalesce(
+		p_post_id is not null
+		and public.current_user_email() <> ''
+		and exists (
+			select 1
+			from public.classroom_quick_posts p
+			where p.id = p_post_id
+				and (
+					p.author_email = public.current_user_email()
+					or exists (
+						select 1 from public.classroom_quick_post_sections t
+						where t.post_id = p.id
+							and (
+								public.classroom_manages_section(t.section_id) is true
+								or (
+									public.classroom_is_enrolled(t.section_id) is true
+									and p.taken_down_at is null
+									and (p.expires_at is null or p.expires_at > now())
+								)
+							)
+					)
+				)
+		),
+		false
+	);
+$qp$;
+
+revoke all on function public._classroom_quick_post_readable(uuid) from public, anon, authenticated;
+
+-- WHO MAY WRITE ONE: the post's author, while it is still up. Private.
+create or replace function public._classroom_quick_post_writable(p_post_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $qp$
+	select coalesce(
+		p_post_id is not null
+		and public.current_user_email() <> ''
+		and exists (
+			select 1
+			from public.classroom_quick_posts p
+			where p.id = p_post_id
+				and p.author_email = public.current_user_email()
+				and p.taken_down_at is null
+				and (p.expires_at is null or p.expires_at > now())
+		),
+		false
+	);
+$qp$;
+
+revoke all on function public._classroom_quick_post_writable(uuid) from public, anon, authenticated;
+
+-- The two object predicates the storage policies name. A function named
+-- directly in an RLS clause is evaluated as the QUERYING role, so these two
+-- hold an authenticated EXECUTE grant and nothing else.
+create or replace function public.classroom_can_read_quick_post_object(p_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $qp$
+	select public._classroom_quick_post_readable(public._classroom_storage_prefix_uuid(p_name));
+$qp$;
+
+revoke all on function public.classroom_can_read_quick_post_object(text) from public, anon, authenticated;
+grant execute on function public.classroom_can_read_quick_post_object(text) to authenticated;
+
+create or replace function public.classroom_can_write_quick_post_object(p_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $qp$
+	select public._classroom_quick_post_writable(public._classroom_storage_prefix_uuid(p_name));
+$qp$;
+
+revoke all on function public.classroom_can_write_quick_post_object(text) from public, anon, authenticated;
+grant execute on function public.classroom_can_write_quick_post_object(text) to authenticated;
+
+-- 4. RECORD A FILE that has already landed in the bucket. No identity
+--    parameter, no defaults. In order: not signed in raises; the post is
+--    locked FOR UPDATE (the ten-file cap needs the parent row lock); a post
+--    that does not exist and one that is not the caller's answer the same
+--    'Not found.'; a key that is not this post's raises; the SAME key again
+--    answers the row it already made (a retry after a dropped connection);
+--    an ended or taken-down notice and an eleventh file are refusals a
+--    teacher can meet by ordinary use, so they return {ok:false, reason}.
+--    The name is trimmed the way a person means it (the regular expression,
+--    never btrim) and an empty one becomes 'file'.
+create or replace function public.classroom_quick_post_add_file(
+	p_post_id uuid,
+	p_storage_key text,
+	p_filename text,
+	p_size_bytes bigint
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $qp$
+declare
+	v_email text := public.current_user_email();
+	v_post public.classroom_quick_posts%rowtype;
+	v_existing public.classroom_quick_post_files%rowtype;
+	v_count integer;
+	v_name text;
+	v_id uuid;
+begin
+	if v_email = '' then
+		raise exception 'You must be signed in to attach a file to a class notice.';
+	end if;
+
+	select * into v_post from public.classroom_quick_posts p where p.id = p_post_id for update;
+	if not found or v_post.author_email <> v_email then
+		raise exception 'Not found.';
+	end if;
+
+	if p_storage_key is null
+		or p_storage_key !~ '^[0-9a-f-]{36}/[0-9a-f-]{36}(\.[a-z0-9]{1,12})?$'
+		or public._classroom_storage_prefix_uuid(p_storage_key) is distinct from p_post_id then
+		raise exception 'That storage key does not belong to this notice.';
+	end if;
+
+	select * into v_existing from public.classroom_quick_post_files f
+	where f.storage_key = p_storage_key and f.post_id = p_post_id;
+	if found then
+		return jsonb_build_object(
+			'ok', true,
+			'already', true,
+			'file', jsonb_build_object('id', v_existing.id, 'filename', v_existing.filename, 'size_bytes', v_existing.size_bytes)
+		);
+	end if;
+
+	if v_post.taken_down_at is not null or (v_post.expires_at is not null and v_post.expires_at <= now()) then
+		return jsonb_build_object('ok', false, 'reason', 'ended');
+	end if;
+
+	select count(*)::integer into v_count from public.classroom_quick_post_files f where f.post_id = p_post_id;
+	if v_count >= 10 then
+		return jsonb_build_object('ok', false, 'reason', 'too_many_files', 'limit', 10);
+	end if;
+
+	if p_size_bytes is not null and p_size_bytes < 0 then
+		raise exception 'A file size cannot be negative.';
+	end if;
+
+	v_name := left(regexp_replace(coalesce(p_filename, ''), '^\s+|\s+$', '', 'g'), 255);
+	if v_name = '' then
+		v_name := 'file';
+	end if;
+
+	insert into public.classroom_quick_post_files (post_id, storage_key, filename, size_bytes, sort_order)
+	values (p_post_id, p_storage_key, v_name, p_size_bytes, v_count + 1)
+	on conflict (storage_key) do nothing
+	returning id into v_id;
+
+	if v_id is null then
+		-- The key is taken by a row this post does not own. The shape check
+		-- above already ties a key to its post, so this is a race nobody
+		-- should be able to produce; it still refuses rather than writes.
+		raise exception 'That storage key does not belong to this notice.';
+	end if;
+
+	return jsonb_build_object(
+		'ok', true,
+		'already', false,
+		'file', jsonb_build_object('id', v_id, 'filename', v_name, 'size_bytes', p_size_bytes)
+	);
+end;
+$qp$;
+
+revoke all on function public.classroom_quick_post_add_file(uuid, text, text, bigint)
+	from public, anon, authenticated;
+grant execute on function public.classroom_quick_post_add_file(uuid, text, text, bigint) to authenticated;
+
+-- 5. ONE FILE, for the route that mints its signed URL. The notice's own
+--    audience, else 'Not found.', identical for a file that does not exist
+--    and one the caller may not read. The route then signs on the CALLER's
+--    session, so the storage select policy asks again: two refusals.
+create or replace function public.classroom_quick_post_file(p_file_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $qp$
+declare
+	v_file public.classroom_quick_post_files%rowtype;
+begin
+	if public.current_user_email() = '' then
+		raise exception 'You must be signed in to open a class notice file.';
+	end if;
+
+	select * into v_file from public.classroom_quick_post_files f where f.id = p_file_id;
+	if not found or not public._classroom_quick_post_readable(v_file.post_id) then
+		raise exception 'Not found.';
+	end if;
+
+	return jsonb_build_object('ok', true, 'storage_key', v_file.storage_key, 'filename', v_file.filename);
+end;
+$qp$;
+
+revoke all on function public.classroom_quick_post_file(uuid) from public, anon, authenticated;
+grant execute on function public.classroom_quick_post_file(uuid) to authenticated;
+
+-- 6. THE STORAGE HALF, GUARDED (see the header). The bucket's size literal is
+--    written out (47185920, which is portal_upload_max_bytes()) because
+--    tests/upload-limits.test.ts reads every storage.buckets literal and
+--    checks it against the registry. No update, delete or anon policy: keys
+--    are fresh uuids, nothing legitimately overwrites one, and this bucket is
+--    never public.
+do $qp$
+begin
+	begin
+		insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+		values ('quick-post-files', 'quick-post-files', false, 47185920, null)
+		on conflict (id) do update
+			set public = false, file_size_limit = 47185920, allowed_mime_types = null;
+
+		drop policy if exists "quick post files insert by author" on storage.objects;
+		create policy "quick post files insert by author"
+			on storage.objects
+			for insert
+			to authenticated
+			with check (
+				bucket_id = 'quick-post-files'
+				and public.classroom_can_write_quick_post_object(name)
+			);
+
+		drop policy if exists "quick post files readable by the class" on storage.objects;
+		create policy "quick post files readable by the class"
+			on storage.objects
+			for select
+			to authenticated
+			using (
+				bucket_id = 'quick-post-files'
+				and public.classroom_can_read_quick_post_object(name)
+			);
+	exception when insufficient_privilege then
+		raise notice '0233 quick-posts: the storage half was NOT applied (this role cannot write storage.buckets or storage.objects policies). Re-paste 0233 in the SQL editor to finish it; quick posts stay text-only until then.';
+	end;
+end;
+$qp$;
+
+-- 7. THE READ, the 0230 body with files on each post and two top-level keys.
+--    files never carries a storage key or an address. files_ready is the
+--    insert policy's presence, so the picker is offered exactly when the
+--    storage half landed; limits is what the composer counts against.
+create or replace function public.classroom_quick_posts(p_section_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $qp$
+declare
+	v_email text := public.current_user_email();
+	v_manages boolean;
+	v_posts jsonb;
+	v_ready boolean;
+begin
+	if v_email = '' then
+		raise exception 'You must be signed in to read class notices.';
+	end if;
+
+	v_manages := public.classroom_manages_section(p_section_id) is true;
+	if not v_manages and not public.classroom_is_enrolled(p_section_id) then
+		raise exception 'Not found.';
+	end if;
+
+	select coalesce(jsonb_agg(jsonb_build_object(
+			'id', x.id,
+			'body', x.body,
+			'created_at', x.created_at,
+			'expires_at', x.expires_at,
+			'section_ids', case when v_manages then (
+				select coalesce(jsonb_agg(t2.section_id order by t2.section_id), '[]'::jsonb)
+				from public.classroom_quick_post_sections t2
+				where t2.post_id = x.id
+					and public.classroom_manages_section(t2.section_id)
+			) end,
+			'can_take_down', case
+				when v_manages then public._classroom_quick_post_can_take_down(x.id, v_email)
+				else false
+			end,
+			'files', (
+				select coalesce(jsonb_agg(jsonb_build_object(
+						'id', f.id,
+						'filename', f.filename,
+						'size_bytes', f.size_bytes
+					) order by f.sort_order, f.created_at, f.id), '[]'::jsonb)
+				from public.classroom_quick_post_files f
+				where f.post_id = x.id
+			)
+		) order by x.created_at desc, x.id), '[]'::jsonb)
+	into v_posts
+	from (
+		select p.id, p.body, p.created_at, p.expires_at
+		from public.classroom_quick_posts p
+		join public.classroom_quick_post_sections t on t.post_id = p.id
+		where t.section_id = p_section_id
+			and p.taken_down_at is null
+			and (p.expires_at is null or p.expires_at > now())
+		order by p.created_at desc, p.id
+		limit 20
+	) x;
+
+	v_ready := exists (
+		select 1 from pg_catalog.pg_policies pol
+		where pol.schemaname = 'storage'
+			and pol.tablename = 'objects'
+			and pol.policyname = 'quick post files insert by author'
+	);
+
+	return jsonb_build_object(
+		'ok', true,
+		'manages', v_manages,
+		'now', now(),
+		'posts', v_posts,
+		'files_ready', v_ready,
+		'limits', jsonb_build_object(
+			'max_chars', 4000,
+			'max_files', 10,
+			'max_bytes', public.portal_upload_max_bytes()
+		)
+	);
+end;
+$qp$;
+
+revoke all on function public.classroom_quick_posts(uuid) from public, anon, authenticated;
+grant execute on function public.classroom_quick_posts(uuid) to authenticated;
+
+-- 8. SELF-CHECK over this part's own objects, by name. A raise is a refusal:
+--    the whole file rolls back.
+do $qp$
+declare
+	v_fn text;
+	v_bad text[] := '{}';
+	v_live integer;
+	v_long integer;
+	v_files integer;
+	v_storage boolean;
+begin
+	foreach v_fn in array array[
+		'public.classroom_quick_post_create(uuid[], text, timestamptz)',
+		'public.classroom_quick_posts(uuid)',
+		'public.classroom_quick_post_add_file(uuid, text, text, bigint)',
+		'public.classroom_quick_post_file(uuid)',
+		'public.classroom_can_read_quick_post_object(text)',
+		'public.classroom_can_write_quick_post_object(text)'
+	] loop
+		if has_function_privilege('anon', v_fn, 'execute') then
+			v_bad := v_bad || ('anon executes ' || v_fn);
+		end if;
+		if not has_function_privilege('authenticated', v_fn, 'execute') then
+			v_bad := v_bad || ('authenticated cannot execute ' || v_fn);
+		end if;
+	end loop;
+	foreach v_fn in array array[
+		'public._classroom_quick_post_readable(uuid)',
+		'public._classroom_quick_post_writable(uuid)'
+	] loop
+		if has_function_privilege('anon', v_fn, 'execute') or has_function_privilege('authenticated', v_fn, 'execute') then
+			v_bad := v_bad || ('a client role executes the private ' || v_fn);
+		end if;
+	end loop;
+	foreach v_fn in array array['classroom_quick_posts', 'classroom_quick_post_create', 'classroom_quick_post_add_file', 'classroom_quick_post_file'] loop
+		if (select count(*) from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+			where n.nspname = 'public' and p.proname = v_fn) <> 1 then
+			v_bad := v_bad || ('not exactly one overload of ' || v_fn);
+		end if;
+	end loop;
+	if has_table_privilege('anon', 'public.classroom_quick_post_files', 'select')
+		or has_table_privilege('anon', 'public.classroom_quick_post_files', 'insert')
+		or has_table_privilege('authenticated', 'public.classroom_quick_post_files', 'select')
+		or has_table_privilege('authenticated', 'public.classroom_quick_post_files', 'insert')
+		or has_table_privilege('authenticated', 'public.classroom_quick_post_files', 'update')
+		or has_table_privilege('authenticated', 'public.classroom_quick_post_files', 'delete') then
+		v_bad := v_bad || 'a client role holds a privilege on classroom_quick_post_files'::text;
+	end if;
+	if not exists (
+		select 1 from pg_catalog.pg_constraint c
+		where c.conrelid = 'public.classroom_quick_posts'::regclass
+			and c.conname = 'classroom_quick_posts_body_shape'
+			and pg_catalog.pg_get_constraintdef(c.oid) like '%4000%'
+	) then
+		v_bad := v_bad || 'the body ceiling is not 4000'::text;
+	end if;
+
+	v_storage := exists (
+		select 1 from pg_catalog.pg_policies pol
+		where pol.schemaname = 'storage' and pol.tablename = 'objects'
+			and pol.policyname = 'quick post files insert by author'
+	);
+	if v_storage then
+		if not exists (
+			select 1 from storage.buckets b
+			where b.id = 'quick-post-files' and b.public = false and b.allowed_mime_types is null
+				and b.file_size_limit = public.portal_upload_max_bytes()
+		) then
+			v_bad := v_bad || 'the quick-post-files bucket is not private, unlisted and at the portal ceiling'::text;
+		end if;
+		if exists (
+			select 1 from pg_catalog.pg_policies pol
+			where pol.schemaname = 'storage' and pol.tablename = 'objects'
+				and (coalesce(pol.qual, '') || coalesce(pol.with_check, '')) like '%quick-post-files%'
+				and (pol.roles && array['anon', 'public']::name[])
+		) then
+			v_bad := v_bad || 'a policy on the quick-post-files bucket names anon or public'::text;
+		end if;
+		if not exists (
+			select 1 from pg_catalog.pg_policies pol
+			where pol.schemaname = 'storage' and pol.tablename = 'objects'
+				and pol.policyname = 'quick post files readable by the class'
+		) then
+			v_bad := v_bad || 'the read policy is missing beside the insert policy'::text;
+		end if;
+	end if;
+
+	if cardinality(v_bad) > 0 then
+		raise exception '0233 quick-posts self-check refused (% problem(s)): %', cardinality(v_bad), array_to_string(v_bad, '; ');
+	end if;
+
+	select count(*)::integer into v_live from public.classroom_quick_posts p
+	where p.taken_down_at is null and (p.expires_at is null or p.expires_at > now());
+	select count(*)::integer into v_long from public.classroom_quick_posts p where char_length(p.body) > 1000;
+	select count(*)::integer into v_files from public.classroom_quick_post_files;
+	raise notice '0233 quick-posts: % live notice(s), % over 1000 characters, % file row(s); storage half %.',
+		v_live, v_long, v_files, case when v_storage then 'applied' else 'NOT applied (re-paste 0233 in the SQL editor)' end;
+end;
+$qp$;
+
+-- UNDO (refuses rather than destroys). In the SQL editor, in this order:
+--   1. drop policy if exists "quick post files insert by author" on storage.objects;
+--      drop policy if exists "quick post files readable by the class" on storage.objects;
+--   2. drop function if exists public.classroom_quick_post_file(uuid);
+--      drop function if exists public.classroom_quick_post_add_file(uuid, text, text, bigint);
+--      drop function if exists public.classroom_can_read_quick_post_object(text);
+--      drop function if exists public.classroom_can_write_quick_post_object(text);
+--      drop function if exists public._classroom_quick_post_readable(uuid);
+--      drop function if exists public._classroom_quick_post_writable(uuid);
+--   3. Re-run the read and the create sections of 0230 verbatim (it restores
+--      the 1000 literal in the create and drops files_ready and limits, which
+--      the client reads as no files and 1000 characters).
+--   4. Restore the 1000-character CHECK ONLY if no stored body exceeds 1000:
+--      count them first and stop if the count is not zero, because putting the
+--      old check back over a longer notice refuses the whole statement.
+--   5. The file table and the bucket's objects are left for a person to remove
+--      by hand, after reading what is in them. Nothing here deletes them.
+-- ===== PART quick-posts END =====
+
+-- ===== PART foundry-major BEGIN =====
+-- ===========================================================================
+-- FOUNDRY: MAJOR RELEASES (report 927b1c69, Mr. Pina, 2026-10-07).
+--
+-- An administrator marks ONE APP a major release: a high-effort original game,
+-- as opposed to a port, which the gallery then shows in a "Major releases"
+-- section above the full list. It is curation of an app, never of a person,
+-- and it is not the trusted-publisher roster (0173, decision 06), which is
+-- per student and keyed by address.
+--
+-- WHAT THIS PART DOES, IN ORDER (the order matters: the list function is
+-- `language sql`, whose body is validated at create time, so the column has
+-- to exist first):
+--
+--   A. Two columns on student_apps, a stamp and an actor, the hidden_at /
+--      hidden_by shape 0130 uses. THE ACTOR IS A UUID, NEVER AN ADDRESS:
+--      student_apps carries a table-wide select grant to authenticated (0130),
+--      so any column on it is directly readable on every row the population
+--      policy admits. No read function projects the actor.
+--   B. foundry_list_apps re-projected with major_release_at. It returns a
+--      table, so a new column needs a DROP at its exact, unchanged argument
+--      types first; the argument list does not move, so this is not the
+--      signature trap and there is no deploy ordering. The body is 0173's
+--      text PATCHED with two insertions and nothing else, never retyped:
+--      0173's own header records what a retyped copy silently lost (the
+--      owner-or-admin gate on the submitted id, the signed-in clause and the
+--      created_at tiebreaker).
+--   C. foundry_get_app gains one key. It returns jsonb, so no drop: the same
+--      signature, 0173's text with one inserted line.
+--   D. foundry_set_app_major, the one writer. Admin only, no identity
+--      parameter, idempotent both ways, and it NEVER moves updated_at:
+--      curation is not an edit, and updated_at drives the gallery's
+--      "Recently updated" order and the list function's own order.
+--   E. A self-check over this part's own three functions, by name.
+--
+-- WHAT A CLIENT SEES BEFORE THIS APPLIES: no major_release_at key at all, which
+-- the client reads as "cannot tell" and offers no control for. The write
+-- answers PGRST202 and the console says so in a sentence. Additive, so the
+-- migration and the deploy may land in either order.
+--
+-- UNDO: drop the write function (foundry_set_app_major(uuid, boolean)), then
+-- re-paste 0173's section 4 (the list drop plus create, and the get). The two
+-- columns stay; dropping them is a hand paste the apply tool refuses:
+--   alter table public.student_apps drop column major_release_by,
+--     drop column major_release_at;
+-- ===========================================================================
+
+-- A. THE COLUMNS.
+alter table public.student_apps
+	add column if not exists major_release_at timestamptz,
+	add column if not exists major_release_by uuid references auth.users (id) on delete set null;
+
+-- An actor with no stamp is a half-written record. Guarded on pg_constraint,
+-- because Postgres has no add-constraint-if-not-exists.
+do $fm$
+begin
+	if not exists (
+		select 1 from pg_catalog.pg_constraint
+		where conname = 'student_apps_major_release_by_needs_at'
+			and conrelid = 'public.student_apps'::regclass
+	) then
+		alter table public.student_apps
+			add constraint student_apps_major_release_by_needs_at
+			check (major_release_by is null or major_release_at is not null);
+	end if;
+end;
+$fm$;
+
+-- B. THE LIST, re-projected. 0173's text with two insertions: the column in
+-- the returned table after hidden_at, and a.major_release_at in the select.
+-- The stamp is projected to EVERY caller, because it is what the gallery
+-- shows; the actor is projected by nothing.
+drop function if exists public.foundry_list_apps(uuid, boolean, boolean);
+
+create or replace function public.foundry_list_apps(
+	p_owner uuid default null,
+	p_include_hidden boolean default false,
+	p_include_unpublished boolean default false
+)
+returns table (
+	id uuid,
+	slug text,
+	title text,
+	tagline text,
+	description text,
+	cover_path text,
+	build_notes text,
+	owner uuid,
+	owner_display_name text,
+	owner_full_name text,
+	owner_class text,
+	published_version_id uuid,
+	published_ordinal integer,
+	version_count integer,
+	submitted_version_id uuid,
+	-- 0173. The app's OWN published version when it was auto-published by a
+	-- trusted author and nobody has reviewed it yet. Null otherwise, which is
+	-- every app that went through the queue.
+	live_unreviewed_version_id uuid,
+	metadata_flagged_at timestamptz,
+	hidden_at timestamptz,
+	major_release_at timestamptz,
+	created_at timestamptz,
+	updated_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $fl$
+	select
+		a.id, a.slug, a.title, a.tagline, a.description, a.cover_path, a.build_notes,
+		a.owner, p.display_name, p.full_name,
+		public._foundry_author_class(a.owner),
+		a.published_version_id,
+		(select pv.ordinal from public.student_app_versions pv where pv.id = a.published_version_id),
+		(select count(*)::integer from public.student_app_versions v where v.app_id = a.id),
+		-- The review trail is the owner's and the staff's. Everyone else gets
+		-- null here rather than a hint that something is sitting in the queue.
+		case
+			when a.owner = (select auth.uid()) or public.is_admin() then (
+				select sv.id from public.student_app_versions sv
+				where sv.app_id = a.id and sv.status = 'submitted'
+			)
+		end,
+		-- 0173, decision 06. GATED THE SAME WAY the submitted id above is, and
+		-- for the same reason: whether a build is waiting to be looked at is
+		-- the owner's business and staff's, and nobody else's.
+		--
+		-- STRICTLY THE APP'S OWN PUBLISHED VERSION. A superseded auto-published
+		-- build is history rather than a queue item, and offering a reviewer a
+		-- take-down control for something already taken down is a control whose
+		-- only possible answer is a refusal.
+		case
+			when a.owner = (select auth.uid()) or public.is_admin() then (
+				select sv.id from public.student_app_versions sv
+				where sv.id = a.published_version_id
+					and sv.auto_published_at is not null
+					and sv.reviewed_at is null
+			)
+		end,
+		a.metadata_flagged_at, a.hidden_at, a.major_release_at, a.created_at, a.updated_at
+	from public.student_apps a
+	left join public.profiles p on p.id = a.owner
+	where (select auth.uid()) is not null
+		and public._foundry_app_in_population(
+			a.owner, a.hidden_at, a.published_version_id,
+			p_include_hidden, p_include_unpublished
+		)
+		and (p_owner is null or a.owner = p_owner)
+	order by a.updated_at desc, a.created_at desc;
+$fl$;
+
+revoke all on function public.foundry_list_apps(uuid, boolean, boolean) from public, anon, authenticated, service_role;
+grant execute on function public.foundry_list_apps(uuid, boolean, boolean) to authenticated;
+
+-- C. ONE APP, with one more key: 0173's text with major_release_at inserted
+-- after hidden_at. v_app is the whole row, so the column is already in it.
+create or replace function public.foundry_get_app(
+	p_slug text,
+	p_include_hidden boolean default false,
+	p_include_unpublished boolean default false
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fg$
+declare
+	v_uid uuid := (select auth.uid());
+	v_slug text := lower(public._foundry_norm(p_slug));
+	v_app record;
+	v_privileged boolean;
+	v_versions jsonb;
+begin
+	if v_uid is null then
+		raise exception 'You must be signed in.';
+	end if;
+
+	select a.*, p.display_name as owner_display_name, p.full_name as owner_full_name
+	into v_app
+	from public.student_apps a
+	left join public.profiles p on p.id = a.owner
+	where a.slug = v_slug
+		and public._foundry_app_in_population(
+			a.owner, a.hidden_at, a.published_version_id,
+			p_include_hidden, p_include_unpublished
+		);
+
+	if not found then
+		return null;
+	end if;
+
+	v_privileged := (v_app.owner = v_uid) or public.is_admin();
+
+	select coalesce(jsonb_agg(rows.payload order by rows.ordinal desc), '[]'::jsonb)
+	into v_versions
+	from (
+		select v.ordinal, jsonb_build_object(
+			'id', v.id,
+			'ordinal', v.ordinal,
+			'status', v.status,
+			'manifest', v.manifest,
+			'byte_size', v.byte_size,
+			'file_count', v.file_count,
+			'created_at', v.created_at,
+			-- The zip and the review trail are privileged. A reader of a
+			-- published app gets the build, never the paperwork around it.
+			'zip_path', case when v_privileged then v.zip_path end,
+			'reviewed_by', case when v_privileged then v.reviewed_by end,
+			'reviewed_at', case when v_privileged then v.reviewed_at end,
+			-- 0173. When a trusted author's submit published this without a
+			-- review. Privileged beside the rest of the paperwork: a reader of a
+			-- published app gets the build, never how it got there.
+			'auto_published_at', case when v_privileged then v.auto_published_at end,
+			'review_note', case when v_privileged then v.review_note end,
+			'reject_reason', case when v_privileged then v.reject_reason end
+		) as payload
+		from public.student_app_versions v
+		where v.app_id = v_app.id
+			and (v_privileged or v.id = v_app.published_version_id)
+	) rows;
+
+	return jsonb_build_object(
+		'id', v_app.id,
+		'slug', v_app.slug,
+		'title', v_app.title,
+		'tagline', v_app.tagline,
+		'description', v_app.description,
+		'cover_path', v_app.cover_path,
+		'build_notes', v_app.build_notes,
+		'owner', v_app.owner,
+		'owner_display_name', v_app.owner_display_name,
+		'owner_full_name', v_app.owner_full_name,
+		'owner_class', public._foundry_author_class(v_app.owner),
+		'published_version_id', v_app.published_version_id,
+		'metadata_flagged_at', v_app.metadata_flagged_at,
+		'hidden_at', v_app.hidden_at,
+		'major_release_at', v_app.major_release_at,
+		'created_at', v_app.created_at,
+		'updated_at', v_app.updated_at,
+		'versions', v_versions
+	);
+end;
+$fg$;
+
+revoke all on function public.foundry_get_app(text, boolean, boolean) from public, anon, authenticated, service_role;
+grant execute on function public.foundry_get_app(text, boolean, boolean) to authenticated;
+
+-- D. THE WRITE.
+--
+-- RAISES for misuse (no session, not an admin, a null flag). Answers a
+-- STRUCTURED refusal for the states an admin has to be shown in words:
+-- not_found, and when marking, hidden and not_published. A mark on something
+-- that is not on the gallery would show nothing, so marking needs a published,
+-- unhidden app; UNMARKING IS ALWAYS ALLOWED, a hidden app included. Hiding
+-- keeps the flag and restoring brings the app back into the section, because
+-- hiding is reversible shelving.
+--
+-- IDEMPOTENT BOTH WAYS: a second mark or a second unmark (a double click, two
+-- tabs) answers ok with changed false and keeps the original stamp, so the
+-- console can say "it already was" rather than claim a write.
+--
+-- THE ROW LOCK is the same for-update every single-app admin write here takes.
+create or replace function public.foundry_set_app_major(
+	p_app_id uuid,
+	p_major boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $fm$
+declare
+	v_uid uuid := (select auth.uid());
+	v_app public.student_apps%rowtype;
+	v_at timestamptz;
+begin
+	if v_uid is null then
+		raise exception 'You must be signed in.';
+	end if;
+	if not public.is_admin() then
+		raise exception 'Only a site administrator can make an app a major release.';
+	end if;
+	if p_major is null then
+		raise exception 'A major release or not? That has to be one or the other.';
+	end if;
+
+	select a.* into v_app from public.student_apps a where a.id = p_app_id for update;
+	if not found then
+		return jsonb_build_object('ok', false, 'reason', 'not_found');
+	end if;
+
+	if p_major then
+		if v_app.major_release_at is not null then
+			return jsonb_build_object(
+				'ok', true, 'app_id', p_app_id,
+				'major_release_at', v_app.major_release_at, 'changed', false
+			);
+		end if;
+		if v_app.hidden_at is not null then
+			return jsonb_build_object('ok', false, 'reason', 'hidden');
+		end if;
+		if v_app.published_version_id is null then
+			return jsonb_build_object('ok', false, 'reason', 'not_published');
+		end if;
+	elsif v_app.major_release_at is null then
+		return jsonb_build_object(
+			'ok', true, 'app_id', p_app_id, 'major_release_at', null, 'changed', false
+		);
+	end if;
+
+	-- updated_at is deliberately not in this list.
+	update public.student_apps a set
+		major_release_at = case when p_major then now() else null end,
+		major_release_by = case when p_major then v_uid else null end
+	where a.id = p_app_id
+	returning a.major_release_at into v_at;
+
+	return jsonb_build_object(
+		'ok', true, 'app_id', p_app_id, 'major_release_at', v_at, 'changed', true
+	);
+end;
+$fm$;
+
+revoke all on function public.foundry_set_app_major(uuid, boolean) from public, anon, authenticated, service_role;
+grant execute on function public.foundry_set_app_major(uuid, boolean) to authenticated;
+
+-- E. THE SELF-CHECK, over this part's own three functions by name and nothing
+-- else: a prefix sweep would be asserting something about other migrations.
+do $fm$
+declare
+	v_n integer;
+	v_major integer;
+begin
+	select count(*) into v_n
+	from pg_catalog.pg_proc p
+	join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+	where n.nspname = 'public'
+		and p.proname in ('foundry_list_apps', 'foundry_get_app', 'foundry_set_app_major');
+	if v_n <> 3 then
+		raise exception 'foundry-major: expected one function each for foundry_list_apps, foundry_get_app and foundry_set_app_major, found % in all.', v_n;
+	end if;
+
+	if pg_catalog.pg_get_function_result('public.foundry_list_apps(uuid, boolean, boolean)'::regprocedure)
+		not like '%major_release_at timestamp with time zone%' then
+		raise exception 'foundry-major: foundry_list_apps does not project major_release_at.';
+	end if;
+
+	if pg_catalog.has_function_privilege('anon', 'public.foundry_set_app_major(uuid, boolean)', 'EXECUTE')
+		or pg_catalog.has_function_privilege('anon', 'public.foundry_list_apps(uuid, boolean, boolean)', 'EXECUTE')
+		or pg_catalog.has_function_privilege('anon', 'public.foundry_get_app(text, boolean, boolean)', 'EXECUTE') then
+		raise exception 'foundry-major: a Foundry read or the major-release write is executable by anon.';
+	end if;
+
+	if not pg_catalog.has_function_privilege('authenticated', 'public.foundry_set_app_major(uuid, boolean)', 'EXECUTE') then
+		raise exception 'foundry-major: foundry_set_app_major is not executable by authenticated.';
+	end if;
+
+	select count(*) into v_major from public.student_apps where major_release_at is not null;
+	raise notice 'foundry-major: % app(s) marked as a major release (none on a first apply; a re-apply keeps them).', v_major;
+end;
+$fm$;
+-- ===== PART foundry-major END =====
