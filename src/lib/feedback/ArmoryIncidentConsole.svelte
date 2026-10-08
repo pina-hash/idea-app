@@ -211,14 +211,16 @@
 			<p class="ai-error" role="alert">{error}</p>
 		{/if}
 
-		<div class="ai-tabs" role="tablist" aria-label="Status filter">
+		<!-- A ROW OF FILTER KEYS, each pressed or not: a group of aria-pressed
+		     buttons, not tabs, because nothing here is a tab panel and the keys
+		     are reached with Tab like any other button. -->
+		<div class="ai-tabs" role="group" aria-label="Status filter">
 			{#each [...STATUSES.map((s) => ({ id: s.id, label: `${s.label} (${counts[s.id]})` })), { id: 'all' as const, label: `All (${rows.length})` }] as f (f.id)}
 				<button
 					type="button"
-					role="tab"
 					class="ai-control ai-tab"
 					class:active={filter.status === f.id}
-					aria-selected={filter.status === f.id}
+					aria-pressed={filter.status === f.id}
 					data-testid="ai-status-{f.id}"
 					onclick={() => (filter = { ...filter, status: f.id })}
 				>
@@ -342,9 +344,13 @@
 				</p>
 			</section>
 		{:else}
-			{#each groups as group (group.key)}
-				<section class="ai-group" aria-labelledby="ai-group-{group.key.replace(/[^A-Za-z0-9_-]/g, '_')}" data-testid="ai-group">
-					<h2 class="ai-group-title" id="ai-group-{group.key.replace(/[^A-Za-z0-9_-]/g, '_')}">
+			<!-- The heading id is the group's POSITION, never its key: two keys
+			     can fold to one id once their punctuation is replaced (a kind
+			     "crash" at version "0.3.0" and "crash_0" at "3.0"), and a
+			     duplicated id makes aria-labelledby name the wrong heading. -->
+			{#each groups as group, gi (group.key)}
+				<section class="ai-group" aria-labelledby="ai-group-{gi}" data-testid="ai-group">
+					<h2 class="ai-group-title" id="ai-group-{gi}">
 						{incidentKindWord(group.kind)}, version {group.version || 'unknown'} ({group.rows.length})
 					</h2>
 					{#each group.rows as row (row.id)}

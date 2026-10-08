@@ -142,14 +142,16 @@
 			<p class="af-error" role="alert">{error}</p>
 		{/if}
 
-		<div class="af-tabs" role="tablist" aria-label="Status filter">
+		<!-- A ROW OF FILTER KEYS, each pressed or not: a group of aria-pressed
+		     buttons, not tabs, because nothing here is a tab panel and the keys
+		     are reached with Tab like any other button. -->
+		<div class="af-tabs" role="group" aria-label="Status filter">
 			{#each [...STATUSES.map((s) => ({ id: s.id, label: `${s.label} (${counts[s.id]})` })), { id: 'all' as const, label: `All (${rows.length})` }] as f (f.id)}
 				<button
 					type="button"
-					role="tab"
 					class="af-control af-tab"
 					class:active={filter.status === f.id}
-					aria-selected={filter.status === f.id}
+					aria-pressed={filter.status === f.id}
 					data-testid="af-status-{f.id}"
 					onclick={() => (filter = { ...filter, status: f.id })}
 				>

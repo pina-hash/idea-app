@@ -665,6 +665,21 @@ export interface FeedbackEditInput {
 }
 
 /**
+ * AN OPEN EDIT'S UNSAVED WORDS, kept by the console rather than by the form.
+ * The form is mounted inside its report's card, and a card moves between the
+ * list and the console's "Being edited" section when a filter or a bulk move
+ * hides it, which remounts the form; the console hands these back so the new
+ * mount opens on what was typed, against the revision it was typed against.
+ */
+export interface FeedbackEditDraft {
+	kind: string;
+	message: string;
+	tried: string;
+	/** The revision the edit was opened on, so a save after a remount is still checked against it. */
+	baseRevision: number;
+}
+
+/**
  * What `app_feedback_edit` answered, as the edit transport hands it back.
  * `reason` is the database's own structured refusal (FEEDBACK_EDIT_REFUSALS);
  * `message` is a transport failure, with whether sending again could help.

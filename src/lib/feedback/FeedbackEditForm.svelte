@@ -11,6 +11,7 @@
 		FEEDBACK_TRIED_MAX,
 		feedbackEditRefusalWords,
 		type FeedbackEdit,
+		type FeedbackEditDraft,
 		type FeedbackEditTransport,
 		type FeedbackRow
 	} from './feedback';
@@ -35,13 +36,24 @@
 	 * PRESENTATION + ONE TRANSPORT. It fetches nothing; the console hands it the
 	 * transport, and the console only has one when the load proved the database
 	 * can take an edit.
+	 *
+	 * THE UNSAVED WORDS ARE THE CONSOLE'S, NOT THIS INSTANCE'S. The form sits in
+	 * its report's card, and the card moves between the list and the console's
+	 * "Being edited" section when a filter or a bulk move hides it -- which
+	 * destroys this instance and mounts another. So every change is handed up
+	 * through `ondraft` (from the input handlers, never an effect), and a new
+	 * mount opens on `draft`. Nothing is withdrawn on teardown, on purpose:
+	 * withdrawing it would throw away exactly the words the next mount restores.
+	 * The console clears the draft itself on a save, a discard, and when the
+	 * report is no longer anywhere to edit.
 	 */
 	let {
 		row,
 		editFeedback,
 		onsaved,
 		oncancel,
-		ondirty = null,
+		draft = null,
+		ondraft = null,
 		now = () => Date.now()
 	}: {
 		row: FeedbackRow;
@@ -49,8 +61,10 @@
 		/** The correction that landed (or null when the save changed nothing). */
 		onsaved: (edit: FeedbackEdit | null) => void;
 		oncancel: () => void;
-		/** Told from the input handlers (never an effect) whether there is unsaved work. */
-		ondirty?: ((dirty: boolean) => void) | null;
+		/** Words an earlier mount of this form held unsaved, to open on again. */
+		draft?: FeedbackEditDraft | null;
+		/** Told from the input handlers (never an effect) the unsaved words, or null when there are none. */
+		ondraft?: ((draft: FeedbackEditDraft | null) => void) | null;
 		now?: () => number;
 	} = $props();
 
@@ -65,20 +79,34 @@
 		id: row.id
 	}));
 
-	let kind = $state(start.kind);
-	let message = $state(start.message);
-	let tried = $state(start.tried);
-	let revision = start.revision;
+	// Kept words from an earlier mount win over the report's; so does the
+	// revision they were typed against, so a correction another admin saved
+	// meanwhile is still refused as stale rather than written over.
+	const reopened = untrack(() => draft);
+	let kind = $state(reopened?.kind ?? start.kind);
+	let message = $state(reopened?.message ?? start.message);
+	let tried = $state(reopened?.tried ?? start.tried);
+	let revision = reopened?.baseRevision ?? start.revision;
 	let refusal = $state<string | null>(null);
 
 	/** The comparison, in the shape the database compares in: trimmed, kind lower-cased. */
+	function signatureOf(words: { kind: string; message: string; tried: string }) {
+		return {
+			kind: words.kind.trim().toLowerCase(),
+			message: words.message.trim(),
+			tried: words.tried.trim()
+		};
+	}
 	function signature() {
-		return { kind: kind.trim().toLowerCase(), message: message.trim(), tried: tried.trim() };
+		return signatureOf({ kind, message, tried });
 	}
 
+	// THE BASELINE IS WHAT THE REPORT SAYS, never the kept words: a form
+	// reopened on a draft has to read as changed, or its Save would be refused
+	// as "nothing has changed" over words nobody has saved.
 	const baseline = new EditBaseline();
-	baseline.seed(untrack(() => signature()));
-	const changed = $derived(baseline.changed({ kind: kind.trim().toLowerCase(), message: message.trim(), tried: tried.trim() }));
+	baseline.seed(signatureOf(start));
+	const changed = $derived(baseline.changed(signatureOf({ kind, message, tried })));
 	const messageEmpty = $derived(message.trim() === '');
 	const canSave = $derived(changed && !messageEmpty);
 
@@ -108,11 +136,17 @@
 				message: res.message || 'That edit was not saved.'
 			};
 		}
+		// A RETRY WHOSE FIRST ATTEMPT LANDED. The answer to the first send was
+		// lost, the machine sent again, and the database found these words
+		// already there: `changed` is false, but the revision has moved past the
+		// one this form sent. That is this edit, landed, and the card has to say
+		// so rather than "nothing changed".
+		const landed = res.changed || res.revision !== revision;
 		revision = res.revision;
 		baseline.advance(sent);
-		ondirty?.(false);
+		ondraft?.(null);
 		onsaved(
-			res.changed
+			landed
 				? {
 						revision: res.revision,
 						kind: sent.kind,
@@ -132,6 +166,11 @@
 		fallbackMessage: 'That edit was not saved.'
 	});
 
+	// A FORM REOPENED ON KEPT WORDS HAS UNSAVED WORK FROM ITS FIRST FRAME, so the
+	// navigation guard and the deploy hold below know about it before anybody
+	// types again.
+	if (untrack(() => baseline.changed(signature()))) save.markDirty();
+
 	// ONE GUARD, THIS FORM'S: a navigation away flushes a pending save first and
 	// asks only when the save cannot land.
 	guardSaveNavigation(save, {
@@ -145,6 +184,7 @@
 		return holdDeployReload('a feedback edit is open');
 	});
 
+	// The machine dies with the instance. The draft does not: see the header.
 	$effect(() => () => save.destroy());
 
 	/**
@@ -156,7 +196,7 @@
 		const differs = baseline.changed(signature());
 		if (differs) save.markDirty();
 		else if (save.phase === 'dirty' || save.phase === 'failed') save.reset();
-		ondirty?.(differs);
+		ondraft?.(differs ? { kind, message, tried, baseRevision: revision } : null);
 	}
 
 	let why = $state<string | null>(null);
@@ -177,12 +217,18 @@
 
 	function cancel() {
 		save.reset();
-		ondirty?.(false);
+		ondraft?.(null);
 		oncancel();
 	}
 
-	/** Focus the message the moment the form exists, keyed on the element. */
+	/**
+	 * Focus the message the moment the form exists, keyed on the element -- on
+	 * the first mount only. A form reopened on kept words was moved by a press
+	 * somewhere else (a filter, a bulk move), and taking the focus there would
+	 * pull it away from what the admin just pressed.
+	 */
 	function focusOnMount(node: HTMLTextAreaElement) {
+		if (reopened) return;
 		node.focus({ preventScroll: true });
 	}
 </script>

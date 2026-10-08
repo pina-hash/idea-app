@@ -15,6 +15,7 @@
 		FEEDBACK_KINDS,
 		FEEDBACK_STATUSES,
 		type FeedbackEdit,
+		type FeedbackEditDraft,
 		type FeedbackEditTransport,
 		type FeedbackHorizon,
 		type FeedbackRow,
@@ -222,7 +223,13 @@
 	// moment it arrives.
 	let edited = $state<Record<string, FeedbackEdit>>({});
 	let editingId = $state<string | null>(null);
-	let editDirty = $state(false);
+	/**
+	 * THE OPEN EDIT'S UNSAVED WORDS, held HERE rather than in the form. A
+	 * filter change or a bulk move can hide the report being edited, which
+	 * moves its card from the list to "Being edited" below and remounts the
+	 * form; the new mount opens on these. Null means nothing is unsaved.
+	 */
+	let editDraft = $state<FeedbackEditDraft | null>(null);
 	let editNote = $state<string | null>(null);
 
 	function withEdit(row: FeedbackRow): FeedbackRow {
@@ -238,20 +245,35 @@
 	 */
 	const liveRows = $derived(rows.map(withEdit));
 
+	/**
+	 * THE REPORT BEING EDITED, wherever it is. Null when nothing is open, or
+	 * when the report is no longer among the rows at all, which reads exactly
+	 * as "closed": a form that cannot be put on screen must not hold the Edit
+	 * keys hostage.
+	 */
+	const editingRow = $derived(
+		editingId === null || !editFeedback
+			? null
+			: (liveRows.find((r) => r.id === editingId) ?? null)
+	);
+
 	function openEdit(row: FeedbackRow) {
 		if (editingId === row.id) return;
-		if (editingId && editDirty) {
-			error = 'Save or discard the edit you have open first.';
+		// THE OPEN FORM IS ALWAYS ON SCREEN -- in its place, or under "Being
+		// edited" when the filters hide it -- so this refusal always names a
+		// form the admin can see and finish.
+		if (editingRow && editDraft) {
+			error = `Save or discard your edit to ${feedbackRowLabel(editingRow)} first.`;
 			return;
 		}
 		error = null;
-		editDirty = false;
+		editDraft = null;
 		editingId = row.id;
 	}
 
 	function closeEdit() {
 		editingId = null;
-		editDirty = false;
+		editDraft = null;
 	}
 
 	function editSaved(row: FeedbackRow, edit: FeedbackEdit | null) {
@@ -307,6 +329,10 @@
 	// New first is the working order: the queue exists to be worked through,
 	// and a resolved note is history.
 	const visible = $derived(filterFeedback(liveRows, filter, statusOf, horizonOf));
+	/** The report being edited when the filters hide it, or null. */
+	const editingHiddenRow = $derived(
+		editingRow && !visible.some((r) => r.id === editingRow.id) ? editingRow : null
+	);
 	/** The two lists the "Both" view renders, from the same filtered set. */
 	const split = $derived(splitByHorizon(visible, horizonOf));
 
@@ -367,7 +393,9 @@
 	}
 
 	async function move(row: FeedbackRow, status: FeedbackStatus) {
-		if (busyId || undoBusy) return;
+		// A CARD WITH ITS EDIT FORM OPEN DOES NOT MOVE, so the form stays where
+		// the admin is typing; the card says so beside its keys.
+		if (busyId || undoBusy || editingId === row.id) return;
 		// READ BEFORE THE WRITE. `moved` takes the new status the moment the
 		// write lands, so asked afterwards the "previous" status would be the one
 		// just pressed and the Undo would put the report back where it now is.
@@ -401,7 +429,7 @@
 	let horizonNote = $state<string | null>(null);
 
 	async function moveHorizon(row: FeedbackRow, next: FeedbackHorizon) {
-		if (!setHorizon || horizonBusyId) return;
+		if (!setHorizon || horizonBusyId || editingId === row.id) return;
 		horizonBusyId = row.id;
 		error = null;
 		try {
@@ -1028,7 +1056,8 @@
 						{row}
 						{editFeedback}
 						{now}
-						ondirty={(d) => (editDirty = d)}
+						draft={editDraft}
+						ondraft={(d) => (editDraft = d)}
 						onsaved={(edit) => editSaved(row, edit)}
 						oncancel={closeEdit}
 					/>
@@ -1160,6 +1189,8 @@
 								type="button"
 								class="fbc-control btn secondary"
 								disabled={busyId === row.id || undoBusy || statusOf(row) === s.id}
+								aria-disabled={editingId === row.id ? 'true' : undefined}
+								aria-describedby={editingId === row.id ? `fb-edit-hold-${row.id}` : undefined}
 								onclick={() => move(row, s.id)}
 							>
 								{s.label}
@@ -1171,6 +1202,8 @@
 								class="fbc-control btn secondary fb-horizon-move"
 								data-testid="fbc-horizon-move-{row.id}"
 								disabled={horizonBusyId === row.id}
+								aria-disabled={editingId === row.id ? 'true' : undefined}
+								aria-describedby={editingId === row.id ? `fb-edit-hold-${row.id}` : undefined}
 								onclick={() =>
 									moveHorizon(row, horizonOf(row) === 'long_term' ? 'now' : 'long_term')}
 							>
@@ -1192,6 +1225,14 @@
 						{/if}
 					</span>
 				</div>
+				{#if editFeedback && editingId === row.id}
+					<!-- WHY THE KEYS ABOVE ARE UNLIT, in words, and named by each of
+					     them: aria-disabled rather than disabled, so a press reaches
+					     a control that can explain itself. -->
+					<p class="fb-edit-hold" id="fb-edit-hold-{row.id}" data-testid="fbc-edit-hold">
+						Save or discard the edit to move this report.
+					</p>
+				{/if}
 				{#if row.reviewed_by && statusOf(row) === row.status}
 					<p class="fb-review">
 						Last moved by {row.reviewed_by}{#if row.reviewed_at} on {whenLabel(row.reviewed_at)}{/if}
@@ -1199,6 +1240,24 @@
 				{/if}
 			</article>
 		{/snippet}
+
+		{#if editingHiddenRow}
+			<!--
+				AN OPEN EDIT THE FILTERS NOW HIDE STAYS ON SCREEN. A filter change or a
+				bulk move can take the report being edited off the list; dropping its
+				card would drop the typing with it and leave the Edit keys refusing
+				over a form nobody can see. So it sits here, above the list, with the
+				words it held, until it is saved or discarded. It is not in any count
+				or export: those are the filtered list's.
+			-->
+			<section class="fbc-group fbc-editing" aria-labelledby="fbc-editing-title" data-testid="fbc-editing-hidden">
+				<h2 class="fbc-group-title" id="fbc-editing-title">Being edited</h2>
+				<p class="note fbc-editing-note">
+					These filters hide this report. It stays here with your edit until you save or discard it.
+				</p>
+				{@render reportRow(editingHiddenRow)}
+			</section>
+		{/if}
 
 		{#if filter.horizon === ''}
 			<!--
@@ -1562,6 +1621,17 @@
 	.fb-as-sent {
 		margin: 0 0 var(--space-2);
 		min-width: 0;
+	}
+	/* Why the card's keys are unlit while its form is open: read, so the
+	   secondary text tier, never a status hue. */
+	.fb-edit-hold {
+		margin: var(--space-1, 0.25rem) 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2);
+	}
+	.fbc-editing .fbc-editing-note {
+		margin: 0 0 var(--space-2);
 	}
 	.fb-as-sent-list {
 		display: grid;

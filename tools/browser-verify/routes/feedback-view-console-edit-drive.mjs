@@ -64,6 +64,8 @@ export default {
 		{ selector: '[data-testid="fbc-edited-chip"]', label: 'the Edited word, on the harness\'s edited report and the one just saved', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="fbc-edited-line"]', label: 'who edited it and when', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="fbc-edit-note"]', label: 'the sentence above the list saying the edit landed', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="fbc-edit-hold"]', label: 'why the open card\'s move keys are unlit, on that card only', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="fbc-editing-hidden"]', label: 'no Being edited section while the open report is on the list', expectPresent: 0 },
 		{ selector: '.site-plate .fb-page', label: 'the console, under the site plate', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="feedback-sources"] a.on[aria-current="page"]', label: 'the Site key lit in the source strip', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
@@ -111,7 +113,8 @@ export default {
 		{ selector: '.fb-as-sent-list dd', label: 'the reporter\'s own words under As sent', min: 4.5 },
 		{ selector: '.fbe-label', label: 'the edit form\'s field labels', min: 4.5 },
 		{ selector: '.fbe-lead', label: 'the edit form\'s lead sentence', min: 4.5 },
-		{ selector: '[data-testid="fbc-edit-note"]', label: 'the saved note', min: 4.5 }
+		{ selector: '[data-testid="fbc-edit-note"]', label: 'the saved note', min: 4.5 },
+		{ selector: '[data-testid="fbc-edit-hold"]', label: 'why the open card\'s keys are unlit', min: 4.5 }
 	],
 	tapTargets: [
 		{ selector: 'button.fb-edit', label: 'each report\'s Edit key', min: 44 },

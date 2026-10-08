@@ -81,17 +81,25 @@ def main(argv):
 
     def edit_of(r):
         # The latest correction, read the way the console's rowEdit reads it:
-        # a dict with a positive integer revision, a kind and a non-blank
-        # message, or nothing. A shape this tool does not recognise is no edit.
+        # a dict with a positive whole-number revision (JavaScript's
+        # Number.isInteger takes 2.0 as well as 2), a non-blank kind, a
+        # non-blank message and a string edited_at, or nothing. A shape this
+        # tool does not recognise is no edit, exactly as it is no edit there.
         e = r.get('edit')
         if not isinstance(e, dict):
             return None
         rev = e.get('revision')
-        if not isinstance(rev, int) or isinstance(rev, bool) or rev < 1:
+        if isinstance(rev, bool) or not isinstance(rev, (int, float)):
+            return None
+        if isinstance(rev, float) and not rev.is_integer():
+            return None
+        if rev < 1:
             return None
         if not (isinstance(e.get('kind'), str) and e['kind'].strip()):
             return None
         if not (isinstance(e.get('message'), str) and e['message'].strip()):
+            return None
+        if not isinstance(e.get('edited_at'), str):
             return None
         return e
 

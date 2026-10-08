@@ -3624,15 +3624,19 @@ with its own answer for the rows already stored.
   firing leaves a subtly wrong value forever with nothing to catch it.
 - **Append-only where the record matters.** `coin_transactions`,
   `notebook_entry_notes`, `classroom_content_revisions`,
-  `tournament_match_events`, `app_feedback` and `app_feedback_edits` have no
-  UPDATE or DELETE grant at all. Editing INSERTS a superseding row; the chain is
-  `supersedes_id` + a unique `(logical_id, revision)`, so "current" is a plain
-  `max()` and two concurrent edits collide on the constraint instead of silently
-  losing one.
+  `tournament_match_events` and `app_feedback` have no UPDATE or DELETE grant at
+  all. Editing INSERTS a superseding row; the chain is `supersedes_id` + a unique
+  `(logical_id, revision)`, so "current" is a plain `max()` and two concurrent
+  edits collide on the constraint instead of silently losing one.
   - **AN ADMIN MAY CORRECT A FILED REPORT, AND THE REPORTER'S ROW STILL NEVER
     CHANGES (0233, report d362bfb3).** `app_feedback_edit` (admin only) inserts
     revision n+1 of the kind, message and "tried" into `app_feedback_edits`,
-    keyed `(feedback_id, revision)`, refuses a form opened on an older revision
+    which is append-only too (no client grant at all) but carries no
+    `supersedes_id`: it is keyed `(feedback_id, revision)` alone, so the
+    current correction is the `max()` of the revision; two concurrent saves
+    queue on the report's own row lock (`for update`), so the second reads the
+    first's revision and is refused, with the key as the backstop. It refuses
+    a form opened on an older revision
     as `stale`, and stamps nothing for a save that changes nothing (asked before
     staleness, so a retried save finds its own words). The wide
     `app_feedback_admin_list` projects the latest as `edit` on EVERY row, null
@@ -3642,7 +3646,11 @@ with its own answer for the rows already stored.
     index.json keep the reporter's words on the row with `edit` beside them, and
     `tools/feedback_digest.py` prints the corrected words, tagged `[edited]`.
     (Status and horizon were always admin-updated columns; the reporter's own
-    columns are what no write path touches.)
+    columns are what no write path touches.) **An open edit never vanishes with
+    its words**: the console, not the form, holds them (`FeedbackEditDraft`),
+    because a filter change or a bulk move that hides the report moves its card
+    under "Being edited" and REMOUNTS the form, which opens on them again; the
+    card's own status and horizon keys are aria-disabled while it is open.
   - **THE ONE NARROWING, AND IT IS ABOUT WHAT NOBODY HAS READ YET (0129).** A
     revision an AUTOSAVE wrote may be replaced in place by the next autosave,
     because otherwise a debounce mints a revision per keystroke burst and a

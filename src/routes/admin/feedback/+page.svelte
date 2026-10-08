@@ -10,6 +10,7 @@
 		type FeedbackStatus
 	} from '$lib/feedback/feedback';
 	import { FEEDBACK_MEDIA_BUCKET } from '$lib/feedback/screenshot';
+	import { isTransientSqlstate } from '$lib/pg-errors';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -51,9 +52,15 @@
 	 * console ONLY when the load saw the `edit` key the same apply adds, so a
 	 * deployment that could only refuse an edit is never offered one.
 	 *
-	 * A CODELESS ERROR IS THE NETWORK and may be re-sent; one with a code is the
-	 * database saying no, which `feedbackRetryable` reads the same way the
-	 * report box does.
+	 * A CODELESS ERROR IS THE NETWORK and may be re-sent, and so is a NAMED
+	 * transient SQLSTATE (a deadlock, a statement timeout), which
+	 * `$lib/pg-errors` is the one list of; every other code is the database
+	 * saying no, answered once. A re-send is safe because the database answers
+	 * words it already holds as unchanged before it asks about staleness.
+	 *
+	 * EVERY ANSWER THAT SAYS OK RELOADS, `changed` or not: a retry whose first
+	 * attempt landed reads `changed: false` at a newer revision, and the card
+	 * has to catch up to it either way.
 	 */
 	async function editFeedback(id: string, input: FeedbackEditInput): Promise<FeedbackEditResult> {
 		const { data: answer, error } = await supabase.rpc('app_feedback_edit', {
@@ -63,10 +70,16 @@
 			p_tried: input.tried,
 			p_base_revision: input.baseRevision
 		});
-		if (error) return { ok: false, message: error.message, retryable: feedbackRetryable(error.code) };
+		if (error) {
+			return {
+				ok: false,
+				message: error.message,
+				retryable: feedbackRetryable(error.code) || isTransientSqlstate(error.code)
+			};
+		}
 		const r = (answer ?? {}) as { ok?: unknown; changed?: unknown; revision?: unknown; reason?: unknown };
 		if (r.ok === true) {
-			if (r.changed === true) void invalidateAll();
+			void invalidateAll();
 			return { ok: true, changed: r.changed === true, revision: Number(r.revision) || 0 };
 		}
 		return { ok: false, reason: typeof r.reason === 'string' ? r.reason : 'unknown' };

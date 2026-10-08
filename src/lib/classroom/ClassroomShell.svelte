@@ -1368,8 +1368,11 @@
 		/* "FEEDBACK" IS TWO LETTERS LONGER THAN "REPORT" (2026-10-07, report
 		   e36c5437), and the word may not shrink: the plate holds every mono
 		   label at its 11px floor, which is what the stacked word measures
-		   (49.3px), so the control went from 48.6px to 60.9px and the class row
-		   at 375 from 60.9px to 48.6px, under the 52.9px of one class icon.
+		   (49.3px). Measured at 375 with the old spacing: the control was
+		   48.6px wide reading REPORT and 60.9px reading FEEDBACK, and the
+		   class row lost exactly those 12.3px, from 60.9px to 48.6px -- the
+		   same two figures trading places, which is arithmetic, not a typo --
+		   leaving it under the 52.9px of one class icon.
 		   The room comes from the row instead: the right-hand group's gaps
 		   halve (8px to 4px, still no two boxes touching) and the stacked
 		   control's sides go to 4px, the control-fit sweep's own inset floor.
