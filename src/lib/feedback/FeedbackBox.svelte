@@ -25,13 +25,25 @@
 		type ScreenshotUpload
 	} from './screenshot';
 	import {
+		DICTATION_LEVEL_NOTE,
 		DICTATION_NOTE,
+		DICTATION_STOP_GRACE_MS,
 		Dictation,
-		appendDictation,
+		DictationJoin,
 		coarsePointer,
 		dictationConstructor,
+		dictationEndNote,
+		dictationLang,
+		isDictationChord,
+		type DictationEnd,
+		type MicMeter,
 		type SpeechRecognitionCtor
 	} from './dictation';
+	import { MicLevel } from './mic-level';
+	import DictationGhost from './DictationGhost.svelte';
+	import DictationLevel from './DictationLevel.svelte';
+	import { modKeyLabel } from '$lib/shell/commands';
+	import { pendingLabel } from '$lib/pending';
 
 	/**
 	 * Shared in-app feedback / suggestion box. App-AGNOSTIC by design: GREENLINE
@@ -53,7 +65,10 @@
 	 *
 	 * Escape steps back exactly like GreenlineSettings: it closes the modal, and
 	 * keydowns are swallowed while open so a game underneath never sees the
-	 * player typing.
+	 * player typing. EXCEPT WHILE DICTATING (report 5ab3adb6): then Escape, and
+	 * a click on the shade, only stop listening and the box stays open, because
+	 * Escape is the conventional "stop dictating" key and closing the box
+	 * discards the report. A second Escape closes it.
 	 *
 	 * ONE VOCABULARY FOR SAVING. Sending is an explicit one-shot write, so it
 	 * runs on the SHARED SaveState in `autosave: false` mode and reports itself
@@ -74,6 +89,7 @@
 		uploadScreenshot = null,
 		screenshotNote = null,
 		dictation = undefined,
+		micLevel = undefined,
 		offerHorizon = false,
 		consoleHref = null,
 		title = 'Send feedback',
@@ -130,6 +146,14 @@
 		 * and the one rule about text (append, never replace).
 		 */
 		dictation?: SpeechRecognitionCtor | null;
+		/**
+		 * THE LOUDNESS METER BESIDE STOP. `undefined` (every real mount) builds
+		 * the real one on a fine pointer and none on a phone; `null` refuses it;
+		 * an object hands in a stand-in, which is how the dev harness shows the
+		 * bars with no microphone. See `mic-level.ts`: measured on this device,
+		 * opened only where the microphone is already allowed, never recorded.
+		 */
+		micLevel?: MicMeter | null;
 		/**
 		 * OFFER "FIX SOON" OR "LONG-TERM IDEA" (0230). False, the default, renders
 		 * no control and puts no `horizon` on the entry at all, which is how
@@ -241,41 +265,111 @@
 	 * A FINAL SENTENCE IS APPENDED TO WHAT IS IN THE FIELD NOW -- typed while
 	 * the person was also speaking, pasted, or dictated earlier -- and the
 	 * field is read fresh at that moment rather than snapshotted at start, so
-	 * nothing anybody typed in between is lost. `typed()` then reports the
-	 * edit to the save machine exactly as a keystroke would, gate included.
+	 * nothing anybody typed in between is lost. `join` decides whether the
+	 * sentence before it is finished (report 5ab3adb6: a period at every pause
+	 * put one in the middle of sentences) and closes the last one when the
+	 * session ends. `typed()` then reports the edit to the save machine
+	 * exactly as a keystroke would, gate included.
+	 *
+	 * ON A FINE POINTER THE SESSION KEEPS LISTENING through the service's own
+	 * stops (`keepAlive`), with a loudness meter beside STOP; on a phone it
+	 * ends at a pause and says so, because a restart there chimes (Android) or
+	 * may be refused outside a tap (iOS). See `dictation.ts`.
 	 */
 	const speechCtor: SpeechRecognitionCtor | null = untrack(() =>
 		dictation === undefined ? dictationConstructor() : dictation
 	);
+	const finePointer = !coarsePointer();
+	const meter: MicMeter | null = untrack(() =>
+		micLevel === undefined ? (speechCtor && finePointer ? new MicLevel() : null) : micLevel
+	);
+	const join = new DictationJoin(dictationLang());
 	let listening = $state(false);
-	/** What the service is hearing and has not committed yet. Shown BESIDE the
-	 * field, never written into it. */
+	/** What the service is hearing and has not committed yet. Drawn OVER the
+	 * field by `DictationGhost`, never written into it. */
 	let heard = $state('');
+	let heardPause = $state<number | null>(null);
+	let level = $state(0);
+	let levelSeen = $state(false);
+	/** Why the last session ended, in words, when it ended itself. */
+	let endNote = $state('');
 	let dictError = $state<string | null>(null);
+	/** SEND was pressed mid-sentence: the box is waiting for that sentence. */
+	let finishing = $state(false);
+	let finishTimer: ReturnType<typeof setTimeout> | null = null;
 	const dict = speechCtor
-		? new Dictation(speechCtor, {
-				onFinal: (text) => {
-					message = appendDictation(message, text);
-					typed();
+		? new Dictation(
+				speechCtor,
+				{
+					onFinal: (text, pauseMs) => {
+						message = join.append(message, text, pauseMs);
+						typed();
+					},
+					onInterim: (text, pauseMs) => {
+						heard = text;
+						heardPause = pauseMs;
+					},
+					onListening: (on, why) => {
+						if (on) listening = true;
+						else ended(why);
+					},
+					onError: (text) => (dictError = text),
+					onLevel: (l) => {
+						level = l;
+						if (l > 0) levelSeen = true;
+					}
 				},
-				onInterim: (text) => (heard = text),
-				onListening: (on) => {
-					listening = on;
-					// Hand the caret back where the words landed, so a keyboard
-					// user can carry on from the end of what was just heard --
-					// except on a phone, where focusing the field raises the
-					// on-screen keyboard over the box (report R08).
-					if (!on && !coarsePointer()) areaEl?.focus();
-				},
-				onError: (text) => (dictError = text)
-			})
+				dictationLang(),
+				{ keepAlive: finePointer, meter }
+			)
 		: null;
+	/** Exactly what the next final would add, drawn grey where it will land. */
+	const ghost = $derived(dict && listening && heard ? join.preview(message, heard, heardPause) : '');
+	const listeningWords = finePointer
+		? 'Listening. Keep talking, pauses are fine. Press STOP or Escape when you are done.'
+		: 'Listening. It pauses when you stop talking.';
+	/** The dictation key in this platform's words, and as assistive tech spells it. */
+	const modKey = modKeyLabel(typeof navigator === 'undefined' ? '' : navigator.platform);
+	const chordWords = `${modKey}+Shift+Space`;
+	const chordAria = modKey === 'Ctrl' ? 'Control+Shift+Space' : 'Meta+Shift+Space';
+
+	/** One session is over: close its sentence, say why, and send if SEND is waiting. */
+	function ended(why: DictationEnd | undefined) {
+		listening = false;
+		heard = '';
+		heardPause = null;
+		level = 0;
+		levelSeen = false;
+		const closed = join.close(message);
+		if (closed !== message) {
+			message = closed;
+			typed();
+		}
+		endNote = dictationEndNote(why);
+		// Hand the caret back where the words landed, so a keyboard user can
+		// carry on from the end of what was just heard -- except on a phone,
+		// where focusing the field raises the on-screen keyboard over the box
+		// (report R08).
+		if (finePointer) areaEl?.focus();
+		if (finishing) {
+			finishing = false;
+			if (finishTimer !== null) clearTimeout(finishTimer);
+			finishTimer = null;
+			sendNow();
+		}
+	}
 
 	function toggleDictation() {
-		if (!dict || sending) return;
+		if (!dict || sending || finishing) return;
 		dictError = null;
 		if (dict.listening) dict.stop();
-		else dict.start();
+		else {
+			endNote = '';
+			join.reset();
+			dict.start();
+			// The caret goes where the words are going, so typing carries on there.
+			if (finePointer) areaEl?.focus();
+		}
 	}
 
 	/**
@@ -331,6 +425,7 @@
 			clearPreview();
 			// A microphone left open by a closed box is worse than a leaked blob.
 			dict?.destroy();
+			if (finishTimer !== null) clearTimeout(finishTimer);
 		};
 	});
 
@@ -346,6 +441,7 @@
 	const remaining = $derived(FEEDBACK_MAX_LEN - message.trim().length);
 	const canSend = $derived(
 		!sending &&
+			!finishing &&
 			// A screenshot still going up is work this report would leave behind.
 			!shotBusy &&
 			feedbackIssue(message) === null &&
@@ -373,10 +469,28 @@
 
 	function send() {
 		// A scripted dispatch at the disabled control must not mint a row either.
-		if (sending) return;
-		// What is sent is what is on screen at the press; a sentence still being
-		// heard would land in a field whose report has already left.
-		dict?.stop();
+		if (sending || finishing) return;
+		// THE SENTENCE BEING SPOKEN IS PART OF THE REPORT (report 5ab3adb6). This
+		// used to send what was on screen at the press and drop a sentence still
+		// being heard; now the words being heard are drawn INSIDE the field,
+		// where they read as part of the report, so SEND asks the service to
+		// finish that sentence and sends when the session ends, or after
+		// `DICTATION_STOP_GRACE_MS` without it.
+		if (dict?.listening) {
+			finishing = true;
+			finishTimer = setTimeout(() => {
+				finishTimer = null;
+				if (!finishing) return;
+				dict.destroy();
+				ended('stopped');
+			}, DICTATION_STOP_GRACE_MS);
+			dict.stop();
+			return;
+		}
+		sendNow();
+	}
+
+	function sendNow() {
 		// A `submit` that throws rather than resolving is handled inside the
 		// SaveState, which treats a throw as a retryable failure; there is no
 		// busy flag here left to strand.
@@ -400,7 +514,19 @@
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			e.stopPropagation();
+			if (finishing) return;
+			// While dictating, Escape stops listening and keeps the box.
+			if (dict?.listening) {
+				dict.stop();
+				return;
+			}
 			onClose();
+			return;
+		}
+		if (dict && isDictationChord(e)) {
+			e.preventDefault();
+			e.stopPropagation();
+			toggleDictation();
 			return;
 		}
 		// Ctrl/Cmd+Enter sends from inside the textarea (the usual convention);
@@ -434,7 +560,10 @@
 	class="fb-scrim"
 	role="presentation"
 	onclick={(e) => {
-		if (e.target === e.currentTarget) onClose();
+		if (e.target !== e.currentTarget || finishing) return;
+		// A click on the shade while dictating only stops listening.
+		if (dict?.listening) dict.stop();
+		else onClose();
 	}}
 >
 	<!--
@@ -554,11 +683,13 @@
 						class="fb-btn fb-dictate"
 						class:listening
 						aria-pressed={listening}
-						disabled={sending}
+						aria-keyshortcuts={chordAria}
+						disabled={sending || finishing}
 						onclick={toggleDictation}
 					>
 						{#if listening}
 							<span class="fb-dictate-dot" aria-hidden="true"></span>
+							{#if levelSeen}<DictationLevel {level} />{/if}
 							STOP
 						{:else}
 							<svg
@@ -584,32 +715,50 @@
 			     is what was on screen at the press, and typing into that is how a
 			     second report gets minted. See `typed()` for the half that holds
 			     even when an event reaches the listener anyway. -->
-			<textarea
-				id="fb-msg"
-				class="fb-area"
-				bind:this={areaEl}
-				bind:value={message}
-				oninput={typed}
-				disabled={sending}
-				rows="5"
-				maxlength={FEEDBACK_MAX_LEN}
-				placeholder="What happened, and what were you doing at the time?"
-			></textarea>
+			{#snippet messageField()}
+				<textarea
+					id="fb-msg"
+					class="fb-area"
+					bind:this={areaEl}
+					bind:value={message}
+					oninput={typed}
+					disabled={sending}
+					rows="5"
+					maxlength={FEEDBACK_MAX_LEN}
+					placeholder="What happened, and what were you doing at the time?"
+				></textarea>
+			{/snippet}
 			{#if dict}
-				<!-- ONE STATUS, ONE PREVIEW, ONE REFUSAL, each its own element. The
-				     status is a live region so a screen reader hears the microphone
-				     open and close; the preview is not, because it changes several
-				     times a second and the committed text reaches the field anyway. -->
+				<!-- THE WORDS STILL BEING HEARD ARE DRAWN OVER THE FIELD, in grey,
+				     where they will land; the field itself is never written. -->
+				<DictationGhost text={message} {ghost} active={listening}>
+					{@render messageField()}
+				</DictationGhost>
+				<!-- ONE STATUS, ONE REFUSAL, each its own element. The status is a
+				     live region so a screen reader hears the microphone open and
+				     close, and why it closed when it closed itself; the grey
+				     preview is not, because it changes several times a second and
+				     the committed text reaches the field anyway. -->
 				<p class="fb-dictate-status" role="status">
-					{listening ? 'Listening. Each sentence is added to the box when you pause.' : ''}
+					{finishing
+						? pendingLabel('Finishing the last sentence, then sending')
+						: listening
+							? listeningWords
+							: endNote}
 				</p>
-				{#if heard}
-					<p class="fb-dictate-heard" aria-hidden="true">{heard}</p>
-				{/if}
 				{#if dictError}
 					<p class="fb-dictate-error" role="alert">{dictError}</p>
 				{/if}
-				<p class="fb-dictate-note">{DICTATION_NOTE}</p>
+				{#if finePointer}
+					<p class="fb-dictate-keys">
+						<kbd>{chordWords}</kbd> starts and stops dictation; Escape stops it.
+					</p>
+				{/if}
+				<p class="fb-dictate-note">
+					{DICTATION_NOTE}{meter ? ` ${DICTATION_LEVEL_NOTE}` : ''}
+				</p>
+			{:else}
+				{@render messageField()}
 			{/if}
 
 			<!--
@@ -738,7 +887,7 @@
 				<span class="fb-count" class:low={remaining < 120}>{remaining} left</span>
 				<button class="fb-btn" onclick={onClose}>CANCEL</button>
 				<button class="fb-btn fb-btn-primary" disabled={!canSend} onclick={send}>
-					{sending ? 'SENDING' : 'SEND'}
+					{sending ? 'SENDING' : finishing ? 'FINISHING' : 'SEND'}
 				</button>
 			</div>
 		{/if}
@@ -793,6 +942,9 @@
 		/* An open microphone is a LIVE state. Defaults to the danger tone; the
 		   portal points it at its reserved live/rec colour. */
 		--fb-live: var(--fb-danger);
+		/* The grey of words still being heard, drawn over the field. Read
+		   through the room hook every host already re-points. */
+		--dg-ink: var(--fb-ink-dim);
 
 		position: fixed;
 		inset: 0;
@@ -1024,6 +1176,8 @@
 		gap: 0.4rem;
 		flex: none;
 		padding: 0.3rem 0.7rem;
+		/* The loudness bars take the same reserved live colour as the dot. */
+		--dl-ink: var(--fb-live);
 	}
 	.fb-dictate.listening {
 		color: var(--fb-ink);
@@ -1042,8 +1196,8 @@
 	/* The status line keeps its box while empty so the field below does not
 	   jump when listening starts. */
 	.fb-dictate-status,
-	.fb-dictate-heard,
-	.fb-dictate-note {
+	.fb-dictate-note,
+	.fb-dictate-keys {
 		margin: 0.3rem 0 0;
 		font-size: 0.68rem;
 		line-height: 1.45;
@@ -1052,13 +1206,17 @@
 		min-height: 1em;
 		color: var(--fb-ink-dim);
 	}
-	.fb-dictate-heard {
-		color: var(--fb-ink);
-		font-style: italic;
-	}
 	.fb-dictate-note {
 		color: var(--fb-ink-faint);
 		margin-bottom: 0.6rem;
+	}
+	.fb-dictate-keys {
+		color: var(--fb-ink-faint);
+	}
+	.fb-dictate-keys kbd {
+		font-family: var(--fb-font-mono);
+		font-size: 0.66rem;
+		color: var(--fb-ink-dim);
 	}
 	.fb-dictate-error {
 		margin: 0.3rem 0 0;

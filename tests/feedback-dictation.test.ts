@@ -12,9 +12,14 @@
 //      and the box renders NO control under `svelte/server`, where there is
 //      no window -- asserted beside the positive control of a fake
 //      constructor making it appear, so absence cannot pass vacuously.
-//   3. DICTATION NEVER REMOVES A CHARACTER. `appendDictation` is asserted as
-//      a PREFIX INVARIANT over a corpus of typed text, not as a few examples
-//      of the happy path.
+//   3. DICTATION NEVER REMOVES A CHARACTER. `appendDictation` and
+//      `DictationJoin` are asserted as a PREFIX INVARIANT over a corpus of
+//      typed text, not as a few examples of the happy path.
+//
+// Report 5ab3adb6 added a fourth family that fails silently: a KEPT-ALIVE
+// session. A restart loop that never stops throws nothing, an open microphone
+// left behind by a teardown shows nothing, and a meter left open is a red
+// light nobody sees. Those are driven here with a hand-moved clock.
 //
 // The fourth (degrading to a textarea rather than an error when pressed) is a
 // runtime claim and lives in tests/dom/feedback-dictation-mount.test.ts.
@@ -24,13 +29,26 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import FeedbackBox from '../src/lib/feedback/FeedbackBox.svelte';
 import {
+	DICTATION_IDLE_MS,
+	DICTATION_KEEPS_STOPPING,
+	DICTATION_MAX_QUICK_RESTARTS,
 	DICTATION_NOTE,
+	DICTATION_RESTART_RETRY_MS,
+	DICTATION_SENTENCE_PAUSE_MS,
 	Dictation,
+	DictationJoin,
 	appendDictation,
+	closeDictation,
 	coarsePointer,
+	continuesSentence,
 	dictationConstructor,
+	dictationEndNote,
 	dictationErrorMessage,
 	dictationLang,
+	isDictationChord,
+	type DictationEnd,
+	type DictationOptions,
+	type MicMeter,
 	type SpeechRecognitionCtor,
 	type SpeechRecognitionErrorLike,
 	type SpeechRecognitionEventLike,
@@ -51,11 +69,19 @@ class Fake implements SpeechRecognitionLike {
 	onerror: ((ev: SpeechRecognitionErrorLike) => void) | null = null;
 	onend: ((ev: unknown) => void) | null = null;
 	calls: string[] = [];
+	/** Set to make the NEXT constructed instance's start() throw. */
+	static throwNext = 0;
+	#throws = false;
 	constructor() {
 		Fake.instances.push(this);
+		if (Fake.throwNext > 0) {
+			Fake.throwNext -= 1;
+			this.#throws = true;
+		}
 	}
 	start() {
 		this.calls.push('start');
+		if (this.#throws) throw new Error('InvalidStateError');
 		this.onstart?.({});
 	}
 	stop() {
@@ -87,22 +113,93 @@ class Fake implements SpeechRecognitionLike {
 }
 const FakeCtor = Fake as unknown as SpeechRecognitionCtor;
 
-function driver() {
+function driver(options?: DictationOptions) {
 	const finals: string[] = [];
+	const pauses: (number | null)[] = [];
 	const interims: string[] = [];
 	const listening: boolean[] = [];
+	const whys: (DictationEnd | undefined)[] = [];
 	const errors: string[] = [];
+	const levels: number[] = [];
+	const built = Fake.instances.length;
 	const d = new Dictation(
 		FakeCtor,
 		{
-			onFinal: (t) => finals.push(t),
+			onFinal: (t, pause) => {
+				finals.push(t);
+				pauses.push(pause);
+			},
 			onInterim: (t) => interims.push(t),
-			onListening: (on) => listening.push(on),
-			onError: (m) => errors.push(m)
+			onListening: (on, why) => {
+				listening.push(on);
+				if (!on) whys.push(why);
+			},
+			onError: (m) => errors.push(m),
+			onLevel: (l) => levels.push(l)
 		},
-		'en-US'
+		'en-US',
+		options
 	);
-	return { d, finals, interims, listening, errors, rec: () => Fake.instances.at(-1)! };
+	return {
+		d,
+		finals,
+		pauses,
+		interims,
+		listening,
+		whys,
+		errors,
+		levels,
+		rec: () => Fake.instances.at(-1)!,
+		/** How many recognisers THIS driver has built. */
+		built: () => Fake.instances.length - built
+	};
+}
+
+/** A clock and timers the test moves by hand. */
+function clock() {
+	let t = 1_000;
+	const timers = new Map<number, { at: number; fn: () => void }>();
+	let seq = 0;
+	return {
+		now: () => t,
+		setTimer: (fn: () => void, ms: number) => {
+			const id = ++seq;
+			timers.set(id, { at: t + ms, fn });
+			return id;
+		},
+		clearTimer: (id: unknown) => {
+			timers.delete(id as number);
+		},
+		pending: () => timers.size,
+		advance(ms: number) {
+			const until = t + ms;
+			for (;;) {
+				const due = [...timers].filter(([, v]) => v.at <= until).sort((a, b) => a[1].at - b[1].at)[0];
+				if (!due) break;
+				timers.delete(due[0]);
+				t = Math.max(t, due[1].at);
+				due[1].fn();
+			}
+			t = until;
+		}
+	};
+}
+
+/** A meter that records what was asked of it. */
+function fakeMeter() {
+	const log: string[] = [];
+	let cb: ((l: number) => void) | null = null;
+	const meter: MicMeter = {
+		open(onLevel) {
+			log.push('open');
+			cb = onLevel;
+		},
+		close() {
+			log.push('close');
+			cb = null;
+		}
+	};
+	return { meter, log, emit: (l: number) => cb?.(l) };
 }
 
 describe('nothing leaves the browser but through its own speech service', () => {
@@ -127,6 +224,29 @@ describe('nothing leaves the browser but through its own speech service', () => 
 		}
 		// Positive control for the sweep: the file does name the one API it drives.
 		expect(src).toMatch(/webkitSpeechRecognition/);
+	});
+	it('the loudness meter is its own module, and it records and sends nothing either', () => {
+		const meter = read('src/lib/feedback/mic-level.ts')
+			.replace(/\/\*[\s\S]*?\*\//g, '')
+			.replace(/^\s*\/\/.*$/gm, '');
+		for (const way of [
+			/\bfetch\s*\(/,
+			/XMLHttpRequest/,
+			/WebSocket/,
+			/EventSource/,
+			/sendBeacon/,
+			/\bimport\s*\(/,
+			/supabase/i,
+			/MediaRecorder/,
+			/AudioWorklet/,
+			/createScriptProcessor/,
+			/localStorage|indexedDB|sessionStorage/
+		]) {
+			expect(meter, String(way)).not.toMatch(way);
+		}
+		// Positive controls: it does name the two calls it makes.
+		expect(meter).toMatch(/getUserMedia/);
+		expect(meter).toMatch(/createAnalyser/);
 	});
 	it('says so in the sentence beside the control, in words', () => {
 		expect(DICTATION_NOTE).toMatch(/browser/);
@@ -209,83 +329,330 @@ describe('dictation never removes a character', () => {
 		}
 		expect(cases).toBe(typed.length * spoken.length);
 	});
-	// GENERALIZED (report R03): every dictated chunk now ends as a sentence, so
-	// the expected values carry its period. The spacing rule this test is about
-	// did not move: one space where the text does not already end in
-	// whitespace, none after a space or a newline, nothing at all for silence.
+	// GENERALIZED TWICE. Report R03 put a period on every chunk; report
+	// 5ab3adb6 took it off again, because a final arrives at every breath and
+	// the period landed mid-sentence. The spacing rule this test is about never
+	// moved: one space where the text does not already end in whitespace, none
+	// after a space or a newline, nothing at all for silence.
 	it('adds one space where the text does not already end in whitespace, and nothing for silence', () => {
-		expect(appendDictation('', 'hello')).toBe('Hello.');
-		expect(appendDictation('a', 'b')).toBe('a b.');
-		expect(appendDictation('a ', 'b')).toBe('a b.');
-		expect(appendDictation('a\n', 'b')).toBe('a\nB.');
-		expect(appendDictation('a', '  b  ')).toBe('a b.');
+		expect(appendDictation('', 'hello')).toBe('Hello');
+		expect(appendDictation('a', 'b')).toBe('a b');
+		expect(appendDictation('a ', 'b')).toBe('a b');
+		expect(appendDictation('a\n', 'b')).toBe('a\nB');
+		expect(appendDictation('a', '  b  ')).toBe('a b');
 		expect(appendDictation('a', '')).toBe('a');
 		expect(appendDictation('a', '   ')).toBe('a');
 	});
 });
 
 /**
- * A DICTATED SENTENCE ENDS WITH A PERIOD (report R03). The speech service hands
- * back words with no punctuation, so a spoken report arrived as one paragraph.
- * Every call is one FINAL result, which is the end of something said before a
- * pause, so that is where the period goes; the next chunk then opens a sentence.
- * Expected values are written out here, never computed by the module's helpers.
+ * A SENTENCE IS CLOSED WHEN THE NEXT ONE STARTS (report 5ab3adb6). The speech
+ * service hands back words with no punctuation and a final at every breath, so
+ * a period per final put one mid-sentence ("the. Then", "but. Um"). Now the
+ * append leaves a chunk OPEN and `DictationJoin` closes it: when the next
+ * chunk is judged a new sentence, or when the session ends. Expected values
+ * are written out here, never computed by the module's helpers.
  */
-describe('a dictated chunk is a sentence', () => {
-	it('ends a chunk with no end mark with a period, and capitalises the next one', () => {
-		let text = '';
-		for (const said of ['the launch button did nothing', 'then the page went blank', 'it happened twice']) {
-			text = appendDictation(text, said);
-		}
-		expect(text).toBe('The launch button did nothing. Then the page went blank. It happened twice.');
+describe('a dictated sentence is closed when the next one starts, or at the end', () => {
+	/** Drive a join the way a surface does: each chunk with its pause, then the end. */
+	function joined(chunks: [string, number | null][], start = '', lang = 'en-US'): string {
+		const j = new DictationJoin(lang);
+		let text = start;
+		for (const [said, pause] of chunks) text = j.append(text, said, pause);
+		return j.close(text);
+	}
+
+	it('a long pause between two sentences closes the first and capitalises the second', () => {
+		expect(
+			joined([
+				['the launch button did nothing', null],
+				['then the page went blank', 2500],
+				['it happened twice', 2500]
+			])
+		).toBe('The launch button did nothing. Then the page went blank. It happened twice.');
+	});
+
+	it('a short pause carries the sentence on, and the end of the session closes it', () => {
+		expect(
+			joined([
+				['the bug is on the', null],
+				['home page', 300]
+			])
+		).toBe('The bug is on the home page.');
+		expect(
+			joined([
+				['clean weld', null],
+				['on both sides', DICTATION_SENTENCE_PAUSE_MS - 1]
+			])
+		).toBe('Clean weld on both sides.');
+		expect(
+			joined([
+				['clean weld', null],
+				['the fillet is small', DICTATION_SENTENCE_PAUSE_MS]
+			])
+		).toBe('Clean weld. The fillet is small.');
+	});
+
+	it('a word a sentence cannot end on keeps it open, however long the pause (the corpus cases)', () => {
+		// "Takes advantage of the. Latest themes" and "get to that but. Um" were
+		// both in report 5ab3adb6's own export.
+		expect(
+			joined([
+				['takes advantage of the', null],
+				['latest themes', 2500]
+			])
+		).toBe('Takes advantage of the latest themes.');
+		expect(
+			joined([
+				['we can get to that but', null],
+				['um as close as possible', 2500]
+			])
+		).toBe('We can get to that but as close as possible.');
+	});
+
+	it('a next phrase that opens with a word that carries on, or with a spoken mark, keeps it open', () => {
+		expect(
+			joined([
+				['I pressed save', null],
+				['and nothing happened', 4000]
+			])
+		).toBe('I pressed save and nothing happened.');
+		expect(
+			joined([
+				['first the save button', null],
+				['comma then the page', 4000]
+			])
+		).toBe('First the save button, then the page.');
+		// And a phrase that stopped on a spoken comma stays open after the end too.
+		expect(joined([['clean weld comma', null]])).toBe('Clean weld,');
+	});
+
+	it('a chunk that is only fillers appends nothing and moves nothing', () => {
+		const j = new DictationJoin();
+		let text = j.append('', 'the weld is clean', null);
+		const before = text;
+		text = j.append(text, 'um', 4000);
+		expect(text).toBe(before);
+		text = j.append(text, 'uh erm', 4000);
+		expect(text).toBe(before);
+		// The join still knows the text as its own, so the end closes it.
+		expect(j.close(text)).toBe('The weld is clean.');
+	});
+
+	it('typing between two chunks is never given a period: the text decides, as it always did', () => {
+		const j = new DictationJoin();
+		let text = j.append('', 'the bug is', null);
+		text += ' on the home page.';
+		text = j.append(text, 'then it froze', 4000);
+		expect(text).toBe('The bug is on the home page. Then it froze');
+		const k = new DictationJoin();
+		let half = k.append('', 'the weld is', null);
+		half += ' too';
+		half = k.append(half, 'cold on the left', 4000);
+		expect(half).toBe('The weld is too cold on the left');
+		// And a field somebody typed into after the last chunk is not closed at the end.
+		const m = new DictationJoin();
+		const typedAfter = `${m.append('', 'the bug is', null)} and`;
+		expect(m.close(typedAfter)).toBe('The bug is and');
 	});
 
 	it('keeps an end mark the service already put there, and adds no second one', () => {
 		expect(appendDictation('', 'is this right?')).toBe('Is this right?');
 		expect(appendDictation('Done.', 'wow!')).toBe('Done. Wow!');
-		expect(appendDictation('', 'she said "stop."')).toBe('She said "stop."');
-		expect(appendDictation('', 'and then…')).toBe('And then…');
-	});
-
-	it('drops a trailing comma, colon or semicolon rather than writing ",."', () => {
-		expect(appendDictation('', 'clean weld,')).toBe('Clean weld.');
-		expect(appendDictation('', 'the steps were:')).toBe('The steps were.');
-		// A comma INSIDE the chunk is the speaker's and stays.
-		expect(appendDictation('', 'clean weld, but the fillet is small')).toBe(
-			'Clean weld, but the fillet is small.'
-		);
+		expect(closeDictation('She said "stop."')).toBe('She said "stop."');
+		expect(closeDictation('And then…')).toBe('And then…');
+		expect(closeDictation('Is this right?')).toBe('Is this right?');
 	});
 
 	it("does not capitalise a chunk that finishes somebody's typed half-sentence", () => {
 		// Typing that stops mid-sentence is continued, not interrupted.
-		expect(appendDictation('The bug is', 'on the home page')).toBe('The bug is on the home page.');
-		expect(appendDictation('The steps were:', 'open it')).toBe('The steps were: open it.');
+		expect(appendDictation('The bug is', 'on the home page')).toBe('The bug is on the home page');
+		expect(appendDictation('The steps were:', 'open it')).toBe('The steps were: open it');
 		// After typed punctuation, a new line, or nothing at all, it opens a sentence.
-		expect(appendDictation('I pressed save.', 'nothing happened')).toBe('I pressed save. Nothing happened.');
-		expect(appendDictation('I pressed save! ', 'nothing happened')).toBe('I pressed save! Nothing happened.');
-		expect(appendDictation('First line\n', 'second line')).toBe('First line\nSecond line.');
-		expect(appendDictation('   ', 'blank before me')).toBe('   Blank before me.');
+		expect(appendDictation('I pressed save.', 'nothing happened')).toBe('I pressed save. Nothing happened');
+		expect(appendDictation('I pressed save! ', 'nothing happened')).toBe('I pressed save! Nothing happened');
+		expect(appendDictation('First line\n', 'second line')).toBe('First line\nSecond line');
+		expect(appendDictation('   ', 'blank before me')).toBe('   Blank before me');
 	});
 
 	it('capitalises only a lower-case first letter, and leaves a number or a capital alone', () => {
-		expect(appendDictation('', '3 times')).toBe('3 times.');
-		expect(appendDictation('', 'Chrome froze')).toBe('Chrome froze.');
-		expect(appendDictation('', 'élan')).toBe('Élan.');
+		expect(appendDictation('', '3 times')).toBe('3 times');
+		expect(appendDictation('', 'Chrome froze')).toBe('Chrome froze');
+		expect(appendDictation('', 'élan')).toBe('Élan');
+	});
+
+	it('closes only at the end of the text, and never at a space, a comma or nothing', () => {
+		expect(closeDictation('')).toBe('');
+		expect(closeDictation('   ')).toBe('   ');
+		expect(closeDictation('ends with a space ')).toBe('ends with a space ');
+		expect(closeDictation('ends with a newline\n')).toBe('ends with a newline\n');
+		expect(closeDictation('comma,')).toBe('comma,');
+		expect(closeDictation('colon:')).toBe('colon:');
+		expect(closeDictation('the weld')).toBe('the weld.');
+	});
+
+	it('the words decide first and the pause only when they say nothing', () => {
+		expect(continuesSentence('the save button', 'then it froze', 4000)).toBe(false);
+		expect(continuesSentence('the save button', 'then it froze', 300)).toBe(true);
+		expect(continuesSentence('next to the', 'save button', 4000)).toBe(true);
+		expect(continuesSentence('it froze,', 'then it closed', 4000)).toBe(true);
+		expect(continuesSentence('it froze', 'because it ran out', 4000)).toBe(true);
+		expect(continuesSentence('it froze', ', then', 4000)).toBe(true);
+		// A pause nobody measured is no evidence of a break.
+		expect(continuesSentence('it froze', 'then it closed', null)).toBe(true);
+		// Another language: only the pause speaks.
+		expect(continuesSentence('el botón de la', 'página', 4000, 'es-MX')).toBe(false);
+		expect(continuesSentence('el botón', 'y la página', 300, 'es-MX')).toBe(true);
+	});
+
+	it('the preview is EXACTLY what the next final will add, period and capital included', () => {
+		const cases: [string, number | null][][] = [
+			[['the launch button did nothing', null], ['then the page', 2500]],
+			[['the bug is on the', null], ['home', 2500]],
+			[['clean weld', null], ['on both', 300]],
+			[['is this right question mark', null], ['yes', 4000]],
+			[['line one new line', null], ['line two', 4000]]
+		];
+		let checked = 0;
+		for (const chunks of cases) {
+			const j = new DictationJoin();
+			let text = '';
+			for (const [said, pause] of chunks.slice(0, -1)) text = j.append(text, said, pause);
+			const [next, pause] = chunks.at(-1)!;
+			const suffix = j.preview(text, next, pause);
+			// Previewing records nothing: the same append afterwards gives the same text.
+			const after = j.append(text, next, pause);
+			expect(text + suffix, JSON.stringify(chunks)).toBe(after);
+			checked++;
+		}
+		expect(checked).toBe(cases.length);
+		const j = new DictationJoin();
+		const t = j.append('', 'the launch button did nothing', null);
+		expect(j.preview(t, 'then the page', 2500)).toBe('. Then the page');
+		expect(j.preview(t, 'and the page', 2500)).toBe(' and the page');
+		expect(j.preview('I typed this first', 'the launch', null)).toBe(' the launch');
 	});
 
 	it('still never removes a character: the typed text is the prefix of every result', () => {
-		// The same prefix invariant as above, over the punctuation corpus.
+		// The prefix invariant over typed text x spoken chunks x every way a join
+		// can be asked (an append at four pauses, then a close).
 		const typed = ['', 'no end mark', 'ends.', 'ends!', 'colon:', 'comma,', 'nl\n', 'sp ', '"quoted."'];
-		const spoken = ['lower start', 'Upper start', 'ends?', 'trailing,', '  pad  ', ''];
+		const spoken = [
+			'lower start',
+			'Upper start',
+			'ends?',
+			'trailing,',
+			'  pad  ',
+			'',
+			'um',
+			'comma and on',
+			'new line next',
+			'it broke period',
+			'question mark'
+		];
+		const pauses = [0, 600, 2500, null];
 		let cases = 0;
 		for (const t of typed) {
 			for (const s of spoken) {
 				const out = appendDictation(t, s);
 				expect(out.startsWith(t), JSON.stringify([t, s])).toBe(true);
 				cases++;
+				for (const pause of pauses) {
+					const j = new DictationJoin();
+					const first = j.append(t, 'the weld', null);
+					expect(first.startsWith(t)).toBe(true);
+					const second = j.append(first, s, pause);
+					expect(second.startsWith(first), JSON.stringify([t, s, pause])).toBe(true);
+					const closed = j.close(second);
+					expect(closed.startsWith(second)).toBe(true);
+					cases++;
+				}
 			}
 		}
-		expect(cases).toBe(typed.length * spoken.length);
+		expect(cases).toBe(typed.length * spoken.length * (1 + pauses.length));
+	});
+});
+
+/**
+ * SPOKEN PUNCTUATION AND FILLERS (report 5ab3adb6), shaped in the TRANSCRIPT
+ * only, so the prefix rule above is untouched. "period" is everyday school
+ * vocabulary and keeps the word wherever it names a class period.
+ */
+describe('spoken punctuation and fillers', () => {
+	it('turns the spoken marks into marks, attached to the word before them', () => {
+		expect(appendDictation('', 'is this right question mark')).toBe('Is this right?');
+		expect(appendDictation('', 'first point comma second point')).toBe('First point, second point');
+		expect(appendDictation('', 'line one new line line two')).toBe('Line one\nLine two');
+		expect(appendDictation('', 'one new paragraph two')).toBe('One\n\nTwo');
+		expect(appendDictation('', 'stop exclamation point')).toBe('Stop!');
+		expect(appendDictation('', 'stop exclamation mark')).toBe('Stop!');
+		expect(appendDictation('', 'the steps colon open it semicolon save it')).toBe(
+			'The steps: open it; save it'
+		);
+		expect(appendDictation('', 'done full stop next')).toBe('Done. Next');
+		expect(appendDictation('', 'it broke period')).toBe('It broke.');
+	});
+
+	it('keeps "period" wherever it names a class period, and "next line" is prose', () => {
+		expect(appendDictation('', 'see me 4th period')).toBe('See me 4th period');
+		expect(appendDictation('', 'during class period')).toBe('During class period');
+		expect(appendDictation('', 'come by third period')).toBe('Come by third period');
+		expect(appendDictation('', 'in 2 period')).toBe('In 2 period');
+		expect(appendDictation('', 'a period of time is fine')).toBe('A period of time is fine');
+		expect(appendDictation('', 'the next line is wrong')).toBe('The next line is wrong');
+		// A word that only looks like a property name is a word.
+		expect(appendDictation('', 'the constructor tool')).toBe('The constructor tool');
+	});
+
+	it('a chunk that begins with a mark joins the text before it with no space', () => {
+		expect(appendDictation('Clean weld', 'comma but the fillet is small')).toBe(
+			'Clean weld, but the fillet is small'
+		);
+		expect(appendDictation('Clean weld', 'new line next point')).toBe('Clean weld\nNext point');
+		expect(appendDictation('', 'comma hello')).toBe('Hello');
+	});
+
+	it('drops the hesitation sounds and nothing that can carry meaning', () => {
+		expect(appendDictation('', 'um as close as possible')).toBe('As close as possible');
+		expect(appendDictation('', 'uh please fix it')).toBe('Please fix it');
+		expect(appendDictation('', 'the save umm button')).toBe('The save button');
+		expect(appendDictation('', 'Uh.')).toBe('');
+		expect(appendDictation('x', 'um')).toBe('x');
+		expect(appendDictation('', 'hmm like ah that')).toBe('Hmm like ah that');
+	});
+
+	it('outside English the words pass through as spoken', () => {
+		const j = new DictationJoin('es-MX');
+		expect(j.append('', 'el botón comma um', null)).toBe('El botón comma um');
+	});
+});
+
+describe('the dictation key and the end-of-session sentences', () => {
+	it('is Ctrl or Cmd with Shift and Space, and nothing else held', () => {
+		expect(isDictationChord({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true })).toBe(true);
+		expect(isDictationChord({ key: ' ', code: 'Space', metaKey: true, shiftKey: true })).toBe(true);
+		expect(isDictationChord({ key: ' ', code: 'Space', ctrlKey: true })).toBe(false);
+		expect(isDictationChord({ key: ' ', code: 'Space', shiftKey: true })).toBe(false);
+		expect(isDictationChord({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true, altKey: true })).toBe(
+			false
+		);
+		expect(isDictationChord({ key: 'k', code: 'KeyK', ctrlKey: true, shiftKey: true })).toBe(false);
+	});
+
+	it('says why a session ended itself, in words derived from the constant they describe', () => {
+		expect(dictationEndNote('stopped')).toBe('');
+		expect(dictationEndNote('failed')).toBe('');
+		expect(dictationEndNote(undefined)).toBe('');
+		expect(dictationEndNote('paused')).toBe('Paused. Press DICTATE to keep going.');
+		expect(dictationEndNote('idle')).toBe('Stopped after a minute of silence. Press DICTATE to keep going.');
+		expect(DICTATION_IDLE_MS).toBe(60_000);
+		expect(dictationEndNote('idle', 30_000)).toBe(
+			'Stopped after 30 seconds of silence. Press DICTATE to keep going.'
+		);
+		expect(dictationEndNote('idle', 120_000)).toBe(
+			'Stopped after 2 minutes of silence. Press DICTATE to keep going.'
+		);
+		for (const why of ['paused', 'idle'] as const) expect(dictationEndNote(why)).not.toMatch(/—/);
 	});
 });
 
@@ -388,6 +755,341 @@ describe('the session wrapper', () => {
 		r.end();
 		expect(finals).toEqual([]);
 		expect(listening).toEqual([true]);
+	});
+});
+
+/**
+ * THE DEFAULT SESSION IS THE OLD ONE, BYTE FOR BYTE. The palette's Speak
+ * control constructs a `Dictation` with no options and must behave exactly as
+ * it did: the service ending a session ends it, "nothing was heard" is said,
+ * and `onListening` is [true, false]. Pinned here because a keep-alive leaking
+ * into the default is a restart loop on the palette that throws nothing.
+ */
+describe('with no options a session is exactly what it was', () => {
+	it('ends when the service ends it, and says nothing was heard', () => {
+		const t = driver();
+		t.d.start();
+		t.rec().fail('no-speech');
+		t.rec().end();
+		expect(t.built()).toBe(1);
+		expect(t.listening).toEqual([true, false]);
+		expect(t.errors).toEqual([dictationErrorMessage('no-speech')]);
+		expect(t.d.listening).toBe(false);
+	});
+
+	it('a service that ends on its own reports the end as a pause; a STOP as a stop', () => {
+		const a = driver();
+		a.d.start();
+		a.rec().end();
+		expect(a.whys).toEqual(['paused']);
+		const b = driver();
+		b.d.start();
+		b.d.stop();
+		b.rec().end();
+		expect(b.whys).toEqual(['stopped']);
+	});
+});
+
+/**
+ * KEPT ALIVE (report 5ab3adb6, fine pointers only). Each of these fails
+ * SILENTLY when wrong: a restart loop throws nothing, a STOP lost in the gap
+ * between two recognisers leaves the microphone open, a meter left open is a
+ * red light nobody sees. The clock and the timers are the test's.
+ */
+describe('a kept-alive session keeps listening through the service’s own ends', () => {
+	function alive(extra: Partial<DictationOptions> = {}) {
+		const c = clock();
+		const t = driver({
+			keepAlive: true,
+			now: c.now,
+			setTimer: c.setTimer,
+			clearTimer: c.clearTimer,
+			hidden: () => false,
+			...extra
+		});
+		return { ...t, c };
+	}
+
+	it('an end it did not ask for opens a fresh recogniser, and listening never flickers', () => {
+		const t = alive();
+		t.d.start();
+		t.rec().deliver(0, [F('the launch button did nothing')]);
+		t.c.advance(5000);
+		t.rec().end();
+		expect(t.built()).toBe(2);
+		expect(t.listening).toEqual([true]);
+		expect(t.d.listening).toBe(true);
+		t.c.advance(800);
+		t.rec().deliver(0, [F('then the page went blank')]);
+		expect(t.finals).toEqual(['the launch button did nothing', 'then the page went blank']);
+		// STOP ends it once, and nothing restarts.
+		t.d.stop();
+		t.rec().end();
+		expect(t.built()).toBe(2);
+		expect(t.listening).toEqual([true, false]);
+		expect(t.whys).toEqual(['stopped']);
+	});
+
+	it('"nothing was heard" and a network hiccup are not said out loud while it restarts', () => {
+		const t = alive();
+		t.d.start();
+		t.c.advance(6000);
+		t.rec().fail('no-speech');
+		t.rec().end();
+		t.c.advance(6000);
+		t.rec().fail('network');
+		t.rec().end();
+		expect(t.errors).toEqual([]);
+		expect(t.built()).toBe(3);
+		expect(t.listening).toEqual([true]);
+	});
+
+	it('never restarts after the microphone is refused, or an abort it did not cause', () => {
+		const terminal = ['not-allowed', 'service-not-allowed', 'audio-capture', 'language-not-supported', 'aborted'];
+		for (const code of terminal) {
+			const t = alive();
+			t.d.start();
+			t.c.advance(5000);
+			t.rec().fail(code);
+			t.rec().end();
+			expect(t.built(), code).toBe(1);
+			expect(t.listening, code).toEqual([true, false]);
+			expect(t.whys, code).toEqual(['failed']);
+			expect(t.errors, code).toEqual([dictationErrorMessage(code)]);
+		}
+	});
+
+	it('four quick ends in a row stop it with a sentence: exactly four recognisers, never a loop', () => {
+		const t = alive();
+		t.d.start();
+		for (let i = 0; i < 10; i++) {
+			if (!t.d.listening) break;
+			t.c.advance(100);
+			t.rec().end();
+		}
+		expect(t.built()).toBe(DICTATION_MAX_QUICK_RESTARTS + 1);
+		expect(t.built()).toBe(4);
+		expect(t.listening).toEqual([true, false]);
+		expect(t.whys).toEqual(['failed']);
+		expect(t.errors).toEqual([DICTATION_KEEPS_STOPPING]);
+	});
+
+	it('the guard names the network when that is what kept failing', () => {
+		const t = alive();
+		t.d.start();
+		for (let i = 0; i < 10 && t.d.listening; i++) {
+			t.c.advance(100);
+			t.rec().fail('network');
+			t.rec().end();
+		}
+		expect(t.built()).toBe(4);
+		expect(t.errors).toEqual([dictationErrorMessage('network')]);
+	});
+
+	it('words heard reset the guard, so a healthy session with short sessions keeps going', () => {
+		const t = alive();
+		t.d.start();
+		for (let i = 0; i < 8; i++) {
+			t.c.advance(100);
+			t.rec().deliver(0, [I('still talking')]);
+			t.rec().end();
+		}
+		expect(t.built()).toBe(9);
+		expect(t.listening).toEqual([true]);
+	});
+
+	it('a minute with nothing heard ends it, said as idle', () => {
+		const t = alive();
+		t.d.start();
+		t.rec().deliver(0, [F('clean weld')]);
+		t.c.advance(DICTATION_IDLE_MS - 1);
+		expect(t.d.listening).toBe(true);
+		t.c.advance(1);
+		expect(t.rec().calls.at(-1)).toBe('stop');
+		t.rec().end();
+		expect(t.whys).toEqual(['idle']);
+		expect(t.built()).toBe(1);
+		expect(t.c.pending()).toBe(0);
+	});
+
+	it('the idle cap still ends a session whose restarts are slow, and says network when that was it', () => {
+		const t = alive();
+		t.d.start();
+		for (let i = 0; i < 40 && t.d.listening; i++) {
+			t.c.advance(2000);
+			if (!t.d.listening) break;
+			t.rec().fail('network');
+			t.rec().end();
+		}
+		expect(t.d.listening).toBe(false);
+		expect(t.whys).toEqual(['failed']);
+		expect(t.errors).toEqual([dictationErrorMessage('network')]);
+	});
+
+	it('never restarts in a hidden tab: it pauses instead', () => {
+		let hidden = false;
+		const t = alive({ hidden: () => hidden });
+		t.d.start();
+		t.c.advance(5000);
+		hidden = true;
+		t.rec().end();
+		expect(t.built()).toBe(1);
+		expect(t.whys).toEqual(['paused']);
+	});
+
+	it('a STOP in the gap before a retry ends it, and no recogniser is built afterwards', () => {
+		const t = alive();
+		t.d.start();
+		t.c.advance(5000);
+		Fake.throwNext = 1;
+		t.rec().end();
+		expect(t.built()).toBe(2);
+		expect(t.d.listening).toBe(true);
+		t.d.stop();
+		expect(t.listening).toEqual([true, false]);
+		expect(t.whys).toEqual(['stopped']);
+		t.c.advance(DICTATION_RESTART_RETRY_MS * 4);
+		expect(t.built()).toBe(2);
+	});
+
+	it('a restart that throws twice pauses rather than looping', () => {
+		const t = alive();
+		t.d.start();
+		t.c.advance(5000);
+		Fake.throwNext = 2;
+		t.rec().end();
+		t.c.advance(DICTATION_RESTART_RETRY_MS);
+		expect(t.built()).toBe(3);
+		expect(t.whys).toEqual(['paused']);
+		t.c.advance(DICTATION_RESTART_RETRY_MS * 4);
+		expect(t.built()).toBe(3);
+	});
+
+	it('teardown in the gap builds nothing more and says nothing', () => {
+		const t = alive();
+		t.d.start();
+		t.c.advance(5000);
+		Fake.throwNext = 1;
+		t.rec().end();
+		t.d.destroy();
+		t.c.advance(DICTATION_RESTART_RETRY_MS * 4);
+		expect(t.built()).toBe(2);
+		expect(t.listening).toEqual([true]);
+		expect(t.d.listening).toBe(false);
+		expect(t.c.pending()).toBe(0);
+	});
+
+	it('a second start while kept alive is a no-op, not a second microphone', () => {
+		const t = alive();
+		t.d.start();
+		t.c.advance(5000);
+		t.rec().end();
+		t.d.start();
+		expect(t.built()).toBe(2);
+	});
+});
+
+describe('the pause before each phrase is measured from the last thing heard', () => {
+	it('is null for the first phrase, then the gap from the last interim to the next first word', () => {
+		const c = clock();
+		const t = driver({ now: c.now, setTimer: c.setTimer, clearTimer: c.clearTimer });
+		t.d.start();
+		const r = t.rec();
+		r.deliver(0, [I('the launch')]);
+		c.advance(400);
+		r.deliver(0, [I('the launch button did nothing')]);
+		// The service's own end-of-phrase delay: the final comes later.
+		c.advance(700);
+		r.deliver(0, [F('the launch button did nothing')]);
+		c.advance(1500);
+		r.deliver(1, [F('the launch button did nothing'), I(' then')]);
+		c.advance(300);
+		r.deliver(1, [F('the launch button did nothing'), F(' then the page went blank')]);
+		expect(t.finals).toEqual(['the launch button did nothing', ' then the page went blank']);
+		// 700 + 1500 since the last interim of the first phrase, not 1500.
+		expect(t.pauses).toEqual([null, 2200]);
+	});
+
+	it('a phrase with no interim results is measured from its final', () => {
+		const c = clock();
+		const t = driver({ now: c.now });
+		t.d.start();
+		t.rec().deliver(0, [F('first sentence')]);
+		c.advance(900);
+		t.rec().deliver(1, [F('first sentence'), F('second sentence')]);
+		expect(t.pauses).toEqual([null, 900]);
+	});
+});
+
+describe('the loudness meter opens once a session and never outlives it', () => {
+	it('opens at the first start, not at each restart, and closes on STOP', () => {
+		const m = fakeMeter();
+		const c = clock();
+		const t = driver({
+			keepAlive: true,
+			meter: m.meter,
+			now: c.now,
+			setTimer: c.setTimer,
+			clearTimer: c.clearTimer,
+			hidden: () => false
+		});
+		t.d.start();
+		expect(m.log).toEqual(['open']);
+		m.emit(0.4);
+		expect(t.levels).toEqual([0.4]);
+		c.advance(5000);
+		t.rec().end();
+		expect(t.built()).toBe(2);
+		expect(m.log).toEqual(['open']);
+		t.d.stop();
+		t.rec().end();
+		expect(m.log).toEqual(['open', 'close']);
+		// Nothing it says after closing reaches the surface.
+		m.emit(0.9);
+		expect(t.levels).toEqual([0.4]);
+	});
+
+	it('closes on a failed session, on teardown, and when a stop throws', () => {
+		const failed = fakeMeter();
+		const a = driver({ meter: failed.meter });
+		a.d.start();
+		a.rec().fail('not-allowed');
+		a.rec().end();
+		expect(failed.log).toEqual(['open', 'close']);
+
+		const torn = fakeMeter();
+		const b = driver({ meter: torn.meter });
+		b.d.start();
+		b.d.destroy();
+		expect(torn.log).toEqual(['open', 'close']);
+
+		const thrown = fakeMeter();
+		const c = driver({ meter: thrown.meter });
+		c.d.start();
+		c.rec().stop = () => {
+			throw new Error('gone');
+		};
+		c.d.stop();
+		expect(thrown.log).toEqual(['open', 'close']);
+		expect(c.listening).toEqual([true, false]);
+	});
+
+	it('a meter that throws is no meter, never a failed dictation', () => {
+		const t = driver({
+			meter: {
+				open() {
+					throw new Error('no audio');
+				},
+				close() {
+					throw new Error('no audio');
+				}
+			}
+		});
+		expect(() => t.d.start()).not.toThrow();
+		t.rec().deliver(0, [F('still works')]);
+		expect(() => t.d.destroy()).not.toThrow();
+		expect(t.finals).toEqual(['still works']);
+		expect(t.errors).toEqual([]);
 	});
 });
 
@@ -519,9 +1221,12 @@ describe('dictation on a phone: a final that repeats or extends one already take
 		// The guesses were not lost; they were the preview.
 		expect(interims).toContain(' this is a');
 		expect(interims).toContain(' okay');
-		// And what reaches the field reads as two sentences.
+		// And what reaches the field reads as two sentences, once the pause
+		// between them is long enough and the session has ended.
+		const j = new DictationJoin();
 		let field = '';
-		for (const t of finals) field = appendDictation(field, t);
+		finals.forEach((t, i) => (field = j.append(field, t, i === 0 ? null : 2500)));
+		field = j.close(field);
 		expect(field).toBe('This is a test. Okay.');
 	});
 

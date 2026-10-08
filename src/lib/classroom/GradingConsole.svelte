@@ -67,11 +67,14 @@
 		type BulkPreset
 	} from '$lib/classroom/grading-bulk';
 	import DictateButton from '$lib/classroom/DictateButton.svelte';
+	import { GradingDictation } from '$lib/classroom/grading-dictation.svelte';
 	import {
-		GradingDictation,
-		appendDictation
-	} from '$lib/classroom/grading-dictation.svelte';
-	import { dictationConstructor, type SpeechRecognitionCtor } from '$lib/feedback/dictation';
+		coarsePointer,
+		dictationConstructor,
+		type SpeechRecognitionCtor
+	} from '$lib/feedback/dictation';
+	import { MicLevel } from '$lib/feedback/mic-level';
+	import DictationGhost from '$lib/feedback/DictationGhost.svelte';
 	import {
 		IDENTITY_NOTE,
 		buildGradingExport,
@@ -441,9 +444,30 @@
 		// one-time capability question asked at construction, and read tracked
 		// it is a `state_referenced_locally` warning about a reference that is
 		// correct. The constructor never changes for the life of a page.
-		untrack(() => (speech === undefined ? dictationConstructor() : speech))
+		untrack(() => (speech === undefined ? dictationConstructor() : speech)),
+		// ON A COMPUTER IT KEEPS LISTENING through the service's own stops,
+		// with a loudness meter beside STOP; on a phone it ends at a pause
+		// (see `dictation.ts` for why a restart there is refused).
+		coarsePointer() ? {} : { keepAlive: true, meter: new MicLevel() }
 	);
 	$effect(() => () => dictate.destroy());
+	/** The comment to the student, as a dictation target: the D key and its button share it. */
+	const commentTarget = {
+		key: 'comment',
+		read: () => comment,
+		write: (v: string) => (comment = v)
+	};
+	/**
+	 * DICTATION LANDS BEFORE THE CONSOLE MOVES ON (report 5ab3adb6). Every
+	 * field is keyed the same for every student, so a sentence still in flight
+	 * when the console switched students used to land in the NEXT student's
+	 * comment. Run `then` once the last sentence has landed (at once when
+	 * nothing is listening, so nothing changes for a grader who is typing).
+	 */
+	function afterDictation(then: () => void) {
+		if (dictate.listeningKey === null) then();
+		else void dictate.settle().then(then);
+	}
 
 	/**
 	 * DID THIS WORK CHANGE AFTER IT WAS GRADED. Derived per student through the
@@ -959,6 +983,11 @@
 	 */
 	function requestSelect(next: StudentWork | null) {
 		if (next?.email && next.email === selectedEmail) return;
+		// The sentence being spoken belongs to the student it was spoken about.
+		if (dictate.listeningKey !== null) {
+			afterDictation(() => requestSelect(next));
+			return;
+		}
 		// EXEMPT WHEN NOTHING CHANGED: a confirm on every click is a confirm
 		// nobody reads.
 		if (!selected || !dirty) {
@@ -979,6 +1008,13 @@
 	}
 
 	function applySelect(next: StudentWork | null) {
+		// NO SESSION SURVIVES A STUDENT SWITCH (report 5ab3adb6). Every path
+		// that can wait for the sentence in flight settles before it gets
+		// here; the ones that do not wait -- "Discard and switch", and a
+		// session started while a draft save was in flight -- DROP it here,
+		// because every field is keyed the same for every student and a late
+		// sentence would land in the next one. Discard means drop.
+		if (dictate.listeningKey !== null) dictate.drop();
 		pending = null;
 		armReturn = false;
 		gradeError = null;
@@ -1011,6 +1047,7 @@
 
 	async function saveThenSwitch() {
 		const next = pending?.next ?? null;
+		if (dictate.listeningKey !== null) await dictate.settle();
 		await save.saveNow();
 		// The switch only happens on the ACKNOWLEDGEMENT: a failed draft save
 		// that then swapped the student would discard the very rubric the
@@ -1963,6 +2000,12 @@
 	let pagerNote = $state<string | null>(null);
 
 	function moveStudent(step: -1 | 1) {
+		// Settled HERE as well as in requestSelect, so the focus below never
+		// lands on the old student's first level before the deferred switch.
+		if (dictate.listeningKey !== null) {
+			afterDictation(() => moveStudent(step));
+			return;
+		}
 		const list = visibleStudents;
 		if (!list.length) {
 			pagerNote = rosterFilter === 'to-grade' ? 'Nothing is waiting to be graded.' : 'Nobody is on this roster yet.';
@@ -2036,7 +2079,7 @@
 				moveStudent(-1);
 				return;
 			case 'save':
-				if (!busy) void save.saveNow();
+				if (!busy) afterDictation(() => void save.saveNow());
 				return;
 			case 'return':
 				if (busy) return;
@@ -2047,7 +2090,7 @@
 				}
 				armReturn = false;
 				keyNote = null;
-				void grade(true);
+				afterDictation(() => void grade(true));
 				return;
 			case 'close':
 				if (armReturn) {
@@ -2056,6 +2099,12 @@
 					return;
 				}
 				requestSelect(null);
+				return;
+			case 'dictate':
+				// The comment box is on screen only with a student open and a
+				// rubric to grade against, and its DICTATE button is off while
+				// a grade or a batch is being written: the key asks the same.
+				if (selected && rubric?.length && !busy && !batchBusy) dictate.toggle(commentTarget);
 				return;
 		}
 	}
@@ -2066,6 +2115,24 @@
 		// in the roster move between names and in the Q&A list between questions,
 		// and neither may also move a criterion.
 		if (event.defaultPrevented) return;
+		// A REPORT BOX OPEN OVER THE CONSOLE OWNS EVERY KEY. It is mounted later,
+		// so its own window listener runs after this one and cannot stop it;
+		// without this, Escape in the box also closed the student here.
+		if (typeof document !== 'undefined' && document.querySelector('.fb-scrim')) return;
+		// ESCAPE STOPS DICTATION FIRST, even from inside the field being
+		// dictated into, and does nothing else (report 5ab3adb6) -- a queued
+		// field included, so nothing starts listening after the press. An
+		// open dialog (a picture in the lightbox) is on top, so its own
+		// Escape closes it first and dictation carries on.
+		if (
+			event.key === 'Escape' &&
+			dictate.listeningKey !== null &&
+			!(typeof document !== 'undefined' && document.querySelector('dialog[open]'))
+		) {
+			event.preventDefault();
+			dictate.stop();
+			return;
+		}
 		if (pending) {
 			// Only the bar's own two answers, and never while typing.
 			if (event.key === 'Escape') {
@@ -3523,13 +3590,19 @@
 															/>
 															<span class="score-out">/ {max}</span>
 														</span>
-														<textarea
-															class="crit-comment"
-															rows="2"
-															placeholder="Why this score and not a level? (required)"
-															aria-label={`Comment on ${c.criterion}`}
-															bind:value={critComments[c.id]}
-														></textarea>
+														<DictationGhost
+															text={critComments[c.id] ?? ''}
+															ghost={dictate.preview(`crit:${c.id}`, critComments[c.id] ?? '')}
+															active={dictate.listeningKey === `crit:${c.id}`}
+														>
+															<textarea
+																class="crit-comment"
+																rows="2"
+																placeholder="Why this score and not a level? (required)"
+																aria-label={`Comment on ${c.criterion}`}
+																bind:value={critComments[c.id]}
+															></textarea>
+														</DictationGhost>
 														<!--
 															KEYED ON THE CRITERION ID, which is the join key for
 															every answer stored under it and is permanent -- so
@@ -3541,11 +3614,8 @@
 															field={`crit:${c.id}`}
 															label={`the note on ${c.criterion}`}
 															disabled={busy || batchBusy}
-															append={(text) =>
-																(critComments[c.id] = appendDictation(
-																	critComments[c.id] ?? '',
-																	text
-																))}
+															read={() => critComments[c.id] ?? ''}
+															write={(v) => (critComments[c.id] = v)}
 														/>
 													</div>
 												{:else if critComments[c.id]}
@@ -3648,18 +3718,27 @@
 												THE TRANSCRIPT IS APPENDED TO WHAT IS IN THE BOX NOW,
 												read fresh at the moment the sentence lands rather than
 												snapshotted when the button was pressed -- so anything
-												typed while the person was also speaking survives.
-												`appendDictation` never removes a character.
+												typed while the person was also speaking survives. The
+												controller's `DictationJoin` never removes a character,
+												and the words still being heard are drawn grey over the
+												box, never written into it.
 											-->
 											<DictateButton
 												dictation={dictate}
 												field="comment"
 												label="the comment to the student"
 												disabled={busy || batchBusy}
-												append={(text) => (comment = appendDictation(comment, text))}
+												read={commentTarget.read}
+												write={commentTarget.write}
 											/>
 										</div>
-										<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
+										<DictationGhost
+											text={comment}
+											ghost={dictate.preview('comment', comment)}
+											active={dictate.listeningKey === 'comment'}
+										>
+											<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
+										</DictationGhost>
 										{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
 										{#if gradeNotice}<p class="feedback ok">{gradeNotice}</p>{/if}
 										<!--
@@ -3708,7 +3787,7 @@
 												type="button"
 												class="btn secondary tiny"
 												disabled={busy}
-												onclick={() => void save.saveNow()}
+												onclick={() => afterDictation(() => void save.saveNow())}
 											>
 												Save draft
 											</button>
@@ -3718,7 +3797,7 @@
 												class:armed={armReturn}
 												disabled={busy}
 												data-testid="grade-return"
-												onclick={() => grade(true)}
+												onclick={() => afterDictation(() => void grade(true))}
 											>
 												{armReturn ? 'Press R again to return' : 'Return to student'}
 											</button>

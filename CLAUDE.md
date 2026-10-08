@@ -4575,14 +4575,21 @@ inside the function fails closed rather than falling through to a weaker path.
       - **THE SUBMITTER TOGGLE STILL DECIDES AND THE ARCHIVE SAYS WHICH WAY.**
         It withholds a NAME, never a report: `tried` and the screenshot stay.
 - **DICTATION IS ONE DRIVER AND ONE APPEND, AND A FINAL RESULT IS NOT ALWAYS
-  NEW WORDS (reports R03, R08).** `Dictation` in `$lib/feedback/dictation.ts`
+  NEW WORDS (reports R03, R08, 5ab3adb6).** `Dictation` in `$lib/feedback/dictation.ts`
   is the only Web Speech session on the site -- the report box, the grading
   console's `GradingDictation` and the palette's Speak control all drive it --
   and `appendDictation` is the only way a transcript reaches a field: it never
-  removes a character, and it closes each final result as a sentence (a period
-  when there is no end mark, a capital only where a sentence opens, never
-  mid-way through somebody's typing). `FinalResults` decides which finals are
-  new words, keyed on what the event says and never on a user-agent sniff: a
+  removes a character, it shapes only the transcript (fillers dropped, spoken
+  "comma", "question mark", "new line" written as marks, "period" only where it
+  cannot name a class period), and it appends a chunk OPEN. **`DictationJoin` is
+  the one thing that closes a sentence**, with a period appended at the end and
+  only to text it wrote itself: when `continuesSentence` judges the next chunk a
+  new sentence (a word no sentence ends on, a carrying-on word or a spoken mark
+  keeps it open; otherwise a pause from the last thing heard of the last phrase
+  past `DICTATION_SENTENCE_PAUSE_MS`, which is UNMEASURED) or when the session
+  ends. Report R03's period at every final is retired: a final arrives at every
+  breath, and it put periods mid-sentence. `FinalResults` decides which finals
+  are new words, keyed on what the event says and never on a user-agent sniff: a
   final at confidence exactly 0 is Chrome-on-Android's provisional guess, shown
   as the preview and held until a confirmed final replaces it, a higher index
   finishes it, or `end` flushes it (BEFORE `onListening(false)`, so it lands in
@@ -4593,6 +4600,37 @@ inside the function fails closed rather than falling through to a weaker path.
   container here has a phone. The report box never focuses its field on a
   coarse pointer (`coarsePointer`), because that raises the phone keyboard over
   the box.
+  - **KEEP-ALIVE IS AN OPTION, OFF BY DEFAULT, AND ONLY A FINE POINTER TURNS IT
+    ON.** With it, an `end` the person did not ask for opens a fresh recogniser
+    in the same session (no second `onListening(true)`), never after a refused
+    microphone or an `aborted` it did not cause, never in a hidden tab, never
+    past four quick ends in a row (`DICTATION_MAX_QUICK_RESTARTS`, reset by any
+    words heard) and never past `DICTATION_IDLE_MS` with nothing heard; and
+    `listening` is true across the gap so a STOP there is not lost. On a phone
+    it stays off (Android chimes at every start, iOS may refuse a start outside
+    a tap) and the box says "Paused". The palette passes no options, which is
+    what keeps its Speak control byte-for-byte what it was.
+  - **WORDS STILL BEING HEARD ARE DRAWN OVER THE FIELD, NEVER WRITTEN INTO IT.**
+    `DictationGhost` lays an `aria-hidden` mirror with the field's own metrics
+    over the caller's untouched textarea and draws exactly what
+    `DictationJoin.preview` says the next final will add; the field's ground
+    stays the plate's, so its contrast is an `orderResult` compositing probe,
+    never the ancestor-walking row.
+  - **THE LOUDNESS METER IS `$lib/feedback/mic-level.ts`, NEVER `dictation.ts`**,
+    which keeps its no-capture sweep. It opens once per session after the
+    service's `start`, only where the microphone permission already reads
+    granted and only on a fine pointer, records and sends nothing, and is
+    closed on every end; a failure is no meter. `DictationLevel` moves its bars
+    by transform only, and only under `no-preference`.
+  - **A SURFACE THAT MOVES ON WAITS FOR THE SENTENCE IN FLIGHT.** The report
+    box's SEND and the grading console's switch, save and return wait for the
+    session to end (up to `DICTATION_STOP_GRACE_MS`), because a field keyed the
+    same for every student sent a late sentence to the NEXT student. The
+    console's one writer of the open student, `applySelect`, DROPS any session
+    still open (`drop()`), so a path that does not wait ("Discard and switch")
+    cannot carry one across. Escape stops dictation before it does anything
+    else, a queued field included, and a `DictateButton` whose field unmounts
+    stops its own session.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
   (`$lib/save-state.svelte.ts`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to

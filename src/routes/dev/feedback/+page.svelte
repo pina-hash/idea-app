@@ -13,6 +13,7 @@
 	} from '$lib/feedback/feedback';
 	import { FEEDBACK_CONSOLE_PATH } from '$lib/feedback/context';
 	import type {
+		MicMeter,
 		SpeechRecognitionErrorLike,
 		SpeechRecognitionEventLike
 	} from '$lib/feedback/dictation';
@@ -334,19 +335,72 @@
 	/**
 	 * A SCRIPTED SPEECH RECOGNISER, so dictation is drivable here with no
 	 * microphone and no speech service. It answers the SAME four events the
-	 * browser's own does, through the same `SpeechRecognitionLike` shape:
-	 *   * `transcribe`: after start(), an interim fragment at 350ms and a final
-	 *     sentence at 900ms, then `end` on stop() -- which is what proves the
-	 *     append rule on a field somebody has already typed into;
+	 * browser's own does, through the same `SpeechRecognitionLike` shape, and
+	 * like a real one it finishes the sentence it is hearing before `end` when
+	 * asked to stop. `?speech=<mode>` picks the script (the buttons below too):
+	 *   * `transcribe` (default): an interim fragment at 350ms and a final
+	 *     sentence at 900ms, then a SECOND phrase heard from 2600ms that never
+	 *     finishes on its own -- so the grey preview is on screen to measure,
+	 *     carrying the period the first sentence will get (a long pause);
+	 *   * `restart`: the first recogniser ENDS ITSELF 1.2s after its final, as
+	 *     Chrome's own time limit does; a kept-alive box opens a second one,
+	 *     which hears "then the page went blank". `window.__fbSpeech.built`
+	 *     counts the recognisers;
+	 *   * `pauses`: three phrases, the second after 2.9s of silence and the
+	 *     third after 0.3s, so both outcomes of the sentence rule are on screen;
+	 *   * `punctuation`: "is this right question mark";
 	 *   * `refused`: `not-allowed` at once, the microphone-denied case;
 	 *   * `none`: no constructor at all, which is Firefox and every
 	 *     third-party iPad browser, so the control must not render.
 	 * The box resolves its constructor ONCE at mount, so the mode is a `{#key}`.
 	 */
-	let speechMode = $state<'transcribe' | 'refused' | 'none'>('transcribe');
+	const SPEECH_MODES = ['transcribe', 'restart', 'pauses', 'punctuation', 'refused', 'none'] as const;
+	type SpeechMode = (typeof SPEECH_MODES)[number];
+	const initialSpeech = page.url.searchParams.get('speech');
+	let speechMode = $state<SpeechMode>(SPEECH_MODES.find((m) => m === initialSpeech) ?? 'transcribe');
 	const HEARD_INTERIM = 'the launch';
 	const HEARD_FINAL = 'the launch button did nothing';
-	function fakeSpeech(mode: 'transcribe' | 'refused') {
+	type Step = { at: number; final: boolean; text: string } | { at: number; end: true };
+	/** Each mode's script, per recogniser: the nth recogniser built in this session gets SCRIPTS[mode][n - 1] (or the last). */
+	const SCRIPTS: Record<string, Step[][]> = {
+		transcribe: [
+			[
+				{ at: 350, final: false, text: HEARD_INTERIM },
+				{ at: 900, final: true, text: HEARD_FINAL },
+				{ at: 2600, final: false, text: 'then the page' }
+			]
+		],
+		restart: [
+			[
+				{ at: 350, final: false, text: HEARD_INTERIM },
+				{ at: 900, final: true, text: HEARD_FINAL },
+				{ at: 2100, end: true }
+			],
+			[
+				{ at: 300, final: false, text: 'then the page' },
+				{ at: 800, final: true, text: 'then the page went blank' }
+			]
+		],
+		pauses: [
+			[
+				{ at: 300, final: false, text: 'the save button worked' },
+				{ at: 700, final: true, text: 'the save button worked' },
+				{ at: 3200, final: false, text: 'then the page froze' },
+				{ at: 3600, final: true, text: 'then the page froze' },
+				{ at: 3900, final: false, text: 'for ten seconds' },
+				{ at: 4200, final: true, text: 'for ten seconds' }
+			]
+		],
+		punctuation: [
+			[
+				{ at: 300, final: false, text: 'is this right question' },
+				{ at: 700, final: true, text: 'is this right question mark' }
+			]
+		]
+	};
+	const speechWindow = () =>
+		((window as unknown as { __fbSpeech?: { built: number } }).__fbSpeech ??= { built: 0 });
+	function fakeSpeech(mode: SpeechMode) {
 		return class FakeSpeechRecognition {
 			lang = '';
 			continuous = false;
@@ -356,31 +410,76 @@
 			onerror: ((ev: SpeechRecognitionErrorLike) => void) | null = null;
 			onend: ((ev: unknown) => void) | null = null;
 			#timers: ReturnType<typeof setTimeout>[] = [];
+			/** The words heard and not yet final: finished on stop(), as a real service does. */
+			#heard: string | null = null;
+			#ended = false;
+			#result(isFinal: boolean, transcript: string) {
+				this.#heard = isFinal ? null : transcript;
+				this.onresult?.({ resultIndex: 0, results: [{ isFinal, length: 1, 0: { transcript } }] });
+			}
+			#end() {
+				if (this.#ended) return;
+				this.#ended = true;
+				this.#timers.forEach(clearTimeout);
+				this.#timers = [];
+				this.onend?.({});
+			}
 			start() {
+				const n = ++speechWindow().built;
 				this.onstart?.({});
 				if (mode === 'refused') {
 					this.onerror?.({ error: 'not-allowed' });
-					this.#timers.push(setTimeout(() => this.onend?.({}), 0));
+					this.#timers.push(setTimeout(() => this.#end(), 0));
 					return;
 				}
-				const result = (isFinal: boolean, transcript: string): SpeechRecognitionEventLike => ({
-					resultIndex: 0,
-					results: [{ isFinal, length: 1, 0: { transcript } }]
-				});
-				this.#timers.push(setTimeout(() => this.onresult?.(result(false, HEARD_INTERIM)), 350));
-				this.#timers.push(setTimeout(() => this.onresult?.(result(true, HEARD_FINAL)), 900));
+				const scripts = SCRIPTS[mode] ?? SCRIPTS.transcribe;
+				const script = scripts[Math.min(n, scripts.length) - 1];
+				for (const step of script) {
+					this.#timers.push(
+						setTimeout(() => ('end' in step ? this.#end() : this.#result(step.final, step.text)), step.at)
+					);
+				}
 			}
 			stop() {
 				this.#timers.forEach(clearTimeout);
 				this.#timers = [];
-				setTimeout(() => this.onend?.({}), 0);
+				const heard = this.#heard;
+				setTimeout(() => {
+					if (heard) this.#result(true, heard);
+					this.#end();
+				}, 80);
 			}
 			abort() {
-				this.stop();
+				this.#heard = null;
+				this.#timers.forEach(clearTimeout);
+				this.#timers = [];
+				setTimeout(() => this.#end(), 0);
 			}
 		};
 	}
 	const dictation = $derived(speechMode === 'none' ? null : fakeSpeech(speechMode));
+
+	/**
+	 * A STAND-IN LOUDNESS METER, so the bars beside STOP are on screen with no
+	 * microphone. It never touches `getUserMedia`; it answers a slow wave.
+	 */
+	const micLevel: MicMeter = (() => {
+		let timer: ReturnType<typeof setInterval> | null = null;
+		return {
+			open(onLevel) {
+				if (timer) clearInterval(timer);
+				let t = 0;
+				timer = setInterval(() => {
+					t += 1;
+					onLevel(0.35 + 0.3 * Math.sin(t / 2));
+				}, 120);
+			},
+			close() {
+				if (timer) clearInterval(timer);
+				timer = null;
+			}
+		};
+	})();
 
 	/* `?view=console` lands on the console directly, so a browser-verify spec
 	   can measure it without a click that is not the thing under test. */
@@ -442,6 +541,7 @@
 						{build}
 						{submit}
 						{dictation}
+						{micLevel}
 					/>
 				{/key}
 				<SiteFeedback
@@ -482,7 +582,7 @@
 				browser with no speech API, where the control must not render at all.
 			</p>
 			<div class="hx-row">
-				{#each [{ id: 'transcribe' as const, label: 'transcribes a sentence' }, { id: 'refused' as const, label: 'microphone REFUSED' }, { id: 'none' as const, label: 'no speech API (control absent)' }] as m (m.id)}
+				{#each [{ id: 'transcribe' as const, label: 'transcribes a sentence' }, { id: 'restart' as const, label: 'service ends itself (kept alive)' }, { id: 'pauses' as const, label: 'a long and a short pause' }, { id: 'punctuation' as const, label: 'spoken question mark' }, { id: 'refused' as const, label: 'microphone REFUSED' }, { id: 'none' as const, label: 'no speech API (control absent)' }] as m (m.id)}
 					<button class="hx-btn" class:on={speechMode === m.id} onclick={() => (speechMode = m.id)}>
 						{m.label}
 					</button>

@@ -115,11 +115,19 @@ export default {
 		},
 		{
 			/* At rest nothing is being heard and nothing has been refused, so
-			   neither of these renders; the note above is the positive control
-			   for the same subtree. */
-			selector: '.fb-dictate-heard, .fb-dictate-error',
-			label: 'no interim text and no refusal before anything is said',
+			   neither the grey mirror over the field, its fallback line, nor a
+			   refusal renders; the note above is the positive control for the
+			   same subtree. */
+			selector: '.dg-mirror, .dg-ghost, .dg-line, .fb-dictate-error',
+			label: 'no grey preview and no refusal before anything is said',
 			expectPresent: 0
+		},
+		{
+			selector: '.fb-dictate-keys',
+			label: 'the dictation key, printed under the control on a computer',
+			expectPresent: 1,
+			maxPresent: 1,
+			expectVisible: 1
 		},
 		{
 			/* REPORT R15, THE STUDENT HALF. This box is the no-session
@@ -160,6 +168,11 @@ export default {
 			selector: '.fb-dictate-note',
 			label: 'the note says whose service hears the audio',
 			must: ['browser', 'speech service']
+		},
+		{
+			selector: '.fb-dictate-keys',
+			label: 'the key is in words, and so is Escape',
+			must: ['Shift+Space', 'Escape']
 		}
 	],
 	contrast: [
@@ -171,7 +184,8 @@ export default {
 		{ selector: '.fb-btn-primary', label: 'SEND, accent ink on the control fill', min: 4.5 },
 		{ selector: '.fb-count', label: 'the characters-left count', min: 4.5 },
 		{ selector: '.fb-dictate', label: 'the dictate control word', min: 4.5 },
-		{ selector: '.fb-dictate-note', label: 'the where-the-audio-goes sentence', min: 4.5 }
+		{ selector: '.fb-dictate-note', label: 'the where-the-audio-goes sentence', min: 4.5 },
+		{ selector: '.fb-dictate-keys', label: 'the dictation key line', min: 4.5 }
 	],
 	tapTargets: [
 		/*

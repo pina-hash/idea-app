@@ -73,6 +73,7 @@
 		errorId = null,
 		label = REPORT_LABEL,
 		dictation = undefined,
+		micLevel = undefined,
 		consoleHref = undefined,
 		now = () => Date.now()
 	}: {
@@ -137,6 +138,8 @@
 		/** Handed straight to the box: a stand-in speech constructor for a
 		 * harness, `null` to refuse dictation, `undefined` to ask the browser. */
 		dictation?: import('./dictation').SpeechRecognitionCtor | null;
+		/** Handed straight to the box, the same three ways: the loudness meter. */
+		micLevel?: import('./dictation').MicMeter | null;
 		/**
 		 * THE CONSOLE LINK IN THE BOX'S HEADER (report R15). `undefined`, what
 		 * every real mount passes, DERIVES it: an admin gets
@@ -422,6 +425,7 @@
 			uploadScreenshot={attach}
 			screenshotNote={attachNote}
 			{dictation}
+			{micLevel}
 			offerHorizon
 			consoleHref={consoleLink}
 			onClose={() => (open = false)}
