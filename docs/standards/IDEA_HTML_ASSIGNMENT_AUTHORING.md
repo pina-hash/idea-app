@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.19 - 2026-10-08**
+**Version 1.20 - 2026-10-08**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -792,9 +792,19 @@ portal does: at 1440px the stage went from 4834px tall to 2581px with every move
   field or reaching 100% never folds anything; a section closing under the cursor is the
   annoying kind. A move offers a "Next: <title>" key once it is done, and pressing it folds
   this move and opens the next. Progress-bar jumps and links only ever OPEN.
-- **Arrival is derived from the saved answers.** A fresh student sees every move open. A
-  returning student sees done moves closed and the rest open. Read-only (the grading view)
-  opens everything. An optional move opens only when it has something in it.
+- **Arrival is derived from the saved answers, and only the next move opens.** In each
+  stage the first move not yet done starts open and every other move starts as its
+  one-line header; Open all brings them back. A stage whose moves are all done starts
+  folded. Read-only (the grading view) opens everything. An optional move opens only when
+  it has something in it. This replaced "every move open" on 2026-10-08, when Mr. Pina
+  found a three-stage Hook 03 a disgusting amount of scrolling: a fresh student's page went
+  from 13,202px to 4,768px at 1440.
+- **A whole stage folds from anywhere on the page.** Each stage header carries Collapse
+  stage, and the progress bar that follows the reader carries one key per stage (V2, Sim,
+  V3), pressed while open. Either key lands the page on that stage's header. With many
+  segments the bar drops its segment words below 1700px and keeps the Next line.
+- **Group a long video's chapters rather than spending all of them.** One time key per
+  step, five steps or fewer per list, and a step text of one line where it can be.
 - **A closed header still says what is inside it**: the number, the title, a one-line
   summary of the answer ("Neck", "46.8 g, under the cap", "0 of 4 answered"), a Done or To
   do chip, and the word Show or Hide beside the chevron. A collapsed section that hides
@@ -887,6 +897,9 @@ short videos Mr. Pina recorded, built into the live post so no live demo is need
 
 ## Changelog
 
+- **1.20 (2026-10-08).** Ledger 0372. Section 17: only the next move opens on arrival, done
+  stages arrive folded, a whole stage folds from its header or from keys in the following
+  bar, and a long video's chapters are grouped. From Mr. Pina's read of Hook 03 Stage 3.
 - **1.19 (2026-10-08).** Ledger 0371. Section 18: a chaptered walkthrough video is embedded
   once per move, and each step gets a time key opening YouTube at its chapter.
 - **1.18 (2026-10-08).** Ledger 0370. Section 13: a box in a closed `<details>` is never a
