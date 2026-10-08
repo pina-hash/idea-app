@@ -31,7 +31,14 @@
 	import ArmoryProjectView from '$lib/armory/ArmoryProjectView.svelte';
 	import ArmorySetup from '$lib/armory/ArmorySetup.svelte';
 	import { isProjectView, type ProjectView } from '$lib/armory/nav';
-	import { PEOPLE_SEARCH_LIMIT, purgeCanSend, type ArmoryPersonResult, type PeopleSearchAnswer, type PurgeAnswer } from '$lib/armory/team';
+	import {
+		PEOPLE_SEARCH_LIMIT,
+		peopleSearchOffered,
+		purgeCanSend,
+		type ArmoryPersonResult,
+		type PeopleSearchAnswer,
+		type PurgeAnswer
+	} from '$lib/armory/team';
 	import type { ArmoryFile, ArmoryMember, ArmoryProjectSummary, ArmoryRole, FileFilter } from '$lib/armory/view';
 	import {
 		ACTIVITY,
@@ -53,6 +60,7 @@
 		PROJECT,
 		PROJECTS,
 		PURGE_PREVIEW,
+		PURGE_PREVIEW_BLOCKED,
 		QUIET_FILES,
 		QUIET_SEEN,
 		RELEASE,
@@ -173,7 +181,8 @@
 			: { ok: false, message: 'The name you typed does not match the project name exactly, so nothing was deleted.' };
 	}
 
-	type Viewer = 'mentor' | 'student' | 'admin-viewer' | 'admin-mentor';
+	/** `student-mentor`: a mentor on a student's address, whom 0233's people search refuses. */
+	type Viewer = 'mentor' | 'student' | 'student-mentor' | 'admin-viewer' | 'admin-mentor';
 	interface ProjectState {
 		key: string;
 		label: string;
@@ -206,6 +215,7 @@
 		{ key: 'no-computer', label: 'A server before 0.3: Force check in needs a computer, and says so', view: 'checked-out', files: () => EDITING_FILES, seen: EDITING_SEEN, pre033: true },
 		{ key: 'people', label: 'The small team, for its mentor: roles, the last mentor, adding', view: 'team', files: () => editing, seen: EDITING_SEEN },
 		{ key: 'people-pre033', label: 'The team on a server before 0.3: addresses only, the paste box', view: 'team', files: () => editing, seen: EDITING_SEEN, pre033: true },
+		{ key: 'people-student-mentor', label: 'A mentor on a student address: no search (0233 refuses it), the paste box and why', view: 'team', files: () => editing, seen: EDITING_SEEN, viewer: 'student-mentor' },
 		{ key: 'activity', label: 'What happened lately', view: 'activity', files: () => editing, seen: EDITING_SEEN },
 		{ key: 'settings', label: 'The Project view, for a mentor', view: 'project', files: () => SYNCED_FILES },
 		{ key: 'many', label: '240 files in 12 folders, 60 checked out: the Files view arrives folded', view: 'files', files: () => many, seen: MANY_SEEN, many: true, team: 'big' },
@@ -215,7 +225,9 @@
 		{ key: 'team-student', label: 'The same team, for a student: no addresses, no adding', view: 'team', files: () => many, seen: MANY_SEEN, many: true, team: 'big', viewer: 'student' },
 		{ key: 'purge', label: 'An archived project, for a site admin: Delete forever', view: 'project', files: () => SYNCED_FILES, archived: true, viewer: 'admin-mentor' },
 		{ key: 'purge-live', label: 'A live project, for a site admin: Delete forever waits for an archive', view: 'project', files: () => SYNCED_FILES, viewer: 'admin-mentor' },
-		{ key: 'admin-viewer', label: 'A site admin who is not a member: reads every view, can force a check in', view: 'checked-out', files: () => editing, seen: EDITING_SEEN, viewer: 'admin-viewer' }
+		{ key: 'purge-blocked', label: 'Another project\'s history names a version here: the key is held, with the reason', view: 'project', files: () => SYNCED_FILES, archived: true, viewer: 'admin-mentor' },
+		{ key: 'admin-viewer', label: 'A site admin who is not a member: reads every view, can force a check in', view: 'checked-out', files: () => editing, seen: EDITING_SEEN, viewer: 'admin-viewer' },
+		{ key: 'admin-viewer-team', label: 'The same admin on the Team view: finds and adds people, as a mentor would', view: 'team', files: () => editing, seen: EDITING_SEEN, viewer: 'admin-viewer' }
 	];
 	const OTHER = [
 		'projects',
@@ -247,13 +259,21 @@
 
 	const roleOf = (s: ProjectState): ArmoryRole | null =>
 		s.viewer === 'student' ? 'student' : s.viewer === 'admin-viewer' ? null : 'mentor';
+	const MENTOR_ON_STUDENT_ADDRESS = 'ben.okafor@boscotech.net';
 	const projectOf = (s: ProjectState): ArmoryProjectSummary =>
 		s.archived
 			? { ...ARCHIVED_PROJECT, role: roleOf(s) }
 			: s.many
 				? { ...MANY_PROJECT, role: roleOf(s) }
 				: { ...PROJECT, name: projectName, archived: projectArchived, role: roleOf(s) };
-	const meOf = (s: ProjectState) => (s.viewer === 'student' ? 'ana.reyes@boscotech.net' : s.viewer === 'admin-viewer' ? 'mila.santos@boscotech.edu' : 'apina@boscotech.edu');
+	const meOf = (s: ProjectState) =>
+		s.viewer === 'student'
+			? 'ana.reyes@boscotech.net'
+			: s.viewer === 'student-mentor'
+				? MENTOR_ON_STUDENT_ADDRESS
+				: s.viewer === 'admin-viewer'
+					? 'mila.santos@boscotech.edu'
+					: 'apina@boscotech.edu';
 	const membersOf = (s: ProjectState): ArmoryMember[] => {
 		const list = listOf(s.team ?? 'small');
 		return s.pre033 ? list.map((m) => ({ email: m.email, role: m.role })) : list;
@@ -289,6 +309,7 @@
 		viewHref={hrefOf(s)}
 		onview={single ? null : (v) => (views[s.key] = v)}
 		isAdmin={admin}
+		adminReach={admin && !s.pre033}
 		teamReady={!s.pre033}
 		addMember={addMemberTo(team)}
 		removeMember={removeMemberFrom(team)}
@@ -296,11 +317,11 @@
 		takeBackNeedsComputer={mayForce && !!s.pre033}
 		rename={role === 'mentor' ? rename : null}
 		setArchived={role === 'mentor' || admin ? setArchived : null}
-		searchPeople={!s.pre033 && (role === 'mentor' || admin) ? searchIn(team) : null}
+		searchPeople={!s.pre033 && peopleSearchOffered({ isAdmin: admin, role, email: meOf(s) }) ? searchIn(team) : null}
 		loadTeam={s.pre033 ? null : async () => listOf(team)}
 		refresh={async () => {}}
 		purge={admin && !s.pre033 ? (name) => purge(name) : null}
-		purgePreview={admin && !s.pre033 ? async () => PURGE_PREVIEW : null}
+		purgePreview={admin && !s.pre033 ? async () => (s.key === 'purge-blocked' ? PURGE_PREVIEW_BLOCKED : PURGE_PREVIEW) : null}
 		onpurged={(name, storageProblem) => (purged = { name, storageProblem })}
 		initialFilter={s.filter ?? 'all'}
 		initialQuery={s.query ?? ''}
@@ -374,11 +395,7 @@
 <div data-armory-hydrated={hydrated ? 'yes' : undefined}>
 	{#if single}
 		{@const project = projectOf(single)}
-		<ArmoryFrame
-			title={project.name}
-			crumbs={[{ href: '/dev/armory', label: 'Armory' }]}
-			lead={`These files are the ones in C:\\IDEA\\Armory\\${project.name} on every connected computer.`}
-		>
+		<ArmoryFrame title={project.name} crumbs={[{ href: '/dev/armory', label: 'Armory' }]}>
 			{@render projectState(single)}
 		</ArmoryFrame>
 	{:else if only && OTHER.includes(only)}

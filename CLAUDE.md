@@ -2357,11 +2357,21 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
   at read time (display name, else full name, never both; the Google photo
   withheld behind a chosen avatar). A big project's folders arrive closed
   (`$lib/Disclosure`, latched past 40 live files).
-- **THE PEOPLE SEARCH (`armory_people_search`) IS A GATED DIRECTORY**:
-  mentors and site admins, school accounts only, at most a dozen, never a uuid,
-  and a display name is shown alone. It runs from the input handler with a
-  debounce and a request counter, never from an `$effect`. A refusal or an
-  older database removes it and the paste box takes over, with a sentence.
+- **THE PEOPLE SEARCH (`armory_people_search`) IS A GATED DIRECTORY**: a
+  site admin, or a mentor of the project whose own address is a school
+  teacher's (0233 refuses anyone else with 42501, because a mentor can grant
+  mentor to a student address), school accounts only, at most a dozen, never a
+  uuid, and a display name is shown alone. `peopleSearchOffered` in
+  `$lib/armory/team.ts` is the one predicate the page asks, so nobody is
+  offered a search whose only answer is a refusal, and it also says why the
+  paste box is the way in. It runs from the input handler with a debounce and
+  a request counter, never from an `$effect`. A site admin manages people on
+  any project as a mentor would once 0233 is in (`memberManagerRole`).
+- **A REFUSAL IS READ FROM ITS SQLSTATE AND `DETAIL.reason`, NEVER ITS HTTP
+  STATUS**: PostgREST answers 23505 as 409 and 55000, 55006 and P0002 as 500,
+  which say nothing about what happened (`purgeRefusalWords`,
+  `memberErrorWords`). 0231's own P0001 and 42501 texts are read by the
+  Windows app too, so those stay matched as text.
 - **PRESENCE NEVER SAYS OFFLINE** (`devicePresence` in `$lib/armory/team.ts`):
   "Armory open" inside `ARMORY_ONLINE_MS`, "Last heard from <time>" after, "No
   status" with no heartbeat. The heartbeat writes no change-feed row, so the
@@ -3054,9 +3064,11 @@ build break):
 - **`ARMORY_R2_ACCOUNT_ID` + `ARMORY_R2_ACCESS_KEY_ID` +
   `ARMORY_R2_SECRET_ACCESS_KEY` + `ARMORY_R2_BUCKET`** -- IDEA Armory's file
   storage (Cloudflare R2). Read ONLY by `src/lib/server/armory/storage.ts`, which
-  signs fifteen-minute URLs and never touches bytes, and since 0233 also signs
-  the DELETE (then a HEAD) of a stored file no project names any more, for the
-  sweep in `src/lib/server/armory/sweep.ts`. Any one unset is 503
+  signs fifteen-minute URLs and never reads or writes a file's bytes, and since
+  0233 also SENDS, from the server, a presigned DELETE and then a HEAD for a
+  stored file the database's orphan queue says no project names any more (the
+  sweep in `src/lib/server/armory/sweep.ts`, which marks it swept only when
+  that HEAD answers 404). Any one unset is 503
   `armory_storage_not_configured` from `/api/armory/blob-url`, a 503 from the
   past-version download (`/armory/<project>/file/<file>/version/<version>`,
   ledger 0366), and a "File storage is not switched on" sentence from Delete

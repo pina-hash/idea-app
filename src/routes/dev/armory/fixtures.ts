@@ -307,8 +307,14 @@ export const PURGE_PREVIEW = {
 	side_versions: 37,
 	checkouts: 2,
 	blobs: 1_390,
-	bytes: 3_221_225_472
+	bytes: 3_221_225_472,
+	archived: true,
+	referenced_elsewhere: 0,
+	can_purge: true
 };
+
+/** The same project when another project's file history names one of its versions (0233 refuses 55006). */
+export const PURGE_PREVIEW_BLOCKED = { ...PURGE_PREVIEW, referenced_elsewhere: 2, can_purge: false };
 
 /** The index's cards, with the counts 0233's summaries read adds. */
 export const SUMMARIES = [

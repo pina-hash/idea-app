@@ -372,8 +372,17 @@ export function breakLockWords(message: string): string {
 	return 'That did not work. Try again in a minute.';
 }
 
-/** Plain words for the member RPCs' refusals. */
-export function memberErrorWords(message: string): string {
+/**
+ * Plain words for the member RPCs' refusals. The SQLSTATE is read FIRST and
+ * never the HTTP status, which PostgREST derives and which does not say what
+ * happened: a 23505 (two people adding the same person at once) arrives as a
+ * 409 and a P0002 (0233's "project not found", which only a site admin can
+ * reach) as a 500. 0231's own refusals are P0001 or 42501 messages the Windows
+ * app also reads, so those are matched as text.
+ */
+export function memberErrorWords(message: string, code?: string | null): string {
+	if (code === '23505') return 'Somebody added them at the same moment; they are in the project.';
+	if (code === 'P0002') return 'This project is not there any more. Reload the page.';
 	if (/at least one mentor/i.test(message)) return 'A project always keeps at least one mentor.';
 	if (/valid email/i.test(message)) return 'Type a full school email address.';
 	if (/only a mentor may (grant|change)/i.test(message)) return 'Only a mentor can make someone a mentor or CAD lead.';

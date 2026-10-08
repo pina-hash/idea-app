@@ -4,8 +4,10 @@
 	 * 2026-10-07: the page "scrolls on for way too long when someone has a lot
 	 * of items checked out", with every section stacked under the last).
 	 *
-	 * THE HEADER: the archived and admin-viewer notices, one status line (live
-	 * or polling, in words), recessed readouts (the viewer's role, what is
+	 * THE HEADER: the archived and admin-viewer notices, one status line (the
+	 * project's folder on every computer, then live or polling, in words; the
+	 * folder used to be a lead paragraph of its own, which cost 81px on a
+	 * phone), recessed readouts (the viewer's role, what is
 	 * theirs, the storage; the tab labels carry the file and checkout counts,
 	 * so the header does not say them twice), and the tab strip Files | Checked out | Team | Activity |
 	 * Project, each tab a link to `?view=` (`$lib/armory/nav`). The ROUTE reads
@@ -31,7 +33,14 @@
 	import { holderFilterOf, type HolderFilter } from './checkouts';
 	import { ForceCheckIn, type ForceOutcome } from './force-check-in.svelte';
 	import { projectViewHref, projectViewOf, projectViewsFor, PROJECT_VIEW_WORDS, type ProjectView } from './nav';
-	import { teamNames, type ArmoryPurgePreview, type MemberOutcome, type PeopleSearchAnswer, type PurgeAnswer } from './team';
+	import {
+		peopleSearchOffered,
+		teamNames,
+		type ArmoryPurgePreview,
+		type MemberOutcome,
+		type PeopleSearchAnswer,
+		type PurgeAnswer
+	} from './team';
 	import {
 		checkoutCounts,
 		ROLE_WORDS,
@@ -63,6 +72,7 @@
 		viewHref = projectViewHref,
 		onview = null,
 		isAdmin = false,
+		adminReach = false,
 		teamReady = true,
 		addMember = null,
 		removeMember = null,
@@ -97,11 +107,16 @@
 		/** A harness with no address: tab presses are handed here instead of followed. */
 		onview?: ((view: ProjectView) => void) | null;
 		isAdmin?: boolean;
+		/**
+		 * A site admin on a database with 0233 (the summaries rung): manages the
+		 * project's people as a mentor would, member or not.
+		 */
+		adminReach?: boolean;
 		/** False on a database without `armory_team_status`. */
 		teamReady?: boolean;
 		/** Adds a person, or changes the role of one already in the project (the same RPC). */
 		addMember?: ((email: string, role: ArmoryRole, opts?: { refresh?: boolean }) => Promise<MemberOutcome>) | null;
-		removeMember?: ((email: string) => Promise<Outcome>) | null;
+		removeMember?: ((email: string) => Promise<MemberOutcome>) | null;
 		takeBack?: ((fileId: string) => Promise<ForceOutcome>) | null;
 		/** True when the caller may force a check in but this database needs one of their computers to send it from. */
 		takeBackNeedsComputer?: boolean;
@@ -129,6 +144,8 @@
 	const counts = $derived(checkoutCounts(live_, me));
 
 	const settings = $derived(!!rename || !!setArchived || (isAdmin && !!purge));
+	/** The people search's gate, asked once (`peopleSearchOffered`): it also says why the paste box is the way in. */
+	const searchOffered = $derived(peopleSearchOffered({ isAdmin, role: project.role, email: me }));
 	const tabs = $derived(projectViewsFor({ settings }));
 	const shown = $derived(projectViewOf(view, { settings }));
 
@@ -187,6 +204,7 @@
 {/if}
 
 <div class="ar-status" data-testid="armory-status">
+	<span class="ar-path" data-testid="armory-path">The folder <code>C:\IDEA\Armory\{project.name}</code> on every connected computer.</span>
 	<span class="ar-live" data-live={live} data-testid="armory-live">
 		<span class="ar-live-dot" aria-hidden="true"></span>{LIVE_WORDS[live]}
 	</span>
@@ -242,6 +260,8 @@
 		<ArmoryTeam
 			role={project.role}
 			{isAdmin}
+			{adminReach}
+			{searchOffered}
 			{members}
 			{checkouts}
 			{teamReady}

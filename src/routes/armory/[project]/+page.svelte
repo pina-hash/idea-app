@@ -9,7 +9,14 @@
 	import { armorySignIn } from '$lib/armory/sign-in';
 	import { watchArmoryProject, type LiveMode } from '$lib/armory/live';
 	import { projectViewFromHash, projectViewHref } from '$lib/armory/nav';
-	import { PEOPLE_SEARCH_LIMIT, type ArmoryPersonResult, type ArmoryPurgePreview, type PeopleSearchAnswer, type PurgeAnswer } from '$lib/armory/team';
+	import {
+		PEOPLE_SEARCH_LIMIT,
+		peopleSearchOffered,
+		type ArmoryPersonResult,
+		type ArmoryPurgePreview,
+		type PeopleSearchAnswer,
+		type PurgeAnswer
+	} from '$lib/armory/team';
 	import { armoryNotReady, type ArmoryMember, type ArmoryRole } from '$lib/armory/view';
 	import { isSignedOutFailure, PollSignedOut } from '$lib/classroom/poll';
 	import { trackInFlight } from '$lib/shell/deploy-safety';
@@ -29,10 +36,15 @@
 	const shownView = $derived(page.url.searchParams.get('view'));
 	const who = $derived(page.url.searchParams.get('who') === 'me' ? 'me' : 'all');
 
-	/** One write. `refresh: false` holds the page's reload (a batch of adds reloads once, at the end). */
+	/**
+	 * One write. `refresh: false` holds the page's reload (a batch of adds
+	 * reloads once, at the end). A refusal carries its SQLSTATE beside the text,
+	 * because the words are chosen from the code first and never from the HTTP
+	 * status (a 23505 arrives as 409, a P0002 as 500).
+	 */
 	async function rpc(name: string, args: Record<string, unknown>, opts: { refresh?: boolean } = {}) {
 		const { data: answer, error } = await data.supabase.rpc(name, { ...args, p_operation: crypto.randomUUID() });
-		if (error) return { ok: false as const, message: error.message };
+		if (error) return { ok: false as const, message: error.message, code: error.code };
 		if (opts.refresh !== false) await invalidate('armory:project');
 		return answer === false ? { ok: false as const, message: 'nothing changed' } : { ok: true as const };
 	}
@@ -53,8 +65,14 @@
 	const takeDevice = $derived(v033 ? null : (view?.devices[0]?.id ?? null));
 	const forceNeedsComputer = $derived(mayForce && !v033 && !takeDevice);
 
+	/*
+	 * THE PEOPLE SEARCH IS OFFERED TO WHOM 0233 ADMITS, AND NOBODY ELSE: a site
+	 * admin, or a mentor of this project on a school teacher's address
+	 * (`peopleSearchOffered`). Everyone else adds by email, and the Team view
+	 * says why from the same predicate.
+	 */
 	const searchPeople = $derived(
-		view && v033 && (isAdmin || isMentor)
+		view && v033 && peopleSearchOffered({ isAdmin, role, email: data.email })
 			? async (query: string): Promise<PeopleSearchAnswer> => {
 					const { data: rows, error } = await data.supabase.rpc('armory_people_search', {
 						p_project: view.project.id,
@@ -148,11 +166,7 @@
 		</ArmoryNotice>
 	</ArmoryFrame>
 {:else}
-	<ArmoryFrame
-		title={view.project.name}
-		crumbs={[{ href: '/armory', label: 'Armory' }]}
-		lead={`These files are the ones in C:\\IDEA\\Armory\\${view.project.name} on every connected computer.`}
-	>
+	<ArmoryFrame title={view.project.name} crumbs={[{ href: '/armory', label: 'Armory' }]}>
 		{#if !view.storageReady}
 			<ArmoryNotice title="File storage is not switched on yet." testid="armory-storage-off">
 				Computers can connect and you can see who has what checked out, but saved files will not upload
@@ -173,6 +187,7 @@
 			{live}
 			view={shownView}
 			{isAdmin}
+			adminReach={isAdmin && v033}
 			teamReady={view.teamReady}
 			initialHolder={who}
 			addMember={(email: string, r: ArmoryRole, opts?: { refresh?: boolean }) =>

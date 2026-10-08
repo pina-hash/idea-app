@@ -244,20 +244,48 @@ export async function handleConnectExchange(request: Request, clientIp: string, 
 /** Bodyless, the same for "not yours" and "not there" (CLAUDE.md, "Probing must reveal nothing"). */
 const NOT_FOUND = () => new Response(null, { status: 404, headers: NO_STORE });
 
-/**
- * The purge RPC's refusals, in words. Mapped from the SQLSTATE the contract
- * names, never passed through: a raw database message is not a sentence for a
- * person, and its text is the RPC owner's to change.
- */
-function purgeRefusalWords(code: string | undefined): string {
-	switch (code) {
-		case '55000':
-			return 'Archive the project first. Delete forever is offered only for an archived project.';
-		case '22023':
-			return 'The name you typed does not match the project name exactly, so nothing was deleted.';
-		default:
-			return 'That did not work, and nothing was deleted. Try again in a minute.';
+/** The `reason` a refusal's DETAIL carries (0233 raises `detail = jsonb_build_object(...)::text`), else null. */
+export function refusalDetail(details: unknown): { reason: string | null; names: string[]; total: number | null } {
+	let parsed: unknown = null;
+	if (typeof details === 'string' && details.trim().startsWith('{')) {
+		try {
+			parsed = JSON.parse(details);
+		} catch {
+			parsed = null;
+		}
 	}
+	const o = isObject(parsed) ? parsed : {};
+	return {
+		reason: typeof o.reason === 'string' ? o.reason : null,
+		names: Array.isArray(o.names) ? o.names.filter((n): n is string => typeof n === 'string') : [],
+		total: typeof o.total === 'number' ? o.total : null
+	};
+}
+
+/**
+ * The purge RPC's refusals, in words, in the order 0233 raises them: 42501
+ * (not a site admin) and P0002 (no such project) are handled by the caller;
+ * then 55000 `not_archived`, 22023 `name_mismatch` and 55006
+ * `referenced_elsewhere`. Read from the SQLSTATE AND `DETAIL.reason`, never
+ * from the HTTP status (PostgREST answers 55000, 55006 and P0002 as 500) and
+ * never passed through: a raw database message is not a sentence for a person,
+ * and its text is the RPC owner's to change.
+ */
+export function purgeRefusalWords(code: string | undefined, details: unknown): string {
+	const detail = refusalDetail(details);
+	// Strict: the history trigger also raises 55000 ('immutable', no reason), and that is not "archive it first".
+	if (code === '55000' && detail.reason === 'not_archived') {
+		return 'Archive the project first. Delete forever is offered only for an archived project.';
+	}
+	if (code === '22023' && (detail.reason === 'name_mismatch' || detail.reason === null)) {
+		return 'The name you typed does not match the project name exactly, so nothing was deleted.';
+	}
+	if (code === '55006' || detail.reason === 'referenced_elsewhere') {
+		const n = detail.total ?? detail.names.length;
+		const named = detail.names.length ? `: ${detail.names.slice(0, 5).join(', ')}${n > 5 ? ` and ${n - 5} more` : ''}` : '';
+		return `Nothing was deleted. The history of ${n || 'some'} ${n === 1 ? 'file' : 'files'} in another project names a version of a file in this one${named}. Deleting it would break that history.`;
+	}
+	return 'That did not work, and nothing was deleted. Try again in a minute.';
 }
 
 /**
@@ -292,9 +320,12 @@ export async function handlePurge(
 		p_operation: operation.toLowerCase()
 	});
 	if (refused) {
-		if (refused.code === '42501' || refused.code === 'P0002') return NOT_FOUND();
+		// Not a site admin: the same bodyless 404 as a project that is not there.
+		if (refused.code === '42501') return NOT_FOUND();
+		// Only a site admin reaches 0233's P0002, so saying so reveals nothing.
+		if (refused.code === 'P0002') return json(404, { ok: false, message: 'This project is not there any more. It may already have been deleted.' });
 		if (armoryNotReady(refused)) return json(503, { ok: false, message: 'Delete forever is not switched on yet.' });
-		return json(400, { ok: false, message: purgeRefusalWords(refused.code) });
+		return json(400, { ok: false, message: purgeRefusalWords(refused.code, (refused as { details?: unknown }).details) });
 	}
 
 	let storageProblem: string | null = null;

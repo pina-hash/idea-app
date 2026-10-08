@@ -17,6 +17,10 @@
 	 * A MEMBER'S ADDRESS IS SHOWN TO THOSE WHO MANAGE MEMBERSHIP (mentors, CAD
 	 * leads, site admins); everyone sees the name, the picture and the role.
 	 *
+	 * A SITE ADMIN MANAGES PEOPLE ON ANY PROJECT WITH A MENTOR'S REACH once 0233
+	 * is in (`adminReach`; `memberManagerRole`), member or not, because
+	 * `armory_add_member` and `armory_remove_member` admit `is_admin()`.
+	 *
 	 * Adding people: `ArmoryPeoplePicker` for those the search admits, and the
 	 * paste box ("Add by email", for someone with no site account yet) in a
 	 * closed section beneath it, or open with a sentence saying why when the
@@ -39,8 +43,10 @@
 		ARMORY_TEAM_POLL_MS,
 		checkoutCountFor,
 		devicePresence,
+		memberManagerRole,
 		memberName,
 		noComputerWords,
+		PEOPLE_SEARCH_NOT_OFFERED,
 		sortTeam,
 		type MemberOutcome,
 		type PeopleSearchAnswer
@@ -58,6 +64,8 @@
 	let {
 		role,
 		isAdmin = false,
+		adminReach = false,
+		searchOffered = false,
 		members,
 		checkouts = [],
 		teamReady = true,
@@ -74,6 +82,10 @@
 		/** The viewer's role in the project; null for a site admin who is not a member. */
 		role: ArmoryRole | null;
 		isAdmin?: boolean;
+		/** A site admin on a database with 0233: manages people as a mentor, member or not. */
+		adminReach?: boolean;
+		/** Whether `peopleSearchOffered` admits this viewer, which says why the search is absent when it is. */
+		searchOffered?: boolean;
 		members: ArmoryMember[];
 		checkouts?: ArmoryCheckout[];
 		/** False on a database without `armory_team_status`: no names, pictures or presence. */
@@ -125,10 +137,12 @@
 		poller?.stop();
 	});
 
-	const powers = $derived(memberPowers(role));
+	/** The role this viewer manages people with: their own, or a mentor's for a site admin under 0233. */
+	const manager = $derived(memberManagerRole(role, adminReach));
+	const powers = $derived(memberPowers(manager));
 	const manages = $derived(isAdmin || role === 'mentor' || role === 'cad_lead');
 	const mentorCount = $derived(members.filter((m) => m.role === 'mentor').length);
-	const roles = $derived(addableRoles(role));
+	const roles = $derived(addableRoles(manager));
 	const canAdd = $derived(!!addMember && powers.add && roles.length > 0);
 
 	// The search, until it is refused or found missing; then the paste box takes over.
@@ -144,8 +158,8 @@
 	function roleChoices(member: ArmoryMember): ArmoryRole[] {
 		if (!addMember || member.email === me) return [];
 		if (member.role === 'mentor' && mentorCount <= 1) return [];
-		if (role === 'mentor') return ['student', 'instructor', 'cad_lead', 'mentor'];
-		if (role === 'cad_lead' && (member.role === 'student' || member.role === 'instructor')) return ['student', 'instructor'];
+		if (manager === 'mentor') return ['student', 'instructor', 'cad_lead', 'mentor'];
+		if (manager === 'cad_lead' && (member.role === 'student' || member.role === 'instructor')) return ['student', 'instructor'];
 		return [];
 	}
 
@@ -155,7 +169,7 @@
 		try {
 			const r = await addMember(member.email, next);
 			bad = !r.ok;
-			message = r.ok ? `${memberName(member)} is now ${ROLE_WORDS[next]}.` : memberErrorWords(r.message);
+			message = r.ok ? `${memberName(member)} is now ${ROLE_WORDS[next]}.` : memberErrorWords(r.message, r.code);
 		} finally {
 			busy = false;
 		}
@@ -173,7 +187,7 @@
 			bad = !r.ok;
 			message = r.ok
 				? `Removed ${memberName(member)}. Their saved files and history stay in the project.`
-				: memberErrorWords(r.message);
+				: memberErrorWords(r.message, r.code);
 			armedRemove = null;
 		} finally {
 			busy = false;
@@ -213,15 +227,11 @@
 	}
 
 	const pasteWhy = $derived(
-		!searchPeople
-			? role === 'cad_lead'
-				? 'Finding people by name is for mentors and site admins. Add people by their school email.'
-				: 'Add people by their school email.'
-			: searchGone === 'refused'
-				? 'Finding people by name is for mentors and site admins. Add people by their school email.'
-				: searchGone === 'unavailable'
-					? 'Finding people by name appears once the server has the Armory 0.3 update. Add people by their school email.'
-					: null
+		!searchOffered || searchGone === 'refused'
+			? PEOPLE_SEARCH_NOT_OFFERED
+			: !searchPeople || searchGone === 'unavailable'
+				? 'Finding people by name appears once the server has the Armory 0.3 update. Add people by their school email.'
+				: null
 	);
 </script>
 

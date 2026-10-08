@@ -70,11 +70,19 @@ export async function loadMyProjects(supabase: SupabaseClient): Promise<{ notRea
  *
  * NOT FOR THE SETUP PAGE: its "Your projects" step is the projects a computer
  * syncs, which is `armory_my_projects` and membership only.
+ *
+ * With `projectId`, only that project is counted (0233's additive
+ * `p_project`): the project page reloads on every coalesced change, and an
+ * admin's summaries of every project, each summing its stored bytes, is work
+ * that page would throw away.
  */
 export async function loadSummaries(
-	supabase: SupabaseClient
+	supabase: SupabaseClient,
+	projectId?: string
 ): Promise<{ notReady: boolean; ready: boolean; projects: ArmoryProjectSummary[] }> {
-	const { data, error: e } = await supabase.rpc('armory_project_summaries');
+	const { data, error: e } = projectId
+		? await supabase.rpc('armory_project_summaries', { p_project: projectId })
+		: await supabase.rpc('armory_project_summaries');
 	if (e) {
 		if (!armoryNotReady(e)) failed(e);
 		const mine = await loadMyProjects(supabase);
@@ -220,7 +228,7 @@ function mergeHeartbeats(seen: Record<string, number>, team: readonly ArmoryMemb
 
 export async function loadProject(supabase: SupabaseClient, projectId: string, full = true) {
 	if (!UUID.test(projectId)) error(404, 'Not found');
-	const summaries = await loadSummaries(supabase);
+	const summaries = await loadSummaries(supabase, projectId.toLowerCase());
 	if (summaries.notReady) return { notReady: true as const };
 	const project = summaries.projects.find((p) => p.id === projectId.toLowerCase());
 	if (!project) error(404, 'Not found');

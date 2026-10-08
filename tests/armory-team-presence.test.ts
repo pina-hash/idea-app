@@ -21,8 +21,13 @@ import {
 	addPeople,
 	addPeopleWords,
 	ARMORY_ONLINE_MS,
+	deviceStateWords,
 	devicePresence,
+	isTeacherAddress,
+	memberManagerRole,
 	noComputerWords,
+	peopleSearchOffered,
+	purgeBlockedWords,
 	purgeCanSend,
 	purgeConfirmValue,
 	purgeCostWords,
@@ -30,13 +35,15 @@ import {
 	sortTeam,
 	teamNames
 } from '../src/lib/armory/team';
-import { activityWords, breakLockWords, sizeWords, VERBS, type ArmoryCheckout, type ArmoryMember } from '../src/lib/armory/view';
+import { activityWords, breakLockWords, memberErrorWords, sizeWords, VERBS, type ArmoryCheckout, type ArmoryMember } from '../src/lib/armory/view';
 
 const NOW = Date.parse('2026-10-07T17:30:00Z');
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 
 describe('presence never says offline', () => {
-	const STATES = ['idle', 'syncing', 'offline-soon', null, undefined, 'something-new'];
+	// 0233 checks the state only as one word, so an app may send any word: the
+	// sweep includes words that SAY offline, which must still never be printed.
+	const STATES = ['idle', 'syncing', 'offline-soon', null, undefined, 'something-new', 'offline', 'Went_Offline', 'OFFLINE-NOW'];
 	const AGES = [0, 30_000, ARMORY_ONLINE_MS, ARMORY_ONLINE_MS + 1, 10 * 60_000, 3 * 3600_000, 40 * 86400_000, -60_000];
 
 	test('every state at every age, and a computer that never sent a status', () => {
@@ -63,9 +70,20 @@ describe('presence never says offline', () => {
 		expect(devicePresence({ last_seen: ago(3 * 86400_000), state: 'idle' }, NOW).words).toMatch(/^Last heard from Oct 4, /);
 	});
 
+	test('an app word this build has never seen is shown as sent; one that says offline is dropped', () => {
+		expect(deviceStateWords('checking-in')).toBe('checking in');
+		expect(deviceStateWords('Downloading_Release')).toBe('downloading release');
+		expect(devicePresence({ last_seen: ago(10_000), state: 'checking-in' }, NOW).words).toBe('Armory open, checking in');
+		expect(devicePresence({ last_seen: ago(10_000), state: 'offline-soon' }, NOW).words).toBe('Armory open, closing');
+		for (const w of ['offline', 'Went_Offline', 'OFFLINE-NOW']) expect(deviceStateWords(w)).toBeNull();
+		expect(deviceStateWords('idle')).toBeNull();
+	});
+
 	test('no computer listed: a fact only when the server counted the registrations', () => {
 		expect(noComputerWords({ devices_total: 0 })).toBe('No computer connected yet');
 		expect(noComputerWords({ devices_total: 2 })).not.toMatch(/connected yet/);
+		// 0233 lists a computer only when heard from or registered in 30 days (or holding a checkout here).
+		expect(noComputerWords({ devices_total: 2 })).toBe('No computer heard from in the last 30 days');
 		expect(noComputerWords({})).not.toMatch(/connected yet/);
 		for (const w of [noComputerWords({}), noComputerWords({ devices_total: 3 })]) expect(w.toLowerCase()).not.toContain('offline');
 	});
@@ -102,6 +120,19 @@ describe('Delete forever: one predicate, the RPC comparison', () => {
 		expect(purgeCanSend('robot 2025', 'Robot 2025')).toBe(false);
 		expect(purgeCanSend('Robot  2025', 'Robot 2025')).toBe(false);
 		expect(purgeCanSend('Robot 202', 'Robot 2025')).toBe(false);
+	});
+
+	test('a preview that says the purge would be refused holds the key, with the reason, before the box', () => {
+		const base = { name: 'Robot 2025', files: 3, live_files: 0, versions: 4, side_versions: 0, checkouts: 0, blobs: 2, bytes: 10 };
+		const blocked = { ...base, archived: true, referenced_elsewhere: 2, can_purge: false };
+		expect(purgeCanSend('Robot 2025', 'Robot 2025', blocked)).toBe(false);
+		expect(purgeBlockedWords(blocked)).toContain('2 files in another project');
+		expect(purgeBlockedWords({ ...base, archived: false, can_purge: false })).toContain('Archive the project first');
+		// The other direction: a preview that allows it, an older preview with no verdict, and no preview at all.
+		expect(purgeCanSend('Robot 2025', 'Robot 2025', { ...base, archived: true, referenced_elsewhere: 0, can_purge: true })).toBe(true);
+		expect(purgeCanSend('Robot 2025', 'Robot 2025', base)).toBe(true);
+		expect(purgeCanSend('Robot 2025', 'Robot 2025', null)).toBe(true);
+		expect(purgeBlockedWords(base)).toBeNull();
 	});
 
 	test('the cost sentence carries the real counts and says what is kept', () => {
@@ -205,6 +236,15 @@ describe('the words', () => {
 		expect(breakLockWords('something else')).toBe('That did not work. Try again in a minute.');
 	});
 
+	test('a member refusal is read from its SQLSTATE first, never its HTTP status', () => {
+		// 23505 arrives as HTTP 409 and P0002 as 500; the words come from the code.
+		expect(memberErrorWords('duplicate key value violates unique constraint "armory_members_pkey"', '23505')).toContain('Somebody added them');
+		expect(memberErrorWords('project not found', 'P0002')).toContain('not there any more');
+		// 0231's own refusals are P0001/42501 texts the Windows app also reads, matched as text.
+		expect(memberErrorWords('A project always keeps at least one mentor.', 'P0001')).toBe('A project always keeps at least one mentor.');
+		expect(memberErrorWords('only a mentor may remove members', '42501')).toBe('Only a mentor can remove people.');
+	});
+
 	test('a search needs two characters that are not spaces', () => {
 		expect(searchable('a')).toBe(false);
 		expect(searchable(' a ')).toBe(false);
@@ -227,5 +267,34 @@ describe('adding people: one loop for the picker and the paste box', () => {
 		expect(asked.map((a) => a.email)).toEqual(['a@x', 'c@x', 'd@x']);
 		expect(asked.every((a) => a.refresh === false)).toBe(true);
 		expect(addPeopleWords(result, 'student')).toBe('Added 1 as Student. 2 already had that role. Not added: c@x (Type a full school email address.)');
+	});
+});
+
+describe('who is offered the people search, and who manages people', () => {
+	// 0233's gate: a site admin, or a mentor of the project on a school teacher's
+	// address. Everyone else is refused with 42501, so the page must not offer it.
+	test('offered: a site admin with any role or none, and a teacher mentor', () => {
+		expect(peopleSearchOffered({ isAdmin: true, role: null, email: 'apina@boscotech.edu' })).toBe(true);
+		expect(peopleSearchOffered({ isAdmin: true, role: 'student', email: 'someone@boscotech.net' })).toBe(true);
+		expect(peopleSearchOffered({ isAdmin: false, role: 'mentor', email: 'mreed@boscotech.edu' })).toBe(true);
+		expect(peopleSearchOffered({ isAdmin: false, role: 'mentor', email: ' MReed@BoscoTech.EDU ' })).toBe(true);
+	});
+
+	test('not offered: a student mentor, a CAD lead (even a teacher), a student, a visitor, nobody', () => {
+		expect(peopleSearchOffered({ isAdmin: false, role: 'mentor', email: 'ana.reyes@boscotech.net' })).toBe(false);
+		expect(peopleSearchOffered({ isAdmin: false, role: 'mentor', email: 'coach@gmail.com' })).toBe(false);
+		expect(peopleSearchOffered({ isAdmin: false, role: 'cad_lead', email: 'mreed@boscotech.edu' })).toBe(false);
+		expect(peopleSearchOffered({ isAdmin: false, role: 'student', email: 'mreed@boscotech.edu' })).toBe(false);
+		expect(peopleSearchOffered({ isAdmin: false, role: null, email: 'mreed@boscotech.edu' })).toBe(false);
+		expect(peopleSearchOffered({ isAdmin: false, role: 'mentor', email: null })).toBe(false);
+		// role_for_email matches the domain as a suffix, so a lookalike is not a teacher.
+		expect(isTeacherAddress('x@boscotech.edu.example.com')).toBe(false);
+	});
+
+	test('a site admin manages people as a mentor once 0233 is in, and with their own role before', () => {
+		expect(memberManagerRole(null, true)).toBe('mentor');
+		expect(memberManagerRole('student', true)).toBe('mentor');
+		expect(memberManagerRole(null, false)).toBeNull();
+		expect(memberManagerRole('cad_lead', false)).toBe('cad_lead');
 	});
 });

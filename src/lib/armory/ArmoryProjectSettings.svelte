@@ -16,10 +16,25 @@
 	 * matches, never `disabled`, so it can still explain itself, and the handler
 	 * asks the same predicate and sends the same NFC value the RPC compares.
 	 * The operation id is minted once, so a retry replays rather than failing on
-	 * a project already gone.
+	 * a project already gone. A preview that says the purge would be refused
+	 * (another project's history names a version here) holds the key too, with
+	 * the reason, before anybody types.
+	 *
+	 * THE PREVIEW IS READ WHENEVER DELETE FOREVER BECOMES OFFERED, not once at
+	 * mount: archiving from this same view re-renders it without remounting it,
+	 * and a mount-only read left the cost reading "Reading what it would
+	 * remove…" for good. The read is the caller's transport, so its call sits
+	 * inside `untrack` (CLAUDE.md, the injected-code trap).
 	 */
-	import { onMount, untrack } from 'svelte';
-	import { purgeCanSend, purgeConfirmValue, purgeCostWords, type ArmoryPurgePreview, type PurgeAnswer } from './team';
+	import { untrack } from 'svelte';
+	import {
+		purgeBlockedWords,
+		purgeCanSend,
+		purgeConfirmValue,
+		purgeCostWords,
+		type ArmoryPurgePreview,
+		type PurgeAnswer
+	} from './team';
 	import { projectErrorWords, sizeWords, type ArmoryProjectSummary } from './view';
 
 	type Outcome = { ok: true } | { ok: false; message: string };
@@ -109,24 +124,35 @@
 	let purgeMessage = $state('');
 	let preview = $state<ArmoryPurgePreview | null>(null);
 	let previewFailed = $state(false);
-	const ready = $derived(purgeCanSend(typed, project.name));
+	const blocked = $derived(purgeBlockedWords(preview));
+	const ready = $derived(purgeCanSend(typed, project.name, preview));
 
-	onMount(() => {
-		const read = untrack(() => (offered ? purgePreview : null));
-		if (!read) return;
-		read().then(
+	$effect(() => {
+		if (!offered) return;
+		let stale = false;
+		preview = null;
+		previewFailed = false;
+		const asked = untrack(() => purgePreview?.() ?? null);
+		if (!asked) return;
+		asked.then(
 			(p) => {
+				if (stale) return;
 				preview = p;
 				previewFailed = p === null;
 			},
-			() => (previewFailed = true)
+			() => {
+				if (!stale) previewFailed = true;
+			}
 		);
+		return () => {
+			stale = true;
+		};
 	});
 
 	async function doPurge() {
 		if (!purge || busy) return;
-		if (!purgeCanSend(typed, project.name)) {
-			purgeMessage = 'Type the project name exactly as it is shown, then press again.';
+		if (!purgeCanSend(typed, project.name, preview)) {
+			purgeMessage = blocked ?? 'Type the project name exactly as it is shown, then press again.';
 			return;
 		}
 		operation ??= crypto.randomUUID();
@@ -228,7 +254,11 @@
 							{busy ? 'Deleting…' : `Delete ${project.name} forever`}
 						</button>
 					</div>
-					{#if !ready}<p class="ar-message">The key works once the name is typed exactly.</p>{/if}
+					{#if blocked}
+						<p class="ar-message bad" data-testid="armory-purge-blocked">{blocked}</p>
+					{:else if !ready}
+						<p class="ar-message">The key works once the name is typed exactly.</p>
+					{/if}
 					{#if purgeMessage}<p class="ar-message bad" role="alert" data-testid="armory-purge-message">{purgeMessage}</p>{/if}
 				{/if}
 			</div>

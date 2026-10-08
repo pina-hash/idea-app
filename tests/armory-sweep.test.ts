@@ -35,7 +35,7 @@ const H = (c: string) => c.repeat(64);
 
 interface World {
 	admin: boolean;
-	purgeError: { code: string; message: string } | null;
+	purgeError: { code: string; message: string; details?: string | null } | null;
 	pending: string[];
 	/** Object keys present in the fake bucket. */
 	stored: Set<string>;
@@ -141,29 +141,43 @@ describe('POST /api/armory/purge', () => {
 		expect(w.calls).toEqual([]);
 	});
 
+	// 0233's refusal order after the 42501 and P0002 gates: 55000 not_archived,
+	// 22023 name_mismatch, 55006 referenced_elsewhere. Read from the SQLSTATE AND
+	// DETAIL.reason, never the HTTP status (PostgREST answers 55000 and 55006 as 500).
 	test.each([
-		['55000', 400, 'Archive the project first'],
-		['22023', 400, 'does not match the project name exactly'],
-		['XX000', 400, 'nothing was deleted']
-	])('a refusal (%s) is said in words with ZERO storage requests', async (code, status, words) => {
-		w.purgeError = { code, message: 'raw database text that must not reach a person' };
+		['55000', '{"reason": "not_archived"}', 'Archive the project first', 'history'],
+		['22023', '{"reason": "name_mismatch"}', 'does not match the project name exactly', 'Archive'],
+		[
+			'55006',
+			'{"reason": "referenced_elsewhere", "names": ["Drive/Gearbox.SLDASM", "Arm/Wrist.SLDPRT"], "total": 2}',
+			'2 files in another project names a version of a file in this one: Drive/Gearbox.SLDASM, Arm/Wrist.SLDPRT',
+			'Archive'
+		],
+		// The history trigger's own 55000 carries no reason, and is NOT "archive it first".
+		['55000', null, 'nothing was deleted', 'Archive'],
+		['XX000', null, 'nothing was deleted', 'Archive']
+	])('a refusal (%s %s) is said in words with ZERO storage requests', async (code, details, words, never) => {
+		w.purgeError = { code, message: 'raw database text that must not reach a person', details };
 		const r = await purge(good);
-		expect(r.status).toBe(status);
+		expect(r.status).toBe(400);
 		const body = await r.json();
 		expect(body.ok).toBe(false);
 		expect(body.message).toContain(words);
+		expect(body.message).not.toContain(never);
 		expect(body.message).not.toContain('raw database text');
 		expect(w.requests).toEqual([]);
 		expect(w.calls).toEqual(['armory_purge_project']);
 	});
 
-	test('a non-admin, and a project that is gone, answer the same bodyless 404', async () => {
-		for (const code of ['42501', 'P0002']) {
-			w.purgeError = { code, message: 'x' };
-			const r = await purge(good);
-			expect(r.status).toBe(404);
-			expect(await r.text()).toBe('');
-		}
+	test('a non-admin answers the bodyless 404; a gone project, which only an admin reaches, is said', async () => {
+		w.purgeError = { code: '42501', message: 'only a site admin may delete an Armory project forever' };
+		let r = await purge(good);
+		expect(r.status).toBe(404);
+		expect(await r.text()).toBe('');
+		w.purgeError = { code: 'P0002', message: 'project not found' };
+		r = await purge(good);
+		expect(r.status).toBe(404);
+		expect((await r.json()).message).toContain('not there any more');
 		expect(w.requests).toEqual([]);
 	});
 

@@ -45,6 +45,26 @@ export interface Presence {
 	words: string;
 }
 
+/**
+ * The app's own word for what it is doing, as a phrase after "Armory open".
+ * 0233 checks the state only as ONE WORD (letters, digits, dashes,
+ * underscores), so an app release may send a word this build has never seen;
+ * a known word reads in plain English and an unknown one is shown as sent,
+ * its dashes and underscores as spaces. One exception, and it is the rule
+ * this module exists for: a word that says "offline" is never printed. A
+ * heartbeat that arrived is a running app, so the word says nothing the line
+ * does not already, and a page that prints it about a student is an
+ * instrument stated as a fact.
+ */
+export function deviceStateWords(state: string | null | undefined): string | null {
+	const word = state?.trim();
+	if (!word || word === 'idle') return null;
+	if (word === 'syncing') return 'syncing';
+	if (word === 'offline-soon') return 'closing';
+	if (/offline/i.test(word)) return null;
+	return word.replace(/[-_]+/g, ' ').toLowerCase();
+}
+
 /** One computer's line, in words a glyph sits beside. Never "offline". */
 export function devicePresence(device: Pick<ArmoryTeamDevice, 'last_seen' | 'state'>, now: number): Presence {
 	const at = device.last_seen ? Date.parse(device.last_seen) : Number.NaN;
@@ -52,9 +72,8 @@ export function devicePresence(device: Pick<ArmoryTeamDevice, 'last_seen' | 'sta
 		return { tone: 'unknown', glyph: '?', words: 'No status from this computer yet (its app may be older than 0.3)' };
 	}
 	if (now - at <= ARMORY_ONLINE_MS) {
-		if (device.state === 'syncing') return { tone: 'open', glyph: '●', words: 'Armory open, syncing' };
-		if (device.state === 'offline-soon') return { tone: 'open', glyph: '●', words: 'Armory open, closing' };
-		return { tone: 'open', glyph: '●', words: 'Armory open' };
+		const doing = deviceStateWords(device.state);
+		return { tone: 'open', glyph: '●', words: doing ? `Armory open, ${doing}` : 'Armory open' };
 	}
 	return { tone: 'heard', glyph: '◷', words: `Last heard from ${whenWords(new Date(at).toISOString(), now)}` };
 }
@@ -62,12 +81,16 @@ export function devicePresence(device: Pick<ArmoryTeamDevice, 'last_seen' | 'sta
 /**
  * What a member with no computer listed reads. A device row is a
  * registration, so "No computer connected yet" is a fact, but only when the
- * server says how many registrations there are: the list itself may leave out
- * a computer not heard from in a long while. Without that count the sentence
- * claims only what the list shows.
+ * server says how many registrations there are. 0233's team read lists a
+ * computer only when it was heard from or registered in the last 30 days, or
+ * holds one of this project's checkouts (`devices_total` counts them all), so
+ * a member with registrations and none listed has not been heard from in 30
+ * days. Without the count the sentence claims only what the list shows.
  */
 export function noComputerWords(member: Pick<ArmoryMember, 'devices_total'>): string {
-	return member.devices_total === 0 ? 'No computer connected yet' : 'No recent status from any of their computers';
+	if (member.devices_total === 0) return 'No computer connected yet';
+	if (typeof member.devices_total === 'number') return 'No computer heard from in the last 30 days';
+	return 'No recent status from any of their computers';
 }
 
 /** The app version beside a computer, when it sent one. */
@@ -120,7 +143,8 @@ export function checkoutCountFor(member: Pick<ArmoryMember, 'email' | 'checkouts
 
 // ---- Adding people: the picker and the paste box run ONE loop ----
 
-export type MemberOutcome = { ok: true } | { ok: false; message: string };
+/** A member write's answer. `code` is the SQLSTATE, read before the text (`memberErrorWords`). */
+export type MemberOutcome = { ok: true } | { ok: false; message: string; code?: string };
 
 export interface AddPeopleResult {
 	added: string[];
@@ -150,7 +174,7 @@ export async function addPeople(
 		const r = await add(email, role, { refresh: false });
 		if (r.ok) out.added.push(email);
 		else if (r.message === 'nothing changed') out.already.push(email);
-		else out.failed.push({ email, why: memberErrorWords(r.message) });
+		else out.failed.push({ email, why: memberErrorWords(r.message, r.code) });
 	}
 	return out;
 }
@@ -175,6 +199,45 @@ export function addableRoles(role: ArmoryRole | null): ArmoryRole[] {
 	if (role === 'cad_lead') return ['student', 'instructor'];
 	return [];
 }
+
+/**
+ * The role a viewer manages a project's people WITH, which is not always the
+ * role they hold in it. 0233 lets a site admin add and remove people on any
+ * project with a mentor's reach (`armory_add_member` and
+ * `armory_remove_member` admit `is_admin()`), member or not, so on a database
+ * with 0233 (`adminReach`, which the summaries rung licenses) an admin manages
+ * as a mentor. Everyone else, and an admin on an older database, manages with
+ * the role they hold. What is OFFERED only: the RPC decides.
+ */
+export function memberManagerRole(role: ArmoryRole | null, adminReach: boolean): ArmoryRole | null {
+	return adminReach ? 'mentor' : role;
+}
+
+/**
+ * THE SCHOOL'S TEACHER ADDRESSES: `role_for_email` (0001) calls an address
+ * ending in @boscotech.edu a teacher. Mirrored here only to decide what is
+ * OFFERED; the server asks its own function.
+ */
+export function isTeacherAddress(email: string | null | undefined): boolean {
+	return (email ?? '').trim().toLowerCase().endsWith('@boscotech.edu');
+}
+
+/**
+ * WHO IS OFFERED THE PEOPLE SEARCH: a site admin, or a mentor of THIS project
+ * whose own address is a school teacher's. `armory_people_search` (0233)
+ * refuses everyone else with 42501, because the search is a name-to-address
+ * directory of every school account and a mentor can grant mentor to a
+ * student address, so a student holding the mentor role, a CAD lead and a
+ * mentor on any other domain use Add by email. The page asks this ONE
+ * predicate, so it never offers a control whose only answer is a refusal.
+ */
+export function peopleSearchOffered(opts: { isAdmin: boolean; role: ArmoryRole | null; email: string | null | undefined }): boolean {
+	return opts.isAdmin || (opts.role === 'mentor' && isTeacherAddress(opts.email));
+}
+
+/** Why the paste box is the way to add people, for someone the search is not offered to. */
+export const PEOPLE_SEARCH_NOT_OFFERED =
+	'Finding people by name is for site admins and mentors who are teachers. Add people by their school email.';
 
 // ---- People search (0233 `armory_people_search`) ----
 
@@ -216,11 +279,13 @@ export function purgeConfirmValue(typed: string): string {
  * the control (`aria-disabled`) AND by the handler (the `reviewCanSend` rule):
  * two spellings of "is this ready" is how a press does nothing. The RPC
  * compares the NFC-normalized name exactly, so this does too, and the value
- * sent is `purgeConfirmValue(typed)`, never the raw box.
+ * sent is `purgeConfirmValue(typed)`, never the raw box. A preview that says
+ * the purge would be refused (`purgeBlockedWords`) holds the key too, so the
+ * refusal is said before the box rather than after the press.
  */
-export function purgeCanSend(typed: string, name: string): boolean {
+export function purgeCanSend(typed: string, name: string, preview: ArmoryPurgePreview | null = null): boolean {
 	const value = purgeConfirmValue(typed);
-	return value !== '' && value === name.normalize('NFC');
+	return value !== '' && value === name.normalize('NFC') && purgeBlockedWords(preview) === null;
 }
 
 /** What the purge route answers the page: the project is gone, plus anything storage could not finish. */
@@ -238,6 +303,27 @@ export interface ArmoryPurgePreview {
 	/** Stored files nothing else names, which are actually freed. */
 	blobs: number;
 	bytes: number;
+	/** 0233 also says whether the purge would go through, and why not. */
+	archived?: boolean;
+	referenced_elsewhere?: number;
+	can_purge?: boolean;
+}
+
+/**
+ * Why Delete forever would be refused, said before the box; null when the
+ * preview does not say (or was not read), and the server decides at the press.
+ * `armory_purge_project` refuses an unarchived project (55000) and one whose
+ * versions another file's history names (55006, which refuses rather than
+ * break that history).
+ */
+export function purgeBlockedWords(preview: ArmoryPurgePreview | null): string | null {
+	if (!preview || preview.can_purge !== false) return null;
+	if (preview.archived === false) return 'Archive the project first. Delete forever is offered only for an archived project.';
+	const n = preview.referenced_elsewhere ?? 0;
+	if (n > 0) {
+		return `The history of ${count(n, 'file', 'files')} in another project names a version of a file here, so this project cannot be deleted forever without breaking that history. Nothing will be deleted.`;
+	}
+	return 'The server says this project cannot be deleted forever right now. Nothing will be deleted.';
 }
 
 function count(n: number, one: string, many: string): string {

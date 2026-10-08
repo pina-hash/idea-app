@@ -48,8 +48,8 @@ export default {
 		{ selector: '[data-testid="armory-checkout"]', label: 'fifty rows after one Show more', expectPresent: 50, maxPresent: 50, expectVisible: 50 },
 		{ selector: '[data-testid="armory-out-more"]', label: 'Show more is still offered', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="armory-out-all"]', label: 'and Show all', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="armory-holder"]', label: 'Everyone, Mine and five people (keys where the view is wide)', expectPresent: 7, maxPresent: 7 },
-		{ selector: '[data-testid="armory-holder-select"] option', label: 'and the same seven in the select a phone shows', expectPresent: 7, maxPresent: 7 },
+		{ selector: '[data-testid="armory-holder"]', label: 'Everyone, Mine and five people (keys where the view is wide)', expectPresent: 7, maxPresent: 7, expectVisible: 0 },
+		{ selector: '[data-testid="armory-holder-select"] option', label: 'and the same seven in the select a phone shows', expectPresent: 7, maxPresent: 7, expectVisible: 0 },
 		{ selector: '.sfb-shell .sfb-trigger', label: 'nothing floats over the table', expectPresent: 0, maxPresent: 0 }
 	],
 	textContains: [
