@@ -42,13 +42,22 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
 	],
 	notebook_entries: [
 		{ id: 'e-1', student_id: STUDENT_ID, section_id: 's-1', session_id: 'ns-1', upload_timestamp: '2026-10-06T18:00:00Z', submitted_at: '2026-10-06T18:00:00Z' },
+		// In the bin (0116): counted only by a database with no `deleted_at` column.
+		{ id: 'e-2', student_id: STUDENT_ID, section_id: 's-1', session_id: 'ns-1', upload_timestamp: '2026-10-05T18:00:00Z', submitted_at: '2026-10-05T18:00:00Z', deleted_at: '2026-10-07T18:00:00Z' },
 		{ id: 'e-9', student_id: 'ben-uuid', section_id: 's-1', session_id: 'ns-1', upload_timestamp: '2026-10-06T18:00:00Z', submitted_at: '2026-10-06T18:00:00Z' }
 	],
 	classroom_items: [],
 	classroom_html_assignments: []
 };
 
-function client(opts: { overview?: unknown; overviewError?: { code: string } | null } = {}) {
+function client(
+	opts: {
+		overview?: unknown;
+		overviewError?: { code: string } | null;
+		/** The code a `notebook_entries` read filtering on `deleted_at` fails with. */
+		deletedFilterError?: string;
+	} = {}
+) {
 	const log: Query[] = [];
 	const rpcLog: { fn: string; args: unknown }[] = [];
 	function builder(table: string) {
@@ -56,11 +65,15 @@ function client(opts: { overview?: unknown; overviewError?: { code: string } | n
 		log.push(q);
 		let range: [number, number] | null = null;
 		const run = () => {
+			if (opts.deletedFilterError && table === 'notebook_entries' && q.filters.some((f) => f.op === 'is-null' && f.col === 'deleted_at')) {
+				return { data: null, error: { code: opts.deletedFilterError }, count: null };
+			}
 			let rows = (TABLES[table] ?? []).slice();
 			for (const f of q.filters) {
 				if (f.op === 'eq') rows = rows.filter((r) => r[f.col] === f.val);
 				else if (f.op === 'in') rows = rows.filter((r) => (f.val as unknown[]).includes(r[f.col]));
 				else if (f.op === 'not-null') rows = rows.filter((r) => r[f.col] !== null && r[f.col] !== undefined);
+				else if (f.op === 'is-null') rows = rows.filter((r) => r[f.col] === null || r[f.col] === undefined);
 			}
 			if (range) rows = rows.slice(range[0], range[1] + 1);
 			return { data: rows, error: null, count: rows.length };
@@ -82,7 +95,8 @@ function client(opts: { overview?: unknown; overviewError?: { code: string } | n
 				q.filters.push({ op: 'not-null', col, val: null });
 				return b;
 			},
-			is() {
+			is(col: string, val: unknown) {
+				if (val === null) q.filters.push({ op: 'is-null', col, val });
 				return b;
 			},
 			order() {
@@ -291,5 +305,23 @@ describe('a source that cannot answer costs its own section, never the page', ()
 		expect(failed.studentPage.sources.overview).toBe('error');
 		const refused = (await run({ email: EMAIL, supabase: client({ overview: null }) })) as { studentPage: { sources: { overview: string } } };
 		expect(refused.studentPage.sources.overview).toBe('error');
+	});
+
+	/*
+	 * THE ENTRIES' NARROWER RUNG IS FOR A MISSING COLUMN AND NOTHING ELSE. Run
+	 * on any failure, a timeout on the wide rung came back as a count with the
+	 * bin in it -- a bigger streak that nothing on screen would question.
+	 */
+	it('the entries read drops its deleted filter on 42703 alone; any other failure is "not known"', async () => {
+		type Entries = { studentPage: { entriesFiled: number | null; streak: number | null } };
+		const wide = (await run({ email: EMAIL })) as Entries;
+		expect(wide.studentPage.entriesFiled).toBe(1);
+		// A database with no `deleted_at` column: the narrower rung answers, bin included.
+		const old = (await run({ email: EMAIL, supabase: client({ deletedFilterError: '42703' }) })) as Entries;
+		expect(old.studentPage.entriesFiled).toBe(2);
+		// A timeout is not a missing column: no count, and no streak, rather than one with the bin in it.
+		const timedOut = (await run({ email: EMAIL, supabase: client({ deletedFilterError: '57014' }) })) as Entries;
+		expect(timedOut.studentPage.entriesFiled).toBeNull();
+		expect(timedOut.studentPage.streak).toBeNull();
 	});
 });

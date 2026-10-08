@@ -23,7 +23,11 @@
  *   - whether any classmate's name or address is in the printed text
  *     (expected none), with the student's own name as the positive control;
  *   - the page count of a real PDF of the page;
- *   - with the Coins box cleared, whether the coins card leaves the paper;
+ *   - with the Coins and Hall passes boxes cleared, whether both cards AND
+ *     both At a glance tiles leave the paper (expected 0 printed boxes each),
+ *     with the Assignments tile still painted as the positive control;
+ *   - with every tile's box cleared, whether the At a glance row itself
+ *     leaves the paper;
  * then dispatches `afterprint` and reads the attribute back (expected the
  * starting value exactly, absent included).
  *
@@ -166,15 +170,61 @@ try {
 		console.log(`  pdf: ${pages} page(s), ${pdf.length} bytes (Letter, no background graphics)`);
 		if (pdfOut && theme === THEMES[0]) writeFileSync(pdfOut, pdf);
 
-		// A section cleared for this meeting leaves the paper.
+		// A section cleared for this meeting leaves the paper: its card AND its
+		// At a glance tile. Counted as boxes that still paint, so a tile hidden
+		// by any means reads 0 and one left behind reads its own count.
+		const printedBoxes = () =>
+			page.evaluate(() => {
+				const painted = (el) => {
+					if (!el) return false;
+					const cs = getComputedStyle(el);
+					if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+					const r = el.getBoundingClientRect();
+					return r.width > 0 && r.height > 0;
+				};
+				const tiles = (id) => [...document.querySelectorAll(`[data-testid="so-glance"] [data-tile="${id}"]`)];
+				return {
+					coinsCard: painted(document.querySelector('[data-testid="so-coins"]')) ? 1 : 0,
+					passesCard: painted(document.querySelector('[data-testid="so-hall-passes"]')) ? 1 : 0,
+					coinsTile: tiles('coins').filter(painted).length,
+					passesTile: tiles('hall-passes').filter(painted).length,
+					// A tile the selector cannot find reads 0 printed, so the
+					// absence check only counts once the tiles are known to exist.
+					coinsTileInDom: tiles('coins').length,
+					passesTileInDom: tiles('hall-passes').length,
+					assignmentsTiles: tiles('assignments').filter(painted).length,
+					assignmentsTilesInDom: tiles('assignments').length,
+					glance: painted(document.querySelector('[data-testid="so-glance"]')) ? 1 : 0
+				};
+			});
 		await page.emulateMedia({ media: 'screen' });
 		await page.locator('[data-testid="so-coins"] .so-print-toggle input').uncheck();
+		await page.locator('[data-testid="so-hall-passes"] .so-print-toggle input').uncheck();
 		await page.emulateMedia({ media: 'print' });
-		const coinsPrinted = await page.evaluate(() => getComputedStyle(document.querySelector('[data-testid="so-coins"]')).display);
-		check(coinsPrinted === 'none', `coins card with its box cleared, print display: ${coinsPrinted}`);
+		const cleared = await printedBoxes();
+		check(
+			cleared.coinsCard === 0 && cleared.passesCard === 0,
+			`Coins and Hall passes cleared, printed cards: coins ${cleared.coinsCard}, hall passes ${cleared.passesCard}`
+		);
+		check(
+			cleared.coinsTileInDom === 1 && cleared.passesTileInDom === 1 && cleared.coinsTile === 0 && cleared.passesTile === 0,
+			`Coins and Hall passes cleared, printed At a glance tiles: coins ${cleared.coinsTile} of ${cleared.coinsTileInDom}, hall passes ${cleared.passesTile} of ${cleared.passesTileInDom}`
+		);
+		check(
+			cleared.assignmentsTiles > 0 && cleared.assignmentsTiles === cleared.assignmentsTilesInDom && cleared.glance === 1,
+			`POSITIVE CONTROL, Assignments still ticked: ${cleared.assignmentsTiles} of ${cleared.assignmentsTilesInDom} assignments tiles printed, glance row printed ${cleared.glance}`
+		);
 		const pdf2 = await page.pdf({ format: 'Letter', printBackground: false });
 		const pages2 = (pdf2.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-		console.log(`  pdf without coins: ${pages2} page(s)`);
+		console.log(`  pdf without coins and hall passes: ${pages2} page(s)`);
+
+		// Every tile's section cleared: the row itself leaves the paper.
+		await page.emulateMedia({ media: 'screen' });
+		await page.locator('[data-testid="so-assignments"] .so-print-toggle input').uncheck();
+		await page.locator('[data-testid="so-notebook"] .so-print-toggle input').uncheck();
+		await page.emulateMedia({ media: 'print' });
+		const none = await printedBoxes();
+		check(none.glance === 0 && none.assignmentsTiles === 0, `every tile's box cleared, glance row printed ${none.glance}, assignments tiles ${none.assignmentsTiles}`);
 
 		await page.emulateMedia({ media: 'screen' });
 		await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));

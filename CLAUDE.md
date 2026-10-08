@@ -1830,8 +1830,11 @@ through `studentPageHref`; it is a place under the People tab, not a tab.
 - **PRINTING IS `beforeprint`/`afterprint`**: the page sits on Space White for
   the print and restores the attribute exactly, every print rule naming
   something outside the component carries `body:has(.so-root)`, and each
-  section's "Include when printing" box starts ticked and is never stored.
-  `tools/browser-verify/_student-print.mjs` measures it. No poll, ever.
+  section's "Include when printing" box starts ticked and is never stored. A
+  cleared box takes the section's card AND its At a glance tile off the paper
+  (a tile is a section's figure, and a figure left behind says what the
+  teacher chose not to print). `tools/browser-verify/_student-print.mjs`
+  measures both. No poll, ever.
 - **A REPORT FILED FROM AN ADDRESS-BEARING PATH CARRIES `:student`**, never the
   address: `captureMeta` runs `scrubAddressSegments`.
 

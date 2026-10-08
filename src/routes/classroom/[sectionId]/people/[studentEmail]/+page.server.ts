@@ -159,13 +159,19 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 
 type EntryRow = { session_id: string | null; upload_timestamp: string; submitted_at: string | null };
 
+/** Postgres's undefined-column code: the one failure a narrower rung answers. */
+const UNDEFINED_COLUMN = '42703';
+
 /**
  * THE STUDENT'S TURNED-IN ENTRIES IN THIS CLASS, PAGED, for the streak and the
  * count. Staff RLS on `notebook_entries` already withholds drafts (0118); the
  * `submitted_at` filter says so out loud. Paged through `readAllPages`, the
  * completeness pager, so a read cut short answers null ("could not load")
  * rather than a smaller streak. The deleted filter rides a rung of its own
- * (0116), so a database without the column still answers.
+ * (0116), so a database without the column still answers -- and ONLY that:
+ * the narrower rung runs on `42703` (an undefined column) alone, because any
+ * other failure on the wide rung (a timeout, a dropped connection) retried
+ * without the filter would count soft-deleted entries in the streak.
  */
 async function readTurnedInEntries(
 	supabase: App.Locals['supabase'],
@@ -173,7 +179,8 @@ async function readTurnedInEntries(
 	sectionId: string
 ): Promise<EntryRow[] | null> {
 	for (const excludeDeleted of [true, false]) {
-		const rows = await readAllPages<EntryRow>((from, to) => {
+		let code: unknown = null;
+		const rows = await readAllPages<EntryRow>(async (from, to) => {
 			let q = supabase
 				.from('notebook_entries')
 				.select('id, session_id, upload_timestamp, submitted_at', { count: 'exact' })
@@ -181,9 +188,12 @@ async function readTurnedInEntries(
 				.eq('section_id', sectionId)
 				.not('submitted_at', 'is', null);
 			if (excludeDeleted) q = q.is('deleted_at', null);
-			return q.order('id').range(from, to);
+			const answer = await q.order('id').range(from, to);
+			if (answer.error) code = (answer.error as { code?: unknown }).code ?? null;
+			return answer;
 		});
 		if (rows) return rows;
+		if (code !== UNDEFINED_COLUMN) return null;
 	}
 	return null;
 }

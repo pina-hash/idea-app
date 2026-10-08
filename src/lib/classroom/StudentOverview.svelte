@@ -46,8 +46,9 @@
 	 * (paper is white, and a dark theme's light ink would print pale), and
 	 * `afterprint` restores exactly what was there. The site chrome, the keys and
 	 * every section whose "Include when printing" box is cleared are left off the
-	 * paper. Those boxes start ticked on every visit and are not remembered: what
-	 * goes to a meeting is decided for that meeting.
+	 * paper, the section's At a glance tile with it. Those boxes start ticked on
+	 * every visit and are not remembered: what goes to a meeting is decided for
+	 * that meeting.
 	 */
 	let {
 		section,
@@ -108,6 +109,10 @@
 			: null
 	);
 	const hasModels = $derived(data.ideacad.length > 0 || data.foundry.length > 0);
+	/** The At a glance row prints while any tile in it does. */
+	const glancePrints = $derived(
+		printing.assignments || printing.notebook || printing['hall-passes'] || printing.coins
+	);
 
 	function day(iso: string | null): string {
 		if (!iso) return '';
@@ -210,25 +215,33 @@
 		{/if}
 	</header>
 
-	<section class="so-glance" aria-label="At a glance" data-testid="so-glance">
-		<div class="so-tile">
+	<!-- EACH TILE FOLLOWS ITS SECTION'S PRINT BOX, so a section cleared for a
+	     meeting leaves the paper whole: its card AND its figure up here. With
+	     every box cleared the row itself is left off. -->
+	<section
+		class="so-glance"
+		class:so-noprint={!glancePrints}
+		aria-label="At a glance"
+		data-testid="so-glance"
+	>
+		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Assignments done</span>
 			<span class="so-tile-figure">{totals.done} of {totals.assigned}</span>
 			<span class="so-tile-sub">{totals.missing} missing, {totals.todo} to do</span>
 		</div>
-		<div class="so-tile">
+		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Waiting for grading</span>
 			<span class="so-tile-figure">{totals.awaitingGrade}</span>
 			<span class="so-tile-sub">{plural(totals.returned, 'returned', 'returned')} so far</span>
 		</div>
-		<div class="so-tile">
+		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Points on returned work</span>
 			<span class="so-tile-figure">
 				{totals.pointsPossible > 0 ? `${totals.pointsEarned} of ${totals.pointsPossible}` : 'None yet'}
 			</span>
 			<span class="so-tile-sub">The grade of record is in FACTS.</span>
 		</div>
-		<div class="so-tile">
+		<div class="so-tile" class:so-noprint={!printing.notebook} data-tile="notebook">
 			<span class="so-tile-label">Notebook check-ins</span>
 			<span class="so-tile-figure">
 				{data.notebook ? `${data.notebook.covered} of ${data.notebook.total}` : 'Not known'}
@@ -237,19 +250,19 @@
 				{#if data.streak !== null}{plural(data.streak, 'class day', 'class days')} in a row{:else}Streak not known{/if}
 			</span>
 		</div>
-		<div class="so-tile">
+		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Working time</span>
 			<span class="so-tile-figure">{data.workingSeconds === null ? 'None recorded' : presenceActiveLabel(data.workingSeconds)}</span>
 			<span class="so-tile-sub">See the note under Assignments.</span>
 		</div>
-		<div class="so-tile">
+		<div class="so-tile" class:so-noprint={!printing['hall-passes']} data-tile="hall-passes">
 			<span class="so-tile-label">Hall passes</span>
 			<span class="so-tile-figure">{data.hallPasses ? data.hallPasses.summary.total : 'Not known'}</span>
 			<span class="so-tile-sub">
-				{data.hallPasses ? `${minutes(data.hallPasses.summary.minutesTotal)} out in all` : 'See Hall passes'}
+				{#if !data.hallPasses}See Hall passes{:else if data.hallPasses.summary.shown < data.hallPasses.summary.total}{minutes(data.hallPasses.summary.minutesTotal)} out over the newest {data.hallPasses.summary.shown}{:else}{minutes(data.hallPasses.summary.minutesTotal)} out in all{/if}
 			</span>
 		</div>
-		<div class="so-tile">
+		<div class="so-tile" class:so-noprint={!printing.coins} data-tile="coins">
 			<span class="so-tile-label">IDEA Coins</span>
 			<span class="so-tile-figure">{data.coins ? coinAmount(data.coins.balance) : 'Not known'}</span>
 			<span class="so-tile-sub">Across all classes</span>
@@ -401,9 +414,17 @@
 				{#if s.total === 0}
 					<p class="so-line">No hall passes in this class.</p>
 				{:else}
-					<p class="so-line">
-						{plural(s.total, 'pass', 'passes')} in this class, {minutes(s.minutesTotal)} out in all, the longest
-						{minutes(s.longestMinutes)}.{#if s.overrides}{' '}{plural(s.overrides, 'was', 'were')} sent by a teacher.{/if}{#if s.openNow}{' '}Out now.{/if}
+					<!-- The minutes, the longest and the teacher-sent count are summed over
+					     the passes this page holds; the count is the database's own total.
+					     When those differ, the sentence says which passes it added up. -->
+					<p class="so-line" data-testid="so-hall-pass-summary">
+						{#if s.shown < s.total}
+							{plural(s.total, 'pass', 'passes')} in this class. The newest {s.shown}: {minutes(s.minutesTotal)} out
+							in all, the longest {minutes(s.longestMinutes)}.{#if s.overrides}{' '}{plural(s.overrides, 'was', 'were')} sent by a teacher.{/if}{#if s.openNow}{' '}Out now.{/if}
+						{:else}
+							{plural(s.total, 'pass', 'passes')} in this class, {minutes(s.minutesTotal)} out in all, the longest
+							{minutes(s.longestMinutes)}.{#if s.overrides}{' '}{plural(s.overrides, 'was', 'were')} sent by a teacher.{/if}{#if s.openNow}{' '}Out now.{/if}
+						{/if}
 					</p>
 					{#if s.shown < s.total}
 						<p class="note">Showing the newest {s.shown} of {s.total}.</p>
@@ -461,7 +482,7 @@
 					({coinAmount(data.coins.physical)} physical, {coinAmount(data.coins.digital)} digital).
 				</p>
 				<p class="so-line" data-testid="so-songs">
-					Music requests in this class: {data.songs.requested} asked, {data.songs.approved} played,
+					Music requests in this class: {data.songs.requested} asked, {data.songs.approved} approved,
 					{data.songs.rejected} turned down, {data.songs.pending} waiting.
 				</p>
 				{#if data.coins.rows.length < data.coins.total}
@@ -887,11 +908,12 @@
 	   the `body:has(.so-root)` condition, because a route's stylesheet stays in
 	   the page after a client-side navigation (CLAUDE.md's DOM trap). */
 	@media print {
-		:global(body:has(.so-root)) :global(:is(.cr-header, .cr-chrome, .bg-fx, .sfb, [data-nav-progress], #bg-canvas)) {
+		:global(body:has(.so-root)) :global(:is(.cr-header, .cr-chrome, .bg-fx, .sfb, [data-nav-progress], #bg-canvas, .tour-offer, .install-prompt, .pwp-overlay)) {
 			display: none !important;
 		}
+		/* No ground of the site's own: the paper is the ground. */
 		:global(body:has(.so-root)) {
-			background: #fff !important;
+			background: none !important;
 		}
 		.so-print-only {
 			display: block;
