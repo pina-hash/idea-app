@@ -38,8 +38,8 @@ are 213's; the paging change added roughly fifty lines around 5450-5630, so a
 quoted marker below that point sits further down the file than its number says.
 
 **BUILD 215 MOVED THE BUILD NUMBER AGAIN (2026-10-07), FOR THE SAME REASON.** A
-student reported, from the title screen after a death, that coins and build
-configurations "don't save when you die" (feedback report 3b56fb50). That is the
+student asked, from the title screen after a death, whether coins and build
+configurations are meant to be lost when you die (feedback report 3b56fb50). That is the
 design rather than a save defect: the STARTING BUILD (CONFIGURE BUILD, a fixed
 1000 i¢ budget) is saved to `vanguard_build` by `saveBuild` and nothing on the
 death path writes it, while the run's i¢ and everything bought at REFIT live on
@@ -187,7 +187,7 @@ name occurs once in the file, at its own definition, and nowhere in `+server.ts`
 The title button whose id is still `howtoBtn` (`:586`) is labelled CALIBRATION and
 runs `startCalib()` (`:6112`). So the one sentence that ever explained what a
 death keeps -- `Set a permanent loadout with CONFIGURE BUILD on the title`, on the
-STYLE & REFIT page (`:6100`) -- has never reached a student, which is part of why
+STYLE & REFIT page (`:6100`) -- has not reached a student since 97a37ec6 replaced the HOW TO PLAY button with CALIBRATION, which is part of why
 build 215 had to say it on the MISSION END screen instead. **Do not revive the
 pages to answer that**: the death screen is where the question is asked.
 
