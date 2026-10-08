@@ -152,7 +152,10 @@ leaves to a person.
 5. **Nothing is ever overwritten or lost.** Every version is kept, with no 30-day window.
    A lock broken by a mentor, or an offline edit that collides with a newer one, is saved
    as a side version with the student's name on it, never discarded; a lead picks which
-   one continues.
+   one continues. **The one exception is a deliberate Delete forever** (v0.3, migration
+   0233): a site admin deletes an ARCHIVED project after typing its name, and a site admin
+   or the project's mentor deletes the already-removed files under a folder. Nothing else
+   can delete history, and a purge refuses rather than break another file's history.
 6. **Offline works.** At a competition with no internet, students keep working on real
    files. The agent queues every save and lock and reconciles when it reconnects.
 7. **Names are unique and permanent.** A new part gets its part number at creation from
@@ -248,8 +251,11 @@ banner saying so. That is decided by the phase 0 spike, not guessed.
 - **IDEA Classroom tie-in.** A class team project is an Armory project. The instructor
   sees each student's own saves on the team's files, which is contribution evidence for
   grading a team project without asking who did what. An assignment links to its project.
-- **Roles.** Student, CAD lead, mentor, instructor. Leads and mentors break locks,
-  release parts and manage the COTS library.
+- **Roles.** Student, CAD lead, mentor, instructor. Leads and mentors break locks
+  (Force check in), and so does a site admin on any project (v0.3, decision 3 below),
+  release parts and manage the COTS library. A site admin also manages any project's
+  people with a mentor's reach, and only a site admin or a teacher who mentors the
+  project may search the school's accounts by name (v0.3, 0233).
 
 ## Design
 
@@ -337,6 +343,170 @@ Mr. Pina on 2026-10-06 (`docs/decisions/entries/46-armory-migration-number-and-a
 and applied to production by `migrate.yml` on the push that landed it. Until that apply
 has run, every Armory page says "Armory is not switched on yet" and the API answers 503.
 
+## The v0.3 server contract (migration 0233)
+
+Added 2026-10-07 for Mr. Pina's "IDEA Armory website requests v0.3". The schema is two
+parts of `supabase/migrations/0233_feedback_round_and_armory_v3.sql` (parts
+`armory-reports` and `armory-core`); `migrate.yml` applies it on the push that lands it.
+Every function a 0.2.x app already calls keeps its signature and answers exactly as it
+did for every member, refusal text and SQLSTATE included (tests/db/armory-v3.test.ts
+holds a corpus of calls to that, membership calls among them), with one deliberate
+change: `armory_break_lock` with a null device used to refuse "device is not registered
+to caller" and now reaches the role check. What widens is a site admin's reach (Force
+check in, archive, people), never a member's.
+
+**Refusals keep the Armory convention**: a raised error with a SQLSTATE and, where there
+is more to say, a JSON `DETAIL` (`reason`, plus `names` and `total`, or `field`,
+`limit` and `size`). PostgREST answers `22023` and `P0001` with HTTP 400, `23505` (a
+name already taken) and `23503` with **409**, `42501` with 403 (401 with no session), a
+`PTxyz` code with HTTP `xyz`, and class 55 and `P0002` with 500. Never `54000`:
+PostgREST answers it with 500, which a retrying client reads as transient. (The HTTP
+mapping is PostgREST's documented behaviour; it was not measured here.) Branch on the
+SQLSTATE and `DETAIL.reason`, never on the status alone.
+
+### Item 1: live updates (already live)
+
+`armory_change_feed` has been in the `supabase_realtime` publication, granted to
+signed-in users and behind its member policy since 0231. 0233 re-runs the guarded add and
+prints `armory_change_feed in supabase_realtime: yes, already | yes, added now | no
+publication on this database` into the applied record. The website already subscribes
+(`src/lib/armory/live.ts`) with a 15-second fallback poll. Only the Windows app half is
+outstanding. **Since 0233 a site admin reads every project's feed rows**, so an app
+signed in as an admin must filter its subscription by `project_id=eq.<id>` (the website
+does), or it receives every project's changes.
+
+### Item 2: Force check in
+
+| RPC | Change |
+|---|---|
+| `armory_break_lock(p_file uuid, p_device uuid, p_operation uuid) returns boolean` | Unchanged signature. A site admin may call it on any project; `p_device` may be NULL (the website has no computer); a device that is named must still be the caller's. The refusal is unchanged: `only a mentor or cad_lead may break a lock` (P0001). The app sends `p_device` exactly as before. |
+| `armory_my_projects() returns jsonb` | Each row gains `can_take_back` (mentor, CAD lead, or site admin). The `role` is never rewritten, and the list stays MEMBERSHIP-ONLY: it is what a computer syncs, so an admin's computer never starts syncing every project. |
+| `armory_set_project_archived(p_project, p_archived, p_operation)` | A site admin may archive or restore any project (a purge needs it archived). A nonexistent project answers `project not found` (P0002). |
+| `armory_add_member(p_project uuid, p_email text, p_role armory_member_role, p_operation uuid) returns boolean` | Unchanged signature. A site admin may add a member to, or change a role in, any project with a mentor's reach (so they may grant mentor and CAD lead), because the website offers them the people search on every project. The last-mentor rule holds for them too (`A project always keeps at least one mentor.`, P0001); a nonexistent project answers `project not found` (P0002) to an admin only. Everyone else meets 0231's refusals unchanged: `only a mentor or CAD lead may add members`, `only a mentor may grant mentor or cad_lead`, `only a mentor may change a mentor or cad_lead` (all 42501). Adding a member does not make the admin one. |
+| `armory_remove_member(p_project uuid, p_email text, p_operation uuid) returns boolean` | Unchanged signature. A site admin may remove from any project, last-mentor rule included; P0002 for a nonexistent project, to an admin only. Everyone else: `only a mentor may remove members` (42501), unchanged. |
+
+### Item 3: Delete forever
+
+| RPC | Who | Returns and refusals |
+|---|---|---|
+| `armory_purge_preview(p_project uuid, p_folder text default null) returns jsonb` | Null folder: site admin. A folder: site admin or the project's mentor. Else 42501. | `{name, folder, archived, files, live_files, live_names, versions, side_versions, checkouts, blocking_checkouts, blocking_names, referenced_elsewhere, blobs, bytes, can_purge}`. `checkouts` is how many the purge would release; `blobs` and `bytes` are the stored files actually freed. No project: P0002. |
+| `armory_purge_project(p_project uuid, p_confirm_name text, p_operation uuid) returns jsonb` | Site admin (42501 otherwise). | In order: P0002 no such project; 55000 `{reason: not_archived}`; 22023 `{reason: name_mismatch}` unless the typed name equals the stored name exactly (NFC, case and spaces included); 55006 `{reason: referenced_elsewhere, names, total}` when another project's history names one of its versions. Returns `{name, files, versions, side_versions, checkouts_released, blobs_queued, bytes_queued}`. Live checkouts are released. |
+| `armory_purge_folder(p_project uuid, p_folder text, p_operation uuid) returns jsonb` | Site admin or the project's mentor (42501). | Only REMOVED files at or under the folder (case-sensitive, 0232's folder rule). 22023 bad folder; 55006 `{reason: live}` while any file there is live; 55006 `{reason: checked_out}` for a checkout taken AFTER a file was removed (the remover's own leftover checkout is released and counted); 55006 `{reason: referenced_elsewhere}`. Returns `{folder, files, versions, side_versions, checkouts_released, blobs_queued, bytes_queued}`; an empty folder answers zeros and writes no change. Writes one change, kind `folder_purged`, payload `{folder, files, file_ids, by}`. Earlier feed rows of the files stay. |
+| `armory_project_purged(p_project uuid) returns timestamptz` | Any signed-in user. | When the project was deleted forever, or null. |
+| `armory_orphans_count() returns integer`, `armory_orphans_pending(p_limit integer default 200) returns text[]`, `armory_orphans_swept(p_hashes text[]) returns integer` | Site admin (42501). | The storage sweep queue, below. |
+
+**A project purge writes no change-feed row and cannot.** The feed's project key and its
+member policy die with the project, so realtime would deliver nothing. It leaves a receipt
+instead (`armory_purged_projects`: the id, the name, when, which admin, the counts; no
+member address is kept).
+
+**Nothing else deletes history, TRUNCATE included.** The immutability trigger is a row
+trigger, and TRUNCATE never fires one, so on `armory_versions`, `armory_side_versions`
+and `armory_version_releases` it would empty history with no marker and no owner test.
+`service_role` held it through the hosted default privileges (measured: it emptied the
+release rows with no refusal); 0233 revokes it there, and no client role ever held it.
+Only the tables' owner keeps it.
+
+**Stored contents are shared.** A file's bytes live at `blobs/sha256/<2>/<2>/<hash>`, so
+one object can back files in several projects. A purge queues, in `armory_orphaned_blobs`,
+only the hashes no surviving version or side version names. The website removes them:
+`armory_orphans_pending` (which first marks any hash a version names again as kept, and
+never lists it), then for each hash a presigned DELETE and a HEAD, and
+`armory_orphans_swept` only with the hashes whose HEAD answered 404. A hash named again
+between the listing and the sweep is kept and logged as a warning; the window that remains
+is one app's blob-url-to-commit time overlapping a running sweep, and it is stated rather
+than closed.
+
+### Item 4: the app's own feedback and incidents
+
+Rows are read only by a site admin, on `/admin/feedback` (two tabs). The submit functions
+take no identity: the address is the signed-in account's.
+
+| RPC | Limits and refusals |
+|---|---|
+| `armory_submit_app_feedback(p_kind text, p_body text, p_app_version text, p_device_name text, p_context jsonb) returns uuid` | `kind` is bug, idea or other (any case). `body` 1 to 8000 characters after trimming. `app_version` 1 to 64. `device_name` trimmed and cut to 120 (never refused). `context` a JSON object of at most **128 KiB** (131072 bytes by `pg_column_size`, the size as sent; null is `{}`). The same limit is a CHECK on the table, and the admin list returns `context` whole, which is why it is small. Bad input: 22023 `{reason: kind / empty / too_long / not_object / too_large, field}`; `too_large` and `too_long` carry `limit` and `size`. **20 an hour per account**, then `PT429` `{reason: rate_limited, limit: 20, window_seconds: 3600, retry_after_seconds}`. |
+| `armory_submit_app_incident(p_kind text, p_summary text, p_app_version text, p_device_name text, p_project uuid, p_report jsonb, p_feedback uuid) returns uuid` | `kind` matches `^[A-Za-z][A-Za-z0-9_-]{0,39}$` (a word, so a kind a later app adds still lands; known: crash, slowAction, slowPass, repeatedFailure, repairedCheckout, readOnlyBroken, userReport). `summary` 1 to 500. `report` a JSON object of at most **1 MiB** (1048576 bytes, measured as sent); null is `{}`. `p_project` is kept only when that project exists (a purged project's id is stored as no project, never refused). `p_feedback` must be one of the caller's own notes: otherwise 22023 `{reason: feedback_not_found}`, the same for not found and not yours. **30 an hour per account**, then `PT429` with `limit: 30`. **Every submit deletes every incident older than 90 days.** |
+
+Admin only (42501 otherwise): `armory_app_feedback_admin_list(p_limit integer)` (which
+carries each note's `context` whole) and
+`armory_app_incidents_admin_list(p_limit integer)` (newest first, at most 1000; the
+incident list leaves out `report`, hides anything older than 90 days, and adds
+`report_bytes`, `project_name`, `feedback_body` and `submitter_name`, the chosen display
+name else the full name, or null), and `armory_app_feedback_set_status(p_id, p_status)` /
+`armory_app_incident_set_status(p_id, p_status)` with new, seen, resolved or spam. An
+admin reads a whole report with `select id, report from armory_app_incidents where id in
+(...)`.
+
+**An exported incident file** (one per incident, written by the console) is JSON:
+`{format: "idea-armory-incident/1", id, created_at, kind, summary, app_version,
+device_name, email, submitter_name, project_id, project_name, feedback_id, feedback_body,
+status, report}`, where `report` is exactly what the app sent. Named
+`armory-incident-<Los Angeles date>-<kind>-<first 8 of id>.json`. With submitter names
+withheld, `email` and `submitter_name` are left out.
+
+### Item 5: team status
+
+| RPC | What it does |
+|---|---|
+| `armory_heartbeat(p_device uuid, p_app_version text, p_state text) returns void` | The caller's own computer only (`device is not registered to caller`, P0001). Stamps `armory_devices.last_seen`, `app_version` (at most 40) and `state` (one word; known: idle, syncing, offline-soon). A null or empty `p_app_version` or `p_state` keeps the stored value, so a bare liveness ping never erases them; a value replaces it at once. A call within 20 seconds that changes nothing writes nothing. Writes no change. 22023 for an overlong version or a state that is not one word. |
+| `armory_team_status(p_project uuid) returns jsonb` | Members and site admins (42501 otherwise). One entry per member: `{email, role, name, avatar, avatar_url, pathway, has_account, devices_total, devices: [{id, name, registered_at, last_seen, app_version, state}], checkouts: [{file_id, folder, name, path, since, device_id}]}`. A member with no account carries `has_account: false` and no name or picture. Devices are those heard from or registered in the last 30 days, or holding a live checkout in this project; `devices_total` counts all of them. |
+
+The website says "Armory open" or "Last heard from <time>", never "offline": a quiet
+computer may simply be asleep.
+
+### Item 6: the project row first, and batches
+
+Every write that touches a file now takes its project row (FOR KEY SHARE) before any other
+row, so it waits behind a folder rename, a folder delete or a purge (which hold the project
+FOR UPDATE) instead of crossing it. Measured on the deployed bodies: a folder rename
+crossing a check out ended one of them with 40P01, and a take back crossing a purge did the
+same; with 0233 both queue.
+
+| RPC | Returns |
+|---|---|
+| `armory_lock_files(p_files uuid[], p_device uuid, p_operation uuid) returns jsonb` | `armory_acquire_lock` per file, in id order. `{total, succeeded, refused, results: [{file_id, ok, acquired}] or [{file_id, ok: false, code, message}]}`. 1 to 500 distinct files, else 22023 `{reason: count, total, limit: 500}`. A replayed operation answers the first time. |
+| `armory_release_locks(p_files uuid[], p_device uuid, p_operation uuid) returns jsonb` | The same over `armory_release_lock`, with `released`. |
+
+### The website's reads
+
+`armory_can_view(project)` (a member, or a site admin) now gates the ten member-read
+policies and `armory_project_files` (which gains a per-file `side_versions` count),
+`armory_file_history`, `armory_list_changes` and `armory_project_checkouts`; each keeps its
+own refusal text and SQLSTATE. `armory_project_summaries(p_project uuid default null)`
+lists the caller's projects, and every project for a site admin with `role` null where they
+are not a member: `{id, name, season, role, pinned_release, release_gate, archived,
+archived_at, created_at, files, removed, checked_out, mine, members, versions,
+side_versions, bytes, stored, last_change_at}`. `armory_people_search(p_project, p_query,
+p_limit default 12)` is for a site admin, or a mentor of the project whose own address is
+a school teacher account (`@boscotech.edu`); anyone else, a student holding the mentor
+role and a mentor on another domain included, gets 42501 `only a teacher mentor or a site
+admin may search for people` and adds people by email. The search is a name-to-address
+directory of every school account, and a mentor can grant mentor to a student, which is
+why the role alone does not open it. School accounts only, matched by the SHOWN name and
+the address's local part, at most 25, `{email, name, avatar, avatar_url, pathway,
+member_role}`.
+
+### What the Windows app must do
+
+- Treat `P0001 'not a project member'` (from `armory_list_changes`, `armory_acquire_lock`,
+  `armory_save_side_version`) and `42501 'not a project member'` (from
+  `armory_project_files`, `armory_file_history`, `armory_create_file`,
+  `armory_move_file`) alike, as "no longer a member of this project".
+- When a project disappears from `armory_my_projects` or starts answering that refusal, ask
+  `armory_project_purged(project)`. A time means it was deleted forever: drop the local copy
+  and its records quietly. Null means the person was removed from it: handle that as today.
+- Expect the change kind `folder_purged` (`{folder, files, file_ids, by}`): those files and
+  their history are gone; drop them locally.
+- Send `p_device` on `armory_break_lock` exactly as before. Show the take-back control when
+  `can_take_back` is true.
+- Send `armory_heartbeat` while running (about every 30 to 60 seconds, and on a state
+  change). A ping with a null version or state keeps what was last sent.
+- On `PT429`, wait `retry_after_seconds` before sending again. On 22023 `too_large` or
+  `too_long`, shorten and send once; never retry the same payload. A feedback note's
+  `context` is at most 128 KiB; an incident's `report` stays at 1 MiB.
+- Filter any realtime subscription and direct table read by project: an admin's session
+  now reads every project.
+
 ## Decisions owed
 
 Each has the default that will be taken if he does not choose otherwise.
@@ -348,7 +518,10 @@ Each has the default that will be taken if he does not choose otherwise.
    nightly mirror to a Google Shared Drive.** The alternative, Drive as the primary store,
    inherits CacheCAD's speed, advisory locks and the sharing model students do not
    understand.
-3. **Who can break a lock and release a part.** Default: mentors and the CAD lead.
+3. **Who can break a lock and release a part.** Answered for breaking a lock by Mr. Pina's
+   v0.3 request: mentors, the CAD lead, and a site admin on any project, from the app or
+   from the website (Force check in). Releasing a part keeps the default: mentors and the
+   CAD lead.
 4. **Part number scheme.** Default: `5669-YY-SSNN`, team, season, two-digit subsystem, two-
    digit part, in the style of 254's system; class projects get a course prefix.
 5. **Request a Document Manager API key** through the SolidWorks key request form under
