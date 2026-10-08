@@ -5131,6 +5131,12 @@ These have each cost a debugging session. They are not hypothetical.
   form forever.
 - **A success message set BEFORE a refresh that clears it flashes and vanishes.**
   Give the refresh a flag that skips clearing when it is the write's own follow-up.
+  **A reset `$effect` keyed on `prop.id` is the same trap**: reading `prop.id`
+  subscribes to `prop` too, and `invalidateAll()` hands the component a NEW
+  object with the SAME id after the acknowledgement was set, so the reset runs
+  again and wipes it. Compare against the last id in a plain variable
+  (`FoundryInspector`'s `editsFor` and `filesFor`), and give a harness standing
+  in for such a route an `onDecided` that hands over a fresh object too.
 - **`{#key}` a detail pane on the selected id**, or moving between items hands the
   previous item's card a new row and keeps its open panels.
 - **Re-derive a selection from the CURRENT list every read; never capture the row

@@ -20,12 +20,28 @@
 	 * THE CARD IS THE GENERATED-COVER SHAPE, 3:2, so it sits in the section's
 	 * multicol mosaic beside student covers without a rule of its own.
 	 */
+	import type { Component } from 'svelte';
 	import GreenlineMark from '$lib/marks/GreenlineMark.svelte';
 	import VanguardMark from '$lib/marks/VanguardMark.svelte';
 
-	import { FOUNDRY_HOUSE_KICKER, type FoundryHouseRelease } from './major.ts';
+	import {
+		FOUNDRY_HOUSE_KICKER,
+		type FoundryHouseRelease,
+		type FoundryHouseReleaseId
+	} from './major.ts';
+
+	/**
+	 * ONE MARK PER HOUSE ID, AND A `Record` OVER THE ID UNION SAYS SO. A third
+	 * id added to `FOUNDRY_HOUSE_RELEASE_IDS` without a mark here is a type
+	 * error, where an if/else would have quietly drawn VANGUARD's mark on it.
+	 */
+	const HOUSE_MARKS: Record<FoundryHouseReleaseId, Component<{ once?: boolean }>> = {
+		greenline: GreenlineMark,
+		vanguard: VanguardMark
+	};
 
 	let { release }: { release: FoundryHouseRelease } = $props();
+	const Mark = $derived(HOUSE_MARKS[release.id]);
 </script>
 
 <!--
@@ -45,11 +61,7 @@
 			<!-- `once`: the launcher's own standard. One pass, then the rest frame
 			     held, and nothing hidden at rest, all inside the mark's own
 			     reduced-motion gate. -->
-			{#if release.id === 'greenline'}
-				<GreenlineMark once />
-			{:else}
-				<VanguardMark once />
-			{/if}
+			<Mark once />
 		</span>
 		<span class="fdy-house-title">{release.title}</span>
 	</span>
@@ -97,11 +109,16 @@
 		--fdy-house-hue: 230;
 	}
 
-	/* The room's link rules would otherwise tint and underline a card. */
+	/* The room's link rules would otherwise tint and underline a card. The
+	   ring is the KEYBOARD's: drawn on hover too, a mouse pass looked like
+	   focus and a tap could leave it standing. */
 	.fdy-house:hover,
 	.fdy-house:focus-visible {
 		color: var(--fdy-house-ink);
 		text-decoration: none;
+	}
+
+	.fdy-house:focus-visible {
 		outline: 2px solid var(--green);
 		outline-offset: 2px;
 	}

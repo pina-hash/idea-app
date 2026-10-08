@@ -18,8 +18,18 @@
  * THE BUTTON IS HIT-TESTED AT ITS CENTRE, because a 44px box that something
  * else paints over is not a tap target; a box read alone cannot tell the two
  * apart.
+ *
+ * THE ACKNOWLEDGEMENT IS READ AFTER THE ROUTE'S RE-READ, NOT BEFORE IT. The
+ * harness's review half hands the inspector a fresh app object with the same
+ * id on `onDecided`, as `invalidateAll()` does on /foundry/review, and the
+ * re-read count is on the page (`review-reads`). Each acknowledgement step
+ * waits for its write's re-read AND the sentence, so a note that a reload
+ * wipes can no longer pass here: it shipped once that way, because a harness
+ * with no `onDecided` never produced the second hand-over.
  */
 
+/** The harness's count of review-half re-reads, read in the page. */
+const READS = `Number(document.querySelector('[data-testid="review-reads"]')?.textContent ?? 0)`;
 const SECTION_HAS_PROBE = `() => !!document.querySelector('[data-testid="foundry-gallery-major"] [data-app-slug="hostile-probe"]')`;
 
 export const MAJOR_DRIVE = [
@@ -28,16 +38,16 @@ export const MAJOR_DRIVE = [
 		until: SECTION_HAS_PROBE
 	},
 	{
-		evaluate: `() => 'acknowledged: ' + (document.querySelector('[data-testid="foundry-major-said"]')?.textContent.trim() ?? 'NOTHING')`,
-		until: `() => /Marked as a major release/.test(document.querySelector('[data-testid="foundry-major-said"]')?.textContent ?? '')`
+		evaluate: `() => 'after ' + ${READS} + ' re-read(s), acknowledged: ' + (document.querySelector('[data-testid="foundry-major-said"]')?.textContent.trim() ?? 'NOTHING')`,
+		until: `() => ${READS} >= 1 && /Marked as a major release/.test(document.querySelector('[data-testid="foundry-major-said"]')?.textContent ?? '')`
 	},
 	{
 		click: '[data-testid="foundry-major-remove"]',
 		until: `() => !document.querySelector('[data-testid="foundry-gallery-major-section"]') && !!document.querySelector('[data-testid="foundry-gallery-grid"] [data-app-slug="hostile-probe"]')`
 	},
 	{
-		evaluate: `() => 'after Remove: sections ' + document.querySelectorAll('[data-testid="foundry-gallery-major-section"]').length + ', probe still in the full list ' + document.querySelectorAll('[data-testid="foundry-gallery-grid"] [data-app-slug="hostile-probe"]').length + ', detail marks ' + document.querySelectorAll('[data-testid="foundry-detail-major"]').length + ', said: ' + (document.querySelector('[data-testid="foundry-major-said"]')?.textContent.trim() ?? 'NOTHING')`,
-		until: `() => document.querySelectorAll('[data-testid="foundry-detail-major"]').length === 0 && /No longer a major release/.test(document.querySelector('[data-testid="foundry-major-said"]')?.textContent ?? '')`
+		evaluate: `() => 'after Remove and ' + ${READS} + ' re-read(s): sections ' + document.querySelectorAll('[data-testid="foundry-gallery-major-section"]').length + ', probe still in the full list ' + document.querySelectorAll('[data-testid="foundry-gallery-grid"] [data-app-slug="hostile-probe"]').length + ', detail marks ' + document.querySelectorAll('[data-testid="foundry-detail-major"]').length + ', said: ' + (document.querySelector('[data-testid="foundry-major-said"]')?.textContent.trim() ?? 'NOTHING')`,
+		until: `() => ${READS} >= 2 && document.querySelectorAll('[data-testid="foundry-detail-major"]').length === 0 && /No longer a major release/.test(document.querySelector('[data-testid="foundry-major-said"]')?.textContent ?? '')`
 	},
 	{
 		click: '[data-testid="foundry-major-mark"]',
@@ -126,7 +136,10 @@ export default {
 	textContains: [
 		{ selector: '[data-testid="foundry-major-said"]', label: 'the acknowledgement of the second mark', must: ['Marked as a major release'] },
 		{ selector: '[data-testid="foundry-major-release"]', label: 'the section says since when', must: ['Major release', 'since'] },
-		{ selector: '[data-testid="last-decision"]', label: 'the transport was handed this app and true', must: ['"setMajor"', '"major":true'] }
+		{ selector: '[data-testid="last-decision"]', label: 'the transport was handed this app and true', must: ['"setMajor"', '"major":true'] },
+		/* POSITIVE CONTROL that the route's re-read really ran after each of the
+		   three presses, so the acknowledgement above survived one. */
+		{ selector: '[data-testid="review-reads"]', label: 'the review half re-read after every press', must: ['3'] }
 	],
 	contrast: [
 		{ selector: '[data-testid="foundry-detail-major"] .fdy-major-word', label: 'the mark word, room tone, detail pane', min: 4.5 },

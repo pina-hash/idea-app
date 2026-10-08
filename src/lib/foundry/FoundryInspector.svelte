@@ -143,9 +143,21 @@
 	 * So the CALL is untracked, which is what this comment previously claimed
 	 * was already happening while no `untrack` was anywhere in the body. See the
 	 * injected-callback rule in CLAUDE.md.
+	 *
+	 * READING `version.id` ALSO READS THE `version` PROP, so the effect re-runs
+	 * whenever the object is replaced -- and every write on the review route
+	 * ends in `invalidateAll()`, which hands this component a NEW version object
+	 * with the SAME id. Unguarded, pressing Mark as a major release (or Hide, or
+	 * Save) closed the source file the reviewer was reading and threw away a
+	 * half-typed review note. So the reset runs only when the id really moved,
+	 * compared against `filesFor`, a plain variable on purpose: it is
+	 * bookkeeping for this effect, never something the page draws.
 	 */
+	let filesFor: string | null = null;
 	$effect(() => {
 		const id = version.id;
+		if (id === filesFor) return;
+		filesFor = id;
 		files = [];
 		filesProblem = null;
 		openPath = null;
@@ -325,10 +337,22 @@
 	 * A CHANGE OF APP CLEARS A HALF-TYPED EDIT. The queue keys this component on
 	 * the slug so it normally remounts, but the reset is stated rather than
 	 * rested on: a draft carried into another student's app is an edit made to
-	 * the wrong work. Only `app.id` is read tracked; the body only writes.
+	 * the wrong work.
+	 *
+	 * A CHANGE OF APP, NEVER A RE-READ OF THE SAME ONE. Reading `app.id` also
+	 * reads the `app` prop, and every write on the review route ends in
+	 * `invalidateAll()`, which hands this component a NEW object with the SAME
+	 * id -- after the acknowledgement has been set. Keyed on the object, this
+	 * reset wiped "Marked as a major release" and "Saved at 3:47." about one
+	 * page load after they appeared (CLAUDE.md: a success message set before a
+	 * refresh that clears it flashes and vanishes). `editsFor` is a plain
+	 * variable on purpose: it is bookkeeping for this effect and is never drawn.
 	 */
+	let editsFor: string | null = null;
 	$effect(() => {
-		void app.id;
+		const id = app.id;
+		if (id === editsFor) return;
+		editsFor = id;
 		editing = null;
 		draft = '';
 		metaProblem = null;
@@ -430,6 +454,10 @@
 				return;
 			}
 			majorNote = majorAckSentence(major, r.changed);
+			// On /foundry/review the transport has already re-read and this is a
+			// second `invalidateAll()`, kept DELIBERATELY like every other write
+			// here: a mount whose transports do not re-read relies on it, and the
+			// reset above is keyed on the id, so the note survives it.
 			onDecided?.();
 		} catch (e) {
 			majorProblem = e instanceof Error ? e.message : 'That did not go through. Try again.';
@@ -819,9 +847,14 @@
 			{#if !majorReleaseReady(app)}
 				<p class="fdy-insp-note" data-testid="foundry-major-not-ready">{FOUNDRY_MAJOR_NOT_READY}</p>
 			{:else}
-				{#if majorNote}
-					<p class="fdy-major-said" role="status" data-testid="foundry-major-said">{majorNote}</p>
-				{/if}
+				<!--
+					ALWAYS MOUNTED, AND ONLY ITS TEXT MOVES: several screen readers
+					announce only a live region they were already watching, so one
+					inserted together with its sentence can go unheard. Empty, it is
+					taken out of the column's flow (see `.fdy-major-said:empty`) and
+					costs no gap.
+				-->
+				<p class="fdy-major-said" role="status" data-testid="foundry-major-said">{majorNote ?? ''}</p>
 				{#if majorProblem}<p class="fdy-insp-problem" role="alert">{majorProblem}</p>{/if}
 				{#if isMajorRelease(app)}
 					<p class="fdy-major-state">
@@ -1296,6 +1329,13 @@
 		line-height: 1.5;
 		color: var(--text-2, var(--dim));
 		max-width: 62ch;
+	}
+
+	/* The live region at rest: out of the flex column's flow, so it takes no
+	   gap, and never `display: none`, which would take it out of the
+	   accessibility tree a screen reader is watching. */
+	.fdy-major-said:empty {
+		position: absolute;
 	}
 
 	/* ----------------------------------------------------- hide beside delete */

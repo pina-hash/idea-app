@@ -92,6 +92,19 @@
 	});
 
 	/**
+	 * THE ROUTE'S RE-READ, MIRRORED. On /foundry/review every write ends in
+	 * `invalidateAll()`, inside the transport AND again through `onDecided`,
+	 * and a reload hands the inspector a NEW app object and NEW version
+	 * objects with the SAME ids, AFTER its acknowledgement was set. A harness
+	 * with no `onDecided` never produced that second hand-over, which is how a
+	 * "Marked as a major release" that vanished one page load later passed a
+	 * browser spec. So the review half's `onDecided` bumps `reviewReads`, and
+	 * `reviewSelected` reads it and copies the versions too, the way a fresh
+	 * payload would.
+	 */
+	let reviewReads = $state(0);
+
+	/**
 	 * TELEMETRY FIXTURES FOR THE THREE MOUNTED APPS, keyed off the load's own
 	 * ids rather than re-typed uuids, so the mapping cannot drift from which app
 	 * is actually app A/B/playfield. One app carries zero plays deliberately --
@@ -172,13 +185,15 @@
 		return detail ? withMajor(detail) : null;
 	});
 	const reviewSelected = $derived.by(() => {
+		void reviewReads;
 		if (!reviewSlug) return null;
 		const detail = data.details[reviewSlug] ?? null;
 		if (!detail || removed.includes(detail.id)) return null;
 		const withHidden =
 			detail.id in hidden ? { ...detail, hidden_at: hidden[detail.id] } : detail;
 		const edits = metaEdits[detail.id];
-		return withMajor(edits ? { ...withHidden, ...edits } : withHidden);
+		const read = withMajor(edits ? { ...withHidden, ...edits } : withHidden);
+		return { ...read, versions: read.versions.map((v) => ({ ...v })) };
 	});
 
 	const galleryTransports: FoundryGalleryTransports = {};
@@ -323,6 +338,10 @@
 		<p class="note">
 			Last decision handed to the transport: <code data-testid="last-decision">{lastDecision}</code>
 		</p>
+		<p class="note">
+			Review half re-reads after a write (the route's <code>invalidateAll()</code>):
+			<code data-testid="review-reads">{reviewReads}</code>
+		</p>
 	</header>
 
 	<!--
@@ -404,6 +423,7 @@
 			selected={reviewSelected}
 			transports={reviewTransports}
 			onSelect={(slug) => (reviewSlug = slug)}
+			onDecided={() => (reviewReads += 1)}
 			onDeleted={() => (reviewSlug = null)}
 			{now}
 		/>

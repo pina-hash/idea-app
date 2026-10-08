@@ -138,6 +138,13 @@ describe('the gallery section', () => {
 			'IDEA // GREENLINE, an IDEA original game',
 			'IDEA // VANGUARD, an IDEA original game'
 		]);
+		// Each card draws ITS OWN game's mark, read off the mark's own viewBox
+		// (GREENLINE's is 32 units square, VANGUARD's 40): one mark on both cards
+		// would still pass the two checks above.
+		expect(cards.map((a) => a.querySelector('.fdy-house-mark svg')?.getAttribute('viewBox'))).toEqual([
+			'0 0 32 32',
+			'0 0 40 40'
+		]);
 	});
 
 	it('the section follows the one sort control: Newest puts the newer marked app first', () => {
