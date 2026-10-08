@@ -429,6 +429,87 @@ describe('Post makes the notice once, then attaches its files to it', () => {
 		expect(m.all('[data-post="new-1"] [data-testid="attach-row"]').length).toBe(1);
 	});
 
+	it('a notice whose every file fails is still announced once, after the first pass and before Close', async () => {
+		// The time-sensitive case: "Fire drill during third block" with a phone
+		// video over the cap. Nothing lands, and the classes must not wait for the
+		// 600s floor poll to read the words.
+		const live = createMemoryClassroomLive();
+		const f = fake(boardOf([]));
+		const uploads: string[] = [];
+		f.transports.uploadFile = async (postId, file): Promise<UploadOutcome> => {
+			uploads.push(`${postId}:${file.name}`);
+			return { ok: false, gate: 'too_large', message: `"${file.name}" is over the limit for a notice.`, retryable: false };
+		};
+		const closed = vi.fn();
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			live,
+			composing: true,
+			oncomposerclose: closed,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Fire drill during third block.');
+		stage(m, ['drill.mov', 'map.mov']);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(f.creates.length).toBe(1);
+		expect(uploads).toEqual(['new-1:drill.mov', 'new-1:map.mov']);
+		expect(m.all('[data-testid="fup-row"]').length).toBe(2);
+		expect(closed).toHaveBeenCalledTimes(0);
+		// Announced after the first pass, with nothing landed, before any Close.
+		expect(live.announced).toEqual([{ sectionId: 's-2', topic: 'quick-posts' }]);
+
+		// A retry that lands nothing again says nothing again.
+		m.one<HTMLButtonElement>('[data-testid="quick-post-attach-rest"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(uploads.length).toBe(4);
+		expect(live.announced.length).toBe(1);
+
+		// Close without them, two presses: no second announcement.
+		m.one<HTMLButtonElement>('[data-testid="quick-post-cancel"]').click();
+		m.flush();
+		m.one<HTMLButtonElement>('[data-testid="quick-post-cancel"]').click();
+		m.flush();
+		expect(closed).toHaveBeenCalledTimes(1);
+		expect(live.announced.length).toBe(1);
+	});
+
+	it('Close pressed while the first pass is still uploading announces the notice once', async () => {
+		const live = createMemoryClassroomLive();
+		const f = fake(boardOf([]));
+		let release: (o: UploadOutcome) => void = () => {};
+		f.transports.uploadFile = () => new Promise<UploadOutcome>((resolve) => (release = resolve));
+		const closed = vi.fn();
+		const m = mountPosts({
+			board: { ...boardOf([], true), ...READY },
+			transports: f.transports,
+			live,
+			composing: true,
+			oncomposerclose: closed,
+			sections: SECTIONS,
+			viewerEmail: 'apina@boscotech.edu'
+		});
+		type(m, 'Room change: 214.');
+		stage(m, ['sign.jpg']);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-send"]').click();
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(f.creates.length).toBe(1);
+		// The upload is still in flight, so nobody has been told yet.
+		expect(live.announced.length).toBe(0);
+		m.one<HTMLButtonElement>('[data-testid="quick-post-cancel"]').click();
+		m.flush();
+		m.one<HTMLButtonElement>('[data-testid="quick-post-cancel"]').click();
+		m.flush();
+		expect(closed).toHaveBeenCalledTimes(1);
+		expect(live.announced).toEqual([{ sectionId: 's-2', topic: 'quick-posts' }]);
+		// The pass then ends with nothing landed: still exactly one announcement.
+		release({ ok: false, gate: 'network', message: 'The connection dropped.', retryable: true });
+		for (let i = 0; i < 4; i++) await drain(m);
+		expect(live.announced.length).toBe(1);
+	});
+
 	it('a drop on the composer card stages there and does not bubble on as a new drop', () => {
 		const t = fake(boardOf([])).transports;
 		t.uploadFile = async () => ({ ok: true, storageKey: 'x' });

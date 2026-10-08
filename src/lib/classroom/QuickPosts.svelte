@@ -243,6 +243,10 @@
 	 * the composer closes, as it always did. With files, the classes hear about
 	 * it once the first upload pass has finished (`filesLanded`), so a student's
 	 * re-read arrives with the pictures on it rather than a moment before them.
+	 * That first pass announces WHATEVER landed, nothing included: a notice
+	 * whose every file failed (a phone video over the cap is refused before any
+	 * transfer) is still a notice, and the classes must not wait for the floor
+	 * poll to read "Fire drill during third block".
 	 */
 	function created(res: Extract<QuickPostCreateResult, { ok: true }>, body: string, filesPending: number) {
 		const nowAt = Date.now() + skew;
@@ -262,7 +266,7 @@
 		}
 		nowMs = Date.now();
 		if (filesPending > 0) {
-			pending = { id: res.id, sections: [...res.section_ids] };
+			pending = { id: res.id, sections: [...res.section_ids], announced: false };
 			return;
 		}
 		announce(res.section_ids);
@@ -303,7 +307,7 @@
 	 * unmounted panel would drop the files that did not attach and every
 	 * sentence about why.
 	 */
-	let pending = $state<{ id: string; sections: string[] } | null>(null);
+	let pending = $state<{ id: string; sections: string[]; announced: boolean } | null>(null);
 	const limits = $derived(quickPostLimits(shown));
 
 	function withFiles(postId: string, files: QuickPostFile[]) {
@@ -317,19 +321,30 @@
 		local = { over: board, board: { ...shown, posts } };
 	}
 
-	/** After each upload pass: show what landed, tell the classes, close when nothing is left. */
+	/**
+	 * After each upload pass: show what landed, tell the classes, close when
+	 * nothing is left. The FIRST pass always tells them, landed or not; a later
+	 * pass (Attach the rest, a row's Retry) tells them only when a file landed.
+	 */
 	function filesLanded(postId: string, landed: QuickPostFile[], left: number) {
 		withFiles(postId, landed);
-		const sections = pending?.id === postId ? pending.sections : [sectionId];
-		if (landed.length) announce(sections);
+		const ours = pending?.id === postId ? pending : null;
+		const sections = ours ? ours.sections : [sectionId];
+		if (landed.length || (ours && !ours.announced)) announce(sections);
+		if (ours && !ours.announced) pending = { ...ours, announced: true };
 		if (left === 0) {
 			pending = null;
 			oncomposerclose?.();
 		}
 	}
 
-	/** The composer let go: a cancel, or Close on a posted notice. */
+	/**
+	 * The composer let go: a cancel, or Close on a posted notice. A notice let go
+	 * of before its first pass reported (Close pressed mid-upload) is announced
+	 * here, so no posted notice ever goes unannounced.
+	 */
 	function composerClosed() {
+		if (pending && !pending.announced) announce(pending.sections);
 		pending = null;
 		oncomposerclose?.();
 	}
