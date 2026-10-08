@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-projector-demo-clock-session-1.mjs",
+	"date": "2026-10-08T03:16:23.646Z",
+	"sha": "6708f114d0233ad9c3126f05b88ffa1b85edf13b",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 40,
+	"outsideRows": [],
+	"ms": 9128
+}
