@@ -1440,6 +1440,18 @@ does.
 - **`tools/browser-verify/_hx-downloads.mjs`** -- section 5.7's two tables, counted as real
   `download` events under `HX_SANDBOX_FLAGS` and under the same set without
   `allow-downloads`.
+- **`tools/browser-verify/_hx-photo-box.mjs`** -- the student side of section 6.1's picture
+  box, driven from INSIDE the `photo` fixture with trusted presses, at 375 and 1440: the
+  picture over the box at the asked rectangle and no list under the frame; the fixture's
+  Hide (a null rect) moving it into the list and back; the document hearing
+  `idea:image-box-state` both ways; and the fixture's own Download button through the real
+  `/hx/` route counting 1 download under the constant and 0 with `allow-downloads` taken off
+  the frame. A route spec cannot do any of this, because its reads run in the parent page.
+- **`tools/browser-verify/routes/html-assignment-grading-state-boxed.mjs`** and
+  **`...-boxed-file.mjs`** -- the grading console's half: the pair (one picture over, no
+  list), the drawn rectangle equal to the asked one before and after the console's own
+  scroller moves, a hit test at the picture's centre, the Lightbox opening, and a part file
+  drawn as a tile with a hit-tested 44px Download and no image element.
 - **`tests/html-assignment-manifest.test.ts`** and **`tests/db/html-assignment-manifest.test.ts`**
   -- the TypeScript validator and 0195's SQL boundary, asserted against each other.
 - **`tests/html-assignment-manifest-parity.test.ts`** -- reads
