@@ -12,14 +12,25 @@
  *                      the code, which is NOT consumed), 401 used, 410 expired,
  *                      401 wrong verifier (which consumes the code), 200
  *
+ * And two the WEBSITE calls, with the browser's own session (0233, Armory
+ * v0.3 item 3), at the end of this file:
+ *
+ *   purge              401, 400, the RPC's refusal in words (404 for a
+ *                      non-admin, the same answer as a project that is gone),
+ *                      200 the moment the RPC returns, then the sweep
+ *   sweep              401, 404 for a non-admin, 200
+ *
  * A backend that cannot be reached answers 503, which the agent reads as
  * offline and retries; it is never folded into a refusal.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { armoryNotReady } from '$lib/armory/view';
 import { CONNECT_CODE_LIFETIME_MS, loopbackCallbackUrl, validateConnect } from '$lib/armory/connect';
 import { ArmoryBackendUnavailable, type ArmoryUser } from './backend';
 import type { ArmoryDeps } from './deps';
 import { blobExists, MAX_PUT_BYTES, signBlob } from './storage';
+import { ArmorySweepRefused, sweepArmoryOrphans, type ArmorySweepDeps } from './sweep';
 
 const NO_STORE = { 'cache-control': 'no-store' };
 
@@ -224,6 +235,122 @@ export async function handleConnectExchange(request: Request, clientIp: string, 
 		});
 	} catch (e) {
 		if (e instanceof ArmoryBackendUnavailable) return UNAVAILABLE();
+		throw e;
+	}
+}
+
+// ---- The website's purge and sweep (0233, Armory v0.3 item 3) ----
+
+/** Bodyless, the same for "not yours" and "not there" (CLAUDE.md, "Probing must reveal nothing"). */
+const NOT_FOUND = () => new Response(null, { status: 404, headers: NO_STORE });
+
+/** The `reason` a refusal's DETAIL carries (0233 raises `detail = jsonb_build_object(...)::text`), else null. */
+export function refusalDetail(details: unknown): { reason: string | null; names: string[]; total: number | null } {
+	let parsed: unknown = null;
+	if (typeof details === 'string' && details.trim().startsWith('{')) {
+		try {
+			parsed = JSON.parse(details);
+		} catch {
+			parsed = null;
+		}
+	}
+	const o = isObject(parsed) ? parsed : {};
+	return {
+		reason: typeof o.reason === 'string' ? o.reason : null,
+		names: Array.isArray(o.names) ? o.names.filter((n): n is string => typeof n === 'string') : [],
+		total: typeof o.total === 'number' ? o.total : null
+	};
+}
+
+/**
+ * The purge RPC's refusals, in words, in the order 0233 raises them: 42501
+ * (not a site admin) and P0002 (no such project) are handled by the caller;
+ * then 55000 `not_archived`, 22023 `name_mismatch` and 55006
+ * `referenced_elsewhere`. Read from the SQLSTATE AND `DETAIL.reason`, never
+ * from the HTTP status (PostgREST answers 55000, 55006 and P0002 as 500) and
+ * never passed through: a raw database message is not a sentence for a person,
+ * and its text is the RPC owner's to change.
+ */
+export function purgeRefusalWords(code: string | undefined, details: unknown): string {
+	const detail = refusalDetail(details);
+	// Strict: the history trigger also raises 55000 ('immutable', no reason), and that is not "archive it first".
+	if (code === '55000' && detail.reason === 'not_archived') {
+		return 'Archive the project first. Delete forever is offered only for an archived project.';
+	}
+	if (code === '22023' && (detail.reason === 'name_mismatch' || detail.reason === null)) {
+		return 'The name you typed does not match the project name exactly, so nothing was deleted.';
+	}
+	if (code === '55006' || detail.reason === 'referenced_elsewhere') {
+		const n = detail.total ?? detail.names.length;
+		const named = detail.names.length ? `: ${detail.names.slice(0, 5).join(', ')}${n > 5 ? ` and ${n - 5} more` : ''}` : '';
+		return `Nothing was deleted. The history of ${n || 'some'} ${n === 1 ? 'file' : 'files'} in another project names a version of a file in this one${named}. Deleting it would break that history.`;
+	}
+	return 'That did not work, and nothing was deleted. Try again in a minute.';
+}
+
+/**
+ * POST /api/armory/purge `{ projectId, confirmName, operation }`.
+ *
+ * `armory_purge_project` runs on the CALLER's client (`locals.supabase`), so
+ * the database's own `is_admin()` decides, and this route is not the boundary.
+ * `ok` IS TRUE THE MOMENT THE RPC RETURNS: the rows are gone, and reporting a
+ * completed delete as an error is how somebody presses it again. The storage
+ * sweep follows within its budget, and anything it could not finish is a
+ * `storageProblem` sentence beside the confirmation, never a failure.
+ */
+export async function handlePurge(
+	request: Request,
+	supabase: SupabaseClient,
+	signedIn: boolean,
+	deps: ArmorySweepDeps
+): Promise<Response> {
+	if (!signedIn) return error(401, 'unauthorized', 'Sign in first.');
+	const body = await readJson(request);
+	if (!isObject(body)) return error(400, 'bad_request', 'The body must be a JSON object.');
+	const { projectId, confirmName, operation } = body;
+	if (typeof projectId !== 'string' || !UUID.test(projectId)) return error(400, 'bad_request', 'projectId must be a uuid.');
+	if (typeof operation !== 'string' || !UUID.test(operation)) return error(400, 'bad_request', 'operation must be a uuid.');
+	if (typeof confirmName !== 'string' || confirmName.trim() === '' || confirmName.length > 400) {
+		return error(400, 'bad_request', 'Type the project name to confirm.');
+	}
+
+	const { data, error: refused } = await supabase.rpc('armory_purge_project', {
+		p_project: projectId.toLowerCase(),
+		p_confirm_name: confirmName.trim().normalize('NFC'),
+		p_operation: operation.toLowerCase()
+	});
+	if (refused) {
+		// Not a site admin: the same bodyless 404 as a project that is not there.
+		if (refused.code === '42501') return NOT_FOUND();
+		// Only a site admin reaches 0233's P0002, so saying so reveals nothing.
+		if (refused.code === 'P0002') return json(404, { ok: false, message: 'This project is not there any more. It may already have been deleted.' });
+		if (armoryNotReady(refused)) return json(503, { ok: false, message: 'Delete forever is not switched on yet.' });
+		return json(400, { ok: false, message: purgeRefusalWords(refused.code, (refused as { details?: unknown }).details) });
+	}
+
+	let storageProblem: string | null = null;
+	let swept = 0;
+	let left: number | null = null;
+	try {
+		const sweep = await sweepArmoryOrphans(supabase, deps);
+		storageProblem = sweep.problem;
+		swept = sweep.swept;
+		left = sweep.left;
+	} catch (e) {
+		deps.log(`armory purge: the storage sweep failed after a purge committed: ${e instanceof Error ? e.message : String(e)}`);
+		storageProblem = 'The project is deleted. Removing its stored files did not finish; Storage cleanup on the Armory page finishes it.';
+	}
+	return json(200, { ok: true, result: isObject(data) ? data : null, swept, left, storageProblem });
+}
+
+/** POST /api/armory/sweep: the admin's Finish cleanup. A non-admin gets the bodyless 404. */
+export async function handleSweep(supabase: SupabaseClient, signedIn: boolean, deps: ArmorySweepDeps): Promise<Response> {
+	if (!signedIn) return error(401, 'unauthorized', 'Sign in first.');
+	try {
+		const sweep = await sweepArmoryOrphans(supabase, deps);
+		return json(200, { ok: true, swept: sweep.swept, left: sweep.left, problem: sweep.problem });
+	} catch (e) {
+		if (e instanceof ArmorySweepRefused) return NOT_FOUND();
 		throw e;
 	}
 }

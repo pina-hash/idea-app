@@ -413,7 +413,8 @@ describe('every exclusion is by category, and each has a positive control', () =
 			gauntlet: 'src/routes/gauntlet/+layout.svelte',
 			classroom: 'src/lib/classroom/ClassroomShell.svelte',
 			error: 'src/routes/+error.svelte',
-			projector: 'src/routes/classroom/[sectionId]/live/projector/+page@.svelte'
+			projector: 'src/routes/classroom/[sectionId]/live/projector/+page@.svelte',
+			armory: 'src/lib/armory/ArmoryFrame.svelte'
 		};
 		for (const [id, file] of Object.entries(relocations)) {
 			const src = read(file);

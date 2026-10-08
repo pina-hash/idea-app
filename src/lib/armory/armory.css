@@ -67,6 +67,17 @@
 .ar-title::before {
 	content: none;
 }
+.ar-eyebrow {
+	margin: 0.4rem 0 0.35rem;
+	color: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+.ar-titlebar .ar-title {
+	flex: 1 1 100%;
+}
 .ar-title-actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -118,6 +129,13 @@
 .ar-notice strong {
 	display: block;
 	margin-bottom: 0.15rem;
+}
+.ar-notice.ar-notice-quiet {
+	border-left-color: var(--text-2);
+}
+.ar-notice-quiet .ar-notice-glyph {
+	color: var(--text-2);
+	font-family: var(--font-mono);
 }
 
 /* A button is the shared `.btn`; this class adds the 44px floor and keeps a
@@ -221,18 +239,26 @@
 	align-items: center;
 	min-height: 44px;
 }
+/* `auto-fit`, as My Classes' class grid is: three cards share the measure
+   rather than leaving a dead fourth track at 1440 (report of 2026-10-07). */
 .ar-projects {
 	list-style: none;
 	padding: 0;
 	margin: 0 0 1.25rem;
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
 	gap: 0.85rem;
 }
+.ar-projects > li {
+	display: flex;
+}
+/* The My Classes card anatomy: mark and name, a recessed role chip, the
+   readouts the server counts, when it last changed, and Open. */
 .ar-project {
+	flex: 1 1 auto;
 	display: flex;
 	flex-direction: column;
-	gap: 0.25rem;
+	gap: 0.55rem;
 	min-height: 44px;
 	padding: 1rem 1.1rem;
 	border: 1px solid var(--boundary);
@@ -244,16 +270,65 @@
 .ar-project:hover {
 	border-color: var(--hover-ink, var(--gold));
 }
+.ar-project-top {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+}
+.ar-project-icon {
+	flex: none;
+	display: inline-flex;
+	width: 2.2rem;
+	height: 2.2rem;
+	color: var(--hover-ink, var(--gold));
+}
+.ar-project-icon svg {
+	width: 100%;
+	height: 100%;
+}
 .ar-project-name {
 	font-size: 1.25rem;
 	font-weight: 700;
+	line-height: 1.2;
 	overflow-wrap: anywhere;
+}
+.ar-project-chips,
+.ar-project-readouts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
 }
 .ar-project-meta {
 	color: var(--text-2);
 	font-family: var(--font-mono);
 	font-size: 0.78rem;
 	letter-spacing: 0.06em;
+}
+.ar-project-cta {
+	margin-top: auto;
+	align-self: flex-end;
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--text-2);
+}
+.ar-project:hover .ar-project-cta {
+	color: var(--hover-ink, var(--gold));
+}
+.ar-keys {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	margin: 0.25rem 0 0.5rem;
+}
+.ar-status-line {
+	margin: 0 0 1.25rem;
+}
+.ar-status-line a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
 }
 .ar-archived {
 	margin: 0 0 1.25rem;
@@ -402,21 +477,20 @@ a.ar-list-title:hover {
 	font-size: 0.92rem;
 	line-height: 1.35;
 }
-.ar-out-row .ar-warn {
-	flex: 1 1 100%;
+/* ---- The project page: a header, the tabs, then ONE view ----------------
+   (report of 2026-10-07: every section used to stack under the last, so a
+   project with sixty checkouts was tens of screens long). */
+.ar-status {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 1rem;
+	margin: 0 0 0.85rem;
 }
-
-/* Project page: files beside people above 1024px */
-.ar-split {
-	display: grid;
-	gap: 0 1.25rem;
-	grid-template-columns: 1fr;
-}
-@media (min-width: 1024px) {
-	.ar-split {
-		grid-template-columns: minmax(0, 1fr) 24rem;
-		align-items: start;
-	}
+.ar-path {
+	flex: 0 1 auto;
+	color: var(--text-2);
+	line-height: 1.4;
 }
 .ar-live {
 	display: inline-flex;
@@ -426,7 +500,6 @@ a.ar-list-title:hover {
 	font-size: 0.75rem;
 	letter-spacing: 0.06em;
 	color: var(--text-2);
-	margin: 0 0 0.75rem;
 }
 .ar-live-dot {
 	width: 0.6rem;
@@ -437,6 +510,113 @@ a.ar-list-title:hover {
 .ar-live[data-live='live'] .ar-live-dot {
 	background: var(--green);
 }
+.ar-readouts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+/* A readout is a fact, recessed (the plate's chip list paints it): never a
+   link, because raised is pressable and inset is not. A glyph and a word. */
+.ar-readout {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	min-height: 1.6rem;
+	padding: 0.1rem 0.5rem;
+	border: 1px solid var(--boundary);
+	border-radius: 999px;
+	font-family: var(--font-mono);
+	font-size: 0.74rem;
+	letter-spacing: 0.04em;
+	color: var(--text-2);
+	white-space: nowrap;
+}
+
+/* The tab strip: links (`?view=`), the plate's pads. The LED lane on the
+   right is the plate's; the padding leaves it room. */
+.ar-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 1.25rem;
+}
+.ar-tab {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0.45rem calc(0.85rem + 7px) 0.45rem 0.85rem;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-control, 4px);
+	background: var(--surface-1, var(--bg1));
+	color: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	text-decoration: none;
+}
+.ar-tab:hover {
+	color: var(--text-1);
+	border-color: var(--hover-ink, var(--gold));
+	text-decoration: none;
+}
+.ar-tab[aria-current='page'] {
+	color: var(--text-1);
+	font-weight: 700;
+	border-color: var(--green);
+}
+.ar-tab:focus-visible {
+	outline: 2px solid var(--focus-ring, var(--green));
+	outline-offset: 2px;
+}
+/* On a phone the five tabs take two lines rather than three. */
+@media (max-width: 479.98px) {
+	.ar-tabs {
+		gap: 0.4rem;
+	}
+	.ar-tab {
+		padding: 0.4rem calc(0.5rem + 7px) 0.4rem 0.5rem;
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+	}
+}
+
+.ar-view {
+	container: ar-view / inline-size;
+}
+.ar-view-panel {
+	margin: 0 0 1.25rem;
+}
+.ar-view-h {
+	margin: 0 0 0.6rem;
+	color: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+.ar-view-h::before {
+	content: none;
+}
+.ar-more {
+	margin-top: 0.75rem;
+}
+
+/* A well: the list's recessed tray (the plate's well recipe paints it).
+   Rows are divided by etched lines, which the plate draws. */
+.ar-well {
+	list-style: none;
+	margin: 0 0 0.75rem;
+	padding: 0.15rem 0.75rem;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	background: var(--surface-0, var(--bg0));
+}
+.ar-well > li + li,
+.ar-well > tbody > tr + tr {
+	border-top: 1px solid var(--hairline, var(--line));
+}
+
 .ar-toolbar {
 	display: flex;
 	flex-wrap: wrap;
@@ -451,22 +631,52 @@ a.ar-list-title:hover {
 	flex-wrap: wrap;
 	gap: 0.4rem;
 }
+.ar-holders {
+	flex: 0 1 auto;
+}
+/* The holder filter as one select where the view is narrow (below). */
+.ar-holder-pick {
+	display: none;
+	flex: 1 1 12rem;
+}
+@container ar-view (max-width: 47.99rem) {
+	.ar-holders {
+		display: none;
+	}
+	.ar-holder-pick {
+		display: flex;
+	}
+}
 .ar-filter {
 	padding-inline: 0.8rem;
 }
 .ar-count {
-	margin-bottom: 0.4rem;
+	margin-bottom: 0.5rem;
 }
-.ar-tree,
-.ar-tree ul {
+
+/* Files: folders as disclosures, one line a file in a wide view. */
+.ar-tree {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.ar-folder .disc-body {
+	padding-top: 0.4rem;
+}
+.ar-folder-meta {
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.04em;
+	color: var(--text-2);
+}
+.ar-sublist {
 	list-style: none;
-	margin: 0;
-	padding: 0;
-}
-.ar-tree ul {
-	padding-left: 1rem;
+	margin: 0 0 0.25rem 0.35rem;
+	padding: 0 0 0 0.9rem;
 	border-left: 1px solid var(--hairline, var(--line));
-	margin-left: 0.35rem;
+}
+.ar-sublist > li + li {
+	border-top: 1px solid var(--hairline, var(--line));
 }
 .ar-folder-name {
 	display: flex;
@@ -477,33 +687,30 @@ a.ar-list-title:hover {
 	font-size: 0.82rem;
 	letter-spacing: 0.04em;
 	color: var(--text-2);
-	padding-top: 0.35rem;
 }
-.ar-file-item {
-	border-bottom: 1px solid var(--hairline, var(--line));
-}
-.ar-file-wrap {
+.ar-frow {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 0.25rem 0.5rem;
 }
 .ar-file {
-	flex: 1 1 18rem;
+	flex: 1 1 14rem;
 	display: grid;
 	grid-template-columns: 2rem minmax(0, 1fr);
-	gap: 0.15rem 0.6rem;
-	align-items: start;
+	gap: 0.1rem 0.6rem;
+	align-items: center;
 	min-height: 44px;
-	padding: 0.55rem 0.5rem;
+	padding: 0.4rem 0.25rem;
 	color: var(--text-1);
 	text-decoration: none;
 }
 .ar-file:hover {
 	background: color-mix(in srgb, var(--text-1) 5%, transparent);
 }
-.ar-file-item .ar-warn {
-	margin: 0 0.5rem 0.6rem;
+.ar-frow .ar-warn {
+	flex: 1 1 100%;
+	margin: 0 0.25rem 0.5rem;
 }
 .ar-file-glyph {
 	grid-row: span 2;
@@ -518,19 +725,49 @@ a.ar-list-title:hover {
 	font-size: 1rem;
 }
 .ar-file-name {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.2rem 0.4rem;
 	font-weight: 600;
-	font-size: 1.05rem;
+	font-size: 1rem;
 	overflow-wrap: anywhere;
 }
 .ar-file-line {
 	color: var(--text-2);
-	font-size: 0.92rem;
+	font-size: 0.9rem;
 	line-height: 1.35;
 }
 .ar-folder-inline {
 	font-family: var(--font-mono);
 	font-size: 0.82rem;
 	margin-right: 0.3rem;
+}
+.ar-row-key {
+	flex: none;
+	padding-inline: 0.8rem;
+}
+@container ar-view (min-width: 48rem) {
+	.ar-file {
+		grid-template-columns: 2rem minmax(9rem, 0.9fr) minmax(0, 1.6fr);
+		gap: 0 0.75rem;
+	}
+	.ar-file-glyph {
+		grid-row: auto;
+		width: 1.7rem;
+		height: 1.7rem;
+		font-size: 0.9rem;
+	}
+	.ar-file-name {
+		flex-wrap: nowrap;
+		overflow-wrap: normal;
+		min-width: 0;
+	}
+	.ar-file-name-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 }
 .ar-state {
 	font-weight: 700;
@@ -553,28 +790,172 @@ a.ar-list-title:hover {
 	align-items: center;
 	gap: 0.3rem;
 	padding: 0.05rem 0.5rem;
-	margin-left: 0.4rem;
 	border: 1px solid var(--boundary);
 	border-radius: 999px;
 	font-family: var(--font-mono);
 	font-size: 0.72rem;
+	font-weight: 400;
 	letter-spacing: 0.04em;
 	color: var(--text-2);
 	white-space: nowrap;
 }
 
+/* Checked out: a table, one line a row above 48rem of view, two below.
+   THE ROWS ARE GRID BOXES AT EVERY WIDTH, with one column template shared by
+   the header row and every body row, so the columns line up. A real table
+   row cannot carry a border in the separate border model, and the plate
+   etches the dividing line onto the ROW; a grid row takes both. */
+.ar-out-table {
+	--ar-out-cols: minmax(0, 2.3fr) minmax(0, 1.1fr) minmax(0, 1fr) 8.6rem 10.5rem;
+	display: block;
+	width: 100%;
+	padding: 0.15rem 0.6rem;
+}
+.ar-out-table thead,
+.ar-out-table tbody {
+	display: block;
+}
+.ar-out-table tr {
+	display: grid;
+	grid-template-columns: var(--ar-out-cols);
+	column-gap: 0.6rem;
+	align-items: center;
+}
+.ar-out-table th {
+	padding: 0.45rem 0 0.35rem;
+	text-align: left;
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	font-weight: 400;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ar-out-table td {
+	display: block;
+	padding: 0;
+	min-width: 0;
+	line-height: 1.3;
+}
+.ar-out-file a {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 44px;
+	min-width: 0;
+	color: var(--text-1);
+	text-decoration: none;
+}
+.ar-out-file a:hover .ar-out-name {
+	color: var(--hover-ink, var(--gold));
+}
+.ar-out-file .ar-file-glyph {
+	width: 1.6rem;
+	height: 1.6rem;
+	font-size: 0.85rem;
+}
+.ar-out-name {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+.ar-out-folder {
+	flex: 0 1 auto;
+	max-width: 45%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	color: var(--text-2);
+}
+.ar-out-who,
+.ar-out-device,
+.ar-out-since {
+	color: var(--text-2);
+	font-size: 0.9rem;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ar-out-who {
+	color: var(--text-1);
+}
+.ar-out-key {
+	text-align: right;
+}
+.ar-out-warn-row {
+	grid-template-columns: minmax(0, 1fr);
+}
+.ar-out-warn-row td {
+	padding: 0 0 0.5rem;
+}
+.ar-out-warn-row .ar-warn {
+	margin: 0;
+}
+/* Below 48rem a row is two lines: the file and the key, then who, where and
+   since. The header row is kept for a screen reader and hidden from view. */
+@container ar-view (max-width: 47.99rem) {
+	.ar-out-table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.ar-out-table .ar-out-row {
+		grid-template-columns: auto auto minmax(0, 1fr) auto;
+		column-gap: 0.4rem;
+		padding: 0 0 0.3rem;
+	}
+	.ar-out-who,
+	.ar-out-device,
+	.ar-out-since {
+		font-size: 0.85rem;
+		line-height: 1.2;
+	}
+	.ar-out-file {
+		grid-column: 1 / 4;
+		grid-row: 1;
+	}
+	.ar-out-key {
+		grid-column: 4;
+		grid-row: 1 / 3;
+	}
+	.ar-out-who {
+		grid-column: 1;
+		grid-row: 2;
+	}
+	.ar-out-device {
+		grid-column: 2;
+		grid-row: 2;
+	}
+	.ar-out-since {
+		grid-column: 3;
+		grid-row: 2;
+	}
+	.ar-out-device::before,
+	.ar-out-since::before {
+		content: '· ';
+		color: var(--text-2);
+	}
+}
+
 /* Activity */
 .ar-activity {
-	list-style: none;
-	padding: 0;
-	margin: 0;
+	padding-block: 0.15rem;
 }
 .ar-activity li {
 	display: grid;
 	grid-template-columns: 7.5rem minmax(0, 1fr);
 	gap: 0.6rem;
 	padding: 0.45rem 0;
-	border-bottom: 1px solid var(--hairline, var(--line));
 	line-height: 1.4;
 }
 .ar-activity-when {
@@ -583,33 +964,96 @@ a.ar-list-title:hover {
 	font-size: 0.78rem;
 	padding-top: 0.15rem;
 }
-@media (max-width: 30rem) {
+@container ar-view (max-width: 30rem) {
 	.ar-activity li {
 		grid-template-columns: 1fr;
 		gap: 0.1rem;
 	}
 }
 
-/* People */
-.ar-members {
-	list-style: none;
-	padding: 0;
-	margin: 0 0 1rem;
+/* Team: a person per row, linked to their site account. */
+.ar-person {
+	display: grid;
+	grid-template-columns: 40px minmax(0, 1fr) auto;
+	gap: 0.3rem 0.8rem;
+	align-items: start;
+	padding: 0.65rem 0;
 }
-.ar-member {
+.ar-person-face {
+	padding-top: 0.15rem;
+}
+.ar-person-main {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+}
+.ar-person-head {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	justify-content: space-between;
-	gap: 0.4rem 0.75rem;
-	min-height: 44px;
-	padding: 0.45rem 0;
-	border-bottom: 1px solid var(--hairline, var(--line));
+	gap: 0.3rem 0.5rem;
 }
-.ar-member-who {
+.ar-person-name {
+	font-weight: 700;
+	font-size: 1.05rem;
+	max-width: 100%;
+}
+.ar-presence {
+	list-style: none;
+	margin: 0.2rem 0 0;
+	padding: 0;
 	display: flex;
 	flex-direction: column;
-	flex: 1 1 11rem;
+	gap: 0.1rem;
+	font-size: 0.9rem;
+	color: var(--text-2);
+}
+.ar-presence-line {
+	display: flex;
+	gap: 0.4rem;
+	align-items: baseline;
+	line-height: 1.35;
+}
+.ar-presence-glyph {
+	flex: none;
+	width: 1rem;
+	text-align: center;
+}
+.ar-presence-open {
+	color: var(--text-1);
+}
+.ar-presence-open .ar-presence-glyph {
+	color: var(--green);
+}
+.ar-presence-device {
+	font-weight: 600;
+}
+.ar-person-out {
+	display: inline-flex;
+	align-items: center;
+	align-self: flex-start;
+	min-height: 44px;
+	font-weight: 600;
+	color: var(--text-1);
+	text-decoration: underline;
+	text-underline-offset: 0.15em;
+}
+a.ar-person-out:hover {
+	color: var(--hover-ink, var(--gold));
+}
+span.ar-person-out {
+	min-height: 0;
+	text-decoration: none;
+	color: var(--text-2);
+}
+@container ar-view (max-width: 32rem) {
+	.ar-person {
+		grid-template-columns: 40px minmax(0, 1fr);
+	}
+	.ar-person > .ar-member-actions {
+		grid-column: 2;
+	}
 }
 .ar-member-email {
 	color: var(--text-2);
@@ -631,15 +1075,184 @@ a.ar-list-title:hover {
 .ar-role select {
 	min-width: 8rem;
 }
+.ar-add {
+	margin-top: 1.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+.ar-paste {
+	margin-top: 0.4rem;
+}
+/* A disclosure's label is `flex: none` in the component, so a long one (Add
+   by email, Other projects as a site admin) ran 112px past a 375 window. In
+   this room the label may shrink and wrap; the Show / Hide word stays. */
+.ar-root .disc-trigger .disc-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	text-align: left;
+}
+.ar-paste .disc-body {
+	padding-top: 0.6rem;
+}
 .ar-bulk {
 	display: flex;
 	flex-direction: column;
 	gap: 0.6rem;
 }
+/* In a COLUMN flex a field's `flex: 1 1 14rem` became a 224px-tall box under
+   the textarea (the dead gap in the 2026-10-06 screenshots). */
+.ar-bulk > .ar-field {
+	flex: none;
+}
+.ar-role-field {
+	flex: 0 1 12rem;
+}
+
+/* The people picker: a combobox over the people search. */
+.ar-picker {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+.ar-picker-field {
+	flex: none;
+}
+.ar-combo {
+	position: relative;
+}
+.ar-combo input {
+	width: 100%;
+}
+.ar-combo-list {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	right: 0;
+	z-index: 5;
+	list-style: none;
+	margin: 0;
+	padding: 0.3rem;
+	max-height: min(24rem, 60vh);
+	overflow: auto;
+	background: var(--surface-1, var(--bg1));
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.ar-combo-option {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	width: 100%;
+	min-height: 48px;
+	padding: 0.3rem 0.5rem;
+	border: 0;
+	border-radius: var(--radius-control, 4px);
+	background: transparent;
+	color: var(--text-1);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+.ar-combo-option.highlighted {
+	background: color-mix(in srgb, var(--text-1) 9%, transparent);
+	outline: 1px solid var(--boundary);
+}
+.ar-combo-who {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.ar-combo-name {
+	font-weight: 600;
+}
+.ar-combo-email {
+	color: var(--text-2);
+	font-size: 0.82rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.ar-combo-empty {
+	padding: 0.6rem;
+	color: var(--text-2);
+	line-height: 1.4;
+}
+.ar-tray {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+.ar-tray-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	max-width: 100%;
+	padding-left: 0.7rem;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	background: var(--surface-0, var(--bg0));
+}
+.ar-tray-remove {
+	padding-inline: 0.7rem;
+}
+
+/* Project settings and Delete forever */
+.ar-settings {
+	display: grid;
+	gap: 1rem;
+	grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr));
+	align-items: start;
+}
+.ar-setting {
+	margin: 0;
+}
+.ar-setting h3 {
+	margin: 0 0 0.6rem;
+}
+.ar-danger-zone {
+	border-left: 4px solid var(--amber);
+}
+.ar-purge-field {
+	margin-top: 0.75rem;
+	margin-bottom: 0.6rem;
+}
 .ar-big {
 	font-size: 1.6rem;
 	font-weight: 700;
 	margin: 0;
+}
+
+/* The docked report control (decision of 2026-10-07). Below 480px it stacks
+   its word under its glyph, as the classroom header's does, so it keeps both
+   at the 44px floor without taking a line of its own. */
+.ar-report {
+	display: inline-flex;
+	align-items: center;
+}
+.ar-report .sfb-trigger {
+	border-radius: var(--radius-card);
+	border-color: var(--boundary);
+}
+@media (max-width: 479.98px) {
+	.ar-header .header-right {
+		gap: 0.5rem;
+	}
+	.ar-report .sfb-trigger {
+		flex-direction: column;
+		justify-content: center;
+		gap: 2px;
+		min-width: 44px;
+		padding: 0 0.3rem;
+		font-size: 0.6rem;
+		letter-spacing: 0.04em;
+		line-height: 1;
+	}
 }
 
 /* File history */

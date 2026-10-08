@@ -25,15 +25,22 @@ const outDir = args.find((a) => !a.startsWith('--')) ?? 'docs/armory/screens/v2'
 const STATES = [
 	'start', 'start-connected', 'start-mentor', 'start-flash',
 	'projects', 'projects-connected', 'projects-empty',
-	'empty', 'editing', 'synced', 'offline', 'side', 'storage-off',
+	'empty', 'editing', 'editing-out', 'synced', 'offline', 'side', 'storage-off',
 	'filter-out', 'filter-mine', 'search', 'archived', 'no-computer',
+	'people', 'people-pre033', 'people-student-mentor', 'activity', 'settings',
+	'many', 'many-out', 'many-activity', 'team', 'team-student',
+	'purge', 'purge-live', 'purge-blocked', 'admin-viewer', 'admin-viewer-team',
 	'devices', 'how', 'file-side', 'file-no-storage',
 	'connect', 'connect-bad', 'download', 'download-none'
 ];
-/** States that need a press before the picture: the armed Take back and the armed Archive. */
+/**
+ * States that need a press before the picture: the armed Force check in (on
+ * the Checked out view since the project page became views) and the armed
+ * Archive (on the Project view).
+ */
 const ACTIONS = {
-	'editing-take-back': { state: 'editing', click: '[data-testid="armory-checkouts"] [data-testid="armory-take-back"]' },
-	'editing-archive': { state: 'editing', click: '[data-testid="armory-archive"]' }
+	'editing-force-check-in': { state: 'editing-out', click: '[data-testid="armory-checkouts"] [data-testid="armory-take-back"]' },
+	'settings-archive': { state: 'settings', click: '[data-testid="armory-archive"]' }
 };
 const WIDTHS = [1440, 375];
 const THEMES = ['idea', 'space-white'];

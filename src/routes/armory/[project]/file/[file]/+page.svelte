@@ -25,7 +25,7 @@
 		title={view.file.name}
 		crumbs={[
 			{ href: '/armory', label: 'Armory' },
-			{ href: `/armory/${view.project.id}`, label: view.project.name }
+			{ href: `/armory/${view.project.id}?view=files`, label: view.project.name }
 		]}
 	>
 		<ArmoryFileView

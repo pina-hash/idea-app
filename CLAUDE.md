@@ -2534,6 +2534,62 @@ below; a third mount is a caller of it, never a third handler.
   deliveries, one source** -- there is exactly one copy of the shim text in the
   repo and running it twice is harmless.
 
+### IDEA ARMORY ON THE WEBSITE -- one view at a time, people linked to accounts, rows before objects
+
+**THE PROJECT PAGE IS A HEADER AND ONE VIEW (round of 2026-10-07, Mr. Pina's
+"it scrolls on for way too long").** `ArmoryProjectView` is the header
+(notices, the live line, recessed readouts) and the tab strip Files | Checked
+out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
+- **THE VIEW LIVES IN `?view=` AND THE COMPONENT READS IT.** The route reads
+  `page.url` and hands `view` down; the project load reads no url, so a tab
+  reruns nothing. Only the view goes in the address: the Checked out view's
+  holder filter is component state, because a reload would carry a student's
+  school address into the request logs.
+- **ONE NAME MAP, `teamNames`**, for every name on the page; the team's names
+  come from `armory_team_status`, which links the address to the site account
+  at read time (display name, else full name, never both; the Google photo
+  withheld behind a chosen avatar). A big project's folders arrive closed
+  (`$lib/Disclosure`, latched past 40 live files).
+- **THE PEOPLE SEARCH IS OFFERED BY ONE PREDICATE, `peopleSearchOffered`**
+  in `$lib/armory/team.ts`, which mirrors the database's gate (the "IS A
+  DIRECTORY" rule in the Armory history paragraph above), so nobody is offered
+  a search whose only answer is a refusal, and it also says why the paste box
+  is the way in. It runs from the input handler with a debounce and a request
+  counter, never from an `$effect`. A site admin manages people on any project
+  as a mentor would once 0233 is in (`memberManagerRole`).
+- **AN ADD IS NEVER A ROLE CHANGE.** `armory_add_member` (0231) overwrites an
+  existing member's role and answers true, so a batch added "As Student" would
+  demote a mentor in it and call that "Added". `addPeople`, the one loop under
+  the picker and the paste box, never sends somebody `members` already holds
+  (it lists them in `otherRole`, with their role, in words), and the picker
+  never trays a row marked "Already a ...". A role moves only on the member's
+  own row: staged in its select and written by its "Change to" key, for the
+  reason the classroom teams' Move to is a worded button.
+- **A REFUSAL IS READ FROM ITS SQLSTATE AND `DETAIL.reason`, NEVER ITS HTTP
+  STATUS**: PostgREST answers 23505 as 409 and 55000, 55006 and P0002 as 500,
+  which say nothing about what happened (`purgeRefusalWords`,
+  `memberErrorWords`). 0231's own P0001 and 42501 texts are read by the
+  Windows app too, so those stay matched as text.
+- **PRESENCE NEVER SAYS OFFLINE** (`devicePresence` in `$lib/armory/team.ts`):
+  "Armory open" inside `ARMORY_ONLINE_MS`, "Last heard from <time>" after, "No
+  status" with no heartbeat. The heartbeat writes no change-feed row, so the
+  Team view ages its own clock and re-reads through `startPoller` while open.
+- **FORCE CHECK IN** (`VERBS.takeBack`, renamed from "Take back") is
+  `armory_break_lock` for a mentor, a CAD lead or a site admin; the site sends
+  `p_device: null` only when `v033Ready` (the summaries rung) says 0233 is in.
+- **DELETE FOREVER IS ROWS, THEN THE QUEUE, THEN OBJECTS** (`POST
+  /api/armory/purge`, `handlePurge`): the RPC runs on the caller's client, `ok`
+  is true the moment it returns, and the sweep (`sweepArmoryOrphans`) deletes
+  only the hashes the queue hands over (what is queued, and when a hash counts
+  as swept, is the "STORED CONTENT IS SHARED" rule above). One residual race is
+  known: an app whose HEAD saw the object between the re-check and the DELETE
+  could skip its upload. Every storage request is cut short at the sweep's
+  deadline (`ARMORY_SWEEP_BUDGET`), and an answer that never arrived is said as
+  `PURGE_ANSWER_LOST`, never as "nothing was deleted", because the rows go
+  first. The type-the-name key is one predicate (`purgeCanSend`, NFC and
+  trimmed, as the RPC compares), `aria-disabled` and never `disabled`, and the
+  acknowledgement is shown on `/armory` through `page.state`.
+
 ---
 
 ## Commands
@@ -2732,7 +2788,9 @@ it is not required to browse.
   (`POST /api/foundry/source`), the IDEA Maps editor (everything under
   `/maps/edit`, gated once in its own `+layout.server.ts` -- the `/maps` viewer
   is PUBLIC per the maps spec, has shipped, and must never be prefix-guarded) and GAUNTLET's ranked-run review
-  (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`) -- all of which answer
+  (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`), and IDEA Armory's
+  Delete forever and storage cleanup (`POST /api/armory/purge`,
+  `POST /api/armory/sweep`, 0233) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
   **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
   GAUNTLET AUTHOR TIER below.
@@ -3207,10 +3265,15 @@ build break):
 - **`ARMORY_R2_ACCOUNT_ID` + `ARMORY_R2_ACCESS_KEY_ID` +
   `ARMORY_R2_SECRET_ACCESS_KEY` + `ARMORY_R2_BUCKET`** -- IDEA Armory's file
   storage (Cloudflare R2). Read ONLY by `src/lib/server/armory/storage.ts`, which
-  signs fifteen-minute URLs and never touches bytes. Any one unset is 503
+  signs fifteen-minute URLs and never reads or writes a file's bytes, and since
+  0233 also SENDS, from the server, a presigned DELETE and then a HEAD for a
+  stored file the database's orphan queue says no project names any more (the
+  sweep in `src/lib/server/armory/sweep.ts`, which marks it swept only when
+  that HEAD answers 404). Any one unset is 503
   `armory_storage_not_configured` from `/api/armory/blob-url`, a 503 from the
   past-version download (`/armory/<project>/file/<file>/version/<version>`,
-  ledger 0366), and nothing else.
+  ledger 0366), and a "File storage is not switched on" sentence from Delete
+  forever and the storage cleanup, which then make no request at all.
 - **`ARMORY_RELEASES_TOKEN`** -- a read-only GitHub token for the
   pina-hash/idea-armory releases WHILE THAT REPOSITORY IS PRIVATE. It was
   public on 2026-10-06, so `installerDownload` sends the browser straight to
@@ -4581,7 +4644,8 @@ inside the function fails closed rather than falling through to a weaker path.
     so a page added under an excluded section inherits it. A surface that takes
     the control off the shell mounts it itself at `place="relocated"` (the deck
     bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page,
-    the classroom header and the classroom projector's wall strip). **Every
+    the classroom header, the classroom projector's wall strip and the Armory
+    header, `ArmoryFrame`). **Every
     route under `/classroom` is the `classroom` category since ledger 0297**:
     the floating Report pill won hit tests over row controls, People's Remove
     and the grading dock, so `ClassroomShell` docks it (voice has no pill of its

@@ -1,36 +1,148 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
-	import { invalidate } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
+	import { page } from '$app/state';
 	import ArmoryFrame from '$lib/armory/ArmoryFrame.svelte';
 	import ArmoryNotice from '$lib/armory/ArmoryNotice.svelte';
 	import ArmoryProjectView from '$lib/armory/ArmoryProjectView.svelte';
 	import ArmorySignIn from '$lib/armory/ArmorySignIn.svelte';
 	import { armorySignIn } from '$lib/armory/sign-in';
 	import { watchArmoryProject, type LiveMode } from '$lib/armory/live';
-	import type { ArmoryRole } from '$lib/armory/view';
+	import { projectViewFromHash, projectViewHref } from '$lib/armory/nav';
+	import {
+		PEOPLE_SEARCH_LIMIT,
+		peopleSearchOffered,
+		PURGE_ANSWER_LOST,
+		type ArmoryPersonResult,
+		type ArmoryPurgePreview,
+		type PeopleSearchAnswer,
+		type PurgeAnswer
+	} from '$lib/armory/team';
+	import { armoryNotReady, type ArmoryMember, type ArmoryRole } from '$lib/armory/view';
+	import { isSignedOutFailure, PollSignedOut } from '$lib/classroom/poll';
+	import { trackInFlight } from '$lib/shell/deploy-safety';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let live = $state<LiveMode>('off');
 
 	const view = $derived(data.view);
+	const isAdmin = $derived(page.data.isAdmin === true);
 
-	async function rpc(name: string, args: Record<string, unknown>) {
+	/*
+	 * THE VIEW IS THE COMPONENT'S TO READ, NEVER THE LOAD'S: `?view=` is read
+	 * here off `page.url`, so a tab is a query change that reruns no load. `who`
+	 * may say `me` (it names nobody); a holder's address never goes in the URL.
+	 */
+	const shownView = $derived(page.url.searchParams.get('view'));
+	const who = $derived(page.url.searchParams.get('who') === 'me' ? 'me' : 'all');
+
+	/**
+	 * One write. `refresh: false` holds the page's reload (a batch of adds
+	 * reloads once, at the end). A refusal carries its SQLSTATE beside the text,
+	 * because the words are chosen from the code first and never from the HTTP
+	 * status (a 23505 arrives as 409, a P0002 as 500).
+	 */
+	async function rpc(name: string, args: Record<string, unknown>, opts: { refresh?: boolean } = {}) {
 		const { data: answer, error } = await data.supabase.rpc(name, { ...args, p_operation: crypto.randomUUID() });
-		if (error) return { ok: false as const, message: error.message };
-		await invalidate('armory:project');
+		if (error) return { ok: false as const, message: error.message, code: error.code };
+		if (opts.refresh !== false) await invalidate('armory:project');
 		return answer === false ? { ok: false as const, message: 'nothing changed' } : { ok: true as const };
 	}
 
-	const isMentor = $derived(view?.project.role === 'mentor');
-	const mayTakeBack = $derived(view?.project.role === 'mentor' || view?.project.role === 'cad_lead');
-	// TAKE BACK IS `armory_break_lock` (contract C8), WHICH NAMES ONE OF THE
-	// CALLER'S OWN REGISTERED COMPUTERS. The website is not a computer, so it
-	// sends the one this person was most recently heard from (`devices` is
-	// sorted that way); with none, the control is absent and the panel says why.
-	const takeDevice = $derived(view?.devices[0]?.id ?? null);
+	const role = $derived(view?.project.role ?? null);
+	const isMentor = $derived(role === 'mentor');
+	const v033 = $derived(view?.v033Ready === true);
+	/*
+	 * FORCE CHECK IN IS `armory_break_lock` (contract C8 and Armory v0.3 item
+	 * 2): mentors, CAD leads, and a site admin once 0233 admits one. 0233 also
+	 * accepts a NULL computer from the website, and `v033Ready` (the summaries
+	 * rung answering) is what licenses sending it, because the widening ships
+	 * in the same file. On an older database the RPC still names one of the
+	 * caller's own registered computers, so the site sends the one most recently
+	 * heard from, and with none the control is absent and the view says why.
+	 */
+	const mayForce = $derived(role === 'mentor' || role === 'cad_lead' || (isAdmin && v033));
+	const takeDevice = $derived(v033 ? null : (view?.devices[0]?.id ?? null));
+	const forceNeedsComputer = $derived(mayForce && !v033 && !takeDevice);
+
+	/*
+	 * THE PEOPLE SEARCH IS OFFERED TO WHOM 0233 ADMITS, AND NOBODY ELSE: a site
+	 * admin, or a mentor of this project on a school teacher's address
+	 * (`peopleSearchOffered`). Everyone else adds by email, and the Team view
+	 * says why from the same predicate.
+	 */
+	const searchPeople = $derived(
+		view && v033 && peopleSearchOffered({ isAdmin, role, email: data.email })
+			? async (query: string): Promise<PeopleSearchAnswer> => {
+					const { data: rows, error } = await data.supabase.rpc('armory_people_search', {
+						p_project: view.project.id,
+						p_query: query,
+						p_limit: PEOPLE_SEARCH_LIMIT
+					});
+					if (error) {
+						if (armoryNotReady(error)) return { ok: false, reason: 'unavailable' };
+						if (error.code === '42501') return { ok: false, reason: 'refused' };
+						return { ok: false, reason: 'failed' };
+					}
+					return { ok: true, rows: (Array.isArray(rows) ? rows : []) as ArmoryPersonResult[] };
+				}
+			: null
+	);
+
+	const loadTeam = $derived(
+		view && v033
+			? async (): Promise<ArmoryMember[] | null> => {
+					const { data: rows, error } = await data.supabase.rpc('armory_team_status', { p_project: view.project.id });
+					if (error) {
+						if (isSignedOutFailure(error)) throw new PollSignedOut();
+						return null;
+					}
+					return Array.isArray(rows) ? (rows as ArmoryMember[]) : null;
+				}
+			: null
+	);
+
+	const purge = $derived(
+		view && isAdmin && v033
+			? async (confirmName: string, operation: string): Promise<PurgeAnswer> => {
+					try {
+						const response = await trackInFlight(
+							fetch('/api/armory/purge', {
+								method: 'POST',
+								headers: { 'content-type': 'application/json' },
+								body: JSON.stringify({ projectId: view.project.id, confirmName, operation })
+							}),
+							'armory delete forever'
+						);
+						const body = (await response.json().catch(() => null)) as
+							| { ok: true; storageProblem: string | null }
+							| { ok: false; message: string }
+							| null;
+						if (response.ok && body?.ok) return { ok: true, storageProblem: body.storageProblem ?? null };
+						if (body && !body.ok && body.message) return { ok: false, message: body.message };
+						// No worded answer came back, so the rows may already be gone: say so, never "nothing was deleted".
+						return { ok: false, message: PURGE_ANSWER_LOST };
+					} catch {
+						return { ok: false, message: PURGE_ANSWER_LOST };
+					}
+				}
+			: null
+	);
+
+	const purgePreview = $derived(
+		view && isAdmin && v033
+			? async (): Promise<ArmoryPurgePreview | null> => {
+					const { data: preview, error } = await data.supabase.rpc('armory_purge_preview', { p_project: view.project.id, p_folder: null });
+					return error || !preview || typeof preview !== 'object' ? null : (preview as ArmoryPurgePreview);
+				}
+			: null
+	);
 
 	onMount(() => {
+		// The address before this round sent people to `#people`; that is the Team view now.
+		const legacy = projectViewFromHash(window.location.hash);
+		if (legacy) void goto(projectViewHref(legacy), { replaceState: true, noScroll: true });
 		const v = untrack(() => data.view);
 		if (!v || !data.supabase) return;
 		return watchArmoryProject(
@@ -56,11 +168,7 @@
 		</ArmoryNotice>
 	</ArmoryFrame>
 {:else}
-	<ArmoryFrame
-		title={view.project.name}
-		crumbs={[{ href: '/armory', label: 'Armory' }]}
-		lead={`These files are the ones in C:\\IDEA\\Armory\\${view.project.name} on every connected computer.`}
-	>
+	<ArmoryFrame title={view.project.name} crumbs={[{ href: '/armory', label: 'Armory' }]}>
 		{#if !view.storageReady}
 			<ArmoryNotice title="File storage is not switched on yet." testid="armory-storage-off">
 				Computers can connect and you can see who has what checked out, but saved files will not upload
@@ -79,16 +187,29 @@
 			now={view.now}
 			myEmail={data.email}
 			{live}
-			addMember={(email: string, role: ArmoryRole) => rpc('armory_add_member', { p_project: view.project.id, p_email: email, p_role: role })}
+			view={shownView}
+			{isAdmin}
+			adminReach={isAdmin && v033}
+			teamReady={view.teamReady}
+			initialHolder={who}
+			addMember={(email: string, r: ArmoryRole, opts?: { refresh?: boolean }) =>
+				rpc('armory_add_member', { p_project: view.project.id, p_email: email, p_role: r }, opts)}
 			removeMember={(email: string) => rpc('armory_remove_member', { p_project: view.project.id, p_email: email })}
-			takeBack={mayTakeBack && takeDevice
+			takeBack={mayForce && (v033 || takeDevice)
 				? (fileId: string) => rpc('armory_break_lock', { p_file: fileId, p_device: takeDevice })
 				: null}
-			takeBackNeedsComputer={mayTakeBack && !takeDevice}
+			takeBackNeedsComputer={forceNeedsComputer}
 			rename={isMentor ? (name: string) => rpc('armory_rename_project', { p_project: view.project.id, p_name: name }) : null}
-			setArchived={isMentor
+			setArchived={isMentor || (isAdmin && v033)
 				? (archived: boolean) => rpc('armory_set_project_archived', { p_project: view.project.id, p_archived: archived })
 				: null}
+			{searchPeople}
+			{loadTeam}
+			refresh={() => invalidate('armory:project')}
+			{purge}
+			{purgePreview}
+			onpurged={(name: string, storageProblem: string | null) =>
+				goto('/armory', { state: { armoryDeleted: name, armoryStorageProblem: storageProblem } })}
 		/>
 	</ArmoryFrame>
 {/if}

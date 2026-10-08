@@ -3,12 +3,18 @@
 	 * "How Armory works", in the words a student uses: the four verbs (the
 	 * contract's C8 words, `VERBS`), versions and side versions. Short on
 	 * purpose; it sits on the projects page and the setup page.
+	 *
+	 * `folded` (the projects page): a `$lib/Disclosure` that arrives closed once
+	 * a computer of theirs is connected, because by then they have read it. Left
+	 * out, the panel is always open (the setup page, where it is the point).
 	 */
+	import Disclosure from '$lib/Disclosure.svelte';
 	import { VERBS } from './view';
+
+	let { folded = null }: { folded?: boolean | null } = $props();
 </script>
 
-<section class="ar-panel ar-how" aria-labelledby="ar-how-h" data-testid="armory-how">
-	<h2 id="ar-how-h">How Armory works</h2>
+{#snippet list()}
 	<dl class="ar-how-list">
 		<div>
 			<dt>{VERBS.checkOut}</dt>
@@ -32,9 +38,22 @@
 		<div>
 			<dt>{VERBS.undo} and {VERBS.takeBack}</dt>
 			<dd>
-				{VERBS.undo} gives a file back without saving. A mentor or CAD lead can {VERBS.takeBack.toLowerCase()} a file someone
-				forgot to check in; their unsaved changes are kept as a side version.
+				{VERBS.undo} gives a file back without saving. A mentor, a CAD lead or a site admin can use {VERBS.takeBack} on a file
+				someone forgot to check in; their unsaved changes are kept as a side version.
 			</dd>
 		</div>
 	</dl>
-</section>
+{/snippet}
+
+{#if folded === null}
+	<section class="ar-panel ar-how" aria-labelledby="ar-how-h" data-testid="armory-how">
+		<h2 id="ar-how-h">How Armory works</h2>
+		{@render list()}
+	</section>
+{:else}
+	<section class="ar-panel ar-how" data-testid="armory-how">
+		<Disclosure label="How Armory works" collapseWhen={folded} testId="armory-how-toggle">
+			{@render list()}
+		</Disclosure>
+	</section>
+{/if}

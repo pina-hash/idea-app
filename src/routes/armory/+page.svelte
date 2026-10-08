@@ -9,6 +9,7 @@
 	import ArmorySignIn from '$lib/armory/ArmorySignIn.svelte';
 	import { armorySignIn } from '$lib/armory/sign-in';
 	import { projectErrorWords } from '$lib/armory/view';
+	import { trackInFlight } from '$lib/shell/deploy-safety';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -30,6 +31,32 @@
 				}
 			: null
 	);
+
+	/*
+	 * STORAGE CLEANUP (0233, site admins): the same sweep the purge runs, for
+	 * whatever a purge left. Offered only while the count says files wait; the
+	 * route answers a bodyless 404 to anybody else.
+	 */
+	const sweep = $derived(
+		page.data.isAdmin && data.orphans !== null
+			? async () => {
+					try {
+						const response = await trackInFlight(fetch('/api/armory/sweep', { method: 'POST' }), 'armory storage cleanup');
+						const body = (await response.json().catch(() => null)) as
+							| { ok: true; swept: number; left: number | null; problem: string | null }
+							| null;
+						if (!response.ok || !body?.ok) return { ok: false as const, message: 'The cleanup did not run. Try again in a minute.' };
+						return body;
+					} catch {
+						return { ok: false as const, message: 'The cleanup did not run. Check the connection and try again.' };
+					}
+				}
+			: null
+	);
+
+	const deleted = $derived(
+		page.state.armoryDeleted ? { name: page.state.armoryDeleted, storageProblem: page.state.armoryStorageProblem ?? null } : null
+	);
 </script>
 
 <svelte:head><title>Armory // IDEA</title></svelte:head>
@@ -46,12 +73,16 @@
 		<ArmoryProjects
 			projects={data.projects}
 			devices={data.devices}
+			now={data.now}
 			{create}
 			onCreated={(id) => goto(`/armory/${id}`)}
+			orphans={data.orphans}
+			{sweep}
+			{deleted}
 		/>
 		<div class="ar-two">
 			<ArmoryDevices devices={data.devices} now={data.now} />
-			<ArmoryHowItWorks />
+			<ArmoryHowItWorks folded={data.devices.length > 0} />
 		</div>
 	{/if}
 </ArmoryFrame>
