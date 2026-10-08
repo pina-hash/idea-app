@@ -1,6 +1,6 @@
 # VANGUARD backlog
 
-**Read from the code, at VANGUARD build 213**, with two rows re-read at **build 214** (`src/lib/legacy/vanguard/index.html`,
+**Read from the code, at VANGUARD build 213**, with two rows re-read at **build 214** and the rows the build 215 note below names read at **build 215** (`src/lib/legacy/vanguard/index.html`,
 `src/routes/vanguard/+server.ts`, `src/lib/vanguard-save.ts`,
 `src/lib/vanguard-history.ts`, `src/routes/api/vanguard-*`).
 
@@ -37,6 +37,32 @@ the functions instead. Every OTHER row below was read at 213 and its line number
 are 213's; the paging change added roughly fifty lines around 5450-5630, so a
 quoted marker below that point sits further down the file than its number says.
 
+**BUILD 215 MOVED THE BUILD NUMBER AGAIN (2026-10-07), FOR THE SAME REASON.** A
+student reported, from the title screen after a death, that coins and build
+configurations "don't save when you die" (feedback report 3b56fb50). That is the
+design rather than a save defect: the STARTING BUILD (CONFIGURE BUILD, a fixed
+1000 i¢ budget) is saved to `vanguard_build` by `saveBuild` and nothing on the
+death path writes it, while the run's i¢ and everything bought at REFIT live on
+the per-run `player` that `startGame` rebuilds every run. Measured on the real
+`/vanguard/` route signed out, at 1440x900 and 375x812: a GUN POWER + RICOCHET
+build read `2 upgrades · 800 spent · 200 i¢ carried in` after a reload, at
+MISSION END and after a reload following the death, with `vanguard_build`
+unchanged, on build 214 and again on 215, while the run's coins (243 and 211 on
+214, 240 and 45 on 215) carried nowhere. NOT measured: the reporter's own
+signed-in cloud seed (no session here; it rests on reading `mergeBuild` and
+`applyCloud`, which keep the build with the newer `_bts`). What 215 changed,
+all in `index.html`: the MISSION END overlay gained one line, `#goCarry`, reading
+`i¢ AND REFIT UPGRADES LAST ONE RUN. YOUR STARTING BUILD STAYS SAVED.` (worded so
+it is also true on the co-op end screen that reuses the overlay, where every match
+runs `freshBuild()`); the calibration IDEA COIN step's objective gained `It lasts
+one run.` (still two lines under `card()`'s 54-character wrap); and `endRun` now
+restores the FELLED BY row, which co-op `showEnd` hides and which solo play in the
+same tab never showed again until a reload. Rows below were read at 213/214 unless
+they say 215; 215 added one line at 633 and so moves every later line by one.
+**Banking i¢ across runs (meta-progression) is Mr. Pina's decision and was not
+taken**: NORMAL and HARDCORE post to ranked boards, and every path by which a
+build grew past the fixed budget has been closed on purpose.
+
 ---
 
 ## 1. In-code deferred / follow-up markers
@@ -58,6 +84,22 @@ appear in section 4.
 | `src/lib/legacy/vanguard/index.html` (`fetchOnline` / `renderBoard`) | LEGACY BUILD | **CLOSED at build 214 (2026-09-05).** The marker this row quoted (`offset is threaded through for future pagination (0 today; no load-more UI yet)`) is gone from the file. **THE QUESTION THIS ROW WAS BLOCKED ON IS ANSWERED: the Apps Script backend DOES honour `offset`.** Mr. Pina supplied the `Code.gs` source on 2026-09-05 and `top(p)` reads `const offset = Math.max(0, Math.floor(+p.offset || 0))`, sorts descending, and returns `rows.slice(offset, offset + n)`, with `n` clamped to 500 (`BOARD_N` is 250, so a page is well inside the clamp). That made the remaining work client-side only. | **What shipped:** `fetchOnline(then, fail, offset, append)` gained a fourth parameter; with it set it EXTENDS `onlineBoard` (deduped on name/name2/score/time, re-sorted) instead of overwriting, and records `boardLoaded` (the next offset) and `boardMore` (whether the last page came back full). **All four pre-existing call sites were left exactly as they were** and still replace, which is what every one of them wants; appending is opt-in at the one new caller, `loadMoreBoard`. A LOAD MORE control is drawn as the last row inside the board box, and ONLY while `boardMore` is true, so a mode with 40 scores never offers it. `renderBoard` no longer truncates to `BOARD_N` (that would have thrown away every page after the first) and `mergeScore` caps at `max(BOARD_N, boardLoaded)` for the same reason. **The below-the-cut rank stopped claiming a number it cannot know:** while pages remain the player's own appended row reads `>250` with a `··· BELOW TOP 250 ···` separator and the row detail says `BELOW TOP 250`; once a short page proves the board complete it prints the real rank. `tests/vanguard-board-paging.test.ts` cuts the board source out of the shipped build and drives it against a scripted backend. **NOT VERIFIED: that a second page actually arrives.** Nothing in this repository can reach the Apps Script deployment; the offset behaviour above is read from the backend source, not exercised. |
 | `src/lib/legacy/vanguard/index.html:6388` (the comment) / `:6459` (the call) | **PORTAL** (`+server.ts` and `vanguard-save.ts`) | ~~Clearing a worn title calls `localStorage.removeItem('vanguard_ach_title')`, and the portal's cloud save wraps `setItem` only.~~ **CLOSED 2026-08-28, entirely on the portal side, so no build number moved.** The injection now wraps `removeItem` beside `setItem`, inside the same `if (SIGNED_IN)` guard, and a removal is carried to `/api/vanguard-save` in the snapshot the POST body already sends. **The wrapper was only half the fix**: `StoredSave.progression` is `Record<string, string>`, where absence already means "this device has nothing to contribute" -- so a snapshot with the key simply missing merged to a no-op and the value came straight back. The stored shape gained a reserved value (`REMOVED` in `vanguard-save.ts`) before the wrapper had anything to send. Three keys are affected in practice: `vanguard_ach_title` (progression, the one that was actually broken), `vanguard_sfx_lvl` and `vanguard_baltune` (preferences, which a bucket replacement was already deleting once anything else triggered a push). | Done. **What is NOT done and is deliberate: `localStorage.clear` is not wrapped.** The build contains zero occurrences of `localStorage.clear`, so any caller is code we cannot attribute -- another surface on this origin, an extension, a console -- and propagating an unattributable wipe would let one call destroy a student's whole cloud save. Wrapping it needs a caller worth attributing first; `tests/vanguard-save-removal.test.ts` reddens if the build ever grows one. **Also still open: a SECOND device holding the old value pushes it back**, because a removal is an event and the snapshot carries no per-key write stamps to adjudicate against. Closing that is a wider change than a removal path. |
 | `src/lib/vanguard-history.ts:5` | **PORTAL** (`vanguard-history.ts`) | ~~`both the read endpoint (/api/vanguard-run GET) and the portal history page call it` -- the portal history page no longer exists.~~ **CLOSED 2026-08-28, portal side, no build number moved.** Re-counted before editing: `summarizeRuns` has exactly one importer and one call site in the whole tree, `src/routes/api/vanguard-run/+server.ts:2` and `:45`, and there is no route under `src/routes` serving a VANGUARD history page. The in-game overlay reads the summary off that endpoint's response rather than computing one. | Done. The comment now states the single caller and says why the count matters -- a claimed second consumer is how a function gets kept general for a caller that does not exist. Adding a real second caller means correcting that line in the same commit. |
+
+**NOT A MARKER, BUT LATENT, AND FOUND AT BUILD 215: the over-budget guards reset
+a starting build SILENTLY.** LEGACY BUILD side. `index.html:1167` (at load,
+`if(startBuild.spent>START_BUDGET || (buildCount()>0 && startBuild.spent<=0)){ startBuild=freshBuild(); saveBuild(); }`)
+and `:2176-2180` (in `startGame`, on `buildCost(startBuild)>START_BUDGET` or a
+build saved in DEV/TUNE) replace a build they cannot certify with `freshBuild()`
+and say nothing on screen. That is right as an anti-exploit guard, and no student
+can reach it today (`buildCost` replays the build deterministically and every
+purchase is budget-checked). **Two halves would turn it into the "my build did
+not save" report the day it fired:** neither guard tells the player, and the
+`startGame` one never calls `refreshBuildSummary()` (its only callers are the
+purchase handler, `closeOutfit`, `resetBuild` and the load path), so the title's
+STARTING BUILD panel would go on listing the wiped build until a reload. **A
+rebalance that RAISES any `outfitOffers` price is what fires it**, for every saved
+build above the new total -- so such a change ships, in the same build, a visible
+notice and a `refreshBuildSummary()` after the `startGame` reset.
 
 ---
 
@@ -137,6 +179,17 @@ is set only by the calibration walkthrough (`index.html:6034`, driven by
 `window.CALIB` at `:6038`), which is offered on first run (`:748`) and replayable
 from the title's CALIBRATION button (`:578`). It counts no games played, spawns
 no waves, and never submits.
+
+**The HOW TO PLAY pages -- built, and unreachable (read at build 215).**
+`TUT_PAGES` (`index.html:6094`), `renderTut`, `openTut` (`:6107`) and the
+`#ovlTut` overlay (`:746`) are all in the build, and `openTut` has NO caller: its
+name occurs once in the file, at its own definition, and nowhere in `+server.ts`.
+The title button whose id is still `howtoBtn` (`:586`) is labelled CALIBRATION and
+runs `startCalib()` (`:6112`). So the one sentence that ever explained what a
+death keeps -- `Set a permanent loadout with CONFIGURE BUILD on the title`, on the
+STYLE & REFIT page (`:6100`) -- has never reached a student, which is part of why
+build 215 had to say it on the MISSION END screen instead. **Do not revive the
+pages to answer that**: the death screen is where the question is asked.
 
 **THREE dev-only query flags, opt-in and inert on a normal load.** This section
 said "two" for a long time, and the missing one was the one a session actually
@@ -353,23 +406,34 @@ achievement system** -- those changed outside the CHANGELOG's account of itself,
 which is the boundary described at the top of this file. 210 touches the run
 history OVERLAY, which is rendering, not the endpoints.
 
-### The version number has outrun its changelog
+### The version number used to outrun its changelog (SUPERSEDED)
 
-`index.html:819` reads `const VERSION='213'`, and the newest `CHANGELOG` entry is
-**212**. There is no entry for 213. **This is the failure mode that makes this
-whole section quietly incomplete**: section 4 is assembled by reading the
-`CHANGELOG` array, so any build that bumps `VERSION` without adding a line is
-invisible here, and nothing reports it. The gap has to be checked by comparing
-the constant against the array, which is what produced this note.
+**SUPERSEDED, re-read at build 215 (2026-10-07). Both halves of this note stopped
+being true and it is kept below only as the record of what it said.** 213 has a
+`CHANGELOG` entry; `VERSION` now sits at `index.html:828`, not `:819`; and
+`tools/post-commit-vanguard.js` no longer exists -- commit 1b2717fb ("make the
+CHANGELOG check real") deleted it and put `tools/check-vanguard-changelog.mjs` in
+its place, which `.github/workflows/ci.yml` runs as a gate on every CI run, so a
+`VERSION` bump with no matching entry now fails CI instead of shipping silently. The bump
+is still made by hand, in the same commit as its entry (214 and 215 both were).
 
-**The tooling build 185 refers to exists, and is not wired.**
-`tools/post-commit-vanguard.js` is written as a git `post-commit` hook that
-bumps `VERSION` and appends a `CHANGELOG` entry on any commit touching
-`src/lib/legacy/vanguard/` or `src/routes/vanguard/`. Nothing invokes it:
-there is no `.git/hooks/post-commit` and `core.hooksPath` is unset (both
-re-checked at build 213). Its own header explains why it cannot simply be
-wired -- every session here runs in a fresh ephemeral clone with no persistent
-`.git/hooks/` to install into -- and records that the uptick is happening by
-hand instead, which is exactly how 213 came to have no entry. Do not delete it
-and do not wire it as a local hook; if the uptick should be automatic, it needs
-a mechanism that survives a fresh clone.
+What the note said at build 213:
+
+> `index.html:819` reads `const VERSION='213'`, and the newest `CHANGELOG` entry is
+> **212**. There is no entry for 213. **This is the failure mode that makes this
+> whole section quietly incomplete**: section 4 is assembled by reading the
+> `CHANGELOG` array, so any build that bumps `VERSION` without adding a line is
+> invisible here, and nothing reports it. The gap has to be checked by comparing
+> the constant against the array, which is what produced this note.
+>
+> **The tooling build 185 refers to exists, and is not wired.**
+> `tools/post-commit-vanguard.js` is written as a git `post-commit` hook that
+> bumps `VERSION` and appends a `CHANGELOG` entry on any commit touching
+> `src/lib/legacy/vanguard/` or `src/routes/vanguard/`. Nothing invokes it:
+> there is no `.git/hooks/post-commit` and `core.hooksPath` is unset (both
+> re-checked at build 213). Its own header explains why it cannot simply be
+> wired -- every session here runs in a fresh ephemeral clone with no persistent
+> `.git/hooks/` to install into -- and records that the uptick is happening by
+> hand instead, which is exactly how 213 came to have no entry. Do not delete it
+> and do not wire it as a local hook; if the uptick should be automatic, it needs
+> a mechanism that survives a fresh clone.

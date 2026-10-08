@@ -630,6 +630,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <div class="go-stat go-in">BOSSES <b id="finalBosses">0</b> &nbsp; BEST STYLE <b id="finalCombo">D</b> &nbsp; AVG STYLE <b id="finalAvg">D</b></div>
     <div class="go-stat go-in">PARRIES <b id="finalParries">0</b><span id="finalPerfect"></span> &nbsp; COINS <b id="finalCoins">0</b></div>
     <div class="go-stat go-in" id="goMelt" style="display:none">MELTDOWN <b id="finalMelt">0</b></div>
+    <div class="tag go-in" id="goCarry" style="max-width:320px;line-height:1.6;letter-spacing:.12em;color:var(--cyan)">i¢ AND REFIT UPGRADES LAST ONE RUN. YOUR STARTING BUILD STAYS SAVED.</div>
     <div class="go-in" id="goAch" style="display:none"></div>
     <div class="tag" id="enterHint">ENTER INITIALS</div>
     <div class="initials" id="initials"></div>
@@ -824,7 +825,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='214';
+const VERSION='215';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -5277,7 +5278,7 @@ function endRun(){
       const gm=el('goMelt'); if(gm){ gm.style.display=(runMeltdownUses>0)?'':'none'; const fm=el('finalMelt'); if(fm)fm.textContent=runMeltdownUses; } }
     { let br=STYLE_RANKS[0]; for(const k of STYLE_RANKS){ if((window.maxStyle||0)>=k.min)br=k; } el('finalCombo').textContent=br.g;
       const _avg=(window.styleTime>0)?(window.styleSum/window.styleTime):0; let ar=STYLE_RANKS[0]; for(const k of STYLE_RANKS){ if(_avg>=k.min)ar=k; } const _fa=el('finalAvg'); if(_fa){ _fa.textContent=ar.g; _fa.style.color=ar.c; } }
-    const fb=el('felledBy'); const kg=document.getElementById('killerGlyph');
+    const fb=el('felledBy'); if(fb&&fb.parentElement) fb.parentElement.style.display=''; const kg=document.getElementById('killerGlyph');
     { const fd=el('felledByDetail');
       if(fd){ if(killerInfo&&killerInfo.fk){ const F=FACTIONS[killerInfo.fk];
           const tier=/BOSS/.test(killerInfo.label||'')?'BOSS':(killerInfo.variant===2?'HEAVY':killerInfo.variant===1?'ELITE':'GRUNT');
@@ -6160,7 +6161,7 @@ window.CALIB=(function(){
       {name:'THREAT', obj:'Enemy fire is aimed at you. Sitting still gets you killed. Dodge the shot.', keys:['WASD'], setup(){ boltT=0.5; this.fired=false; }, check(){ boltT-=1/60; if(!this.fired&&boltT<=0){ pushThreat(); this.fired=true; } return this.fired && calibBolts()===0 && bt>1.8; }},
       {name:'PARRY', obj:'Tap parry as the white bolt lands. A clean CATCH gives full invulnerability and mends your hull. Do not mash, it JAMS.', keys:[keybinds.parry], setup(){ boltT=0.6; this.base=runParries; glow('hull',true); }, check(){ boltT-=1/60; if(calibBolts()===0 && boltT<=0){ pushParryBolt(); boltT=2.6; } if(runParries>this.base){ player.armor=Math.min(player.maxArmor,player.armor+1); pops.push({x:player.x,y:player.y-34,txt:'+HULL',c:COL.green,life:.9,max:.9}); rings.push({x:player.x,y:player.y,r:12,vr:400,life:.4,max:.4,c:COL.cyan}); return true; } return false; }},
       {name:'HEAVY WEAPON', obj:'Hold heavy to fire the PRISM BEAM. It burns through grunt fire.', keys:[keybinds.beam,keybinds.beamAlt], setup(){ player.beamE=player.beamMax; player.beamLock=false; player.beamDrained=false; spawnDummy(W/2,150); this.base=runHeavyUse.beam||0; this.st=0; }, check(){ this.st=(this.st||0)+1/60; if(this.st>0.5){ this.st=0; const d=enemies.find(e=>e.calib&&!e.dead); if(d) ebul.push({x:d.x,y:d.y+12,vx:0,vy:150,c:d.c,r:3,owner:d,calib:true}); } this.p=Math.min(((runHeavyUse.beam||0)-this.base)/0.25,1); return (runHeavyUse.beam||0) > this.base+0.25; }},
-      {name:'IDEA COIN', obj:'Kills earn i¢. Grab the CORE for a jackpot. Spend it at REFIT after each boss.', keys:[], setup(){ this.base=player.coins; spawnDummy(W/2-70,170); spawnDummy(W/2+70,170); this.cored=false; glow('coins',true); }, check(){ const a=enemies.filter(e=>e.calib&&!e.dead).length; this.p=1-a/3; if(a===0 && !this.cored){ this.cored=true; pods.push({x:W/2,y:120,vy:42,type:'core',fk:'ace',c:COL.gold,bob:rnd(0,6.28),r:16,spin:0}); } else if(this.cored && player.coins<=this.base+50 && !pods.some(p=>p.type==='core')){ pods.push({x:W/2,y:120,vy:42,type:'core',fk:'ace',c:COL.gold,bob:rnd(0,6.28),r:16,spin:0}); } return this.cored && player.coins>this.base+50 && bt>2.4; }},
+      {name:'IDEA COIN', obj:'Kills earn i¢. Grab the CORE for a jackpot. Spend it at REFIT after each boss. It lasts one run.', keys:[], setup(){ this.base=player.coins; spawnDummy(W/2-70,170); spawnDummy(W/2+70,170); this.cored=false; glow('coins',true); }, check(){ const a=enemies.filter(e=>e.calib&&!e.dead).length; this.p=1-a/3; if(a===0 && !this.cored){ this.cored=true; pods.push({x:W/2,y:120,vy:42,type:'core',fk:'ace',c:COL.gold,bob:rnd(0,6.28),r:16,spin:0}); } else if(this.cored && player.coins<=this.base+50 && !pods.some(p=>p.type==='core')){ pods.push({x:W/2,y:120,vy:42,type:'core',fk:'ace',c:COL.gold,bob:rnd(0,6.28),r:16,spin:0}); } return this.cored && player.coins>this.base+50 && bt>2.4; }},
       {name:'THE SYSTEM', obj:'The system never stops. Clear the wave. Chain kills without a hit to raise STYLE.', keys:[], setup(){ this.total=4; for(let k=0;k<4;k++){ const e=makeEnemy(FKEYS[k%FKEYS.length],0, W/2+(k-1.5)*88, -30-k*34, 'free'); e.calibWave=true; e.hp=Math.max(6,Math.round(e.maxhp*0.5)); e.maxhp=e.hp; enemies.push(e); } }, check(){ const a=enemies.filter(e=>e.calibWave&&!e.dead).length; this.p=1-a/this.total; return a===0; }},
       {name:'CALIBRATION COMPLETE', obj:'Calibration complete. Good hunting, pilot.', keys:[], setup(){ clearCalib(); ebul.length=0; }, check(){ return bt>2.8; }}
     ];
@@ -6176,6 +6177,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'215',date:'2026',items:['The MISSION END screen now says what carries over: i¢ and REFIT upgrades last one run, and your STARTING BUILD stays saved','After a co-op match, the MISSION END screen shows FELLED BY again']},
  {ver:'214',date:'2026',items:['Leaderboards go past the top 250: a LOAD MORE button at the foot of the board pulls in the next batch, and it only appears when there is more to load','If your score is below what is on screen, the board no longer guesses your rank - it says how far down you are, and shows your real number once you have loaded to the end']},
  {ver:'213',date:'2026',items:['Gate VANGUARD\'s DEV mode behind the admin check TUNE already uses, and correct two stale HISTORY claims']},
  {ver:'212',date:'2026',items:['REPORT: tell us about a bug or an idea from inside the game - the button sits with the IDEA link at the top right, and it fills in your build, your mode and your sector for you']},
