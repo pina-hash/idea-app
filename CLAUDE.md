@@ -6254,7 +6254,10 @@ the source of truth; **do not invent colours or swap fonts.**
     avatar preset, `AVATAR_TINTS_ON_LIGHT`, and a Space White `--acc-ink` per
     launcher card: the identity color never moves, the twin moves lightness
     only. `tests/space-white-inks.test.ts` parses the real grounds out of the
-    theme file.
+    theme file. A hover wash under a light theme mixes into `--bg1`, never into
+    transparent, or it disappears on white. A theme difference inside a
+    component is a theme-keyed override there, never a new token in the theme
+    file: theme files hold tokens only.
     - **ON SPACE WHITE A LAUNCHER CARD'S TWIN PAINTS ONLY ITS 2px STRIP, AND
       EVERY CARD'S WORD, GLYPH AND CALL TO ACTION ARE ONE GREEN (round
       2026-10-07, on Mr. Pina's report that "a lot of the colors look off"
@@ -6267,10 +6270,7 @@ the source of truth; **do not invent colours or swap fonts.**
       and the strip to the card's `--acc-ink`, solid; an app is told apart by
       its mark's shape, its title, its strip and the FIRST logo. Every
       declaration sits under the theme attribute, so IDEA and Matrix are
-      byte-identical, and the identity pair is untouched. A hover wash under a light theme mixes into `--bg1`, never into
-    transparent, or it disappears on white. A theme difference inside a
-    component is a theme-keyed override there, never a new token in the theme
-    file: theme files hold tokens only.
+      byte-identical, and the identity pair is untouched.
   - **A PHONE AT 30 FPS IS NOT A SLOW DEVICE (report R09).** The Matrix rain
     degrades only when the median of a 90-frame window is 45ms or longer
     (`judgeFrame` in `$lib/design-system/themes/matrix-rain.ts`), after a 3s

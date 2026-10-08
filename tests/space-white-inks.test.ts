@@ -288,7 +288,7 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		// ABSENT: no per-card Space White rule puts a second ink back on a word,
 		// a glyph or an edge.
 		expect(perCardDecls.length).toBeGreaterThanOrEqual(8); // positive control on the reader (GAUNTLET and VANGUARD share one rule)
-		const offenders = perCardDecls.filter((d) => /--acc(-title|-edge)?\s*:/.test(d));
+		const offenders = perCardDecls.filter((d) => /--acc(-title|-edge(-strong)?|-line(-strong)?|-wash)?\s*:/.test(d));
 		expect(offenders).toEqual([]);
 		// AND THE DARK THEMES ARE UNTOUCHED: the default rule still derives the
 		// word from the card's own ink and the edge from its brand at 75%.

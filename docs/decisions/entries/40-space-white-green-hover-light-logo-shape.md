@@ -38,3 +38,4 @@
 
 The profile menu's name is no longer tinted by pathway (it read neon green on white); it
 takes `--text-1`, and the pathway chip beside it carries the color.
+- Amended 2026-10-07 (decision 55, home-on-space-white, ledger 0368): on Mr. Pina's report, Space White draws NO home particles (reversing his 2026-09-29 answer), and on Space White only every launcher card's word, glyph and call to action are one green with a plate-hairline edge, each card keeping its own light ink only in its 2px strip.
