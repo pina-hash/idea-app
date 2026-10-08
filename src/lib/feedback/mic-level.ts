@@ -156,10 +156,16 @@ export class MicLevel implements MicMeter {
 			stopTracks(stream);
 			return;
 		}
+		// HELD BEFORE ANY FURTHER AWAIT. A `close()` that lands while the
+		// context below is resuming has to be able to reach this capture, or a
+		// resume that never settles leaves the microphone open with nothing
+		// holding it.
+		this.#stream = stream;
 		let ctx: AudioContextLike | null = null;
 		let analyser: AnalyserLike;
 		try {
 			ctx = new Ctx();
+			this.#ctx = ctx;
 			analyser = ctx.createAnalyser();
 			analyser.fftSize = 256;
 			ctx.createMediaStreamSource(stream).connect(analyser);
@@ -167,17 +173,17 @@ export class MicLevel implements MicMeter {
 			// context may begin suspended; a resume that fails is no meter.
 			if (ctx.state === 'suspended' && ctx.resume) await ctx.resume();
 		} catch {
+			if (gen === this.#gen) {
+				this.#stream = null;
+				this.#ctx = null;
+			}
 			stopTracks(stream);
 			void ctx?.close().catch(() => {});
 			return;
 		}
-		if (gen !== this.#gen) {
-			stopTracks(stream);
-			void ctx.close().catch(() => {});
-			return;
-		}
-		this.#stream = stream;
-		this.#ctx = ctx;
+		// Closed while resuming: `close()` already stopped the tracks and
+		// closed the context through the two fields above.
+		if (gen !== this.#gen) return;
 		const buf = new Float32Array(analyser.fftSize);
 		let shown = 0;
 		let drawn = -1;

@@ -95,7 +95,7 @@ const RUBRIC = [
 	{ id: 'c2', criterion: 'Labels', levels: LEVELS }
 ];
 
-function mountConsole(): Mounted {
+function mountConsole(transports: Record<string, unknown> = {}): Mounted {
 	return mountInto(GradingConsole as unknown as Component<Record<string, unknown>>, {
 		section: SECTION,
 		item: ITEM,
@@ -104,7 +104,8 @@ function mountConsole(): Mounted {
 		transports: {
 			loadGrading: async () => ({ ok: true, data: GRADING }),
 			saveDraft: async () => ({ ok: true }),
-			grade: async () => ({ ok: true })
+			grade: async () => ({ ok: true }),
+			...transports
 		},
 		speech: FakeCtor
 	});
@@ -124,6 +125,9 @@ const openStudent = async (m: Mounted, name: string) => {
 	click(row!);
 	await m.settle();
 };
+
+const discardButton = (m: Mounted) =>
+	m.all<HTMLButtonElement>('[role="alertdialog"] button').find((b) => b.textContent?.includes('Discard'))!;
 
 /** Open Ana, dictate into her comment, and press N while a sentence is still in flight. */
 async function switchMidSentence(m: Mounted): Promise<void> {
@@ -154,17 +158,59 @@ describe('a sentence in flight lands in the student it was spoken about', () => 
 		expect(bar[0].textContent).toContain('Ana Student');
 		// Nothing is listening any more.
 		expect(mounted.one('[data-testid="dictate-comment"]').getAttribute('aria-pressed')).toBe('false');
-		// Discard and switch: Ben opens EMPTY, and nothing late reaches him.
-		const discard = mounted.all<HTMLButtonElement>('[role="alertdialog"] button').find((b) =>
-			b.textContent?.includes('Discard')
-		)!;
-		click(discard);
+		// Discard and switch: Ben opens EMPTY. (Nothing was listening by now;
+		// a session still OPEN across Discard is the next case.)
+		click(discardButton(mounted));
 		await mounted.settle();
 		expect(mounted.one('.work-name').textContent?.trim()).toBe('Ben Student');
 		expect(comment(mounted).value).toBe('');
-		Fake.last!.say('a stray result', true);
+	});
+
+	it('Discard and switch with a session still open drops it: nothing late reaches the next student', async () => {
+		mounted = mountConsole();
+		await mounted.settle();
+		await openStudent(mounted, 'Ana');
+		// Unsaved work, so N raises the bar instead of switching.
+		click(mounted.all<HTMLButtonElement>('.level-btn')[0]);
+		mounted.flush();
+		(document.activeElement as HTMLElement | null)?.blur?.();
+		windowKey('n');
+		await mounted.settle();
+		const bar = mounted.all('[role="alertdialog"]');
+		expect(bar).toHaveLength(1);
+		expect(bar[0].textContent).toContain('Ana Student');
+		// The DICTATE control still works while the bar is up -- which is the
+		// case: a session open when Discard is pressed.
+		click(mounted.one('[data-testid="dictate-comment"]'));
+		mounted.flush();
+		expect(mounted.one('[data-testid="dictate-comment"]').getAttribute('aria-pressed')).toBe('true');
+		const rec = Fake.last!;
+		rec.say('needs more', false);
+		mounted.flush();
+		rec.pending = 'needs more labels';
+		click(discardButton(mounted));
+		await wait(40);
+		await mounted.settle();
+		expect(mounted.one('.work-name').textContent?.trim()).toBe('Ben Student');
+		expect(comment(mounted).value).toBe('');
+		// The session was dropped, not asked to finish: nothing is listening,
+		// and a result the service still sends after the switch lands nowhere.
+		expect(rec.calls).toContain('abort');
+		expect(mounted.one('[data-testid="dictate-comment"]').getAttribute('aria-pressed')).toBe('false');
+		expect(mounted.all('[aria-pressed="true"]').filter((b) => b.textContent?.includes('STOP'))).toHaveLength(0);
+		rec.say('needs more labels', true);
+		await wait(20);
 		await mounted.settle();
 		expect(comment(mounted).value).toBe('');
+		// Positive control: dictation still works, and lands, for Ben.
+		click(mounted.one('[data-testid="dictate-comment"]'));
+		mounted.flush();
+		expect(Fake.last).not.toBe(rec);
+		Fake.last!.say('clear labels', true);
+		click(mounted.one('[data-testid="dictate-comment"]'));
+		await wait(20);
+		await mounted.settle();
+		expect(comment(mounted).value).toBe('Clear labels.');
 	});
 
 	it('a roster click mid-sentence waits too (the one way in every switch goes through)', async () => {
@@ -219,6 +265,23 @@ describe('a sentence in flight lands in the student it was spoken about', () => 
 		await mounted.settle();
 		expect(mounted.one('[data-testid="dictate-comment"]').getAttribute('aria-pressed')).toBe('false');
 		expect(comment(mounted).value).toBe('Nice labels.');
+	});
+
+	it('D does nothing while a grade is being written, exactly as the DICTATE button is off', async () => {
+		// A return that never answers holds the console busy.
+		mounted = mountConsole({ gradeSubmission: () => new Promise(() => {}) });
+		await mounted.settle();
+		await openStudent(mounted, 'Ben');
+		click(mounted.one('[data-testid="grade-return"]'));
+		await mounted.settle();
+		expect(mounted.one<HTMLButtonElement>('[data-testid="grade-return"]').disabled).toBe(true);
+		expect(mounted.one<HTMLButtonElement>('[data-testid="dictate-comment"]').disabled).toBe(true);
+		const made = Fake.made;
+		(document.activeElement as HTMLElement | null)?.blur?.();
+		windowKey('d');
+		mounted.flush();
+		expect(Fake.made).toBe(made);
+		expect(mounted.one('[data-testid="dictate-comment"]').getAttribute('aria-pressed')).toBe('false');
 	});
 
 	it('closing a criterion note while it listens stops the session: no microphone without a STOP', async () => {

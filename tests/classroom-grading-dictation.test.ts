@@ -332,6 +332,52 @@ describe('teardown', () => {
 		expect(d.listeningKey).toBeNull();
 	});
 
+	test('stop() (Escape) ends the listening field AND forgets a queued one', () => {
+		// Positive control: a queued field starts listening once the outgoing
+		// session ends -- the queue this stop has to empty.
+		const control = fakeCtor();
+		const c = new GradingDictation(control.ctor);
+		c.toggle(field('comment'));
+		c.toggle(field('crit:c1'));
+		control.made[0]!.fire.end();
+		expect(c.listeningKey).toBe('crit:c1');
+		expect(control.made).toHaveLength(2);
+
+		const { ctor, made } = fakeCtor();
+		const d = new GradingDictation(ctor);
+		d.toggle(field('comment'));
+		d.toggle(field('crit:c1'));
+		d.stop();
+		made[0]!.fire.end();
+		expect(d.listeningKey).toBeNull();
+		expect(made).toHaveLength(1);
+	});
+
+	test('drop() lets nothing in flight land anywhere, and the controller stays usable', () => {
+		const { ctor, made } = fakeCtor();
+		const d = new GradingDictation(ctor);
+		// The console's own shape: one `comment` variable, re-pointed at the
+		// next student when the switch happens.
+		let comment = '';
+		const target = { key: 'comment', read: () => comment, write: (v: string) => (comment = v) };
+		d.toggle(target);
+		made[0]!.fire.interim('needs more');
+		d.drop();
+		expect(d.listeningKey).toBeNull();
+		expect(d.heard).toBe('');
+		expect(d.preview('comment', '')).toBe('');
+		made[0]!.fire.final('needs more labels');
+		made[0]!.fire.end();
+		expect(comment).toBe('');
+		// A fresh press builds a fresh recogniser, and its words land.
+		d.toggle(target);
+		expect(made).toHaveLength(2);
+		expect(d.listeningKey).toBe('comment');
+		made[1]!.fire.final('clear labels');
+		made[1]!.fire.end();
+		expect(comment).toBe('Clear labels.');
+	});
+
 	test('a queued field whose control unmounts is taken out of the queue', () => {
 		const { ctor, made } = fakeCtor();
 		const d = new GradingDictation(ctor);

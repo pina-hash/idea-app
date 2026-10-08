@@ -24,7 +24,9 @@ interface World {
 }
 
 /** A browser, in memory. `holdStream` keeps getUserMedia pending until released. */
-function world(opts: { permission?: string; holdStream?: boolean; rejectStream?: boolean; suspended?: boolean } = {}): World {
+function world(
+	opts: { permission?: string; holdStream?: boolean; rejectStream?: boolean; suspended?: boolean; hangResume?: boolean } = {}
+): World {
 	const w: World = {
 		deps: {},
 		tracks: [],
@@ -57,9 +59,12 @@ function world(opts: { permission?: string; holdStream?: boolean; rejectStream?:
 			constructor() {
 				w.contexts.push(this.record);
 			}
-			async resume() {
+			resume() {
 				this.record.resumed++;
+				// A resume the browser never answers.
+				if (opts.hangResume) return new Promise<void>(() => {});
 				this.state = 'running';
+				return Promise.resolve();
 			}
 			async close() {
 				this.record.closed = true;
@@ -124,6 +129,22 @@ describe('the meter never outlives close()', () => {
 		expect(w.tracks).toHaveLength(1);
 		expect(w.tracks[0]!.stopped).toBe(true);
 		expect(w.contexts).toHaveLength(0);
+		expect(w.ticks).toHaveLength(0);
+	});
+
+	it('a close WHILE the context resumes stops the capture, even if the resume never answers', async () => {
+		const w = world({ suspended: true, hangResume: true });
+		const m = new MicLevel(w.deps);
+		m.open(() => {});
+		await settle();
+		// The capture is open and the context is stuck resuming.
+		expect(w.tracks).toHaveLength(1);
+		expect(w.contexts[0]!.resumed).toBe(1);
+		expect(w.tracks[0]!.stopped).toBe(false);
+		m.close();
+		expect(w.tracks[0]!.stopped).toBe(true);
+		await settle();
+		expect(w.contexts[0]!.closed).toBe(true);
 		expect(w.ticks).toHaveLength(0);
 	});
 

@@ -569,8 +569,13 @@ export function dictationErrorMessage(code: string | null | undefined): string {
 export const DICTATION_NOTE =
 	'Uses your browser’s own speech service. Nothing you say is recorded by the portal; only the text you send is.';
 
-/** Added beside it only where a loudness meter is shown (a computer). */
-export const DICTATION_LEVEL_NOTE = 'The sound level beside STOP is measured on this device and goes nowhere.';
+/**
+ * Added beside it where a loudness meter CAN be shown (a computer). Worded as
+ * "any" because the bars appear only once the microphone permission already
+ * reads granted, and the sentence is on screen before that is known -- it says
+ * where the level goes BEFORE a capture opens, and stays true when none does.
+ */
+export const DICTATION_LEVEL_NOTE = 'Any sound level shown beside STOP is measured on this device and goes nowhere.';
 
 /**
  * WHETHER THE DEVICE'S MAIN POINTER IS A FINGER, and so whether focusing a

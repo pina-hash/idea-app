@@ -4543,9 +4543,12 @@ inside the function fails closed rather than falling through to a weaker path.
   - **A SURFACE THAT MOVES ON WAITS FOR THE SENTENCE IN FLIGHT.** The report
     box's SEND and the grading console's switch, save and return wait for the
     session to end (up to `DICTATION_STOP_GRACE_MS`), because a field keyed the
-    same for every student sent a late sentence to the NEXT student; Escape
-    stops dictation before it does anything else, and a `DictateButton` whose
-    field unmounts stops its own session.
+    same for every student sent a late sentence to the NEXT student. The
+    console's one writer of the open student, `applySelect`, DROPS any session
+    still open (`drop()`), so a path that does not wait ("Discard and switch")
+    cannot carry one across. Escape stops dictation before it does anything
+    else, a queued field included, and a `DictateButton` whose field unmounts
+    stops its own session.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
   (`$lib/save-state.svelte.ts`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to

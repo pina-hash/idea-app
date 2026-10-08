@@ -273,6 +273,17 @@ export class GradingDictation {
 	}
 
 	/**
+	 * STOP WHATEVER IS LISTENING, AND FORGET ANY FIELD QUEUED BEHIND IT. This
+	 * is Escape: `stopField` on the listening field would leave a queued field
+	 * (a switch still waiting for the outgoing session to end) free to start
+	 * listening right after the key the grader pressed to stop dictating.
+	 */
+	stop() {
+		this.#pending = null;
+		if (this.listeningKey !== null) this.#dict?.stop();
+	}
+
+	/**
 	 * STOP ONE FIELD, if it is the one listening (or waiting in the queue). A
 	 * field whose control unmounts calls this, so closing a criterion's
 	 * override box cannot leave an open microphone with no STOP anywhere.
@@ -315,17 +326,29 @@ export class GradingDictation {
 		return this.#join(key).preview(existing, this.heard, this.heardPause);
 	}
 
-	/** Teardown. Drops the session without waiting for a final sentence. */
-	destroy() {
+	/**
+	 * DROP THE SESSION NOW, without waiting for its sentence: nothing still in
+	 * flight lands in any field, and the controller stays usable (the next
+	 * press builds a fresh recogniser). The console calls this when it switches
+	 * student with a session still open -- "Discard and switch" -- because the
+	 * fields are keyed the same for every student and a late sentence would
+	 * land in the next one.
+	 */
+	drop() {
 		this.#pending = null;
 		this.#target = null;
 		this.listeningKey = null;
 		this.heard = '';
 		this.heardPause = null;
 		this.level = 0;
-		this.error = null;
-		this.errorKey = null;
 		this.#dict?.destroy();
 		this.#release();
+	}
+
+	/** Teardown. Drops the session without waiting for a final sentence. */
+	destroy() {
+		this.error = null;
+		this.errorKey = null;
+		this.drop();
 	}
 }

@@ -1008,6 +1008,13 @@
 	}
 
 	function applySelect(next: StudentWork | null) {
+		// NO SESSION SURVIVES A STUDENT SWITCH (report 5ab3adb6). Every path
+		// that can wait for the sentence in flight settles before it gets
+		// here; the ones that do not wait -- "Discard and switch", and a
+		// session started while a draft save was in flight -- DROP it here,
+		// because every field is keyed the same for every student and a late
+		// sentence would land in the next one. Discard means drop.
+		if (dictate.listeningKey !== null) dictate.drop();
 		pending = null;
 		armReturn = false;
 		gradeError = null;
@@ -2094,8 +2101,10 @@
 				requestSelect(null);
 				return;
 			case 'dictate':
-				// The comment box is on screen only with a student open.
-				if (selected && rubric) dictate.toggle(commentTarget);
+				// The comment box is on screen only with a student open and a
+				// rubric to grade against, and its DICTATE button is off while
+				// a grade or a batch is being written: the key asks the same.
+				if (selected && rubric?.length && !busy && !batchBusy) dictate.toggle(commentTarget);
 				return;
 		}
 	}
@@ -2111,10 +2120,17 @@
 		// without this, Escape in the box also closed the student here.
 		if (typeof document !== 'undefined' && document.querySelector('.fb-scrim')) return;
 		// ESCAPE STOPS DICTATION FIRST, even from inside the field being
-		// dictated into, and does nothing else (report 5ab3adb6).
-		if (event.key === 'Escape' && dictate.listeningKey !== null) {
+		// dictated into, and does nothing else (report 5ab3adb6) -- a queued
+		// field included, so nothing starts listening after the press. An
+		// open dialog (a picture in the lightbox) is on top, so its own
+		// Escape closes it first and dictation carries on.
+		if (
+			event.key === 'Escape' &&
+			dictate.listeningKey !== null &&
+			!(typeof document !== 'undefined' && document.querySelector('dialog[open]'))
+		) {
 			event.preventDefault();
-			dictate.stopField(dictate.listeningKey);
+			dictate.stop();
 			return;
 		}
 		if (pending) {
