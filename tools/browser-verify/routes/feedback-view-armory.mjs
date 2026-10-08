@@ -35,6 +35,7 @@ export default {
 		{ selector: '.cr-root', label: 'no classroom room around it', expectPresent: 0 }
 	],
 	textContains: [
+		{ selector: '[data-testid="armory-report-link-help"]', label: 'how a note and an incident are linked', must: ['Send feedback', 'no incident linked', 'Report a problem'] },
 		{ selector: '[data-testid="af-status-new"]', label: 'the New tab counts', must: ['New (5)'] },
 		{ selector: '[data-testid="af-status-all"]', label: 'the All tab counts', must: ['All (6)'] },
 		{ selector: '[data-testid="af-export"]', label: 'the export key says what it will take', must: ['Export 5 shown as Markdown'] }

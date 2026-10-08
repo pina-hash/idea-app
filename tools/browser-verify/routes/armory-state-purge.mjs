@@ -35,7 +35,8 @@ export default {
 	],
 	textContains: [
 		{ selector: '[data-testid="armory-purge-cost"]', label: 'the cost in real counts, before the box', must: ['212 files (14 already removed)', '1,604 versions', '37 side versions', '2 checkouts are released', '3.00 GB', 'cannot be undone'] },
-		{ selector: '[data-testid="armory-purge-key"]', label: 'the key names the project', must: ['Delete Robot 2025 forever'] }
+		{ selector: '[data-testid="armory-purge-key"]', label: 'the key names the project', must: ['Delete Robot 2025 forever'] },
+		{ selector: '[data-testid="armory-purge-computers"]', label: 'what happens on the computers: moved as each connects, never erased', must: ['Nothing is erased', 'next time that computer connects', 'hidden recovery folder', 'once it is closed'], mustNot: ['instant', 'immediately'] }
 	],
 	tapTargets: [
 		{ selector: '[data-testid="armory-purge"] :is(input, button)', label: 'the box and the key', min: 44 },
@@ -43,6 +44,7 @@ export default {
 	],
 	contrast: [
 		{ selector: '[data-testid="armory-purge-cost"]', label: 'the cost sentence', min: 4.5 },
+		{ selector: '[data-testid="armory-purge-computers"]', label: 'the computers sentence', min: 4.5 },
 		{ selector: '[data-testid="armory-purge"] .ar-field > span', label: 'the box label', min: 4.5 }
 	]
 };

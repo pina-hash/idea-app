@@ -32,6 +32,7 @@
 		purgeCanSend,
 		purgeConfirmValue,
 		purgeCostWords,
+		PURGE_COMPUTERS_WORDS,
 		type ArmoryPurgePreview,
 		type PurgeAnswer
 	} from './team';
@@ -234,11 +235,12 @@
 						{#if preview}
 							{purgeCostWords(preview, sizeWords)}
 						{:else if previewFailed}
-							Deletes the project's {project.files ?? 'every'} files{typeof project.removed === 'number' && project.removed > 0 ? ` (${project.removed} already removed)` : ''}, every version and side version, its member list and its activity. What it frees in storage could not be read right now. This cannot be undone.
+							On the Armory server, this deletes the project's {project.files ?? 'every'} files{typeof project.removed === 'number' && project.removed > 0 ? ` (${project.removed} already removed)` : ''}, every version and side version, its member list and its activity. What it frees in storage could not be read right now. This cannot be undone.
 						{:else}
 							Reading what it would remove…
 						{/if}
 					</p>
+					<p class="ar-message" data-testid="armory-purge-computers">{PURGE_COMPUTERS_WORDS}</p>
 					<label class="ar-field ar-purge-field">
 						<span>Type the project name to confirm: {project.name}</span>
 						<input class="plate-well" bind:value={typed} autocomplete="off" spellcheck="false" data-testid="armory-purge-name" />

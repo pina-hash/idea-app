@@ -5,7 +5,10 @@ versioned, for FRC Team 5669 and for IDEA class team projects. This document own
 product scope. It separates what Mr. Pina said from what this scope proposes, and every
 open choice is in "Decisions owed" at the end with the default that will be taken.
 
-Scoped 2026-09-27 from the IDEA & FRC chat. Nothing is built.
+Scoped 2026-09-27 from the IDEA & FRC chat. **Status, 2026-10-08: built and in use.** The
+website (`/armory`, on the home launcher), the schema (migrations 0231 to 0233) and the
+Windows app are live; the app's 0.3.0 release builds its half of the v0.3 server contract
+below. "Where it runs now" lists what is on the website.
 
 ## What Mr. Pina asked for, in his words
 
@@ -370,8 +373,8 @@ SQLSTATE and `DETAIL.reason`, never on the status alone.
 signed-in users and behind its member policy since 0231. 0233 re-runs the guarded add and
 prints `armory_change_feed in supabase_realtime: yes, already | yes, added now | no
 publication on this database` into the applied record. The website already subscribes
-(`src/lib/armory/live.ts`) with a 15-second fallback poll. Only the Windows app half is
-outstanding. **Since 0233 a site admin reads every project's feed rows**, so an app
+(`src/lib/armory/live.ts`) with a 15-second fallback poll. The Windows app half shipped in
+Armory 0.3.0. **Since 0233 a site admin reads every project's feed rows**, so an app
 signed in as an admin must filter its subscription by `project_id=eq.<id>` (the website
 does), or it receives every project's changes.
 
@@ -394,6 +397,16 @@ does), or it receives every project's changes.
 | `armory_purge_folder(p_project uuid, p_folder text, p_operation uuid) returns jsonb` | Site admin or the project's mentor (42501). | Only REMOVED files at or under the folder (case-sensitive, 0232's folder rule). 22023 bad folder; 55006 `{reason: live}` while any file there is live; 55006 `{reason: checked_out}` for a checkout taken AFTER a file was removed (the remover's own leftover checkout is released and counted); 55006 `{reason: referenced_elsewhere}`. Returns `{folder, files, versions, side_versions, checkouts_released, blobs_queued, bytes_queued}`; an empty folder answers zeros and writes no change. Writes one change, kind `folder_purged`, payload `{folder, files, file_ids, by}`. Earlier feed rows of the files stay. |
 | `armory_project_purged(p_project uuid) returns timestamptz` | Any signed-in user. | When the project was deleted forever, or null. |
 | `armory_orphans_count() returns integer`, `armory_orphans_pending(p_limit integer default 200) returns text[]`, `armory_orphans_swept(p_hashes text[]) returns integer` | Site admin (42501). | The storage sweep queue, below. |
+
+**On the team's computers, Delete forever moves files; it never erases them.** Armory
+0.3.0 learns of a deleted project (from `armory_project_purged`) or a purged folder (from
+the `folder_purged` change) the next time that computer connects, and moves those files
+into the app's hidden recovery folder. A file that is open is moved once it is closed, and
+a computer that is off does it when it next connects. So the server's rows go at once, and
+each computer catches up on its own time. The website's confirm and its "deleted forever"
+note say this (`PURGE_COMPUTERS_WORDS` and `PURGED_COMPUTERS_WORDS` in
+`src/lib/armory/team.ts`); the folder's confirm lives in the app, and the website shows a
+purged folder only as a line of activity.
 
 **A project purge writes no change-feed row and cannot.** The feed's project key and its
 member policy die with the project, so realtime would deliver nothing. It leaves a receipt
@@ -452,7 +465,23 @@ withheld, `email` and `submitter_name` are left out.
 | `armory_team_status(p_project uuid) returns jsonb` | Members and site admins (42501 otherwise). One entry per member: `{email, role, name, avatar, avatar_url, pathway, has_account, devices_total, devices: [{id, name, registered_at, last_seen, app_version, state}], checkouts: [{file_id, folder, name, path, since, device_id}]}`. A member with no account carries `has_account: false` and no name or picture. Devices are those heard from or registered in the last 30 days, or holding a live checkout in this project; `devices_total` counts all of them. |
 
 The website says "Armory open" or "Last heard from <time>", never "offline": a quiet
-computer may simply be asleep.
+computer may simply be asleep. Armory 0.3.0 beats every 45 seconds, and at once when its
+state changes. The Team view counts a computer as open while its last beat is at most
+three minutes old (`ARMORY_ONLINE_MS` in `src/lib/armory/team.ts`, 120 seconds until
+2026-10-08): the view re-reads the team about once a minute, so a healthy computer can
+already look 117 seconds old just before a read, and three minutes holds through one
+missed beat and one late read. A computer whose state is `offline-soon` reads "Last heard
+from" at once. Each computer shows its app version, and one older than 0.3.0 (or with no
+version) carries a "Needs the new Armory" link to `/armory/download`, because an app before
+0.3.0 sends no heartbeats and can never read "Armory open".
+
+**The two version limits do not match.** `armory_heartbeat` refuses an `app_version`
+longer than 40 characters (22023), while `armory_submit_app_feedback` and
+`armory_submit_app_incident` take up to 64. A version string of 41 to 64 characters (a long
+pre-release or build tag) would send feedback and incidents but have every heartbeat
+refused. Proposed for the next Armory migration, not written: raise the heartbeat's limit
+and the `armory_devices.app_version` column check (also 40, added by 0233) to 64, so all
+three agree. Raising is the safe direction: nothing stored today is refused by it.
 
 ### Item 6: the project row first, and batches
 
@@ -486,7 +515,10 @@ why the role alone does not open it. School accounts only, matched by the SHOWN 
 the address's local part, at most 25, `{email, name, avatar, avatar_url, pathway,
 member_role}`.
 
-### What the Windows app must do
+### What the Windows app must do (done in Armory 0.3.0)
+
+Every item below shipped in the Windows app's 0.3.0 release (pina-hash/idea-armory,
+`docs/agent/release-notes/v0.3.0.md`). Kept as the record of what the contract asked for.
 
 - Treat `P0001 'not a project member'` (from `armory_list_changes`, `armory_acquire_lock`,
   `armory_save_side_version`) and `42501 'not a project member'` (from

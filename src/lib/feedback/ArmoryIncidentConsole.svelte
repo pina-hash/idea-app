@@ -4,6 +4,8 @@
 	import { FEEDBACK_STATUSES, type FeedbackStatus } from './feedback';
 	import { saveBytes, saveText } from './download';
 	import {
+		ARMORY_INCIDENT_WAVE_NOTE,
+		ARMORY_REPORT_LINK_HELP,
 		ARMORY_INCIDENT_ZIP_BUDGET,
 		ARMORY_NO_PROJECT,
 		EMPTY_ARMORY_INCIDENT_FILTER,
@@ -200,6 +202,7 @@
 			What the IDEA Armory app reported about itself when something went wrong, grouped by kind and
 			app version. Incidents are kept for 90 days.
 		</p>
+		<p class="lead" data-testid="armory-report-link-help">{ARMORY_REPORT_LINK_HELP} {ARMORY_INCIDENT_WAVE_NOTE}</p>
 	</section>
 
 	{#if unavailable}

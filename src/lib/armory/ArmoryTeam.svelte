@@ -39,12 +39,14 @@
 		addPeople,
 		addPeopleWords,
 		appVersionWords,
+		ARMORY_DOWNLOAD_HREF,
 		ARMORY_PRESENCE_TICK_MS,
 		ARMORY_TEAM_POLL_MS,
 		checkoutCountFor,
 		devicePresence,
 		memberManagerRole,
 		memberName,
+		needsNewArmory,
 		noComputerWords,
 		PEOPLE_SEARCH_NOT_OFFERED,
 		sortTeam,
@@ -319,7 +321,10 @@
 								{@const version = appVersionWords(device)}
 								<li class={`ar-presence-line ar-presence-${presence.tone}`} data-tone={presence.tone}>
 									<span class="ar-presence-glyph" aria-hidden="true">{presence.glyph}</span>
-									<span><span class="ar-presence-device">{device.name}</span>: {presence.words}{version ? ` · ${version}` : ''}</span>
+									<span><span class="ar-presence-device">{device.name}</span>: {presence.words}{#if version}<span class="ar-presence-version" data-testid="armory-app-version">{` · ${version}`}</span>{/if}</span>
+									{#if needsNewArmory(device)}
+										<a class="ar-presence-update" href={ARMORY_DOWNLOAD_HREF} data-testid="armory-needs-update">Needs the new Armory</a>
+									{/if}
 								</li>
 							{:else}
 								<li class="ar-presence-line ar-presence-unknown" data-tone="none">

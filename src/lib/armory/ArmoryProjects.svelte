@@ -21,6 +21,7 @@
 	import Disclosure from '$lib/Disclosure.svelte';
 	import ArmoryMark from '$lib/marks/ArmoryMark.svelte';
 	import { projectViewHref } from './nav';
+	import { PURGED_COMPUTERS_WORDS } from './team';
 	import { ROLE_WORDS, whenWords, type ArmoryDevice, type ArmoryProjectSummary } from './view';
 
 	type SweepAnswer = { ok: true; swept: number; left: number | null; problem: string | null } | { ok: false; message: string };
@@ -145,7 +146,7 @@
 		<span class="ar-notice-glyph" aria-hidden="true">✓</span>
 		<div>
 			<strong>{deleted.name} is deleted forever.</strong>
-			Its files, versions and members are gone.{deleted.storageProblem ? ` ${deleted.storageProblem}` : ''}
+			Its files, versions and members are gone from the Armory server. {PURGED_COMPUTERS_WORDS}{deleted.storageProblem ? ` ${deleted.storageProblem}` : ''}
 		</div>
 	</div>
 {/if}

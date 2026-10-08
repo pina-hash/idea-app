@@ -47,6 +47,21 @@ export function feedbackSourceFor(pathname: string): FeedbackSourceId {
  * functions arrive in one migration, applied separately from a deploy, so a
  * page between the two is a real state and says so in words.
  */
+/**
+ * HOW A NOTE AND AN INCIDENT ARE LINKED, said on both Armory tabs (Armory
+ * 0.3.0): the app's "Send feedback" sends a note alone, and "Report a
+ * problem" sends a note with an incident that points at it.
+ */
+export const ARMORY_REPORT_LINK_HELP =
+	'Notes from the app\'s "Send feedback" arrive with no incident linked. A "Report a problem" arrives with one: a note here and its incident on the Armory incidents tab.';
+
+/**
+ * Why the incidents tab may fill up at once: a 0.2.1 computer kept its
+ * reports on disk, and 0.3.0 uploads them about one a minute after it updates.
+ */
+export const ARMORY_INCIDENT_WAVE_NOTE =
+	'Expect a first wave as computers update: reports saved on computers running Armory 0.2.1 upload once they update to 0.3.0, about one a minute per computer.';
+
 export const ARMORY_REPORTS_NOT_READY =
 	'Armory reports need a database update that has not been applied yet. This tab fills in once it is.';
 

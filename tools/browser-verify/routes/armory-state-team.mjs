@@ -74,6 +74,7 @@ export default {
 		{ selector: '[data-testid="armory-member"] .person-name', label: 'a name for each', expectPresent: 18, maxPresent: 18, expectVisible: 18 },
 		{ selector: '[data-testid="armory-member"] .pathway-chip', label: 'pathway chips where there is a pathway', expectPresent: 16, maxPresent: 16, expectVisible: 16 },
 		{ selector: '[data-testid="armory-presence"] [data-tone="open"]', label: 'computers with Armory open', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
+		{ selector: '[data-testid="armory-needs-update"][href="/armory/download"]', label: '"Needs the new Armory" on the computer with no version and the one on 0.2.9, and nowhere else', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="armory-people-option"]', label: 'the search answers "an" (names and the first part of addresses)', expectPresent: 10, maxPresent: 10, expectVisible: 10 },
 		{ selector: '[data-testid="armory-people-member"]', label: 'the five already in the project are marked', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
 		{ selector: '[data-testid="armory-add-by-email-toggle"][aria-expanded="false"]', label: 'Add by email, closed', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -81,7 +82,8 @@ export default {
 		{ selector: '[data-testid="armory-role-apply"]', label: 'no role waiting once its key was pressed', expectPresent: 0, maxPresent: 0 }
 	],
 	textContains: [
-		{ selector: '[data-testid="armory-members"]', label: 'presence, never offline', must: ['Armory open', 'Armory open, syncing', 'Last heard from', 'No status from this computer yet', 'No computer connected yet', 'No recent status from any of their computers', 'Not signed in to ideabosco.com yet'], mustNot: ['offline', 'Offline'] },
+		{ selector: '[data-testid="armory-members"]', label: 'presence, never offline', must: ['Armory open', 'Armory open, syncing', 'Last heard from', 'Needs the new Armory', 'Armory 0.3.0', 'Armory 0.2.9', 'No status from this computer yet', 'No computer connected yet', 'No recent status from any of their computers', 'Not signed in to ideabosco.com yet'], mustNot: ['offline', 'Offline', 'closing'] },
+		{ selector: '[data-email="sam.whitfield@boscotech.net"] [data-testid="armory-presence"]', label: 'a computer saying offline-soon reads Last heard from at once', must: ['Last heard from', 'M · Armory 0.3.0'], mustNot: ['Armory open'] },
 		{ selector: '[data-testid="armory-people-results"]', label: 'an existing member, in words', must: ['Already a Student'] },
 		{ selector: '[data-testid="armory-people-message"]', label: 'the one role change, written only by its key', must: ['Hugo Lind is now Instructor.'], mustNot: ['CAD lead', 'Mentor'] },
 		{ selector: '[data-testid="armory-picker-message"]', label: 'a member row picks nobody, and says where a role is changed', must: ['is already in this project as', "A role changes only on that person's row in the team list."], mustNot: ['Added'] }
@@ -90,6 +92,7 @@ export default {
 		{ selector: '[data-testid="armory-people-option"]', label: 'search options', min: 44 },
 		{ selector: '[data-testid="armory-people-search"]', label: 'the search box', min: 44 },
 		{ selector: '[data-testid="armory-member-checkouts"]', label: '"n checked out" links', min: 44 },
+		{ selector: '[data-testid="armory-needs-update"]', label: '"Needs the new Armory" links', min: 44 },
 		{ selector: '[data-testid="armory-remove-member"]', label: 'Remove', min: 44 },
 		{ selector: '[data-testid="armory-role-select"]', label: 'role pickers', min: 44 }
 	],
@@ -98,6 +101,8 @@ export default {
 		{ selector: '.ar-combo-email', label: 'option addresses', min: 4.5 },
 		{ selector: '[data-testid="armory-people-member"]', label: 'Already a member', min: 4.5 },
 		{ selector: '.ar-presence-line', label: 'presence lines', min: 4.5 },
+		{ selector: '.ar-presence-version', label: 'app versions', min: 4.5 },
+		{ selector: '.ar-presence-update', label: '"Needs the new Armory"', min: 4.5 },
 		{ selector: '.ar-person-name', label: 'member names', min: 4.5 }
 	]
 };

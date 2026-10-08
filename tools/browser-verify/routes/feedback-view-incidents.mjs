@@ -24,6 +24,7 @@ export default {
 		{ selector: '.ai-day-bar[aria-hidden="true"]', label: 'every per-day bar is decoration (aria-hidden); a day with none draws a zero-width bar', expectPresent: 14, maxPresent: 14, expectVisible: 1 }
 	],
 	textContains: [
+		{ selector: '[data-testid="armory-report-link-help"]', label: 'how a note and an incident are linked', must: ['Send feedback', 'no incident linked', 'Report a problem', 'Expect a first wave', '0.2.1', 'about one a minute per computer'] },
 		{ selector: '[data-testid="ai-zip"]', label: 'the zip key says what it will take', must: ['Download 9 shown as zip'] },
 		{ selector: '[data-testid="ai-count"]', label: 'the count', must: ['9 of 9 shown'] }
 	],

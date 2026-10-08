@@ -4,6 +4,7 @@
 	import { FEEDBACK_STATUSES, type FeedbackStatus } from './feedback';
 	import { saveText } from './download';
 	import {
+		ARMORY_REPORT_LINK_HELP,
 		EMPTY_ARMORY_FEEDBACK_FILTER,
 		armoryExportDay,
 		armoryFeedbackExportName,
@@ -131,6 +132,7 @@
 			Notes sent from inside the IDEA Armory app, newest first, with the app version and the
 			computer they came from.
 		</p>
+		<p class="lead" data-testid="armory-report-link-help">{ARMORY_REPORT_LINK_HELP}</p>
 	</section>
 
 	{#if unavailable}

@@ -21,16 +21,21 @@ import {
 	addPeople,
 	addPeopleWords,
 	ARMORY_ONLINE_MS,
+	ARMORY_PRESENCE_TICK_MS,
+	ARMORY_TEAM_POLL_MS,
 	deviceStateWords,
 	devicePresence,
 	isTeacherAddress,
 	memberManagerRole,
+	needsNewArmory,
 	noComputerWords,
 	peopleSearchOffered,
 	purgeBlockedWords,
 	purgeCanSend,
 	purgeConfirmValue,
 	purgeCostWords,
+	PURGE_COMPUTERS_WORDS,
+	PURGED_COMPUTERS_WORDS,
 	searchable,
 	sortTeam,
 	teamNames
@@ -74,9 +79,32 @@ describe('presence never says offline', () => {
 		expect(deviceStateWords('checking-in')).toBe('checking in');
 		expect(deviceStateWords('Downloading_Release')).toBe('downloading release');
 		expect(devicePresence({ last_seen: ago(10_000), state: 'checking-in' }, NOW).words).toBe('Armory open, checking in');
-		expect(devicePresence({ last_seen: ago(10_000), state: 'offline-soon' }, NOW).words).toBe('Armory open, closing');
 		for (const w of ['offline', 'Went_Offline', 'OFFLINE-NOW']) expect(deviceStateWords(w)).toBeNull();
 		expect(deviceStateWords('idle')).toBeNull();
+	});
+
+	test('the window holds through a 45-second beat, one missed beat and one late read, and is at least two minutes', () => {
+		const BEAT = 45_000;
+		const lateRead = ARMORY_TEAM_POLL_MS * 1.2;
+		expect(ARMORY_ONLINE_MS).toBeGreaterThanOrEqual(120_000);
+		expect(ARMORY_ONLINE_MS).toBeGreaterThanOrEqual(2 * BEAT + lateRead);
+		// Every age a healthy computer can show between reads stays open, ticking as the view does.
+		const ages: number[] = [];
+		for (let t = 0; t <= 2 * BEAT + lateRead; t += ARMORY_PRESENCE_TICK_MS / 2) ages.push(t);
+		expect(ages.length).toBeGreaterThan(5);
+		for (const age of ages) expect(devicePresence({ last_seen: ago(age), state: 'idle' }, NOW).tone).toBe('open');
+	});
+
+	test('a computer saying offline-soon reads Last heard from at once, and only that state does', () => {
+		for (const state of ['offline-soon', ' Offline-Soon ']) {
+			const p = devicePresence({ last_seen: ago(5_000), state }, NOW);
+			expect(p.tone).toBe('heard');
+			expect(p.words).toMatch(/^Last heard from \d{1,2}:\d{2} [AP]M$/);
+		}
+		// Positive controls: the same age with the other known states is open.
+		expect(devicePresence({ last_seen: ago(5_000), state: 'idle' }, NOW).tone).toBe('open');
+		expect(devicePresence({ last_seen: ago(5_000), state: 'syncing' }, NOW).words).toBe('Armory open, syncing');
+		expect(devicePresence({ last_seen: ago(5_000), state: null }, NOW).tone).toBe('open');
 	});
 
 	test('no computer listed: a fact only when the server counted the registrations', () => {
@@ -86,6 +114,17 @@ describe('presence never says offline', () => {
 		expect(noComputerWords({ devices_total: 2 })).toBe('No computer heard from in the last 30 days');
 		expect(noComputerWords({})).not.toMatch(/connected yet/);
 		for (const w of [noComputerWords({}), noComputerWords({ devices_total: 3 })]) expect(w.toLowerCase()).not.toContain('offline');
+	});
+});
+
+describe('a computer that needs the new Armory', () => {
+	test('older than 0.3.0 or empty is tagged', () => {
+		for (const v of ['0.2.1', 'v0.2.9', '0.1', '0.2.10', '', '   ', null, undefined]) expect(needsNewArmory({ app_version: v })).toBe(true);
+	});
+	test('0.3.0 and newer, a pre-release of 0.3.0, and a version this build cannot read are not', () => {
+		for (const v of ['0.3.0', 'v0.3.0', '0.3.1', '0.10.0', '1.0.0', '0.3.0-beta.2', '0.3', 'nightly']) {
+			expect(needsNewArmory({ app_version: v })).toBe(false);
+		}
 	});
 });
 
@@ -133,6 +172,18 @@ describe('Delete forever: one predicate, the RPC comparison', () => {
 		expect(purgeCanSend('Robot 2025', 'Robot 2025', base)).toBe(true);
 		expect(purgeCanSend('Robot 2025', 'Robot 2025', null)).toBe(true);
 		expect(purgeBlockedWords(base)).toBeNull();
+	});
+
+	test('the computers sentence says it moves files as each computer connects, never erased, never instant', () => {
+		for (const words of [PURGE_COMPUTERS_WORDS, PURGED_COMPUTERS_WORDS]) {
+			expect(words).toContain('next time that computer connects');
+			expect(words).toContain('hidden recovery folder');
+			expect(words).toContain('once it is closed');
+			expect(words.toLowerCase()).not.toMatch(/\b(instant|immediately|right away|wiped)\b/);
+			expect(words).not.toMatch(/\u2014/);
+		}
+		expect(PURGE_COMPUTERS_WORDS).toContain('Nothing is erased');
+		expect(PURGED_COMPUTERS_WORDS).toContain('instead of erasing them');
 	});
 
 	test('the cost sentence carries the real counts and says what is kept', () => {

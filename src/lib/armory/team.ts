@@ -24,8 +24,24 @@ import {
 	type ArmoryTeamDevice
 } from './view';
 
-/** Two missed one-minute beats. Inside it the app is open; outside it, the page says when. */
-export const ARMORY_ONLINE_MS = 120_000;
+/**
+ * How old a computer's last heartbeat may be and still read "Armory open".
+ * Armory 0.3.0 beats every 45 seconds (and at once on a change of state). The
+ * age on screen is the beat's age when this page last read the team (the
+ * poll is `ARMORY_TEAM_POLL_MS`, plus or minus 20%) plus the time since, so a
+ * healthy computer can already show 45 + 72 = 117 seconds just before a read;
+ * the two-minute window this was until 2026-10-08 flickered to "Last heard
+ * from" on one dropped beat or one late read. Three minutes holds through one
+ * missed beat and one late read (90 + 72 = 162 seconds). A computer saying
+ * `offline-soon` is closing and reads "Last heard from" at once, whatever its age.
+ */
+export const ARMORY_ONLINE_MS = 180_000;
+
+/** The first Armory that sends heartbeats. A computer on anything older can never read "Armory open". */
+export const ARMORY_HEARTBEAT_VERSION = '0.3.0';
+
+/** Where a computer that needs the new Armory is sent. */
+export const ARMORY_DOWNLOAD_HREF = '/armory/download';
 
 /**
  * How often the Team view re-ages what it shows. The heartbeat writes no
@@ -60,18 +76,23 @@ export function deviceStateWords(state: string | null | undefined): string | nul
 	const word = state?.trim();
 	if (!word || word === 'idle') return null;
 	if (word === 'syncing') return 'syncing';
-	if (word === 'offline-soon') return 'closing';
 	if (/offline/i.test(word)) return null;
 	return word.replace(/[-_]+/g, ' ').toLowerCase();
 }
 
-/** One computer's line, in words a glyph sits beside. Never "offline". */
+/**
+ * One computer's line, in words a glyph sits beside. Never "offline". A
+ * computer whose last word was `offline-soon` told the server it was closing,
+ * so it reads "Last heard from" at once rather than "Armory open" for the
+ * rest of the window.
+ */
 export function devicePresence(device: Pick<ArmoryTeamDevice, 'last_seen' | 'state'>, now: number): Presence {
 	const at = device.last_seen ? Date.parse(device.last_seen) : Number.NaN;
 	if (Number.isNaN(at)) {
 		return { tone: 'unknown', glyph: '?', words: 'No status from this computer yet (its app may be older than 0.3)' };
 	}
-	if (now - at <= ARMORY_ONLINE_MS) {
+	const closing = device.state?.trim().toLowerCase() === 'offline-soon';
+	if (!closing && now - at <= ARMORY_ONLINE_MS) {
 		const doing = deviceStateWords(device.state);
 		return { tone: 'open', glyph: '●', words: doing ? `Armory open, ${doing}` : 'Armory open' };
 	}
@@ -97,6 +118,30 @@ export function noComputerWords(member: Pick<ArmoryMember, 'devices_total'>): st
 export function appVersionWords(device: Pick<ArmoryTeamDevice, 'app_version'>): string | null {
 	const v = device.app_version?.trim();
 	return v ? `Armory ${v.replace(/^v/i, '')}` : null;
+}
+
+/** "0.3.0", "v0.2.1", "0.3.0-beta.2" to [major, minor, patch]; null when it is not a version. */
+function versionParts(v: string): [number, number, number] | null {
+	const m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+.\s].*)?$/i.exec(v.trim());
+	return m ? [Number(m[1]), Number(m[2] ?? 0), Number(m[3] ?? 0)] : null;
+}
+
+/**
+ * Whether a computer's Armory is older than `ARMORY_HEARTBEAT_VERSION`, or sent
+ * no version at all. An app older than 0.3.0 sends no heartbeats, so it can
+ * never read "Armory open", and the tag says why. A version this build cannot
+ * read is NOT tagged: an instrument that cannot tell says nothing rather than
+ * telling somebody to update. A pre-release of 0.3.0 counts as 0.3.0, because
+ * it already beats.
+ */
+export function needsNewArmory(device: Pick<ArmoryTeamDevice, 'app_version'>): boolean {
+	const v = device.app_version?.trim();
+	if (!v) return true;
+	const have = versionParts(v);
+	const need = versionParts(ARMORY_HEARTBEAT_VERSION)!;
+	if (!have) return false;
+	for (let i = 0; i < 3; i++) if (have[i] !== need[i]) return have[i] < need[i];
+	return false;
 }
 
 const ROLE_ORDER: Record<ArmoryRole, number> = { mentor: 0, cad_lead: 1, instructor: 2, student: 3 };
@@ -362,6 +407,21 @@ function count(n: number, one: string, many: string): string {
 	return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 }
 
+/**
+ * WHAT DELETE FOREVER DOES ON THE TEAM'S COMPUTERS (Armory 0.3.0), said in the
+ * confirm and in the result. The server's rows go at once; a computer finds
+ * out the next time it connects, and the app MOVES the project's files into
+ * its hidden recovery folder rather than erasing them, waiting for an open
+ * file to be closed. So nothing here may say it is instant or that files are
+ * erased from computers.
+ */
+export const PURGE_COMPUTERS_WORDS =
+	"Nothing is erased from the team's computers. The project leaves each computer the next time that computer connects: Armory moves its files into its hidden recovery folder, a file that is open moves once it is closed, and a computer that is off does it when it next connects. A computer on an older Armory does it once it updates.";
+
+/** The same, after the delete, for the note on /armory. */
+export const PURGED_COMPUTERS_WORDS =
+	"It leaves each team computer the next time that computer connects, where Armory moves its files into its hidden recovery folder instead of erasing them. A file that is open moves once it is closed.";
+
 /** The cost of Delete forever, in real counts, said before the box. */
 export function purgeCostWords(preview: ArmoryPurgePreview, size: (bytes: number) => string): string {
 	const removed = Math.max(0, preview.files - preview.live_files);
@@ -376,5 +436,5 @@ export function purgeCostWords(preview: ArmoryPurgePreview, size: (bytes: number
 		preview.blobs > 0
 			? ` ${size(preview.bytes)} of stored files (${count(preview.blobs, 'file', 'files')}) are removed from storage; content another project also saved is kept.`
 			: ' Every stored file it used is also used by another project, so nothing is removed from storage.';
-	return `Deletes ${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}.${out}${freed} This cannot be undone.`;
+	return `On the Armory server, this deletes ${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}.${out}${freed} This cannot be undone.`;
 }

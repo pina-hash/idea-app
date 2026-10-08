@@ -122,6 +122,7 @@ export default {
 		{ selector: '[data-view="start"] [data-step="download"]', label: 'the version beside the download', must: ['Version v0.1.0'] },
 		{ selector: '[data-view="start-connected"] [data-step="connect"]', label: 'the connected computer is named', must: ['Connected: Lab PC 3'] },
 		{ selector: '[data-view="people-student-mentor"] [data-testid="armory-picker-why"]', label: 'whom the search is for', must: ['site admins and mentors who are teachers', 'school email'] },
+		{ selector: '[data-view="projects-admin"] [data-testid="armory-deleted"]', label: 'the deleted-forever note says the computers catch up, never erased', must: ['gone from the Armory server', 'next time that computer connects', 'instead of erasing them'] },
 		{ selector: '[data-view="purge-blocked"] [data-testid="armory-purge-blocked"]', label: 'why Delete forever is held', must: ['2 files in another project', 'Nothing will be deleted'] },
 		{ selector: '[data-view="how"]', label: 'how Armory works, in student words', must: ['Check out', 'Check in', 'Side versions', 'Force check in', 'site admin'], mustNot: ['Take back'] },
 		{ selector: '[data-view="file-side"]', label: 'a side version says why it exists', must: ['Side version', 'Nothing was lost'] },

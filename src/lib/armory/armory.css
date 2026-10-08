@@ -1011,6 +1011,7 @@ a.ar-list-title:hover {
 }
 .ar-presence-line {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 0.4rem;
 	align-items: baseline;
 	line-height: 1.35;
@@ -1028,6 +1029,26 @@ a.ar-list-title:hover {
 }
 .ar-presence-device {
 	font-weight: 600;
+}
+/* The app version, quietly: the line's own secondary ink, whatever the line's tone. */
+.ar-presence-version {
+	color: var(--text-2);
+}
+/* "Needs the new Armory": a link to /armory/download beside a computer whose
+   app is older than 0.3.0 (or sent no version), so a line that can never read
+   "Armory open" says why. A link, not a readout (raised is pressable, inset
+   is not), and a 44px box of its own so a phone can reach it. */
+.ar-presence-update {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	letter-spacing: 0.04em;
+	color: var(--text-1);
+	text-decoration: underline;
+	text-underline-offset: 0.15em;
+	white-space: nowrap;
 }
 .ar-person-out {
 	display: inline-flex;
