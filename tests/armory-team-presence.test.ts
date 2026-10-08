@@ -262,11 +262,58 @@ describe('adding people: one loop for the picker and the paste box', () => {
 			if (email === 'd@x') return { ok: false, message: 'nothing changed' };
 			return { ok: true };
 		});
-		expect(result).toEqual({ added: ['a@x'], already: ['b@x', 'd@x'], failed: [{ email: 'c@x', why: 'Type a full school email address.' }] });
+		expect(result).toEqual({ added: ['a@x'], already: ['b@x', 'd@x'], otherRole: [], failed: [{ email: 'c@x', why: 'Type a full school email address.' }] });
 		// b@x already had the role and was never sent; every send held the reload.
 		expect(asked.map((a) => a.email)).toEqual(['a@x', 'c@x', 'd@x']);
 		expect(asked.every((a) => a.refresh === false)).toBe(true);
 		expect(addPeopleWords(result, 'student')).toBe('Added 1 as Student. 2 already had that role. Not added: c@x (Type a full school email address.)');
+	});
+
+	// AN ADD IS NEVER A ROLE CHANGE. The fake below behaves as 0231's
+	// `armory_add_member` does: a new address is inserted, and an existing
+	// member's role is OVERWRITTEN with the answer true. So a regression that
+	// sends a member shows up twice: as a changed role in the fake and as
+	// "Added" in the sentence.
+	test('a new address is added; a member with another role is never sent, keeps their role, and is not called added', async () => {
+		const server = new Map<string, ArmoryMember['role']>([
+			['mia.chen@boscotech.edu', 'mentor'],
+			['ravi.das@boscotech.net', 'cad_lead'],
+			['lena.ortiz@boscotech.net', 'student']
+		]);
+		const members = [...server].map(([email, role]) => ({ email, role }));
+		const sent: string[] = [];
+		const add = async (email: string, role: ArmoryMember['role']) => {
+			sent.push(email);
+			const old = server.get(email);
+			if (old === role) return { ok: false as const, message: 'nothing changed' };
+			server.set(email, role);
+			return { ok: true as const };
+		};
+		const result = await addPeople(
+			['new.kid@boscotech.net', 'mia.chen@boscotech.edu', 'Ravi.Das@BoscoTech.net', 'lena.ortiz@boscotech.net'],
+			'student',
+			members,
+			add
+		);
+		// The positive control: the new address went to the server and is added.
+		expect(sent).toEqual(['new.kid@boscotech.net']);
+		expect(result.added).toEqual(['new.kid@boscotech.net']);
+		expect(server.get('new.kid@boscotech.net')).toBe('student');
+		// The mentor and the CAD lead (the second typed in another case) were never sent and kept their roles.
+		expect(result.otherRole).toEqual([
+			{ email: 'mia.chen@boscotech.edu', role: 'mentor' },
+			{ email: 'Ravi.Das@BoscoTech.net', role: 'cad_lead' }
+		]);
+		expect(server.get('mia.chen@boscotech.edu')).toBe('mentor');
+		expect(server.get('ravi.das@boscotech.net')).toBe('cad_lead');
+		expect(result.already).toEqual(['lena.ortiz@boscotech.net']);
+		expect(result.failed).toEqual([]);
+		const names: Record<string, string> = { 'mia.chen@boscotech.edu': 'Mia Chen', 'Ravi.Das@BoscoTech.net': 'Ravi Das' };
+		const words = addPeopleWords(result, 'student', (e) => names[e] ?? e);
+		expect(words).toBe(
+			"Added 1 as Student. 1 already had that role. Already in the project with another role, so not changed: Mia Chen (Mentor), Ravi Das (CAD lead). A role changes only on that person's row in the team list."
+		);
+		expect(words).not.toMatch(/Added [2-9]/);
 	});
 });
 

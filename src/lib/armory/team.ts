@@ -149,6 +149,8 @@ export type MemberOutcome = { ok: true } | { ok: false; message: string; code?: 
 export interface AddPeopleResult {
 	added: string[];
 	already: string[];
+	/** Already in the project with ANOTHER role: never sent, and their role is unchanged. */
+	otherRole: Array<{ email: string; role: ArmoryRole }>;
 	failed: Array<{ email: string; why: string }>;
 }
 
@@ -158,6 +160,14 @@ export interface AddPeopleResult {
  * reloads ONCE after, rather than once per person. The picker and the paste
  * box both call this, so they cannot disagree about what "already had that
  * role" means.
+ *
+ * AN ADD NEVER CHANGES AN EXISTING MEMBER'S ROLE. `armory_add_member` (0231)
+ * UPDATES the role of somebody already in the project and answers true, so
+ * sending them would demote a mentor or a CAD lead inside a batch of
+ * students and report it as "Added". A role changes only on the member's own
+ * row, behind its "Change to" key; here such a person is not sent and is
+ * listed in `otherRole`. The check reads `members`, so a member added since
+ * the page last heard is the one case it cannot see.
  */
 export async function addPeople(
 	emails: readonly string[],
@@ -165,10 +175,16 @@ export async function addPeople(
 	members: readonly Pick<ArmoryMember, 'email' | 'role'>[],
 	add: (email: string, role: ArmoryRole, opts?: { refresh?: boolean }) => Promise<MemberOutcome>
 ): Promise<AddPeopleResult> {
-	const out: AddPeopleResult = { added: [], already: [], failed: [] };
+	const out: AddPeopleResult = { added: [], already: [], otherRole: [], failed: [] };
 	for (const email of emails) {
-		if (members.some((m) => m.email === email && m.role === role)) {
+		const key = email.trim().toLowerCase();
+		const current = members.find((m) => m.email.trim().toLowerCase() === key);
+		if (current?.role === role) {
 			out.already.push(email);
+			continue;
+		}
+		if (current) {
+			out.otherRole.push({ email, role: current.role });
 			continue;
 		}
 		const r = await add(email, role, { refresh: false });
@@ -179,11 +195,17 @@ export async function addPeople(
 	return out;
 }
 
+/** Where a role is changed, said wherever an add declined to change one. */
+export const ROLE_CHANGE_WHERE = "A role changes only on that person's row in the team list.";
+
 /** The one sentence after an add, whichever control started it. */
 export function addPeopleWords(result: AddPeopleResult, role: ArmoryRole, label: (email: string) => string = (e) => e): string {
 	return [
 		result.added.length ? `Added ${result.added.length} as ${ROLE_WORDS[role]}.` : '',
 		result.already.length ? `${result.already.length} already had that role.` : '',
+		result.otherRole.length
+			? `Already in the project with another role, so not changed: ${result.otherRole.map((o) => `${label(o.email)} (${ROLE_WORDS[o.role] ?? 'member'})`).join(', ')}. ${ROLE_CHANGE_WHERE}`
+			: '',
 		result.failed.length ? `Not added: ${result.failed.map((f) => `${label(f.email)} (${f.why})`).join('; ')}` : ''
 	]
 		.filter(Boolean)
@@ -287,6 +309,16 @@ export function purgeCanSend(typed: string, name: string, preview: ArmoryPurgePr
 	const value = purgeConfirmValue(typed);
 	return value !== '' && value === name.normalize('NFC') && purgeBlockedWords(preview) === null;
 }
+
+/**
+ * What the page says when Delete forever got no worded answer: a dropped
+ * connection, or a reply cut off or replaced by the platform. The rows may
+ * already be gone (they go first, and the storage sweep runs after), so it
+ * never says nothing was deleted. Pressing again is safe: the operation id is
+ * kept, so a repeat replays rather than deleting twice.
+ */
+export const PURGE_ANSWER_LOST =
+	"The server's answer did not arrive, so this page cannot tell whether the project was deleted. Reload the page to see; if the project is still here, pressing Delete forever again is safe.";
 
 /** What the purge route answers the page: the project is gone, plus anything storage could not finish. */
 export type PurgeAnswer = { ok: true; storageProblem: string | null } | { ok: false; message: string };

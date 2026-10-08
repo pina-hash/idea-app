@@ -13,6 +13,8 @@ import { ARMORY_HYDRATED, hitsSelf } from './_armory.mjs';
 const HUGO = 'hugo.lind@boscotech.net';
 const STEP_ROLES = `() => { const sel = document.querySelector('[data-email="${HUGO}"] [data-testid="armory-role-select"]'); if (!sel) return 'NO ROLE SELECT'; for (const v of ['instructor', 'cad_lead', 'mentor', 'instructor']) { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); } return 'stepped to ' + sel.value; }`;
 
+const ENTER = `() => { const i = document.querySelector('[data-testid="armory-people-search"]'); if (!i) return 'NO SEARCH BOX'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); return 'pressed Enter'; }`;
+
 const TYPE = (value) => `() => { const i = document.querySelector('[data-testid="armory-people-search"]'); if (!i) return 'NO SEARCH BOX'; i.focus(); i.value = ${JSON.stringify(value)}; i.dispatchEvent(new Event('input', { bubbles: true })); return 'typed ' + i.value; }`;
 
 export default {
@@ -33,10 +35,33 @@ export default {
 			until: `() => (document.querySelector('[data-testid="armory-people-message"]')?.textContent ?? '').includes('Hugo Lind is now Instructor.') && document.querySelectorAll('[data-testid="armory-role-apply"]').length === 0`
 		},
 		{ evaluate: TYPE('a'), until: `() => !document.querySelector('[data-testid="armory-people-results"]')` },
+		// AN ADD IS NEVER A ROLE CHANGE. The fresh list highlights a person who
+		// is NOT a member, so Enter trays them; a press on a row marked
+		// "Already a ..." trays nobody and says where a role is changed. A real
+		// pick clears the sentence, so it comes second; then the list is
+		// reopened for the measurements below.
+		{
+			evaluate: TYPE('an'),
+			until: `() => document.querySelectorAll('[data-testid="armory-people-option"][aria-disabled="true"]').length > 0 && !!document.querySelector('[data-testid="armory-people-option"][aria-selected="true"]:not([aria-disabled="true"])')`
+		},
+		{
+			evaluate: ENTER,
+			until: `() => document.querySelectorAll('[data-testid="armory-people-tray"] .person-name').length === 1`
+		},
+		{ evaluate: TYPE('an'), until: `() => document.querySelectorAll('[data-testid="armory-people-option"]').length > 0` },
+		{
+			evaluate: `() => { const o = document.querySelector('[data-testid="armory-people-option"][aria-disabled="true"]'); if (!o) return 'NO MEMBER ROW'; o.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); return 'pressed a member row'; }`,
+			until: `() => (document.querySelector('[data-testid="armory-picker-message"]')?.textContent ?? '').includes('is already in this project as') && document.querySelectorAll('[data-testid="armory-people-tray"] .person-name').length === 1`
+		},
 		{ evaluate: TYPE('an'), until: `() => document.querySelectorAll('[data-testid="armory-people-option"]').length > 0` }
 	],
 	orderResult: [
 		{ label: 'every option answers a tap at its centre, over the rows beneath', evaluate: hitsSelf('[data-testid="armory-people-option"]'), expected: ['every one answers itself'] },
+		{
+			label: 'the one person in the tray is not a member of the project',
+			evaluate: `() => { const tray = [...document.querySelectorAll('[data-testid="armory-people-tray"] .person-name')].map((n) => n.textContent.trim()); const members = [...document.querySelectorAll('[data-testid="armory-member"] .person-name')].map((n) => n.textContent.trim()); return [tray.length, tray.filter((t) => members.includes(t)).length, members.length]; }`,
+			expected: [1, 0, 18]
+		},
 		{
 			label: 'the list is the combobox\'s, by id',
 			evaluate: `() => { const i = document.querySelector('[data-testid="armory-people-search"]'); const l = document.querySelector('[data-testid="armory-people-results"]'); return [i?.getAttribute('aria-expanded'), !!l && i?.getAttribute('aria-controls') === l.id]; }`,
@@ -58,7 +83,8 @@ export default {
 	textContains: [
 		{ selector: '[data-testid="armory-members"]', label: 'presence, never offline', must: ['Armory open', 'Armory open, syncing', 'Last heard from', 'No status from this computer yet', 'No computer connected yet', 'No recent status from any of their computers', 'Not signed in to ideabosco.com yet'], mustNot: ['offline', 'Offline'] },
 		{ selector: '[data-testid="armory-people-results"]', label: 'an existing member, in words', must: ['Already a Student'] },
-		{ selector: '[data-testid="armory-people-message"]', label: 'the one role change, written only by its key', must: ['Hugo Lind is now Instructor.'], mustNot: ['CAD lead', 'Mentor'] }
+		{ selector: '[data-testid="armory-people-message"]', label: 'the one role change, written only by its key', must: ['Hugo Lind is now Instructor.'], mustNot: ['CAD lead', 'Mentor'] },
+		{ selector: '[data-testid="armory-picker-message"]', label: 'a member row picks nobody, and says where a role is changed', must: ['is already in this project as', "A role changes only on that person's row in the team list."], mustNot: ['Added'] }
 	],
 	tapTargets: [
 		{ selector: '[data-testid="armory-people-option"]', label: 'search options', min: 44 },

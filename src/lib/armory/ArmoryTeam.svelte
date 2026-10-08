@@ -230,13 +230,19 @@
 		busy = true;
 		message = '';
 		try {
-			const result = await addPeople(emails, pasteRole, members, addMember);
+			const before = members;
+			const result = await addPeople(emails, pasteRole, before, addMember);
 			if (result.added.length > 0) await refresh?.();
 			// What did not land stays in the box, so pressing Add again retries exactly that.
 			pasted = result.failed.map((f) => f.email).join('\n');
 			bad = result.failed.length > 0 || rejected.length > 0;
+			// A member is named as the list names them; an address nobody holds yet is said as typed.
+			const label = (email: string) => {
+				const m = before.find((x) => x.email === email);
+				return m ? memberName(m) : email;
+			};
 			message = [
-				addPeopleWords(result, pasteRole),
+				addPeopleWords(result, pasteRole, label),
 				rejected.length ? `Skipped, not an email: ${rejected.slice(0, 5).join(', ')}${rejected.length > 5 ? ` and ${rejected.length - 5} more` : ''}.` : ''
 			]
 				.filter(Boolean)

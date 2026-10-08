@@ -17,8 +17,9 @@
 	 * debounce and a request counter, so a slow answer to "an" never replaces
 	 * the answer to "ana" (CLAUDE.md, the injected-transport trap).
 	 *
-	 * Adding is the SAME per-person loop as the paste box (`addPeople`), with
-	 * the page's reload held to one at the end.
+	 * Adding is the SAME per-person loop as the paste box (`addPeople`, which
+	 * never sends somebody already in the project: an add is never a role
+	 * change), with the page's reload held to one at the end.
 	 */
 	import { onDestroy } from 'svelte';
 	import { holdDeployReload } from '$lib/shell/deploy-safety';
@@ -29,6 +30,7 @@
 		addPeople,
 		addPeopleWords,
 		PEOPLE_SEARCH_DEBOUNCE_MS,
+		ROLE_CHANGE_WHERE,
 		searchable,
 		type ArmoryPersonResult,
 		type MemberOutcome,
@@ -115,11 +117,32 @@
 			return;
 		}
 		results = answer.rows;
-		highlighted = results.length ? 0 : -1;
+		// Enter on a fresh list picks somebody who CAN be picked, never a member.
+		const first = results.findIndex((p) => !p.member_role && !inTray(p.email));
+		highlighted = first >= 0 ? first : results.length ? 0 : -1;
 		open = true;
 	}
 
+	/**
+	 * Somebody already in the project is never put in the tray. The add sends
+	 * the tray's role to `armory_add_member`, which CHANGES an existing
+	 * member's role, so one Enter on a highlighted colleague inside a batch of
+	 * students would demote them. Their row says their role and where a role
+	 * is changed instead; the box keeps its words, so the list is one arrow
+	 * key away.
+	 */
 	function pick(person: ArmoryPersonResult) {
+		if (person.member_role) {
+			open = false;
+			bad = false;
+			message = `${shownName(person)} is already in this project as ${ROLE_WORDS[person.member_role] ?? 'a member'}. ${ROLE_CHANGE_WHERE}`;
+			return;
+		}
+		// A search still waiting is for the words this pick clears; it must not reopen the list.
+		if (timer) clearTimeout(timer);
+		timer = null;
+		seq++;
+		searching = false;
 		if (!inTray(person.email)) tray = [...tray, person];
 		query = '';
 		results = [];
@@ -131,6 +154,11 @@
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape') {
 			open = false;
+			return;
+		}
+		if (!open && event.key === 'ArrowDown' && results.length > 0) {
+			event.preventDefault();
+			open = true;
 			return;
 		}
 		if (!open || results.length === 0) return;
@@ -202,6 +230,7 @@
 							role="option"
 							id={`${listId}-${i}`}
 							aria-selected={i === highlighted}
+							aria-disabled={person.member_role ? 'true' : undefined}
 							class="ar-combo-option"
 							class:highlighted={i === highlighted}
 							data-testid="armory-people-option"
@@ -268,5 +297,5 @@
 	{#if tray.length === 0 && !message}
 		<p class="ar-message">Pick one or more people above, then add them together.</p>
 	{/if}
-	{#if message}<p class={`ar-message ${bad ? 'bad' : ''}`} role="status" data-testid="armory-people-message">{message}</p>{/if}
+	{#if message}<p class={`ar-message ${bad ? 'bad' : ''}`} role="status" data-testid="armory-picker-message">{message}</p>{/if}
 </div>
