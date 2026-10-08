@@ -4,6 +4,7 @@
 	import { FEEDBACK_STATUSES, type FeedbackStatus } from './feedback';
 	import { saveBytes, saveText } from './download';
 	import {
+		ARMORY_INCIDENT_ZIP_BUDGET,
 		ARMORY_NO_PROJECT,
 		EMPTY_ARMORY_INCIDENT_FILTER,
 		INCIDENT_DAY_WINDOW,
@@ -170,7 +171,7 @@
 			const parts = [`Downloaded ${zip.included} ${zip.included === 1 ? 'incident' : 'incidents'} as ${zip.name}.`];
 			if (zip.overBudget.length) {
 				parts.push(
-					`${zip.overBudget.length} did not fit: one zip carries at most 64 MB of reports. Select fewer and download again for the rest.`
+					`${zip.overBudget.length} did not fit: one zip carries at most ${Math.round(ARMORY_INCIDENT_ZIP_BUDGET / 1024 / 1024)} MB of reports. Select fewer and download again for the rest.`
 				);
 			}
 			if (zip.notRead.length) {

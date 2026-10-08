@@ -154,16 +154,29 @@ describe('one incident as one JSON file', () => {
 			email: 'stu@boscotech.net',
 			submitter_name: 'Stu Dent',
 			project_id: 'p1',
-			project_name: 'Robot 2027',
-			submitter_identity: 'included'
+			project_name: 'Robot 2027'
 		});
 	});
 
-	it('the identity toggle removes the address and the name, and says it did', () => {
+	// THE KEY SET IS A CROSS-REPO CONTRACT (docs/ARMORY.md, "An exported
+	// incident file"), read by tools/read-incident in the app's repository, so
+	// it is asserted as the exact list, in order, rather than as a subset a
+	// stray extra key would pass.
+	const DOCUMENTED = [
+		'format', 'id', 'created_at', 'kind', 'summary', 'app_version', 'device_name',
+		'email', 'submitter_name', 'project_id', 'project_name', 'feedback_id',
+		'feedback_body', 'status', 'report'
+	];
+
+	it('holds exactly the documented keys, in the documented order', () => {
+		expect(Object.keys(JSON.parse(incidentFileJson(incident(), report)))).toEqual(DOCUMENTED);
+	});
+
+	it('the identity toggle leaves the address and the name out and nothing else', () => {
 		const parsed = JSON.parse(incidentFileJson(incident(), report, { includeSubmitter: false }));
+		expect(Object.keys(parsed)).toEqual(DOCUMENTED.filter((k) => k !== 'email' && k !== 'submitter_name'));
 		expect(Object.hasOwn(parsed, 'email')).toBe(false);
 		expect(Object.hasOwn(parsed, 'submitter_name')).toBe(false);
-		expect(parsed.submitter_identity).toBe('withheld');
 		expect(JSON.stringify(parsed)).not.toContain('stu@boscotech.net');
 		expect(parsed.report).toEqual(report);
 	});

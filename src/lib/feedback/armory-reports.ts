@@ -465,8 +465,10 @@ export interface IncidentExportOptions {
 
 /**
  * ONE INCIDENT AS A FILE: the row's fields, and the report VERBATIM under
- * `report`. Withholding the submitter removes the address and the name and
- * says so in `submitter_identity`.
+ * `report`, in exactly the key set docs/ARMORY.md documents for
+ * `tools/read-incident` (the v0.3 server contract). Withholding the submitter
+ * leaves the address and the name OUT, as that paragraph says; nothing else
+ * changes, so a reader never meets a key the contract does not name.
  */
 export function incidentFileObject(
 	row: ArmoryIncidentRow,
@@ -487,7 +489,6 @@ export function incidentFileObject(
 		out.email = row.email;
 		out.submitter_name = row.submitter_name;
 	}
-	out.submitter_identity = includeSubmitter ? 'included' : 'withheld';
 	out.project_id = row.project_id;
 	out.project_name = row.project_name;
 	out.feedback_id = row.feedback_id;

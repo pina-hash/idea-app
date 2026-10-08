@@ -3673,11 +3673,7 @@ with its own answer for the rows already stored.
 - **Archive, never delete.** `active = false` / `revoked_at` / `removed` keep
   history, roster and board rows intact. A real delete is offered only where the
   row holds no record worth keeping (a notebook FOLDER is organization, so
-  deleting one unfiles its entries and loses only the filing). **The one named
-  exception is an Armory incident** (0233, website requests v0.3 item 4b,
-  decision D4 of the 2026-10-07 round): a diagnostic log the app wrote about
-  itself, deleted 90 days after it arrives by the next incident's submit, and
-  hidden from the list past 90 days by the read itself.
+  deleting one unfiles its entries and loses only the filing).
 - **A soft-delete stamp is not a boundary.** The stamp is only as good as the
   filters behind it: enumerate every function, view and select that lists the
   table and exclude there, and pair each exclusion assertion with a positive
@@ -4451,22 +4447,9 @@ inside the function fails closed rather than falling through to a weaker path.
     `isAdmin === true` and never on the console itself; `SiteFeedback` derives it
     from `page.data.isAdmin`, so no mount threads it, and it opens a new tab so a
     half-typed report is never lost.
-  - **`app_feedback` is the ONE queue for every website surface**, and the
-    console at `/admin/feedback` (admin only, decision 42) reads ALL apps.
-    Filter before exporting; an export of everything is a semester nobody reads.
-    **The IDEA Armory Windows app's notes and incidents are their own tables**
-    (`armory_app_feedback`, `armory_app_incidents`, 0233, v0.3 items 4 and 4b:
-    8000-character notes, a required app version, 1 MiB incident reports),
-    read on `/admin/feedback/armory` and `/admin/feedback/incidents` by
-    `ArmoryFeedbackConsole` and `ArmoryIncidentConsole` over
-    `$lib/feedback/armory-reports.ts`, behind one gate in
-    `src/routes/admin/feedback/+layout.server.ts` with the area's header and its
-    `FeedbackSourcesNav` strip in `+layout.svelte`. The incident list never
-    carries `report` (it projects `report_bytes`); a report is read by the
-    admin's own client at the download, one file per card and one zip for a
-    selection (`buildIncidentZip`, over `buildZip`), never N downloads from one
-    press. The three consoles share one status list (`FEEDBACK_STATUSES`) and
-    one download click (`saveBlob` in `$lib/feedback/download.ts`).
+  - **`app_feedback` is the ONE queue for every surface**, and the console at
+    `/admin/feedback` (admin only, decision 42) reads ALL apps. Filter before
+    exporting; an export of everything is a semester nobody reads.
     - **IT IS A SITE PAGE, NOT A CLASSROOM ONE (report R03).** The portal's app
       header, the root layout's report control and the site plate, and no
       `.cr-root` around it, so `FeedbackConsole` may style nothing through
@@ -4475,6 +4458,20 @@ inside the function fails closed rather than falling through to a weaker path.
       both loads call, so a non-admin gets the same 404 at both addresses and
       no Location at either. `tests/feedback-console-route.test.ts` drives both
       real loads.
+    - **THE ARMORY APP'S NOTES AND INCIDENTS ARE THE AREA'S OTHER TWO TABS
+      (2026-10-07).** `/admin/feedback/armory` and `/admin/feedback/incidents`
+      mount `ArmoryFeedbackConsole` and `ArmoryIncidentConsole` over
+      `$lib/feedback/armory-reports.ts`; `src/routes/admin/feedback/+layout.server.ts`
+      is the area's one gate and `+layout.svelte` carries the header and the
+      `FeedbackSourcesNav` strip, whose current key is `.on` as well as
+      `aria-current`. A page whose database is not updated yet reads
+      `ARMORY_REPORTS_NOT_READY`, never an error. A report is read by the
+      admin's own client only at the download, one `.json` per card and one
+      zip for a selection (`buildIncidentZip`, over `buildZip`), never N
+      downloads from one press, in the file shape docs/ARMORY.md documents for
+      the app's reader. The three consoles share one status list
+      (`FEEDBACK_STATUSES`) and one download click (`saveBlob` in
+      `$lib/feedback/download.ts`).
     - **THE LAST STATUS MOVE IS UNDOABLE FOR `FEEDBACK_UNDO_MS` AND NO LONGER
       (report R02).** `feedbackUndoFor` keeps each LANDED report with the status
       the console showed BEFORE the press -- read after the write, the
