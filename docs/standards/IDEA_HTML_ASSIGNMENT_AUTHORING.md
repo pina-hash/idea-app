@@ -876,13 +876,14 @@ short videos Mr. Pina recorded, built into the live post so no live demo is need
   leaves the other alone. Re-upload over the same post: the rubric regenerates for the new
   module and every stored answer still renders.
 
----
 - **One long video, many steps: embed it once per move and give each step a time key.**
   The portal plays a YouTube id and takes no start time, so a chaptered walkthrough cannot
   jump inside the frame. Each step carries a 44px key labeled with its chapter time that
   opens `https://www.youtube.com/watch?v=<id>&t=<seconds>s` in a new tab through the same
   `window.open` path as every other outside link. Steps follow the chapter order, and a
   step shared with an earlier chapter carries no second key.
+
+---
 
 ## Changelog
 
