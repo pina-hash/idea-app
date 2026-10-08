@@ -1,0 +1,7 @@
+# 54 One student's page, for a teacher and for a parent conference
+
+- Raised: 2026-10-07  By: feedback round 2026-10-07 (ledger 0368), reports R01 and R15.
+- Status: DECIDED 2026-10-07 by default (straight to main at Mr. Pina's instruction); a correction is one line.
+- Decision: A manager-only page at `/classroom/<class>/people/<student address>` (404 to anyone else, like People and Grades), reached by clicking a name on People or from the command palette. It shows the student's work in this class, working time, notebook, check-ins, hall passes, coins, song request counts and which items they opened (**this reverses 0085's comment that no surface shows item opens to anyone but the student**), and prints cleanly for a conference. It does not show teammates' names, the games they played in the Foundry (only apps they published), or their last sign-in. A feedback report filed from such a page records the path with the address replaced by `:student`.
+- Why it is his: it is a disclosure surface about a minor that is handed to parents.
+- Context: migration 0233 part `student-overview`; CLAUDE.md "ONE STUDENT'S PAGE".

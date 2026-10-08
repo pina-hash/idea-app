@@ -1,0 +1,7 @@
+# 51 Dictation stays on the browser's own speech service, and behaves like a good dictation tool
+
+- Raised: 2026-10-07  By: feedback round 2026-10-07 (ledger 0368), report R14.
+- Status: DECIDED 2026-10-07 by default (straight to main at Mr. Pina's instruction); a correction is one line.
+- Decision: No audio leaves the browser for a server of ours. Within that, dictation now: keeps listening through the service's own pauses on a computer (a phone still stops at a pause and says so); stops after a minute of silence; shows the words it is hearing in grey where they will land; adds a period only where a sentence ends; drops "um" and "uh"; turns spoken punctuation into marks (comma, full stop, question mark, new line and the rest, with "period" handled so "4th period" survives); stops on Escape without closing the box; finishes the last sentence before Send; toggles on Ctrl or Cmd + Shift + Space; shows a live level meter on a computer. The grading console finishes a sentence before switching student and gains a D key.
+- The open alternative: a server-side transcription model would come closer to Claude's own accuracy and punctuation, but sends students' audio to a third party through an endpoint of ours, costs per minute and needs a new credential. Not built; his call if the browser service is still not close enough.
+- Context: `src/lib/feedback/dictation.ts`; CLAUDE.md "DICTATION IS ONE DRIVER AND ONE APPEND".
