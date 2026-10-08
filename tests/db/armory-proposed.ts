@@ -62,5 +62,8 @@ if (FILES_0233.length !== 1) {
 export const V3_NAME = FILES_0233[0];
 export const V3_SQL = readFileSync(join(MIGRATIONS_DIR, V3_NAME), 'utf8');
 
+/** Armory v0.3.1 (ledger 0374): armory_break_locks, the Force check in batch. */
+export const V031_NAME = '0234_armory_break_locks.sql';
+
 /** The Armory migrations, in order: the only files that may name armory_. */
-export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME];
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME];
