@@ -117,6 +117,13 @@
 	const frame = $derived(held && held.day === today ? held : null);
 	const agenda = $derived(frame?.agenda ?? []);
 	const timer = $derived(frame?.timer ?? null);
+	/**
+	 * THE CLOCK FACE IS ON: the teacher chose it, and the Plate is on (the ring
+	 * it is drawn on exists only under the Plate, so the revert constant gives
+	 * back the plain clock). It is the hero only while no timer is up, which
+	 * `plan.hero` and the template's order already say.
+	 */
+	const dialOn = $derived(frame?.clockFace === 'dial' && !!CLASSROOM_PLATE);
 
 	/*
 	 * THE TIMER'S OWN INSTANT. The page clock above moves four times a second,
@@ -333,7 +340,7 @@
 				class="lp-body"
 				data-hero={plan.hero}
 				data-side-empty={plan.sideEmpty}
-				data-clock-face={frame?.clockFace ?? 'digits'}
+				data-clock-face={dialOn ? 'dial' : undefined}
 			>
 				<section class="lp-hero" aria-label="Time">
 					{#if timer && readout}
@@ -382,7 +389,7 @@
 								{/if}
 							</p>
 						</div>
-					{:else if frame?.clockFace === 'dial' && CLASSROOM_PLATE}
+					{:else if dialOn}
 						<!-- THE CLOCK FACE, when the teacher turned it on: the dial is
 						     decoration, the digits under it are the time (and keep the
 						     wall's one `projector-clock`). Off the Plate the ring cannot
@@ -654,8 +661,11 @@
 	/* THE CLOCK FACE'S OWN SIZE (`--lp-dial`), never a re-pointed `--lp-ring`:
 	   the dial leaves room under it for the digits, and the rules that size it
 	   are scoped by the window's shape so a higher-specificity selector here
-	   cannot override the portrait stack or the one-column side-empty wall. */
-	.lp-body {
+	   cannot override the portrait stack or the one-column side-empty wall.
+	   Every rule keys on `data-clock-face='dial'`, which is written only when
+	   the face is on, so with it off the wall's markup and styles are the
+	   digits wall exactly. */
+	.lp-body[data-clock-face='dial'] {
 		--lp-dial-read: clamp(1.5rem, 7cqh, 6rem);
 	}
 	@media (min-aspect-ratio: 1/1) {
