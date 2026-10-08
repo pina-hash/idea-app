@@ -4,6 +4,7 @@
 	import { isTypingTarget } from '$lib/shell/keys';
 	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import PlateRing from '$lib/classroom/PlateRing.svelte';
+	import WallClock from './WallClock.svelte';
 	import {
 		clockParts,
 		formatReadout,
@@ -50,7 +51,11 @@
 	 *
 	 * IT USES THE WHOLE SCREEN (reports R12, R13). The hero is the timer, drawn
 	 * as the Plate's progress ring with the digits in its middle, or a large
-	 * clock when no timer is set; the side is a column of Plate cards fitted to
+	 * clock when no timer is set -- or, when the teacher turned it on, the CLOCK
+	 * FACE (`WallClock`, idea 26033e4b), an analog dial on the same Plate ring
+	 * with the digits under it, only while no timer is up (with a timer, the
+	 * ring already means time left, and the time is digits in the side card);
+	 * the side is a column of Plate cards fitted to
 	 * the box it has (`wallFit`), at the largest size that fits and never below
 	 * the 8H floor. The hero's size comes from a container whose size the window
 	 * sets, never its contents: the old time column was a shrink-to-fit grid item
@@ -112,6 +117,13 @@
 	const frame = $derived(held && held.day === today ? held : null);
 	const agenda = $derived(frame?.agenda ?? []);
 	const timer = $derived(frame?.timer ?? null);
+	/**
+	 * THE CLOCK FACE IS ON: the teacher chose it, and the Plate is on (the ring
+	 * it is drawn on exists only under the Plate, so the revert constant gives
+	 * back the plain clock). It is the hero only while no timer is up, which
+	 * `plan.hero` and the template's order already say.
+	 */
+	const dialOn = $derived(frame?.clockFace === 'dial' && !!CLASSROOM_PLATE);
 
 	/*
 	 * THE TIMER'S OWN INSTANT. The page clock above moves four times a second,
@@ -193,7 +205,8 @@
 				hallPass: null,
 				pick: null,
 				next: [],
-				activity: null
+				activity: null,
+				clockFace: 'digits'
 			},
 			planNow,
 			{
@@ -323,7 +336,12 @@
 		</header>
 
 		<div class="lp-main">
-			<div class="lp-body" data-hero={plan.hero} data-side-empty={plan.sideEmpty}>
+			<div
+				class="lp-body"
+				data-hero={plan.hero}
+				data-side-empty={plan.sideEmpty}
+				data-clock-face={dialOn ? 'dial' : undefined}
+			>
 				<section class="lp-hero" aria-label="Time">
 					{#if timer && readout}
 						<div
@@ -369,6 +387,17 @@
 								{#if overtime}
 									<span class="lp-over">Over by {overtime}</span>
 								{/if}
+							</p>
+						</div>
+					{:else if dialOn}
+						<!-- THE CLOCK FACE, when the teacher turned it on: the dial is
+						     decoration, the digits under it are the time (and keep the
+						     wall's one `projector-clock`). Off the Plate the ring cannot
+						     draw, so the plain clock below is the fallback. -->
+						<div class="lp-dial-box">
+							<WallClock {now} size="var(--lp-dial)" />
+							<p class="lp-clock lp-dial-read" data-testid="projector-clock">
+								{wallClock.time}<span class="lp-period">{wallClock.period}</span>
 							</p>
 						</div>
 					{:else}
@@ -629,6 +658,32 @@
 			--lp-ring: min(86cqw, 60vh);
 		}
 	}
+	/* THE CLOCK FACE'S OWN SIZE (`--lp-dial`), never a re-pointed `--lp-ring`:
+	   the dial leaves room under it for the digits, and the rules that size it
+	   are scoped by the window's shape so a higher-specificity selector here
+	   cannot override the portrait stack or the one-column side-empty wall.
+	   Every rule keys on `data-clock-face='dial'`, which is written only when
+	   the face is on, so with it off the wall's markup and styles are the
+	   digits wall exactly. */
+	.lp-body[data-clock-face='dial'] {
+		--lp-dial-read: clamp(1.5rem, 7cqh, 6rem);
+	}
+	@media (min-aspect-ratio: 1/1) {
+		.lp-body[data-hero='clock'][data-clock-face='dial'] {
+			--lp-dial: min(56cqw, calc(100cqh - var(--lp-dial-read) * 1.6));
+		}
+		.lp-body[data-hero='clock'][data-clock-face='dial']:not([data-side-empty='true']) {
+			grid-template-columns: calc(var(--lp-dial) + 1cqw) minmax(0, 1fr);
+		}
+		.lp-body[data-hero='clock'][data-clock-face='dial'][data-side-empty='true'] {
+			--lp-dial: min(90cqw, calc(100cqh - var(--lp-dial-read) * 1.6));
+		}
+	}
+	@media (max-aspect-ratio: 1/1) {
+		.lp-body[data-clock-face='dial'] {
+			--lp-dial: min(86cqw, 60vh);
+		}
+	}
 	.lp-hero {
 		display: flex;
 		flex-direction: column;
@@ -817,6 +872,16 @@
 		.lp-body[data-side-empty='true'] .lp-bigclock {
 			font-size: min(30cqw, 24vh);
 		}
+	}
+	.lp-dial-box {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: calc(var(--lp-dial-read) * 0.3);
+		min-width: 0;
+	}
+	.lp-dial-read {
+		font-size: var(--lp-dial-read);
 	}
 	.lp-period {
 		font-size: max(var(--lp-floor), 0.35em);

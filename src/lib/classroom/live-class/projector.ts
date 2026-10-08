@@ -35,6 +35,12 @@
  *      crosses at all: `buildProjectorFrame` is handed a state and a name per
  *      student and nothing else, and the parse refuses any name it should not
  *      hold.
+ *   5. THE CLOCK'S FACE IS A WORD, AND IT NAMES NOBODY (idea 26033e4b):
+ *      `clockFace` is `digits` (the wall as it always was) or `dial` (an
+ *      analog face on the Plate ring), chosen on the teacher's screen. The
+ *      wall's THEME is not in the frame at all: each window follows the site
+ *      theme through the browser's own `storage` event (`ThemeRoot`), so the
+ *      projector never becomes a second writer of it.
  *
  * NO SERVER IS INVOLVED, AND THAT IS A DECISION. The two windows talk over a
  * `BroadcastChannel` named for the viewer and the class, with `localStorage` as
@@ -51,6 +57,7 @@
  */
 
 import { parseLiveTimer, type LiveTimer } from './timer';
+import { wallClockFace, type WallClockFace } from './wall-clock';
 import type { LiveCellState } from './grid';
 import { hallPassToolChip, type HallPassState, type HallPassStudentState } from '$lib/classroom/hall-pass';
 
@@ -133,10 +140,23 @@ export interface ProjectorFrame {
 	next: string[];
 	/** Student activity, or null: off, not answered, or not an item that sends any. */
 	activity: WallActivity | null;
+	/** Which face the hero clock wears when no timer is up: digits, or the analog dial. Names nobody. */
+	clockFace: WallClockFace;
 }
 
 /** The frame's keys, exactly. The privacy test holds the type to this list. */
-export const PROJECTOR_FRAME_KEYS = ['v', 'day', 'at', 'agenda', 'timer', 'hallPass', 'pick', 'next', 'activity'] as const;
+export const PROJECTOR_FRAME_KEYS = [
+	'v',
+	'day',
+	'at',
+	'agenda',
+	'timer',
+	'hallPass',
+	'pick',
+	'next',
+	'activity',
+	'clockFace'
+] as const;
 
 /** The most agenda lines, and the longest, a frame may carry: what a wall can hold. */
 export const WALL_AGENDA_MAX = 12;
@@ -305,6 +325,8 @@ export interface ProjectorFrameInput {
 	next?: readonly string[];
 	/** Student activity, only when the teacher turned it on and presence has answered. */
 	activity?: WallActivityInput | null;
+	/** The clock face the teacher chose; absent is the digits, the wall as it always was. */
+	clockFace?: WallClockFace;
 }
 
 const cleanLines = (lines: readonly unknown[], max: number) =>
@@ -326,7 +348,8 @@ export function buildProjectorFrame(input: ProjectorFrameInput): ProjectorFrame 
 			? { name: String(input.pick.name).slice(0, WALL_NAME_MAX), seed: String(input.pick.seed).slice(0, 16) }
 			: null,
 		next: cleanLines(input.next ?? [], WALL_NEXT_LINES_MAX),
-		activity: buildActivity(input.activity)
+		activity: buildActivity(input.activity),
+		clockFace: wallClockFace(input.clockFace)
 	};
 }
 
@@ -403,17 +426,30 @@ export function parseProjectorFrame(value: unknown): ProjectorFrame | null {
 		pick = { name: p.name.slice(0, WALL_NAME_MAX), seed: p.seed.slice(0, 16) };
 	}
 	/*
-	 * A FRAME FROM A CONTROL VIEW BUILT BEFORE THESE TWO KEYS still paints:
-	 * no `next` is no lines and no `activity` is none. The version stays 1 on
-	 * purpose: a projector window is never reloaded by a deploy
-	 * (PROJECTOR_ROUTES), so a bumped version would freeze an open wall, where
-	 * an old projector simply rebuilds the frame from the keys it knows.
+	 * A FRAME FROM A CONTROL VIEW BUILT BEFORE THESE THREE KEYS still paints:
+	 * no `next` is no lines, no `activity` is none, and no `clockFace` is the
+	 * digits. The version stays 1 on purpose: a projector window is never
+	 * reloaded by a deploy (PROJECTOR_ROUTES), so a bumped version would freeze
+	 * an open wall, where an old projector simply rebuilds the frame from the
+	 * keys it knows (and an old one handed `clockFace` drops it and draws the
+	 * digits).
 	 */
 	const next = Array.isArray(v.next)
 		? v.next.filter((l): l is string => typeof l === 'string' && l.trim() !== '').map((l) => l.slice(0, WALL_LINE_MAX)).slice(0, WALL_NEXT_LINES_MAX)
 		: [];
 	const activity = parseActivity(v.activity);
-	return { v: PROJECTOR_FRAME_VERSION, day: v.day, at: v.at, agenda, timer, hallPass, pick, next, activity };
+	return {
+		v: PROJECTOR_FRAME_VERSION,
+		day: v.day,
+		at: v.at,
+		agenda,
+		timer,
+		hallPass,
+		pick,
+		next,
+		activity,
+		clockFace: wallClockFace(v.clockFace)
+	};
 }
 
 /** Of two frames, the one to paint: the newer, and never one from another day. */

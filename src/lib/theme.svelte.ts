@@ -12,6 +12,15 @@
  * is also why this needed no migration -- the notebook's three plates have run
  * this way since they shipped.
  *
+ * AND EVERY OPEN WINDOW OF THE BROWSER FOLLOWS A CHANGE (bug 145c0352). The
+ * classroom projector is a SECOND WINDOW with no theme control of its own, and
+ * it is never reloaded (it is a `PROJECTOR_ROUTES` entry), so a teacher who
+ * switched to Space White on the control view kept a dark wall. `ThemeRoot`
+ * listens for the `storage` event a write in any other window of this origin
+ * fires, reads it with `themeFromStorageEvent`, and hands the answer to
+ * `adoptSiteTheme` below -- which moves the state and NEVER writes storage, so
+ * following a choice can never become a second writer of it.
+ *
  * THE FILE IS `.svelte.ts` AND NOT `.ts`. A `$state` rune only compiles in a
  * rune-aware module; a plain `.ts` would have to become a store or a hand-
  * rolled subscriber, which is a second mechanism for the thing the notebook
@@ -80,6 +89,7 @@ export {
 	siteThemeAttr,
 	themeAttrFor,
 	themeColorFor,
+	themeFromStorageEvent,
 	themeInScope,
 	type SiteTheme,
 	type SiteThemeAttr
@@ -128,6 +138,19 @@ export function setSiteTheme(next: SiteTheme) {
 	} catch {
 		// A blocked or full store costs the persistence, never the choice.
 	}
+}
+
+/**
+ * ANOTHER WINDOW'S CHOICE, ADOPTED HERE. It moves the state (and the dark
+ * theme the one-tap switch returns to) and touches NO storage: not
+ * `setSiteTheme`, not `read()`. The other window already persisted the value,
+ * and a follower that wrote it back, or removed an id it does not know, would
+ * turn every theme change into a cross-tab write that two builds fight over.
+ */
+export function adoptSiteTheme(next: SiteTheme) {
+	if (next === theme) return;
+	theme = next;
+	if (next !== LIGHT_THEME) lastDark = next;
 }
 
 /** What the attribute is right now, for the one component that writes it. */

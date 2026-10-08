@@ -29,7 +29,7 @@ export default {
 		{
 			selector: 'dialog[data-testid="classroom-settings"]',
 			label: "a teacher's settings, each group placed",
-			must: ['This device', 'Your account', 'Density', 'List width', 'A class opens on', 'Grades lists by', 'Tours', 'Classroom tour', 'Taken', 'Recent searches'],
+			must: ['This device', 'Your account', 'Density', 'List width', 'Projector clock', 'A class opens on', 'Grades lists by', 'Tours', 'Classroom tour', 'Taken', 'Recent searches'],
 			mustNot: ['To-do opens on', 'after returning']
 		}
 	],

@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { siteTheme, themeAttrFor, themeColorFor } from '$lib/theme.svelte';
+	import {
+		adoptSiteTheme,
+		siteTheme,
+		themeAttrFor,
+		themeColorFor,
+		themeFromStorageEvent
+	} from '$lib/theme.svelte';
 	import type { Component } from 'svelte';
 
 	/**
@@ -14,11 +20,23 @@
 	 * other end. `<html>` is the one element above all of it.
 	 *
 	 * MOUNTED ONCE IN `src/routes/+layout.svelte`, beside `SiteFeedback` and
-	 * `NavigationProgress`, and for the identical reason: there are no layout
-	 * resets anywhere in `src/routes`, so every page route INHERITS the theme
-	 * instead of having to remember it. Mounting it per page, or hanging it off
-	 * `ProfileMenu` (which not every shell mounts), would give a theme that is
-	 * on for some routes and off for others.
+	 * `NavigationProgress`, and for the identical reason: every page route
+	 * INHERITS the theme instead of having to remember it. The one layout reset
+	 * in `src/routes` (the classroom projector's `+page@.svelte`) resets to the
+	 * ROOT layout, so it inherits this mount too. Mounting it per page, or
+	 * hanging it off `ProfileMenu` (which not every shell mounts), would give a
+	 * theme that is on for some routes and off for others.
+	 *
+	 * IT ALSO HEARS ANOTHER WINDOW'S CHOICE (bug 145c0352). The projector is a
+	 * second window with no switch of its own, and a deploy never reloads it,
+	 * so the theme a teacher picks on the control view has to reach it some
+	 * other way. A write to `localStorage` in any other window of this origin
+	 * fires a `storage` event here; `themeFromStorageEvent` reads it and
+	 * `adoptSiteTheme` moves the state WITHOUT writing storage back, and the
+	 * effect below then writes the attribute exactly as for a press here, the
+	 * session gate and the route scope included. Never through the projector's
+	 * frame: that would make the projector a second writer of `data-theme` and
+	 * fix one window while every other tab stayed stale.
 	 *
 	 * THE SESSION GATE IS THE POINT, NOT AN OPTIMISATION. See
 	 * `$lib/theme.svelte.ts` for the argument: the control is in ProfileMenu,
@@ -87,6 +105,20 @@
 			el.removeAttribute('data-theme');
 			meta?.setAttribute('content', themeColorFor(undefined));
 		};
+	});
+
+	/* ANOTHER WINDOW'S CHOICE. Nothing reactive is read in this body (the
+	   handler runs later, outside any tracking), so the listener is added once
+	   and removed on teardown. Keyed on `e.key` alone: nothing writes the theme
+	   key to sessionStorage, and reading `window.localStorage` here would throw
+	   where site data is blocked. */
+	$effect(() => {
+		const onStorage = (e: StorageEvent) => {
+			const next = themeFromStorageEvent(e.key, e.newValue);
+			if (next) adoptSiteTheme(next);
+		};
+		window.addEventListener('storage', onStorage);
+		return () => window.removeEventListener('storage', onStorage);
 	});
 
 	let Rain = $state<Component<{ active: boolean }> | null>(null);

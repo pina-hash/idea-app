@@ -281,8 +281,9 @@ describe('2. the frame carries what the class may see, and a manager state canno
 		expect(hallPassWall({ ...managerOut, taken: false, open: null })).toEqual({ tone: 'free', word: 'Free' });
 	});
 
-	it('its keys are exactly the nine the type names', () => {
-		const expected = ['activity', 'agenda', 'at', 'day', 'hallPass', 'next', 'pick', 'timer', 'v'];
+	it('its keys are exactly the ten the type names', () => {
+		// Ten since the clock face (idea 26033e4b): `clockFace` names nobody.
+		const expected = ['activity', 'agenda', 'at', 'clockFace', 'day', 'hallPass', 'next', 'pick', 'timer', 'v'];
 		expect(Object.keys(buildProjectorFrame(frameInput)).sort()).toEqual(expected);
 		expect([...PROJECTOR_FRAME_KEYS].sort()).toEqual(expected);
 	});
@@ -479,7 +480,9 @@ describe("5. the projector's page and view import none of the control view's pri
 	const projectorFiles = [
 		'src/routes/classroom/[sectionId]/live/projector/+page@.svelte',
 		'src/routes/classroom/[sectionId]/live/projector/+page.server.ts',
-		'src/lib/classroom/live-class/ProjectorView.svelte'
+		'src/lib/classroom/live-class/ProjectorView.svelte',
+		'src/lib/classroom/live-class/WallClock.svelte',
+		'src/lib/classroom/live-class/wall-clock.ts'
 	];
 
 	it('names none of them', () => {
@@ -668,6 +671,25 @@ describe('6. student activity reaches the wall as counts, and names only on the 
 		expect(parsed!.activity).toBeNull();
 		expect(parsed!.next).toEqual([]);
 		expect(parsed!.agenda).toEqual(['Warm up']);
+		// ...and a control view built before the clock face sends none: the digits.
+		expect(parsed!.clockFace).toBe('digits');
+	});
+
+	it('the clock face crosses as one of two words, and the parse holds it to that (idea 26033e4b)', () => {
+		// Absent at build is the wall as it always was.
+		expect(buildProjectorFrame(frameInput).clockFace).toBe('digits');
+		const dial = buildProjectorFrame({ ...frameInput, clockFace: 'dial' });
+		expect(dial.clockFace).toBe('dial');
+		expect(parseProjectorFrame(JSON.parse(JSON.stringify(dial)))!.clockFace).toBe('dial');
+		for (const hostile of ['<b>dial</b>', 'Dial', 1, true, null, { face: 'dial' }, 'alice@boscotech.net']) {
+			const parsed = parseProjectorFrame({ ...dial, clockFace: hostile });
+			expect(parsed, JSON.stringify(hostile)).not.toBeNull();
+			expect(parsed!.clockFace, JSON.stringify(hostile)).toBe('digits');
+		}
+		// A dial frame built from the manager state still names nobody.
+		const json = JSON.stringify(dial);
+		for (const p of PRIVATE) expect(json, p).not.toContain(p);
+		expect(json).not.toContain('@');
 	});
 
 	it('Coming up crosses as at most three trimmed lines, and the parse holds it to that', () => {

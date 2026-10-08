@@ -184,6 +184,19 @@ export function schoolWeekday(day: string): number | null {
 }
 
 /**
+ * THE SCHOOL'S WALL CLOCK AT AN INSTANT, as numbers: the hour (0 to 23), the
+ * minute and the second in America/Los_Angeles, never the browser's own zone.
+ * The projector's clock face draws its hands from it. It reads the zone
+ * through the same `schoolZoneOffsetMs` the conversion below uses, so a clock
+ * change is settled one way, and it reads no clock of its own.
+ */
+export function schoolClockParts(instant: number): { hour: number; minute: number; second: number } {
+	const whole = Math.floor(instant / 1000) * 1000;
+	const wall = new Date(whole + schoolZoneOffsetMs(whole));
+	return { hour: wall.getUTCHours(), minute: wall.getUTCMinutes(), second: wall.getUTCSeconds() };
+}
+
+/**
  * THE ONE CONVERSION FROM THE SCHOOL'S WALL CLOCK TO AN INSTANT. `wall` is the
  * wall-clock moment written as though it were UTC (whole days since 1970 in ms
  * plus the time of day). The offset is asked of the zone at a first guess and
