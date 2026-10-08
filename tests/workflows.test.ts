@@ -2370,7 +2370,18 @@ describe('apply-migration and deploy-probe are one path, not two', () => {
 			.split(',')
 			.map((s) => s.trim())
 			.filter(Boolean);
-		expect(names).toEqual(['readProbes', 'prepare', 'buildSql', 'verdicts', 'redact']);
+		// The history-table reads joined in ledger 0365, when the order check
+		// started deciding with the probe's own record of what applied.
+		expect(names).toEqual([
+			'readProbes',
+			'prepare',
+			'buildSql',
+			'verdicts',
+			'redact',
+			'readHistory',
+			'buildHistorySql',
+			'buildHistoryVersionsSql'
+		]);
 		// The positive control: each of those is genuinely exported from the
 		// other file, so a rename there reddens here rather than at 2am.
 		for (const name of names) {

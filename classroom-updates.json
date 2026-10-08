@@ -13,6 +13,60 @@
 	],
 	"entries": [
 		{
+			"date": "2026-10-08",
+			"title": "The Report button is now called Feedback",
+			"body": "The button for telling us something about the site is now called Send feedback. In a class header it just says Feedback. It is for ideas and things you liked as well as problems, so it has a speech-bubble icon instead of a warning sign. It is in the same place and works the same way.",
+			"tags": ["feedback"]
+		},
+		{
+			"date": "2026-10-08",
+			"title": "Dictation keeps listening and punctuates more carefully",
+			"body": "The DICTATE button in the Send feedback box now works more like a modern dictation tool. On a computer it keeps listening through pauses until you press STOP or Escape, shows the words it is hearing in grey right where they will land, and only adds a period where a sentence really ends. It leaves out \"um\" and \"uh\", and you can say \"comma\", \"question mark\", \"new line\" or \"new paragraph\" to type them. Press Escape to stop dictating without closing the box, or Ctrl+Shift+Space (Cmd+Shift+Space on a Mac) to start and stop. If you press SEND while still talking, the box waits for your last sentence before sending. On a phone it pauses when you stop talking; press DICTATE to keep going.",
+			"tags": ["feedback"]
+		},
+		{
+			"date": "2026-10-08",
+			"title": "Class notices can be longer and carry pictures and files",
+			"body": "A notice from your teacher can now be up to 4,000 characters and have up to ten pictures or files on it. Pictures show as small squares under the notice: tap one to see it large, then use the arrows to move through every picture on that notice. Other files download when you tap them. A long notice shows its first few lines, and you press \"Rest of the notice\" to read the rest.",
+			"tags": ["classroom", "posts"]
+		},
+		{
+			"date": "2026-10-08",
+			"title": "The class page stays as you left it when you open something",
+			"body": "Opening an assignment or a post from your class and coming back no longer starts the class page over. The banner does not replay, anything you had open stays open, and a notice your teacher was typing is not lost.",
+			"tags": ["classroom"]
+		},
+		{
+			"date": "2026-10-08",
+			"title": "The class banner moves smoothly",
+			"body": "The pattern on your class banner no longer jumps back to the start when your pointer leaves the top of the class page. It pauses where it is and carries on when you move back over it.",
+			"tags": ["classroom", "theme"]
+		},
+		{
+			"date": "2026-10-08",
+			"title": "The class list stays readable when you make it narrow",
+			"body": "When an item is open and you drag the class list narrower, unit names and titles no longer break in the middle of a word, and the list no longer scrolls sideways.",
+			"tags": ["classroom"]
+		},
+		{
+			"date": "2026-10-08",
+			"title": "Worksheet photos open larger, and Download works",
+			"body": "In a web-page worksheet, every photo or file you hand in now has a Download button, and pressing a photo opens it larger, with zoom. A file that is not a picture, like a SolidWorks part, now shows as a file you can download instead of a broken picture. A worksheet's own Download button works now too. Once your teacher updates a worksheet, your photo will show right where it belongs inside the worksheet instead of in a list under it.",
+			"tags": ["classroom", "worksheets"]
+		},
+		{
+			"date": "2026-10-08",
+			"title": "The projector keeps up with the theme, and can show a clock face",
+			"body": "When your teacher switches the classroom between the light and dark look, the projector screen now changes with it while it is open. Teachers can also turn on a clock face for the projector from the live class page: a round clock with hands, with the time written under it, shown whenever no timer is running. A projector window that was already open needs to be closed and opened again once to pick this up.",
+			"tags": ["Live class"]
+		},
+		{
+			"date": "2026-10-08",
+			"title": "Your teacher has a one-page summary of your work in each class",
+			"body": "Teachers can now open one page per student in their class. It shows your assignments and their status, your notebook check-ins, when you last opened each handout, your hall passes, your saved teams (the team name only, never your teammates), your IDEA Coins and your music requests. Only teachers of your class can see it, and it is what they may print for a parent conference. Nothing changes about how you do your work.",
+			"tags": ["classroom"]
+		},
+		{
 			"date": "2026-10-01",
 			"title": "Arrange your class page, and style your team",
 			"body": "You can now choose what your class page shows and in what order. Open Display settings, then Page layout, then Class page: move the search, the videos or your team up or down, or hide the class tools or the theme vote. The posts always stay, and Reset puts the page back the way it was. If you hide something, a line at the bottom of the page says what is hidden and offers Arrange to bring it back. Notices from your teacher always stay at the top. If you are on a posted team, Customize team on your team's card lets you pick its name, motto, colour, background and badge.",
