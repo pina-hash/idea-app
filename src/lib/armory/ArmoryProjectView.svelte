@@ -32,8 +32,10 @@
 	import ArmoryTeam from './ArmoryTeam.svelte';
 	import { holderFilterOf, type HolderFilter } from './checkouts';
 	import { ForceCheckIn, type ForceOutcome } from './force-check-in.svelte';
+	import { RemoveEmptyFile, type RemoveEmptyOutcome } from './remove-empty.svelte';
 	import { projectViewHref, projectViewOf, projectViewsFor, PROJECT_VIEW_WORDS, type ProjectView } from './nav';
 	import {
+		labelProjectDevices,
 		peopleSearchOffered,
 		teamNames,
 		type ArmoryPurgePreview,
@@ -77,6 +79,7 @@
 		addMember = null,
 		removeMember = null,
 		takeBack = null,
+		removeEmpty = null,
 		takeBackNeedsComputer = false,
 		rename = null,
 		setArchived = null,
@@ -118,6 +121,8 @@
 		addMember?: ((email: string, role: ArmoryRole, opts?: { refresh?: boolean }) => Promise<MemberOutcome>) | null;
 		removeMember?: ((email: string) => Promise<MemberOutcome>) | null;
 		takeBack?: ((fileId: string) => Promise<ForceOutcome>) | null;
+		/** `armory_remove_empty_file` (0236), handed in only to a caller `armory_can_take_back` admits. */
+		removeEmpty?: ((fileId: string) => Promise<RemoveEmptyOutcome>) | null;
 		/** True when the caller may force a check in but this database needs one of their computers to send it from. */
 		takeBackNeedsComputer?: boolean;
 		rename?: ((name: string) => Promise<Outcome>) | null;
@@ -136,6 +141,12 @@
 	} = $props();
 
 	const me = $derived(myEmail.trim().toLowerCase());
+	/**
+	 * TWO COMPUTERS WITH ONE NAME (Armory 0.3.3 item 4): every computer on the
+	 * page is named by its label, "IDEA-06 (a030)" where two share a name, so
+	 * the file rows, the checkout table and the team all agree.
+	 */
+	const labeled = $derived(labelProjectDevices(files, checkouts, members));
 	const seen = $derived(new Map(Object.entries(deviceSeen)));
 	const names = $derived(teamNames(members, checkouts));
 	const byId = $derived(new Map(files.map((f) => [f.id, f])));
@@ -161,6 +172,11 @@
 	 */
 	const forceState = new ForceCheckIn((fileId) => (takeBack ? takeBack(fileId) : Promise.resolve({ ok: false, message: '' })));
 	const force = $derived(takeBack ? forceState : null);
+	/** The same once-made shape for removing a file with no first version. */
+	const removeState = new RemoveEmptyFile((fileId) =>
+		removeEmpty ? removeEmpty(fileId) : Promise.resolve({ ok: false, message: '' })
+	);
+	const remover = $derived(removeEmpty ? removeState : null);
 
 	const LIVE_WORDS = {
 		live: 'Live: changes appear as they happen',
@@ -235,20 +251,21 @@
 		<ArmoryFiles
 			projectId={project.id}
 			projectName={project.name}
-			{files}
+			files={labeled.files}
 			{sideCounts}
 			{seen}
 			{names}
 			{now}
 			{me}
 			{force}
+			removeEmpty={remover}
 			{initialFilter}
 			{initialQuery}
 		/>
 	{:else if shown === 'checked-out'}
 		<ArmoryCheckouts
 			projectId={project.id}
-			{checkouts}
+			checkouts={labeled.checkouts}
 			{names}
 			{now}
 			{me}
@@ -279,6 +296,7 @@
 			{searchPeople}
 			{loadTeam}
 			{refresh}
+			labels={labeled.labels}
 		/>
 	{:else if shown === 'activity'}
 		<ArmoryActivity {activity} {fileName} {names} {now} />

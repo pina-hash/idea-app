@@ -72,7 +72,8 @@
 		STORAGE,
 		SUMMARIES,
 		SYNCED_FILES,
-		TEAM
+		TEAM,
+		TWIN_FILES
 	} from './fixtures';
 
 	let { data }: { data: { only: string | null } } = $props();
@@ -81,6 +82,7 @@
 	let big = $state<ArmoryMember[]>(TEAM.map((m) => ({ ...m })));
 	let editing = $state<ArmoryFile[]>(EDITING_FILES.map((f) => ({ ...f })));
 	let many = $state<ArmoryFile[]>(MANY_FILES.map((f) => ({ ...f })));
+	let quiet = $state<ArmoryFile[]>(QUIET_FILES.map((f) => ({ ...f })));
 	let projectName = $state(PROJECT.name);
 	let projectArchived = $state(false);
 	let purged = $state<{ name: string; storageProblem: string | null } | null>(null);
@@ -166,6 +168,14 @@
 		many = many.map((f) => (f.id === fileId ? { ...f, lock: null } : f));
 		return { ok: true as const };
 	}
+	/** `armory_remove_empty_file` (0236) in memory: the empty file is marked removed, as the server does. */
+	async function removeEmpty(fileId: string) {
+		const f = quiet.find((x) => x.id === fileId);
+		if (!f || f.deleted) return { ok: false as const, message: 'nothing changed' };
+		if (f.current) return { ok: false as const, message: 'has a first version', code: '55000' };
+		quiet = quiet.map((x) => (x.id === fileId ? { ...x, deleted: true } : x));
+		return { ok: true as const };
+	}
 	async function rename(name: string) {
 		projectName = name;
 		return { ok: true as const };
@@ -205,7 +215,9 @@
 		{ key: 'editing', label: 'Two files checked out; a mentor can force a check in', view: 'files', files: () => editing, seen: EDITING_SEEN },
 		{ key: 'editing-out', label: 'The Checked out view of the same two', view: 'checked-out', files: () => editing, seen: EDITING_SEEN },
 		{ key: 'synced', label: 'Every file available (a student view)', view: 'files', files: () => SYNCED_FILES, viewer: 'student' },
-		{ key: 'offline', label: 'A computer holding a file has gone quiet; a file with nothing saved yet', view: 'files', files: () => QUIET_FILES, seen: QUIET_SEEN },
+		{ key: 'offline', label: 'A computer holding a file has gone quiet; a file with no first version, which a mentor can remove', view: 'files', files: () => quiet, seen: QUIET_SEEN },
+		{ key: 'offline-student', label: 'The same, for a student: the file with no first version has no Remove', view: 'files', files: () => QUIET_FILES, seen: QUIET_SEEN, viewer: 'student' },
+		{ key: 'twins', label: 'Two computers named IDEA-06: each is labeled with the start of its id', view: 'checked-out', files: () => TWIN_FILES, seen: EDITING_SEEN },
 		{ key: 'side', label: 'Files with side versions', view: 'files', files: () => SIDE_FILES, seen: EDITING_SEEN, sides: SIDE_COUNTS },
 		{ key: 'storage-off', label: 'File storage not configured', view: 'files', files: () => SYNCED_FILES, storageOff: true },
 		{ key: 'filter-out', label: 'The Checked out filter', view: 'files', files: () => EDITING_FILES, seen: EDITING_SEEN, filter: 'checked-out' },
@@ -314,6 +326,7 @@
 		addMember={addMemberTo(team)}
 		removeMember={removeMemberFrom(team)}
 		takeBack={mayForce && !s.pre033 ? takeBack : null}
+		removeEmpty={mayForce && !s.pre033 ? removeEmpty : null}
 		takeBackNeedsComputer={mayForce && !!s.pre033}
 		rename={role === 'mentor' ? rename : null}
 		setArchived={role === 'mentor' || admin ? setArchived : null}

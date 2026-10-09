@@ -214,6 +214,19 @@ export async function loadTeam(supabase: SupabaseClient, projectId: string): Pro
 	return { ready: false, members: (members.data ?? []) as ArmoryMember[] };
 }
 
+/**
+ * The server's own answer to "may this caller force a check in, remove a file
+ * with no first version, and move what others have checked out here"
+ * (0236 `armory_can_take_back`, the ONE predicate behind all of them). Null on
+ * a database without it or on any failure, and the page then falls back to
+ * the pre-0236 rule (mentor, CAD lead, or a site admin) and offers no Remove.
+ */
+export async function loadCanTakeBack(supabase: SupabaseClient, projectId: string): Promise<boolean | null> {
+	const { data, error: e } = await supabase.rpc('armory_can_take_back', { p_project: projectId });
+	if (e || typeof data !== 'boolean') return null;
+	return data;
+}
+
 /** The heartbeat (0233) counts as hearing from a computer, beside the change feed. */
 function mergeHeartbeats(seen: Record<string, number>, team: readonly ArmoryMember[]): Record<string, number> {
 	const out = { ...seen };
@@ -235,12 +248,13 @@ export async function loadProject(supabase: SupabaseClient, projectId: string, f
 	const files = await supabase.rpc('armory_project_files', { p_project: project.id });
 	if (files.error) failed(files.error);
 	const list = (files.data ?? []) as ArmoryFile[];
-	const [team, feed, checkouts, sideCounts, devices] = await Promise.all([
+	const [team, feed, checkouts, sideCounts, devices, canTakeBack] = await Promise.all([
 		full ? loadTeam(supabase, project.id) : Promise.resolve({ ready: summaries.ready, members: [] as ArmoryMember[] }),
 		changeFeed(supabase, project.id),
 		loadCheckouts(supabase, project.id, list),
 		full ? loadSideCounts(supabase, list) : Promise.resolve({} as Record<string, number>),
-		full ? loadMyDevices(supabase) : Promise.resolve([] as ArmoryDevice[])
+		full ? loadMyDevices(supabase) : Promise.resolve([] as ArmoryDevice[]),
+		full ? loadCanTakeBack(supabase, project.id) : Promise.resolve(null)
 	]);
 	// Storage from the summary when the server counts it; the paged read is only the pre-0233 rung.
 	const counted = summaries.ready && typeof project.bytes === 'number' && typeof project.stored === 'number';
@@ -256,6 +270,7 @@ export async function loadProject(supabase: SupabaseClient, projectId: string, f
 		members: team.members,
 		teamReady: team.ready,
 		v033Ready: summaries.ready,
+		canTakeBack,
 		sideCounts,
 		deviceSeen: mergeHeartbeats(feed.deviceSeen, team.members),
 		cursor: feed.cursor,

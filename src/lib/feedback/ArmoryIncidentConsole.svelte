@@ -24,7 +24,8 @@
 		incidentFileName,
 		incidentKindWord,
 		type ArmoryIncidentFilter,
-		type ArmoryIncidentRow
+		type ArmoryIncidentRow,
+		deviceWithMachine
 	} from './armory-reports';
 
 	/**
@@ -373,7 +374,7 @@
 							</div>
 							<p class="ai-summary">{row.summary}</p>
 							<p class="ai-meta">
-								From {armoryWho(row)}{#if row.device_name}, on {row.device_name}{/if}.
+								From {armoryWho(row)}{#if row.device_name || row.machine_id}, on <span data-testid="armory-report-device">{deviceWithMachine(row.device_name, row.machine_id)}</span>{/if}.
 								{row.project_id ? `Project: ${row.project_name || 'Unnamed project'}.` : 'No project.'}
 								Report {byteWords(row.report_bytes)}.
 							</p>

@@ -1,7 +1,10 @@
 import {
 	ARMORY_REPORTS_NOT_READY,
 	armoryReportsNotReady,
-	parseArmoryIncidentRows
+	INCIDENT_MACHINE_COLUMNS,
+	parseArmoryIncidentRows,
+	parseIncidentMachines,
+	withIncidentMachines
 } from '$lib/feedback/armory-reports';
 import { requireFeedbackConsole } from '$lib/server/feedback-console';
 import type { PageServerLoad } from './$types';
@@ -30,5 +33,28 @@ export const load: PageServerLoad = async ({ locals }) => {
 				: `The Armory incidents could not be read: ${error.message}`
 		};
 	}
-	return { rows: parseArmoryIncidentRows(data), unavailable: null };
+	return { rows: withIncidentMachines(parseArmoryIncidentRows(data), await readMachines(locals.supabase)), unavailable: null };
 };
+
+/**
+ * THE MACHINE IDS (0236, Armory 0.3.3 item 4), read from the incidents
+ * table's own stored column rather than from each report (up to 1 MiB a
+ * row): admin-only by its RLS policy, the last 90 days as the list shows
+ * them. A database without the column, or any failure, is no ids, never an
+ * error: the console renders as it did.
+ */
+async function readMachines(supabase: App.Locals['supabase']) {
+	try {
+		const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+		const { data, error } = await supabase
+			.from('armory_app_incidents')
+			.select(INCIDENT_MACHINE_COLUMNS)
+			.gte('created_at', since)
+			.not('machine_id', 'is', null)
+			.order('created_at', { ascending: false })
+			.limit(1000);
+		return error ? [] : parseIncidentMachines(data);
+	} catch {
+		return [];
+	}
+}

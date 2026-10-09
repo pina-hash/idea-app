@@ -16,7 +16,8 @@
 		distinctValues,
 		filterArmoryFeedback,
 		type ArmoryFeedbackFilter,
-		type ArmoryFeedbackRow
+		type ArmoryFeedbackRow,
+		deviceWithMachine
 	} from './armory-reports';
 
 	/**
@@ -297,7 +298,7 @@
 						</p>
 					{/if}
 					<p class="af-meta">
-						From {armoryWho(row)}{#if row.submitter_name && row.email}<span class="af-email"> {row.email}</span>{/if}{#if row.device_name}, on {row.device_name}{/if}
+						From {armoryWho(row)}{#if row.submitter_name && row.email}<span class="af-email"> {row.email}</span>{/if}{#if row.device_name || row.machine_id}, on <span data-testid="armory-report-device">{deviceWithMachine(row.device_name, row.machine_id)}</span>{/if}
 					</p>
 					<div class="af-context">
 						<Disclosure label="Context" collapseWhen={true}>

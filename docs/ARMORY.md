@@ -662,6 +662,97 @@ arguments (and leave the new fields off). Show "Your feedback" from
 `armory_my_app_feedback`, and hide it on `PGRST202`. Tests:
 `tests/db/armory-app-feedback-v2.test.ts`.
 
+## The v0.3.3 server contract (migration 0236)
+
+Added 2026-10-09 for Armory 0.3.3 (pina-hash/idea-armory
+`docs/agent/website-requests-v0.3.3.md`, ledger 0377). Armory 0.3.3 needs none of it: each
+item follows what the server already says. The schema is
+`supabase/migrations/0236_armory_v033.sql`; `migrate.yml` applies it on the push that lands
+it. Every function keeps its name and arguments, and every existing call answers as before
+except the four deliberate changes named below (a corpus of calls to the deployed bodies,
+run before and after the file, is `tests/db/armory-v033.test.ts`).
+
+### Item 1: an instructor can force a check in
+
+`instructor` was already a project role (0231's `armory_member_role`). What it lacked was
+take-back.
+
+| RPC | What changed |
+|---|---|
+| `armory_can_take_back(p_project uuid) returns boolean` | **New.** The ONE statement of who may force a check in: a mentor, a CAD lead or an instructor of that project, or a site admin on any project. Granted to `authenticated` (anon none). Answers false for a project the caller is not in or that does not exist, so it reveals nothing. The website asks it for its own controls. |
+| `armory_my_projects() returns jsonb` | `can_take_back` is now `armory_can_take_back(project)`. Every other key, and every answer for a mentor, CAD lead, student or site admin, is unchanged; an instructor now reads `true`. Still membership only. |
+| `armory_break_lock(p_file, p_device, p_operation)` | The role check is `armory_can_take_back`. The refusal is unchanged, text included: `only a mentor or cad_lead may break a lock` (P0001), because the app reads it. An instructor now passes. |
+| `armory_break_locks(p_files, p_device, p_operation)` | Unchanged: it calls `armory_break_lock` per file, so it follows. The three cannot disagree. |
+| `armory_add_member(p_project, p_email, p_role, p_operation)` | **The one narrowing.** An instructor can now force a check in, so only a mentor (or a site admin, who acts as one) may make someone an instructor or change an instructor's role: 42501 `only a mentor may grant instructor` and 42501 `only a mentor may change an instructor`. Before 0236 a CAD lead could, which would now let a CAD lead hand out Force check in. Every refusal that existed before keeps its text, SQLSTATE and order. |
+
+### Item 2: remove a file that has no first version
+
+`armory_remove_empty_file(p_file uuid, p_operation uuid) returns boolean`, granted to
+`authenticated`. True when it removed the file; false when the file was already removed.
+It takes the project row (FOR KEY SHARE), then the file (FOR UPDATE), the order every Armory
+write keeps. On success it writes one `armory_tombstones` row (`version_id` null) and one
+`tombstone` change, payload `{device_id: null, by, reason: "no_first_version"}`, and sets
+`deleted_at`, so the name is free in the project exactly as for any removed file (an add of
+the same name revives the record, as `armory_create_file` always has). It replays by
+operation id.
+
+| SQLSTATE | Message | DETAIL | When |
+|---|---|---|---|
+| `42501` | `only a mentor, CAD lead or instructor may remove a file with no first version` | none | `armory_can_take_back` is false for the file's project. A file id that names nothing answers this too, for anyone but a site admin. |
+| `P0002` | `file not found` | none | A site admin, and the id names no file. |
+| `55000` | `The file "<name>" has a first version, so it is removed the usual way.` | `{"reason": "has_version"}` | `current_version_id` is set. |
+| `55006` | `Someone has "<name>" checked out.` | `{"reason": "checked_out", "names": ["<name>"], "total": 1}` | Anybody holds a live lock on it, the caller included. Force a check in first. |
+| `P0001` | `operation id is required` / `operation id was already used by another caller or RPC` | none | As for every Armory write. |
+
+The website's Files view now calls such a file **No first version** ("It was added without
+its first version, so there is nothing in it to download"), never Available, counts them in
+the folder line, and offers **Remove** (two presses) to whoever `armory_can_take_back`
+admits. A file somebody is still adding (a live lock) stays Checked out.
+
+### Item 3: a lead organizes files someone else has checked out
+
+| RPC | What changed |
+|---|---|
+| `armory_move_file(p_file, p_folder, p_name, p_device, p_operation)` | Also moves a file somebody else holds (a live lock not the caller's on this computer) when `armory_can_take_back` admits the caller. The lock is never touched: it belongs to the file id, so it survives the move and the holder's check in still lands. The change is the usual `file_moved`, plus one key on this path only: `checked_out_by`, the holder's address. A student, and a lead moving a file NOBODY has checked out, answer false exactly as before (check it out first). |
+| `armory_rename_folder(p_project, p_from, p_to, p_device, p_operation)` | Skips the 55006 `checked_out` refusal for a caller `armory_can_take_back` admits. The locks stay. The change is the usual `folder_renamed`, plus `over_checkouts` (how many of the files someone else had checked out) only when that is more than zero. A student is refused 55006 exactly as before. |
+
+`armory_delete_folder` is unchanged: it still refuses over anyone else's checkout. Keep this
+to leads, as the request says: SolidWorks assemblies find parts by path, so a move under
+someone's open assembly breaks its references until they reopen it.
+
+### Item 4: computers that share a name
+
+- **Team and checkout lists (website only, no server change).** When two computers known to
+  a project share a name (letter case and surrounding spaces ignored), the Files view, the
+  Checked out table and the Team view show each as `NAME (abcd)`, the first four characters
+  of its device id, the same label Armory 0.3.3 writes. The computers counted are the team's
+  (`armory_team_status`) and every computer holding a file (`armory_project_files`); a
+  checkout row takes its device from its file's lock. `deviceLabels` and
+  `labelProjectDevices` in `src/lib/armory/team.ts`.
+- **Incidents and notes.** `armory_app_incidents` gains `machine_id`, a STORED generated
+  column: the report's own `machineId` when it is a string of 1 to 64 letters, digits,
+  dashes or underscores, else null. The console reads `id, feedback_id, machine_id` from
+  the table (admin-only by its existing RLS policy; no grant changed) beside the admin
+  lists, which are unchanged, so no report of up to 1 MiB is opened per row. Each incident
+  shows `IDEA-06 (machine 3f9c0a7e2b14d865)`; a note shows the machine of the incident filed
+  with it, or a `machineId` its own context names. Exported incident files are unchanged
+  (the report already carries `machineId`).
+
+### What Armory could use later (nothing is required)
+
+- `armory_can_take_back(project)` answers for one project without listing them all.
+- Remove a "No first version" record from the app itself with `armory_remove_empty_file`,
+  for a lead, when the computer that made it never comes back.
+- Move or rename over someone's checkout as a lead without Force check in first, and read
+  `checked_out_by` on `file_moved` (or `over_checkouts` on `folder_renamed`) to tell the
+  holder their file moved.
+
+**Adopting it on the website.** The project page asks `armory_can_take_back`; on
+`PGRST202` (0236 not applied yet) it keeps the pre-0236 rule (mentor, CAD lead, or a site
+admin) and offers no Remove. The incident and note consoles read the column on a select
+ladder of one: a database without it answers 42703, which reads as no machine ids. Tests:
+`tests/db/armory-v033.test.ts`, `tests/armory-v033-website.test.ts`.
+
 ## Decisions owed
 
 Each has the default that will be taken if he does not choose otherwise.
@@ -675,7 +766,8 @@ Each has the default that will be taken if he does not choose otherwise.
    understand.
 3. **Who can break a lock and release a part.** Answered for breaking a lock by Mr. Pina's
    v0.3 request: mentors, the CAD lead, and a site admin on any project, from the app or
-   from the website (Force check in). Releasing a part keeps the default: mentors and the
+   from the website (Force check in). Since 0236 (Armory 0.3.3) an instructor too, and only
+   a mentor may make someone an instructor. Releasing a part keeps the default: mentors and the
    CAD lead.
 4. **Part number scheme.** Default: `5669-YY-SSNN`, team, season, two-digit subsystem, two-
    digit part, in the style of 254's system; class projects get a course prefix.

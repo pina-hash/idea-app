@@ -7,7 +7,7 @@
  * since that round, so every row names the view its state opens on. What has
  * to be true of each: a file is "Checked out by <name> on <computer>, since
  * <time>" or "Available" in WORDS beside its glyph (never colour alone),
- * Force check in is offered only to a mentor, a CAD lead or a site admin with a
+ * Force check in is offered only to a mentor, a CAD lead, an instructor or a site admin with a
  * way to send it and says what it costs before it acts, a student gets no
  * Project view and no adding, the team shows names (an address only to those
  * who manage membership) and never says anybody is offline, the setup ticks
@@ -44,7 +44,10 @@ export default {
 		{ selector: '[data-view="purge-blocked"] [data-testid="armory-purge-key"][aria-disabled="true"]', label: 'and the key held', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="purge"] [data-testid="armory-purge-blocked"]', label: 'a purge the preview allows says no such reason (the control)', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-view="offline"] [data-testid="armory-file"][data-state="editing-quiet"]', label: 'one file held by a quiet computer', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-view="offline"] [data-testid="armory-file"][data-state="waiting"]', label: 'one file with nothing saved yet', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="offline"] [data-testid="armory-file"][data-state="waiting"]', label: 'one file with no first version', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="offline"] [data-testid="armory-remove-empty"]', label: 'a mentor is offered Remove on it, and only on it', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="offline-student"] [data-testid="armory-remove-empty"]', label: 'a student is offered no Remove', expectPresent: 0, maxPresent: 0 },
+		{ selector: '[data-view="offline-student"] [data-testid="armory-file"][data-state="waiting"]', label: 'and still sees the file, in words (the control)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="side"] [data-testid="armory-side-chip"]', label: 'side-version chips', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-view="storage-off"] [data-testid="armory-storage-off"]', label: 'storage not configured, in words', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="filter-out"] [data-testid="armory-flat"] [data-testid="armory-file-row"]', label: 'the Checked out filter shows two', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
@@ -115,6 +118,8 @@ export default {
 		{ selector: '[data-view="editing"] [data-testid="armory-file"][data-state="editing"]', label: 'checked out is said in plain words', must: ['Checked out by Ana Reyes on Lab PC 3, since'] },
 		{ selector: '[data-view="synced"] [data-testid="armory-file"]', label: 'available is said in plain words', must: ['Available'] },
 		{ selector: '[data-view="offline"] [data-testid="armory-file"][data-state="editing-quiet"]', label: 'a quiet computer is said in plain words', must: ['gone quiet', 'Lab PC 7'] },
+		{ selector: '[data-view="offline"] [data-testid="armory-file"][data-state="waiting"]', label: 'a file with no first version is never called available', must: ['No first version', 'nothing in it to download'], mustNot: ['Available'] },
+		{ selector: '[data-view="twins"] [data-testid="armory-checkouts"]', label: 'two computers named IDEA-06 are told apart by the start of their ids', must: ['IDEA-06 (a030)', 'IDEA-06 (7b41)'] },
 		{ selector: '[data-view="activity"] [data-testid="armory-activity"]', label: 'the change kinds have words, with names from the team', must: ['Maria Lopez renamed the folder Drive to Drivetrain', 'brought back Roller Bracket.SLDPRT', 'removed the folder Old Intake', 'renamed the project from Robot to Robot 2026', 'Maria Lopez forced a check in of'] },
 		{ selector: '[data-view="people"] [data-testid="armory-last-mentor"]', label: 'the last-mentor guard', must: ['always keeps at least one'] },
 		{ selector: '[data-view="team-student"] [data-testid="armory-members"]', label: 'presence in words, never offline', must: ['Armory open', 'Last heard from', 'No status from this computer yet', 'No computer connected yet', 'Armory open, syncing'], mustNot: ['offline', 'Offline'] },

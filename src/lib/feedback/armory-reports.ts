@@ -96,6 +96,8 @@ export interface ArmoryFeedbackRow {
 	tried?: string | null;
 	area?: string | null;
 	screenshot_path?: string | null;
+	/** 0236: the machine id of the incident filed with this note, else one the note's own context names. */
+	machine_id?: string | null;
 }
 
 export interface ArmoryIncidentRow {
@@ -116,6 +118,8 @@ export interface ArmoryIncidentRow {
 	reviewed_at: string | null;
 	reviewed_by: string | null;
 	submitter_name: string | null;
+	/** 0236: the report's own `machineId` (Armory 0.3.3), which tells apart two computers with one name. */
+	machine_id?: string | null;
 }
 
 const STATUSES: readonly FeedbackStatus[] = ['new', 'seen', 'resolved', 'spam'];
@@ -449,6 +453,7 @@ export function armoryFeedbackMarkdown(
 		facts.push(`version: ${row.app_version || 'unknown'}`);
 		facts.push(`kind: ${row.kind}`);
 		if (row.device_name) facts.push(`device: ${row.device_name.replace(/\s+/g, ' ').trim()}`);
+		if (row.machine_id) facts.push(`machine: ${row.machine_id}`);
 		if (row.area) facts.push(`area: ${row.area.replace(/\s+/g, ' ').trim()}`);
 		if (row.screenshot_path) facts.push('screenshot: attached (read it on the console)');
 		facts.push(`status: ${row.status}`);
@@ -472,6 +477,64 @@ export function armoryFeedbackMarkdown(
 		lines.push('');
 	});
 	return lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+}
+
+// ---------------------------------------------------------------------------
+// Machine ids (0236, Armory 0.3.3 item 4)
+// ---------------------------------------------------------------------------
+
+/** What a machine id may look like to be shown: 0236's own column rule, a short word. */
+const MACHINE_ID = /^[0-9A-Za-z_-]{1,64}$/;
+
+/** One row of `armory_app_incidents` read for its machine id (`id, feedback_id, machine_id`). */
+export interface IncidentMachine {
+	id: string;
+	feedback_id: string | null;
+	machine_id: string | null;
+}
+
+/** The columns the consoles read beside the admin lists. A database without 0236 answers 42703, which is no ids. */
+export const INCIDENT_MACHINE_COLUMNS = 'id, feedback_id, machine_id';
+
+export function parseIncidentMachines(data: unknown): IncidentMachine[] {
+	if (!Array.isArray(data)) return [];
+	const out: IncidentMachine[] = [];
+	for (const raw of data) {
+		const r = asObject(raw);
+		const id = r ? str(r.id) : null;
+		const machine = r ? str(r.machine_id) : null;
+		if (!r || !id || !machine || !MACHINE_ID.test(machine)) continue;
+		out.push({ id, feedback_id: str(r.feedback_id), machine_id: machine });
+	}
+	return out;
+}
+
+/** Each incident with its own machine id; one the read did not cover keeps none. */
+export function withIncidentMachines(rows: ArmoryIncidentRow[], machines: readonly IncidentMachine[]): ArmoryIncidentRow[] {
+	const by = new Map(machines.map((m) => [m.id, m.machine_id]));
+	return rows.map((r) => (by.has(r.id) ? { ...r, machine_id: by.get(r.id) ?? null } : r));
+}
+
+/**
+ * Each note with a machine id: the one of the incident filed with it (a
+ * "Report a problem" sends both), else a `machineId` its own context names. A
+ * note alone (Send feedback) from an app that sends no context id has none.
+ */
+export function withNoteMachines(rows: ArmoryFeedbackRow[], machines: readonly IncidentMachine[]): ArmoryFeedbackRow[] {
+	const byNote = new Map<string, string>();
+	for (const m of machines) if (m.feedback_id && m.machine_id && !byNote.has(m.feedback_id)) byNote.set(m.feedback_id, m.machine_id);
+	return rows.map((r) => {
+		const own = str(r.context?.machineId);
+		const machine = byNote.get(r.id) ?? (own && MACHINE_ID.test(own) ? own : null);
+		return machine ? { ...r, machine_id: machine } : r;
+	});
+}
+
+/** "IDEA-06 (machine 3f9c0a7e2b14d865)", or the name alone, or the id alone. */
+export function deviceWithMachine(device: string | null | undefined, machine: string | null | undefined): string | null {
+	const name = device?.trim() || null;
+	if (!machine) return name;
+	return name ? `${name} (machine ${machine})` : `machine ${machine}`;
 }
 
 // ---------------------------------------------------------------------------

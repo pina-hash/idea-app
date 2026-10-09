@@ -38,7 +38,7 @@
 		<div>
 			<dt>{VERBS.undo} and {VERBS.takeBack}</dt>
 			<dd>
-				{VERBS.undo} gives a file back without saving. A mentor, a CAD lead or a site admin can use {VERBS.takeBack} on a file
+				{VERBS.undo} gives a file back without saving. A mentor, a CAD lead, an instructor or a site admin can use {VERBS.takeBack} on a file
 				someone forgot to check in; their unsaved changes are kept as a side version.
 			</dd>
 		</div>

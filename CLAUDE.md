@@ -2582,8 +2582,18 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
   status" with no heartbeat. The heartbeat writes no change-feed row, so the
   Team view ages its own clock and re-reads through `startPoller` while open.
 - **FORCE CHECK IN** (`VERBS.takeBack`, renamed from "Take back") is
-  `armory_break_lock` for a mentor, a CAD lead or a site admin; the site sends
-  `p_device: null` only when `v033Ready` (the summaries rung) says 0233 is in.
+  `armory_break_lock` for a mentor, a CAD lead, an instructor or a site admin;
+  the site sends `p_device: null` only when `v033Ready` (the summaries rung)
+  says 0233 is in. **WHO MAY TAKE BACK IS ONE SQL FUNCTION,
+  `armory_can_take_back` (0236)**: `armory_my_projects`' `can_take_back`,
+  `armory_break_lock` (so `armory_break_locks`), `armory_remove_empty_file` and
+  the lead path of `armory_move_file` and `armory_rename_folder` all ask it,
+  and so does the project page (`canTakeBack`, null before 0236). A role list
+  written anywhere else is the second copy. Because an instructor holds it,
+  only a mentor makes or changes an instructor.
+- **TWO COMPUTERS WITH ONE NAME ARE LABELED, NEVER MERGED**: `labelProjectDevices`
+  in `$lib/armory/team.ts` names each "NAME (abcd)" with the start of its
+  device id wherever two in a project share a name, the label the app writes.
 - **DELETE FOREVER IS ROWS, THEN THE QUEUE, THEN OBJECTS** (`POST
   /api/armory/purge`, `handlePurge`): the RPC runs on the caller's client, `ok`
   is true the moment it returns, and the sweep (`sweepArmoryOrphans`) deletes

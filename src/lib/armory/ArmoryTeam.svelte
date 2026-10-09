@@ -49,6 +49,7 @@
 		needsNewArmory,
 		noComputerWords,
 		PEOPLE_SEARCH_NOT_OFFERED,
+		ROLE_POWERS_WORDS,
 		sortTeam,
 		type MemberOutcome,
 		type PeopleSearchAnswer
@@ -79,7 +80,8 @@
 		removeMember = null,
 		searchPeople = null,
 		loadTeam = null,
-		refresh = null
+		refresh = null,
+		labels = new Map()
 	}: {
 		/** The viewer's role in the project; null for a site admin who is not a member. */
 		role: ArmoryRole | null;
@@ -105,6 +107,8 @@
 		loadTeam?: (() => Promise<ArmoryMember[] | null>) | null;
 		/** Reload the page once (after a batch of adds). */
 		refresh?: (() => Promise<void>) | null;
+		/** Device id to its label, "IDEA-06 (a030)" where two computers share a name (`labelProjectDevices`). */
+		labels?: ReadonlyMap<string, string>;
 	} = $props();
 
 	// ---- The team on screen: the load's, or the poller's newer read of the same ----
@@ -160,8 +164,8 @@
 	function roleChoices(member: ArmoryMember): ArmoryRole[] {
 		if (!addMember || member.email === me) return [];
 		if (member.role === 'mentor' && mentorCount <= 1) return [];
+		// 0236: only a mentor makes or changes an instructor, so a CAD lead has no role to offer.
 		if (manager === 'mentor') return ['student', 'instructor', 'cad_lead', 'mentor'];
-		if (manager === 'cad_lead' && (member.role === 'student' || member.role === 'instructor')) return ['student', 'instructor'];
 		return [];
 	}
 
@@ -321,7 +325,7 @@
 								{@const version = appVersionWords(device)}
 								<li class={`ar-presence-line ar-presence-${presence.tone}`} data-tone={presence.tone}>
 									<span class="ar-presence-glyph" aria-hidden="true">{presence.glyph}</span>
-									<span><span class="ar-presence-device">{device.name}</span>: {presence.words}{#if version}<span class="ar-presence-version" data-testid="armory-app-version">{` · ${version}`}</span>{/if}</span>
+									<span><span class="ar-presence-device" data-testid="armory-device-name">{labels.get(device.id) ?? device.name}</span>: {presence.words}{#if version}<span class="ar-presence-version" data-testid="armory-app-version">{` · ${version}`}</span>{/if}</span>
 									{#if needsNewArmory(device)}
 										<a class="ar-presence-update" href={ARMORY_DOWNLOAD_HREF} data-testid="armory-needs-update">Needs the new Armory</a>
 									{/if}
@@ -402,6 +406,12 @@
 	{#if canAdd}
 		<div class="ar-add" data-testid="armory-add">
 			<h3 class="section-label ar-view-h">Add people</h3>
+			<ul class="ar-message ar-role-powers" data-testid="armory-role-powers">
+				{#each ROLE_POWERS_WORDS.filter((r) => roles.includes(r.role) || r.role === 'instructor') as r (r.role)}
+					<li><strong>{ROLE_WORDS[r.role]}</strong>: {r.words}</li>
+				{/each}
+				{#if !roles.includes('instructor')}<li>Only a mentor can make someone an instructor, a CAD lead or a mentor.</li>{/if}
+			</ul>
 			{#if picker && searchPeople && addMember}
 				<ArmoryPeoplePicker
 					search={searchPeople}

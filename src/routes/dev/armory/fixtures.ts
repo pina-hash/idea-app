@@ -65,6 +65,18 @@ export const QUIET_FILES: ArmoryFile[] = [
 ];
 export const QUIET_SEEN: Record<string, number> = { 'd-lab7': NOW - 60 * 60_000 * 19 };
 
+/**
+ * Two lab computers imaged alike, both named IDEA-06 (Armory 0.3.3 item 4):
+ * Ana on one and Ben on the other, so the page labels each "IDEA-06 (abcd)".
+ */
+export const TWIN_FILES: ArmoryFile[] = SYNCED_FILES.map((f) =>
+	f.id === 'f-2'
+		? { ...f, lock: lock('ana.reyes@boscotech.net', 'IDEA-06', 'a030c1d2-0000-4000-8000-000000000006', 18) }
+		: f.id === 'f-4'
+			? { ...f, lock: lock('ben.okafor@boscotech.net', 'IDEA-06', '7b41e9f0-0000-4000-8000-000000000006', 6) }
+			: f
+);
+
 export const SIDE_FILES: ArmoryFile[] = EDITING_FILES;
 export const SIDE_COUNTS: Record<string, number> = { 'f-2': 2, 'f-5': 1 };
 

@@ -19,6 +19,7 @@ import {
 	ROLE_WORDS,
 	whenWords,
 	type ArmoryCheckout,
+	type ArmoryFile,
 	type ArmoryMember,
 	type ArmoryRole,
 	type ArmoryTeamDevice
@@ -259,12 +260,91 @@ export function addPeopleWords(result: AddPeopleResult, role: ArmoryRole, label:
 
 /**
  * The roles a person may hand out when adding (what is OFFERED; the RPC
- * decides): a mentor any of the four, a CAD lead students and instructors.
+ * decides): a mentor any of the four, a CAD lead students only. Since 0236 an
+ * instructor may force a check in, so only a mentor makes one (a CAD lead who
+ * could would be handing out a power they cannot grant as CAD lead).
  */
 export function addableRoles(role: ArmoryRole | null): ArmoryRole[] {
 	if (role === 'mentor') return ['student', 'instructor', 'cad_lead', 'mentor'];
-	if (role === 'cad_lead') return ['student', 'instructor'];
+	if (role === 'cad_lead') return ['student'];
 	return [];
+}
+
+/**
+ * What each role may do, in the order the role picker lists them, said on the
+ * Team view wherever a role can be chosen. The server decides every one of
+ * these (`armory_can_take_back`, 0236, for the second half of the lead roles).
+ */
+export const ROLE_POWERS_WORDS: ReadonlyArray<{ role: ArmoryRole; words: string }> = [
+	{ role: 'student', words: 'checks files out and in, and adds files.' },
+	{
+		role: 'instructor',
+		words: 'a student who can also force a check in, remove a file that has no first version, and move or rename what others have checked out.'
+	},
+	{ role: 'cad_lead', words: 'the same as an instructor, and can add students.' },
+	{ role: 'mentor', words: 'everything, including adding and removing people and giving any role.' }
+];
+
+// ---- Two computers with one name (Armory 0.3.3 item 4) ----
+
+/** How many characters of a device id tell two same-named computers apart, as the app writes them. */
+export const DEVICE_ID_CHARS = 4;
+
+/**
+ * Each computer's label, by device id: its name, or "NAME (abcd)" with the
+ * first four characters of its id when another computer in the same list
+ * shares the name (letter case and surrounding spaces ignored). Two lab
+ * computers imaged alike are both IDEA-06, and Armory 0.3.3 writes them the
+ * same way, so a person reads the same label in the app and on the website.
+ */
+export function deviceLabels(devices: Iterable<{ id: string; name: string | null | undefined }>): Map<string, string> {
+	const byName = new Map<string, Set<string>>();
+	const names = new Map<string, string>();
+	for (const d of devices) {
+		if (!d.id || !d.name?.trim()) continue;
+		const key = d.name.trim().toLowerCase();
+		names.set(d.id, d.name.trim());
+		if (!byName.has(key)) byName.set(key, new Set());
+		byName.get(key)!.add(d.id);
+	}
+	const out = new Map<string, string>();
+	for (const [id, name] of names) {
+		const shared = (byName.get(name.toLowerCase())?.size ?? 0) > 1;
+		out.set(id, shared ? `${name} (${id.slice(0, DEVICE_ID_CHARS).toLowerCase()})` : name);
+	}
+	return out;
+}
+
+/**
+ * The project page's file rows and checkout list with every computer named by
+ * its label. The computers are the project's team (`armory_team_status`) and
+ * every computer holding a file; a checkout row carries no device id, so it
+ * takes the one its file's lock names. Nothing is fetched and nothing else
+ * moves.
+ */
+export function labelProjectDevices(
+	files: readonly ArmoryFile[],
+	checkouts: readonly ArmoryCheckout[],
+	members: readonly ArmoryMember[]
+): { files: ArmoryFile[]; checkouts: ArmoryCheckout[]; labels: Map<string, string> } {
+	const all: Array<{ id: string; name: string | null }> = [];
+	for (const m of members) for (const d of m.devices ?? []) all.push({ id: d.id, name: d.name });
+	for (const f of files) if (f.lock) all.push({ id: f.lock.holder_device_id, name: f.lock.holder_device_name });
+	const labels = deviceLabels(all);
+	const deviceOfFile = new Map(files.filter((f) => f.lock).map((f) => [f.id, f.lock!.holder_device_id]));
+	return {
+		labels,
+		files: files.map((f) =>
+			f.lock && labels.has(f.lock.holder_device_id) && labels.get(f.lock.holder_device_id) !== f.lock.holder_device_name
+				? { ...f, lock: { ...f.lock, holder_device_name: labels.get(f.lock.holder_device_id)! } }
+				: f
+		),
+		checkouts: checkouts.map((c) => {
+			const id = deviceOfFile.get(c.file_id);
+			const label = id ? labels.get(id) : undefined;
+			return label && label !== c.device_name ? { ...c, device_name: label } : c;
+		})
+	};
 }
 
 /**

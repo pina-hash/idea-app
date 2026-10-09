@@ -62,7 +62,15 @@
 	 * caller's own registered computers, so the site sends the one most recently
 	 * heard from, and with none the control is absent and the view says why.
 	 */
-	const mayForce = $derived(role === 'mentor' || role === 'cad_lead' || (isAdmin && v033));
+	/*
+	 * 0236: the server's own answer (`armory_can_take_back`: a mentor, a CAD
+	 * lead, an instructor or a site admin) when the database has it, so the
+	 * page never restates the role list; the pre-0236 rule otherwise. The same
+	 * answer offers Remove on a file with no first version, which exists only
+	 * from 0236 on.
+	 */
+	const canTakeBack = $derived(view?.canTakeBack ?? null);
+	const mayForce = $derived(canTakeBack ?? (role === 'mentor' || role === 'cad_lead' || (isAdmin && v033)));
 	const takeDevice = $derived(v033 ? null : (view?.devices[0]?.id ?? null));
 	const forceNeedsComputer = $derived(mayForce && !v033 && !takeDevice);
 
@@ -199,6 +207,7 @@
 				? (fileId: string) => rpc('armory_break_lock', { p_file: fileId, p_device: takeDevice })
 				: null}
 			takeBackNeedsComputer={forceNeedsComputer}
+			removeEmpty={canTakeBack === true ? (fileId: string) => rpc('armory_remove_empty_file', { p_file: fileId }) : null}
 			rename={isMentor ? (name: string) => rpc('armory_rename_project', { p_project: view.project.id, p_name: name }) : null}
 			setArchived={isMentor || (isAdmin && v033)
 				? (archived: boolean) => rpc('armory_set_project_archived', { p_project: view.project.id, p_archived: archived })

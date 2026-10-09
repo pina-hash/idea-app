@@ -1352,3 +1352,11 @@ span.ar-person-out {
 	margin: 0;
 	font-size: 1rem;
 }
+
+/* 0236: what each role may do, beside the role picker. A plain list, no bullets of colour. */
+.ar-role-powers {
+	margin: 0.25rem 0 0.75rem;
+	padding-left: 1.1rem;
+	display: grid;
+	gap: 0.2rem;
+}

@@ -188,6 +188,15 @@ export function memberPowers(role: ArmoryRole | null): { add: boolean; addLeads:
  */
 export const DEVICE_QUIET_MS = 2 * 60 * 60 * 1000;
 
+/**
+ * `waiting` is a file with NO FIRST VERSION: its add stopped between
+ * `armory_create_file` and the first `armory_commit_version` (a stop, a
+ * sign-in that ended, the file deleted meanwhile), and nobody holds it. It is
+ * not an ordinary file and is never called "Available": there is nothing in it
+ * to download, and it holds its name in the project until it is removed
+ * (`armory_remove_empty_file`, 0236, for a mentor, CAD lead, instructor or
+ * site admin). Armory 0.3.3 says the same words.
+ */
 export type FileState = 'editing' | 'editing-quiet' | 'synced' | 'waiting' | 'removed';
 
 export function fileState(file: ArmoryFile, now: number, deviceLastSeen: ReadonlyMap<string, number>): FileState {
@@ -213,7 +222,7 @@ export const STATE_WORDS: Record<FileState, { label: string; glyph: string; tone
 	editing: { label: 'Checked out', glyph: '✎', tone: 'editing' },
 	'editing-quiet': { label: 'Checked out', glyph: '⏸', tone: 'quiet' },
 	synced: { label: 'Available', glyph: '✓', tone: 'synced' },
-	waiting: { label: 'Available', glyph: '…', tone: 'waiting' },
+	waiting: { label: 'No first version', glyph: '○', tone: 'waiting' },
 	removed: { label: 'Removed', glyph: '−', tone: 'removed' }
 };
 
@@ -285,7 +294,7 @@ export function stateDetail(
 		case 'synced':
 			return `. Last saved by ${holderName(file.current!.author, names)}, ${whenWords(file.current!.created_at, now)}`;
 		case 'waiting':
-			return '. Nothing has been saved to it yet';
+			return '. It was added without its first version, so there is nothing in it to download';
 		case 'removed':
 			return '. Removed from the project; its history is kept';
 	}
@@ -365,7 +374,7 @@ export function armoryNotReady(error: { code?: string; message?: string } | null
  */
 export function breakLockWords(message: string): string {
 	if (/nothing changed/i.test(message)) return 'It was already checked in.';
-	if (/mentor or cad_lead/i.test(message)) return 'Only a mentor, a CAD lead or a site admin can force a check in.';
+	if (/mentor or cad_lead/i.test(message)) return 'Only a mentor, a CAD lead, an instructor or a site admin can force a check in.';
 	if (/device is not registered/i.test(message)) {
 		return 'Force check in needs one of your computers connected until the server has the Armory 0.3 update.';
 	}
@@ -385,9 +394,29 @@ export function memberErrorWords(message: string, code?: string | null): string 
 	if (code === 'P0002') return 'This project is not there any more. Reload the page.';
 	if (/at least one mentor/i.test(message)) return 'A project always keeps at least one mentor.';
 	if (/valid email/i.test(message)) return 'Type a full school email address.';
-	if (/only a mentor may (grant|change)/i.test(message)) return 'Only a mentor can make someone a mentor or CAD lead.';
+	if (/only a mentor may (grant|change)/i.test(message)) return 'Only a mentor can make someone a mentor, a CAD lead or an instructor, or change one.';
 	if (/only a mentor may remove/i.test(message)) return 'Only a mentor can remove people.';
 	if (/only a mentor or CAD lead/i.test(message)) return 'Only a mentor or CAD lead can add people.';
+	return 'That did not work. Try again in a minute.';
+}
+
+/** A file with no first version (`fileState` 'waiting' when nobody holds it): live, nothing saved to it. */
+export function hasNoFirstVersion(file: Pick<ArmoryFile, 'deleted' | 'current'>): boolean {
+	return !file.deleted && !file.current;
+}
+
+/**
+ * Plain words for `armory_remove_empty_file`'s answers (0236), read off the
+ * SQLSTATE first, never the HTTP status: 55000 the file has a version now,
+ * 55006 somebody holds it, 42501 not a lead, P0002 gone. `nothing changed`
+ * is the page's own word for an answer of false: it was already removed.
+ */
+export function removeEmptyWords(message: string, code?: string | null): string {
+	if (/nothing changed/i.test(message)) return 'It was already removed.';
+	if (code === '55000') return 'It has a first version now, so it stays. Remove it from Armory on a computer instead.';
+	if (code === '55006') return 'Someone has it checked out. Force a check in first, then remove it.';
+	if (code === 'P0002') return 'It is not there any more. Reload the page.';
+	if (code === '42501') return 'Only a mentor, a CAD lead, an instructor or a site admin can remove it.';
 	return 'That did not work. Try again in a minute.';
 }
 
@@ -577,10 +606,15 @@ export function activityWords(
 		case 'file_revived':
 			return `${by} brought back ${str(p.name) ?? 'a removed file'}${where(p.folder)}, with its history`;
 		case 'file_moved':
-			return `${by} moved ${str(p.old_name) ?? 'a file'} to ${str(p.folder) ? `${str(p.folder)}/` : ''}${str(p.name) ?? ''}`;
+			return `${by} moved ${str(p.old_name) ?? 'a file'} to ${str(p.folder) ? `${str(p.folder)}/` : ''}${str(p.name) ?? ''}${
+				str(p.checked_out_by) ? ` while ${who(str(p.checked_out_by))} had it checked out` : ''
+			}`;
 		case 'folder_renamed': {
 			const n = num(p.files);
-			return `${by} renamed the folder ${str(p.from) ?? ''} to ${str(p.to) ?? ''}${n !== null ? ` (${plural(n, 'file', 'files')})` : ''}`;
+			const over = num(p.over_checkouts);
+			return `${by} renamed the folder ${str(p.from) ?? ''} to ${str(p.to) ?? ''}${n !== null ? ` (${plural(n, 'file', 'files')})` : ''}${
+				over ? `, with ${plural(over, 'file', 'files')} checked out by others` : ''
+			}`;
 		}
 		case 'folder_deleted': {
 			const n = num(p.files);
@@ -596,7 +630,10 @@ export function activityWords(
 		case 'side_version':
 			return `A side version of ${file(p.file_id)} was kept`;
 		case 'tombstone':
-			return `${file(change.entity_id)} was removed (history kept)`;
+			// 0236: a lead's removal of a file that never got its first version says who and why.
+			return p.reason === 'no_first_version'
+				? `${by} removed ${file(change.entity_id)}, which had no first version`
+				: `${file(change.entity_id)} was removed (history kept)`;
 		case 'lock_acquired':
 			return `${by} checked out ${file(change.entity_id)}`;
 		case 'lock_released':

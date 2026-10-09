@@ -35,6 +35,8 @@ const iso = (minutesAgo: number) => new Date(NOW - minutesAgo * 60_000).toISOStr
 type Failure = { code: string; message: string };
 interface World {
 	v033: boolean;
+	/** 0236's armory_can_take_back: absent (undefined), or the server's answer. */
+	canTakeBack?: boolean | 'error';
 	/** Projects the caller is a member of (role) or, for an admin, not (role null). */
 	projects: Array<{ id: string; name: string; role: string | null }>;
 	admin: boolean;
@@ -85,6 +87,10 @@ function rpc(name: string, args: Record<string, unknown>): { data: unknown; erro
 				],
 				error: null
 			};
+		case 'armory_can_take_back':
+			if (w.canTakeBack === undefined) return { data: null, error: NOT_THERE };
+			if (w.canTakeBack === 'error') return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } };
+			return { data: w.canTakeBack, error: null };
 		case 'armory_orphans_count':
 			return w.admin ? { data: 12, error: null } : { data: null, error: { code: '42501', message: 'only a site admin may clean up Armory storage' } };
 		default:
@@ -163,6 +169,7 @@ type ProjectData = {
 		devices: Array<{ id: string; last_seen: number }>;
 		deviceSeen: Record<string, number>;
 		project: { id: string; role: string | null };
+		canTakeBack?: boolean | null;
 	};
 };
 
@@ -255,5 +262,22 @@ describe('the project page with 0233 takes its counts and its team from the serv
 			[PROJECT, 'mentor'],
 			[OTHER, null]
 		]);
+	});
+});
+
+describe('0236: the server answers who may force a check in and remove an empty file', () => {
+	test('without 0236 the answer is null (the page keeps its older rule and offers no Remove); with it, the server\'s own', async () => {
+		let v = ((await projectLoad(projectEvent())) as ProjectData).view!;
+		expect(v.canTakeBack).toBeNull();
+		expect(w.rpcs).toContain('armory_can_take_back');
+		for (const answer of [true, false] as const) {
+			w.canTakeBack = answer;
+			v = ((await projectLoad(projectEvent())) as ProjectData).view!;
+			expect(v.canTakeBack).toBe(answer);
+		}
+		// A failed read is null, never a page error and never a guess.
+		w.canTakeBack = 'error';
+		v = ((await projectLoad(projectEvent())) as ProjectData).view!;
+		expect(v.canTakeBack).toBeNull();
 	});
 });

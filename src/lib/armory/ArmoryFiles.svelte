@@ -19,11 +19,13 @@
 	import { untrack } from 'svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import type { ForceCheckIn } from './force-check-in.svelte';
+	import type { RemoveEmptyFile } from './remove-empty.svelte';
 	import {
 		checkoutCounts,
 		FILE_FILTERS,
 		fileState,
 		filterFiles,
+		hasNoFirstVersion,
 		folderTree,
 		holderName,
 		STATE_WORDS,
@@ -47,6 +49,7 @@
 		now,
 		me,
 		force = null,
+		removeEmpty = null,
 		initialFilter = 'all',
 		initialQuery = ''
 	}: {
@@ -60,6 +63,8 @@
 		me: string;
 		/** Absent: no Force check in on any row (a student, or no way to send it). */
 		force?: ForceCheckIn | null;
+		/** Absent: no Remove on a file with no first version (anyone `armory_can_take_back` refuses). */
+		removeEmpty?: RemoveEmptyFile | null;
 		initialFilter?: FileFilter;
 		initialQuery?: string;
 	} = $props();
@@ -73,6 +78,7 @@
 	const flat = $derived(filter !== 'all' || query.trim() !== '');
 	const tree = $derived(folderTree(visible));
 	const removedCount = $derived(files.length - live.length);
+	const emptyCount = $derived(live.filter((f) => hasNoFirstVersion(f)).length);
 	const folded = $derived(live.length > FOLD_OVER);
 
 	function subtree(node: FolderNode): ArmoryFile[] {
@@ -107,6 +113,26 @@
 	{/if}
 {/snippet}
 
+{#snippet removeKey(file: ArmoryFile, state: string)}
+	{#if removeEmpty && state === 'waiting'}
+		<button
+			class={`btn ar-btn ar-row-key ${removeEmpty.armed === file.id ? 'danger' : 'secondary'}`}
+			type="button"
+			aria-disabled={removeEmpty.busy}
+			data-testid="armory-remove-empty"
+			onclick={() => removeEmpty.press(file.id, file.name)}
+		>
+			{removeEmpty.armed === file.id ? `Remove ${file.name}?` : 'Remove'}
+		</button>
+		{#if removeEmpty.armed === file.id}
+			<p class="ar-message bad ar-warn" role="alert" data-testid="armory-remove-empty-warning">
+				Press again to remove it. It has nothing saved in it, so nothing is lost, and its name becomes free in the
+				project. A computer that still has the file on disk can add it again.
+			</p>
+		{/if}
+	{/if}
+{/snippet}
+
 {#snippet fileRow(file: ArmoryFile, showFolder: boolean)}
 	{@const state = fileState(file, now, seen)}
 	{@const words = STATE_WORDS[state]}
@@ -133,6 +159,7 @@
 		</a>
 		{@render forceKey(file)}
 		{@render forceWarning(file)}
+		{@render removeKey(file, state)}
 	</li>
 {/snippet}
 
@@ -179,12 +206,17 @@
 			{#if flat}
 				{visible.length} {visible.length === 1 ? 'file' : 'files'} shown.
 			{:else}
-				{counts.all} {counts.all === 1 ? 'file' : 'files'}{counts.checkedOut > 0 ? `, ${counts.checkedOut} checked out` : ''}{removedCount > 0
+				{counts.all} {counts.all === 1 ? 'file' : 'files'}{counts.checkedOut > 0 ? `, ${counts.checkedOut} checked out` : ''}{emptyCount > 0
+					? `, ${emptyCount} with no first version`
+					: ''}{removedCount > 0
 					? `. ${removedCount} removed (history kept)`
 					: ''}.{folded ? ' Open a folder to see its files.' : ''}
 			{/if}
 		</p>
 		{#if force?.message}<p class={`ar-message ${force.bad ? 'bad' : ''}`} role="status">{force.message}</p>{/if}
+		{#if removeEmpty?.message}
+			<p class={`ar-message ${removeEmpty.bad ? 'bad' : ''}`} role="status" data-testid="armory-remove-empty-message">{removeEmpty.message}</p>
+		{/if}
 		{#if visible.length === 0}
 			<p class="ar-message" data-testid="armory-no-match">
 				{filter === 'mine' ? 'You have nothing checked out.' : filter === 'checked-out' ? 'Nothing is checked out.' : 'No file matches that.'}

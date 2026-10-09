@@ -281,7 +281,7 @@ describe('the words', () => {
 	});
 
 	test('Force check in refusals are matched by the RPC text, not a SQLSTATE', () => {
-		expect(breakLockWords('only a mentor or cad_lead may break a lock')).toBe('Only a mentor, a CAD lead or a site admin can force a check in.');
+		expect(breakLockWords('only a mentor or cad_lead may break a lock')).toBe('Only a mentor, a CAD lead, an instructor or a site admin can force a check in.');
 		expect(breakLockWords('device is not registered to caller')).toContain('one of your computers connected');
 		expect(breakLockWords('nothing changed')).toBe('It was already checked in.');
 		expect(breakLockWords('something else')).toBe('That did not work. Try again in a minute.');
