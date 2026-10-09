@@ -53,6 +53,9 @@ to the predicate reddens 7 tests, dropping the instructor-grant guard 1, the ver
 1, the lead check on a move 2. svelte-check: 0 errors, 37 warnings in 20 files (the
 baseline).
 
-**Not verified.** The live database (0236 applies through `migrate.yml` on the push to
-`main`); a signed-in page against it; Armory 0.3.3 itself reading the extra payload keys
+**Applied.** `migrate.yml` applied 0236 to production from `main` at `57b0b3ca` on
+2026-10-09T16:17:43Z, with the file's own self-check notice and all eight objects verified
+present (`docs/migrations-applied/0236-main.md`).
+
+**Not verified.** A signed-in page against the live database; Armory 0.3.3 itself reading the extra payload keys
 (additive JSON keys; the app was not run here).
