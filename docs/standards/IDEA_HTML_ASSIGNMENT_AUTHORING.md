@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.21 - 2026-10-08**
+**Version 1.22 - 2026-10-12**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -881,25 +881,68 @@ short videos Mr. Pina recorded, built into the live post so no live demo is need
 - **Adding a stage to a live post keeps every earlier id.** The new module gets new,
   permanent block ids; the earlier module, its rubric and its moves are untouched; the
   manifest's points grow by the new module's points; the stage list moves "Today" to the
-  new stage. Open all, Close all, the stage chip and the stage-done banner act per stage,
-  never on the whole document, and the interaction test pins that one stage's Close all
-  leaves the other alone. Re-upload over the same post: the rubric regenerates for the new
+  new stage. The stage chip and the stage-done banner act per stage, never on the whole
+  document (section 19 replaced Open all and Close all with the stage banner). Re-upload over the same post: the rubric regenerates for the new
   module and every stored answer still renders.
 
-- **One long video, many steps: a chapter player, played inside the assignment.** Hold a
-  16:9 box open in the move with its steps listed beside it (below it under 900px). Each
-  step is a button with its chapter time; pressing it sends `idea:video` with the id, the
-  box and `start` in whole seconds (`IDEA_HTML_ASSIGNMENT_SPEC.md` 1.7), so the portal plays
-  it in that box from that step, and another step swaps the same box. A poster with a play
-  button starts the first step; a Stop video key brings the poster back. Never send a
-  student to a new tab for a chapter: Mr. Pina, 2026-10-08, found per-step YouTube links
-  "really annoying". The step text is a title and one line, because the video carries the
-  rest. Group chapters that serve one step; skip the ones a step does not need.
+- **One long video, many steps: a chapter player, played inside the assignment.** The
+  16:9 box takes the full width of the document, never a column beside the steps: Mr. Pina,
+  2026-10-12, "there's a lot of little details" a student cannot see in a half-width box.
+  The steps sit under it as a grid of buttons, each with its chapter time; pressing one
+  sends `idea:video` with the id, the box and `start` in whole seconds
+  (`IDEA_HTML_ASSIGNMENT_SPEC.md` 1.7), so the portal plays it in that box from that step,
+  and scrolls the video into view under the following bar. Directly under the video sit
+  Back a step, the line "Step 3 of 6: title", Next step and Stop video, so a student walks
+  every step without scrolling. A step for the other printer is hidden and skipped. A
+  poster starts step 1; Stop video brings it back. Never send a student to a new tab for a
+  chapter (Mr. Pina, 2026-10-08: "really annoying"). The step text is a title and one line,
+  because the video carries the rest. Group chapters that serve one step; skip the rest. A
+  single video opened from a card also plays full width.
+
+## 19. Navigation a ninth grader can follow (2026-10-12)
+
+Mr. Pina, reading Hook 03 on the last print day: "I do not know where I am or how to get to
+where I need to go." Stage keys that struck through when folded "made no sense", Read aloud
+and the "Six moves" intro line were noise, and a separate Collapse stage button was the
+wrong control. The rules that replaced them:
+
+- **The stage banner IS the control.** Each stage opens under one full-width banner button
+  (`aria-expanded`, `aria-controls` on the stage body): the stage's picture, "Stage 3", its
+  name, the class and points, a progress chip ("2 of 5 done"), and the word Show or Hide
+  with a chevron. Pressing it opens or closes the whole stage. No other fold key exists.
+- **One stage open at a time while a student works.** Opening a stage closes the others,
+  and the page lands on that banner. Arrival opens the first stage not done, or the last
+  stage once everything is in. Read only (a teacher grading) opens every stage and keeps
+  them independent. A stage that has not opened yet is a locked banner, "Opens after the
+  tournament", not a button.
+- **The following bar says where you are, in words.** Left: "You are here" over
+  "Stage 3 · Move 2 · Weigh V3, alone", read from the page as it scrolls (stage, then the
+  open move under the top of the screen). Middle: one key per stage with its number and
+  a count ("3/5", or Done in a filled number when complete); the stage on screen is lit,
+  never struck through, and pressing a key opens that stage and jumps to its banner.
+  Right: a Next to do key naming the first move not done ("Stage 3 · Move 1 · Build V3 at
+  the red") that opens its stage and move and focuses it; once everything is in it reads
+  All done. Then the theme key and the save pill. Under 760px the bar is two rows: where
+  you are and the save state, then the stage keys and Next to do.
+- **Cut what does not help a first-timer find the next thing.** No stage cards above the
+  stages (the bar and the banners carry them), no per-requirement segment strip, no Read
+  aloud, no Open all or Close all, no intro line repeating the move count, and no stats
+  row in the hero. The hero keeps the title, one line and the reading-size keys.
+- **Test it as a student would.** The interaction test lands a new student on Stage 1
+  alone, walks it, presses Next to do and checks Stage 2 opens with Stage 1 folded and the
+  move focused at the top, checks the "You are here" text at a scrolled move, presses an
+  open banner to close it and a stage key to open another alone, plays a chapter and
+  checks the video sits on screen under the bar at full width, and reloads to check the
+  arrival stage.
 
 ---
 
 ## Changelog
 
+- **1.22 (2026-10-12).** Ledger 0378. Section 18: the chapter player's video takes the
+  full width with Back a step and Next step under it. New section 19: the stage banner is
+  the fold control, one stage open at a time, and a following bar that says where you are,
+  keys each stage and offers the next move. From Mr. Pina's read of Hook 03.
 - **1.21 (2026-10-08).** Ledger 0373. Section 18: a chaptered video is a chapter player that
   plays each step inside the assignment (`idea:video` gains `start`), replacing the 1.19
   time keys that opened YouTube in a new tab.
