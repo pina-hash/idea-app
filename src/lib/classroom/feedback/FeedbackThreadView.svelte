@@ -345,8 +345,9 @@
 		background: var(--surface-1, var(--bg1));
 		scroll-margin: 6rem;
 	}
+	/* Decoration: the accent edge says "ended", and the words say it too. */
 	.fb-thread.resolved {
-		border-left-color: var(--boundary);
+		border-left-color: var(--hairline);
 	}
 	.fb-thread.focused {
 		outline: 2px solid var(--hover-ink, var(--green));
@@ -398,7 +399,8 @@
 		text-transform: uppercase;
 		padding: 0.2rem 0.55rem;
 		border-radius: 999px;
-		border: 1px solid var(--boundary);
+		/* A static tag, not a control: the hairline (CLAUDE.md, --boundary). */
+		border: 1px solid var(--hairline);
 		color: var(--text-1);
 	}
 	.fb-new {
@@ -412,7 +414,7 @@
 		max-width: 28rem;
 		height: 14rem;
 		padding: 0;
-		border: 1px solid var(--hairline, var(--boundary));
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-sm, 4px);
 		background: var(--surface-2, var(--bg2));
 		cursor: zoom-in;
@@ -433,14 +435,15 @@
 		letter-spacing: 0.05em;
 		color: var(--text-1);
 		background: var(--surface-1, var(--bg1));
-		border: 1px solid var(--boundary);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 	}
 	.fb-viewer {
 		width: min(96vw, 80rem);
 		height: min(92vh, 60rem);
 		padding: 0;
-		border: 1px solid var(--boundary);
+		/* A modal over a dimmed backdrop: the backdrop separates it, the edge decorates. */
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-md, 8px);
 		background: var(--surface-0, var(--bg0));
 		color: var(--text-1);
@@ -461,7 +464,7 @@
 		display: flex;
 		justify-content: flex-end;
 		padding: 0.5rem 0.6rem;
-		border-top: 1px solid var(--boundary);
+		border-top: 1px solid var(--hairline);
 	}
 	.fb-gone {
 		margin: 0;

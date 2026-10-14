@@ -1231,7 +1231,7 @@
 		text-transform: uppercase;
 		color: var(--text-1);
 		background: var(--surface-1, var(--bg1));
-		border: 1px solid var(--hover-ink, var(--boundary));
+		border: 1px solid var(--hover-ink, var(--green));
 		border-radius: 999px;
 		cursor: pointer;
 	}

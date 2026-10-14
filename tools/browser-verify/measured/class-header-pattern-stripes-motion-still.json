@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "class-header-pattern-stripes-motion-still.mjs",
+	"date": "2026-10-14T19:23:49.274Z",
+	"sha": "3dd4519447650d7c94274631bd25128f22085329",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 10,
+	"outsideRows": [],
+	"ms": 14855
+}

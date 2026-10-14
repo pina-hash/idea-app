@@ -309,7 +309,8 @@
 		height: min(94vh, 1000px);
 		max-height: none;
 		padding: 0;
-		border: 1px solid var(--boundary);
+		/* A modal over a dimmed backdrop: the edge is decoration. */
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card, 8px);
 		background: var(--surface-1, var(--bg1));
 		color: var(--text-1);

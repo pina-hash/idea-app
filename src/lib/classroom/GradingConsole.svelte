@@ -995,11 +995,16 @@
 		// THE FLOOR, and it depends on nothing: no bus, no section, no status.
 		// An interval that re-ran whenever the channel changed state would stop
 		// being a floor at exactly the moment the channel is unreliable.
-		const timer = setInterval(() => {
-			void load();
-			// The open student's notes ride the same floor (0238).
-			void heldFeedback?.session.refresh();
-		}, GRADING_POLL_MS);
+		const timer = setInterval(() => void load(), GRADING_POLL_MS);
+		return () => clearInterval(timer);
+	});
+
+	$effect(() => {
+		// The open student's notes have a floor of their own at the same
+		// cadence (0238), kept apart so the grading floor above still depends
+		// on nothing. The session is read when the timer fires, never here, so
+		// switching students does not restart it.
+		const timer = setInterval(() => void heldFeedback?.session.refresh(), GRADING_POLL_MS);
 		return () => clearInterval(timer);
 	});
 

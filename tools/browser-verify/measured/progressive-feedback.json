@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "progressive-feedback.mjs",
+	"date": "2026-10-14T19:22:11.628Z",
+	"sha": "3dd4519447650d7c94274631bd25128f22085329",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 38,
+	"outsideRows": [],
+	"ms": 11408
+}

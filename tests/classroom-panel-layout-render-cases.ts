@@ -17,8 +17,15 @@
 // case's `<section>` gained `as-pane` (four roots, four closers, one pane; the
 // stable root that stops an item open rebuilding the class page), and in the
 // two voted-look cases the banner's pattern span was wrapped in the
-// `ct-pattern-loop` span it now sits in (the hover loop's own layer). Nothing
-// else in the file moved, so any other difference is still a regression.
+// `ct-pattern-loop` span it now sits in (the hover loop's own layer). Ledger
+// 0381 undid that one wrap, mechanically, in the same two cases: the loop span
+// is gone (decision 61, the continuous flow) and the pattern span carries
+// `data-flow="off"` and its flow style (`classThemeFlow`, off at rest and in a
+// server render), copied from the render of that element and nothing else.
+// In the pane case alone the stream gained `style="columns: var(--cr-stream-col) 1"`,
+// the list's own column count beside an open item (`paneStreamColumns`, report
+// db499adb), one column at the default width. Nothing else in the file moved,
+// so any other difference is still a regression.
 //
 // What each case is for: a teacher with every header slot filled (tools, the
 // theme vote, notices, the posted teams, the teams key, Quick post) under a

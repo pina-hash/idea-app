@@ -307,7 +307,8 @@
 		color: var(--text-1);
 		background: var(--surface-1, var(--bg1));
 		border: 1px solid var(--boundary);
-		border-left: 4px solid var(--boundary);
+		/* The thick left edge is an accent (lit for an unread note), not the row's boundary. */
+		border-left: 4px solid var(--hairline);
 		border-radius: var(--radius-md, 8px);
 		cursor: pointer;
 	}
