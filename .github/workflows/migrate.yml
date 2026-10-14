@@ -459,9 +459,17 @@ jobs:
       #    why the record commit alone never chained. Never after a refusal, a
       #    raise or an unverified apply: those stop for a person to read.
       #    The concurrency group above makes the new run wait for this one.
+      #
+      #    THE APPLY STEP MUST HAVE RUN, AND THE CODE ALONE CANNOT SAY SO. A
+      #    skipped step's output is null, and GitHub's `==` coerces null and
+      #    '0' both to the number 0, so `steps.apply.outputs.code == '0'` alone
+      #    was TRUE on a run that applied nothing, and every empty run started
+      #    the next one: eleven chained in eight minutes on 2026-10-14, all
+      #    applying nothing, until cancelled by hand. `outcome == 'success'`
+      #    is false for a skipped step, which is what ends the chain.
       # ------------------------------------------------------------------
       - name: Go on to the next migration, if there is one
-        if: success() && steps.apply.outputs.code == '0'
+        if: success() && steps.apply.outcome == 'success' && steps.apply.outputs.code == '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
