@@ -11,7 +11,9 @@
 	import { page } from '$app/state';
 
 	import FoundryClassAccess from '$lib/foundry/FoundryClassAccess.svelte';
+	import FoundrySchedule from '$lib/foundry/FoundrySchedule.svelte';
 	import FoundrySiteSwitch from '$lib/foundry/FoundrySiteSwitch.svelte';
+	import { scheduleFromRpc, scheduleRefusalSentence } from '$lib/foundry/schedule';
 	import { FOUNDRY_SITE_OPEN } from '$lib/foundry/access';
 
 	let { data } = $props();
@@ -45,6 +47,28 @@
 		}
 		return { ok: true };
 	}
+
+	/**
+	 * THE CLASS SCHEDULE (0237, report 84e293d4). Each write is one RPC straight
+	 * from the browser client; the database re-checks that the caller manages the
+	 * section in every function. A database before 0237 answers `PGRST202`, which
+	 * `loadSchedule` turns into null and the panel says "not available yet".
+	 */
+	async function loadSchedule(sectionId: string) {
+		const { data: r, error } = await data.supabase.rpc('foundry_class_schedule_get', {
+			p_section_id: sectionId
+		});
+		if (error) return null;
+		return scheduleFromRpc(r);
+	}
+	async function scheduleCall(fn: string, args: Record<string, unknown>) {
+		const { data: r, error } = await data.supabase.rpc(fn, args);
+		// The database's own sentence for a raise (not yours, not signed in).
+		if (error) return { ok: false as const, message: error.message };
+		const out = r as { ok?: boolean; reason?: string } | null;
+		if (out?.ok) return { ok: true as const };
+		return { ok: false as const, message: scheduleRefusalSentence(out?.reason) };
+	}
 </script>
 
 <svelte:head><title>Foundry access for your classes</title></svelte:head>
@@ -66,6 +90,29 @@
 			if (error) return { ok: false, message: error.message };
 			return { ok: true };
 		}}
+	/>
+	<FoundrySchedule
+		sections={data.sections}
+		load={loadSchedule}
+		saveWeekly={(sectionId, enabled, weekly) =>
+			scheduleCall('foundry_class_schedule_set', {
+				p_section_id: sectionId,
+				p_enabled: enabled,
+				p_weekly: weekly
+			})}
+		saveDay={(sectionId, onDate, kind, windows, note) =>
+			scheduleCall('foundry_class_schedule_day_set', {
+				p_section_id: sectionId,
+				p_on_date: onDate,
+				p_kind: kind,
+				p_windows: windows,
+				p_note: note
+			})}
+		clearDay={(sectionId, onDate) =>
+			scheduleCall('foundry_class_schedule_day_clear', {
+				p_section_id: sectionId,
+				p_on_date: onDate
+			})}
 	/>
 </div>
 

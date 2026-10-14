@@ -470,6 +470,14 @@ export interface FoundryTrustTransports {
 		note: string | null
 	) => Promise<{ ok: boolean; message?: string }>;
 	revokeTrust?: (email: string) => Promise<{ ok: boolean; message?: string }>;
+	/**
+	 * 0237 (report 762bb647): search the site's Bosco Tech accounts by part of a
+	 * name or an address, for the "Find by name" picker. Null means the search
+	 * is not there (a database before 0237) and the picker says so; an empty
+	 * list is an ordinary answer. Admin-only in the database, like the roster
+	 * it feeds. Absent removes the picker and the email field stands alone.
+	 */
+	searchPeople?: (query: string) => Promise<{ email: string; name: string }[] | null>;
 }
 
 /** One row of `foundry_trusted_roster()`. */

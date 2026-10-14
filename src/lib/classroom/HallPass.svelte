@@ -149,6 +149,63 @@
 	const canOverride = $derived(!!transports?.openFor && overrideRoster.length > 0);
 	let overrideEmail = $state('');
 
+	/**
+	 * THIS CLASS'S TWO NUMBERS (`0237`), an instructor's. Drafts are strings so
+	 * an empty box means "the default" (null), and the boxes seed from the
+	 * payload's projected limits, never from a constant here. The control exists
+	 * only with the transport AND a payload that carries limits (a deployment
+	 * before the migration has neither), and says nothing otherwise.
+	 */
+	const canSetLimits = $derived(!!manager && !!transports?.setLimits && !!manager.limits);
+	let budgetDraft = $state('');
+	let autoDraft = $state('');
+	let limitsSeed = '';
+	$effect(() => {
+		const l = manager?.limits;
+		const key = l ? `${l.budget_minutes}/${l.auto_checkin_minutes}` : '';
+		if (key === limitsSeed) return;
+		limitsSeed = key;
+		budgetDraft = l ? String(l.budget_minutes) : '';
+		autoDraft = l ? String(l.auto_checkin_minutes) : '';
+	});
+	const wholeMinutes = (text: string): number | null | 'bad' => {
+		const t = String(text).trim();
+		if (t === '') return null;
+		return /^\d{1,3}$/.test(t) ? Number(t) : 'bad';
+	};
+	async function saveLimits(): Promise<void> {
+		const save = transports?.setLimits;
+		if (busy || !save) return;
+		const daily = wholeMinutes(budgetDraft);
+		const auto = wholeMinutes(autoDraft);
+		if (daily === 'bad' || auto === 'bad') {
+			notice = 'Use whole minutes, or leave a box empty for the default.';
+			return;
+		}
+		busy = true;
+		notice = null;
+		try {
+			const res = await save(sectionId, daily, auto);
+			notice = res.ok ? 'Saved the pass time for this class.' : res.message;
+			if (res.ok) announce();
+		} catch {
+			notice = 'Could not reach the class. Check your connection and try again.';
+		} finally {
+			busy = false;
+			await refresh();
+		}
+	}
+
+	/** Students who have used time today, most first: who is near or over. Instructor only. */
+	const budgetRows = $derived.by(() => {
+		if (!manager?.budgets) return [];
+		const names = new Map((manager.roster ?? []).map((r) => [r.student_email, r.student_name]));
+		return Object.entries(manager.budgets)
+			.filter(([, b]) => b.used_seconds > 0 || b.debt_seconds > 0)
+			.map(([email, b]) => ({ email, name: names.get(email) ?? email, b }))
+			.sort((a, c) => c.b.used_seconds - a.b.used_seconds);
+	});
+
 	/** Glyph AND word, never the hue alone. */
 	const chip = $derived.by(() => {
 		if (view.taken && view.scope === 'student' && view.mine)
@@ -267,18 +324,19 @@
 	}
 
 	/**
-	 * THE REFUSAL'S DETAIL IS CARRIED, NOT DROPPED (`0174`). A `cooldown` whose
-	 * `retryAt` never reached the sentence builder reads "wait a few minutes",
-	 * which is the refusal-with-no-time-in-it the limit exists to avoid.
+	 * THE REFUSAL'S DETAIL IS CARRIED, NOT DROPPED (`0237`). An `over_budget`
+	 * whose `availableAt` never reached the sentence builder reads "try later",
+	 * which is the refusal-with-no-day-in-it the budget exists to avoid.
 	 */
 	function report(
 		res: {
 			ok: boolean;
 			refusal?: unknown;
 			message?: string;
-			retryAt?: string | null;
-			used?: number | null;
-			limit?: number | null;
+			availableAt?: string | null;
+			resetsAt?: string | null;
+			dailySeconds?: number | null;
+			debtSeconds?: number | null;
 		},
 		done: string
 	): void {
@@ -289,9 +347,11 @@
 		notice =
 			'refusal' in res && res.refusal
 				? hallPassRefusalMessage(res.refusal as HallPassRefusal, {
-						retryAt: res.retryAt,
-						used: res.used,
-						limit: res.limit
+						availableAt: res.availableAt,
+						resetsAt: res.resetsAt,
+						dailySeconds: res.dailySeconds,
+						debtSeconds: res.debtSeconds,
+						nowMs: now
 					})
 				: (res.message ?? 'Something went wrong. Try again.');
 	}
@@ -534,6 +594,11 @@
 			-->
 			<p class="hp-usage" data-testid="hall-pass-usage">{usage}</p>
 		{/if}
+		{#if view.scope === 'student' && view.limits}
+			<p class="hp-usage hp-auto" data-testid="hall-pass-auto">
+				A pass left open for {view.limits.auto_checkin_minutes} minutes is checked in for you.
+			</p>
+		{/if}
 
 		{#if transports}
 			<div class="hp-actions">
@@ -585,6 +650,40 @@
 			<p class="hp-live" data-testid="hall-pass-live">
 				{classroomLivePausedLine(HALL_PASS_POLL_MS)}
 			</p>
+		{/if}
+
+		{#if canSetLimits}
+			<div class="hp-override hp-limits" data-testid="hall-pass-limits">
+				<label class="hp-override-label" for={`hp-budget-${sectionId}`}>Pass minutes a day</label>
+				<input
+					id={`hp-budget-${sectionId}`}
+					class="hp-limit-input"
+					type="text"
+					inputmode="numeric"
+					bind:value={budgetDraft}
+					disabled={busy}
+					data-testid="hall-pass-budget-input"
+				/>
+				<label class="hp-override-label" for={`hp-auto-${sectionId}`}>Check in automatically after (minutes)</label>
+				<input
+					id={`hp-auto-${sectionId}`}
+					class="hp-limit-input"
+					type="text"
+					inputmode="numeric"
+					bind:value={autoDraft}
+					disabled={busy}
+					data-testid="hall-pass-auto-input"
+				/>
+				<button
+					type="button"
+					class="btn tap-44 hp-override-go"
+					data-testid="hall-pass-limits-save"
+					disabled={busy}
+					onclick={saveLimits}
+				>
+					Save
+				</button>
+			</div>
 		{/if}
 
 		{#if manager && canOverride}
@@ -643,6 +742,25 @@
 				-- so there is no surface a student could reach that answers this
 				question emptily and has to be kept empty.
 			-->
+			{#if budgetRows.length > 0}
+				<Disclosure
+					label="Pass time today"
+					scope={`hall-pass-budget:${sectionId}`}
+					testId="hall-pass-budgets"
+					bodyClass="hp-history-body"
+				>
+					<ul class="hp-history">
+						{#each budgetRows as row (row.email)}
+							<li class="hp-entry">
+								<span class="hp-who person-name" title={row.name}>{row.name}</span>
+								<span class="hp-when">
+									{Math.floor(row.b.used_seconds / 60)} of {Math.ceil(row.b.allowance_seconds / 60)} minutes{row.b.blocked ? ' · out of time' : ''}{row.b.debt_seconds > 0 ? ` · ${Math.ceil(row.b.debt_seconds / 60)} carried over` : ''}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</Disclosure>
+			{/if}
 			<Disclosure
 				label="Recent passes"
 				scope={`hall-pass:${sectionId}`}
@@ -894,6 +1012,19 @@
 		flex: 1 1 12rem;
 		min-width: 0;
 		min-height: 44px;
+	}
+	.hp-limit-input {
+		flex: 0 0 5rem;
+		width: 5rem;
+		min-height: 44px;
+		box-sizing: border-box;
+		padding: 0 0.6rem;
+		background: var(--surface-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+		color: var(--text-1);
+		font-family: var(--font-display);
+		font-size: 0.95rem;
 	}
 	.hp-override-go {
 		flex: 0 0 auto;

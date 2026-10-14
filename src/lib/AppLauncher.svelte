@@ -1285,7 +1285,7 @@
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--text-2);
-		border: 1px solid var(--boundary);
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-chip, 3px);
 		padding: 0.05rem 0.35rem;
 	}

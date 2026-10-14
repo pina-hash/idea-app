@@ -157,7 +157,7 @@ function overviewFor(email: string) {
 		has_account: true,
 		user_id: STUDENT_ID,
 		at: NOW,
-		hall_passes: { total: 0, entries: [], limits: { cooldown_minutes: 10, daily_limit: 3 } },
+		hall_passes: { total: 0, entries: [], limits: { budget_minutes: 10, auto_checkin_minutes: 30 } },
 		item_views: [],
 		songs: { requested: 0, approved: 0, rejected: 0, pending: 0 },
 		coins: { balance: 0, physical_balance: 0, digital_balance: 0, total: 0, transactions: [] },

@@ -14,6 +14,18 @@
 	"entries": [
 		{
 			"date": "2026-10-14",
+			"title": "The hall pass is now pass time, and everyone can see who is out",
+			"body": "You now get a set number of pass minutes each school day in each class (your teacher can change it), and the class page shows how many you have left before you tap. Time you go over comes off your next day, and it all resets on Monday. A pass left open too long is signed back in for you at the limit and counts as that full time. If you are out of time, the card says which day you can go again. Everyone in the class can now see who is out and since when, so if you forget to sign back in, the room will remind you.",
+			"tags": ["Hall pass"]
+		},
+		{
+			"date": "2026-10-14",
+			"title": "Foundry: vote on games, and your class can set when it is closed",
+			"body": "On a game in the Foundry gallery you can now vote it up or down (one vote each, and you can change it). The gallery has a Most liked order, a Featured row picked by IDEA staff, and collections that open to show a set of games. Your teacher can also set the days and times the Foundry closes for your class, so it closes when class starts and comes back when class ends. If it is closed, the page tells you when it comes back.",
+			"tags": ["Foundry"]
+		},
+		{
+			"date": "2026-10-14",
 			"title": "Teachers: the grading page remembers the student, the rubric can be narrowed, and team mottos can be edited",
 			"body": "On the grading page, refreshing keeps you on the student you were grading. The rubric on the right has Wide, Narrow and Hide keys, so you can give the student's work more room, and it remembers your choice on this computer. On the People tab you can now change a team's motto beside its name, and on the class page Edit look is back on every team. When you edit an assignment that is a web page, there is a Download the original file link for the file as it was uploaded. The student page now prints on plain white paper with no backgrounds, whatever theme you are using.",
 			"tags": [

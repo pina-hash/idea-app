@@ -339,6 +339,21 @@ instance per `FOUNDRY_SITE_CACHE_MS` (30s), for document paths only, a missing
 relation read as open and any other failure answered with the bodyless 404 and
 not cached. A running game's assets keep serving. `closed_by` is never projected.
 
+**A CLASS'S FOUNDRY CLOSES BY ITS OWN SCHEDULE, AND "CLOSED" IS DERIVED AT READ
+TIME (ledger 0380, report 84e293d4, 0237).** An instructor gives a class a weekly
+pattern (days and times on the school clock, America/Los_Angeles) and date
+exceptions (`foundry_class_schedule_set`, `foundry_class_schedule_day_set`); a
+date with ANY exception row ignores the weekly pattern for that date, which is
+how one odd day, no class, or an early open is said. `_foundry_section_closed`
+is the one statement of "closed right now and why": the hand-pressed stamp
+(`foundry_closed_at`, which stays until the teacher opens it) wins, otherwise a
+scheduled window closes it unless the teacher opened it by hand for that
+window (`foundry_open_until`, set by `foundry_set_section_open` and ending with
+the window). Nothing is swept and nothing ticks, so a scheduled close never
+needs undoing, and `foundry_section_access` is still the only reader the
+students' surfaces ask. The schedule is a section manager's, "not yours" is "not
+found", and every write refuses in words before it writes.
+
 **A TRUSTED-PUBLISHER APPLICATION IS ANSWERS TO STORED QUESTIONS, AND APPROVAL IS
 THE EXISTING GRANT (ledger 0360, report R03, 0230).** `foundry_publisher_decide`
 approves through `foundry_trusted_grant`, so `foundry_trusted_publishers` keeps
@@ -866,8 +881,8 @@ show.
     implementation over the same counts. A new order is an arm in
     `foundrySortScore` plus an option; it is never a new page or a new section.
     The order stays out of the URL (decision 04).
-    - **MAJOR RELEASES IS THE ONE SECTION, AND IT IS AN ADMIN'S CURATION OF AN
-      APP, NOT A RANKING AND NOT A PERSON.** `foundry_set_app_major` (0233) is
+    - **MAJOR RELEASES IS THE FIRST CURATED SECTION, AND IT IS AN ADMIN'S
+      CURATION OF AN APP, NOT A RANKING AND NOT A PERSON.** `foundry_set_app_major` (0233) is
       the one writer: `is_admin()`, no identity parameter, idempotent both ways
       (`changed: false`), structured refusals `not_found`, `hidden` and
       `not_published` (unmarking is always allowed; hiding keeps the flag), and
@@ -887,8 +902,46 @@ show.
       `foundryHouseReleases` over `PORTAL_APPS`, never an admin-only entry) that
       reach the gallery only through the `houseReleases` prop the /foundry
       route passes; they are outside the sort, the search and every count.
+    - **THE GALLERY HAS TWO MORE CURATED SECTIONS, AND NEITHER IS A RANKING OR A
+      NEW PAGE (ledger 0380, reports 415af89e and 762bb647).** Directly under
+      Major releases sits the FEATURED row: an admin's hand-picked, ordered list
+      (`foundry_featured_set`, at most 12, never a rank), with any spare slots
+      filled in the client from the top of Most played and Trending
+      (`foundryFeaturedRow`), and drawn ONLY while at least one pick is in the
+      gallery, so a gallery nobody curated renders as before. Under it sit the
+      COLLECTIONS: `foundry_collection_save` and its siblings (admin-only,
+      published or not, reorderable, really deletable because a collection is
+      curation and its members are only references), each published one drawn
+      as ONE card that opens to its members (`FoundryCollectionCard`, the
+      members being the identical cards the rest of the gallery draws). EVERY
+      LAYER NAMES A CARD BY A SUBJECT (`app:<uuid>` or `house:<id>`,
+      `$lib/foundry/gallery-extras.ts`), the same string in the database and the
+      client, and a subject whose app is hidden or unpublished is not drawn
+      (`_foundry_subject_visible` and `resolveSubjects`, two layers, so hiding
+      an app needs no cleanup anywhere). An admin's card details
+      (`foundry_gallery_override_set`: title, description, thumbnail, each null
+      meaning "the default") change what a CARD says and never the student's
+      app record, the detail pane or the search; a thumbnail is a path in
+      `foundry-covers` uploaded into the admin's own folder, so no storage
+      policy was added. The editors are one page, `/foundry/review/gallery`,
+      behind the review area's admin gate. **Each layer is read through a
+      call that fails to `null` on a database without 0237, and a null layer
+      draws nothing**; an EMPTY layer also draws nothing, and the admin page
+      says "not available yet" only for null.
+    - **VOTES ARE ONE PER PERSON PER GAME, AND NO READ NAMES A VOTER (ledger
+      0380, report 8274b260).** `foundry_vote` takes no identity parameter, takes
+      1, -1 or 0 (take it back), refuses your own game and any game the gallery
+      would not show with one shape of refusal, and `foundry_vote_counts` returns
+      net, net in the last seven days and the caller's own vote and NOTHING
+      split: no up count, no down count, no voter count, because a column over
+      every app is the n=1 scan 0221 refused for players. The table has no
+      grant and no policy. Net votes ride in `FoundryPlayCounts`
+      (`foundryMergeVotes`), feed the Most liked order and add this week's net
+      to the Trending rise; Most liked is not a play order, so the play
+      coverage note does not sit beside it.
     - **"TRENDING" IS A FORMULA AND NOT A WORD:** plays in the last seven days
-      MINUS plays in the seven before that (`foundryTrendScore`). A RISE, not a
+      MINUS plays in the seven before that, PLUS the net of this week's votes
+      (`foundryTrendScore`). A RISE, not a
       level -- "Most played" is already the all-time level and "Played this
       week" is already the recent one, so an order ranking on either is a copy
       of one of them under a different label.
@@ -1535,6 +1588,37 @@ other.
   header, the no-sliver export claim and the selection mode. `tests/dom/` has no
   layout engine and reads every box as zero.
 
+### THE HALL PASS IS A TIME BUDGET, AND THE BUDGET IS DERIVED FROM THE PASS ROWS
+
+**A STUDENT HAS MINUTES, NOT A COUNT (ledger 0380, report 7348d14c, 0237;
+decision 58).** `_classroom_hall_pass_budget` is the one rule, asked at a pinned
+instant: debt(next) = max(0, debt + used - budget) and allowance = max(0, budget
+- debt), per Los Angeles school day, with debt cleared at Monday 00:00 in Los
+Angeles. Nothing is stored: a day's charge is `least(duration, auto check in
+cap)` over the pass rows, so a pass an instructor closes late, a pass nobody
+closed and a pass opened before the budget began (`classroom_hall_pass_budget_start`,
+the apply instant, so nothing is charged retroactively) all fall out of one
+sum. A pass open past the cap is closed AT the cap by a lazy sweep
+(`_classroom_hall_pass_sweep`, run by the state read and the open call,
+`closed_by` 'auto') and charged the full cap. Both numbers are the SECTION's own
+(`hall_pass_daily_minutes`, `hall_pass_auto_minutes`, set through
+`classroom_hall_pass_set_limits`, null for the default), and no component or
+stylesheet writes 10 or 30 down: `tests/classroom-hall-pass-limits.test.ts`
+sweeps for it.
+- **IT REPLACES 0174'S DAILY COUNT AND COOLDOWN; BOTH ARE GONE, NOT KEPT BESIDE
+  IT.** The refusal is `over_budget` and carries the instant the student may go
+  again and the weekly reset, so the sentence names a day (`hallPassAvailableWords`),
+  because a "no" with no way forward is asked again in person. A student whose
+  debt cannot clear before the reset is told the reset's day.
+- **EVERYONE IN THE CLASS SEES WHO IS OUT, REVERSING 0143'S ONE-BIT RULE
+  (decision 58).** The student payload carries `out: { name, opened_at }`, the
+  shown name only, so a pass nobody checked in is noticed by the room; it still
+  carries no address, no pass id and no history, and the type has no field for
+  one. The instructor payload carries each student's budget by address.
+- **THE CONTROL MIRRORS THE BUDGET AND DOES NOT IMPLEMENT IT**: a payload with no
+  `budget` (a database before 0237) blocks nothing, and the database refuses
+  the call regardless.
+
 ### THE LIVE CLASS -- the projector reads nothing private
 
 **THE LIVE TAB IS A MANAGER'S CONTROL VIEW AND THE PROJECTOR IS A SECOND WINDOW
@@ -1896,15 +1980,15 @@ Undated work is never Missing and never counted; it is listed last.
     against the manifest the worksheet has TODAY, so the day an author adds a
     required block (or raises a `minSentences`, or drops an `optional`) every
     student who had finished reads Missing or In progress on every surface at
-    once. The worksheet latch table (0237) keeps the first moment a
+    once. `classroom_worksheet_latches` (0237) keeps the first moment a
     student's own load found it complete, and readers see the UNION
     (`mergeLatches`: the earlier instant wins, so a later edit cannot make a
     finished worksheet late). **A LATCH IS A LABEL AND NOTHING ELSE**: it is
     never `submitted` (that locks saves, 0197), decides no grade and gates no
-    write; the derivation still runs beside it. It is stamped only from the
-    student's own pinned read (`latches: { stamp: true }` in
-    `readWorksheetCompletions`, 25 a read) and read back through
-    the latched-read function, which answers a student their own rows and a
+    write; the derivation still runs beside it. It is stamped only by `classroom_worksheet_latch`
+    from the student's own pinned read (`latches: { stamp: true }` in
+    `readWorksheetCompletions`) and read back through
+    `classroom_worksheet_latched`, which answers a student their own rows and a
     manager every student's in a section they manage in one primary-key lookup
     (so the grading roster, the live grid and the people page take it with no
     per-row policy cost). Where 0237 is not applied every read is the

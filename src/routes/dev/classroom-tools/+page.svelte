@@ -74,7 +74,7 @@
 	const ANA = { student_email: 'ana@boscotech.net', student_name: 'Ana Reyes' };
 	const BEN = { student_email: 'ben@boscotech.net', student_name: 'Ben Okonkwo' };
 	const ROSTER = [ANA, BEN, ME];
-	const LIMITS = { cooldown_minutes: 10, daily_limit: 3 };
+	const LIMITS = { budget_minutes: 10, auto_checkin_minutes: 30 };
 
 	/* ---------------------------------------------------------------- *
 	 * THE FIXTURE STORE. Plain mutable objects, deliberately NOT `$state`:

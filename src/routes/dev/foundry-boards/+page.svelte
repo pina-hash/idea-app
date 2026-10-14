@@ -72,6 +72,7 @@
 				apps={data.apps}
 				playCounts={data.playCounts}
 				{houseReleases}
+				extras={data.extras}
 				onSelect={(slug) => (picked = slug ?? '(cleared)')}
 			/>
 		</div>

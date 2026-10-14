@@ -1,0 +1,11 @@
+# 59 Foundry class schedules, release editing, collections, votes and the featured row
+
+- Raised: 2026-10-14  By: feedback round 2026-10-14 (ledger 0380), reports 84e293d4, c5f811e4, 762bb647, 8274b260 and 415af89e.
+- Status: DECIDED 2026-10-14 from Mr. Pina's spec (unattended night); the defaults below are this round's and each is one line to change.
+- Decision, schedule: An instructor sets weekly days and times per class on the school clock; the Foundry closes for that class's students while class is in session and reopens when it ends. A date can carry its own times or "no class" (which also opens the Foundry early that day). The instructor can still close it by hand (stays closed until opened) and open it by hand during a class period (holds until that period ends).
+- Decision, release editing: An admin edits the title, description and thumbnail a release's gallery card shows, for IDEA GREENLINE, IDEA VANGUARD and any major release, from `/foundry/review/gallery`, without a commit. A stored value overrides the default and clearing one falls back to it. The student's own app record is never changed.
+- Decision, collections: An admin creates named collections, adds and orders games, publishes and unpublishes, renames and deletes them. A published collection is one gallery card that opens to its members. Delete is real (a collection is curation, its members are references).
+- Decision, votes: One up or down vote per signed-in person per game, changeable and removable. Net votes feed a new "Most liked" order and add this week's net to Trending. A student cannot vote on their own game (default). No read shows who voted or an up/down split (default).
+- Decision, featured row: An admin hand-picks an ordered row directly under Major releases (at most 12). Spare slots, up to six in all, are filled from the top of Most played and Trending, skipping apps nobody has played or voted on. With no picks there is no row (default, so an uncurated gallery renders as before).
+- Decision, publisher search: Adding a trusted publisher can search the site's Bosco Tech accounts by part of a name or address (admin only, twelve at most); typing the address still works.
+- Context: migration 0237 parts C to H; CLAUDE.md Foundry rules.

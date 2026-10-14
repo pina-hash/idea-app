@@ -153,8 +153,11 @@ export function parseStudentOverview(value: unknown): StudentOverviewPayload | n
 	const passes = obj(v.hall_passes);
 	const limitsRaw = obj(passes.limits);
 	const limits =
-		typeof limitsRaw.cooldown_minutes === 'number' && typeof limitsRaw.daily_limit === 'number'
-			? { cooldown_minutes: limitsRaw.cooldown_minutes, daily_limit: limitsRaw.daily_limit }
+		typeof limitsRaw.budget_minutes === 'number' && typeof limitsRaw.auto_checkin_minutes === 'number'
+			? {
+					budget_minutes: limitsRaw.budget_minutes,
+					auto_checkin_minutes: limitsRaw.auto_checkin_minutes
+				}
 			: null;
 	const entries = arr(passes.entries).map(hallPassEntry).filter((e): e is HallPassEntry => e !== null);
 	const songs = obj(v.songs);

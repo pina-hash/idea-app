@@ -359,9 +359,11 @@
 	// THE HALL PASS, IN THE TWO STATES 0174 ADDED.
 	// -----------------------------------------------------------------------
 
-	const LIMITS = { cooldown_minutes: 10, daily_limit: 3 };
+	const LIMITS = { budget_minutes: 10, auto_checkin_minutes: 30 };
 
-	/** A student who may still go: the control is live and the count is shown. */
+	const RESETS = new Date(NOW + 4 * 86_400_000).toISOString();
+
+	/** A student who may still go: the control is live and the minutes left are shown. */
 	const FREE: HallPassStudentState = {
 		scope: 'student',
 		section_id: SECTION_ID,
@@ -369,24 +371,37 @@
 		mine: false,
 		opened_at: null,
 		limits: LIMITS,
-		used_today: 1,
-		retry_at: null
+		budget: {
+			daily_seconds: 600,
+			auto_checkin_seconds: 1800,
+			allowance_seconds: 600,
+			used_seconds: 240,
+			remaining_seconds: 360,
+			debt_seconds: 0,
+			blocked: false,
+			available_at: null,
+			resets_at: RESETS
+		}
 	};
 
-	/**
-	 * A STUDENT REFUSED BY THE COOLDOWN, which is the state this harness exists
-	 * for. `retry_at` is eight minutes ahead of the pinned NOW, so the control
-	 * is `aria-disabled` and the card names a clock time -- the two things that
-	 * would look identical to a working control if either broke.
-	 */
+	/** A student whose day is spent: aria-disabled, and the card names the day it comes back. */
 	const COOLED: HallPassStudentState = {
 		...FREE,
-		used_today: 2,
-		retry_at: new Date(NOW + 8 * 60_000).toISOString()
+		budget: {
+			...FREE.budget!,
+			used_seconds: 600,
+			remaining_seconds: 0,
+			blocked: true,
+			available_at: new Date(NOW + 20 * 3_600_000).toISOString()
+		}
 	};
 
-	/** A student who has spent the day's passes. Same control, different sentence. */
-	const SPENT: HallPassStudentState = { ...FREE, used_today: 3, retry_at: null };
+	/** Somebody else is out, and the room can see who (decision 58). */
+	const SPENT: HallPassStudentState = {
+		...FREE,
+		taken: true,
+		out: { name: 'Ben Cho', opened_at: new Date(NOW - 12 * 60_000).toISOString() }
+	};
 
 	function passTransports(label: string): HallPassTransports {
 		return {
@@ -396,11 +411,13 @@
 			async open(): Promise<HallPassResult<HallPassOpened>> {
 				// The DATABASE is the limit; this stands in for its refusal so the
 				// card's notice can be driven without one.
-				note(`${label}: open refused (cooldown)`);
+				note(`${label}: open refused (over budget)`);
 				return {
 					ok: false,
-					refusal: 'cooldown',
-					retryAt: new Date(NOW + 8 * 60_000).toISOString()
+					refusal: 'over_budget',
+					availableAt: new Date(NOW + 20 * 3_600_000).toISOString(),
+					resetsAt: RESETS,
+					nowMs: NOW
 				};
 			},
 			async closeMine() {
@@ -417,21 +434,21 @@
 	const MOUNTS: { key: string; title: string; blurb: string; state: HallPassState }[] = [
 		{
 			key: 'free',
-			title: 'Student, one pass used',
-			blurb: 'The control is live and the count is on screen before anybody taps.',
+			title: 'Student, minutes left',
+			blurb: 'The control is live and the minutes left are on screen before anybody taps.',
 			state: FREE
 		},
 		{
 			key: 'cooldown',
-			title: 'Student, refused by the cooldown',
+			title: 'Student, out of pass time',
 			blurb:
-				'aria-disabled rather than disabled, so the tap still lands and the card names the clock time.',
+				'aria-disabled rather than disabled, so the tap still lands and the card names the day it comes back.',
 			state: COOLED
 		},
 		{
 			key: 'spent',
-			title: "Student, the day's passes spent",
-			blurb: 'The refusal names the cap and points at the person who can override it.',
+			title: 'Student, a classmate is out',
+			blurb: 'Everyone in the class sees who has the pass and since when.',
 			state: SPENT
 		}
 	];

@@ -38,6 +38,7 @@
 		FOUNDRY_CLOSURE_LIMIT,
 		foundryClosedNotes,
 		foundryClosedSentence,
+		foundryScheduleNotes,
 		type FoundryClosedSection
 	} from './access.ts';
 
@@ -48,6 +49,7 @@
 
 	const sentence = $derived(foundryClosedSentence(closed));
 	const notes = $derived(foundryClosedNotes(closed));
+	const scheduled = $derived(foundryScheduleNotes(closed));
 </script>
 
 <section
@@ -67,6 +69,18 @@
 	{/if}
 
 	<p class="fdy-closed-lead">{sentence}</p>
+
+	{#if scheduled.length > 0}
+		<!-- 0237: a class whose schedule closed it says when it comes back. -->
+		<ul class="fdy-closed-notes" data-testid="foundry-closed-scheduled">
+			{#each scheduled as s (s.section_id)}
+				<li>
+					<span class="fdy-closed-from">{s.course_title} ({s.label})</span>
+					<span class="fdy-closed-note">Class is in session. The gallery comes back at {s.until}.</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 
 	{#if notes.length > 0}
 		<!-- WHAT THE INSTRUCTOR TYPED, ATTRIBUTED TO THE CLASS IT CAME FROM.

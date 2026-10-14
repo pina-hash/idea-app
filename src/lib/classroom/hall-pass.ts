@@ -43,21 +43,40 @@ export interface HallPassEntry {
 }
 
 /**
- * THE TWO NUMBERS THE LIMIT USES, PROJECTED RATHER THAN RESTATED (`0174`).
+ * THE TWO NUMBERS THE RULE USES, PROJECTED RATHER THAN RESTATED (0237).
  *
- * `_classroom_hall_pass_limits()` is the ONE statement of them and the state
- * payload carries its answer, so no constant, component or stylesheet in this
- * repo writes 10 or 3 down. A client-side copy is exactly the thing that stops
- * agreeing with the refusal behind it -- the surface would draw a button the
- * server then declines, or grey one out the server would have allowed.
+ * `budget_minutes` is the pass time a student has each school day and
+ * `auto_checkin_minutes` is how long a pass may stay open before it is checked
+ * in for them. They are THIS SECTION's own numbers (an instructor sets them),
+ * so no constant, component or stylesheet here writes 10 or 30 down.
  *
  * OPTIONAL, because the migration is applied by hand: a deployment that has not
- * had it yet answers a payload with no `limits` in it, and the surface then says
- * nothing about a rule that is not being enforced.
+ * had it answers a payload with no `limits`, or the old `cooldown_minutes` and
+ * `daily_limit` pair, which this surface no longer reads and says nothing about.
  */
 export interface HallPassLimits {
-	cooldown_minutes: number;
-	daily_limit: number;
+	budget_minutes: number;
+	auto_checkin_minutes: number;
+}
+
+/**
+ * ONE STUDENT'S DAY, as the database computed it at read time (0237): the
+ * allowance after any debt carried from earlier this week, what is used,
+ * what is left, whether they may go, and when they may next. All in seconds
+ * and instants, so the surface does arithmetic on nothing.
+ */
+export interface HallPassBudget {
+	daily_seconds: number;
+	auto_checkin_seconds: number;
+	allowance_seconds: number;
+	used_seconds: number;
+	remaining_seconds: number;
+	debt_seconds: number;
+	blocked: boolean;
+	/** The first moment the allowance is above zero again (the reset if nothing sooner). Null while they may go. */
+	available_at: string | null;
+	/** Monday 00:00 America/Los_Angeles, when debt clears. */
+	resets_at: string;
 }
 
 /** One name the override control may pick (`0174`, manager branch only). */
@@ -67,13 +86,16 @@ export interface HallPassRosterEntry {
 }
 
 /**
- * WHAT AN ENROLLED STUDENT IS TOLD, WHICH IS ONE BIT PLUS THEIR OWN TIMESTAMP.
+ * WHAT AN ENROLLED STUDENT IS TOLD: WHETHER THE PASS IS TAKEN, WHO HAS IT, AND
+ * THEIR OWN DAY.
  *
- * There is deliberately no `student_name`, no `student_email`, no `pass_id` and
- * no `history` here, and none may be added: a permanent peer-visible record of
- * who left class is a much bigger thing than this feature is. `opened_at` is
- * non-null ONLY when `mine` is true, so it is the caller's own timestamp rather
- * than a fact about whoever is out.
+ * THIS REVERSES THE RULE 0143 AND 0174 RECORDED (a student learned one bit),
+ * ON MR. PINA'S DECISION OF 2026-10-08, written down as decision 58: everyone
+ * in the class sees who is checked out, at all times, so that somebody who
+ * forgot to check back in is noticed by the room. What is told is a SHOWN NAME
+ * and a time and nothing else: never an address, a pass id or a history, and
+ * `out.name` is the enrollment's display name or "A classmate". The type still
+ * has no field for an address and none may be added.
  */
 export interface HallPassStudentState {
 	scope: 'student';
@@ -81,24 +103,14 @@ export interface HallPassStudentState {
 	taken: boolean;
 	mine: boolean;
 	opened_at: string | null;
-	/** `0174`'s numbers. Absent before that migration is applied. */
+	/** Whoever is out, when anyone is (including the caller), by shown name. Absent before 0237. */
+	out?: { name: string; opened_at: string } | null;
+	/** This section's numbers. Absent before 0237. */
 	limits?: HallPassLimits;
-	/**
-	 * HOW MANY PASSES THIS CALLER HAS TAKEN IN THIS CLASS TODAY. Their own
-	 * count, on the America/Los_Angeles calendar day -- a fact about themselves,
-	 * exactly as `opened_at` is, and not a disclosure about anybody.
-	 */
+	/** Passes this caller has taken in this class today: a fact about themselves. */
 	used_today?: number;
-	/**
-	 * WHEN THIS CALLER MAY GO AGAIN, or null when they may go now.
-	 *
-	 * The DATABASE decides whether to send it: it is non-null only while the
-	 * cooldown is genuinely still running at read time, so the client asks one
-	 * question (is this null) instead of holding a second copy of the
-	 * comparison. It can be up to one poll interval stale, and the server's own
-	 * refusal is what settles that case.
-	 */
-	retry_at?: string | null;
+	/** This caller's own day. Absent before 0237. */
+	budget?: HallPassBudget;
 }
 
 /** What an instructor of the section is told. */
@@ -126,6 +138,8 @@ export interface HallPassManagerState {
 	 * expression on that branch.
 	 */
 	roster?: HallPassRosterEntry[];
+	/** Each active student's day, by address, so the instructor sees who is over (0237). */
+	budgets?: Record<string, HallPassBudget>;
 }
 
 export type HallPassState = HallPassStudentState | HallPassManagerState;
@@ -148,24 +162,23 @@ export type HallPassRefusal =
 	| 'not_open'
 	| 'not_yours'
 	| 'already_closed'
-	| 'cooldown'
-	| 'limit_reached'
+	| 'over_budget'
 	| 'not_enrolled';
 
 /**
- * WHAT A `0174` REFUSAL CARRIES BESIDES ITS WORD.
+ * WHAT AN `over_budget` REFUSAL CARRIES BESIDES ITS WORD (0237).
  *
- * A REFUSAL WITH NO TIME IN IT GETS ASKED AGAIN IMMEDIATELY, IN PERSON, which
- * is the thing the limit exists to stop. So the database answers `cooldown`
- * with the instant the student may go again and `limit_reached` with the count
- * and the cap, and the sentence is built from those rather than from numbers
- * written down here.
+ * A REFUSAL WITH NO WAY FORWARD IN IT GETS ASKED AGAIN IMMEDIATELY, IN PERSON,
+ * so the database answers with the instant the student may go again, the reset,
+ * and the day's number, and the sentence is built from those.
  */
 export interface HallPassRefusalDetail {
-	/** ISO instant, `cooldown` only. */
-	retryAt?: string | null;
-	used?: number | null;
-	limit?: number | null;
+	availableAt?: string | null;
+	resetsAt?: string | null;
+	dailySeconds?: number | null;
+	debtSeconds?: number | null;
+	/** The caller's one clock. Nothing here reads its own; a refusal built without it uses the wall clock. */
+	nowMs?: number;
 }
 
 export interface HallPassOpened {
@@ -250,6 +263,23 @@ export interface HallPassTransports {
 	 * gap between reading the roster and pressing the control.
 	 */
 	openFor?(sectionId: string, studentEmail: string): Promise<HallPassResult<HallPassOpenedFor>>;
+	/**
+	 * THIS CLASS'S TWO NUMBERS (`0237`), whole minutes, null for the default.
+	 * OPTIONAL like `openFor`: absent removes the control, which is also the
+	 * honest state of a deployment before the migration.
+	 */
+	setLimits?(
+		sectionId: string,
+		budgetMinutes: number | null,
+		autoCheckinMinutes: number | null
+	): Promise<{ ok: true } | { ok: false; message: string }>;
+}
+
+/** The sentence for a refused limits save: the ranges are the database's, said back in words. */
+export function hallPassLimitsRefusal(reason: unknown): string {
+	if (reason === 'daily_out_of_range') return 'Pass time a day has to be between 1 and 120 minutes.';
+	if (reason === 'auto_out_of_range') return 'Automatic check in has to be between 5 and 240 minutes.';
+	return 'Those numbers were not accepted.';
 }
 
 /**
@@ -314,11 +344,10 @@ export function hallPassMinutes(fromIso: string, toMs: number): number {
  * clock on this surface -- so this is assertable at a pinned instant and two
  * figures rendered in one paint cannot disagree with each other.
  *
- * THERE IS NO CEILING AND NO WARNING TONE AT ANY DURATION. Nothing auto-closes
- * a pass and nothing here decides that a number has become too big: a long
- * absence is a conversation an instructor has, and a surface that started
- * colouring minutes red would be enforcing a limit the feature deliberately
- * does not have.
+ * NO WARNING TONE AT ANY DURATION. The database checks a pass in at the
+ * section's auto check-in (0237) and charges it to the day; this label only
+ * says how long, and a surface that started colouring minutes red would be
+ * a second opinion about a limit that has one owner.
  */
 export function hallPassElapsedLabel(fromIso: string, nowMs: number): string {
 	const mins = hallPassMinutes(fromIso, nowMs);
@@ -370,21 +399,13 @@ export function hallPassRefusalMessage(
 			// this sentence has already been re-read, so whoever is out NOW is on
 			// screen beside it.
 			return 'That pass was already signed back in, so nothing was changed.';
-		case 'cooldown':
-			// THE TIME IS THE WHOLE POINT (`0174`). "Not yet" with no instant in
-			// it is asked again thirty seconds later, out loud, which is exactly
-			// the behaviour the limit exists to stop. The clock label is the
-			// school's own zone, so it matches the bell schedule on the wall.
-			return detail.retryAt
-				? `You just came back. You can take the pass again at ${hallPassClockLabel(detail.retryAt)}.`
-				: 'You just came back. Wait a few minutes before taking the pass again.';
-		case 'limit_reached':
-			// NAMES THE COUNT AND POINTS AT THE OVERRIDE. "No" with no way
-			// forward is what makes a student ask a person instead -- so this
-			// sentence says who to ask, because that person really can say yes.
-			return detail.limit
-				? `You have used all ${detail.limit} passes for this class today. Ask your teacher if you still need to go.`
-				: 'You have used all your passes for this class today. Ask your teacher if you still need to go.';
+		case 'over_budget':
+			// THE WAY FORWARD IS THE WHOLE POINT (0237). "No" with no day in it is
+			// asked again in person, so this says when the time comes back: the
+			// next school day, a named day when there is debt to pay down, or the
+			// Monday reset when it cannot clear sooner. The day is named in the
+			// school's own zone.
+			return `You have used your hall pass time. ${hallPassAvailableWords(detail.availableAt ?? null, detail.resetsAt ?? null, detail.nowMs ?? Date.now())} Ask your teacher if you still need to go.`;
 		case 'not_enrolled':
 			// Reachable only on the instructor override, where it means the name
 			// picked is not on the live roster.
@@ -393,50 +414,59 @@ export function hallPassRefusalMessage(
 }
 
 /**
- * IS THIS STUDENT STILL INSIDE THE COOLDOWN, and until when.
- *
- * NOT A BOUNDARY, AND THE COMMENT ON `hallPassCanClose` IS THE PRECEDENT: the
- * database refuses the open, and this decides what the control looks like
- * beforehand. They are allowed to agree and this one is not trusted.
- *
- * IT HOLDS NO NUMBER. `retry_at` is an absolute instant the database computed
- * from its own single statement of the cooldown, so the only arithmetic here is
- * a comparison against the clock the surface already threads down. A minutes
- * figure written in this file would be the second copy.
+ * "You can go again tomorrow." / "on Thursday." / "on Monday, when the week
+ * resets.", from the two instants the database sent. The weekday is the
+ * school's own (America/Los_Angeles), and nothing here holds a number of
+ * minutes or days: the instants decide, this only names them.
  */
-export function hallPassCooldownUntil(state: HallPassState | null, nowMs: number): string | null {
-	if (!state || state.scope !== 'student') return null;
-	const at = state.retry_at;
-	if (!at) return null;
-	const ms = new Date(at).getTime();
-	if (Number.isNaN(ms) || ms <= nowMs) return null;
-	return at;
+export function hallPassAvailableWords(
+	availableIso: string | null,
+	resetsIso: string | null,
+	nowMs: number
+): string {
+	if (!availableIso) return 'You can go again soon.';
+	const at = new Date(availableIso).getTime();
+	if (Number.isNaN(at)) return 'You can go again soon.';
+	const day = (ms: number) =>
+		new Date(ms).toLocaleDateString('en-CA', { timeZone: SCHOOL_TIME_ZONE });
+	const weekday = (ms: number) =>
+		new Date(ms).toLocaleDateString('en-US', { timeZone: SCHOOL_TIME_ZONE, weekday: 'long' });
+	// TOMORROW IS THE NEXT CALENDAR DAY IN LOS ANGELES, not "within 36 hours".
+	const next = new Date(`${day(nowMs)}T12:00:00Z`);
+	next.setUTCDate(next.getUTCDate() + 1);
+	if (day(at) === next.toISOString().slice(0, 10)) return 'You can go again tomorrow.';
+	const resetMs = resetsIso ? new Date(resetsIso).getTime() : NaN;
+	if (!Number.isNaN(resetMs) && resetMs === at) {
+		return `You can go again on ${weekday(at)}, when the week resets.`;
+	}
+	return `You can go again on ${weekday(at)}.`;
 }
 
 /**
- * HAS THIS STUDENT USED THE DAY'S PASSES IN THIS CLASS.
- *
- * FALSE WHENEVER THE PAYLOAD CANNOT SAY, which is the fail-open direction and
- * is deliberate: a deployment before `0174` carries neither field, and a
- * surface that greyed the button out on a missing number would be enforcing a
- * limit the database is not enforcing -- a student refused by nothing at all.
- * The server is the limit; this is the explanation.
+ * IS THIS STUDENT OUT OF TIME FOR TODAY. FALSE WHENEVER THE PAYLOAD CANNOT SAY,
+ * the fail-open direction and deliberate: a deployment before 0237 carries no
+ * budget, and a surface that greyed the button out on a missing number would be
+ * enforcing a rule the database is not enforcing. The server is the rule; this
+ * is the explanation.
  */
-export function hallPassAtDailyLimit(state: HallPassState | null): boolean {
+export function hallPassOverBudget(state: HallPassState | null): boolean {
 	if (!state || state.scope !== 'student') return false;
-	const cap = state.limits?.daily_limit;
-	if (typeof cap !== 'number' || typeof state.used_today !== 'number') return false;
-	return state.used_today >= cap;
+	return state.budget?.blocked === true;
 }
+
+/** Whole minutes, rounded UP for what is left (a student is never told they have less than they do) and DOWN for what is used. */
+const minutesLeft = (seconds: number) => Math.max(0, Math.ceil(seconds / 60));
+const minutesUsed = (seconds: number) => Math.max(0, Math.floor(seconds / 60));
+const minWord = (n: number) => `${n} minute${n === 1 ? '' : 's'}`;
 
 /**
  * THE STATUS LINE, which is the only thing on this surface a student reads
  * before deciding whether to tap.
  *
- * A PEER'S PASS IS "Someone is out", NEVER A NAME AND NEVER A DURATION. There
- * is no name in the payload to print, and the duration is withheld for the same
- * reason: "out 23 min" beside an empty chair identifies the person just as well
- * as the name does, to everybody in the room.
+ * A PEER'S PASS NAMES THEM AND SAYS SINCE WHEN (0237, decision 58, reversing
+ * the one-bit rule of 0143): Mr. Pina wants the room to be able to hold
+ * somebody accountable for a pass they forgot to check in. The name is the
+ * enrollment's shown name, never an address.
  */
 export function hallPassStatusLine(state: HallPassState, nowMs: number): string {
 	if (state.scope === 'manager') {
@@ -445,6 +475,12 @@ export function hallPassStatusLine(state: HallPassState, nowMs: number): string 
 	}
 	if (state.mine && state.opened_at) {
 		return `You are signed out, ${hallPassElapsedLabel(state.opened_at, nowMs)}.`;
+	}
+	// EVERYONE SEES WHO IS OUT (0237, decision 58): the shown name and since
+	// when, so a pass nobody checked in is noticed by the room. Before 0237 the
+	// payload has no name and the line says what it always said.
+	if (state.out) {
+		return `${state.out.name} is out, ${hallPassElapsedLabel(state.out.opened_at, nowMs)} (since ${hallPassClockLabel(state.out.opened_at)}).`;
 	}
 	if (state.taken) return 'Someone is out. The pass is taken.';
 	return 'The pass is free.';
@@ -464,14 +500,13 @@ export function hallPassStatusLine(state: HallPassState, nowMs: number): string 
  * routinely do (`0138`). Offering the control and letting the RPC say no would
  * be a control whose only possible answer is a refusal.
  */
-export function hallPassCanOpen(state: HallPassState | null, nowMs: number): boolean {
+export function hallPassCanOpen(state: HallPassState | null, _nowMs: number): boolean {
 	if (!state || state.scope !== 'student' || state.taken) return false;
-	// `0174`. THE CONTROL MIRRORS THE LIMIT, IT DOES NOT IMPLEMENT IT: both
-	// answers come from the payload, and the database refuses the call
-	// regardless of what this returns. Offering a control whose only possible
-	// answer is a refusal is the thing being avoided.
-	if (hallPassCooldownUntil(state, nowMs)) return false;
-	return !hallPassAtDailyLimit(state);
+	// THE CONTROL MIRRORS THE BUDGET, IT DOES NOT IMPLEMENT IT: the answer comes
+	// off the payload and the database refuses the call regardless of what this
+	// returns. Offering a control whose only possible answer is a refusal is
+	// the thing being avoided.
+	return !hallPassOverBudget(state);
 }
 
 /**
@@ -499,31 +534,36 @@ export function hallPassBlockedReason(
 	nowMs: number
 ): string | null {
 	if (!state || state.scope !== 'student') return null;
-	if (state.taken && !state.mine) return hallPassRefusalMessage('taken');
-	// SAME SENTENCE THE SERVER WOULD HAVE ANSWERED, from the same builder --
-	// so a student who taps anyway reads the identical words, and there is one
-	// place where the wording of a refusal lives.
-	if (hallPassAtDailyLimit(state)) {
-		return hallPassRefusalMessage('limit_reached', { limit: state.limits?.daily_limit ?? null });
+	if (state.taken && !state.mine) {
+		return state.out ? `${state.out.name} has the pass right now.` : hallPassRefusalMessage('taken');
 	}
-	const until = hallPassCooldownUntil(state, nowMs);
-	if (until) return hallPassRefusalMessage('cooldown', { retryAt: until });
+	// SAME SENTENCE THE SERVER WOULD HAVE ANSWERED, from the same builder, so a
+	// student who taps anyway reads the identical words.
+	if (hallPassOverBudget(state)) {
+		return `You have used your hall pass time. ${hallPassAvailableWords(state.budget?.available_at ?? null, state.budget?.resets_at ?? null, nowMs)} Ask your teacher if you still need to go.`;
+	}
 	return null;
 }
 
 /**
- * "2 of 3 passes used today", or null when the deployment cannot say.
+ * "4 of 10 minutes left today", plus the debt in words when there is some, or
+ * null when the deployment cannot say.
  *
- * SHOWN BEFORE ANYBODY TAPS, which is the half of this feature that is not a
- * refusal: a student who can see the count coming does not spend one finding
- * out. Both numbers come off the payload, so this sentence cannot disagree
- * with the rule behind it.
+ * SHOWN BEFORE ANYBODY TAPS: a student who can see the time coming does not
+ * spend it finding out. Every number comes off the payload, so this sentence
+ * cannot disagree with the rule behind it.
  */
 export function hallPassUsageLine(state: HallPassState | null): string | null {
 	if (!state || state.scope !== 'student') return null;
-	const cap = state.limits?.daily_limit;
-	if (typeof cap !== 'number' || typeof state.used_today !== 'number') return null;
-	return `${state.used_today} of ${cap} pass${cap === 1 ? '' : 'es'} used today.`;
+	const b = state.budget;
+	if (!b) return null;
+	const left = minutesLeft(b.remaining_seconds);
+	const day = minutesLeft(b.daily_seconds);
+	const owed = minutesLeft(b.debt_seconds);
+	const base = b.blocked
+		? `No pass time left today (${minutesUsed(b.used_seconds)} of ${day} minutes used).`
+		: `${minWord(left)} of pass time left today.`;
+	return owed > 0 ? `${base} ${minWord(owed)} carried over from earlier this week.` : base;
 }
 
 /**
@@ -534,8 +574,8 @@ export function hallPassUsageLine(state: HallPassState | null): string | null {
  */
 export function hallPassLimitSummary(state: HallPassState | null): string | null {
 	const limits = state?.limits;
-	if (!limits) return null;
-	return `Students get ${limits.daily_limit} pass${limits.daily_limit === 1 ? '' : 'es'} a day in this class and wait ${limits.cooldown_minutes} minutes between them. Sending someone out ignores both.`;
+	if (!limits || typeof limits.budget_minutes !== 'number') return null;
+	return `Students get ${minWord(limits.budget_minutes)} of pass time a day in this class. Time over a day comes off the next day and clears each Monday, and a pass left open for ${minWord(limits.auto_checkin_minutes)} is checked in for the student. Sending someone out ignores their budget.`;
 }
 
 /**
@@ -620,6 +660,6 @@ export function hallPassToolChip(state: HallPassState, nowMs: number): HallPassT
 	if (state.taken && state.mine && state.opened_at) {
 		return { tone: 'mine', word: `Yours · ${hallPassElapsedLabel(state.opened_at, nowMs)}` };
 	}
-	if (state.taken) return { tone: 'taken', word: 'Taken' };
+	if (state.taken) return { tone: 'taken', word: state.out ? `Out · ${state.out.name}` : 'Taken' };
 	return { tone: 'free', word: 'Free' };
 }

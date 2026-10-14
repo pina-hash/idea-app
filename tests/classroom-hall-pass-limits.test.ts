@@ -1,44 +1,68 @@
 // tests/classroom-hall-pass-limits.test.ts
 //
-// THE CLIENT HALF OF 0174'S LIMIT, WHICH IS THE EXPLANATION AND NEVER THE
-// BOUNDARY.
+// THE CLIENT HALF OF 0237'S PASS TIME BUDGET, WHICH IS THE EXPLANATION AND
+// NEVER THE BOUNDARY (it replaces 0174's cooldown and daily cap, ledger 0380,
+// report 7348d14c).
 //
-// `tests/db/classroom-hall-pass-limits.test.ts` proves the database refuses.
-// This file proves the two things that would regress silently on the way to a
-// student's screen:
+// `tests/db/feedback-round-0380-latch-and-hallpass.test.ts` proves the database
+// refuses and charges. This file proves the things that would regress silently
+// on the way to a student's screen:
 //
-//   1. THE REFUSAL KEEPS ITS TIME. `cooldown` answers with `retry_at` and the
-//      whole point of that instant is that it reaches the sentence. A transport
-//      that dropped the field, or a component that called the message builder
-//      without it, still renders a plausible sentence -- "wait a few minutes" --
-//      and a refusal with no time in it is asked again immediately, in person,
-//      which is the behaviour the limit exists to stop.
-//   2. THE PAYLOAD STILL NAMES NOBODY. `HallPassStudentState` gained three
-//      fields in 0174 and every one of them is about the caller themselves. The
-//      type must stay incapable of carrying somebody else's name.
-//
-// AND THE NUMBERS ARE NOT HERE. Nothing in `src/` may write 10 or 3 down: they
-// come off the payload, from `_classroom_hall_pass_limits()`, so the button and
-// the refusal behind it cannot disagree. That is swept for below.
+//   1. THE REFUSAL KEEPS ITS DAY. `over_budget` answers with the instant the
+//      student may go again; a sentence without it is asked again in person.
+//   2. THE PAYLOAD NAMES WHO IS OUT AND NOTHING ELSE ABOUT ANYBODY (decision
+//      58), and the control mirrors the budget without implementing it.
+//   3. THE NUMBERS ARE NOT HERE. Nothing in `src/` may write 10 or 30 down:
+//      they come off the payload, so the button and the refusal behind it
+//      cannot disagree. That is swept for below.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
-	hallPassAtDailyLimit,
+	hallPassAvailableWords,
 	hallPassBlockedReason,
 	hallPassCanOpen,
-	hallPassCooldownUntil,
 	hallPassLimitSummary,
+	hallPassLimitsRefusal,
+	hallPassOverBudget,
 	hallPassOverrideLabel,
 	hallPassRefusalMessage,
+	hallPassStatusLine,
+	hallPassToolChip,
 	hallPassUsageLine,
+	type HallPassBudget,
 	type HallPassManagerState,
 	type HallPassStudentState
 } from '../src/lib/classroom/hall-pass';
 
-const LIMITS = { cooldown_minutes: 10, daily_limit: 3 };
+const LIMITS = { budget_minutes: 10, auto_checkin_minutes: 30 };
+// Wednesday 2026-09-02, 11:20 in Los Angeles.
 const NOW = Date.parse('2026-09-02T18:20:00.000Z');
+const THURSDAY = '2026-09-03T07:00:00.000Z';
+const NEXT_MONDAY = '2026-09-07T07:00:00.000Z';
+
+function budget(over: Partial<HallPassBudget> = {}): HallPassBudget {
+	return {
+		daily_seconds: 600,
+		auto_checkin_seconds: 1800,
+		allowance_seconds: 600,
+		used_seconds: 240,
+		remaining_seconds: 360,
+		debt_seconds: 0,
+		blocked: false,
+		available_at: null,
+		resets_at: NEXT_MONDAY,
+		...over
+	};
+}
+
+const SPENT = budget({
+	used_seconds: 600,
+	remaining_seconds: 0,
+	blocked: true,
+	available_at: THURSDAY
+});
 
 function student(over: Partial<HallPassStudentState> = {}): HallPassStudentState {
 	return {
@@ -48,37 +72,31 @@ function student(over: Partial<HallPassStudentState> = {}): HallPassStudentState
 		mine: false,
 		opened_at: null,
 		limits: LIMITS,
-		used_today: 0,
-		retry_at: null,
+		budget: budget(),
 		...over
 	};
 }
 
-describe('the refusal carries its time all the way to the sentence', () => {
-	test('a cooldown names the clock time the student may go again', () => {
-		const msg = hallPassRefusalMessage('cooldown', {
-			retryAt: '2026-09-02T18:30:00.000Z'
-		});
-		// 18:30 UTC is 11:30 in the school's own zone, which is what a bell
-		// schedule on the wall is written in.
-		expect(msg).toContain('11:30');
-		expect(msg).toContain('again at');
-	});
-
-	test('a cooldown with no instant degrades to a true sentence rather than a wrong one', () => {
-		// Reachable only if a deployment answers `cooldown` without `retry_at`.
-		// It must not invent a time and must not print "undefined".
-		const msg = hallPassRefusalMessage('cooldown');
-		expect(msg).not.toContain('undefined');
-		expect(msg).toContain('Wait a few minutes');
-	});
-
-	test('the cap names the number and points at the person who can override it', () => {
-		const msg = hallPassRefusalMessage('limit_reached', { limit: 3 });
-		expect(msg).toContain('all 3 passes');
-		// "No" with no way forward is what sends a student to ask out loud
-		// anyway. This says who to ask, and that person really can say yes.
+describe('the refusal carries its day all the way to the sentence', () => {
+	test('over budget names tomorrow when that is when the time comes back', () => {
+		const msg = hallPassRefusalMessage('over_budget', { availableAt: THURSDAY, resetsAt: NEXT_MONDAY, nowMs: NOW });
+		expect(msg).toContain('You can go again tomorrow.');
 		expect(msg).toContain('Ask your teacher');
+	});
+
+	test('debt that reaches past tomorrow names the day, and the reset names the week', () => {
+		expect(hallPassAvailableWords('2026-09-04T07:00:00.000Z', NEXT_MONDAY, NOW)).toBe(
+			'You can go again on Friday.'
+		);
+		expect(hallPassAvailableWords(NEXT_MONDAY, NEXT_MONDAY, NOW)).toBe(
+			'You can go again on Monday, when the week resets.'
+		);
+	});
+
+	test('no instant degrades to a true sentence rather than a wrong one', () => {
+		const msg = hallPassRefusalMessage('over_budget');
+		expect(msg).not.toContain('undefined');
+		expect(msg).toContain('You can go again soon.');
 	});
 
 	test('0143 and 0144 sentences are untouched', () => {
@@ -88,8 +106,6 @@ describe('the refusal carries its time all the way to the sentence', () => {
 		expect(hallPassRefusalMessage('already_closed')).toBe(
 			'That pass was already signed back in, so nothing was changed.'
 		);
-		// And they do not start claiming a limit of nought because the detail
-		// argument now exists.
 		expect(hallPassRefusalMessage('not_open', {})).toBe('Nobody is signed out right now.');
 	});
 
@@ -101,74 +117,64 @@ describe('the refusal carries its time all the way to the sentence', () => {
 			'not_open',
 			'not_yours',
 			'already_closed',
-			'cooldown',
-			'limit_reached',
+			'over_budget',
 			'not_enrolled'
 		] as const;
-		// The count is asserted so a reason added later cannot slip past this
-		// sweep by not being in a list somebody wrote out.
-		expect(REFUSALS).toHaveLength(9);
+		expect(REFUSALS).toHaveLength(8);
 		for (const r of REFUSALS) {
-			const msg = hallPassRefusalMessage(r, { retryAt: '2026-09-02T18:30:00.000Z', limit: 3 });
+			const msg = hallPassRefusalMessage(r, { availableAt: THURSDAY, resetsAt: NEXT_MONDAY, nowMs: NOW });
 			expect(msg.length).toBeGreaterThan(10);
 			expect(msg).not.toMatch(/classroom_hall_pass|pg_|unique|constraint|23505|P0001/i);
 		}
 	});
+
+	test('a refused limits save says the range in words', () => {
+		expect(hallPassLimitsRefusal('daily_out_of_range')).toContain('between 1 and 120');
+		expect(hallPassLimitsRefusal('auto_out_of_range')).toContain('between 5 and 240');
+		expect(hallPassLimitsRefusal('something else')).toBe('Those numbers were not accepted.');
+	});
 });
 
-describe('the control mirrors the limit and never implements it', () => {
-	test('an ordinary student may open', () => {
+describe('the control mirrors the budget and never implements it', () => {
+	test('an ordinary student with time left may open', () => {
 		expect(hallPassCanOpen(student(), NOW)).toBe(true);
 		expect(hallPassBlockedReason(student(), NOW)).toBeNull();
+		expect(hallPassOverBudget(student())).toBe(false);
 	});
 
-	test('a live cooldown closes the control and explains itself with the same sentence', () => {
-		const state = student({ retry_at: '2026-09-02T18:30:00.000Z' });
-		expect(hallPassCooldownUntil(state, NOW)).toBe('2026-09-02T18:30:00.000Z');
+	test('a spent day closes the control and explains itself with the same sentence', () => {
+		const state = student({ budget: SPENT });
+		expect(hallPassOverBudget(state)).toBe(true);
 		expect(hallPassCanOpen(state, NOW)).toBe(false);
-		// THE SAME BUILDER, so a student who taps anyway reads identical words.
 		expect(hallPassBlockedReason(state, NOW)).toBe(
-			hallPassRefusalMessage('cooldown', { retryAt: '2026-09-02T18:30:00.000Z' })
+			hallPassRefusalMessage('over_budget', { availableAt: THURSDAY, resetsAt: NEXT_MONDAY, nowMs: NOW })
 		);
 	});
 
-	test('a cooldown that has already elapsed does not block', () => {
-		// The payload can be up to one poll stale. Blocking on a stale instant
-		// would refuse a student the database would have allowed.
-		const state = student({ retry_at: '2026-09-02T18:10:00.000Z' });
-		expect(hallPassCooldownUntil(state, NOW)).toBeNull();
-		expect(hallPassCanOpen(state, NOW)).toBe(true);
-	});
-
-	test('the cap closes the control and explains itself', () => {
-		const state = student({ used_today: 3 });
-		expect(hallPassAtDailyLimit(state)).toBe(true);
-		expect(hallPassCanOpen(state, NOW)).toBe(false);
-		expect(hallPassBlockedReason(state, NOW)).toContain('all 3 passes');
-		// One short is still allowed -- a boundary-off-by-one here would cost a
-		// student a pass the database would have given them.
-		expect(hallPassCanOpen(student({ used_today: 2 }), NOW)).toBe(true);
-	});
-
-	test('a payload with no limits blocks nothing at all', () => {
-		// A deployment before 0174 is not enforcing anything, so a control that
-		// greyed itself out on a missing number would be refusing a student on
-		// behalf of a rule that does not exist.
-		const pre = student({ limits: undefined, used_today: undefined, retry_at: undefined });
-		expect(hallPassAtDailyLimit(pre)).toBe(false);
+	test('a payload with no budget blocks nothing at all', () => {
+		// A deployment before 0237 is not enforcing a budget, so a control that
+		// greyed itself out on a missing number would refuse a student on behalf
+		// of a rule that does not exist.
+		const pre = student({ limits: undefined, budget: undefined });
+		expect(hallPassOverBudget(pre)).toBe(false);
 		expect(hallPassCanOpen(pre, NOW)).toBe(true);
 		expect(hallPassBlockedReason(pre, NOW)).toBeNull();
 		expect(hallPassUsageLine(pre)).toBeNull();
 		expect(hallPassLimitSummary(pre)).toBeNull();
 	});
 
-	test('a taken pass still outranks everything, exactly as before', () => {
-		const state = student({ taken: true, mine: false, used_today: 3 });
+	test('a taken pass still outranks everything, and names who has it', () => {
+		const state = student({
+			taken: true,
+			mine: false,
+			budget: SPENT,
+			out: { name: 'Ben Cho', opened_at: '2026-09-02T18:10:00.000Z' }
+		});
 		expect(hallPassCanOpen(state, NOW)).toBe(false);
-		expect(hallPassBlockedReason(state, NOW)).toBe(hallPassRefusalMessage('taken'));
+		expect(hallPassBlockedReason(state, NOW)).toBe('Ben Cho has the pass right now.');
 	});
 
-	test('an instructor is never offered the control, whatever the limits say', () => {
+	test('an instructor is never offered the control, whatever the budget says', () => {
 		const manager: HallPassManagerState = {
 			scope: 'manager',
 			section_id: 'sec-1',
@@ -181,25 +187,63 @@ describe('the control mirrors the limit and never implements it', () => {
 		};
 		expect(hallPassCanOpen(manager, NOW)).toBe(false);
 		expect(hallPassBlockedReason(manager, NOW)).toBeNull();
-		expect(hallPassCooldownUntil(manager, NOW)).toBeNull();
-		expect(hallPassAtDailyLimit(manager)).toBe(false);
+		expect(hallPassOverBudget(manager)).toBe(false);
 	});
 });
 
-describe('the count is shown before anybody taps', () => {
-	test('it reads as a fraction of the cap', () => {
-		expect(hallPassUsageLine(student({ used_today: 2 }))).toBe('2 of 3 passes used today.');
-		expect(hallPassUsageLine(student({ used_today: 0 }))).toBe('0 of 3 passes used today.');
-		expect(
-			hallPassUsageLine(student({ used_today: 1, limits: { ...LIMITS, daily_limit: 1 } }))
-		).toBe('1 of 1 pass used today.');
+describe('everyone in the class sees who is out (decision 58)', () => {
+	const OUT = { name: 'Ben Cho', opened_at: '2026-09-02T18:10:00.000Z' };
+
+	test('the status line names the student and since when', () => {
+		const line = hallPassStatusLine(student({ taken: true, out: OUT }), NOW);
+		expect(line).toContain('Ben Cho is out');
+		expect(line).toContain('10 min');
+		expect(line).toContain('11:10');
+	});
+
+	test('before the migration the line says what it always said', () => {
+		expect(hallPassStatusLine(student({ taken: true }), NOW)).toBe('Someone is out. The pass is taken.');
+		expect(hallPassStatusLine(student(), NOW)).toBe('The pass is free.');
+	});
+
+	test('the trigger chip names who is out, and never an address', () => {
+		expect(hallPassToolChip(student({ taken: true, out: OUT }), NOW).word).toBe('Out · Ben Cho');
+		expect(hallPassToolChip(student({ taken: true }), NOW).word).toBe('Taken');
+	});
+
+	test('the student type still has no field capable of carrying an address', () => {
+		const keys = Object.keys(student({ taken: true, out: OUT }));
+		expect(keys.join(' ')).not.toMatch(/email|pass_id/i);
+		expect(Object.keys(OUT).sort()).toEqual(['name', 'opened_at']);
+	});
+});
+
+describe('the time left is shown before anybody taps', () => {
+	test('it reads in minutes, rounding what is left up', () => {
+		expect(hallPassUsageLine(student())).toBe('6 minutes of pass time left today.');
+		expect(hallPassUsageLine(student({ budget: budget({ remaining_seconds: 61 }) }))).toBe(
+			'2 minutes of pass time left today.'
+		);
+		expect(hallPassUsageLine(student({ budget: budget({ remaining_seconds: 60 }) }))).toBe(
+			'1 minute of pass time left today.'
+		);
+	});
+
+	test('a spent day and carried debt are said in words', () => {
+		expect(hallPassUsageLine(student({ budget: SPENT }))).toBe(
+			'No pass time left today (10 of 10 minutes used).'
+		);
+		const owing = budget({ debt_seconds: 180, allowance_seconds: 420, remaining_seconds: 300 });
+		expect(hallPassUsageLine(student({ budget: owing }))).toBe(
+			'5 minutes of pass time left today. 3 minutes carried over from earlier this week.'
+		);
 	});
 
 	test('the instructor summary states both numbers and what the override ignores', () => {
 		const summary = hallPassLimitSummary(student()) ?? '';
-		expect(summary).toContain('3 passes a day');
-		expect(summary).toContain('10 minutes');
-		expect(summary).toContain('ignores both');
+		expect(summary).toContain('10 minutes of pass time a day');
+		expect(summary).toContain('30 minutes');
+		expect(summary).toContain('ignores their budget');
 	});
 });
 
@@ -236,14 +280,14 @@ describe('no component or module restates the limit', () => {
 		return out;
 	}
 
-	test('the cooldown and the cap appear in the migration and nowhere in src/', () => {
+	test('the budget and the auto check in appear in the migration and nowhere in src/', () => {
 		const sql = readFileSync(
-			'supabase/migrations/0174_classroom_hall_pass_limits.sql',
+			'supabase/migrations/0237_feedback_round_0380.sql',
 			'utf8'
 		);
 		// POSITIVE CONTROL: the numbers really are stated, once, where they
 		// belong -- so "not in src/" below is a boundary and not an empty grep.
-		expect(sql).toContain("'cooldown_minutes', 10, 'daily_limit', 3");
+		expect(sql).toContain("'budget_minutes', 10, 'auto_checkin_minutes', 30");
 
 		// A number written into a component is a second statement of a rule the
 		// database owns: the button would grey out at a threshold the server
@@ -254,7 +298,7 @@ describe('no component or module restates the limit', () => {
 		// is how a sweep gets deleted rather than fixed. The hall pass lives
 		// here, so this is where a second statement of its numbers would appear.
 		const HARDCODED =
-			/(cooldown|daily[_ ]?limit|dailyLimit|cooldownMinutes)\s*[:=]\s*\d/i;
+			/(cooldown|daily[_ ]?limit|dailyLimit|budget[_ ]?minutes|budgetMinutes|auto[_ ]?checkin[_ ]?minutes)\s*[:=]\s*\d/i;
 		const files = sourceFiles('src/lib/classroom').concat(
 			sourceFiles('src/routes/classroom')
 		);
@@ -267,8 +311,8 @@ describe('no component or module restates the limit', () => {
 		// POSITIVE CONTROL FOR THE PATTERN ITSELF: it does bite on the shape it
 		// is looking for, so an empty result above means "nobody wrote one" and
 		// not "the regex matches nothing".
-		expect(HARDCODED.test('const cooldownMinutes = 10;')).toBe(true);
-		expect(HARDCODED.test("const limits = { daily_limit: 3 };")).toBe(true);
+		expect(HARDCODED.test('const budgetMinutes = 10;')).toBe(true);
+		expect(HARDCODED.test("const limits = { budget_minutes: 10 };")).toBe(true);
 		expect(HARDCODED.test('const limits = state.limits;')).toBe(false);
 	});
 });

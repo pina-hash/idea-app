@@ -74,8 +74,55 @@ export interface FoundryPlayCountRow {
  */
 export type FoundryPlayCounts = Record<
 	string,
-	{ plays: number; plays7d: number; playsPrev7d?: number; seconds?: number }
+	{
+		plays: number;
+		plays7d: number;
+		playsPrev7d?: number;
+		seconds?: number;
+		/**
+		 * 0237. NET VOTES (ups minus downs) for the app, and the net of the votes
+		 * cast in the last seven days. OPTIONAL like the 0221 pair: a deployment
+		 * before 0237 and every hand-built fixture carry neither, and every reader
+		 * coalesces to zero. Never a split and never a voter count.
+		 */
+		netVotes?: number;
+		netVotes7d?: number;
+	}
 >;
+
+/** One row of `foundry_vote_counts` (0237). */
+export interface FoundryVoteRow {
+	app_id: string;
+	net: number | string;
+	net_7d?: number | string;
+	mine?: number | string;
+}
+
+/**
+ * The play-count map with the votes laid over it, by app id. An app with votes
+ * and no play row gets a row of zero plays, so the "Most liked" order sees it.
+ * `mine` is the caller's own vote and is returned separately: it is a fact
+ * about the viewer, not about the app, and does not belong in a map every
+ * order reads.
+ */
+export function foundryMergeVotes(
+	counts: FoundryPlayCounts,
+	rows: readonly FoundryVoteRow[] | null
+): { counts: FoundryPlayCounts; mine: Record<string, -1 | 0 | 1> } {
+	const out: FoundryPlayCounts = { ...counts };
+	const mine: Record<string, -1 | 0 | 1> = {};
+	for (const row of rows ?? []) {
+		const base = out[row.app_id] ?? { plays: 0, plays7d: 0 };
+		out[row.app_id] = {
+			...base,
+			netVotes: Number(row.net) || 0,
+			netVotes7d: Number(row.net_7d) || 0
+		};
+		const m = Number(row.mine) || 0;
+		mine[row.app_id] = m > 0 ? 1 : m < 0 ? -1 : 0;
+	}
+	return { counts: out, mine };
+}
 
 /** What `foundry_app_play_stats` hands back. Four scalars and no rows. */
 export interface FoundryPlayStats {
@@ -230,9 +277,22 @@ export const FOUNDRY_GALLERY_SORTS = [
 	{
 		id: 'trending' as const,
 		label: 'Trending',
-		rule: 'Played more this week than the week before. The number is the rise.',
+		rule: 'Played more this week than the week before, plus the votes cast this week. The number is the rise.',
 		flat: 'Nothing is climbing this week: no app was played more than it was the week before.',
 		ranksPlays: true
+	},
+	/**
+	 * 0237 (report 8274b260). THE ORDER VOTES FEED DIRECTLY: net votes, ups
+	 * minus downs, one vote per signed-in person per game. It ranks an APP
+	 * and says nothing about who voted. It is not a play figure, so the
+	 * coverage note does not sit beside it.
+	 */
+	{
+		id: 'liked' as const,
+		label: 'Most liked',
+		rule: 'Votes up minus votes down, one vote per person.',
+		flat: 'Nobody has voted yet, so every app ties and the list is in recently updated order.',
+		ranksPlays: false
 	},
 	{
 		id: 'played7d' as const,
@@ -361,10 +421,14 @@ export function gallerySortOption(sort: FoundryGallerySort): FoundryGallerySortO
  * whose work gets seen first has to clear.
  */
 export function foundryTrendScore(
-	row: { plays7d?: number; playsPrev7d?: number } | undefined
+	row: { plays7d?: number; playsPrev7d?: number; netVotes7d?: number } | undefined
 ): number {
 	if (!row) return 0;
-	return (Number(row.plays7d) || 0) - (Number(row.playsPrev7d) || 0);
+	// 0237: the net of this week's votes counts as plays do, so a game people
+	// are voting up climbs. Absent on a deployment before 0237, which is zero.
+	return (
+		(Number(row.plays7d) || 0) - (Number(row.playsPrev7d) || 0) + (Number(row.netVotes7d) || 0)
+	);
 }
 
 /**
@@ -455,6 +519,8 @@ function foundrySortScore(
 	switch (sort) {
 		case 'played7d':
 			return (_app, row) => row?.plays7d ?? 0;
+		case 'liked':
+			return (_app, row) => row?.netVotes ?? 0;
 		case 'hours':
 			return (_app, row) => row?.seconds ?? 0;
 		case 'trending':
@@ -624,6 +690,10 @@ export function foundrySortFigure(
 		case 'trending': {
 			const rise = foundryTrendScore(row);
 			return rise > 0 ? `+${rise} this week` : '';
+		}
+		case 'liked': {
+			const net = row?.netVotes ?? 0;
+			return net > 0 ? (net === 1 ? '+1 vote' : `+${net} votes`) : '';
 		}
 		case 'hours':
 			return (row?.seconds ?? 0) > 0 ? formatPlayTime(row?.seconds ?? 0) : '';

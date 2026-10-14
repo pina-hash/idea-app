@@ -99,6 +99,19 @@
 				if (error) return { ok: false, message: error.message };
 				return { ok: true };
 			},
+			// 0237: a database before it answers PGRST202, which is "not there"
+			// (null), distinct from an empty list.
+			async searchPeople(query) {
+				try {
+					const { data: rows, error } = await data.supabase.rpc('foundry_people_search', {
+						p_query: query
+					});
+					if (error) return null;
+					return (rows ?? []) as { email: string; name: string }[];
+				} catch {
+					return null;
+				}
+			},
 			async revokeTrust(email) {
 				const { error } = await data.supabase.rpc('foundry_trusted_revoke', {
 					p_email: email

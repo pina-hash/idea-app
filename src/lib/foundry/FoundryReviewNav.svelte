@@ -22,7 +22,7 @@
 		pendingApps = null,
 		pendingApplications = null
 	}: {
-		active: 'apps' | 'publishers';
+		active: 'apps' | 'publishers' | 'gallery';
 		/** Apps waiting for review, from the same arithmetic the queue renders. */
 		pendingApps?: number | null;
 		/** Publisher applications waiting. Null on a database without 0230. */
@@ -54,6 +54,15 @@
 		{#if pendingApplications !== null}
 			<span class="fdy-rnav-count">{pendingApplications}</span>
 		{/if}
+	</a>
+	<a
+		class="btn fdy-rnav-key tap-44"
+		class:on={active === 'gallery'}
+		href="/foundry/review/gallery"
+		aria-current={active === 'gallery' ? 'page' : undefined}
+		data-testid="foundry-review-nav-gallery"
+	>
+		Curation
 	</a>
 </nav>
 

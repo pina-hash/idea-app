@@ -54,7 +54,7 @@ const studentHall: HallPassStudentState = {
 	taken: false,
 	mine: false,
 	opened_at: null,
-	limits: { cooldown_minutes: 10, daily_limit: 3 },
+	limits: { budget_minutes: 10, auto_checkin_minutes: 30 },
 	used_today: 1
 };
 const managerHall: HallPassManagerState = {
@@ -78,7 +78,7 @@ const managerHall: HallPassManagerState = {
 			closed_by: null
 		}
 	],
-	limits: { cooldown_minutes: 10, daily_limit: 3 },
+	limits: { budget_minutes: 10, auto_checkin_minutes: 30 },
 	roster: [{ student_email: 'ana@boscotech.net', student_name: 'Ana Reyes' }]
 };
 const studentSong: SongQueueStudentState = {

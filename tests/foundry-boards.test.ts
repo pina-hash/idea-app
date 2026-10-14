@@ -65,7 +65,9 @@ const COUNTS: FoundryPlayCounts = {
 	tide: { plays: 12, plays7d: 2, playsPrev7d: 2, seconds: 2_400 },
 	pixel: { plays: 7, plays7d: 1, playsPrev7d: 4, seconds: 600 },
 	quiet: { plays: 0, plays7d: 0, playsPrev7d: 0, seconds: 0 },
-	bolt: { plays: 5, plays7d: 3, playsPrev7d: 1, seconds: 300 }
+	// bolt wins Most liked (0237): the only order it wins, and it holds the
+	// votes, so one field ranking every order still reddens.
+	bolt: { plays: 5, plays7d: 3, playsPrev7d: 1, seconds: 300, netVotes: 12, netVotes7d: 0 }
 };
 
 const ZERO: FoundryPlayCounts = Object.fromEntries(
@@ -181,7 +183,9 @@ describe('the sentence beside the control', () => {
 		const flat = FOUNDRY_GALLERY_SORTS.filter((o) => !foundrySortHasSignal(APPS, ZERO, o.id)).map(
 			(o) => o.id
 		);
-		expect(flat).toEqual(['played', 'trending', 'played7d', 'hours']);
+		// The play orders and the vote order go flat; the three that rank on facts
+		// about the app itself keep their rule.
+		expect(flat).toEqual(['played', 'trending', 'liked', 'played7d', 'hours']);
 		for (const id of flat) expect(foundrySortNote(APPS, ZERO, id)).toBe(opt(id).flat);
 		for (const id of ['versions', 'new', 'recent'] as const) {
 			expect(foundrySortNote(APPS, ZERO, id)).toBe(opt(id).rule);
@@ -323,13 +327,15 @@ describe('the figure beside a card is the order’s own metric', () => {
 });
 
 describe('the control offers every order, in decision 39’s order', () => {
-	it('offers seven orders, Most played first, and the two former board orders among them', () => {
+	it('offers eight orders, Most played first, and the two former board orders among them', () => {
 		// The EXPECTED list is decision 39's own, typed from the entry rather
 		// than read off the array: Most played, Trending, Played this week,
-		// Most hours, Most updated, Newest, Recently updated.
+		// Most hours, Most updated, Newest, Recently updated. Most liked (0237,
+		// report 8274b260) was added after Trending.
 		expect(FOUNDRY_GALLERY_SORTS.map((s) => s.label)).toEqual([
 			'Most played',
 			'Trending',
+			'Most liked',
 			'Played this week',
 			'Most hours',
 			'Most updated',
@@ -339,6 +345,7 @@ describe('the control offers every order, in decision 39’s order', () => {
 		expect(FOUNDRY_GALLERY_SORTS.map((s) => s.id)).toEqual([
 			'played',
 			'trending',
+			'liked',
 			'played7d',
 			'hours',
 			'versions',

@@ -1,6 +1,17 @@
 import { error } from '@sveltejs/kit';
 import { foundryClosureBlocks, foundrySiteOff } from '$lib/foundry/access';
-import { foundryPlayCountMap, type FoundryPlayCountRow } from '$lib/foundry/telemetry';
+import {
+	foundryCollections,
+	foundryOverrideMap,
+	type FoundryCollection,
+	type FoundryOverrideMap
+} from '$lib/foundry/gallery-extras';
+import {
+	foundryMergeVotes,
+	foundryPlayCountMap,
+	type FoundryPlayCountRow,
+	type FoundryVoteRow
+} from '$lib/foundry/telemetry';
 import type { FoundryApp, FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
 
@@ -43,6 +54,13 @@ import type { PageServerLoad } from './$types';
  * `/foundry/mine`, `/foundry/submit`, `/foundry/contract` and
  * `/foundry/classes` are deliberately not in it and carry on.
  */
+/** 0237's curation reads as the gallery takes them. */
+interface GalleryExtras {
+	overrides: FoundryOverrideMap;
+	collections: FoundryCollection[];
+	featured: string[];
+}
+
 export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	const { foundryAccess } = await parent();
 	// THE WHOLE-FOUNDRY SWITCH (ledger 0360) withholds the payload the same way
@@ -52,7 +70,15 @@ export const load: PageServerLoad = async ({ locals, url, parent }) => {
 		foundrySiteOff(foundryAccess) ||
 		(foundryAccess && foundryAccess.open === false && foundryClosureBlocks('gallery'))
 	) {
-		return { apps: [] as FoundryAppSummary[], selected: null, playCounts: {}, playCountsKnown: true };
+		return {
+			apps: [] as FoundryAppSummary[],
+			selected: null,
+			playCounts: {},
+			playCountsKnown: true,
+			extras: null as GalleryExtras | null,
+			voteMine: {} as Record<string, -1 | 0 | 1>,
+			votesKnown: false
+		};
 	}
 
 	const { data: apps, error: listErr } = await locals.supabase.rpc('foundry_list_apps');
@@ -82,6 +108,36 @@ export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	 */
 	const { data: countRows, error: countErr } = await locals.supabase.rpc('foundry_play_counts');
 
+	/**
+	 * THE CURATION LAYERS AND THE VOTES (0237, ledger 0380), four more reads that
+	 * each degrade to nothing. A database before 0237 answers every one with
+	 * PGRST202, and the gallery then draws exactly what it drew before: no
+	 * featured row, no collections, no override and no vote keys. Erroring here
+	 * would take a working page down for four extras nobody came for.
+	 *
+	 * `extras` is null only when ALL THREE curation reads failed, which is what
+	 * a missing migration looks like; a single failure leaves the others in
+	 * place, because a transient error in one must not strip the rest.
+	 */
+	const [ovr, col, feat, votes] = await Promise.all([
+		locals.supabase.rpc('foundry_gallery_overrides_read'),
+		locals.supabase.rpc('foundry_collections_read', { p_everything: false }),
+		locals.supabase.rpc('foundry_featured_read', { p_everything: false }),
+		locals.supabase.rpc('foundry_vote_counts')
+	]);
+	const extras: GalleryExtras | null =
+		ovr.error && col.error && feat.error
+			? null
+			: {
+					overrides: ovr.error ? {} : foundryOverrideMap(ovr.data),
+					collections: col.error ? [] : foundryCollections(col.data),
+					featured: !feat.error && Array.isArray(feat.data) ? (feat.data as string[]) : []
+				};
+	const merged = foundryMergeVotes(
+		foundryPlayCountMap((countRows ?? null) as FoundryPlayCountRow[] | null),
+		votes.error ? null : ((votes.data ?? null) as FoundryVoteRow[] | null)
+	);
+
 	const slug = url.searchParams.get('app');
 	let selected: FoundryApp | null = null;
 
@@ -99,7 +155,10 @@ export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	return {
 		apps: (apps ?? []) as FoundryAppSummary[],
 		selected,
-		playCounts: foundryPlayCountMap((countRows ?? null) as FoundryPlayCountRow[] | null),
-		playCountsKnown: !countErr
+		playCounts: merged.counts,
+		playCountsKnown: !countErr,
+		extras,
+		voteMine: merged.mine,
+		votesKnown: !votes.error
 	};
 };

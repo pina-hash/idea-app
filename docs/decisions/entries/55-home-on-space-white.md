@@ -4,3 +4,7 @@
 - Status: DECIDED 2026-10-07. The particles half is Mr. Pina's explicit ask and **reverses his answer of 2026-09-29** ("the home particles stay on Space White"). The colour choices are this round's defaults; a correction is one line.
 - Decision: Space White draws no floating particles. On Space White only, every launcher card's title, glyph and call to action are one green, its edge the plate hairline, and each card keeps its own colour only in its 2px strip; the dark themes are unchanged. The hero stat values read in the body ink. The Apps, Your classes and Portal updates headings become plate captions in every theme, and the Portal updates changelog is redrawn in the plate language (no horizontal scroll at any width, tags wrapping under the sentence, every control 44px).
 - Context: CLAUDE.md "Visual theme"; decision 40 (space-white-green-hover-light-logo-shape).
+
+## Amended 2026-10-14 (feedback round, ledger 0380, report 48bdb5be)
+
+The "one green for the app cards" half is **reversed** on Mr. Pina's report "all my apps look the same in white mode". On Space White each branded launcher card paints its own lightness-only light twin again (word, glyph, call to action and strip); the edge stays the plate hairline and the cards that declare no accent stay the theme green. The Coin Ledger's neon and the Foundry's amber, which land on olive and brown as twins, take their second identity colour instead (a teal, a burnt orange). The particles half of this decision stands.

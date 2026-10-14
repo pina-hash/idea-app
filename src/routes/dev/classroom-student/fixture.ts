@@ -215,7 +215,7 @@ function overviewPayload(opts: { active: boolean; hasAccount: boolean }): unknow
 		at: NOW,
 		hall_passes: {
 			total: 6,
-			limits: { cooldown_minutes: 10, daily_limit: 3 },
+			limits: { budget_minutes: 10, auto_checkin_minutes: 30 },
 			entries: [
 				pass('hp-6', '2026-10-07T20:52:00Z', null),
 				pass('hp-5', '2026-10-06T18:10:00Z', '2026-10-06T18:16:30Z'),

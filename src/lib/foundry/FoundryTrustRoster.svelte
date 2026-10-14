@@ -59,6 +59,57 @@
 	 * a disabled control does not receive the press and only a scripted
 	 * dispatch can arrive there.
 	 */
+	/*
+	 * FIND BY NAME (0237, report 762bb647). Typing a name lists up to twelve
+	 * Bosco Tech accounts and a pick fills the address box below, so the exact
+	 * email is no longer something an admin has to know. IT RUNS FROM THE INPUT
+	 * HANDLER WITH A DEBOUNCE AND A REQUEST COUNTER, never from an effect, so a
+	 * slow answer to an older query cannot overwrite a newer one. Typing the
+	 * address by hand still works exactly as before.
+	 */
+	let finding = $state('');
+	let found = $state<{ email: string; name: string }[]>([]);
+	let findState = $state<'idle' | 'ready' | 'unavailable'>('idle');
+	let findTimer: ReturnType<typeof setTimeout> | null = null;
+	let findSeq = 0;
+
+	function onFind(event: Event) {
+		finding = (event.currentTarget as HTMLInputElement).value;
+		const q = finding.trim();
+		if (findTimer) clearTimeout(findTimer);
+		if (q.length < 2 || !transports.searchPeople) {
+			found = [];
+			findState = 'idle';
+			findSeq++;
+			return;
+		}
+		const mine = ++findSeq;
+		findTimer = setTimeout(async () => {
+			let rows: { email: string; name: string }[] | null = null;
+			try {
+				rows = await transports.searchPeople!(q);
+			} catch {
+				rows = null;
+			}
+			if (mine !== findSeq) return;
+			if (rows === null) {
+				found = [];
+				findState = 'unavailable';
+			} else {
+				found = rows;
+				findState = 'ready';
+			}
+		}, 250);
+	}
+
+	function choose(person: { email: string; name: string }) {
+		email = person.email;
+		finding = '';
+		found = [];
+		findState = 'idle';
+		findSeq++;
+	}
+
 	const emailOk = $derived(email.trim().length > 3 && email.includes('@'));
 
 	async function grant() {
@@ -120,6 +171,41 @@
 		"Live, not yet reviewed" for you to read afterwards. It changes nothing else about
 		what they can do.
 	</p>
+
+	{#if transports.grantTrust && transports.searchPeople}
+		<div class="fdy-trust-find" data-testid="foundry-trust-find">
+			<label class="fdy-trust-field">
+				<span>Find a student by name</span>
+				<input
+					type="search"
+					value={finding}
+					oninput={onFind}
+					maxlength="80"
+					autocomplete="off"
+					placeholder="Start typing a name"
+					disabled={busy}
+				/>
+			</label>
+			{#if findState === 'unavailable'}
+				<p class="fdy-trust-empty">
+					Search by name is not available yet. Type the address below instead.
+				</p>
+			{:else if findState === 'ready' && found.length === 0}
+				<p class="fdy-trust-empty">Nobody matches that. Type the address below instead.</p>
+			{:else if found.length > 0}
+				<ul class="fdy-trust-found" data-testid="foundry-trust-found">
+					{#each found as person (person.email)}
+						<li>
+							<button type="button" class="btn tap-44 fdy-trust-pick" onclick={() => choose(person)}>
+								<span class="person-name">{person.name}</span>
+								<span class="fdy-trust-meta">{person.email}</span>
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
+	{/if}
 
 	{#if transports.grantTrust}
 		<div class="fdy-trust-add">
@@ -330,5 +416,27 @@
 	.fdy-trust-said {
 		margin: 0 0 0.6rem;
 		color: var(--fg-st-live-ink, var(--green));
+	}
+	.fdy-trust-find {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2, 0.5rem);
+	}
+	.fdy-trust-found {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.fdy-trust-pick {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: flex-start;
+		gap: 0.25rem 0.75rem;
+		width: 100%;
+		text-align: left;
 	}
 </style>

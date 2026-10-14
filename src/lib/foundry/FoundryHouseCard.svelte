@@ -40,8 +40,18 @@
 		vanguard: VanguardMark
 	};
 
-	let { release }: { release: FoundryHouseRelease } = $props();
+	let {
+		release,
+		thumbUrl = null
+	}: {
+		release: FoundryHouseRelease;
+		/** An admin-chosen picture (0237, report c5f811e4), already turned into a URL. */
+		thumbUrl?: string | null;
+	} = $props();
 	const Mark = $derived(HOUSE_MARKS[release.id]);
+	// A picture that does not decode falls back to the drawn mark, never a hole.
+	let failedUrl = $state<string | null>(null);
+	const picture = $derived(thumbUrl && failedUrl !== thumbUrl ? thumbUrl : null);
 </script>
 
 <!--
@@ -52,17 +62,28 @@
 <a
 	class="fdy-house"
 	href={release.href}
+	class:has-img={picture !== null}
 	data-testid="fdy-house-card"
 	data-portal-app={release.id}
 	aria-label="{release.title}, an IDEA original game"
 >
 	<span class="fdy-house-art" aria-hidden="true">
-		<span class="fdy-house-mark">
-			<!-- `once`: the launcher's own standard. One pass, then the rest frame
-			     held, and nothing hidden at rest, all inside the mark's own
-			     reduced-motion gate. -->
-			<Mark once />
-		</span>
+		{#if picture}
+			<img
+				class="fdy-house-img"
+				src={picture}
+				alt=""
+				loading="lazy"
+				onerror={() => (failedUrl = picture)}
+			/>
+		{:else}
+			<span class="fdy-house-mark">
+				<!-- `once`: the launcher's own standard. One pass, then the rest frame
+				     held, and nothing hidden at rest, all inside the mark's own
+				     reduced-motion gate. -->
+				<Mark once />
+			</span>
+		{/if}
 		<span class="fdy-house-title">{release.title}</span>
 	</span>
 	<span class="fdy-house-plate" data-testid="fdy-house-kicker">{FOUNDRY_HOUSE_KICKER}</span>
@@ -132,6 +153,36 @@
 		width: 100%;
 		height: 100%;
 		padding: var(--space-4, 1rem) var(--space-4, 1rem) 2.2rem;
+	}
+
+	/* An admin's picture: full-bleed, with the title riding a scrim at the
+	   bottom so it clears whatever the picture is (the ink is pinned light and
+	   the scrim pinned dark, like the plate beneath it). */
+	.fdy-house-img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.fdy-house.has-img .fdy-house-art {
+		position: relative;
+		justify-content: flex-end;
+		align-items: flex-start;
+	}
+	.fdy-house.has-img .fdy-house-title {
+		position: relative;
+		z-index: 1;
+		text-align: left;
+		padding: 0 0 0.9rem;
+		text-shadow: 0 1px 3px rgba(6, 5, 4, 0.9);
+	}
+	.fdy-house.has-img .fdy-house-art::after {
+		content: '';
+		position: absolute;
+		inset: auto 0 0 0;
+		height: 70%;
+		background-image: linear-gradient(to top, rgba(6, 5, 4, 0.92), rgba(6, 5, 4, 0));
 	}
 
 	.fdy-house-mark {

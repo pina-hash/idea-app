@@ -60,9 +60,23 @@
 	import '$lib/shell/split.css';
 
 	import FoundryCard from './FoundryCard.svelte';
+	import FoundryCollectionCard from './FoundryCollectionCard.svelte';
 	import FoundryDetail from './FoundryDetail.svelte';
 	import FoundryHouseCard from './FoundryHouseCard.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
+	import FoundryVote from './FoundryVote.svelte';
+	import {
+		FOUNDRY_COLLECTIONS_NOTE,
+		FOUNDRY_COLLECTIONS_TITLE,
+		FOUNDRY_FEATURED_NOTE,
+		FOUNDRY_FEATURED_TITLE,
+		applyAppOverride,
+		applyHouseOverride,
+		foundryFeaturedRow,
+		resolveSubjects,
+		type FoundryCollection,
+		type FoundryOverrideMap
+	} from './gallery-extras.ts';
 	import {
 		FOUNDRY_ALL_APPS_TITLE,
 		FOUNDRY_MAJOR_SECTION_NOTE,
@@ -185,7 +199,21 @@
 		 * page is deleting the one prop there. They are outside the sort, the
 		 * search and every count: they have no Foundry data to order by.
 		 */
-		houseReleases = []
+		houseReleases = [],
+		/**
+		 * THE CURATION LAYERS (0237): an admin's replacement card details, the
+		 * published collections and the featured picks. Absent, the gallery is
+		 * what it was before they existed; present but empty, the same. The
+		 * route passes this only when 0237's reads answered.
+		 */
+		extras = undefined,
+		/**
+		 * VOTES (0237, report 8274b260): the viewer's own votes by app id, the
+		 * transport that writes one, and the viewer's id so the author of a game
+		 * is told they cannot vote on it rather than offered keys. Net figures
+		 * ride in `playCounts` (`foundryMergeVotes`). Absent removes the keys.
+		 */
+		votes = undefined
 	}: {
 		apps: FoundryAppSummary[];
 		selected?: FoundryApp | null;
@@ -200,6 +228,17 @@
 		playStats?: FoundryPlayStatsTransport | undefined;
 		myPlayStats?: FoundryMyPlayStatsTransport | undefined;
 		houseReleases?: FoundryHouseRelease[];
+		extras?: { overrides: FoundryOverrideMap; collections: FoundryCollection[]; featured: string[] } | undefined;
+		votes?:
+			| {
+					mine: Record<string, -1 | 0 | 1>;
+					viewerId: string | null;
+					vote?: (
+						appId: string,
+						value: -1 | 0 | 1
+					) => Promise<{ ok: true; net: number } | { ok: false; reason?: string }>;
+			  }
+			| undefined;
 	} = $props();
 
 	/**
@@ -296,6 +335,20 @@
 	 */
 	const mosaicStyle = $derived(foundryMosaicStyle(ordered.length));
 
+	/*
+	 * THE CURATION LAYERS. Overrides change what a CARD says (never the app's
+	 * own record: the detail pane and the search keep reading the real one);
+	 * the featured row and the collections are resolved against the apps this
+	 * gallery actually holds, so a pick or a member that is hidden or unpublished
+	 * simply is not drawn.
+	 */
+	const overrides = $derived(extras?.overrides ?? {});
+	const houses = $derived(houseReleases.map((r) => applyHouseOverride(r, overrides)));
+	const shown = <T extends { id: string; title: string; tagline: string | null; cover_path: string | null }>(
+		app: T
+	): T => applyAppOverride(app, overrides);
+	const thumbOf = (path: string | null | undefined) => (path ? coverUrl(path) : null);
+
 	/**
 	 * THE MAJOR RELEASES SECTION: the marked apps IN THE ORDER IN FORCE, then
 	 * the house cards. Filtering `ordered` rather than sorting a second list is
@@ -308,9 +361,35 @@
 	 */
 	const majors = $derived(searching ? [] : ordered.filter(isMajorRelease));
 	const showMajor = $derived(
-		!searching && apps.length > 0 && majors.length + houseReleases.length > 0
+		!searching && apps.length > 0 && majors.length + houses.length > 0
 	);
-	const majorStyle = $derived(foundryMosaicStyle(majors.length + houseReleases.length));
+	const majorStyle = $derived(foundryMosaicStyle(majors.length + houses.length));
+
+	const featuredItems = $derived(
+		searching || apps.length === 0
+			? []
+			: foundryFeaturedRow(extras?.featured ?? [], apps, houses, playCounts)
+	);
+	const showFeatured = $derived(featuredItems.length > 0);
+	const featuredStyle = $derived(foundryMosaicStyle(featuredItems.length));
+
+	const collectionCards = $derived(
+		searching || apps.length === 0
+			? []
+			: (extras?.collections ?? [])
+					.filter((c) => c.published)
+					.map((c) => ({
+						c,
+						items: resolveSubjects(
+							c.members.filter((m) => m.live !== false).map((m) => m.subject),
+							apps,
+							houses
+						)
+					}))
+					.filter((x) => x.items.length > 0)
+	);
+	const showCollections = $derived(collectionCards.length > 0);
+	const showAllHeading = $derived(showMajor || showFeatured || showCollections);
 </script>
 
 <ClassSplit hasDetail={selected !== null} narrow="swap" scroll="fill" detailWidth="roomy">
@@ -457,7 +536,7 @@
 						{#each majors as app (app.id)}
 							<li>
 								<FoundryCard
-									{app}
+									app={shown(app)}
 									href="/foundry?app={app.slug}"
 									selected={selected?.slug === app.slug}
 									{coverUrl}
@@ -466,13 +545,96 @@
 								/>
 							</li>
 						{/each}
-						{#each houseReleases as release (release.id)}
+						{#each houses as release (release.id)}
 							<li>
-								<FoundryHouseCard {release} />
+								<FoundryHouseCard {release} thumbUrl={thumbOf(release.thumb)} />
 							</li>
 						{/each}
 					</ul>
 				</section>
+			{/if}
+
+			{#if showFeatured}
+				<!--
+					THE FEATURED ROW (0237, report 415af89e), DIRECTLY UNDER THE MAJOR
+					RELEASES. An admin's picks in their order, any spare slots filled
+					from the top of Most played and Trending. The same multicol mosaic,
+					the same cards; the heading says what it is so no badge is needed.
+				-->
+				<section class="fdy-gal-featured" aria-labelledby="fdy-gal-featured-h" data-testid="foundry-gallery-featured-section">
+					<h3 id="fdy-gal-featured-h" class="fdy-gal-sec-h">{FOUNDRY_FEATURED_TITLE}</h3>
+					<p class="fdy-gal-major-note">{FOUNDRY_FEATURED_NOTE}</p>
+					<ul class="fdy-gal-major-grid" data-testid="foundry-gallery-featured" style={featuredStyle}>
+						{#each featuredItems as item (item.subject)}
+							<li>
+								{#if item.kind === 'app'}
+									<FoundryCard
+										app={shown(item.app)}
+										href="/foundry?app={item.app.slug}"
+										selected={selected?.slug === item.app.slug}
+										{coverUrl}
+										plays={foundrySortFigure(sort, item.app, playCounts[item.app.id])}
+										onselect={onSelect}
+									/>
+								{:else}
+									<FoundryHouseCard release={item.release} thumbUrl={thumbOf(item.release.thumb)} />
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</section>
+			{/if}
+
+			{#if showCollections}
+				<!--
+					COLLECTIONS (0237, report 762bb647): each published one is a single
+					card that opens to its members, which are the cards the rest of the
+					gallery draws. A member the gallery does not hold is not drawn.
+				-->
+				<section class="fdy-gal-collections" aria-labelledby="fdy-gal-collections-h" data-testid="foundry-gallery-collections">
+					<h3 id="fdy-gal-collections-h" class="fdy-gal-sec-h">{FOUNDRY_COLLECTIONS_TITLE}</h3>
+					<p class="fdy-gal-major-note">{FOUNDRY_COLLECTIONS_NOTE}</p>
+					<ul class="fdy-gal-collection-list">
+						{#each collectionCards as entry (entry.c.id)}
+							<li>
+								<FoundryCollectionCard
+									title={entry.c.title}
+									description={entry.c.description}
+									count={entry.items.length}
+									thumbs={entry.items
+										.map((i) =>
+											i.kind === 'app'
+												? thumbOf(shown(i.app).cover_path)
+												: thumbOf(i.release.thumb)
+										)
+										.filter((t): t is string => !!t)}
+								>
+									<ul class="fdy-gal-major-grid" style={foundryMosaicStyle(entry.items.length)}>
+										{#each entry.items as item (item.subject)}
+											<li>
+												{#if item.kind === 'app'}
+													<FoundryCard
+														app={shown(item.app)}
+														href="/foundry?app={item.app.slug}"
+														selected={selected?.slug === item.app.slug}
+														{coverUrl}
+														plays={foundrySortFigure(sort, item.app, playCounts[item.app.id])}
+														onselect={onSelect}
+													/>
+												{:else}
+													<FoundryHouseCard release={item.release} thumbUrl={thumbOf(item.release.thumb)} />
+												{/if}
+											</li>
+										{/each}
+									</ul>
+								</FoundryCollectionCard>
+							</li>
+						{/each}
+					</ul>
+				</section>
+			{/if}
+
+			{#if showAllHeading}
 				<h3 class="fdy-gal-sec-h fdy-gal-all-h" data-testid="foundry-gallery-all-heading">
 					{FOUNDRY_ALL_APPS_TITLE}
 				</h3>
@@ -524,7 +686,7 @@
 							: foundrySortFigure(sort, app, playCounts[app.id])}
 						<li>
 							<FoundryCard
-								{app}
+								app={shown(app)}
 								href="/foundry?app={app.slug}"
 								selected={selected?.slug === app.slug}
 								{coverUrl}
@@ -590,6 +752,17 @@
 					the component would mount, read nothing and render nothing, which
 					is right but puts an empty element in the page for no reason.
 				-->
+				{#if votes}
+					<div class="fdy-gal-plays">
+						<FoundryVote
+							appId={selected.id}
+							net={playCounts[selected.id]?.netVotes ?? 0}
+							mine={votes.mine[selected.id] ?? 0}
+							own={votes.viewerId !== null && votes.viewerId === selected.owner}
+							{...(votes.vote ? { vote: votes.vote } : {})}
+						/>
+					</div>
+				{/if}
 				{#if playStats}
 					<div class="fdy-gal-plays">
 						<FoundryPlayStats
@@ -605,6 +778,28 @@
 </ClassSplit>
 
 <style>
+	/* The featured row and the collections sit in the major section's own
+	   arrangement: a column with its heading, its line and its cards a half
+	   rem apart. */
+	.fdy-gal-featured,
+	.fdy-gal-collections {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2, 0.5rem);
+	}
+	.fdy-gal-collection-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+		gap: var(--space-4, 1rem);
+		align-items: start;
+	}
+	/* An opened collection takes the whole row, so its members have room. */
+	.fdy-gal-collection-list > li:has(:global([aria-expanded='true'])) {
+		grid-column: 1 / -1;
+	}
 	/* A NAMED CONTAINER, so the mosaic's column rules below can ask how wide
 	   the list is -- not the viewport, which says nothing about a pane beside
 	   an open app. Named so no unnamed query inside a card resolves to it. */

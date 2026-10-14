@@ -215,7 +215,11 @@ const SEEDS: Seed[] = [
 export const load: PageLoad = ({ url }) => {
 	if (!dev) error(404, 'Not found');
 	const unplayed = url.searchParams.get('fixture') === 'unplayed';
-	const major = url.searchParams.get('fixture') === 'major';
+	// `?fixture=curated` is the major fixture plus 0237's layers (ledger 0380):
+	// an override on a major app and on VANGUARD, a published collection of three
+	// and a draft one, three featured picks and votes.
+	const curated = url.searchParams.get('fixture') === 'curated';
+	const major = url.searchParams.get('fixture') === 'major' || curated;
 	const MARKED = new Set(['maze-maker', 'tide-pool']);
 
 	const apps: FoundryAppSummary[] = SEEDS.map((s, i) => ({
@@ -258,5 +262,48 @@ export const load: PageLoad = ({ url }) => {
 				};
 	}
 
-	return { apps, playCounts, unplayed, major };
+	const idOf = (slug: string) => `app-${SEEDS.findIndex((x) => x.slug === slug)}`;
+	if (curated) {
+		const votes: Record<string, [number, number]> = { 'frog-frenzy': [9, 4], 'pixel-forge': [3, 3], 'cookie-press': [-2, 0] };
+		for (const [slug, [net, net7d]] of Object.entries(votes)) {
+			const k = idOf(slug);
+			playCounts[k] = { ...playCounts[k], netVotes: net, netVotes7d: net7d };
+		}
+	}
+	const extras = curated
+		? {
+				overrides: {
+					[`app:${idOf('maze-maker')}`]: {
+						subject: `app:${idOf('maze-maker')}`,
+						title: 'Maze Maker Deluxe',
+						description: 'Build a maze, then try to get out of it.',
+						thumbnail_path: null
+					},
+					'house:vanguard': {
+						subject: 'house:vanguard',
+						title: null,
+						description: 'Fly a ship through the sector and survive.',
+						thumbnail_path: null
+					}
+				},
+				collections: [
+					{
+						id: 'col-ported',
+						title: 'Ported games',
+						description: 'Games brought in from elsewhere.',
+						published: true,
+						members: [
+							{ subject: `app:${idOf('cookie-press')}`, live: true },
+							{ subject: `app:${idOf('bolt-run')}`, live: true },
+							{ subject: 'house:greenline', live: true },
+							{ subject: 'app:not-in-this-gallery', live: true }
+						]
+					},
+					{ id: 'col-draft', title: 'A draft', description: null, published: false, members: [{ subject: `app:${idOf('orbit-lab')}`, live: true }] }
+				],
+				featured: [`app:${idOf('quiet-quest')}`, 'house:vanguard']
+			}
+		: undefined;
+	const voteMine: Record<string, -1 | 0 | 1> = curated ? { [idOf('frog-frenzy')]: 1 } : {};
+	return { apps, playCounts, unplayed, major, curated, extras, voteMine };
 };

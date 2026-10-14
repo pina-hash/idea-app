@@ -42,14 +42,16 @@ import {
 	checkInDraftPayload,
 	type ClassCheckInTransports
 } from './class-check-ins';
-import type {
-	HallPassClosed,
-	HallPassOpened,
-	HallPassOpenedFor,
-	HallPassRefusal,
-	HallPassResult,
-	HallPassState,
-	HallPassTransports
+import {
+	hallPassLimitsRefusal,
+	type HallPassClosed,
+	type HallPassOpened,
+	type HallPassOpenedFor,
+	type HallPassRefusal,
+	type HallPassRefusalDetail,
+	type HallPassResult,
+	type HallPassState,
+	type HallPassTransports
 } from './hall-pass';
 import type {
 	SongDecided,
@@ -2098,12 +2100,12 @@ const HALL_PASS_REFUSALS = new Set<HallPassRefusal>([
 	'not_yours',
 	// `0144`, manager path only: the named pass had already been signed back in.
 	'already_closed',
-	// `0174`. Both carry DETAIL the sentence is built from -- an instant for
-	// the cooldown, a count and a cap for the limit -- which is why
+	// `0237`. Carries DETAIL the sentence is built from -- the instant the
+	// student may go again and the weekly reset -- which is why
 	// `hallPassOutcome` below reads those fields off the row rather than
-	// answering with the word alone.
-	'cooldown',
-	'limit_reached',
+	// answering with the word alone. It replaces `0174`'s `cooldown` and
+	// `limit_reached`, which the database no longer answers.
+	'over_budget',
 	// `0174`, the instructor override only: the name picked is not on the live
 	// roster.
 	'not_enrolled'
@@ -2117,16 +2119,16 @@ function hallPassOutcome<T>(
 	if (row.ok === true) return { ok: true, data: shape(row) };
 	const reason = row.reason as HallPassRefusal | undefined;
 	if (reason && HALL_PASS_REFUSALS.has(reason)) {
-		// THE DETAIL RIDES WITH THE WORD (`0174`). A `cooldown` with its
-		// `retry_at` dropped here becomes "wait a few minutes" instead of a clock
-		// time, which is the refusal-with-no-time-in-it this limit exists to
-		// avoid. Absent fields stay absent rather than becoming zeroes: `0143`'s
-		// five reasons carry none of them and must not start claiming a limit of
-		// nought.
-		const detail: { retryAt?: string; used?: number; limit?: number } = {};
-		if (typeof row.retry_at === 'string') detail.retryAt = row.retry_at;
-		if (typeof row.used === 'number') detail.used = row.used;
-		if (typeof row.limit === 'number') detail.limit = row.limit;
+		// THE DETAIL RIDES WITH THE WORD (`0237`). An `over_budget` with its
+		// `available_at` dropped here becomes "try later" instead of a day, which
+		// is the refusal-with-no-way-forward this limit exists to avoid. Absent
+		// fields stay absent rather than becoming zeroes: the older reasons carry
+		// none of them and must not start claiming a budget of nought.
+		const detail: HallPassRefusalDetail = {};
+		if (typeof row.available_at === 'string') detail.availableAt = row.available_at;
+		if (typeof row.resets_at === 'string') detail.resetsAt = row.resets_at;
+		if (typeof row.daily_seconds === 'number') detail.dailySeconds = row.daily_seconds;
+		if (typeof row.debt_seconds === 'number') detail.debtSeconds = row.debt_seconds;
 		return { ok: false, refusal: reason, ...detail };
 	}
 	return { ok: false, message: 'Something went wrong. Try again.' };
@@ -2227,6 +2229,21 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 		 * plumbing rather than a boundary -- as everything else in this module
 		 * is.
 		 */
+		/**
+		 * THIS CLASS'S TWO NUMBERS (`0237`), an instructor's. Whole minutes; the
+		 * database holds the ranges and answers a considered refusal in words.
+		 */
+		async setLimits(sectionId, budgetMinutes, autoCheckinMinutes) {
+			const { data, error } = await supabase.rpc('classroom_hall_pass_set_limits', {
+				p_section_id: sectionId,
+				p_daily_minutes: budgetMinutes,
+				p_auto_minutes: autoCheckinMinutes
+			});
+			if (error) return { ok: false, message: 'Could not save those numbers. Try again.' };
+			const row = (data ?? {}) as Record<string, unknown>;
+			if (row.ok === true) return { ok: true };
+			return { ok: false, message: hallPassLimitsRefusal(row.reason) };
+		},
 		async openFor(sectionId, studentEmail) {
 			const { data, error } = await supabase.rpc('classroom_hall_pass_open_for', {
 				p_section_id: sectionId,

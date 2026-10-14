@@ -26,6 +26,42 @@ export interface FoundryClosedSection {
 	course_title: string;
 	note: string | null;
 	closed_at: string;
+	/**
+	 * 0237. `schedule` when the class's own weekly schedule closed it (class is
+	 * in session), `hand` when the teacher pressed Close. Absent before 0237,
+	 * which reads as "by hand", the only way it could have closed.
+	 */
+	by?: 'hand' | 'schedule';
+	/** When the schedule opens it again (an instant), only for `by: 'schedule'`. */
+	until?: string | null;
+}
+
+/**
+ * The classes whose Foundry is closed by their schedule, each with the school
+ * clock time it comes back, for the student's panel to say so in words
+ * ("Engineering I (Block 1) is in session until 10:55 AM"). Empty for a
+ * closure by hand, which has its own note.
+ */
+export function foundryScheduleNotes(
+	closed: readonly FoundryClosedSection[]
+): { section_id: string; course_title: string; label: string; until: string }[] {
+	const out: { section_id: string; course_title: string; label: string; until: string }[] = [];
+	for (const c of closed) {
+		if (c.by !== 'schedule' || !c.until) continue;
+		const d = new Date(c.until);
+		if (Number.isNaN(d.getTime())) continue;
+		out.push({
+			section_id: c.section_id,
+			course_title: c.course_title,
+			label: c.label,
+			until: d.toLocaleTimeString('en-US', {
+				timeZone: 'America/Los_Angeles',
+				hour: 'numeric',
+				minute: '2-digit'
+			})
+		});
+	}
+	return out;
 }
 
 export interface FoundryAccess {

@@ -179,6 +179,38 @@
 	 */
 	const houseReleases = foundryHouseReleases();
 
+	/**
+	 * THE VOTE WRITE (0237, report 8274b260): one RPC, three words, no server
+	 * route. Handed to the gallery only when the load's vote read answered, so a
+	 * database before 0237 shows no keys instead of keys that answer "not
+	 * available". The refusal's reason rides back as a value; the sentence is
+	 * `voteRefusalSentence`'s.
+	 */
+	const votes = $derived(
+		data.votesKnown
+			? {
+					mine: data.voteMine ?? {},
+					viewerId: (data.claims?.sub as string | undefined) ?? null,
+					async vote(appId: string, value: -1 | 0 | 1) {
+						try {
+							const { data: r, error } = await data.supabase.rpc('foundry_vote', {
+								p_app_id: appId,
+								p_value: value
+							});
+							if (error) {
+								return { ok: false as const, reason: error.code === 'PGRST202' ? 'unavailable' : undefined };
+							}
+							const out = r as { ok?: boolean; reason?: string; net?: number } | null;
+							if (out?.ok) return { ok: true as const, net: Number(out.net) || 0 };
+							return { ok: false as const, reason: out?.reason };
+						} catch {
+							return { ok: false as const };
+						}
+					}
+				}
+			: undefined
+	);
+
 	function select(slug: string | null) {
 		const target = slug ? `/foundry?app=${encodeURIComponent(slug)}` : '/foundry';
 		// `keepFocus` so picking a card with the keyboard does not throw focus
@@ -216,6 +248,8 @@
 		{playStats}
 		{myPlayStats}
 		{houseReleases}
+		extras={data.extras ?? undefined}
+		{votes}
 		onSelect={select}
 	/>
 </FoundryPage>

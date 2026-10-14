@@ -138,6 +138,16 @@ describe('the gallery load tells an unread count from a zero', () => {
 						? { data: null, error: { message: 'fetch failed', code: '' } }
 						: { data: [], error: null };
 				}
+				// 0237's curation reads and the vote read: a database without it
+				// answers each with PGRST202, and the gallery must still load.
+				if (
+					name === 'foundry_gallery_overrides_read' ||
+					name === 'foundry_collections_read' ||
+					name === 'foundry_featured_read' ||
+					name === 'foundry_vote_counts'
+				) {
+					return { data: null, error: { message: 'not found', code: 'PGRST202' } };
+				}
 				throw new Error(`unexpected rpc ${name}`);
 			}
 		};

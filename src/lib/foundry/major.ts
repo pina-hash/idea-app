@@ -147,6 +147,11 @@ export interface FoundryHouseRelease {
 	title: string;
 	sub: string;
 	href: string;
+	/**
+	 * 0237. A storage path in `foundry-covers` an admin chose as this card's
+	 * picture, or nothing for the drawn mark. The gallery turns it into a URL.
+	 */
+	thumb?: string | null;
 }
 
 /**
