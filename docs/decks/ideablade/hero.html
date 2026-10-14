@@ -1,0 +1,49 @@
+<!doctype html><html><body style="margin:0;background:transparent">
+<canvas id="c" width="1400" height="1400"></canvas>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+const canvas=document.getElementById('c');
+const r=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:true});
+r.setPixelRatio(1); r.setClearColor(0,0); r.toneMapping=THREE.ACESFilmicToneMapping; r.toneMappingExposure=0.85;
+r.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();
+const pm=new THREE.PMREMGenerator(r); scene.environment=pm.fromScene(new RoomEnvironment(),0.04).texture;
+const key=new THREE.DirectionalLight(0xffffff,2.4); key.position.set(-4,7,5); scene.add(key);
+const rim=new THREE.DirectionalLight(0x9fe89a,3.2); rim.position.set(5,2,-6); scene.add(rim);
+const fill=new THREE.DirectionalLight(0xffffff,0.5); fill.position.set(6,-1,4); scene.add(fill);
+const top=new THREE.Group();
+// body: revolved half-silhouette (inches), y up
+const prof=[[0,0],[0.06,0.02],[0.22,0.22],[0.55,0.55],[1.05,0.82],[1.75,0.98],[2.28,1.08],[2.42,1.2],[2.44,1.36],[2.36,1.48],[2.0,1.56],[1.35,1.64],[0.9,1.72],[0.62,1.86],[0.55,2.0],[0,2.0]].map(([x,y])=>new THREE.Vector2(x,y));
+const bodyMat=new THREE.MeshPhysicalMaterial({color:0x1f4f1c,roughness:0.5,metalness:0.0,clearcoat:0.25,clearcoatRoughness:0.6});
+top.add(new THREE.Mesh(new THREE.LatheGeometry(prof,160),bodyMat));
+// grip rings on the flywheel
+for(const y of [1.22,1.32]){const t=new THREE.Mesh(new THREE.TorusGeometry(2.435,0.018,8,160),new THREE.MeshStandardMaterial({color:0x1d3f1b,roughness:0.6}));t.rotation.x=Math.PI/2;t.position.y=y;top.add(t);}
+// collar
+const steelDark=new THREE.MeshStandardMaterial({color:0x8d969a,metalness:1,roughness:0.32});
+const col=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.5,64),steelDark); col.position.y=2.25; top.add(col);
+// hex extension
+const hex=new THREE.Mesh(new THREE.CylinderGeometry(0.29,0.29,0.62,6),new THREE.MeshStandardMaterial({color:0xb7bec2,metalness:1,roughness:0.25})); hex.position.y=2.81; top.add(hex);
+// blade: 3 swept arms, 0.1in plate
+const s=new THREE.Shape(); const N=4, R=2.47, hub=1.15;
+const pts=[];
+for(let k=0;k<N;k++){const a0=k*2*Math.PI/N, span=2*Math.PI/N;
+  for(let i=0;i<=20;i++){const t=i/20; const a=a0+t*span*0.62; const rr=hub+(R-hub)*Math.pow(t,1.15); pts.push([Math.cos(a)*rr,Math.sin(a)*rr]);}
+  const tipA=a0+span*0.62; pts.push([Math.cos(tipA+0.04)*R,Math.sin(tipA+0.04)*R]);
+  for(let i=0;i<=8;i++){const t=i/8; const a=tipA+0.04-t*0.02; const rr=R-(R-hub-0.25)*t; pts.push([Math.cos(a)*rr,Math.sin(a)*rr]);}
+  for(let i=0;i<=8;i++){const t=i/8; const a=tipA+0.02+t*(span*0.38-0.02); const rr=hub+0.25-(0.25)*t; pts.push([Math.cos(a)*rr,Math.sin(a)*rr]);}
+}
+s.moveTo(...pts[0]); pts.slice(1).forEach(p=>s.lineTo(...p)); s.closePath();
+const hole=new THREE.Path(); for(let i=0;i<6;i++){const a=i*Math.PI/3+Math.PI/6; const rr=0.3; i?hole.lineTo(Math.cos(a)*rr,Math.sin(a)*rr):hole.moveTo(Math.cos(a)*rr,Math.sin(a)*rr);} hole.closePath(); s.holes.push(hole);
+for(let k=0;k<N;k++){const a=k*2*Math.PI/N+0.9; const h=new THREE.Path(); h.absarc(Math.cos(a)*0.7,Math.sin(a)*0.7,0.09,0,Math.PI*2,true); s.holes.push(h);}
+const bg=new THREE.ExtrudeGeometry(s,{depth:0.1,bevelEnabled:true,bevelThickness:0.012,bevelSize:0.012,bevelSegments:2,curveSegments:24});
+const blade=new THREE.Mesh(bg,new THREE.MeshStandardMaterial({color:0xc9d0d4,metalness:1,roughness:0.28}));
+blade.rotation.x=-Math.PI/2; blade.position.y=1.62; top.add(blade);
+const edges=new THREE.LineSegments(new THREE.EdgesGeometry(bg,30),new THREE.LineBasicMaterial({color:0x2a302d,transparent:true,opacity:0.6})); edges.rotation.x=-Math.PI/2; edges.position.y=1.62; top.add(edges);
+top.rotation.z=0.12; top.rotation.x=0.05;
+scene.add(top);
+const cam=new THREE.PerspectiveCamera(24,1,0.1,100); cam.position.set(8.8,4.9,10.8); cam.lookAt(0,1.25,0);
+window.draw=(spin)=>{top.rotation.y=spin; r.render(scene,cam); return true;};
+window.ready=true;
+</script></body></html>
