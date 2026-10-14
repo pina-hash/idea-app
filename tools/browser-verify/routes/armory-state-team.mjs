@@ -91,11 +91,15 @@ export default {
 	tapTargets: [
 		{ selector: '[data-testid="armory-people-option"]', label: 'search options', min: 44 },
 		{ selector: '[data-testid="armory-people-search"]', label: 'the search box', min: 44 },
-		{ selector: '[data-testid="armory-member-checkouts"]', label: '"n checked out" links', min: 44 },
 		{ selector: '[data-testid="armory-needs-update"]', label: '"Needs the new Armory" links', min: 44 },
 		{ selector: '[data-testid="armory-remove-member"]', label: 'Remove', min: 44 },
 		{ selector: '[data-testid="armory-role-select"]', label: 'role pickers', min: 44 }
 	],
+	/* "N checked out" IS A LINE OF TEXT WITH A 44px REACH, not a 44px box
+	   (armory.css, `.ar-person-main > a.ar-person-out::after`), so its box is
+	   one line tall on a wide view by design. It sat under `tapTargets` and read
+	   26.9px at 1440 on main as well; measured as what it is, a reach. */
+	tapReach: [{ selector: '[data-testid="armory-member-checkouts"]', label: '"n checked out" links', min: 44 }],
 	contrast: [
 		{ selector: '.ar-combo-name', label: 'option names', min: 4.5 },
 		{ selector: '.ar-combo-email', label: 'option addresses', min: 4.5 },

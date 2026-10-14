@@ -104,9 +104,11 @@ export default {
 		   being correct. The select itself is the visible row above. */
 		{
 			selector: '[data-testid="foundry-gallery-sort"] option',
-			label: 'seven orders, the two former board orders among them',
-			expectPresent: 7,
-			maxPresent: 7,
+			// EIGHT since ledger 0380 added Most liked (votes, decision 59); this
+			// row said seven until ledger 0381 measured eight.
+			label: 'eight orders, the two former board orders and Most liked among them',
+			expectPresent: 8,
+			maxPresent: 8,
 			expectVisible: 0
 		},
 		{
@@ -177,9 +179,9 @@ export default {
 	],
 	orderResult: [
 		{
-			label: 'the control opens on Most played and lists decision 39’s seven orders in its order',
+			label: 'the control opens on Most played and lists decision 39’s orders, with Most liked (0380), in its order',
 			evaluate: `() => { const s = document.querySelector('[data-testid="foundry-gallery-sort"]'); return [s.value, ...[...s.options].map((o) => o.textContent.trim())]; }`,
-			expected: ['played', 'Most played', 'Trending', 'Played this week', 'Most hours', 'Most updated', 'Newest', 'Recently updated']
+			expected: ['played', 'Most played', 'Trending', 'Most liked', 'Played this week', 'Most hours', 'Most updated', 'Newest', 'Recently updated']
 		},
 		{
 			label: 'the one list is ranked by plays on first paint',

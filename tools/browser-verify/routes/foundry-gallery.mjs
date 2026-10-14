@@ -59,7 +59,7 @@ export default {
 		   whose positive control is the select on the same paint. */
 		{ selector: 'select[data-testid="foundry-gallery-sort"]', label: 'gallery sort control', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		/* Present, not visible: an option in a closed native select has no box. */
-		{ selector: '[data-testid="foundry-gallery-sort"] option', label: 'gallery sort orders', expectPresent: 7, maxPresent: 7, expectVisible: 0 },
+		{ selector: '[data-testid="foundry-gallery-sort"] option', label: 'gallery sort orders (eight since Most liked, ledger 0380)', expectPresent: 8, maxPresent: 8, expectVisible: 0 },
 		{ selector: '.fdy-gal-sort-btn', label: 'the old sort buttons (gone)', expectPresent: 0, maxPresent: 0 },
 		/*
 			TWO OF THREE FIXTURE APPS CARRY A NONZERO PLAY COUNT; the third is

@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.7 - 2026-10-08**
+**Version 1.8 - 2026-10-14**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -739,6 +739,7 @@ Frame to parent (`HxFrameMessage`):
 | `idea:height` | `px: number` |
 | `idea:video` | `videoId: string \| null`, `rect: { x, y, w, h }` (document pixels), `clipTop?: number`, `start?: number` (whole seconds) |
 | `idea:image-box` | `field: string`, `rect: { x, y, w, h } \| null` (document pixels; null withdraws), `clipTop?: number` |
+| `idea:field-box` | `field: string`, `rect: { x, y, w, h } \| null` (document pixels; null withdraws), `clipTop?: number` |
 
 Parent to frame (`HxParentMessage`):
 
@@ -749,10 +750,11 @@ Parent to frame (`HxParentMessage`):
 | `idea:video-state` | `videoId: string`, `open: boolean` |
 | `idea:theme` | `theme: 'light' \| 'dark'` |
 | `idea:image-box-state` | `field: string`, `shown: boolean` |
+| `idea:feedback` | `fields: string[]` (sorted, no repeats; field names only) |
 
 The outbound messages are built by `hxStateMessage`, `hxSavedMessage`,
-`hxVideoStateMessage`, `hxThemeMessage` and `hxImageBoxStateMessage` so the component
-cannot invent another.
+`hxVideoStateMessage`, `hxThemeMessage`, `hxImageBoxStateMessage` and `hxFeedbackMessage`
+so the component cannot invent another.
 
 **A STORED PICTURE IS DRAWN BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN (1.6).** Mr.
 Pina, 2026-10-06: "I need for images to show within html assignments not under them. I
@@ -792,6 +794,49 @@ Download, and no image request is made for it.
   after the document that asks for it.
 - The `photo` dev fixture (`/dev/html-assignment?doc=photo`, and
   `/dev/html-assignment-grading?state=boxed` and `?state=boxed-file`) is the instrument.
+
+**WHERE AN ANSWER SITS, SO A TEACHER'S NOTE CAN BE PINNED BESIDE IT (1.8, ledger 0381,
+migration 0238).** Progressive feedback lets an instructor leave notes on a student's
+in-progress worksheet, on the whole worksheet or on one block, optionally with a drawing over
+one of the student's stored pictures; the student sees them live, replies and presses Fixed
+it, both sides see seen receipts, and the instructor manages every note from one inbox page.
+**All of that conversation (the reply, Fixed it, Resolve) is parent chrome and never enters
+the document**, for the reason Submit is (section 7): a button inside the document is a
+handler the document wrote. The document's only part is the two messages below.
+- **`idea:field-box` (frame to parent) is the `idea:image-box` shape and rule for any
+  field.** `hxReceive` judges it in the same order: a non-empty `field` (else `shape`), the
+  field resolved through the parent's own map (an undeclared field, a block id in the field
+  slot or a prototype name is `field`), then the rectangle by `hxBoxOf` (a bad one is
+  `field-box`): four finite numbers in the document's own CSS pixels from its top-left,
+  scroll included, `x` and `y` at least 0, `w` and `h` above 0, `x + w` at most
+  `HX_MAX_VIDEO_WIDTH_PX` (8000) and `y + h` at most `HX_MAX_HEIGHT_PX` (40000), with
+  `clipTop` absent (0) or non-negative and capped at `h`. `rect: null` withdraws the box.
+  The source check of section 6.4 applies as to every message.
+- **The parent draws a worded 44px pin** ("Note", "2 notes", "New note", never colour
+  alone) beside the box's top-right corner, kept inside the frame, for a field with an open
+  note; pressing it opens that note in the feedback list beside the worksheet. A field whose
+  notes are all resolved has no pin. **For an image field the parent falls back to the box
+  the document reported with `idea:image-box`**, so a picture field needs no second message.
+  A second `idea:ready` clears every field box, exactly as it clears the picture boxes.
+- **`idea:feedback` (parent to frame) is ADVISORY and carries field names only**: the sorted,
+  de-duplicated fields with an open note (`hxFeedbackMessage`), sent once the document is
+  ready (after the first `idea:state` and `idea:theme`) and again only when the set changes.
+  No word of any note, no author and no status crosses, and a surface that hands the frame
+  no notes sends nothing at all. A document may report boxes only for those fields and may
+  mark them itself; it must never wait on the message.
+- **The teacher's drawing is laid by the parent over the student's stored picture where the
+  portal draws it**: over the box reported with `idea:image-box`, or in the list under the
+  frame. The author's only job there is the existing picture-box reporting.
+- **Only the document can see a reflow, so the document re-sends** after every
+  `idea:state`, after a resize (debounced with a timeout, never from inside a
+  `ResizeObserver` callback) and after anything that moves a box (a fold opening, a stage
+  change). The reference reporter is `fieldBoxReporter()` in `src/routes/hx/_documents.ts`,
+  which relies on the bridge client's `send`; `IDEA_HTML_ASSIGNMENT_AUTHORING.md` section 10c
+  carries it for authors.
+- **A document that predates 1.8 works unchanged**: it sends no field boxes, and every note
+  is in the list beside the worksheet. The document's CSP does not move.
+- The `feedback` dev fixture (`/hx/feedback`, mounted by `/dev/progressive-feedback`) is the
+  instrument.
 
 **THE PORTAL SAYS WHICH THEME IT IS IN (1.3).** A sandboxed document cannot read the
 portal's `<html data-theme>` and has no storage to remember a choice, so without help it can
@@ -951,7 +996,7 @@ Plus two ceilings, each a REFUSAL and never a clamp or a truncation:
 **A DROP IS REPORTED, NEVER SILENT.** Every refusal comes back as
 `{ ok: false, reason, detail }` with `reason` drawn from a closed union (`origin`,
 `source`, `shape`, `type`, `schema`, `field`, `value`, `caption`, `height`, `video`,
-`image-box`). These are
+`image-box`, `field-box`). These are
 DISTINCT on purpose: "a message from somewhere else" and "a field this document does not
 declare" are different events, and a surface counting them wants to tell them apart.
 Silence would make a renamed field indistinguishable from a working one.
@@ -1457,6 +1502,13 @@ does.
   list), the drawn rectangle equal to the asked one before and after the console's own
   scroller moves, a hit test at the picture's centre, the Lightbox opening, and a part file
   drawn as a tile with a hit-tested 44px Download and no image element.
+- **`tests/html-assignment-field-box.test.ts`** -- 1.8's two messages on the real gate:
+  `idea:field-box` accepted for a declared field and as a withdrawal, refused for an
+  undeclared field, a block id, a prototype name, a bad rectangle and another window, each
+  beside its accepted case; `idea:feedback` sorted, de-duplicated and carrying no key a
+  note's words could ride in. **`tools/browser-verify/routes/progressive-feedback.mjs`** is
+  the browser half: the pins beside the boxes the `feedback` fixture reports, the drawing
+  inside its picture, and 44px keys.
 - **`tests/html-assignment-manifest.test.ts`** and **`tests/db/html-assignment-manifest.test.ts`**
   -- the TypeScript validator and 0195's SQL boundary, asserted against each other.
 - **`tests/html-assignment-manifest-parity.test.ts`** -- reads
@@ -1518,6 +1570,17 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
+- **1.8 (2026-10-14).** Ledger 0381, migration 0238 (progressive feedback, decision 60).
+  Section 6.1 gains `idea:field-box` (frame to parent: where an answer sits, the
+  `idea:image-box` shape judged by the same `hxBoxOf` rule, the field through the parent's
+  own map) and `idea:feedback` (parent to frame, advisory: the sorted field names with an
+  open note and nothing else, built by `hxFeedbackMessage`), and a paragraph saying what the
+  parent does with them: a worded 44px pin beside the box's top-right corner, the picture box
+  as an image field's fallback, the teacher's drawing laid over the stored picture where the
+  portal draws it, and every part of the conversation kept in parent chrome. Section 6.4's
+  drop reasons gain `field-box`; section 13 names the gate test and the browser route. A
+  document that predates it works unchanged. No CSP, sandbox, manifest or storage rule
+  changed.
 - **1.7 (2026-10-08).** Ledger 0373. `idea:video` carries an optional `start` in whole
   seconds, so a document plays a chaptered video from a step inside the assignment.
 - **1.6 (2026-10-07).** Ledger 0368, two of Mr. Pina's reports from grading on 2026-10-06.

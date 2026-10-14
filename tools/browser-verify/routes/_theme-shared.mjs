@@ -48,9 +48,10 @@ export const STEP_CELLS = 2;
  * 12 in each of them and the launcher renders 13 on this tree (the IdeaCAD
  * card landed after the specs were written), so all three reported a finding
  * on a surface this bundle never touched. Still an exact count, for the reason
- * BOARD_CELLS is one.
+ * BOARD_CELLS is one. 14 since the Armory card joined the launcher (ledger
+ * 0366); it read 13 until ledger 0381 measured 14 (12 for a student).
  */
-export const LAUNCHER_CARDS = 13;
+export const LAUNCHER_CARDS = 14;
 
 /** How many themes the picker lists; the profile menu renders one radio each. */
 export const THEME_ROWS = 3;
