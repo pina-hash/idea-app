@@ -45,7 +45,8 @@ export default {
 		{
 			selector: '[data-testid="foundry-sort-note"]',
 			label: 'Trending says what it counts',
-			must: ['Played more this week than the week before.'],
+			// Since ledger 0380 the rise counts this week's net votes too (decision 59).
+			must: ['Played more this week than the week before, plus the votes cast this week.'],
 			mustNot: ['Nothing is climbing']
 		}
 	],

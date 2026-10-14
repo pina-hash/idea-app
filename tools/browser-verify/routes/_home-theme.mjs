@@ -236,9 +236,11 @@ export const homeThemeSpec = (theme) => {
 			...(theme === 'space-white'
 				? [
 						{
-							label: 'one ink for every card: one title colour, one glyph colour, one edge colour, and no gradient strip',
+							// A COLOUR PER APP since decision 62 (ledger 0381): every title
+							// and glyph its own, one hairline edge, no gradient strip.
+							label: 'a colour for every card: as many title and glyph colours as cards, one edge colour, and no gradient strip',
 							evaluate: CARD_PALETTE,
-							expected: ['cards measured', 'title colours 1', 'glyph colours 1', 'edge colours 1', 'gradient strips 0']
+							expected: ['cards measured', `title colours ${STUDENT_CARDS}`, `glyph colours ${STUDENT_CARDS}`, 'edge colours 1', 'gradient strips 0']
 						}
 					]
 				: [

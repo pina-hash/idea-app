@@ -38,7 +38,8 @@ export default {
 	],
 	tapTargets: [
 		{ selector: '[data-testid="armory-people-option"]', label: 'search options', min: 44 },
-		{ selector: '[data-testid="armory-member-checkouts"]', label: '"n checked out" links', min: 44 },
 		{ selector: '[data-testid="armory-remove-member"]', label: 'Remove', min: 44 }
-	]
+	],
+	/* A line of text with a 44px reach by design (see armory-state-team.mjs). */
+	tapReach: [{ selector: '[data-testid="armory-member-checkouts"]', label: '"n checked out" links', min: 44 }]
 };

@@ -95,7 +95,9 @@ export default {
 				const running = marks.flatMap((m) => m.getAnimations({ subtree: true })).filter((a) => a.playState === 'running').length;
 				return ['marks ' + marks.length, 'still running ' + running];
 			}`,
-			expected: ['marks 12', 'still running 0']
+			// Every card's mark but FRC's, which is FIRST's image and is never
+			// animated: 13 of 14 since the Armory card (it read 12 until ledger 0381).
+			expected: [`marks ${LAUNCHER_CARDS - 1}`, 'still running 0']
 		}
 	],
 	/* `.bg-fx` is unthemed here: its own scanline lives on a ::after, which

@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.23 - 2026-10-13**
+**Version 1.24 - 2026-10-14**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -18,6 +18,10 @@ Mr. Pina receives must meet, what each kind of HTML (worksheet, walkthrough, ref
 tool, dashboard, deck, print, game) should look and behave like, and the persona audit run
 before delivery. This file owns the mechanics of a ported assignment; that one owns how it
 should read and feel. An assignment meets both.
+
+**A chat with no repository gets `IDEA_HTML_ASSIGNMENT_BRIEF.md`**: one self-contained file
+condensed from this one, the SPEC, the design directions and the template, with a tested
+bridge client and reporters to copy. A rule changed here changes there in the same turn.
 
 **THIS FILE UPDATES ITSELF, AND THAT IS MR. PINA'S STANDING INSTRUCTION OF 2026-09-30.**
 Any chat or session that builds or revises an HTML assignment adds every optimization, fix
@@ -468,6 +472,99 @@ addEventListener('resize', queueImageBoxes);
   following bar moving all change the DOM, so nothing has to remember to call it. Send only
   what changed. A file hand-in whose box holds its own Remove or Download keeps no box and
   stays in the list under the frame, because the portal's drawing would cover those keys.
+
+---
+
+## 10c. Reporting where each answer sits, so feedback can be pinned (0238)
+
+Ledger 0381 built progressive feedback (decision 60): an instructor leaves notes on a
+student's in-progress worksheet, on the whole worksheet or on one block, optionally with a
+drawing over one of the student's stored pictures; the student sees them live, replies and
+presses Fixed it; both sides see when the other has seen a note; and the instructor manages
+every note from one inbox page. **All of the conversation (the reply, Fixed it, Resolve) is
+parent chrome, never inside the document**, for the reason Submit is (section 4): a button
+inside the document is a handler the document wrote. **The document's only part is telling
+the portal where each answer sits.**
+
+- **The portal names the fields with a note.** `{ type: 'idea:feedback', fields: [...] }` is
+  ADVISORY: the sorted, de-duplicated field names with an open note, sent once the document
+  is ready (after the first `idea:state`) and again whenever the set changes. It carries no
+  word of any note, no author and no status. A document may report boxes only for those
+  fields and may mark them itself; it must never wait on it, because a page with no
+  feedback, and a portal that predates 0238, sends nothing.
+- **The document answers with `idea:field-box`**:
+  `{ type: 'idea:field-box', field, rect: { x, y, w, h } | null, clipTop? }`, exactly the
+  `idea:image-box` shape and rules (section 10b, `hxBoxOf`): four finite numbers in the
+  document's own CSS pixels from its top-left, scroll included; `x` and `y` at least 0, `w`
+  and `h` above 0, `x + w` at most 8000, `y + h` at most the 40,000px height ceiling;
+  `clipTop` absent (0), non-negative, capped at `h`. The field must be one the manifest
+  declares (it goes through the parent's own field-to-block map); a block id or an
+  undeclared field is dropped. `rect: null` withdraws the box.
+- **What the portal draws**: a worded 44px pin ("Note", "2 notes", "New note") beside the
+  box's top-right corner, kept inside the frame, for a field with an open note. Pressing it
+  opens that note in the list beside the worksheet. A field whose notes are all resolved has
+  no pin. A picture field may be reported with its picture box element, and with no field
+  box at all the portal falls back to the box reported with `idea:image-box`.
+- **Re-send after every `idea:state`, after a resize** (debounced with a timeout, never from
+  inside a `ResizeObserver` callback, section 7) **and after anything that moves a box** (a
+  fold opening, a stage change). Only the document can see its own layout move.
+- **Drawings need nothing new.** The teacher's drawing is laid by the parent over the
+  student's stored picture where the portal draws it: over the box reported with
+  `idea:image-box`, or in the list under the frame. The author's only job there is 10b.
+- **Put each field's `data-field` on the element a pin should sit beside.** The reporter
+  looks for `[data-image-box="<field>"]` first and `[data-field="<field>"]` second, so a
+  radio group's `data-field` goes on its `<fieldset>` and a table's on its visible wrapper.
+  A hidden store (section 10's table JSON) has no box, so its field gets no pin and its
+  notes stay in the list.
+- **Report in the read-only grading view too**: that is where a teacher writes the note, and
+  the reporter sends nothing a student typed.
+- **A document that predates this works unchanged**: every note is still in the list beside
+  the worksheet. Retrofitting is the reporter plus a re-upload with every block id unchanged.
+
+The reference reporter is `fieldBoxReporter()` in `src/routes/hx/_documents.ts`. Copy it
+verbatim; it relies on the bridge client's `send` (`function send(msg) {
+parent.postMessage(msg, '*'); }`):
+
+```js
+var NOTE_FIELDS = [];
+var REPORTED = {};
+function fieldBoxOf(field) {
+	var el = document.querySelector('[data-image-box="' + CSS.escape(field) + '"]') ||
+		document.querySelector('[data-field="' + CSS.escape(field) + '"]');
+	if (!el) return null;
+	var r = el.getBoundingClientRect();
+	if (!(r.width > 0 && r.height > 0)) return null;
+	return { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) };
+}
+function reportFieldBoxes() {
+	NOTE_FIELDS.forEach(function (field) {
+		REPORTED[field] = true;
+		send({ type: 'idea:field-box', field: field, rect: fieldBoxOf(field) });
+	});
+	Object.keys(REPORTED).forEach(function (field) {
+		if (NOTE_FIELDS.indexOf(field) >= 0) return;
+		delete REPORTED[field];
+		send({ type: 'idea:field-box', field: field, rect: null });
+	});
+}
+addEventListener('message', function (e) {
+	var d = e.data;
+	if (!d || typeof d !== 'object') return;
+	if (d.type === 'idea:feedback' && Array.isArray(d.fields)) {
+		NOTE_FIELDS = d.fields.filter(function (f) { return typeof f === 'string'; });
+		reportFieldBoxes();
+	}
+	if (d.type === 'idea:state') setTimeout(reportFieldBoxes, 0);
+});
+var fieldBoxTimer = 0;
+addEventListener('resize', function () {
+	clearTimeout(fieldBoxTimer);
+	fieldBoxTimer = setTimeout(reportFieldBoxes, 100);
+});
+```
+
+`IDEA_HTML_ASSIGNMENT_BRIEF.md` section 6 carries it beside a bridge client that also calls
+it after every fold, tested together in Chromium against the real gate.
 
 ---
 
@@ -961,6 +1058,13 @@ right or wrong with one change, a slide in the class deck) and adds four rules.
 
 ## Changelog
 
+- **1.24 (2026-10-14).** Ledger 0381, migration 0238. New section 10c: the document reports
+  each answer's box with `idea:field-box` so the portal pins a teacher's note beside it,
+  answering the advisory `idea:feedback` (field names only, never waited on), with the
+  rectangle rules of 10b, the pin the portal draws, when to re-send, why a radio group's or a
+  table's `data-field` sits on its visible wrapper, and the verbatim reference reporter. All
+  of the conversation stays parent chrome. The header points a chat with no repository at the
+  new `IDEA_HTML_ASSIGNMENT_BRIEF.md`.
 - **1.23 (2026-10-13).** Ledger 0379. Section 19: arrival opens today's stage. New section 20:
   the results stage after an event (outcome-driven questions, conditional blocks optional in
   the manifest, the earlier call worked out beside the result, one external tool opened once
