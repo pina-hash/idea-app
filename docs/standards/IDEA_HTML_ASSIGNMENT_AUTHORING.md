@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.22 - 2026-10-12**
+**Version 1.23 - 2026-10-13**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -911,8 +911,7 @@ wrong control. The rules that replaced them:
   name, the class and points, a progress chip ("2 of 5 done"), and the word Show or Hide
   with a chevron. Pressing it opens or closes the whole stage. No other fold key exists.
 - **One stage open at a time while a student works.** Opening a stage closes the others,
-  and the page lands on that banner. Arrival opens the first stage not done, or the last
-  stage once everything is in. Read only (a teacher grading) opens every stage and keeps
+  and the page lands on that banner. Arrival opens TODAY'S stage (one constant, `TODAY_STAGE`), because that is where the class is working; an earlier stage still owed says so on its banner, its stage key and Next to do. (1.22 opened the first stage not done, which sent a student missing one field from an earlier stage away from the day's work.) Read only (a teacher grading) opens every stage and keeps
   them independent. A stage that has not opened yet is a locked banner, "Opens after the
   tournament", not a button.
 - **The following bar says where you are, in words.** Left: "You are here" over
@@ -935,10 +934,37 @@ wrong control. The rules that replaced them:
   checks the video sits on screen under the bar at full width, and reloads to check the
   arrival stage.
 
+## 20. The results stage, after the event (2026-10-13)
+
+Hook 03's Stage 4 ("What happened") is the pattern for any stage written after a tournament,
+a test day or a launch. It keeps Rotation 1's Failure Analysis shape (the result, a photo,
+right or wrong with one change, a slide in the class deck) and adds four rules.
+
+- **The first pick decides what else is asked.** A radio of outcomes ("Broke in a match",
+  "Won, then broke", "Never broke", "Never pulled") shows a load only for a part that was
+  tested and a spot only for one that broke. Nobody is asked for something that did not
+  happen to them, and the label of the load field changes with the outcome (the reading when
+  it broke, or the highest reading it survived).
+- **A conditional field is `optional: true` in the manifest, and the document judges it.**
+  The portal counts every non-optional block toward Complete, so a required spot would leave
+  a "Never broke" student Missing forever. The move's own done-check enforces the condition.
+- **Put the earlier prediction beside the result, worked out in words.** A panel reads the
+  Stage 3 call and the result and states the comparison ("35 lb less than your call (16%)",
+  "Not the spot you called"), so the sentence a student writes compares two things already on
+  screen. Right or wrong scores the same; the rubric grades saying it plainly.
+- **An external tool the work must happen in opens in a new tab, once, and says so.** A shared
+  Google Slides deck cannot be edited inside the frame, so it is one worded key ("Open the IDEA
+  Hook Designs deck, Google Slides, new tab"), and the evidence comes back as a pasted
+  screenshot of the slide, never an "I did it" checkbox.
+
 ---
 
 ## Changelog
 
+- **1.23 (2026-10-13).** Ledger 0379. Section 19: arrival opens today's stage. New section 20:
+  the results stage after an event (outcome-driven questions, conditional blocks optional in
+  the manifest, the earlier call worked out beside the result, one external tool opened once
+  with a screenshot as evidence). From building Hook 03 Stage 4.
 - **1.22 (2026-10-12).** Ledger 0378. Section 18: the chapter player's video takes the
   full width with Back a step and Next step under it. New section 19: the stage banner is
   the fold control, one stage open at a time, and a following bar that says where you are,
