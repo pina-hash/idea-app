@@ -68,6 +68,7 @@
 		coverUrl = (path: string) => path,
 		plays = '',
 		major = false,
+		blurb = '',
 		onselect
 	}: {
 		app: FoundryCardApp;
@@ -89,11 +90,22 @@
 		 * its cards without one, because its heading already says it.
 		 */
 		major?: boolean;
+		/**
+		 * A SHORT LINE UNDER THE NAME, the caller's choice like `plays`: the
+		 * gallery's Major releases section hands over the card's description
+		 * (an admin's override, else the app's own tagline), and every other
+		 * surface hands over nothing, so a card elsewhere is still only its
+		 * picture. Text only, clamped to two lines; the link's description
+		 * (`aria-describedby`) carries it, since the label overrides the contents.
+		 */
+		blurb?: string;
 		/** Absent means the link simply navigates, which is what a preview wants. */
 		onselect?: (slug: string) => void;
 	} = $props();
 
 	const src = $derived(app.cover_path ? coverUrl(app.cover_path) : null);
+	const uid = $props.id();
+	const line = $derived(blurb.trim());
 
 	/**
 	 * `made` IS "THIS CARD PAINTS A GENERATED COVER", WHICH IS NARROWER THAN
@@ -140,6 +152,7 @@
 	data-fdy-card
 	data-testid="fdy-card"
 	aria-label={label}
+	aria-describedby={line ? `${uid}-blurb` : undefined}
 	style={made ? `--fdy-hue: ${foundryGeneratedHue(app.id)}` : undefined}
 	onclick={(e) => {
 		if (!onselect) return;
@@ -193,7 +206,7 @@
 		</span>
 	{/if}
 
-	{#if !made || plays}
+	{#if !made || plays || line}
 		<!--
 			THE NAME PLATE. Permanent everywhere EXCEPT a wide viewport on a
 			device that can hover, where it is the hover popup instead.
@@ -211,6 +224,7 @@
 			class="fdy-card-name"
 			class:count-only={made}
 			class:has-count={!!plays}
+			class:has-blurb={!!line}
 			data-testid="fdy-card-name"
 		>
 			{#if !made}
@@ -218,6 +232,9 @@
 			{/if}
 			{#if plays}
 				<span class="fdy-card-plays" data-testid="fdy-card-plays">{plays}</span>
+			{/if}
+			{#if line}
+				<span class="fdy-card-blurb" id="{uid}-blurb" data-testid="fdy-card-blurb">{line}</span>
 			{/if}
 		</span>
 	{/if}
@@ -422,6 +439,26 @@
 		color: var(--fdy-cover-ink-2);
 	}
 
+	/*
+	   THE DESCRIPTION LINE, under the name and its figure. The full ink, not
+	   the secondary tier: it sits higher on the scrim than the bottom line, where
+	   the scrim is thinner over an arbitrary picture. Two lines at most, so a
+	   long description never climbs over the picture it describes.
+	*/
+	.fdy-card-blurb {
+		flex: 1 1 100%;
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		overflow: hidden;
+		font-family: var(--font-display);
+		font-size: 0.82rem;
+		line-height: 1.3;
+		color: var(--fdy-cover-ink);
+		overflow-wrap: anywhere;
+	}
+
 	.fdy-card-major {
 		position: absolute;
 		top: 0.5rem;
@@ -446,9 +483,12 @@
 		   the opening order, so the exempt state is now the ordinary one. The
 		   rule is unchanged -- a plate carrying a count is exempt because
 		   somebody asked to see a ranking -- and only the sentence about which
-		   state is usual was made false.)
+		   state is usual was made false.) A plate carrying a description is
+		   exempt for the same reason: the Major releases section asked to show
+		   it, and a description behind a hover is one a desktop reader never
+		   meets.
 		*/
-		.fdy-card-name:not(.has-count) {
+		.fdy-card-name:not(.has-count):not(.has-blurb) {
 			opacity: 0;
 		}
 

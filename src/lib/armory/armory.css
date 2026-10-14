@@ -1138,10 +1138,14 @@ span.ar-person-out {
 	/* "N checked out" is a line of text with a 44px REACH rather than a 44px
 	   box, so a person with checkouts costs one line and not three: the hit
 	   area grows over the lines above and below it, which hold no controls. */
+	/* `justify-self: start` keeps the link (and its reach) the width of its
+	   words: stretched across both columns, the reach covered the bottom of a
+	   "Needs the new Armory" link in the computers column (report 2026-10). */
 	.ar-person-main > a.ar-person-out {
 		position: relative;
 		min-height: 0;
 		align-self: start;
+		justify-self: start;
 	}
 	.ar-person-main > a.ar-person-out::after {
 		content: '';
@@ -1158,6 +1162,37 @@ span.ar-person-out {
 	}
 	.ar-person > .ar-member-actions {
 		grid-column: 2;
+	}
+}
+/* A LONG TEAM IS TWO COLUMNS ON A WIDE WINDOW (report "Team list can be more
+   space efficient", 2026-10): one person per full-width row left most of a
+   1216px view empty beside short names. Each card keeps the two-line person
+   arrangement above, and its controls drop under it, because a role picker,
+   "Change to" and Remove side by side need more than half the view. The
+   controls' top margin keeps them clear of the "N checked out" reach, which
+   hangs 12px below its line. The view is 76rem at 1440, so this fires there. */
+@container ar-view (min-width: 72rem) {
+	.ar-team {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		column-gap: 1.5rem;
+	}
+	/* The etched line divides rows; the second card of the first row has none above it. */
+	.ar-team > li:nth-child(2) {
+		border-top: 0;
+	}
+	/* A card beside a taller one keeps its lines at the top, not spread down it. */
+	.ar-person {
+		grid-template-columns: 40px minmax(0, 1fr);
+		align-content: start;
+	}
+	.ar-person > .ar-member-actions {
+		grid-column: 2;
+		flex-wrap: wrap;
+		margin-top: 0.5rem;
+	}
+	.ar-person > .ar-member-actions:not(:has(> *)) {
+		display: none;
 	}
 }
 .ar-member-email {

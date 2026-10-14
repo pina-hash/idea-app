@@ -31,6 +31,8 @@ import {
 	permissionLine,
 	resolveLedger,
 	appliesUnderLedger,
+	budgetAllows,
+	migrationBudget,
 	appliedRecordPath,
 	renderAppliedRecord,
 	writeAppliedRecord,
@@ -307,6 +309,40 @@ describe('B2 control 2: an entry permitting one allows exactly one', () => {
 		} finally {
 			rmSync(ledgerDir, { recursive: true, force: true });
 			rmSync(appliedDir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('B2 control 2b: an entry claiming several applies each of them once, and no other (2026-10-14)', () => {
+	it('allows every claimed number, refuses an unclaimed one, and refuses past the claim', () => {
+		const perm = { numbers: ['0238', '0239'] };
+		expect(migrationBudget(perm)).toBe(2);
+		expect(budgetAllows(perm, [], '0238')).toEqual({ ok: true });
+		expect(budgetAllows(perm, ['0238-a-bundle.md'], '0239')).toEqual({ ok: true });
+		// A number the explicit list does not name is a migration nobody claimed.
+		expect(budgetAllows(perm, [], '0240').ok).toBe(false);
+		// The same number twice is refused even with room left.
+		expect(budgetAllows(perm, ['0238-a-bundle.md'], '0238').ok).toBe(false);
+		// Past the claim, refused.
+		expect(budgetAllows(perm, ['0238-a-bundle.md', '0239-a-bundle.md'], '0239').ok).toBe(false);
+		// An entry naming one number, or none, still permits exactly one, and a
+		// different number only warns (the legacy shape: numbers go stale).
+		expect(migrationBudget({ numbers: ['0185'] })).toBe(1);
+		expect(migrationBudget({ numbers: [] })).toBe(1);
+		expect(budgetAllows({ numbers: ['0185'] }, [], '0186')).toEqual({ ok: true });
+		expect(budgetAllows({ numbers: [] }, ['0185-a.md'], '0186').ok).toBe(false);
+	});
+
+	it('reads a two-number Claims line off a real entry shape', () => {
+		const dir = scratch();
+		try {
+			writeFileSync(join(dir, '0098-two.md'), '# 0098 A bundle\n- Migration permitted: yes. Claims: 0238, 0239\n');
+			const v = resolveLedger('0098', dir);
+			expect(v.ok).toBe(true);
+			if (!v.ok) throw new Error('unreachable');
+			expect(v.numbers).toEqual(['0238', '0239']);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 });
@@ -739,7 +775,7 @@ describe('the real CLI, end to end: gate, apply, record', () => {
 			// THE SECOND RUN, same ledger: refused on the trace this one just wrote.
 			const again = cli(['0041', '--since', SINCE, '--ref', PROBE_REF, '--ledger', ledgerId]);
 			expect(again.status).toBe(2);
-			expect(again.stdout).toMatch(/has already applied a migration/);
+			expect(again.stdout).toMatch(/has already applied 1 of the 1 migration it claims/);
 			expect(again.stdout).toMatch(/no connection was opened/);
 		} finally {
 			// This test writes into the REAL directory, because that is the path

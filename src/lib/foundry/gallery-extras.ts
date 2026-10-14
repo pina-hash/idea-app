@@ -32,6 +32,8 @@ import type { FoundryHouseRelease } from './major.ts';
 export const FOUNDRY_FEATURED_TITLE = 'Featured';
 export const FOUNDRY_FEATURED_NOTE =
 	'Picked by IDEA staff, with the most played and most talked about filling any space left over.';
+/** The row's note when nobody has picked anything: every card is earned from the boards. */
+export const FOUNDRY_FEATURED_FILL_NOTE = 'The most played games, and the ones climbing fastest this week.';
 export const FOUNDRY_COLLECTIONS_TITLE = 'Collections';
 export const FOUNDRY_COLLECTIONS_NOTE = 'Sets of games picked out by IDEA staff. Open one to see what is in it.';
 export const FOUNDRY_GALLERY_ADMIN_NOT_READY =
@@ -183,9 +185,13 @@ export function resolveSubjects<A extends { id: string }>(
  * Most played and Trending alternately (a game people are playing, then a game
  * that is climbing), skipping what is already in the row.
  *
- * WITH NO PICKS THE ROW IS EMPTY, NOT ALL FILL. A row drawn from the
- * leaderboards alone would repeat the top of the list directly under the major
- * releases, so a gallery nobody has curated renders exactly as it did.
+ * WITH NO PICKS THE ROW IS ALL FILL (2026-10, a student's report: "best games
+ * either handpicked, or at the tops of the leaderboards"). This used to answer
+ * [] with no picks, so a gallery nobody had curated showed students no row at
+ * all; that changes decision 59's default. What still draws nothing is a
+ * gallery with no signal: the fill skips every app with no plays and no votes,
+ * so a gallery nobody has played renders exactly as it did. The note beside
+ * the row says which kind it is (`foundryFeaturedNote`).
  */
 export function foundryFeaturedRow<A extends { id: string; created_at?: string | null; version_count?: number | null }>(
 	picks: readonly string[],
@@ -195,7 +201,6 @@ export function foundryFeaturedRow<A extends { id: string; created_at?: string |
 	slots = FOUNDRY_FEATURED_SLOTS
 ): FoundryResolved<A>[] {
 	const chosen = resolveSubjects(picks, apps, houses);
-	if (chosen.length === 0) return [];
 	const row = chosen.slice(0, Math.max(slots, chosen.length));
 	if (row.length >= slots) return row;
 	const have = new Set(row.map((r) => r.subject));
@@ -216,6 +221,19 @@ export function foundryFeaturedRow<A extends { id: string; created_at?: string |
 		}
 	}
 	return row;
+}
+
+/**
+ * The sentence under the Featured heading: "picked by IDEA staff" only while a
+ * pick is actually on the gallery, because a row that is all fill was picked
+ * by nobody.
+ */
+export function foundryFeaturedNote<A extends { id: string }>(
+	picks: readonly string[],
+	apps: readonly A[],
+	houses: readonly FoundryHouseRelease[]
+): string {
+	return resolveSubjects(picks, apps, houses).length > 0 ? FOUNDRY_FEATURED_NOTE : FOUNDRY_FEATURED_FILL_NOTE;
 }
 
 /** What pressing up or down does to a vote already held: the same direction takes it back. */

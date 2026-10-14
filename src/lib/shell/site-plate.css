@@ -121,6 +121,31 @@ body:has(.site-plate) {
 	flex: 1 1 24rem;
 }
 
+/* --- A tournament's masthead is centred with its title bar. ---------------
+   The plate centres a hero's words and draws its `h1` as a title bar, but the
+   tournament pages lay the rest of the masthead out as their own rows: the
+   event page puts the bar and the LIVE chip in one flex row, the rail under it
+   at a 44rem cap, and the TV mode and Host console keys in an action row, and
+   the board puts New tournament in one. Each of those stayed at the left
+   under a centred kicker (Mr. Pina, 823px, Space White). So here the bar takes
+   its whole row, as every plate title bar does, the chip is centred on the line
+   under it, and the rail and the keys are centred too. Layout only, and keyed
+   on `.site-plate`, so `SITE_PLATE = ''` restores the left-aligned scoreboard
+   masthead. (0,5,0)+, to beat the page's scoped rules. */
+:root .site-plate .tnm-root .hero .title-row {
+	justify-content: center;
+	row-gap: 0.6rem;
+}
+:root .site-plate .tnm-root .hero .title-row h1 {
+	flex: 1 1 100%;
+}
+:root .site-plate .tnm-root .hero .rail-row {
+	margin-inline: auto;
+}
+:root .site-plate .tnm-root .hero .tnm-actions {
+	justify-content: center;
+}
+
 /* --- An empty block draws nothing. ------------------------------------------
    Foundry's play-stats block is a panel whose component renders nothing until
    it has figures; as a plate panel the empty box read as a stray bar. */

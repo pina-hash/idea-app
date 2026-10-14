@@ -52,18 +52,27 @@ export class ForceCheckIn {
 
 export type BulkForceOutcome = ({ ok: true } & BulkTally) | { ok: false; message: string };
 
+/** One spelling of "this set of files", whatever order or repeats it arrives in. */
+export function bulkArmKey(ids: readonly string[]): string {
+	return [...new Set(ids)].sort().join('\n');
+}
+
 /**
  * FORCE CHECK IN, MANY AT ONCE (ledger 0380, report f62ce574). The same
  * "press once to arm, again to act" as the single key, over a SELECTION, and
  * the same `armory_break_lock` rule per file through `armory_break_locks`.
  * Any change to the selection disarms, because the second press must act on
- * exactly the count the first one said. Files that were refused stay ticked,
- * so pressing again retries those and nothing else.
+ * exactly the files the first one named. The arming is the SET, not its count:
+ * keyed on the count, a filter that swapped the files shown for as many others
+ * kept the key armed, and the next press checked in files nobody had been
+ * warned about. A set the arming does not name reads unarmed (`armedFor`) and
+ * a press on it arms afresh. Files that were refused stay ticked, so pressing
+ * again retries those and nothing else.
  */
 export class BulkForceCheckIn {
 	selected = $state<Set<string>>(new Set());
-	/** The count the first press armed, or null. */
-	armed = $state<number | null>(null);
+	/** The exact set the first press armed (`bulkArmKey`), or null. */
+	armed = $state<string | null>(null);
 	busy = $state(false);
 	message = $state('');
 	bad = $state(false);
@@ -91,11 +100,16 @@ export class BulkForceCheckIn {
 		this.set([]);
 	}
 
+	/** Whether the first press armed exactly these files. */
+	armedFor(ids: readonly string[]): boolean {
+		return ids.length > 0 && this.armed === bulkArmKey(ids);
+	}
+
 	/** `ids` is what the surface shows ticked now (the selection intersected with the view). */
 	async press(ids: string[]): Promise<void> {
 		if (this.busy || ids.length === 0) return;
-		if (this.armed !== ids.length) {
-			this.armed = ids.length;
+		if (!this.armedFor(ids)) {
+			this.armed = bulkArmKey(ids);
 			this.message = '';
 			return;
 		}

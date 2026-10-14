@@ -19,6 +19,11 @@
 	 *
 	 * THE CARD IS THE GENERATED-COVER SHAPE, 3:2, so it sits in the section's
 	 * multicol mosaic beside student covers without a rule of its own.
+	 *
+	 * IT SHOWS ITS DESCRIPTION, two lines at most, under the title: the
+	 * registry's own line, or the one an admin set on /foundry/review/gallery
+	 * (`applyHouseOverride` has already chosen). Until that was drawn, an
+	 * admin's saved description changed nothing anybody could see.
 	 */
 	import type { Component } from 'svelte';
 	import GreenlineMark from '$lib/marks/GreenlineMark.svelte';
@@ -49,6 +54,8 @@
 		thumbUrl?: string | null;
 	} = $props();
 	const Mark = $derived(HOUSE_MARKS[release.id]);
+	const uid = $props.id();
+	const sub = $derived((release.sub ?? '').trim());
 	// A picture that does not decode falls back to the drawn mark, never a hole.
 	let failedUrl = $state<string | null>(null);
 	const picture = $derived(thumbUrl && failedUrl !== thumbUrl ? thumbUrl : null);
@@ -63,9 +70,11 @@
 	class="fdy-house"
 	href={release.href}
 	class:has-img={picture !== null}
+	class:has-sub={sub !== ''}
 	data-testid="fdy-house-card"
 	data-portal-app={release.id}
 	aria-label="{release.title}, an IDEA original game"
+	aria-describedby={sub ? `${uid}-sub` : undefined}
 >
 	<span class="fdy-house-art" aria-hidden="true">
 		{#if picture}
@@ -84,7 +93,12 @@
 				<Mark once />
 			</span>
 		{/if}
-		<span class="fdy-house-title">{release.title}</span>
+		<span class="fdy-house-words">
+			<span class="fdy-house-title">{release.title}</span>
+			{#if sub}
+				<span class="fdy-house-sub" id="{uid}-sub" data-testid="fdy-house-sub">{sub}</span>
+			{/if}
+		</span>
 	</span>
 	<span class="fdy-house-plate" data-testid="fdy-house-kicker">{FOUNDRY_HOUSE_KICKER}</span>
 </a>
@@ -170,12 +184,16 @@
 		justify-content: flex-end;
 		align-items: flex-start;
 	}
-	.fdy-house.has-img .fdy-house-title {
+	.fdy-house.has-img .fdy-house-words {
 		position: relative;
 		z-index: 1;
-		text-align: left;
+		align-items: flex-start;
 		padding: 0 0 0.9rem;
 		text-shadow: 0 1px 3px rgba(6, 5, 4, 0.9);
+	}
+	.fdy-house.has-img .fdy-house-title,
+	.fdy-house.has-img .fdy-house-sub {
+		text-align: left;
 	}
 	.fdy-house.has-img .fdy-house-art::after {
 		content: '';
@@ -190,6 +208,41 @@
 		width: clamp(2.5rem, 22cqw, 4.5rem);
 		height: clamp(2.5rem, 22cqw, 4.5rem);
 		color: var(--fdy-house-ink);
+	}
+
+	/* With a description under the title the mark gives up some height, so a
+	   240px card (the mosaic's narrowest column) still holds mark, title and
+	   two lines above the kicker plate. */
+	.fdy-house.has-sub .fdy-house-art {
+		gap: 0.35rem;
+		padding-top: 0.75rem;
+	}
+	.fdy-house.has-sub .fdy-house-mark {
+		width: clamp(1.75rem, 14cqw, 3.5rem);
+		height: clamp(1.75rem, 14cqw, 3.5rem);
+	}
+
+	.fdy-house-words {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.2rem;
+		max-width: 100%;
+	}
+
+	/* Two lines at most, on the same pinned ink as the title. */
+	.fdy-house-sub {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		overflow: hidden;
+		font-family: var(--font-display);
+		font-size: 0.82rem;
+		line-height: 1.3;
+		text-align: center;
+		color: var(--fdy-house-ink);
+		overflow-wrap: anywhere;
 	}
 
 	.fdy-house-title {

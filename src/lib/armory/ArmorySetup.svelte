@@ -69,7 +69,7 @@
 				</div>
 			{:else}
 				<div class="ar-row-actions">
-					<a class="btn ar-btn" href="/armory/get" data-testid="armory-get-app">
+					<a class="btn ar-btn" href="/armory/get" data-sveltekit-reload data-testid="armory-get-app">
 						Get the Windows app
 					</a>
 					<span class="ar-message ar-inline">

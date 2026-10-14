@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.32 - 2026-09-27**
+**Version 4.33 - 2026-10-14**
 
 ## These Instructions Evolve
 
@@ -1494,9 +1494,10 @@ reports. A parallel-lane prompt ends:**
 > change. Push the branch. Never force-push. Do not attempt to delete a remote branch; a
 > cloud session cannot. Report the Vercel preview URL and the exact checks to run on it.
 >
-> **If this bundle carries a migration, apply it with
-> `node tools/apply-migration.mjs <number>` and by no other route.** Never
-> `supabase db push`, never a second file, never SQL pasted through anything else. Report
+> **If this bundle carries migrations, apply them with
+> `node tools/apply-migration.mjs <number>`, one named file per run, lowest first, and by
+> no other route.** Never `supabase db push`, never a range, never SQL pasted through
+> anything else. Report
 > the per-object verification and every notice it printed, in order. If
 > `IDEA_MIGRATION_URL` is unset, or the tool refuses, name the refusal and stop.
 >
@@ -1504,8 +1505,12 @@ reports. A parallel-lane prompt ends:**
 > `Migration permitted:` line before you write one. An entry beginning `no` is a bundle
 > that was not asked for a migration, and that is not yours to change: the entry is the
 > router chat's. The tool works out which entry is yours from the one your branch adds;
-> `--ledger <nnnn>` names it when it cannot tell. It permits AT MOST ONE, counted across
-> runs, so a second migration is a second bundle.
+> `--ledger <nnnn>` names it when it cannot tell. **A bundle may carry as many migrations as
+> its work needs**: name every one in the entry's `Claims:` list (`Claims: 0238, 0239`)
+> before you write it, and the tool applies each claimed number once, refuses a number the
+> list does not name, and counts across runs. An entry that names one number, or none,
+> still permits one. Split work into several migrations when a part could fail or be
+> undone on its own, never to satisfy a count.
 >
 > **A successful apply writes `docs/migrations-applied/<nnnn>-<branch slug>.md`, and you
 > commit it with your work.** It is the only record that the database was touched at all,
@@ -3132,6 +3137,18 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-10-14 (4.33)** - A BUNDLE MAY CARRY SEVERAL MIGRATIONS. Mr. Pina, 2026-10-14:
+  "there might be some stupid rule that you're only allowed to write one migration per
+  prompt ... remove it". The lane ending's "It permits AT MOST ONE, counted across runs, so
+  a second migration is a second bundle" is replaced: an entry claims every migration it
+  will write in its `Claims:` list, and `tools/apply-migration.mjs` applies each claimed
+  number once (`migrationBudget`, `budgetAllows`), refuses an unclaimed number when the
+  list names several, and still permits exactly one for an entry that names one or none.
+  `migrate.yml` starts itself again after a clean apply, so several migrations from one
+  merge are applied in order without a person pressing anything. What the old rule
+  protected is kept: a migration nobody claimed in writing still cannot be applied. Base
+  4.32 at `origin/main` `c138b754`.
 
 - **2026-09-27 (4.32)** - A FACT ONLY MR. PINA HOLDS IS CHECKED BY ASKING HIM. New bullet
   under Communication Style after "Never guess a fact that can be checked", from three

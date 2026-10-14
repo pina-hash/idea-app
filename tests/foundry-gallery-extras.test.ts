@@ -6,8 +6,9 @@
 //   - an override replacing a field it should leave alone, or the app's own
 //     record being the thing changed;
 //   - a collection or a pick drawing an app the gallery does not hold;
-//   - the featured row repeating the top of the leaderboards when nobody has
-//     picked anything, or filling with apps nobody has played;
+//   - the featured row filling with apps nobody has played, or saying it was
+//     picked by staff when nothing was (with no picks it is the top of the
+//     boards since 2026-10; it used to be absent);
 //   - a vote sum that drifts from what the server returns;
 //   - "Most liked" and Trending ranking on something other than votes.
 
@@ -19,8 +20,11 @@ import {
 	applyAppOverride,
 	applyHouseOverride,
 	foundryCollections,
+	foundryFeaturedNote,
 	foundryFeaturedRow,
 	foundryOverrideMap,
+	FOUNDRY_FEATURED_FILL_NOTE,
+	FOUNDRY_FEATURED_NOTE,
 	houseSubject,
 	netAfterVote,
 	nextVote,
@@ -121,9 +125,34 @@ describe('the featured row', () => {
 		e: { plays: 0, plays7d: 0, playsPrev7d: 0 }
 	};
 
-	test('with no picks there is no row, not a copy of the leaderboards', () => {
-		expect(foundryFeaturedRow([], APPS, HOUSES, counts)).toEqual([]);
-		expect(foundryFeaturedRow([appSubject('zzz')], APPS, HOUSES, counts)).toEqual([]);
+	test('with no picks the row is the top of the boards, alternating played and trending (2026-10)', () => {
+		// This answered [] until a student asked for "best games either
+		// handpicked, or at the tops of the leaderboards".
+		const ids = foundryFeaturedRow([], APPS, HOUSES, counts).map((r) => r.subject);
+		// Best played a, best climbing b, then c and d by plays; e has no plays.
+		expect(ids).toEqual([appSubject('a'), appSubject('b'), appSubject('c'), appSubject('d')]);
+		// A pick the gallery does not hold is no pick: the same fill.
+		expect(foundryFeaturedRow([appSubject('zzz')], APPS, HOUSES, counts).map((r) => r.subject)).toEqual(ids);
+	});
+
+	test('with no picks and nothing played or voted on there is still no row', () => {
+		const flat: FoundryPlayCounts = { a: { plays: 0, plays7d: 0, playsPrev7d: 0 }, b: { plays: 0, plays7d: 0, playsPrev7d: 0, netVotes: 0 } };
+		expect(foundryFeaturedRow([], APPS, HOUSES, flat)).toEqual([]);
+		expect(foundryFeaturedRow([], APPS, HOUSES, {})).toEqual([]);
+		// A net-negative vote is not a signal either.
+		expect(foundryFeaturedRow([], APPS, HOUSES, { c: { plays: 0, plays7d: 0, playsPrev7d: 0, netVotes: -2 } })).toEqual([]);
+		// One vote up is: the positive control for the same shape.
+		expect(
+			foundryFeaturedRow([], APPS, HOUSES, { c: { plays: 0, plays7d: 0, playsPrev7d: 0, netVotes: 1 } }).map((r) => r.subject)
+		).toEqual([appSubject('c')]);
+	});
+
+	test('the note says "picked by IDEA staff" only while a pick is on the gallery', () => {
+		expect(foundryFeaturedNote([appSubject('e')], APPS, HOUSES)).toBe(FOUNDRY_FEATURED_NOTE);
+		expect(foundryFeaturedNote([houseSubject('greenline')], APPS, HOUSES)).toBe(FOUNDRY_FEATURED_NOTE);
+		expect(foundryFeaturedNote([], APPS, HOUSES)).toBe(FOUNDRY_FEATURED_FILL_NOTE);
+		expect(foundryFeaturedNote([appSubject('zzz')], APPS, HOUSES)).toBe(FOUNDRY_FEATURED_FILL_NOTE);
+		expect(FOUNDRY_FEATURED_FILL_NOTE).not.toMatch(/picked|staff/i);
 	});
 
 	test('picks come first in their order, then the fill alternates played and trending', () => {

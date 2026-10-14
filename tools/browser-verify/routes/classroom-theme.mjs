@@ -82,11 +82,11 @@ export default {
 		{ selector: '[data-testid="class-theme-count"]', label: 'a count on its key', min: 4.5 },
 		{ selector: '[data-testid="class-theme-mine"]', label: 'Your vote, on a lit key', min: 4.5 }
 	],
-	/* THE PATTERN MOVES, AND ONLY WHEN MOTION IS WANTED (ledger 0360, R21):
-	   the arrival drift on the pattern's own layer, gone entirely under
-	   `reduce`, where the layer is the still frame. */
+	/* THE PATTERN MOVES, AND ONLY WHEN MOTION IS WANTED (ledger 0360, R21;
+	   decision 61): a continuous flow on the pattern's own layer, gone
+	   entirely under `reduce`, where the layer is the still frame. */
 	motion: [
-		{ selector: '[data-testid="class-banner-pattern"]', label: 'the pattern drift, gated behind no-preference', expect: 'gated' }
+		{ selector: '[data-testid="class-banner-pattern"]', label: 'the pattern flow, gated behind no-preference', expect: 'gated' }
 	],
 	tapTargets: [
 		{ selector: '[data-testid="class-theme-toggle"]', label: 'Class theme', min: 44 },

@@ -1,25 +1,23 @@
 /**
- * THE STRIPES PATTERN MOVES AND NEVER UNCOVERS ITS BOX (ledger 0360, report R21),
- * at 375 and 1440: the arrival drift is gated behind no-preference, and at every
- * tenth of it the moving layer still covers the whole banner. Since ledger 0368
- * the hover loop is its own paused layer and is sampled at its start, middle
- * and end against every tenth of the arrival.
+ * THE STRIPES PATTERN FLOWS CONTINUOUSLY (decision 61, 2026-10-14), at 375
+ * and 1440: one infinite loop of exactly one period, phase-locked to the clock,
+ * gated behind no-preference, with no transform and nothing that can uncover
+ * the banner.
  */
-import { COVERS, COVERS_MARGIN, IGNORE, LOOP_PAUSED, READY } from './_class-header.mjs';
+import { FLOW, IGNORE, READY } from './_class-header.mjs';
 
 export default {
 	path: '/dev/class-header?pattern=stripes',
-	label: 'Class pattern, stripes: a bounded drift that covers the banner at every frame',
+	label: 'Class pattern, stripes: a continuous seamless flow, still under reduce',
 	ignoreConsole: IGNORE,
-	prepare: [{ waitFor: READY, label: 'the header has painted' }, { evaluate: COVERS_MARGIN }],
+	prepare: [{ waitFor: READY, label: 'the header has painted' }],
 	presence: [{ selector: '.ct-banner[data-pattern="stripes"] [data-testid="class-banner-pattern"]', label: 'the stripes layer', expectPresent: 1, maxPresent: 1 }],
-	motion: [{ selector: '[data-testid="class-banner-pattern"]', label: 'the stripes drift, gated behind no-preference', expect: 'gated' }],
+	motion: [{ selector: '[data-testid="class-banner-pattern"]', label: 'the stripes flow, gated behind no-preference', expect: 'gated' }],
 	orderResult: [
-		{ label: 'the moving layers cover the banner at every tenth of the drift, with the hover loop at its start, middle and end', evaluate: COVERS, expected: ['animated=true', 'moved=true', 'covered=true'] },
 		{
-			label: 'the hover loop is attached and paused, and a hover only lets it run (never swaps the animation, ledger 0368)',
-			evaluate: LOOP_PAUSED,
-			expected: ['loop attached=true', 'loop paused=true', 'arrival on the pattern=true', 'hover rules set only play state=true']
+			label: 'the stripes flow: one running infinite loop of one period, moving, phase-locked to the clock, untransformed and filling the banner',
+			evaluate: FLOW,
+			expected: ['flowing=true', 'drawn=true', 'infinite=true', 'one period=true', 'moved=true', 'phase locked=true', 'no transform=true', 'fills the banner=true']
 		}
 	]
 };

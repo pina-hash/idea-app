@@ -83,7 +83,11 @@
 	};
 	const layoutStore = createClassroomPreferences({ viewer: null, account: null, storage: null });
 	layoutStore.set('panels', { classPage: LAYOUTS[params.get('layout') ?? ''] ?? null, itemPage: null });
-	if (viewClass) provideClassroomPreferences(layoutStore);
+	/* `?motion=still`: this device chose Still for the class banner (decision
+	   61), so the REAL banner must draw the still pattern and run nothing. */
+	const motionStill = params.get('motion') === 'still';
+	if (motionStill) layoutStore.set('display', { ...layoutStore.current.display, bannerMotion: 'still' });
+	if (viewClass || motionStill) provideClassroomPreferences(layoutStore);
 	const layoutPrefs = reactivePreferences(layoutStore);
 	let settingsEl = $state<ReturnType<typeof ClassroomSettings> | null>(null);
 	/* `?opens=todo` (with `view=class`): a student's class opens on To do, which

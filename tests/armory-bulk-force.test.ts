@@ -88,7 +88,8 @@ describe('arm, then press, over a selection', () => {
 			return { ok: true, ...addBulkResults(emptyTally(), ids.map((id) => ({ file_id: id, ok: true, broken: true })), ids) };
 		});
 		await bulk.press(['a', 'b']);
-		expect(bulk.armed).toBe(2);
+		expect(bulk.armedFor(['a', 'b'])).toBe(true);
+		expect(bulk.armedFor(['b', 'a'])).toBe(true); // order is not the set
 		expect(sent).toHaveLength(0); // the first press sends nothing
 		bulk.toggle('c', true); // the selection moved, so the arming is gone
 		expect(bulk.armed).toBeNull();
@@ -99,6 +100,28 @@ describe('arm, then press, over a selection', () => {
 		expect(bulk.message).toContain('Checked in 3 files.');
 		expect(bulk.bad).toBe(false);
 		expect(bulk.armed).toBeNull();
+	});
+	it('the arming is the SET: a filter showing as many other files reads unarmed and the press only re-arms', async () => {
+		const sent: string[][] = [];
+		const bulk = new BulkForceCheckIn(async (ids) => {
+			sent.push(ids);
+			return { ok: true, ...addBulkResults(emptyTally(), ids.map((id) => ({ file_id: id, ok: true, broken: true })), ids) };
+		});
+		bulk.set(['a', 'b', 'c', 'd']);
+		await bulk.press(['a', 'b']); // armed for a and b
+		// The filter changes: two OTHER ticked files are shown, the same count.
+		expect(bulk.armedFor(['c', 'd'])).toBe(false);
+		await bulk.press(['c', 'd']);
+		expect(sent).toHaveLength(0); // a different set of the same size is never acted on
+		expect(bulk.armedFor(['c', 'd'])).toBe(true);
+		expect(bulk.armedFor(['a', 'b'])).toBe(false); // and the first set is no longer armed
+		await bulk.press(['c', 'd']);
+		expect(sent).toEqual([['c', 'd']]);
+		// A subset and a superset are different sets too.
+		await bulk.press(['a', 'b', 'c']);
+		expect(bulk.armedFor(['a', 'b'])).toBe(false);
+		expect(bulk.armedFor(['a', 'b', 'c', 'd'])).toBe(false);
+		expect(bulk.armedFor([])).toBe(false);
 	});
 	it('refused files stay selected so a second press retries those and nothing else', async () => {
 		const bulk = new BulkForceCheckIn(async (ids) => ({

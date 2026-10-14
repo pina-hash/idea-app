@@ -474,6 +474,134 @@ export function patternCss(pattern: PatternOption, stroke: string): string {
 	return pattern.template ? pattern.template.replace('{c}', stroke) : 'none';
 }
 
+/**
+ * THE SAME PATTERN, ABLE TO FLOW (Mr. Pina, 2026-10-14: "the class banner
+ * animations are still glitching and pausing. they should be smoothly
+ * continuous looping animations").
+ *
+ * DERIVED FROM THE ONE TEMPLATE, NEVER A SECOND COPY OF IT. A repeating
+ * gradient moved by exactly one period is the same picture, so the loop is
+ * seamless by construction and never has to stop, turn round or ease: every
+ * stop of a linear or radial template is shifted by `var(--ct-phase)` (stripes
+ * slide along their own direction, rings and ripples grow outward), and a
+ * conic template turns from `var(--ct-turn)`. The banner animates that one
+ * registered property from zero to `period`, linearly, forever. At phase zero
+ * the picture is the still template's, so the frame the contrast sweep
+ * measures is every frame's.
+ *
+ * WHY NOT A TRANSFORM, WHICH IS WHAT THE MOTION USED TO BE. Rings cannot loop
+ * by scaling (scaling changes their spacing, so the last frame never matches
+ * the first), and rays turned about a corner uncover the banner unless the
+ * layer is thousands of pixels square. Both were therefore oscillations that
+ * slowed to a stop at each end, which is the "pausing" in the report.
+ */
+export interface PatternFlow {
+	/** The `background-image` value with the phase variable in it. */
+	css: string;
+	/** One period, in the unit below: the loop's whole travel. */
+	period: number;
+	unit: 'px' | 'deg';
+	/** The registered property the banner animates. */
+	property: '--ct-phase' | '--ct-turn';
+}
+
+/** A pattern's flowing form in a given stroke colour, or null for the plain banner. */
+export function patternFlow(pattern: PatternOption, stroke: string): PatternFlow | null {
+	if (!pattern.template) return null;
+	const still = pattern.template.replace('{c}', stroke);
+	const open = still.indexOf('(');
+	const fn = still.slice(0, open);
+	if (fn === 'repeating-conic-gradient') {
+		const stops = [...still.matchAll(/(\d+(?:\.\d+)?)deg/g)].map((m) => Number(m[1]));
+		return {
+			css: `${fn}(from var(--ct-turn) ${still.slice(open + 1)}`,
+			period: Math.max(...stops),
+			unit: 'deg',
+			property: '--ct-turn'
+		};
+	}
+	// The arguments after the first are the colour stops: a colour, then one
+	// or two positions. Only those positions move; the first argument (the
+	// angle, or the shape and centre) is the gradient's geometry and stays.
+	const args = splitTopLevel(still.slice(open + 1, still.lastIndexOf(')')));
+	let period = 0;
+	const moved = args.map((arg, i) => {
+		if (i === 0) return arg;
+		const [colour, ...positions] = splitSpaces(arg);
+		return [
+			colour,
+			...positions.map((pos) => {
+				const px = pos === '0' ? 0 : Number(pos.replace(/px$/, ''));
+				period = Math.max(period, px);
+				return `calc(${px}px + var(--ct-phase))`;
+			})
+		].join(' ');
+	});
+	return { css: `${fn}(${moved.join(', ')})`, period, unit: 'px', property: '--ct-phase' };
+}
+
+/** Split on commas that are not inside parentheses (a colour can be `hsl(... / a)`). */
+function splitTopLevel(s: string): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let start = 0;
+	for (let i = 0; i < s.length; i++) {
+		if (s[i] === '(') depth++;
+		else if (s[i] === ')') depth--;
+		else if (s[i] === ',' && depth === 0) {
+			out.push(s.slice(start, i).trim());
+			start = i + 1;
+		}
+	}
+	out.push(s.slice(start).trim());
+	return out;
+}
+
+/** Split on spaces that are not inside parentheses. */
+function splitSpaces(s: string): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let cur = '';
+	for (const ch of s) {
+		if (ch === '(') depth++;
+		else if (ch === ')') depth--;
+		if (ch === ' ' && depth === 0) {
+			if (cur) out.push(cur);
+			cur = '';
+		} else cur += ch;
+	}
+	if (cur) out.push(cur);
+	return out;
+}
+
+/**
+ * HOW FAST EACH PATTERN FLOWS: one period's travel, in milliseconds. Slow on
+ * purpose (about four pixels a second, a degree and a half a second for rays):
+ * a banner is beside the work all period, and motion that can be noticed
+ * from across the room is motion that pulls the eye off the page.
+ */
+export const PATTERN_FLOW_MS: Readonly<Record<string, number>> = {
+	stripes: 3000,
+	rings: 3500,
+	ripples: 4000,
+	rays: 6000
+};
+
+/** Frames a second the flow is stepped at: enough to read as smooth at this speed, half the paints of 60. */
+export const PATTERN_FLOW_FPS = 30;
+
+/**
+ * WHERE IN ITS LOOP A FLOW IS AT A WALL-CLOCK INSTANT. Every banner, on every
+ * page, is at the same phase at the same moment, so leaving the class page and
+ * coming back (which remounts the banner) lands where the pattern already was
+ * rather than restarting it: a restart is a jump, and a jump is a glitch.
+ */
+export function patternFlowOffset(nowMs: number, durationMs: number): number {
+	if (!(durationMs > 0)) return 0;
+	const at = nowMs % durationMs;
+	return at < 0 ? at + durationMs : at;
+}
+
 /** The values one side of a theme paints, as CSS. */
 export interface ClassThemeSideCss {
 	wash: string;
@@ -518,6 +646,30 @@ export function classThemeVars(theme: ClassTheme | null | undefined): string {
 		vars.push(['--ct-accent', dark.accent], ['--ct-accent-light', light.accent]);
 	}
 	return vars.map(([k, v]) => `${k}:${v}`).join(';');
+}
+
+/**
+ * THE FLOWING PATTERN'S TWO TWINS, for the pattern layer's own style
+ * attribute, and how long one period takes. The variables sit ON THE LAYER
+ * rather than on the banner because a `var()` inside a custom property is
+ * resolved where that property is declared: declared on the banner, the phase
+ * would be read from the banner, and animating it there would restyle the
+ * whole class header every frame instead of one span.
+ */
+export function classThemeFlow(
+	theme: ClassTheme | null | undefined
+): { style: string; property: PatternFlow['property']; period: number; unit: PatternFlow['unit']; durationMs: number } | null {
+	if (!theme) return null;
+	const dark = patternFlow(theme.pattern, themeColourCss(theme.palette.edge, 'dark', CLASS_THEME_PATTERN_ALPHA));
+	const light = patternFlow(theme.pattern, themeColourCss(theme.palette.edge, 'light', CLASS_THEME_PATTERN_ALPHA));
+	if (!dark || !light) return null;
+	return {
+		style: `--ct-pf:${dark.css};--ct-pf-light:${light.css}`,
+		property: dark.property,
+		period: dark.period,
+		unit: dark.unit,
+		durationMs: PATTERN_FLOW_MS[theme.pattern.id] ?? 4000
+	};
 }
 
 /**

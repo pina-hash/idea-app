@@ -183,7 +183,8 @@
 		<p class="fga-lead">
 			Picked by hand, in this order, up to {FOUNDRY_FEATURED_MAX_PICKS}. The row sits directly
 			under the major releases; any space it has left is filled from the top of Most played and
-			Trending. With nothing picked there is no row.
+			Trending. With nothing picked the whole row comes from those two lists, and it is not shown
+			until something has been played or voted on.
 		</p>
 		{#if featured === null}
 			<p class="fga-nr">{FOUNDRY_GALLERY_ADMIN_NOT_READY}</p>

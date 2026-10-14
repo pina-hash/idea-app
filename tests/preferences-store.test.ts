@@ -250,7 +250,7 @@ describe('the classroom schema validates on read', () => {
 	it('an invalid field costs that field only; valid ones beside it survive', () => {
 		const p = readClassroomPreferences({
 			// An unknown clock face is dropped to the digits, the wall as it was.
-			display: { density: 'enormous', wallClock: 'sundial' },
+			display: { density: 'enormous', wallClock: 'sundial', bannerMotion: 'wobbly' },
 			classView: { opensOn: 'missing' },
 			grading: { advanceAfterReturn: 'yes' },
 			// `tour` is the single state F3F5 reserved and no build ever wrote; it is
@@ -265,7 +265,7 @@ describe('the classroom schema validates on read', () => {
 			commentBank: { entries: ['kept by the store, not by the reader'] }
 		});
 		expect(p).toEqual({
-			display: { density: 'comfortable', navWidth: null, wallClock: 'digits' },
+			display: { density: 'comfortable', navWidth: null, wallClock: 'digits', bannerMotion: 'moving' },
 			classView: { opensOn: 'missing', todoOpensOn: 'assigned' },
 			grading: { advanceAfterReturn: false, gradesOrder: 'due' },
 			guidance: { retiredHints: ['open-palette'], tours: { teacher: 'finished', student: 'unseen' } },
@@ -375,6 +375,7 @@ describe('the classroom schema validates on read', () => {
 				'display.density',
 				'display.navWidth',
 				'display.wallClock',
+				'display.bannerMotion',
 				'classView.opensOn',
 				'classView.todoOpensOn',
 				'grading.gradesOrder'
@@ -714,5 +715,24 @@ describe("the projector's clock face is a device setting (idea 26033e4b)", () =>
 		expect([...row!.roles]).toEqual(['manager']);
 		const options = 'options' in row! ? row.options('manager').map((o) => o.value) : [];
 		expect(options).toEqual(['digits', 'dial']);
+	});
+});
+
+describe('the class banner motion is a device setting, and the off switch WCAG 2.2.2 asks for (decision 61)', () => {
+	it('defaults to moving and keeps still; anything else reads as moving', () => {
+		expect(defaultClassroomPreferences().display.bannerMotion).toBe('moving');
+		expect(readClassroomPreferences({ display: { bannerMotion: 'still' } }).display.bannerMotion).toBe('still');
+		for (const junk of ['Still', 'off', 0, false, null, { motion: 'still' }]) {
+			expect(readClassroomPreferences({ display: { bannerMotion: junk } }).display.bannerMotion, String(junk)).toBe('moving');
+		}
+		expect(CLASSROOM_PREFERENCE_HOMES.display).toBe('device');
+	});
+
+	it('is offered to everybody who sees a class banner, students included', () => {
+		const row = CLASSROOM_SETTINGS.find((s) => 'field' in s && s.group === 'display' && s.field === 'bannerMotion');
+		expect(row).toBeDefined();
+		expect([...row!.roles].sort()).toEqual(['manager', 'student']);
+		const options = 'options' in row! ? row.options('student').map((o) => o.value) : [];
+		expect(options).toEqual(['moving', 'still']);
 	});
 });

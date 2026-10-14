@@ -745,6 +745,12 @@
 					{/if}
 				</div>
 				<div class="rail-row"><EventRail matches={sim.matches} {now} /></div>
+				<!-- The route's action row, so the masthead measured here is the
+				     page's whole masthead (the site plate centres it). -->
+				<div class="tnm-actions masthead-actions">
+					<a class="btn secondary" href="/dev/tournaments?view=tv&status=live&field={fieldSize}">TV mode</a>
+					<a class="btn" href="/dev/tournaments?view=host&field={fieldSize}&state=live" data-manage>Host console</a>
+				</div>
 			</section>
 			<!-- THE BRACKET STAGE: the second caller of fullscreen.ts. The
 			     section itself is what goes full screen, so the control is
@@ -810,6 +816,11 @@
 				<p class="lead tnm-prose">
 					Live double-elimination brackets, open to watch by anyone. Sign in to enter or to host.
 				</p>
+				{#if boardSignedIn}
+					<div class="tnm-actions">
+						<a class="btn" href="/dev/tournaments?view=list">New tournament</a>
+					</div>
+				{/if}
 			</section>
 			<TournamentBoard
 				tournaments={boardTournaments}
@@ -1425,6 +1436,9 @@
 	.rail-row {
 		margin: 1rem 0 0.2rem;
 		max-width: 44rem;
+	}
+	.masthead-actions {
+		margin-top: 1rem;
 	}
 	.block {
 		margin-top: 1.6rem;

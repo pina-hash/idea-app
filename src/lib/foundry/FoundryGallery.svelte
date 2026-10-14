@@ -68,10 +68,10 @@
 	import {
 		FOUNDRY_COLLECTIONS_NOTE,
 		FOUNDRY_COLLECTIONS_TITLE,
-		FOUNDRY_FEATURED_NOTE,
 		FOUNDRY_FEATURED_TITLE,
 		applyAppOverride,
 		applyHouseOverride,
+		foundryFeaturedNote,
 		foundryFeaturedRow,
 		resolveSubjects,
 		type FoundryCollection,
@@ -203,8 +203,10 @@
 		/**
 		 * THE CURATION LAYERS (0237): an admin's replacement card details, the
 		 * published collections and the featured picks. Absent, the gallery is
-		 * what it was before they existed; present but empty, the same. The
-		 * route passes this only when 0237's reads answered.
+		 * what it was before they existed; present but empty, the same except
+		 * for the featured row, which with no picks is the top of the boards
+		 * (and still absent on a gallery nobody has played). The route passes
+		 * this only when 0237's reads answered.
 		 */
 		extras = undefined,
 		/**
@@ -365,11 +367,17 @@
 	);
 	const majorStyle = $derived(foundryMosaicStyle(majors.length + houses.length));
 
+	/*
+	 * NO CURATION LAYER, NO ROW. With 0237 in place and nothing picked the row
+	 * is the top of the boards (`foundryFeaturedRow`); without it (`extras`
+	 * absent) the gallery draws what it drew before, which had no row.
+	 */
 	const featuredItems = $derived(
-		searching || apps.length === 0
+		searching || apps.length === 0 || !extras
 			? []
-			: foundryFeaturedRow(extras?.featured ?? [], apps, houses, playCounts)
+			: foundryFeaturedRow(extras.featured, apps, houses, playCounts)
 	);
+	const featuredNote = $derived(extras ? foundryFeaturedNote(extras.featured, apps, houses) : '');
 	const showFeatured = $derived(featuredItems.length > 0);
 	const featuredStyle = $derived(foundryMosaicStyle(featuredItems.length));
 
@@ -534,13 +542,18 @@
 					<p class="fdy-gal-major-note">{FOUNDRY_MAJOR_SECTION_NOTE}</p>
 					<ul class="fdy-gal-major-grid" data-testid="foundry-gallery-major" style={majorStyle}>
 						{#each majors as app (app.id)}
+							<!-- The section's cards say what the release is: the admin's
+							     description from /foundry/review/gallery, else the app's
+							     own tagline. Nowhere else does a card carry a line. -->
+							{@const card = shown(app)}
 							<li>
 								<FoundryCard
-									app={shown(app)}
+									app={card}
 									href="/foundry?app={app.slug}"
 									selected={selected?.slug === app.slug}
 									{coverUrl}
 									plays={foundrySortFigure(sort, app, playCounts[app.id])}
+									blurb={card.tagline ?? ''}
 									onselect={onSelect}
 								/>
 							</li>
@@ -563,7 +576,7 @@
 				-->
 				<section class="fdy-gal-featured" aria-labelledby="fdy-gal-featured-h" data-testid="foundry-gallery-featured-section">
 					<h3 id="fdy-gal-featured-h" class="fdy-gal-sec-h">{FOUNDRY_FEATURED_TITLE}</h3>
-					<p class="fdy-gal-major-note">{FOUNDRY_FEATURED_NOTE}</p>
+					<p class="fdy-gal-major-note" data-testid="foundry-featured-note">{featuredNote}</p>
 					<ul class="fdy-gal-major-grid" data-testid="foundry-gallery-featured" style={featuredStyle}>
 						{#each featuredItems as item (item.subject)}
 							<li>

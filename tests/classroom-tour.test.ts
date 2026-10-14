@@ -279,13 +279,13 @@ describe('the list width knob', () => {
 		expect(clampNavWidth(30)).toBe(30);
 		expect(clampNavWidth(30.4)).toBe(30);
 		expect(clampNavWidth(2)).toBe(NAV_WIDTH_MIN_REM);
-		expect(clampNavWidth(400)).toBe(NAV_WIDTH_MAX_REM);
+		expect(clampNavWidth(4000)).toBe(NAV_WIDTH_MAX_REM);
 		for (const junk of [null, undefined, '30', NaN, Infinity, {}, []]) expect(clampNavWidth(junk)).toBeNull();
 	});
 
 	it('is validated on read, stored sparse, and a Reset of the display group takes it back', () => {
 		expect(readClassroomPreferences({ display: { navWidth: 'wide' } }).display.navWidth).toBeNull();
-		expect(readClassroomPreferences({ display: { navWidth: 99 } }).display.navWidth).toBe(NAV_WIDTH_MAX_REM);
+		expect(readClassroomPreferences({ display: { navWidth: 999 } }).display.navWidth).toBe(NAV_WIDTH_MAX_REM);
 		const store = new MemoryPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA);
 		store.set('display', { ...store.current.display, navWidth: 32 });
 		expect(store.stored()).toEqual({ display: { navWidth: 32 } });

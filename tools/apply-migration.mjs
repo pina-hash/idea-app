@@ -303,11 +303,10 @@ export function ledgerPermission(text) {
 	// answers in numbers because its own callers do arithmetic on them.
 	//
 	// `numbers` is carried through as well, and it is not decoration: the
-	// `Claims:` shape this repository moved to can name more than one, and a
-	// caller silently seeing only the first is how the second one gets applied
-	// with nothing having permitted it. Nothing reads it yet. The gate below
-	// still permits AT MOST ONE FILE, which is what every spelling in the
-	// corpus means.
+	// `Claims:` shape can name more than one, and since 2026-10-14 the gate
+	// reads it. A bundle may apply AS MANY MIGRATIONS AS ITS ENTRY CLAIMS
+	// (`migrationBudget`), each once; an entry that permits without naming a
+	// number, or names one, still permits one file.
 	const parsed = parsePermitted(raw);
 	const numbers = parsed.numbers.map((n) => String(n).padStart(4, '0'));
 	return { permitted: parsed.permits, raw, number: numbers[0] ?? null, numbers };
@@ -434,7 +433,53 @@ export function resolveLedger(explicit, dir = LEDGER_DIR) {
 			how: 'This bundle was not asked for a migration. If that is wrong, the entry is what changes, and it is the router chat that changes it -- not this tool and not the session.'
 		};
 	}
-	return { ok: true, id: found.id, file: found.file, raw: perm.raw, number: perm.number };
+	return { ok: true, id: found.id, file: found.file, raw: perm.raw, number: perm.number, numbers: perm.numbers ?? [] };
+}
+
+/**
+ * HOW MANY MIGRATIONS ONE LEDGER ENTRY MAY APPLY: as many as its `Claims:`
+ * list names, and one when it names none or one (Mr. Pina, 2026-10-14: the old
+ * "one migration per bundle" rule is removed, because splitting one piece of
+ * work across bundles to satisfy it made each of them worse). What the limit
+ * still protects is unchanged: a migration nobody asked for cannot be applied,
+ * because every one has to be named in the entry before it is, and the
+ * entry's own count is the ceiling.
+ *
+ * @param {{ numbers?: string[] }} perm
+ * @returns {number}
+ */
+export function migrationBudget(perm) {
+	return Math.max(1, perm.numbers?.length ?? 0);
+}
+
+/**
+ * Whether one more apply under this entry is allowed, read off the committed
+ * trace. With a list of several claimed numbers the target must be ON the list
+ * (an explicit list is never a guess, so a number outside it is a migration
+ * nobody claimed); with one or none, a different number only warns, for the
+ * reason `ledgerPermission` gives.
+ *
+ * @param {{ numbers?: string[] }} perm
+ * @param {string[]} already records under this entry
+ * @param {string} target zero-padded number
+ * @returns {{ ok: true } | { ok: false, why: string }}
+ */
+export function budgetAllows(perm, already, target) {
+	const budget = migrationBudget(perm);
+	const claimed = perm.numbers ?? [];
+	if (already.some((f) => f.startsWith(`${target}-`))) {
+		return { ok: false, why: `migration ${target} is already recorded under this entry` };
+	}
+	if (claimed.length > 1 && !claimed.includes(target)) {
+		return { ok: false, why: `this entry claims ${claimed.join(', ')}, and ${target} is not one of them` };
+	}
+	if (already.length >= budget) {
+		return {
+			ok: false,
+			why: `this entry has already applied ${already.length} of the ${budget} migration${budget === 1 ? '' : 's'} it claims`
+		};
+	}
+	return { ok: true };
 }
 
 /**
@@ -1640,20 +1685,22 @@ async function main() {
 	}
 	say(`  ledger ${ledger.file} permits a migration ("${ledger.raw}")`);
 
-	// "At most one" has to mean one across INVOCATIONS, not one per command
-	// line, or a session applies 0185 and then 0186 as two ordinary runs. The
-	// committed trace from B1 is what makes that answerable.
+	// The entry's budget has to be counted across INVOCATIONS, not per command
+	// line, or a session applies its claim and then one more as two ordinary
+	// runs. The committed trace from B1 is what makes that answerable.
 	const already = appliesUnderLedger(ledger.id);
-	if (already.length) {
+	const allowed = budgetAllows(ledger, already, target.num);
+	if (!allowed.ok) {
 		say('');
 		say(
-			`REFUSING to apply ${target.file}: ledger entry ${ledger.file} has already applied a migration -- docs/migrations-applied/${already.join(', ')}.`
+			`REFUSING to apply ${target.file}: ledger entry ${ledger.file}: ${allowed.why}` +
+				(already.length ? ` (docs/migrations-applied/${already.join(', ')}).` : '.')
 		);
 		say(
-			'  Every permitting spelling in the ledger permits AT MOST ONE. A second migration is a second bundle, with its own entry.'
+			'  A bundle applies the migrations its entry claims, each once. To apply another, add its number to the entry\'s Claims: list in a commit before the file.'
 		);
 		say('  Nothing was sent, and no connection was opened.');
-		report.ledger = { ok: false, why: 'a migration is already recorded under this ledger entry', already };
+		report.ledger = { ok: false, why: allowed.why, already };
 		if (opts.json) say(JSON.stringify(report, null, 2));
 		return EXIT.refused;
 	}
@@ -1661,7 +1708,7 @@ async function main() {
 	// The number is ADVISORY. See `ledgerPermission` for why a mismatch is a
 	// warning carried into the record rather than a refusal.
 	const numberWarning =
-		ledger.number && ledger.number !== target.num
+		ledger.number && !(ledger.numbers ?? [ledger.number]).includes(target.num)
 			? `the ledger entry names migration ${ledger.number} and this is ${target.num}. The number in an entry is written at issue time and is routinely stale (prompt 0056 renumbered mid-session); the permission is what was checked.`
 			: null;
 	if (numberWarning) say(`  NOTE: ${numberWarning}`);

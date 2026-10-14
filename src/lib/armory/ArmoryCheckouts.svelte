@@ -73,6 +73,9 @@
 	   of `shown` is selectable by one press, past the rows the page has paged. */
 	const selectable = $derived(bulk && force ? selectableCheckouts(shown, me) : []);
 	const chosen = $derived(bulk ? selectable.filter((c) => bulk.selected.has(c.file_id)) : []);
+	/* Armed for THESE files, never for "as many as before": a filter that swaps
+	   the files shown for the same number of others reads unarmed. */
+	const bulkArmed = $derived(bulk ? bulk.armedFor(chosen.map((c) => c.file_id)) : false);
 	const chosenHolders = $derived(new Set(chosen.map((c) => c.holder_email)));
 	const allChosen = $derived(selectable.length > 0 && chosen.length === selectable.length);
 
@@ -170,7 +173,7 @@
 				{#if chosen.length > 0}
 					<span class="ar-bulk-count" role="status" data-testid="armory-bulk-count">{chosen.length} selected</span>
 					<button
-						class={`btn ar-btn ${bulk.armed === chosen.length ? 'danger' : 'secondary'}`}
+						class={`btn ar-btn ${bulkArmed ? 'danger' : 'secondary'}`}
 						type="button"
 						aria-disabled={bulk.busy}
 						data-testid="armory-bulk-take-back"
@@ -179,7 +182,7 @@
 							bulk.press(chosen.map((c) => c.file_id));
 						}}
 					>
-						{bulk.armed === chosen.length
+						{bulkArmed
 							? `${VERBS.takeBack} ${chosen.length} ${chosen.length === 1 ? 'file' : 'files'}?`
 							: `${VERBS.takeBack} ${chosen.length}`}
 					</button>
@@ -188,7 +191,7 @@
 					</button>
 				{/if}
 			</div>
-			{#if bulk.armed !== null && bulk.armed === chosen.length}
+			{#if bulkArmed}
 				<p class="ar-message bad ar-warn" role="alert" data-testid="armory-bulk-warning">
 					Press {VERBS.takeBack} again to check in {chosen.length} {chosen.length === 1 ? 'file' : 'files'} held by
 					{chosenHolders.size === 1 ? holderName([...chosenHolders][0], names) : `${chosenHolders.size} people`}. Anything they
