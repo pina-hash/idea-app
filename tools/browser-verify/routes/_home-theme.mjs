@@ -129,12 +129,12 @@ const FETCH_PROBE = `() => {
    rows below are the verdict. */
 const CARD_INKS = `() => [...document.querySelectorAll('.launcher .app-card[data-app]')].map((c) => c.dataset.app + ' ' + getComputedStyle(c.querySelector('.app-title')).color).join('; ')`;
 
-/* HOW MANY INKS THE LAUNCHER SPEAKS IN (round 2026-10-07, Mr. Pina's "a lot
-   of the colors look off" on Space White). Under that theme every card's
-   title, glyph and call to action are one green and every edge the plate's
-   hairline, and each strip is one solid colour (the card's own light ink)
-   rather than a neon gradient; the dark themes keep a colour per app, which
-   the prepare row prints and nothing pins. */
+/* HOW MANY INKS THE LAUNCHER SPEAKS IN. Under Space White every card has an
+   ink of its own (ledger 0381, decision 62, after the 2026-10-07 round's one
+   green made every app look the same), every edge is the plate's hairline,
+   and each strip is one solid colour (the card's own light ink) rather than a
+   neon gradient; the dark themes keep a colour per app too. The distinctness
+   floor is tests/space-white-inks.test.ts's; this row prints, it never pins. */
 const CARD_PALETTE = `() => {
 	const cards = [...document.querySelectorAll('.launcher .app-card[data-app]')];
 	const distinct = (f) => new Set(cards.map(f)).size;

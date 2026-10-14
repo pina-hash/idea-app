@@ -59,9 +59,10 @@ body:has(.site-plate) {
    class card is, so it takes the panel face and the long soft shadow. Its
    EDGE, ink, strip and mark are the card's own (`--acc-edge` and the rest,
    AppLauncher.svelte), and nothing here moves them: on the dark themes the
-   edge carries the app's brand, and under Space White the card itself takes
-   one green ink and the plate's hairline (round 2026-10-07), keyed on the
-   theme there rather than here, because no rule in this file names a theme.
+   edge carries the app's brand, and under Space White the card takes its own
+   light ink (every app a different colour, ledger 0381 / decision 62) and the
+   plate's hairline, keyed on the theme there rather than here, because no rule
+   in this file names a theme.
 
    ITS INTERIOR TEXTURE GOES, BY THE NO-GRID RULE. Six of the per-app
    textures are ruled fills or grids (GREENLINE's is a literal 24px grid, the
