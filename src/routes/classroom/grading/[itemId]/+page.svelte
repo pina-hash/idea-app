@@ -15,6 +15,9 @@
 	import { htmlManifestShaped } from '$lib/classroom/transports';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import type { StudentWork } from '$lib/classroom/assignment-spec';
+	import { createFeedbackTransports } from '$lib/classroom/feedback/transports';
+	import type { HtmlWorkFeedback } from '$lib/classroom/feedback/work';
+	import { createClassroomLive } from '$lib/classroom/live';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -69,6 +72,22 @@
 			? (data.htmlAssignment?.manifest as HtmlAssignmentManifest)
 			: null
 	);
+
+	/**
+	 * PROGRESSIVE FEEDBACK (0238, decision 60): the instructor's side, which is
+	 * the side that may start a note and draw. Handed only for a ported
+	 * worksheet; the console renders nothing for it on a spec assignment.
+	 */
+	// svelte-ignore state_referenced_locally
+	const feedback = createFeedbackTransports(data.supabase, 'teacher');
+
+	/**
+	 * THE CLASS'S LIVE NOTICES, so a note sent from this console reaches the
+	 * student's open worksheet at once rather than at their next heartbeat, and
+	 * a reply reaches this console the same way.
+	 */
+	// svelte-ignore state_referenced_locally
+	const live = createClassroomLive(data.supabase);
 </script>
 
 <GradingConsole
@@ -82,6 +101,8 @@
 	{transports}
 	{bulk}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
+	feedback={htmlMount === 'html' ? feedback : null}
+	{live}
 	{fileDownload}
 />
 
@@ -96,11 +117,12 @@
 	when there is no document. The load already read the document for
 	"Download all files"; nothing new is read.
 -->
-{#snippet htmlWork(student: StudentWork)}
+{#snippet htmlWork(student: StudentWork, feedbackFrame: HtmlWorkFeedback | null)}
 	<HtmlGradingWork
 		{student}
 		item={data.item}
 		htmlAssignment={data.htmlAssignment}
 		sandboxOrigin={publicEnv.PUBLIC_HX_SANDBOX_ORIGIN}
+		feedback={feedbackFrame}
 	/>
 {/snippet}

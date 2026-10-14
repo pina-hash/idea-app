@@ -185,10 +185,17 @@ describe('who gets what: the role filter, both directions', () => {
 		expect(managerRows.filter((c) => studentIds.has(c.id))).toHaveLength(0);
 		// Five: "Open to-do" joined the student set (ledger 0297, the to-do).
 		expect(studentRows.filter((c) => studentIds.has(c.id)).length).toBe(5);
-		// Twelve: `class.check-ins` left the manager set for the `any` notebook
+		// Thirteen: `class.check-ins` left the manager set for the `any` notebook
 		// tab, the Live tab brought four (ledger 0297), the class's Settings
-		// tab brought one (report R06), and Quick post one (ledger 0360, R22).
-		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(12);
+		// tab brought one (report R06), Quick post one (ledger 0360, R22), and
+		// the Student feedback inbox one (0238, a staff door like Courses).
+		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(13);
+	});
+
+	it('Student feedback is a staff door on top of the role, outside any class', () => {
+		expect(runnableCommands(env({ role: 'manager', isStaff: false })).map((c) => c.id)).not.toContain('go.feedback');
+		expect(runnableCommands(env({ role: 'manager', isStaff: true })).map((c) => c.id)).toContain('go.feedback');
+		expect(runnableCommands(env({ role: 'student', isStaff: false })).map((c) => c.id)).not.toContain('go.feedback');
 	});
 
 	it('Courses and setup is a staff door on top of the role', () => {

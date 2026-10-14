@@ -17,6 +17,8 @@
 	import { createBulkFileSource } from '$lib/classroom/bulk-download-source';
 	import { blockLabelsFromManifest, blockLabelsFromSpec } from '$lib/classroom/bulk-download';
 	import type { StudentWork } from '$lib/classroom/assignment-spec';
+	import { createFeedbackTransports } from '$lib/classroom/feedback/transports';
+	import type { HtmlWorkFeedback } from '$lib/classroom/feedback/work';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -134,6 +136,14 @@
 			htmlMount === 'spec' ? blockLabelsFromSpec(data.spec) : blockLabelsFromManifest(manifest)
 		)
 	);
+
+	/**
+	 * PROGRESSIVE FEEDBACK (0238, decision 60): the instructor's side, which is
+	 * the side that may start a note and draw. Handed only for a ported
+	 * worksheet; the console renders nothing for it on a spec assignment.
+	 */
+	// svelte-ignore state_referenced_locally
+	const feedback = createFeedbackTransports(data.supabase, 'teacher');
 </script>
 
 <GradingConsole
@@ -149,6 +159,7 @@
 	{presence}
 	close={transports.closeAssignment}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
+	feedback={htmlMount === 'html' ? feedback : null}
 	manifest={htmlMount === 'html' ? manifest : null}
 	{fileDownload}
 />
@@ -171,7 +182,7 @@
 	not render. That is what the console was built for in 0195.
 -->
 
-{#snippet htmlWork(student: StudentWork)}
+{#snippet htmlWork(student: StudentWork, feedbackFrame: HtmlWorkFeedback | null)}
 	<!--
 		THE STUDENT'S WORK, IN THE DOCUMENT THEY DID IT IN: the read-only frame,
 		or the answers when the item is not live, or the sentence when there is
@@ -183,5 +194,6 @@
 		item={data.item}
 		htmlAssignment={data.htmlAssignment}
 		sandboxOrigin={publicEnv.PUBLIC_HX_SANDBOX_ORIGIN}
+		feedback={feedbackFrame}
 	/>
 {/snippet}

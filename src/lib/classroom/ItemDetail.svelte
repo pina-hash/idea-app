@@ -151,6 +151,10 @@
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
+	import FeedbackPanel from '$lib/classroom/feedback/FeedbackPanel.svelte';
+	import type { FeedbackSession } from '$lib/classroom/feedback/session.svelte';
+	import { fieldNotes, marksByField } from '$lib/classroom/feedback/notes';
+	import { submissionFileSrc } from '$lib/classroom/assignment-spec';
 	import HtmlInstructorCopy from '$lib/classroom/html-assignment/HtmlInstructorCopy.svelte';
 	import Progress from '$lib/classroom/html-assignment/Progress.svelte';
 	import HtmlLinkCheck from '$lib/classroom/html-assignment/HtmlLinkCheck.svelte';
@@ -296,6 +300,7 @@
 		layoutTransports = null,
 		htmlAssignment = null,
 		htmlAnswers = null,
+		feedback = null,
 		htmlInstructorAnswers = null,
 		htmlAssignmentTransports = null,
 		htmlAssignmentAdmin = false,
@@ -402,6 +407,15 @@
 		 * typing and saves nothing is the outcome this must never produce.
 		 */
 		htmlAnswers?: HtmlAssignmentAnswers | null;
+		/**
+		 * THE STUDENT'S FEEDBACK ON THIS WORKSHEET (0238, decision 60): the list
+		 * above the frame and the pins and drawings inside it, all read off one
+		 * session. Built by the page only beside `htmlAnswers`, so a manager
+		 * never gets one here; a student's session carries no `post` and no
+		 * `update`, so nothing here can start a note or draw. Null renders
+		 * exactly what this page did before.
+		 */
+		feedback?: FeedbackSession | null;
 		/**
 		 * THE MANAGER'S OWN ANSWER PATH ON A PORTED ASSIGNMENT (0199), and its
 		 * absence is what leaves the read-only frame exactly as it was.
@@ -645,6 +659,14 @@
 	 */
 	const htmlProgressManifest = $derived(
 		htmlAssignment && htmlManifestShaped(htmlAssignment.manifest) ? htmlAssignment.manifest : null
+	);
+
+	/** The pins and drawings the student's frame draws, from the one session (0238). */
+	const studentNotes = $derived(
+		feedback && htmlProgressManifest ? fieldNotes(htmlProgressManifest, feedback.threads, 'student') : null
+	);
+	const studentMarks = $derived(
+		feedback && htmlAnswers ? marksByField(htmlAnswers.images, feedback.threads, submissionFileSrc) : null
 	);
 
 	/**
@@ -2735,6 +2757,12 @@
 					     with no link block. -->
 					<HtmlLinkCheck manifest={htmlProgressManifest} values={htmlAnswers.values} />
 				{/if}
+				{#if feedback && htmlAnswers}
+					<!-- THE NOTES FROM THE TEACHER (0238), in a list above the
+					     worksheet; the pins in the frame open them here. Renders
+					     nothing while there are none. -->
+					<FeedbackPanel session={feedback} manifest={htmlProgressManifest} />
+				{/if}
 				<!--
 					WHY THE WORKSHEET IS SHUT, WHEN IT IS (0198). `readOnly` above
 					already stops the document taking input for a manager and on a
@@ -2790,6 +2818,9 @@
 						onimage={htmlWrites?.onimage}
 						onimageremove={htmlWrites?.onimageremove}
 						onimagecaption={htmlWrites?.onimagecaption}
+						notes={studentNotes}
+						marks={studentMarks}
+						onnote={feedback ? (_field, threadId) => feedback?.show(threadId) : null}
 					/>
 				{/if}
 				{/if}

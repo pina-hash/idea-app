@@ -2,7 +2,7 @@
 	import { classNotebookHref } from '$lib/classroom/nav';
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
-	import { onMount, tick, untrack, type Snippet } from 'svelte';
+	import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -33,7 +33,8 @@
 		type RubricCriterion,
 		type StudentWork,
 		type UnmetEntry,
-		studentWorkRows
+		studentWorkRows,
+		submissionFileSrc
 	}	from '$lib/classroom/assignment-spec';
 	import {
 		completionIsLate,
@@ -46,6 +47,19 @@
 	import { worksheetCompletedAtAcross } from '$lib/classroom/student-work';
 	import { hxBlockPrompt, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import HtmlAnswerList from '$lib/classroom/html-assignment/HtmlAnswerList.svelte';
+	import { hxImagesFromFiles } from '$lib/classroom/html-assignment/answers';
+	import FeedbackPanel from '$lib/classroom/feedback/FeedbackPanel.svelte';
+	import FeedbackDrawing from '$lib/classroom/feedback/FeedbackDrawing.svelte';
+	import { FeedbackSession } from '$lib/classroom/feedback/session.svelte';
+	import { fieldNotes, marksByField, type FeedbackThread } from '$lib/classroom/feedback/notes';
+	import type { FeedbackTransports } from '$lib/classroom/feedback/transports';
+	import {
+		drawablePictures,
+		drawTargetForField,
+		drawTargetForThread,
+		pictureWords,
+		type HtmlWorkFeedback
+	} from '$lib/classroom/feedback/work';
 	import HtmlQaPanel from '$lib/classroom/html-assignment/HtmlQaPanel.svelte';
 	import RosterCard from '$lib/classroom/RosterCard.svelte';
 	import AnswerLinks from '$lib/classroom/AnswerLinks.svelte';
@@ -156,7 +170,8 @@
 		speech = undefined,
 		fileDownload = null,
 		initialStudent = null,
-		onstudent = null
+		onstudent = null,
+		feedback = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -221,7 +236,16 @@
 		 * A snippet rather than a flag because a flag could only ever produce a
 		 * placeholder saying what the grader is not being shown.
 		 */
-		htmlWork?: Snippet<[StudentWork]> | null;
+		htmlWork?: Snippet<[StudentWork, HtmlWorkFeedback | null]> | null;
+		/**
+		 * PROGRESSIVE FEEDBACK (0238, decision 60), and absence is the mechanism:
+		 * handed the instructor's feedback transports, a ported worksheet's work
+		 * column gets the notes on the open student (a composer, the threads,
+		 * the drawing tool) and the frame gets pins and drawings; omitted, the
+		 * column reads exactly as it did. Ported worksheets only for now (Mr.
+		 * Pina, 2026-10-14).
+		 */
+		feedback?: FeedbackTransports | null;
 		/**
 		 * THE PORTED WORKSHEET'S MANIFEST (0195, schema 3), or null for every
 		 * spec assignment. It is what lets the roster say "Complete" for a
@@ -508,6 +532,84 @@
 	 */
 	const managerCount = $derived(work.managers.length);
 	const selected = $derived(students.find((s) => s.email === selectedEmail) ?? null);
+
+	// -----------------------------------------------------------------------
+	// PROGRESSIVE FEEDBACK ON THE OPEN STUDENT (0238, decision 60).
+	//
+	// ONE SESSION PER STUDENT, held across re-renders and replaced when the open
+	// student changes, the way the item page holds its answers controller: a
+	// plain variable inside the derivation, never state, so building one is not
+	// a write the render can see. The panel, the pins in the frame and the
+	// drawing tool all read this one session, so the pin and the list cannot
+	// disagree about a note.
+	// -----------------------------------------------------------------------
+	let heldFeedback: { key: string; session: FeedbackSession } | null = null;
+	const feedbackSession = $derived.by(() => {
+		const transports = feedback;
+		const email = selected?.email ?? null;
+		const key = transports && email && !spec && htmlWork && manifest ? `${item.id}:${email}` : '';
+		if (heldFeedback && heldFeedback.key === key) return heldFeedback.session;
+		heldFeedback?.session.destroy();
+		heldFeedback = null;
+		if (!key || !transports || !email) return null;
+		const sessionNow = new FeedbackSession({
+			transports,
+			side: 'teacher',
+			itemId: item.id,
+			studentEmail: email,
+			onwrote: (thread) => announceFeedback(thread)
+		});
+		heldFeedback = { key, session: sessionNow };
+		return sessionNow;
+	});
+
+	/** Tell the student's open page (and any other console) the feedback moved. */
+	function announceFeedback(thread: FeedbackThread | null) {
+		const bus = live;
+		if (!bus) return;
+		for (const id of new Set([section.id, ...(thread?.sections ?? [])])) bus.announce(id, 'feedback');
+	}
+
+	// The first read for each student opened. The session is the tracked input;
+	// the call is untracked (it is code this component did not write).
+	$effect(() => {
+		const sessionNow = feedbackSession;
+		if (!sessionNow) return;
+		untrack(() => void sessionNow.refresh());
+	});
+
+	const feedbackPictures = $derived(
+		feedbackSession && manifest && selected ? drawablePictures(manifest, selected.files) : []
+	);
+
+	/** What the worksheet frame is handed: pins, drawings and the two presses. */
+	const feedbackFrame = $derived.by<HtmlWorkFeedback | null>(() => {
+		const sessionNow = feedbackSession;
+		if (!sessionNow || !manifest || !selected) return null;
+		const images = hxImagesFromFiles(manifest, selected.files);
+		return {
+			notes: fieldNotes(manifest, sessionNow.threads, 'teacher'),
+			marks: marksByField(images, sessionNow.threads, submissionFileSrc),
+			onnote: (_field, threadId) => sessionNow.show(threadId),
+			onannotate: (field) => {
+				const target = drawTargetForField(feedbackPictures, field);
+				if (target) sessionNow.startDrawing(target);
+			}
+		};
+	});
+
+	function annotateFeedbackThread(thread: FeedbackThread) {
+		const sessionNow = feedbackSession;
+		if (!sessionNow || !thread.fileId) return;
+		const words = feedbackPictures.find((p) => p.fileId === thread.fileId)?.alt ?? 'the picture this note is about';
+		const target = drawTargetForThread(thread, submissionFileSrc(thread.fileId), words);
+		if (target) sessionNow.startDrawing(target);
+	}
+
+	onDestroy(() => {
+		heldFeedback?.session.destroy();
+		heldFeedback = null;
+	});
 	const outOf = $derived(rubric ? rubricTotal(rubric) : (item.points ?? 0));
 	const liveTotal = $derived(
 		rubric ? scoresTotal(rubric, scores as Record<string, number>) : 0
@@ -893,7 +995,11 @@
 		// THE FLOOR, and it depends on nothing: no bus, no section, no status.
 		// An interval that re-ran whenever the channel changed state would stop
 		// being a floor at exactly the moment the channel is unreliable.
-		const timer = setInterval(() => void load(), GRADING_POLL_MS);
+		const timer = setInterval(() => {
+			void load();
+			// The open student's notes ride the same floor (0238).
+			void heldFeedback?.session.refresh();
+		}, GRADING_POLL_MS);
 		return () => clearInterval(timer);
 	});
 
@@ -1042,6 +1148,29 @@
 					debounce = null;
 					presenceNow = Date.now();
 					void loadPresence();
+				}, CLASSROOM_LIVE_DEBOUNCE_MS);
+			})
+		);
+		return () => {
+			if (debounce) clearTimeout(debounce);
+			unsubscribe();
+		};
+	});
+
+	$effect(() => {
+		// FEEDBACK MOVED (0238): a student replied or said Fixed it. Re-read the
+		// open student's notes; the floor below catches a notice that never came.
+		const bus = live;
+		const sectionId = section.id;
+		if (!bus || !feedback) return;
+		let debounce: ReturnType<typeof setTimeout> | null = null;
+		const unsubscribe = untrack(() =>
+			bus.subscribe(sectionId, (topic) => {
+				if (topic !== 'feedback') return;
+				if (debounce) clearTimeout(debounce);
+				debounce = setTimeout(() => {
+					debounce = null;
+					heldFeedback?.session.noticed();
 				}, CLASSROOM_LIVE_DEBOUNCE_MS);
 			})
 		);
@@ -3650,6 +3779,26 @@
 									the same reason the spec render is: moving between two
 									students must not hand the second one the first one's view.
 								-->
+								{#if feedbackSession}
+									<!--
+										THE NOTES ON THIS STUDENT'S WORK (0238), above the work they
+										are about, with the composer: in place in the frame through the
+										pins, and here as the list. Keyed on the student, as the work is.
+									-->
+									{#key selected.email}
+										<FeedbackPanel
+											session={feedbackSession}
+											{manifest}
+											studentName={selected.displayName}
+											pictures={pictureWords(feedbackPictures)}
+											annotateField={feedbackFrame?.onannotate ?? null}
+											annotateThread={annotateFeedbackThread}
+											drawable={feedbackPictures.map((p) => ({ field: p.field, label: p.label }))}
+											inboxHref={`${basePath}/student-feedback`}
+										/>
+										<FeedbackDrawing session={feedbackSession} />
+									{/key}
+								{/if}
 								<div class="responses-head">
 									<h3 class="section-label responses-label">Responses</h3>
 									{#if manifest}
@@ -3691,7 +3840,7 @@
 											testId="work-answers"
 										/>
 									{:else}
-										{@render htmlWork(selected)}
+										{@render htmlWork(selected, feedbackFrame)}
 									{/if}
 								{/key}
 							{:else if !selected.files.length}

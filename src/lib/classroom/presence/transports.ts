@@ -69,9 +69,18 @@ export function createPresenceTransports(
 	};
 }
 
+/**
+ * `onFeedbackAt` IS THE STUDENT'S FEEDBACK FLOOR (0238, decision 60). The item
+ * page's call budget is spent, so a teacher's note does not arrive by a new
+ * poll: since 0238 the beat the page already sends answers when this student's
+ * feedback on the item last moved (`feedback_at`, absent before 0238), and the
+ * page re-reads its notes when that changes. Called with the instant or null,
+ * after every beat that answered; never for a failed one.
+ */
 export function createPresenceBeatTransport(
 	supabase: SupabaseClient,
-	itemId: string
+	itemId: string,
+	onFeedbackAt: ((at: string | null) => void) | null = null
 ): PresenceBeatTransport {
 	return {
 		ping(beat) {
@@ -82,8 +91,19 @@ export function createPresenceBeatTransport(
 					p_page_visible: beat.visible
 				})
 			).then(
-				({ error, status }): PollOutcome => {
-					if (!error) return 'ok';
+				({ data, error, status }): PollOutcome => {
+					if (!error) {
+						const at = (data as { feedback_at?: unknown } | null)?.feedback_at;
+						if (onFeedbackAt && data && typeof data === 'object' && 'feedback_at' in data) {
+							// Instrumentation riding a beat must never fail the beat.
+							try {
+								onFeedbackAt(typeof at === 'string' ? at : null);
+							} catch {
+								/* the page's own read is the next chance */
+							}
+						}
+						return 'ok';
+					}
 					return isSignedOutFailure(error, status) ? 'signed-out' : 'failed';
 				},
 				/* Best effort by contract. A missed beat costs one poll interval. */

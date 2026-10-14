@@ -31,6 +31,8 @@
 	import { PRESENCE_LIMITS_FALLBACK } from '$lib/classroom/presence/state';
 	import type { BulkFileSource } from '$lib/classroom/bulk-download-source';
 	import { blockLabelsFromManifest } from '$lib/classroom/bulk-download';
+	import { createMemoryFeedback } from '$lib/classroom/feedback/transports';
+	import type { HtmlWorkFeedback } from '$lib/classroom/feedback/work';
 
 	/** `empty` selects the student with nothing stored; `broken` points the one
 	    photo at a URL that cannot decode, so the fallback row is measurable. */
@@ -95,6 +97,59 @@
 	/** `live=stalled` makes the bus report the one status the memory twin never
 	    produces on its own, which is the one that earns a sentence. */
 	const liveStalled = $derived(page.url.searchParams.get('live') === 'stalled');
+	/**
+	 * `?feedback=1` (0238) hands the console the instructor's feedback
+	 * transports over the in-memory twin, so its composer, threads, pins and
+	 * drawing tool are the console's own wiring rather than a copy. The twin
+	 * starts with one note to Alice on her reflection.
+	 */
+	const feedbackOn = $derived(page.url.searchParams.get('feedback') === '1');
+	const feedbackMemory = createMemoryFeedback({
+		itemTitle: () => 'HX Smoke Test',
+		studentName: () => 'Alice Avila',
+		seed: [
+			{
+				id: 't-alice-1',
+				itemId: 'i-hx-smoke',
+				itemTitle: 'HX Smoke Test',
+				studentEmail: 'alice@boscotech.net',
+				studentName: 'Alice Avila',
+				blockId: 'hxw-reflection',
+				fileId: null,
+				marks: null,
+				authorName: 'A. Pina',
+				createdAt: new Date(Date.now() - 3_600_000).toISOString(),
+				updatedAt: new Date(Date.now() - 1_800_000).toISOString(),
+				editedAt: null,
+				fixedAt: new Date(Date.now() - 1_800_000).toISOString(),
+				resolvedAt: null,
+				studentSeenAt: new Date(Date.now() - 1_800_000).toISOString(),
+				teacherSeenAt: new Date(Date.now() - 3_600_000).toISOString(),
+				viewer: 'teacher',
+				sections: ['s-hx'],
+				messages: [
+					{
+						id: 'm-a-1',
+						role: 'teacher',
+						name: 'A. Pina',
+						body: 'Give the reason for the fillet, not just the size.',
+						createdAt: new Date(Date.now() - 3_600_000).toISOString(),
+						editedAt: null,
+						mine: true
+					},
+					{
+						id: 'm-a-2',
+						role: 'student',
+						name: 'Alice Avila',
+						body: 'Added a sentence about stress at the root.',
+						createdAt: new Date(Date.now() - 1_800_000).toISOString(),
+						editedAt: null,
+						mine: false
+					}
+				]
+			}
+		]
+	});
 	/**
 	 * LEDGER 0360. `answers`, `qa` and `present` are the LINKS fixture: the same
 	 * worksheet plus a declared `link: "presentation"` block and `prompt` on some
@@ -935,13 +990,14 @@
 			fileDownload={roster30 || linksState ? fileSource : null}
 			{htmlWork}
 			{manifest}
+			feedback={feedbackOn ? feedbackMemory.teacher : null}
 		/>
 	{/key}
 
-	{#snippet htmlWork(student: StudentWork)}
+	{#snippet htmlWork(student: StudentWork, feedbackFrame: HtmlWorkFeedback | null)}
 		<!-- THE ROUTES' OWN COMPONENT, not a copy of it: both grade routes mount
 		     `HtmlGradingWork`, and so does this page. -->
-		<HtmlGradingWork {student} item={ITEM} htmlAssignment={HX} sandboxOrigin="" />
+		<HtmlGradingWork {student} item={ITEM} htmlAssignment={HX} sandboxOrigin="" feedback={feedbackFrame} />
 	{/snippet}
 
 	<section class="hx-captures" aria-label="Exported files" data-testid="hx-captures">

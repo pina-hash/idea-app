@@ -102,21 +102,32 @@
  * minutes, and an expiry needs no notice at all: each page hides a notice at
  * its end from the end it already holds.
  *
+ * `feedback` IS THE SIXTH (0238, decision 60), and the shut-table case again:
+ * both feedback tables are RLS-on with no policy and no client grant. The
+ * instructor's console announces after a note lands and the student's page
+ * after a reply or a Fixed it; a page that hears it re-reads its own notes
+ * through `classroom_feedback_list` (a student's page after a random wait of
+ * up to four seconds, so a class does not ask in the same second). The
+ * student's floor is the heartbeat they already send, which answers when
+ * their feedback last moved; the console's is its own poll.
+ *
  * `createMemoryClassroomLive` is the in-memory twin for harnesses and tests:
  * an announce reaches every OTHER subscriber synchronously, and nothing here
  * touches the network. It is a real implementation of the interface, not a
  * stub of it, so a component driven against it exercises the identical code.
  */
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
+import { getContext, setContext } from 'svelte';
 
-export type ClassroomLiveTopic = 'hall-pass' | 'song-queue' | 'responses' | 'presence' | 'quick-posts';
+export type ClassroomLiveTopic = 'hall-pass' | 'song-queue' | 'responses' | 'presence' | 'quick-posts' | 'feedback';
 
 export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'hall-pass',
 	'song-queue',
 	'responses',
 	'presence',
-	'quick-posts'
+	'quick-posts',
+	'feedback'
 ];
 
 /**
@@ -161,6 +172,25 @@ export interface ClassroomLive {
 	 */
 	announce(sectionId: string, topic: ClassroomLiveTopic): void;
 }
+
+/**
+ * THE SECTION LAYOUT'S ONE BUS, SHARED WITH THE PAGES UNDER IT (0238). The
+ * layout builds the bus once and provides it; a page under it (the item page,
+ * for feedback) takes the same instance from context rather than building a
+ * second one, so a class page still costs one channel. Outside a section
+ * layout there is no bus and the answer is null, which every caller reads as
+ * "the floor only".
+ */
+const LIVE_CONTEXT = Symbol('classroom-live');
+export function provideClassroomLive(live: ClassroomLive): void {
+	setContext(LIVE_CONTEXT, live);
+}
+export function classroomLiveFromContext(): ClassroomLive | null {
+	return getContext<ClassroomLive | undefined>(LIVE_CONTEXT) ?? null;
+}
+
+/** The longest a student's page waits before re-reading after a feedback notice, so a class does not ask in one second. */
+export const FEEDBACK_NOTICE_JITTER_MS = 4000;
 
 /** The one broadcast event name. The topic rides in the payload. */
 export const CLASSROOM_LIVE_EVENT = 'changed';

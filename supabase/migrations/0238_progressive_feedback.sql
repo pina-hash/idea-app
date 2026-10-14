@@ -641,8 +641,9 @@ end;
 $f$;
 
 -- SEEN. The student's side stamps their own threads on one item; an
--- instructor's stamps one student's (or, with no student, every thread on the
--- item they review). Never moves updated_at.
+-- instructor's stamps one named student's threads on it (an instructor who
+-- names nobody is stamping as themselves, which touches only threads about
+-- their own address, of which there are none). Never moves updated_at.
 create or replace function public.classroom_feedback_seen(p_item_id uuid, p_student_email text default null)
 returns integer
 language plpgsql
