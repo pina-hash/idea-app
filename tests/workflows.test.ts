@@ -3138,3 +3138,50 @@ done`;
 		expect(run.remote).toEqual(ALL);
 	}, 60_000);
 });
+
+describe('migrate.yml: the chain to the next migration stops when nothing was applied (ledger 0381)', () => {
+	// GitHub's `==` is loose: when the two sides' types differ, both are
+	// coerced to numbers, and a skipped step's output is NULL, which becomes 0
+	// exactly as '0' does. So `steps.apply.outputs.code == '0'` was TRUE on a
+	// run whose apply step never ran, and the chain re-dispatched an empty run
+	// forever (eleven in eight minutes on 2026-10-14). This models that
+	// coercion rather than trusting a reading of the expression.
+	const loose = (a: unknown, b: unknown): boolean => {
+		if (typeof a === typeof b && a !== null && b !== null) return a === b;
+		const num = (v: unknown) => (v === null ? 0 : typeof v === 'string' ? (v.trim() === '' ? 0 : Number(v)) : Number(v));
+		return num(a) === num(b);
+	};
+	const stepIf = (name: string): string => {
+		const body = src('migrate.yml');
+		const at = body.indexOf(`- name: ${name}`);
+		expect(at).toBeGreaterThan(-1);
+		const line = body.slice(at).split('\n').find((l) => l.trim().startsWith('if:'));
+		expect(line).toBeDefined();
+		return line!.trim().slice(3).trim();
+	};
+	// Evaluate the condition for one run's apply step: its outcome and its code.
+	const chains = (cond: string, outcome: 'success' | 'skipped' | 'failure', code: string | null): boolean => {
+		const terms = cond.split('&&').map((t) => t.trim());
+		return terms.every((t) => {
+			if (t === 'success()') return outcome !== 'failure';
+			let m = t.match(/^steps\.apply\.outcome == '([a-z]+)'$/);
+			if (m) return outcome === m[1];
+			m = t.match(/^steps\.apply\.outputs\.code == '(\d+)'$/);
+			if (m) return loose(code, m[1]);
+			throw new Error(`unmodelled term in the chain condition: ${t}`);
+		});
+	};
+
+	it('chains after a clean apply, and never after a skipped one or a refusal', () => {
+		const cond = stepIf('Go on to the next migration, if there is one');
+		expect(chains(cond, 'success', '0')).toBe(true); // positive control
+		expect(chains(cond, 'skipped', null)).toBe(false); // nothing to apply
+		expect(chains(cond, 'success', '4')).toBe(false); // applied, unverified
+		expect(chains(cond, 'failure', '2')).toBe(false); // refused
+	});
+
+	it('NEGATIVE CONTROL: the condition as first shipped chains a skipped run', () => {
+		const shipped = "success() && steps.apply.outputs.code == '0'";
+		expect(chains(shipped, 'skipped', null)).toBe(true);
+	});
+});
