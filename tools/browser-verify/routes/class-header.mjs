@@ -13,7 +13,7 @@
  * washed banner and on the notice card, every new key at 44px, and that the
  * pattern layer moves only under `no-preference`.
  */
-import { COVERS, IGNORE, MEASURE, READY, THEME_READY, WHOLE } from './_class-header.mjs';
+import { FLOW, IGNORE, MEASURE, READY, THEME_READY, WHOLE } from './_class-header.mjs';
 
 export default {
 	path: '/dev/class-header',
@@ -53,10 +53,14 @@ export default {
 		{ selector: '[data-testid="class-tools"] .ctool-trigger', label: 'Hall pass and Music', min: 44 }
 	],
 	motion: [
-		{ selector: '[data-testid="class-banner-pattern"]', label: 'the pattern drift, gated behind no-preference', expect: 'gated' }
+		{ selector: '[data-testid="class-banner-pattern"]', label: 'the pattern flow, gated behind no-preference', expect: 'gated' }
 	],
 	orderResult: [
-		{ label: 'the moving ripples cover the banner at every tenth of the drift', evaluate: COVERS, expected: ['animated=true', 'moved=true', 'covered=true'] },
+		{
+			label: 'the ripples flow: one running infinite loop of one period, moving, phase-locked, untransformed and filling the banner',
+			evaluate: FLOW,
+			expected: ['flowing=true', 'drawn=true', 'infinite=true', 'one period=true', 'moved=true', 'phase locked=true', 'no transform=true', 'fills the banner=true']
+		},
 		{
 			label: 'every tool, theme and due word whole, tile or not',
 			evaluate: WHOLE,

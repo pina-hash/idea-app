@@ -92,7 +92,7 @@ and render again.
 | already-shipped | Told to him in one line. It goes on the mark-seen list, never into a prompt. |
 | bug-confirmed / bug-suspected | The next build session. P0 (broken in class) leads it. |
 | buildable-feature with no migration | The next build session, by priority. |
-| anything needing a migration | Its own session, with a number reserved from `migration-claims.mjs`. |
+| anything needing a migration | The session that owns the surface, with its numbers reserved from `migration-claims.mjs` (a session may carry several). |
 | needs-decision / conflicts-with-rule | Step 5 first, then wherever the answer puts it. |
 | a whole-subsystem redesign | A vision or design brief first (step 6), never a build prompt. |
 
@@ -132,8 +132,9 @@ visual language is mockups-first: a `/dev` before/after page he approves, then t
   with Owns as PATHS), a duplicate check, the brief's location with a fallback if it is not
   on the session's ref, and the shipping section: merge to `main` tier by tier as each goes
   green, approved by Mr. Pina on 2026-09-25. It never waits on the `integration` sweep.
-- A session that carries a migration also names its reserved number. Its migration must be
-  ADDITIVE, because `migrate.yml` applies it on the same push that deploys the client.
+- A session that carries migrations names every reserved number in its `Claims:` list (it
+  may carry several; `migrate.yml` applies them in order). Each must be ADDITIVE, because
+  `migrate.yml` applies it on the same push that deploys the client.
 
 **Choosing the model**, per `docs/standards/IDEA_instructions.md`'s routing table:
 

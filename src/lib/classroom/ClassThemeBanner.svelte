@@ -1,7 +1,15 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { onMount, untrack, type Snippet } from 'svelte';
 	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
-	import { classThemeVars, classThemeWords, type ClassTheme } from '$lib/classroom/class-theme';
+	import {
+		classThemeFlow,
+		classThemeVars,
+		classThemeWords,
+		PATTERN_FLOW_FPS,
+		patternFlowOffset,
+		type ClassTheme
+	} from '$lib/classroom/class-theme';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
 
 	/**
 	 * THE CLASS BANNER (decision 45, report R07): the class's voted look drawn
@@ -22,37 +30,45 @@
 	 * ink. The words are always in the accessible tree, because a theme is never
 	 * colour alone.
 	 *
-	 * THE PATTERN IS ITS OWN LAYER NOW, SO IT CAN MOVE (ledger 0360, report R21:
-	 * "themed patterns should be nicely animated"). It used to be a
-	 * `background-image` on the banner, which cannot move without repainting the
-	 * whole banner every frame. It is a real element (a scoped `::after` is the
-	 * thing Svelte prunes, CLAUDE.md), `aria-hidden`, drawn with the identical
-	 * stroke at the identical alpha, so no frame of the motion is a different
-	 * contrast from the still pattern the catalogue's sweep already measures. It
-	 * paints over the wash and under the words by TREE ORDER among positioned
-	 * boxes, with no z-index anywhere, so the banner stays what it was: not a
-	 * stacking context, and nothing inside it is trapped under the page.
+	 * THE PATTERN IS ITS OWN LAYER, SO IT CAN MOVE (ledger 0360, report R21).
+	 * It is a real element (a scoped `::after` is the thing Svelte prunes,
+	 * CLAUDE.md), `aria-hidden`, drawn with the identical stroke at the
+	 * identical alpha, so no frame of the motion is a different contrast from
+	 * the still pattern the catalogue's sweep already measures. It paints over
+	 * the wash and under the words by TREE ORDER among positioned boxes, with no
+	 * z-index anywhere, so the banner is still not a stacking context.
 	 *
-	 * THE MOTION IS BOUNDED, AND THAT IS WCAG 2.2.2 RATHER THAN TASTE. Motion
-	 * that starts by itself and lasts more than five seconds beside content
-	 * needs a pause control, so the drift that plays on arrival lasts 4.2s and
-	 * ends exactly on the still frame; it loops only while a pointer that can
-	 * hover is over the banner, which is a person asking for it. Transform only,
-	 * so the compositor carries it, and nothing at all under
-	 * `prefers-reduced-motion: reduce`, where the layer is the still frame.
+	 * IT FLOWS FOR AS LONG AS THE PAGE IS OPEN (Mr. Pina, 2026-10-14: "still
+	 * glitching and pausing. they should be smoothly continuous looping
+	 * animations"; decision 61). The motion used to be a 4.2s arrival that eased
+	 * to a stop, then a loop that ran only under a hovering pointer and swung
+	 * back and forth, so it stopped whenever the pointer left, never ran on a
+	 * touch screen, and slowed to nothing at both ends of every swing. Now one
+	 * registered property (`--ct-phase` for stripes, rings and ripples,
+	 * `--ct-turn` for rays) runs from zero to exactly one period of the
+	 * pattern, linearly and forever, and a repeating gradient moved by one
+	 * period is the same picture: the loop has no seam and no turn to pause at.
+	 * `patternFlow` in `class-theme.ts` derives the moving form from the one
+	 * template, so there is no second copy of any pattern.
 	 *
-	 * HOVER PAUSES AND RESUMES; IT NEVER SWAPS THE ANIMATION (ledger 0368,
-	 * report R02, "buggy and dont really work"). The hover rule used to REPLACE
-	 * the arrival with the loop, and a name that re-enters `animation-name` is a
-	 * NEW animation, so every time the pointer left the banner (which wraps every
-	 * key in the class header, so it crossed the edge constantly) the arrival
-	 * restarted from its first frame, a visible jump (measured, Chromium 141:
-	 * +5.67px hovering, -14.97px just after leaving). So the arrival and the
-	 * loop live on TWO nested layers, each its own compositor animation. The
-	 * inner `.ct-pattern` carries the arrival, the outer `.ct-pattern-loop`
-	 * carries the loop, which is attached from the start and `paused`, and the
-	 * hover sets `animation-play-state` and nothing else. Leaving holds the loop
-	 * where it is, coming back resumes it, and the arrival never replays.
+	 * IT IS PHASE-LOCKED TO THE WALL CLOCK. Every mount starts the loop where the
+	 * clock says it is (`patternFlowOffset`), so the class page remounting on a
+	 * tab change, or coming back from `display: none` on a phone, lands on the
+	 * frame the pattern was already showing instead of restarting it.
+	 *
+	 * IT STOPS FOR ANYBODY WHO ASKS. Motion that runs longer than five seconds
+	 * beside content needs a way to stop it (WCAG 2.2.2): `Class banner motion`
+	 * in Display settings (`display.bannerMotion`, this device), and
+	 * `prefers-reduced-motion: reduce`, whatever the setting says. Stopped, the
+	 * layer draws the still template, byte for byte the frame it always drew. A
+	 * browser that cannot register a custom property animates it in one jump a
+	 * period, which is a glitch, so there it stays still too.
+	 *
+	 * Web Animations, not a stylesheet `@keyframes`, so the period comes from
+	 * the template rather than being written down twice, and the start can be
+	 * set from the clock. It is stepped at `PATTERN_FLOW_FPS`: at four pixels a
+	 * second a thirtieth of a second is a seventh of a pixel, and it halves the
+	 * paints of the one layer that repaints.
 	 *
 	 * Both twins of every colour arrive inline from `classThemeVars`; the
 	 * stylesheet below picks one into a used property of its own, and picks the
@@ -77,6 +93,76 @@
 
 	const vars = $derived(classThemeVars(theme));
 	const words = $derived(classThemeWords(theme));
+	const flow = $derived(classThemeFlow(theme));
+
+	/* The off switch: this device's choice in Display settings. With no store in
+	   context (a harness that provides none) the pattern moves. */
+	const prefStore = classroomPreferences();
+	const prefs = prefStore ? reactivePreferences(prefStore) : null;
+	const still = $derived(prefs ? prefs.current.display.bannerMotion === 'still' : false);
+
+	/* `reduce` is read from the media query itself and followed live, so a
+	   person who switches it on mid-lesson is obeyed without a reload. */
+	let reduce = $state(true);
+	onMount(() => {
+		const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+		reduce = query.matches;
+		const follow = () => (reduce = query.matches);
+		query.addEventListener('change', follow);
+		return () => query.removeEventListener('change', follow);
+	});
+
+	let layer = $state<HTMLSpanElement | null>(null);
+	let flowing = $state(false);
+	$effect(() => {
+		const el = layer;
+		const f = flow;
+		const off = still || reduce;
+		if (!el || !f || off) return;
+		// The animation is started outside the tracking context: nothing it
+		// touches may become a dependency of this effect (CLAUDE.md, Svelte 5).
+		return untrack(() => {
+			if (!registerFlowProperties()) return;
+			const steps = Math.max(1, Math.round((f.durationMs / 1000) * PATTERN_FLOW_FPS));
+			const animation = el.animate(
+				[{ [f.property]: `0${f.unit}` }, { [f.property]: `${f.period}${f.unit}` }],
+				{ duration: f.durationMs, iterations: Infinity, easing: `steps(${steps}, end)` }
+			);
+			animation.currentTime = patternFlowOffset(Date.now(), f.durationMs);
+			flowing = true;
+			return () => {
+				animation.cancel();
+				flowing = false;
+			};
+		});
+	});
+</script>
+
+<script lang="ts" module>
+	/**
+	 * THE TWO PROPERTIES THE FLOW ANIMATES, registered once per page. A property
+	 * that is not registered interpolates in one jump at the halfway point, which
+	 * would be exactly the glitch this replaces, so a browser without
+	 * `CSS.registerProperty` (or one that refuses) keeps the still frame.
+	 */
+	let registered: boolean | null = null;
+	function registerFlowProperties(): boolean {
+		if (registered !== null) return registered;
+		if (typeof CSS === 'undefined' || typeof CSS.registerProperty !== 'function') return (registered = false);
+		for (const [name, syntax, initialValue] of [
+			['--ct-phase', '<length>', '0px'],
+			['--ct-turn', '<angle>', '0deg']
+		] as const) {
+			try {
+				CSS.registerProperty({ name, syntax, inherits: false, initialValue });
+			} catch (err) {
+				// Already registered (a second banner, or a hot reload) is fine;
+				// anything else means the property will not interpolate.
+				if (!(err instanceof DOMException && err.name === 'InvalidModificationError')) return (registered = false);
+			}
+		}
+		return (registered = true);
+	}
 </script>
 
 {#if theme}
@@ -91,12 +177,16 @@
 		data-accent={theme.accent?.id ?? ''}
 	>
 		{#if theme.pattern.template}
-			<!-- The clip, not the banner, hides the layer's overscan, so a focus
-			     ring on a key inside the header is never clipped. -->
+			<!-- The clip, not the banner, bounds the layer, so a focus ring on a
+			     key inside the header is never clipped. -->
 			<span class="ct-pattern-clip" aria-hidden="true"
-				><span class="ct-pattern-loop"
-					><span class="ct-pattern" data-testid="class-banner-pattern"></span></span
-				></span
+				><span
+					class="ct-pattern"
+					data-testid="class-banner-pattern"
+					data-flow={flowing ? 'on' : 'off'}
+					style={flow?.style}
+					bind:this={layer}
+				></span></span
 			>
 		{/if}
 		{#if theme.badge.paths.length > 0 && !badgeInline}
@@ -149,40 +239,20 @@
 		border-radius: inherit;
 		pointer-events: none;
 	}
-	/* The loop's layer. It carries the overscan, and the pattern fills it. */
-	.ct-pattern-loop {
-		position: absolute;
-		inset: 0;
-	}
 	.ct-pattern {
 		position: absolute;
 		inset: 0;
 		background-image: var(--ct-p);
 	}
-	/* Stripes and rays move by sliding and turning, so their layers carry a
-	   margin the motion never uncovers. Stripes are uniform, so the margin moves
-	   only their phase (24px against a 16.97px slide each way). The rays turn
-	   about a centre 72px past the corner, out of sight under the border, and
-	   72px is what a 2.5deg turn needs on the widest banner the class page
-	   draws (the split's 92rem, 1472px: the far corner moves (w + 72) sin 2.5deg,
-	   about 67px; COVERS in tools/browser-verify measures it at 1920). Rings and
-	   ripples only ever grow about their own centre, which can never uncover the
-	   box, so they need none. `transform-origin` is not inherited, so it is set
-	   on BOTH layers: the arrival and the loop turn or grow about one point. */
-	.ct-banner[data-pattern='stripes'] .ct-pattern-loop {
-		inset: -24px;
+	/* Flowing, the layer draws the template with the phase in it (at phase zero,
+	   the same picture), on a layer of its own so only it repaints, never the
+	   words and keys over it. */
+	.ct-pattern[data-flow='on'] {
+		background-image: var(--ct-pf);
+		will-change: transform;
 	}
-	.ct-banner[data-pattern='rays'] .ct-pattern-loop {
-		inset: -72px;
-	}
-	.ct-banner[data-pattern='rings'] :is(.ct-pattern-loop, .ct-pattern) {
-		transform-origin: 100% 50%;
-	}
-	.ct-banner[data-pattern='rays'] :is(.ct-pattern-loop, .ct-pattern) {
-		transform-origin: 100% 100%;
-	}
-	.ct-banner[data-pattern='ripples'] :is(.ct-pattern-loop, .ct-pattern) {
-		transform-origin: 0% 100%;
+	:global(:root[data-theme='space-white']) .ct-pattern[data-flow='on'] {
+		background-image: var(--ct-pf-light);
 	}
 	.ct-badge {
 		position: relative;
@@ -199,88 +269,6 @@
 		min-width: 0;
 	}
 
-	/* THE MOTION: an arrival on the inner layer that ends on the still frame,
-	   and a loop on the outer layer that is attached from the start, paused, and
-	   runs only under a hovering pointer. One period of the stripes along the x
-	   axis is 12px over cos 45deg, so the loop is seamless and may stop at any
-	   phase; a ring breathes about its centre; the rays turn 2.5deg each way,
-	   which is a quarter of one ray's 9deg period and reads as a turn. */
-	@media (prefers-reduced-motion: no-preference) {
-		.ct-banner[data-pattern='stripes'] .ct-pattern {
-			animation: ct-stripes-in 4.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-		}
-		.ct-banner[data-pattern='rings'] .ct-pattern,
-		.ct-banner[data-pattern='ripples'] .ct-pattern {
-			animation: ct-breathe-in 4.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-		}
-		.ct-banner[data-pattern='rays'] .ct-pattern {
-			animation: ct-turn-in 4.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-		}
-		.ct-banner[data-pattern='stripes'] .ct-pattern-loop {
-			animation: ct-stripes-drift 3s linear infinite paused;
-		}
-		.ct-banner[data-pattern='rings'] .ct-pattern-loop,
-		.ct-banner[data-pattern='ripples'] .ct-pattern-loop {
-			animation: ct-breathe 3.2s ease-in-out infinite alternate paused;
-		}
-		.ct-banner[data-pattern='rays'] .ct-pattern-loop {
-			animation: ct-turn 4s ease-in-out infinite alternate paused;
-		}
-	}
-	/* The hover only lets the loop run. Leaving pauses it where it is. */
-	@media (prefers-reduced-motion: no-preference) and (hover: hover) {
-		.ct-banner:hover .ct-pattern-loop {
-			animation-play-state: running;
-		}
-	}
-	@keyframes ct-stripes-in {
-		from {
-			transform: translateX(-16.97px);
-		}
-		to {
-			transform: none;
-		}
-	}
-	@keyframes ct-stripes-drift {
-		from {
-			transform: none;
-		}
-		to {
-			transform: translateX(16.97px);
-		}
-	}
-	@keyframes ct-breathe-in {
-		from {
-			transform: scale(1.12);
-		}
-		to {
-			transform: none;
-		}
-	}
-	@keyframes ct-breathe {
-		from {
-			transform: none;
-		}
-		to {
-			transform: scale(1.06);
-		}
-	}
-	@keyframes ct-turn-in {
-		from {
-			transform: rotate(-2.5deg);
-		}
-		to {
-			transform: none;
-		}
-	}
-	@keyframes ct-turn {
-		from {
-			transform: none;
-		}
-		to {
-			transform: rotate(2.5deg);
-		}
-	}
 	.sr-only {
 		position: absolute;
 		width: 1px;

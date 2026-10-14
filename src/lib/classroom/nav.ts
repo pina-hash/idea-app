@@ -488,6 +488,25 @@ export function canCollapseNav(loc: ClassroomLocation): boolean {
  */
 export type ClassroomMeasure = 'reading' | 'form' | 'panel' | 'page' | 'wide' | 'split' | 'console';
 
+/**
+ * HOW MANY COLUMNS THE CLASS LIST TAKES BESIDE AN OPEN ITEM, decided from the
+ * width the list is GOING to have rather than the width it has this frame
+ * (report c4d516ca: "This kind of squishing when the sidebar starts to
+ * collapse is unacceptable, it's very messy"). Opening an item eases the list
+ * from the whole window down to its pane over 180ms, and a multi-column stream
+ * re-cut itself at every threshold on the way (six columns, five, ... one),
+ * which is the mess in the screenshot. With the count fixed at the pane's own
+ * answer from the first frame, the list narrows as one column and nothing
+ * jumps. The arithmetic is ClassView's stream: the pane less 26px of card
+ * padding, `--cr-stream-col` (22.25rem) columns, a 1.5rem column gap, and never
+ * more columns than there are groups to fill them.
+ */
+export function paneStreamColumns(navRem: number, groups: number, colRem = 22.25, gapRem = 1.5): number {
+	const stream = navRem - 1.625;
+	const fit = Math.floor((stream + gapRem) / (colRem + gapRem));
+	return Math.max(1, Math.min(Math.max(1, groups), fit));
+}
+
 export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | null {
 	switch (loc.place) {
 		/**

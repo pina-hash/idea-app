@@ -109,7 +109,7 @@ them, in every shape, and the shapes are pinned by `tests/migration-claims.test.
     - Issued: <UTC timestamp>
     - By: <which chat or session wrote the prompt>
     - Owns: <paths and globs, copied verbatim from the prompt's canned opening block>
-    - Migration permitted: <yes | no>. Claims: <NNNN | none>. Highest on origin/main at issue: <NNNN>
+    - Migration permitted: <yes | no>. Claims: <NNNN[, NNNN ...] | none>. Highest on origin/main at issue: <NNNN>
     - Status: <issued | pushed | in-integration | deployed>
     - Branch: <from the session's FINAL REPORT, never from the prompt>
     - Notes: <including anything deliberately excluded>

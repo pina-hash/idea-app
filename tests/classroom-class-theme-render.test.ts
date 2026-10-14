@@ -82,25 +82,29 @@ describe('the banner with no theme is only the header it wraps', () => {
  * must be decoration and nothing else: hidden from assistive technology, one
  * per banner, absent for the plain pattern (there is nothing to move), and
  * absent altogether for a class with no theme, which the block above already
- * holds to the byte. The motion itself, and its absence under reduced motion,
- * is `tools/browser-verify/routes/classroom-theme.mjs`'s `motion` row.
+ * holds to the byte. Since decision 61 (2026-10-14) it flows continuously
+ * through Web Animations; the motion itself, and its absence under reduced
+ * motion and the Still setting, is `tools/browser-verify/routes/classroom-theme.mjs`'s
+ * `motion` row and the class-header pattern specs' FLOW probe.
  */
 describe('the pattern layer', () => {
 	const layers = (html: string) => html.split('data-testid="class-banner-pattern"').length - 1;
 	it('one aria-hidden layer for a patterned theme, none for the plain one', () => {
 		const patterned = banner(THEME);
 		expect(layers(patterned)).toBe(1);
-		// Two nested layers since ledger 0368: the loop's, then the arrival's.
+		// One layer inside its clip, still on arrival (`data-flow="off"`): the
+		// flow starts only after mount, and only where motion is wanted.
 		expect(patterned).toMatch(
-			/<span class="ct-pattern-clip[^"]*" aria-hidden="true"><span class="ct-pattern-loop[^"]*"><span class="ct-pattern[^"]*" data-testid="class-banner-pattern"><\/span><\/span><\/span>/
+			/<span class="ct-pattern-clip[^"]*" aria-hidden="true"><span class="ct-pattern[^"]*" data-testid="class-banner-pattern" data-flow="off" style="--ct-pf:[^"]*--ct-pf-light:[^"]*"><\/span><\/span>/
 		);
+		expect(patterned).not.toContain('ct-pattern-loop');
 		const plain = banner(resolveClassTheme({ winners: { palette: 'ocean', pattern: 'plain' }, accent: 'gold' }));
 		expect(plain).toContain('class="ct-banner');
 		expect(layers(plain)).toBe(0);
 		expect(layers(banner(null))).toBe(0);
 	});
 
-	it('the pattern no longer rides on the banner itself, so nothing paints it twice', () => {
+	it('the pattern no longer rides on the banner itself, and nothing in the stylesheet moves it', () => {
 		// The inline style still carries both twins of the pattern for the layer to read.
 		expect(banner(THEME)).toContain('--ct-pattern:');
 		const src = readFileSync('src/lib/classroom/ClassThemeBanner.svelte', 'utf8');
@@ -111,36 +115,29 @@ describe('the pattern layer', () => {
 		};
 		expect(rule('.ct-banner')).not.toContain('background-image');
 		expect(rule('.ct-pattern')).toContain('background-image: var(--ct-p)');
-		// And every animation is inside the no-preference gate: none before it.
-		const gate = src.indexOf('@media (prefers-reduced-motion: no-preference)');
-		expect(gate).toBeGreaterThan(-1);
-		expect(src.slice(0, gate).match(/\banimation:/g) ?? []).toEqual([]);
-		// Three arrivals and three loops, each loop declared once, paused.
-		expect((src.slice(gate).match(/\banimation:/g) ?? []).length).toBe(6);
-		expect((src.slice(gate).match(/\banimation:[^;]*\bpaused;/g) ?? []).length).toBe(3);
+		expect(rule(".ct-pattern[data-flow='on']")).toContain('background-image: var(--ct-pf)');
+		// The motion is the script's (Web Animations, phase-locked to the clock),
+		// so the stylesheet declares no animation and no keyframes: a stylesheet
+		// loop would restart on every remount, which is the glitch reported.
+		const css = src.split('<style>')[1] ?? '';
+		expect(css.match(/\banimation(-name)?\s*:/g) ?? []).toEqual([]);
+		expect(css).not.toContain('@keyframes');
+		// And the script starts it only past both off switches.
+		expect(src).toMatch(/const off = still \|\| reduce;/);
+		expect(src).toContain("matchMedia('(prefers-reduced-motion: reduce)')");
+		expect(src).toContain("bannerMotion === 'still'");
 	});
 
 	/*
-	 * HOVER PAUSES AND RESUMES, NEVER SWAPS (ledger 0368, report R02). A hover
-	 * rule that declares `animation` (or `animation-name`) replaces the arrival,
-	 * and a name re-entering the list is a NEW animation: on every mouse-out the
-	 * arrival restarted from its first frame, which is the jump that was
-	 * reported. So every rule whose selector holds `:hover` may set only
-	 * `animation-play-state`, and there must be such a rule (the positive
-	 * control: a file with no hover rule at all would pass the first half).
+	 * THE MOTION NEVER DEPENDS ON A POINTER (decision 61). The loop used to run
+	 * only under `:hover`, so it stopped whenever the pointer left and never ran
+	 * on a touch screen, which is the "pausing" in the report. The positive
+	 * control is that the file does style the pattern at all.
 	 */
-	it('a hover rule sets only animation-play-state, never animation or animation-name', () => {
+	it('no hover rule touches the pattern', () => {
 		const css = readFileSync('src/lib/classroom/ClassThemeBanner.svelte', 'utf8').split('<style>')[1] ?? '';
 		const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1].trim(), body: m[2] }));
-		const hover = rules.filter((r) => r.selector.includes(':hover'));
-		expect(hover.length).toBeGreaterThan(0);
-		for (const r of hover) {
-			expect(r.body, r.selector).not.toMatch(/\banimation(-name)?\s*:/);
-			const props = r.body
-				.split(';')
-				.map((d) => d.split(':')[0].trim())
-				.filter(Boolean);
-			expect(props, r.selector).toEqual(['animation-play-state']);
-		}
+		expect(rules.some((r) => r.selector.includes('ct-pattern'))).toBe(true);
+		expect(rules.filter((r) => r.selector.includes(':hover') && r.selector.includes('ct-pattern'))).toEqual([]);
 	});
 });

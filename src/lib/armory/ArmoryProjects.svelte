@@ -157,7 +157,10 @@
 	{:else}
 		<a class="btn secondary ar-btn" href="/armory/start" data-testid="armory-setup-line">Set up another computer</a>
 	{/if}
-	<a class="btn secondary ar-btn" href="/armory/get">Get the Windows app</a>
+	<!-- `/armory/get` is a +server.ts with no page, so without a reload the
+	     client router reads it as the project page `/armory/[project]` and paints
+	     a 404 instead of downloading (tests/armory-download-link-reload.test.ts). -->
+	<a class="btn secondary ar-btn" href="/armory/get" data-sveltekit-reload>Get the Windows app</a>
 	{#if create}<a class="btn secondary ar-btn" href="#create" data-testid="armory-create-key">Create project</a>{/if}
 </div>
 <p class="ar-message ar-status-line" data-testid="armory-status-line">
@@ -184,7 +187,7 @@
 		</p>
 		<div class="ar-row-actions">
 			<a class="btn ar-btn" href="/armory/start">Start setup</a>
-			<a class="btn secondary ar-btn" href="/armory/get">Get the Windows app</a>
+			<a class="btn secondary ar-btn" href="/armory/get" data-sveltekit-reload>Get the Windows app</a>
 		</div>
 	</section>
 {/if}

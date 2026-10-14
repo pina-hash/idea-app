@@ -219,6 +219,21 @@
 		return Math.max(NAV_WIDTH_MIN_REM, Math.min(NAV_WIDTH_MAX_REM, fit));
 	}
 
+	/**
+	 * THE WIDEST THIS WINDOW ALLOWS, as state, so the separator announces the
+	 * range a keyboard can actually reach (`aria-valuemax`, and where End goes):
+	 * with a 120rem ceiling the stored maximum is a number no laptop can draw.
+	 * Re-read on a window resize, which is the only thing that moves it.
+	 */
+	let windowMaxRem = $state(NAV_WIDTH_MAX_REM);
+	$effect(() => {
+		if (!canResize || !splitEl) return;
+		const read = () => (windowMaxRem = maxRemNow());
+		read();
+		addEventListener('resize', read);
+		return () => removeEventListener('resize', read);
+	});
+
 	function commit(rem: number | null) {
 		if (!store) return;
 		const current = store.current.display;
@@ -237,7 +252,7 @@
 		else if (e.key === 'PageDown') next = now - 4 * NAV_WIDTH_STEP_REM;
 		else if (e.key === 'PageUp') next = now + 4 * NAV_WIDTH_STEP_REM;
 		else if (e.key === 'Home') next = NAV_WIDTH_MIN_REM;
-		else if (e.key === 'End') next = NAV_WIDTH_MAX_REM;
+		else if (e.key === 'End') next = maxRemNow();
 		else if (e.key === 'Enter') {
 			e.preventDefault();
 			commit(null);
@@ -311,7 +326,7 @@
 			aria-controls={navId}
 			aria-label="List width"
 			aria-valuemin={NAV_WIDTH_MIN_REM}
-			aria-valuemax={NAV_WIDTH_MAX_REM}
+			aria-valuemax={windowMaxRem}
 			aria-valuenow={shownRem}
 			aria-valuetext={navWidthWords(shownRem === NAV_WIDTH_DEFAULT_REM ? null : shownRem)}
 			tabindex="0"

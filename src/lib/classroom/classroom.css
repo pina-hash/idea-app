@@ -51,6 +51,18 @@
 	background: var(--surface-0);
 	min-height: 100vh;
 
+	/* THE SPLIT TAKES THE WINDOW (Mr. Pina, 2026-10-14, report db499adb: "Dead
+	   Space on full screen. On the sidebars. Remove dead space from sidebars
+	   side should extend all the way"). The class page and an open item sat in
+	   a centred 92rem band, 464px of nothing either side at 2400px. The
+	   Foundry's precedent (forge.css): point the split measure at
+	   `--measure-console`, a literal `100%` at `:root`, so the split, its
+	   chrome (`--cr-measure` under `:has(.cr-split)`) and every two-pane
+	   classroom surface use the whole window less the gutter. Sentences keep
+	   their own reading cap (`--measure-reading`), so widening a pane never
+	   widens a paragraph. */
+	--measure-split: var(--measure-console, 100%);
+
 	/* HOW WIDE THE PAGE IS. The route's answer arrives as `--cr-measure-route`
 	   (set inline by src/routes/classroom/+layout.svelte from nav.ts's
 	   classroomMeasure) and is resolved into `--cr-measure` HERE, in the

@@ -1613,7 +1613,7 @@
 													data-testid="team-rename"
 													onclick={() => toggleRename(team)}
 												>
-													{renamingTeam === team.id ? 'Close' : 'Edit name'}
+													{renamingTeam === team.id ? 'Close' : 'Edit name and motto'}
 												</button>
 											{/if}
 										</div>

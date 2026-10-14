@@ -77,130 +77,61 @@ export const POSTING_LINE = `() => {
 }`;
 
 /**
- * DOES THE MOVING PATTERN EVER UNCOVER ITS BOX? The pattern moves on TWO nested
- * layers since ledger 0368 (report R02): the inner `.ct-pattern` carries the
- * arrival drift and the outer `.ct-pattern-loop` the hover loop, which is
- * attached from the start, paused, and resumed by a hover, so a pointer that
- * leaves halfway holds it at ANY phase while the arrival may still be running.
- * So every pairing is checked: the arrival at eleven points from its first
- * frame to its last, each composed with the loop at its start, its midpoint and
- * its far end. At each one the inner layer's box, mapped through its own
- * transform about its own origin and then through the loop's about the loop's,
- * must contain all four corners of the clip both move inside. A seam where the
- * layer has slid or turned past an edge is what this would see; a check of the
- * still frame alone cannot. `COVERS_MARGIN` prints the worst margin in px,
- * which is what says how close the rays' 72px overscan runs at this width.
+ * THE PATTERN FLOWS, CONTINUOUSLY, WITH NO SEAM AND NO PAUSE (decision 61, Mr.
+ * Pina 2026-10-14: "still glitching and pausing. they should be smoothly
+ * continuous looping animations"). Read off the live layer:
  *
- * IT SAMPLES PROBES, NEVER THE PAGE'S OWN ANIMATIONS. The first version paused
- * the CSS animation itself through the Web Animations API, and Chromium then
- * kept that paused animation alive after `reduce` removed the rule, so the
- * motion row that runs after this one reported the layer "still animating
- * (none, paused)" on every pattern: a finding the instrument made. A probe
- * built from the same keyframes outranks the CSS animation in the composite
- * order while it exists, and `cancel()` removes it without a trace.
+ *   - exactly one animation, running, with infinite iterations, animating the
+ *     pattern's registered phase property from 0 to one period;
+ *   - the layer says so (`data-flow="on"`) and draws the flowing background;
+ *   - the phase actually advances over 400ms (the positive control: a layer
+ *     that registered nothing would interpolate in one jump and read equal);
+ *   - the loop is PHASE-LOCKED to the wall clock, so a remount lands on the
+ *     frame the pattern was already showing (within 250ms of `Date.now()`
+ *     modulo one loop);
+ *   - the layer carries no transform and fills its clip, so nothing can ever
+ *     uncover the banner (the overscan the transforms needed is gone).
  */
-const COVER_PROBE = `(() => {
+export const FLOW = `async () => {
 	const layer = document.querySelector('[data-testid="class-banner-pattern"]');
-	const loop = layer.parentElement;
-	const clip = layer.closest('.ct-pattern-clip');
-	if (!loop || !loop.classList.contains('ct-pattern-loop') || !clip) return ['layers=missing'];
-	const inA = layer.getAnimations();
-	const loopA = loop.getAnimations();
-	if (!inA.length || !loopA.length) return ['animated=false'];
-	const probe = (el, anim) => {
-		const t = anim.effect.getTiming();
-		const p = el.animate(anim.effect.getKeyframes(), { duration: t.duration, easing: t.easing, fill: 'both' });
-		p.pause();
-		return p;
-	};
-	const a = probe(layer, inA[0]);
-	const b = probe(loop, loopA[0]);
-	const aEnd = a.effect.getComputedTiming().endTime;
-	const bEnd = b.effect.getComputedTiming().endTime;
-	const W = layer.offsetWidth, H = layer.offsetHeight, Li = layer.offsetLeft, Ti = layer.offsetTop;
-	const LW = loop.offsetWidth, LH = loop.offsetHeight, Ll = loop.offsetLeft, Tl = loop.offsetTop;
-	const cw = clip.clientWidth, ch = clip.clientHeight;
-	const matrix = (el) => {
-		const cs = getComputedStyle(el);
-		const m = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform);
-		const [ox, oy] = cs.transformOrigin.split(' ').map(parseFloat);
-		return { m, ox, oy };
-	};
-	let worst = Infinity;
-	/* The positive control: probes that never moved either layer would cover
-	   the banner trivially, so the answer says whether any sample transformed. */
-	let moved = false;
-	for (let j = 0; j <= 2; j++) {
-		b.currentTime = (bEnd * j) / 2;
-		const lo = matrix(loop);
-		if (!lo.m.isIdentity) moved = true;
-		for (let i = 0; i <= 10; i++) {
-			a.currentTime = (aEnd * i) / 10;
-			const inn = matrix(layer);
-			if (!inn.m.isIdentity) moved = true;
-			const map = (x, y) => {
-				const p = inn.m.transformPoint(new DOMPoint(x - inn.ox, y - inn.oy));
-				const qx = p.x + inn.ox + Li, qy = p.y + inn.oy + Ti;
-				const r = lo.m.transformPoint(new DOMPoint(qx - lo.ox, qy - lo.oy));
-				return [r.x + lo.ox + Ll, r.y + lo.oy + Tl];
-			};
-			const quad = [map(0, 0), map(W, 0), map(W, H), map(0, H)];
-			const inside = ([px, py]) => {
-				let d = Infinity;
-				for (let k = 0; k < 4; k++) {
-					const [x1, y1] = quad[k], [x2, y2] = quad[(k + 1) % 4];
-					const cross = ((x2 - x1) * (py - y1) - (y2 - y1) * (px - x1)) / Math.hypot(x2 - x1, y2 - y1);
-					d = Math.min(d, cross);
-				}
-				return d;
-			};
-			for (const c of [[0, 0], [cw, 0], [cw, ch], [0, ch]]) worst = Math.min(worst, inside(c));
-		}
-	}
-	a.cancel();
-	b.cancel();
-	/* Half a pixel of tolerance for a layer that rests exactly on its box (rings
-	   and ripples carry no overscan, so at rest every corner is ON an edge). */
-	return { tokens: ['animated=true', 'moved=' + moved, 'covered=' + (worst >= -0.5)], readout: 'banner clip ' + cw + 'x' + ch + 'px, loop layer ' + LW + 'x' + LH + 'px, worst corner margin over every arrival and loop pairing ' + worst.toFixed(1) + 'px' };
-})`;
-
-export const COVERS = `() => { const r = ${COVER_PROBE}(); return Array.isArray(r) ? r : r.tokens; }`;
-
-/** The same probe's margin, printed (a prepare `evaluate`), never asserted. */
-export const COVERS_MARGIN = `() => { const r = ${COVER_PROBE}(); return Array.isArray(r) ? r.join(' ') : r.readout; }`;
-
-/**
- * THE HOVER NEVER SWAPS THE ANIMATION (ledger 0368, report R02). A rule that
- * replaced the arrival on `:hover` restarted it from its first frame every time
- * the pointer left, which is the jump that was reported. Read off the live
- * stylesheet: the loop layer carries a paused loop, the pattern layer carries
- * the arrival, and every rule whose selector names `:hover` sets only
- * `animation-play-state`. A real hover cannot be driven from this harness's
- * prepare steps (a dispatched event never sets `:hover`); the measured hover is
- * in the history entry, and the source pin is
- * `tests/classroom-class-theme-render.test.ts`.
- */
-export const LOOP_PAUSED = `() => {
-	const layer = document.querySelector('[data-testid="class-banner-pattern"]');
-	const loop = layer.parentElement;
-	const loopA = loop.getAnimations();
-	const inA = layer.getAnimations();
-	const hoverRules = [];
-	const walk = (rules) => {
-		for (const r of rules) {
-			if (r.selectorText && r.selectorText.includes(':hover') && r.selectorText.includes('ct-pattern')) hoverRules.push(r);
-			if (r.cssRules?.length) walk(r.cssRules);
-		}
-	};
-	for (const sheet of document.styleSheets) {
-		try { walk(sheet.cssRules); } catch {}
-	}
-	const onlyPlayState = hoverRules.length > 0 && hoverRules.every((r) => r.style.length === 1 && r.style[0] === 'animation-play-state');
+	const clip = layer && layer.closest('.ct-pattern-clip');
+	if (!layer || !clip) return ['layer=missing'];
+	const anims = layer.getAnimations();
+	if (anims.length !== 1) return ['flowing=false', 'animations=' + anims.length];
+	const a = anims[0];
+	const frames = a.effect.getKeyframes();
+	const prop = Object.keys(frames[0]).find((k) => k.startsWith('--ct-'));
+	const timing = a.effect.getComputedTiming();
+	const read = () => getComputedStyle(layer).getPropertyValue(prop).trim();
+	const before = read();
+	await new Promise((r) => setTimeout(r, 400));
+	const after = read();
+	const duration = timing.duration;
+	const want = Date.now() % duration;
+	const have = (a.currentTime ?? 0) % duration;
+	const drift = Math.min(Math.abs(want - have), duration - Math.abs(want - have));
+	const lr = layer.getBoundingClientRect(), cr = clip.getBoundingClientRect();
+	const fills = Math.abs(lr.left - cr.left) < 0.5 && Math.abs(lr.top - cr.top) < 0.5 && Math.abs(lr.width - cr.width) < 0.5 && Math.abs(lr.height - cr.height) < 0.5;
 	return [
-		'loop attached=' + (loopA.length === 1),
-		'loop paused=' + (loopA[0]?.playState === 'paused'),
-		'arrival on the pattern=' + (inA.length === 1 && /-in$/.test(inA[0].animationName ?? '')),
-		'hover rules set only play state=' + onlyPlayState
+		'flowing=' + (a.playState === 'running' && layer.dataset.flow === 'on'),
+		'drawn=' + /gradient/.test(getComputedStyle(layer).backgroundImage),
+		'infinite=' + (timing.iterations === Infinity),
+		'one period=' + (/^0(px|deg)$/.test(String(frames[0][prop])) && /^(12|14|16)px$|^9deg$/.test(String(frames[frames.length - 1][prop]))),
+		'moved=' + (before !== after),
+		'phase locked=' + (drift < 250),
+		'no transform=' + (getComputedStyle(layer).transform === 'none'),
+		'fills the banner=' + fills
+	];
+}`;
+
+/** The same layer under the Still setting (`?motion=still`): drawn, and not moving. */
+export const STILL = `() => {
+	const layer = document.querySelector('[data-testid="class-banner-pattern"]');
+	if (!layer) return ['layer=missing'];
+	return [
+		'drawn=' + (getComputedStyle(layer).backgroundImage !== 'none'),
+		'animations=' + layer.getAnimations().length,
+		'flow=' + layer.dataset.flow
 	];
 }`;
 

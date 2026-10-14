@@ -25,6 +25,7 @@ import FoundryCard from '../../src/lib/foundry/FoundryCard.svelte';
 import FoundryDetail from '../../src/lib/foundry/FoundryDetail.svelte';
 import FoundryGallery from '../../src/lib/foundry/FoundryGallery.svelte';
 import FoundryInspector from '../../src/lib/foundry/FoundryInspector.svelte';
+import { FOUNDRY_FEATURED_FILL_NOTE, FOUNDRY_FEATURED_NOTE } from '../../src/lib/foundry/gallery-extras';
 import {
 	FOUNDRY_ALL_APPS_TITLE,
 	FOUNDRY_MAJOR_NOT_READY,
@@ -212,6 +213,126 @@ describe('the gallery section', () => {
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		live!.flush();
 		expect(c.querySelectorAll('[data-testid="foundry-gallery-major-section"]')).toHaveLength(1);
+	});
+});
+
+describe('a release card says what the release is (editorial control, 2026-10)', () => {
+	// An admin's description saved on /foundry/review/gallery used to reach no
+	// card at all: the house card never drew its line and a student card has no
+	// body. What would be silent if it broke: the saved words not appearing, a
+	// line leaking onto every card in the full list, and a line a screen reader
+	// never hears because the link's label overrides its contents.
+	const describedBy = (el: Element) => {
+		const id = el.getAttribute('aria-describedby');
+		return id ? el.ownerDocument.getElementById(id)?.textContent?.trim() ?? null : null;
+	};
+	const MAJOR_ID = FIVE[1].id;
+
+	it('a house card draws its registry line, and an admin\'s description replaces it', async () => {
+		const houses = foundryHouseReleases();
+		let c = gallery({ houseReleases: houses });
+		let cards = [...c.querySelectorAll('[data-testid="foundry-gallery-major"] [data-testid="fdy-house-card"]')];
+		expect(cards.map((a) => a.querySelector('[data-testid="fdy-house-sub"]')?.textContent?.trim())).toEqual(
+			houses.map((h) => h.sub)
+		);
+		expect(cards.map(describedBy)).toEqual(houses.map((h) => h.sub));
+		await live!.stop();
+		c = gallery({
+			houseReleases: houses,
+			extras: {
+				overrides: { 'house:vanguard': { subject: 'house:vanguard', title: null, description: 'Our first arcade game.', thumbnail_path: null } },
+				collections: [],
+				featured: []
+			}
+		});
+		cards = [...c.querySelectorAll('[data-testid="foundry-gallery-major"] [data-testid="fdy-house-card"]')];
+		expect(cards.map((a) => a.querySelector('[data-testid="fdy-house-sub"]')?.textContent?.trim())).toEqual([
+			houses[0].sub,
+			'Our first arcade game.'
+		]);
+		expect(describedBy(cards[1])).toBe('Our first arcade game.');
+	});
+
+	it('a major app card in the section shows the override, else its tagline; the full list shows no line', async () => {
+		const apps = FIVE.map((a) => (a.id === MAJOR_ID ? { ...a, tagline: 'A student tagline.' } : a));
+		let c = gallery({ apps });
+		const lines = () =>
+			[...c.querySelectorAll('[data-testid="foundry-gallery-major"] [data-testid="fdy-card"]')].map(
+				(a) => a.querySelector('[data-testid="fdy-card-blurb"]')?.textContent?.trim() ?? null
+			);
+		// App 1 has a tagline; App 3 has none, so it carries no line at all.
+		expect(lines()).toEqual(['A student tagline.', null]);
+		const card = c.querySelector(`[data-testid="foundry-gallery-major"] [data-app-slug="app-1"]`)!;
+		expect(describedBy(card)).toBe('A student tagline.');
+		// The full list holds the same app and draws no line on any card.
+		const list = c.querySelector('[data-testid="foundry-gallery-grid"]')!;
+		expect(list.querySelectorAll('[data-testid="fdy-card"]')).toHaveLength(5);
+		expect(list.querySelectorAll('[data-testid="fdy-card-blurb"]')).toHaveLength(0);
+		expect(list.querySelector('[data-app-slug="app-1"]')!.hasAttribute('aria-describedby')).toBe(false);
+		await live!.stop();
+		c = gallery({
+			apps,
+			extras: {
+				overrides: {
+					[`app:${MAJOR_ID}`]: { subject: `app:${MAJOR_ID}`, title: null, description: 'Picked for the showcase.', thumbnail_path: null }
+				},
+				collections: [],
+				featured: []
+			}
+		});
+		expect(lines()).toEqual(['Picked for the showcase.', null]);
+	});
+
+	it('the card without the prop is exactly what it was: no line, no description', () => {
+		const app = { id: 'x', slug: 'x', title: 'Tide Pool', cover_path: null, owner_display_name: null, owner_full_name: 'Noor Haddad', owner_class: null };
+		live = mountInto(FoundryCard as never, { app, href: '/foundry?app=x' });
+		const link = live.target.querySelector('[data-testid="fdy-card"]')!;
+		expect(live.target.querySelectorAll('[data-testid="fdy-card-blurb"]')).toHaveLength(0);
+		expect(link.hasAttribute('aria-describedby')).toBe(false);
+		// A generated cover with nothing to say draws no plate (its name is the art).
+		expect(live.target.querySelectorAll('[data-testid="fdy-card-name"]')).toHaveLength(0);
+	});
+
+	it('a generated cover with a line draws a plate carrying the line, never the name twice', () => {
+		const app = { id: 'x', slug: 'x', title: 'Tide Pool', cover_path: null, owner_display_name: null, owner_full_name: 'Noor Haddad', owner_class: null };
+		live = mountInto(FoundryCard as never, { app, href: '/foundry?app=x', blurb: '  Catch every fish.  ' });
+		const plate = live.target.querySelector('[data-testid="fdy-card-name"]')!;
+		expect(plate.classList.contains('has-blurb')).toBe(true);
+		expect(plate.querySelectorAll('.fdy-card-name-title')).toHaveLength(0);
+		expect(plate.querySelector('[data-testid="fdy-card-blurb"]')!.textContent).toBe('Catch every fish.');
+	});
+});
+
+describe('the featured row with nothing picked (2026-10)', () => {
+	const EMPTY = { overrides: {}, collections: [], featured: [] as string[] };
+	const counts = {
+		[FIVE[2].id]: { plays: 30, plays7d: 3, playsPrev7d: 3 },
+		[FIVE[4].id]: { plays: 5, plays7d: 5, playsPrev7d: 0 }
+	};
+	const row = (c: HTMLElement) =>
+		[...c.querySelectorAll('[data-testid="foundry-gallery-featured"] [data-testid="fdy-card"]')].map((a) =>
+			a.getAttribute('data-app-slug')
+		);
+
+	it('is the top of the boards, says so, and never claims staff picked it', () => {
+		const c = gallery({ extras: EMPTY, playCounts: counts });
+		expect(c.querySelectorAll('[data-testid="foundry-gallery-featured-section"]')).toHaveLength(1);
+		expect(row(c)).toEqual(['app-2', 'app-4']);
+		expect(c.querySelector('[data-testid="foundry-featured-note"]')?.textContent?.trim()).toBe(FOUNDRY_FEATURED_FILL_NOTE);
+	});
+
+	it('a pick puts it first and the note says it was picked', () => {
+		const c = gallery({ extras: { ...EMPTY, featured: [`app:${FIVE[0].id}`] }, playCounts: counts });
+		expect(row(c)).toEqual(['app-0', 'app-2', 'app-4']);
+		expect(c.querySelector('[data-testid="foundry-featured-note"]')?.textContent?.trim()).toBe(FOUNDRY_FEATURED_NOTE);
+	});
+
+	it('is absent on a gallery nobody has played, and without the curation layer at all', async () => {
+		let c = gallery({ extras: EMPTY });
+		expect(c.querySelectorAll('[data-testid="foundry-gallery-featured-section"]')).toHaveLength(0);
+		await live!.stop();
+		c = gallery({ playCounts: counts });
+		expect(c.querySelectorAll('[data-testid="foundry-gallery-featured-section"]')).toHaveLength(0);
 	});
 });
 

@@ -38,7 +38,9 @@ name: Migrate
 #     comments from the middle of a statement as well as the front
 #   * refuses top-level DML unless `--allow-dml` is passed (it is not, here)
 #   * refuses unless the authorising ledger entry's `Migration permitted:` line
-#     permits one, and unless no migration is already recorded under it
+#     permits one, and unless that entry still has room: an entry applies as
+#     many migrations as its `Claims:` list names, each once (one when it
+#     names none or one)
 #   * reads production's applied set and refuses anything that is not the
 #     LOWEST unapplied file -- including when a file BELOW it is merely
 #     unknown, because cannot say is never a pass
@@ -112,6 +114,10 @@ jobs:
       # Write, for one reason: committing the record the tool writes. The push
       # is guarded below to that one directory.
       contents: write
+      # Write, for one reason: starting this same workflow again after a clean
+      # apply, so a bundle that carries several migrations has each of them
+      # applied in order (see the last step). Nothing else is dispatched.
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -442,3 +448,23 @@ jobs:
         run: |
           echo "::error::the migration APPLIED and could not be fully verified. The record is committed and says which object is missing, or that its history row is not there. Read it before doing anything else -- re-running will NOT re-apply it."
           exit 1
+
+      # ------------------------------------------------------------------
+      # 5. ON TO THE NEXT ONE. A bundle may carry several migrations (Mr. Pina,
+      #    2026-10-14: the one-migration-per-bundle rule is gone), and a run
+      #    applies exactly one, the lowest unapplied. After a CLEAN apply whose
+      #    record landed, this run starts the workflow again, which probes
+      #    afresh and applies the next one, or finds nothing and stops green.
+      #    A push made with this job's token does not start a workflow, which is
+      #    why the record commit alone never chained. Never after a refusal, a
+      #    raise or an unverified apply: those stop for a person to read.
+      #    The concurrency group above makes the new run wait for this one.
+      # ------------------------------------------------------------------
+      - name: Go on to the next migration, if there is one
+        if: success() && steps.apply.outputs.code == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run migrate.yml --ref main
+          echo "started the Migrate workflow again, to apply the next unapplied migration if there is one" >> "$GITHUB_STEP_SUMMARY"

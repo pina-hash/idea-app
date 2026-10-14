@@ -93,8 +93,9 @@
 	import { matchesQuery } from '$lib/shell/search';
 	import { ICONS } from '$lib/shell/commands';
 	import { registerCommandHandler } from '$lib/shell/command-handlers';
-	import type { ClassOpensOn } from '$lib/preferences/classroom';
-	import { classDuplicatesHref } from '$lib/classroom/nav';
+	import { navWidthRem, type ClassOpensOn } from '$lib/preferences/classroom';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { classDuplicatesHref, paneStreamColumns } from '$lib/classroom/nav';
 	import { duplicateDoorLabel } from '$lib/classroom/duplicate-count';
 
 	/**
@@ -597,6 +598,38 @@
 		}
 		return narrowed.filter((g) => g.items.length > 0 || (g.id === UNFILED_GROUP_ID && anyCheckIn));
 	});
+
+	/**
+	 * THE LIST'S COLUMN COUNT BESIDE AN OPEN ITEM, fixed for the whole width
+	 * transition in both directions (report c4d516ca; `paneStreamColumns`).
+	 * Opening: the pane's own count from the first frame. Closing: the list
+	 * widens as the pane's count and takes the wide layout's columns once, when
+	 * the 180ms ease is over, rather than re-cutting at every threshold.
+	 */
+	const paneStore = classroomPreferences();
+	const panePrefs = paneStore ? reactivePreferences(paneStore) : null;
+	let lingerColumns = $state<number | null>(null);
+	let lastPaneColumns: number | null = null;
+	const paneColumnsNow = $derived(
+		asPane
+			? paneStreamColumns(navWidthRem(panePrefs ? panePrefs.current.display.navWidth : null), shownGroups.length)
+			: null
+	);
+	$effect(() => {
+		const now = paneColumnsNow;
+		if (now !== null) {
+			lastPaneColumns = now;
+			lingerColumns = null;
+			return;
+		}
+		if (lastPaneColumns === null) return;
+		lingerColumns = lastPaneColumns;
+		lastPaneColumns = null;
+		const t = setTimeout(() => (lingerColumns = null), 220);
+		return () => clearTimeout(t);
+	});
+	const streamColumns = $derived(paneColumnsNow ?? lingerColumns);
+
 	/** The unfiltered group, which every order write reads. */
 	function fullGroupItems(groupId: string): ClassroomItem[] {
 		return groups.find((g) => g.id === groupId)?.items ?? [];
@@ -2412,7 +2445,11 @@
 		when nothing is open beside it -- see `.stream` in the styles for the
 		measurement the column width comes from.
 	-->
-	<div class="stream" bind:this={menuHost}>
+	<div
+		class="stream"
+		style={streamColumns === null ? undefined : `columns: var(--cr-stream-col) ${streamColumns}`}
+		bind:this={menuHost}
+	>
 		{#each shownGroups as group (group.id)}
 			{@const entries = entriesFor(group.id, group.items)}
 			{@const folded = isCollapsed(group.id)}
@@ -2765,14 +2802,28 @@
 
 	   `columns: <width> <count>` is the fix, and the COUNT IS A CEILING rather
 	   than a demand: with both set the used count is
-	   min(count, floor((width + gap) / (col + gap))), so two groups share the
+	   min(count, floor((width + gap) / (col + gap))), so groups share the
 	   whole measure where there is room and still drop to one column in a pane
-	   too narrow for two. Only 1 and 2 need capping -- the split's own 92rem
-	   means the stream is never wider than 1326px, which is three columns, so
-	   a class with three or more groups can never out-run the tracks.
+	   too narrow for them.
 
-	   The one-group rule is LAST because a class with one group also matches
-	   the two-group selector, and the two carry the same specificity. */
+	   EVERY COUNT UP TO FIVE IS CAPPED NOW, not just one and two. The split
+	   took the whole window on 2026-10-14 (report db499adb), so at 2400px with
+	   nothing open the stream holds six 356px columns, and a class with three
+	   groups would have filled three and left three empty. A class with six or
+	   more groups fills whatever the window holds, and a long group may still
+	   continue into the next column (below).
+
+	   The fewer-groups rules come LAST, because a class with one group also
+	   matches every rule above it and they all carry the same specificity. */
+	.stream:not(:has(> :nth-child(6))) {
+		columns: var(--cr-stream-col) 5;
+	}
+	.stream:not(:has(> :nth-child(5))) {
+		columns: var(--cr-stream-col) 4;
+	}
+	.stream:not(:has(> :nth-child(4))) {
+		columns: var(--cr-stream-col) 3;
+	}
 	.stream:not(:has(> :nth-child(3))) {
 		columns: var(--cr-stream-col) 2;
 	}

@@ -75,6 +75,16 @@ export const DENSITIES = ['comfortable', 'compact'] as const;
 export type Density = (typeof DENSITIES)[number];
 
 /**
+ * WHETHER THE CLASS BANNER'S PATTERN MOVES (Mr. Pina, 2026-10-14: "they should
+ * be smoothly continuous looping animations"). The pattern loops for as long
+ * as the page is open, so WCAG 2.2.2 wants a way to stop it, and this is that
+ * way: a standing choice on this device, beside the other display choices.
+ * `prefers-reduced-motion: reduce` stills it as well, whatever this says.
+ */
+export const BANNER_MOTIONS = ['moving', 'still'] as const;
+export type BannerMotion = (typeof BANNER_MOTIONS)[number];
+
+/**
  * WHICH STATUS FILTER A CLASS OPENS ON. The union is every value either role
  * can choose; `classOpensOnFor` maps one that does not apply to the viewer's
  * role (a stored `todo` read by somebody who now manages the class) back to
@@ -107,14 +117,21 @@ export type ClassroomTourId = (typeof CLASSROOM_TOUR_IDS)[number];
 /**
  * THE LIST PANE'S WIDTH beside something open, in rem (ledger 0297, LEARN).
  * Null is the layout's own width (`--measure-nav`, 26rem), which is what every
- * surface still gets until somebody drags the separator. The clamp is what
- * the layout supports: below 18rem a class row's title wraps to three lines,
- * above 40rem the item beside it is under half of a 1366px screen, and
- * split.css keeps the item at least 32rem wide at any window width on top of
- * this. Whole rem only, so the keyboard step and the stored value agree.
+ * surface still gets until somebody drags the separator.
+ *
+ * THE RANGE RUNS FROM ULTRA NARROW TO ULTRA WIDE (Mr. Pina, 2026-10-14, report
+ * db499adb: "Full adjustment all the way from ultra narrow to ultra wide"). It
+ * was 18 to 40rem inside a split capped at 92rem; the classroom split takes the
+ * whole window now, so 40rem was a quarter of a 2400px screen. 16rem is the
+ * narrowest a class row still names its title and its due date (ClassView's
+ * narrow tiers shed the grip, the arrow and the kind word below 26rem);
+ * 120rem is wider than anybody will want, and the split keeps the item at
+ * least 32rem wide at any window width on top of this (split.css and
+ * `ClassSplit`'s own clamp), so the ceiling is the window, not the number.
+ * Whole rem only, so the keyboard step and the stored value agree.
  */
-export const NAV_WIDTH_MIN_REM = 18;
-export const NAV_WIDTH_MAX_REM = 40;
+export const NAV_WIDTH_MIN_REM = 16;
+export const NAV_WIDTH_MAX_REM = 120;
 export const NAV_WIDTH_DEFAULT_REM = 26;
 export const NAV_WIDTH_STEP_REM = 1;
 
@@ -180,7 +197,7 @@ const HINT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export interface ClassroomPreferences {
 	/** `wallClock`: the projector's hero clock, digits or the analog face (idea 26033e4b). */
-	display: { density: Density; navWidth: number | null; wallClock: WallClockFace };
+	display: { density: Density; navWidth: number | null; wallClock: WallClockFace; bannerMotion: BannerMotion };
 	classView: { opensOn: ClassOpensOn; todoOpensOn: TodoOpensOn };
 	grading: { advanceAfterReturn: boolean; gradesOrder: GradingOrderKey };
 	guidance: { retiredHints: string[]; tours: Record<ClassroomTourId, TourState> };
@@ -217,7 +234,7 @@ export const CLASSROOM_PREFERENCE_HOMES: Readonly<Record<ClassroomPreferenceGrou
 
 export function defaultClassroomPreferences(): ClassroomPreferences {
 	return {
-		display: { density: 'comfortable', navWidth: null, wallClock: 'digits' },
+		display: { density: 'comfortable', navWidth: null, wallClock: 'digits', bannerMotion: 'moving' },
 		classView: { opensOn: 'all', todoOpensOn: 'assigned' },
 		grading: { advanceAfterReturn: false, gradesOrder: GRADING_ORDER_DEFAULT },
 		guidance: { retiredHints: [], tours: { teacher: 'unseen', student: 'unseen' } },
@@ -257,7 +274,8 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 			// list as wide as it went meant "wide", and a later, tighter clamp
 			// should keep them at its own widest rather than snapping them back.
 			navWidth: clampNavWidth(display.navWidth),
-			wallClock: oneOf(display.wallClock, WALL_CLOCK_FACES, d.display.wallClock)
+			wallClock: oneOf(display.wallClock, WALL_CLOCK_FACES, d.display.wallClock),
+			bannerMotion: oneOf(display.bannerMotion, BANNER_MOTIONS, d.display.bannerMotion)
 		},
 		classView: {
 			opensOn: oneOf(classView.opensOn, CLASS_OPENS_ON, d.classView.opensOn),
@@ -481,6 +499,18 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 		options: () => [
 			{ value: 'digits', label: 'Numbers' },
 			{ value: 'dial', label: 'Clock face' }
+		]
+	},
+	{
+		group: 'display',
+		title: 'Class banner motion',
+		help:
+			'Whether the pattern across the top of a class page drifts slowly. Choose Still if the movement is distracting; a computer set to reduce motion keeps it still either way.',
+		roles: ['student', 'manager'],
+		field: 'bannerMotion',
+		options: () => [
+			{ value: 'moving', label: 'Moving' },
+			{ value: 'still', label: 'Still' }
 		]
 	},
 	{

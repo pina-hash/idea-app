@@ -342,22 +342,130 @@
 	type RubricMode = 'normal' | 'narrow' | 'hidden';
 	const RUBRIC_MODE_KEY = 'idea.grading.rubricMode';
 	let rubricMode = $state<RubricMode>('normal');
+	/**
+	 * THE RUBRIC'S OWN WIDTH, DRAGGED (report c0964d99: "move it over a little
+	 * bit, squeeze it over a bit ... just like I give you a panel over on the
+	 * classroom page"). Wide, Narrow and Hide are presets; the separator between
+	 * the work and the rubric sets any width between them, in whole rem, kept on
+	 * this device beside the mode. Null is the preset's own width. The work keeps
+	 * `RUBRIC_WORK_MIN_REM` whatever was stored, the classroom split's 32rem rule
+	 * at this scale.
+	 */
+	const RUBRIC_WIDTH_KEY = 'idea.grading.rubricWidth';
+	const RUBRIC_MIN_REM = 14;
+	const RUBRIC_WORK_MIN_REM = 24;
+	let rubricWidthRem = $state<number | null>(null);
+	/**
+	 * WHETHER THE RUBRIC IS ACTUALLY BESIDE THE WORK, as the stylesheet decides
+	 * it: two columns from 901px, and for a whole ported document only from
+	 * 78rem. Below that the rubric stacks under the work and is ALWAYS shown, so
+	 * a stored Hide must not lock the level keys there (it used to: a narrow
+	 * window with Hide remembered had dead level keys and no size keys to undo
+	 * it). Read from the same two media queries the stylesheet uses, followed live.
+	 */
+	let sideBySide = $state(true);
 	onMount(() => {
 		try {
 			const stored = localStorage.getItem(RUBRIC_MODE_KEY);
 			if (stored === 'narrow' || stored === 'hidden') rubricMode = stored;
+			const width = Number(localStorage.getItem(RUBRIC_WIDTH_KEY));
+			if (Number.isFinite(width) && width >= RUBRIC_MIN_REM) rubricWidthRem = Math.round(width);
 		} catch {
 			// Site data blocked: the default, with no complaint.
 		}
 	});
+	$effect(() => {
+		const doc = documentWork;
+		const query = window.matchMedia(doc ? '(min-width: 78.0625rem)' : '(min-width: 901px)');
+		const follow = () => (sideBySide = query.matches);
+		follow();
+		query.addEventListener('change', follow);
+		return () => query.removeEventListener('change', follow);
+	});
+	/** Hidden on screen, which is the only time a level key must not act. */
+	const rubricHiddenNow = $derived(rubricMode === 'hidden' && sideBySide);
 	function setRubricMode(next: RubricMode) {
 		rubricMode = next;
+		rubricWidthRem = null;
 		try {
 			if (next === 'normal') localStorage.removeItem(RUBRIC_MODE_KEY);
 			else localStorage.setItem(RUBRIC_MODE_KEY, next);
+			localStorage.removeItem(RUBRIC_WIDTH_KEY);
 		} catch {
 			// Not remembered; still applied for this visit.
 		}
+	}
+	function setRubricWidth(rem: number | null) {
+		rubricWidthRem = rem;
+		if (rem !== null && rubricMode === 'hidden') rubricMode = 'normal';
+		try {
+			if (rem === null) localStorage.removeItem(RUBRIC_WIDTH_KEY);
+			else {
+				localStorage.setItem(RUBRIC_WIDTH_KEY, String(rem));
+				if (rubricMode === 'normal') localStorage.removeItem(RUBRIC_MODE_KEY);
+			}
+		} catch {
+			// Not remembered; still applied for this visit.
+		}
+	}
+	let workSplitEl = $state<HTMLElement | null>(null);
+	/** The widest the rubric may be in this row, keeping the work its floor. */
+	function rubricMaxRem(): number {
+		if (!workSplitEl) return 60;
+		const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+		const gap = parseFloat(getComputedStyle(workSplitEl).columnGap) || 0;
+		return Math.max(RUBRIC_MIN_REM, Math.floor((workSplitEl.clientWidth - gap) / root) - RUBRIC_WORK_MIN_REM);
+	}
+	/** The rubric's drawn width now, in rem, for the separator's value. */
+	function rubricShownRem(): number {
+		const col = workSplitEl?.querySelector<HTMLElement>(':scope > .work-right');
+		const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+		return col ? Math.round(col.getBoundingClientRect().width / root) : RUBRIC_MIN_REM;
+	}
+	function clampRubric(rem: number): number {
+		return Math.max(RUBRIC_MIN_REM, Math.min(rubricMaxRem(), Math.round(rem)));
+	}
+	let rubricDrag: { right: number; root: number } | null = null;
+	let rubricDragging = $state(false);
+	function onRubricSepDown(e: PointerEvent) {
+		if (e.button !== 0 || !workSplitEl) return;
+		e.preventDefault();
+		(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+		rubricDrag = {
+			right: workSplitEl.getBoundingClientRect().right,
+			root: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+		};
+		rubricDragging = true;
+	}
+	function onRubricSepMove(e: PointerEvent) {
+		if (!rubricDrag) return;
+		rubricWidthRem = clampRubric((rubricDrag.right - e.clientX) / rubricDrag.root);
+		if (rubricMode === 'hidden') rubricMode = 'normal';
+	}
+	function onRubricSepUp() {
+		if (!rubricDrag) return;
+		rubricDrag = null;
+		rubricDragging = false;
+		setRubricWidth(rubricWidthRem);
+	}
+	function onRubricSepKey(e: KeyboardEvent) {
+		const now = rubricWidthRem ?? rubricShownRem();
+		let next: number | null = null;
+		// The separator sits LEFT of the rubric, so moving it left widens it.
+		if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = now + 1;
+		else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = now - 1;
+		else if (e.key === 'PageUp') next = now + 4;
+		else if (e.key === 'PageDown') next = now - 4;
+		else if (e.key === 'Home') next = RUBRIC_MIN_REM;
+		else if (e.key === 'End') next = rubricMaxRem();
+		else if (e.key === 'Enter') {
+			e.preventDefault();
+			setRubricWidth(null);
+			return;
+		}
+		if (next === null) return;
+		e.preventDefault();
+		setRubricWidth(clampRubric(next));
 	}
 	let scores = $state<Record<string, number | null>>({});
 	/** Per-criterion comments. The server REQUIRES one on every override. */
@@ -2128,7 +2236,7 @@
 	}
 
 	function runAction(action: GradeAction) {
-		if (rubricMode === 'hidden' && (action.startsWith('level-') || action.startsWith('crit-'))) return;
+		if (rubricHiddenNow && (action.startsWith('level-') || action.startsWith('crit-'))) return;
 		if (action !== 'return' && action !== 'close') armReturn = false;
 		switch (action) {
 			case 'level-1':
@@ -3414,8 +3522,12 @@
 						class="work-split"
 						class:has-rubric={!!rubric?.length}
 						class:document-work={documentWork}
-						class:rubric-narrow={rubricMode === 'narrow'}
+						class:rubric-narrow={rubricMode === 'narrow' && rubricWidthRem === null}
 						class:rubric-hidden={rubricMode === 'hidden'}
+						class:rubric-sized={rubricWidthRem !== null && rubricMode !== 'hidden'}
+						class:rubric-dragging={rubricDragging}
+						style={rubricWidthRem !== null && rubricMode !== 'hidden' ? `--rubric-w: ${rubricWidthRem}rem` : undefined}
+						bind:this={workSplitEl}
 					>
 						<!--
 							THE ONE SCROLL REGION WITH NOTHING FOCUSABLE IN IT. Above the
@@ -3559,6 +3671,32 @@
 						</div>
 
 						{#if rubric?.length}
+							{#if rubricMode !== 'hidden' && sideBySide}
+								<!-- THE RUBRIC'S SEPARATOR: the classroom split's window-splitter
+								     pattern at this scale, in the gap and taking no column.
+								     Drag it, or arrow keys, Home, End; Enter or a double click
+								     goes back to the preset width. -->
+								<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+								<div
+									class="rubric-sep"
+									role="separator"
+									aria-orientation="vertical"
+									aria-label="Rubric width"
+									aria-valuemin={RUBRIC_MIN_REM}
+									aria-valuenow={rubricWidthRem ?? undefined}
+									aria-valuetext={rubricWidthRem === null ? 'Preset width' : `${rubricWidthRem} rem`}
+									tabindex="0"
+									data-testid="grade-rubric-separator"
+									onkeydown={onRubricSepKey}
+									onpointerdown={onRubricSepDown}
+									onpointermove={onRubricSepMove}
+									onpointerup={onRubricSepUp}
+									onpointercancel={onRubricSepUp}
+									ondblclick={() => setRubricWidth(null)}
+								>
+									<span class="rubric-sep-grip" aria-hidden="true"></span>
+								</div>
+							{/if}
 							<div class="work-col work-right" role="region" aria-label="Rubric">
 								{#if rubricMode === 'hidden'}
 									<div class="rubric-rail" data-testid="grade-rubric-rail">
@@ -3592,9 +3730,10 @@
 													<button
 														type="button"
 														class="btn secondary rubric-size-key"
-														aria-pressed={rubricMode === m.id}
-														class:on={rubricMode === m.id}
+														aria-pressed={rubricMode === m.id && rubricWidthRem === null}
+														class:on={rubricMode === m.id && rubricWidthRem === null}
 														data-testid="grade-rubric-{m.id}"
+														data-mode={m.id}
 														onclick={() => setRubricMode(m.id as RubricMode)}>{m.label}</button
 													>
 												{/each}
@@ -5045,6 +5184,61 @@
 		.work-split.has-rubric.rubric-hidden {
 			grid-template-columns: minmax(0, 1fr) 4.5rem;
 		}
+		/* A DRAGGED WIDTH: the rubric is what was chosen, the work takes the rest
+		   and never less than 24rem (the same floor the drag clamps to, so a width
+		   stored on a wide screen cannot squeeze a laptop's work column away). */
+		.work-split.has-rubric.rubric-sized {
+			grid-template-columns: minmax(24rem, 1fr) minmax(14rem, var(--rubric-w));
+		}
+		/* EXPLICIT CELLS, because the separator is placed into the rubric's cell
+		   by hand, and auto-placement skips an occupied cell: without these the
+		   rubric would drop to an implicit second row under the work. */
+		.work-split.has-rubric > .work-left {
+			grid-column: 1;
+			grid-row: 1;
+		}
+		.work-split.has-rubric > .work-right {
+			grid-column: 2;
+			grid-row: 1;
+		}
+		/* The gap is the separator's 24px, the floor for a pointer target. */
+		.work-split.has-rubric:not(.rubric-hidden) {
+			gap: 1.5rem;
+			position: relative;
+		}
+		.rubric-sep {
+			grid-column: 2;
+			grid-row: 1;
+			justify-self: start;
+			align-self: stretch;
+			width: 1.5rem;
+			margin-left: -1.5rem;
+			display: flex;
+			justify-content: center;
+			align-items: flex-start;
+			padding-top: 4rem;
+			cursor: col-resize;
+			touch-action: none;
+			border-radius: var(--radius-control, 6px);
+		}
+		.rubric-sep-grip {
+			width: 4px;
+			height: 3rem;
+			border-radius: 2px;
+			background: var(--boundary);
+		}
+		.rubric-sep:hover .rubric-sep-grip,
+		.rubric-sep:focus-visible .rubric-sep-grip,
+		.rubric-dragging .rubric-sep-grip {
+			background: var(--hover-ink, var(--green));
+		}
+		.rubric-sep:focus-visible {
+			outline: 2px solid var(--focus, var(--green));
+			outline-offset: -2px;
+		}
+		.work-split.rubric-dragging {
+			user-select: none;
+		}
 		.score-card.rubric-collapsed {
 			display: none;
 		}
@@ -5072,6 +5266,15 @@
 	@media (max-width: 900px) {
 		.work-split.has-rubric {
 			grid-template-columns: 1fr;
+		}
+	}
+	/* A STACKED DOCUMENT HAS NO WIDTH TO CHOOSE: between 901px and 78rem a whole
+	   ported worksheet stacks the rubric under it, so Narrow would do nothing
+	   there (report c0964d99's second finding). Wide and Hide still mean
+	   something; Narrow is not offered. */
+	@media (max-width: 78rem) {
+		.work-split.document-work .rubric-size-key[data-mode='narrow'] {
+			display: none;
 		}
 	}
 	/* A WHOLE DOCUMENT NEEDS MORE OF THE ROW BEFORE TWO COLUMNS ARE WORTH
