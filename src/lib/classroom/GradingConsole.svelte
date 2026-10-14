@@ -43,6 +43,7 @@
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 	import { hxCompletion } from '$lib/classroom/html-assignment/progress';
+	import { worksheetCompletedAtAcross } from '$lib/classroom/student-work';
 	import { hxBlockPrompt, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import HtmlAnswerList from '$lib/classroom/html-assignment/HtmlAnswerList.svelte';
 	import HtmlQaPanel from '$lib/classroom/html-assignment/HtmlQaPanel.svelte';
@@ -1414,17 +1415,45 @@
 		const state = s.submission?.state ?? null;
 		if (state === 'submitted' || state === 'returned') return null;
 		const done = hxCompletion(manifest, s.responses, s.files);
+		// JUDGED AGAINST THE WORKSHEET IT WAS (0238): a finish under an earlier
+		// manifest counts, at the instant it happened.
+		const doneAt = done.complete
+			? (done.at ?? '')
+			: worksheetCompletedAtAcross(manifest, data?.pastManifests, s.responses, s.files);
 		// A FINISHED WORKSHEET STAYS FINISHED (0237, ledger 0380): the stamp the
 		// student's own load left wins over a manifest that has grown since.
 		const latched = data?.latches?.[(s.email ?? '').toLowerCase()];
 		if (latched !== undefined) {
-			if (!done.complete) return latched;
-			const a = Date.parse(done.at ?? '');
+			if (doneAt === null) return latched;
+			const a = Date.parse(doneAt);
 			const b = Date.parse(latched);
-			return Number.isNaN(a) || (!Number.isNaN(b) && b < a) ? latched : (done.at ?? '');
+			return Number.isNaN(a) || (!Number.isNaN(b) && b < a) ? latched : doneAt;
 		}
-		return done.complete ? (done.at ?? '') : null;
+		return doneAt;
 	}
+
+	/**
+	 * A FINISH THIS CONSOLE FOUND IS STAMPED (0238), once per student per visit,
+	 * so it reaches the student's own surfaces and the Grades tab, which read
+	 * the latch rather than every answer. Only where nothing is latched yet, only
+	 * for a worksheet, and best effort: a stamp that fails changes nothing here.
+	 */
+	const stamped = new Set<string>();
+	$effect(() => {
+		const rows = data;
+		const stamp = transports.stampWorksheet;
+		if (!rows || !manifest || !stamp) return;
+		untrack(() => {
+			for (const s of students) {
+				const email = (s.email ?? '').toLowerCase();
+				if (!email || stamped.has(email) || rows.latches?.[email] !== undefined) continue;
+				const at = completionOf(s);
+				if (at === null) continue;
+				stamped.add(email);
+				void stamp(item.id, email, at || null).catch(() => {});
+			}
+		});
+	});
 
 	/**
 	 * A BLOCK'S NAME, for "changed after grading": the worksheet's own module

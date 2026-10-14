@@ -7,6 +7,7 @@
 		CHANGELOG_PAGE_SIZE,
 		changelogWindow,
 		groupEntriesByMonth,
+		userFacingEntries,
 		type VersionEntry
 	} from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -244,7 +245,11 @@
 		changelogLoading = true;
 		try {
 			const mod = await import('virtual:site-changelog');
-			changelog = mod.entries;
+			/* The bookkeeping commits (a ledger entry, a migration-applied
+			   record) are in the log for the counts and are not updates anybody
+			   reads, so the panel lists the rest; `changelogTotal` counts the
+			   same set, so "<filtered> / <total>" agrees with it. */
+			changelog = userFacingEntries(mod.entries);
 		} finally {
 			changelogLoading = false;
 		}
@@ -571,7 +576,7 @@
 	<meta property="og:type" content="website" />
 </svelte:head>
 
-<div class="legacy-index surface-machined">
+<div class="legacy-index surface-machined home-page">
 	<div id="scroll-bar"></div>
 	<canvas id="bg-canvas"></canvas>
 
@@ -844,6 +849,16 @@
 							<div class="changelog-entry">
 								<span class="changelog-date">{entry.date}</span>
 								<span class="changelog-note">{entry.note}</span>
+								<!-- The update's own list of changes, from its body's
+								     bullet lines (capped in $lib/site-versions), as
+								     text: no markup from a commit reaches the page. -->
+								{#if entry.details?.length}
+									<ul class="cl-details">
+										{#each entry.details as line, i (i)}
+											<li>{line}</li>
+										{/each}
+									</ul>
+								{/if}
 								<span class="cl-tags">
 									{#each entry.apps as a (a)}
 										<span class="cl-tag">{appLabel(a)}</span>
@@ -891,20 +906,71 @@
 
 
 <style>
+	/* THE HOME PAGE USES A WIDE WINDOW (reports "a lot of dead space" at
+	   1258px and "too much dead space" at 3840px). Every section of the page
+	   -- the hero, the to-do door, Your Classes, the launcher and Portal
+	   updates -- caps at `--li-measure` (app.css and AppLauncher read it), and
+	   this is the one place it is declared. It is the old 1100px up to about
+	   1440px, so the 375 and 1440 layouts are unchanged by it, and above that
+	   it grows with the window less a 22rem margin, to a 3200px ceiling (by
+	   the arithmetic: 1568px at 1920, 2208px at 2560 and 3200px at 3840, where
+	   the 1100px band left 2,740px of the window empty). The launcher's grid fills
+	   whatever width it is given, so the apps take the window in more columns
+	   rather than sitting in a band. A page that declares nothing (the archive)
+	   keeps 1100px. */
+	.home-page {
+		--li-measure: clamp(1100px, calc(100vw - 22rem), 3200px);
+	}
+
 	/* The to-do door (ledger 0297) sits in the launcher's own column: the same
-	   1100px measure and the same gutters, so its edges line up with the app
-	   cards directly under it. Above the stacking layer the page's canvas sits
-	   on, like the launcher and the class cards. */
+	   measure and the same gutters, so its edges line up with the app cards
+	   directly under it. Above the stacking layer the page's canvas sits on,
+	   like the launcher and the class cards. */
 	.todo-strip-wrap {
 		position: relative;
 		z-index: 1;
-		max-width: 1100px;
+		max-width: var(--li-measure, 1100px);
 		margin: 0 auto 1.5rem;
 		padding: 0 2rem;
 	}
 	@media (max-width: 768px) {
 		.todo-strip-wrap {
 			padding: 0 1rem;
+		}
+	}
+
+	/* YOUR CLASSES ON A WIDE WINDOW ARE COLUMNS, NOT ONE STRETCHED CARD.
+	   Above 1500px the measure is wider than a class card reads well at (a
+	   row is its title at the left edge and its due flag at the right), so
+	   the cards sit in a MULTI-COLUMN container, never a grid: a class card's
+	   height depends on its rows and whether it is folded, and a grid row is
+	   as tall as its tallest card (CLAUDE.md, "panels of unequal height").
+	   The count is capped by how many cards there are, because multicol has
+	   no `auto-fit` and would leave an empty column beside two cards. One
+	   card is not a column at all: it keeps a 72rem reading width at the
+	   left edge rather than a 3000px row. The heading and the To-do link span
+	   every column. Below 1500px nothing here applies. */
+	@media (min-width: 1500px) {
+		.home-page .courses:has(> :global(.course-card ~ .course-card)) {
+			display: block;
+			columns: 34rem 2;
+			column-gap: 1.25rem;
+		}
+		.home-page .courses:has(> :global(.course-card ~ .course-card ~ .course-card)) {
+			columns: 34rem 3;
+		}
+		.home-page .courses:has(> :global(.course-card ~ .course-card)) > :global(.course-card) {
+			break-inside: avoid;
+			margin-bottom: 1.25rem;
+		}
+		/* Spanning, and the row gap the grid's `gap` gave them, as a margin
+		   (multicol has no row gap). */
+		.home-page .courses:has(> :global(.course-card ~ .course-card)) > :global(:is(.year-label, .feed-todo-all)) {
+			column-span: all;
+			margin-bottom: 1.25rem;
+		}
+		.home-page .courses:not(:has(> :global(.course-card ~ .course-card))) > :global(.course-card) {
+			max-width: 72rem;
 		}
 	}
 </style>

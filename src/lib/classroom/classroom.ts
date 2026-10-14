@@ -1291,6 +1291,9 @@ export interface SubmissionSummary {
 	item_id: string;
 	state: string;
 	score: number | null;
+	/** Present on a manager's read (the Grades tab), which spans students. */
+	student_email?: string | null;
+	graded_at?: string | null;
 	/**
 	 * DERIVED BY THE LOADER, NEVER SELECTED: `classroom_submissions` has no such
 	 * column and a select naming it would be refused. See `StudentWork.completedAt`.
@@ -1370,7 +1373,16 @@ export interface AssignmentStanding {
 export function assignmentStandings(
 	items: ClassroomItem[],
 	submissions: SubmissionSummary[],
-	rosterSize: number
+	rosterSize: number,
+	/**
+	 * FINISHED WORKSHEETS, as `<item id> <address>` (0237's latches, read by the
+	 * Grades load, report e32659e9). A ported worksheet has no turn-in, so a
+	 * finished one has no `submitted` row and used to count as in progress, or
+	 * as nothing at all with no row. A finished worksheet nobody has graded is
+	 * waiting for a grade, exactly as `isAwaitingGrade` reads it on the feed.
+	 * Absent is "cannot tell", which counts as before.
+	 */
+	finished?: ReadonlySet<string>
 ): AssignmentStanding[] {
 	const byItem = new Map<string, SubmissionSummary[]>();
 	for (const row of submissions) {
@@ -1382,11 +1394,19 @@ export function assignmentStandings(
 		.filter((i) => i.kind === 'assignment')
 		.map((item) => {
 			const rows = byItem.get(item.id) ?? [];
+			const done = (email: string | null | undefined) => !!finished?.has(`${item.id} ${(email ?? '').toLowerCase()}`);
+			const finishedUngraded = (r: SubmissionSummary) =>
+				r.state !== 'submitted' && r.state !== 'returned' && !r.graded_at && done(r.student_email);
+			// A finished worksheet with no row at all is the common case: saving an
+			// answer creates no submission row.
+			const rowless = finished
+				? [...finished].filter((k) => k.startsWith(`${item.id} `) && !rows.some((r) => `${item.id} ${(r.student_email ?? '').toLowerCase()}` === k)).length
+				: 0;
 			return {
 				item,
-				awaiting: rows.filter((r) => r.state === 'submitted').length,
+				awaiting: rows.filter((r) => r.state === 'submitted' || finishedUngraded(r)).length + rowless,
 				returned: rows.filter((r) => r.state === 'returned').length,
-				inProgress: rows.filter((r) => r.state !== 'submitted' && r.state !== 'returned').length,
+				inProgress: rows.filter((r) => r.state !== 'submitted' && r.state !== 'returned' && !finishedUngraded(r)).length,
 				roster: rosterSize
 			};
 		});

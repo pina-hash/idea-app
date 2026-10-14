@@ -31,7 +31,7 @@
  * exact whatever the clone depth, still identifies the build. Set
  * `VERCEL_DEEP_CLONE=true` on the project to get the version back.
  */
-import { appLabel, appsForCommit, classifyNote, APPS } from './site-manifest';
+import { appLabel, appsForCommit, classifyNote, isBookkeepingNote, APPS } from './site-manifest';
 
 /**
  * Record and field separators. ASCII RS/US: neither can occur in a commit
@@ -74,6 +74,28 @@ export const GIT_HEAD_FORMAT = `%h${FIELD}%cd`;
  */
 export const GIT_NUMSTAT_FORMAT = `${REC}%h`;
 
+/**
+ * The `--pretty=format:` string for the BODY walk, whose output `parseBodies`
+ * reads: one record per commit, the short sha, a field separator and the
+ * commit's body (`%b`, everything after the subject's blank line).
+ *
+ * A THIRD WALK, FOR THE LAZY MODULE ONLY, and for the numstat walk's reason:
+ * the `--name-only` walk's file lines ARE the per-app version counts, and a
+ * body interleaved with them is one more thing the parse could mistake for a
+ * path. Run alone, it changes nothing any version number says.
+ */
+export const GIT_BODY_FORMAT = `${REC}%h${FIELD}%b`;
+
+/**
+ * HOW MUCH OF A BODY TRAVELS (Mr. Pina's report "Change log is not
+ * comprehensive with the latest": show each update's own list of changes
+ * under it). The lazy changelog is one payload for every commit in the
+ * history, so a body is cut down to its bullet lines, at most this many of
+ * them, each at most this many characters.
+ */
+export const CHANGELOG_DETAIL_LINES = 6;
+export const CHANGELOG_DETAIL_CHARS = 200;
+
 export interface VersionEntry {
 	/** Short commit SHA. */
 	sha: string;
@@ -97,6 +119,21 @@ export interface VersionEntry {
 	 */
 	added?: number;
 	removed?: number;
+	/**
+	 * Present, and true, only on a repository-bookkeeping commit (a ledger
+	 * entry, a migration-applied record; `isBookkeepingNote`). It stays in the
+	 * log because versions are commit counts and the feedback console measures
+	 * build age in commits; the surfaces that LIST updates leave it out
+	 * (`userFacingEntries`). Absent on every other entry.
+	 */
+	internal?: true;
+	/**
+	 * The bullet lines of the commit's body, in order, capped by
+	 * `CHANGELOG_DETAIL_LINES` and `CHANGELOG_DETAIL_CHARS`. Only the lazy
+	 * module's body walk attaches them, and only to an entry a reader is shown;
+	 * absent, never empty, when there are none.
+	 */
+	details?: string[];
 }
 
 /** One commit's counted lines, as `parseNumstat` totals them. */
@@ -163,7 +200,7 @@ export function parseGitLog(raw: string, opts: { complete: boolean }): VersionEn
 				.slice(1)
 				.map((l) => l.trim())
 				.filter(Boolean);
-			return {
+			const entry: VersionEntry = {
 				sha: (sha ?? '').trim(),
 				date: (date ?? '').trim().replace(/\s+/g, ' '),
 				iso: (iso ?? '').trim().slice(0, 10),
@@ -171,6 +208,10 @@ export function parseGitLog(raw: string, opts: { complete: boolean }): VersionEn
 				type: classifyNote(note ?? ''),
 				apps: appsForCommit(files)
 			};
+			// The flag is ADDED, never written false: every other entry keeps the
+			// exact shape it always had.
+			if (isBookkeepingNote(entry.note)) entry.internal = true;
+			return entry;
 		})
 		.filter((e) => e.sha.length > 0 && e.note.length > 0);
 
@@ -344,6 +385,103 @@ export function withLineCounts(entries: VersionEntry[], deltas: Map<string, Line
 	});
 }
 
+/**
+ * The entries a READER is shown: every commit but the bookkeeping ones, in the
+ * order given. The one filter every surface that lists updates applies, so the
+ * panel, the FRC footer and the code pop-up cannot disagree about what an
+ * update is. Nothing that COUNTS commits may call it: the version numbers and
+ * a report's build age are counts over every commit.
+ */
+export function userFacingEntries<T extends VersionEntry>(entries: readonly T[]): T[] {
+	return entries.filter((e) => !e.internal);
+}
+
+/**
+ * The eager module's two scalars, over what a reader is shown: how many
+ * updates the panel will list, and the newest of them. `vite.config.ts` and the
+ * test stub both build them here, so the stub cannot describe a different
+ * export.
+ */
+export function changelogSummary(entries: readonly VersionEntry[]): {
+	total: number;
+	latest: VersionEntry | null;
+} {
+	const shown = userFacingEntries(entries);
+	return { total: shown.length, latest: shown[0] ?? null };
+}
+
+/** Cut one detail line to the cap at a word boundary, marking the cut. */
+function clipDetail(text: string, max: number): string {
+	if (text.length <= max) return text;
+	const cut = text.slice(0, max - 1);
+	const space = cut.lastIndexOf(' ');
+	return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.]+$/, '')}\u2026`;
+}
+
+/**
+ * The bullet lines of one commit body, as a reader is shown them.
+ *
+ * A BULLET IS A LINE OPENING `- ` OR `* `, at the margin or indented (a nested
+ * point is listed as its own line). An indented line that is not a bullet
+ * CONTINUES the one before it, which is how this repository's bodies wrap a
+ * long point; a blank line or an unindented prose line ends it. Everything
+ * else -- a paragraph of prose, the `Co-Authored-By` trailers -- is not a
+ * bullet and is left out. Whitespace is collapsed and a code span's backticks
+ * are dropped, because the panel renders text. Capped by `lines` and `chars`.
+ */
+export function bodyDetails(
+	body: string,
+	opts: { lines?: number; chars?: number } = {}
+): string[] {
+	const maxLines = opts.lines ?? CHANGELOG_DETAIL_LINES;
+	const maxChars = opts.chars ?? CHANGELOG_DETAIL_CHARS;
+	const items: string[] = [];
+	let open: string[] | null = null;
+	const close = () => {
+		if (open) {
+			const text = open.join(' ').replace(/`([^`]*)`/g, '$1').replace(/\s+/g, ' ').trim();
+			if (text) items.push(text);
+		}
+		open = null;
+	};
+	for (const raw of (body ?? '').split('\n')) {
+		const line = raw.replace(/\r$/, '');
+		const bullet = /^\s*[-*]\s+(\S.*)$/.exec(line);
+		if (bullet) {
+			close();
+			open = [bullet[1]];
+		} else if (open && /^\s+\S/.test(line)) {
+			open.push(line.trim());
+		} else {
+			close();
+		}
+	}
+	close();
+	return items.slice(0, Math.max(0, maxLines)).map((t) => clipDetail(t, maxChars));
+}
+
+/** Each commit's detail lines from the body walk, keyed by short sha; a commit with none is left out. */
+export function parseBodies(raw: string): Map<string, string[]> {
+	const out = new Map<string, string[]>();
+	for (const record of (raw ?? '').split(REC)) {
+		const at = record.indexOf(FIELD);
+		if (at < 0) continue;
+		const sha = record.slice(0, at).trim();
+		if (!sha) continue;
+		const details = bodyDetails(record.slice(at + FIELD.length));
+		if (details.length) out.set(sha, details);
+	}
+	return out;
+}
+
+/** Hang each shown entry's detail lines on it; a bookkeeping entry, and one with none, is left as it was. */
+export function withDetails(entries: VersionEntry[], bodies: Map<string, string[]>): VersionEntry[] {
+	return entries.map((e) => {
+		const d = e.internal ? undefined : bodies.get(e.sha);
+		return d && d.length ? { ...e, details: d } : e;
+	});
+}
+
 /** Whether an entry carries its line counts. */
 export function hasLineCounts(e: VersionEntry): e is CountedEntry {
 	return typeof e.added === 'number' && typeof e.removed === 'number';
@@ -360,7 +498,7 @@ export function recentCodeChanges(
 	entries: VersionEntry[],
 	limit: number
 ): { known: boolean; rows: CountedEntry[] } {
-	const counted = entries.filter(hasLineCounts);
+	const counted = userFacingEntries(entries).filter(hasLineCounts);
 	return {
 		known: counted.length > 0,
 		rows: counted.filter((e) => e.added + e.removed > 0).slice(0, Math.max(0, limit))
@@ -389,13 +527,18 @@ export function buildSiteVersions(
 		headRaw?: string | null;
 		numstatRaw?: string | null;
 		countsLine?: (path: string) => boolean;
+		bodyRaw?: string | null;
 	}
 ): SiteVersions {
 	const parsed = parseGitLog(raw, opts);
-	const entries =
+	const counted =
 		opts.complete && opts.numstatRaw && opts.countsLine
 			? withLineCounts(parsed, parseNumstat(opts.numstatRaw, opts.countsLine))
 			: parsed;
+	/* Detail lines ride on whatever the body walk said, shallow clone or not:
+	   a body is the commit's own text and is exact at any clone depth, unlike a
+	   count. Absent with no walk, which is the eager module. */
+	const entries = opts.bodyRaw ? withDetails(counted, parseBodies(opts.bodyRaw)) : counted;
 	return {
 		entries,
 		apps: deriveApps(entries, opts),

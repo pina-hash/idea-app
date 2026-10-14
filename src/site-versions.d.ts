@@ -20,14 +20,23 @@ declare module 'virtual:site-versions' {
 	export type { AppVersion, DeployStamp, VersionEntry };
 	export const apps: Record<string, AppVersion>;
 	export const deploy: DeployStamp;
-	/** How many entries `virtual:site-changelog` holds, without loading it. */
+	/**
+	 * How many updates the changelog LISTS, without loading it: the entries of
+	 * `virtual:site-changelog` a reader is shown, which leaves out the ones
+	 * flagged `internal` (`changelogSummary`).
+	 */
 	export const total: number;
-	/** The newest entry alone, for a collapsed summary line. Null on no history. */
+	/** The newest update a reader is shown, for a collapsed summary line. Null on no history. */
 	export const latest: VersionEntry | null;
 }
 
 declare module 'virtual:site-changelog' {
 	import type { VersionEntry } from '$lib/site-versions';
+	/**
+	 * EVERY commit, newest first, bookkeeping ones included and flagged
+	 * `internal`: a count over this log (a report's build age) must see them
+	 * all. A surface that LISTS updates passes it through `userFacingEntries`.
+	 */
 	export const entries: VersionEntry[];
 }
 

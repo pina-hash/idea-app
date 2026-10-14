@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { latest, total } from 'virtual:site-versions';
-	import type { VersionEntry } from '$lib/site-versions';
+	import { userFacingEntries, type VersionEntry } from '$lib/site-versions';
 	import Pending from '$lib/Pending.svelte';
 
 	/**
@@ -47,7 +47,8 @@
 		loading = true;
 		try {
 			const { entries } = await import('virtual:site-changelog');
-			recent = entries.slice(0, LIMIT);
+			// The bookkeeping commits are in the log for the counts, not to be read.
+			recent = userFacingEntries(entries).slice(0, LIMIT);
 		} finally {
 			loading = false;
 		}

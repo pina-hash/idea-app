@@ -2,7 +2,14 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
-import { buildSiteVersions, GIT_HEAD_FORMAT, GIT_LOG_FORMAT, GIT_NUMSTAT_FORMAT } from './src/lib/site-versions';
+import {
+	buildSiteVersions,
+	changelogSummary,
+	GIT_BODY_FORMAT,
+	GIT_HEAD_FORMAT,
+	GIT_LOG_FORMAT,
+	GIT_NUMSTAT_FORMAT
+} from './src/lib/site-versions';
 import { buildCodeCensus, countsAsCode, languageFor, type CensusFile } from './src/lib/code-census';
 import { devRouteStub } from './src/lib/dev-routes';
 
@@ -129,12 +136,35 @@ function siteVersionsPlugin(): Plugin {
 				}
 			}
 
+			/* THE FIFTH QUESTION, AND ONLY THE LAZY MODULE ASKS IT: each commit's
+			   body, from which the panel lists an update's own bullet lines under
+			   its subject (Mr. Pina's "Change log is not comprehensive with the
+			   latest"). A walk of its own for the reason GIT_BODY_FORMAT gives, and
+			   at any clone depth, because a body is the commit's own text rather
+			   than a count. What travels is capped in `bodyDetails`. */
+			let bodyRaw: string | null = null;
+			if (virtualIds[wanted] === 'log' && raw) {
+				try {
+					bodyRaw = execSync(`git log --no-merges --pretty=format:"${GIT_BODY_FORMAT}"`, {
+						encoding: 'utf8',
+						maxBuffer: 64 * 1024 * 1024
+					});
+				} catch {
+					bodyRaw = null;
+					this.warn(
+						'[site-versions] git log for commit bodies failed: the changelog lists each ' +
+							'update by its subject alone on this build.'
+					);
+				}
+			}
+
 			const site = buildSiteVersions(raw, {
 				complete,
 				headRaw,
 				envSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
 				numstatRaw,
-				countsLine: countsAsCode
+				countsLine: countsAsCode,
+				bodyRaw
 			});
 
 			if (!complete) {
@@ -151,11 +181,16 @@ function siteVersionsPlugin(): Plugin {
 				return `export const entries = ${JSON.stringify(site.entries)};`;
 			}
 
+			/* `total` and `latest` count what a reader is SHOWN, which leaves the
+			   bookkeeping commits out (`changelogSummary`); the lazy log above
+			   still carries every commit, flagged, because a version number and a
+			   report's build age are counts over all of them. */
+			const summary = changelogSummary(site.entries);
 			return [
 				`export const apps = ${JSON.stringify(site.apps)};`,
 				`export const deploy = ${JSON.stringify(site.deploy)};`,
-				`export const total = ${JSON.stringify(site.entries.length)};`,
-				`export const latest = ${JSON.stringify(site.entries[0] ?? null)};`
+				`export const total = ${JSON.stringify(summary.total)};`,
+				`export const latest = ${JSON.stringify(summary.latest)};`
 			].join('\n');
 		}
 	};

@@ -63,9 +63,19 @@ import {
 	numstatPath,
 	recentCodeChanges,
 	hasLineCounts,
+	GIT_BODY_FORMAT,
+	CHANGELOG_DETAIL_CHARS,
+	CHANGELOG_DETAIL_LINES,
+	bodyDetails,
+	changelogSummary,
+	parseBodies,
+	userFacingEntries,
 	type VersionEntry
 } from '../src/lib/site-versions';
+import { BOOKKEEPING_SUBJECTS, isBookkeepingNote } from '../src/lib/site-manifest';
 import { countsAsCode } from '../src/lib/code-census';
+import { total as stubTotal, latest as stubLatest } from './stubs/site-versions';
+import { entries as stubEntries } from './stubs/site-changelog';
 
 /** One `git log --name-only` record, in the format the build actually asks for. */
 function commit(sha: string, date: string, note: string, files: string[]): string {
@@ -774,5 +784,186 @@ describe('R10: per-update line counts from git log --numstat', () => {
 		expect(recentCodeChanges(site.entries, 0).rows).toEqual([]);
 		/* Counted, and every one of them a docs or data commit: known, and empty. */
 		expect(recentCodeChanges(site.entries.slice(2), 6)).toEqual({ known: true, rows: [] });
+	});
+});
+
+/* ---------------------------------------------------------------------------
+ * THE CHANGELOG LISTS UPDATES, NOT BOOKKEEPING, AND SHOWS EACH UPDATE'S OWN
+ * LIST OF CHANGES (Mr. Pina's report "Change log is not comprehensive with the
+ * latest", and his choice of answer). Silent if wrong in two directions: a
+ * pattern a shade too wide hides a real change from every reader with nothing
+ * on screen to say so, and a filter applied to the COUNT would move every
+ * version number on the site.
+ * ------------------------------------------------------------------------- */
+describe('bookkeeping subjects', () => {
+	/* Subjects copied from this repository's own history. */
+	const BOOKKEEPING = [
+		'Ledger 0381: validate the 2026-10-14 exports, finish the gaps, build progressive feedback; claims migration 0238',
+		'Ledger 0375: pushed',
+		'Ledger 0374: claim migration 0234 (armory_break_locks)',
+		'ledger: 0116 pushed',
+		'Record migration 0237 applied to production',
+		'Record the live checks for the 2026-10-14 feedback round (ledger 0380)',
+		'Armory series test: 0236 joins the files allowed to name armory_',
+		'Remove a stray Python cache file',
+		'Browser checks: the round\'s 43 new pages measured at 375 and 1440',
+		"Merge branch 'main' into lane/home",
+		'Merge pull request #12 from pina-hash/lane/x',
+		'Merge round/feedback-console',
+		'Claim migration 0240'
+	];
+	/* Real updates, several of them starting with the same words on purpose. */
+	const UPDATES = [
+		'Hall pass becomes pass time and the class sees who is out; Foundry gets class schedules, votes, collections and a featured row (ledger 0380, migration 0237)',
+		'Feedback round 0380, tiers 1 and 2: finished worksheets stay finished, one installer',
+		'Ledger tabs wrap on a phone, so the fourth tab is reachable',
+		'Merge the two admin cards into one',
+		'Merge VANGUARD 215: the MISSION END screen says what carries over',
+		'Recorded answers survive a reload',
+		'Remove the old notebook plates',
+		'Armory: armory_break_locks, Force check in for many files in one call (0234)',
+		'classroom: IDEA 100 Syllabus (reference) r1',
+		'Browser check for the worksheet picture'
+	];
+
+	it('hides every bookkeeping shape, and the list is small and anchored', () => {
+		for (const n of BOOKKEEPING) expect(isBookkeepingNote(n), n).toBe(true);
+		// Every pattern is anchored at the start, which is what keeps it off ordinary English.
+		expect(BOOKKEEPING_SUBJECTS.length).toBeGreaterThan(3);
+		expect(BOOKKEEPING_SUBJECTS.length).toBeLessThanOrEqual(10);
+		for (const re of BOOKKEEPING_SUBJECTS) expect(re.source.startsWith('^'), re.source).toBe(true);
+	});
+
+	it('keeps every real update, including ones that open with the same words', () => {
+		for (const n of UPDATES) expect(isBookkeepingNote(n), n).toBe(false);
+	});
+
+	const LOG = log(
+		commit('a000001', 'Oct 14, 2026', 'Ledger 0381: validate the exports', [PORTAL_FILE]),
+		commit('a000002', 'Oct 14, 2026', 'Record migration 0237 applied to production', ['docs/migrations-applied/0237.md']),
+		commit('a000003', 'Oct 14, 2026', 'Hall pass becomes pass time', [CLASSROOM_FILE]),
+		commit('a000004', 'Oct 13, 2026', 'Armory series test: 0236 joins the files allowed', ['tests/armory-series.test.ts']),
+		commit('a000005', 'Oct 13, 2026', 'Fix the notebook second scrollbar', [NOTEBOOK_FILE])
+	);
+
+	it('flags them on the entry and lists only the rest', () => {
+		const site = buildSiteVersions(LOG, { complete: true });
+		expect(site.entries.filter((e) => e.internal).map((e) => e.sha)).toEqual(['a000001', 'a000002', 'a000004']);
+		expect(userFacingEntries(site.entries).map((e) => e.sha)).toEqual(['a000003', 'a000005']);
+		// An update carries no `internal` key at all, so its shape is the one it always had.
+		for (const e of userFacingEntries(site.entries)) expect('internal' in e, e.sha).toBe(false);
+	});
+
+	it('HIDDEN FROM DISPLAY, NEVER FROM THE COUNT: versions and the build stamp see every commit', () => {
+		const site = buildSiteVersions(LOG, { complete: true });
+		// Five commits in the log, all five kept.
+		expect(site.entries).toHaveLength(5);
+		// The portal's version counts the two bookkeeping commits that touched its files.
+		expect(site.apps.portal.count).toBe(
+			site.entries.filter((e) => e.apps.includes('portal')).length
+		);
+		expect(site.apps.portal.count).toBeGreaterThan(0);
+		// The stamp still names the head of the log, which is a bookkeeping commit here.
+		expect(site.deploy.sha).toBe('a000001');
+		// The same history with every bookkeeping subject reworded counts the same.
+		const reworded = buildSiteVersions(LOG.replace(/Ledger 0381|Record migration 0237|Armory series test:/g, 'Update'), {
+			complete: true
+		});
+		expect(reworded.apps).toEqual(site.apps);
+	});
+
+	it('the eager scalars count what the panel lists, and the stub is built by the same function', () => {
+		const site = buildSiteVersions(LOG, { complete: true });
+		expect(changelogSummary(site.entries)).toEqual({ total: 2, latest: site.entries[2] });
+		expect(changelogSummary([])).toEqual({ total: 0, latest: null });
+		// The test stub's scalars agree with the stub's own log.
+		expect(stubTotal).toBe(userFacingEntries(stubEntries).length);
+		expect(stubLatest?.sha).toBe(userFacingEntries(stubEntries)[0]?.sha);
+	});
+
+	it('the code pop-up lists no bookkeeping commit either', () => {
+		const numstat = [`${REC}a000001`, '5\t1\tsrc/lib/x.ts', '', `${REC}a000003`, '2\t0\tsrc/lib/classroom/ClassView.svelte'].join('\n');
+		const site = buildSiteVersions(LOG, { complete: true, numstatRaw: numstat, countsLine: countsAsCode });
+		expect(recentCodeChanges(site.entries, 6).rows.map((e) => e.sha)).toEqual(['a000003']);
+	});
+});
+
+describe("an update's own list of changes, from its body", () => {
+	/* A body written the way this repository's are: a paragraph, bullets that
+	   wrap with a two-space indent, a nested bullet, and the trailers. */
+	const BODY = [
+		'Tier 3 of the round. One migration holds every schema change.',
+		'',
+		'- /armory/connect asks "Connect <device> as <name>?" and offers "Not you? Use',
+		'  another account", which signs the browser out.',
+		'- Migration 0235: a wide `armory_submit_app_feedback` with no defaults.',
+		'  - the five-argument form is a wrapper',
+		'* docs/ARMORY.md: the v0.3.2 contract section.',
+		'',
+		'Full suite: 7 failures, identical on HEAD.',
+		'',
+		'Co-Authored-By: Claude <noreply@anthropic.com>',
+		'Claude-Session: https://claude.ai/code/session_x'
+	].join('\n');
+
+	it('takes the bullet lines, joins a wrapped one, and leaves the prose and the trailers out', () => {
+		expect(bodyDetails(BODY)).toEqual([
+			'/armory/connect asks "Connect <device> as <name>?" and offers "Not you? Use another account", which signs the browser out.',
+			'Migration 0235: a wide armory_submit_app_feedback with no defaults.',
+			'the five-argument form is a wrapper',
+			'docs/ARMORY.md: the v0.3.2 contract section.'
+		]);
+	});
+
+	it('a body with no bullets gives nothing, and prose that merely contains a dash is not a bullet', () => {
+		expect(bodyDetails('Applied by the Migrate workflow, exit 0.\n\nThe record carries the notices.')).toEqual([]);
+		expect(bodyDetails('A line - with a dash in it\n--- a rule')).toEqual([]);
+		expect(bodyDetails('')).toEqual([]);
+	});
+
+	it('is capped in lines and in characters, and a cut line says so', () => {
+		const many = Array.from({ length: 20 }, (_, i) => `- point ${i}`).join('\n');
+		expect(bodyDetails(many)).toHaveLength(CHANGELOG_DETAIL_LINES);
+		const long = `- ${'word '.repeat(200)}`;
+		const [cut] = bodyDetails(long);
+		expect(cut.length).toBeLessThanOrEqual(CHANGELOG_DETAIL_CHARS);
+		expect(cut.endsWith('\u2026')).toBe(true);
+		// The caps are real bounds on the payload, not decoration.
+		expect(CHANGELOG_DETAIL_LINES).toBeLessThanOrEqual(10);
+		expect(CHANGELOG_DETAIL_CHARS).toBeLessThanOrEqual(300);
+	});
+
+	const BODIES = [
+		`${REC}b000001${FIELD}- First point\n- Second point\n`,
+		`${REC}b000002${FIELD}Applied by the Migrate workflow.\n`,
+		`${REC}b000003${FIELD}- A ledger bullet nobody reads\n`
+	].join('\n');
+	const LOG = log(
+		commit('b000001', 'Oct 14, 2026', 'Teachers can attach files to a notice', [CLASSROOM_FILE]),
+		commit('b000002', 'Oct 14, 2026', 'Hall pass becomes pass time', [CLASSROOM_FILE]),
+		commit('b000003', 'Oct 14, 2026', 'Ledger 0381: validate the exports', [PORTAL_FILE])
+	);
+
+	it('parses the body walk the build runs, keyed by sha, leaving out a commit with none', () => {
+		expect(GIT_BODY_FORMAT).toBe(`${REC}%h${FIELD}%b`);
+		const got = parseBodies(BODIES);
+		expect(Object.fromEntries(got)).toEqual({
+			b000001: ['First point', 'Second point'],
+			b000003: ['A ledger bullet nobody reads']
+		});
+	});
+
+	it('hangs the lines on a shown entry only, and changes nothing a count or the eager module reads', () => {
+		const withBodies = buildSiteVersions(LOG, { complete: false, bodyRaw: BODIES });
+		const without = buildSiteVersions(LOG, { complete: false });
+		expect(withBodies.entries.map((e) => e.details ?? null)).toEqual([['First point', 'Second point'], null, null]);
+		// An entry with no bullets carries no `details` key at all.
+		expect('details' in withBodies.entries[1]).toBe(false);
+		// A bookkeeping entry never carries them: it is not shown.
+		expect('details' in withBodies.entries[2]).toBe(false);
+		expect(withBodies.apps).toEqual(without.apps);
+		expect(withBodies.deploy).toEqual(without.deploy);
+		// No body walk is the eager module: the entries are the old shape exactly.
+		expect(without.entries.some((e) => 'details' in e)).toBe(false);
 	});
 });

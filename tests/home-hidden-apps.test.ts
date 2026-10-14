@@ -67,4 +67,13 @@ describe('the launcher keeps a way back', () => {
 		// Every hide key carries a word (Hide or Show) and says which app.
 		expect(src).toMatch(/aria-label="\{hiddenIds\.has\(app\.id\) \? 'Show' : 'Hide'\} \{app\.title\} on my home screen"/);
 	});
+	it('the Hidden apps list arrives closed, so a put-away app is not listed by name under the grid', () => {
+		// The Disclosure that holds the list: found by its own test id (positive
+		// control), then required to carry the latched constant-true collapse.
+		const at = src.indexOf('testId="hidden-apps-disclosure"');
+		expect(at).toBeGreaterThan(-1);
+		const tag = src.slice(src.lastIndexOf('<Disclosure', at), src.indexOf('>', at));
+		expect(tag).toContain('label="Hidden apps ({split.hidden.length})"');
+		expect(tag).toContain('collapseWhen={true}');
+	});
 });
