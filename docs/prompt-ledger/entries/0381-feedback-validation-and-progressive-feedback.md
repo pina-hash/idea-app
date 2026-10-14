@@ -8,4 +8,4 @@
 - Does not touch: `materials/**`, any other migration. Touches `.github/workflows/migrate.yml` only to chain to the next migration (Mr. Pina's request to drop the one-migration rule).
 - Migration permitted: yes. Claims: 0238.
 - Status: pushed
-- Notes: Pushed to `claude/clever-feynman-tl6bst`; not merged to `main` (the session's instruction names the branch). 0238 is additive. Every client surface that reads it degrades on PGRST202/42883 until it is applied.
+- Notes: Pushed to `claude/clever-feynman-tl6bst`, then rebased onto `origin/main` and pushed straight to `main` on Mr. Pina's instruction ("Is everything on main? If not, get it to main. Completely live."), after the full gate. 0238 is additive and `migrate.yml` applies it on that push; every client surface that reads it degrades on PGRST202/42883 until it is applied.
