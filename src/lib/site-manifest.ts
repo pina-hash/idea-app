@@ -244,3 +244,56 @@ export function classifyNote(note: string): ChangeType {
 	if (/\b(doc|docs|readme|documentation|claude\.md)\b/.test(n)) return 'docs';
 	return 'update';
 }
+
+// ---------------------------------------------------------------------------
+// Bookkeeping subjects: commits that are a record of the repository's own
+// process rather than a change anybody using the site would notice.
+// ---------------------------------------------------------------------------
+
+/**
+ * THE SUBJECTS THE PORTAL UPDATES PANEL DOES NOT SHOW (Mr. Pina's report
+ * "Change log is not comprehensive with the latest", and his choice of answer:
+ * hide the bookkeeping rows). On the day it was filed the newest four rows of
+ * the panel were a ledger entry, a live-check record, a migration-applied
+ * record and only then the round itself, so the update a reader came for was
+ * the fourth thing they read.
+ *
+ * A SMALL, EXPLICIT, ANCHORED LIST, AND EVERY PATTERN NAMES A SHAPE THIS
+ * REPOSITORY'S OWN PROCESS WRITES. Each is anchored at the start of the
+ * subject and most need a number after the word, because the words are also
+ * ordinary English: "Ledger tabs wrap on a phone" is a change to the IDEA Coin
+ * Ledger and "Merge the two admin cards into one" is a feature, and neither
+ * may disappear. A merge subject is hidden only in git's own spellings
+ * (`Merge branch ...`, `Merge pull request ...`, a branch path): a real merge
+ * never reaches the log at all (`--no-merges`), so what this catches is one
+ * that arrived as an ordinary commit.
+ *
+ * HIDDEN FROM DISPLAY, NEVER FROM THE COUNT. A version number is a commit
+ * count (`deriveApps`), and the feedback console measures a report's build age
+ * in commits, so a bookkeeping commit stays in the log with `internal: true`
+ * and only the surfaces that LIST updates leave it out (`userFacingEntries`
+ * in site-versions.ts).
+ */
+export const BOOKKEEPING_SUBJECTS: readonly RegExp[] = [
+	// A prompt-ledger entry, its claim of a migration and its status line:
+	// "Ledger 0381: ...", "Ledger 0375: pushed", "ledger: 0116 pushed".
+	/^ledger:?\s+\d{3,4}\b/i,
+	// The Migrate workflow's record of an apply, and a round's live-check record.
+	/^record\s+(?:migration\s+\d{3,4}\b|the live checks\b)/i,
+	// A migration number claimed on its own line.
+	/^claims?\s+migration\s+\d{3,4}\b/i,
+	// A merge, in git's own spellings only.
+	/^merge\s+(?:branch\b|remote-tracking branch\b|pull request\b|['"]|(?:round|lane|claude|codex|origin)\/|integration\b|main\b)/i,
+	// The Armory series test's allow-list taking in a new migration.
+	/^armory series test:/i,
+	// Housekeeping of the tree itself.
+	/^remove a stray\b/i,
+	// A round's measurements from the browser harness.
+	/^browser checks:/i
+];
+
+/** Whether a commit subject is repository bookkeeping (see BOOKKEEPING_SUBJECTS). */
+export function isBookkeepingNote(note: string): boolean {
+	const n = (note ?? '').trim();
+	return BOOKKEEPING_SUBJECTS.some((re) => re.test(n));
+}

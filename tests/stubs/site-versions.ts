@@ -19,6 +19,7 @@
  * no-version case is covered from the same stub by asking for an app id that
  * has no entry, which is how a stamp with the version withheld renders.
  */
+import { changelogSummary } from '../../src/lib/site-versions';
 import { site } from './site-versions-source';
 
 /*
@@ -31,5 +32,7 @@ import { site } from './site-versions-source';
  */
 export const apps = site.apps;
 export const deploy = site.deploy;
-export const total = site.entries.length;
-export const latest = site.entries[0] ?? null;
+/* The two scalars count what a reader is SHOWN, built by the same function
+   the plugin calls. */
+export const total = changelogSummary(site.entries).total;
+export const latest = changelogSummary(site.entries).latest;

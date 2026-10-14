@@ -41,9 +41,11 @@
 	 * of nine regions sat in 39% of his screen with a stack that scrolled for
 	 * five screens. The prompt named the 880px `main` cap; the tree says this
 	 * page never sat in a `main` at all, and the cap that actually bit was the
-	 * 1100px one, so that is the one released: the grid below is
-	 * `repeat(auto-fit, minmax(min(26rem, 100%), 1fr))` inside a viewport
-	 * gutter, which is 3 columns at 1440, 6 at 2844 and 1 at 375, measured.
+	 * 1100px one, so that is the one released: the panels below sit in
+	 * 26rem columns with a ceiling of six inside a viewport gutter, which is 3
+	 * columns at 1440, 4 at 1920, 6 at 2844 and 1 at 375 (ledger 0380 moved
+	 * them from a grid to multi-column; the count is computed in the style
+	 * block's comment).
 	 * Prose is capped separately (`--measure-reading` on the hero paragraph and
 	 * the blurbs sit inside a panel that is never wider than a column), which is
 	 * the standard's own rule: cap the sentence, not the console.
@@ -330,7 +332,12 @@
 				<span class="label">Signed in as</span>
 			</div>
 			<div class="hero-stat">
-				<span class="value" style="color:var(--gold); text-shadow:var(--glow-gold); animation-delay:0.8s">{role}</span>
+				<!-- The role reads the HOVER ROLE, not the gold hue: --gold on Space
+				     White is the brown #715d22 decision 40 took off that theme's words,
+				     and an inline colour is the one declaration no theme rule reaches.
+				     --hover-ink is the brass on the dark themes and the green ink on
+				     Space White. -->
+				<span class="value v-role" style="animation-delay:0.8s">{role}</span>
 				<span class="label">Role</span>
 			</div>
 			<div class="hero-stat">
@@ -688,15 +695,20 @@
 	   panel left a 200px void under the short panels beside it. Columns have no
 	   rows to lock: each panel is unbreakable, fills down one column and on
 	   into the next. `column-width` with a count ceiling, because multicol has
-	   no `auto-fit` and would leave a spare empty column on a wide window; the
-	   ceiling is the old grid's six at 2844px, held to five. Reading order is
-	   column by column, which for the nav chips (the same order) is the order
-	   they are numbered in. */
+	   no `auto-fit` and would leave a spare empty column on a wide window.
+	   THE CEILING IS SIX, the old grid's count at 2844px, and the arithmetic
+	   is `min(6, floor((W + gap) / (26rem + gap)))` over the width inside the
+	   gutters: 3 at 1440 (1368px), 4 at 1920 (1824px), 6 at 2844 (2748px). It
+	   read `3` while this comment said five and the header six, which held a
+	   1920 window to three columns (report "Admin console page has too much
+	   dead space", 1920x953; computed, not measured in a browser). Reading order
+	   is column by column, which for the nav chips (the same order) is the
+	   order they are numbered in. */
 	.console-grid {
 		position: relative;
 		z-index: 1;
 		display: block;
-		columns: 26rem 3;
+		columns: 26rem 6;
 		column-gap: var(--space-5);
 		padding: 0 var(--console-gutter) var(--space-8);
 	}
@@ -705,8 +717,10 @@
 		margin: 0 0 var(--space-5);
 	}
 	/* The roster is a list of every student in the school and takes the whole
-	   measure where there are columns, so a name and its select share a line at
-	   any roster size. The panels before it and after it balance separately. */
+	   measure where there are columns. The panels before it and after it
+	   balance separately. Its ROWS are laid out in columns of their own (see
+	   `.roster`), so the full measure is filled with names rather than one
+	   name at the far left and its select at the far right. */
 	@media (min-width: 64rem) {
 		.panel[data-panel='roster'] {
 			column-span: all;
@@ -822,12 +836,25 @@
 		outline: 2px solid var(--focus-ring);
 		outline-offset: 1px;
 	}
+	/* THE ROSTER'S ROWS ARE COLUMNS (report "too much dead space" at
+	   1920x953). Spanning the console it was one flex column about 1,790px
+	   wide by the arithmetic, a name at the far left and its select at the far
+	   right of every row. Now
+	   a MULTI-COLUMN list: a row is one 26rem column wide -- the width at which
+	   the avatar, the chip, the name, the address and the select still share a
+	   line -- the rows fill down one column and on into the next, and the
+	   reading order stays alphabetical down each column, the way a printed
+	   roster reads. Multicol and not a grid because an opened "FRC completion"
+	   makes one row taller than the rest, and a grid row would lock its
+	   neighbours to that height; a row never breaks across columns. Inside a
+	   panel narrower than two columns it is the single list it was. */
 	.roster {
-		display: flex;
-		flex-direction: column;
+		columns: 26rem;
+		column-gap: var(--space-5);
 		border-top: 1px solid var(--hairline);
 	}
 	.roster-entry {
+		break-inside: avoid;
 		border-bottom: 1px solid var(--hairline);
 	}
 	.roster-row {
@@ -862,6 +889,15 @@
 	}
 	.roster-name.tinted {
 		color: var(--pw-ink);
+	}
+	/* The role stat's ink (it was an inline `color: var(--gold)`). One class
+	   deeper than app.css's `.legacy-index .hero-stat .value`, so it wins on
+	   specificity; on the dark themes `--hover-ink` IS the brass, so the page
+	   paints what it did, and on Space White it is the green ink rather than
+	   the brown. */
+	.hero-stat .value.v-role {
+		color: var(--hover-ink, var(--gold));
+		text-shadow: var(--glow-gold);
 	}
 	:global(:root[data-theme='space-white']) .roster-name.tinted {
 		color: var(--pw-ink-light);

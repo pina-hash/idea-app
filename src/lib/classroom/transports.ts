@@ -30,6 +30,7 @@ import {
 	type InstructorCopyTransports,
 	type InstructorKeyRow,
 	type ModuleApprovalRow,
+	type PastManifest,
 	type ResponseRow,
 	type StudentEngineData,
 	type SubmissionFileRow
@@ -1068,7 +1069,7 @@ async function loadItemWork(
 	// Responses and approvals are one row per student per block (or module), so
 	// they are PAGED on their primary key's own columns. Submissions are one row
 	// per student and stay a single read.
-	const [submissionsRes, responsesRes, filesRes, approvalsRes, latched] = await Promise.all([
+	const [submissionsRes, responsesRes, filesRes, approvalsRes, latched, past] = await Promise.all([
 		selectSubmissions(supabase, itemId, false),
 		readWorkPages(
 			(from, to) =>
@@ -1094,12 +1095,15 @@ async function loadItemWork(
 			(r) => `${r.student_email}\u0000${r.module_id}`
 		),
 		// 0237's stamped completions, one cheap definer read; empty where it is not applied.
-		readWorksheetLatches(supabase, [itemId], null).catch(() => new Map<string, string>())
+		readWorksheetLatches(supabase, [itemId], null).catch(() => new Map<string, string>()),
+		// 0238's earlier manifests, so a finish is judged against the worksheet it was.
+		readPastManifests(supabase, [itemId]).catch(() => new Map<string, PastManifest[]>())
 	]);
 	const latches: Record<string, string> = {};
 	for (const [key, at] of latched) latches[key.slice(key.indexOf(' ') + 1)] = at;
 	return {
 		latches,
+		pastManifests: past.get(itemId) ?? [],
 		submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
 			normalizeSubmissionRow
 		),
@@ -1115,6 +1119,31 @@ async function loadItemWork(
 		filesStorageReady: filesRes.storageReady,
 		approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
 	};
+}
+
+/**
+ * A WORKSHEET'S EARLIER MANIFESTS (0238), item id -> newest first, each with the
+ * instant a later upload displaced it. Readable by anybody who reads the item.
+ * Empty, never null, where 0238 is not applied or the read fails: "no history"
+ * leaves every judgment exactly as it was.
+ */
+export async function readPastManifests(
+	supabase: SupabaseClient,
+	itemIds: readonly string[]
+): Promise<Map<string, PastManifest[]>> {
+	const out = new Map<string, PastManifest[]>();
+	const ids = [...new Set(itemIds)];
+	if (!ids.length) return out;
+	const { data, error } = await supabase.rpc('classroom_worksheet_past_manifests', { p_item_ids: ids });
+	if (error || !Array.isArray(data)) return out;
+	for (const row of data as Array<{ item_id?: unknown; manifest?: unknown; until?: unknown }>) {
+		if (typeof row?.item_id !== 'string' || typeof row.until !== 'string') continue;
+		if (!htmlManifestShaped(row.manifest)) continue;
+		const list = out.get(row.item_id) ?? [];
+		list.push({ manifest: row.manifest, until: row.until });
+		out.set(row.item_id, list);
+	}
+	return out;
 }
 
 /** HOISTED HERE (not student-work.ts) because student-work.ts imports this file. */
@@ -1641,6 +1670,14 @@ export function createTeacherEngineTransports(
 	supabase: SupabaseClient
 ): AssignmentTeacherTransports {
 	return {
+		async stampWorksheet(itemId, studentEmail, completedAt) {
+			const { data, error } = await supabase.rpc('classroom_worksheet_latch_for', {
+				p_item_id: itemId,
+				p_student_email: studentEmail,
+				p_completed_at: completedAt && !Number.isNaN(Date.parse(completedAt)) ? completedAt : null
+			});
+			return !error && data === true;
+		},
 		async setSpec(itemId, spec) {
 			const { error } = await supabase.rpc('classroom_set_assignment_spec', {
 				p_item_id: itemId,

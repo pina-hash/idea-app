@@ -1452,7 +1452,21 @@ export interface GradingData {
 	 * is "no latch", never "not complete".
 	 */
 	latches?: Record<string, string>;
+	/**
+	 * The manifests this worksheet USED to have, newest first, each with the
+	 * instant a later upload displaced it (0238, report e32659e9). A student who
+	 * finished the worksheet as it stood then is finished, whatever was added
+	 * since (`worksheetCompletedAtAcross`). Absent where 0238 is not applied.
+	 */
+	pastManifests?: PastManifest[];
 	approvals: ModuleApprovalRow[];
+}
+
+/** One earlier manifest of a ported worksheet, and the instant it stopped being current. */
+export interface PastManifest {
+	/** As stored; narrowed by `htmlManifestShaped` before anything reads it. */
+	manifest: unknown;
+	until: string;
 }
 
 export interface AssignmentTeacherTransports {
@@ -1485,6 +1499,12 @@ export interface AssignmentTeacherTransports {
 	 * at all -- a read-only mount and the dev harness hand nothing down and have
 	 * no close to execute.
 	 */
+	/**
+	 * A MANAGER STAMPS A STUDENT'S FINISHED WORKSHEET (0238), so a finish the
+	 * grading console found from the answers it holds reaches the student's own
+	 * surfaces and the Grades tab. Best effort; absent where 0238 is not applied.
+	 */
+	stampWorksheet?(itemId: string, studentEmail: string, completedAt: string | null): Promise<boolean>;
 	closeAssignment?(
 		itemId: string,
 		studentEmail: string | null,

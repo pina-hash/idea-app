@@ -17,6 +17,14 @@
 // grounds, read out of `space-white.css` rather than typed here, so a later
 // change to a ground re-measures every twin with no edit to this file.
 //
+// THE LAUNCHER IS THE ONE EXCEPTION, AND IT IS A DECISION, NOT A DRIFT (Mr.
+// Pina, 2026-10-14; decision 60). Its cards' Space White inks are no longer
+// twins: lightness alone put eleven of fourteen cards in one green band, so
+// each card names a curated colour of its own, and its block below holds a
+// different rule -- every app has one, all clear the same floors, and no two
+// are closer than a CIEDE2000 floor. The pathway chips and the avatars keep the
+// twin rule unchanged.
+//
 // Why a test and not a harness: a twin that drifts off its hue or under its
 // floor renders perfectly and reads as a slightly different color, which
 // nobody reports. That is the silent regression the suite exists for.
@@ -26,6 +34,7 @@ import { readFileSync } from 'node:fs';
 import { PATHWAYS } from '$lib/pathways';
 import { AVATAR_PRESETS } from '$lib/profile';
 import { AVATAR_TINTS, AVATAR_TINTS_ON_LIGHT, avatarTint, avatarTintOnLight } from '$lib/avatars';
+import { visibleApps } from '$lib/portal-apps';
 
 type Rgb = [number, number, number]; // 0..1
 
@@ -207,13 +216,18 @@ describe('an avatar tile on a light ground', () => {
 });
 
 describe('a launcher card on a light ground (AppLauncher under Space White)', () => {
-	/* EACH BRANDED CARD PAINTS ITS OWN LIGHT TWIN (ledger 0380, report 48bdb5be).
-	   On 2026-10-07 every card's word, glyph and call to action were moved to
-	   one green because two twins landed on olive and brown; Mr. Pina then
-	   reported that every app looked the same in white mode. The words are
-	   per-card again, each a lightness-only twin of an identity colour that
-	   clears the same floors, and the two cards whose FIRST colour has no
-	   readable dark twin (the Coin Ledger and the Foundry) take their SECOND. */
+	/* EVERY CARD HAS A COLOUR OF ITS OWN (Mr. Pina, 2026-10-14; decision 60).
+	   This block used to hold the launcher to the lightness-only rule the rest
+	   of this file holds the pathway chips and the avatars to: each card's
+	   Space White ink was its dark identity moved in lightness alone. Measured,
+	   that put eleven of fourteen cards in one dark-green band (the five cards
+	   with no accent of their own took the theme green, GAUNTLET and VANGUARD
+	   share one brand green and so shared one twin, and GREENLINE, Tournaments,
+	   Maps and the admin card were four more greens), and the report was "all my
+	   apps look the same in white mode". The decision reverses the rule FOR THE
+	   LAUNCHER ON SPACE WHITE ONLY: each card names a curated ink, and what is
+	   held now is that every card has one, every one clears the same floors,
+	   and no two are near neighbours. The dark themes are untouched. */
 	const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 	const style = launcher.slice(launcher.indexOf('<style>'));
 	// The identity each card is BRANDED with: its base rule's --acc-primary.
@@ -225,8 +239,6 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		const second = m[2].match(/--acc-secondary:\s*(#[0-9a-fA-F]{6})/)?.[1];
 		if (second) secondary.set(m[1], second);
 	}
-	/** Cards whose word ink is their SECOND identity colour, and why (the first has no readable dark twin on white). */
-	const SECOND_COLOUR = new Set(['coins', 'foundry']);
 	// The light ink each card re-pins when the theme attribute is present, and
 	// every declaration a per-card Space White rule makes.
 	const light = new Map<string, string>();
@@ -247,28 +259,106 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 	const swCard = ruleBody(":global(:root[data-theme='space-white']) .app-card {");
 	const darkCard = ruleBody('\t.app-card {');
 	const swStrip = ruleBody(":global(:root[data-theme='space-white']) .app-strip {");
+	/** Every app the launcher can draw, an admin's view included. */
+	const everyApp = visibleApps(true).map((a) => a.id);
+
+	/* CIEDE2000, the perceptual difference the distinctness floor is stated in.
+	   The standard formulation (Sharma, Wu and Dalal 2005), over D65 Lab. */
+	const lab = ([r, g, b]: Rgb): [number, number, number] => {
+		const [R, G, B] = [lin(r), lin(g), lin(b)];
+		const X = (0.4124564 * R + 0.3575761 * G + 0.1804375 * B) / 0.95047;
+		const Y = 0.2126729 * R + 0.7151522 * G + 0.072175 * B;
+		const Z = (0.0193339 * R + 0.119192 * G + 0.9503041 * B) / 1.08883;
+		const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+		return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+	};
+	const deltaE00 = (p: string, q: string) => {
+		const [L1, a1, b1] = lab(parse(p).rgb);
+		const [L2, a2, b2] = lab(parse(q).rgb);
+		const rad = Math.PI / 180;
+		const Cb = (Math.hypot(a1, b1) + Math.hypot(a2, b2)) / 2;
+		const G = 0.5 * (1 - Math.sqrt(Cb ** 7 / (Cb ** 7 + 25 ** 7)));
+		const [a1p, a2p] = [(1 + G) * a1, (1 + G) * a2];
+		const [C1p, C2p] = [Math.hypot(a1p, b1), Math.hypot(a2p, b2)];
+		const hue = (a: number, b: number) => (a === 0 && b === 0 ? 0 : ((Math.atan2(b, a) / rad) + 360) % 360);
+		const [h1p, h2p] = [hue(a1p, b1), hue(a2p, b2)];
+		let dhp = 0;
+		if (C1p * C2p !== 0) {
+			dhp = h2p - h1p;
+			if (dhp > 180) dhp -= 360;
+			else if (dhp < -180) dhp += 360;
+		}
+		const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((dhp * rad) / 2);
+		const Lbp = (L1 + L2) / 2;
+		const Cbp = (C1p + C2p) / 2;
+		let hbp = h1p + h2p;
+		if (C1p * C2p !== 0) hbp = (Math.abs(h1p - h2p) > 180 ? (hbp < 360 ? hbp + 360 : hbp - 360) : hbp) / 2;
+		const T =
+			1 - 0.17 * Math.cos((hbp - 30) * rad) + 0.24 * Math.cos(2 * hbp * rad) + 0.32 * Math.cos((3 * hbp + 6) * rad) - 0.2 * Math.cos((4 * hbp - 63) * rad);
+		const Rc = 2 * Math.sqrt(Cbp ** 7 / (Cbp ** 7 + 25 ** 7));
+		const Sl = 1 + (0.015 * (Lbp - 50) ** 2) / Math.sqrt(20 + (Lbp - 50) ** 2);
+		const Sc = 1 + 0.045 * Cbp;
+		const Sh = 1 + 0.015 * Cbp * T;
+		const Rt = -Math.sin(2 * 30 * Math.exp(-(((hbp - 275) / 25) ** 2)) * rad) * Rc;
+		const [dL, dC, dH] = [(L2 - L1) / Sl, (C2p - C1p) / Sc, dHp / Sh];
+		return Math.sqrt(dL ** 2 + dC ** 2 + dH ** 2 + Rt * dC * dH);
+	};
+	/** The floor two card inks may not come closer than. The shipped palette's closest pair measures 12.0 (classroom against Maps). */
+	const DISTINCT_FLOOR = 10;
 
 	it('reads both sets and both card rules (positive control on the reader)', () => {
 		expect(identity.size).toBeGreaterThanOrEqual(9);
-		expect(light.size).toBeGreaterThanOrEqual(9);
+		expect(light.size).toBeGreaterThanOrEqual(14);
+		expect(everyApp.length).toBeGreaterThanOrEqual(14);
 		expect(swCard).toContain('--acc-ink:');
 		expect(darkCard).toContain('--acc-primary: var(--gold);');
 	});
 
-	it('gives EVERY branded card a light ink for its strip, so a new accent cannot arrive without one', () => {
-		const missing = [...identity.keys()].filter((id) => !light.has(id));
+	it('gives EVERY app the launcher can draw an ink of its own, so a new app cannot arrive without one', () => {
+		const missing = everyApp.filter((id) => !light.has(id));
 		expect(missing).toEqual([]);
+		// And no rule names an app the registry does not have (an inert selector paints nothing and says nothing).
+		const ghosts = [...light.keys()].filter((id) => !everyApp.includes(id));
+		expect(ghosts).toEqual([]);
 	});
 
-	it('moves the ink in lightness only, never the identity (the first colour, or the second where the card says so)', () => {
-		for (const [id, ink] of light) {
-			const source = SECOND_COLOUR.has(id) ? secondary.get(id)! : identity.get(id)!;
-			expect(source, `${id} identity colour`).toBeTruthy();
-			expectLightnessOnly(source, ink, id);
+	it('no two cards are near neighbours: every pair of inks is at least the floor apart in CIEDE2000', () => {
+		const ids = [...light.keys()];
+		const close: string[] = [];
+		let pairs = 0;
+		let tightest = Infinity;
+		for (let i = 0; i < ids.length; i++) {
+			for (let j = i + 1; j < ids.length; j++) {
+				const d = deltaE00(light.get(ids[i])!, light.get(ids[j])!);
+				pairs++;
+				tightest = Math.min(tightest, d);
+				if (d < DISTINCT_FLOOR) close.push(`${ids[i]}/${ids[j]} ${d.toFixed(1)}`);
+			}
 		}
+		// The sweep generated every pair (14 cards is 91), so a reader that found nothing cannot pass.
+		expect(pairs).toBe((ids.length * (ids.length - 1)) / 2);
+		expect(pairs).toBeGreaterThanOrEqual(91);
+		expect(close).toEqual([]);
+		expect(tightest).toBeGreaterThanOrEqual(DISTINCT_FLOOR);
+		// One value per card, written out: no two cards share an ink by value either.
+		expect(new Set(light.values()).size).toBe(light.size);
 	});
 
-	it('every twin clears as WORDS: 4.5 on the card, its own hover wash and the CTA hover fill; 3:1 at 75% on the page; 3.0 washed', () => {
+	it('NEGATIVE CONTROL: the lightness-only twins this replaced fail the same floor', () => {
+		/* The board the decision reversed, as it shipped on 2026-10-07 and in
+		   ledger 0380: GAUNTLET and VANGUARD shared one twin, and the admin
+		   card's twin sat beside the theme green the five accent-less cards took.
+		   If these cleared the floor, the floor would be measuring nothing. */
+		const oldGauntlet = 'hsl(135.3 100% 24.5%)';
+		const oldVanguard = 'hsl(135.3 100% 24.5%)';
+		expect(deltaE00(oldGauntlet, oldVanguard)).toBeLessThan(DISTINCT_FLOOR);
+		const themeGreen = `#${token('--green').map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('')}`;
+		expect(deltaE00(themeGreen, 'hsl(113.3 33.6% 33.5%)')).toBeLessThan(DISTINCT_FLOOR);
+		expect(deltaE00('hsl(147 78.2% 26.5%)', 'hsl(156.7 85.4% 25.5%)')).toBeLessThan(DISTINCT_FLOOR);
+	});
+
+	it('every ink clears as WORDS: 4.5 on the card, its own hover wash and the CTA hover fill; 3:1 at 75% on the page; 3.0 washed', () => {
+		let checked = 0;
 		for (const [id, value] of light) {
 			const ink = parse(value).rgb;
 			expect(ratio(ink, PANEL), `${id} on the card`).toBeGreaterThanOrEqual(4.5);
@@ -276,14 +366,39 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 			expect(ratio(ink, INSET), `${id} on the CTA hover fill`).toBeGreaterThanOrEqual(4.5);
 			expect(ratio(over(ink, 0.75, PAGE), PAGE), `${id} edge on the page`).toBeGreaterThanOrEqual(3);
 			expect(washed(ink, PANEL), `${id} washed on the card`).toBeGreaterThanOrEqual(3);
+			checked++;
+		}
+		expect(checked).toBe(light.size);
+	});
+
+	it('no card wears the olive-brown decision 40 took off this theme\'s words', () => {
+		/* --gold on Space White is #715d22, the brown a gold or amber becomes
+		   when it is taken dark enough to read on white; decision 40 item 1
+		   moved it off this theme's words and the 2026-10-07 round refused two
+		   twins for landing on it. The notebook's amber is the card nearest it,
+		   on purpose redder and stronger; every ink is held at least the
+		   distinctness floor away from it. */
+		const gold = `#${token('--gold').map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('')}`;
+		const [goldHue] = rgbToHsl(token('--gold'));
+		expect(goldHue).toBeGreaterThan(35); // positive control: it is the brown, read off the theme
+		expect(goldHue).toBeLessThan(60);
+		for (const [id, value] of light) {
+			expect(deltaE00(value, gold), `${id} against --gold`).toBeGreaterThanOrEqual(DISTINCT_FLOOR);
 		}
 	});
 
+	it('the three cards that were already told apart keep their inks: FIRST red, the Ledger\'s and the Foundry\'s second colours', () => {
+		// Mr. Pina's decision kept these; each is still its identity colour moved in lightness only.
+		expectLightnessOnly(identity.get('frc')!, light.get('frc')!, 'frc');
+		expectLightnessOnly(secondary.get('coins')!, light.get('coins')!, 'coins');
+		expectLightnessOnly(secondary.get('foundry')!, light.get('foundry')!, 'foundry');
+	});
+
 	it('on Space White a card\'s word, glyph and call to action follow ITS OWN ink, and its edge is the plate hairline', () => {
-		// PRESENT: the one rule keeps the default ink green for the cards that
-		// declare none, moves the edge, the lines and the wash, and does NOT
-		// re-pin `--acc`, so the per-card `--acc-ink` reaches the word, the glyph
-		// and the call to action through the base rule.
+		// PRESENT: the one rule keeps a green fallback for a card with no ink,
+		// moves the edge, the lines and the wash, and does NOT re-pin `--acc`,
+		// so the per-card `--acc-ink` reaches the word, the glyph and the call
+		// to action through the base rule.
 		expect(swCard).not.toMatch(/--acc:\s*var\(--green\)/);
 		expect(swCard).toContain('--acc-ink: var(--green);');
 		expect(swCard).toContain('--acc-edge: var(--plate-hair, var(--boundary));');
@@ -292,12 +407,9 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		expect(style).toMatch(/\.app-title \{[^}]*color: var\(--acc-title\);/);
 		expect(style).toMatch(/\.app-icon \{[^}]*color: var\(--acc\);/);
 		expect(style).toMatch(/\.app-cta \{[^}]*color: var\(--acc\);/);
-		// The words really do differ card to card: at least eight distinct inks
-		// (positive control), and no two of the branded greens are the same value.
-		expect(new Set(light.values()).size).toBeGreaterThanOrEqual(8);
 		// ABSENT: no per-card Space White rule re-pins the derived tokens, which
 		// would put a second ink back on one of the three places by hand.
-		expect(perCardDecls.length).toBeGreaterThanOrEqual(8); // positive control on the reader
+		expect(perCardDecls.length).toBeGreaterThanOrEqual(14); // positive control on the reader
 		const offenders = perCardDecls.filter((d) => /--acc(-title|-edge(-strong)?|-line(-strong)?|-wash)?\s*:/.test(d));
 		expect(offenders).toEqual([]);
 		// AND THE DARK THEMES ARE UNTOUCHED: the default rule still derives the
@@ -355,25 +467,6 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		expect(ratio(parse('#eafff3').rgb, PANEL)).toBeLessThan(1.5);
 		// And the retired rule is not left behind, re-stroking classes nothing draws.
 		expect(style).not.toContain('.gl-marker');
-	});
-
-	it('the two cards that took their SECOND colour are not in the olive or brown family decision 40 refused for gold', () => {
-		/* A yellow or an amber taken dark enough to carry text on white lands in
-		   the same brown family as --gold (#715d22), which decision 40 item 1
-		   took off this theme's words. The Coin Ledger and the Foundry therefore
-		   word themselves in their second colour; the first colour's twin is
-		   asserted to be IN that family, which is the whole reason for the
-		   exception (and fails if somebody changes the identity under it). */
-		const [goldHue] = rgbToHsl(token('--gold'));
-		expect(goldHue).toBeGreaterThan(35);
-		expect(goldHue).toBeLessThan(60);
-		for (const id of SECOND_COLOUR) {
-			const [h] = parse(light.get(id)!).hsl;
-			expect(h < 25 || h > 75, `${id} word ink hue ${h} must be outside the olive/brown band`).toBe(true);
-			// The first colour's own twin, at the lightness that clears 4.5, IS in the band.
-			const [fh, fs] = parse(identity.get(id)!).hsl;
-			expect(fh >= 25 && fh <= 75, `${id} first-colour hue ${fh} is the band the exception exists for (sat ${fs})`).toBe(true);
-		}
 	});
 
 	it('NEGATIVE CONTROL: every identity as authored fails as text on the light card', () => {

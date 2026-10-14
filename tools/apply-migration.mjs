@@ -357,7 +357,7 @@ export function inferLedgerEntry(cwd = REPO_ROOT) {
 }
 
 /**
- * @typedef {{ ok: true, id: string, file: string, raw: string, number: string | null }
+ * @typedef {{ ok: true, id: string, file: string, raw: string, number: string | null, numbers: string[] }
  *   | { ok: false, why: string, how: string }} LedgerVerdict
  */
 

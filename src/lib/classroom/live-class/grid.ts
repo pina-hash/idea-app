@@ -68,7 +68,8 @@ import {
 } from '$lib/classroom/classroom';
 import { laCalendarDay, schoolDayOf } from '$lib/classroom/school-calendar';
 import { hallPassElapsedLabel } from '$lib/classroom/hall-pass';
-import { withWorksheetCompletions, worksheetCompletedAt, worksheetKey } from '$lib/classroom/student-work';
+import { withWorksheetCompletions, worksheetCompletedAtAcross, worksheetKey } from '$lib/classroom/student-work';
+import type { PastManifest } from '$lib/classroom/assignment-spec';
 
 /**
  * HOW LONG WITHOUT TYPING BEFORE A STUDENT WHO HAS THE ASSIGNMENT OPEN READS AS
@@ -375,12 +376,14 @@ function handInFacts(
 	s: StudentWork,
 	itemId: string,
 	worksheet: HtmlAssignmentManifest | null | undefined,
-	latched?: string
+	latched?: string,
+	past?: readonly PastManifest[]
 ): HandInFacts | null {
 	if (!worksheet) return s.submission;
 	let at: string | null;
 	try {
-		at = worksheetCompletedAt(worksheet, s.responses, s.files);
+		// Judged against the worksheet it was, too (0238).
+		at = worksheetCompletedAtAcross(worksheet, past, s.responses, s.files);
 	} catch {
 		at = null;
 	}
@@ -446,7 +449,7 @@ export function liveCells(input: {
 	return rows
 		.filter((s) => s.active)
 		.map((s) => {
-			const facts = handInFacts(s, itemId, worksheet, input.grading?.latches?.[s.email.toLowerCase()]);
+			const facts = handInFacts(s, itemId, worksheet, input.grading?.latches?.[s.email.toLowerCase()], input.grading?.pastManifests);
 			const { state, detail } = liveCellState({
 				submission: facts,
 				workArrived: workArrived(s),

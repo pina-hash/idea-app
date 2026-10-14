@@ -2260,19 +2260,23 @@ a:hover {
 .legacy-index .auth-error {
 	position: relative;
 	z-index: 1;
-	max-width: 1100px;
+	max-width: var(--li-measure, 1100px);
 	margin: 0.75rem auto 0;
 	padding: 0 2rem;
 	color: var(--amber);
 	font-size: 0.72rem;
 }
 
-/* Hero */
+/* Hero. Every section of a `.legacy-index` page reads ONE measure,
+   `--li-measure`, and falls back to the 1100px it always had. The home page
+   declares it as a width that grows with the window above about 1440px
+   (reports of dead space at 1258px and 3840px); the archive page declares
+   none and is unchanged. One property, so the sections' edges stay in line. */
 .legacy-index .hero {
 	position: relative;
 	z-index: 1;
 	padding: 5rem 2rem 3.5rem;
-	max-width: 1100px;
+	max-width: var(--li-measure, 1100px);
 	margin: 0 auto;
 }
 .legacy-index .hero-eyebrow {
@@ -2445,7 +2449,7 @@ a:hover {
 	justify-content: space-between;
 	gap: 1.5rem;
 	flex-wrap: wrap;
-	max-width: 1100px;
+	max-width: var(--li-measure, 1100px);
 	margin: 0 auto 2.5rem;
 	padding: 1.2rem 1.8rem;
 	background: linear-gradient(135deg, color-mix(in srgb, var(--li-brass) 7%, transparent) 0%, color-mix(in srgb, var(--li-patina) 5%, transparent) 100%);
@@ -2558,7 +2562,7 @@ a:hover {
 .legacy-index .divider {
 	position: relative;
 	z-index: 1;
-	max-width: 1100px;
+	max-width: var(--li-measure, 1100px);
 	margin: 0 auto 2.5rem;
 	padding: 0 2rem;
 	display: flex;
@@ -2591,7 +2595,7 @@ a:hover {
 .legacy-index .courses {
 	position: relative;
 	z-index: 1;
-	max-width: 1100px;
+	max-width: var(--li-measure, 1100px);
 	margin: 0 auto;
 	padding: 0 2rem 4rem;
 	display: grid;
@@ -3041,7 +3045,7 @@ a:hover {
 .legacy-index .changelog-wrap {
 	position: relative;
 	z-index: 1;
-	max-width: 1100px;
+	max-width: var(--li-measure, 1100px);
 	margin: 0 auto;
 	padding: 0 2rem 5rem;
 }
@@ -3089,7 +3093,7 @@ a:hover {
 	border-radius: 3px;
 	box-shadow: var(--bevel-raised);
 	/* The panel's own width is what lays a row out, not the window's: the
-	   panel sits inside the page's 1100px measure and its gutters. */
+	   panel sits inside the page's measure (`--li-measure`) and its gutters. */
 	container: cl / inline-size;
 	--cl-pad-x: 1.5rem;
 	padding: 0 var(--cl-pad-x) 1rem;
@@ -3217,6 +3221,31 @@ a:hover {
 	color: var(--plate-ink, var(--text-1));
 	/* A commit subject can carry a long path or identifier with no space in it. */
 	overflow-wrap: anywhere;
+	/* A reading width on a wide window: the home measure grows to 3200px and a
+	   sentence does not. No change at 1440, where the column is narrower. */
+	max-width: 72rem;
+}
+/* AN UPDATE'S OWN LIST OF CHANGES, under its sentence (Mr. Pina's report
+   "Change log is not comprehensive with the latest"): the bullet lines of the
+   commit's body, capped in $lib/site-versions and rendered as text. The
+   secondary ink and a size under the sentence's, above the 11px floor. */
+.legacy-index .cl-details {
+	grid-column: 2;
+	min-width: 0;
+	max-width: 72rem;
+	margin: 0;
+	padding: 0 0 0 1.1rem;
+	list-style: disc;
+	display: grid;
+	gap: 0.2rem;
+	font-family: var(--font-display);
+	font-size: 0.85rem;
+	line-height: 1.4;
+	color: var(--plate-ink-2, var(--text-2));
+	overflow-wrap: anywhere;
+}
+.legacy-index .cl-details li::marker {
+	color: var(--plate-caption, var(--text-2));
 }
 .legacy-index .cl-tags {
 	grid-column: 2;
@@ -3253,6 +3282,7 @@ a:hover {
 		row-gap: 0.3rem;
 	}
 	.legacy-index .changelog-note,
+	.legacy-index .cl-details,
 	.legacy-index .cl-tags {
 		grid-column: 1;
 	}

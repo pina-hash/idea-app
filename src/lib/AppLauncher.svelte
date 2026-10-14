@@ -456,9 +456,10 @@
 			{#if saving}<span class="launcher-note">Saving...</span>{/if}
 			{#if saveError}<span class="launcher-err">{saveError}</span>{/if}
 			<!-- A sort picker, not a hero element: a native select styled to match
-			     the two buttons beside it. -->
+			     the two buttons beside it, wearing the site's approved dropdown
+			     (`cr-select`) so the plate draws it as every other select. -->
 			<select
-				class="bar-select"
+				class="bar-select cr-select"
 				aria-label="Sort apps"
 				value={sortMode}
 				onchange={(e) => setSort(e.currentTarget.value as AppSortMode)}
@@ -470,7 +471,13 @@
 			<button type="button" class="bar-btn" onclick={toggleCompact}>
 				{compact ? 'Comfortable view' : 'Compact view'}
 			</button>
-			<button type="button" class="bar-btn" class:active={customizing} onclick={() => (customizing = !customizing)}>
+			<button
+				type="button"
+				class="bar-btn"
+				class:active={customizing}
+				aria-pressed={customizing}
+				onclick={() => (customizing = !customizing)}
+			>
 				{customizing ? 'Done' : 'Customize'}
 			</button>
 		</span>
@@ -497,9 +504,18 @@
 	{#if !customizing && split.hidden.length > 0}
 		<!-- THE WAY BACK, ON THE PAGE THAT HID THEM: a hidden app is a row here
 		     with its own link and a Show key, so putting an app away never makes
-		     it unreachable (ledger 0380, report 125e674f). -->
+		     it unreachable (ledger 0380, report 125e674f). It ARRIVES CLOSED
+		     (`collapseWhen` constant-true, the latched idiom): opened by default,
+		     every app somebody put away was still listed by name under the grid,
+		     which is the opposite of putting it away. The count stays on the
+		     trigger, and a person's own press is remembered under the scope. -->
 		<div class="hidden-apps" data-testid="hidden-apps">
-			<Disclosure label="Hidden apps ({split.hidden.length})" scope="home:hidden-apps" testId="hidden-apps-disclosure">
+			<Disclosure
+				label="Hidden apps ({split.hidden.length})"
+				scope="home:hidden-apps"
+				collapseWhen={true}
+				testId="hidden-apps-disclosure"
+			>
 				<ul class="hidden-list">
 					{#each split.hidden as app (app.id)}
 						<li class="hidden-row">
@@ -539,16 +555,21 @@
 </section>
 
 <style>
+	/* THE MEASURE IS THE HOME PAGE'S, NOT A FIXED 1100px (reports "a lot of
+	   dead space" at 1258px and "too much dead space" at 3840px). Every home
+	   section reads `--li-measure`, which the home page declares as a width
+	   that grows with the window above about 1440px; a page that declares
+	   none (the theme harness) keeps the old 1100px. */
 	.launcher {
 		position: relative;
 		z-index: 1;
-		max-width: 1100px;
+		max-width: var(--li-measure, 1100px);
 		margin: 0 auto 2.5rem;
 		padding: 0 2rem;
 	}
 	.launcher-bar {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		justify-content: space-between;
 		gap: 1rem;
 		flex-wrap: wrap;
@@ -565,8 +586,8 @@
 	}
 	.launcher-actions {
 		display: inline-flex;
-		align-items: baseline;
-		gap: 0.9rem;
+		align-items: center;
+		gap: 0.6rem 0.9rem;
 		/* A FLEX ITEM'S AUTOMATIC MINIMUM IS ITS MIN-CONTENT, and a nowrap row of
 		   a 156px select plus two buttons is 396.5px of it -- 53.5px past the
 		   343px bar at a 375px layout viewport, which is what put the home page
@@ -584,49 +605,75 @@
 	}
 	.launcher-note,
 	.launcher-err {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		color: var(--dim);
+		font-family: var(--font-mono);
+		font-size: var(--plate-label-size, 0.6875rem);
+		color: var(--text-2);
 	}
 	.launcher-err {
 		color: var(--amber);
 	}
-	.bar-btn {
-		font-family: 'Orbitron', sans-serif;
-		font-size: 0.55rem;
-		letter-spacing: 0.14em;
+	/* THE BAR'S CONTROLS ARE THE SITE'S KEYS, NOT THE LAUNCHER'S OWN (report
+	   "doesn't adhere to the rest of the website design"). They were Orbitron
+	   at 8.8px with a translucent neon border, 24px tall: a look nothing else
+	   on the site has, under the 11px label floor and the 44px tap floor. Now
+	   each is the home page's own key, the shape `.changelog-toggle` already
+	   is: the mono label face at the plate's label size, a 44px box and the
+	   load-bearing boundary. Under the site plate the plate paints them --
+	   `.bar-btn` is in plate.css's key list (`.active` is its lit state, and
+	   so is the `aria-pressed` Customize now carries), and the sort picker
+	   wears `.cr-select`, the approved dropdown, so it is the same well and
+	   caret as every classroom select. What is declared here is the geometry,
+	   which the plate never moves, and a look for the `SITE_PLATE = ''`
+	   revert. */
+	.bar-btn,
+	.bar-select {
+		box-sizing: border-box;
+		min-height: 44px;
+		font-family: var(--font-mono);
+		font-size: var(--plate-label-size, 0.6875rem);
 		text-transform: uppercase;
-		color: var(--dim);
-		background: none;
-		border: 1px solid rgba(74, 122, 82, 0.3);
-		border-radius: 2px;
-		padding: 0.3rem 0.7rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control, 2px);
 		cursor: pointer;
 		transition: color 0.2s, border-color 0.2s;
+	}
+	.bar-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 1rem;
+		letter-spacing: 0.08em;
+		color: var(--text-2);
+		background: none;
 	}
 	.bar-btn:hover,
 	.bar-btn.active {
 		color: var(--green);
-		border-color: rgba(0, 255, 65, 0.4);
+		border-color: var(--green);
 	}
-	/* The sort picker sits with the buttons and reads as one of them. */
+	/* The sort picker sits with the buttons and reads as one of them: the
+	   same face, size and floor, with its own drawn caret (`appearance: none`
+	   drops the native one, which no theme could re-ink). */
 	.bar-select {
-		font-family: 'Orbitron', sans-serif;
-		font-size: 0.55rem;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-		color: var(--dim);
-		background: var(--bg1);
-		border: 1px solid rgba(74, 122, 82, 0.3);
-		border-radius: 2px;
-		padding: 0.3rem 0.5rem;
-		cursor: pointer;
-		transition: color 0.2s, border-color 0.2s;
+		appearance: none;
+		-webkit-appearance: none;
+		max-width: 100%;
+		padding: 0 2.4rem 0 0.8rem;
+		letter-spacing: 0.06em;
+		color: var(--text-1);
+		background-color: var(--bg2);
+		background-image:
+			linear-gradient(45deg, transparent 50%, var(--text-2) 50%),
+			linear-gradient(135deg, var(--text-2) 50%, transparent 50%);
+		background-position:
+			calc(100% - 1.25rem) 50%,
+			calc(100% - 0.85rem) 50%;
+		background-size: 0.4rem 0.4rem;
+		background-repeat: no-repeat;
 	}
 	.bar-select:hover,
 	.bar-select:focus-visible {
-		color: var(--green);
-		border-color: rgba(0, 255, 65, 0.4);
+		border-color: var(--green);
 	}
 	.app-grid {
 		display: grid;
@@ -1126,16 +1173,20 @@
 		color: var(--acc-title);
 		text-shadow: 0 0 8px var(--acc-glow);
 	}
+	/* The description and the call to action are at the site's 11px label
+	   floor (`--plate-label-size`). The description was 10.9px and the call to
+	   action an 8.3px Orbitron the rest of the site does not use for a label;
+	   the action now takes the mono label face every key on the site wears. */
 	.app-sub {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-family: var(--font-mono);
+		font-size: var(--plate-label-size, 0.6875rem);
 		color: var(--dim);
 		line-height: 1.5;
 	}
 	.app-cta {
-		font-family: 'Orbitron', sans-serif;
-		font-size: 0.52rem;
-		letter-spacing: 0.16em;
+		font-family: var(--font-mono);
+		font-size: var(--plate-label-size, 0.6875rem);
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--acc);
 		border: 1px solid var(--acc-line);
@@ -1229,6 +1280,10 @@
 		column-gap: 0.75rem;
 		row-gap: 0.15rem;
 		align-items: center;
+		/* A card stretched to its row's tallest neighbour keeps its two lines
+		   together in the middle, rather than spreading them apart with a band
+		   of nothing between the title and the description. */
+		align-content: center;
 		padding: 0.6rem 0.85rem;
 	}
 	a.app-card:not(.compact) .app-icon {
@@ -1263,11 +1318,15 @@
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
 		overflow: hidden;
-		font-size: 0.66rem;
+		font-size: var(--plate-label-size, 0.6875rem);
 		line-height: 1.4;
 	}
+	/* 300px, the Customize track's width: the description reads at 11px now,
+	   and at 280px its two clamped lines cut most descriptions short. It is
+	   still three columns at 1440 and 1258, and the wider home measure makes it
+	   four at 1920 and ten at 3840 rather than three in a band. */
 	.app-grid:not(.compact) {
-		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 		gap: 0.6rem;
 	}
 	.app-grid.customizing:not(.compact) {
@@ -1349,63 +1408,64 @@
 	}
 	.launcher-hint {
 		margin-top: 0.8rem;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		color: var(--dim);
+		font-family: var(--font-mono);
+		font-size: var(--plate-label-size, 0.6875rem);
+		color: var(--text-2);
 	}
 
 	/* ======================================================================
-	   UNDER SPACE WHITE: LIGHT CARDS, EACH IN ITS OWN LIGHT INK (ledger 0297,
-	   package F1b; round 2026-10-07; REVERSED IN PART by ledger 0380, report
-	   48bdb5be: "all my apps look the same in white mode, this sucks").
+	   UNDER SPACE WHITE: LIGHT CARDS, EACH IN A COLOUR OF ITS OWN (ledger
+	   0297, package F1b; round 2026-10-07; ledger 0380, report 48bdb5be; and
+	   Mr. Pina's decision of 2026-10-14, which decision 60 records).
 
-	   Two treatments were measured before the light card was chosen, on the
-	   theme's own grounds (card #f7f9f9, page #e8eceb, CTA hover #edf1f0):
+	   THIS REVERSES DECISION 55's LIGHTNESS-ONLY RULE FOR SPACE WHITE, AND
+	   ONLY FOR SPACE WHITE. Until 2026-10-14 every card's light ink was its
+	   dark identity moved in lightness alone, hue and saturation held. Measured
+	   on this theme that put eleven of the fourteen cards in one dark-green
+	   band: the five cards that declare no accent (classroom, notebook,
+	   IdeaCAD, Armory, Coin Desk) took the theme's own green #3b6c36, the admin
+	   card's lightness twin was #3f7239, GAUNTLET and VANGUARD share the brand
+	   #00ff41 and so shared one twin #007d20, and GREENLINE, Tournaments and
+	   Maps are three more greens a hue step apart (#0f783e, #09794d, #117657).
+	   Only FRC red, the Foundry's burnt orange and the Coin Ledger's teal
+	   could be told apart, and Mr. Pina's report was "all my apps look the same
+	   in white mode, this sucks". His answer: a DISTINCT colour per app on
+	   Space White, while the dark themes keep their brand colours exactly.
 
-	   (a) LIGHT CARDS, each card's --acc-ink re-pinned for the light ground.
-	       Every identity as authored fails as text on the light card -- 1.12
-	       (Ledger) to 2.29 (Tournaments), FRC alone at 4.15 -- so the ink
-	       moves, LIGHTNESS ONLY, hue and saturation held to a tenth, to the
-	       BRIGHTEST value that clears 4.5 on the card, on its hover wash and on
-	       the CTA hover fill, 3:1 for the 75% edge against the page, and 3.0
-	       under the projector-washout model.
-	   (b) DARK INSTRUMENT PLATES: every card keeps its dark ground on the
-	       light page. Identity untouched, but thirteen dark rectangles with
-	       their glows on a page whose whole character is no glow and no dark
-	       block, and a second copy of the dark token closure inside the cards.
+	   SO EACH CARD HERE NAMES A CURATED INK, NOT A DERIVED ONE. The palette is
+	   spread round the hue wheel and across lightness so no two cards are near
+	   neighbours: FRC keeps FIRST red, the Foundry its burnt orange and the
+	   Coin Ledger its teal (those three were already distinct); the notebook is
+	   a warm amber, deliberately redder and stronger than the olive-brown
+	   --gold (#715d22) decision 40 took off this theme's words; GAUNTLET takes
+	   the lime its own room re-points --gold to, GREENLINE a true green and
+	   Tournaments a deep emerald; Maps a cyan blue, IdeaCAD a steel slate, the
+	   classroom a royal blue and Armory an indigo; VANGUARD a violet, the admin
+	   card a plum and the Coin Desk a raspberry. The closest pair is the
+	   classroom against Maps at a CIEDE2000 difference of 12.0, and no ink
+	   comes within 10 of --gold.
 
-	   (a) shipped. On 2026-10-07 every card's word, glyph and call to action
-	   were collapsed into ONE green, because two twins landed on the olive and
-	   brown a lightness-only yellow or amber becomes on white (the Coin Ledger's
-	   neon #c8ff00 on olive #587000, the Foundry's amber #f6952f on brown
-	   #a15607 -- decision 40 item 1's own argument about gold on white). That
-	   made every card the same colour, and Mr. Pina said so the next week.
-
-	   SO EACH BRANDED CARD PAINTS ITS WORD, GLYPH, CALL TO ACTION AND STRIP IN
-	   ITS OWN LIGHT TWIN AGAIN, and its EDGE stays the plate's own hairline
-	   rather than the brand at 75%. The two cards whose FIRST colour has no
-	   readable dark twin take their SECOND identity colour instead of olive and
-	   brown, still lightness only: the Coin Ledger's cyan #00f0ff becomes a teal
-	   and the Foundry's ember #c65a1d a burnt orange. The five cards that
-	   declare no accent of their own (classroom, notebook, IdeaCAD, Armory, Coin
-	   Desk) stay the theme's green: a card quotes its own room or declares
-	   nothing, and the shared pair's first stop is --gold, the brown #715d22
-	   here. The identity pair (--acc-primary, --acc-secondary) is not moved, and
-	   nothing here reaches IDEA or Matrix: every declaration sits under the
-	   theme attribute. The twins are measured in tests/space-white-inks.test.ts.
+	   WHAT DID NOT MOVE. Every ink still clears 4.5 as words on the card
+	   (#f7f9f9), on its own hover wash and on the CTA hover fill (#edf1f0),
+	   3:1 at 75% against the page, and 3.0 under the projector-washout model;
+	   tests/space-white-inks.test.ts measures all of it and the pairwise
+	   difference. The identity pair (--acc-primary, --acc-secondary) is not
+	   moved, and nothing here reaches IDEA or Matrix: every declaration sits
+	   under the theme attribute. The card's EDGE is still the plate's hairline
+	   rather than the ink at 75%, and its strip is the ink, solid.
 
 	   Nothing here is a theme file's: the theme may not declare an identity
-	   token (tests/theme-tokens.test.ts), so the card re-pins its OWN inks,
+	   token (tests/theme-tokens.test.ts), so the card re-pins its OWN ink,
 	   keyed on the attribute, exactly where its dark ink is declared.
 	   ====================================================================== */
 	:global(:root[data-theme='space-white']) .app-card {
-		/* #3b6c36: 5.87 on the card, 4.70 washed on the wall. The four cards
-		   that declare no accent paint their strip in it too (the shared pair's
-		   first stop is --gold, which is the brown #715d22 here). */
+		/* THE FALLBACK FOR A CARD NOBODY HAS GIVEN AN INK YET: the theme's
+		   green (#3b6c36, 5.87 on the card). Every card the launcher draws
+		   today names its own below; a new app lands here until it does. */
 		--acc-ink: var(--green);
 		/* `--acc` is NOT re-pinned here (ledger 0380): it derives from the
 		   card's own `--acc-ink` in the base rule, which is what lets each
-		   branded card's twin below reach its word, glyph and call to action. */
+		   card's ink below reach its word, glyph and call to action. */
 		/* The card's edge is the plate's hairline (3.27:1 on the plate's page,
 		   the load-bearing 3:1), not the brand at 75%; the fallback is the
 		   theme's own boundary, for the `SITE_PLATE = ''` revert. */
@@ -1438,56 +1498,83 @@
 	:global(:root[data-theme='space-white']) a.app-card:hover .app-cta {
 		box-shadow: none;
 	}
-	/* THE LIGHT INKS: each branded card's lightness-only twin, hue and
-	   saturation held, painting its word, glyph, call to action and strip. Each
-	   clears 4.5 on the card, its hover wash and the CTA hover fill
-	   (tests/space-white-inks.test.ts). */
-	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'],
-	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] {
-		/* #00ff41, hsl(135.3 100% 50%): 5.03 on the card. */
-		--acc-ink: hsl(135.3 100% 24.5%);
+	/* THE FOURTEEN INKS, one rule per card, each a single colour that paints
+	   the card's word, glyph, call to action and strip. The figures are
+	   WCAG ratios on the card / on the CTA hover fill. */
+	:global(:root[data-theme='space-white']) .app-card[data-app='classroom'] {
+		/* Royal blue: 6.08 / 5.64. */
+		--acc-ink: #1f55d0;
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='notebook'] {
+		/* Warm amber, the brass of the dark card taken toward orange and kept
+		   saturated, so it reads as amber rather than the olive-brown --gold
+		   (CIEDE2000 10.8 from it): 6.35 / 5.89. */
+		--acc-ink: #845000;
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='ideacad'] {
+		/* Steel slate, the one low-chroma ink, which is what sets it apart from
+		   the classroom's and Maps' blues: 7.86 / 7.30. */
+		--acc-ink: #3a5068;
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='armory'] {
+		/* Deep indigo: 9.50 / 8.82. */
+		--acc-ink: #3e2f9c;
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='maps'] {
+		/* Cyan blue, the map's water rather than the jade Tournaments'
+		   emerald would crowd: 5.57 / 5.17. */
+		--acc-ink: #006aa0;
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='coins'] {
+		/* KEPT: the Coin Ledger's teal, its second identity colour (cyan
+		   #00f0ff) at a lightness that carries text: 5.30 / 4.92. */
+		--acc-ink: hsl(183.5 100% 24%);
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'] {
+		/* Lime, the colour the GAUNTLET room re-points --gold to, taken dark
+		   enough to read: 5.51 / 5.11. */
+		--acc-ink: #4f6f00;
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='frc'] {
-		/* #ed1c24, hsl(357.7 85.3% 52%): 4.90 on the card. FIRST red itself
-		   measures 4.15 here, so the ink moves six points, not sixteen. */
+		/* KEPT: FIRST red at the lightness that carries text here (FIRST red
+		   itself measures 4.15 on the card): 4.90 / 4.55. */
 		--acc-ink: hsl(357.7 85.3% 46%);
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='greenline'] {
-		/* #2ae57e, hsl(147 78.2% 53.1%): 5.20 on the card. */
-		--acc-ink: hsl(147 78.2% 26.5%);
+		/* A true green, the one green left on this board: 5.15 / 4.78. */
+		--acc-ink: #0f7a35;
 	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='coins'] {
-		/* THE SECOND IDENTITY COLOUR, cyan #00f0ff, hsl(183.5 100% 50%): the first
-		   (#c8ff00) is olive at any lightness that carries text on white.
-		   hsl(183.5 100% 24%) is a teal, 5.13 on the card, 4.76 on the CTA
-		   hover fill. */
-		--acc-ink: hsl(183.5 100% 24%);
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='tournaments'] {
-		/* #0fbe7a, hsl(156.7 85.4% 40.2%): 5.12 on the card. */
-		--acc-ink: hsl(156.7 85.4% 25.5%);
+	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] {
+		/* Arcade violet, which also parts VANGUARD from GAUNTLET, whose brand
+		   green it shares on the dark themes: 6.05 / 5.61. */
+		--acc-ink: #8a2fc4;
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='foundry'] {
-		/* THE SECOND IDENTITY COLOUR, the ember #c65a1d, hsl(21.7 74.4% 44.5%):
-		   the first (#f6952f) is brown at any lightness that carries text on
-		   white. hsl(21.7 74.4% 39%) is a burnt orange, 5.16 on the card, 4.79
-		   on the CTA hover fill. */
+		/* KEPT: the Foundry's burnt orange, its second identity colour (the
+		   ember #c65a1d) at a lightness that carries text: 5.07 / 4.71. */
 		--acc-ink: hsl(21.7 74.4% 39%);
 	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='maps'] {
-		/* #40e3b1, hsl(161.6 74.4% 57.1%): 5.27 on the card. */
-		--acc-ink: hsl(161.6 74.4% 26.5%);
+	:global(:root[data-theme='space-white']) .app-card[data-app='tournaments'] {
+		/* Deep emerald, darker than GREENLINE's green so the two part on
+		   lightness as well as hue: 7.35 / 6.82. */
+		--acc-ink: #005e4b;
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='coin-desk'] {
+		/* Raspberry: the desk is the coins' other half, and teal is the
+		   Ledger's. Not --crimson, which stays reserved for live and error
+		   status: 5.76 / 5.34. */
+		--acc-ink: #b8245e;
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='dashboard'] {
-		/* #78b870, hsl(113.3 33.6% 58%): 5.39 on the card. */
-		--acc-ink: hsl(113.3 33.6% 33.5%);
+		/* Plum, for the admin console: 8.32 / 7.73. */
+		--acc-ink: #7d2a64;
 	}
 	/* GAUNTLET's and VANGUARD's marks paint their accent strokes from
 	   `var(--gold, ...)` -- the sketch and scan line, the thruster -- which on
-	   this theme is #715d22, brown, beside a green glyph. Inside the icon only,
-	   --gold points at the card's one ink, the way the GAUNTLET room re-points
-	   it at its lime; the marks are not edited and the dark cards paint
-	   exactly what they did. */
+	   this theme is #715d22, brown, beside a lime or violet glyph. Inside the
+	   icon only, --gold points at the card's one ink, the way the GAUNTLET room
+	   re-points it at its lime; the marks are not edited and the dark cards
+	   paint exactly what they did. */
 	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'] .app-icon,
 	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] .app-icon {
 		--gold: var(--acc);

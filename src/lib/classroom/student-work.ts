@@ -45,7 +45,8 @@ import {
 	type ClassroomItem,
 	type ClassroomSection
 } from '$lib/classroom/classroom';
-import { SECTION_SELECT, htmlManifestShaped, readWorksheetLatches, selectItemsWithDoc } from '$lib/classroom/transports';
+import { SECTION_SELECT, htmlManifestShaped, readPastManifests, readWorksheetLatches, selectItemsWithDoc } from '$lib/classroom/transports';
+import type { PastManifest } from '$lib/classroom/assignment-spec';
 
 export { readWorksheetLatches };
 import { checkInIsScheduled, checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins';
@@ -539,12 +540,30 @@ async function worksheetCompletions(
 		if (list) list.push(file);
 		else photos.set(key, [file]);
 	}
+	const unfinished = new Set<string>();
 	for (const key of new Set([...answers.keys(), ...photos.keys()])) {
 		const itemId = key.slice(0, key.indexOf(' '));
 		const manifest = manifests.get(itemId);
 		if (!manifest) continue;
 		const at = worksheetCompletedAt(manifest, answers.get(key) ?? [], photos.get(key) ?? []);
 		if (at !== null) out.set(key, at);
+		else unfinished.add(itemId);
+	}
+	// THE WORKSHEET IT WAS (0238): only for items where somebody still reads
+	// unfinished, so the ordinary page pays nothing, and one read for them all.
+	if (unfinished.size) {
+		const past = await readPastManifests(supabase, [...unfinished]).catch(() => new Map<string, PastManifest[]>());
+		if (past.size) {
+			for (const key of new Set([...answers.keys(), ...photos.keys()])) {
+				if (out.has(key)) continue;
+				const itemId = key.slice(0, key.indexOf(' '));
+				const manifest = manifests.get(itemId);
+				const history = past.get(itemId);
+				if (!manifest || !history?.length) continue;
+				const at = worksheetCompletedAtAcross(manifest, history, answers.get(key) ?? [], photos.get(key) ?? []);
+				if (at !== null) out.set(key, at);
+			}
+		}
 	}
 	return out;
 }
@@ -616,6 +635,51 @@ export function worksheetCompletedAt(
 ): string | null {
 	const done = hxCompletion(manifest, responses, files);
 	return done.complete ? (done.at ?? '') : null;
+}
+
+/**
+ * A FINISH JUDGED AGAINST THE WORKSHEET IT WAS (0238, report e32659e9: "An
+ * assignment is done it should be done").
+ *
+ * Today's manifest first. When it says incomplete, each EARLIER manifest is
+ * tried, newest first: if this student's answers complete one of them, and the
+ * instant they did so falls before that manifest was replaced (`until`), the
+ * student finished the worksheet as it stood, and that instant is the finish.
+ * The answers are the student's current ones, so a student who finished,
+ * then edited an answer after the worksheet changed, is judged on the later
+ * instant and may not qualify: conservative on purpose, because a finish this
+ * cannot show is left to the latch and to the teacher, never invented.
+ *
+ * A throw in any one judgment is "not this manifest", never a crash: these run
+ * inside page loads and a derived grid.
+ */
+export function worksheetCompletedAtAcross(
+	current: HtmlAssignmentManifest,
+	past: readonly PastManifest[] | null | undefined,
+	responses: readonly HxCompletionResponse[],
+	files: readonly HxCompletionFile[]
+): string | null {
+	let now: string | null = null;
+	try {
+		now = worksheetCompletedAt(current, responses, files);
+	} catch {
+		now = null;
+	}
+	if (now !== null || !past?.length) return now;
+	for (const p of past) {
+		if (!htmlManifestShaped(p.manifest)) continue;
+		let at: string | null;
+		try {
+			at = worksheetCompletedAt(p.manifest, responses, files);
+		} catch {
+			continue;
+		}
+		if (at === null) continue;
+		const done = Date.parse(at);
+		const until = Date.parse(p.until);
+		if (at === '' || Number.isNaN(until) || (!Number.isNaN(done) && done <= until)) return at;
+	}
+	return null;
 }
 
 /**

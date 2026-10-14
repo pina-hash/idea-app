@@ -9,7 +9,8 @@ import {
 	SECTION_SELECT,
 	itemsForSection,
 	loadSectionRoster,
-	readWorkPages
+	readWorkPages,
+	readWorksheetLatches
 } from '$lib/classroom/transports';
 import type { PageServerLoad } from './$types';
 
@@ -112,10 +113,20 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		rows = (data ?? []) as PostGradeRow[];
 	}
 
+	// FINISHED WORKSHEETS (0237/0238, report e32659e9): one primary-key read of
+	// the stamped latches for this class, so a worksheet a student finished
+	// counts as waiting for a grade here too. Empty where 0237 is not applied,
+	// which counts exactly as before. Only students on this roster count.
+	const onRoster = new Set(students.map((s) => s.student_email.toLowerCase()));
+	const latched = assignmentIds.length
+		? await readWorksheetLatches(supabase, assignmentIds, params.sectionId).catch(() => new Map<string, string>())
+		: new Map<string, string>();
+	const finished = new Set([...latched.keys()].filter((k) => onRoster.has(k.slice(k.indexOf(' ') + 1))));
+
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage: true,
-		standings: assignmentStandings(content.items, submissions, students.length),
+		standings: assignmentStandings(content.items, submissions, students.length, finished),
 		resubmittedAfterGrading: countResubmittedAfterGrading(rows)
 	};
 };

@@ -23,7 +23,8 @@ import {
 	studentWorkMap,
 	workIsComplete,
 	type ClassroomItem,
-	type ClassroomSection
+	type ClassroomSection,
+	assignmentStandings
 } from '$lib/classroom/classroom';
 import { hxCompletion } from '$lib/classroom/html-assignment/progress';
 import { hxIncompleteBlocks } from '$lib/classroom/html-assignment/answers';
@@ -35,7 +36,8 @@ import {
 	readWorksheetCompletions,
 	withWorksheetCompletions,
 	worksheetCandidates,
-	worksheetKey
+	worksheetKey,
+	worksheetCompletedAtAcross
 } from '$lib/classroom/student-work';
 import { postGradeBlockChanges } from '$lib/classroom/grading-export';
 
@@ -632,5 +634,60 @@ describe('finished work never reads Missing (ledger 0360)', () => {
 		expect(withWorksheetCompletions(rows, new Map([[worksheetKey('w', ME), LATE]]), (i, e) => row(i, e))).toEqual([
 			{ ...row('w', ME), completed_at: LATE }
 		]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 0238: a finish judged against the worksheet it was (report e32659e9).
+// ---------------------------------------------------------------------------
+
+describe('a finish under an earlier manifest counts (0238)', () => {
+	/** Today's manifest: the author added a third block after students finished. */
+	const GROWN = {
+		...NO_MINIMUM,
+		modules: [{ ...NO_MINIMUM.modules[0], blocks: [...NO_MINIMUM.modules[0].blocks, { id: 'b-more', field: 'more', type: 'text' }] }]
+	} as unknown as HtmlAssignmentManifest;
+	const answers = [text('b-ratio', '3:1', '2026-09-20T15:05:00.000Z'), text('b-why', 'Because.', '2026-09-20T15:10:00.000Z')];
+
+	it('today\'s manifest alone says unfinished (the reported case)', () => {
+		expect(worksheetCompletedAtAcross(GROWN, [], answers, [])).toBeNull();
+		expect(worksheetCompletedAtAcross(GROWN, null, answers, [])).toBeNull();
+	});
+
+	it('finished before the old manifest was replaced: finished, at the instant it happened', () => {
+		const past = [{ manifest: NO_MINIMUM, until: '2026-09-22T00:00:00.000Z' }];
+		expect(worksheetCompletedAtAcross(GROWN, past, answers, [])).toBe('2026-09-20T15:10:00.000Z');
+	});
+
+	it('a finish AFTER the old manifest was replaced is not credited to it', () => {
+		const past = [{ manifest: NO_MINIMUM, until: '2026-09-20T15:00:00.000Z' }];
+		expect(worksheetCompletedAtAcross(GROWN, past, answers, [])).toBeNull();
+	});
+
+	it('a history entry that is not a manifest is skipped, never thrown on', () => {
+		const past = [{ manifest: { junk: true }, until: '2026-09-22T00:00:00.000Z' }, { manifest: NO_MINIMUM, until: '2026-09-22T00:00:00.000Z' }];
+		expect(worksheetCompletedAtAcross(GROWN, past, answers, [])).toBe('2026-09-20T15:10:00.000Z');
+	});
+
+	it('today\'s manifest still wins when it is finished', () => {
+		const all = [...answers, text('b-more', 'More.', '2026-09-23T10:00:00.000Z')];
+		expect(worksheetCompletedAtAcross(GROWN, [{ manifest: NO_MINIMUM, until: '2026-09-22T00:00:00.000Z' }], all, [])).toBe('2026-09-23T10:00:00.000Z');
+	});
+});
+
+describe('the Grades tab counts a finished worksheet as waiting for a grade (0238)', () => {
+	const item = { id: 'w1', kind: 'assignment', title: 'Worksheet' } as unknown as Parameters<typeof assignmentStandings>[0][number];
+	it('a latched draft and a latched student with no row are both awaiting; a graded one is not', () => {
+		const subs = [
+			{ item_id: 'w1', student_email: 'ana@x.net', state: 'draft', score: null, graded_at: null },
+			{ item_id: 'w1', student_email: 'ben@x.net', state: 'draft', score: null, graded_at: null },
+			{ item_id: 'w1', student_email: 'cy@x.net', state: 'draft', score: 8, graded_at: '2026-09-25T00:00:00Z' }
+		];
+		const finished = new Set(['w1 ana@x.net', 'w1 dee@x.net', 'w1 cy@x.net']);
+		const [s] = assignmentStandings([item], subs, 4, finished);
+		expect(s).toMatchObject({ awaiting: 2, returned: 0, inProgress: 2 });
+		// Positive control: without the latches nothing is awaiting.
+		const [before] = assignmentStandings([item], subs, 4);
+		expect(before).toMatchObject({ awaiting: 0, inProgress: 3 });
 	});
 });
