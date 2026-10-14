@@ -88,3 +88,9 @@ Nothing was "already shipped" and nothing was "not reached".
 4. In any class, open the hall pass: set the minutes a day and the auto check in time from the instructor card.
 5. Open a worksheet that was showing Missing for a student who had finished it (the latch fills in the next time that student's page loads).
 6. If anything looks wrong on the live site, https://vercel.com/dashboard shows the deploy.
+
+## Live checks (section 3a)
+
+1. **Migration applied.** `migrate.yml` run 38527213209 on `02c47f0a` succeeded in 36 seconds; `docs/migrations-applied/0237-main.md` (commit `558464df`) reads `outcome: applied`, `history_row: yes`, notice "0237 feedback-round: all parts applied and checked", and lists all 45 objects present. First attempt, no repair needed.
+2. **Deploy serving.** `https://ideabosco.com/` served `05764a1` at 07:16:53 UTC and `558464d` (the record commit, after my push) at 07:19:57: "IDEA Portal v1.2255 · 558464d · Oct 14, 2026".
+3. **Smoke check** (signed out, so only public surfaces): `/` 200, `/armory` 200, `/armory/start` 200, `/armory/download` 200, `/armory/get` 302 to `IDEA-Armory-Setup-v0.3.3.exe` (the one standard installer), `/coins/` 308 to `/coins`, and `/foundry`, `/foundry/review/gallery` and `/classroom` 303 to `/` as signed-out visitors always have. The Foundry gallery with collections, the featured row and votes sits behind sign-in, so it was NOT checked on the live site, only on the `/dev` harnesses.
