@@ -81,6 +81,19 @@ main,
 	z-index: 1;
 }
 
+/* AN OPEN PROFILE MENU IS ABOVE THE PAGE, ON EVERY PAGE (ledger 0380, report
+   bb3ce4a0, the tournament host console). `main` and a bare `.app-header` both
+   sit at z-index 1 in one stacking context and `main` comes later, so it won
+   the tie and painted its cards over the panel, whose own z-index only ranks it
+   inside the header's context. The header is raised only WHILE the panel is in
+   it (the panel exists only when the menu is open), never always: a fixed layer
+   rendered inside `main` is trapped at 1, and a header raised for good would
+   paint over a modal's scrim on every page. */
+.app-header:has(.pm-panel),
+header:has(.pm-panel) {
+	z-index: 60;
+}
+
 main {
 	max-width: 880px;
 	margin: 0 auto;

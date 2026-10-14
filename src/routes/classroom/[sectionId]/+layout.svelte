@@ -607,6 +607,7 @@
 	<ClassTeams
 		sets={data.teams}
 		manage={null}
+		canManage={data.canManage === true}
 		today={data.classClock?.today ?? null}
 		refresh={() => refreshPostedTeams(data.supabase, data.section.id)}
 		style={(input) => saveTeamStyle(data.supabase, input)}

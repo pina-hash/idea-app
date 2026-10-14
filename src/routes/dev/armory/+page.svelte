@@ -31,6 +31,7 @@
 	import ArmoryProjectView from '$lib/armory/ArmoryProjectView.svelte';
 	import ArmorySetup from '$lib/armory/ArmorySetup.svelte';
 	import { isProjectView, type ProjectView } from '$lib/armory/nav';
+	import { addBulkResults, emptyTally } from '$lib/armory/checkouts';
 	import {
 		PEOPLE_SEARCH_LIMIT,
 		peopleSearchOffered,
@@ -167,6 +168,19 @@
 		editing = editing.map((f) => (f.id === fileId ? { ...f, lock: null } : f));
 		many = many.map((f) => (f.id === fileId ? { ...f, lock: null } : f));
 		return { ok: true as const };
+	}
+	/** `armory_break_locks` (0234) in memory, as the website's batch reads it: the ids answered, one `refused` when the id is `refuse-me`. */
+	async function takeBackMany(fileIds: string[]) {
+		const out = emptyTally();
+		const held = new Set([...editing, ...many].filter((f) => f.lock).map((f) => f.id));
+		addBulkResults(
+			out,
+			fileIds.map((id) => (held.has(id) ? { file_id: id, ok: true, broken: true } : { file_id: id, ok: true, broken: false })),
+			fileIds
+		);
+		editing = editing.map((f) => (fileIds.includes(f.id) ? { ...f, lock: null } : f));
+		many = many.map((f) => (fileIds.includes(f.id) ? { ...f, lock: null } : f));
+		return { ok: true as const, ...out };
 	}
 	/** `armory_remove_empty_file` (0236) in memory: the empty file is marked removed, as the server does. */
 	async function removeEmpty(fileId: string) {
@@ -326,6 +340,7 @@
 		addMember={addMemberTo(team)}
 		removeMember={removeMemberFrom(team)}
 		takeBack={mayForce && !s.pre033 ? takeBack : null}
+		takeBackMany={mayForce && !s.pre033 ? takeBackMany : null}
 		removeEmpty={mayForce && !s.pre033 ? removeEmpty : null}
 		takeBackNeedsComputer={mayForce && !!s.pre033}
 		rename={role === 'mentor' ? rename : null}

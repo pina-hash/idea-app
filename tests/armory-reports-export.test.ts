@@ -35,7 +35,9 @@ import {
 	parseArmoryFeedbackRows,
 	parseArmoryIncidentRows,
 	type ArmoryFeedbackRow,
-	type ArmoryIncidentRow
+	type ArmoryIncidentRow,
+	facetMatches,
+	toggleFacet
 } from '../src/lib/feedback/armory-reports';
 import { inflateEntry, readCentralDirectory } from '../src/lib/foundry/zip';
 
@@ -265,9 +267,41 @@ describe('grouping, the per-day counts and the filters', () => {
 	it('the person and project filters narrow, "no project" included, both directions', () => {
 		const f = EMPTY_ARMORY_INCIDENT_FILTER;
 		expect(filterArmoryIncidents(rows, f).map((r) => r.id)).toEqual(['1', '2', '3', '4']);
-		expect(filterArmoryIncidents(rows, { ...f, person: 'b@boscotech.net' }).map((r) => r.id)).toEqual(['4']);
-		expect(filterArmoryIncidents(rows, { ...f, project: ARMORY_NO_PROJECT }).map((r) => r.id)).toEqual(['3']);
-		expect(filterArmoryIncidents(rows, { ...f, project: 'p1' }).map((r) => r.id)).toEqual(['1', '2', '4']);
+		expect(filterArmoryIncidents(rows, { ...f, person: ['b@boscotech.net'] }).map((r) => r.id)).toEqual(['4']);
+		expect(filterArmoryIncidents(rows, { ...f, project: [ARMORY_NO_PROJECT] }).map((r) => r.id)).toEqual(['3']);
+		expect(filterArmoryIncidents(rows, { ...f, project: ['p1'] }).map((r) => r.id)).toEqual(['1', '2', '4']);
+	});
+
+	// Ledger 0380, reports 15a6d687 and 45b78498: every facet takes several values.
+	it('every facet takes several values at once, and nothing ticked is any', () => {
+		const f = EMPTY_ARMORY_INCIDENT_FILTER;
+		const versions = [...new Set(rows.map((r) => r.app_version))];
+		expect(versions.length, 'the fixture must carry more than one version for this to mean anything').toBeGreaterThan(1);
+		const one = filterArmoryIncidents(rows, { ...f, version: [versions[0]] });
+		const two = filterArmoryIncidents(rows, { ...f, version: [versions[0], versions[1]] });
+		expect(one.length).toBeGreaterThan(0);
+		expect(two.length).toBeGreaterThan(one.length);
+		expect(two.every((r) => [versions[0], versions[1]].includes(r.app_version))).toBe(true);
+		// Project: a named project and "no project" together are a union.
+		expect(filterArmoryIncidents(rows, { ...f, project: ['p1', ARMORY_NO_PROJECT] }).map((r) => r.id)).toEqual(['1', '2', '3', '4']);
+		// Person: two addresses are a union.
+		expect(
+			filterArmoryIncidents(rows, { ...f, person: ['b@boscotech.net', rows[0].email] }).map((r) => r.id).sort()
+		).toEqual(expect.arrayContaining(['4', rows[0].id]));
+		// Kind narrows with the others, never widens them.
+		const kinds = [...new Set(rows.map((r) => r.kind))];
+		const both = filterArmoryIncidents(rows, { ...f, kind: kinds, version: [versions[0]] });
+		expect(both.map((r) => r.id)).toEqual(one.map((r) => r.id));
+	});
+
+	it('toggleFacet ticks and unticks, and the last untick is any again', () => {
+		expect(toggleFacet([], 'a')).toEqual(['a']);
+		expect(toggleFacet(['a'], 'b')).toEqual(['a', 'b']);
+		expect(toggleFacet(['a', 'b'], 'a')).toEqual(['b']);
+		expect(toggleFacet(['b'], 'b')).toEqual([]);
+		expect(facetMatches([], 'x')).toBe(true);
+		expect(facetMatches(['y'], 'x')).toBe(false);
+		expect(facetMatches(['y'], null)).toBe(false);
 	});
 });
 

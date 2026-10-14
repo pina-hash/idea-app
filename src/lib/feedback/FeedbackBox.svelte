@@ -959,6 +959,8 @@
 	.fb-box {
 		width: min(94vw, 30rem);
 		max-height: 92vh;
+		/* The small viewport on a phone, so the Send row clears Safari's toolbar. */
+		max-height: 92dvh;
 		overflow-y: auto;
 		padding: 0.9rem 1.05rem 1rem;
 		background: linear-gradient(180deg, var(--fb-bg) 0%, var(--fb-bg-deep) 100%);

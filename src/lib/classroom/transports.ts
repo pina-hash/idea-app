@@ -1066,7 +1066,7 @@ async function loadItemWork(
 	// Responses and approvals are one row per student per block (or module), so
 	// they are PAGED on their primary key's own columns. Submissions are one row
 	// per student and stay a single read.
-	const [submissionsRes, responsesRes, filesRes, approvalsRes] = await Promise.all([
+	const [submissionsRes, responsesRes, filesRes, approvalsRes, latched] = await Promise.all([
 		selectSubmissions(supabase, itemId, false),
 		readWorkPages(
 			(from, to) =>
@@ -1090,9 +1090,14 @@ async function loadItemWork(
 					.order('module_id')
 					.range(from, to),
 			(r) => `${r.student_email}\u0000${r.module_id}`
-		)
+		),
+		// 0237's stamped completions, one cheap definer read; empty where it is not applied.
+		readWorksheetLatches(supabase, [itemId], null).catch(() => new Map<string, string>())
 	]);
+	const latches: Record<string, string> = {};
+	for (const [key, at] of latched) latches[key.slice(key.indexOf(' ') + 1)] = at;
 	return {
+		latches,
 		submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
 			normalizeSubmissionRow
 		),
@@ -1108,6 +1113,25 @@ async function loadItemWork(
 		filesStorageReady: filesRes.storageReady,
 		approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
 	};
+}
+
+/** HOISTED HERE (not student-work.ts) because student-work.ts imports this file. */
+/** The latches visible to the caller, as `<item id> <address>` (the `worksheetKey` shape) -> instant. Empty, never null, where 0237 is not applied. */
+export async function readWorksheetLatches(
+	supabase: SupabaseClient,
+	itemIds: readonly string[],
+	sectionId: string | null = null
+): Promise<Map<string, string>> {
+	const out = new Map<string, string>();
+	const ids = [...new Set(itemIds)];
+	if (!ids.length) return out;
+	const { data, error } = await supabase.rpc('classroom_worksheet_latched', { p_item_ids: ids, p_section_id: sectionId });
+	if (error || !Array.isArray(data)) return out;
+	for (const row of data as Array<{ item_id?: unknown; student_email?: unknown; completed_at?: unknown }>) {
+		if (typeof row?.item_id !== 'string' || typeof row.student_email !== 'string') continue;
+		out.set(`${row.item_id} ${row.student_email.trim().toLowerCase()}`, typeof row.completed_at === 'string' ? row.completed_at : '');
+	}
+	return out;
 }
 
 const SUBMISSION_SELECT_BASE =

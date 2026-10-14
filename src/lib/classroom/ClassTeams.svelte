@@ -67,6 +67,7 @@
 	let {
 		sets,
 		manage = null,
+		canManage = false,
 		today = null,
 		refresh = null,
 		pollMs = CLASS_TEAMS_POLL_MS,
@@ -75,6 +76,15 @@
 		sets: ClassTeamSet[];
 		/** Where a teacher manages the draw (the People tab). Null for a student: no strip. */
 		manage?: { href: string; label: string } | null;
+		/**
+		 * Whether the viewer manages this class (the section layout's own
+		 * `canManage`). It is what offers a teacher Edit look on a team's card:
+		 * keying that on `manage` meant the layout's `manage={null}` (the strip
+		 * moved into the class header, ledger 0360) quietly took the control away
+		 * from every teacher in production (ledger 0380, report 5ba5f38b). The
+		 * database still decides who may write.
+		 */
+		canManage?: boolean;
 		/** The loader's school day, so the strip's date prints the year only when it is not this year. */
 		today?: string | null;
 		/** Re-reads the posted draws: the projection, or null when the read failed. */
@@ -179,7 +189,7 @@
 	 * one board read per Save, and nothing per minute; the cadence, the run and
 	 * `CLASS_TEAMS_POLL_MS` are 0357's and are unchanged.
 	 * ---------------------------------------------------------------------- */
-	const manager = $derived(manage !== null);
+	const manager = $derived(canManage || manage !== null);
 	let editing = $state<{ key: string; teamId: string; draft: TeamStyleDraft } | null>(null);
 	/** The live region's words after a save. Always mounted; only its text moves. */
 	let savedNote = $state('');

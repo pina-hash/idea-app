@@ -453,6 +453,29 @@
 	.sfb-relocated {
 		display: inline-flex;
 	}
+	/* ON A PHONE THE PILL IS BIGGER AND SITS HIGHER (ledger 0380, report
+	   3d9e02d1, Safari on an iPhone at 393x793: "make the button bigger or raise
+	   it up a tad so it's easier to use"). 44px is the floor and this is the
+	   thumb's corner: 48px tall, the glyph and the word a step larger, and
+	   1.5rem clear of the bottom edge so it sits above Safari's floating toolbar
+	   rather than against it. Only the floating pill; a relocated one lives in
+	   somebody's own header and keeps their sizing. */
+	@media (max-width: 30rem) {
+		.sfb-shell:not(.sfb-relocated) {
+			right: max(1rem, env(safe-area-inset-right, 0px));
+			bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+		}
+		.sfb-shell:not(.sfb-relocated) .sfb-trigger {
+			min-height: 48px;
+			min-width: 48px;
+			padding: 0 1.1rem;
+			font-size: 0.8rem;
+		}
+		.sfb-shell:not(.sfb-relocated) .sfb-glyph {
+			width: 1.2rem;
+			height: 1.2rem;
+		}
+	}
 
 	.sfb-trigger {
 		display: inline-flex;

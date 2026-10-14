@@ -1891,6 +1891,24 @@ Undated work is never Missing and never counted; it is listed last.
   or a close does), so a finished worksheet with none gets a derived draft row.
   **The state is never moved to `submitted`**: that locks saves (0197). A read
   that cannot answer changes nothing.
+  - **A FINISHED WORKSHEET STAYS FINISHED, WHICH A DERIVED COMPLETION CANNOT
+    PROMISE ON ITS OWN (ledger 0380, report e32659e9).** Completion is judged
+    against the manifest the worksheet has TODAY, so the day an author adds a
+    required block (or raises a `minSentences`, or drops an `optional`) every
+    student who had finished reads Missing or In progress on every surface at
+    once. The worksheet latch table (0237) keeps the first moment a
+    student's own load found it complete, and readers see the UNION
+    (`mergeLatches`: the earlier instant wins, so a later edit cannot make a
+    finished worksheet late). **A LATCH IS A LABEL AND NOTHING ELSE**: it is
+    never `submitted` (that locks saves, 0197), decides no grade and gates no
+    write; the derivation still runs beside it. It is stamped only from the
+    student's own pinned read (`latches: { stamp: true }` in
+    `readWorksheetCompletions`, 25 a read) and read back through
+    the latched-read function, which answers a student their own rows and a
+    manager every student's in a section they manage in one primary-key lookup
+    (so the grading roster, the live grid and the people page take it with no
+    per-row policy cost). Where 0237 is not applied every read is the
+    derivation alone.
   - **THE READ IS PINNED TO ONE ADDRESS, ALWAYS -- THE CALLER'S OWN, OR ON ONE
     STUDENT'S PAGE THE ONE STUDENT A MANAGER OPENED -- AND THE TEACHER'S HOME
     TALLY DOES NOT GET ONE.** `classroom_responses` is policed per row
@@ -6502,19 +6520,19 @@ the source of truth; **do not invent colours or swap fonts.**
     transparent, or it disappears on white. A theme difference inside a
     component is a theme-keyed override there, never a new token in the theme
     file: theme files hold tokens only.
-    - **ON SPACE WHITE A LAUNCHER CARD'S TWIN PAINTS ONLY ITS 2px STRIP, AND
-      EVERY CARD'S WORD, GLYPH AND CALL TO ACTION ARE ONE GREEN (round
-      2026-10-07, on Mr. Pina's report that "a lot of the colors look off"
-      there).** The twins as words were nine inks on a white console, and two
-      of them are the case the ink rule above says to stop at: the Coin
-      Ledger's neon lands on olive and the Foundry's amber on brown, the family
-      decision 40 item 1 took `--gold` out of, beside an FRC title in the red
-      reserved for errors. So the theme's own `.app-card` rule in
-      `AppLauncher.svelte` sets `--acc` to `--green`, the edge to `--plate-hair`
-      and the strip to the card's `--acc-ink`, solid; an app is told apart by
-      its mark's shape, its title, its strip and the FIRST logo. Every
-      declaration sits under the theme attribute, so IDEA and Matrix are
-      byte-identical, and the identity pair is untouched.
+    - **ON SPACE WHITE EACH BRANDED CARD PAINTS ITS OWN LIGHT TWIN AGAIN
+      (ledger 0380, report 48bdb5be, REVERSING the 2026-10-07 round's one
+      green).** Collapsing every word, glyph and call to action into one green
+      made every app the same colour, and Mr. Pina said so ("all my apps look
+      the same in white mode"). The theme's `.app-card` rule no longer
+      re-pins `--acc`, so each card's lightness-only twin reaches its word, its
+      glyph, its CTA and its strip; the edge stays the plate hairline, and the
+      five cards that declare no accent stay the theme green. The two twins
+      that landed on olive and brown (the Coin Ledger's neon, the Foundry's
+      amber) are NOT restored: those two cards take their SECOND identity colour
+      instead (cyan to a teal, the ember to a burnt orange), still lightness
+      only. `tests/space-white-inks.test.ts` pins the clearance, the
+      first-or-second-colour rule and that the two refused twins stay refused.
   - **A PHONE AT 30 FPS IS NOT A SLOW DEVICE (report R09).** The Matrix rain
     degrades only when the median of a 90-frame window is 45ms or longer
     (`judgeFrame` in `$lib/design-system/themes/matrix-rain.ts`), after a 3s

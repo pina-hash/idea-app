@@ -274,6 +274,24 @@ describe('the class page offers the control to exactly the people the RPC admits
 		expect(count(body, 'class-teams-posted')).toBe(1);
 	});
 
+	// Ledger 0380, report 5ba5f38b: the section layout mounts the component with
+	// `manage={null}` (the strip lives in the class header), so a teacher's
+	// control must come from `canManage`. This fails on the code before it.
+	it('a teacher gets Edit look when the layout mounts it as it does: manage null, canManage true', () => {
+		const teacherSets = [setOf([{ ...STORED, mine: false }, plain('t-2', 2)])];
+		const as = html({ sets: teacherSets, manage: null, canManage: true, style });
+		expect(count(as, 'class-team-edit-look')).toBe(2);
+		const not = html({ sets: teacherSets, manage: null, canManage: false, style });
+		expect(count(not, 'class-team-edit-look')).toBe(0);
+	});
+
+	it('the People tab edits the motto beside the name', () => {
+		const panel = readFileSync(new URL('../src/lib/classroom/PeoplePanel.svelte', import.meta.url), 'utf8');
+		expect(panel).toContain('data-testid="team-motto-input"');
+		expect(panel).toMatch(/tagline,?\s*\n\s*\}\);/);
+		expect(panel).not.toMatch(/tagline:\s*style\.tagline/);
+	});
+
 	it('the badge is drawn when a team has one, and not otherwise', () => {
 		const body = html({ sets, style });
 		// STORED (gear) on the own card and on its board card; the three plain teams have none.

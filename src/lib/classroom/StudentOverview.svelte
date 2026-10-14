@@ -915,6 +915,48 @@
 		:global(body:has(.so-root)) {
 			background: none !important;
 		}
+		/* WHITE PAPER, DARK INK, WHATEVER THE SCREEN THEME IS (ledger 0380, report
+		   0e62e338: "the print function takes up too much ink; the white theme
+		   should actually be white for printing"). Space White is a pale grey,
+		   not paper: its plate paints a gradient on the whole room wrapper, which
+		   this rule used to leave in place, and chips, tiles and borders carried
+		   their own fills. So every ground inside the page is cleared, the room
+		   wrapper is flat white, the ink is black, borders are a single light
+		   grey, and `print-color-adjust: economy` lets the browser's "Background
+		   graphics" setting be off without a fill coming back. The theme swap
+		   above stays as the belt, so any token still resolves to a dark ink. */
+		:global(html:has(.so-root)),
+		:global(body:has(.so-root)),
+		:global(body:has(.so-root) .cr-root),
+		:global(body:has(.so-root) .cr-root > *) {
+			background: #fff !important;
+			background-image: none !important;
+		}
+		.so-root,
+		.so-root :global(*),
+		.so-root :global(*::before),
+		.so-root :global(*::after) {
+			background: transparent !important;
+			background-image: none !important;
+			box-shadow: none !important;
+			text-shadow: none !important;
+			filter: none !important;
+			color: #000 !important;
+			-webkit-print-color-adjust: economy;
+			print-color-adjust: economy;
+		}
+		.so-root :global(.card),
+		.so-root :global(.chip),
+		.so-tile,
+		.so-table th,
+		.so-table td {
+			border-color: #bbb !important;
+		}
+		/* The picture is ink and carries nothing the name beside it does not. */
+		.so-root :global(img),
+		.so-root :global(.avatar) {
+			display: none !important;
+		}
 		.so-print-only {
 			display: block;
 		}

@@ -1444,6 +1444,14 @@ export interface GradingData {
 	 * one control and says why, rather than blanking the page.
 	 */
 	extraCreditReady?: boolean;
+	/**
+	 * Ported worksheets only (0237, ledger 0380): student address -> the instant
+	 * that student's worksheet was first found complete. A finished worksheet
+	 * stays finished when the author later adds a required block; the console
+	 * unions this with its own judgment. Absent where 0237 is not applied, which
+	 * is "no latch", never "not complete".
+	 */
+	latches?: Record<string, string>;
 	approvals: ModuleApprovalRow[];
 }
 

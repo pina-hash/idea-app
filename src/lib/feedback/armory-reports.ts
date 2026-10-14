@@ -258,19 +258,35 @@ export function distinctValues<T>(rows: T[], read: (row: T) => string | null): s
 	return [...seen].sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * A MULTI-SELECT FACET (ledger 0380, reports 15a6d687 and 45b78498): the values
+ * a reader ticked, and an EMPTY list is "any", which is the state nothing is
+ * ticked in. `facetMatches` is the one test every facet of both consoles asks.
+ */
+export type Facet = string[];
+
+export function facetMatches(selected: Facet, value: string | null | undefined): boolean {
+	return selected.length === 0 || (value != null && selected.includes(value));
+}
+
+/** The facet with `value` ticked or unticked; the last one unticked is "any" again. */
+export function toggleFacet(selected: Facet, value: string): Facet {
+	return selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value];
+}
+
 export interface ArmoryFeedbackFilter {
 	status: 'all' | FeedbackStatus;
-	kind: string;
-	version: string;
-	/** The submitter's address, exactly, or '' for anyone. */
-	person: string;
+	kind: Facet;
+	version: Facet;
+	/** The submitters' addresses, exactly, or none for anyone. */
+	person: Facet;
 }
 
 export const EMPTY_ARMORY_FEEDBACK_FILTER: ArmoryFeedbackFilter = {
 	status: 'all',
-	kind: '',
-	version: '',
-	person: ''
+	kind: [],
+	version: [],
+	person: []
 };
 
 export function filterArmoryFeedback(
@@ -280,9 +296,9 @@ export function filterArmoryFeedback(
 ): ArmoryFeedbackRow[] {
 	return rows.filter((row) => {
 		if (filter.status !== 'all' && statusOf(row) !== filter.status) return false;
-		if (filter.kind && row.kind !== filter.kind) return false;
-		if (filter.version && row.app_version !== filter.version) return false;
-		if (filter.person && row.email !== filter.person) return false;
+		if (!facetMatches(filter.kind, row.kind)) return false;
+		if (!facetMatches(filter.version, row.app_version)) return false;
+		if (!facetMatches(filter.person, row.email)) return false;
 		return true;
 	});
 }
@@ -292,19 +308,19 @@ export const ARMORY_NO_PROJECT = 'none';
 
 export interface ArmoryIncidentFilter {
 	status: 'all' | FeedbackStatus;
-	kind: string;
-	version: string;
-	person: string;
-	/** A project id, `ARMORY_NO_PROJECT`, or '' for any. */
-	project: string;
+	kind: Facet;
+	version: Facet;
+	person: Facet;
+	/** Project ids and `ARMORY_NO_PROJECT`, or none for any. */
+	project: Facet;
 }
 
 export const EMPTY_ARMORY_INCIDENT_FILTER: ArmoryIncidentFilter = {
 	status: 'all',
-	kind: '',
-	version: '',
-	person: '',
-	project: ''
+	kind: [],
+	version: [],
+	person: [],
+	project: []
 };
 
 export function filterArmoryIncidents(
@@ -314,12 +330,11 @@ export function filterArmoryIncidents(
 ): ArmoryIncidentRow[] {
 	return rows.filter((row) => {
 		if (filter.status !== 'all' && statusOf(row) !== filter.status) return false;
-		if (filter.kind && row.kind !== filter.kind) return false;
-		if (filter.version && row.app_version !== filter.version) return false;
-		if (filter.person && row.email !== filter.person) return false;
-		if (filter.project === ARMORY_NO_PROJECT) {
-			if (row.project_id) return false;
-		} else if (filter.project && row.project_id !== filter.project) return false;
+		if (!facetMatches(filter.kind, row.kind)) return false;
+		if (!facetMatches(filter.version, row.app_version)) return false;
+		if (!facetMatches(filter.person, row.email)) return false;
+		// "No project" is its own tick beside the named ones.
+		if (!facetMatches(filter.project, row.project_id ? row.project_id : ARMORY_NO_PROJECT)) return false;
 		return true;
 	});
 }

@@ -30,7 +30,7 @@ export default {
 	prepare: [
 		{ evaluate: SETTLE_ENTRANCE, waitMs: 150 },
 		{
-			evaluate: `() => { const g = document.querySelector('[data-testid="console-grid"]'); const r = g.getBoundingClientRect(); const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length; const h = document.querySelector('.console-hero').getBoundingClientRect(); return 'window ' + innerWidth + 'px; grid ' + Math.round(r.width) + 'px at x=' + Math.round(r.left) + ', ' + cols + ' column(s); hero ' + Math.round(h.width) + 'px; document scrollWidth ' + document.documentElement.scrollWidth; }`,
+			evaluate: `() => { const g = document.querySelector('[data-testid="console-grid"]'); const r = g.getBoundingClientRect(); const cols = new Set([...g.querySelectorAll(':scope > .panel')].map((p) => Math.round(p.getBoundingClientRect().left))).size; const h = document.querySelector('.console-hero').getBoundingClientRect(); return 'window ' + innerWidth + 'px; grid ' + Math.round(r.width) + 'px at x=' + Math.round(r.left) + ', ' + cols + ' column(s); hero ' + Math.round(h.width) + 'px; document scrollWidth ' + document.documentElement.scrollWidth; }`,
 			label: 'the console against the window: grid width, column count, hero width'
 		}
 	],
@@ -55,7 +55,7 @@ export default {
 	orderResult: [
 		{
 			label: 'the grid spans the window (less the gutter) and the column count fits the width',
-			evaluate: `() => { const g = document.querySelector('[data-testid="console-grid"]'); if (!g) return ['NO GRID']; const r = g.getBoundingClientRect(); const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length; const spans = r.width >= innerWidth - 2 * 48 - 1 && r.left <= 48 ? 'grid spans the window' : 'grid ' + Math.round(r.width) + ' of ' + innerWidth; const want = innerWidth >= 1024 ? 3 : 1; const colsOk = innerWidth >= 1024 ? cols >= want : cols === want; return [spans, colsOk ? 'columns fit the width' : cols + ' column(s) at ' + innerWidth]; }`,
+			evaluate: `() => { const g = document.querySelector('[data-testid="console-grid"]'); if (!g) return ['NO GRID']; const r = g.getBoundingClientRect(); const cols = new Set([...g.querySelectorAll(':scope > .panel')].map((p) => Math.round(p.getBoundingClientRect().left))).size; const spans = r.width >= innerWidth - 2 * 48 - 1 && r.left <= 48 ? 'grid spans the window' : 'grid ' + Math.round(r.width) + ' of ' + innerWidth; const want = innerWidth >= 1024 ? 3 : 1; const colsOk = innerWidth >= 1024 ? cols >= want : cols === want; return [spans, colsOk ? 'columns fit the width' : cols + ' column(s) at ' + innerWidth]; }`,
 			expected: ['grid spans the window', 'columns fit the width']
 		},
 		{

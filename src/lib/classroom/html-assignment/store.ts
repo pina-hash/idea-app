@@ -642,7 +642,9 @@ export async function assessHtmlReupload(
 	if (diff.added.length) {
 		lines.push(
 			`${plural(diff.added.length, 'answer block')} ${diff.added.length === 1 ? 'is' : 'are'} new ` +
-				`(${nameIds(diff.added)}). Nothing is stored under ${diff.added.length === 1 ? 'it' : 'them'} yet, so nothing is at risk there.`
+				`(${nameIds(diff.added)}). Nothing is stored under ${diff.added.length === 1 ? 'it' : 'them'} yet, so no answer is at risk. ` +
+				`Anyone who has not finished will now have ${diff.added.length === 1 ? 'it' : 'them'} to do before the worksheet reads complete; ` +
+				`a student whose finished worksheet has already been seen complete keeps that.`
 		);
 	}
 	if (!diff.removed.length) {

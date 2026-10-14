@@ -374,14 +374,22 @@ function workSummary(s: StudentWork, facts: HandInFacts | null): WorkSummary {
 function handInFacts(
 	s: StudentWork,
 	itemId: string,
-	worksheet: HtmlAssignmentManifest | null | undefined
+	worksheet: HtmlAssignmentManifest | null | undefined,
+	latched?: string
 ): HandInFacts | null {
 	if (!worksheet) return s.submission;
 	let at: string | null;
 	try {
 		at = worksheetCompletedAt(worksheet, s.responses, s.files);
 	} catch {
-		return s.submission;
+		at = null;
+	}
+	// A finished worksheet stays finished (0237, ledger 0380): the stamp wins
+	// over a manifest that has grown, or a judgment that could not be made.
+	if (latched !== undefined) {
+		const a = Date.parse(at ?? '');
+		const b = Date.parse(latched);
+		if (at === null || Number.isNaN(a) || (!Number.isNaN(b) && b < a)) at = latched;
 	}
 	if (at === null) return s.submission;
 	const id = s.submission?.item_id ?? itemId;
@@ -438,7 +446,7 @@ export function liveCells(input: {
 	return rows
 		.filter((s) => s.active)
 		.map((s) => {
-			const facts = handInFacts(s, itemId, worksheet);
+			const facts = handInFacts(s, itemId, worksheet, input.grading?.latches?.[s.email.toLowerCase()]);
 			const { state, detail } = liveCellState({
 				submission: facts,
 				workArrived: workArrived(s),

@@ -349,6 +349,13 @@ export interface HomepagePrefs {
 	compact?: boolean;
 	/** Per-app launch history, keyed by app id. Feeds the 'used' and 'recent' sorts. */
 	usage?: Record<string, AppUsage>;
+	/**
+	 * Apps this person chose to hide from their home screen (ledger 0380, report
+	 * 125e674f). A hidden app is never deleted or locked: it stays one press
+	 * away under "Hidden apps" on the same page, and Customize shows every app
+	 * so one can be brought back. Absent or empty means nothing is hidden.
+	 */
+	hidden?: string[];
 }
 
 /**
@@ -505,6 +512,42 @@ export function arrangeApps(
 		}
 	}
 	return [...front, ...sorted.filter((a) => byId.has(a.id))];
+}
+
+/**
+ * THE HIDDEN IDS, VALIDATED (ledger 0380). `readHomepagePrefs` hands the stored
+ * object back as it was written, so this is where a stored `hidden` is trusted:
+ * only strings that name an app that exists, each once. A stored id for an app
+ * the registry has since retired is dropped here rather than kept waiting.
+ */
+export function readHiddenIds(prefs: HomepagePrefs, apps: readonly PortalApp[] = PORTAL_APPS): string[] {
+	const raw = (prefs as { hidden?: unknown }).hidden;
+	if (!Array.isArray(raw)) return [];
+	const known = new Set(apps.map((a) => a.id));
+	const out: string[] = [];
+	for (const id of raw) if (typeof id === 'string' && known.has(id) && !out.includes(id)) out.push(id);
+	return out;
+}
+
+/**
+ * Split an arranged grid into what the home screen shows and what is put away,
+ * keeping the arranged order in both. Pure, and `arrangeApps` is untouched, so
+ * a pinned or sorted layout reads exactly as before for somebody who hides
+ * nothing.
+ */
+export function splitHidden(arranged: readonly PortalApp[], prefs: HomepagePrefs): { shown: PortalApp[]; hidden: PortalApp[] } {
+	const hidden = new Set(readHiddenIds(prefs, arranged));
+	return { shown: arranged.filter((a) => !hidden.has(a.id)), hidden: arranged.filter((a) => hidden.has(a.id)) };
+}
+
+/** The prefs with `id` hidden or shown. Hiding also unpins (a hidden favourite is a contradiction); the list is omitted when empty so an untouched layout stores nothing new. */
+export function setAppHidden(prefs: HomepagePrefs, id: string, hide: boolean): HomepagePrefs {
+	const cur = readHiddenIds(prefs);
+	const next = hide ? (cur.includes(id) ? cur : [...cur, id]) : cur.filter((h) => h !== id);
+	const { hidden: _drop, ...rest } = prefs;
+	const out: HomepagePrefs = next.length ? { ...rest, hidden: next } : rest;
+	if (hide && out.pinned?.includes(id)) out.pinned = out.pinned.filter((p) => p !== id);
+	return out;
 }
 
 /**

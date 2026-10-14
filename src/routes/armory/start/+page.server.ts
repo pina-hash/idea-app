@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { armoryRelease } from '$lib/server/armory/releases';
+import { armoryRelease, pickInstaller } from '$lib/server/armory/releases';
 import { loadMyDevices, loadMyProjects, signedInEmail } from '$lib/server/armory/page-loads';
 import type { ArmoryProject } from '$lib/armory/view';
 
@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ locals, url, parent, depends }) => 
 	depends('armory:start');
 	const email = signedInEmail(locals.claims);
 	const found = await armoryRelease();
-	const installer = found?.release.files.find((f) => f.kind === 'laptop') ?? null;
+	const installer = found ? pickInstaller(found.release.files) : null;
 	const release =
 		found && installer && (found.source === 'public' || email)
 			? { tag: found.release.tag, size: installer.size, name: installer.name }

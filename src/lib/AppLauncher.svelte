@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { COIN_SYMBOL } from '$lib/coin-format';
 	import { onMount } from 'svelte';
+	import Disclosure from '$lib/Disclosure.svelte';
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { UserProfile } from '$lib/profile';
@@ -23,8 +24,11 @@
 	import {
 		APP_SORT_MODES,
 		arrangeApps,
+		readHiddenIds,
 		readHomepagePrefs,
 		recordUsage,
+		setAppHidden,
+		splitHidden,
 		visibleApps,
 		type AppSortMode,
 		type HomepagePrefs,
@@ -75,6 +79,14 @@
 	const compact = $derived(prefs.compact !== false);
 	const arranged = $derived(arrangeApps(apps, prefs, sortMode));
 	const pinnedIds = $derived(new Set(prefs.pinned ?? []));
+	/* HIDE AND SHOW (ledger 0380, report 125e674f). The grid is `shown` outside
+	   Customize and EVERY app inside it, so a hidden app can always be brought
+	   back from the screen that hid it; outside Customize the put-away apps are
+	   listed under "Hidden apps", each a link and a Show key, so none is ever
+	   unreachable. */
+	const split = $derived(splitHidden(arranged, prefs));
+	const hiddenIds = $derived(new Set(readHiddenIds(prefs)));
+	const gridApps = $derived(customizing ? arranged : split.shown);
 
 	/**
 	 * `silent` is for the usage write: it is fire-and-forget during a navigation,
@@ -96,6 +108,12 @@
 			if (!res.ok) saveError = res.message;
 			saving = false;
 		}
+	};
+
+	const toggleHidden = (id: string) => persist(setAppHidden(prefs, id, !hiddenIds.has(id)));
+	const showAll = () => {
+		const { hidden: _drop, ...rest } = prefs;
+		return persist(rest);
 	};
 
 	const togglePin = (id: string) => {
@@ -338,6 +356,7 @@
 			class:legacy={app.legacy}
 			class:dragging={dragFrom === i}
 			class:dropinto={dragFrom !== null && dragOver === i && dragFrom !== i}
+			class:put-away={hiddenIds.has(app.id)}
 			data-tour={app.id}
 			data-app={app.id}
 			role="listitem"
@@ -363,6 +382,7 @@
 					<span class="app-title">{app.title}</span>
 					{#if isPinned}<span class="pin-mark" title="Pinned">&#9733;</span>{/if}
 					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
+					{#if hiddenIds.has(app.id)}<span class="hidden-badge" data-testid="app-hidden-badge">Hidden</span>{/if}
 					{#if app.id === 'foundry' && foundryPending !== null && foundryPending > 0}
 						<span class="review-count">{foundryPending} to review</span>
 					{/if}
@@ -380,6 +400,15 @@
 					aria-label="{isPinned ? 'Unpin' : 'Pin'} {app.title}"
 					onclick={() => togglePin(app.id)}
 				>&#9733;</button>
+				<button
+					type="button"
+					class="hide-toggle"
+					class:hiding={hiddenIds.has(app.id)}
+					aria-pressed={hiddenIds.has(app.id)}
+					aria-label="{hiddenIds.has(app.id) ? 'Show' : 'Hide'} {app.title} on my home screen"
+					data-testid="app-hide-toggle"
+					onclick={() => toggleHidden(app.id)}
+				>{hiddenIds.has(app.id) ? 'Show' : 'Hide'}</button>
 			</span>
 		</div>
 	{:else}
@@ -388,6 +417,7 @@
 			class:compact
 			class:legacy={app.legacy}
 			href={app.href}
+			title={app.sub}
 			onclick={(e) => appClick(e, app)}
 			data-tour={app.id}
 			data-app={app.id}
@@ -459,15 +489,46 @@
 		data-tour="apps"
 		role={customizing ? 'list' : undefined}
 	>
-		{#each arranged as app, i (app.id)}
+		{#each gridApps as app, i (app.id)}
 			{@render appCard(app, i)}
 		{/each}
 	</div>
 
+	{#if !customizing && split.hidden.length > 0}
+		<!-- THE WAY BACK, ON THE PAGE THAT HID THEM: a hidden app is a row here
+		     with its own link and a Show key, so putting an app away never makes
+		     it unreachable (ledger 0380, report 125e674f). -->
+		<div class="hidden-apps" data-testid="hidden-apps">
+			<Disclosure label="Hidden apps ({split.hidden.length})" scope="home:hidden-apps" testId="hidden-apps-disclosure">
+				<ul class="hidden-list">
+					{#each split.hidden as app (app.id)}
+						<li class="hidden-row">
+							<a
+								class="hidden-link"
+								href={app.href}
+								data-testid="hidden-app-link"
+								onclick={(e) => appClick(e, app)}>{app.title}</a
+							>
+							<button
+								type="button"
+								class="hidden-show"
+								aria-label="Show {app.title} on my home screen"
+								data-testid="hidden-app-show"
+								onclick={() => toggleHidden(app.id)}>Show</button
+							>
+						</li>
+					{/each}
+				</ul>
+				<button type="button" class="hidden-show hidden-all" data-testid="hidden-show-all" onclick={showAll}>Show all apps</button>
+			</Disclosure>
+		</div>
+	{/if}
+
 	{#if customizing}
 		<p class="launcher-hint">
 			Drag a card by its handle to reorder it, or use the arrows. Star an app to pin it to the
-			front.
+			front. Hide puts an app away; it stays under "Hidden apps" on this page, and Show brings
+			it back.
 			{#if signedIn}
 				Your layout saves to your profile.
 			{:else}
@@ -1150,6 +1211,142 @@
 		border-color: var(--acc-edge-strong);
 		box-shadow: inset 0 0 0 1px var(--acc-hover-glow);
 	}
+	/* ======================================================================
+	   THE COMFORTABLE VIEW IS A TIGHT CARD (ledger 0380, reports 4895b22f and
+	   b4fd83d4: "ugly, too much dead space, a lot of text, not like the rest
+	   of the site"). It was a flex row that centred the icon, a text column
+	   and a CTA pinned to the far edge, so a card with a short description
+	   showed bands of nothing above and below and a gap before the button,
+	   and one 170-character description made every card in its row seven
+	   lines tall. Now a three-column grid: the icon spans the title and the
+	   description, the title row and the CTA share the first line, and the
+	   description runs under both clamped to two lines. Only the link card;
+	   the Customize card keeps its row, which carries a grip and tools. The
+	   full text is on the link's `title`. */
+	a.app-card:not(.compact) {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		column-gap: 0.75rem;
+		row-gap: 0.15rem;
+		align-items: center;
+		padding: 0.6rem 0.85rem;
+	}
+	a.app-card:not(.compact) .app-icon {
+		grid-row: 1 / span 2;
+		align-self: start;
+		margin-top: 0.1rem;
+	}
+	a.app-card:not(.compact) .app-icon:not(.frc-icon) {
+		width: 28px;
+		height: 28px;
+	}
+	a.app-card:not(.compact) .app-icon.frc-icon {
+		height: 28px;
+	}
+	a.app-card:not(.compact) .app-text {
+		display: contents;
+	}
+	a.app-card:not(.compact) .app-title-row {
+		grid-column: 2;
+		grid-row: 1;
+		min-width: 0;
+	}
+	a.app-card:not(.compact) .app-cta {
+		grid-column: 3;
+		grid-row: 1;
+	}
+	a.app-card:not(.compact) .app-sub {
+		grid-column: 2 / -1;
+		grid-row: 2;
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		overflow: hidden;
+		font-size: 0.66rem;
+		line-height: 1.4;
+	}
+	.app-grid:not(.compact) {
+		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+		gap: 0.6rem;
+	}
+	.app-grid.customizing:not(.compact) {
+		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	}
+
+	/* HIDE AND SHOW (ledger 0380, report 125e674f). */
+	.app-card.put-away {
+		opacity: 0.55;
+		border-style: dashed;
+	}
+	.hidden-badge {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.55rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--text-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-chip, 3px);
+		padding: 0.05rem 0.35rem;
+	}
+	.app-tools .hide-toggle {
+		width: auto;
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		padding: 0 0.6rem;
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.app-tools .hide-toggle.hiding {
+		color: var(--text-1);
+	}
+	.hidden-apps {
+		margin-top: 0.8rem;
+	}
+	.hidden-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 0.25rem;
+	}
+	.hidden-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		min-height: 2.75rem;
+	}
+	.hidden-link {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.75rem;
+		font-family: 'Orbitron', sans-serif;
+		font-size: 0.66rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.hidden-link:hover {
+		color: var(--hover-ink, var(--gold));
+	}
+	.hidden-show {
+		min-height: 2.75rem;
+		min-width: 2.75rem;
+		padding: 0 0.8rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		color: var(--text-1);
+		background: var(--bg2);
+		border: 1px solid var(--boundary);
+		border-radius: 2px;
+		cursor: pointer;
+	}
+	.hidden-all {
+		margin-top: 0.4rem;
+	}
 	.launcher-hint {
 		margin-top: 0.8rem;
 		font-family: 'Share Tech Mono', monospace;
@@ -1158,10 +1355,12 @@
 	}
 
 	/* ======================================================================
-	   UNDER SPACE WHITE: LIGHT CARDS IN ONE GREEN INK (ledger 0297, package
-	   F1b; round 2026-10-07). Two treatments were measured before the light
-	   card was chosen, on the theme's own grounds (card #f7f9f9, page #e8eceb,
-	   CTA hover #edf1f0):
+	   UNDER SPACE WHITE: LIGHT CARDS, EACH IN ITS OWN LIGHT INK (ledger 0297,
+	   package F1b; round 2026-10-07; REVERSED IN PART by ledger 0380, report
+	   48bdb5be: "all my apps look the same in white mode, this sucks").
+
+	   Two treatments were measured before the light card was chosen, on the
+	   theme's own grounds (card #f7f9f9, page #e8eceb, CTA hover #edf1f0):
 
 	   (a) LIGHT CARDS, each card's --acc-ink re-pinned for the light ground.
 	       Every identity as authored fails as text on the light card -- 1.12
@@ -1175,26 +1374,25 @@
 	       their glows on a page whose whole character is no glow and no dark
 	       block, and a second copy of the dark token closure inside the cards.
 
-	   (a) shipped, and until 2026-10-07 each card's twin painted its word, its
-	   glyph and its edge. On a white console that was nine inks, and two of
-	   them were exactly the lightness-only twins that stop being recognisable
-	   (CLAUDE.md: "If a colour cannot clear while staying recognisable, say so
-	   and stop"): the Coin Ledger's neon #c8ff00 lands on olive #587000 and the
-	   Foundry's amber #f6952f on brown #a15607 -- decision 40 item 1's own
-	   argument about gold on white -- beside an FRC title in the red this site
-	   reserves for errors. Mr. Pina's report: "A lot of the colors look off
-	   with the IDEA light theme on the home page in particular."
+	   (a) shipped. On 2026-10-07 every card's word, glyph and call to action
+	   were collapsed into ONE green, because two twins landed on the olive and
+	   brown a lightness-only yellow or amber becomes on white (the Coin Ledger's
+	   neon #c8ff00 on olive #587000, the Foundry's amber #f6952f on brown
+	   #a15607 -- decision 40 item 1's own argument about gold on white). That
+	   made every card the same colour, and Mr. Pina said so the next week.
 
-	   SO ON THIS THEME EVERY CARD'S WORD, GLYPH AND CALL TO ACTION ARE ONE INK,
-	   the theme's green (`--acc`, which the title, the CTA and the mark all
-	   read), and its EDGE is the plate's own hairline rather than the brand at
-	   75%. An app is told apart by its mark's shape, its title and its 2px
-	   strip, which paints the card's own light ink, solid (below), and by the
-	   FIRST logo, which is an image and is untouched. The per-card twins below
-	   stay lightness-only and stay measured (tests/space-white-inks.test.ts);
-	   what they paint now is the strip. The identity pair (--acc-primary,
-	   --acc-secondary) is not moved, and nothing here reaches IDEA or Matrix:
-	   every declaration sits under the theme attribute.
+	   SO EACH BRANDED CARD PAINTS ITS WORD, GLYPH, CALL TO ACTION AND STRIP IN
+	   ITS OWN LIGHT TWIN AGAIN, and its EDGE stays the plate's own hairline
+	   rather than the brand at 75%. The two cards whose FIRST colour has no
+	   readable dark twin take their SECOND identity colour instead of olive and
+	   brown, still lightness only: the Coin Ledger's cyan #00f0ff becomes a teal
+	   and the Foundry's ember #c65a1d a burnt orange. The five cards that
+	   declare no accent of their own (classroom, notebook, IdeaCAD, Armory, Coin
+	   Desk) stay the theme's green: a card quotes its own room or declares
+	   nothing, and the shared pair's first stop is --gold, the brown #715d22
+	   here. The identity pair (--acc-primary, --acc-secondary) is not moved, and
+	   nothing here reaches IDEA or Matrix: every declaration sits under the
+	   theme attribute. The twins are measured in tests/space-white-inks.test.ts.
 
 	   Nothing here is a theme file's: the theme may not declare an identity
 	   token (tests/theme-tokens.test.ts), so the card re-pins its OWN inks,
@@ -1205,7 +1403,9 @@
 		   that declare no accent paint their strip in it too (the shared pair's
 		   first stop is --gold, which is the brown #715d22 here). */
 		--acc-ink: var(--green);
-		--acc: var(--green);
+		/* `--acc` is NOT re-pinned here (ledger 0380): it derives from the
+		   card's own `--acc-ink` in the base rule, which is what lets each
+		   branded card's twin below reach its word, glyph and call to action. */
 		/* The card's edge is the plate's hairline (3.27:1 on the plate's page,
 		   the load-bearing 3:1), not the brand at 75%; the fallback is the
 		   theme's own boundary, for the `SITE_PLATE = ''` revert. */
@@ -1238,10 +1438,10 @@
 	:global(:root[data-theme='space-white']) a.app-card:hover .app-cta {
 		box-shadow: none;
 	}
-	/* THE STRIP INKS: each branded card's lightness-only light twin, hue and
-	   saturation held. Each still clears what it cleared when it painted words
-	   (tests/space-white-inks.test.ts), so the figures stand; it paints only
-	   the strip now. */
+	/* THE LIGHT INKS: each branded card's lightness-only twin, hue and
+	   saturation held, painting its word, glyph, call to action and strip. Each
+	   clears 4.5 on the card, its hover wash and the CTA hover fill
+	   (tests/space-white-inks.test.ts). */
 	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'],
 	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] {
 		/* #00ff41, hsl(135.3 100% 50%): 5.03 on the card. */
@@ -1257,16 +1457,22 @@
 		--acc-ink: hsl(147 78.2% 26.5%);
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='coins'] {
-		/* #c8ff00, hsl(72.9 100% 50%): 5.31 on the card. */
-		--acc-ink: hsl(72.9 100% 22%);
+		/* THE SECOND IDENTITY COLOUR, cyan #00f0ff, hsl(183.5 100% 50%): the first
+		   (#c8ff00) is olive at any lightness that carries text on white.
+		   hsl(183.5 100% 24%) is a teal, 5.13 on the card, 4.76 on the CTA
+		   hover fill. */
+		--acc-ink: hsl(183.5 100% 24%);
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='tournaments'] {
 		/* #0fbe7a, hsl(156.7 85.4% 40.2%): 5.12 on the card. */
 		--acc-ink: hsl(156.7 85.4% 25.5%);
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='foundry'] {
-		/* #f6952f, hsl(30.8 91.7% 57.5%): 5.15 on the card. */
-		--acc-ink: hsl(30.8 91.7% 33%);
+		/* THE SECOND IDENTITY COLOUR, the ember #c65a1d, hsl(21.7 74.4% 44.5%):
+		   the first (#f6952f) is brown at any lightness that carries text on
+		   white. hsl(21.7 74.4% 39%) is a burnt orange, 5.16 on the card, 4.79
+		   on the CTA hover fill. */
+		--acc-ink: hsl(21.7 74.4% 39%);
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='maps'] {
 		/* #40e3b1, hsl(161.6 74.4% 57.1%): 5.27 on the card. */

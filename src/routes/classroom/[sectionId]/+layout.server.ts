@@ -454,7 +454,7 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 				? await readWorksheetCompletions(
 						supabase,
 						assignmentIds.filter((id) => !settled.has(id)),
-						{ onlyEmail: me }
+						{ onlyEmail: me, latches: { stamp: true } }
 					)
 				: null;
 			work = studentWorkMap(

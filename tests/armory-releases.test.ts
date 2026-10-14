@@ -179,3 +179,49 @@ describe('the one-click download', () => {
 		expect(calls).toHaveLength(2);
 	});
 });
+
+// ---- Ledger 0380 (report 403d1646): one installer, chosen strictly ----
+
+import { fileKind, pickInstaller } from '../src/lib/server/armory/releases';
+
+const asFiles = (names: string[]) => names.map((name) => ({ name, kind: fileKind(name) }));
+
+describe('pickInstaller is the one choice of "the Windows app"', () => {
+	test('the standard installer wins whatever order GitHub lists the assets in', () => {
+		const names = [
+			'IDEA-Armory-USB-Setup-v0.3.3.exe',
+			'IDEA-Armory-Portable-Setup-v0.3.3.exe',
+			'IDEA-Armory-Update-Setup-v0.3.3.exe',
+			'IDEA-Armory-Setup-v0.3.3.exe',
+			'IDEA-Armory-USB-v0.3.3.zip'
+		];
+		expect(pickInstaller(asFiles(names))?.name).toBe('IDEA-Armory-Setup-v0.3.3.exe');
+		expect(pickInstaller(asFiles([...names].reverse()))?.name).toBe('IDEA-Armory-Setup-v0.3.3.exe');
+	});
+	test('on a tie of shape the highest version is chosen', () => {
+		const files = asFiles(['IDEA-Armory-Setup-v0.3.3.exe', 'IDEA-Armory-Setup-v0.10.0.exe', 'IDEA-Armory-Setup-v0.3.12.exe']);
+		expect(pickInstaller(files)?.name).toBe('IDEA-Armory-Setup-v0.10.0.exe');
+	});
+	test('a flash drive archive or a helper is never "the installer", and nothing qualifying is null, not a guess', () => {
+		expect(pickInstaller(asFiles(['IDEA-Armory-USB-v0.3.3.zip', 'notes.txt']))).toBeNull();
+		expect(pickInstaller(asFiles(['IDEA-Armory-Update-Setup-v0.3.3.exe']))).toBeNull();
+		expect(pickInstaller([])).toBeNull();
+	});
+	test('an installer with an unusual but installer-shaped name is still found when no standard one exists', () => {
+		expect(pickInstaller(asFiles(['Armory-Setup-1.0.exe']))?.name).toBe('Armory-Setup-1.0.exe');
+	});
+	test('installerDownload sends the browser to the picked file, not the first setup-shaped one', async () => {
+		_resetReleaseCache();
+		const mixed = {
+			...RELEASE,
+			assets: ['IDEA-Armory-USB-Setup-v0.1.0.exe', 'IDEA-Armory-Setup-v0.1.0.exe'].map((name, i) => ({
+				id: 50 + i,
+				name,
+				size: 10,
+				browser_download_url: `${PUBLIC_DOWNLOAD_PREFIX}v0.1.0/${name}`
+			}))
+		};
+		const choice = await installerDownload(fetchWith(200, mixed), 0, null);
+		expect(choice).toMatchObject({ branch: 'public', name: 'IDEA-Armory-Setup-v0.1.0.exe' });
+	});
+});

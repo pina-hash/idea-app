@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { env as publicEnv } from '$env/dynamic/public';
+	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
+	import { isStudentToken, STUDENT_PARAM } from '$lib/classroom/grading-student-url';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import HtmlGradingWork from '$lib/classroom/html-assignment/HtmlGradingWork.svelte';
 	import { htmlAssignmentMount } from '$lib/classroom/html-assignment/mount';
@@ -17,6 +20,23 @@
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	/**
+	 * THE STUDENT OPEN IS IN THE ADDRESS AS AN OPAQUE TOKEN (ledger 0380, report
+	 * b31afb76), so a refresh keeps the student being graded. Read ONCE on
+	 * arrival; written back with `replaceState`, never a navigation, so no load
+	 * re-runs for a click on a name. The token is never the address
+	 * (`grading-student-url.ts`).
+	 */
+	const requestedStudent = page.url.searchParams.get(STUDENT_PARAM);
+	// svelte-ignore state_referenced_locally
+	const initialStudent = isStudentToken(requestedStudent) ? requestedStudent : null;
+	function onstudent(token: string | null) {
+		const url = new URL(page.url);
+		if (token) url.searchParams.set(STUDENT_PARAM, token);
+		else url.searchParams.delete(STUDENT_PARAM);
+		replaceState(url, page.state);
+	}
 
 	// One stable client for the session (the item page's convention).
 	// svelte-ignore state_referenced_locally
@@ -117,6 +137,8 @@
 </script>
 
 <GradingConsole
+	{initialStudent}
+	{onstudent}
 	section={data.section}
 	item={data.item}
 	spec={htmlMount === 'spec' ? data.spec : null}

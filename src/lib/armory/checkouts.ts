@@ -73,3 +73,83 @@ export function holderFilterOf(value: string | null | undefined, rows: readonly 
 	if (value === 'me' || value === 'all') return value;
 	return value && rows.some((c) => c.holder_email === value) ? value : 'all';
 }
+
+// ---------------------------------------------------------------------------
+// Force check in, many at once (ledger 0380, report f62ce574)
+// ---------------------------------------------------------------------------
+
+/** `armory_break_locks` takes at most this many distinct files in one call (0234). */
+export const BULK_FORCE_LIMIT = 500;
+
+/**
+ * The rows a force check in may be pressed for: somebody else's files. The
+ * single-file key is hidden on one's own, and the plural call must not reach
+ * what the single one cannot.
+ */
+export function selectableCheckouts(rows: readonly ArmoryCheckout[], me: string): ArmoryCheckout[] {
+	return rows.filter((c) => c.holder_email !== me);
+}
+
+export function chunkIds<T>(ids: readonly T[], size: number = BULK_FORCE_LIMIT): T[][] {
+	const out: T[][] = [];
+	for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+	return out;
+}
+
+/** What a bulk force check in did, summed over every call it took. */
+export interface BulkTally {
+	checkedIn: number;
+	alreadyFree: number;
+	refused: number;
+	refusedIds: string[];
+	firstRefusal: string | null;
+}
+
+export function emptyTally(): BulkTally {
+	return { checkedIn: 0, alreadyFree: 0, refused: 0, refusedIds: [], firstRefusal: null };
+}
+
+/**
+ * Fold one `armory_break_locks` answer's `results` into the tally. A row it
+ * cannot read counts as refused, never as checked in: a figure that says more
+ * landed than did is the one nobody checks.
+ */
+export function addBulkResults(tally: BulkTally, results: unknown, askedFor: readonly string[]): BulkTally {
+	const seen = new Set<string>();
+	const rows = Array.isArray(results) ? results : [];
+	for (const r of rows) {
+		if (!r || typeof r !== 'object') continue;
+		const row = r as { file_id?: unknown; ok?: unknown; broken?: unknown; message?: unknown };
+		const id = typeof row.file_id === 'string' ? row.file_id : null;
+		if (!id || seen.has(id)) continue;
+		seen.add(id);
+		if (row.ok === true) {
+			if (row.broken === false) tally.alreadyFree += 1;
+			else tally.checkedIn += 1;
+		} else {
+			tally.refused += 1;
+			tally.refusedIds.push(id);
+			tally.firstRefusal ??= typeof row.message === 'string' ? row.message : '';
+		}
+	}
+	for (const id of askedFor) {
+		if (!seen.has(id)) {
+			tally.refused += 1;
+			tally.refusedIds.push(id);
+			tally.firstRefusal ??= '';
+		}
+	}
+	return tally;
+}
+
+/** The sentence a bulk force check in ends on. `refusalWords` turns the first refusal's text into words. */
+export function bulkForceWords(t: BulkTally, refusalWords: (message: string) => string): string {
+	const files = (n: number) => `${n} ${n === 1 ? 'file' : 'files'}`;
+	const parts: string[] = [];
+	if (t.checkedIn > 0) parts.push(`Checked in ${files(t.checkedIn)}.`);
+	if (t.alreadyFree > 0) parts.push(`${files(t.alreadyFree)} ${t.alreadyFree === 1 ? 'was' : 'were'} already checked in.`);
+	if (t.refused > 0) {
+		parts.push(`${files(t.refused)} ${t.refused === 1 ? 'was' : 'were'} refused: ${refusalWords(t.firstRefusal ?? '')} They stay ticked so you can try them again.`);
+	}
+	return parts.length > 0 ? parts.join(' ') : 'Nothing was checked in.';
+}

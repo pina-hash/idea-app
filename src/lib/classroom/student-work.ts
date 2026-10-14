@@ -45,7 +45,9 @@ import {
 	type ClassroomItem,
 	type ClassroomSection
 } from '$lib/classroom/classroom';
-import { SECTION_SELECT, htmlManifestShaped, selectItemsWithDoc } from '$lib/classroom/transports';
+import { SECTION_SELECT, htmlManifestShaped, readWorksheetLatches, selectItemsWithDoc } from '$lib/classroom/transports';
+
+export { readWorksheetLatches };
 import { checkInIsScheduled, checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins';
 import { sectionManagedBy, type FeedSubmission } from '$lib/classroom/feed';
 import { laCalendarDay } from '$lib/classroom/school-calendar';
@@ -397,15 +399,92 @@ export function worksheetKey(itemId: string, email: string): string {
 export async function readWorksheetCompletions(
 	supabase: SupabaseClient,
 	itemIds: readonly string[],
-	options: { onlyEmail?: string | null } = {}
+	options: { onlyEmail?: string | null; latches?: WorksheetLatchOptions } = {}
 ): Promise<Map<string, string> | null> {
 	// A THROW IS "CANNOT TELL" TOO. This read decorates a page whose real
 	// content is the list of classes; nothing it does may take that list down.
 	try {
-		return await worksheetCompletions(supabase, itemIds, options);
+		const derived = await worksheetCompletions(supabase, itemIds, options);
+		if (!options.latches) return derived;
+		return await withLatches(supabase, itemIds, derived, options.latches, options.onlyEmail ?? null);
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * A FINISHED WORKSHEET STAYS FINISHED (ledger 0380, report e32659e9: "an
+ * assignment that is done should be done").
+ *
+ * THE ROOT CAUSE this closes: completion is derived, never stored, and it is
+ * judged against the manifest THE WORKSHEET HAS TODAY. So the day an author
+ * adds a required block, raises a `minSentences` or drops an `optional`, every
+ * student who had finished is judged against a worksheet they never saw, and
+ * reads Missing or In progress on every surface at once, with nothing on their
+ * side having changed. The same happens whenever a read cannot answer.
+ *
+ * `classroom_worksheet_latches` (0237) keeps the first moment a student's own
+ * browser or load found the worksheet complete. A latch is a LABEL and nothing
+ * else: it is never `submitted`, so it locks no save and decides no grade, and
+ * the live derivation still runs beside it. The union is what readers see.
+ */
+export interface WorksheetLatchOptions {
+	/** A manager's read: every student's latch in this section, cheaply, in one call. */
+	sectionId?: string | null;
+	/** The caller's own pinned read: stamp what the derivation found complete and no latch holds yet. */
+	stamp?: boolean;
+}
+
+/**
+ * The derivation and the latches as one answer. Where both know a pair, the
+ * EARLIER instant wins (an edit after the due time must not turn a worksheet
+ * finished on time into a late one). An unreadable instant (`''`, which every
+ * reader treats as complete and never late) yields to a real one. A derivation
+ * that could not answer (null) leaves the latches standing alone.
+ */
+export function mergeLatches(
+	derived: ReadonlyMap<string, string> | null,
+	latched: ReadonlyMap<string, string>
+): Map<string, string> | null {
+	if (!derived) return latched.size ? new Map(latched) : null;
+	const out = new Map(derived);
+	for (const [key, at] of latched) {
+		const have = out.get(key);
+		if (have === undefined) {
+			out.set(key, at);
+			continue;
+		}
+		const a = Date.parse(have);
+		const b = Date.parse(at);
+		if (Number.isNaN(a)) out.set(key, at);
+		else if (!Number.isNaN(b) && b < a) out.set(key, at);
+	}
+	return out;
+}
+
+async function withLatches(
+	supabase: SupabaseClient,
+	itemIds: readonly string[],
+	derived: Map<string, string> | null,
+	options: WorksheetLatchOptions,
+	onlyEmail: string | null
+): Promise<Map<string, string> | null> {
+	const email = onlyEmail ? onlyEmail.trim().toLowerCase() : null;
+	const latched = await readWorksheetLatches(supabase, itemIds, options.sectionId ?? null);
+	if (email) for (const key of [...latched.keys()]) if (!key.endsWith(` ${email}`)) latched.delete(key);
+	if (options.stamp && email && derived) {
+		// Only the caller's OWN completions, and only the ones no latch holds yet.
+		const fresh = [...derived].filter(([key]) => key.endsWith(` ${email}`) && !latched.has(key)).slice(0, 25);
+		await Promise.allSettled(
+			fresh.map(([key, at]) =>
+				supabase.rpc('classroom_worksheet_latch', {
+					p_item_id: key.slice(0, key.indexOf(' ')),
+					p_completed_at: at && !Number.isNaN(Date.parse(at)) ? at : null
+				})
+			)
+		);
+	}
+	return mergeLatches(derived, latched);
 }
 
 async function worksheetCompletions(
@@ -749,7 +828,7 @@ export async function loadClassroomWork(
 				item.postings.some((p) => sectionIds.includes(p.section_id) && !managed.has(p.section_id))
 		);
 		if (!candidates.length) return null;
-		return readWorksheetCompletions(supabase, candidates, { onlyEmail: me });
+		return readWorksheetCompletions(supabase, candidates, { onlyEmail: me, latches: { stamp: true } });
 	};
 
 	const readCheckIns = async (): Promise<{ checkIns: ClassCheckIn[]; ready: boolean }> => {

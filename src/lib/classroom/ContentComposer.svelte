@@ -3026,6 +3026,20 @@
 		which is why the panel says so rather than leaving a teacher to find out by
 		attaching two.
 	-->
+	{#if mode === 'edit' && item && htmlAssignment && specKind === 'assignment'}
+		<!-- THE ORIGINAL FILE, as uploaded (ledger 0380, report daaaaed1), for
+		     anyone editing the post, not only whoever may replace it. A real link
+		     to a download route, so it works with no script and the browser saves
+		     it; never rendered as a page on this origin. -->
+		<p class="spec-line" data-testid="html-source">
+			<a
+				class="btn secondary tap-44"
+				href="/api/classroom/html-assignment-source/{item.id}"
+				download
+				data-testid="html-source-download">Download the original file ({htmlAssignment.filename})</a
+			>
+		</p>
+	{/if}
 	{#if canStageHtml}
 		<div
 			class="attach-editor"

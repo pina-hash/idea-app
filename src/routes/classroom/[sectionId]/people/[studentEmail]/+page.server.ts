@@ -104,7 +104,8 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 	const completions = await readWorksheetCompletions(
 		supabase,
 		assignmentIds.filter((id) => !settled.has(id)),
-		{ onlyEmail: email }
+		// A manager's read of the stamped latches (0237): a finished worksheet stays finished here too.
+		{ onlyEmail: email, latches: { sectionId: params.sectionId } }
 	);
 
 	const gridState: SourceState = gridRead.error

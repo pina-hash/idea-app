@@ -7,6 +7,8 @@
 	import ArmoryProjectView from '$lib/armory/ArmoryProjectView.svelte';
 	import ArmorySignIn from '$lib/armory/ArmorySignIn.svelte';
 	import { armorySignIn } from '$lib/armory/sign-in';
+	import { addBulkResults, chunkIds, emptyTally } from '$lib/armory/checkouts';
+	import type { BulkForceOutcome } from '$lib/armory/force-check-in.svelte';
 	import { watchArmoryProject, type LiveMode } from '$lib/armory/live';
 	import { projectViewFromHash, projectViewHref } from '$lib/armory/nav';
 	import {
@@ -48,6 +50,43 @@
 		if (error) return { ok: false as const, message: error.message, code: error.code };
 		if (opts.refresh !== false) await invalidate('armory:project');
 		return answer === false ? { ok: false as const, message: 'nothing changed' } : { ok: true as const };
+	}
+
+	/**
+	 * FORCE CHECK IN OVER A SELECTION (ledger 0380, report f62ce574):
+	 * `armory_break_locks` (0234), up to 500 files a call, each file under the
+	 * single function's own role rule. A database without it answers PGRST202,
+	 * and the same files go one at a time through `armory_break_lock`, which is
+	 * what the Windows app does. Every call carries its own operation id, so a
+	 * replayed call answers the same.
+	 */
+	async function breakMany(fileIds: string[], device: string | null): Promise<BulkForceOutcome> {
+		const tally = emptyTally();
+		for (const ids of chunkIds(fileIds)) {
+			const { data: answer, error } = await data.supabase.rpc('armory_break_locks', {
+				p_files: ids,
+				p_device: device,
+				p_operation: crypto.randomUUID()
+			});
+			if (error?.code === 'PGRST202') {
+				for (const id of ids) {
+					const one = await data.supabase.rpc('armory_break_lock', { p_file: id, p_device: device, p_operation: crypto.randomUUID() });
+					addBulkResults(
+						tally,
+						[one.error ? { file_id: id, ok: false, message: one.error.message } : { file_id: id, ok: true, broken: one.data !== false }],
+						[id]
+					);
+				}
+			} else if (error) {
+				await invalidate('armory:project');
+				// Files an earlier chunk landed stay landed; this chunk's are refused with the database's own words.
+				for (const id of ids) addBulkResults(tally, [{ file_id: id, ok: false, message: error.message }], [id]);
+			} else {
+				addBulkResults(tally, (answer as { results?: unknown } | null)?.results, ids);
+			}
+		}
+		await invalidate('armory:project');
+		return { ok: true, ...tally };
 	}
 
 	const role = $derived(view?.project.role ?? null);
@@ -206,6 +245,7 @@
 			takeBack={mayForce && (v033 || takeDevice)
 				? (fileId: string) => rpc('armory_break_lock', { p_file: fileId, p_device: takeDevice })
 				: null}
+			takeBackMany={mayForce && (v033 || takeDevice) ? (fileIds: string[]) => breakMany(fileIds, takeDevice) : null}
 			takeBackNeedsComputer={forceNeedsComputer}
 			removeEmpty={canTakeBack === true ? (fileId: string) => rpc('armory_remove_empty_file', { p_file: fileId }) : null}
 			rename={isMentor ? (name: string) => rpc('armory_rename_project', { p_project: view.project.id, p_name: name }) : null}

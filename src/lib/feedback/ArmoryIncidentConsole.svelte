@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { runBulk } from '$lib/classroom/classroom';
 	import Disclosure from '$lib/Disclosure.svelte';
+	import FacetMultiSelect from './FacetMultiSelect.svelte';
 	import { FEEDBACK_STATUSES, type FeedbackStatus } from './feedback';
 	import { saveBytes, saveText } from './download';
 	import {
@@ -235,33 +236,51 @@
 
 		<section class="card ai-facets">
 			<div class="ai-facet">
-				<label class="ai-label" for="ai-person">Person</label>
-				<select id="ai-person" class="ai-control ai-input" bind:value={filter.person} data-testid="ai-person">
-					<option value="">Anyone</option>
-					{#each people as p (p)}<option value={p}>{nameOf.get(p) ?? p}</option>{/each}
-				</select>
+				<span class="ai-label">Person</span>
+				<FacetMultiSelect
+					label="Person"
+					anyLabel="Anyone"
+					testId="ai-person"
+					options={people.map((p) => ({ value: p, label: nameOf.get(p) ?? p }))}
+					selected={filter.person}
+					onchange={(next) => (filter = { ...filter, person: next })}
+				/>
 			</div>
 			<div class="ai-facet">
-				<label class="ai-label" for="ai-project">Project</label>
-				<select id="ai-project" class="ai-control ai-input" bind:value={filter.project} data-testid="ai-project">
-					<option value="">Any project</option>
-					{#each projects as [id, name] (id)}<option value={id}>{name}</option>{/each}
-					{#if anyWithoutProject}<option value={ARMORY_NO_PROJECT}>No project</option>{/if}
-				</select>
+				<span class="ai-label">Project</span>
+				<FacetMultiSelect
+					label="Project"
+					anyLabel="Any project"
+					testId="ai-project"
+					options={[
+						...projects.map(([id, name]) => ({ value: id, label: name })),
+						...(anyWithoutProject ? [{ value: ARMORY_NO_PROJECT, label: 'No project' }] : [])
+					]}
+					selected={filter.project}
+					onchange={(next) => (filter = { ...filter, project: next })}
+				/>
 			</div>
 			<div class="ai-facet">
-				<label class="ai-label" for="ai-kind">Kind</label>
-				<select id="ai-kind" class="ai-control ai-input" bind:value={filter.kind}>
-					<option value="">Any kind</option>
-					{#each kinds as k (k)}<option value={k}>{incidentKindWord(k)}</option>{/each}
-				</select>
+				<span class="ai-label">Kind</span>
+				<FacetMultiSelect
+					label="Kind"
+					anyLabel="Any kind"
+					testId="ai-kind"
+					options={kinds.map((k) => ({ value: k, label: incidentKindWord(k) }))}
+					selected={filter.kind}
+					onchange={(next) => (filter = { ...filter, kind: next })}
+				/>
 			</div>
 			<div class="ai-facet">
-				<label class="ai-label" for="ai-version">App version</label>
-				<select id="ai-version" class="ai-control ai-input" bind:value={filter.version}>
-					<option value="">Any version</option>
-					{#each versions as v (v)}<option value={v}>{v}</option>{/each}
-				</select>
+				<span class="ai-label">App version</span>
+				<FacetMultiSelect
+					label="App version"
+					anyLabel="Any version"
+					testId="ai-version"
+					options={versions.map((v) => ({ value: v, label: v }))}
+					selected={filter.version}
+					onchange={(next) => (filter = { ...filter, version: next })}
+				/>
 			</div>
 		</section>
 

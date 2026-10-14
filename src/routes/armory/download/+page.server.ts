@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { armoryRelease } from '$lib/server/armory/releases';
+import { armoryRelease, pickInstaller } from '$lib/server/armory/releases';
 import { signedInEmail } from '$lib/server/armory/page-loads';
 
 /**
@@ -13,11 +13,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const found = await armoryRelease();
 	if (!found) return { email, release: null };
 	if (found.source === 'token' && !email) return { email, release: null };
+	// One installer, the one "Get the Windows app" sends (ledger 0380): a second
+	// installer-shaped file in the release is never offered beside it.
+	const installer = pickInstaller(found.release.files);
+	const listed = found.release.files.filter((f) => f.kind !== 'laptop' || f === installer);
 	return {
 		email,
 		release: {
 			tag: found.release.tag,
-			files: found.release.files.map(({ name, size, sha256, kind }) => ({
+			files: listed.map(({ name, size, sha256, kind }) => ({
 				name,
 				size,
 				sha256,

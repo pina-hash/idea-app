@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { runBulk } from '$lib/classroom/classroom';
 	import Disclosure from '$lib/Disclosure.svelte';
+	import FacetMultiSelect from './FacetMultiSelect.svelte';
 	import { FEEDBACK_STATUSES, type FeedbackStatus } from './feedback';
 	import { saveText } from './download';
 	import {
@@ -181,25 +182,37 @@
 
 		<section class="card af-facets">
 			<div class="af-facet">
-				<label class="af-label" for="af-kind">Kind</label>
-				<select id="af-kind" class="af-control af-input" bind:value={filter.kind}>
-					<option value="">Any kind</option>
-					{#each kinds as k (k)}<option value={k}>{armoryFeedbackKindWord(k)}</option>{/each}
-				</select>
+				<span class="af-label">Kind</span>
+				<FacetMultiSelect
+					label="Kind"
+					anyLabel="Any kind"
+					testId="af-kind"
+					options={kinds.map((k) => ({ value: k, label: armoryFeedbackKindWord(k) }))}
+					selected={filter.kind}
+					onchange={(next) => (filter = { ...filter, kind: next })}
+				/>
 			</div>
 			<div class="af-facet">
-				<label class="af-label" for="af-version">App version</label>
-				<select id="af-version" class="af-control af-input" bind:value={filter.version}>
-					<option value="">Any version</option>
-					{#each versions as v (v)}<option value={v}>{v}</option>{/each}
-				</select>
+				<span class="af-label">App version</span>
+				<FacetMultiSelect
+					label="App version"
+					anyLabel="Any version"
+					testId="af-version"
+					options={versions.map((v) => ({ value: v, label: v }))}
+					selected={filter.version}
+					onchange={(next) => (filter = { ...filter, version: next })}
+				/>
 			</div>
 			<div class="af-facet">
-				<label class="af-label" for="af-person">Person</label>
-				<select id="af-person" class="af-control af-input" bind:value={filter.person}>
-					<option value="">Anyone</option>
-					{#each people as p (p)}<option value={p}>{nameOf.get(p) ?? p}</option>{/each}
-				</select>
+				<span class="af-label">Person</span>
+				<FacetMultiSelect
+					label="Person"
+					anyLabel="Anyone"
+					testId="af-person"
+					options={people.map((p) => ({ value: p, label: nameOf.get(p) ?? p }))}
+					selected={filter.person}
+					onchange={(next) => (filter = { ...filter, person: next })}
+				/>
 			</div>
 		</section>
 

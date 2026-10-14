@@ -320,7 +320,7 @@ export function homeTourDefs(tour: HomeTourId, isAdmin: boolean): HomeTourStep[]
 				{
 					target: hook('app-tools'),
 					title: 'Apps',
-					body: 'Every app in one grid. Customize lets you drag cards and pin favorites, and the sort menu can put your most used first.'
+					body: 'Every app in one grid. Customize lets you drag cards, pin favorites and hide apps you do not use, and the sort menu can put your most used first.'
 				}
 			]
 		},

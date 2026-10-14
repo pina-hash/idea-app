@@ -16,8 +16,15 @@
 	 * reload would carry a student's school address to the server's logs.
 	 */
 	import { untrack } from 'svelte';
-	import { CHECKOUT_PAGE, filterCheckouts, holderChips, holderFilterOf, type HolderFilter } from './checkouts';
-	import type { ForceCheckIn } from './force-check-in.svelte';
+	import {
+		CHECKOUT_PAGE,
+		filterCheckouts,
+		holderChips,
+		holderFilterOf,
+		selectableCheckouts,
+		type HolderFilter
+	} from './checkouts';
+	import type { BulkForceCheckIn, ForceCheckIn } from './force-check-in.svelte';
 	import { holderWords } from './team';
 	import { holderName, VERBS, whenWords, type ArmoryCheckout } from './view';
 
@@ -28,6 +35,7 @@
 		now,
 		me,
 		force = null,
+		bulk = null,
 		forceNeedsComputer = false,
 		holder = $bindable('all'),
 		initialQuery = ''
@@ -38,6 +46,8 @@
 		now: number;
 		me: string;
 		force?: ForceCheckIn | null;
+		/** Force check in over a selection (ledger 0380). Absent, there are no tick boxes at all. */
+		bulk?: BulkForceCheckIn | null;
 		/** The caller may force a check in, but this database still needs one of their computers to send it from. */
 		forceNeedsComputer?: boolean;
 		holder?: HolderFilter;
@@ -57,6 +67,15 @@
 	const shown = $derived(filterCheckouts(checkouts, active, query, me, names));
 	const rows = $derived(shown.slice(0, limit));
 
+	/* BULK SELECTION IS ASKED OF WHAT IS ON SCREEN, never of what was once
+	   ticked: the rows a filter or a search now hides are not in `chosen`, so
+	   the count on the key is the count of files the press will check in. All
+	   of `shown` is selectable by one press, past the rows the page has paged. */
+	const selectable = $derived(bulk && force ? selectableCheckouts(shown, me) : []);
+	const chosen = $derived(bulk ? selectable.filter((c) => bulk.selected.has(c.file_id)) : []);
+	const chosenHolders = $derived(new Set(chosen.map((c) => c.holder_email)));
+	const allChosen = $derived(selectable.length > 0 && chosen.length === selectable.length);
+
 	function pick(id: HolderFilter) {
 		holder = id;
 		limit = CHECKOUT_PAGE;
@@ -65,6 +84,12 @@
 
 <section class="ar-view-panel" aria-labelledby="ar-out-h" data-testid="armory-checkouts">
 	<h2 class="ar-visually-hidden" id="ar-out-h">Checked out</h2>
+	<!-- THE ANSWER OUTLIVES THE LIST IT ABOUT (CLAUDE.md, "an acknowledgement must
+	     survive the act it reports"): checking in the last file empties the table
+	     this is a sentence about, so it sits above the branch that removes it. -->
+	{#if bulk && bulk.message}
+		<p class={`ar-message ${bulk.bad ? 'bad' : ''}`} role="status" data-testid="armory-bulk-message">{bulk.message}</p>
+	{/if}
 	{#if checkouts.length === 0}
 		<p class="ar-message" data-testid="armory-checkouts-none">Nothing is checked out. Every file is available.</p>
 	{:else}
@@ -126,6 +151,52 @@
 			</p>
 		{/if}
 		{#if force?.message}<p class={`ar-message ${force.bad ? 'bad' : ''}`} role="status">{force.message}</p>{/if}
+		{#if bulk && force && selectable.length > 0}
+			<div class="ar-out-bulk" role="group" aria-label="Force check in several files" data-testid="armory-bulk">
+				<label class="ar-bulk-pick">
+					<input
+						type="checkbox"
+						checked={allChosen}
+						indeterminate={chosen.length > 0 && !allChosen}
+						data-testid="armory-bulk-all"
+						onchange={(e) => {
+							force.disarm();
+							if ((e.currentTarget as HTMLInputElement).checked) bulk.set(selectable.map((c) => c.file_id));
+							else bulk.clear();
+						}}
+					/>
+					<span>Select all {selectable.length} {selectable.length === 1 ? 'file' : 'files'} shown</span>
+				</label>
+				{#if chosen.length > 0}
+					<span class="ar-bulk-count" role="status" data-testid="armory-bulk-count">{chosen.length} selected</span>
+					<button
+						class={`btn ar-btn ${bulk.armed === chosen.length ? 'danger' : 'secondary'}`}
+						type="button"
+						aria-disabled={bulk.busy}
+						data-testid="armory-bulk-take-back"
+						onclick={() => {
+							force.disarm();
+							bulk.press(chosen.map((c) => c.file_id));
+						}}
+					>
+						{bulk.armed === chosen.length
+							? `${VERBS.takeBack} ${chosen.length} ${chosen.length === 1 ? 'file' : 'files'}?`
+							: `${VERBS.takeBack} ${chosen.length}`}
+					</button>
+					<button class="btn secondary ar-btn" type="button" aria-disabled={bulk.busy} data-testid="armory-bulk-clear" onclick={() => bulk.clear()}>
+						Clear
+					</button>
+				{/if}
+			</div>
+			{#if bulk.armed !== null && bulk.armed === chosen.length}
+				<p class="ar-message bad ar-warn" role="alert" data-testid="armory-bulk-warning">
+					Press {VERBS.takeBack} again to check in {chosen.length} {chosen.length === 1 ? 'file' : 'files'} held by
+					{chosenHolders.size === 1 ? holderName([...chosenHolders][0], names) : `${chosenHolders.size} people`}. Anything they
+					have not saved on their computers is kept as a side version when those computers next connect, and the files
+					become available to everyone.
+				</p>
+			{/if}
+		{/if}
 		{#if shown.length === 0}
 			<p class="ar-message" data-testid="armory-out-none">Nothing checked out matches that.</p>
 		{:else}
@@ -152,6 +223,23 @@
 						<!-- svelte-ignore a11y_no_redundant_roles -->
 						<tr class="ar-out-row" role="row" data-testid="armory-checkout">
 							<td class="ar-out-file" role="cell">
+								{#if bulk && force && c.holder_email !== me}
+									<label class="ar-out-pick">
+										<input
+											type="checkbox"
+											checked={bulk.selected.has(c.file_id)}
+											aria-label={`Select ${c.name}`}
+											data-testid="armory-bulk-row"
+											onchange={(e) => {
+												force.disarm();
+												bulk.toggle(c.file_id, (e.currentTarget as HTMLInputElement).checked);
+											}}
+										/>
+									</label>
+								{:else if bulk && force}
+									<!-- One's own file has no box, and its row keeps the column. -->
+									<span class="ar-out-pick" aria-hidden="true"></span>
+								{/if}
 								<a href={`/armory/${projectId}/file/${c.file_id}`} title={`${c.folder ? `${c.folder}/` : ''}${c.name}`}>
 									<span class="ar-file-glyph ar-tone-editing" aria-hidden="true">✎</span>
 									<span class="ar-out-name">{c.name}</span>

@@ -165,7 +165,28 @@ try {
 		check(read.togglesPainted === 0 && read.actionsPainted === 0, `screen-only controls painted: ${read.togglesPainted} toggles, ${read.actionsPainted} action rows`);
 		check(read.classmates.length === 0 && read.ownName, `classmates in printed text: ${read.classmates.length} (${read.classmates.join(', ') || 'none'}); own name present ${read.ownName}`);
 
-		const pdf = await page.pdf({ format: 'Letter', printBackground: false });
+		// WHITE PAPER, NOT PALE GREY (ledger 0380, report 0e62e338): under print,
+		// no box on the page paints a background colour or image, and the wrappers
+		// the room paints are flat white. A selector that finds none is a probe
+		// that looked at nothing, so it reports how many boxes it examined.
+		const ink = await page.evaluate(() => {
+			// White IS the paper: a white box adds no ink, so it counts as clear.
+			const isClear = (v) => v === 'rgba(0, 0, 0, 0)' || v === 'transparent' || v === 'rgb(255, 255, 255)';
+			const boxes = [...document.querySelectorAll('.so-root, .so-root *, .cr-root')];
+			const painted = boxes.filter((el) => {
+				const cs = getComputedStyle(el);
+				if (el.matches('.cr-root')) return !(cs.backgroundColor === 'rgb(255, 255, 255)' && cs.backgroundImage === 'none');
+				return !isClear(cs.backgroundColor) || cs.backgroundImage !== 'none';
+			});
+			const body = getComputedStyle(document.body).backgroundColor;
+			const html = getComputedStyle(document.documentElement).backgroundColor;
+			return { examined: boxes.length, painted: painted.length, names: painted.slice(0, 6).map((el) => `${el.className || el.tagName} [${getComputedStyle(el).backgroundColor} | ${getComputedStyle(el).backgroundImage.slice(0, 60)}]`), body, html };
+		});
+		check(ink.examined > 20, `POSITIVE CONTROL: ${ink.examined} boxes examined for ink`);
+		check(ink.painted === 0, `boxes painting a background in print: ${ink.painted}${ink.painted ? ` (${ink.names.join(' | ')})` : ''}`);
+		check(!ink.body || ink.body === 'rgb(255, 255, 255)' || ink.body === 'rgba(0, 0, 0, 0)', `body ground in print: ${ink.body}; html ${ink.html}`);
+
+		const pdf = await page.pdf({ format: 'Letter', printBackground: true });
 		const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
 		console.log(`  pdf: ${pages} page(s), ${pdf.length} bytes (Letter, no background graphics)`);
 		if (pdfOut && theme === THEMES[0]) writeFileSync(pdfOut, pdf);

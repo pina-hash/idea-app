@@ -2,7 +2,7 @@
 	import { classNotebookHref } from '$lib/classroom/nav';
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
-	import { tick, untrack, type Snippet } from 'svelte';
+	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -120,6 +120,7 @@
 		PRESENCE_LIMITS_FALLBACK
 	} from '$lib/classroom/presence/state';
 	import type { PresenceTransports } from '$lib/classroom/presence/transports';
+	import { findStudentByToken, studentToken } from '$lib/classroom/grading-student-url';
 
 	/**
 	 * The grading console for one assignment in one section: the roster with
@@ -152,7 +153,9 @@
 		close = null,
 		presence = null,
 		speech = undefined,
-		fileDownload = null
+		fileDownload = null,
+		initialStudent = null,
+		onstudent = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -295,6 +298,15 @@
 		 * mount and a harness proving the absence have no button at all.
 		 */
 		fileDownload?: BulkFileSource | null;
+		/**
+		 * THE STUDENT OPEN ON ARRIVAL, as the opaque token the address carries
+		 * (`grading-student-url.ts`; ledger 0380, report b31afb76), and the
+		 * callback that says who is open now (a token, or null for nobody). Both
+		 * absent, the console keeps no student in the address, which is what a
+		 * harness mounting it standalone wants.
+		 */
+		initialStudent?: string | null;
+		onstudent?: ((token: string | null) => void) | null;
 	} = $props();
 
 	/**
@@ -318,6 +330,35 @@
 	let data = $state<GradingData | null>(null);
 	let loadError = $state<string | null>(null);
 	let selectedEmail = $state<string | null>(null);
+
+	/**
+	 * HOW MUCH OF THE ROW THE RUBRIC TAKES (ledger 0380, report c0964d99): wide,
+	 * narrow (a fixed rail beside the work) or hidden (a slim rail with the live
+	 * total and a Show key). A DEVICE CHOICE kept in localStorage, never state a
+	 * grade depends on. While it is hidden the keys that set a level or move a
+	 * criterion are inert, because a level picked on a rubric nobody can see is a
+	 * grade nobody chose; the pager, save-free keys and Escape still work.
+	 */
+	type RubricMode = 'normal' | 'narrow' | 'hidden';
+	const RUBRIC_MODE_KEY = 'idea.grading.rubricMode';
+	let rubricMode = $state<RubricMode>('normal');
+	onMount(() => {
+		try {
+			const stored = localStorage.getItem(RUBRIC_MODE_KEY);
+			if (stored === 'narrow' || stored === 'hidden') rubricMode = stored;
+		} catch {
+			// Site data blocked: the default, with no complaint.
+		}
+	});
+	function setRubricMode(next: RubricMode) {
+		rubricMode = next;
+		try {
+			if (next === 'normal') localStorage.removeItem(RUBRIC_MODE_KEY);
+			else localStorage.setItem(RUBRIC_MODE_KEY, next);
+		} catch {
+			// Not remembered; still applied for this visit.
+		}
+	}
 	let scores = $state<Record<string, number | null>>({});
 	/** Per-criterion comments. The server REQUIRES one on every override. */
 	let critComments = $state<Record<string, string>>({});
@@ -660,6 +701,30 @@
 		// lesson): the transport writes state synchronously before its first
 		// await in the dev harness.
 		queueMicrotask(() => void load());
+	});
+
+	/*
+	 * THE STUDENT THE ADDRESS NAMES IS OPENED ONCE, when the first read lands
+	 * (ledger 0380, report b31afb76), through `requestSelect` so the unsaved
+	 * work guard still stands. The token is resolved by hashing the roster this
+	 * payload already holds, in a promise, so nothing here writes state inside
+	 * the effect. A token that names nobody on this roster is ignored.
+	 */
+	let studentRestored = false;
+	$effect(() => {
+		const ready = data !== null;
+		const roster = students;
+		if (!ready || studentRestored) return;
+		studentRestored = true;
+		const token = untrack(() => initialStudent);
+		if (!token) return;
+		untrack(() => {
+			void findStudentByToken(roster, item.id, token).then((email) => {
+				if (!email || selectedEmail !== null) return;
+				const next = students.find((s) => s.email === email);
+				if (next) requestSelect(next);
+			});
+		});
 	});
 
 	// -----------------------------------------------------------------------
@@ -1007,6 +1072,22 @@
 		void tick().then(() => dirtySaveEl?.focus());
 	}
 
+	/**
+	 * Say who is open, as the opaque token the address carries, once the hash
+	 * lands. A switch made while an earlier hash is still in flight wins: the
+	 * token is only reported while it still names the open student.
+	 */
+	function reportStudent(email: string | null) {
+		if (!onstudent) return;
+		if (!email) {
+			onstudent(null);
+			return;
+		}
+		void studentToken(item.id, email).then((token) => {
+			if (selectedEmail === email) onstudent?.(token);
+		});
+	}
+
 	function applySelect(next: StudentWork | null) {
 		// NO SESSION SURVIVES A STUDENT SWITCH (report 5ab3adb6). Every path
 		// that can wait for the sentence in flight settles before it gets
@@ -1023,9 +1104,11 @@
 		if (!next) {
 			selectedEmail = null;
 			baseline = null;
+			reportStudent(null);
 			return;
 		}
 		selectedEmail = next.email;
+		reportStudent(next.email);
 		comment = next.submission?.teacher_comment ?? '';
 		// Null and undefined both open EMPTY, which reads as "none awarded" -- a
 		// pre-0171 payload and a row nobody has awarded anything on are the same
@@ -1223,6 +1306,15 @@
 		const state = s.submission?.state ?? null;
 		if (state === 'submitted' || state === 'returned') return null;
 		const done = hxCompletion(manifest, s.responses, s.files);
+		// A FINISHED WORKSHEET STAYS FINISHED (0237, ledger 0380): the stamp the
+		// student's own load left wins over a manifest that has grown since.
+		const latched = data?.latches?.[(s.email ?? '').toLowerCase()];
+		if (latched !== undefined) {
+			if (!done.complete) return latched;
+			const a = Date.parse(done.at ?? '');
+			const b = Date.parse(latched);
+			return Number.isNaN(a) || (!Number.isNaN(b) && b < a) ? latched : (done.at ?? '');
+		}
 		return done.complete ? (done.at ?? '') : null;
 	}
 
@@ -2036,6 +2128,7 @@
 	}
 
 	function runAction(action: GradeAction) {
+		if (rubricMode === 'hidden' && (action.startsWith('level-') || action.startsWith('crit-'))) return;
 		if (action !== 'return' && action !== 'close') armReturn = false;
 		switch (action) {
 			case 'level-1':
@@ -3321,6 +3414,8 @@
 						class="work-split"
 						class:has-rubric={!!rubric?.length}
 						class:document-work={documentWork}
+						class:rubric-narrow={rubricMode === 'narrow'}
+						class:rubric-hidden={rubricMode === 'hidden'}
 					>
 						<!--
 							THE ONE SCROLL REGION WITH NOTHING FOCUSABLE IN IT. Above the
@@ -3465,7 +3560,19 @@
 
 						{#if rubric?.length}
 							<div class="work-col work-right" role="region" aria-label="Rubric">
-								<div class="card score-card">
+								{#if rubricMode === 'hidden'}
+									<div class="rubric-rail" data-testid="grade-rubric-rail">
+										<span class="rubric-rail-total" title="Rubric score">{liveTotal}/{outOf}</span>
+										<button
+											type="button"
+											class="btn secondary rubric-rail-show"
+											aria-expanded="false"
+											data-testid="grade-rubric-show"
+											onclick={() => setRubricMode('normal')}>Show rubric</button
+										>
+									</div>
+								{/if}
+								<div class="card score-card" class:rubric-collapsed={rubricMode === 'hidden'}>
 									<!--
 										THE DOCK'S CONTAINING BLOCK, and the only reason this element
 										exists. `position: sticky` is bounded by its PARENT's box, so
@@ -3476,7 +3583,23 @@
 										the comment it acts on.
 									-->
 									<div class="grade-main">
-										<h3 class="section-label">Rubric score</h3>
+										<div class="rubric-head">
+											<h3 class="section-label">Rubric score</h3>
+											<!-- THE SIZE OF THE RUBRIC (ledger 0380): a group of pressed keys,
+											     shown only where the work and the rubric sit side by side. -->
+											<div class="rubric-size" role="group" aria-label="Rubric width" data-testid="grade-rubric-size">
+												{#each [{ id: 'normal', label: 'Wide' }, { id: 'narrow', label: 'Narrow' }, { id: 'hidden', label: 'Hide' }] as m (m.id)}
+													<button
+														type="button"
+														class="btn secondary rubric-size-key"
+														aria-pressed={rubricMode === m.id}
+														class:on={rubricMode === m.id}
+														data-testid="grade-rubric-{m.id}"
+														onclick={() => setRubricMode(m.id as RubricMode)}>{m.label}</button
+													>
+												{/each}
+											</div>
+										</div>
 										<!--
 											THE KEYS, PRINTED. The same array the handler dispatches
 											from (GRADE_KEYS), so a key that stops working stops being
@@ -4889,6 +5012,62 @@
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
+	}
+	/* HOW MUCH OF THE ROW THE RUBRIC TAKES (ledger 0380, report c0964d99). Only
+	   where the two columns exist; below 900px the rubric stacks as it always
+	   did and the size keys are not shown. The narrow rail keeps a floor so
+	   the level descriptors stay readable. */
+	.rubric-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.4rem;
+	}
+	.rubric-size {
+		display: none;
+	}
+	.rubric-rail {
+		display: none;
+	}
+	@media (min-width: 901px) {
+		.rubric-size {
+			display: inline-flex;
+			gap: 0.3rem;
+		}
+		.rubric-size-key {
+			min-height: 44px;
+			padding-inline: 0.7rem;
+		}
+		.work-split.has-rubric.rubric-narrow {
+			grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+		}
+		.work-split.has-rubric.rubric-hidden {
+			grid-template-columns: minmax(0, 1fr) 4.5rem;
+		}
+		.score-card.rubric-collapsed {
+			display: none;
+		}
+		.rubric-rail {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 0.5rem;
+			padding: 0.5rem 0.2rem;
+		}
+		.rubric-rail-total {
+			font-family: var(--font-mono);
+			font-size: 0.8rem;
+			color: var(--text-1);
+		}
+		.rubric-rail-show {
+			min-height: 44px;
+			min-width: 44px;
+			padding-inline: 0.3rem;
+			font-size: 0.7rem;
+			white-space: normal;
+			overflow-wrap: anywhere;
+		}
 	}
 	@media (max-width: 900px) {
 		.work-split.has-rubric {

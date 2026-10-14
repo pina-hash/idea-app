@@ -207,25 +207,26 @@ describe('an avatar tile on a light ground', () => {
 });
 
 describe('a launcher card on a light ground (AppLauncher under Space White)', () => {
-	/* ONE GREEN INK, AND THE TWINS PAINT THE STRIP (round 2026-10-07). Each card
-	   used to paint its word, glyph and edge in its own lightness-only twin, and
-	   on the white console that was nine inks -- two of them the olive and
-	   brown a lightness-only yellow or amber lands on over white, one an FRC
-	   red this site reserves for errors. Mr. Pina's report ("a lot of the
-	   colors look off") moved every card's word, glyph and call to action to
-	   the theme's green and its edge to the plate's hairline, on this theme
-	   only. The twins stay, still lightness-only and still measured, because
-	   they paint the 2px strip -- and because a twin that drifts off its hue
-	   renders perfectly and reads as a slightly different colour, which nobody
-	   reports. */
+	/* EACH BRANDED CARD PAINTS ITS OWN LIGHT TWIN (ledger 0380, report 48bdb5be).
+	   On 2026-10-07 every card's word, glyph and call to action were moved to
+	   one green because two twins landed on olive and brown; Mr. Pina then
+	   reported that every app looked the same in white mode. The words are
+	   per-card again, each a lightness-only twin of an identity colour that
+	   clears the same floors, and the two cards whose FIRST colour has no
+	   readable dark twin (the Coin Ledger and the Foundry) take their SECOND. */
 	const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 	const style = launcher.slice(launcher.indexOf('<style>'));
 	// The identity each card is BRANDED with: its base rule's --acc-primary.
 	const identity = new Map<string, string>();
+	const secondary = new Map<string, string>();
 	for (const m of style.matchAll(/(?:^|\n)\t\.app-card\[data-app='([a-z-]+)'\]\s*\{([^}]*)\}/g)) {
 		const primary = m[2].match(/--acc-primary:\s*(#[0-9a-fA-F]{6})/)?.[1];
 		if (primary) identity.set(m[1], primary);
+		const second = m[2].match(/--acc-secondary:\s*(#[0-9a-fA-F]{6})/)?.[1];
+		if (second) secondary.set(m[1], second);
 	}
+	/** Cards whose word ink is their SECOND identity colour, and why (the first has no readable dark twin on white). */
+	const SECOND_COLOUR = new Set(['coins', 'foundry']);
 	// The light ink each card re-pins when the theme attribute is present, and
 	// every declaration a per-card Space White rule makes.
 	const light = new Map<string, string>();
@@ -259,25 +260,31 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		expect(missing).toEqual([]);
 	});
 
-	it('moves the ink in lightness only, never the identity', () => {
-		for (const [id, ink] of light) expectLightnessOnly(identity.get(id)!, ink, id);
+	it('moves the ink in lightness only, never the identity (the first colour, or the second where the card says so)', () => {
+		for (const [id, ink] of light) {
+			const source = SECOND_COLOUR.has(id) ? secondary.get(id)! : identity.get(id)!;
+			expect(source, `${id} identity colour`).toBeTruthy();
+			expectLightnessOnly(source, ink, id);
+		}
 	});
 
-	it('the strip twins still clear what they cleared as words: 4.5 on the card and the CTA hover fill; 3:1 at 75% on the page; 3.0 washed', () => {
+	it('every twin clears as WORDS: 4.5 on the card, its own hover wash and the CTA hover fill; 3:1 at 75% on the page; 3.0 washed', () => {
 		for (const [id, value] of light) {
 			const ink = parse(value).rgb;
 			expect(ratio(ink, PANEL), `${id} on the card`).toBeGreaterThanOrEqual(4.5);
+			expect(ratio(ink, over(ink, 0.05, PANEL)), `${id} on its hover wash`).toBeGreaterThanOrEqual(4.5);
 			expect(ratio(ink, INSET), `${id} on the CTA hover fill`).toBeGreaterThanOrEqual(4.5);
 			expect(ratio(over(ink, 0.75, PAGE), PAGE), `${id} edge on the page`).toBeGreaterThanOrEqual(3);
 			expect(washed(ink, PANEL), `${id} washed on the card`).toBeGreaterThanOrEqual(3);
 		}
 	});
 
-	it('on Space White every card writes, draws and calls to action in ONE ink, the theme green, and its strip is its own twin', () => {
-		// PRESENT: the one rule moves the ink every word, glyph and CTA reads
-		// (`--acc`, which `--acc-title`, `.app-icon` and `.app-cta` all read),
-		// the edge, the lines and the wash, and the strip paints the twin solid.
-		expect(swCard).toContain('--acc: var(--green);');
+	it('on Space White a card\'s word, glyph and call to action follow ITS OWN ink, and its edge is the plate hairline', () => {
+		// PRESENT: the one rule keeps the default ink green for the cards that
+		// declare none, moves the edge, the lines and the wash, and does NOT
+		// re-pin `--acc`, so the per-card `--acc-ink` reaches the word, the glyph
+		// and the call to action through the base rule.
+		expect(swCard).not.toMatch(/--acc:\s*var\(--green\)/);
 		expect(swCard).toContain('--acc-ink: var(--green);');
 		expect(swCard).toContain('--acc-edge: var(--plate-hair, var(--boundary));');
 		expect(swCard).toContain('--acc-wash: color-mix(in srgb, var(--acc) 5%, var(--bg1));');
@@ -285,9 +292,12 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		expect(style).toMatch(/\.app-title \{[^}]*color: var\(--acc-title\);/);
 		expect(style).toMatch(/\.app-icon \{[^}]*color: var\(--acc\);/);
 		expect(style).toMatch(/\.app-cta \{[^}]*color: var\(--acc\);/);
-		// ABSENT: no per-card Space White rule puts a second ink back on a word,
-		// a glyph or an edge.
-		expect(perCardDecls.length).toBeGreaterThanOrEqual(8); // positive control on the reader (GAUNTLET and VANGUARD share one rule)
+		// The words really do differ card to card: at least eight distinct inks
+		// (positive control), and no two of the branded greens are the same value.
+		expect(new Set(light.values()).size).toBeGreaterThanOrEqual(8);
+		// ABSENT: no per-card Space White rule re-pins the derived tokens, which
+		// would put a second ink back on one of the three places by hand.
+		expect(perCardDecls.length).toBeGreaterThanOrEqual(8); // positive control on the reader
 		const offenders = perCardDecls.filter((d) => /--acc(-title|-edge(-strong)?|-line(-strong)?|-wash)?\s*:/.test(d));
 		expect(offenders).toEqual([]);
 		// AND THE DARK THEMES ARE UNTOUCHED: the default rule still derives the
@@ -347,20 +357,22 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		expect(style).not.toContain('.gl-marker');
 	});
 
-	it('NEGATIVE CONTROL: the twins the words moved off include the olive and brown decision 40 refused for gold', () => {
-		/* The reason a lightness-only twin stopped being the word's ink here:
-		   a yellow or an amber taken dark enough to carry text on white lands
-		   in the same brown family as --gold (#715d22), which decision 40 item 1
-		   took off this theme's words. If these two were not in that family the
-		   argument for one ink would rest on taste alone. */
+	it('the two cards that took their SECOND colour are not in the olive or brown family decision 40 refused for gold', () => {
+		/* A yellow or an amber taken dark enough to carry text on white lands in
+		   the same brown family as --gold (#715d22), which decision 40 item 1
+		   took off this theme's words. The Coin Ledger and the Foundry therefore
+		   word themselves in their second colour; the first colour's twin is
+		   asserted to be IN that family, which is the whole reason for the
+		   exception (and fails if somebody changes the identity under it). */
 		const [goldHue] = rgbToHsl(token('--gold'));
 		expect(goldHue).toBeGreaterThan(35);
 		expect(goldHue).toBeLessThan(60);
-		for (const id of ['coins', 'foundry']) {
-			const [h, , l] = parse(light.get(id)!).hsl;
-			expect(h, `${id} twin hue`).toBeGreaterThanOrEqual(25);
-			expect(h, `${id} twin hue`).toBeLessThanOrEqual(75);
-			expect(l, `${id} twin lightness`).toBeLessThan(35);
+		for (const id of SECOND_COLOUR) {
+			const [h] = parse(light.get(id)!).hsl;
+			expect(h < 25 || h > 75, `${id} word ink hue ${h} must be outside the olive/brown band`).toBe(true);
+			// The first colour's own twin, at the lightness that clears 4.5, IS in the band.
+			const [fh, fs] = parse(identity.get(id)!).hsl;
+			expect(fh >= 25 && fh <= 75, `${id} first-colour hue ${fh} is the band the exception exists for (sat ${fs})`).toBe(true);
 		}
 	});
 

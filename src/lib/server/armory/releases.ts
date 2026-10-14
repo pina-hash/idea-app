@@ -63,6 +63,44 @@ export function fileKind(name: string): ArmoryReleaseFile['kind'] {
 	return 'other';
 }
 
+/** The version digits in a file name, as numbers: "Setup-v0.3.3.exe" is [0, 3, 3]. */
+function versionParts(name: string): number[] {
+	const m = name.match(/(\d+(?:\.\d+)+)/);
+	return m ? m[1].split('.').map((n) => Number(n)) : [];
+}
+
+function compareVersions(a: number[], b: number[]): number {
+	for (let i = 0; i < Math.max(a.length, b.length); i++) {
+		const d = (a[i] ?? 0) - (b[i] ?? 0);
+		if (d !== 0) return d;
+	}
+	return 0;
+}
+
+/** The standard installer's own name: IDEA-Armory-Setup-v0.3.3.exe. */
+const STANDARD_INSTALLER = /^IDEA-Armory-Setup-v?\d+(?:\.\d+)*(?:-[\w.]+)?\.exe$/i;
+/** What an installer for the standard app is never: a flash drive, portable, packaged or helper file. */
+const NOT_THE_INSTALLER = /usb|portable|msix|appx|zip|update|uninstall|bootstrap|delta/i;
+
+/**
+ * THE ONE CHOICE OF WHICH FILE "GET THE WINDOWS APP" MEANS (ledger 0380, report
+ * 403d1646). The download route, the setup page and the download page all ask
+ * this and nothing else, so the three cannot name different files. The
+ * standard installer's own name wins; failing that, an installer-shaped file
+ * that is not a flash-drive, portable, packaged or helper file; on a tie the
+ * highest version. Null, never a guess, when nothing qualifies.
+ */
+export function pickInstaller<T extends { name: string; kind: ArmoryReleaseFile['kind'] }>(files: readonly T[]): T | null {
+	const candidates = files.filter((f) => f.kind === 'laptop' && !NOT_THE_INSTALLER.test(f.name));
+	const standard = candidates.filter((f) => STANDARD_INSTALLER.test(f.name));
+	const pool = standard.length > 0 ? standard : candidates;
+	let best: T | null = null;
+	for (const f of pool) {
+		if (!best || compareVersions(versionParts(f.name), versionParts(best.name)) > 0) best = f;
+	}
+	return best;
+}
+
 export function releasesToken(source: Record<string, string | undefined> = env): string | null {
 	const token = (source.ARMORY_RELEASES_TOKEN ?? '').trim();
 	return token === '' ? null : token;
@@ -171,7 +209,7 @@ export async function installerDownload(
 	token: string | null = releasesToken()
 ): Promise<InstallerDownload> {
 	const found = await armoryRelease(fetcher, now, token);
-	const file = found?.release.files.find((f) => f.kind === 'laptop');
+	const file = found ? pickInstaller(found.release.files) : null;
 	if (!found || !file) return { branch: 'none' };
 	if (found.source === 'public') {
 		const url = found.urls[file.name];

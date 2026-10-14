@@ -48,6 +48,7 @@
 	} from '$lib/classroom/picker';
 	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
 	import {
+		TEAM_TAGLINE_MAX,
 		TEAM_WINDOW_WORDS,
 		backgroundCss,
 		canStyleTeam,
@@ -508,6 +509,8 @@
 	 */
 	let movingMember = $state<string | null>(null);
 	let renameDraft = $state('');
+	/** The team's motto, edited beside its name (ledger 0380, report 5ba5f38b). */
+	let mottoDraft = $state('');
 
 	/**
 	 * THE STUDENTS ON NO TEAM OF THIS DRAW: active, on the roster, not a
@@ -600,6 +603,7 @@
 		}
 		renamingTeam = team.id;
 		renameDraft = team.name ?? '';
+		mottoDraft = team.tagline ?? '';
 		teamEditRefusal = null;
 	}
 
@@ -608,12 +612,23 @@
 	 * CARRIED OVER from `teamStyle(team)`. That write replaces all six style
 	 * columns at once, so a rename built from the name alone would wipe a
 	 * banner the students made. An empty name is null, which renders "Team n".
+	 *
+	 * THE MOTTO RIDES THE SAME WRITE (ledger 0380, report 5ba5f38b: "as an
+	 * instructor I should be able to edit team subtitles"). It is the sixth
+	 * field of that one replace, so an instructor can set, change or clear it,
+	 * and an empty box is null, the same as clearing it from the class page.
+	 * `teamStyleDraftProblems` is the length rule (48 characters).
 	 */
 	async function saveRename(set: TeamSet, team: Team) {
 		const t = teamTransports;
 		if (!t?.style || !canRename || teamsBusy) return;
 		const style = teamStyle(team);
 		const name = renameDraft.trim() || null;
+		const tagline = mottoDraft.trim() || null;
+		if (tagline && [...tagline].length > TEAM_TAGLINE_MAX) {
+			teamEditRefusal = { setId: set.id, text: `A motto can be at most ${TEAM_TAGLINE_MAX} characters.` };
+			return;
+		}
 		teamsBusy = true;
 		teamEditRefusal = null;
 		teamEditNote = null;
@@ -626,13 +641,15 @@
 				backgroundValue: style.background_value,
 				badge: style.badge,
 				flourish: style.flourish,
-				tagline: style.tagline
+				tagline
 			});
 			if (res.ok) {
 				renamingTeam = null;
 				teamEditNote = {
 					setId: set.id,
-					text: name ? `Renamed ${teamLabel(team)} to ${name}.` : `${teamLabel(team)} is Team ${team.team_number} again.`
+					text:
+						(name ? `Renamed ${teamLabel(team)} to ${name}.` : `${teamLabel(team)} is Team ${team.team_number} again.`) +
+						(tagline !== (team.tagline ?? null) ? (tagline ? ' Motto saved.' : ' Motto cleared.') : '')
 				};
 				await loadTeams({ quiet: true });
 				await onchanged?.();
@@ -1596,7 +1613,7 @@
 													data-testid="team-rename"
 													onclick={() => toggleRename(team)}
 												>
-													{renamingTeam === team.id ? 'Close' : 'Rename'}
+													{renamingTeam === team.id ? 'Close' : 'Edit name'}
 												</button>
 											{/if}
 										</div>
@@ -1620,13 +1637,23 @@
 														data-testid="team-rename-input"
 													/>
 												</label>
+												<label class="tool-field">
+													<span>Motto for Team {team.team_number} (optional)</span>
+													<input
+														type="text"
+														maxlength={TEAM_TAGLINE_MAX}
+														placeholder="A few words under the name"
+														bind:value={mottoDraft}
+														data-testid="team-motto-input"
+													/>
+												</label>
 												<button
 													type="submit"
 													class="btn tiny tap-44"
 													disabled={teamsBusy}
 													data-testid="team-rename-save"
 												>
-													Save name
+													Save
 												</button>
 											</form>
 										{/if}
@@ -1691,7 +1718,7 @@
 											     colour control at all. The colours are the students'
 											     own, set from the class page while the draw is posted. -->
 											<p class="note team-style-hint" data-testid="team-style-hint">
-												Students on this team can change its name, colours and badge from the class page while the teams are posted.
+												Students on this team can change its name, colours and badge from the class page while the teams are posted. You can change the name and motto here, and any look from the class page.
 											</p>
 										{/if}
 									</div>

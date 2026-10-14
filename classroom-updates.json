@@ -13,6 +13,24 @@
 	],
 	"entries": [
 		{
+			"date": "2026-10-14",
+			"title": "Teachers: the grading page remembers the student, the rubric can be narrowed, and team mottos can be edited",
+			"body": "On the grading page, refreshing keeps you on the student you were grading. The rubric on the right has Wide, Narrow and Hide keys, so you can give the student's work more room, and it remembers your choice on this computer. On the People tab you can now change a team's motto beside its name, and on the class page Edit look is back on every team. When you edit an assignment that is a web page, there is a Download the original file link for the file as it was uploaded. The student page now prints on plain white paper with no backgrounds, whatever theme you are using.",
+			"tags": [
+				"classroom",
+				"teachers"
+			]
+		},
+		{
+			"date": "2026-10-14",
+			"title": "A finished worksheet stays finished",
+			"body": "If you finished a worksheet and your teacher later added more to it, it used to flip back to Missing or In progress even though you had done everything that was there. Now, once the site has seen your worksheet complete, it stays complete. The new part is still there to do if you want to do it. Open your class page once and anything you had already finished is remembered.",
+			"tags": [
+				"classroom",
+				"fix"
+			]
+		},
+		{
 			"date": "2026-10-08",
 			"title": "Videos in an assignment can start at a step",
 			"body": "When an assignment has a long walkthrough video, each step can now play the video from that step, right in the assignment. No new tab.",

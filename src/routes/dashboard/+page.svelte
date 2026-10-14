@@ -681,23 +681,35 @@
 	   A column is 26rem because the roster row (avatar, chip, name, email and
 	   a pathway select) stops fitting on one line below about 380px of panel,
 	   and a review item's link row ellipsises below ~400px; 26rem (416px)
-	   leaves both a margin. `auto-fit` so nine panels in a 2844px window make
-	   six columns and a 375px window makes one, with no breakpoint of its own.
-	   `align-items: start` keeps a short panel short beside a tall one. */
+	   leaves both a margin.
+
+	   MULTI-COLUMN, NOT A GRID (ledger 0380, report 939e53d1: "too much dead
+	   space"). A grid row is as tall as its tallest panel, so a 530px review
+	   panel left a 200px void under the short panels beside it. Columns have no
+	   rows to lock: each panel is unbreakable, fills down one column and on
+	   into the next. `column-width` with a count ceiling, because multicol has
+	   no `auto-fit` and would leave a spare empty column on a wide window; the
+	   ceiling is the old grid's six at 2844px, held to five. Reading order is
+	   column by column, which for the nav chips (the same order) is the order
+	   they are numbered in. */
 	.console-grid {
 		position: relative;
 		z-index: 1;
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr));
-		gap: var(--space-5);
-		align-items: start;
+		display: block;
+		columns: 26rem 3;
+		column-gap: var(--space-5);
 		padding: 0 var(--console-gutter) var(--space-8);
 	}
-	/* The roster is a list of every student in the school; above two columns
-	   it takes two, so a name and its select share a line at any roster size. */
+	.console-grid > .panel {
+		break-inside: avoid;
+		margin: 0 0 var(--space-5);
+	}
+	/* The roster is a list of every student in the school and takes the whole
+	   measure where there are columns, so a name and its select share a line at
+	   any roster size. The panels before it and after it balance separately. */
 	@media (min-width: 64rem) {
 		.panel[data-panel='roster'] {
-			grid-column: span 2;
+			column-span: all;
 		}
 	}
 

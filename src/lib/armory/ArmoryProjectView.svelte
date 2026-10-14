@@ -31,7 +31,7 @@
 	import ArmoryProjectSettings from './ArmoryProjectSettings.svelte';
 	import ArmoryTeam from './ArmoryTeam.svelte';
 	import { holderFilterOf, type HolderFilter } from './checkouts';
-	import { ForceCheckIn, type ForceOutcome } from './force-check-in.svelte';
+	import { BulkForceCheckIn, ForceCheckIn, type BulkForceOutcome, type ForceOutcome } from './force-check-in.svelte';
 	import { RemoveEmptyFile, type RemoveEmptyOutcome } from './remove-empty.svelte';
 	import { projectViewHref, projectViewOf, projectViewsFor, PROJECT_VIEW_WORDS, type ProjectView } from './nav';
 	import {
@@ -79,6 +79,7 @@
 		addMember = null,
 		removeMember = null,
 		takeBack = null,
+		takeBackMany = null,
 		removeEmpty = null,
 		takeBackNeedsComputer = false,
 		rename = null,
@@ -121,6 +122,8 @@
 		addMember?: ((email: string, role: ArmoryRole, opts?: { refresh?: boolean }) => Promise<MemberOutcome>) | null;
 		removeMember?: ((email: string) => Promise<MemberOutcome>) | null;
 		takeBack?: ((fileId: string) => Promise<ForceOutcome>) | null;
+		/** Force check in over a selection (ledger 0380); handed in only where `takeBack` is. */
+		takeBackMany?: ((fileIds: string[]) => Promise<BulkForceOutcome>) | null;
 		/** `armory_remove_empty_file` (0236), handed in only to a caller `armory_can_take_back` admits. */
 		removeEmpty?: ((fileId: string) => Promise<RemoveEmptyOutcome>) | null;
 		/** True when the caller may force a check in but this database needs one of their computers to send it from. */
@@ -172,6 +175,9 @@
 	 */
 	const forceState = new ForceCheckIn((fileId) => (takeBack ? takeBack(fileId) : Promise.resolve({ ok: false, message: '' })));
 	const force = $derived(takeBack ? forceState : null);
+	/** The selection's own state, made once for the reason `forceState` is. */
+	const bulkState = new BulkForceCheckIn((ids) => (takeBackMany ? takeBackMany(ids) : Promise.resolve({ ok: false, message: '' })));
+	const bulk = $derived(takeBack && takeBackMany ? bulkState : null);
 	/** The same once-made shape for removing a file with no first version. */
 	const removeState = new RemoveEmptyFile((fileId) =>
 		removeEmpty ? removeEmpty(fileId) : Promise.resolve({ ok: false, message: '' })
@@ -270,6 +276,7 @@
 			{now}
 			{me}
 			{force}
+			{bulk}
 			forceNeedsComputer={takeBackNeedsComputer}
 			bind:holder
 		/>
