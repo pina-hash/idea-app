@@ -1,0 +1,11 @@
+# 0381 Validation of the 2026-10-14 exports, the gaps finished, and the progressive feedback engine
+
+- Issued: 2026-10-14
+- By: Mr. Pina, directly, in a Claude Code session, with three feedback exports attached (26, 19 and 1 reports): "validate that all the update requests attached have been fully and properly developed. If not, you must finish the development yourself. Then after that develop the progressive feedback engine." Mid-session: "the class banner animations are still glitching and pausing. they should be smoothly continuous looping animations."
+- Repo: `pina-hash/idea-app`
+- Branch: `claude/clever-feynman-tl6bst`
+- Owns: `supabase/migrations/0238_progressive_feedback.sql`, `src/lib/classroom/feedback/**`, `src/routes/classroom/student-feedback/**`, the feedback hooks in `src/lib/classroom/html-assignment/**`, `src/lib/classroom/GradingConsole.svelte`, `src/lib/classroom/ItemDetail.svelte`, `src/lib/classroom/live.ts`, `src/lib/classroom/presence/**`, `src/lib/classroom/ClassThemeBanner.svelte`, the classroom split width (`src/lib/shell/split.css`, `src/lib/shell/ClassSplit.svelte`, `src/lib/preferences/classroom.ts`), the worksheet completion repair (`src/lib/classroom/student-work.ts`, the Grades tab), `src/lib/AppLauncher.svelte`, the home and dashboard page layouts, the changelog generator (`src/lib/site-versions.ts`, `src/lib/site-manifest.ts`, `vite.config.ts`), the Armory download links and team list, the Foundry house and major-release cards and featured row, the tournament header, `docs/decisions/entries/60-*` onward, `classroom-updates.json`, `docs/standards/IDEA_HTML_ASSIGNMENT_SPEC.md`, `docs/standards/IDEA_HTML_ASSIGNMENT_AUTHORING.md`, the rules of `CLAUDE.md` these change (in place), the dev harnesses and browser specs for all of these, this entry, and its own `docs/history/` entry.
+- Does not touch: `materials/**`, `.github/**`, any other migration.
+- Migration permitted: yes, exactly one. Claims: 0238.
+- Status: issued
+- Notes: 0238 is additive. Every client surface that reads it degrades on PGRST202/42883 until it is applied.
