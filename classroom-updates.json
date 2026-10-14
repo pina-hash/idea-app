@@ -14,6 +14,30 @@
 	"entries": [
 		{
 			"date": "2026-10-14",
+			"title": "Notes from your teacher, right on your worksheet",
+			"body": "While you are still working on a worksheet, your teacher can now leave you a note about one question, or draw on a photo you handed in (circles, arrows, boxes and labels) to point at something. Notes show in a list above the worksheet, and a small Note pin appears beside the answer it is about. You can reply, and when you have fixed it, press Fixed it so your teacher knows to look again. Your teacher can see when you have read a note, and you can see their replies the same way. New notes arrive on their own while the page is open; you do not need to reload.",
+			"tags": ["Assignments", "Feedback"]
+		},
+		{
+			"date": "2026-10-14",
+			"title": "Class banners move smoothly, and you can stop them",
+			"body": "The pattern on a class banner now moves slowly and steadily the whole time the page is open, instead of starting, stopping and jumping. If you would rather it held still, open Settings and set Class banner motion to Still. If your device is set to reduce motion, it already holds still.",
+			"tags": ["Class page"]
+		},
+		{
+			"date": "2026-10-14",
+			"title": "The class page uses your whole screen",
+			"body": "On a wide screen the class page and an open assignment now stretch to the edges instead of sitting in a band in the middle. You can drag the class list much wider than before, and its units spread into columns to use the room.",
+			"tags": ["Class page"]
+		},
+		{
+			"date": "2026-10-14",
+			"title": "A finished worksheet stays finished, even after it is edited",
+			"body": "If you finished a worksheet and your teacher later changed it, it could have started saying Missing or In progress again. It now remembers that you finished the version you were given, and it shows as waiting for a grade on your teacher's Grades tab too.",
+			"tags": ["Assignments"]
+		},
+		{
+			"date": "2026-10-14",
 			"title": "The hall pass is now pass time, and everyone can see who is out",
 			"body": "You now get a set number of pass minutes each school day in each class (your teacher can change it), and the class page shows how many you have left before you tap. Time you go over comes off your next day, and it all resets on Monday. A pass left open too long is signed back in for you at the limit and counts as that full time. If you are out of time, the card says which day you can go again. Everyone in the class can now see who is out and since when, so if you forget to sign back in, the room will remind you.",
 			"tags": ["Hall pass"]

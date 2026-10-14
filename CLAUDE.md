@@ -906,9 +906,12 @@ show.
       NEW PAGE (ledger 0380, reports 415af89e and 762bb647).** Directly under
       Major releases sits the FEATURED row: an admin's hand-picked, ordered list
       (`foundry_featured_set`, at most 12, never a rank), with any spare slots
-      filled in the client from the top of Most played and Trending
-      (`foundryFeaturedRow`), and drawn ONLY while at least one pick is in the
-      gallery, so a gallery nobody curated renders as before. Under it sit the
+      (up to six in all) filled in the client from the top of Most played and
+      Trending (`foundryFeaturedRow`), skipping an app nobody has played or
+      voted on. **SINCE LEDGER 0381 THE FILL RUNS WITH NO PICKS TOO** (decision
+      63, amending 59's default): a gallery nobody curated still leads with its
+      most played and rising apps, and a gallery with no plays and no votes has
+      no row, because a tied list has no top. Under it sit the
       COLLECTIONS: `foundry_collection_save` and its siblings (admin-only,
       published or not, reorderable, really deletable because a collection is
       curation and its members are only references), each published one drawn
@@ -1445,26 +1448,34 @@ have put every notice into every items reader and into `materials/`.
   compact` (every picture a tile opening the Lightbox on the notice's set,
   every other file a download row).
 
-**THE CLASS PATTERN MOVES ON ITS OWN LAYER, BOUNDED, AND NEVER UNDER `reduce`
-(ledger 0360, report R21).** The pattern is a real `aria-hidden` element in
-`ClassThemeBanner` (a scoped `::after` is pruned), drawn with the catalogue's
-own stroke at its own alpha and painted over the wash and under the words by
-TREE ORDER among positioned boxes, with no z-index, so the banner is still no
-stacking context. The arrival drift is 4.2s and ends on the still frame
-(WCAG 2.2.2's five seconds), and it loops only under `:hover` with
-`(hover: hover)`. Transform only. **A HOVER PAUSES AND RESUMES THE LOOP; IT
-NEVER SWAPS THE ANIMATION (ledger 0368, report R02).** A rule that replaced the
-arrival on `:hover` restarted it from its first frame whenever the pointer left
-(a name re-entering `animation-name` is a new animation), so the arrival sits on
-the inner `.ct-pattern` and the loop on the outer `.ct-pattern-loop`, attached
-from the start and `paused`; a `:hover` rule sets `animation-play-state` and
-nothing else (`tests/classroom-class-theme-render.test.ts` holds it), and
-`transform-origin` is set on both layers because it is not inherited. Stripes
-carry a 24px overscan and rays 72px, which a 2.5deg turn about a corner needs
-on the split's 92rem; rings and ripples only grow about their own centre.
-`class-header-pattern-*.mjs` compose every tenth of the arrival with the loop
-at its start, middle and end and hold the layers over the whole banner;
-`classroom-theme.mjs`'s `motion` row measures both media states.
+**THE CLASS PATTERN FLOWS CONTINUOUSLY, ON ITS OWN LAYER, AND STOPS FOR ANYBODY
+WHO ASKS (ledger 0381, decision 61, REPLACING ledger 0360's arrival-then-hover
+loop).** Mr. Pina, 2026-10-14: "still glitching and pausing. they should be
+smoothly continuous looping animations". The old motion was a 4.2s arrival that
+eased to a stop, then a loop that ran only under a hovering pointer and swung
+back and forth, so it paused whenever the pointer left, never ran on a touch
+screen and slowed to nothing at both ends of every swing. The pattern is still a
+real `aria-hidden` element in `ClassThemeBanner` (a scoped `::after` is pruned),
+drawn with the catalogue's own stroke at its own alpha and painted over the
+wash and under the words by TREE ORDER among positioned boxes, with no z-index,
+so the banner is still no stacking context.
+- **ONE PERIOD OF A REPEATING GRADIENT IS THE SAME PICTURE, SO THE LOOP HAS NO
+  SEAM.** `patternFlow` in `$lib/classroom/class-theme.ts` derives the moving
+  form from the one template (no second copy of any pattern): a registered
+  property (`--ct-phase` for stripes, rings and ripples, `--ct-turn` for rays)
+  runs from zero to exactly one period, linearly, forever, through Web
+  Animations (`PATTERN_FLOW_MS`, stepped at `PATTERN_FLOW_FPS`). Never a
+  transform over an overscanned layer, never `alternate`, never an ease.
+- **IT IS PHASE-LOCKED TO THE WALL CLOCK** (`patternFlowOffset(Date.now())`),
+  so a remount (a tab change, a return from `display: none`) lands on the frame
+  already showing instead of restarting it.
+- **IT STOPS UNDER `reduce` AND UNDER `Class banner motion` = Still** (Display
+  settings, `display.bannerMotion`, per device), which is WCAG 2.2.2's off
+  switch for motion past five seconds; stopped, the layer draws the still
+  template byte for byte. A browser that cannot register a custom property
+  would animate it in one jump a period, so it stays still there too.
+- `class-header-pattern-*.mjs` measure the flow and the still state;
+  `classroom-theme.mjs`'s `motion` row measures both media states.
 
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
@@ -1579,6 +1590,15 @@ other.
   there and it walks the whole list, which is the page's job. `aria-disabled` and
   never `disabled` at the ends, because a disabled control swallows its own
   pointer events and the pager's live note explains itself.
+- **THE RUBRIC'S WIDTH IS THE GRADER'S, BY THE CLASS LIST'S OWN GESTURE (ledger
+  0381, report c0964d99: "move it over just like ... on the classroom page").**
+  Beside the work, a `role="separator"` (`.rubric-sep`, in the gap, no track of
+  its own) drags, takes arrows, Page keys, Home and End, and Enter or a double
+  click goes back to the preset; the width (`rubricWidthRem`) is a per-device
+  convenience in `localStorage` (`idea.grading.rubricWidth`, read in try/catch),
+  never under `RUBRIC_MIN_REM` and never leaving the work under
+  `RUBRIC_WORK_MIN_REM`. Hidden, the rubric's level and criterion keys do
+  nothing (`rubricHiddenNow`), so a key never scores something off screen.
 - **A GEOMETRY CLAIM HERE IS `npm run verify:browser`'s AND NOWHERE ELSE'S.**
   `tools/browser-verify/routes/grading-bulk-state-dock.mjs` drives the dock's
   own scroll container -- the pane above 1024px, the document below it -- and
@@ -1993,6 +2013,23 @@ Undated work is never Missing and never counted; it is listed last.
     (so the grading roster, the live grid and the people page take it with no
     per-row policy cost). Where 0237 is not applied every read is the
     derivation alone.
+  - **A WORKSHEET FINISHED BEFORE ITS LATCH EXISTED IS JUDGED AGAINST THE
+    WORKSHEET IT WAS (ledger 0381, 0238 part B, report e32659e9 again).** A
+    latch is stamped only from a load that found the work complete, so a
+    student who finished before 0237 and whose worksheet was edited since had
+    no latch and read Missing. `classroom_worksheet_past_manifests` answers each
+    item's displaced manifests (the newest twenty `classroom_content_revisions`
+    rows, readable by anyone who can read the item), and
+    `worksheetCompletedAtAcross` in `$lib/classroom/student-work.ts` counts the
+    work complete against the current manifest OR any past one; the student's
+    own read then stamps it as before. The grading console stamps it too,
+    through `classroom_worksheet_latch_for` (a reviewer of that student only,
+    insert-if-absent, never a later instant than now), once per student it
+    judges finished with no latch, so a finish found on a teacher's screen
+    reaches the student's surfaces. **The Grades tab now counts it**:
+    `assignmentStandings` takes the latched and derived finishes as its
+    `finished` input, so a finished, ungraded worksheet is awaiting a grade
+    there, never missing.
   - **THE READ IS PINNED TO ONE ADDRESS, ALWAYS -- THE CALLER'S OWN, OR ON ONE
     STUDENT'S PAGE THE ONE STUDENT A MANAGER OPENED -- AND THE TEACHER'S HOME
     TALLY DOES NOT GET ONE.** `classroom_responses` is policed per row
@@ -2032,6 +2069,85 @@ Undated work is never Missing and never counted; it is listed last.
   reads no clock; `formatDue` prints in America/Los_Angeles and names no
   weekday. A browser's own zone deciding "due today" is the evening bug the
   notebook grid already had.
+
+### PROGRESSIVE FEEDBACK -- notes on work in progress, in place and in one list
+
+**AN INSTRUCTOR LEAVES NOTES ON A STUDENT'S WORK WHILE IT IS IN PROGRESS, AND
+THEY ARE PART OF GRADING (0238, decision 60, report 6b814ca1).** Mr. Pina's
+answers on 2026-10-14: in place and in a list; back and forth, a Fixed it
+button and seen; one place to manage everything from; ported HTML worksheets
+first. A THREAD is one note on one student's work on one item, optionally on one
+block (the manifest's permanent id) and optionally on one handed-in picture with
+a drawing over it; its messages are the conversation.
+`classroom_feedback_threads` and `classroom_feedback_messages` are RLS-on, no
+policy, no client grant, written and read only through the seven definer
+functions (`classroom_feedback_post`, `_reply`, `_update`, `_set_state`,
+`_remove`, `_seen`, `_list`). "Not yours" and "not found" answer identically.
+- **WHO IS WHICH SIDE IS ONE FUNCTION, `_classroom_feedback_role`**: the student
+  the thread is about (and who can read the item), or a reviewer of that
+  student's work (`classroom_can_review_submission`). Only an instructor posts,
+  edits, draws, resolves, reopens or removes a whole thread; either side
+  replies; only the student says Fixed it (or takes it back); a student is held
+  to sixty messages an hour. Nothing is deleted: a removal is a stamp.
+- **A DRAWING IS VECTOR DATA ON THE PICTURE'S OWN COORDINATES, NEVER PIXELS.**
+  `marks` is a closed shape (`_classroom_feedback_marks_ok`: pen, arrow, box,
+  ellipse, text; six colours by id; three widths; integers 0 to 10000 across the
+  picture; at most 200 shapes) and only on a file that is this student's
+  hand-in on this item. `marksOk` in `$lib/classroom/feedback/notes.ts` is the
+  client's mirror and `tests/db/progressive-feedback-0238.test.ts` puts both to
+  one corpus. `MarkLayer` draws it over the picture at `object-fit: contain`
+  (viewBox the natural size, `xMidYMid meet`), every stroke over a halo of the
+  opposite lightness, `aria-hidden` with the note's words beside it.
+- **A DRAWING IS LAID ON THE PICTURE A FIELD IS SHOWING, MATCHED BY URL**
+  (`marksByField` over the frame's own `images`), never through a field-to-file
+  map read at load, so a picture replaced mid-lesson never takes an old drawing;
+  a resolved note's drawing comes off the picture and stays in its thread.
+- **ONE SESSION PER PERSON PER WORK, READ BY EVERY SURFACE ON THE PAGE.**
+  `FeedbackSession` (`$lib/classroom/feedback/session.svelte.ts`) holds the
+  threads; the list (`FeedbackPanel`, `FeedbackThreadView`), the frame's pins
+  and drawings (`fieldNotes`, `marksByField`) and the drawing tool
+  (`FeedbackDrawing` over `Annotator`) all read it, so a pin and the list cannot
+  disagree. The route builds it (the item page beside the answers controller,
+  the grading console per open student) and it fetches only when told. A
+  student's transports carry no `post` and no `update`
+  (`createFeedbackTransports(supabase, 'student')`), so no composer or drawing
+  control can render on their side: ABSENCE IS THE MECHANISM, and
+  `tests/dom/feedback-panel-roles-mount.test.ts` counts both sides.
+- **THE ITEM PAGE GAINS NO POLL.** Its call budget is spent
+  (`tests/classroom-poll.test.ts`), so the student's floor is the heartbeat it
+  already sends: since 0238 `classroom_presence_ping` answers `feedback_at`,
+  and `createPresenceBeatTransport`'s callback re-reads only when it moved. The
+  speed is a payload-free `feedback` live notice (`$lib/classroom/live.ts`) on
+  the section layout's ONE bus, shared through `provideClassroomLive` /
+  `classroomLiveFromContext`, re-read after a random wait up to
+  `FEEDBACK_NOTICE_JITTER_MS`. The grading console rides its own poll and the
+  same notice. A write announces; nothing on the wire carries a note.
+- **IN PLACE IS THE DOCUMENT'S BOX, DRAWN IN PARENT CHROME.** A worksheet reports
+  where an answer sits with `idea:field-box` (the `idea:image-box` shape and
+  rule, `hxBoxOf`), and the frame draws a worded 44px pin beside it for a field
+  with an open note; the parent tells the document which fields have one with
+  the advisory `idea:feedback` (field names only, never a note's words). The
+  conversation, Fixed it and Resolve are ALWAYS parent chrome, for the reason
+  Submit is. A document that predates the reporter keeps every note in the list.
+  `fieldBoxReporter` in `src/routes/hx/_documents.ts` is the reference.
+- **SEEN IS STAMPED WHEN THE LIST IS ON SCREEN IN A VISIBLE TAB, AND NEVER MOVES
+  `updated_at`**, so reading is never news. A resolved note never counts as
+  wanting attention (`wantsAttention`), read or not.
+- **THE ONE PLACE IS `/classroom/student-feedback`** (`FeedbackInbox`, the
+  palette's `go.feedback`, a staff door): every note this caller may read, five
+  views (Needs you, Student says fixed, Waiting on student, Resolved, All), a
+  class and an assignment filter, a search, and the same `FeedbackThreadView`.
+  It 404s to anybody who manages no class, asked of the database
+  (`classroom_manages_section`, or `navIsAdmin`), never a second spelling of
+  the manage rule.
+- **HARNESSES**: `/dev/progressive-feedback` (`?view=student|teacher|inbox`,
+  `&draw=1`) mounts the real components over `createMemoryFeedback`, and
+  `/dev/html-assignment-grading?feedback=1` is the console's own wiring;
+  `tools/browser-verify/routes/progressive-feedback.mjs` measures the pins, the
+  drawing and both sides' controls. **A read started during a server render
+  lands outside the request**: a harness or page starts a session's first read
+  in `onMount`, never at module scope (the dev server crashed on `page.url`
+  read from a `.then` the first time).
 
 ### ONE STUDENT'S PAGE -- one class, one student, and a printout that names nobody else
 
@@ -3522,6 +3638,16 @@ something this environment cannot do.**
   `raise` from the file's own self-check as a REFUSAL rather than a crash, rolls back so
   nothing is half-applied, and afterwards asks `pg_catalog` about every object the file
   names. There is no flag that takes a range or a directory.
+  - **A BUNDLE MAY CARRY SEVERAL MIGRATIONS, AND EACH IS STILL APPLIED ALONE
+    (ledger 0381, decision 65; Mr. Pina, 2026-10-14, retiring the
+    one-migration-per-bundle rule).** A ledger entry's `Claims:` line lists every
+    number it carries, and `migrationBudget` in `tools/apply-migration.mjs` lets
+    it apply that many, each once (one when it names none or one). What did NOT
+    move is the order: every apply is one file, the lowest unapplied, refused
+    otherwise. `migrate.yml` applies one per run and, after a CLEAN apply whose
+    record landed, starts itself again (`gh workflow run`, the job's
+    `actions: write`), so a bundle's files land in order on one merge; it never
+    chains after a refusal, a raise or an unverified apply.
   - **IT CONNECTS AS A SCOPED ROLE AND THE ROLE IS THE POINT.** `idea_migrator`
     (`supabase/roles/idea_migrator.sql`, pasted once BY HAND because it carries a
     password and this repository is public) is a member of `postgres` for ownership,
@@ -4468,9 +4594,19 @@ inside the function fails closed rather than falling through to a weaker path.
   in the gap (it takes no grid track, so the one-pane collapse keeps its
   easing), keyboard-operable, with Narrower and Wider in Settings as the
   single-pointer alternative. The width is one per DEVICE (`display.navWidth`,
-  `clampNavWidth` keeps whole rem from 18 to 40 and stores the default as null)
-  and the detail pane never drops under 32rem; every other split is unchanged
-  and `resizable={false}` opts out.
+  `clampNavWidth` keeps whole rem from 16 to 120 and stores the default as null)
+  and the detail pane never drops under 32rem: the widest a list may be is
+  read off the window (`maxRemNow`), so `aria-valuemax` and End name the width
+  this window can actually draw, not the stored ceiling. Every other split is
+  unchanged and `resizable={false}` opts out.
+- **THE CLASSROOM'S SPLIT USES THE WHOLE WINDOW (ledger 0381, report db499adb:
+  "Dead Space on full screen ... from ultra narrow to ultra wide").**
+  `classroom.css` points `.cr-root`'s `--measure-split` at `--measure-console`
+  (100%), the Foundry's own shape, so the class page and an open item no
+  longer sit in a centred 92rem band. Prose keeps `--measure-reading`; widening
+  a pane never widens a sentence. Beside an open item the class list lays its
+  units in columns by its own width (`paneStreamColumns` in
+  `$lib/classroom/nav.ts`), so a list dragged wide uses the room it was given.
 - **A full-height surface is `.cr-app` + `.cr-app-body` around a `scroll="fill"`
   split**, not a `100vh - <chrome>` calculation. The chrome height is not a
   constant -- a hero wraps, a notice appears, someone else's banner sits above --
@@ -6253,6 +6389,16 @@ commit is the update.
 - **The rules live in `src/lib/site-versions.ts`, NOT in the build config.**
   `vite.config.ts` only gathers. A build config is the one file a test cannot
   reach, so it holds nothing worth testing.
+- **A COMMIT'S BODY BULLETS ARE THE UPDATE'S LIST OF CHANGES, AND BOOKKEEPING IS
+  HIDDEN (ledger 0381, decision 64, Mr. Pina's "Missing detail").** The
+  changelog shows each update's `- ` bullet lines from its commit body
+  (`bodyDetails`, at most `CHANGELOG_DETAIL_LINES` lines of
+  `CHANGELOG_DETAIL_CHARS` characters, backticks stripped), so a commit that
+  changes what people see writes its body as short, reader-facing bullets; a
+  prose body shows nothing. A subject `isBookkeepingNote` matches
+  (`BOOKKEEPING_SUBJECTS`: ledger lines, migration-applied records, claims,
+  git's own merge subjects) is kept in the history with `internal` and never
+  shown (`userFacingEntries`), so it costs no version a reader sees either.
 - **A version is a commit count, so it is only true over a COMPLETE history.** Over
   a shallow clone it slides BACKWARDS; the build detects that and emits no version
   at all rather than a number that can decrease. Set `VERCEL_DEEP_CLONE=true` in
@@ -6609,14 +6755,18 @@ the source of truth; **do not invent colours or swap fonts.**
       green).** Collapsing every word, glyph and call to action into one green
       made every app the same colour, and Mr. Pina said so ("all my apps look
       the same in white mode"). The theme's `.app-card` rule no longer
-      re-pins `--acc`, so each card's lightness-only twin reaches its word, its
-      glyph, its CTA and its strip; the edge stays the plate hairline, and the
-      five cards that declare no accent stay the theme green. The two twins
-      that landed on olive and brown (the Coin Ledger's neon, the Foundry's
-      amber) are NOT restored: those two cards take their SECOND identity colour
-      instead (cyan to a teal, the ember to a burnt orange), still lightness
-      only. `tests/space-white-inks.test.ts` pins the clearance, the
-      first-or-second-colour rule and that the two refused twins stay refused.
+      re-pins `--acc`, so each card's light ink reaches its word, its glyph,
+      its CTA and its strip, and the edge stays the plate hairline. **AND EVERY
+      APP IS A DIFFERENT COLOUR (ledger 0381, decision 62, Mr. Pina's
+      "Distinct colour per app").** Lightness-only twins still left near
+      neighbours (GAUNTLET beside VANGUARD, the accent-less cards beside the
+      theme green), so each Space White ink is chosen for the card rather than
+      derived: on its own brand's hue where it has one, and EVERY pair of cards
+      at least `DISTINCT_FLOOR` (10) apart in CIEDE2000, every one clearing 4.5:1
+      on the card. `tests/space-white-inks.test.ts` pins the clearance, the
+      floor over every pair, that every app the launcher can draw has an ink
+      (so a new app cannot arrive without one), and, as the negative control,
+      that the twins this replaced fail the floor.
   - **A PHONE AT 30 FPS IS NOT A SLOW DEVICE (report R09).** The Matrix rain
     degrades only when the median of a 90-frame window is 45ms or longer
     (`judgeFrame` in `$lib/design-system/themes/matrix-rain.ts`), after a 3s
