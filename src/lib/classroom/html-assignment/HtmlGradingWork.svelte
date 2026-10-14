@@ -41,12 +41,14 @@
 	import { htmlManifestShaped } from '$lib/classroom/transports';
 	import { itemTitle, type ClassroomItem } from '$lib/classroom/classroom';
 	import type { StudentWork } from '$lib/classroom/assignment-spec';
+	import type { HtmlWorkFeedback } from '$lib/classroom/feedback/work';
 
 	let {
 		student,
 		item,
 		htmlAssignment,
-		sandboxOrigin
+		sandboxOrigin,
+		feedback = null
 	}: {
 		student: StudentWork;
 		item: ClassroomItem;
@@ -54,6 +56,14 @@
 		htmlAssignment: HtmlAssignmentData | null | undefined;
 		/** `PUBLIC_HX_SANDBOX_ORIGIN` as the route read it; unset means this host (dev and preview). */
 		sandboxOrigin: string | null | undefined;
+		/**
+		 * THE NOTES ON THIS STUDENT'S WORK, AS THE FRAME DRAWS THEM (0238): pins
+		 * beside the answers, drawings over the pictures and the instructor's
+		 * "Draw on this" key. READS AND A DRAWING TOOL, NEVER A WRITE TO THE
+		 * STUDENT'S ANSWERS: none of the four write callbacks is handed down
+		 * whatever this carries. Null leaves the frame exactly as it was.
+		 */
+		feedback?: HtmlWorkFeedback | null;
 	} = $props();
 
 	const htmlMount = $derived(htmlAssignmentMount(item, htmlAssignment));
@@ -156,6 +166,10 @@
 		saved={null}
 		lock={assignmentLockState(student.submission)}
 		readOnly
+		notes={feedback?.notes ?? null}
+		marks={feedback?.marks ?? null}
+		onnote={feedback?.onnote ?? null}
+		onannotate={feedback?.onannotate ?? null}
 	/>
 {:else}
 	<!-- THE THIRD ANSWER, and it is the manager's version of the student's.

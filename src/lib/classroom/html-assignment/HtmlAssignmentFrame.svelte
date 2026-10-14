@@ -48,8 +48,11 @@
 	import Lightbox from '$lib/media/Lightbox.svelte';
 	import EnlargeCue from '$lib/media/EnlargeCue.svelte';
 	import type { LightboxImage } from '$lib/media/lightbox';
+	import MarkLayer from '$lib/classroom/feedback/MarkLayer.svelte';
+	import { noteFields, type FieldNote, type Marks } from '$lib/classroom/feedback/notes';
 	import {
 		HX_SANDBOX_FLAGS,
+		hxFeedbackMessage,
 		hxImageBoxStateMessage,
 		hxImagePlacement,
 		hxPostTarget,
@@ -128,6 +131,21 @@
 		onimagecaption,
 		onheight,
 		/**
+		 * PROGRESSIVE FEEDBACK OVER THE WORKSHEET (0238, decision 60), and every
+		 * part of it is optional, so a surface that hands none of it down renders
+		 * exactly what it did. `notes` is a pin per field with a note on it,
+		 * drawn at the box the document reports with `idea:field-box` (or its
+		 * picture box), and `onnote` is what a pin press asks the page to open;
+		 * `marks` is the drawing laid over each stored picture. `onannotate` is
+		 * the instructor's "Draw on this" key over a picture, and ABSENCE IS THE
+		 * MECHANISM: the student's page never hands it down, so a student's
+		 * frame has no drawing control to hide.
+		 */
+		notes = null,
+		marks = null,
+		onnote = null,
+		onannotate = null,
+		/**
 		 * EVERY DROPPED MESSAGE IS REPORTED. Silence would make a renamed field
 		 * indistinguishable from a working one -- which is precisely the failure
 		 * the contract calls out for a renamed block id: the answer simply stops
@@ -151,6 +169,10 @@
 		onimageremove?: (image: { blockId: string; field: string }) => void;
 		onimagecaption?: (image: { blockId: string; field: string; caption: string }) => void;
 		onheight?: (px: number) => void;
+		notes?: Readonly<Record<string, FieldNote>> | null;
+		marks?: Readonly<Record<string, Marks>> | null;
+		onnote?: ((field: string, threadId: string) => void) | null;
+		onannotate?: ((field: string) => void) | null;
 		ondropped?: (drop: { reason: HxDropReason; detail: string }) => void;
 	} = $props();
 
@@ -220,7 +242,9 @@
 				// boxes after the state below (the authoring rule). Stale rects from
 				// the previous load would otherwise be drawn over the new one.
 				boxes = {};
+				fieldBoxes = {};
 				announced = new Set();
+				toldNotes = null;
 				video = null;
 				onready?.(message.schemaVersion);
 				// The document is listening now, so the state it should open on goes
@@ -228,6 +252,7 @@
 				// a document always receives a state message and never has to ask.
 				postState(values, images, shut);
 				postTheme();
+				untrack(() => tellNotes(noteFieldList));
 				break;
 			case 'change':
 				onchange?.({ blockId: message.blockId, field: message.field, value: message.value });
@@ -269,6 +294,13 @@
 				// rect withdraws the box and the picture returns to the list.
 				const { [message.field]: _withdrawn, ...rest } = boxes;
 				boxes = message.rect ? { ...rest, [message.field]: { rect: message.rect, clipTop: message.clipTop } } : rest;
+				break;
+			}
+			case 'field-box': {
+				const { [message.field]: _gone, ...others } = fieldBoxes;
+				fieldBoxes = message.rect
+					? { ...others, [message.field]: { rect: message.rect, clipTop: message.clipTop } }
+					: others;
 				break;
 			}
 		}
@@ -517,6 +549,51 @@
 	 * id so a rect update moves the player and never reloads it.
 	 */
 	let video = $state<{ videoId: string; rect: HxVideoRect; clipTop: number; start: number } | null>(null);
+
+	/**
+	 * WHERE EACH ANSWER SITS (`idea:field-box`, 0238), and the pins drawn there.
+	 * A pin goes beside the box's top right corner, kept inside the frame, and
+	 * only for a field that has a note AND a box: a note on a field the document
+	 * never reported is in the feedback list and nowhere else, which is every
+	 * note in a document that predates the message.
+	 */
+	let fieldBoxes = $state<Record<string, HxImageBox>>({});
+	const pins = $derived(
+		Object.entries(notes ?? {}).flatMap(([field, note]) => {
+			const box = fieldBoxes[field] ?? boxes[field];
+			return box ? [{ field, note, rect: box.rect }] : [];
+		})
+	);
+
+	/**
+	 * THE FIELDS WITH A NOTE GO DOWN AS `idea:feedback`, advisory, only when the
+	 * set changes and only once the document is listening. Names only: nothing
+	 * a note says ever reaches the document. `toldNotes` is a plain variable,
+	 * and the post is untracked, for the reason `announced` is. A surface that
+	 * hands down no `notes` sends nothing at all.
+	 */
+	let toldNotes: string | null = null;
+	const noteFieldList = $derived(notes ? noteFields(notes) : null);
+	$effect(() => {
+		const fields = noteFieldList;
+		if (!ready) return;
+		untrack(() => tellNotes(fields));
+	});
+	function tellNotes(fields: string[] | null) {
+		if (fields === null) return;
+		const key = fields.join('\n');
+		if (key === toldNotes) return;
+		toldNotes = key;
+		post(hxFeedbackMessage(fields));
+	}
+
+	/** Each over-box picture's own size, which a drawing needs to land on it. */
+	let naturals = $state<Record<string, { w: number; h: number }>>({});
+	function measured(url: string, e: Event) {
+		const img = e.currentTarget as HTMLImageElement;
+		if (img.naturalWidth > 0) naturals = { ...naturals, [url]: { w: img.naturalWidth, h: img.naturalHeight } };
+	}
+	const drawnWords = $derived(onannotate ? 'Your drawing is on this picture.' : 'Your teacher drew on this picture.');
 </script>
 
 <div class="hx-frame-wrap" data-hx-ready={ready ? 'yes' : 'no'} data-hx-listening={listening ? 'yes' : 'no'}>
@@ -641,10 +718,26 @@
 								src={o.image.url}
 								alt={imageLabel(o.image)}
 								loading="eager"
+								onload={(e) => measured(o.image.url, e)}
 								onerror={() => markUndecodable(o.image.url)}
 							/>
+							{#if marks?.[o.field] && naturals[o.image.url]}
+								<MarkLayer
+									marks={marks[o.field]}
+									width={naturals[o.image.url].w}
+									height={naturals[o.image.url].h}
+								/>
+							{/if}
 							<EnlargeCue />
 						</button>
+						{#if onannotate}
+							<button
+								type="button"
+								class="hx-annotate hx-annotate-over"
+								data-testid="hx-annotate-over"
+								onclick={() => onannotate?.(o.field)}>Draw on this</button
+							>
+						{/if}
 					{:else}
 						<!-- A FILE THAT IS NOT A PICTURE IS A TILE, never a doomed
 						     `<img>`: its kind, its name and a worded Download. -->
@@ -663,6 +756,39 @@
 						</div>
 					{/if}
 				</div>
+			{/each}
+			<!--
+				A PIN BESIDE AN ANSWER WITH A NOTE ON IT (0238). Worded, 44px, and a
+				real button that opens the note in the list beside the worksheet,
+				where the conversation is. After the frame and the pictures in tab
+				order, the order the work is read in. Kept inside the frame's own
+				width by `min()`, so a box against the document's right edge still
+				gets a pin a person can reach.
+			-->
+			{#each pins as pin (pin.field)}
+				<button
+					type="button"
+					class="hx-pin"
+					class:unseen={pin.note.unseen}
+					class:resolved={pin.note.status === 'resolved'}
+					data-testid="hx-note-pin"
+					data-hx-note-field={pin.field}
+					title={pin.note.aria}
+					aria-label={pin.note.aria}
+					style="top: {pin.rect.y}px; left: min({pin.rect.x + pin.rect.w + 6}px, calc(100% - 7.5rem));"
+					onclick={() => onnote?.(pin.field, pin.note.threadId)}
+				>
+					<svg class="hx-pin-glyph" viewBox="0 0 16 16" aria-hidden="true"
+						><path
+							d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.6"
+							stroke-linejoin="round"
+						/></svg
+					>
+					<span>{pin.note.label}</span>
+				</button>
 			{/each}
 		{:else}
 			<!-- Not a pending state to dress up: it lasts one frame after hydration
@@ -723,6 +849,17 @@
 								     is on the row. -->
 								<span class="hx-image-caption hx-image-undecodable"
 									>This file could not be shown as a picture.</span
+								>
+							{/if}
+							{#if marks?.[entry.field]}
+								<span class="hx-image-caption hx-image-drawn" data-testid="hx-image-drawn">{drawnWords}</span>
+							{/if}
+							{#if onannotate && isImageFilename(image.name) && !undecodable[image.url]}
+								<button
+									type="button"
+									class="hx-annotate"
+									data-testid="hx-annotate-row"
+									onclick={() => onannotate?.(entry.field)}>Draw on this</button
 								>
 							{/if}
 							<!-- EVERY ROW CAN BE DOWNLOADED, picture or not, decoded or not:
@@ -1035,6 +1172,81 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-md, 8px);
 		overflow: hidden;
+	}
+
+	/*
+		THE PIN BESIDE AN ANSWER (0238). The room's own plate and ink with the
+		hover ink as its edge, so it reads as ours and not the document's; the
+		word inside says what it is, and an unread note says New in words as well
+		as by its heavier edge.
+	*/
+	.hx-pin {
+		position: absolute;
+		z-index: 2;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		min-height: 44px;
+		max-width: 7rem;
+		padding: 0 0.7rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		white-space: nowrap;
+		color: var(--text-1);
+		background: var(--surface-1, var(--bg1));
+		border: 2px solid var(--hover-ink, var(--green));
+		border-radius: 999px;
+		box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+		cursor: pointer;
+	}
+	.hx-pin.unseen {
+		font-weight: 700;
+		border-width: 3px;
+	}
+	.hx-pin.resolved {
+		border-color: var(--boundary);
+		color: var(--text-2);
+	}
+	.hx-pin:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	.hx-pin-glyph {
+		width: 1rem;
+		height: 1rem;
+		flex: none;
+	}
+	.hx-annotate {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		align-self: flex-start;
+		min-height: 44px;
+		padding: 0 0.9rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-1);
+		background: var(--surface-1, var(--bg1));
+		border: 1px solid var(--hover-ink, var(--boundary));
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.hx-annotate-over {
+		position: absolute;
+		left: 0.5rem;
+		bottom: 0.5rem;
+		z-index: 1;
+	}
+	.hx-annotate:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	.hx-image-drawn {
+		color: var(--text-1);
 	}
 
 	.hx-frame {

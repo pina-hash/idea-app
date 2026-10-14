@@ -207,6 +207,48 @@ describe('PART A: the drawing gate', () => {
 		for (const marks of bad) expect(await ok(marks), JSON.stringify(marks).slice(0, 80)).toBe(false);
 		expect(bad.length).toBe(22);
 	});
+
+	// THE CLIENT'S MIRROR (`marksOk` in $lib/classroom/feedback/notes) answers
+	// exactly as the gate does on every case, so the drawing tool never offers
+	// a save the database refuses. A JS null is what an RPC sends as SQL NULL,
+	// which is why it is put to the gate as "no drawing".
+	test('the client mirror agrees with the gate case for case', async () => {
+		const { marksOk } = await import('../../src/lib/classroom/feedback/notes');
+		const corpus: unknown[] = [
+			null,
+			PEN,
+			{ v: 1, shapes: [] },
+			{ v: 1, shapes: [{ t: 'text', c: 'black', w: 3, p: [10000, 0], s: 'Edge' }] },
+			{ v: 1, shapes: [{ t: 'ellipse', c: 'white', w: 1, p: [0, 0, 0, 0] }] },
+			{},
+			{ v: 2, shapes: [] },
+			{ v: 1, shapes: [], extra: true },
+			{ v: 1, shapes: [{ t: 'pen', c: 'red', w: 2, p: [0, 0, 1] }] },
+			{ v: 1, shapes: [{ t: 'arrow', c: 'red', w: 2, p: [0, 0, 1, 1, 2, 2] }] },
+			{ v: 1, shapes: [{ t: 'pen', c: 'purple', w: 2, p: [0, 0, 1, 1] }] },
+			{ v: 1, shapes: [{ t: 'pen', c: 'red', w: 2, p: [0, 0, 1.5, 1] }] },
+			{ v: 1, shapes: [{ t: 'pen', c: 'red', w: 2, p: [0, 0, 1, 1], s: 'x' }] },
+			{ v: 1, shapes: [{ t: 'text', c: 'red', w: 2, p: [0, 0], s: '   ' }] },
+			{ v: 1, shapes: [{ t: 'text', c: 'red', w: 2, p: [0, 0], s: 'x'.repeat(80) }] },
+			{ v: 1, shapes: [{ t: 'text', c: 'red', w: 2, p: [0, 0], s: 'x'.repeat(81) }] },
+			{ v: 1, shapes: [{ t: 'pen', c: 'red', w: 2, p: Array.from({ length: 4000 }, () => 1) }] },
+			{ v: 1, shapes: [{ t: 'pen', c: 'red', w: 2, p: Array.from({ length: 4002 }, () => 1) }] },
+			{ v: 1, shapes: Array.from({ length: 200 }, () => ({ t: 'box', c: 'red', w: 1, p: [0, 0, 1, 1] })) },
+			{ v: 1, shapes: Array.from({ length: 201 }, () => ({ t: 'box', c: 'red', w: 1, p: [0, 0, 1, 1] })) }
+		];
+		let agreed = 0;
+		let accepted = 0;
+		for (const marks of corpus) {
+			const sql = await ok(marks === null ? undefined : marks);
+			expect(marksOk(marks), JSON.stringify(marks)?.slice(0, 80)).toBe(sql);
+			agreed++;
+			if (sql) accepted++;
+		}
+		expect(agreed).toBe(corpus.length);
+		// Both sides of the line are in the corpus, or "agreed" says nothing.
+		expect(accepted).toBeGreaterThanOrEqual(6);
+		expect(corpus.length - accepted).toBeGreaterThanOrEqual(10);
+	});
 });
 
 describe('PART A: threads, both sides', () => {

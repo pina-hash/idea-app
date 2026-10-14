@@ -307,11 +307,13 @@ describe('the list width knob', () => {
 
 	it('both roles are offered it in Settings, beside density for a teacher, under one Reset', () => {
 		const student = settingsForRole('student').find((g) => g.group === 'display')!;
-		expect(student.settings.map((s) => s.title)).toEqual(['List width']);
+		// Both roles also get the class banner's motion switch (ledger 0381, the
+		// WCAG 2.2.2 off switch for a pattern that now moves continuously).
+		expect(student.settings.map((s) => s.title)).toEqual(['List width', 'Class banner motion']);
 		const manager = settingsForRole('manager').find((g) => g.group === 'display')!;
 		// A teacher's display group also holds the projector's clock face (idea
 		// 26033e4b), which a student is never offered (the line above).
-		expect(manager.settings.map((s) => s.title)).toEqual(['Density', 'List width', 'Projector clock']);
+		expect(manager.settings.map((s) => s.title)).toEqual(['Density', 'List width', 'Projector clock', 'Class banner motion']);
 	});
 });
 

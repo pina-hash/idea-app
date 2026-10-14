@@ -111,6 +111,8 @@ export const ICONS = {
 	assignment: 'M7 3.5h8l3 3V20.5H7zM15 3.5v3h3M10 12h5M10 15.5h5',
 	material: 'M5 4.5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H5zM19 4.5h-6M19 4.5v13h-6',
 	post: 'M4 6h16v10H9l-5 4z',
+	/** A speech bubble with a check: notes on student work (0238). */
+	feedback: 'M4 5h16v11h-9l-5 4v-4H4zM8.5 10.5l2 2 4-4',
 	unit: 'M4 6h16M4 12h16M4 18h10',
 	student: 'M12 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7zM5 20.5a7 7 0 0 1 14 0',
 	grade: 'M5 19l4-1 10-10-3-3L6 15zM14 7l3 3',
@@ -262,6 +264,17 @@ const CORE: readonly ShellCommand[] = [
 		requires: 'staff',
 		keywords: ['admin', 'roster', 'import', 'sections'],
 		href: (env) => `${env.basePath}/admin`
+	},
+	{
+		id: 'go.feedback',
+		name: 'Student feedback',
+		icon: ICONS.feedback,
+		description: 'Every note you have written on student work, in one place.',
+		role: 'manager',
+		context: 'global',
+		requires: 'staff',
+		keywords: ['notes', 'comments', 'replies', 'fixed', 'resolve', 'inbox', 'progressive'],
+		href: (env) => `${env.basePath}/student-feedback`
 	},
 	{
 		id: 'class.stream',

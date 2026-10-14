@@ -572,11 +572,128 @@ ${bridgeClient()}
 </html>
 `;
 
+/**
+ * THE FIELD-BOX REPORTER (0238, AUTHORING 10c), the document's half of a note
+ * pinned beside an answer. The parent names the fields that have a note with
+ * `idea:feedback`; the document answers with `idea:field-box` for each one (the
+ * picture box for a picture field, the input itself otherwise), withdraws a
+ * field that left the list with a null rect, and sends again after anything
+ * that moves a box (a state message, a resize). A document without it still
+ * works: every note is in the list beside the worksheet.
+ */
+export function fieldBoxReporter(): string {
+	return `
+		var NOTE_FIELDS = [];
+		var REPORTED = {};
+		function fieldBoxOf(field) {
+			var el = document.querySelector('[data-image-box="' + CSS.escape(field) + '"]') ||
+				document.querySelector('[data-field="' + CSS.escape(field) + '"]');
+			if (!el) return null;
+			var r = el.getBoundingClientRect();
+			if (!(r.width > 0 && r.height > 0)) return null;
+			return { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) };
+		}
+		function reportFieldBoxes() {
+			NOTE_FIELDS.forEach(function (field) {
+				REPORTED[field] = true;
+				send({ type: 'idea:field-box', field: field, rect: fieldBoxOf(field) });
+			});
+			Object.keys(REPORTED).forEach(function (field) {
+				if (NOTE_FIELDS.indexOf(field) >= 0) return;
+				delete REPORTED[field];
+				send({ type: 'idea:field-box', field: field, rect: null });
+			});
+		}
+		addEventListener('message', function (e) {
+			var d = e.data;
+			if (!d || typeof d !== 'object') return;
+			if (d.type === 'idea:feedback' && Array.isArray(d.fields)) {
+				NOTE_FIELDS = d.fields.filter(function (f) { return typeof f === 'string'; });
+				reportFieldBoxes();
+			}
+			if (d.type === 'idea:state') setTimeout(reportFieldBoxes, 0);
+		});
+		var fieldBoxTimer = 0;
+		addEventListener('resize', function () {
+			clearTimeout(fieldBoxTimer);
+			fieldBoxTimer = setTimeout(reportFieldBoxes, 100);
+		});
+	`;
+}
+
+/**
+ * THE FEEDBACK FIXTURE (0238): the photo fixture's manifest with a written
+ * answer and a picture box, both reported to the parent so its note pins can
+ * be measured against where the boxes really are. It writes the fields the
+ * parent named in a note so a pass can read the advisory message arrived.
+ */
+const FEEDBACK_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback fixture</title>
+<script type="application/json" id="idea-manifest">
+${manifestJson({ ...PHOTO_MANIFEST, title: 'Feedback fixture' })}
+</script>
+<style>
+	body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1rem; background: #fff; color: #111; }
+	h1 { font-size: 1.2rem; margin: 0 0 0.75rem; }
+	label { display: block; margin: 0 0 0.75rem; max-width: 26rem; }
+	input[type="text"], textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 0.4rem; min-height: 44px; }
+	textarea { min-height: 7rem; }
+	#box { width: min(calc(100% - 29px), 320px); aspect-ratio: 4 / 3; margin: 0 0 1rem 29px; border: 2px dashed #888; box-sizing: border-box; display: flex; align-items: center; justify-content: center; color: #444; }
+	.note { font: 13px/1.5 ui-monospace, monospace; color: #444; margin: 0.25rem 0; }
+</style>
+</head>
+<body>
+<h1>Feedback fixture</h1>
+<label>Team name
+	<input type="text" data-field="teamName" id="teamName">
+</label>
+<label>Reflection
+	<textarea data-field="reflection" id="reflection"></textarea>
+</label>
+<p>A photo of your part</p>
+<div id="box" data-image-box="photo"><span id="box-fallback">No photo yet</span></div>
+<p class="note" id="feedback-note">no feedback fields yet</p>
+<script>
+${bridgeClient()}
+${fieldBoxReporter()}
+	var box = document.getElementById('box');
+	function sendBox() {
+		var r = box.getBoundingClientRect();
+		var rect = (r.width > 0 && r.height > 0)
+			? { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }
+			: null;
+		send({ type: 'idea:image-box', field: 'photo', rect: rect, clipTop: 0 });
+	}
+	addEventListener('message', function (e) {
+		var d = e.data;
+		if (!d || typeof d !== 'object') return;
+		if (d.type === 'idea:state') {
+			var im = d.images && d.images.photo;
+			document.getElementById('box-fallback').textContent = im ? 'Saved: ' + im.name : 'No photo yet';
+			sendBox();
+		}
+		if (d.type === 'idea:feedback') {
+			document.getElementById('feedback-note').textContent = 'notes on: ' + (d.fields || []).join(', ');
+		}
+	});
+	addEventListener('resize', function () { setTimeout(function () { sendBox(); reportHeight(); }, 100); });
+	announce();
+	reportHeight();
+</script>
+</body>
+</html>
+`;
+
 const DOCUMENTS: Record<string, HxDocument> = {
 	worksheet: { html: WORKSHEET_HTML, devOnly: false, fieldToBlockId: WORKSHEET_FIELDS },
 	probe: { html: PROBE_HTML, devOnly: true, fieldToBlockId: PROBE_FIELDS },
 	video: { html: VIDEO_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS },
-	photo: { html: PHOTO_HTML, devOnly: true, fieldToBlockId: PHOTO_FIELDS }
+	photo: { html: PHOTO_HTML, devOnly: true, fieldToBlockId: PHOTO_FIELDS },
+	feedback: { html: FEEDBACK_HTML, devOnly: true, fieldToBlockId: PHOTO_FIELDS }
 };
 
 /** Every document id this module can answer for, in a stable order. */

@@ -31,7 +31,7 @@
 		type ClassViewPrefs
 	} from '$lib/classroom/classroom';
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
-	import { createClassroomLive } from '$lib/classroom/live';
+	import { createClassroomLive, provideClassroomLive } from '$lib/classroom/live';
 	import { classNotebookHref, locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
 	import { holdDeployReload } from '$lib/shell/deploy-safety';
 	import {
@@ -196,6 +196,7 @@
 	 */
 	// svelte-ignore state_referenced_locally
 	const live = createClassroomLive(data.supabase);
+	provideClassroomLive(live);
 	/**
 	 * THE LIVE DOOR'S COUNT (ledger 0297): a manager's class page asks presence
 	 * about the assignment the Live tab would open on, so the way in says how

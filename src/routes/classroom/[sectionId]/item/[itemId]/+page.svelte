@@ -48,6 +48,9 @@
 	import { itemLayoutKnown } from '$lib/classroom/attachments';
 	import PresenceHeartbeat from '$lib/classroom/presence/PresenceHeartbeat.svelte';
 	import { createPresenceBeatTransport } from '$lib/classroom/presence/transports';
+	import { FeedbackSession } from '$lib/classroom/feedback/session.svelte';
+	import { createFeedbackTransports } from '$lib/classroom/feedback/transports';
+	import { classroomLiveFromContext, FEEDBACK_NOTICE_JITTER_MS } from '$lib/classroom/live';
 	import NotebookCapture from '$lib/notebook/NotebookCapture.svelte';
 	import { captureFiling } from '$lib/notebook/capture';
 	import { browserCaptureStore } from '$lib/notebook/capture-store';
@@ -373,9 +376,68 @@
 		return heldHtmlAnswers.store;
 	});
 
+	/**
+	 * THE STUDENT'S FEEDBACK ON THIS WORKSHEET (0238, decision 60), held the way
+	 * the answers controller is: built only when the student's answer path is,
+	 * so a manager reading the item gets none (their notes are written from the
+	 * grading console), and a spec assignment gets none (ported worksheets
+	 * first, Mr. Pina, 2026-10-14). Its floor is the heartbeat below, which
+	 * answers when this student's feedback last moved; its speed is the class's
+	 * live notice. It runs no interval of its own: the item page's call budget
+	 * is spent.
+	 */
+	// svelte-ignore state_referenced_locally
+	const feedbackTransports = createFeedbackTransports(data.supabase, 'student');
+	const classLive = classroomLiveFromContext();
+	let heldFeedback: { key: string; session: FeedbackSession } | null = null;
+	const feedbackSession = $derived.by(() => {
+		const answers = htmlAnswers;
+		const key = answers ? `${data.item.id}` : '';
+		if (heldFeedback && heldFeedback.key === key) return heldFeedback.session;
+		heldFeedback?.session.destroy();
+		heldFeedback = null;
+		if (!key) return null;
+		const sectionId = data.section.id;
+		const sessionNow = new FeedbackSession({
+			transports: feedbackTransports,
+			side: 'student',
+			itemId: data.item.id,
+			onwrote: () => classLive?.announce(sectionId, 'feedback')
+		});
+		heldFeedback = { key, session: sessionNow };
+		return sessionNow;
+	});
+	$effect(() => {
+		const sessionNow = feedbackSession;
+		if (!sessionNow) return;
+		untrack(() => void sessionNow.refresh());
+	});
+	$effect(() => {
+		const sessionNow = feedbackSession;
+		const bus = classLive;
+		const sectionId = data.section.id;
+		if (!sessionNow || !bus) return;
+		let wait: ReturnType<typeof setTimeout> | null = null;
+		const unsubscribe = untrack(() =>
+			bus.subscribe(sectionId, (topic) => {
+				if (topic !== 'feedback' || wait) return;
+				wait = setTimeout(() => {
+					wait = null;
+					sessionNow.noticed();
+				}, Math.random() * FEEDBACK_NOTICE_JITTER_MS);
+			})
+		);
+		return () => {
+			if (wait) clearTimeout(wait);
+			unsubscribe();
+		};
+	});
+
 	// The last teardown. The derived above disposes a superseded controller when
 	// the key moves; this is the one case it cannot see -- the page going away.
 	onDestroy(() => {
+		heldFeedback?.session.destroy();
+		heldFeedback = null;
 		heldHtmlAnswers?.store.destroy();
 		heldHtmlAnswers = null;
 		heldHtmlInstructor?.store.destroy();
@@ -1068,7 +1130,9 @@
 	const classPrefs = classPrefStore ? reactivePreferences(classPrefStore) : null;
 
 	const presenceBeat = $derived(
-		data.engine ? createPresenceBeatTransport(data.supabase, data.item.id) : null
+		data.engine
+			? createPresenceBeatTransport(data.supabase, data.item.id, (at) => heldFeedback?.session.noteStamp(at))
+			: null
 	);
 </script>
 
@@ -1108,6 +1172,7 @@
 	{ideacadViewerEmail}
 	{ideacadOpenRefusal}
 	{htmlAnswers}
+	feedback={feedbackSession}
 	{htmlInstructorAnswers}
 	htmlAssignmentTransports={data.canManage && data.navIsAdmin === true
 		? htmlAssignmentTransports

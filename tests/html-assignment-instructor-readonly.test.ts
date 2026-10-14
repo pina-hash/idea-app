@@ -180,12 +180,18 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		console.log(`    [readonly] frame declares: ${unique.join(', ')}`);
 		for (const p of WRITE_PROPS) expect(unique).toContain(p);
 		/**
-		 * THE OTHER THREE ARE NOTIFICATIONS AND CARRY NO ANSWER, which is why
+		 * THE OTHER FIVE ARE NOTIFICATIONS AND CARRY NO ANSWER, which is why
 		 * the grading console may hold them and why they are named here with the
 		 * reason rather than quietly excluded by a pattern:
-		 *   `onready`   -- the document announced its schema version
-		 *   `onheight`  -- the document reported its own height
-		 *   `ondropped` -- a message was refused by the bridge
+		 *   `onready`    -- the document announced its schema version
+		 *   `onheight`   -- the document reported its own height
+		 *   `ondropped`  -- a message was refused by the bridge
+		 *   `onnote`     -- a note's pin was pressed; the page opens that note in
+		 *                   its list (0238). Parent chrome, no value from the frame.
+		 *   `onannotate` -- the instructor's "Draw on this" key was pressed; the
+		 *                   page opens the drawing tool, whose save writes a
+		 *                   FEEDBACK note through 0238's functions and never the
+		 *                   student's answer (0238).
 		 * None of them can reach `classroom_save_response`.
 		 *
 		 * THE LIST IS PINNED, so a FIFTH callback added to the frame lands in
@@ -193,7 +199,7 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		 * invisible to this whole file, which is the one way a sweep like this
 		 * goes quietly wrong.
 		 */
-		const NOTIFY_PROPS = ['ondropped', 'onheight', 'onready'];
+		const NOTIFY_PROPS = ['onannotate', 'ondropped', 'onheight', 'onnote', 'onready'];
 		const unaccounted = unique.filter(
 			(p) => !WRITE_PROPS.includes(p as (typeof WRITE_PROPS)[number]) && !NOTIFY_PROPS.includes(p)
 		);

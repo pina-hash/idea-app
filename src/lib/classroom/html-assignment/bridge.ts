@@ -276,6 +276,33 @@ export const HX_IMAGE_BOX_TYPE = 'idea:image-box';
 export const HX_IMAGE_BOX_STATE_TYPE = 'idea:image-box-state';
 
 /**
+ * WHERE AN ANSWER SITS, SO A NOTE CAN BE PINNED BESIDE IT (0238, decision 60;
+ * Mr. Pina: feedback "embedding itself within the HTML assignments themselves").
+ *
+ * The image-box shape, for any field: `{ type: 'idea:field-box', field, rect,
+ * clipTop? }`, the rect in the document's own pixels, judged by `hxBoxOf`, a
+ * `rect` of null withdrawing it. The parent draws a worded pin at the box's
+ * edge for a field that has a note, in parent chrome, and pressing it opens
+ * that note in the feedback list beside the worksheet; the conversation itself
+ * (the reply, Fixed it, Resolve) is ALWAYS parent chrome, for the reason Submit
+ * is: a button inside the document is a handler the document wrote.
+ *
+ * THE DOCUMENT NAMES A FIELD AND NEVER A BLOCK ID OR A NOTE, and nothing about
+ * a note's words ever goes down to the document: what crosses is which fields
+ * have one (`idea:feedback`). A document that predates this sends no boxes,
+ * every note is still in the list, and nothing else changes.
+ */
+export const HX_FIELD_BOX_TYPE = 'idea:field-box';
+
+/**
+ * THE PARENT SAYS WHICH FIELDS HAVE A NOTE, so a document reports boxes for
+ * those (and may mark them itself). ADVISORY: field names only, never the
+ * note's words, the author or whether it is resolved; a portal that predates it
+ * never sends it, so a document must never wait on it.
+ */
+export const HX_FEEDBACK_TYPE = 'idea:feedback';
+
+/**
  * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
  *
  * BYTES GO FRAME-TO-PARENT ONLY, NEVER BACK. An `idea:image` carries a
@@ -361,6 +388,11 @@ export type HxParentMessage =
 			type: typeof HX_IMAGE_BOX_STATE_TYPE;
 			field: string;
 			shown: boolean;
+	  }
+	| {
+			/** The fields that have a note on them (0238). See `HX_FEEDBACK_TYPE`. */
+			type: typeof HX_FEEDBACK_TYPE;
+			fields: string[];
 	  };
 
 /**
@@ -378,7 +410,9 @@ export type HxAccepted =
 	| { kind: 'video'; videoId: string; rect: HxVideoRect; clipTop: number; start: number }
 	| { kind: 'video-close' }
 	/** `rect` null is the document withdrawing the box; `clipTop` is then 0. */
-	| { kind: 'image-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number };
+	| { kind: 'image-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number }
+	/** Where an answer sits (0238). The same shape as a picture box. */
+	| { kind: 'field-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number };
 
 /**
  * Why a message was dropped. These are DISTINCT on purpose: "a message from
@@ -396,7 +430,8 @@ export type HxDropReason =
 	| 'caption'
 	| 'height'
 	| 'video'
-	| 'image-box';
+	| 'image-box'
+	| 'field-box';
 
 export type HxVerdict =
 	| { ok: true; message: HxAccepted }
@@ -708,6 +743,28 @@ export function hxReceive(incoming: HxIncoming, gate: HxGate): HxVerdict {
 			return { ok: true, message: { kind: 'image-box', blockId, field, rect: box.rect, clipTop: box.clipTop } };
 		}
 
+		/**
+		 * AN ANSWER'S BOX (0238), judged exactly as a picture box is: the shape,
+		 * the field through the parent's own map, then the rectangle by
+		 * `hxBoxOf`.
+		 */
+		case HX_FIELD_BOX_TYPE: {
+			const field = data.field;
+			if (typeof field !== 'string' || field === '') {
+				return { ok: false, reason: 'shape', detail: 'idea:field-box without a non-empty field' };
+			}
+			const blockId = resolveField(field, gate);
+			if (blockId === null) {
+				return { ok: false, reason: 'field', detail: `no block declares the field ${JSON.stringify(field)}` };
+			}
+			if (data.rect === null) {
+				return { ok: true, message: { kind: 'field-box', blockId, field, rect: null, clipTop: 0 } };
+			}
+			const box = hxBoxOf(data.rect, data.clipTop, gate.maxHeightPx ?? HX_MAX_HEIGHT_PX);
+			if (typeof box === 'string') return { ok: false, reason: 'field-box', detail: `idea:field-box ${box}` };
+			return { ok: true, message: { kind: 'field-box', blockId, field, rect: box.rect, clipTop: box.clipTop } };
+		}
+
 		default:
 			return { ok: false, reason: 'type', detail: `unknown message type ${JSON.stringify(data.type)}` };
 	}
@@ -788,6 +845,14 @@ export function hxImagePlacement(
 		}
 	}
 	return { over, under };
+}
+
+/**
+ * THE FIELDS WITH A NOTE ON THEM, sorted and deduplicated so the same set is
+ * always the same message (the frame posts it only when the set changes).
+ */
+export function hxFeedbackMessage(fields: readonly string[]): HxParentMessage {
+	return { type: HX_FEEDBACK_TYPE, fields: [...new Set(fields)].sort((a, b) => a.localeCompare(b)) };
 }
 
 /** The parent's answer to `idea:image-box`. */
