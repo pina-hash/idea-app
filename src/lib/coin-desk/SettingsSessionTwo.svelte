@@ -48,6 +48,7 @@
 
 	/** Saves keys in order; the first refusal stops the run and is said. */
 	async function save(group: string, entries: { key: string; value: unknown; rule: string }[], done: string): Promise<boolean> {
+		if (busy[group]) return false;
 		busy = { ...busy, [group]: true };
 		let changed = 0;
 		for (const e of entries) {

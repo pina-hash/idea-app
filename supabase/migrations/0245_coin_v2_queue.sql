@@ -1,6 +1,6 @@
 -- 0245_coin_v2_queue.sql
 --
--- IDEA COIN V2, SESSION TWO, PART TWO (ledger 0385): THE QUEUE.
+-- IDEA COIN V2, SESSION TWO, PART TWO (ledger 0386): THE QUEUE.
 --
 -- ONE LIST FOR EVERYTHING A STUDENT SUBMITS. Every card is one row of
 -- coin_requests, of one of seven kinds:

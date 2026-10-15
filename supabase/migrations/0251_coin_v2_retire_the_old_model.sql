@@ -1,6 +1,6 @@
 -- 0251_coin_v2_retire_the_old_model.sql
 --
--- IDEA COIN V2, SESSION TWO, PART EIGHT (ledger 0385): EVERYTHING MIGRATES TO
+-- IDEA COIN V2, SESSION TWO, PART EIGHT (ledger 0386): EVERYTHING MIGRATES TO
 -- THE NEW SYSTEM OR IS REMOVED. Mr. Pina: "no bloat".
 --
 -- WHAT MOVES TO IDEA CLASSROOM. The public roster (_coin_public_roster: every

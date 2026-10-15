@@ -592,8 +592,8 @@
 		entryBusy = true;
 		const email = lookup.email;
 
-		// NO CALL NAMES p_medium (IDEA Coin V2, 0239): every row is digital,
-		// and the RPCs keep the parameter only for older clients.
+		// NO CALL NAMES p_medium: every row is digital (0239), and since 0251
+		// none of these functions has the parameter at all.
 		let resp: { data: unknown; error: { message: string } | null };
 		if (category.id === 'perfect_score_graded_work') {
 			resp = await supabase.rpc('coin_log_perfect_score', {

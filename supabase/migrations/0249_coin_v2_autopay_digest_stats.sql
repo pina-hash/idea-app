@@ -1,6 +1,6 @@
 -- 0249_coin_v2_autopay_digest_stats.sql
 --
--- IDEA COIN V2, SESSION TWO, PART SIX (ledger 0385): THE ROLE STIPEND AND DEBT
+-- IDEA COIN V2, SESSION TWO, PART SIX (ledger 0386): THE ROLE STIPEND AND DEBT
 -- RELIEF IN AUTOPAY, THE WEEKLY DIGEST, AND TELEMETRY.
 --
 -- THE ROLE STIPEND (2.5) is paid by coin_autopay_run now, replacing the

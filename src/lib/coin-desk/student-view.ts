@@ -29,6 +29,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { coins, signedCoins } from '$lib/coin-format';
+import { csvCell } from '$lib/coin-balance/export';
 import { callV2, num, reverseRefusal, V2_UNAVAILABLE, type DeskTxn } from './v2';
 
 // ---------------------------------------------------------------------------
@@ -320,25 +321,10 @@ export const EXPORT_COLUMNS: (keyof ExportRow)[] = [
 	'meta'
 ];
 
-/**
- * One field, RFC 4180, by the student export's own rule
- * (`$lib/coin-balance/export.ts`): quoted when it holds a comma, a quote or a
- * line break, a quote doubled. A field starting with `=`, `+`, `-` or `@`
- * that is NOT a plain number gets a leading apostrophe, so a note a person
- * typed (`=HYPERLINK(...)`) cannot run as a formula when the file is opened,
- * while an amount like -5 stays a number. `meta` is its JSON.
- */
-function cell(value: unknown): string {
-	if (value === null || value === undefined) return '';
-	let text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-	if (/^[=+\-@\t\r]/.test(text) && !/^[+-]?\d+(\.\d+)?$/.test(text)) text = `'${text}`;
-	return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
 /** The raw rows as CSV: a header line, then one line per row, CRLF-separated. */
 export function exportCsv(rows: ExportRow[]): string {
 	const lines = [EXPORT_COLUMNS.join(',')];
-	for (const r of rows) lines.push(EXPORT_COLUMNS.map((c) => cell(r[c])).join(','));
+	for (const r of rows) lines.push(EXPORT_COLUMNS.map((c) => csvCell(r[c])).join(','));
 	return lines.join('\r\n') + '\r\n';
 }
 

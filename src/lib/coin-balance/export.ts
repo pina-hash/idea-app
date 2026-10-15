@@ -40,9 +40,14 @@ export const COIN_EXPORT_COLUMNS: { key: keyof CoinExportRow; header: string }[]
 	{ key: 'id', header: 'Row id' }
 ];
 
-function cell(v: unknown): string {
+/**
+ * One CSV field, the one rule for every coin export (the student's own and the
+ * Coin Desk's): RFC 4180 quoting, an object written as its JSON, and a leading
+ * apostrophe on a typed formula that is not a plain number.
+ */
+export function csvCell(v: unknown): string {
 	if (v === null || v === undefined) return '';
-	let s = typeof v === 'string' ? v : String(v);
+	let s = typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v);
 	if (/^[=+\-@\t\r]/.test(s) && !/^[+-]?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
 	return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
@@ -71,8 +76,8 @@ export function parseExportRows(raw: unknown): CoinExportRow[] {
 
 /** Every row as CSV text, a header line first, CRLF between records. */
 export function coinRowsCsv(rows: readonly CoinExportRow[]): string {
-	const lines = [COIN_EXPORT_COLUMNS.map((c) => cell(c.header)).join(',')];
-	for (const row of rows) lines.push(COIN_EXPORT_COLUMNS.map((c) => cell(row[c.key])).join(','));
+	const lines = [COIN_EXPORT_COLUMNS.map((c) => csvCell(c.header)).join(',')];
+	for (const row of rows) lines.push(COIN_EXPORT_COLUMNS.map((c) => csvCell(row[c.key])).join(','));
 	return lines.join('\r\n') + '\r\n';
 }
 

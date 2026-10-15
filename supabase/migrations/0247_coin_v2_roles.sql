@@ -1,6 +1,6 @@
 -- 0247_coin_v2_roles.sql
 --
--- IDEA COIN V2, SESSION TWO, PART FOUR (ledger 0385): ROLES BECOME EVIDENCE
+-- IDEA COIN V2, SESSION TWO, PART FOUR (ledger 0386): ROLES BECOME EVIDENCE
 -- JOBS (2.5).
 --
 -- Roles were tedious and the printed checklist failed, so the stipend now

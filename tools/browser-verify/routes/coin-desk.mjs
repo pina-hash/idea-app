@@ -1,8 +1,8 @@
 /**
  * The coin desk's Log area, in the room it ships in.
  *
- * `/dev/coin-desk` mounts the REAL `LogView`, `SectionManager`,
- * `ContractsManager`, `RolesManager`, `CategoriesManager` and `PayoutManager`
+ * `/dev/coin-desk` mounts the REAL `LogView`, `StudentView`,
+ * `ContractsManager`, `RolesManager`, `CategoriesManager` and `SettingsPanel`
  * against an in-memory ledger, inside the same `.cd-root` +
  * `$lib/coin-desk/coin-desk.css` the real `/coin-desk/+layout.svelte` wraps
  * every area in. Those two imports are the fixture: without them the room is a
@@ -27,6 +27,14 @@
 export default {
 	path: '/dev/coin-desk',
 	label: 'Coin desk, Log area (.cd-root)',
+	prepare: [
+		{
+			/* The roster is the first class's, read from coin_fine_roster after
+			   mount: a state that ARRIVES, so it is waited on, never clicked. */
+			waitFor: '() => document.querySelectorAll(".cd-root [data-testid=\\"cd-roster\\"] .roster-row").length > 0',
+			timeoutMs: 8000
+		}
+	],
 	presence: [
 		/* The room and its stylesheet, asserted as a MOUNT rather than assumed
 		   from the markup: `.cd-root` would still be in the DOM with neither
@@ -39,7 +47,8 @@ export default {
 		{ selector: '.cd-root .cr-split', label: 'the Log area is the shared split', expectPresent: 1 },
 		/* THE POSITIVE CONTROL FOR THE ABSENCE ROW BELOW. A roster with rows is
 		   what says the fixture rendered a working desk at all, so "no combo
-		   list is open" cannot pass by the page being empty. */
+		   list is open" cannot pass by the page being empty. The roster is the
+		   first IDEA Classroom class's (coin_fine_roster), read on mount. */
 		{ selector: '.cd-root [data-testid="cd-roster"] .roster-row', label: 'roster rows (positive control)', expectPresent: 2 },
 		/* AT REST THE PICKER IS CLOSED. `expectPresent: 0` implies
 		   `maxPresent: 0`, so this is an exact zero and not a floor. */

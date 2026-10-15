@@ -1,6 +1,6 @@
 # 68 Coin staff have two tiers: full coin admins and section staff
 
-- Raised: 2026-10-15  By: Mr. Pina, in the IDEA Coin V2 session two prompt (ledger 0385), on what Mr. Cosso may do in the coin system.
+- Raised: 2026-10-15  By: Mr. Pina, in the IDEA Coin V2 session two prompt (ledger 0386), on what Mr. Cosso may do in the coin system.
 - Status: DECIDED 2026-10-15 by Mr. Pina, in the prompt: the owner and anyone he lists hold full coin powers; every other site admin, Mr. Cosso included, and every class's teacher of record work the coin system for their own sections only.
 - Decision: Two tiers of coin staff, both enforced in the database.
   - **Full coin admin**: the owner (`admin_owner_email()`), plus each address on the list at `/coin-desk/settings` (`coin_full_admins`, which only a full coin admin edits and which takes only an `@boscotech.edu` address; a listed address that is not also a site admin gets nothing, because `_coin_full_staff()` asks `is_admin()` first). Everything in the coin system: settings and prices, editing a past amount, reversing autopay, the Log for any student, contracts, roles, the economy list, tournament transfers, and every section.

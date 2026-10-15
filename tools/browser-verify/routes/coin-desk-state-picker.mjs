@@ -5,11 +5,11 @@
  * "Transaction selection is unordered and unreadable at a glance." Three
  * things came out of that and all three need the list on screen:
  *
- *  - THE ORDER. Most-logged first, from a static table derived from the
- *    committed archive of the retired Sheets ledger (see
- *    `$lib/coin-desk/transaction-types.ts` for where those counts come from and
- *    what they are not). The `orderResult` probe reads the first four rows'
- *    names, which is the assertion a screenshot cannot make.
+ *  - THE ORDER. The price list's own order, `coin_categories.sort_order`
+ *    (IDEA Coin V2 session two retired the static "most used" table that was
+ *    counted off the retired Sheets ledger's archive). The `orderResult`
+ *    probe reads the first four rows' names, which is the assertion a
+ *    screenshot cannot make.
  *  - THE GLYPHS. One per TYPE, five types, five distinct silhouettes. The probe
  *    counts DISTINCT `data-glyph` values against DISTINCT `data-type` values
  *    on the same list, so "every type has an icon" and "no two types share
@@ -95,14 +95,14 @@ export default {
 	],
 	orderResult: [
 		{
-			label: 'the list opens most-logged first',
-			/* THE ARCHIVE'S OWN TOP FOUR: Weekly Wage 43, Perfect Assignment
-			   Score 29, Above and Beyond 16, Contract Completion 13. Four and
-			   not all 38, because the tail is the price list's own sort_order
-			   and pinning it here would make an unrelated category edit red. */
+			label: 'the list opens in the price list order',
+			/* THE FIXTURE'S FIRST FOUR ACTIVE, LOGGABLE CATEGORIES in
+			   `coin_categories.sort_order` (the harness ledger's own order):
+			   Shop Not Cleaned Up is retired and is skipped. Four and not all,
+			   so an unrelated category edit further down cannot redden this. */
 			evaluate:
 				'() => [...document.querySelectorAll("[data-testid=\\"cd-category-list\\"] .combo-option .combo-name")].slice(0, 4).map((e) => e.textContent.trim())',
-			expected: ['Weekly Wage', 'Perfect Score on Graded Work', 'Above and Beyond', 'Contract Completion']
+			expected: ['Shop Safety Violation', 'Coin Theft', 'Classmate Trust Violation', 'Eating Violation']
 		},
 		{
 			label: 'the count of distinct glyphs equals the count of distinct types',

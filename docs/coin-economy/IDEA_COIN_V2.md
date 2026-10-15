@@ -1,6 +1,6 @@
 # IDEA Coin V2
 
-Status: session two built (ledger 0384, 2026-10-14/15; ledger 0385,
+Status: session two built (ledger 0384, 2026-10-14/15; ledger 0386,
 2026-10-15). This document is the coin spec as built. Where it disagrees with `idea_coin_economy_draft_v3.md`,
 this document wins.
 
@@ -184,7 +184,7 @@ already paid is clawed back.
 - A teacher seeing a student's custom material (IdeaCAD) is unrelated and
   still open.
 
-## 11. Session two (ledger 0385)
+## 11. Session two (ledger 0386)
 
 Every number below is a default on `/coin-desk/settings`; every automatic
 decision has a manual override.

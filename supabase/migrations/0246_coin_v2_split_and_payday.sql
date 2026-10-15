@@ -1,6 +1,6 @@
 -- 0246_coin_v2_split_and_payday.sql
 --
--- IDEA COIN V2, SESSION TWO, PART THREE (ledger 0385): SPLIT PAYMENT AND
+-- IDEA COIN V2, SESSION TWO, PART THREE (ledger 0386): SPLIT PAYMENT AND
 -- PAYDAY.
 --
 -- SPLIT PAYMENT (2.3). Any student purchase may be paid partly in digital

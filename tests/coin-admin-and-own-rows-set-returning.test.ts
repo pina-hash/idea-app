@@ -39,6 +39,9 @@
 //   | /coin-desk/students  +page.server | `(sections ?? []) as Coin…`  | YES, verbatim -- a cast strips nothing |
 //   | /api/coin/claim      GET          | `rows.map(r => r.contract_id)` | no                                    |
 //
+// (The first row is history: IDEA Coin V2 session two, 0251, retired the coin
+// sections and that page stopped reading them, so its two route cases are gone.)
+//
 // Measured below with a benign-column mutant, not read off the source.
 //
 // THE PINS ARE WHOLE SETS. Each projection is pinned TWICE from one constant --
@@ -52,7 +55,6 @@ import { fileURLToPath } from 'node:url';
 import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
 import { startTestDb, createUser, type TestDb, type SeededUser } from './db/harness';
 import { GET as claimGet } from '../src/routes/api/coin/claim/+server';
-import { load as studentsLoad } from '../src/routes/coin-desk/students/+page.server';
 
 /**
  * The coin chain as production stands, taken from
@@ -174,19 +176,6 @@ async function claimRoute(
 	} as unknown as Parameters<typeof claimGet>[0])) as Response;
 	const body = (await res.json()) as { contractIds: string[] };
 	return { status: res.status, contractIds: body.contractIds };
-}
-
-/** The REAL /coin-desk/students page load, with one caller's client. */
-async function studentsPage(who: Who): Promise<{
-	sections: Record<string, unknown>[];
-	sectionsConfigured: boolean;
-}> {
-	return (await studentsLoad({
-		locals: { supabase: client[who] }
-	} as unknown as Parameters<typeof studentsLoad>[0])) as unknown as {
-		sections: Record<string, unknown>[];
-		sectionsConfigured: boolean;
-	};
 }
 
 beforeAll(async () => {
@@ -561,31 +550,12 @@ describe('the two routes are a second gate on ONE of them and none on the other'
 		expect(out.contractIds).toEqual([]);
 	});
 
-	it('/coin-desk/students passes the section rows through WHOLE, cast and unstripped', async () => {
-		const page = await studentsPage('admin');
-		expect(page.sectionsConfigured).toBe(true);
-		expect(page.sections.map((s) => s.id)).toEqual([SECTION, 'eng2-junior']);
-		// `(sections ?? []) as CoinSectionRow[]` is a TYPE ASSERTION. It strips
-		// nothing at run time, so every key the RPC returned reaches `data`, and
-		// with it the staff email and the admin note.
-		for (const row of page.sections) {
-			expect(keysOf(row)).toEqual([...PROJECTIONS.coin_admin_list_sections].sort());
-		}
-		const live = page.sections.find((s) => s.id === SECTION);
-		expect(live?.created_by).toBe(user.admin.email);
-		expect(live?.note).toBe(SECTION_NOTE);
-	});
-
-	it('/coin-desk/students answers a non-admin an EMPTY, still-configured list', async () => {
-		// The page's own gate is the group layout, not this load. Driven with a
-		// non-admin client the RPC succeeds and returns nothing, so
-		// `sectionsConfigured` stays TRUE -- the flag means "0073 is applied",
-		// never "you may see sections", and a reader could easily take it for
-		// the latter.
-		const page = await studentsPage('teacher');
-		expect(page.sections).toEqual([]);
-		expect(page.sectionsConfigured).toBe(true);
-	});
+	// The two /coin-desk/students cases that stood here drove that page's
+	// load over coin_admin_list_sections. IDEA Coin V2 session two (0251)
+	// retired the coin sections: the page reads no section list any more (its
+	// classes are IDEA Classroom sections, from the layout's coin_staff_scope),
+	// so there is no route left that passes these rows through. The function
+	// itself is still pinned above, on the chain as it stood when it was live.
 });
 
 // ---------------------------------------------------------------------------

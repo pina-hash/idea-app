@@ -1,5 +1,5 @@
 /**
- * The IDEA Coin Ledger after IDEA Coin V2 session two (ledger 0385), on Space
+ * The IDEA Coin Ledger after IDEA Coin V2 session two (ledger 0386), on Space
  * White: the champion card's rim, the Print key at desktop width, the role
  * badges and the reported coins on hand.
  *

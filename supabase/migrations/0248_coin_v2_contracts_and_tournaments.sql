@@ -1,6 +1,6 @@
 -- 0248_coin_v2_contracts_and_tournaments.sql
 --
--- IDEA COIN V2, SESSION TWO, PART FIVE (ledger 0385): CONTRACTS THROUGH THE
+-- IDEA COIN V2, SESSION TWO, PART FIVE (ledger 0386): CONTRACTS THROUGH THE
 -- QUEUE (2.8) AND THE TOURNAMENT TRANSFER (2.9).
 --
 -- CONTRACTS. A contract pays digital and carries a pay type, set when it is

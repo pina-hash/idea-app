@@ -1,6 +1,6 @@
 // tests/db/coin-v2-session-two.test.ts
 //
-// IDEA COIN V2, SESSION TWO (ledger 0385, migrations 0244 to 0251) on the
+// IDEA COIN V2, SESSION TWO (ledger 0386, migrations 0244 to 0251) on the
 // whole tree.
 //
 // Each guarantee here is one whose regression would be SILENT: a section coin

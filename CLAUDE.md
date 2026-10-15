@@ -2857,7 +2857,7 @@ This applies to every change. Prompts do not need to restate it.
 
 **Always:**
 
-- **`svelte-check` at the baseline: 0 errors, 35 warnings in 19 files.** Any
+- **`svelte-check` at the baseline: 0 errors, 33 warnings in 18 files.** Any
   change to either number is a finding to report, not something to leave
   unmentioned.
   - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
@@ -2921,11 +2921,11 @@ This applies to every change. Prompts do not need to restate it.
     and the same fresh checkout runs clean. This bites in the same first five
     minutes as the missing-`.env` phantom errors above and for the same root
     cause: nothing has generated the `.svelte-kit` output yet.
-  - The 35 break down as 31 `state_referenced_locally`, 3
-    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 19 files (ledger
-    0384 removed two unused selectors from coin files; it said 37, 5, 20 before). The
-    breakdown is the diagnostic: it says WHICH kind moved when the total does,
-    and a total that holds while the mix changes is still a finding. Read it
+  - The 33 break down as 29 `state_referenced_locally`, 3
+    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 18 files (ledger
+    0386 deleted `src/lib/contracts/ContractsView.svelte`, which carried two
+    `state_referenced_locally`; it said 35, 31, 19 before). The breakdown is
+    the diagnostic: it says WHICH kind moved when the total does, and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"
     | sed 's|.*/||' | sort | uniq -c | sort -rn`.
 - **The full test suite once, at the end.** During development run only the test
@@ -3461,7 +3461,11 @@ build break):
 
 - **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly SIX places: the GREENLINE
   community-track publish endpoint (which must run the game's real track
-  validation in Node before any row is written), the tournament push sender,
+  validation in Node before any row is written), the push sender
+  (`src/lib/server/push.ts`, whose `serviceClient()` the tournament alerts and
+  the Friday coin digest route `src/routes/api/coin/digest-push/+server.ts`
+  both use; that route reads no key of its own and holds no session check,
+  because `coin_digest_push_due` sends at most once a week at its own time),
   the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
   caller of `app_feedback_submit`, which is granted to `service_role` alone
   because the rate limit's key has to come from the request and not from
@@ -6559,7 +6563,7 @@ injects the theme boot table (`injectLedgerTheme` in
 `src/lib/server/coin-public.ts`, from `themeBootTable`, so `themeAttrFor` stays
 the one decision). This is again a record of one exception, not a licence.
 
-**THE THIRD UNFREEZING OF THE SAME FILE: ledger 0385 (2026-10-15), IDEA Coin V2
+**THE THIRD UNFREEZING OF THE SAME FILE: ledger 0386 (2026-10-15), IDEA Coin V2
 session two, item 2.17 of that prompt, which names the Ledger fixes.** The
 champion's rim is a real gold border on Space White (the glow it relied on is
 off there), the Print key no longer wraps, each card carries its holder's role
@@ -7541,20 +7545,12 @@ reference resolves for the next reader.
     Every place a type is rendered carries the glyph, the tone AND the type's
     own word; the glyph is `aria-hidden` precisely because the word is always
     beside it.
-  - **THE ORDER IS STATIC AND SAYS SO.** "Most used" is a table in that module
-    derived from `docs/coin-economy/archive/2026-08-11-transactions.csv`, the
-    committed export of the retired Sheets ledger -- 163 of its 216 rows map
-    onto live category ids through an exported map, and the test RE-COUNTS the
-    CSV through that map rather than trusting the table. **Nothing on
-    `/coin-desk` loads a per-category tally**, so a live count is a query this
-    does not make; if one is ever added, it replaces the table and this rule
-    with it. `sortByUse` is STABLE, so everything unused keeps
-    `coin_categories.sort_order` and a picker never reshuffles between two
-    renders of one list.
-  - **THE PICKER IS SORTED BY USE AND THE PRICE LIST IS NOT.** `/coin-desk`'s
-    combobox is a control somebody touches forty times a period; the price
-    list at `/coin-desk/economy` is a reference document, and a reference
-    document ordered by how often each row is used is not one.
+  - **THE PICKER IS IN `coin_categories.sort_order`, THE ORDER AN ADMIN SETS
+    ON ECONOMY.** It used to be sorted by a static use-count table derived
+    from the retired Sheets ledger's export; IDEA Coin V2 session two (ledger
+    0386) retired that table, because a frozen count of the old ledger was
+    ranking a category list it no longer described. A live per-category tally
+    is still a query the desk does not make.
 - **AI levels on assignments are set by ASKING THE INSTRUCTOR**, never inferred
   from the content. `docs/policy/IDEA_AI_Use_Policy.md`'s category-defaults table is
   the starting point for that conversation, not a rule that self-applies.

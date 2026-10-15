@@ -59,9 +59,10 @@ export default {
 		{ selector: '.cd-root .category-rows .kind-group', label: 'kind groups', expectPresent: 4, maxPresent: 4 },
 		{ selector: '.cd-root .category-rows .kind-group .kind-heading', label: 'a heading inside every group', expectPresent: 4, maxPresent: 4 },
 		{ selector: '.cd-root .category-rows .row', label: 'price list rows (positive control)', expectPresent: 30 },
-		/* THE PAYOUT CARD IS THE SECOND CARD IN THIS AREA and is the control
-		   that says the area rendered whole rather than just its first card. */
-		{ selector: '.cd-root .payout-manager', label: 'the payout card', expectPresent: 1 }
+		/* THE PAYOUT CARD IS GONE. Paying coins out moved to Payday in IDEA Coin
+		   V2 session two, so the price list is this area's only card; an exact
+		   zero says nothing put it back. */
+		{ selector: '.cd-root .payout-manager', label: 'no payout card here any more', expectPresent: 0, expectVisible: 0, maxVisible: 0 }
 	],
 	contrast: [
 		{ selector: '.cd-root .category-rows .kind-heading', label: 'a kind heading on the card', min: 4.5 },

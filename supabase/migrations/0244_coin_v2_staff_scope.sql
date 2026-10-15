@@ -1,6 +1,6 @@
 -- 0244_coin_v2_staff_scope.sql
 --
--- IDEA COIN V2, SESSION TWO, PART ONE (ledger 0385): WHO HOLDS WHICH COIN
+-- IDEA COIN V2, SESSION TWO, PART ONE (ledger 0386): WHO HOLDS WHICH COIN
 -- POWERS. Decision 68 (docs/decisions/entries/68-*), Mr. Pina's words: Mr.
 -- Cosso's coin powers are "scoped to his own section".
 --

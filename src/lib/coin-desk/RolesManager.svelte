@@ -92,6 +92,7 @@
 		refusal: (r: Record<string, unknown>) => string = (r) =>
 			r.reason ? `Refused: ${String(r.reason)}.` : 'Refused by the server.'
 	): Promise<boolean> {
+		if (busy[key]) return false;
 		busy = { ...busy, [key]: true };
 		const r = await callV2<Record<string, unknown> & { ok?: boolean }>(supabase, fn, params);
 		busy = { ...busy, [key]: false };
