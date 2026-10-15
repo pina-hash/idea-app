@@ -1,6 +1,6 @@
 -- 0240_coin_v2_settings_and_fines.sql
 --
--- IDEA COIN V2, PART TWO (ledger 0383): THE SETTINGS PAGE, THE FINE SCREEN,
+-- IDEA COIN V2, PART TWO (ledger 0384): THE SETTINGS PAGE, THE FINE SCREEN,
 -- UNDO, THE DEBT LIST, AND THE COIN-PAID PURCHASE.
 --
 -- Every function here is ADMIN ONLY (is_admin(), the coin rule), revokes from

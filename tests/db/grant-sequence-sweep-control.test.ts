@@ -90,7 +90,7 @@ describe('the sequence sweep bites: a granted privilege is named', () => {
 			'The denominator. If this is 0 the sweep is looking at an empty set and every absence ' +
 				'assertion in section D, and the BEFORE assertion below, is green for the wrong reason. ' +
 				'Four since 0231: the Armory change feed cursor, revoked by 0232 (ledger 0366). Seven ' +
-				'since IDEA Coin V2 (ledger 0383): coin_settings_audit, coin_student_actions and ' +
+				'since IDEA Coin V2 (ledger 0384): coin_settings_audit, coin_student_actions and ' +
 				'coin_autopay_runs, each revoked from every client role in its own migration.'
 		).toBe(7);
 	});

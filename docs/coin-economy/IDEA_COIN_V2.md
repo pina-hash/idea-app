@@ -1,6 +1,6 @@
 # IDEA Coin V2
 
-Status: session one built (ledger 0383, 2026-10-14/15). This document is the
+Status: session one built (ledger 0384, 2026-10-14/15). This document is the
 coin spec as built. Where it disagrees with `idea_coin_economy_draft_v3.md`,
 this document wins.
 

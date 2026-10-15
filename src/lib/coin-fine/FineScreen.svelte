@@ -26,7 +26,7 @@
 	} from './fine';
 
 	/**
-	 * THE FINE SCREEN (IDEA Coin V2, ledger 0383): two taps, a student and a
+	 * THE FINE SCREEN (IDEA Coin V2, ledger 0384): two taps, a student and a
 	 * fine, on a phone held in one hand at the front of the room.
 	 *
 	 * TAP ONE IS A NAME. Large first-name tiles in a fixed alphabetical order

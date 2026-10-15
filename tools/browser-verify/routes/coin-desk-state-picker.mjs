@@ -72,7 +72,7 @@ export default {
 		{ selector: '.cd-root .combo-option.tone-fine .combo-kind', label: 'FINE chip (--amber)', min: 4.5 },
 		{ selector: '.cd-root .combo-option.tone-purchase .combo-kind', label: 'PURCHASE chip (--gold)', min: 4.5 },
 		{ selector: '.cd-root .combo-option.tone-adjustment .combo-kind', label: 'ADJUSTMENT chip (--violet-ink)', min: 4.5 },
-		/* No PAYOUT chip since IDEA Coin V2 (ledger 0383): Coin Payout is not
+		/* No PAYOUT chip since IDEA Coin V2 (ledger 0384): Coin Payout is not
 		   loggable, so the picker carries four types; the payout transfer is the
 		   Economy page's. */
 		{ selector: '.cd-root [data-testid="cd-category-list"] .combo-name', label: 'the category name itself', min: 4.5 },

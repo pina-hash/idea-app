@@ -1,4 +1,4 @@
-// The nightly autopay call (IDEA Coin V2, ledger 0383).
+// The nightly autopay call (IDEA Coin V2, ledger 0384).
 //
 // `coin_autopay_run` (0242) pays everything owed and nothing more: every kind
 // of pay is a database uniqueness key, so a second call finds every key taken.

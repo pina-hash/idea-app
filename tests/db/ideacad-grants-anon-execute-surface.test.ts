@@ -478,7 +478,7 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
 	coin_public_student: COIN_PUBLIC_REASON,
 	coin_public_transactions: COIN_PUBLIC_REASON,
 
-	// --- IDEA Coin autopay (1). 0242, ledger 0383. ---
+	// --- IDEA Coin autopay (1). 0242, ledger 0384. ---
 	coin_autopay_run:
 		'The nightly autopay call (a Vercel cron and a GitHub Actions schedule) holds no credential. It takes no argument naming a person or an amount, can only pay what is already owed (every kind of pay is a uniqueness key, so a second call pays nothing), throttles itself, and answers a caller who is not an admin with counts only.',
 

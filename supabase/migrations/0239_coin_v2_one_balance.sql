@@ -1,6 +1,6 @@
 -- 0239_coin_v2_one_balance.sql
 --
--- IDEA COIN V2, PART ONE (ledger 0383): ONE BALANCE, AND IT IS DIGITAL.
+-- IDEA COIN V2, PART ONE (ledger 0384): ONE BALANCE, AND IT IS DIGITAL.
 --
 -- Mr. Pina's V2 (docs/coin-economy/IDEA_COIN_V2.md): physical coins become
 -- untracked cash. The digital balance is the only number a student has.

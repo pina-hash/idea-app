@@ -1,4 +1,4 @@
-# 0383 IDEA Coin V2, session one
+# 0384 IDEA Coin V2, session one
 
 - Issued: 2026-10-14
 - By: Mr. Pina, via the router chat ("IDEA Coin V2, session one"; Mode: solo; Mr. Pina asleep while it runs).
@@ -9,4 +9,4 @@
 - Migration permitted: yes. Claims: 0239, 0240, 0241, 0242, 0243.
 - Decision allocated: 67 (written as answered).
 - Status: pushed
-- Notes: Five migrations, each additive over the tree and applied in order by `migrate.yml`. Every client surface that reads a new function degrades on PGRST202 or 42883 until its migration is applied. Numbers 0244 through 0248 were allocated and not used, and stay free.
+- Notes: ISSUED AS 0383 AND RENUMBERED 0384. The router allocated 0383 to this bundle while another session pushed `0383-frc-announcements-tool.md` to `main` about twenty minutes before this push; `tools/apply-migration.mjs` refuses when two entries share a number, so the first Migrate run (181) refused 0239 with nothing sent and nothing applied. This entry moved to the next free number; the FRC entry is untouched. Five migrations, each additive over the tree and applied in order by `migrate.yml`. Every client surface that reads a new function degrades on PGRST202 or 42883 until its migration is applied. Numbers 0244 through 0248 were allocated and not used, and stay free.

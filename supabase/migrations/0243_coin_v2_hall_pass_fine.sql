@@ -1,6 +1,6 @@
 -- 0243_coin_v2_hall_pass_fine.sql
 --
--- IDEA COIN V2, PART FIVE (ledger 0383, decision 67): A LONG HALL PASS IS
+-- IDEA COIN V2, PART FIVE (ledger 0384, decision 67): A LONG HALL PASS IS
 -- WARNED AT 10 MINUTES AND FINED AT 20.
 --
 -- Mr. Pina's decision 67 OVERRIDES 0143's header and src/lib/classroom/

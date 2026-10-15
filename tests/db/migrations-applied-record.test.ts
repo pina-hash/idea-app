@@ -243,7 +243,7 @@ describe('docs/migrations-applied/ as committed', () => {
 		// THE RECORDS ARE A GAP-FREE PREFIX OF THE MIGRATIONS. A bundle pushes its
 		// migrations to main and `migrate.yml` writes each record AFTER it
 		// applies, so the newest files are legitimately unrecorded for the
-		// minutes in between (ledger 0383 pushed five at once). What may never
+		// minutes in between (ledger 0384 pushed five at once). What may never
 		// happen is a hole: an unrecorded file BELOW a recorded one.
 		const sorted = [...recorded].sort();
 		expect(sorted.length).toBeGreaterThan(10);

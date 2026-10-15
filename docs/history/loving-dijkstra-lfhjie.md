@@ -1,5 +1,5 @@
 ---
-title: "Ledger 0383: IDEA Coin V2, session one: one digital balance, the student seam, the fine screen, autopay, and the Ledger overhaul (`claude/loving-dijkstra-lfhjie`)"
+title: "Ledger 0384: IDEA Coin V2, session one: one digital balance, the student seam, the fine screen, autopay, and the Ledger overhaul (`claude/loving-dijkstra-lfhjie`)"
 date: 2026-10-15
 branches: [claude/loving-dijkstra-lfhjie]
 migrations: ["0239", "0240", "0241", "0242", "0243"]
@@ -65,6 +65,12 @@ too (section 7).
   `/api/coin/autopay` with a Vercel cron and `.github/workflows/autopay.yml`.
 
 ## 2. Calls I made
+
+- **The ledger entry is 0384, not the 0383 the prompt named.** Another session
+  pushed `0383-frc-announcements-tool.md` to `main` before this bundle landed,
+  the apply tool refuses a duplicated ledger number (Migrate run 181 refused
+  0239 with nothing sent), and the FRC entry is not this bundle's to edit. Every
+  "ledger 0383" this bundle wrote now reads 0384.
 
 - **Autopay is granted to anon, and the route holds no credential.** The only
   verifiable no-secret scheduler is a public URL. The function can only pay

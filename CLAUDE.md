@@ -2923,7 +2923,7 @@ This applies to every change. Prompts do not need to restate it.
     cause: nothing has generated the `.svelte-kit` output yet.
   - The 35 break down as 31 `state_referenced_locally`, 3
     `css_unused_selector`, 1 `perf_avoid_nested_class`, over 19 files (ledger
-    0383 removed two unused selectors from coin files; it said 37, 5, 20 before). The
+    0384 removed two unused selectors from coin files; it said 37, 5, 20 before). The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
     and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"
@@ -6538,7 +6538,7 @@ next edit to that file needs its own authorisation and its own line here, and
 this rule was itself written a bundle late (prompt 0029), which is how a reader
 came to find an edited legacy file with nothing saying why.
 
-**THE SECOND UNFREEZING OF THE SAME FILE: ledger 0383 (2026-10-14/15), IDEA
+**THE SECOND UNFREEZING OF THE SAME FILE: ledger 0384 (2026-10-14/15), IDEA
 Coin V2, authorized in that prompt ("this prompt authorizes editing the frozen
 file") and widened mid-run by Mr. Pina's own note that the Ledger should take
 the site's geometry and work with its themes.** The page now reads the V2 CSV
@@ -6726,7 +6726,7 @@ the source of truth; **do not invent colours or swap fonts.**
 - **A SITE THEME MAY BE ROUTE-SCOPED, AND SPACE WHITE IS (ledger 0297).**
   `SCOPED_SITE_THEMES` names the themes that apply only inside
   `THEME_SCOPE_PREFIXES` (the classroom, the reference viewer, the notebook,
-  and since ledger 0383 the public IDEA Coin Ledger at `/coins`),
+  and since ledger 0384 the public IDEA Coin Ledger at `/coins`),
   the site plate's own scope (since ledger 0360; see the site-plate rule) and
   `THEME_SCOPE_EXACT` (the home page, as the exact path `/` and never as a
   prefix, because every route starts with a slash). `themeInScope` matches on a

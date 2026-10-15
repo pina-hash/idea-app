@@ -1,6 +1,6 @@
 -- 0241_coin_v2_student_actions.sql
 --
--- IDEA COIN V2, PART THREE (ledger 0383): A STUDENT BUYS ON THEIR OWN.
+-- IDEA COIN V2, PART THREE (ledger 0384): A STUDENT BUYS ON THEIR OWN.
 --
 -- THE SEAM. CLAUDE.md has always said every public coin write is admin-only,
 -- and named the retrofit that would let a non-admin move a coin: an

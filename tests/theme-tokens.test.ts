@@ -638,7 +638,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		'/dev/ideacad'
 	];
 
-	it('the public IDEA Coin Ledger is IN scope since ledger 0383, and a lookalike is not', () => {
+	it('the public IDEA Coin Ledger is IN scope since ledger 0384, and a lookalike is not', () => {
 		for (const p of ['/coins', '/coins/index.html']) expect(themeInScope(p), p).toBe(true);
 		expect(themeAttrFor('space-white', '/coins/index.html', true)).toBe('space-white');
 		// Signed out is still the default, always.
@@ -731,7 +731,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		// pages now and IN by the plate's prefixes); `//` stays, and is the case
 		// that would come in if the scope called `sitePlateInScope`, which strips
 		// a trailing slash and so reads `//` as `/`. `/coins/` left this list in
-		// ledger 0383, when the Ledger joined the scope by its own prefix.
+		// ledger 0384, when the Ledger joined the scope by its own prefix.
 		const underRoot = ['/frc', '/fsp', '/fsp/live', '/gauntlet', '/index.html', '//', '/209h'];
 		for (const p of underRoot) {
 			expect(themeInScope(p), p).toBe(false);

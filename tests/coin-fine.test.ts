@@ -1,6 +1,6 @@
 // tests/coin-fine.test.ts
 //
-// THE FINE SCREEN'S PURE HALF (IDEA Coin V2, ledger 0383), and the hall pass's
+// THE FINE SCREEN'S PURE HALF (IDEA Coin V2, ledger 0384), and the hall pass's
 // warning and fine words (decision 67, 0243). The database decides every
 // amount and every refusal; what would regress silently on the way to a
 // phone is the ORDER of the tiles (a thumb learns where a name is), the

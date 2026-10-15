@@ -1,6 +1,6 @@
 name: Autopay
 
-# THE SECOND NIGHTLY CALL TO IDEA COIN AUTOPAY (ledger 0383).
+# THE SECOND NIGHTLY CALL TO IDEA COIN AUTOPAY (ledger 0384).
 #
 # `coin_autopay_run` (migration 0242) pays every wage, Highest Grade and
 # Perfect Score award that is owed and nothing more: each kind of pay is a

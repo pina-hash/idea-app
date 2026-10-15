@@ -1,6 +1,6 @@
 -- 0242_coin_v2_grading_and_autopay.sql
 --
--- IDEA COIN V2, PART FOUR (ledger 0383): DIRECT SCORE ENTRY, THE PERFECT SCORE
+-- IDEA COIN V2, PART FOUR (ledger 0384): DIRECT SCORE ENTRY, THE PERFECT SCORE
 -- TOGGLE, AND AUTOPAY.
 --
 -- GRADING. A grader may type "score out of N" and that number is the score of

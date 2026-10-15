@@ -1,6 +1,6 @@
 // tests/db/chain-coin-v2.ts
 //
-// What the IDEA Coin V2 suites share (ledger 0383, migrations 0239 onward),
+// What the IDEA Coin V2 suites share (ledger 0384, migrations 0239 onward),
 // and nothing they assert. The whole tree, read off disk, behind the fixture
 // completion (the chain-0230 shape). PRE_V2 is exactly what production holds
 // before the first V2 apply, so a suite can seed through the REAL pre-V2 RPCs

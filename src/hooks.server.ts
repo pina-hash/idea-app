@@ -111,7 +111,7 @@ async function resolveClaims(supabase: App.Locals['supabase']): Promise<App.Clai
  * `/coin-balance` and `/contracts` are deliberately ABSENT. `/contracts` 308s
  * to the public IDEA Coin Ledger, so an anonymous visitor has to reach the
  * redirect; `/coin-balance` is a student's own coin page since IDEA Coin V2
- * (ledger 0383) and renders its own sign-in panel, which a bounce to `/` would
+ * (ledger 0384) and renders its own sign-in panel, which a bounce to `/` would
  * pre-empt.
  */
 const authedPrefixes = [

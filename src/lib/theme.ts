@@ -192,7 +192,7 @@ export const SCOPED_SITE_THEMES: readonly SiteTheme[] = ['space-white'];
 /**
  * Production route prefixes a scoped theme covers: the prefix itself or anything
  * under it. `/coins` (the public IDEA Coin Ledger, a legacy page served raw)
- * joined in ledger 0383 on Mr. Pina's note that the Ledger must be visually
+ * joined in ledger 0384 on Mr. Pina's note that the Ledger must be visually
  * compatible with the site's themes; its own stylesheet carries the Space White
  * twins, measured at 4.5:1 or better, and its route injects the boot table.
  */

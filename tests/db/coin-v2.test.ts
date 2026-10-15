@@ -1,6 +1,6 @@
 // tests/db/coin-v2.test.ts
 //
-// IDEA COIN V2 (ledger 0383, migrations 0239 to 0243) on the whole tree.
+// IDEA COIN V2 (ledger 0384, migrations 0239 to 0243) on the whole tree.
 //
 // Each guarantee here is one whose regression would be SILENT: a balance that
 // quietly counts the wrong rows, a purchase that quietly overdraws, a student
