@@ -395,7 +395,7 @@
 								{isAuditor ? 'Auditor: on' : 'Auditor: off'}
 							</button>
 							<span class="cdx-note">
-								An auditor may check the coins on hand a classmate reports, never their own.
+								An auditor may approve or deny the coins on hand a classmate reports, never their own.
 							</span>
 						{:else if auditorState}
 							<span class="cdx-note">{auditorError}</span>

@@ -15,9 +15,16 @@
  *   coin_export(scope, ...)       0249: raw rows for one student, one class,
  *                                 or (full only) the whole economy.
  *
- * THE CSV IS BUILT HERE, FROM THE RAW ROWS, AND ONLY HERE. The export is
- * meant to be read by a person or handed to Claude, so it is the rows the
- * database returned with nothing summed, folded or renamed.
+ * THE CHART GEOMETRY IS NOT HERE. It is `$lib/coin-balance/charts.ts`'s
+ * (`balanceLine`, `weekBars`), the student page's own, and `parseMyStats` in
+ * `$lib/coin-balance/extras.ts` reads the four lists: the staff view and the
+ * student's own view draw one student's numbers one way. What is here is the
+ * staff's wording of them and the staff-only reads.
+ *
+ * THE STAFF CSV IS BUILT HERE, FROM THE RAW ROWS. A student's own export is
+ * `$lib/coin-balance/export.ts`'s and carries no address; a class or economy
+ * export has to say whose row each one is, so it adds the email and the name
+ * and keeps every other column as stored, nothing summed, folded or renamed.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -78,106 +85,6 @@ export interface StudentStats {
 	background: StatsBackground | null;
 }
 
-/** One plotted point of the balance line, in SVG units. */
-export interface ChartPoint {
-	x: number;
-	y: number;
-	day: string;
-	balance: number;
-}
-
-export interface BalanceChart {
-	points: ChartPoint[];
-	/** The polyline's `d`, empty when there is nothing to draw. */
-	path: string;
-	/** The y of the zero line, or null when zero is outside the plotted range. */
-	zeroY: number | null;
-	min: number;
-	max: number;
-	width: number;
-	height: number;
-}
-
-function dayNumber(day: string): number {
-	const t = Date.parse(`${day}T00:00:00Z`);
-	return Number.isNaN(t) ? 0 : Math.round(t / 86400000);
-}
-
-/**
- * THE BALANCE OVER TIME, as SVG coordinates. X is the calendar day (so a
- * quiet week is a flat stretch, not a skipped one); Y always includes zero,
- * because the line crossing zero is the thing a teacher is looking for. One
- * point draws as a level line across the width rather than nothing.
- */
-export function balanceChart(series: StatsPoint[], width = 600, height = 160, pad = 8): BalanceChart {
-	const pts = series
-		.map((p) => ({ day: String(p.day).slice(0, 10), balance: num(p.balance) }))
-		.filter((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.day));
-	const values = pts.map((p) => p.balance);
-	const min = Math.min(0, ...values);
-	const max = Math.max(0, ...values);
-	const span = max - min || 1;
-	const y = (v: number) => pad + (height - 2 * pad) * (1 - (v - min) / span);
-	if (!pts.length) return { points: [], path: '', zeroY: y(0), min, max, width, height };
-	const first = dayNumber(pts[0].day);
-	const last = dayNumber(pts[pts.length - 1].day);
-	const days = last - first;
-	const x = (day: string) =>
-		days <= 0 ? width / 2 : pad + ((width - 2 * pad) * (dayNumber(day) - first)) / days;
-	const points: ChartPoint[] = pts.map((p) => ({ x: x(p.day), y: y(p.balance), day: p.day, balance: p.balance }));
-	const path =
-		points.length === 1
-			? `M${pad},${points[0].y}H${width - pad}`
-			: points.map((p, i) => `${i ? 'L' : 'M'}${round(p.x)},${round(p.y)}`).join('');
-	return { points, path, zeroY: y(0), min, max, width, height };
-}
-
-function round(n: number): number {
-	return Math.round(n * 10) / 10;
-}
-
-export interface WeekBar {
-	week_start: string;
-	earned: number;
-	spent: number;
-	/** x of the week's pair of bars, and each bar's height and top. */
-	x: number;
-	barWidth: number;
-	earnedY: number;
-	earnedH: number;
-	spentY: number;
-	spentH: number;
-}
-
-/** Weekly earning and spending as pairs of bars on one shared scale. */
-export function weekBars(weeks: StatsWeek[], width = 600, height = 140, pad = 8): { bars: WeekBar[]; max: number } {
-	const rows = weeks.map((w) => ({
-		week_start: String(w.week_start).slice(0, 10),
-		earned: Math.max(0, num(w.earned)),
-		spent: Math.max(0, num(w.spent))
-	}));
-	const max = Math.max(1, ...rows.map((r) => Math.max(r.earned, r.spent)));
-	const slot = rows.length ? (width - 2 * pad) / rows.length : 0;
-	const barWidth = Math.max(2, slot * 0.36);
-	const base = height - pad;
-	const scale = (v: number) => ((height - 2 * pad) * v) / max;
-	return {
-		max,
-		bars: rows.map((r, i) => {
-			const x = pad + slot * i + slot * 0.12;
-			return {
-				...r,
-				x,
-				barWidth,
-				earnedH: scale(r.earned),
-				earnedY: base - scale(r.earned),
-				spentH: scale(r.spent),
-				spentY: base - scale(r.spent)
-			};
-		})
-	};
-}
-
 /** `Oct 12`, a calendar day with no weekday and no year. */
 export function shortDay(day: string): string {
 	const d = new Date(`${String(day).slice(0, 10)}T00:00:00Z`);
@@ -190,7 +97,7 @@ export function shortDay(day: string): string {
  * THE CHART'S TEXT ALTERNATIVE, one sentence: where the balance started, where
  * it is, and its lowest and highest. The full numbers sit in a table beside it.
  */
-export function balanceSentence(series: StatsPoint[]): string {
+export function balanceSentence(series: { day: string; balance: number | string }[]): string {
 	const pts = series.map((p) => ({ day: String(p.day).slice(0, 10), balance: num(p.balance) }));
 	if (!pts.length) return 'No coin activity yet, so there is no balance history.';
 	const first = pts[0];
@@ -200,7 +107,7 @@ export function balanceSentence(series: StatsPoint[]): string {
 	return `The balance went from ${coins(first.balance)} on ${shortDay(first.day)} to ${coins(last.balance)} on ${shortDay(last.day)}. Lowest ${coins(low.balance)} (${shortDay(low.day)}), highest ${coins(high.balance)} (${shortDay(high.day)}).`;
 }
 
-export function weeksSentence(weeks: StatsWeek[]): string {
+export function weeksSentence(weeks: { earned: number | string; spent: number | string }[]): string {
 	if (!weeks.length) return 'Nothing earned or spent in the last twelve weeks.';
 	const earned = weeks.reduce((s, w) => s + Math.max(0, num(w.earned)), 0);
 	const spent = weeks.reduce((s, w) => s + Math.max(0, num(w.spent)), 0);
@@ -414,27 +321,24 @@ export const EXPORT_COLUMNS: (keyof ExportRow)[] = [
 ];
 
 /**
- * Columns a PERSON typed (or a name a person chose). A spreadsheet runs a
- * cell that starts with `=`, `+`, `-` or `@` as a formula, so a note reading
- * `=HYPERLINK(...)` would act when the file is opened; such a cell is given a
- * leading apostrophe. The numeric columns are never touched, so a negative
- * amount stays a number.
+ * One field, RFC 4180, by the student export's own rule
+ * (`$lib/coin-balance/export.ts`): quoted when it holds a comma, a quote or a
+ * line break, a quote doubled. A field starting with `=`, `+`, `-` or `@`
+ * that is NOT a plain number gets a leading apostrophe, so a note a person
+ * typed (`=HYPERLINK(...)`) cannot run as a formula when the file is opened,
+ * while an amount like -5 stays a number. `meta` is its JSON.
  */
-const TEXT_COLUMNS = new Set<keyof ExportRow>(['email', 'name', 'category', 'note', 'actor', 'meta']);
-
-function cell(value: unknown, column: keyof ExportRow): string {
-	let text: string;
-	if (value === null || value === undefined) text = '';
-	else if (typeof value === 'object') text = JSON.stringify(value);
-	else text = String(value);
-	if (TEXT_COLUMNS.has(column) && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+function cell(value: unknown): string {
+	if (value === null || value === undefined) return '';
+	let text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+	if (/^[=+\-@\t\r]/.test(text) && !/^[+-]?\d+(\.\d+)?$/.test(text)) text = `'${text}`;
 	return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 /** The raw rows as CSV: a header line, then one line per row, CRLF-separated. */
 export function exportCsv(rows: ExportRow[]): string {
 	const lines = [EXPORT_COLUMNS.join(',')];
-	for (const r of rows) lines.push(EXPORT_COLUMNS.map((c) => cell(r[c], c)).join(','));
+	for (const r of rows) lines.push(EXPORT_COLUMNS.map((c) => cell(r[c])).join(','));
 	return lines.join('\r\n') + '\r\n';
 }
 
@@ -447,17 +351,4 @@ export function exportFileName(scope: ExportScope, label: string, ext: 'csv' | '
 		.replace(/^-+|-+$/g, '')
 		.slice(0, 40);
 	return `idea-coins-${scope}${slug ? `-${slug}` : ''}-${today}.${ext}`;
-}
-
-/** Hands the browser a file to save. The one download path for the export. */
-export function saveFile(name: string, body: string, type: string): void {
-	const blob = new Blob([body], { type });
-	const url = URL.createObjectURL(blob);
-	const a = document.createElement('a');
-	a.href = url;
-	a.download = name;
-	document.body.appendChild(a);
-	a.click();
-	a.remove();
-	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

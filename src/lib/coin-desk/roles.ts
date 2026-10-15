@@ -1,148 +1,280 @@
 /**
- * IDEA Coin roles: Shop Steward, Quartermaster, Safety Officer, Lab Tech.
- * Plain types + pure helpers (client-safe, the coin-desk.ts / sections.ts
- * convention). This module never talks to Supabase; every write is a call
- * to a migration 0074/0076 RPC made from RolesManager.svelte directly. See
- * supabase/migrations/0074_coin_roles.sql for the base design rationale and
- * supabase/migrations/0076_coin_role_quiz_and_expiration.sql for the real
- * question bank, snapshotted answers, and holder expiration -- why the
- * ratio cap is checked at approval and not application, why the question
- * bank is edited by hand outside the normal migration flow (never here),
- * why expiration is a computed condition with no scheduled job, and why MC
- * correctness is informational only.
+ * IDEA COIN ROLES ON THE COIN DESK (IDEA Coin V2 session two, 0247): Shop
+ * Steward, Quartermaster, Safety Officer, Lab Tech, as EVIDENCE JOBS. Plain
+ * types and pure helpers (client-safe, the coin-desk.ts convention); this
+ * module never talks to Supabase.
+ *
+ * WHAT CHANGED. A role's class is an IDEA Classroom section, never a coin
+ * section. Each class has, per role, a CAP (default 1) and an on/off switch.
+ * A holder proves each class day with a start photo and an end photo, timed
+ * by the server; a day passes on its own when the rules pass, and any day can
+ * be accepted or rejected by hand. The stipend PAYS ITSELF: autopay, every two
+ * weeks, one stipend a week prorated by the proven days. A manual payment by
+ * hand stays as an override.
+ *
+ * The one read is `coin_roles_admin()`; every write is its own RPC, made by
+ * RolesManager through `callV2`.
  */
 
-export interface CoinRoleDefinition {
+export interface RoleDefinition {
 	id: string;
 	name: string;
 	description: string | null;
-	ratio_kind: 'fixed' | 'per_students';
-	ratio_count: number;
-	ratio_per_students: number | null;
-	ratio_is_default: boolean;
 	active: boolean;
-	sort_order: number;
-	notes: string | null;
-	/** Days from approval to a suggested expiration -- a UI pre-fill only, never server-enforced. */
 	suggested_duration_days: number | null;
+	instructions: string | null;
+}
+
+export interface ClassRoleSetting {
+	role_id: string;
+	cap: number;
+	enabled: boolean;
+	held: number;
+}
+
+export interface RoleClass {
+	id: string;
+	label: string;
+	roles: ClassRoleSetting[] | null;
 }
 
 export type QuizQuestionType = 'mc' | 'written';
 
-/**
- * A question as read from coin_role_quiz_questions (0076) for rendering the
- * application form. Content is maintained by hand outside this repo's git
- * history -- see the 0076 migration header and CLAUDE.md's Roles section --
- * so this table is commonly empty for a role until someone seeds it.
- */
+export interface ApplicationAnswer {
+	question: string;
+	type: QuizQuestionType;
+	options: string[] | null;
+	written_answer: string | null;
+	selected_option_index: number | null;
+	is_correct: boolean | null;
+}
+
+export interface RoleApplication {
+	id: string;
+	email: string;
+	name: string | null;
+	role_id: string;
+	role: string;
+	section_id: string | null;
+	section: string | null;
+	submitted_at: string;
+	answers: ApplicationAnswer[];
+}
+
+export interface HolderRules {
+	min_gap_minutes: number;
+	photos_per_day: number;
+	window_start: string;
+	window_end: string;
+	/** True when this holder has rules of their own. */
+	own: boolean;
+}
+
+export type RoleDayStatus = 'accepted' | 'rejected' | 'passed' | 'failed' | 'none';
+
+export interface RoleDay {
+	day: string;
+	photos: number;
+	gap_minutes: number | null;
+	rules_pass: boolean;
+	reason: string | null;
+	override: 'accepted' | 'rejected' | null;
+	valid: boolean;
+	status: RoleDayStatus;
+	class_day: boolean;
+	photo_paths: { path: string; taken_at: string }[];
+}
+
+export interface RoleHolder {
+	id: string;
+	email: string;
+	name: string | null;
+	role_id: string;
+	role: string;
+	section_id: string | null;
+	section: string | null;
+	since: string;
+	expires_at: string | null;
+	rules: HolderRules;
+	days: RoleDay[];
+}
+
+export interface RolesAdmin {
+	roles: RoleDefinition[];
+	classes: RoleClass[];
+	applications: RoleApplication[];
+	holders: RoleHolder[];
+}
+
+/** A question as `coin_role_admin_list_role_questions` returns it (0076). */
 export interface RoleQuizQuestion {
 	id: string;
 	role_id: string;
 	type: QuizQuestionType;
 	question_text: string;
 	sequence: number;
-	/** 'mc' only. */
 	options: string[] | null;
 	correct_option_index: number | null;
 }
 
-/** A single question/answer pair as returned inside CoinRoleApplicationRow.answers, snapshotted at submission time. */
-export interface RoleAnswerRecord {
-	question_id: string;
-	type: QuizQuestionType;
-	question: string;
-	options: string[] | null;
-	written_answer: string | null;
-	selected_option_index: number | null;
-	correct_option_index: number | null;
-	/** 'mc' only -- computed once, at submission, from the question's answer key at that moment. Informational; never gates review. */
-	is_correct: boolean | null;
+export function personName(p: { email: string; name: string | null }): string {
+	return p.name?.trim() || p.email;
 }
 
-export interface CoinRoleApplicationRow {
-	id: string;
-	student_email: string;
-	display_name: string | null;
-	full_name: string | null;
-	role_id: string;
-	role_name: string;
-	section_id: string;
-	answers: RoleAnswerRecord[];
-	status: 'pending' | 'approved' | 'rejected';
-	submitted_by: string;
-	submitted_at: string;
-	reviewed_by: string | null;
-	reviewed_at: string | null;
-	review_note: string | null;
+/** A class's setting for one role. No row reads as on, cap 1 (0247). */
+export function classRoleSetting(c: RoleClass, roleId: string): ClassRoleSetting {
+	return c.roles?.find((r) => r.role_id === roleId) ?? { role_id: roleId, cap: 1, enabled: true, held: 0 };
 }
 
-export interface CoinRoleHolderRow {
-	id: string;
-	student_email: string;
-	display_name: string | null;
-	full_name: string | null;
-	role_id: string;
-	role_name: string;
-	section_id: string;
-	since: string;
-	assigned_by: string;
-	expires_at: string | null;
-	/** revoked_at is null AND (expires_at is null OR expires_at > now()), computed server-side -- never stored, never scheduled. */
-	is_active: boolean;
-	revoked_at: string | null;
-	revoked_by: string | null;
-	revoke_reason: string | null;
-}
+export const ROLE_DAY_STATUS_WORDS: Record<RoleDayStatus, string> = {
+	accepted: 'Accepted by hand',
+	rejected: 'Rejected by hand',
+	passed: 'Proven',
+	failed: 'Not proven',
+	none: 'No photos'
+};
 
-export interface RoleCapacity {
-	role_id: string;
-	section_id: string;
-	cap: number;
-	held: number;
-	section_size: number;
-}
+export const ROLE_DAY_REASON_WORDS: Record<string, string> = {
+	no_photos: 'no photos',
+	too_few_photos: 'too few photos',
+	outside_window: 'a photo outside the time window',
+	gap_too_short: 'the photos were too close together'
+};
 
-export interface RoleBulkLogResult {
-	email: string;
-	ok: boolean;
-	reason?: string;
-	balance?: number;
-	amount?: number;
-	message?: string;
-	strike?: boolean;
-	[key: string]: unknown;
-}
-
-export interface RoleBulkLogResponse {
-	ok: boolean;
-	role_id: string | null;
-	section_id: string | null;
-	total: number;
-	succeeded: number;
-	refused: number;
-	results: RoleBulkLogResult[];
-}
-
-/** Short ratio description for the definitions list. Display only. */
-export function ratioDescription(role: CoinRoleDefinition): string {
-	if (role.ratio_kind === 'fixed') {
-		return `${role.ratio_count} per section`;
+/** One day as a line: the status word, then why, photos and the gap. */
+export function roleDayDetail(d: RoleDay): string {
+	const parts: string[] = [];
+	parts.push(`${d.photos} photo${d.photos === 1 ? '' : 's'}`);
+	if (d.gap_minutes != null) parts.push(`${d.gap_minutes} min apart`);
+	if (d.status === 'failed' && d.reason) parts.push(ROLE_DAY_REASON_WORDS[d.reason] ?? d.reason);
+	if (d.override && !d.rules_pass && d.reason && d.reason !== 'no_photos') {
+		parts.push(`the rules alone: ${ROLE_DAY_REASON_WORDS[d.reason] ?? d.reason}`);
 	}
-	return `${role.ratio_count} per ~${role.ratio_per_students} students (scaled)`;
-}
-
-/** `capacityFor()` returns null before the preview has loaded -- render a placeholder, not a false "0 of 0". */
-export function capacityLabel(cap: RoleCapacity | null): string {
-	if (!cap) return 'checking capacity…';
-	return `${cap.held} of ${cap.cap} filled (${cap.section_size} student${cap.section_size === 1 ? '' : 's'} in section)`;
+	return parts.join(', ');
 }
 
 /**
- * Whether every currently-active question for a role has a usable answer in
- * `answers` (a written question needs non-empty trimmed text, an MC question
- * needs a selected index). A role with zero configured questions (the 0076
- * migration leaves every role's question bank empty until seeded by hand)
- * trivially passes -- there is nothing to answer yet.
+ * The days worth showing: a class day, a day with a photo, or a day decided
+ * by hand. A weekend nobody worked is not a missed day and is not drawn.
+ * Newest first, because the last few days are what a reviewer checks.
+ */
+export function shownRoleDays(days: RoleDay[]): RoleDay[] {
+	return days.filter((d) => d.class_day || d.photos > 0 || d.override !== null).reverse();
+}
+
+export function proofSummary(days: RoleDay[]): string {
+	const classDays = days.filter((d) => d.class_day);
+	const valid = classDays.filter((d) => d.valid).length;
+	return `${valid} of ${classDays.length} class day${classDays.length === 1 ? '' : 's'} proven in the last two weeks`;
+}
+
+/** `coin_role_admin_review`'s structured refusals, in words. */
+export function reviewRefusal(r: { reason?: string; cap?: number; held?: number }): string {
+	switch (r.reason) {
+		case 'ratio_cap_reached':
+			return `This class is full for that role: ${r.held ?? '?'} of ${r.cap ?? '?'} seats are held. Raise the class's cap below, or free a seat, then accept again.`;
+		case 'no_class':
+			return 'This application has no class yet. Set its class, then accept it.';
+		case 'already_holds_role':
+			return 'This student already holds that role.';
+		default:
+			return r.reason ? `Refused: ${r.reason}.` : 'Refused by the server.';
+	}
+}
+
+export function applyRefusal(reason: string | undefined): string {
+	switch (reason) {
+		case 'unknown_role':
+			return 'That role is not open any more.';
+		case 'no_section':
+			return 'That student is in no class with the coin economy on, so there is no class to apply in.';
+		default:
+			return reason ? `Refused: ${reason}.` : 'Refused by the server.';
+	}
+}
+
+export function stipendRefusal(reason: string | undefined): string {
+	if (reason === 'note_required') return 'A note is needed: say why the stipend is paid by hand.';
+	return reason ? `Refused: ${reason}.` : 'Refused by the server.';
+}
+
+// --- a holder's own rules ------------------------------------------------------
+
+export interface RulesDraft {
+	min_gap_minutes: string;
+	photos_per_day: string;
+	window_start: string;
+	window_end: string;
+}
+
+export function rulesDraft(r: HolderRules): RulesDraft {
+	return {
+		min_gap_minutes: String(r.min_gap_minutes),
+		photos_per_day: String(r.photos_per_day),
+		window_start: r.window_start,
+		window_end: r.window_end
+	};
+}
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** 0245's `_coin_setting_ok` ranges for the four keys, in words, or null. */
+export function rulesProblem(d: RulesDraft): string | null {
+	const gap = Number(d.min_gap_minutes);
+	if (!d.min_gap_minutes.trim() || !Number.isFinite(gap) || gap < 0 || gap > 600) {
+		return 'The gap between photos is minutes from 0 to 600.';
+	}
+	const n = Number(d.photos_per_day);
+	if (!Number.isInteger(n) || n < 2 || n > 10) return 'Photos a day is a whole number from 2 to 10.';
+	if (!HHMM.test(d.window_start) || !HHMM.test(d.window_end)) return 'Both window times are needed, like 07:00.';
+	if (d.window_end <= d.window_start) return 'The window has to end after it starts.';
+	return null;
+}
+
+/** The jsonb `coin_role_holder_rules_set` stores for a holder's own rules. */
+export function rulesPayload(d: RulesDraft): Record<string, unknown> {
+	return {
+		min_gap_minutes: Number(d.min_gap_minutes),
+		photos_per_day: Number(d.photos_per_day),
+		window_start: d.window_start,
+		window_end: d.window_end
+	};
+}
+
+// --- dates ----------------------------------------------------------------------
+
+/**
+ * A YYYY-MM-DD date `role.suggested_duration_days` days from `from`, or null
+ * when the role suggests none. A form pre-fill only.
+ */
+export function suggestedExpirationDate(
+	role: Pick<RoleDefinition, 'suggested_duration_days'> | undefined,
+	from: Date = new Date()
+): string | null {
+	if (!role?.suggested_duration_days) return null;
+	const d = new Date(from);
+	d.setDate(d.getDate() + role.suggested_duration_days);
+	return d.toISOString().slice(0, 10);
+}
+
+/** A date input's value as an end-of-day timestamp, or null for "no expiration". */
+export function dateInputToExpiresAt(value: string): string | null {
+	const trimmed = value.trim();
+	if (!trimmed) return null;
+	const d = new Date(`${trimmed}T23:59:59`);
+	return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** A stored timestamp as a date input's value. */
+export function expiresAtToDateInput(value: string | null): string {
+	if (!value) return '';
+	const d = new Date(value);
+	return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-CA');
+}
+
+/**
+ * Whether every question has a usable answer: written text, or a picked
+ * option. A role with no questions passes; there is nothing to answer.
  */
 export function questionsAnswered(
 	questions: RoleQuizQuestion[],
@@ -156,42 +288,14 @@ export function questionsAnswered(
 	});
 }
 
-/**
- * A YYYY-MM-DD date string (matching <input type="date">) `role.suggested_duration_days`
- * days from `from` (defaults to now), or null when the role has no suggested
- * duration. A pure UI pre-fill -- the approval RPC never applies this on its
- * own; see the 0076 migration header for why.
- */
-export function suggestedExpirationDate(
-	role: CoinRoleDefinition | undefined,
-	from: Date = new Date()
-): string | null {
-	if (!role?.suggested_duration_days) return null;
-	const d = new Date(from);
-	d.setDate(d.getDate() + role.suggested_duration_days);
-	return d.toISOString().slice(0, 10);
-}
-
-/** Converts a <input type="date"> value into an end-of-day ISO timestamp for an expires_at RPC param, or null for "no expiration". */
-export function dateInputToExpiresAt(value: string): string | null {
-	const trimmed = value.trim();
-	if (!trimmed) return null;
-	const d = new Date(`${trimmed}T23:59:59`);
-	return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-export type HolderStatus = 'active' | 'expired' | 'revoked';
-
-/**
- * Single source of truth for how a holder row's state reads in the UI.
- * `is_active` is the server's computed condition; a row can ALSO be
- * revoked_at-null-but-expired (is_active false, revoked_at still null) when
- * nothing has yet lazily finalized it -- see the 0076 migration header --
- * which still reads as "expired" here, not "active".
- */
-export function holderStatus(h: CoinRoleHolderRow): HolderStatus {
-	if (h.revoked_at) {
-		return h.revoked_by === 'system' ? 'expired' : 'revoked';
-	}
-	return h.is_active ? 'active' : 'expired';
+/** The answers `coin_role_apply` reads (0247's `_coin_role_insert_application`). */
+export function applicationAnswers(
+	questions: RoleQuizQuestion[],
+	answers: Record<string, { written?: string; selected?: number }>
+): Record<string, unknown>[] {
+	return questions.map((q) =>
+		q.type === 'written'
+			? { question_id: q.id, written_answer: answers[q.id]?.written?.trim() ?? '' }
+			: { question_id: q.id, selected_option_index: answers[q.id]?.selected ?? null }
+	);
 }

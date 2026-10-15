@@ -213,7 +213,7 @@ describe('payday', () => {
 		expect(tickedCoins(reqs, { r3: false })).toBe(7.5);
 	});
 
-	it('summarises settled, partial and no-balance rows', () => {
+	it('summarizes settled, partial and no-balance rows', () => {
 		const s = settleSummary(
 			{
 				ok: true,

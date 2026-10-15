@@ -9,9 +9,4 @@
 	<title>Roles // Coin Desk</title>
 </svelte:head>
 
-<RolesManager
-	supabase={data.supabase}
-	roleDefinitions={data.roleDefinitions}
-	sections={data.sections}
-	configured={data.rolesConfigured}
-/>
+<RolesManager supabase={data.supabase} />

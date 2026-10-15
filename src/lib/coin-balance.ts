@@ -127,18 +127,19 @@ export interface CoinPageHistoryRow {
 	/**
 	 * Session two (0250). Every field below is optional in the payload: a
 	 * database before 0250 sends none of them, and the parser fills the
-	 * no-information answer (not edited, not disputable, no dispute).
+	 * no-information answer (not edited, not disputable, no dispute). They are
+	 * optional in the type too, so a row built by hand reads as that answer.
 	 */
 	/** True when a full coin admin changed this row's amount since. */
-	edited: boolean;
+	edited?: boolean;
 	/** The amount the row was written with, before any edit. */
-	original_amount: number | null;
+	original_amount?: number | null;
 	/** Every edit, oldest first: the value before and after, and whether it was undone. */
-	edits: CoinHistoryEdit[];
+	edits?: CoinHistoryEdit[];
 	/** An automatic fine the student may dispute (0245). */
-	disputable: boolean;
+	disputable?: boolean;
 	/** The latest dispute of this row, if one was sent. */
-	dispute: { status: CoinRequestStatus; decision_note: string | null } | null;
+	dispute?: { status: CoinRequestStatus; decision_note: string | null } | null;
 }
 
 export interface CoinHistoryEdit {

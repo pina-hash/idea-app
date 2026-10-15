@@ -36,8 +36,16 @@
 		ondone?: (() => void) | null;
 	} = $props();
 
-	let phase = $state<'idle' | 'opening' | 'live' | 'fallback'>(openCamera ? 'idle' : 'fallback');
-	let fallbackWhy = $state<string | null>(openCamera ? null : 'This browser has no camera this page can use, so take the photo with your camera below.');
+	let mode = $state<'idle' | 'opening' | 'live' | 'fallback'>('idle');
+	let refused = $state(false);
+	const phase = $derived(openCamera ? mode : 'fallback');
+	const fallbackWhy = $derived(
+		refused
+			? 'The camera did not open (it may be blocked for this site). Take the photo with your camera below instead.'
+			: !openCamera
+				? 'This browser has no camera this page can use, so take the photo with your camera below.'
+				: null
+	);
 	let busy = $state(false);
 	let outcome = $state<{ ok: boolean; text: string } | null>(null);
 	let video = $state<HTMLVideoElement | null>(null);
@@ -50,7 +58,7 @@
 			stream = null;
 		}
 		if (video) video.srcObject = null;
-		if (phase === 'live' || phase === 'opening') phase = 'idle';
+		if (mode === 'live' || mode === 'opening') mode = 'idle';
 	}
 
 	onMount(() => {
@@ -67,12 +75,12 @@
 	});
 
 	async function open() {
-		if (!openCamera || phase === 'opening' || phase === 'live') return;
+		if (!openCamera || mode === 'opening' || mode === 'live') return;
 		outcome = null;
-		phase = 'opening';
+		mode = 'opening';
 		try {
 			stream = await openCamera();
-			phase = 'live';
+			mode = 'live';
 			await tick();
 			if (video) {
 				video.srcObject = stream;
@@ -80,8 +88,8 @@
 			}
 		} catch {
 			stop();
-			phase = 'fallback';
-			fallbackWhy = 'The camera did not open (it may be blocked for this site). Take the photo with your camera below instead.';
+			refused = true;
+			mode = 'fallback';
 		}
 	}
 
@@ -170,7 +178,6 @@
 					capture="environment"
 					onchange={picked}
 					bind:this={fileInput}
-					aria-disabled={busy ? 'true' : undefined}
 					data-testid="role-file"
 				/>
 			</label>

@@ -1,13 +1,8 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import { saveText } from '$lib/feedback/download';
 	import { callV2, V2_UNAVAILABLE } from './v2';
-	import {
-		exportCsv,
-		exportFileName,
-		saveFile,
-		type ExportPayload,
-		type ExportScope
-	} from './student-view';
+	import { exportCsv, exportFileName, type ExportPayload, type ExportScope } from './student-view';
 	import type { CoinClass } from './log';
 
 	/**
@@ -75,8 +70,8 @@
 		}
 		const rows = r.data?.rows ?? [];
 		const name = exportFileName(scope, scope === 'economy' ? '' : label, format, today());
-		if (format === 'csv') saveFile(name, exportCsv(rows), 'text/csv;charset=utf-8');
-		else saveFile(name, JSON.stringify(r.data, null, 2), 'application/json');
+		if (format === 'csv') saveText(name, exportCsv(rows), 'text/csv');
+		else saveText(name, JSON.stringify(r.data, null, 2), 'application/json');
 		notice = `Saved ${name}: ${rows.length} row${rows.length === 1 ? '' : 's'}.`;
 	}
 

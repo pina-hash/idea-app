@@ -318,7 +318,7 @@
 	 * itself, whether or not anybody has ever signed in with it.
 	 */
 	const topMatch = $derived.by<string | null>(() => {
-		if (filteredRoster.length) return filteredRoster[0].student_email;
+		if (filteredRoster.length) return filteredRoster[0].email;
 		if (offRosterSuggestions.length) return offRosterSuggestions[0].email;
 		if (looksLikeEmail) return query.trim().toLowerCase();
 		return null;

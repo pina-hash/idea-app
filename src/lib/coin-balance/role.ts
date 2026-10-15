@@ -200,9 +200,12 @@ export function roleToday(role: CoinRole): CoinRoleDay | null {
 	return role.days.find((d) => d.day === role.today) ?? null;
 }
 
-/** A failed day may be sent for a check by hand. */
-export function roleDayCheckable(d: CoinRoleDay): boolean {
-	return d.status === 'failed';
+/**
+ * A failed day may be sent for a check by hand, once it is over: today can
+ * still be finished with the next photo.
+ */
+export function roleDayCheckable(d: CoinRoleDay, today: string): boolean {
+	return d.status === 'failed' && d.day < today;
 }
 
 export function roleCaptureRefusalWords(r: { reason: string; data?: Record<string, unknown> }): string {

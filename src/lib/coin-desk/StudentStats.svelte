@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { coins, signedCoins } from '$lib/coin-format';
 	import Disclosure from '$lib/Disclosure.svelte';
+	import { balanceLine, COIN_CHART_BOX as BOX, weekBars } from '$lib/coin-balance/charts';
+	import { parseMyStats } from '$lib/coin-balance/extras';
 	import { num } from './v2';
 	import {
-		balanceChart,
 		balanceSentence,
 		EVENT_KIND_WORDS,
 		shortDay,
-		weekBars,
 		weeksSentence,
 		type StudentStats
 	} from './student-view';
@@ -17,12 +17,13 @@
 	 * what they earned and spent each week, totals by category, and every fine,
 	 * award and purchase.
 	 *
-	 * THE CHARTS ARE PLAIN INLINE SVG, drawn from `student-view.ts`'s geometry,
-	 * with no chart library. Each is a `figure` whose SVG is `aria-hidden` and
-	 * whose caption is a sentence saying what it shows; the numbers themselves
+	 * THE CHARTS ARE PLAIN INLINE SVG, drawn from the student page's own
+	 * geometry (`$lib/coin-balance/charts.ts`, over `parseMyStats`'s lists), so
+	 * a teacher and the student read one student's numbers drawn one way. Each
+	 * is a `figure` whose SVG is `aria-hidden` and whose caption is a sentence saying what it shows; the numbers themselves
 	 * sit in a table behind "Show the numbers", so nothing on the chart is only
-	 * a picture. Colour is never the only signal: the bars are labelled in the
-	 * legend in words, earned and spent are also left and right of each pair.
+	 * a picture. Colour is never the only signal: earned rises above the zero
+	 * line and spent falls below it, and the legend says so in words.
 	 *
 	 * `backgroundUrl` is the approved desktop background's signed link, read by
 	 * the caller (it holds the storage client); null draws the facts without a
@@ -36,8 +37,11 @@
 		backgroundUrl?: string | null;
 	} = $props();
 
-	const chart = $derived(balanceChart(stats.series));
-	const bars = $derived(weekBars(stats.weeks));
+	/** The four lists, read by the student page's own parser. */
+	const lists = $derived(parseMyStats(stats));
+	const series = $derived(lists?.series ?? []);
+	const line = $derived(balanceLine(series));
+	const bars = $derived(weekBars(lists?.weeks ?? []));
 	const fines = $derived(stats.categories.filter((c) => c.kind === 'fine'));
 	const others = $derived(stats.categories.filter((c) => c.kind !== 'fine'));
 
@@ -79,30 +83,29 @@
 	<figure class="chart" data-testid="cd-balance-chart">
 		<figcaption>
 			<span class="chart-title">Balance over time</span>
-			<span class="chart-sentence">{balanceSentence(stats.series)}</span>
+			<span class="chart-sentence">{balanceSentence(series)}</span>
 		</figcaption>
-		{#if chart.points.length}
-			<svg
-				viewBox="0 0 {chart.width} {chart.height}"
-				preserveAspectRatio="none"
-				aria-hidden="true"
-				class="svg"
-			>
-				{#if chart.zeroY !== null}
-					<line class="zero" x1="0" x2={chart.width} y1={chart.zeroY} y2={chart.zeroY} />
-				{/if}
-				<path class="line" d={chart.path} />
-				{#each chart.points as p (p.day)}
-					<circle class="dot" class:below={p.balance < 0} cx={p.x} cy={p.y} r="2.5" />
+		{#if line}
+			<svg viewBox="0 0 {BOX.width} {BOX.height}" aria-hidden="true" class="svg">
+				{#each line.yTicks as t (t.value)}
+					<line class="grid" x1={BOX.left} x2={BOX.width - BOX.right} y1={t.y} y2={t.y} />
+					<text class="ax" x={BOX.left - 6} y={t.y + 4} text-anchor="end">{t.value}</text>
+				{/each}
+				<line class="zero" x1={BOX.left} x2={BOX.width - BOX.right} y1={line.zeroY} y2={line.zeroY} />
+				<path class="line" d={line.path} />
+				{#each line.points as p (p.day)}
+					<circle class="dot" class:below={p.balance < 0} cx={p.x} cy={p.y} r="3" />
+				{/each}
+				{#each line.xLabels as l (l.day)}
+					<text class="ax" x={l.x} y={BOX.height - 8} text-anchor={l.anchor}>{shortDay(l.day)}</text>
 				{/each}
 			</svg>
-			<p class="axis"><span>{shortDay(chart.points[0].day)}</span><span>{shortDay(chart.points[chart.points.length - 1].day)}</span></p>
 			<Disclosure label="Show the numbers" collapseWhen={true} testId="cd-balance-table">
 				<table class="nums">
 					<thead><tr><th scope="col">Day</th><th scope="col">Balance at the end of the day</th></tr></thead>
 					<tbody>
-						{#each stats.series as p (p.day)}
-							<tr><td>{shortDay(p.day)}</td><td>{coins(num(p.balance))}</td></tr>
+						{#each series as p (p.day)}
+							<tr><td>{shortDay(p.day)}</td><td>{coins(p.balance)}</td></tr>
 						{/each}
 					</tbody>
 				</table>
@@ -113,24 +116,28 @@
 	<figure class="chart" data-testid="cd-weeks-chart">
 		<figcaption>
 			<span class="chart-title">Earned and spent each week</span>
-			<span class="chart-sentence">{weeksSentence(stats.weeks)}</span>
+			<span class="chart-sentence">{weeksSentence(lists?.weeks ?? [])}</span>
 		</figcaption>
-		{#if bars.bars.length}
+		{#if bars}
 			<p class="legend">
-				<span class="key earned" aria-hidden="true"></span> Earned (left)
-				<span class="key spent" aria-hidden="true"></span> Spent (right)
+				<span class="key earned" aria-hidden="true"></span> Earned, above the line
+				<span class="key spent" aria-hidden="true"></span> Spent or lost, below it
 			</p>
-			<svg viewBox="0 0 600 140" preserveAspectRatio="none" aria-hidden="true" class="svg">
-				<line class="zero" x1="0" x2="600" y1="132" y2="132" />
+			<svg viewBox="0 0 {BOX.width} {BOX.height}" aria-hidden="true" class="svg">
+				{#each bars.yTicks as t (t.value)}
+					<line class="grid" x1={BOX.left} x2={BOX.width - BOX.right} y1={t.y} y2={t.y} />
+					<text class="ax" x={BOX.left - 6} y={t.y + 4} text-anchor="end">{t.value}</text>
+				{/each}
+				<line class="zero" x1={BOX.left} x2={BOX.width - BOX.right} y1={bars.zeroY} y2={bars.zeroY} />
 				{#each bars.bars as b (b.week_start)}
-					<rect class="bar earned" x={b.x} y={b.earnedY} width={b.barWidth} height={b.earnedH} />
-					<rect class="bar spent" x={b.x + b.barWidth} y={b.spentY} width={b.barWidth} height={b.spentH} />
+					<rect class="bar earned" x={b.x} y={b.earnedY} width={b.width} height={b.earnedH} />
+					<rect class="bar spent" x={b.x} y={b.spentY} width={b.width} height={b.spentH} />
 				{/each}
 			</svg>
 			<Disclosure label="Show the numbers" collapseWhen={true} testId="cd-weeks-table">
 				<table class="nums">
 					<thead>
-						<tr><th scope="col">Week of</th><th scope="col">Earned</th><th scope="col">Spent</th></tr>
+						<tr><th scope="col">Week of</th><th scope="col">Earned</th><th scope="col">Spent or lost</th></tr>
 					</thead>
 					<tbody>
 						{#each bars.bars as b (b.week_start)}
@@ -253,22 +260,30 @@
 	.svg {
 		display: block;
 		width: 100%;
-		height: 9rem;
+		height: auto;
+		max-height: 16rem;
 		background: var(--bg0);
 		border: 1px solid var(--line);
 		border-radius: 4px;
 	}
+	.grid {
+		stroke: var(--line);
+		stroke-width: 1;
+	}
+	.ax {
+		fill: var(--text-2, var(--dim));
+		font-family: var(--font-mono);
+		font-size: 11px;
+	}
 	.zero {
 		stroke: var(--boundary, var(--line));
-		stroke-width: 1;
+		stroke-width: 1.5;
 		stroke-dasharray: 4 3;
-		vector-effect: non-scaling-stroke;
 	}
 	.line {
 		fill: none;
 		stroke: var(--green);
 		stroke-width: 2;
-		vector-effect: non-scaling-stroke;
 	}
 	.dot {
 		fill: var(--green);
@@ -281,14 +296,6 @@
 	}
 	.bar.spent {
 		fill: var(--amber);
-	}
-	.axis {
-		display: flex;
-		justify-content: space-between;
-		margin: 0.15rem 0 0.3rem;
-		font-family: var(--font-mono);
-		font-size: 0.68rem;
-		color: var(--text-2, var(--dim));
 	}
 	.legend {
 		display: flex;

@@ -1,28 +1,15 @@
-import type { CoinSectionRow } from '$lib/coin-desk/sections';
+import { requireCoinArea } from '$lib/server/coin-scope';
 import type { PageServerLoad } from './$types';
 
 /**
- * Contracts (0077). Admin-gating lives once in the group's
- * +layout.server.ts.
- *
- * ContractsManager loads the real listing itself via
- * coin_admin_list_contracts() on mount (a frequently-changing list, not a
- * small admin-edited definition table), so this load only supplies the
- * section list its optional "restrict to a section" picker offers, plus a
- * cheap configured check.
+ * Contracts (IDEA Coin V2 session two, 0248): a full coin admin's area
+ * (decision 68). ContractsManager reads the list itself (coin_contracts_admin)
+ * on mount, through callV2, so a database without 0248 says so in place. The
+ * classes a contract may be restricted to are the layout's
+ * `coinStaff.sections`: IDEA Classroom sections, never the retired coin
+ * sections.
  */
-export const load: PageServerLoad = async ({ locals: { supabase } }) => {
-	const [{ data: sections }, { error: contractsError }] = await Promise.all([
-		supabase.rpc('coin_admin_list_sections'),
-		supabase.from('coin_contracts').select('id').limit(1)
-	]);
-
-	return {
-		// Active sections only: a contract restricted to an archived section
-		// would be claimable by nobody.
-		sections: ((sections ?? []) as CoinSectionRow[]).filter((s) => s.active),
-		// Fails soft: 0077 not applied yet reads as a clearly-flagged "not
-		// available" card instead of a crashed page.
-		contractsConfigured: !contractsError
-	};
+export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
+	await requireCoinArea(supabase, claims?.sub, 'contracts');
+	return {};
 };

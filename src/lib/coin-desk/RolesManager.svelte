@@ -1,1084 +1,1138 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import Disclosure from '$lib/Disclosure.svelte';
+	import { callV2, V2_UNAVAILABLE } from './v2';
 	import {
-		ratioDescription,
-		capacityLabel,
-		questionsAnswered,
-		suggestedExpirationDate,
+		applicationAnswers,
+		applyRefusal,
+		classRoleSetting,
 		dateInputToExpiresAt,
-		holderStatus,
-		type CoinRoleApplicationRow,
-		type CoinRoleDefinition,
-		type CoinRoleHolderRow,
-		type RoleAnswerRecord,
-		type RoleBulkLogResponse,
-		type RoleCapacity,
-		type RoleQuizQuestion
+		expiresAtToDateInput,
+		personName,
+		proofSummary,
+		questionsAnswered,
+		reviewRefusal,
+		ROLE_DAY_STATUS_WORDS,
+		roleDayDetail,
+		rulesDraft,
+		rulesPayload,
+		rulesProblem,
+		shownRoleDays,
+		stipendRefusal,
+		suggestedExpirationDate,
+		type RoleApplication,
+		type RoleDay,
+		type RoleHolder,
+		type RoleQuizQuestion,
+		type RolesAdmin,
+		type RulesDraft
 	} from './roles';
-	import { sectionDisplayName, type CoinSectionRow } from './sections';
-	import { COIN_SYMBOL, signedCoins } from '$lib/coin-format';
 
 	/**
-	 * Roles admin: Shop Steward / Quartermaster / Safety Officer / Lab Tech
-	 * (migration 0074, real questions + expiration in 0076). Built the SAME
-	 * way SectionManager.svelte was built -- its own card, plain email
-	 * inputs (no separate typeahead), and the per-section expand/collapse
-	 * pattern for "current holders" -- rather than a parallel roster page.
-	 * Factored out of CoinDeskTool.svelte for the same reason SectionManager
-	 * was: a dev harness can mount this against a fake ledger too.
+	 * ROLES AS EVIDENCE JOBS (IDEA Coin V2 session two, 0247), on one read:
+	 * `coin_roles_admin()`. Five things, top to bottom:
 	 *
-	 * `sections` is read-only here (unlike SectionManager's bindable prop):
-	 * this component never creates or edits a section, only reads the list
-	 * SectionManager already owns, for the section picker and "current
-	 * holders by section" list.
+	 *   1. Applications waiting: Accept (with an optional expiration) or
+	 *      Reject. A full class and a missing class are refused in words.
+	 *   2. Each class's cap and switch, per role (coin_role_class_set).
+	 *   3. Holders: their last two weeks of days, with the photos, and Accept,
+	 *      Reject or Clear on any day (coin_role_day_set); their own rules;
+	 *      their expiration; Revoke.
+	 *   4. Apply on a student's behalf, with the role's real questions.
+	 *   5. The stipend: it pays itself (autopay), and a payment by hand stays
+	 *      as an override.
+	 *
+	 * Photos are read with a short signed link only when a holder's days are
+	 * opened, so a page of holders signs nothing it does not show.
 	 */
-	let {
-		supabase,
-		roleDefinitions = [],
-		sections = [],
-		configured = true
-	}: {
-		supabase: SupabaseClient;
-		roleDefinitions?: CoinRoleDefinition[];
-		sections?: CoinSectionRow[];
-		configured?: boolean;
-	} = $props();
+	let { supabase }: { supabase: SupabaseClient } = $props();
 
-	const activeRoles = $derived(
-		roleDefinitions.filter((r) => r.active).sort((a, b) => a.sort_order - b.sort_order)
-	);
+	let data = $state<RolesAdmin | null>(null);
+	let phase = $state<'loading' | 'ready' | 'missing' | 'error'>('loading');
+	let loadMessage = $state('');
 
-	function roleById(roleId: string): CoinRoleDefinition | undefined {
-		return roleDefinitions.find((r) => r.id === roleId);
-	}
-
-	function roleName(roleId: string): string {
-		return roleById(roleId)?.name ?? roleId;
-	}
-
-	function reasonMessage(r: {
-		reason?: string;
-		cap?: number;
-		held?: number;
-		balance?: number;
-		cap_period?: string;
-		message?: string;
-	}): string {
-		switch (r.reason) {
-			case 'already_holds_role':
-				return 'This student already holds this role.';
-			case 'ratio_cap_reached':
-				return `Blocked: role at capacity (${r.held}/${r.cap} filled for this section).`;
-			case 'debt':
-			case 'insufficient':
-				return `Refused: the balance (${signedCoins(Number(r.balance ?? 0))}) cannot cover it.`;
-			case 'cap_reached':
-				return `Blocked: already logged the max for this ${r.cap_period === 'day' ? 'day' : 'calendar month'}.`;
-			case 'error':
-				return r.message ? `Error: ${r.message}` : 'An unexpected error occurred.';
-			default:
-				return r.reason ? `Refused: ${r.reason}` : 'Refused by the server.';
-		}
-	}
-
-	// ---------------------------------------------------------------------
-	// Log an application. No student self-serve apply flow exists yet (see
-	// CLAUDE.md's Roles section) -- every application is admin-entered, the
-	// same way every other coin-desk write is. The question set is loaded
-	// live from coin_role_quiz_questions (0076) for whichever role is
-	// selected -- MC renders as radio options, written as free text -- so a
-	// role with no questions configured yet just shows no fields to fill.
-	// ---------------------------------------------------------------------
-	let newAppEmail = $state('');
-	let newAppRoleId = $state('');
-	let newAppQuestions = $state<RoleQuizQuestion[]>([]);
-	let newAppAnswers = $state<Record<string, { written?: string; selected?: number }>>({});
-	let newAppQuestionsBusy = $state(false);
-	let newAppBusy = $state(false);
-	let newAppError = $state('');
-	let newAppNotice = $state('');
-
-	async function onRoleChange() {
-		newAppError = '';
-		newAppNotice = '';
-		newAppQuestions = [];
-		newAppAnswers = {};
-		if (!newAppRoleId) return;
-		newAppQuestionsBusy = true;
-		const resp = await supabase.rpc('coin_role_admin_list_role_questions', {
-			p_role_id: newAppRoleId
-		});
-		newAppQuestionsBusy = false;
-		if (resp.error) {
-			newAppError = resp.error.message;
+	async function load() {
+		const r = await callV2<RolesAdmin>(supabase, 'coin_roles_admin');
+		if (r.kind === 'missing') {
+			phase = 'missing';
 			return;
 		}
-		newAppQuestions = (resp.data ?? []) as RoleQuizQuestion[];
-	}
-
-	function setWritten(questionId: string, value: string) {
-		newAppAnswers = { ...newAppAnswers, [questionId]: { ...newAppAnswers[questionId], written: value } };
-	}
-	function setSelected(questionId: string, index: number) {
-		newAppAnswers = { ...newAppAnswers, [questionId]: { ...newAppAnswers[questionId], selected: index } };
-	}
-
-	const canSubmitApplication = $derived(
-		!!newAppEmail.trim() &&
-			!!newAppRoleId &&
-			!newAppQuestionsBusy &&
-			questionsAnswered(newAppQuestions, newAppAnswers)
-	);
-
-	async function submitApplication() {
-		if (!canSubmitApplication) return;
-		newAppBusy = true;
-		newAppError = '';
-		newAppNotice = '';
-		const answers = newAppQuestions.map((q) => {
-			const a = newAppAnswers[q.id];
-			return q.type === 'written'
-				? { question_id: q.id, written_answer: (a?.written ?? '').trim() }
-				: { question_id: q.id, selected_option_index: a?.selected };
-		});
-		const resp = await supabase.rpc('coin_role_apply', {
-			p_student_email: newAppEmail.trim().toLowerCase(),
-			p_role_id: newAppRoleId,
-			p_answers: answers
-		});
-		newAppBusy = false;
-		if (resp.error) {
-			newAppError = resp.error.message;
-			return;
-		}
-		const r = resp.data as { ok: boolean; reason?: string };
-		if (!r.ok) {
-			newAppError = reasonMessage(r);
-			return;
-		}
-		newAppNotice = 'Application logged -- it now shows in Pending applications below.';
-		newAppEmail = '';
-		newAppRoleId = '';
-		newAppQuestions = [];
-		newAppAnswers = {};
-		await loadApplications();
-	}
-
-	// ---------------------------------------------------------------------
-	// Pending applications: review, see the question/answer pairs (with an
-	// MC correctness indicator -- informational only, never a gate),
-	// approve or reject. Approve sets an expiration (pre-filled from the
-	// role's suggested duration, always editable before submitting) and is
-	// ratio-checked server-side (coin_role_admin_review), returning the SAME
-	// {ok:false, reason:...} shape Extra Credit's cap and bulk logging's
-	// per-student results already use, not a new one.
-	// ---------------------------------------------------------------------
-	let applications = $state<CoinRoleApplicationRow[]>([]);
-	let applicationsBusy = $state(false);
-	let applicationsError = $state('');
-	let capacityByKey = $state<Record<string, RoleCapacity>>({});
-	let reviewNotes = $state<Record<string, string>>({});
-	let reviewExpiresAt = $state<Record<string, string>>({});
-	let reviewBusy = $state<Record<string, boolean>>({});
-	let reviewFeedback = $state<Record<string, { ok: boolean; message: string }>>({});
-
-	function capacityKey(roleId: string, sectionId: string): string {
-		return `${roleId}::${sectionId}`;
-	}
-
-	async function refreshCapacities() {
-		const keys = new Set(applications.map((a) => capacityKey(a.role_id, a.section_id)));
-		const entries = await Promise.all(
-			Array.from(keys).map(async (key) => {
-				const [roleId, sectionId] = key.split('::');
-				const resp = await supabase.rpc('coin_role_admin_capacity', {
-					p_role_id: roleId,
-					p_section_id: sectionId
-				});
-				if (resp.error) return null;
-				return [key, resp.data as RoleCapacity] as const;
-			})
-		);
-		const next = { ...capacityByKey };
-		for (const e of entries) if (e) next[e[0]] = e[1];
-		capacityByKey = next;
-	}
-
-	async function loadApplications() {
-		applicationsBusy = true;
-		applicationsError = '';
-		const resp = await supabase.rpc('coin_role_admin_list_applications', { p_status: 'pending' });
-		applicationsBusy = false;
-		if (resp.error) {
-			applicationsError = resp.error.message;
-			return;
-		}
-		applications = (resp.data ?? []) as CoinRoleApplicationRow[];
-		// Pre-fill (never overwrite) an expiration date for any application
-		// newly seen -- an admin already editing another row's date must
-		// never have it reset out from under them by a later reload.
-		const nextExpires = { ...reviewExpiresAt };
-		for (const a of applications) {
-			if (!(a.id in nextExpires)) {
-				nextExpires[a.id] = suggestedExpirationDate(roleById(a.role_id)) ?? '';
+		if (r.kind === 'error') {
+			if (phase !== 'ready') {
+				phase = 'error';
+				loadMessage = r.message;
 			}
+			return;
 		}
-		reviewExpiresAt = nextExpires;
-		await refreshCapacities();
+		data = r.data;
+		phase = 'ready';
 	}
 
 	onMount(() => {
-		if (configured) loadApplications();
+		void load();
 	});
 
-	async function reviewApplication(app: CoinRoleApplicationRow, decision: 'approve' | 'reject') {
-		reviewBusy = { ...reviewBusy, [app.id]: true };
-		const { [app.id]: _clearedFeedback, ...restFeedback } = reviewFeedback;
-		reviewFeedback = restFeedback;
+	const roles = $derived((data?.roles ?? []).filter((r) => r.active));
+	const classes = $derived(data?.classes ?? []);
 
-		const resp = await supabase.rpc('coin_role_admin_review', {
-			p_application_id: app.id,
-			p_decision: decision,
-			p_note: (reviewNotes[app.id] ?? '').trim() || null,
-			p_expires_at: decision === 'approve' ? dateInputToExpiresAt(reviewExpiresAt[app.id] ?? '') : null
+	// One feedback line per thing acted on, keyed by its id.
+	let said = $state<Record<string, { ok: boolean; text: string }>>({});
+	let busy = $state<Record<string, boolean>>({});
+	function say(key: string, ok: boolean, text: string) {
+		said = { ...said, [key]: { ok, text } };
+	}
+
+	/** One write, its answer in words, then a fresh read. */
+	async function write(
+		key: string,
+		fn: string,
+		params: Record<string, unknown>,
+		done: string,
+		refusal: (r: Record<string, unknown>) => string = (r) =>
+			r.reason ? `Refused: ${String(r.reason)}.` : 'Refused by the server.'
+	): Promise<boolean> {
+		busy = { ...busy, [key]: true };
+		const r = await callV2<Record<string, unknown> & { ok?: boolean }>(supabase, fn, params);
+		busy = { ...busy, [key]: false };
+		if (r.kind === 'missing') {
+			say(key, false, V2_UNAVAILABLE);
+			return false;
+		}
+		if (r.kind === 'error') {
+			say(key, false, r.message);
+			return false;
+		}
+		if (r.data && r.data.ok === false) {
+			say(key, false, refusal(r.data));
+			return false;
+		}
+		say(key, true, done);
+		await load();
+		return true;
+	}
+
+	// --- 1. applications -----------------------------------------------------------
+	let expiry = $state<Record<string, string>>({});
+	let reviewNote = $state<Record<string, string>>({});
+	let classFor = $state<Record<string, string>>({});
+
+	function expiryFor(a: RoleApplication): string {
+		if (expiry[a.id] !== undefined) return expiry[a.id];
+		return suggestedExpirationDate(roles.find((r) => r.id === a.role_id)) ?? '';
+	}
+
+	function review(a: RoleApplication, decision: 'approve' | 'reject') {
+		return write(
+			`app:${a.id}`,
+			'coin_role_admin_review',
+			{
+				p_application_id: a.id,
+				p_decision: decision,
+				p_note: reviewNote[a.id]?.trim() || null,
+				p_expires_at: decision === 'approve' ? dateInputToExpiresAt(expiryFor(a)) : null
+			},
+			decision === 'approve' ? `${personName(a)} is now ${a.role}.` : `Rejected ${personName(a)}'s application.`,
+			(r) => reviewRefusal(r as { reason?: string; cap?: number; held?: number })
+		);
+	}
+
+	function setApplicationClass(a: RoleApplication) {
+		const sid = classFor[a.id];
+		if (!sid) return;
+		return write(
+			`app:${a.id}`,
+			'coin_role_set_class',
+			{ p_holder_id: null, p_application_id: a.id, p_section_id: sid },
+			'Class set. Accept it now.'
+		);
+	}
+
+	// --- 2. caps per class -----------------------------------------------------------
+	let capDraft = $state<Record<string, string>>({});
+
+	function capKey(classId: string, roleId: string): string {
+		return `cap:${classId}:${roleId}`;
+	}
+
+	function saveCap(classId: string, roleId: string, enabled: boolean) {
+		const key = capKey(classId, roleId);
+		const cap = Number(capDraft[key]);
+		if (!Number.isInteger(cap) || cap < 0 || cap > 20) {
+			say(key, false, 'A cap is a whole number from 0 to 20.');
+			return;
+		}
+		return write(
+			key,
+			'coin_role_class_set',
+			{ p_role_id: roleId, p_section_id: classId, p_cap: cap, p_enabled: enabled },
+			`Cap saved: ${cap}.`
+		).then((ok) => {
+			if (ok) {
+				const next = { ...capDraft };
+				delete next[key];
+				capDraft = next;
+			}
 		});
-		reviewBusy = { ...reviewBusy, [app.id]: false };
-
-		if (resp.error) {
-			reviewFeedback = { ...reviewFeedback, [app.id]: { ok: false, message: resp.error.message } };
-			return;
-		}
-		const r = resp.data as { ok: boolean; status?: string; reason?: string; cap?: number; held?: number };
-		if (!r.ok) {
-			// Ratio-capped or already-held -- stays pending, refusal shown inline.
-			reviewFeedback = { ...reviewFeedback, [app.id]: { ok: false, message: reasonMessage(r) } };
-			return;
-		}
-
-		applications = applications.filter((a) => a.id !== app.id);
-		const { [app.id]: _clearedNote, ...restNotes } = reviewNotes;
-		reviewNotes = restNotes;
-		const { [app.id]: _clearedExpires, ...restExpires } = reviewExpiresAt;
-		reviewExpiresAt = restExpires;
-		await refreshCapacities();
-
-		// An approval just changed who holds a role in app.section_id. The
-		// "current holders" list below is cached per section (the
-		// SectionManager roster pattern: fetch once, reuse) so it can go
-		// stale here even when collapsed -- if this section's holders were
-		// EVER loaded, force a refetch rather than leaving the cache behind.
-		if (decision === 'approve' && holdersBySection[app.section_id]) {
-			await loadHolders(app.section_id);
-		}
 	}
 
-	// ---------------------------------------------------------------------
-	// Current holders by section -- the SAME expand-a-section-row pattern
-	// SectionManager uses for its roster, not a separate roster view. Each
-	// row shows a status (active / expired / revoked, from roles.ts's
-	// holderStatus -- the one place that rule is decided) and an expiration
-	// that's independently editable, no revoke required.
-	// ---------------------------------------------------------------------
-	let expandedSectionId = $state<string | null>(null);
-	let holdersBySection = $state<Record<string, CoinRoleHolderRow[]>>({});
-	let holdersBusy = $state<Record<string, boolean>>({});
-	let revokeConfirmId = $state<string | null>(null);
-	let revokeBusy = $state<Record<string, boolean>>({});
-	let revokeError = $state('');
+	function setEnabled(classId: string, roleId: string, cap: number, on: boolean) {
+		return write(
+			capKey(classId, roleId),
+			'coin_role_class_set',
+			{ p_role_id: roleId, p_section_id: classId, p_cap: cap, p_enabled: on },
+			on ? 'Switched on.' : 'Switched off: nobody can apply here for it.'
+		);
+	}
 
-	let editExpiresId = $state<string | null>(null);
-	let editExpiresValue = $state<Record<string, string>>({});
-	let editExpiresBusy = $state<Record<string, boolean>>({});
-	let editExpiresError = $state('');
+	// --- 3. holders ---------------------------------------------------------------------
+	let photoUrls = $state<Record<string, string>>({});
+	const signedFor = new Set<string>();
 
-	async function loadHolders(sectionId: string) {
-		holdersBusy = { ...holdersBusy, [sectionId]: true };
-		const resp = await supabase.rpc('coin_role_admin_list_holders', {
-			p_section_id: sectionId,
-			p_include_revoked: true
-		});
-		holdersBusy = { ...holdersBusy, [sectionId]: false };
-		if (!resp.error) {
-			holdersBySection = { ...holdersBySection, [sectionId]: (resp.data ?? []) as CoinRoleHolderRow[] };
+	async function signPhotos(h: RoleHolder) {
+		if (signedFor.has(h.id)) return;
+		signedFor.add(h.id);
+		const paths = h.days.flatMap((d) => d.photo_paths.map((p) => p.path));
+		if (!paths.length) return;
+		try {
+			const r = await supabase.storage.from('coin-uploads').createSignedUrls(paths, 600);
+			const next = { ...photoUrls };
+			for (const row of r.data ?? []) {
+				if (row.path && row.signedUrl) next[row.path] = row.signedUrl;
+			}
+			photoUrls = next;
+		} catch {
+			signedFor.delete(h.id);
 		}
 	}
 
-	async function toggleExpandSection(sectionId: string) {
-		if (expandedSectionId === sectionId) {
-			expandedSectionId = null;
-			return;
+	function setDay(h: RoleHolder, d: RoleDay, verdict: 'accepted' | 'rejected' | null) {
+		const words = verdict === 'accepted' ? 'accepted' : verdict === 'rejected' ? 'rejected' : 'back to the rules';
+		return write(
+			`day:${h.id}:${d.day}`,
+			'coin_role_day_set',
+			{ p_holder_id: h.id, p_day: d.day, p_verdict: verdict, p_note: null },
+			`${dayLabel(d.day)} ${words}.`
+		);
+	}
+
+	let rules = $state<Record<string, RulesDraft>>({});
+	function rulesOf(h: RoleHolder): RulesDraft {
+		return rules[h.id] ?? rulesDraft(h.rules);
+	}
+	function editRules(h: RoleHolder, field: keyof RulesDraft, value: string) {
+		rules = { ...rules, [h.id]: { ...rulesOf(h), [field]: value } };
+	}
+
+	async function saveRules(h: RoleHolder) {
+		const d = rulesOf(h);
+		const problem = rulesProblem(d);
+		if (problem) return say(`rules:${h.id}`, false, problem);
+		const ok = await write(
+			`rules:${h.id}`,
+			'coin_role_holder_rules_set',
+			{ p_holder_id: h.id, p_rules: rulesPayload(d) },
+			`${personName(h)} now has rules of their own.`
+		);
+		if (ok) clearRulesDraft(h.id);
+	}
+
+	async function clearRules(h: RoleHolder) {
+		const ok = await write(
+			`rules:${h.id}`,
+			'coin_role_holder_rules_set',
+			{ p_holder_id: h.id, p_rules: {} },
+			`${personName(h)} follows the everyday rules again.`
+		);
+		if (ok) clearRulesDraft(h.id);
+	}
+
+	function clearRulesDraft(id: string) {
+		const next = { ...rules };
+		delete next[id];
+		rules = next;
+	}
+
+	let holderExpiry = $state<Record<string, string>>({});
+	function holderExpiryOf(h: RoleHolder): string {
+		return holderExpiry[h.id] ?? expiresAtToDateInput(h.expires_at);
+	}
+
+	function saveExpiry(h: RoleHolder) {
+		const value = holderExpiryOf(h);
+		return write(
+			`exp:${h.id}`,
+			'coin_role_admin_set_expiration',
+			{ p_holder_id: h.id, p_expires_at: dateInputToExpiresAt(value) },
+			value ? `Ends ${dayLabel(value)}.` : 'No end date.'
+		);
+	}
+
+	let holderClass = $state<Record<string, string>>({});
+	function setHolderClass(h: RoleHolder) {
+		const sid = holderClass[h.id];
+		if (!sid) return;
+		return write(
+			`hold:${h.id}`,
+			'coin_role_set_class',
+			{ p_holder_id: h.id, p_application_id: null, p_section_id: sid },
+			'Class set.'
+		);
+	}
+
+	let revokeArmed = $state<string | null>(null);
+	let revokeReason = $state('');
+	async function revoke(h: RoleHolder) {
+		const ok = await write(
+			`hold:${h.id}`,
+			'coin_role_admin_revoke',
+			{ p_holder_id: h.id, p_reason: revokeReason.trim() || null },
+			`${personName(h)} no longer holds ${h.role}.`
+		);
+		if (ok) {
+			revokeArmed = null;
+			revokeReason = '';
 		}
-		expandedSectionId = sectionId;
-		revokeConfirmId = null;
-		revokeError = '';
-		editExpiresId = null;
-		editExpiresError = '';
-		if (!holdersBySection[sectionId]) await loadHolders(sectionId);
 	}
 
-	function askRevoke(holderId: string) {
-		revokeConfirmId = holderId;
-		revokeError = '';
-		editExpiresId = null;
+	// --- 4. apply on a student's behalf --------------------------------------------------
+	let applyEmail = $state('');
+	let applyRole = $state('');
+	let questions = $state<RoleQuizQuestion[]>([]);
+	let questionsBusy = $state(false);
+	let answers = $state<Record<string, { written?: string; selected?: number }>>({});
+	let questionsToken = 0;
+
+	async function loadQuestions(roleId: string) {
+		questions = [];
+		answers = {};
+		if (!roleId) return;
+		const token = ++questionsToken;
+		questionsBusy = true;
+		const r = await callV2<RoleQuizQuestion[]>(supabase, 'coin_role_admin_list_role_questions', { p_role_id: roleId });
+		if (token !== questionsToken) return;
+		questionsBusy = false;
+		questions = r.kind === 'ok' ? (r.data ?? []) : [];
+		if (r.kind !== 'ok') say('apply', false, r.kind === 'missing' ? V2_UNAVAILABLE : r.message);
 	}
 
-	async function confirmRevoke(sectionId: string, holderId: string) {
-		revokeBusy = { ...revokeBusy, [holderId]: true };
-		const resp = await supabase.rpc('coin_role_admin_revoke', { p_holder_id: holderId, p_reason: null });
-		revokeBusy = { ...revokeBusy, [holderId]: false };
-		revokeConfirmId = null;
-		if (resp.error) {
-			revokeError = resp.error.message;
-			return;
+	const applyReady = $derived(
+		applyEmail.trim().includes('@') && !!applyRole && !questionsBusy && questionsAnswered(questions, answers)
+	);
+
+	async function applyOnBehalf() {
+		if (!applyReady) return;
+		const ok = await write(
+			'apply',
+			'coin_role_apply',
+			{
+				p_student_email: applyEmail.trim().toLowerCase(),
+				p_role_id: applyRole,
+				p_answers: applicationAnswers(questions, answers)
+			},
+			'Application logged. It is waiting above.',
+			(r) => applyRefusal(r.reason as string | undefined)
+		);
+		if (ok) {
+			applyEmail = '';
+			answers = {};
 		}
-		await loadHolders(sectionId);
-		// A freed slot changes capacity for any pending application against
-		// this role/section -- keep the review list's preview honest.
-		await refreshCapacities();
 	}
 
-	function startEditExpires(h: CoinRoleHolderRow) {
-		editExpiresId = h.id;
-		editExpiresValue = { ...editExpiresValue, [h.id]: h.expires_at ? h.expires_at.slice(0, 10) : '' };
-		editExpiresError = '';
-		revokeConfirmId = null;
+	// --- 5. the stipend by hand ------------------------------------------------------------
+	let stipendRole = $state('');
+	let stipendClass = $state('');
+	let stipendNote = $state('');
+	let stipendArmed = $state(false);
+	let stipendResult = $state('');
+
+	const stipendHolders = $derived(
+		(data?.holders ?? []).filter(
+			(h) => (!stipendRole || h.role_id === stipendRole) && (!stipendClass || h.section_id === stipendClass)
+		).length
+	);
+
+	async function payStipend() {
+		busy = { ...busy, stipend: true };
+		stipendResult = '';
+		const r = await callV2<{ ok: boolean; reason?: string; total?: number; succeeded?: number; refused?: number }>(
+			supabase,
+			'coin_role_stipend_manual',
+			{ p_role_id: stipendRole || null, p_section_id: stipendClass || null, p_note: stipendNote.trim() }
+		);
+		busy = { ...busy, stipend: false };
+		stipendArmed = false;
+		if (r.kind !== 'ok') return say('stipend', false, r.kind === 'missing' ? V2_UNAVAILABLE : r.message);
+		if (!r.data?.ok) return say('stipend', false, stipendRefusal(r.data?.reason));
+		say('stipend', true, 'Paid.');
+		stipendResult = `Paid ${r.data.succeeded ?? 0} of ${r.data.total ?? 0} holder${r.data.total === 1 ? '' : 's'}${r.data.refused ? `; ${r.data.refused} refused` : ''}.`;
+		stipendNote = '';
+		await load();
 	}
 
-	function cancelEditExpires() {
-		editExpiresId = null;
-		editExpiresError = '';
+	function dayLabel(day: string): string {
+		const d = new Date(`${day.slice(0, 10)}T00:00:00Z`);
+		return Number.isNaN(d.getTime())
+			? day
+			: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 	}
 
-	async function saveEditExpires(sectionId: string, holderId: string) {
-		editExpiresBusy = { ...editExpiresBusy, [holderId]: true };
-		const value = editExpiresValue[holderId] ?? '';
-		const resp = await supabase.rpc('coin_role_admin_set_expiration', {
-			p_holder_id: holderId,
-			p_expires_at: dateInputToExpiresAt(value)
-		});
-		editExpiresBusy = { ...editExpiresBusy, [holderId]: false };
-		if (resp.error) {
-			editExpiresError = resp.error.message;
-			return;
-		}
-		editExpiresId = null;
-		await loadHolders(sectionId);
-		// Clearing or shortening an expiration can free (or refill) a ratio
-		// slot immediately -- same reasoning as revoke above.
-		await refreshCapacities();
-	}
-
-	// ---------------------------------------------------------------------
-	// Bulk-log Weekly Role Stipend -- its own RPC (coin_bulk_log_role_stipend),
-	// not coin_bulk_log_section, since the audience is "current role
-	// holders", not "everyone in a section". See sections.ts / 0074's header.
-	// (0076: only ACTIVE holders are paid -- a naturally-expired one stops
-	// being included the moment their expiration passes, same as it stops
-	// counting toward ratio capacity.)
-	// ---------------------------------------------------------------------
-	let stipendRoleId = $state('');
-	let stipendSectionId = $state('');
-	let stipendBusy = $state(false);
-	let stipendError = $state('');
-	let stipendResponse = $state<RoleBulkLogResponse | null>(null);
-
-	async function submitStipend() {
-		stipendBusy = true;
-		stipendError = '';
-		stipendResponse = null;
-		const resp = await supabase.rpc('coin_bulk_log_role_stipend', {
-			p_role_id: stipendRoleId || null,
-			p_section_id: stipendSectionId || null,
-			p_note: null
-		});
-		stipendBusy = false;
-		if (resp.error) {
-			stipendError = resp.error.message;
-			return;
-		}
-		stipendResponse = resp.data as RoleBulkLogResponse;
-	}
-
-	function when(iso: string): string {
+	function when(iso: string | null): string {
+		if (!iso) return '';
 		const d = new Date(iso);
-		return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+		return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 	}
 
-	function statusLabel(h: CoinRoleHolderRow): string {
-		const s = holderStatus(h);
-		if (s === 'active') return h.expires_at ? `active · expires ${when(h.expires_at)}` : 'active';
-		if (s === 'expired') return `expired ${h.expires_at ? when(h.expires_at) : ''}`.trim();
-		return `revoked ${when(h.revoked_at as string)}`;
-	}
-
-	function answerDisplay(a: RoleAnswerRecord): string {
-		if (a.type === 'written') return a.written_answer ?? '';
-		if (a.selected_option_index == null || !a.options) return '(no answer)';
-		return a.options[a.selected_option_index] ?? '(no answer)';
-	}
-
-	function correctOptionDisplay(a: RoleAnswerRecord): string | null {
-		if (a.type !== 'mc' || a.correct_option_index == null || !a.options) return null;
-		return a.options[a.correct_option_index] ?? null;
+	function photoTime(iso: string): string {
+		const d = new Date(iso);
+		return Number.isNaN(d.getTime())
+			? ''
+			: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
 	}
 </script>
 
-<section class="card roles-manager">
-	<h2>Roles</h2>
-	<p class="note">
-		Shop Steward, Quartermaster, Safety Officer, and Lab Tech -- section-scoped ratio caps keyed
-		off the real coin_sections roster (0073), not a separate headcount. Application fee is 0{COIN_SYMBOL}
-		on purpose: the free-response answer is the real gate, checked here by an admin, not a
-		payment. The ratio cap is enforced when an application is APPROVED, not when it's submitted.
-		A role can also carry an expiration -- a holder stops counting toward capacity the moment it
-		passes, with nothing that needs to run on a schedule.
-	</p>
+{#snippet feedback(key: string)}
+	{#if said[key]}
+		<p class="cdx-feedback {said[key].ok ? 'notice' : 'error'}" data-testid="cd-roles-feedback">{said[key].text}</p>
+	{/if}
+{/snippet}
 
-	{#if !configured}
-		<p class="feedback error">
-			Migration 0074/0076 does not appear to be applied yet -- roles are unavailable. Apply them
-			in the Supabase SQL editor, then reload this page.
+{#if phase === 'loading'}
+	<section class="card"><p class="cdx-note">Loading roles…</p></section>
+{:else if phase === 'missing'}
+	<section class="card" data-testid="cd-roles-missing">
+		<h2>Roles</h2>
+		<p class="cdx-feedback error">{V2_UNAVAILABLE}</p>
+	</section>
+{:else if phase === 'error'}
+	<section class="card">
+		<h2>Roles</h2>
+		<p class="cdx-feedback error">{loadMessage}</p>
+	</section>
+{:else if data}
+	<!-- 1. APPLICATIONS -------------------------------------------------------------->
+	<section class="card" data-testid="cd-roles-applications">
+		<h2>Applications waiting ({data.applications.length})</h2>
+		{#if !data.applications.length}
+			<p class="cdx-note">Nobody is waiting. Students apply on their coin page.</p>
+		{:else}
+			<ul class="apps">
+				{#each data.applications as a (a.id)}
+					<li class="app" data-testid="cd-role-app">
+						<div class="head">
+							<span class="who" title={a.email}>{personName(a)}</span>
+							<span class="cdx-chip">{a.role}</span>
+							<span class="cdx-chip" class:warn={!a.section_id}>{a.section ?? 'No class yet'}</span>
+							<span class="meta">Applied {when(a.submitted_at)}</span>
+						</div>
+						{#if a.answers.length}
+							<ol class="answers">
+								{#each a.answers as q, i (i)}
+									<li>
+										<span class="q">{q.question}</span>
+										{#if q.type === 'written'}
+											<span class="ans">{q.written_answer}</span>
+										{:else}
+											<span class="ans">
+												{q.options?.[q.selected_option_index ?? -1] ?? 'No answer'}
+												<span class="cdx-chip" class:ok={q.is_correct === true} class:warn={q.is_correct === false}>
+													{q.is_correct ? 'Right answer' : 'Not the key'}
+												</span>
+											</span>
+										{/if}
+									</li>
+								{/each}
+							</ol>
+						{/if}
+						{#if !a.section_id}
+							<div class="cdx-row">
+								<label class="cdx-field">
+									<span>Class for this application</span>
+									<select class="cdx-select" bind:value={classFor[a.id]}>
+										<option value="">Choose a class</option>
+										{#each classes as c (c.id)}
+											<option value={c.id}>{c.label}</option>
+										{/each}
+									</select>
+								</label>
+								<button
+									type="button"
+									class="btn secondary"
+									aria-disabled={!classFor[a.id] || busy[`app:${a.id}`]}
+									onclick={() => setApplicationClass(a)}
+								>
+									Set class
+								</button>
+							</div>
+						{/if}
+						<div class="cdx-row">
+							<label class="cdx-field">
+								<span>Ends on (optional)</span>
+								<input
+									class="cdx-input"
+									type="date"
+									value={expiryFor(a)}
+									oninput={(e) => (expiry = { ...expiry, [a.id]: e.currentTarget.value })}
+								/>
+							</label>
+							<label class="cdx-field grow">
+								<span>Note (optional)</span>
+								<input class="cdx-input" type="text" maxlength="300" bind:value={reviewNote[a.id]} />
+							</label>
+							<button
+								type="button"
+								class="btn"
+								data-testid="cd-role-accept"
+								aria-disabled={busy[`app:${a.id}`]}
+								onclick={() => review(a, 'approve')}
+							>
+								Accept
+							</button>
+							<button
+								type="button"
+								class="btn secondary"
+								data-testid="cd-role-reject"
+								aria-disabled={busy[`app:${a.id}`]}
+								onclick={() => review(a, 'reject')}
+							>
+								Reject
+							</button>
+						</div>
+						{@render feedback(`app:${a.id}`)}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+
+	<!-- 2. CAPS ---------------------------------------------------------------------->
+	<section class="card" data-testid="cd-roles-caps">
+		<h2>Seats per class</h2>
+		<p class="cdx-note">
+			How many students may hold each role in each class (1 unless you change it), and whether the role
+			is open there at all. A switch saves at once; a cap saves with its button.
 		</p>
-	{:else}
-		<div class="role-defs">
-			{#each activeRoles as r (r.id)}
-				<div class="role-def-chip">
-					<span class="role-def-name">{r.name}</span>
-					<span class="role-def-ratio">{ratioDescription(r)}</span>
-					{#if r.ratio_is_default}
-						<span class="tag default-tag" title={r.notes ?? ''}>default, not settled</span>
+		{#if !classes.length}
+			<p class="cdx-note">No class has the coin economy on.</p>
+		{:else}
+			<div class="caps cd-cols">
+				{#each classes as c (c.id)}
+					<div class="cap-class" data-testid="cd-role-class">
+						<h3>{c.label}</h3>
+						<ul class="cap-rows">
+							{#each roles as r (r.id)}
+								{@const s = classRoleSetting(c, r.id)}
+								{@const key = capKey(c.id, r.id)}
+								<li>
+									<span class="role-name">{r.name}</span>
+									<span class="held">{s.held} of {s.cap} held</span>
+									<label class="cap-field">
+										<span class="sr-only">Seats for {r.name} in {c.label}</span>
+										<input
+											class="cdx-input cap-input"
+											type="number"
+											min="0"
+											max="20"
+											step="1"
+											value={capDraft[key] ?? String(s.cap)}
+											oninput={(e) => (capDraft = { ...capDraft, [key]: e.currentTarget.value })}
+										/>
+									</label>
+									{#if capDraft[key] !== undefined && capDraft[key] !== String(s.cap)}
+										<button
+											type="button"
+											class="btn cdx-small"
+											aria-disabled={busy[key]}
+											onclick={() => saveCap(c.id, r.id, s.enabled)}
+										>
+											Save cap
+										</button>
+									{/if}
+									<button
+										type="button"
+										class="btn secondary cdx-small"
+										role="switch"
+										aria-checked={s.enabled}
+										class:on={s.enabled}
+										data-testid="cd-role-switch"
+										aria-disabled={busy[key]}
+										onclick={() => setEnabled(c.id, r.id, s.cap, !s.enabled)}
+									>
+										{s.enabled ? 'On' : 'Off'}
+									</button>
+									{@render feedback(key)}
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</section>
+
+	<!-- 3. HOLDERS ------------------------------------------------------------------->
+	<section class="card" data-testid="cd-roles-holders">
+		<h2>Holders ({data.holders.length})</h2>
+		<p class="cdx-note">
+			Each class day a holder takes a start photo and an end photo of the same spot. A day is proven on
+			its own when the photos follow the rules; accept or reject any day by hand. Absence is never
+			checked: a day without photos only costs that day's share of the stipend.
+		</p>
+		{#if !data.holders.length}
+			<p class="cdx-note">Nobody holds a role right now.</p>
+		{:else}
+			<ul class="holders">
+				{#each data.holders as h (h.id)}
+					{@const days = shownRoleDays(h.days)}
+					<li class="holder" data-testid="cd-role-holder">
+						<div class="head">
+							<span class="who" title={h.email}>{personName(h)}</span>
+							<span class="cdx-chip ok">{h.role}</span>
+							<span class="cdx-chip" class:warn={!h.section_id}>{h.section ?? 'No class yet'}</span>
+							<span class="meta">Since {when(h.since)}{h.expires_at ? `, ends ${when(h.expires_at)}` : ''}</span>
+						</div>
+						<p class="meta">{proofSummary(h.days)}{h.rules.own ? '. Has rules of their own' : ''}.</p>
+
+						<div class="cdx-disc">
+							<Disclosure
+								label="Last two weeks of days"
+								collapseWhen={true}
+								testId="cd-role-days"
+								onopenchange={(open) => {
+									if (open) void signPhotos(h);
+								}}
+							>
+								{#if !days.length}
+									<p class="cdx-note">No class days yet.</p>
+								{:else}
+									<ul class="days">
+										{#each days as d (d.day)}
+											{@const k = `day:${h.id}:${d.day}`}
+											<li class="day" data-status={d.status} data-testid="cd-role-day">
+												<div class="day-head">
+													<span class="day-name">{dayLabel(d.day)}</span>
+													<span
+														class="cdx-chip"
+														class:ok={d.status === 'passed' || d.status === 'accepted'}
+														class:warn={d.status === 'failed' || d.status === 'rejected'}
+													>
+														{ROLE_DAY_STATUS_WORDS[d.status]}
+													</span>
+													<span class="meta">{roleDayDetail(d)}</span>
+												</div>
+												{#if d.photo_paths.length}
+													<div class="photos">
+														{#each d.photo_paths as p (p.path)}
+															<figure class="photo">
+																{#if photoUrls[p.path]}
+																	<img src={photoUrls[p.path]} alt="Evidence photo, {photoTime(p.taken_at)}" loading="lazy" />
+																{:else}
+																	<span class="photo-wait">Photo</span>
+																{/if}
+																<figcaption>{photoTime(p.taken_at)}</figcaption>
+															</figure>
+														{/each}
+													</div>
+												{/if}
+												<div class="cdx-row day-actions">
+													<button
+														type="button"
+														class="btn secondary cdx-small"
+														class:on={d.override === 'accepted'}
+														aria-pressed={d.override === 'accepted'}
+														aria-disabled={busy[k]}
+														onclick={() => setDay(h, d, 'accepted')}
+													>
+														Accept
+													</button>
+													<button
+														type="button"
+														class="btn secondary cdx-small"
+														class:on={d.override === 'rejected'}
+														aria-pressed={d.override === 'rejected'}
+														aria-disabled={busy[k]}
+														onclick={() => setDay(h, d, 'rejected')}
+													>
+														Reject
+													</button>
+													{#if d.override}
+														<button
+															type="button"
+															class="btn secondary cdx-small"
+															aria-disabled={busy[k]}
+															onclick={() => setDay(h, d, null)}
+														>
+															Clear, use the rules
+														</button>
+													{/if}
+												</div>
+												{@render feedback(k)}
+											</li>
+										{/each}
+									</ul>
+								{/if}
+							</Disclosure>
+						</div>
+
+						<div class="cdx-disc">
+							<Disclosure label="This holder's rules" collapseWhen={true} testId="cd-role-rules">
+								{@const d = rulesOf(h)}
+								<p class="cdx-note">
+									{h.rules.own
+										? 'This holder has rules of their own.'
+										: 'This holder follows the everyday rules (set on Settings). Saving here gives them their own.'}
+								</p>
+								<div class="cdx-row">
+									<label class="cdx-field">
+										<span>Minutes between first and last photo</span>
+										<input
+											class="cdx-input"
+											type="number"
+											min="0"
+											max="600"
+											step="1"
+											value={d.min_gap_minutes}
+											oninput={(e) => editRules(h, 'min_gap_minutes', e.currentTarget.value)}
+										/>
+									</label>
+									<label class="cdx-field">
+										<span>Photos a day</span>
+										<input
+											class="cdx-input"
+											type="number"
+											min="2"
+											max="10"
+											step="1"
+											value={d.photos_per_day}
+											oninput={(e) => editRules(h, 'photos_per_day', e.currentTarget.value)}
+										/>
+									</label>
+									<label class="cdx-field">
+										<span>Window opens</span>
+										<input
+											class="cdx-input"
+											type="time"
+											value={d.window_start}
+											oninput={(e) => editRules(h, 'window_start', e.currentTarget.value)}
+										/>
+									</label>
+									<label class="cdx-field">
+										<span>Window closes</span>
+										<input
+											class="cdx-input"
+											type="time"
+											value={d.window_end}
+											oninput={(e) => editRules(h, 'window_end', e.currentTarget.value)}
+										/>
+									</label>
+								</div>
+								<div class="cdx-row">
+									<button
+										type="button"
+										class="btn"
+										aria-disabled={busy[`rules:${h.id}`]}
+										onclick={() => saveRules(h)}
+									>
+										Save their rules
+									</button>
+									{#if h.rules.own}
+										<button
+											type="button"
+											class="btn secondary"
+											aria-disabled={busy[`rules:${h.id}`]}
+											onclick={() => clearRules(h)}
+										>
+											Use the everyday rules
+										</button>
+									{/if}
+								</div>
+								{@render feedback(`rules:${h.id}`)}
+							</Disclosure>
+						</div>
+
+						<div class="cdx-row">
+							<label class="cdx-field">
+								<span>Ends on (empty: no end)</span>
+								<input
+									class="cdx-input"
+									type="date"
+									value={holderExpiryOf(h)}
+									oninput={(e) => (holderExpiry = { ...holderExpiry, [h.id]: e.currentTarget.value })}
+								/>
+							</label>
+							<button
+								type="button"
+								class="btn secondary"
+								aria-disabled={busy[`exp:${h.id}`]}
+								onclick={() => saveExpiry(h)}
+							>
+								Save end date
+							</button>
+							{#if !h.section_id}
+								<label class="cdx-field">
+									<span>Class</span>
+									<select class="cdx-select" bind:value={holderClass[h.id]}>
+										<option value="">Choose a class</option>
+										{#each classes as c (c.id)}
+											<option value={c.id}>{c.label}</option>
+										{/each}
+									</select>
+								</label>
+								<button
+									type="button"
+									class="btn secondary"
+									aria-disabled={!holderClass[h.id] || busy[`hold:${h.id}`]}
+									onclick={() => setHolderClass(h)}
+								>
+									Set class
+								</button>
+							{/if}
+						</div>
+						{@render feedback(`exp:${h.id}`)}
+
+						<div class="cdx-row">
+							{#if revokeArmed === h.id}
+								<label class="cdx-field grow">
+									<span>Why (optional, kept with the record)</span>
+									<input class="cdx-input" type="text" maxlength="300" bind:value={revokeReason} />
+								</label>
+								<button
+									type="button"
+									class="btn"
+									data-testid="cd-role-revoke-confirm"
+									aria-disabled={busy[`hold:${h.id}`]}
+									onclick={() => revoke(h)}
+								>
+									Confirm: {personName(h)} stops being {h.role}
+								</button>
+								<button type="button" class="btn secondary cdx-small" onclick={() => (revokeArmed = null)}>
+									Keep
+								</button>
+							{:else}
+								<button
+									type="button"
+									class="btn secondary cdx-small"
+									data-testid="cd-role-revoke"
+									onclick={() => {
+										revokeArmed = h.id;
+										revokeReason = '';
+									}}
+								>
+									Revoke
+								</button>
+							{/if}
+						</div>
+						{@render feedback(`hold:${h.id}`)}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+
+	<!-- 4. APPLY ON A STUDENT'S BEHALF ------------------------------------------------>
+	<section class="card" data-testid="cd-roles-apply">
+		<h2>Apply for a student</h2>
+		<p class="cdx-note">
+			For a student who cannot apply on their coin page. The application lands in the list above, in
+			the student's class, and still needs accepting.
+		</p>
+		<div class="cdx-row">
+			<label class="cdx-field grow">
+				<span>Student email</span>
+				<input class="cdx-input" type="email" placeholder="student@boscotech.net" bind:value={applyEmail} />
+			</label>
+			<label class="cdx-field">
+				<span>Role</span>
+				<select class="cdx-select" bind:value={applyRole} onchange={() => loadQuestions(applyRole)}>
+					<option value="">Choose a role</option>
+					{#each roles as r (r.id)}
+						<option value={r.id}>{r.name}</option>
+					{/each}
+				</select>
+			</label>
+		</div>
+		{#if questionsBusy}
+			<p class="cdx-note">Loading the questions…</p>
+		{:else if applyRole && !questions.length}
+			<p class="cdx-note">This role has no questions yet, so there is nothing to answer.</p>
+		{:else}
+			{#each questions as q (q.id)}
+				<div class="question">
+					<p class="q">{q.question_text}</p>
+					{#if q.type === 'written'}
+						<textarea
+							class="cdx-textarea"
+							maxlength="4000"
+							aria-label={q.question_text}
+							value={answers[q.id]?.written ?? ''}
+							oninput={(e) => (answers = { ...answers, [q.id]: { written: e.currentTarget.value } })}
+						></textarea>
+					{:else}
+						{#each q.options ?? [] as opt, i (i)}
+							<label class="radio">
+								<input
+									type="radio"
+									name="q-{q.id}"
+									checked={answers[q.id]?.selected === i}
+									onchange={() => (answers = { ...answers, [q.id]: { selected: i } })}
+								/>
+								<span>{opt}</span>
+							</label>
+						{/each}
 					{/if}
 				</div>
 			{/each}
-		</div>
-
-		<div class="sub-panel">
-			<h3>Log an application</h3>
-			{#if newAppError}<p class="feedback error">{newAppError}</p>{/if}
-			{#if newAppNotice}<p class="feedback notice">{newAppNotice}</p>{/if}
-			<div class="field-row">
-				<label for="role-app-email">Student email</label>
-				<input
-					id="role-app-email"
-					type="email"
-					placeholder="student@boscotech.net"
-					bind:value={newAppEmail}
-				/>
-			</div>
-			<div class="field-row">
-				<label for="role-app-role">Role</label>
-				<select id="role-app-role" bind:value={newAppRoleId} onchange={onRoleChange}>
-					<option value="" disabled selected>Choose a role&hellip;</option>
-					{#each activeRoles as r (r.id)}
-						<option value={r.id}>{r.name}</option>
-					{/each}
-				</select>
-			</div>
-			{#if newAppRoleId}
-				{#if newAppQuestionsBusy}
-					<p class="note">Loading questions&hellip;</p>
-				{:else if !newAppQuestions.length}
-					<p class="note">No application questions have been added for this role yet.</p>
-				{:else}
-					{#each newAppQuestions as q (q.id)}
-						<div class="field-row">
-							<span class="question-label">{q.question_text}</span>
-							{#if q.type === 'written'}
-								<textarea
-									rows="2"
-									value={newAppAnswers[q.id]?.written ?? ''}
-									oninput={(e) => setWritten(q.id, (e.target as HTMLTextAreaElement).value)}
-								></textarea>
-							{:else}
-								<div class="mc-options" role="radiogroup" aria-label={q.question_text}>
-									{#each q.options ?? [] as opt, i (i)}
-										<label class="mc-option">
-											<input
-												type="radio"
-												name={`role-app-q-${q.id}`}
-												checked={newAppAnswers[q.id]?.selected === i}
-												onchange={() => setSelected(q.id, i)}
-											/>
-											<span>{opt}</span>
-										</label>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					{/each}
-				{/if}
-			{/if}
-			<div class="btn-row">
-				<button class="btn" disabled={newAppBusy || !canSubmitApplication} onclick={submitApplication}>
-					{newAppBusy ? 'Logging…' : 'Log application'}
-				</button>
-			</div>
-			<p class="note small">
-				The student must already be assigned to a coin section above -- the ratio cap is checked
-				against that section when this application is later approved.
-			</p>
-		</div>
-
-		<div class="sub-panel">
-			<h3>Pending applications</h3>
-			{#if applicationsError}<p class="feedback error">{applicationsError}</p>{/if}
-			{#if applicationsBusy}
-				<p class="note">Loading&hellip;</p>
-			{:else if !applications.length}
-				<p class="note">No pending applications.</p>
-			{:else}
-				<div class="rows app-rows cd-cols cd-card-rows">
-					{#each applications as app (app.id)}
-						{@const cap = capacityByKey[capacityKey(app.role_id, app.section_id)] ?? null}
-						{@const feedback = reviewFeedback[app.id]}
-						<div class="row app-row">
-							<div class="who">
-								<span class="email">{app.display_name || app.full_name || app.student_email}</span>
-								<span class="tag role-tag">{app.role_name}</span>
-							</div>
-							<div class="meta">
-								<span class="since">
-									{sectionDisplayName({ id: app.section_id, label: null })} &middot; applied
-									{when(app.submitted_at)} by {app.submitted_by}
-								</span>
-								<span class="capacity-chip">{capacityLabel(cap)}</span>
-							</div>
-							<div class="answers">
-								{#if !app.answers.length}
-									<p class="note small">No questions were configured for this role at submission time.</p>
-								{/if}
-								{#each app.answers as a (a.question_id)}
-									{@const correctText = correctOptionDisplay(a)}
-									<div class="answer">
-										<span class="answer-q">
-											{a.question}
-											{#if a.type === 'mc'}<span class="tag mc-tag">multiple choice</span>{/if}
-										</span>
-										<span class="answer-a">{answerDisplay(a)}</span>
-										{#if a.type === 'mc'}
-											{#if a.is_correct}
-												<span class="correct-badge">&#10003; correct</span>
-											{:else}
-												<span class="incorrect-badge">
-													&#10007; incorrect{#if correctText} -- correct answer: {correctText}{/if}
-												</span>
-											{/if}
-										{/if}
-									</div>
-								{/each}
-							</div>
-							{#if feedback}
-								<p class="feedback error inline-feedback">{feedback.message}</p>
-							{/if}
-							<div class="field-row review-note-row">
-								<label for={`review-note-${app.id}`}>Review note (optional)</label>
-								<input
-									id={`review-note-${app.id}`}
-									type="text"
-									maxlength="500"
-									bind:value={reviewNotes[app.id]}
-								/>
-							</div>
-							<div class="field-row review-note-row">
-								<label for={`review-expires-${app.id}`}>
-									Expires on approval (optional -- blank means no expiration)
-								</label>
-								<input
-									id={`review-expires-${app.id}`}
-									type="date"
-									bind:value={reviewExpiresAt[app.id]}
-								/>
-							</div>
-							<div class="actions review-actions">
-								<button
-									class="btn secondary"
-									disabled={reviewBusy[app.id]}
-									onclick={() => reviewApplication(app, 'approve')}
-								>
-									{reviewBusy[app.id] ? '…' : 'Approve'}
-								</button>
-								<button
-									class="mini danger"
-									disabled={reviewBusy[app.id]}
-									onclick={() => reviewApplication(app, 'reject')}
-								>
-									Reject
-								</button>
-							</div>
-						</div>
-					{/each}
-				</div>
+		{/if}
+		<div class="cdx-row">
+			<button
+				type="button"
+				class="btn"
+				aria-disabled={!applyReady || busy.apply}
+				onclick={applyOnBehalf}
+			>
+				Log application
+			</button>
+			{#if !applyReady}
+				<span class="cdx-note">An email, a role, and an answer to every question.</span>
 			{/if}
 		</div>
+		{@render feedback('apply')}
+	</section>
 
-		<div class="sub-panel">
-			<h3>Current holders by section</h3>
-			<p class="note small">
-				Expand a section to see who currently holds a role there, revoke one, or edit an
-				expiration independently of revoking.
-			</p>
-			{#if revokeError}<p class="feedback error">{revokeError}</p>{/if}
-			{#if editExpiresError}<p class="feedback error">{editExpiresError}</p>{/if}
-			<div class="rows section-rows">
-				{#each sections as s (s.id)}
-					<div class="row section-row" class:archived={!s.active}>
-						<div class="who">
-							<span class="swatch" style={`background:${s.color ?? 'var(--dim)'}`}></span>
-							<span class="email">{sectionDisplayName(s)}</span>
-						</div>
-						<div class="actions">
-							<button class="mini" onclick={() => toggleExpandSection(s.id)}>
-								{expandedSectionId === s.id ? 'close' : 'roles'}
-							</button>
-						</div>
-					</div>
-
-					{#if expandedSectionId === s.id}
-						<div class="sub-panel">
-							{#if holdersBusy[s.id]}
-								<p class="note">Loading&hellip;</p>
-							{:else if holdersBySection[s.id]?.length}
-								<div class="rows roster-rows">
-									{#each holdersBySection[s.id] as h (h.id)}
-										{@const status = holderStatus(h)}
-										<div class="row" class:inactive-row={status !== 'active'}>
-											<div class="who">
-												<span class="email">{h.display_name || h.full_name || h.student_email}</span>
-												<span class="tag role-tag">{h.role_name}</span>
-												<span class={`status-badge status-${status}`}>{status}</span>
-											</div>
-											<div class="meta">
-												<span class="since">since {when(h.since)} &middot; by {h.assigned_by}</span>
-												<span class="since">{statusLabel(h)}</span>
-											</div>
-											<div class="actions">
-												{#if editExpiresId === h.id}
-													<input
-														type="date"
-														class="mini-date"
-														bind:value={editExpiresValue[h.id]}
-													/>
-													<button
-														class="mini"
-														disabled={editExpiresBusy[h.id]}
-														onclick={() => saveEditExpires(s.id, h.id)}
-													>
-														{editExpiresBusy[h.id] ? '…' : 'save'}
-													</button>
-													<button class="mini" onclick={cancelEditExpires}>cancel</button>
-												{:else if revokeConfirmId === h.id}
-													<span class="confirm-text">Revoke?</span>
-													<button
-														class="mini danger"
-														disabled={revokeBusy[h.id]}
-														onclick={() => confirmRevoke(s.id, h.id)}
-													>
-														{revokeBusy[h.id] ? '…' : 'confirm'}
-													</button>
-													<button class="mini" onclick={() => (revokeConfirmId = null)}>cancel</button>
-												{:else}
-													<button class="mini" onclick={() => startEditExpires(h)}>expiration</button>
-													{#if !h.revoked_at}
-														<button class="mini danger" onclick={() => askRevoke(h.id)}>revoke</button>
-													{/if}
-												{/if}
-											</div>
-										</div>
-									{/each}
-								</div>
-							{:else}
-								<p class="note">No one currently holds a role in this section.</p>
-							{/if}
-						</div>
-					{/if}
-				{/each}
-				{#if !sections.length}
-					<p class="note">No sections yet -- add one above.</p>
-				{/if}
-			</div>
-		</div>
-
-		<div class="sub-panel">
-			<h3>Pay Weekly Role Stipend</h3>
-			<p class="note small">
-				Logs the role stipend (2{COIN_SYMBOL}, every two weeks) to the balance of every student who CURRENTLY holds a role (active,
-				not expired), filtered by role and/or section if set -- never against a whole section's
-				enrollment (see the note above "Log a transaction" &rarr; Section mode, which deliberately
-				excludes this category).
-			</p>
-			{#if stipendError}<p class="feedback error">{stipendError}</p>{/if}
-			<div class="field-row">
-				<label for="stipend-role">Role (optional -- blank means every role)</label>
-				<select id="stipend-role" bind:value={stipendRoleId}>
-					<option value="">All roles</option>
-					{#each activeRoles as r (r.id)}
-						<option value={r.id}>{r.name}</option>
-					{/each}
-				</select>
-			</div>
-			<div class="field-row">
-				<label for="stipend-section">Section (optional -- blank means every section)</label>
-				<select id="stipend-section" bind:value={stipendSectionId}>
-					<option value="">All sections</option>
-					{#each sections.filter((s) => s.active) as s (s.id)}
-						<option value={s.id}>{sectionDisplayName(s)}</option>
-					{/each}
-				</select>
-			</div>
-			<div class="btn-row">
-				<button class="btn" disabled={stipendBusy} onclick={submitStipend}>
-					{stipendBusy ? 'Logging…' : 'Log stipend'}
-				</button>
-			</div>
-			{#if stipendResponse}
-				<p class="feedback notice">
-					Logged against {stipendResponse.total} holder{stipendResponse.total === 1 ? '' : 's'}:
-					{stipendResponse.succeeded} succeeded, {stipendResponse.refused} refused.
+	<!-- 5. THE STIPEND ---------------------------------------------------------------->
+	<section class="card" data-testid="cd-roles-stipend">
+		<h2>The stipend</h2>
+		<p class="cdx-note">
+			The stipend pays itself. Every two weeks autopay pays each holder the Weekly Role Stipend for
+			each week, cut to the share of class days they proved. Nothing here is needed for that.
+		</p>
+		<div class="cdx-disc">
+			<Disclosure label="Pay a stipend by hand" collapseWhen={true} testId="cd-stipend-manual">
+				<p class="cdx-note">
+					An override: pays one Weekly Role Stipend, once, to every current holder you pick, whatever
+					their days say.
 				</p>
-				<div class="rows bulk-rows">
-					{#each stipendResponse.results as r (r.email)}
-						<div class="row">
-							<div class="who"><span class="email">{r.email}</span></div>
-							<div class="actions">
-								{#if r.ok}
-									<span class="txn-pos">
-										{r.amount != null ? signedCoins(Number(r.amount)) : 'logged'}
-									</span>
-								{:else}
-									<span class="txn-neg">{reasonMessage(r)}</span>
-								{/if}
-							</div>
-						</div>
-					{/each}
+				<div class="cdx-row">
+					<label class="cdx-field">
+						<span>Role</span>
+						<select class="cdx-select" bind:value={stipendRole} onchange={() => (stipendArmed = false)}>
+							<option value="">Every role</option>
+							{#each roles as r (r.id)}
+								<option value={r.id}>{r.name}</option>
+							{/each}
+						</select>
+					</label>
+					<label class="cdx-field">
+						<span>Class</span>
+						<select class="cdx-select" bind:value={stipendClass} onchange={() => (stipendArmed = false)}>
+							<option value="">Every class</option>
+							{#each classes as c (c.id)}
+								<option value={c.id}>{c.label}</option>
+							{/each}
+						</select>
+					</label>
+					<label class="cdx-field grow">
+						<span>Why (required)</span>
+						<input class="cdx-input" type="text" maxlength="300" bind:value={stipendNote} />
+					</label>
 				</div>
-			{/if}
+				<div class="cdx-row">
+					{#if stipendArmed}
+						<button
+							type="button"
+							class="btn"
+							data-testid="cd-stipend-confirm"
+							aria-disabled={busy.stipend}
+							onclick={payStipend}
+						>
+							Confirm: pay {stipendHolders} holder{stipendHolders === 1 ? '' : 's'} once
+						</button>
+						<button type="button" class="btn secondary cdx-small" onclick={() => (stipendArmed = false)}>
+							Keep
+						</button>
+					{:else}
+						<button
+							type="button"
+							class="btn secondary"
+							data-testid="cd-stipend-pay"
+							aria-disabled={!stipendNote.trim() || !stipendHolders}
+							onclick={() => {
+								if (stipendNote.trim() && stipendHolders) stipendArmed = true;
+							}}
+						>
+							Pay a stipend by hand
+						</button>
+						{#if !stipendNote.trim()}<span class="cdx-note">Say why first.</span>{/if}
+						{#if !stipendHolders}<span class="cdx-note">Nobody holds a role in that choice.</span>{/if}
+					{/if}
+				</div>
+				{@render feedback('stipend')}
+				{#if stipendResult}<p class="cdx-note">{stipendResult}</p>{/if}
+			</Disclosure>
 		</div>
-	{/if}
-</section>
+	</section>
+{/if}
 
 <style>
-	.note {
-		color: var(--dim);
-		font-size: 0.9rem;
+	h2 {
+		margin-top: 0;
 	}
-	.note.small {
-		font-size: 0.78rem;
-		margin-top: 0.3rem;
+	h3 {
+		margin: 0 0 0.4rem;
+		font-size: 0.95rem;
 	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.8rem;
-		padding: 0.45rem 0.7rem;
-		border-radius: 5px;
-		margin-bottom: 0.8rem;
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
+	.grow {
+		flex: 1 1 14rem;
 	}
-	.feedback.notice {
-		color: var(--green);
+	.apps,
+	.holders,
+	.days,
+	.cap-rows {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.app,
+	.holder {
 		border: 1px solid var(--line);
+		border-radius: 6px;
+		padding: 0.6rem 0.8rem;
+		margin-bottom: 0.7rem;
+		min-width: 0;
 	}
-	.inline-feedback {
-		margin: 0.4rem 0;
-	}
-	.role-defs {
+	.head {
 		display: flex;
-		flex-wrap: wrap;
+		align-items: center;
 		gap: 0.5rem;
-		margin: 0.6rem 0 1rem;
+		flex-wrap: wrap;
 	}
-	.role-def-chip {
+	.who {
+		font-weight: 700;
+		color: var(--white);
+		overflow-wrap: anywhere;
+	}
+	.meta {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2, var(--dim));
+		margin: 0.2rem 0;
+	}
+	.answers {
+		margin: 0.4rem 0;
+		padding-left: 1.2rem;
+	}
+	.answers li {
+		margin-bottom: 0.3rem;
+	}
+	.q {
+		display: block;
+		color: var(--text-2, var(--dim));
+		font-size: 0.85rem;
+		margin: 0;
+	}
+	.ans {
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		padding: 0.3rem 0.6rem;
-		font-size: 0.8rem;
-	}
-	.role-def-name {
+		flex-wrap: wrap;
 		color: var(--white);
-		font-weight: 700;
 	}
-	.role-def-ratio {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--cyan);
-	}
-	.tag {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		border-radius: 999px;
-		padding: 0.05rem 0.5rem;
-		border: 1px solid currentColor;
-	}
-	.default-tag {
-		color: var(--amber);
-	}
-	.role-tag {
-		color: var(--cyan);
-	}
-	.mc-tag {
-		color: var(--dim);
-		margin-left: 0.4rem;
-	}
-	.status-badge {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		border-radius: 999px;
-		padding: 0.05rem 0.5rem;
-		border: 1px solid currentColor;
-	}
-	.status-active {
-		color: var(--green);
-	}
-	.status-expired {
-		color: var(--amber);
-	}
-	.status-revoked {
-		color: var(--crimson, #ff3355);
-	}
-	.inactive-row {
-		opacity: 0.7;
-	}
-	.sub-panel {
-		margin: 0.4rem 0 0.9rem;
-		padding: 0.7rem 0.85rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 6px;
-	}
-	.sub-panel h3 {
-		margin: 0 0 0.5rem;
-		font-size: 0.95rem;
-		color: var(--green);
-	}
-	.field-row {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
+	.cap-class {
+		break-inside: avoid;
 		margin-bottom: 0.8rem;
 	}
-	.field-row label,
-	.question-label {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--green);
-	}
-	.field-row input,
-	.field-row select,
-	.field-row textarea {
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
-		font-size: 1rem;
-		padding: 0.45rem 0.6rem;
-	}
-	.field-row textarea {
-		resize: vertical;
-	}
-	.field-row input:focus,
-	.field-row select:focus,
-	.field-row textarea:focus {
-		outline: 2px solid var(--cyan);
-		outline-offset: 1px;
-	}
-	.mc-options {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-	}
-	.mc-option {
+	.cap-rows li {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		font-family: 'Rajdhani', sans-serif;
-		font-size: 0.95rem;
-		color: var(--white);
-		cursor: pointer;
-	}
-	.review-note-row {
-		margin-top: 0.6rem;
-	}
-	.btn-row {
-		display: flex;
-		gap: 0.85rem;
 		flex-wrap: wrap;
-		margin-top: 0.4rem;
-	}
-	.rows {
-		display: flex;
-		flex-direction: column;
-	}
-	.section-rows,
-	.app-rows {
-		margin-top: 0.6rem;
-	}
-	/* THE COLUMN MINIMUM IS MEASURED, NOT PICKED. Driving this list's own
-	   container from 260px to 780px in 20px steps at 1440, its total height
-	   stops gaining at 28rem and is flat from there through the next step up,
-	   so that is the width above which the content gains nothing.
-	   `.cd-cols` / `.cd-card-rows` are in $lib/coin-desk/coin-desk.css.
-	   `.section-rows` above is NOT gridded -- it is a short list of one-line
-	   rows -- so the property sits on `.app-rows` alone rather than on the
-	   pair, where it would name a column width for a list that has none. */
-	.app-rows {
-		--cd-col: 28rem;
-	}
-	.row {
-		display: flex;
-		align-items: center;
-		gap: 0.8rem;
-		flex-wrap: wrap;
-		padding: 0.5rem 0;
+		padding: 0.2rem 0;
 		border-bottom: 1px solid var(--line);
 	}
-	.row:last-child {
-		border-bottom: none;
+	.role-name {
+		color: var(--white);
+		flex: 1 1 8rem;
+		min-width: 0;
 	}
-	.app-row {
-		flex-direction: column;
-		align-items: stretch;
-		gap: 0.3rem;
+	.held {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2, var(--dim));
 	}
-	.section-row.archived {
-		opacity: 0.55;
+	.cap-input {
+		width: 4.5rem;
 	}
-	.who {
+	.day {
+		padding: 0.4rem 0;
+		border-bottom: 1px solid var(--line);
+	}
+	.day-head {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		min-width: 14rem;
+		flex-wrap: wrap;
 	}
-	.swatch {
-		display: inline-block;
-		width: 0.85rem;
-		height: 0.85rem;
-		border-radius: 3px;
-		border: 1px solid var(--line-strong);
-		flex-shrink: 0;
-	}
-	.email {
-		font-weight: 700;
+	.day-name {
 		color: var(--white);
+		min-width: 7rem;
 	}
-	.meta {
+	.day-actions {
+		margin: 0.3rem 0 0;
+	}
+	.photos {
 		display: flex;
-		flex-direction: column;
-		gap: 0.1rem;
-		min-width: 0;
-	}
-	.since {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		color: var(--dim);
-	}
-	.capacity-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		color: var(--cyan);
-	}
-	.answers {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-		padding: 0.4rem 0.6rem;
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-	}
-	.answer {
-		display: flex;
-		flex-direction: column;
-		gap: 0.05rem;
-	}
-	.answer-q {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--green);
-	}
-	.answer-a {
-		font-size: 0.88rem;
-		color: var(--white);
-		white-space: pre-wrap;
-	}
-	.correct-badge {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--green);
-	}
-	.incorrect-badge {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--amber);
-	}
-	.actions {
-		margin-left: auto;
-		display: flex;
-		gap: 0.35rem;
-		align-items: center;
-	}
-	.review-actions {
-		margin-left: 0;
+		gap: 0.5rem;
+		flex-wrap: wrap;
 		margin-top: 0.3rem;
 	}
-	.confirm-text {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--amber);
+	.photo {
+		margin: 0;
+		width: 7.5rem;
 	}
-	.mini {
-		background: none;
+	.photo img,
+	.photo-wait {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		aspect-ratio: 4 / 3;
+		object-fit: contain;
+		background: var(--bg0);
 		border: 1px solid var(--line);
 		border-radius: 4px;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		padding: 0.15rem 0.5rem;
+		color: var(--text-2, var(--dim));
+		font-size: 0.75rem;
+	}
+	.photo figcaption {
+		font-family: var(--font-mono);
+		font-size: 0.65rem;
+		color: var(--text-2, var(--dim));
+	}
+	.question {
+		margin: 0.5rem 0;
+	}
+	.radio {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		min-height: 44px;
+		color: var(--white);
 		cursor: pointer;
 	}
-	.mini:hover:not(:disabled) {
-		color: var(--white);
-		border-color: var(--green);
-	}
-	.mini.danger {
-		color: var(--crimson, #ff3355);
-		border-color: var(--crimson, #ff3355);
-	}
-	.mini:disabled {
-		opacity: 0.35;
-		cursor: default;
-	}
-	.mini-date {
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--white);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		padding: 0.15rem 0.4rem;
-	}
-	.txn-neg {
-		color: var(--amber);
-		font-family: 'Share Tech Mono', monospace;
-	}
-	.txn-pos {
-		color: var(--green);
-		font-family: 'Share Tech Mono', monospace;
-	}
-	.bulk-rows {
-		margin-top: 0.6rem;
+	.radio input {
+		width: 1.1rem;
+		height: 1.1rem;
+		accent-color: var(--green);
 	}
 </style>

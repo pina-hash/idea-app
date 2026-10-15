@@ -1,697 +1,484 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import { coins } from '$lib/coin-format';
+	import Disclosure from '$lib/Disclosure.svelte';
+	import { callV2, V2_UNAVAILABLE } from './v2';
+	import type { CoinClass } from './log';
 	import {
+		CLAIMANT_STATE_WORDS,
+		CONTRACT_PAY_TYPES,
 		CONTRACT_STATUS_LABELS,
-		claimantLabel,
-		contractPayoutGuideline,
-		contractSharePreview,
-		type CoinContractRow,
-		type ContractStatus
+		PAY_TYPE_LABELS,
+		claimantName,
+		claimantState,
+		contractDraftProblem,
+		contractPostParams,
+		contractPostRefusal,
+		emptyContractDraft,
+		payLine,
+		splitContracts,
+		waitingInQueue,
+		type AdminContract,
+		type ContractDraft
 	} from './contracts';
-	import { sectionDisplayName, type CoinSectionRow } from './sections';
-	import { COIN_SYMBOL, coins } from '$lib/coin-format';
 
 	/**
-	 * Contracts admin: post a job, watch students self-claim it, complete it
-	 * (splits the payout evenly across current claimants) or cancel it, reset
-	 * one back to open. Built the SAME way RolesManager.svelte was -- its own
-	 * card, a plain post form, and a status-filtered list with per-row actions
-	 * behind a two-step confirm for the destructive ones -- so a dev harness
-	 * can mount this against a fake ledger the same way. See
-	 * supabase/migrations/0077_coin_contracts.sql for the write-side design
-	 * (why the capacity check needs a row lock, why status is computed).
+	 * CONTRACTS (IDEA Coin V2 session two, 0248). Post a job, see where each
+	 * claimant is, cancel or reset one. Completion is not a button here: a
+	 * claimant marks their part done and it appears in the Queue with the
+	 * amount filled in, and approving it there pays them. When every claimant
+	 * is paid, the contract completes itself.
 	 *
-	 * `sections` is read-only here (the RolesManager convention): this
-	 * component never creates a section, only offers the existing list for
-	 * the optional "restrict to a section" picker.
+	 * Every read and write goes through `callV2`, so a database without 0248
+	 * says V2_UNAVAILABLE in one place rather than erroring.
+	 *
+	 * `queueHref` null removes the link to the queue (the dev harness, which
+	 * has no router); the real route passes `/coin-desk/queue`.
 	 */
 	let {
 		supabase,
-		sections = [],
-		configured = true
+		classes = [],
+		queueHref = '/coin-desk/queue'
 	}: {
 		supabase: SupabaseClient;
-		sections?: CoinSectionRow[];
-		configured?: boolean;
+		/** The classes a contract may be restricted to: `coinStaff.sections`. */
+		classes?: CoinClass[];
+		queueHref?: string | null;
 	} = $props();
 
-	function reasonMessage(r: { reason?: string; message?: string }): string {
-		switch (r.reason) {
-			case 'error':
-				return r.message ? `Error: ${r.message}` : 'An unexpected error occurred.';
-			default:
-				return r.reason ? `Refused: ${r.reason}` : 'Refused by the server.';
-		}
-	}
+	let contracts = $state<AdminContract[]>([]);
+	let phase = $state<'loading' | 'ready' | 'missing' | 'error'>('loading');
+	let loadMessage = $state('');
 
-	// ---------------------------------------------------------------------
-	// Post a contract. payout_amount is always free entry (0077's own
-	// header): the docs' "~1i¢/hour, +50% specialized" formula is shown here
-	// as a HINT only, computed client-side, never sent to the server or
-	// enforced by it.
-	// ---------------------------------------------------------------------
-	let newTitle = $state('');
-	let newDescription = $state('');
-	let newPayout = $state('');
-	let newMax = $state('1');
-	let newSectionId = $state('');
-	let guidelineHours = $state('');
-	let guidelineSpecialized = $state(false);
-
-	const guidelinePreview = $derived.by(() => {
-		const hours = Number(guidelineHours);
-		if (!Number.isFinite(hours) || hours <= 0) return null;
-		return contractPayoutGuideline(hours, guidelineSpecialized);
-	});
-
-	let postBusy = $state(false);
-	let postError = $state('');
-	let postNotice = $state('');
-
-	const canPost = $derived.by(() => {
-		if (postBusy || !newTitle.trim()) return false;
-		const amt = Number(newPayout);
-		const max = Number(newMax);
-		return Number.isFinite(amt) && amt > 0 && Number.isFinite(max) && max > 0;
-	});
-
-	async function submitPost() {
-		if (!canPost) return;
-		postBusy = true;
-		postError = '';
-		postNotice = '';
-		const resp = await supabase.rpc('coin_admin_post_contract', {
-			p_title: newTitle.trim(),
-			p_description: newDescription.trim() || null,
-			p_payout_amount: Math.round(Number(newPayout)),
-			p_max_contractors: Math.round(Number(newMax)),
-			p_section_id: newSectionId || null
-		});
-		postBusy = false;
-		if (resp.error) {
-			postError = resp.error.message;
+	async function load() {
+		const r = await callV2<AdminContract[]>(supabase, 'coin_contracts_admin');
+		if (r.kind === 'missing') {
+			phase = 'missing';
 			return;
 		}
-		postNotice = 'Contract posted -- it now shows in the list below.';
-		newTitle = '';
-		newDescription = '';
-		newPayout = '';
-		newMax = '1';
-		newSectionId = '';
-		guidelineHours = '';
-		guidelineSpecialized = false;
-		await loadContracts();
-	}
-
-	// ---------------------------------------------------------------------
-	// List + filter.
-	// ---------------------------------------------------------------------
-	let contracts = $state<CoinContractRow[]>([]);
-	let listBusy = $state(false);
-	let listError = $state('');
-	let statusFilter = $state<'all' | ContractStatus>('all');
-
-	async function loadContracts() {
-		listBusy = true;
-		listError = '';
-		const resp = await supabase.rpc('coin_admin_list_contracts');
-		listBusy = false;
-		if (resp.error) {
-			listError = resp.error.message;
+		if (r.kind === 'error') {
+			if (phase !== 'ready') {
+				phase = 'error';
+				loadMessage = r.message;
+			}
 			return;
 		}
-		contracts = (resp.data ?? []) as CoinContractRow[];
+		contracts = r.data ?? [];
+		phase = 'ready';
 	}
 
 	onMount(() => {
-		if (configured) loadContracts();
+		void load();
 	});
 
-	const filteredContracts = $derived(
-		statusFilter === 'all' ? contracts : contracts.filter((c) => c.status === statusFilter)
-	);
+	const groups = $derived(splitContracts(contracts));
 
-	function sectionLabel(sectionId: string | null): string {
-		if (!sectionId) return 'Open to everyone';
-		const s = sections.find((sec) => sec.id === sectionId);
-		return s ? sectionDisplayName(s) : sectionId;
+	// --- posting ----------------------------------------------------------------
+	let draft = $state<ContractDraft>(emptyContractDraft());
+	let postBusy = $state(false);
+	let postError = $state('');
+	let postNotice = $state('');
+	const problem = $derived(contractDraftProblem(draft));
+
+	async function post() {
+		if (problem || postBusy) return;
+		postBusy = true;
+		postError = '';
+		postNotice = '';
+		const r = await callV2<{ ok: boolean; reason?: string; id?: string }>(
+			supabase,
+			'coin_contract_post',
+			contractPostParams(draft)
+		);
+		postBusy = false;
+		if (r.kind === 'missing') return void (postError = V2_UNAVAILABLE);
+		if (r.kind === 'error') return void (postError = r.message);
+		if (!r.data?.ok) return void (postError = contractPostRefusal(r.data?.reason));
+		postNotice = `Posted "${draft.title.trim()}".`;
+		draft = emptyContractDraft();
+		await load();
 	}
 
-	// ---------------------------------------------------------------------
-	// Complete -- splits payout_amount evenly across current claimants.
-	// ---------------------------------------------------------------------
-	let completeBusy = $state<Record<string, boolean>>({});
-	let completeFeedback = $state<Record<string, { ok: boolean; message: string }>>({});
+	// --- cancel and reset: two presses each ---------------------------------------
+	let armed = $state<{ id: string; action: 'cancel' | 'reset' } | null>(null);
+	let cancelReason = $state('');
+	let rowBusy = $state<string | null>(null);
+	let rowError = $state<{ id: string; message: string } | null>(null);
+	let rowNotice = $state('');
 
-	async function completeContract(c: CoinContractRow) {
-		completeBusy = { ...completeBusy, [c.id]: true };
-		const { [c.id]: _cleared, ...restFeedback } = completeFeedback;
-		completeFeedback = restFeedback;
+	function arm(id: string, action: 'cancel' | 'reset') {
+		armed = { id, action };
+		cancelReason = '';
+		rowError = null;
+	}
 
-		const resp = await supabase.rpc('coin_admin_complete_contract', { p_contract_id: c.id, p_note: null });
-		completeBusy = { ...completeBusy, [c.id]: false };
-		if (resp.error) {
-			completeFeedback = { ...completeFeedback, [c.id]: { ok: false, message: resp.error.message } };
+	async function confirm(c: AdminContract) {
+		if (!armed || armed.id !== c.id) return;
+		const action = armed.action;
+		rowBusy = c.id;
+		rowError = null;
+		rowNotice = '';
+		const r =
+			action === 'cancel'
+				? await callV2<{ ok: boolean }>(supabase, 'coin_admin_cancel_contract', {
+						p_contract_id: c.id,
+						p_reason: cancelReason.trim() || null
+					})
+				: await callV2<{ ok: boolean; cleared?: number }>(supabase, 'coin_admin_reset_contract', {
+						p_contract_id: c.id
+					});
+		rowBusy = null;
+		armed = null;
+		if (r.kind !== 'ok' || !r.data?.ok) {
+			rowError = {
+				id: c.id,
+				message: r.kind === 'missing' ? V2_UNAVAILABLE : r.kind === 'error' ? r.message : 'Refused by the server.'
+			};
 			return;
 		}
-		const r = resp.data as { share: number; claimant_count: number; succeeded: number };
-		completeFeedback = {
-			...completeFeedback,
-			[c.id]: {
-				ok: true,
-				message: `Paid ${coins(Number(r.share ?? 0))} to each of ${r.claimant_count} claimant${r.claimant_count === 1 ? '' : 's'} (${r.succeeded} succeeded).`
-			}
-		};
-		await loadContracts();
+		rowNotice =
+			action === 'cancel'
+				? `Cancelled "${c.title}". Nothing was paid for it; its claims stay as history.`
+				: `Reset "${c.title}": every claim cleared, open again.`;
+		await load();
 	}
 
-	// ---------------------------------------------------------------------
-	// Cancel -- two-step confirm (the SectionManager / RolesManager revoke
-	// convention), since it's destructive and pays nothing.
-	// ---------------------------------------------------------------------
-	let cancelConfirmId = $state<string | null>(null);
-	let cancelReason = $state<Record<string, string>>({});
-	let cancelBusy = $state<Record<string, boolean>>({});
-	let cancelError = $state('');
-
-	function askCancel(id: string) {
-		cancelConfirmId = id;
-		cancelError = '';
-		resetConfirmId = null;
-	}
-
-	async function confirmCancel(id: string) {
-		cancelBusy = { ...cancelBusy, [id]: true };
-		const resp = await supabase.rpc('coin_admin_cancel_contract', {
-			p_contract_id: id,
-			p_reason: (cancelReason[id] ?? '').trim() || null
-		});
-		cancelBusy = { ...cancelBusy, [id]: false };
-		cancelConfirmId = null;
-		if (resp.error) {
-			cancelError = resp.error.message;
-			return;
-		}
-		await loadContracts();
-	}
-
-	// ---------------------------------------------------------------------
-	// Reset -- two-step confirm, only offered on a non-terminal contract.
-	// ---------------------------------------------------------------------
-	let resetConfirmId = $state<string | null>(null);
-	let resetBusy = $state<Record<string, boolean>>({});
-	let resetError = $state('');
-	let resetNotice = $state('');
-
-	function askReset(id: string) {
-		resetConfirmId = id;
-		resetError = '';
-		resetNotice = '';
-		cancelConfirmId = null;
-	}
-
-	async function confirmReset(id: string) {
-		resetBusy = { ...resetBusy, [id]: true };
-		const resp = await supabase.rpc('coin_admin_reset_contract', { p_contract_id: id });
-		resetBusy = { ...resetBusy, [id]: false };
-		resetConfirmId = null;
-		if (resp.error) {
-			resetError = resp.error.message;
-			return;
-		}
-		const r = resp.data as { cleared: number };
-		resetNotice = `Cleared ${r.cleared} claim${r.cleared === 1 ? '' : 's'} -- back to open.`;
-		await loadContracts();
-	}
-
-	function when(iso: string): string {
+	function when(iso: string | null): string {
+		if (!iso) return '';
 		const d = new Date(iso);
-		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+		return Number.isNaN(d.getTime())
+			? ''
+			: d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+	}
+
+	function claimedCount(c: AdminContract): number {
+		return c.claimants.length;
 	}
 </script>
 
-<section class="card contracts-manager">
-	<h2>Contracts</h2>
-	<p class="note">
-		Post a job, students self-claim it up to its capacity, complete it once someone has and split
-		the payout evenly across whoever claimed it -- an ordinary Contract Completion award
-		(coin_admin_complete_contract), the same category a single-student entry already used. Cancel
-		pays nothing; reset clears claims and reopens it, only while it is still neither completed nor
-		cancelled.
-	</p>
-
-	{#if !configured}
-		<p class="feedback error">
-			Migration 0077 does not appear to be applied yet -- contracts are unavailable. Apply it in
-			the Supabase SQL editor, then reload this page.
-		</p>
-	{:else}
-		<div class="sub-panel">
-			<h3>Post a contract</h3>
-			{#if postError}<p class="feedback error">{postError}</p>{/if}
-			{#if postNotice}<p class="feedback notice">{postNotice}</p>{/if}
-			<div class="field-row">
-				<label for="contract-title">Title</label>
-				<input id="contract-title" type="text" maxlength="200" bind:value={newTitle} />
-			</div>
-			<div class="field-row">
-				<label for="contract-description">Description (optional)</label>
-				<textarea id="contract-description" rows="2" maxlength="2000" bind:value={newDescription}
-				></textarea>
-			</div>
-			<div class="field-row">
-				<label for="contract-payout">Payout ({COIN_SYMBOL}, split evenly across whoever claims it)</label>
-				<input id="contract-payout" type="number" min="1" step="1" bind:value={newPayout} />
-			</div>
-			<div class="field-row">
-				<label for="contract-max">Max contractors</label>
-				<input id="contract-max" type="number" min="1" step="1" bind:value={newMax} />
-			</div>
-			<div class="field-row">
-				<label for="contract-section">Restrict to a section (optional -- blank is open to everyone)</label>
-				<select id="contract-section" bind:value={newSectionId}>
-					<option value="">Open to everyone</option>
-					{#each sections.filter((s) => s.active) as s (s.id)}
-						<option value={s.id}>{sectionDisplayName(s)}</option>
-					{/each}
-				</select>
-			</div>
-
-			<div class="guideline">
-				<p class="note small">
-					Guideline only, never enforced: ~1{COIN_SYMBOL}/hour, +50% for specialized skill over general
-					labor (docs Part 3). Payout above is always a free amount you type in.
-				</p>
-				<div class="guideline-row">
-					<label for="guideline-hours">Estimated hours</label>
-					<input id="guideline-hours" type="number" min="0" step="0.5" bind:value={guidelineHours} />
-					<label class="checkbox-row">
-						<input type="checkbox" bind:checked={guidelineSpecialized} />
-						Specialized skill (+50%)
-					</label>
-					{#if guidelinePreview !== null}
-						<span class="preview">suggests {guidelinePreview}{COIN_SYMBOL}</span>
-					{/if}
-				</div>
-			</div>
-
-			<div class="btn-row">
-				<button class="btn" disabled={!canPost} onclick={submitPost}>
-					{postBusy ? 'Posting…' : 'Post contract'}
-				</button>
-			</div>
-		</div>
-
-		<div class="sub-panel">
-			<h3>All contracts</h3>
-			<div class="mode-toggle">
-				{#each [['all', 'All'], ['open', 'Open'], ['full', 'Full'], ['completed', 'Completed'], ['cancelled', 'Cancelled']] as [value, label] (value)}
-					<button
-						type="button"
-						class:active={statusFilter === value}
-						onclick={() => (statusFilter = value as 'all' | ContractStatus)}
-					>
-						{label}
-					</button>
-				{/each}
-			</div>
-
-			{#if listError}<p class="feedback error">{listError}</p>{/if}
-			{#if cancelError}<p class="feedback error">{cancelError}</p>{/if}
-			{#if resetError}<p class="feedback error">{resetError}</p>{/if}
-			{#if resetNotice}<p class="feedback notice">{resetNotice}</p>{/if}
-
-			{#if listBusy}
-				<p class="note">Loading&hellip;</p>
-			{:else if !filteredContracts.length}
-				<p class="note">No contracts{statusFilter === 'all' ? ' yet' : ` with status "${statusFilter}"`}.</p>
-			{:else}
-				<div class="rows contract-rows cd-cols cd-card-rows">
-					{#each filteredContracts as c (c.id)}
-						{@const feedback = completeFeedback[c.id]}
-						<div class="row contract-row">
-							<div class="who">
-								<span class="email">{c.title}</span>
-								<span class={`tag status-tag status-${c.status}`}>{CONTRACT_STATUS_LABELS[c.status]}</span>
-							</div>
-							<div class="meta">
-								<span class="since">
-									{c.payout_amount}{COIN_SYMBOL} total &middot; {c.claimed_count}/{c.max_contractors} claimed
-									&middot; {sectionLabel(c.section_id)} &middot; posted {when(c.created_at)} by {c.created_by}
-								</span>
-								{#if c.description}<span class="note-text">{c.description}</span>{/if}
-								{#if c.cancel_reason}
-									<span class="note-text">Cancelled: {c.cancel_reason}</span>
-								{/if}
-							</div>
-
-							{#if c.claimants.length}
-								<div class="claimants">
-									{#each c.claimants as claimant (claimant.student_email)}
-										<span class="claimant-chip">
-											{claimantLabel(claimant)}
-											{#if c.status === 'open' || c.status === 'full'}
-												<span class="preview-inline">
-													&rarr; {contractSharePreview(c.payout_amount, c.claimed_count)}{COIN_SYMBOL} if completed now
-												</span>
-											{/if}
-										</span>
-									{/each}
-								</div>
-							{:else}
-								<p class="note small">No one has claimed this yet.</p>
-							{/if}
-
-							{#if feedback}
-								<p class={`feedback inline-feedback ${feedback.ok ? 'notice' : 'error'}`}>{feedback.message}</p>
-							{/if}
-
-							<div class="actions review-actions">
-								{#if c.status === 'open' || c.status === 'full'}
-									<button
-										class="btn secondary"
-										disabled={!c.claimed_count || completeBusy[c.id]}
-										onclick={() => completeContract(c)}
-									>
-										{completeBusy[c.id] ? '…' : 'Complete'}
-									</button>
-
-									{#if resetConfirmId === c.id}
-										<span class="confirm-text">Clear all claims and reopen?</span>
-										<button class="mini danger" disabled={resetBusy[c.id]} onclick={() => confirmReset(c.id)}>
-											{resetBusy[c.id] ? '…' : 'confirm'}
-										</button>
-										<button class="mini" onclick={() => (resetConfirmId = null)}>cancel</button>
-									{:else}
-										<button class="mini" onclick={() => askReset(c.id)}>reset</button>
-									{/if}
-
-									{#if cancelConfirmId === c.id}
-										<input
-											type="text"
-											class="mini-input"
-											placeholder="reason (optional)"
-											bind:value={cancelReason[c.id]}
-										/>
-										<button class="mini danger" disabled={cancelBusy[c.id]} onclick={() => confirmCancel(c.id)}>
-											{cancelBusy[c.id] ? '…' : 'confirm'}
-										</button>
-										<button class="mini" onclick={() => (cancelConfirmId = null)}>back</button>
-									{:else}
-										<button class="mini danger" onclick={() => askCancel(c.id)}>cancel</button>
-									{/if}
-								{:else if c.status === 'completed'}
-									<span class="since">completed {when(c.completed_at as string)}</span>
-								{:else}
-									<span class="since">cancelled {when(c.cancelled_at as string)}</span>
-								{/if}
-							</div>
-						</div>
-					{/each}
-				</div>
+{#snippet contractCard(c: AdminContract)}
+	{@const waiting = waitingInQueue(c)}
+	<li class="contract" data-testid="cd-contract" data-status={c.status}>
+		<div class="head">
+			<span class="title">{c.title}</span>
+			<span class="cdx-chip" class:ok={c.status === 'open'} class:warn={c.status === 'full'}>
+				{CONTRACT_STATUS_LABELS[c.status]}
+			</span>
+			{#if c.debt_only}
+				<span class="cdx-chip warn" data-testid="cd-contract-debt-only">Students in debt only</span>
 			{/if}
 		</div>
-	{/if}
-</section>
+		{#if c.description}<p class="desc">{c.description}</p>{/if}
+		<p class="facts">
+			<span>{payLine(c, coins)}</span>
+			<span>{claimedCount(c)} of {c.max_contractors} claimed</span>
+			<span>{c.section ? `Only ${c.section}` : 'Any class'}</span>
+			<span>Posted {when(c.created_at)}</span>
+			{#if c.cancelled_at}<span>Cancelled {when(c.cancelled_at)}{c.cancel_reason ? `: ${c.cancel_reason}` : ''}</span>{/if}
+			{#if c.completed_at}<span>Completed {when(c.completed_at)}</span>{/if}
+		</p>
+
+		{#if c.claimants.length}
+			<ul class="claimants" data-testid="cd-contract-claimants">
+				{#each c.claimants as k (k.email)}
+					{@const st = claimantState(k)}
+					<li>
+						<span class="claimant" title={k.email}>{claimantName(k)}</span>
+						<span class="cdx-chip" class:ok={st === 'paid'} class:warn={st === 'marked_done'} data-state={st}>
+							{CLAIMANT_STATE_WORDS[st]}
+						</span>
+						{#if k.hours != null && Number(k.hours) > 0}<span class="hours">{k.hours} h reported</span>{/if}
+					</li>
+				{/each}
+			</ul>
+			{#if waiting && queueHref}
+				<p class="cdx-note">
+					{waiting} waiting to be paid:
+					<a href={queueHref} data-testid="cd-contract-queue-link">open the Queue</a>, where the amount is
+					already filled in.
+				</p>
+			{:else if waiting}
+				<p class="cdx-note">{waiting} waiting to be paid in the Queue, where the amount is already filled in.</p>
+			{/if}
+		{:else if c.status === 'open'}
+			<p class="cdx-note">Nobody has claimed it yet.</p>
+		{/if}
+
+		{#if c.status === 'open' || c.status === 'full'}
+			<div class="cdx-row actions">
+				{#if armed?.id === c.id && armed.action === 'cancel'}
+					<label class="cdx-field grow">
+						<span>Why (optional, kept with the contract)</span>
+						<input class="cdx-input" type="text" maxlength="300" bind:value={cancelReason} />
+					</label>
+					<button
+						type="button"
+						class="btn cdx-small"
+						data-testid="cd-contract-cancel-confirm"
+						disabled={rowBusy === c.id}
+						onclick={() => confirm(c)}
+					>
+						Confirm cancel, pays nobody
+					</button>
+					<button type="button" class="btn secondary cdx-small" onclick={() => (armed = null)}>Keep it</button>
+				{:else if armed?.id === c.id && armed.action === 'reset'}
+					<span class="cdx-note">
+						This clears {claimedCount(c)} claim{claimedCount(c) === 1 ? '' : 's'} and opens it again. A claim
+						marked done loses its place.
+					</span>
+					<button
+						type="button"
+						class="btn cdx-small"
+						data-testid="cd-contract-reset-confirm"
+						disabled={rowBusy === c.id}
+						onclick={() => confirm(c)}
+					>
+						Confirm reset
+					</button>
+					<button type="button" class="btn secondary cdx-small" onclick={() => (armed = null)}>Keep it</button>
+				{:else}
+					<button
+						type="button"
+						class="btn secondary cdx-small"
+						data-testid="cd-contract-cancel"
+						onclick={() => arm(c.id, 'cancel')}
+					>
+						Cancel contract
+					</button>
+					{#if claimedCount(c)}
+						<button
+							type="button"
+							class="btn secondary cdx-small"
+							data-testid="cd-contract-reset"
+							onclick={() => arm(c.id, 'reset')}
+						>
+							Reset claims
+						</button>
+					{/if}
+				{/if}
+			</div>
+		{/if}
+		{#if rowError?.id === c.id}<p class="cdx-feedback error">{rowError.message}</p>{/if}
+	</li>
+{/snippet}
+
+{#if phase === 'missing'}
+	<section class="card" data-testid="cd-contracts-missing">
+		<h2>Contracts</h2>
+		<p class="cdx-feedback error">{V2_UNAVAILABLE}</p>
+	</section>
+{:else if phase === 'error'}
+	<section class="card">
+		<h2>Contracts</h2>
+		<p class="cdx-feedback error">{loadMessage}</p>
+	</section>
+{:else}
+	<section class="card" data-testid="cd-contracts-post">
+		<h2>Post a contract</h2>
+		<p class="cdx-note">
+			A job a student claims, does, and marks done. Marking it done puts a card in the Queue with the
+			amount filled in; approving it pays them.
+		</p>
+		{#if postError}<p class="cdx-feedback error" data-testid="cd-contract-post-error">{postError}</p>{/if}
+		{#if postNotice}<p class="cdx-feedback notice" data-testid="cd-contract-post-notice">{postNotice}</p>{/if}
+		<div class="cdx-row">
+			<label class="cdx-field grow">
+				<span>Title</span>
+				<input class="cdx-input" type="text" maxlength="200" data-testid="cd-contract-title" bind:value={draft.title} />
+			</label>
+		</div>
+		<label class="cdx-field">
+			<span>What the job is (optional)</span>
+			<textarea class="cdx-textarea" maxlength="2000" bind:value={draft.description}></textarea>
+		</label>
+		<fieldset class="pay">
+			<legend>How it pays</legend>
+			{#each CONTRACT_PAY_TYPES as t (t)}
+				<label class="radio">
+					<input type="radio" name="cd-pay-type" value={t} bind:group={draft.payType} />
+					<span>{PAY_TYPE_LABELS[t]}</span>
+				</label>
+			{/each}
+		</fieldset>
+		<div class="cdx-row">
+			{#if draft.payType === 'hourly'}
+				<label class="cdx-field">
+					<span>Rate (coins an hour)</span>
+					<input class="cdx-input" type="number" min="0.01" max="1000" step="0.01" data-testid="cd-contract-rate" bind:value={draft.hourlyRate} />
+				</label>
+			{:else}
+				<label class="cdx-field">
+					<span>{draft.payType === 'quality' ? 'Base payout (coins)' : 'Payout (coins, split between claimants)'}</span>
+					<input class="cdx-input" type="number" min="1" step="1" data-testid="cd-contract-payout" bind:value={draft.payout} />
+				</label>
+			{/if}
+			<label class="cdx-field">
+				<span>Students who may claim it</span>
+				<input class="cdx-input" type="number" min="1" max="50" step="1" bind:value={draft.maxContractors} />
+			</label>
+			<label class="cdx-field">
+				<span>Class</span>
+				<select class="cdx-select" data-testid="cd-contract-class" bind:value={draft.sectionId}>
+					<option value="">Any class</option>
+					{#each classes as c (c.id)}
+						<option value={c.id}>Only {c.label}</option>
+					{/each}
+				</select>
+			</label>
+		</div>
+		<label class="check">
+			<input type="checkbox" data-testid="cd-contract-debt-only-box" bind:checked={draft.debtOnly} />
+			<span>
+				Students in debt only. A restitution job: only a student whose balance is below zero can see or
+				claim it, and it never appears on the public board.
+			</span>
+		</label>
+		<div class="cdx-row">
+			<button
+				type="button"
+				class="btn"
+				data-testid="cd-contract-post"
+				aria-disabled={!!problem || postBusy}
+				onclick={post}
+			>
+				{postBusy ? 'Posting…' : 'Post contract'}
+			</button>
+			{#if problem}<span class="cdx-note" data-testid="cd-contract-problem">{problem}</span>{/if}
+		</div>
+	</section>
+
+	<section class="card" data-testid="cd-contracts-list">
+		<h2>Open contracts</h2>
+		{#if rowNotice}<p class="cdx-feedback notice">{rowNotice}</p>{/if}
+		{#if phase === 'loading'}
+			<p class="cdx-note">Loading the contracts…</p>
+		{:else if !groups.live.length}
+			<p class="cdx-note">No open contracts.</p>
+		{:else}
+			<ul class="contracts">
+				{#each groups.live as c (c.id)}
+					{@render contractCard(c)}
+				{/each}
+			</ul>
+		{/if}
+		{#if groups.closed.length}
+			<div class="cdx-disc closed">
+				<Disclosure
+					label="Completed and cancelled ({groups.closed.length})"
+					collapseWhen={true}
+					testId="cd-contracts-closed"
+				>
+					<ul class="contracts">
+						{#each groups.closed as c (c.id)}
+							{@render contractCard(c)}
+						{/each}
+					</ul>
+				</Disclosure>
+			</div>
+		{/if}
+	</section>
+{/if}
 
 <style>
-	.note {
-		color: var(--dim);
-		font-size: 0.9rem;
+	h2 {
+		margin-top: 0;
 	}
-	.note.small {
-		font-size: 0.78rem;
-		margin-top: 0.3rem;
+	.grow {
+		flex: 1 1 16rem;
 	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.8rem;
-		padding: 0.45rem 0.7rem;
-		border-radius: 5px;
-		margin-bottom: 0.8rem;
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-	}
-	.feedback.notice {
-		color: var(--green);
-		border: 1px solid var(--line);
-	}
-	.inline-feedback {
-		margin: 0.4rem 0;
-	}
-	.sub-panel {
-		margin: 0.4rem 0 0.9rem;
-		padding: 0.7rem 0.85rem;
-		background: var(--bg0);
+	.pay {
 		border: 1px solid var(--line);
 		border-radius: 6px;
+		margin: 0.6rem 0;
+		padding: 0.4rem 0.8rem 0.6rem;
 	}
-	.sub-panel h3 {
-		margin: 0 0 0.5rem;
-		font-size: 0.95rem;
-		color: var(--green);
-	}
-	.field-row {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-		margin-bottom: 0.8rem;
-	}
-	.field-row label {
-		font-family: 'Share Tech Mono', monospace;
+	legend {
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--green);
+		letter-spacing: 0.04em;
+		color: var(--text-2, var(--dim));
+		padding: 0 0.3rem;
 	}
-	.field-row input,
-	.field-row select,
-	.field-row textarea {
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
-		font-size: 1rem;
-		padding: 0.45rem 0.6rem;
-	}
-	.field-row textarea {
-		resize: vertical;
-	}
-	.field-row input:focus,
-	.field-row select:focus,
-	.field-row textarea:focus {
-		outline: 2px solid var(--cyan);
-		outline-offset: 1px;
-	}
-	.guideline {
-		margin: 0.2rem 0 0.9rem;
-		padding: 0.5rem 0.65rem;
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-	}
-	.guideline-row {
+	.radio,
+	.check {
 		display: flex;
 		align-items: center;
-		gap: 0.7rem;
-		flex-wrap: wrap;
-		margin-top: 0.4rem;
-	}
-	.guideline-row input[type='number'] {
-		width: 6rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
-		padding: 0.3rem 0.5rem;
-	}
-	.checkbox-row {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-family: 'Rajdhani', sans-serif;
+		gap: 0.55rem;
+		min-height: 44px;
 		color: var(--white);
 		cursor: pointer;
 	}
-	.preview {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		color: var(--cyan);
+	.radio input,
+	.check input {
+		width: 1.1rem;
+		height: 1.1rem;
+		flex: none;
+		accent-color: var(--green);
 	}
-	.preview-inline {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		color: var(--cyan);
-	}
-	.btn-row {
-		display: flex;
-		gap: 0.85rem;
-		flex-wrap: wrap;
-		margin-top: 0.4rem;
-	}
-	.mode-toggle {
-		display: flex;
-		gap: 0.4rem;
-		margin-bottom: 1rem;
-		flex-wrap: wrap;
-	}
-	.mode-toggle button {
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		padding: 0.3rem 0.7rem;
-		cursor: pointer;
-	}
-	.mode-toggle button.active {
-		color: var(--bg0);
-		background: var(--green);
-		border-color: var(--green);
-	}
-	.rows {
-		display: flex;
-		flex-direction: column;
-	}
-	/* THE COLUMN MINIMUM IS MEASURED, NOT PICKED. Driving this list's own
-	   container from 260px to 780px in 20px steps at 1440, its total height
-	   stops gaining at 26rem and is flat from there through the next step up,
-	   so that is the width above which the content gains nothing.
-	   `.cd-cols` / `.cd-card-rows` are in $lib/coin-desk/coin-desk.css. */
-	.contract-rows {
-		--cd-col: 26rem;
-		margin-top: 0.4rem;
-	}
-	.row {
-		display: flex;
-		align-items: center;
+	.contracts {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr));
 		gap: 0.8rem;
-		flex-wrap: wrap;
-		padding: 0.5rem 0;
-		border-bottom: 1px solid var(--line);
 	}
-	.row:last-child {
-		border-bottom: none;
+	.contract {
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		padding: 0.6rem 0.8rem;
+		min-width: 0;
 	}
-	.contract-row {
-		flex-direction: column;
-		align-items: stretch;
-		gap: 0.3rem;
-	}
-	.who {
+	.head {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		min-width: 14rem;
+		flex-wrap: wrap;
 	}
-	.email {
+	.title {
 		font-weight: 700;
 		color: var(--white);
+		overflow-wrap: anywhere;
 	}
-	.meta {
+	.desc {
+		margin: 0.3rem 0;
+		color: var(--white);
+		font-size: 0.9rem;
+	}
+	.facts {
 		display: flex;
-		flex-direction: column;
-		gap: 0.1rem;
-		min-width: 0;
-	}
-	.note-text {
-		font-size: 0.85rem;
-		color: var(--dim);
-	}
-	.since {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		color: var(--dim);
-	}
-	.tag {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		border-radius: 999px;
-		padding: 0.05rem 0.5rem;
-		border: 1px solid currentColor;
-	}
-	.status-tag.status-open {
-		color: var(--green);
-	}
-	.status-tag.status-full {
-		color: var(--cyan);
-	}
-	.status-tag.status-completed {
-		color: var(--gold);
-	}
-	.status-tag.status-cancelled {
-		color: var(--amber);
+		flex-wrap: wrap;
+		gap: 0.2rem 1rem;
+		margin: 0.3rem 0;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2, var(--dim));
 	}
 	.claimants {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem;
-		padding: 0.4rem 0.6rem;
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 5px;
+		list-style: none;
+		margin: 0.3rem 0;
+		padding: 0;
 	}
-	.claimant-chip {
-		font-size: 0.82rem;
-		color: var(--white);
+	.claimants li {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
-	}
-	.actions {
-		margin-left: auto;
-		display: flex;
-		gap: 0.35rem;
-		align-items: center;
+		gap: 0.5rem;
 		flex-wrap: wrap;
+		padding: 0.25rem 0;
+		border-bottom: 1px solid var(--line);
 	}
-	.review-actions {
-		margin-left: 0;
-		margin-top: 0.3rem;
-	}
-	.confirm-text {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--amber);
-	}
-	.mini {
-		background: none;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		padding: 0.15rem 0.5rem;
-		cursor: pointer;
-	}
-	.mini:hover:not(:disabled) {
+	.claimant {
 		color: var(--white);
-		border-color: var(--green);
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
-	.mini.danger {
-		color: var(--crimson, #ff3355);
-		border-color: var(--crimson, #ff3355);
+	.hours {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2, var(--dim));
 	}
-	.mini:disabled {
-		opacity: 0.35;
-		cursor: default;
-	}
-	.mini-input {
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
-		font-size: 0.8rem;
-		padding: 0.15rem 0.4rem;
-		max-width: 10rem;
+	.closed {
+		margin-top: 0.8rem;
 	}
 </style>

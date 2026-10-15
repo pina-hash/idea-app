@@ -9,8 +9,4 @@
 	<title>Contracts // Coin Desk</title>
 </svelte:head>
 
-<ContractsManager
-	supabase={data.supabase}
-	sections={data.sections}
-	configured={data.contractsConfigured}
-/>
+<ContractsManager supabase={data.supabase} classes={data.coinStaff.sections} />

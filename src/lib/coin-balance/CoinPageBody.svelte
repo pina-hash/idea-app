@@ -530,14 +530,14 @@
 										{/if}
 										<span class="cp-when">{coinWhen(row.at)}</span>
 									</span>
-									{#if row.edited && row.edits.length}
+									{#if row.edited && row.edits?.length}
 										<ul class="cp-edits" data-testid="coin-edits">
 											{#each row.edits as e, i (e.at + i)}
 												<li class:undone={e.undone}>
 													Changed from {signedCoins(e.old)} to {signedCoins(e.new)}, {coinWhen(e.at)}{e.undone ? ' (this change was undone)' : ''}.
 												</li>
 											{/each}
-											{#if row.original_amount !== null}
+											{#if row.original_amount !== null && row.original_amount !== undefined}
 												<li>First written as {signedCoins(row.original_amount)}.</li>
 											{/if}
 										</ul>

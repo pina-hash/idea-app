@@ -2,7 +2,9 @@
  * The student coin page IN DEBT: the balance is negative and is the only
  * figure, "In debt" is said in words beside it, the revoked pass says so, and
  * every purchase with a cost is refused BEFORE the press, in words, with the
- * key aria-disabled rather than disabled.
+ * key aria-disabled rather than disabled. Session two: no split payment is
+ * offered while in debt (the reason is said), a restitution job is listed and
+ * labeled, and coins out says there is nothing to take out.
  */
 export default {
 	path: '/dev/coin-balance?scenario=debt',
@@ -13,7 +15,11 @@ export default {
 		{ selector: '[data-testid="buy-eating-pass"] [data-testid="buy-arm"][aria-disabled="true"]', label: 'the pass is held back', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="buy-pay-raise"] [data-testid="buy-arm"][aria-disabled="true"]', label: 'the raise is held back', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="buy-arm"][disabled]', label: 'never disabled, so it can explain itself', expectPresent: 0, maxPresent: 0 },
-		{ selector: '[data-testid="buy-blocked"]', label: 'every held purchase says why', expectPresent: 4, maxPresent: 4, expectVisible: 4 }
+		{ selector: '[data-testid="buy-blocked"]', label: 'every held purchase says why', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		{ selector: '[data-testid="split-toggle"]', label: 'no split payment while in debt (0246)', expectPresent: 0, maxPresent: 0 },
+		{ selector: '[data-testid="split-in-debt"]', label: 'and the two priced purchases say why', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+		{ selector: '[data-testid="contract-restitution"]', label: 'a restitution job is open to a student in debt, and labeled', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="payout-blocked"]', label: 'coins out waits, in words', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [
 		{ selector: '[data-testid="coin-standing"]', label: 'debt is the balance, said', must: ['In debt', 'in debt by 12.25'], mustNot: ['physical', 'digital'] },

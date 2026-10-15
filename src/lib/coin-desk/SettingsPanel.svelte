@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import AuditorsPanel from './AuditorsPanel.svelte';
+	import DonationItemsPanel from './DonationItemsPanel.svelte';
+	import FullAdminsPanel from './FullAdminsPanel.svelte';
+	import SettingsSessionTwo from './SettingsSessionTwo.svelte';
 	import { coins } from '$lib/coin-format';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import {
@@ -45,8 +50,22 @@
 	 * unsaved edit in another group is never wiped by somebody else's save.
 	 *
 	 * A refusal is said in words, with the rule it broke (`settingRefusal`).
+	 *
+	 * IDEA COIN V2 SESSION TWO added the calendars, debt relief, backgrounds,
+	 * donations, the role rules, the digest and the placement defaults
+	 * (`SettingsSessionTwo`, the same one-key writer), who holds full coin
+	 * powers (`FullAdminsPanel`), the donation want list
+	 * (`DonationItemsPanel`) and the Student Auditors (`AuditorsPanel`).
+	 *
+	 * `userId` is the folder a want-list photo uploads into; it defaults to
+	 * the signed-in caller's own id from the page, and absent removes the photo
+	 * control.
 	 */
-	let { supabase }: { supabase: SupabaseClient } = $props();
+	let { supabase, userId = undefined }: { supabase: SupabaseClient; userId?: string | null } = $props();
+
+	const uploadUserId = $derived(
+		userId !== undefined ? userId : ((page.data as { claims?: { sub?: string } | null }).claims?.sub ?? null)
+	);
 
 	let payload = $state<CoinSettingsPayload | null>(null);
 	let phase = $state<'loading' | 'ready' | 'missing' | 'error'>('loading');
@@ -437,6 +456,15 @@
 		<a href="#cd-set-sections">Classes</a>
 		<a href="#cd-set-fines">Fine buttons</a>
 		<a href="#cd-set-numbers">Other numbers</a>
+		<a href="#cd-set-calendars">Calendars</a>
+		<a href="#cd-set-debt">Debt</a>
+		<a href="#cd-set-backgrounds">Backgrounds</a>
+		<a href="#cd-set-donations">Donations</a>
+		<a href="#cd-set-roles">Roles</a>
+		<a href="#cd-set-digest">Digest</a>
+		<a href="#cd-set-full-admins">Full coin admins</a>
+		<a href="#cd-set-donations-list">Want list</a>
+		<a href="#cd-set-auditors">Student Auditors</a>
 		<a href="#cd-set-categories">Categories</a>
 		<a href="#cd-set-audit">Change log</a>
 	</nav>
@@ -745,6 +773,14 @@
 		</div>
 		{@render feedbackLine('numbers')}
 	</section>
+
+	<!-- SESSION TWO: calendars, debt, backgrounds, donations, roles, digest ------>
+	<SettingsSessionTwo {supabase} settings={payload.settings} reload={() => load(null)} />
+
+	<!-- WHO HOLDS FULL COIN POWERS, THE WANT LIST, THE AUDITORS ------------------>
+	<FullAdminsPanel {supabase} />
+	<DonationItemsPanel {supabase} userId={uploadUserId} />
+	<AuditorsPanel {supabase} />
 
 	<!-- CATEGORIES ------------------------------------------------------------------>
 	<section class="card" id="cd-set-categories">
