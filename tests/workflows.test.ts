@@ -1500,6 +1500,8 @@ describe('the invariants these particular workflows have to hold', () => {
 		).toEqual({
 			'autopay.yml': 0,
 			'backup.yml': 0,
+			// `cert-jobs.yml` (ledger 0391) only curls the site, like autopay.
+			'cert-jobs.yml': 0,
 			'ci.yml': 0,
 			'deploy.yml': 1,
 			// `migrate.yml`'s ONE push is the record `apply-migration.mjs` wrote

@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "cert-telemetry.mjs",
+	"date": "2026-10-15T20:56:17.821Z",
+	"sha": "84bc701a12f235f1e8c56d6d8f508164b847539e",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 38,
+	"outsideRows": [],
+	"ms": 9042
+}

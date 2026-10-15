@@ -128,7 +128,9 @@ describe('coverage is structural, not per page', () => {
 		// shell control is excluded by category and relocated to its own strip.
 		const ROOT_RESETS: Record<string, string> = {
 			'src/routes/classroom/[sectionId]/live/projector/+page@.svelte':
-				'the class projector: no classroom chrome on a wall, and no section payload in its data'
+				'the class projector: no classroom chrome on a wall, and no section payload in its data',
+			'src/routes/classroom/[sectionId]/people/[studentEmail]/work/[itemId]/+page@.svelte':
+				"one student's filled assignment alone on a full-screen page for a conference (report 5464ceb2): no classroom chrome, no section payload, the control relocated to its own bar"
 		};
 		const resets = ROUTE_FILES.filter((f) => /\/\+(page|layout|error)@[^/]*\.svelte$/.test(f));
 		expect([...resets].sort()).toEqual(Object.keys(ROOT_RESETS).sort());
@@ -273,6 +275,8 @@ const HTML_EXEMPT: Record<string, string> = {
 		"a student's own build, the frame src on the apps origin: the byte rule and the origin split again, and the page framing it carries the control",
 	'src/routes/hx/[docId]/+server.ts':
 		'a ported HTML assignment document, framed by the item page whose chrome already carries the control; its bytes are the author\'s and its CSP sandboxes it',
+	'src/routes/certifications/lesson/[lessonId]/+server.ts':
+		"a certification lesson document, framed by the certification page whose shell already carries the control; its bytes are the admin's and the same /hx/ CSP sandboxes it (DECISIONS D3)",
 	'src/routes/foundry/preview/[appId]/[versionId]/[...path]/+server.ts':
 		"an author's own draft build, served sandboxed with no allow-same-origin: student bytes, opened from /foundry/mine, which carries the control",
 	'src/routes/foundry/download/[appId]/[versionId]/+server.ts':

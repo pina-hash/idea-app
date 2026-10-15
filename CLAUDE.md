@@ -2836,6 +2836,83 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
 
 ---
 
+
+### IDEA CERTIFICATIONS -- a signed serial, a certifier's desk, and a verify page that says one word
+
+**`docs/CERTIFICATIONS.md` IS THE SPEC AND `docs/certifications/DATA_MODEL.md`
+IS THE BUILD CONTRACT (ledger 0391, migrations 0260 through 0264);
+`docs/certifications/DECISIONS.md` carries every design point the spec left
+open, D1 through D14, with its reason.** The portal lives at `/certifications`
+with its own chrome (`CertShell`, over the site plate and in the Space White
+scope through `SITE_PLATE_PREFIXES`), is NOT in `authedPrefixes` because the
+verify page under the same prefix is public, and renders its own sign-in panel
+for a signed-out visitor on every other path.
+
+- **EVERY `cert_*` TABLE IS RLS-ON WITH NO POLICY AND NO CLIENT GRANT, AND
+  EVERY WRITE IS A DEFINER FUNCTION THAT RE-CHECKS THE CALLER.** A certifier's
+  reach is `_cert_can_certify(certification)` from `cert_authority`; an admin's
+  is `is_admin()`. **A CERTIFIER NEVER ACTS ON THEIR OWN RECORD**: review,
+  checkout, seat decisions, release, end, result and award all answer `self`
+  for the caller's own attempt, and the mutation proof
+  (`tests/db/cert-mutation-proof.mjs`) kills that gate by name.
+- **THE ANSWER KEY NEVER LEAVES THE DATABASE.** `cert_exam_open` and
+  `cert_exam_answer` project the question without its answer, scoring is
+  `_cert_exam_score_one` inside `cert_exam_submit`, and a failed student
+  reads `missed_topics` only. The draw (`_cert_exam_draw`) covers every topic
+  at its minimum from a pool at least twice the exam's length (D6), shuffled
+  per student, one question at a time, no going back; the proctor's release
+  (`cert_exam_release`) is valid ten minutes; the cooldown after a fail is
+  seven days (`_cert_cooldown_until`). Tab, window and fullscreen changes are
+  `cert_exam_flag` rows with timestamps, shown live to the proctor and never
+  a verdict.
+- **A SERIAL IS 80 RANDOM BITS IN CROCKFORD BASE32, `IDEA-XXXX-XXXX-XXXX-XXXX`,
+  SIGNED ED25519 OVER THE CANONICAL PAYLOAD.** `$lib/certifications/serial.ts`
+  and `signing-payload.ts` are the one spelling of both (the payload's key
+  order is fixed and `tests/cert-shared-modules.test.ts` pins the bytes); the
+  route (`/api/certifications/award`) mints and signs, and `cert_award_commit`
+  recomputes the payload's values from the record and refuses a mismatch (D9).
+  **AN UNSET KEY REFUSES THE AWARD IN WORDS AND NEVER AWARDS UNSIGNED.**
+- **VERIFY ANSWERS ONE WORD.** `cert_verify(text)` is the ONE anon-granted
+  `cert_` function (named in `tests/db/ideacad-grants-anon-execute-surface.test.ts`),
+  and `/certifications/verify` renders Valid, Suspended, Revoked, Expired or
+  "No such certificate", rate limited per address in the route (D10), never
+  which check failed. Expiry is derived at read time (D8), never swept into a
+  stored status.
+- **A NOTIFICATION IS A ROW FIRST, THEN AN EMAIL AND A PUSH.** Every function
+  that notifies answers a `notify` array; the server action or route that
+  called it hands the array to `sendCertNotifications`, which renders
+  `renderCertEmail` (one table-based template family under
+  `src/lib/server/email/templates/`), sends through the Resend transport in
+  `src/lib/server/email/index.ts`, pushes, and stamps `cert_notifications_mark_sent`.
+  The unread count rides the root layout as `certUnread` (never a reject) to
+  the profile menu badge and the portal header.
+- **THE MIRROR SENDS THE WHOLE SNAPSHOT, EVERY TIME, AND LOGS EVERY CALL.**
+  `cert_mirror_snapshot` excludes drafts and sends a retired certification
+  with `active: false`; `sendMirror` fires after every award and catalog
+  change and from the daily job, and writes `cert_sync_log` whether the
+  Techmen side answered or not.
+- **THE SCHEDULED JOBS ARE ONE DAILY VERCEL CRON PLUS A GITHUB CALLER**, both
+  on `/api/certifications/jobs/daily`, behind `CRON_SECRET` when it is set
+  (D4). They reuse `serviceClient()` from `$lib/server/push.ts`, so the
+  service-role key's reader census above stays at six.
+- **NOTHING A STUDENT SEES EXISTS UNTIL A CERTIFICATION IS PUBLISHED, and
+  publishing refuses an incomplete kit** (`_cert_publish_check`: every
+  required part with content, the pool rule, at least one lesson or video).
+  Hide takes a published certification back to draft only while nothing hangs
+  off it; Delete removes only a never-published draft; Retire is the end state
+  for anything ever earned (D7).
+- **EVERY CLIENT SURFACE DEGRADES UNTIL ITS MIGRATION IS APPLIED**:
+  `certNotAvailable` keys on `PGRST202` ALONE and renders the one
+  "not available yet" sentence, never a broken page.
+- **THE HARNESSES ARE THE FOURTEEN `cert-` PAGES UNDER `/dev`**:
+  `/dev/cert-catalog`, `/dev/cert-certification`, `/dev/cert-verify`,
+  `/dev/cert-me`, `/dev/cert-holders`, `/dev/cert-desk`, `/dev/cert-review`,
+  `/dev/cert-award`, `/dev/cert-engine`, `/dev/cert-telemetry`,
+  `/dev/cert-exam`, `/dev/cert-watch`, `/dev/cert-certificate` and
+  `/dev/cert-emails`, covered by one prefix entry in `SITE_PLATE_DEV_PREFIXES`,
+  each mounting the real components over in-memory transports and 404 in
+  production.
+
 ## Commands
 
 ```bash
@@ -3533,6 +3610,33 @@ build break):
   neither a public release nor the token, `/armory/start` and
   `/armory/download` say to ask for the flash drive and show no link.
 
+- **`CERT_SIGNING_PRIVATE_KEY`** -- the Ed25519 private key that signs every
+  IDEA certification serial (ledger 0391). Read ONLY by
+  `src/lib/server/certifications/signing.ts`. Unset, `POST /api/certifications/award`
+  REFUSES with `CERT_SIGNING_UNSET_MESSAGE` and nothing is awarded unsigned;
+  `/certifications/verify/public-key` answers 404. Never printed, logged or
+  echoed, in any form.
+- **`RESEND_API_KEY` + `CERT_EMAIL_FROM`** -- the certification email family's
+  transport. Read ONLY by `src/lib/server/email/index.ts`; either unset makes
+  every send a clean no-op (the notification row still lands and the badge
+  still counts it).
+- **`TECHMEN_SUPABASE_URL` + `TECHMEN_SUPABASE_ANON_KEY` +
+  `TECHMEN_CERT_SYNC_SECRET`** -- the FRC app mirror (the contract is the
+  frc-app repository's own IDEA_CERTIFICATIONS_SYNC document, which the spec
+  places in FRC-Team-5669-Techmen/frc-app, followed character for character). Read ONLY
+  by `src/lib/server/certifications/mirror.ts`; any one unset is a `not set up`
+  row in `cert_sync_log` and no request.
+- **`CRON_SECRET`** -- the bearer the certification job routes require once it
+  is set (Vercel's own cron convention, `Authorization: Bearer <CRON_SECRET>`).
+  Read ONLY by `src/lib/server/certifications/jobs.ts`; unset, the routes are
+  open to the scheduler exactly as `/api/coin/autopay` is, throttled to one run
+  a minute per instance. A signed-in admin always passes. **THE PORTAL HAS NO
+  VERCEL CRON**: the project is a Hobby account, which holds two cron jobs, and
+  both are the coin economy's (`vercel.json`), so a third entry would be
+  refused at deploy time. `.github/workflows/cert-jobs.yml` is the one
+  scheduled caller; it sends the bearer when a repository secret of the same
+  name is set and calls the open route when it is not, and `CRON_SECRET` locks
+  the route only once it is set in BOTH places.
 **RETIRED, and to be removed from the Vercel env: `COIN_API_KEY`,
 `COIN_LEDGER_URL`, `PUBLIC_FOUNDRY_APPS_HOST`, `PUBLIC_FOUNDRY_APP_ORIGIN` and
 `FOUNDRY_TOKEN_SECRET`.** Nothing reads any of them. **Retired on the Supabase

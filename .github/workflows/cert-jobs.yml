@@ -1,0 +1,82 @@
+name: Certification jobs
+
+# THE DAILY CALL TO THE IDEA CERTIFICATION PORTAL'S JOBS (ledger 0391).
+#
+# `/api/certifications/jobs/daily` runs, in order, the FRC app mirror resync,
+# the dormancy sweep, the expiry reminders and the notification email flush.
+# Every one is idempotent: a resync sends the whole record every time, a sweep
+# marks only what crossed the line, a reminder is keyed on the award it is
+# about, and a flushed email is stamped.
+#
+# THIS IS THE ONE SCHEDULED CALLER, NOT A BACKUP. The portal was designed with
+# a Vercel cron entry as its first caller and this workflow as the second, and
+# the entry came out before the build landed: the project is a Vercel Hobby
+# account (ledger 0204 measured its storage quota against the Hobby limit), a
+# Hobby project may hold TWO cron jobs, and `vercel.json` already carries two
+# (IDEA Coin autopay and the weekly coin digest, both the coin economy's, which
+# the certification build may not touch). A third entry is refused at deploy
+# time, which would stop every deploy of ideabosco.com. So the schedule lives
+# here. GitHub may run a scheduled workflow some minutes late under load, and
+# suspends schedules on a repository with no activity for sixty days; this one
+# gets commits most school days, and every job tolerates a late or doubled run.
+#
+# ONE SECRET, OPTIONAL HERE, `CRON_SECRET`. The job route follows Vercel's cron
+# convention: with the variable set in the Vercel project the route requires
+# `Authorization: Bearer <CRON_SECRET>` from anyone who is not a signed-in
+# admin, and unset it is open with a one-run-a-minute floor, the autopay shape,
+# because every job is idempotent housekeeping. This caller sends the bearer
+# when the repository secret of the same name is set and calls without one when
+# it is not, and says which in its summary, so the jobs run from the day the
+# portal deploys and setting the secret in both places is the LOCK rather than
+# the switch (docs/certifications/DECISIONS.md, D4). A run is red when the site
+# answers anything but 2xx: a 404 with no repository secret means the site
+# holds `CRON_SECRET` and this workflow needs the same value. The value is
+# never echoed, only whether it was sent.
+
+on:
+  schedule:
+    # 11:47 UTC is 4:47 a.m. in Los Angeles in the summer and 3:47 a.m. in the
+    # winter: after autopay (10:17 UTC), before school.
+    - cron: '47 11 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  certification-jobs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask the site to run the daily certification jobs
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          AUTH=()
+          if [ -n "${CRON_SECRET:-}" ]; then
+            AUTH=(-H "authorization: Bearer $CRON_SECRET")
+            HOW='with the bearer (the repository secret `CRON_SECRET` is set)'
+          else
+            HOW='without a bearer: the repository secret `CRON_SECRET` is not set, so the route is called open (docs/certifications/DECISIONS.md, D4). Set the same value in the Vercel project and here to lock it.'
+          fi
+          CODE="$(curl -sS --max-time 240 -X POST "${AUTH[@]}" -o "$RUNNER_TEMP/answer.txt" -w '%{http_code}' https://ideabosco.com/api/certifications/jobs/daily || echo 000)"
+          BODY="$(cat "$RUNNER_TEMP/answer.txt" 2>/dev/null || true)"
+          echo "HTTP $CODE"
+          echo "answer: $BODY"
+          {
+            echo "## Certification jobs"
+            echo
+            echo "Called $HOW"
+            echo
+            echo "HTTP $CODE"
+            echo
+            echo '```'
+            echo "$BODY"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$CODE" in
+            2*) exit 0 ;;
+          esac
+          echo "::error::the daily certification jobs did not run (HTTP $CODE). A 404 with no repository secret means the site has CRON_SECRET set; add the same value as a repository secret named CRON_SECRET." >&2
+          exit 1

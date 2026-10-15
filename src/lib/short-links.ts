@@ -58,6 +58,7 @@ export const RESERVED_SLUGS = [
 	'assignments',
 	'auth',
 	'b',
+	'certifications',
 	'classroom',
 	'coin-balance',
 	'coin-desk',

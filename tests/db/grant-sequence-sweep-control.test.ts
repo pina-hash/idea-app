@@ -92,8 +92,12 @@ describe('the sequence sweep bites: a granted privilege is named', () => {
 				'Four since 0231: the Armory change feed cursor, revoked by 0232 (ledger 0366). Seven ' +
 				'since IDEA Coin V2 (ledger 0384): coin_settings_audit, coin_student_actions and ' +
 				'coin_autopay_runs, each revoked from every client role in its own migration. Eight ' +
-				'since IDEA Coin V2 session two (ledger 0386): coin_edit_log, revoked the same way by 0250.'
-		).toBe(8);
+				'since IDEA Coin V2 session two (ledger 0386): coin_edit_log, revoked the same way by 0250. ' +
+				'Fourteen since the IDEA Certification Portal (ledger 0391): cert_events (0260), ' +
+				'cert_watch_sessions and cert_practice_results (0261), cert_award_history (0263), ' +
+				'cert_sync_log and cert_errors (0264), each revoked from public, anon and authenticated ' +
+				'by name in the migration that creates it.'
+		).toBe(14);
 	});
 
 	it('BEFORE: reads clean, which is what 0203 leaves behind', async () => {

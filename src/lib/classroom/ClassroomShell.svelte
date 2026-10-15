@@ -649,6 +649,17 @@
 					<span class="shell-tool-word">To-do</span>
 				</a>
 			{/if}
+			{#if !minimal}
+				<!-- The Certifications door (ledger 0391): the IDEA Certification
+				     Portal stands on its own at /certifications and is linked from
+				     here, as its spec asks. One element, the header tools' own look;
+				     the portal is never a page inside the classroom shell, so this
+				     is never current. -->
+				<a class="shell-tool cert-door" href="/certifications" data-testid="cert-door" onclick={closeMenu}>
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a6 6 0 0 1 6 6c0 2.2-1.2 4.1-3 5.2V22l-3-2-3 2v-8.8A6 6 0 0 1 12 2zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm-1.2 2.6 1.2 1 1.2-1 .4 1.6 1.5.5-1 1.2.2 1.6-1.6-.4L12 11.5l-1.1-.8-1.6.4.2-1.6-1-1.2 1.5-.5z" /></svg>
+					<span class="shell-tool-word">Certifications</span>
+				</a>
+			{/if}
 			{#if palette}
 				<button
 					type="button"

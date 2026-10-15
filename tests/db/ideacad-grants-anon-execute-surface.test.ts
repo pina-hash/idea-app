@@ -528,7 +528,10 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
 	_maps_node_vocab: MAPS_SEARCH_REASON,
 	_maps_item_type_vocab: MAPS_SEARCH_REASON,
 	_maps_item_vocab: MAPS_SEARCH_REASON,
-	_maps_chain_link: MAPS_SEARCH_REASON
+	_maps_chain_link: MAPS_SEARCH_REASON,
+
+	// --- The public certificate verify page (1). 0263. ---
+	cert_verify: 'THE PUBLIC CERTIFICATE VERIFY PAGE (ledger 0391, decision D10). /certifications/verify reads no session: anyone handed a serial, an employer included, checks it with no account. 0263 grants cert_verify to anon in 0166\'s shape (revoke from public, anon, authenticated, service_role by name, then grant to anon and authenticated), it normalizes the typed serial and answers found with the certificate\'s own fields or found false, never an address and never a reason, and the route rate limits it per client address.'
 };
 
 /**
@@ -541,7 +544,7 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
  * moving it without reading the reason beside the new entry is what the pin
  * refuses.
  */
-const ANON_EXECUTE_SURFACE_SIZE = 26;
+const ANON_EXECUTE_SURFACE_SIZE = 27;
 
 // ---------------------------------------------------------------------------
 // Plumbing

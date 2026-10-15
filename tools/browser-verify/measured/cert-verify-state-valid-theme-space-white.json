@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "cert-verify-state-valid-theme-space-white.mjs",
+	"date": "2026-10-15T21:03:13.542Z",
+	"sha": "f062194afa45ccaf84f710f55b59e2ea0f4433e9",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 56,
+	"outsideRows": [],
+	"ms": 12058
+}

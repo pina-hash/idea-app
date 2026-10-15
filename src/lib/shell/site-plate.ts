@@ -35,6 +35,7 @@ export const SITE_PLATE_PREFIXES: readonly string[] = [
 	'/archive',
 	'/armory',
 	'/auth',
+	'/certifications',
 	'/coin-balance',
 	'/coin-desk',
 	'/foundry',
@@ -73,7 +74,8 @@ export const SITE_PLATE_DEV_PREFIXES: readonly string[] = [
 	'/dev/profile-menu',
 	'/dev/pathways',
 	'/dev/code-census',
-	'/dev/armory'
+	'/dev/armory',
+	'/dev/cert-'
 ];
 
 /**

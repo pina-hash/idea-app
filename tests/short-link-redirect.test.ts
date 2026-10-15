@@ -76,7 +76,12 @@ const CHAIN = [
 	'0215_short_link_reserve_ideacad.sql',
 	// Migration 0231 (supabase/migrations/0231_armory.sql) reserves `armory`
 	// for the /armory route.
-	PROPOSED_ENTRY
+	PROPOSED_ENTRY,
+	// Migration 0260 (the certification engine, ledger 0391) redefines
+	// `_app_short_link_reserved` with `certifications` added, because
+	// /certifications is a real top-level route. It depends only on profiles,
+	// the admin tier and the short-link tables, all of which are above.
+	'0260_cert_engine.sql'
 ] as const;
 
 /**

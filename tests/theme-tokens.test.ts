@@ -785,7 +785,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 			.filter((seg) => !/^\(.*\)$/.test(seg))
 			.map((seg) => (/^\[.*\]$/.test(seg) ? 'x' : seg))
 			.join('/') || '/';
-	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/armory', '/auth', '/coin-balance', '/coin-desk', '/foundry', '/maps', '/tournaments'];
+	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/armory', '/auth', '/certifications', '/coin-balance', '/coin-desk', '/foundry', '/maps', '/tournaments'];
 	const CLASSROOM_POLICY = ['/classroom', '/reference', '/notebook'];
 	const under = (p: string, x: string) => p === x || p.startsWith(x + '/');
 	const expectedIn = (p: string) =>

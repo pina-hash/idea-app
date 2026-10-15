@@ -2409,6 +2409,12 @@
 				"phone",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-10-15",
+			"title": "IDEA Certifications: earn a certification, with a certificate you can verify",
+			"body": "There is a new Certifications door at the top of the classroom (and at ideabosco.com/certifications). Each certification is a kit: watch the training videos (the player counts only what you actually play, at normal speed or up to double, and asks you to press Continue now and then), read the lessons, pass the quick checks and the practice quiz, build the guided project and then your own, pass a proctored exam, and finish with an in-person checkout. Your certifier checks each part off and awards the certification when everything is done. You get a serial number, a printed certificate with a QR code, and a page anyone can use to confirm it is real. Your Notifications key shows what moved, and the same notes arrive by email once that is switched on. Nothing shows until a certification is published, so the list may be short at first.",
+			"tags": ["certifications", "new"]
 		}
 	]
 }
