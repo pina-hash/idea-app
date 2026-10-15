@@ -49,7 +49,8 @@
 		rpc = null,
 		makeUploader = null,
 		refusal = null,
-		onchanged = null
+		onchanged = null,
+		lessonHref = null
 	}: {
 		cert: CertGetJson;
 		settings?: CertSettings | null;
@@ -60,6 +61,8 @@
 		refusal?: { section: string; message: string } | null;
 		/** Told when a browser RPC changed what the page shows (a lesson done, training checked off). */
 		onchanged?: (() => void) | null;
+		/** A harness's lesson document source; null is the real route. */
+		lessonHref?: ((lessonId: string) => string) | null;
 	} = $props();
 
 	const pkg = $derived(cert.package);
@@ -123,7 +126,7 @@
 				{#if item.kind === 'video'}
 					<VideoItem {item} certId={cert.id} {progress} checkinTimeoutSeconds={checkinTimeout} {rpc} onreported={() => onchanged?.()} />
 				{:else}
-					<LessonFrame {item} lesson={lessonsBySlug.get(item.slug) ?? null} certId={cert.id} {progress} {rpc} onreported={() => onchanged?.()} />
+					<LessonFrame {item} lesson={lessonsBySlug.get(item.slug) ?? null} certId={cert.id} {progress} {rpc} onreported={() => onchanged?.()} documentHref={lessonHref ?? undefined} />
 				{/if}
 				{#each quickChecksAfter(item.key) as check (check.id)}
 					<QuickCheck {check} certId={cert.id} {rpc} />
@@ -199,7 +202,7 @@
 		<section class="cert-panel cert-kit-section" id={id('checkout')} data-testid="cert-kit-section" data-section="checkout">
 			<Disclosure label={KIT_SECTION_WORDS.checkout} heading={2} scope={scope('checkout')}>
 				{@render refused('checkout')}
-				<p class="cert-help">Perform the skill cold, start to finish, with no help: in person when a certifier is available, or on one continuous unlisted YouTube video.</p>
+				<p class="cert-help">Perform the skill cold, start to finish, with no help: in person when a certifier is available, or on one continuous, unedited take uploaded to YouTube as unlisted.</p>
 				<h4 class="cert-section-h">Checkout card</h4>
 				<div class="cert-prose"><MarkdownText body={pkg.checkout.card} /></div>
 				<h4 class="cert-section-h">Filming guide</h4>

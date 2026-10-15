@@ -108,6 +108,13 @@
 			{#if examCheck?.checked_at}Checked off {formatCertDateTime(examCheck.checked_at)}.{/if}
 		</CertNotice>
 	{:else if released}
+		{#if liveSeat && liveSeat.state !== 'requested'}
+			<!-- The seat the exam was released against stays in words above the key:
+			     a student reading "Open my exam" still sees which sitting this is. -->
+			<div class="cert-exam-seat" data-testid="cert-exam-seat" data-state={liveSeat.state}>
+				<span class="cert-readout is-ok"><span aria-hidden="true">✓</span> {seatWords(liveSeat)}</span>
+			</div>
+		{/if}
 		<div class="cert-exam-open" data-testid="cert-exam-released">
 			<p class="cert-exam-open-words">Your proctor has released your exam.</p>
 			<a class="btn cert-btn cert-exam-open-key" href={examHref(cert.code, released.id)} data-testid="cert-exam-open-key">{released.state === 'in_progress' ? 'Continue my exam' : 'Open my exam'}</a>
@@ -266,6 +273,12 @@
 		gap: 0.4rem 0.75rem;
 		min-height: 44px;
 		padding: 0.4rem 0;
+	}
+	/* A past attempt's readout names every missed topic, so it wraps: the
+	   shared readout is nowrap and pushed the page 65px wide at 375. */
+	.cert-exam-row .cert-readout {
+		white-space: normal;
+		min-width: 0;
 	}
 	.cert-exam-date {
 		font-family: var(--font-mono);

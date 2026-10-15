@@ -25,8 +25,9 @@
 			<div>
 				<div class="cert-check-word"><strong>{PART_WORDS[check.part]}</strong></div>
 				<div class="cert-check-meta">
-					{r.word}{#if check.state === 'done' && check.checked_by_name}, checked by {check.checked_by_name}{/if}{#if check.checked_at}
-						on {formatCertDate(check.checked_at)}{/if}
+					<!-- The date on the same line as the name: a line break inside the block
+					     rendered "Mr. Pinaon October 15" (measured on the award harness). -->
+					{r.word}{#if check.state === 'done' && check.checked_by_name}, checked by {check.checked_by_name}{/if}{#if check.checked_at}{' '}on {formatCertDate(check.checked_at)}{/if}
 				</div>
 				{#if check.note}<div class="cert-check-meta">{check.note}</div>{/if}
 			</div>

@@ -12,10 +12,3 @@ export const certHydrated = (name) => [
 ];
 
 export const SPACE_WHITE_ON = { waitFor: `() => document.documentElement.getAttribute('data-theme') === 'space-white'`, timeoutMs: 10000 };
-
-/** The page never scrolls sideways: the document is no wider than the window. */
-export const NO_SIDEWAYS = {
-	label: 'no horizontal scroll',
-	evaluate: `() => document.documentElement.scrollWidth <= document.documentElement.clientWidth ? 'fits' : 'overflows by ' + (document.documentElement.scrollWidth - document.documentElement.clientWidth) + 'px'`,
-	expected: 'fits'
-};

@@ -28,7 +28,8 @@
 		manifest = null,
 		progress = null,
 		rpc = null,
-		onreported = null
+		onreported = null,
+		documentHref = lessonDocumentHref
 	}: {
 		item: TrainingLessonItem;
 		lesson: CertLessonRef | null;
@@ -37,6 +38,8 @@
 		progress?: CertTrainingProgress | null;
 		rpc?: CertRpc | null;
 		onreported?: ((trainingDone: boolean) => void) | null;
+		/** Where a lesson's bytes come from; the real route by default, a dev stand-in on the harness. */
+		documentHref?: (lessonId: string) => string;
 	} = $props();
 
 	const words = $derived(trainingWords(progress, 'lesson'));
@@ -72,7 +75,7 @@
 	</h3>
 	{#if lesson}
 		<div class="cert-lesson-stage">
-			<HtmlAssignmentFrame src={lessonDocumentHref(lesson.id)} title={lesson.title} {fieldToBlockId} readOnly={true} values={{}} images={{}} />
+			<HtmlAssignmentFrame src={documentHref(lesson.id)} title={lesson.title} {fieldToBlockId} readOnly={true} values={{}} images={{}} />
 		</div>
 	{:else}
 		<CertNotice tone="quiet" testId="cert-lesson-missing">This lesson is not in the kit yet. Ask your certifier about it.</CertNotice>

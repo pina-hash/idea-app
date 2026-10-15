@@ -53,7 +53,7 @@
 			<dd>{record.expires_at ? formatCertDate(record.expires_at) : 'Never'}</dd>
 		</dl>
 
-		<Disclosure label="Check it yourself" collapseWhen={true} testId="cert-verify-check">
+		<Disclosure label="Check it yourself" collapseWhen={true} testId="cert-verify-self-check">
 			<p class="cert-help">
 				The record below is signed with Ed25519. Verify the signature over these exact bytes (the JSON with its keys in this order and no whitespace) against the public key at
 				<a href={CERT_PATHS.publicKey}>{CERT_PATHS.publicKey}</a>. A made-up serial, or a real one with any field altered, fails.
@@ -66,7 +66,7 @@
 				<dt>Key id</dt>
 				<dd><span class="cert-serial">{record.key_id}</span></dd>
 				<dt>Public key</dt>
-				<dd><a href={CERT_PATHS.publicKey} data-testid="cert-verify-public-key">{CERT_PATHS.publicKey}</a> <span class="cert-help">(PEM; add ?format=json for JSON)</span></dd>
+				<dd><a class="cert-verify-key-link" href={CERT_PATHS.publicKey} data-testid="cert-verify-public-key">{CERT_PATHS.publicKey}</a> <span class="cert-help">(PEM; add ?format=json for JSON)</span></dd>
 			</dl>
 		</Disclosure>
 	{/if}
@@ -140,6 +140,14 @@
 		font-family: var(--font-display);
 		font-size: 1.3rem;
 		font-weight: 700;
+	}
+	/* The key link sits on its own line, not inside a sentence, so it takes the
+	   24px floor (measured 22px as a bare inline anchor). */
+	.cert-verify-key-link {
+		display: inline-flex;
+		align-items: center;
+		min-height: 24px;
+		overflow-wrap: anywhere;
 	}
 	.cert-verify-pre {
 		margin: 0 0 0.9rem;

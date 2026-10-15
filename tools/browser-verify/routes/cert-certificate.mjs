@@ -103,7 +103,8 @@ export default {
 		{ selector: '[data-testid="cert-verify-link"]', label: 'Verify', min: 44 }
 	],
 	contrast: [
-		...SHELL_CONTRAST,
+		// The certificate page has no lead paragraph: the sheet is the content.
+		...SHELL_CONTRAST.filter((c) => c.selector !== '.cert-lead'),
 		{ selector: '[data-testid="cert-holder-name"]', label: 'the name against the paper', min: 4.5 },
 		{ selector: '[data-testid="cert-serial"]', label: 'the serial against the paper', min: 4.5 },
 		{ selector: '.certificate-cert-name', label: 'the certification name (green on paper)', min: 4.5 },

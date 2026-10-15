@@ -135,6 +135,11 @@
 	border-radius: var(--radius-card);
 	padding: 1rem 1.15rem;
 	margin: 0 0 1.25rem;
+	/* A grid or flex child's automatic minimum is its min-content, so a wide
+	   table inside a panel pushed the whole page sideways on a phone
+	   (measured: 774px at 375 on the engine list). The panel may shrink; the
+	   table wrap inside it scrolls. */
+	min-width: 0;
 }
 .cert-panel h2,
 .cert-section-h {
@@ -385,12 +390,14 @@
 	border-color: var(--green);
 	color: var(--green);
 }
+/* The glyph is a mark, so it carries the 3:1 graphical floor: `--text-3`
+   measured 2.79:1 on the card and is decorative tertiary; `--text-2` clears. */
 .cert-check-row.is-waived .cert-check-glyph {
-	color: var(--text-3);
+	color: var(--text-2);
 	border-style: dashed;
 }
 .cert-check-row.is-locked .cert-check-glyph {
-	color: var(--text-3);
+	color: var(--text-2);
 }
 .cert-check-meta {
 	font-family: var(--font-mono);

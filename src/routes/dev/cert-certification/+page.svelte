@@ -38,6 +38,8 @@
 	});
 
 	const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+	/** The harness's lesson document (a dev-only route under this harness), never the real route, which 404s with no session. */
+	const lessonHref = (id: string) => `/dev/cert-certification/lesson/${id}`;
 	let log = $state<string[]>([]);
 
 	const post: CertActionPost = async (action, fields) => {
@@ -71,14 +73,14 @@
 <div data-cert-certification-hydrated={hydrated ? 'yes' : undefined}>
 	{#if single}
 		<CertShell title={title(single)} eyebrow="IDEA // Certifications // MILL-1" lead={certFor(single).definition} crumbs={[{ href: '/dev/cert-catalog', label: 'Certifications' }]}>
-			<CertificationPage cert={certFor(single)} settings={SETTINGS} anchorPrefix="kit" {post} {rpc} {makeUploader} onchanged={() => (log = [...log, 'onchanged'])} />
+			<CertificationPage cert={certFor(single)} settings={SETTINGS} anchorPrefix="kit" {post} {rpc} {makeUploader} {lessonHref} onchanged={() => (log = [...log, 'onchanged'])} />
 		</CertShell>
 	{:else}
 		<CertShell title="Certification page harness" lead="Every state, stacked. Add ?state=<name> for one state in its real frame.">
 			{#each PAGE_STATES as s (s)}
 				<section data-view={s} style="margin-bottom: 3rem">
 					<p class="cert-crumbs">State: {s}</p>
-					<CertificationPage cert={certFor(s)} settings={SETTINGS} anchorPrefix={`kit-${s}`} {post} {rpc} {makeUploader} onchanged={() => (log = [...log, `onchanged ${s}`])} />
+					<CertificationPage cert={certFor(s)} settings={SETTINGS} anchorPrefix={`kit-${s}`} {post} {rpc} {makeUploader} {lessonHref} onchanged={() => (log = [...log, `onchanged ${s}`])} />
 				</section>
 			{/each}
 		</CertShell>

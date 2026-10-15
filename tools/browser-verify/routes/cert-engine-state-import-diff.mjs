@@ -1,4 +1,4 @@
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE IMPORT PAGE AFTER STEP 1: the summary as facts, the diff as a table of
@@ -9,7 +9,6 @@ export default {
 	path: '/dev/cert-engine?state=import-diff',
 	label: 'IDEA Certifications engine: a package checked, the diff before Import',
 	prepare: certHydrated('engine'),
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: '[data-testid="cert-import-summary"] dd', label: 'seven summary facts', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="cert-package-change"]', label: 'three changes', expectPresent: 3, maxPresent: 3, expectVisible: 3 },

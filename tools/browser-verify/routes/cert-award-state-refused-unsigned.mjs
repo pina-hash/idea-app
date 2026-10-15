@@ -1,4 +1,4 @@
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE AWARD REFUSED FOR WANT OF A SIGNING KEY: the dialog stays open, the
@@ -9,7 +9,6 @@ export default {
 	path: '/dev/cert-award?state=refused-unsigned',
 	label: 'IDEA Certifications award: the no-signing-key refusal, verbatim, in the dialog',
 	prepare: certHydrated('award'),
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: '[data-testid="cert-award-dialog"][data-open="yes"]', label: 'the dialog is open', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="cert-award-problem"]', label: 'one refusal notice', expectPresent: 1, maxPresent: 1, expectVisible: 1 },

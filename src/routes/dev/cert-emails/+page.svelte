@@ -153,7 +153,10 @@
 		display: block;
 		width: 100%;
 		height: 46rem;
-		border: 1px solid var(--boundary);
+		/* The frame's ground is the email's own paper (#f7f9f9), so its edge is
+		   measured against that, not the plate: the certificate's rule green
+		   (5.5:1 on the paper), never the plate's boundary token (1.15:1 there). */
+		border: 2px solid #3b6c36;
 		border-radius: var(--radius-card, 4px);
 		background: #f7f9f9;
 	}

@@ -24,7 +24,8 @@
 		rpc = null,
 		makeUploader = null,
 		refusal = null,
-		onchanged = null
+		onchanged = null,
+		lessonHref = null
 	}: {
 		cert: CertGetJson;
 		settings?: CertSettings | null;
@@ -34,6 +35,8 @@
 		makeUploader?: ((attemptId: string) => EvidenceUploader) | null;
 		refusal?: { section: string; message: string } | null;
 		onchanged?: (() => void) | null;
+		/** A harness's lesson document source; null is the real route. */
+		lessonHref?: ((lessonId: string) => string) | null;
 	} = $props();
 </script>
 
@@ -50,7 +53,7 @@
 			<Checklist {cert} {anchorPrefix} dormancyDays={settings?.dormancy_days ?? null} {post} />
 		</aside>
 		<div class="cert-page-main">
-			<KitViewer {cert} {settings} {anchorPrefix} {post} {rpc} {makeUploader} {refusal} {onchanged} />
+			<KitViewer {cert} {settings} {anchorPrefix} {post} {rpc} {makeUploader} {refusal} {onchanged} {lessonHref} />
 		</div>
 	</div>
 </div>

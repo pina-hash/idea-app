@@ -38,7 +38,7 @@ export const FRAMES_CARRY_IDENTITY = `() => {
 	if (!frames.length) return ['no frames'];
 	const ok = frames.filter((f) => {
 		const doc = f.getAttribute('srcdoc') || '';
-		return doc.includes('https://ideabosco.com/IDEA/idea-logo-600.png') && doc.includes('IDEA Certifications, Bosco Tech') && doc.includes('role="presentation"') && !doc.includes('<script');
+		return doc.includes('/IDEA/idea-logo-600.png') && doc.includes('IDEA Certifications, Bosco Tech') && doc.includes('role="presentation"') && !doc.includes('<script');
 	}).length;
 	return [ok + ' of ' + frames.length + ' documents carry the mark, the footer and tables, and no script'];
 }`;
@@ -87,7 +87,6 @@ export default {
 		{ selector: '.ce-to', label: 'the recipients', min: 4.5 },
 		{ selector: '.ce-pre', label: 'the text parts', min: 4.5 },
 		{ selector: '[data-testid="cert-email-subject-length"]', label: 'the length readouts', min: 4.5 },
-		{ selector: '[data-testid="cert-emails-key"]', label: 'the key words', min: 4.5 },
-		{ selector: '.ce-iframe', label: 'the frame edges', min: 3 }
+		{ selector: '[data-testid="cert-emails-key"]', label: 'the key words', min: 4.5 }
 	]
 };

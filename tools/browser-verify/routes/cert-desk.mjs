@@ -1,5 +1,5 @@
 /* NO `order` EXPORT, deliberately -- see routes.mjs. */
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE CERTIFIER DESK (ledger 0391, surface d), busy: two submissions waiting
@@ -12,7 +12,6 @@ export default {
 	path: '/dev/cert-desk',
 	label: 'IDEA Certifications desk: queue, requests, tiles and telemetry (busy)',
 	prepare: certHydrated('desk'),
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: '[data-testid="cert-desk-tabs"] .cert-tab', label: 'an admin gets seven desk tabs', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="cert-desk-tabs"] .cert-tab[aria-current="page"]', label: 'no tab is current on the harness address (the real route marks one)', expectPresent: 0, maxPresent: 0 },

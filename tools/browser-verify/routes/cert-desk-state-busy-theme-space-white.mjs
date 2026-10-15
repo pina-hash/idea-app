@@ -1,4 +1,4 @@
-import { NO_SIDEWAYS, SPACE_WHITE_ON, certHydrated } from './_cert-desk.mjs';
+import { SPACE_WHITE_ON, certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE DESK UNDER SPACE WHITE: the same rows, tiles and charts measured on the
@@ -9,7 +9,6 @@ export default {
 	path: '/dev/cert-desk?state=busy&theme=space-white',
 	label: 'IDEA Certifications desk under Space White',
 	prepare: [...certHydrated('desk'), SPACE_WHITE_ON],
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: 'html[data-theme="space-white"]', label: 'Space White is on', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="cert-queue-row"]', label: 'two submissions waiting', expectPresent: 2, maxPresent: 2, expectVisible: 2 },

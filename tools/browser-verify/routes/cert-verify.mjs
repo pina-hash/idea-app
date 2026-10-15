@@ -19,14 +19,14 @@ export default {
 		...SHELL_PRESENCE,
 		{ selector: '[data-view="valid"] [data-testid="cert-verify-result"][data-state="valid"]', label: 'a valid record: one status panel', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="valid"] [data-testid="cert-verify-facts"]', label: 'with its facts', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-view="valid"] [data-testid="cert-verify-check"]', label: 'and Check it yourself', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-view="valid"] [data-testid="cert-verify-check"][aria-expanded="false"]', label: 'closed on arrival', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-view="valid"] [data-testid="cert-verify-payload"]', label: 'the signed payload is in the DOM (hidden until opened)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-view="valid"] [data-testid="cert-verify-self-check"]', label: 'and Check it yourself', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="valid"] [data-testid="cert-verify-self-check"][aria-expanded="false"]', label: 'closed on arrival', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="valid"] [data-testid="cert-verify-payload"]', label: 'the signed payload is in the DOM (hidden until opened)', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 },
 		{ selector: '[data-view="suspended"] [data-testid="cert-verify-result"][data-state="suspended"]', label: 'suspended', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="revoked"] [data-testid="cert-verify-result"][data-state="revoked"]', label: 'revoked', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="expired"] [data-testid="cert-verify-result"][data-state="expired"]', label: 'expired', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="none"] [data-testid="cert-verify-result"][data-state="none"]', label: 'no such certificate', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-view="none"] [data-testid="cert-verify-facts"], [data-view="none"] [data-testid="cert-verify-check"]', label: 'and no facts, no payload (the control)', expectPresent: 0, maxPresent: 0 },
+		{ selector: '[data-view="none"] [data-testid="cert-verify-facts"], [data-view="none"] [data-testid="cert-verify-self-check"]', label: 'and no facts, no payload (the control)', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-view="limited"] [data-testid="cert-verify-facts"]', label: 'rate limited: no facts', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-view="idle"] [data-testid="cert-verify-serial"]', label: 'nothing asked yet: no serial echoed', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-testid="cert-verify-input"]', label: 'one serial box per form', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
@@ -46,7 +46,7 @@ export default {
 		...SHELL_TAP_TARGETS,
 		{ selector: '[data-testid="cert-verify-input"]', label: 'the serial box', min: 44 },
 		{ selector: '[data-testid="cert-verify-check"]', label: 'Check', min: 44 },
-		{ selector: '[data-view="valid"] [data-testid="cert-verify-check"]', label: 'Check it yourself', min: 44 }
+		{ selector: '[data-view="valid"] [data-testid="cert-verify-self-check"]', label: 'Check it yourself', min: 44 }
 	],
 	contrast: [
 		...SHELL_CONTRAST,

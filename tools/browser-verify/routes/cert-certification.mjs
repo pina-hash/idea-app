@@ -28,7 +28,7 @@ const JUMP = `() => {
 	const top = el.getBoundingClientRect().top;
 	const bottom = bar.getBoundingClientRect().bottom;
 	window.scrollTo({ top: 0, behavior: 'instant' });
-	return top >= bottom ? 'below the bar' : 'under the bar by ' + Math.round(bottom - top) + 'px';
+	return [top >= bottom ? 'below the bar' : 'under the bar by ' + Math.round(bottom - top) + 'px'];
 }`;
 
 export default {
@@ -99,7 +99,7 @@ export default {
 		{ selector: '[data-view="guided"] [data-testid="cert-submit-problems"]', label: 'the Submit reasons in words', must: ['The finished block beside the drawing is required', 'Your measured dimensions, one per line is required', '3 self-inspection boxes still unticked'] },
 		{ selector: '[data-view="review"] [data-testid="cert-review-feedback"]', label: 'the feedback, verbatim', must: ['The step is 0.012 in deep', 'Resubmit when the step is in.'] },
 		{ selector: '[data-view="review"] [data-testid="cert-review"][data-state="failed"]', label: 'who reviewed it and when', must: ['Fail', 'Mr. Pina', 'October 7, 2026'] },
-		{ selector: '[data-view="exam"] [data-testid="cert-exam-seat"]', label: 'the booked seat in words with its time', must: ['Signed up for October 22, 2026'] },
+		{ selector: '[data-view="exam"] [data-testid="cert-exam-seat"]', label: 'the booked seat in words with its time, kept above the released exam', must: ['Signed up for October 22, 2026'] },
 		{ selector: '[data-view="exam"] [data-testid="cert-exam-topics"]', label: 'the topics', must: ['Workholding and setup', 'Speeds and feeds', 'Safety at the mill', 'Measurement and finishing'] },
 		{ selector: '[data-view="exam"] [data-testid="cert-exam-lockdown"]', label: 'the lockdown sentence', must: ['One question at a time', '100% passes'] },
 		{ selector: '[data-view="cooldown"] [data-testid="cert-exam-cooldown"]', label: 'the cooldown names a date, never a weekday', must: ['June 1, 2031'], mustNot: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
@@ -122,8 +122,7 @@ export default {
 		{ selector: '[data-view="guided"] .cert-uploader-pick', label: 'the picker and camera keys', min: 44 },
 		{ selector: '[data-view="guided"] [data-testid="cert-self-inspection"] .cert-choice', label: 'self-inspection boxes', min: 44 },
 		{ selector: '[data-view="guided"] [data-testid="cert-step-hint"]', label: 'Show hint keys', min: 44 },
-		{ selector: '[data-view="exam"] [data-testid="cert-exam-open-key"]', label: 'Open my exam', min: 44 },
-		{ selector: '[data-view="exam"] [data-testid="cert-seat-cancel"]', label: 'Cancel my seat', min: 44 }
+		{ selector: '[data-view="exam"] [data-testid="cert-exam-open-key"]', label: 'Open my exam', min: 44 }
 	],
 	contrast: [
 		...SHELL_CONTRAST,

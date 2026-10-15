@@ -12,7 +12,7 @@ export default {
 	prepare: [
 		...certHydrated('verify'),
 		SPACE_WHITE_ON,
-		{ click: '[data-testid="cert-verify-check"]', until: `() => document.querySelector('[data-testid="cert-verify-check"]')?.getAttribute('aria-expanded') === 'true'` }
+		{ click: '[data-testid="cert-verify-self-check"]', until: `() => document.querySelector('[data-testid="cert-verify-self-check"]')?.getAttribute('aria-expanded') === 'true'` }
 	],
 	presence: [
 		{ selector: 'html[data-theme="space-white"]', label: 'Space White is on', expectPresent: 1, maxPresent: 1 },

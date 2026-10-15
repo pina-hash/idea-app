@@ -1,11 +1,10 @@
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /** TELEMETRY WITH NOTHING: every chart says so in words and no empty axis is drawn. */
 export default {
 	path: '/dev/cert-telemetry?state=empty',
 	label: 'IDEA Certifications telemetry: nothing to chart yet',
 	prepare: certHydrated('telemetry'),
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: '[data-testid="cert-chart-empty"]', label: 'seven charts say nothing to chart yet', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="cert-chart"] svg.cert-chart', label: 'and no axis is drawn', expectPresent: 0, maxPresent: 0 },

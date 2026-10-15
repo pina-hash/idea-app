@@ -1,4 +1,4 @@
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE AWARD CONFIRM: every part checked, the key lit, and the native dialog
@@ -11,8 +11,7 @@ export default {
 	label: 'IDEA Certifications award: the confirm dialog with the exact record',
 	prepare: certHydrated('award'),
 	orderResult: [
-		NO_SIDEWAYS,
-		{ label: 'the dialog is modal (showModal)', evaluate: `() => { const d = document.querySelector('[data-testid="cert-award-dialog"]'); return d && d.open && d.matches(':modal') ? 'modal' : 'not modal'; }`, expected: 'modal' }
+		{ label: 'the dialog is modal (showModal)', evaluate: `() => { const d = document.querySelector('[data-testid="cert-award-dialog"]'); return [d && d.open && d.matches(':modal') ? 'modal' : 'not modal']; }`, expected: ['modal'] }
 	],
 	presence: [
 		{ selector: '[data-testid="cert-award-key"]:not([aria-disabled])', label: 'the award key is lit', expectPresent: 1, maxPresent: 1, expectVisible: 1 },

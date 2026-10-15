@@ -1,4 +1,4 @@
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE ENGINE EDITOR over a draft with publish problems: the sticky sub-bar
@@ -19,8 +19,7 @@ export default {
 		{ evaluate: TYPE_NAME, until: `() => document.querySelector('[data-testid="cert-engine-editor"]').getAttribute('data-dirty') === 'yes'` }
 	],
 	orderResult: [
-		NO_SIDEWAYS,
-		{ label: 'Publish is held while problems exist and the editor is dirty', evaluate: `() => document.querySelector('[data-testid="cert-engine-publish"]').getAttribute('aria-disabled')`, expected: 'true' }
+		{ label: 'Publish is held while problems exist and the editor is dirty', evaluate: `() => [document.querySelector('[data-testid="cert-engine-publish"]').getAttribute('aria-disabled')]`, expected: ['true'] }
 	],
 	presence: [
 		{ selector: '[data-testid="cert-engine-subbar"]', label: 'the sticky sub-bar', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -32,9 +31,9 @@ export default {
 		{ selector: '[data-testid="cert-engine-export"]', label: 'Export', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="cert-engine-editor"] .disc-trigger', label: 'fourteen collapsible sections', expectPresent: 14, maxPresent: 14, expectVisible: 14 },
 		{ selector: '[data-testid="cert-engine-parts"] input', label: 'four part switches', expectPresent: 4, maxPresent: 4 },
-		{ selector: '[data-testid="cert-engine-training-items"] > li', label: 'two training items', expectPresent: 2, maxPresent: 2 },
-		{ selector: '[data-testid="cert-pool-row"]', label: 'four pool questions', expectPresent: 4, maxPresent: 4 },
-		{ selector: '[data-testid="cert-pool-rule"]', label: 'the pool rule in words', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="cert-engine-training-items"] > li', label: 'two training items (inside a closed section)', expectPresent: 2, maxPresent: 2, expectVisible: 0 },
+		{ selector: '[data-testid="cert-pool-row"]', label: 'four pool questions (inside a closed section)', expectPresent: 4, maxPresent: 4, expectVisible: 0 },
+		{ selector: '[data-testid="cert-pool-rule"]', label: 'the pool rule in words (inside a closed section)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
 		{ selector: '[data-testid="cert-engine-readonly"]', label: 'an admin is not told the engine is read-only', expectPresent: 0, maxPresent: 0 },
 		{ selector: '.save-ind', label: 'the save indicator', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],

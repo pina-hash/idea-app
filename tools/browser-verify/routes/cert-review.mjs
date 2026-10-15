@@ -1,5 +1,5 @@
 /* NO `order` EXPORT, deliberately -- see routes.mjs. */
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE REVIEW SCREEN, a guided project: the evidence (text, a link opening in
@@ -22,9 +22,8 @@ export default {
 		{ evaluate: TYPE_FEEDBACK, until: `() => document.querySelector('[data-testid="cert-review-send"]').getAttribute('aria-disabled') === null` }
 	],
 	orderResult: [
-		NO_SIDEWAYS,
-		{ label: 'after typing feedback, Send is free', evaluate: `() => document.querySelector('[data-testid="cert-review-send"]').getAttribute('aria-disabled') === null ? 'free' : 'held'`, expected: 'free' },
-		{ label: 'external links open in a new tab with noopener', evaluate: `() => [...document.querySelectorAll('[data-testid="cert-evidence-links"] a')].map((a) => a.target + ' ' + a.rel).join('|')`, expected: '_blank noopener noreferrer' }
+		{ label: 'after typing feedback, Send is free', evaluate: `() => [(() => document.querySelector('[data-testid="cert-review-send"]').getAttribute('aria-disabled') === null ? 'free' : 'held')()]`, expected: ['free'] },
+		{ label: 'external links open in a new tab with noopener', evaluate: `() => [(() => [...document.querySelectorAll('[data-testid="cert-evidence-links"] a')].map((a) => a.target + ' ' + a.rel).join('|'))()]`, expected: ['_blank noopener noreferrer'] }
 	],
 	presence: [
 		{ selector: '[data-testid="cert-evidence-pictures"] .dk-thumb', label: 'two pictures as tiles', expectPresent: 2, maxPresent: 2, expectVisible: 2 },

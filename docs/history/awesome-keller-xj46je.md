@@ -45,8 +45,117 @@ workflow and this entry.
 
 ## What was built
 
-(Filled in from the surface reports at the end of the build: see the sections
-below, one per surface, and "What was measured".)
+### The database (0260 to 0264, surface a)
+
+Five additive migrations, every table RLS on with no policy and no client
+grant (the two `cert-evidence` storage policies excepted, in a guarded block),
+every function `security definer` with `set search_path = ''`, every grant
+revoked from `public, anon, authenticated, service_role` by name and granted
+back to exactly who holds it, a self-check `do` block last, and an UNDO paste
+in every header. 0260 is the engine (settings, certifications, revisions,
+prerequisites, lessons, the exam pool, the authority roster, the event log,
+the `certifications` slug reservation); 0261 the earning flow (attempts, part
+checks, submissions, reviews, training progress, watch sessions, practice
+results, the private `cert-evidence` bucket at 45 MiB); 0262 the proctored
+exam (sittings, seats, exam attempts; the per-topic draw from a pool twice the
+exam's length, one question at a time, no going back, release by a proctor
+valid ten minutes, flags with timestamps, the seven-day cooldown, scoring
+server-side with the failed student told missed topics only); 0263 the award
+(awards, award history, notifications; `cert_award_commit` recomputes the
+signed payload's values and refuses a mismatch; `cert_verify` is the one
+anon-granted function and answers only a status word); 0264 operations (the
+mirror snapshot, the sync log, the error log, the dormant sweep, the expiry
+reminders, telemetry, exports). Refusals are structured `{ok:false, reason}`;
+"not yours" is "not found"; a certifier hears `self` on their own record.
+`tests/db/cert-*.test.ts` hold 110 assertions over the real chain and the
+mutation proof (`tests/db/cert-mutation-proof.mjs`) kills four mutants.
+
+### The server (surface b)
+
+`src/lib/server/certifications/`: `signing.ts` (Ed25519 over the canonical
+payload, the key read once from `CERT_SIGNING_PRIVATE_KEY`, a clean refusal
+when unset, the public key derived for `/certifications/verify/public-key`),
+`verify-limit.ts` (the per-address token bucket), `notify.ts` (every `notify`
+row an RPC answers becomes an email through Resend and a push, then is
+stamped sent), `mirror.ts` (the full snapshot to the Techmen app's
+`idea_cert_sync`, every call logged), `jobs.ts` (mirror, dormant, expiry,
+emails and the combined `daily`, behind `CRON_SECRET` when set), `exports.ts`,
+`package-zip.ts` and `package-io.ts` (the revision package in and out as a
+ZIP), `evidence.ts`, `gate.ts`, `api.ts`; `src/lib/server/email/index.ts` is
+the one Resend transport. Routes under `src/routes/api/certifications/`:
+award, correct, evidence sign and serve, jobs, export, package export and
+import. `vercel.json` gained one daily cron and `.github/workflows/cert-jobs.yml`
+is its second caller.
+
+### The portal (surface c)
+
+`/certifications` (the catalog), `/certifications/<code>` (the kit: videos
+with watch tracking, lessons in the classroom's sandboxed frame, the quick
+checks, the practice quiz, the guided and autonomous projects with evidence
+upload, the exam section, the checkout), `/certifications/me`,
+`/certifications/holders`, `/certifications/notifications`, the public
+`/certifications/verify` (Valid, Suspended, Revoked, Expired, No such
+certificate, and the rate-limited state, never which check failed) and
+`/certifications/verify/public-key`. `CertShell` is the portal's own chrome
+over the site plate: the mark, the four student tabs, Desk for a certifier,
+Notifications with the unread count, the profile menu, then each page's
+eyebrow, title and lead off `page.data.shell`. The portal is not in
+`authedPrefixes`; a signed-out visitor sees the sign-in panel in place of the
+page, except on verify. The classroom header gained a Certifications door and
+the profile menu a badge with the unread count.
+
+### The desk (surface d)
+
+`/certifications/desk` and its tabs (Desk, Students, Sittings, Live exam,
+Records, Authority, Engine, Logs): the queue, the student view with the
+Release exam key, review with the evidence beside the checklist and Send held
+until a decision and a note, sittings and seats, the live exam view over a
+five-second poll, the award page whose key lights only when every required
+part is checked and whose confirm dialog lists exactly the facts that will be
+recorded, records with suspend, revoke, correct and reinstate, the authority
+grid, the engine (package editor, pool editor, lesson editor, import with a
+diff, publish refusing an incomplete kit) and logs with the exports. Every
+page returns its `shell` (the desk eyebrow and its own title) and the desk
+tab strip sits under the portal header; admin-only tabs are hidden from a
+certifier and 404 to them.
+
+### The exam runtime and the watch tracker (surface e)
+
+`ExamRunner` (lobby, one question at a time with Next and no back control,
+auto-submit at the deadline, the result with missed topics, fullscreen as the
+overlay floor with native as the upgrade) over `exam-client.ts` and
+`lockdown.ts` (hidden, blur, fullscreen exit, resize, copy, cut, paste and the
+context menu flagged with timestamps); `ProctorLive` for the desk. `YouTubePlayer`
+over `watch/tracker.ts`: played seconds credited only while playing at or under
+2x (a faster rate credits nothing, is set back and paused with the sentence),
+random Continue check-ins between 180 and 480 played seconds with 60 seconds to
+answer, played ranges merged and reported to `cert_watch_report`, the coverage
+bar in words.
+
+### The certificate and the emails (surface f)
+
+`/certifications/certificate/<serial>`: a landscape US Letter sheet (paper,
+double rule, the full IDEA gear mark in a gold seal ring, the holder's name
+sized to fit, the serial, the QR to the verify URL, SUSPENDED, REVOKED or
+EXPIRED as a watermark with a status line) scaled on screen and printed from
+the browser with `@page { size: letter landscape }`. The email family: one
+table-based, inline-styled 600px layout with a plain-text part, one rule per
+notification kind for the subject, eyebrow, tone, call to action and fact
+rows; the award email carries the serial and the verify link in both parts.
+
+### Folded in on the way (report 5464ceb2, Mr. Pina, 2026-10-15)
+
+On one student's page (`/classroom/<id>/people/<email>`) every assignment row
+now opens the assignment, the grading console with that student already open
+(the console's opaque student token, computed in the load), or their filled
+assignment alone on a full-screen page
+(`/classroom/<id>/people/<email>/work/<item>`, a root-layout reset like the
+projector, 404 to anyone who does not manage the class, every read pinned to
+the one address, the report control relocated to its own bar); and the
+assignments table sorts by any column through one comparator
+(`sortStudentAssignments`), headers and a Sort by control being two spellings
+of one state. `tests/classroom-student-work-page.test.ts` holds the gate and
+the attribution filters; `tests/classroom-student-overview.test.ts` the sort.
 
 ## Decisions the build made
 
@@ -212,6 +321,79 @@ housekeeping early. Vercel sends the secret on its own once it is set.
    which secret is missing) while Vercel's own call keeps working; you can also
    run any job by hand from the desk's Logs page as an admin.
 
+## What was measured
+
+`npm run verify:readme -- --route cert-` drove the thirty certification specs
+(every `/dev/cert-*` harness, several in a second state or under Space White)
+at 375 and 1440 through the preinstalled Chromium, three times: the first pass
+found 149 findings, the second 9, and the third, over the specs the last fixes
+touched, 0. Every figure below is from those runs (web fonts do not load in
+the harness, so text is measured in the fallback stack).
+
+- **Horizontal scroll: 0px at both widths on every route.** Two real
+  overflows were found and fixed on the way: the stacked certification page
+  read 440px wide at 375 (a past exam's readout was `nowrap`; it wraps now),
+  and the engine list read 774px (a screen-reader-only header span was
+  positioned against the document rather than the scrolling table wrap).
+- **The checklist's part glyphs: 6.47:1 on the card, 4.95:1 under Space
+  White**, after `--text-3` measured 2.79:1 against the 3:1 graphical floor
+  and moved to `--text-2`.
+- **The award confirm dialog**: title 14.96:1 (17.77:1 on Space White), key
+  words 8.01:1 (5.87:1), its two keys 86x44 and 92.4x44, `showModal` true.
+- **Tap targets**: the four student tabs 151.3x44 at 1440 and 160.3x44 at
+  375, the checklist's Open keys 60.1x44, every option row on the exam 44px,
+  the verify page's public key link raised from 22px to the 24px floor.
+- **An Open key on the checklist lands its section below the sticky bar** at
+  both widths (`order-result ["below the bar"]`).
+- **The store** (`tools/browser-verify/README.md`'s generated block) now
+  holds 702 route specs measured, 1,404 runs and 24,690 measurements, up from
+  685, 1,370 and the previous total on `origin/main`; the findings outside
+  threshold stayed at the 182 the tree already carried, none of them on a
+  certification spec.
+- **Screenshots** of every surface at 1440 and 375 (catalog, certification
+  page in three states, the live exam and the proctor view, the desk, review,
+  the award confirm, the certificate, verify in five states, the awarded
+  email, My certifications, the engine editor, telemetry, the student page,
+  and the catalog and certificate under Space White) were taken with
+  `tools/browser-verify/browser.mjs` and read; one defect found that way was
+  a missing space ("Mr. Pinaon October 15") in the desk checklist's meta line.
+- **The production build** answers 404 on every `/dev/cert-*` harness and on
+  `/dev/classroom-student` (the "Production build" line in the ledger
+  report), while `/certifications/verify` answers 200 with no session.
+
 ## What was not verified
 
-(Filled in at the end of the build.)
+- **Nothing ran against the live Supabase project.** This container has no
+  route to it, so the five migrations were applied only to the embedded
+  Postgres of `tests/db/` (every self-check, the paste trap and `scanFile`
+  included) and never through `tools/apply-migration.mjs` against a socket;
+  `.github/workflows/migrate.yml` applies them on the merge, and the
+  `docs/migrations-applied/` records are the proof. Every `cert_*` RPC the
+  routes call was exercised against the database tests' chain or a stub,
+  never through PostgREST.
+- **No real Resend send, no real Techmen sync, no real push.** Every secret
+  path ran with placeholders in `process.env`; the Resend transport and the
+  `idea_cert_sync` call were stubbed. The FRC app's contract was read from a
+  shallow clone of `pina-hash/frc-app` at `7de83b7d`; its mirror migration was
+  not applied anywhere this session could reach.
+- **No real YouTube playback.** The harness blocks every non-loopback request,
+  so the IFrame API loader, `getCurrentTime` against a live player and the
+  nocookie embed are unmeasured; the tracker's crediting, check-ins and rate
+  cap were tested against `FakePlayer` and the `/dev/cert-watch?state=fake`
+  harness only.
+- **No signed-in session.** Every real `/certifications` route was reached
+  signed out (the sign-in panel, the public verify page, 404s); the form
+  actions, the evidence upload against the real bucket, the award route's
+  signing with a real key, the certificate for a real award and the desk's
+  pages over real data were driven only through the `/dev/cert-*` harnesses
+  and the route tests' stub clients.
+- **No real print to PDF and no mail client.** The certificate's `@page`
+  landscape sizing was read off the stylesheet and the harness, not a printed
+  sheet; the emails were rendered into sandboxed frames on `/dev/cert-emails`
+  and never opened in Gmail.
+- **Vercel's cron behavior, its plan's cron limit and whether `CRON_SECRET` is
+  set in production are unmeasured**; the daily route was called by hand with
+  and without a bearer in the route tests.
+- **Web fonts do not load in the harness**, so every text measurement below is
+  in the fallback stack, and `prefers-reduced-motion` is `no-preference`, so
+  the still paths were read off the stylesheets.

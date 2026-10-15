@@ -22,7 +22,7 @@ export const PART_DESCRIPTIONS: Record<CertPart, string> = {
 	guided: 'Follow the guided project and hand in its evidence. A certifier passes it.',
 	exam: 'Take the exam in person, under lockdown, with a certifier in the room. 100% passes.',
 	autonomous: 'Build the autonomous project alone, with zero help, and hand in its evidence.',
-	checkout: 'Perform the skill cold, start to finish, in person or on one continuous unlisted video.'
+	checkout: 'Perform the skill cold, start to finish, in person or on one continuous, unedited take on an unlisted video.'
 };
 
 /** The parts a revision actually requires, in order. */

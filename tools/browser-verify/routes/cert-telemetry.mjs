@@ -1,5 +1,5 @@
 /* NO `order` EXPORT, deliberately -- see routes.mjs. */
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * TELEMETRY WITH DATA: the nine tiles, six plain-SVG bar charts (one bar per
@@ -10,9 +10,8 @@ export default {
 	label: 'IDEA Certifications telemetry: tiles and plain-SVG charts with data',
 	prepare: certHydrated('telemetry'),
 	orderResult: [
-		NO_SIDEWAYS,
-		{ label: 'the active chart draws two bars for each of its three rows', evaluate: `() => document.querySelectorAll('[data-chart="active"] svg rect.bar').length`, expected: 6 },
-		{ label: 'every bar chart prints a figure beside every bar', evaluate: `() => [...document.querySelectorAll('[data-testid="cert-chart"] svg.cert-chart')].every((s) => s.querySelectorAll('rect.bar').length === s.querySelectorAll('text').length - s.querySelectorAll('g.row').length) ? 'every figure printed' : 'a bar without its figure'`, expected: 'every figure printed' }
+		{ label: 'the active chart draws two bars for each of its three rows', evaluate: `() => [(() => document.querySelectorAll('[data-chart="active"] svg rect.bar').length)()]`, expected: [6] },
+		{ label: 'every bar chart prints a figure beside every bar', evaluate: `() => [(() => [...document.querySelectorAll('[data-testid="cert-chart"] svg.cert-chart')].every((s) => s.querySelectorAll('rect.bar').length === s.querySelectorAll('text').length - s.querySelectorAll('g.row').length) ? 'every figure printed' : 'a bar without its figure')()]`, expected: ['every figure printed'] }
 	],
 	presence: [
 		{ selector: '[data-testid="cert-tile"]', label: 'nine tiles', expectPresent: 9, maxPresent: 9, expectVisible: 9 },

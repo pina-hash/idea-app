@@ -1,0 +1,28 @@
+{
+	"schema": 1,
+	"spec": "cert-verify-state-valid-theme-space-white.mjs",
+	"date": "2026-10-15T20:56:17.821Z",
+	"sha": "84bc701a12f235f1e8c56d6d8f508164b847539e",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 56,
+	"outsideRows": [
+		{
+			"path": "/dev/cert-verify?state=valid&theme=space-white",
+			"width": 375,
+			"check": "tap-target",
+			"label": "the public key link"
+		},
+		{
+			"path": "/dev/cert-verify?state=valid&theme=space-white",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "the public key link"
+		}
+	],
+	"ms": 9042
+}

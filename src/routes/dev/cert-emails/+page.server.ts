@@ -2,6 +2,7 @@ import { dev } from '$app/environment';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { renderCertEmail } from '$lib/server/email/cert';
+import { CERT_SITE_ORIGIN } from '$lib/certifications/nav';
 import { EMAIL_FIXTURES, EMAIL_KINDS, isEmailKind } from './fixtures';
 
 /**
@@ -23,7 +24,13 @@ export const load: PageServerLoad = ({ url }) => {
 	const emails = kinds.map((k) => {
 		const input = EMAIL_FIXTURES[k];
 		const rendered = renderCertEmail(input);
-		return { kind: k, to: input.to, title: input.title, subject: rendered.subject, html: rendered.html, text: rendered.text };
+		// THE HARNESS SHOWS THE EMAIL WITH ITS MARK: the real email names the
+		// production origin (the one asset both surfaces name), which the
+		// browser harness blocks as a non-loopback request and reports as a
+		// console error per frame. The dev copy points the same path at this
+		// server, so the frame draws the mark; nothing else in the HTML moves.
+		const html = rendered.html.replaceAll(CERT_SITE_ORIGIN, url.origin);
+		return { kind: k, to: input.to, title: input.title, subject: rendered.subject, html, text: rendered.text };
 	});
 	const base = { kind, kinds: [...EMAIL_KINDS], emails };
 	if (url.searchParams.get('signed') !== '1') return base;

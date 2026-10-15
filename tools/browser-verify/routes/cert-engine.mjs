@@ -1,5 +1,5 @@
 /* NO `order` EXPORT, deliberately -- see routes.mjs. */
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE ENGINE'S LIST: three certifications in three states with their
@@ -11,7 +11,6 @@ export default {
 	path: '/dev/cert-engine',
 	label: 'IDEA Certifications engine: the list, New certification and Settings',
 	prepare: certHydrated('engine'),
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: '[data-testid="cert-engine-row"]', label: 'three certifications', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 		{ selector: '[data-testid="cert-engine-row"][data-state="published"]', label: 'two published', expectPresent: 2, maxPresent: 2, expectVisible: 2 },

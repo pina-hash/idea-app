@@ -24,8 +24,8 @@ export default {
 		{ selector: '.cert-me-category', label: 'two categories', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="cert-me-attempt"]', label: 'one attempt in progress', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="cert-me-history-toggle"][aria-expanded="false"]', label: 'the history is closed on arrival', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="cert-me-history-row"]', label: 'three history rows in the DOM (withdrawn, dormant, expired), hidden until opened', expectPresent: 3, maxPresent: 3, maxVisible: 0 },
-		{ selector: '[data-testid="cert-me-history-row"][data-kind="expired"]', label: 'one of them the expired award', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="cert-me-history-row"]', label: 'three history rows in the DOM (withdrawn, dormant, expired), hidden until opened', expectPresent: 3, maxPresent: 3, expectVisible: 0, maxVisible: 0 },
+		{ selector: '[data-testid="cert-me-history-row"][data-kind="expired"]', label: 'one of them the expired award (hidden until opened)', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 },
 		{ selector: '[data-testid="cert-me-no-awards"], [data-testid="cert-me-no-progress"]', label: 'no empty-state words while there is content (the control)', expectPresent: 0, maxPresent: 0 }
 	],
 	textContains: [

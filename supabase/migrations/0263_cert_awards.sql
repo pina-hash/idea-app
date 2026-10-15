@@ -415,7 +415,8 @@ begin
 	v_notify := v_notify || public._cert_notify(a.email, 'awarded', 'Awarded: ' || a.name,
 		'You earned ' || a.name || ' (' || a.code || '). Serial ' || a.serial || '. Your certificate is ready to print, and anyone can verify it at https://ideabosco.com/certifications/verify?serial=' || a.serial || '.',
 		'/certifications/certificate/' || a.serial,
-		jsonb_build_object('award_id', a.id, 'serial', a.serial, 'code', a.code,
+		jsonb_build_object('award_id', a.id, 'serial', a.serial, 'code', a.code, 'name', a.name,
+			'level', a.level, 'awarded_at', a.awarded_at,
 			'verify_url', 'https://ideabosco.com/certifications/verify?serial=' || a.serial,
 			'certificate_path', '/certifications/certificate/' || a.serial, 'expires_at', a.expires_at));
 	return jsonb_build_object('ok', true, 'award', v_json, 'notify', v_notify, 'sync', true);

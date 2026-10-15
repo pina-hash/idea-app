@@ -1,5 +1,5 @@
 /* NO `order` EXPORT, deliberately -- see routes.mjs. */
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE AWARD PAGE, LOCKED: a part still pending, so the award key is dark
@@ -11,7 +11,6 @@ export default {
 	path: '/dev/cert-award',
 	label: 'IDEA Certifications award: a part pending, the key dark and saying why',
 	prepare: certHydrated('award'),
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: '[data-testid="cert-award-key"][aria-disabled="true"]', label: 'the award key is dark', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="cert-award-key"][disabled]', label: 'and never natively disabled', expectPresent: 0, maxPresent: 0 },

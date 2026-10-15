@@ -22,7 +22,7 @@ export default {
 		{ waitFor: `() => !!document.querySelector('[data-cert-exam-hydrated="yes"]')`, timeoutMs: 20000 },
 		{ waitFor: `() => !!document.querySelector('[data-view="question"] [data-testid="cert-exam-option"]')`, timeoutMs: 10000 },
 		{ evaluate: `() => 'nothing picked: aria-disabled=' + ${NEXT}?.getAttribute('aria-disabled')`, until: `() => ${NEXT}?.getAttribute('aria-disabled') === 'true'` },
-		{ click: '[data-view="question"] [data-testid="cert-exam-option"]:first-child input', until: `() => ${NEXT}?.getAttribute('aria-disabled') === 'false'` }
+		{ click: '[data-view="question"] [data-testid="cert-exam-option"]:first-of-type input', until: `() => ${NEXT}?.getAttribute('aria-disabled') === 'false'` }
 	],
 	orderResult: [
 		{
@@ -32,13 +32,13 @@ export default {
 		},
 		{
 			label: 'the question state offers no control that moves backward',
-			evaluate: `() => [...document.querySelectorAll('[data-view="question"] button, [data-view="question"] a')].filter((b) => /\\b(back|previous)\\b/i.test(b.textContent || '')).length`,
-			expected: 0
+			evaluate: `() => [[...document.querySelectorAll('[data-view="question"] button, [data-view="question"] a')].filter((b) => /\\b(back|previous)\\b/i.test(b.textContent || '')).length]`,
+			expected: [0]
 		},
 		{
 			label: 'the live view has polled at least once',
-			evaluate: `() => Number(document.querySelector('[data-cert-exam-hydrated]')?.getAttribute('data-live-polls')) >= 1`,
-			expected: true
+			evaluate: `() => [Number(document.querySelector('[data-cert-exam-hydrated]')?.getAttribute('data-live-polls')) >= 1]`,
+			expected: [true]
 		}
 	],
 	presence: [

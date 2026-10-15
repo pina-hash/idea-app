@@ -84,9 +84,9 @@
 				<input id={`pick-${inputId}`} class="cert-uploader-input" type="file" multiple onchange={picked} data-testid="cert-evidence-input" />
 			</label>
 			{#if kind === 'photo'}
-				<label class="btn secondary cert-btn cert-uploader-pick" for={`cam-${inputId}`}>
+				<label class="btn secondary cert-btn cert-uploader-pick" for={`cam-${inputId}`} data-testid="cert-evidence-camera">
 					Take a photo
-					<input id={`cam-${inputId}`} class="cert-uploader-input" type="file" accept="image/*" capture="environment" onchange={picked} data-testid="cert-evidence-camera" />
+					<input id={`cam-${inputId}`} class="cert-uploader-input" type="file" accept="image/*" capture="environment" onchange={picked} data-testid="cert-evidence-camera-input" />
 				</label>
 			{/if}
 		</div>

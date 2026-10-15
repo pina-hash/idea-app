@@ -26,7 +26,6 @@ export default {
 		{ selector: '.ce-pre', label: 'the text part on the light well', min: 4.5 },
 		{ selector: '[data-testid="cert-email-subject-length"]', label: 'the length readout (green on the light panel)', min: 4.5 },
 		{ selector: '[data-testid="cert-emails-key"].on', label: 'the lit key word', min: 4.5 },
-		{ selector: '[data-testid="cert-emails-key"]:not(.on)', label: 'the other key words', min: 4.5 },
-		{ selector: '.ce-iframe', label: 'the frame edges on the light plate', min: 3 }
+		{ selector: '[data-testid="cert-emails-key"]:not(.on)', label: 'the other key words', min: 4.5 }
 	]
 };

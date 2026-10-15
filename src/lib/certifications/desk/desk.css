@@ -309,7 +309,14 @@
 /* Tables: a well with rows, scrolling sideways on a phone and never the page. */
 .dk-table-wrap {
 	overflow-x: auto;
+	max-width: 100%;
+	min-width: 0;
 	margin: 0 0 1rem;
+	/* The wrap is the containing block of the screen-reader-only header text
+	   (`.dk-sr`, absolutely positioned): without this the 1px span inside a
+	   scrolled table sat at the table's far edge and pushed the DOCUMENT to
+	   774px at 375, outside the wrap's own scrolling. */
+	position: relative;
 }
 .dk-table {
 	width: 100%;

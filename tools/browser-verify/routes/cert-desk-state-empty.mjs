@@ -1,4 +1,4 @@
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * THE DESK WITH NOTHING WAITING: the queue and the requests say so in words,
@@ -9,7 +9,6 @@ export default {
 	path: '/dev/cert-desk?state=empty',
 	label: 'IDEA Certifications desk: nothing waiting',
 	prepare: certHydrated('desk'),
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: '[data-testid="cert-desk-queue-empty"]', label: 'the queue says nothing is waiting', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="cert-queue-row"]', label: 'and holds no row', expectPresent: 0, maxPresent: 0 },

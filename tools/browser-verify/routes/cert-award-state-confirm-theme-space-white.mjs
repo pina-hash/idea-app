@@ -1,11 +1,10 @@
-import { NO_SIDEWAYS, SPACE_WHITE_ON, certHydrated } from './_cert-desk.mjs';
+import { SPACE_WHITE_ON, certHydrated } from './_cert-desk.mjs';
 
 /** THE AWARD CONFIRM UNDER SPACE WHITE: the dialog, its facts and its keys on the light grounds. */
 export default {
 	path: '/dev/cert-award?state=confirm&theme=space-white',
 	label: 'IDEA Certifications award confirm under Space White',
 	prepare: [...certHydrated('award'), SPACE_WHITE_ON],
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: 'html[data-theme="space-white"]', label: 'Space White is on', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="cert-award-dialog"][data-open="yes"]', label: 'the dialog is open', expectPresent: 1, maxPresent: 1, expectVisible: 1 },

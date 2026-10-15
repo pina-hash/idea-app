@@ -28,5 +28,5 @@ export const SHELL_CONTRAST = [
 export const SHELL_PRESENCE = [
 	{ selector: '[data-testid="cert-header"]', label: 'the portal header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 	{ selector: '[data-testid="cert-tabs"] .cert-tab', label: 'four student tabs', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
-	{ selector: '.sfb-shell .sfb-trigger, [data-testid="cert-header"] .sfb-trigger', label: 'a report control somewhere on the page (the shell mounts it once)', expectPresent: 0 }
+	{ selector: '.sfb-shell .sfb-trigger, [data-testid="cert-header"] .sfb-trigger', label: 'a report control somewhere on the page (the shell mounts it once)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 ];

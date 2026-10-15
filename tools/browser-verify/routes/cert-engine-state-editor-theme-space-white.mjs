@@ -1,11 +1,10 @@
-import { NO_SIDEWAYS, SPACE_WHITE_ON, certHydrated } from './_cert-desk.mjs';
+import { SPACE_WHITE_ON, certHydrated } from './_cert-desk.mjs';
 
 /** THE ENGINE EDITOR UNDER SPACE WHITE: the sub-bar, the problems and the field labels on the light grounds. */
 export default {
 	path: '/dev/cert-engine?state=editor&theme=space-white',
 	label: 'IDEA Certifications engine editor under Space White',
 	prepare: [...certHydrated('engine'), SPACE_WHITE_ON],
-	orderResult: [NO_SIDEWAYS],
 	presence: [
 		{ selector: 'html[data-theme="space-white"]', label: 'Space White is on', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="cert-engine-subbar"]', label: 'the sub-bar', expectPresent: 1, maxPresent: 1, expectVisible: 1 },

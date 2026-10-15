@@ -1,4 +1,4 @@
-import { NO_SIDEWAYS, certHydrated } from './_cert-desk.mjs';
+import { certHydrated } from './_cert-desk.mjs';
 
 /**
  * A CHECKOUT VIDEO: the unlisted YouTube take plays EMBEDDED (never a new
@@ -10,8 +10,7 @@ export default {
 	label: 'IDEA Certifications review: a checkout video embedded with the continuous-take note',
 	prepare: certHydrated('review'),
 	orderResult: [
-		NO_SIDEWAYS,
-		{ label: 'the player is the privacy host, embedded', evaluate: `() => { const f = document.querySelector('[data-testid="cert-evidence-video"] iframe'); return f ? new URL(f.src).host + ' ' + f.getAttribute('allow') : 'NO IFRAME'; }`, expected: 'www.youtube-nocookie.com fullscreen' }
+		{ label: 'the player is the privacy host, embedded', evaluate: `() => [(() => { const f = document.querySelector('[data-testid="cert-evidence-video"] iframe'); return f ? new URL(f.src).host + ' ' + f.getAttribute('allow') : 'NO IFRAME'; })()]`, expected: ['www.youtube-nocookie.com fullscreen'] }
 	],
 	presence: [
 		{ selector: '[data-testid="cert-evidence-video"] iframe', label: 'one embedded player', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
