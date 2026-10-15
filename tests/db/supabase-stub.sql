@@ -190,8 +190,12 @@ create table if not exists storage.objects (
 	bucket_id text references storage.buckets (id),
 	name text,
 	owner uuid,
-	created_at timestamptz not null default now()
+	created_at timestamptz not null default now(),
+	-- The real table's object metadata ({size, mimetype, ...}); 0245 reads
+	-- the size of an uploaded photo from it.
+	metadata jsonb
 );
+alter table storage.objects add column if not exists metadata jsonb;
 
 alter table storage.objects enable row level security;
 

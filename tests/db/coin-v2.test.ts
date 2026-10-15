@@ -54,7 +54,11 @@ describe('the balance ignores physical rows (seeded through the pre-V2 RPCs, the
 
 	test('V2 applied over the seeded world (and re-applies cleanly)', async () => {
 		expect(V2_FILES.length).toBeGreaterThanOrEqual(5);
-		for (const f of V2_FILES) await db.sql(v2Sql(f));
+		// Re-paste the files a person would re-paste: from 0244 on. Session
+		// one's files are not re-applicable over session two's tree, because
+		// 0251 retires the p_medium overloads 0239 recreates and 0239's own
+		// self-check counts them; that is the one known exception.
+		for (const f of V2_FILES.filter((x) => x >= '0244')) await db.sql(v2Sql(f));
 	});
 
 	test('control: the physical rows are still there, and would change the total', async () => {
@@ -211,9 +215,13 @@ describe('an overdraw is refused before any row is written', () => {
 		expect(await balance(ben.email)).toBe(-3);
 	});
 
-	test('a medium other than digital is refused by every writer', async () => {
+	test('no writer takes a medium any more (0251 retired p_medium): naming one does not resolve', async () => {
 		const m = await refusal(rpc(admin, `public.coin_log_transaction($1, 'above_and_beyond', 1, null, 'x', 'physical')`, [ben.email]));
-		expect(m).toMatch(/digital only/);
+		expect(m).toMatch(/does not exist/);
+		// Control: the same call with no medium posts.
+		const ok = await rpc<Json>(admin, `public.coin_log_transaction($1, 'above_and_beyond', 1, null, 'x')`, [ben.email]);
+		expect(ok.ok).toBe(true);
+		await rpc(admin, `public.coin_reverse_transaction($1::uuid)`, [ok.transaction_id]);
 	});
 });
 
@@ -242,7 +250,7 @@ describe('a student function takes no email and no amount', () => {
 		const b = await refusal(rpc(ana, `public.coin_buy_eating_pass(p_amount => 0)`));
 		expect(b).toMatch(/does not exist/);
 		const c = await refusal(rpc(ana, `public.coin_log_transaction($1, 'above_and_beyond', 3, null, 'me')`, [ana.email]));
-		expect(c).toMatch(/Only site admins/);
+		expect(c).toMatch(/Only coin staff/);
 	});
 
 	test('the seam charges the caller and nobody else', async () => {
@@ -653,9 +661,10 @@ describe('grants', () => {
 			'coin_public_contracts',
 			'coin_public_leaderboard',
 			'coin_public_reasons',
+			'coin_public_reported_coins',
+			'coin_public_role_badges',
 			'coin_public_role_questions',
 			'coin_public_roles',
-			'coin_public_sections',
 			'coin_public_student',
 			'coin_public_transactions'
 		]);

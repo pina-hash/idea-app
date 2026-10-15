@@ -18,7 +18,7 @@ const ALL = readdirSync(MIGRATIONS_DIR)
 	.sort();
 
 /** The V2 files, in apply order. */
-export const V2_FILES: readonly string[] = ALL.filter((f) => f >= '0239' && f < '0249');
+export const V2_FILES: readonly string[] = ALL.filter((f) => f >= '0239' && f < '0256');
 
 /** Every migration before V2, behind the fixture completion. */
 export const PRE_V2: readonly string[] = [FIXTURE_COMPLETION, ...ALL.filter((f) => f < '0239')];

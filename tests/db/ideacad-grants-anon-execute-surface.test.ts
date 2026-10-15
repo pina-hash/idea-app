@@ -474,7 +474,12 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
 	coin_public_reasons: COIN_PUBLIC_REASON,
 	coin_public_role_questions: COIN_PUBLIC_REASON,
 	coin_public_roles: COIN_PUBLIC_REASON,
-	coin_public_sections: COIN_PUBLIC_REASON,
+	// IDEA Coin V2 session two (0245, 0247): the Ledger's reported coins on
+	// hand and its role badges, both keyed by the opaque public id, no email.
+	coin_public_reported_coins: COIN_PUBLIC_REASON,
+	coin_public_role_badges: COIN_PUBLIC_REASON,
+	tournament_reward_settlement:
+		'A tournament\'s own public page says whether its rewards were transferred or paid in coins (0248). It answers an outcome and a time for one tournament, names nobody, and moves nothing.',
 	coin_public_student: COIN_PUBLIC_REASON,
 	coin_public_transactions: COIN_PUBLIC_REASON,
 
@@ -536,7 +541,7 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
  * moving it without reading the reason beside the new entry is what the pin
  * refuses.
  */
-const ANON_EXECUTE_SURFACE_SIZE = 24;
+const ANON_EXECUTE_SURFACE_SIZE = 26;
 
 // ---------------------------------------------------------------------------
 // Plumbing
