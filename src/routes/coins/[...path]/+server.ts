@@ -5,6 +5,7 @@ import ledgerHtmlRaw from '$lib/legacy/coins/index.html?raw';
 import { rewriteLegacyLinks } from '$lib/legacy';
 import { injectVersionBadge } from '$lib/version-badge';
 import { legacyReportPanelScript } from '$lib/server/legacy-report-panel';
+import { injectLedgerTheme } from '$lib/server/coin-public';
 import type { RequestHandler } from './$types';
 
 /**
@@ -50,8 +51,11 @@ export const GET: RequestHandler = async ({ params, locals: { claims } }) => {
 	// without a redirect. Anything deeper never existed.
 	if (!LEDGER_PATHS.has(params.path ?? '')) error(404, 'Not found');
 
+	// The site theme, decided by the site's own `themeAttrFor` for `/coins`
+	// and this visitor's session (see `ledgerThemeScript`). Signed out, the
+	// marker is simply removed and the Ledger paints its default.
 	const html = injectVersionBadge(
-		rewriteLegacyLinks(ledgerHtmlRaw).replace(
+		injectLedgerTheme(rewriteLegacyLinks(ledgerHtmlRaw), !!claims).replace(
 			'</body>',
 			`${legacyReportPanelScript({
 				signedIn: !!claims,

@@ -37,12 +37,9 @@
 		email: 'ada.lovelace@boscotech.net',
 		displayName: 'Lovelace, Ada',
 		configured: true,
-		// Total, then the split (0096). 120 physical + 35 digital = 155, so
-		// the preview shows a student who has withdrawn most of what they
-		// earned and still has a little banked.
-		balance: 155,
-		physicalBalance: 120,
-		digitalBalance: 35,
+		// The ONE balance (IDEA Coin V2): the digital sum. The physical rows
+		// below are history and count toward nothing.
+		balance: 35.5,
 		/**
 		 * Every shape the row renderer has to tell apart, in one list:
 		 *

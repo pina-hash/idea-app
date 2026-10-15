@@ -14,20 +14,30 @@ export interface CoinDeskArea {
 	blurb: string;
 }
 
-export type CoinDeskAreaId = 'log' | 'students' | 'contracts' | 'roles' | 'economy';
+export type CoinDeskAreaId =
+	| 'log'
+	| 'fine'
+	| 'students'
+	| 'debt'
+	| 'contracts'
+	| 'roles'
+	| 'economy'
+	| 'settings';
 
 export const COIN_DESK_AREAS: CoinDeskArea[] = [
+	// The first five keep their places: harness specs reach an area by its
+	// position in this row. V2's three (Fine, Debt, Settings) follow them.
 	{
 		id: 'log',
 		label: 'Log',
 		href: '/coin-desk',
-		blurb: 'Look up a student and log a fine, award, or purchase -- one student or a whole section.'
+		blurb: 'Look up a student and log a fine, award, or purchase, for one student or a whole section. Recent autopay runs are below.'
 	},
 	{
 		id: 'students',
 		label: 'Students',
 		href: '/coin-desk/students',
-		blurb: 'Sections and rosters, plus balance lookup and signed adjustments by email.'
+		blurb: 'Sections and rosters, plus one student by email: balance, history with undo, adjustments and coin-paid purchases.'
 	},
 	{
 		id: 'contracts',
@@ -45,7 +55,25 @@ export const COIN_DESK_AREAS: CoinDeskArea[] = [
 		id: 'economy',
 		label: 'Economy',
 		href: '/coin-desk/economy',
-		blurb: 'The category price list, and paying out positive balances.'
+		blurb: 'The category list, and paying out a positive balance in physical coins.'
+	},
+	{
+		id: 'fine',
+		label: 'Fine',
+		href: '/coin-desk/fine',
+		blurb: 'The fine screen: pick a class, tap the students, tap the fine.'
+	},
+	{
+		id: 'debt',
+		label: 'Debt',
+		href: '/coin-desk/debt',
+		blurb: 'Every student whose balance is below zero, deepest first.'
+	},
+	{
+		id: 'settings',
+		label: 'Settings',
+		href: '/coin-desk/settings',
+		blurb: 'Prices, autopay, no-pay weeks, hall pass thresholds, which classes are in the economy, and the fine buttons. Every change is recorded.'
 	}
 	// There was a sixth area, Migrate: the one-time wizard that pulled the legacy
 	// Google Sheets ledger into this one. That import ran, reconciled, and is
@@ -57,11 +85,13 @@ export const COIN_DESK_AREAS: CoinDeskArea[] = [
 
 /**
  * Which area a pathname belongs to. `/coin-desk` itself is the Log view, so
- * an exact match wins before any prefix test -- otherwise every sub-route
- * would also read as Log.
+ * it is never matched as a prefix -- otherwise every sub-route would also read
+ * as Log. Any other area owns its own sub-paths (`/coin-desk/fine/...`).
  */
 export function areaForPath(pathname: string): CoinDeskAreaId {
 	const clean = pathname.replace(/\/+$/, '') || '/';
-	const match = COIN_DESK_AREAS.find((a) => a.href !== '/coin-desk' && clean === a.href);
+	const match = COIN_DESK_AREAS.find(
+		(a) => a.href !== '/coin-desk' && (clean === a.href || clean.startsWith(`${a.href}/`))
+	);
 	return match?.id ?? 'log';
 }

@@ -174,3 +174,114 @@
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
 }
+
+/* --- IDEA Coin V2 controls --------------------------------------------------
+   The shared pieces of the V2 surfaces (history with Undo, the student tools,
+   settings, the debt list, autopay runs). Here once rather than in five
+   scoped blocks, because the five must look like one desk. Every control that
+   is pressed is 44px tall (the tap-target floor); `.btn` already is. */
+.cd-root .cdx-input,
+.cd-root .cdx-select,
+.cd-root .cdx-textarea {
+	background: var(--bg0);
+	border: 1px solid var(--boundary, var(--line));
+	border-radius: 4px;
+	color: var(--white);
+	font-family: var(--font-display);
+	font-size: 0.95rem;
+	padding: 0.4rem 0.55rem;
+	min-height: 44px;
+	min-width: 0;
+	box-sizing: border-box;
+}
+.cd-root .cdx-textarea {
+	width: 100%;
+	min-height: 5rem;
+	resize: vertical;
+}
+.cd-root .cdx-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-width: 0;
+}
+.cd-root .cdx-field > span,
+.cd-root .cdx-field > label {
+	color: var(--text-2, var(--dim));
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.04em;
+}
+.cd-root .cdx-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	align-items: flex-end;
+	margin: 0.5rem 0;
+}
+.cd-root .cdx-feedback {
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	padding: 0.45rem 0.7rem;
+	border-radius: 5px;
+	margin: 0.4rem 0;
+}
+.cd-root .cdx-feedback.error {
+	color: var(--amber);
+	border: 1px solid var(--amber);
+}
+.cd-root .cdx-feedback.notice {
+	color: var(--green);
+	border: 1px solid var(--line);
+}
+.cd-root .cdx-note {
+	color: var(--text-2, var(--dim));
+	font-size: 0.9rem;
+}
+.cd-root .cdx-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	border: 1px solid var(--line);
+	border-radius: 3px;
+	padding: 0.05rem 0.35rem;
+	color: var(--text-2, var(--dim));
+}
+.cd-root .cdx-chip.warn {
+	color: var(--amber);
+	border-color: var(--amber);
+}
+.cd-root .cdx-chip.ok {
+	color: var(--green);
+	border-color: var(--green);
+}
+.cd-root .cdx-balance {
+	font-family: var(--font-mono);
+	color: var(--green);
+}
+.cd-root .cdx-balance.negative {
+	color: var(--amber);
+}
+/* A compact `.btn` for a row action: smaller type and side padding, never a
+   smaller height. */
+.cd-root .btn.cdx-small {
+	font-size: 0.7rem;
+	padding: 0.35rem 0.75rem;
+	letter-spacing: 0.08em;
+}
+/* A Disclosure whose label is data (a category name, a run's time) wraps it
+   instead of running past a phone's edge: the shared component holds its label
+   to one line (`flex: none`), which overflowed by 21px at 375 on the Log area. */
+.cd-root .cdx-disc .disc-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.cd-root .cdx-disc .disc-meta {
+	white-space: normal;
+}

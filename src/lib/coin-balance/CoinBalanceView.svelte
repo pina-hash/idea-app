@@ -19,8 +19,6 @@
 		email,
 		displayName,
 		balance,
-		physicalBalance = 0,
-		digitalBalance = 0,
 		transactions,
 		categoryKinds = {},
 		wageTier,
@@ -29,9 +27,11 @@
 		configured?: boolean;
 		email: string | null;
 		displayName: string | null;
-		/** The TOTAL: physical coins in hand plus digital balance. */
+		/** The one balance (IDEA Coin V2: digital rows only). */
 		balance: number;
+		/** Accepted for older callers and NOT rendered: V2 shows one number. */
 		physicalBalance?: number;
+		/** Accepted for older callers and NOT rendered: V2 shows one number. */
 		digitalBalance?: number;
 		transactions: DisplayTransaction[];
 		/** coin_categories.kind by id -- see CoinTransactionRows. */
@@ -77,16 +77,6 @@
 			<h2>Summary</h2>
 			<div class="coin-summary">
 				<div class="coin-balance" class:negative={balance < 0}>{coins(balance)}</div>
-				<div class="medium-split">
-					<span class="split-cell" class:negative={physicalBalance < 0}>
-						<span class="split-label">physical coins</span>
-						<span class="split-value">{coins(physicalBalance)}</span>
-					</span>
-					<span class="split-cell" class:negative={digitalBalance < 0}>
-						<span class="split-label">digital</span>
-						<span class="split-value">{coins(digitalBalance)}</span>
-					</span>
-				</div>
 				<div class="coin-meta">
 					{#if displayName || email}
 						<span>{displayName ?? email}</span>
@@ -176,31 +166,6 @@
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--dim);
-	}
-	.medium-split {
-		display: flex;
-		gap: 0.9rem;
-		flex-wrap: wrap;
-	}
-	.split-cell {
-		display: flex;
-		flex-direction: column;
-		gap: 0.05rem;
-	}
-	.split-label {
-		font-family: var(--font-mono);
-		font-size: 0.6rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--dim);
-	}
-	.split-value {
-		font-family: var(--font-mono);
-		font-size: 0.95rem;
-		color: var(--cyan);
-	}
-	.split-cell.negative .split-value {
-		color: var(--amber);
 	}
 	.strike-chip {
 		font-family: var(--font-mono);

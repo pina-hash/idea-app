@@ -1087,6 +1087,7 @@
 				{/if}
 
 				<div class="pm-actions">
+					<a class="pm-link" href="/coin-balance" onclick={close}>My coins</a>
 					{#if page.data.isAdmin}
 						<a class="pm-link" href="/dashboard" onclick={close}>Admin console</a>
 					{/if}

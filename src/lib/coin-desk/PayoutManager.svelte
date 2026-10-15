@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { onMount } from 'svelte';
-	import { COIN_SYMBOL } from '$lib/coin-format';
+	import { coins } from '$lib/coin-format';
+	import { cents, num } from './v2';
 	import {
 		payoutCandidateLabel,
 		payoutRefusalMessage,
@@ -11,24 +12,16 @@
 	} from './payout';
 
 	/**
-	 * Every student with a positive balance, in one list, with a "Pay" per
-	 * row and a "Pay All". Factored out of CoinDeskTool.svelte the same way
-	 * SectionManager / RolesManager / ContractsManager are, so a dev harness
-	 * can mount this against a fake ledger too.
+	 * Every student with a positive balance, in one list, with a "Pay" per row
+	 * and a "Pay all".
 	 *
-	 * The list itself is a plain read of the coin_balances view (0070, three
-	 * columns since 0096) -- every admin already sees every row there (its RLS
-	 * predicate is `student_email = current_user_email() or is_admin()`), so
-	 * no new RPC is needed just to LIST candidates. Paying is different: both
-	 * actions below call a migration 0079/0096 RPC that re-reads the CURRENT
-	 * digital balance server-side at the moment it writes, never the balance
-	 * this list happened to show when it loaded -- see payout.ts.
-	 *
-	 * THE LIST IS FILTERED ON digital_balance, NOT balance. Since 0096 a
-	 * payout is a digital -> physical TRANSFER, so a student whose whole
-	 * positive total is physical has nothing to convert and must not appear
-	 * here -- filtering on the total would offer to "pay" coins already in
-	 * their hand.
+	 * IDEA COIN V2 (0239): ONE BALANCE. A payout hands a student physical
+	 * coins for part or all of their balance, so the balance goes down by the
+	 * amount handed over (the physical half of the transfer is history only).
+	 * `coin_payout` is no longer a loggable category, so this is the only way
+	 * to pay out. The list reads the coin_balances view, whose `balance` is the
+	 * digital sum since 0239; both actions re-read the balance server-side at
+	 * the moment they write, never the figure this list showed.
 	 */
 	let { supabase, configured = true }: { supabase: SupabaseClient; configured?: boolean } = $props();
 
@@ -51,9 +44,9 @@
 		listError = '';
 		const resp = await supabase
 			.from('coin_balances')
-			.select('student_email, balance, physical_balance, digital_balance, last_activity_at')
-			.gt('digital_balance', 0)
-			.order('digital_balance', { ascending: false });
+			.select('student_email, balance, last_activity_at')
+			.gt('balance', 0)
+			.order('balance', { ascending: false });
 		if (resp.error) {
 			listBusy = false;
 			listError = resp.error.message;
@@ -61,9 +54,7 @@
 		}
 		const rows = (resp.data ?? []) as {
 			student_email: string;
-			balance: number;
-			physical_balance: number;
-			digital_balance: number;
+			balance: number | string;
 			last_activity_at: string | null;
 		}[];
 		const emails = rows.map((r) => r.student_email);
@@ -91,9 +82,7 @@
 
 		candidates = rows.map((r) => ({
 			student_email: r.student_email,
-			balance: r.balance,
-			physical_balance: r.physical_balance,
-			digital_balance: r.digital_balance,
+			balance: num(r.balance),
 			last_activity_at: r.last_activity_at,
 			display_name: names.get(r.student_email)?.display_name ?? null,
 			full_name: names.get(r.student_email)?.full_name ?? null
@@ -126,7 +115,7 @@
 		const raw = String(partialAmounts[email] ?? '').trim();
 		if (!raw) return null;
 		const n = Number(raw);
-		return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+		return Number.isFinite(n) && n > 0 ? cents(n) : null;
 	}
 
 	async function payOne(email: string) {
@@ -199,17 +188,10 @@
 <section class="card payout-manager">
 	<h2>Payout</h2>
 	<p class="note">
-		Every student with a positive DIGITAL balance, ready to convert to physical coins. A payout is
-		a transfer, not a drain: it debits digital and credits physical by the same amount, so the
-		student's total does not change -- the coins changed form. Leave an amount blank to pay the
-		whole digital balance, or type one for a partial withdrawal. Pay All re-derives the whole list
-		and re-reads each digital balance server-side at the moment it writes, so a fine or award
-		landed by another admin in between is always reflected in the amount actually paid, never a
-		stale one.
-	</p>
-	<p class="note">
-		This is the ONLY path between the two balances, and it runs one way. There is no deposit from
-		physical back into digital.
+		Every student with a positive balance. Paying out hands the student physical coins and lowers
+		their balance by the same amount. Leave an amount blank to pay the whole balance, or type one
+		for part of it. Pay all re-reads every balance at the moment it pays, so a fine or award logged
+		in between is always counted.
 	</p>
 
 	{#if !configured}
@@ -234,7 +216,7 @@
 		{#if listBusy && !candidates.length}
 			<p class="note">Loading&hellip;</p>
 		{:else if !candidates.length}
-			<p class="note">No student currently has a positive digital balance to convert.</p>
+			<p class="note">No student has a positive balance to pay out.</p>
 		{:else}
 			<div class="rows payout-rows">
 				{#each candidates as c (c.student_email)}
@@ -246,18 +228,15 @@
 							<span class="since">
 								{c.student_email}{c.last_activity_at ? ` · last activity ${when(c.last_activity_at)}` : ''}
 							</span>
-							<span class="since">
-								holds {c.physical_balance}{COIN_SYMBOL} physical &middot; total {c.balance}{COIN_SYMBOL}
-							</span>
 						</div>
 						<div class="actions">
-							<span class="balance">{c.digital_balance}{COIN_SYMBOL}</span>
+							<span class="balance">{coins(c.balance)}</span>
 							<input
 								class="partial"
 								type="number"
-								min="1"
-								max={c.digital_balance}
-								step="1"
+								min="0.01"
+								max={c.balance}
+								step="0.01"
 								placeholder="all"
 								aria-label="Partial payout amount for {c.student_email}"
 								bind:value={partialAmounts[c.student_email]}
@@ -295,7 +274,7 @@
 						<div class="actions">
 							{#if r.ok}
 								<span class="txn-pos">
-									{typeof r.amount === 'number' ? `${Math.abs(r.amount)}{COIN_SYMBOL} paid` : 'paid'}
+									{r.amount != null ? `${coins(Math.abs(num(r.amount)))} paid` : 'paid'}
 									{r.partial ? ' (partial)' : ''}
 								</span>
 							{:else}
@@ -404,7 +383,8 @@
 		color: var(--green);
 	}
 	.partial {
-		width: 5rem;
+		min-height: 44px;
+		width: 6rem;
 		background: var(--bg0);
 		border: 1px solid var(--line);
 		border-radius: 4px;
@@ -418,6 +398,8 @@
 		outline-offset: 1px;
 	}
 	.mini {
+		min-height: 44px;
+		min-width: 44px;
 		background: none;
 		border: 1px solid var(--line);
 		border-radius: 4px;

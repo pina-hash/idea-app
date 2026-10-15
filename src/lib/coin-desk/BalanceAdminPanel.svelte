@@ -1,76 +1,64 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import CoinTransactionRows from '$lib/coin-balance/CoinTransactionRows.svelte';
-	import { coins, COIN_SYMBOL, signedCoins } from '$lib/coin-format';
-	import { DEFAULT_MEDIUM, MEDIA, MEDIUM_LABELS, type CoinMedium } from '$lib/coin-desk';
+	import { coins, COIN_SYMBOL } from '$lib/coin-format';
+	import type { CoinCategory } from '$lib/coin-desk';
+	import DeskHistory from './DeskHistory.svelte';
+	import DebtPaymentPanel from './DebtPaymentPanel.svelte';
+	import StudentCoinTools from './StudentCoinTools.svelte';
+	import { cents, coinRefusalWords, num, reverseTransaction, type CoinRefusal, type DeskTxn } from './v2';
 
 	/**
-	 * Balance lookup + signed adjustment by email, MOVED here from /admin
-	 * when /coin-desk became a route group -- the RPCs are unchanged
-	 * (coin_admin_lookup / coin_admin_adjust_balance, both 0070), only the
-	 * surface moved, so every coin tool lives in one place.
+	 * ONE STUDENT BY EMAIL: the balance, the history with Undo, a signed
+	 * adjustment, and the V2 student tools (Eating Pass, no shop today, a
+	 * purchase paid in coins). Works for an email that has never signed in:
+	 * every RPC here keys on the address alone.
 	 *
-	 * This is the "attach a balance to an email regardless of login status"
-	 * tool from docs/coin-economy Part 8: both RPCs work purely off the email
-	 * string, with no requirement that the account has ever signed in, which
-	 * is also how a legacy Sheets balance gets its opening entry (a single
-	 * adjustment for whatever the old balance was, no conversion math).
+	 * IDEA Coin V2 (0239): ONE balance, the digital sum. A negative balance is
+	 * the debt and is shown as the balance; the debt payment panel opens under
+	 * it while it is below zero.
 	 *
-	 * Deliberately its own card rather than folded into the Log area's
-	 * lookup: that flow is "log something new against this student", this one
-	 * is "correct what is already there", and the adjustment is a different,
-	 * rarer action with a required reason.
+	 * `initialEmail` opens a student on mount, which is how the debt list's
+	 * links land here (`/coin-desk/students?student=...`).
 	 */
 	let {
 		supabase,
-		categoryKinds = {}
+		categoryKinds = {},
+		categories = [],
+		initialEmail = ''
 	}: {
 		supabase: SupabaseClient;
 		/**
 		 * category id -> coin_categories.kind, from the page's own load. Without
-		 * it every non-payout row reads as an adjustment (see coinTxnType), so
-		 * the page passes it rather than this panel guessing.
+		 * it every non-payout row reads as an adjustment (see coinTxnType).
 		 */
 		categoryKinds?: Record<string, string>;
+		/** Every category, for the purchase picker in the student tools. */
+		categories?: CoinCategory[];
+		initialEmail?: string;
 	} = $props();
 
-	interface CoinTxn {
-		id: string;
-		category_id: string;
-		category_name: string;
-		amount: number;
-		medium: CoinMedium;
-		/** Both halves of a payout carry it (0096); the pair renders as one row. */
-		transfer_id: string | null;
-		quantity: number | null;
-		note: string | null;
-		actor_email: string;
-		created_at: string;
-	}
 	interface CoinLookup {
 		email: string;
-		balance: number;
-		physical_balance: number;
-		digital_balance: number;
+		balance: number | string;
 		wage_tier: number;
 		eating_pass_active: boolean;
 		eating_pass_strikes: number;
-		recent_transactions: CoinTxn[];
+		/** V2 only; absent on an older database. */
+		no_shop_today?: boolean;
+		recent_transactions: DeskTxn[];
 	}
-
-	/** Which balance an adjustment corrects (0096). Defaults to physical. */
-	let adjustMedium = $state<CoinMedium>(DEFAULT_MEDIUM);
 
 	let coinEmail = $state('');
 	let busy = $state(false);
 	let errorMsg = $state('');
 	let notice = $state('');
 	let lookup = $state<CoinLookup | null>(null);
-	let adjustAmount = $state('');
+	let adjustAmount = $state<string | number>('');
 	let adjustNote = $state('');
 
 	async function runLookup(refresh = false) {
-		const target = coinEmail.trim().toLowerCase();
+		const target = (refresh && lookup ? lookup.email : coinEmail).trim().toLowerCase();
 		if (!target) return;
 		errorMsg = '';
 		if (!refresh) notice = '';
@@ -85,67 +73,58 @@
 		lookup = resp.data as CoinLookup;
 	}
 
+	onMount(() => {
+		if (initialEmail) {
+			coinEmail = initialEmail;
+			void runLookup();
+		}
+	});
+
+	const adjustValue = $derived(Number(adjustAmount));
+
 	async function applyAdjustment() {
-		const target = coinEmail.trim().toLowerCase();
-		const amt = Number(adjustAmount);
-		if (!target || !Number.isFinite(amt) || amt === 0 || !adjustNote.trim()) return;
+		if (!lookup || !canAdjust) return;
+		const target = lookup.email;
 		errorMsg = '';
 		notice = '';
 		busy = true;
 		const resp = await supabase.rpc('coin_admin_adjust_balance', {
 			p_email: target,
-			p_amount: Math.round(amt),
-			p_note: adjustNote.trim(),
-			p_medium: adjustMedium
+			p_amount: cents(adjustValue),
+			p_note: adjustNote.trim()
 		});
 		busy = false;
 		if (resp.error) {
 			errorMsg = resp.error.message;
 			return;
 		}
-		const r = resp.data as {
-			ok: boolean;
-			reason?: string;
-			balance?: number;
-			physical_balance?: number;
-			digital_balance?: number;
-		};
+		const r = resp.data as CoinRefusal & { ok: boolean };
 		if (!r.ok) {
-			errorMsg =
-				r.reason === 'debt'
-					? `Balance is negative (${r.balance}${COIN_SYMBOL}); adjustments still apply.`
-					: (r.reason ?? 'Adjustment refused.');
+			errorMsg = coinRefusalWords(r);
 			return;
 		}
-		const now = adjustMedium === 'physical' ? r.physical_balance : r.digital_balance;
-		notice = `Applied ${amt > 0 ? '+' : ''}${Math.round(amt)}${COIN_SYMBOL} to ${target}'s ${adjustMedium} balance. It now reads ${now}${COIN_SYMBOL} (total ${r.balance}${COIN_SYMBOL}).`;
+		notice = `Applied ${adjustValue > 0 ? '+' : ''}${coins(cents(adjustValue))} to ${target}. The balance is now ${coins(num(r.balance))}.`;
 		adjustAmount = '';
 		adjustNote = '';
-		// Refresh, WITHOUT clearing the confirmation above -- the coin-desk
-		// runLookup(refresh) convention (a success message that vanishes on
-		// the same tick reads as nothing having happened).
+		// Refresh WITHOUT clearing the confirmation above.
 		await runLookup(true);
 	}
 
 	const canAdjust = $derived(
 		!busy &&
-			Number.isFinite(Number(adjustAmount)) &&
-			Number(adjustAmount) !== 0 &&
+			String(adjustAmount).trim() !== '' &&
+			Number.isFinite(adjustValue) &&
+			adjustValue !== 0 &&
 			!!adjustNote.trim()
 	);
-
-	function when(iso: string): string {
-		const d = new Date(iso);
-		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
-	}
 </script>
 
 <section class="card">
-	<h2>Balances &amp; adjustments</h2>
+	<h2>One student</h2>
 	<p class="note">
-		Look up or adjust a student's coin balance by email, whether or not they have signed in yet. The
-		balance is derived from the transaction ledger (migration 0070), which is the sole system of
-		record -- every legacy Sheets balance was imported into it.
+		Look up a student's balance and history by email, whether or not they have signed in yet. There
+		is one balance; below zero is debt. Undo cancels one row with a reversing row, so the history
+		keeps both.
 	</p>
 	{#if errorMsg}<p class="feedback error">{errorMsg}</p>{/if}
 	{#if notice}<p class="feedback notice">{notice}</p>{/if}
@@ -153,6 +132,8 @@
 		<input
 			type="email"
 			placeholder="student@boscotech.net"
+			aria-label="Student email"
+			data-testid="cd-balance-email"
 			bind:value={coinEmail}
 			onkeydown={(e) => {
 				if (e.key === 'Enter') runLookup();
@@ -165,50 +146,62 @@
 
 	{#if lookup}
 		<div class="coin-summary">
-			<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}{COIN_SYMBOL}</div>
-			<div class="medium-split">
-				<span class="split-cell" class:negative={lookup.physical_balance < 0}>
-					<span class="split-label">physical</span>
-					<span class="split-value">{lookup.physical_balance}{COIN_SYMBOL}</span>
-				</span>
-				<span class="split-cell" class:negative={lookup.digital_balance < 0}>
-					<span class="split-label">digital</span>
-					<span class="split-value">{lookup.digital_balance}{COIN_SYMBOL}</span>
-				</span>
+			<div class="coin-balance" class:negative={num(lookup.balance) < 0} data-testid="cd-balance">
+				{coins(num(lookup.balance))}
 			</div>
 			<div class="coin-meta">
 				<span>{lookup.email}</span>
 				<span>wage tier {lookup.wage_tier}</span>
-				<span>
-					eating pass:
-					{lookup.eating_pass_active
-						? `active (${lookup.eating_pass_strikes} strike${lookup.eating_pass_strikes === 1 ? '' : 's'})`
-						: 'none'}
-				</span>
+				{#if num(lookup.balance) < 0}<span class="debt-word">in debt</span>{/if}
 			</div>
 		</div>
 
+		<StudentCoinTools
+			{supabase}
+			email={lookup.email}
+			balance={lookup.balance}
+			wageTier={lookup.wage_tier}
+			eatingPassActive={lookup.eating_pass_active}
+			eatingPassStrikes={lookup.eating_pass_strikes}
+			noShopToday={lookup.no_shop_today}
+			{categories}
+			onChanged={() => runLookup(true)}
+		/>
+
+		{#if num(lookup.balance) < 0}
+			<DebtPaymentPanel
+				{supabase}
+				email={lookup.email}
+				balance={lookup.balance}
+				onLogged={() => runLookup(true)}
+			/>
+		{/if}
+
+		<h3>Adjust the balance</h3>
 		<div class="add-row">
-			<div class="medium-toggle">
-				{#each MEDIA as m (m)}
-					<button type="button" class:active={adjustMedium === m} onclick={() => (adjustMedium = m)}>
-						{MEDIUM_LABELS[m]}
-					</button>
-				{/each}
-			</div>
-			<input type="number" step="1" placeholder="+/- {COIN_SYMBOL}" bind:value={adjustAmount} />
-			<input type="text" maxlength="500" placeholder="Reason (required)" bind:value={adjustNote} />
+			<input
+				type="number"
+				step="0.01"
+				placeholder="+/- {COIN_SYMBOL}"
+				aria-label="Adjustment amount"
+				bind:value={adjustAmount}
+			/>
+			<input
+				type="text"
+				maxlength="500"
+				placeholder="Reason (required)"
+				aria-label="Reason"
+				bind:value={adjustNote}
+			/>
 			<button class="btn" disabled={!canAdjust} onclick={applyAdjustment}>Apply adjustment</button>
 		</div>
-		<p class="note">
-			An adjustment corrects ONE balance. Physical is the primary system; pick Digital only when
-			correcting the digital record.
-		</p>
 
-		<CoinTransactionRows
+		<h3>History</h3>
+		<DeskHistory
 			transactions={lookup.recent_transactions}
 			kinds={categoryKinds}
-			showActor
+			reverse={(id) => reverseTransaction(supabase, id)}
+			onReversed={() => runLookup(true)}
 		/>
 	{/if}
 </section>
@@ -243,6 +236,7 @@
 		margin-bottom: 0.6rem;
 	}
 	.add-row input {
+		min-height: 44px;
 		flex: 1;
 		min-width: 12rem;
 		background: var(--bg0);
@@ -270,6 +264,13 @@
 	.coin-balance.negative {
 		color: var(--amber);
 	}
+	h3 {
+		font-size: 0.95rem;
+		margin: 1rem 0 0.4rem;
+	}
+	.debt-word {
+		color: var(--amber);
+	}
 	.coin-meta {
 		display: flex;
 		flex-wrap: wrap;
@@ -277,49 +278,5 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		color: var(--dim);
-	}
-	.medium-split {
-		display: flex;
-		gap: 0.9rem;
-		flex-wrap: wrap;
-	}
-	.split-cell {
-		display: flex;
-		flex-direction: column;
-		gap: 0.05rem;
-	}
-	.split-label {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--dim);
-	}
-	.split-value {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.95rem;
-		color: var(--cyan);
-	}
-	.split-cell.negative .split-value {
-		color: var(--amber);
-	}
-	.medium-toggle {
-		display: flex;
-		gap: 0.3rem;
-	}
-	.medium-toggle button {
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.7rem;
-		padding: 0.35rem 0.7rem;
-		cursor: pointer;
-	}
-	.medium-toggle button.active {
-		color: var(--bg0);
-		background: var(--cyan);
-		border-color: var(--cyan);
 	}
 </style>

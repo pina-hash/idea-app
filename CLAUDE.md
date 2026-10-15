@@ -1635,6 +1635,15 @@ sweeps for it.
   shown name only, so a pass nobody checked in is noticed by the room; it still
   carries no address, no pass id and no history, and the type has no field for
   one. The instructor payload carries each student's budget by address.
+- **A LONG PASS WARNS AT 10 MINUTES AND FINES AT 20 (decision 67, 0243),
+  REVERSING 0143's "NO COIN LINK".** `_classroom_hall_pass_check` is the one
+  rule: duration is `least(closed - opened, auto check-in)`, a pass is judged
+  only once CLOSED, and only when the student or the sweep closed it and no
+  instructor opened it, so an instructor's pass is never warned or fined. One
+  `warning` and one `fine` event per pass, keyed `(pass_id, kind)`; the fine is
+  a `long_bathroom_break` row whose actor is `system`. Every path checks: the
+  sweep (so the state read and both opens), `close_mine` and `close_by_id`.
+  Both thresholds are coin settings, never literals in a component.
 - **THE CONTROL MIRRORS THE BUDGET AND DOES NOT IMPLEMENT IT**: a payload with no
   `budget` (a database before 0237) blocks nothing, and the database refuses
   the call regardless.
@@ -2848,7 +2857,7 @@ This applies to every change. Prompts do not need to restate it.
 
 **Always:**
 
-- **`svelte-check` at the baseline: 0 errors, 37 warnings in 20 files.** Any
+- **`svelte-check` at the baseline: 0 errors, 35 warnings in 19 files.** Any
   change to either number is a finding to report, not something to leave
   unmentioned.
   - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
@@ -2912,8 +2921,9 @@ This applies to every change. Prompts do not need to restate it.
     and the same fresh checkout runs clean. This bites in the same first five
     minutes as the missing-`.env` phantom errors above and for the same root
     cause: nothing has generated the `.svelte-kit` output yet.
-  - The 37 break down as 31 `state_referenced_locally`, 5
-    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 20 files. The
+  - The 35 break down as 31 `state_referenced_locally`, 3
+    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 19 files (ledger
+    0383 removed two unused selectors from coin files; it said 37, 5, 20 before). The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
     and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"
@@ -3938,41 +3948,32 @@ with its own answer for the rows already stored.
   own-row `WITH CHECK`, because there is nothing to forge in a comment about
   yourself; and the legacy coin import writes rows directly because they are
   HISTORY, not events, and no live rule should read them.
-- **EVERY PUBLIC COIN WRITE FUNCTION IS ADMIN-ONLY, AND 0145 IS THE FIRST
-  DELIBERATE EXCEPTION.** `coin_log_transaction`, `coin_log_extra_credit`,
-  `coin_bulk_log_section` and `coin_payout_student` each open with the
+- **EVERY ADMIN COIN WRITE OPENS WITH `is_admin()`, AND A STUDENT'S OWN COIN
+  ACTION GOES THROUGH ONE SEAM, `_coin_student_seam` (0241, IDEA Coin V2).**
+  `coin_log_transaction` and every other admin logger still open with the
   identical `if not public.is_admin() then raise exception 'Only site admins
   can log IDEA Coin transactions.';`, and a nested SECURITY DEFINER call does
-  not escape it: `is_admin()` reads the session's JWT claims, so it answers
-  about the ORIGINAL caller regardless of how many definer functions sit
-  between them and `_coin_insert`.
-  - **`0145` (the classroom song queue) is the first path that moves a coin
-    with no admin in the chain.** Approving a song request charges the
-    requester 2i¢ from their digital balance, and approval is available to any
-    SECTION MANAGER (`classroom_manages_section`), which is routinely a
-    teacher who is not an admin. It cannot call `coin_log_transaction` --
-    that would raise the sentence above at exactly the person the feature is
-    for -- so `classroom_song_approve` mints the row itself, straight through
-    `_coin_insert` (the row shape) and `_coin_balance` (the digital-balance
-    debt check), with the price read from `coin_categories` rather than
-    written down twice.
-  - **THE REASONING, KEPT BESIDE THE RULE IT BENDS:** the teacher of a room
-    should be able to moderate their own room without an admin in the loop; the
-    amount is fixed by the `song_request` category row, never chosen by the
-    approver, so a manager cannot set an arbitrary price; and the alternative --
-    an instructor unable to approve a song in their own class -- is worse than
-    the admin-only rule being not-quite-universal. This is a narrow, named
-    exception, not a second authorization model: every OTHER coin-moving path
-    stays admin-gated, and a new one needs its own stated reason here, not a
-    silent second call to `_coin_insert`.
-  - **THE RETROFIT THAT WOULD REMOVE THE EXCEPTION**, named in 0145's own
-    header so it is not reinvented: give `coin_log_transaction` an
-    authorization seam other than `is_admin()`, or extract its
-    price/sign/debt/insert middle into a private helper both it and a
-    non-admin caller like this one can reach. Either is a change to the
-    busiest function in the coin system and belongs in its own bundle with its
-    own answer for every existing caller, not something to fold into a
-    narrow feature's migration.
+  not escape it: `is_admin()` reads the session's JWT claims.
+  - **THE SEAM IS THE STATED EXCEPTION, AND IT IS THE RETROFIT THIS LINE USED TO
+    NAME.** A student buys an Eating Pass, extra credit, a pay raise or a 3D
+    print through `coin_buy_*`, each a definer function that TAKES NO EMAIL AND
+    NO AMOUNT: identity is `current_user_email()`, every price comes from
+    `coin_categories` and `coin_settings`, every check runs before the charge,
+    and the seam rate-limits per student. 0241's self-check refuses to apply if
+    any of them names an email, an amount, a cost or a price, and
+    `tests/db/coin-v2.test.ts` asserts it on the catalog with the admin logger
+    as its positive control. **A new student coin action is a caller of the
+    seam, never a second gate.**
+  - **AUTOMATIC ROWS ARE `system`'S, through `_coin_insert`'s `p_actor`**:
+    autopay (0242), the hall pass fine (0243) and the Perfect Score hook in
+    `classroom_grade_submission`. `coin_autopay_run` is granted to `anon` on
+    purpose: it can only pay what is owed (every kind of pay is a uniqueness
+    key), throttles itself and answers counts. Song approval (0145) and the
+    tournament award (0212) were the two older non-admin `_coin_insert` paths;
+    the tournament one no longer mints (0239).
+  - **ONE BALANCE, DIGITAL ONLY.** `_coin_balance` is the digital sum; physical
+    rows are history. The spec is `docs/coin-economy/IDEA_COIN_V2.md`, which
+    replaces the v3 draft wherever they disagree.
 - **`app_feedback` HAS TWO WRITE PATHS ON PURPOSE, AND THEY DO NOT CONVERGE.**
   A signed-in report is the direct insert above, whose `WITH CHECK` pins
   `user_id` to `auth.uid()`; an anonymous one goes through
@@ -6537,6 +6538,17 @@ next edit to that file needs its own authorisation and its own line here, and
 this rule was itself written a bundle late (prompt 0029), which is how a reader
 came to find an edited legacy file with nothing saying why.
 
+**THE SECOND UNFREEZING OF THE SAME FILE: ledger 0383 (2026-10-14/15), IDEA
+Coin V2, authorized in that prompt ("this prompt authorizes editing the frozen
+file") and widened mid-run by Mr. Pina's own note that the Ledger should take
+the site's geometry and work with its themes.** The page now reads the V2 CSV
+columns (one balance; `Category Id` instead of `Medium`), shows two stat tiles,
+keys the Eating Pass badge on data, wears the site plate's geometry in its own
+neon colors, and carries Space White twins under `:root[data-theme]`. Its route
+injects the theme boot table (`injectLedgerTheme` in
+`src/lib/server/coin-public.ts`, from `themeBootTable`, so `themeAttrFor` stays
+the one decision). This is again a record of one exception, not a licence.
+
 **The retired Sheets coin ledger is ARCHIVED under
 `docs/coin-economy/archive/legacy-system/`, not deleted.** `docs/` is not served and
 is on no import path. **It is historical reference and must never be reintroduced.**
@@ -6713,7 +6725,8 @@ the source of truth; **do not invent colours or swap fonts.**
   motion. Legibility first.
 - **A SITE THEME MAY BE ROUTE-SCOPED, AND SPACE WHITE IS (ledger 0297).**
   `SCOPED_SITE_THEMES` names the themes that apply only inside
-  `THEME_SCOPE_PREFIXES` (the classroom, the reference viewer, the notebook),
+  `THEME_SCOPE_PREFIXES` (the classroom, the reference viewer, the notebook,
+  and since ledger 0383 the public IDEA Coin Ledger at `/coins`),
   the site plate's own scope (since ledger 0360; see the site-plate rule) and
   `THEME_SCOPE_EXACT` (the home page, as the exact path `/` and never as a
   prefix, because every route starts with a slash). `themeInScope` matches on a
@@ -7483,11 +7496,13 @@ reference resolves for the next reader.
 
 ## Scope
 
-- **No new coin-economy surface without reading the price list.** Every category
-  name, price and rule transcribes
-  `docs/coin-economy/idea_coin_economy_draft_v3.md` and
-  `idea_coin_quick_reference.md`. Read those before changing a price. Supabase is
-  the sole system of record for IDEA Coins; there is no second ledger.
+- **No new coin-economy surface without reading the spec.** Every category
+  name, price and rule transcribes `docs/coin-economy/IDEA_COIN_V2.md`, which
+  replaces `docs/coin-economy/idea_coin_economy_draft_v3.md` wherever the two
+  disagree. Prices are DATA now: an admin edits them on `/coin-desk/settings`
+  (audited in `coin_settings_audit`), so a price change is not a code change.
+  Supabase is the sole system of record for IDEA Coins; there is no second
+  ledger.
 - **A TRANSACTION TYPE HAS ONE VOCABULARY, ONE TONE AND ONE GLYPH, AND ALL
   THREE ARE KEYED ON `COIN_TXN_TYPES`.** `coinTxnType()` in
   `$lib/coin-format.ts` derives a row's type exactly the way

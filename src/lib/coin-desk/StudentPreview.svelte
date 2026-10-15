@@ -26,9 +26,8 @@
 		email: string | null;
 		displayName: string | null;
 		configured: boolean;
+		/** The one balance (the digital sum since IDEA Coin V2). */
 		balance: number;
-		physicalBalance: number;
-		digitalBalance: number;
 		transactions: DisplayTransaction[];
 		categoryKinds: Record<string, string>;
 		wageTier: number | null;
@@ -95,8 +94,6 @@
 			email={data.email}
 			displayName={data.displayName}
 			balance={data.balance}
-			physicalBalance={data.physicalBalance}
-			digitalBalance={data.digitalBalance}
 			transactions={data.transactions}
 			categoryKinds={data.categoryKinds}
 			wageTier={data.wageTier}

@@ -28,6 +28,11 @@ import {
 } from '$lib/classroom/assignment-spec';
 import type { GradingData } from '$lib/classroom/assignment-spec';
 import {
+	directRefusalSentence,
+	parseDirectScore,
+	type DirectGradingTransports
+} from '$lib/classroom/grading-direct';
+import {
 	sectionTitle,
 	sortSections,
 	type ClassroomEnrollment,
@@ -291,7 +296,26 @@ export interface BulkPlanRow {
 	regrade: boolean;
 }
 
+/**
+ * One student's entry in a DIRECT-SCORE batch (0242): what
+ * `classroom_grade_direct` takes, one call per student. `extra_credit` null
+ * leaves the stored award alone, exactly as an absent key does in `BulkGrade`.
+ */
+export interface BulkDirectGrade {
+	student_email: string;
+	score: number;
+	comment: string | null;
+	extra_credit: number | null;
+}
+
 export interface BulkPlan {
+	/**
+	 * `rubric`: the rubric form is the batch (0175's one statement).
+	 * `direct`: a score out of N was typed, so every student ticked gets that
+	 * score through `classroom_grade_direct`, one call each, and their own stored
+	 * rubric scores are left as they are.
+	 */
+	mode: 'rubric' | 'direct';
 	rows: BulkPlanRow[];
 	/** Students in the selection this batch will NOT write, and why. */
 	skipped: { email: string; displayName: string; reason: BulkSkipReason }[];
@@ -299,8 +323,10 @@ export interface BulkPlan {
 	problems: BulkProblem[];
 	/** The rubric's own maximum, so the plan can print "n / out of". */
 	outOf: number;
-	/** The exact payload for `gradeMany`, in the same order as `rows`. */
+	/** The exact payload for `gradeMany`, in the same order as `rows`. Empty in direct mode. */
 	grades: BulkGrade[];
+	/** The exact per-student payload for `gradeDirectMany`. Empty in rubric mode. */
+	direct: BulkDirectGrade[];
 }
 
 export interface BulkPlanInput {
@@ -321,6 +347,15 @@ export interface BulkPlanInput {
 	sectionTitles: Map<string, string>;
 	/** Whether the commit will RETURN the grades to students. */
 	release: boolean;
+	/**
+	 * "Score out of N" AS TYPED (0242), or absent. Non-blank with `directReady`
+	 * makes this a direct-score batch.
+	 */
+	directScore?: string;
+	/** True only where the console can actually send a direct score. */
+	directReady?: boolean;
+	/** The item's own points, the total when there is no rubric (`_classroom_item_out_of`). */
+	itemPoints?: number | null;
 }
 
 /** The typed award as a number, or null for blank. NaN survives as NaN. */
@@ -348,13 +383,27 @@ function awardOf(typed: string, ready: boolean): number | null {
  */
 export function bulkPlan(input: BulkPlanInput): BulkPlan {
 	const rubric = input.rubric ?? [];
+	const directTyped = input.directReady === true && String(input.directScore ?? '').trim() !== '';
+	if (directTyped) return directPlan(input);
 	const outOf = rubric.length ? rubricTotal(rubric) : 0;
 	const rows: BulkPlanRow[] = [];
 	const grades: BulkGrade[] = [];
 	const skipped: BulkPlan['skipped'] = [];
 	const problems: BulkProblem[] = [];
 
-	if (!rubric.length) {
+	if (!rubric.length && input.directReady) {
+		// With the typed score available, an item with no rubric is graded by
+		// typing the score, which is a sentence about what to do, not a dead end.
+		const total = input.itemPoints ?? 0;
+		problems.push({
+			email: '',
+			label: 'No rubric',
+			message:
+				total > 0
+					? `This assignment has no rubric. Type a score out of ${total} in the score box, and that score goes to everyone ticked.`
+					: 'This assignment has no rubric and no points, so there is nothing to score out of. Give it points on the assignment page first.'
+		});
+	} else if (!rubric.length) {
 		problems.push({
 			email: '',
 			label: 'No rubric',
@@ -451,12 +500,122 @@ export function bulkPlan(input: BulkPlanInput): BulkPlan {
 		grades.push(grade);
 	}
 
-	return { rows, skipped, problems, outOf, grades };
+	return { mode: 'rubric', rows, skipped, problems, outOf, grades, direct: [] };
+}
+
+/**
+ * THE DIRECT-SCORE BATCH (0242): the typed score goes to every student ticked.
+ * Out of the rubric total when there is a rubric and the item's points when not,
+ * which is `_classroom_item_out_of`'s own order. The refusals mirror
+ * `classroom_grade_direct`'s (`no_total`, `out_of_range`) and do not replace
+ * them. Releasing needs no rubric criterion scored: a direct score is a
+ * complete score (0242's own comment).
+ */
+function directPlan(input: BulkPlanInput): BulkPlan {
+	const rubric = input.rubric ?? [];
+	const outOf = rubric.length ? rubricTotal(rubric) : (input.itemPoints ?? 0);
+	const rows: BulkPlanRow[] = [];
+	const direct: BulkDirectGrade[] = [];
+	const problems: BulkProblem[] = [];
+	const parsed = parseDirectScore(input.directScore ?? '', outOf);
+	if (parsed.error) problems.push({ email: '', label: `Score out of ${outOf}`, message: parsed.error });
+	const award = awardOf(input.extraCredit, input.extraCreditReady);
+	const awardInvalid = award != null && (Number.isNaN(award) || award < 0);
+	if (awardInvalid) {
+		problems.push({
+			email: '',
+			label: 'Extra credit',
+			message: 'Extra credit must be a number of 0 or more. Leave it blank to award none.'
+		});
+	}
+	const extra = awardInvalid || award == null ? null : award;
+	const score = parsed.value ?? 0;
+	const comment = input.comment.trim() || null;
+	for (const s of input.selected) {
+		rows.push({
+			email: s.email,
+			displayName: s.displayName,
+			sectionTitle: input.sectionTitles.get(input.sectionOf.get(s.email) ?? '') ?? '',
+			rubricPoints: score,
+			extraCredit: extra,
+			awarded: score + (extra ?? 0),
+			previous: s.submission?.graded_at ? (s.submission.score ?? null) : null,
+			regrade: !!s.submission?.graded_at
+		});
+		direct.push({ student_email: s.email, score, comment, extra_credit: extra });
+	}
+	return { mode: 'direct', rows, skipped: [], problems, outOf, grades: [], direct };
 }
 
 /** Can this batch be sent? One predicate, read by the control AND the handler. */
 export function bulkCanSend(plan: BulkPlan): boolean {
-	return plan.problems.length === 0 && plan.grades.length > 0;
+	if (plan.problems.length) return false;
+	return plan.mode === 'direct' ? plan.direct.length > 0 : plan.grades.length > 0;
+}
+
+/**
+ * A DIRECT-SCORE BATCH, SENT: one `classroom_grade_direct` per student, in
+ * order, and the answer shaped as the database's own batch report so
+ * `bulkOutcome` names every student either way.
+ *
+ * NOT ONE TRANSACTION, and that is the trade 0242 made by adding no batch
+ * function: each student lands or is refused on their own. A thrown or failed
+ * call is that one student's refusal, never the end of the loop, so one bad row
+ * cannot leave the rest unattempted with nobody able to say how much landed.
+ */
+export async function gradeDirectMany(
+	transport: DirectGradingTransports,
+	itemId: string,
+	entries: BulkDirectGrade[],
+	release: boolean
+): Promise<BulkGradeReport> {
+	const results: BulkGradeRow[] = [];
+	let succeeded = 0;
+	for (const e of entries) {
+		try {
+			const res = await transport.gradeDirect(
+				itemId,
+				e.student_email,
+				e.score,
+				e.comment,
+				release,
+				e.extra_credit
+			);
+			if (!res.ok) {
+				results.push({ email: e.student_email, ok: false, reason: 'error', message: res.message });
+			} else if (res.data.ok === false) {
+				results.push({
+					email: e.student_email,
+					ok: false,
+					reason: 'error',
+					message: directRefusalSentence(res.data)
+				});
+			} else {
+				succeeded += 1;
+				results.push({
+					email: e.student_email,
+					ok: true,
+					score: res.data.score,
+					state: res.data.state,
+					extra_credit: res.data.extra_credit ?? null
+				});
+			}
+		} catch (err) {
+			results.push({
+				email: e.student_email,
+				ok: false,
+				reason: 'error',
+				message: err instanceof Error ? err.message : String(err)
+			});
+		}
+	}
+	return {
+		ok: true,
+		total: entries.length,
+		succeeded,
+		refused: entries.length - succeeded,
+		results
+	};
 }
 
 // ---------------------------------------------------------------------------

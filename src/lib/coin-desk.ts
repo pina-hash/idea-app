@@ -20,50 +20,30 @@
  * response is always the real, authoritative answer.
  */
 
-import { COIN_SYMBOL } from '$lib/coin-format';
+import { COIN_SYMBOL, coinNumber } from '$lib/coin-format';
 
 export type CoinKind = 'fine' | 'award' | 'purchase' | 'adjustment';
 export type CoinPricingModel = 'flat' | 'range' | 'per_unit' | 'variable' | 'formula';
 
 /**
- * WHICH BALANCE A TRANSACTION MOVED (0096). Physical coins are the primary
- * system -- thousands exist and are handed to students -- and digital exists
- * so an absent student can still be awarded. So this is a property of the
- * TRANSACTION, never of the category: the real legacy data has Weekly Wage
- * 34 physical / 9 digital, Contract Completion 8 / 5, Above and Beyond 15 / 1.
- * Every logging RPC takes `p_medium` and defaults to 'physical'.
+ * IDEA COIN V2 (0239): ONE BALANCE, AND IT IS DIGITAL. Every row the desk
+ * writes is digital and no call names `p_medium` any more; physical rows stay
+ * in a student's history and count toward nothing. The medium type survives
+ * only because a history row still carries the column (and
+ * `$lib/coin-balance` reads it); there is no choice of medium anywhere on the
+ * desk, no default, and no preference for one.
  */
 export type CoinMedium = 'physical' | 'digital';
 
-export const DEFAULT_MEDIUM: CoinMedium = 'physical';
-
-export const MEDIA: CoinMedium[] = ['physical', 'digital'];
-
-export const MEDIUM_LABELS: Record<CoinMedium, string> = {
-	physical: 'Physical',
-	digital: 'Digital'
-};
-
-/** What the admin is actually choosing between, in the entry form. */
-export const MEDIUM_HINTS: Record<CoinMedium, string> = {
-	physical: 'Coins handed over in person.',
-	digital: 'Credited to the digital balance (an absent student, or a withdrawal later).'
-};
-
 /**
- * The three numbers every balance-shaped payload now carries. `balance` keeps
- * its name and means the TOTAL; the two media decompose it and always sum to
- * it. Server-derived in all three cases -- nothing here recomputes them.
+ * The pre-V2 balance triple, kept only because `$lib/coin-balance` still
+ * imports it. The desk reads `balance` (the digital sum since 0239) and never
+ * shows the two medium fields.
  */
 export interface CoinBalances {
 	balance: number;
 	physical_balance: number;
 	digital_balance: number;
-}
-
-/** Reads one medium out of a balances payload. */
-export function balanceFor(b: CoinBalances, medium: CoinMedium): number {
-	return medium === 'physical' ? b.physical_balance : b.digital_balance;
 }
 
 export interface CoinCategory {
@@ -132,11 +112,11 @@ function formulaHint(key: string | null): string {
 		case 'perfect_score':
 			return `round(points / 25)${COIN_SYMBOL}, min 1${COIN_SYMBOL}`;
 		case 'pay_raise':
-			return `40${COIN_SYMBOL} x current tier`;
+			return `${payRaisePreview(1)}${COIN_SYMBOL} x current tier`;
 		case 'property_damage_careless':
 			return `3${COIN_SYMBOL} + 1${COIN_SYMBOL} per $0.25 of cost`;
 		case 'three_d_printing':
-			return 'material + time band';
+			return `1${COIN_SYMBOL} per 10 g, by weight`;
 		default:
 			return 'computed';
 	}
@@ -145,15 +125,15 @@ function formulaHint(key: string | null): string {
 /** Short price description for the category dropdown. Display only. */
 export function priceHint(cat: CoinCategory): string {
 	if (cat.id === 'extra_credit') {
-		return `${cat.amount}${COIN_SYMBOL}/${cat.unit_label ?? 'unit'}, capped ${cat.semester_point_cap ?? '?'}pt/semester`;
+		return `${coinNumber(cat.amount)}${COIN_SYMBOL}/${cat.unit_label ?? 'unit'}, capped per class`;
 	}
 	switch (cat.pricing_model) {
 		case 'flat':
-			return `${cat.amount}${COIN_SYMBOL}`;
+			return `${coinNumber(cat.amount)}${COIN_SYMBOL}`;
 		case 'range':
-			return `${cat.min_amount}-${cat.max_amount}${COIN_SYMBOL}`;
+			return `${coinNumber(cat.min_amount)}-${coinNumber(cat.max_amount)}${COIN_SYMBOL}`;
 		case 'per_unit':
-			return `${cat.amount}${COIN_SYMBOL}/${cat.unit_label ?? 'unit'}`;
+			return `${coinNumber(cat.amount)}${COIN_SYMBOL}/${cat.unit_label ?? 'unit'}`;
 		case 'variable':
 			return 'amount you enter';
 		case 'formula':
@@ -179,22 +159,18 @@ export function threeDPrintingPreview(
 	hours: number,
 	overnight: boolean
 ): { material: number; time: number; total: number } {
+	// IDEA Coin V2: a print is charged by weight only (round half up of grams
+	// divided by 10). Print time is never charged; the two time arguments stay
+	// so existing callers compile, and are ignored.
+	void hours;
+	void overnight;
 	const material = Number.isFinite(grams) && grams > 0 ? Math.round(grams / 10) : 0;
-	const time = overnight
-		? 0
-		: !Number.isFinite(hours) || hours < 1
-			? 0
-			: hours < 3
-				? 2
-				: hours < 6
-					? 4
-					: 6;
-	return { material, time, total: material + time };
+	return { material, time: 0, total: material };
 }
 
 /** Preview only -- the server (coin_log_pay_raise) computes the real cost and re-reads the tier under a row lock. */
 export function payRaisePreview(currentTier: number): number {
-	return 40 * currentTier;
+	return 100 * currentTier;
 }
 
 /**
@@ -204,23 +180,6 @@ export function payRaisePreview(currentTier: number): number {
  * on one constant instead of a loose string.
  */
 export const WEEKLY_WAGE_CATEGORY_ID = 'weekly_wage';
-
-/**
- * Categories whose medium is FIXED by the server, whatever a caller passes
- * (0096). Physical Coin Submission is an admin correction of the PHYSICAL
- * record -- "credit coins this student demonstrably holds that the ledger is
- * missing" -- and is emphatically NOT a deposit path from physical into
- * digital; there is no such path. coin_log_transaction forces it, so this
- * lookup only decides whether the UI offers a choice that would be ignored.
- */
-export const FORCED_MEDIUM: Record<string, CoinMedium> = {
-	physical_coin_submission: 'physical'
-};
-
-/** The medium actually used for a category, once the server's rule is applied. */
-export function effectiveMedium(categoryId: string, chosen: CoinMedium): CoinMedium {
-	return FORCED_MEDIUM[categoryId] ?? chosen;
-}
 
 /**
  * Preview only -- coin_log_transaction (0084) reads the tier itself and its
@@ -271,13 +230,14 @@ export function sanitizeSearchTerm(term: string): string {
 // (`{ ...(preferences ?? {}), coinDesk: next }`), never a targeted jsonb
 // update, so writing one namespace can never clobber a sibling.
 //
-// WHAT BELONGS HERE, and it is a narrow list on purpose: the two choices an
-// operator makes once and then wants to stop making. Which TARGET they log
-// against (one student or a whole section) and which BALANCE the entry moves.
-// Neither is a piece of data and neither changes what any RPC enforces -- the
-// server re-reads the medium it was handed and forces it for
-// physical_coin_submission regardless (FORCED_MEDIUM above), so a stored
-// preference can only ever pre-fill a control, never bypass a rule.
+// WHAT BELONGS HERE, and it is a narrow list on purpose: the one choice an
+// operator makes once and then wants to stop making, which TARGET they log
+// against (one student or a whole section). It is not data and changes
+// nothing any RPC enforces.
+//
+// A STORED `medium` FROM BEFORE V2 IS IGNORED ON READ. It used to pick which
+// balance an entry moved; since 0239 there is one balance, so the key is
+// dropped rather than read (a preference shape migrates on read, in code).
 //
 // WHAT DELIBERATELY DOES NOT: the last student, the last category, the last
 // amount. Those are the entry itself, and remembering them across sessions is
@@ -292,15 +252,13 @@ export const COIN_LOG_MODES: CoinLogMode[] = ['student', 'section'];
 export interface CoinDeskPrefs {
 	/** Which target the entry form opens on. Absent reads as 'student'. */
 	mode?: CoinLogMode;
-	/** Which balance the entry form opens on. Absent reads as DEFAULT_MEDIUM. */
-	medium?: CoinMedium;
 }
 
 /**
  * Read the stored coin desk preferences out of a profile's `preferences` blob.
  *
  * VALUES ARE VALIDATED AGAINST THE UNIONS, not merely type-checked: an
- * unrecognised mode or medium is DROPPED rather than passed through, so a
+ * unrecognised mode is DROPPED rather than passed through, so a
  * hand-edited row (or a value written by an older client whose vocabulary has
  * since changed) degrades to the documented default instead of putting the
  * form into a state no branch renders. Everything here fails soft: a missing
@@ -314,16 +272,10 @@ export function readCoinDeskPrefs(preferences: unknown): CoinDeskPrefs {
 	const src = raw as Record<string, unknown>;
 	const out: CoinDeskPrefs = {};
 	if (src.mode === 'student' || src.mode === 'section') out.mode = src.mode;
-	if (src.medium === 'physical' || src.medium === 'digital') out.medium = src.medium;
 	return out;
 }
 
 /** The mode the form opens on, with the documented default applied. */
 export function coinLogMode(prefs: CoinDeskPrefs): CoinLogMode {
 	return prefs.mode ?? 'student';
-}
-
-/** The medium the form opens on, with the documented default applied. */
-export function coinDefaultMedium(prefs: CoinDeskPrefs): CoinMedium {
-	return prefs.medium ?? DEFAULT_MEDIUM;
 }

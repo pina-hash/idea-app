@@ -9,6 +9,7 @@
 		hallPassCanClose,
 		hallPassCanOpen,
 		hallPassClockLabel,
+		hallPassDateLabel,
 		hallPassDurationLabel,
 		hallPassElapsedLabel,
 		hallPassLimitSummary,
@@ -17,6 +18,12 @@
 		hallPassStatusLine,
 		hallPassToolChip,
 		hallPassUsageLine,
+		hallPassCloseVerdict,
+		hallPassEventRule,
+		hallPassEventsShown,
+		hallPassEventWords,
+		type HallPassEvents,
+		type HallPassEventsTransport,
 		type HallPassRefusal,
 		type HallPassState,
 		type HallPassTransports
@@ -66,7 +73,8 @@
 		now,
 		live = null,
 		tool = false,
-		pollMs = HALL_PASS_POLL_MS
+		pollMs = HALL_PASS_POLL_MS,
+		events = undefined
 	}: {
 		sectionId: string;
 		/** The layout load's answer. Null is not a state this component renders --
@@ -101,7 +109,45 @@
 		 * inside the few seconds the spec is reading its counters.
 		 */
 		pollMs?: number;
+		/**
+		 * THE WARNINGS AND FINES (decision 67, 0243): a manager reads every one in
+		 * the class, a student their own. Null removes the list. Undefined builds
+		 * the read from the page's own client when somebody is signed in, which
+		 * is how the class page gets it before its route hands one in; a harness
+		 * (signed out) gets nothing and makes no request.
+		 */
+		events?: HallPassEventsTransport | null;
 	} = $props();
+
+	const eventsT: HallPassEventsTransport | null = untrack(() => {
+		if (events !== undefined) return events;
+		const client = page.data?.claims ? (page.data?.supabase as { rpc?: unknown } | undefined) : undefined;
+		if (!client || typeof client.rpc !== 'function') return null;
+		const rpc = client.rpc as (
+			fn: string,
+			args: Record<string, unknown>
+		) => PromiseLike<{ data: unknown; error: { code?: string | null } | null }>;
+		return async (id: string) => {
+			const { data, error } = await rpc.call(client, 'classroom_hall_pass_events', { p_section_id: id, p_limit: 50 });
+			if (error) return error.code === 'PGRST202' || error.code === '42883' ? 'missing' : null;
+			return (data as HallPassEvents | null) ?? null;
+		};
+	});
+	/** The last answer; null before the first, `'missing'` on a database without 0243 (the list then stays out). */
+	let eventsPayload = $state<HallPassEvents | null | 'missing'>(null);
+	async function loadEvents(): Promise<HallPassEvents | null> {
+		const read = eventsT;
+		if (!read) return null;
+		try {
+			const next = await read(sectionId);
+			if (next === null) return eventsPayload && eventsPayload !== 'missing' ? eventsPayload : null;
+			eventsPayload = next;
+			return next === 'missing' ? null : next;
+		} catch {
+			return null;
+		}
+	}
+	const eventList = $derived(eventsPayload && eventsPayload !== 'missing' ? eventsPayload : null);
 
 	/**
 	 * The server's answer, overlaid with whatever this component has since
@@ -312,6 +358,20 @@
 		};
 	});
 
+	/*
+	 * THE WARNINGS AND FINES ARE READ WHEN THE CARD IS ON SCREEN: once on mount
+	 * for the card, and each time the dialog opens in the tool shape. Never
+	 * polled -- the list changes only when a pass ends, and the close above
+	 * reads it again itself.
+	 */
+	$effect(() => {
+		const read = eventsT;
+		const wanted = !tool || open;
+		void sectionId;
+		if (!read || !wanted) return;
+		untrack(() => void loadEvents());
+	});
+
 	/**
 	 * SAY THAT THIS CLIENT JUST WROTE. Fire-and-forget by the bus's own contract;
 	 * a notice that does not get through costs the other viewers one poll
@@ -439,7 +499,19 @@
 					? `Signed ${res.data.student_name} back in.`
 					: 'Signed back in.'
 			);
-			if (res.ok) announce();
+			if (res.ok) {
+				announce();
+				// A STUDENT IS TOLD PLAINLY when the pass they just ended was long
+				// enough to be warned or fined (0243), from the close's own flags or
+				// the events for that pass. Read once more either way, so the list
+				// below has the new row.
+				const closed = res.data;
+				const after = await loadEvents();
+				if (!target) {
+					const verdict = hallPassCloseVerdict(closed, after);
+					if (verdict) notice = verdict;
+				}
+			}
 		} catch {
 			notice = 'Could not reach the class. Check your connection and try again.';
 		} finally {
@@ -600,6 +672,10 @@
 			</p>
 		{/if}
 
+		{#if view.scope === 'student' && eventList}
+			<p class="hp-usage hp-rule" data-testid="hall-pass-rule">{hallPassEventRule(eventList)}</p>
+		{/if}
+
 		{#if transports}
 			<div class="hp-actions">
 				{#if canClose}
@@ -638,6 +714,17 @@
 
 		{#if notice}
 			<p class="hp-notice" role="status" data-testid="hall-pass-notice">{notice}</p>
+		{/if}
+
+		{#if view.scope === 'student' && eventList && eventList.events.length > 0}
+			<Disclosure
+				label="Your warnings and fines"
+				scope={`hall-pass-events-mine:${sectionId}`}
+				testId="hall-pass-events"
+				bodyClass="hp-history-body"
+			>
+				{@render eventRows(eventList)}
+			</Disclosure>
 		{/if}
 
 		{#if liveStatus === 'stalled'}
@@ -798,8 +885,45 @@
 					</ul>
 				{/if}
 			</Disclosure>
+			{#if eventList}
+				<!--
+					DECISION 67 (0243): a long pass is warned, a longer one fined, once,
+					when it ends. The instructor sees every one in the class; the rule is
+					said from the payload's own two numbers, never a literal here.
+				-->
+				<Disclosure
+					label="Warnings and fines"
+					scope={`hall-pass-events:${sectionId}`}
+					testId="hall-pass-events"
+					bodyClass="hp-history-body"
+				>
+					<p class="hp-empty hp-rule">{hallPassEventRule(eventList)}</p>
+					{#if eventList.events.length === 0}
+						<p class="hp-empty">No pass in this class has been warned or fined.</p>
+					{:else}
+						{@render eventRows(eventList)}
+					{/if}
+				</Disclosure>
+			{/if}
 		{/if}
 	</section>
+{/snippet}
+
+{#snippet eventRows(list: HallPassEvents)}
+	<ul class="hp-history" data-testid="hall-pass-event-list">
+		{#each hallPassEventsShown(list.events) as ev (ev.pass_id + ev.kind)}
+			{@const words = hallPassEventWords(ev)}
+			<li class="hp-entry" data-testid="hall-pass-event" data-kind={ev.kind}>
+				{#if list.scope === 'manager' && ev.student_name}
+					<span class="hp-who person-name" title={ev.student_name}>{ev.student_name}</span>
+				{/if}
+				<span class="hp-when">
+					<span class="hp-event" data-tone={words.tone}><span class="hp-event-glyph" aria-hidden="true">{words.glyph}</span>{words.word}</span>
+					&middot; {hallPassDateLabel(ev.opened_at)} {hallPassClockLabel(ev.opened_at)}
+				</span>
+			</li>
+		{/each}
+	</ul>
 {/snippet}
 
 {#if tool}
@@ -1048,6 +1172,32 @@
 	}
 	.hp-sent {
 		color: var(--cyan);
+	}
+	/* A warning and a fine: a glyph AND a word, the hue a third signal only. */
+	.hp-event {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.3rem;
+		font-weight: 700;
+	}
+	.hp-event-glyph {
+		display: inline-grid;
+		place-items: center;
+		min-width: 1.05rem;
+		height: 1.05rem;
+		border: 1px solid currentColor;
+		border-radius: 50%;
+		font-size: 0.75rem;
+		line-height: 1;
+	}
+	.hp-event[data-tone='warning'] {
+		color: var(--status-warn, var(--amber));
+	}
+	.hp-event[data-tone='fine'] {
+		color: var(--status-danger, var(--crimson));
+	}
+	.hp-rule {
+		font-size: 0.88rem;
 	}
 	.hp-notice {
 		margin: 0;

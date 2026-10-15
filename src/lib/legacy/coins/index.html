@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--idea-theme-boot-->
 <link rel="icon" type="image/png" sizes="512x512" href="/IDEA/android-chrome-512x512.png">
 <title>IDEA Coins - Leaderboard &amp; Transactions</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -19,7 +20,10 @@
   --amber: #FF8C00;
   --teal: #00AA88;
   --white: #E8FFE8;
-  --dim: #4A7A52;
+  /* Lifted from #4A7A52 (4.0:1 on the page, 3.3 on a card) to the same hue
+     and saturation at 58% lightness: 5.4:1 or better on every dark ground,
+     a key face included. */
+  --dim: #7aae82;
   --ice: #88DDFF;
   --red: #FF4444;
   --blue: #4488FF;
@@ -524,13 +528,12 @@ nav a.active { color: var(--gold); text-shadow: var(--glow-gold); }
 }
 /* An amount's colour follows its OWN STORED SIGN and its kind, never a
    whitelist of type strings: a +40 correction is a credit and must read as
-   one. `adjustment` and `transfer` carry their badge's colour so a row is
-   one idea from end to end. */
+   one. `adjustment` carries its badge's colour so a row is one idea from end
+   to end. */
 .txn-amount.positive { color: var(--green); }
-.txn-amount.negative { color: #FF4444; }
+.txn-amount.negative { color: var(--red); }
 .txn-amount.purchase { color: var(--amber); }
 .txn-amount.adjustment { color: var(--violet); }
-.txn-amount.transfer { color: var(--blue); }
 .txn-reason { color: var(--dim); font-size: 0.63rem; }
 
 .type-badge {
@@ -548,15 +551,6 @@ nav a.active { color: var(--gold); text-shadow: var(--glow-gold); }
    meaning here (green award, red fine, amber purchase, blue payout). */
 .type-adjustment { color: var(--violet); border: 1px solid rgba(180,124,255,0.35); background: rgba(180,124,255,0.07); }
 .type-other    { color: var(--dim);   border: 1px solid rgba(74,122,82,0.3);  background: transparent; }
-
-/* The medium a transaction landed in, shown beside the amount. Deliberately
-   quiet: it answers "which of my coins are these" without competing with the
-   number. */
-.txn-medium {
-  display: block; font-family: 'Share Tech Mono', monospace;
-  font-size: 0.5rem; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--dim); font-weight: 400; margin-top: 0.1rem;
-}
 
 /* ── Pagination ─────────────────────────────────────── */
 .txn-pagination {
@@ -584,7 +578,7 @@ footer {
   font-family: 'Orbitron', sans-serif; font-size: 0.72rem;
   font-weight: 700; color: var(--dim); letter-spacing: 0.2em; margin-bottom: 0.5rem;
 }
-.footer-sub { font-size: 0.58rem; color: rgba(74,122,82,0.6); letter-spacing: 0.1em; }
+.footer-sub { font-size: 0.6875rem; color: var(--dim); letter-spacing: 0.1em; }
 
 body::after {
   content: ''; position: fixed; inset: 0;
@@ -598,7 +592,7 @@ body::after {
 
 /* ── Stats Bar ─────────────────────────────────────────── */
 .stats-bar {
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem; margin-top: 0;
 }
 .stat-tile {
@@ -963,8 +957,11 @@ body::after {
   font-size: 0.72rem; color: var(--dim);
 }
 .guide-item.open .guide-item-desc {
-  max-height: 200px; border-top-width: 1px; padding: 0.75rem 1rem;
+  max-height: 600px; border-top-width: 1px; padding: 0.75rem 1rem;
 }
+.guide-item-detail { color: var(--white); }
+.guide-item-explain { margin-top: 0.4rem; line-height: 1.5; }
+.guide-item-detail:only-child, .guide-item-explain:only-child { margin-top: 0; }
 /* ── Guide Callout Banner ────────────────────────────── */
 .guide-callout {
   display: flex; align-items: center; gap: 1.5rem;
@@ -1472,6 +1469,505 @@ body::after {
   transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 .apply-role-btn:hover { background: rgba(0,240,255,0.12); box-shadow: 0 0 10px rgba(0,240,255,0.2); }
+
+/* ==========================================================================
+   THE PLATE, IN THE LEDGER'S OWN NEON (Mr. Pina, 2026-10-15: "combine the two
+   in harmony"; ledger 0383).
+
+   The site's shape language (src/lib/classroom/plate.css,
+   IDEA_INTERFACE_STANDARDS 14) applied to this page's own markup, in this
+   page's own colours. This document loads none of the app's stylesheets, so
+   the GEOMETRY is restated here (the same radii, the same composite edge,
+   the same raised-key and recessed-tag construction) and the COLOUR is the
+   Ledger's: neon green, gold and the glow on deep green-black.
+
+   RAISED MEANS PRESSABLE, INSET MEANS NOT. Every button, tab and filter is a
+   raised key with a 44px floor; a lit key (`.active`) carries the gold ring.
+   Every status tag (a type, a tier, a pass, a section) is a recessed tag set
+   into the surface with no drop shadow. Cards, tiles, the drawer and the
+   modals are panels. Inputs and selects are wells.
+
+   ONE GEOMETRY, THREE COLOUR BLOCKS. Lengths are written once in the rules;
+   `:root` (IDEA), `[data-theme='matrix']` and `[data-theme='space-white']`
+   hold colours only. Space White's inks are the Ledger's own hues moved in
+   lightness only, each measured at 4.6:1 or better against every light
+   ground a word sits on (page, panel, key face, tag, well); the boundary
+   hairline is 3.96:1 or better on all of them.
+
+   WHICH THEME PAINTS IS NOT DECIDED HERE. The route injects the site's own
+   boot table (`themeAttrFor`, the one decision) at the boot marker in <head>,
+   and follows a change made in another tab.
+   ========================================================================== */
+:root {
+  --lp-r-control: 11px;
+  --lp-r-small: 5px;
+  --lp-r-panel: 12px;
+  --lp-label: 0.6875rem;
+
+  --lp-page-top: #04100a;
+  --lp-page-bot: #020A04;
+  --lp-header: rgba(4,14,8,0.9);
+  --lp-groove: rgba(0,0,0,0.75);
+  --lp-groove-lt: rgba(160,255,180,0.08);
+  --lp-panel-top: #111a14;
+  --lp-panel-bot: #0c130e;
+  --lp-panel-ground: #111a14;
+  --lp-panel-hi: rgba(170,255,190,0.10);
+  --lp-panel-neg-top: #221010;
+  --lp-panel-neg-bot: #180a0a;
+  --lp-hair: #5e8b67;
+  --lp-hair-top: #7aae82;
+  --lp-hair-soft: rgba(122,174,130,0.35);
+  --lp-face-top: #1d2a21;
+  --lp-face-bot: #16211a;
+  --lp-face-ground: #1d2a21;
+  --lp-bezel-mid: rgba(190,255,200,0.06);
+  --lp-bezel-hi: rgba(190,255,200,0.16);
+  --lp-foot: rgba(0,0,0,0.5);
+  --lp-rim-out: rgba(0,0,0,0.55);
+  --lp-drop: rgba(0,0,0,0.55);
+  --lp-drop-far: rgba(0,0,0,0.45);
+  --lp-lit-top: #1b3d22;
+  --lp-lit-bot: #13301a;
+  --lp-lit-ground: #1b3d22;
+  --lp-lit-ink: var(--gold);
+  --lp-lit-ring: var(--gold);
+  --lp-lit-bloom: rgba(200,255,0,0.28);
+  --lp-lit-text-glow: 0 0 8px rgba(200,255,0,0.45);
+  --lp-press-top: #0a120c;
+  --lp-press-bot: #131c15;
+  --lp-press-shade: rgba(0,0,0,0.7);
+  --lp-disabled-face: #121914;
+  --lp-disabled-edge: #34473a;
+  --lp-btn-ink: var(--white);
+  --lp-hover-edge: var(--gold);
+  --lp-well-top: #030805;
+  --lp-well-face: #060d08;
+  --lp-well-shade: rgba(0,0,0,0.85);
+  --lp-well-lip: rgba(160,255,180,0.14);
+  --lp-chip-top: #08100a;
+  --lp-chip-bot: #0c150e;
+  --lp-chip-ground: #0c150e;
+  --lp-chip-edge: rgba(160,255,180,0.18);
+  --lp-chip-shade: rgba(0,0,0,0.65);
+  --lp-chip-lip: rgba(160,255,180,0.10);
+  --lp-divider: rgba(0,255,65,0.12);
+  --lp-overlay: rgba(0,0,0,0.7);
+  --lp-scan: rgba(0,0,0,0.05);
+  --lp-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237aae82'/%3E%3C/svg%3E");
+  --lp-rank1-face: #0d140c;
+  --pink: #FF88CC;
+  color-scheme: dark;
+}
+
+:root[data-theme='matrix'] {
+  --bg0: #030503;
+  --bg1: #0c140d;
+  --bg2: #111911;
+  --lp-page-top: #050905;
+  --lp-page-bot: #030503;
+  --lp-header: rgba(3,5,3,0.92);
+  --lp-panel-top: #101810;
+  --lp-panel-bot: #0b120c;
+  --lp-panel-ground: #101810;
+  --lp-face-top: #1e2a20;
+  --lp-face-bot: #172219;
+  --lp-face-ground: #1e2a20;
+  --lp-chip-top: #070c07;
+  --lp-chip-bot: #0b130c;
+  --lp-chip-ground: #0b130c;
+  --lp-well-face: #050905;
+  --lp-rank1-face: #0b120b;
+}
+
+/* SPACE WHITE: the Ledger's hues in light-ground twins, lightness only. */
+:root[data-theme='space-white'] {
+  --bg0: #e8eceb;
+  --bg1: #f7f9f9;
+  --bg2: #edf1f0;
+  --green: #00701d;
+  --gold: #506600;
+  --cyan: #006a70;
+  --amber: #8f4e00;
+  --teal: #006b56;
+  --white: #0d1311;
+  --dim: #406946;
+  --ice: #00668f;
+  --red: #c20000;
+  --blue: #0052e0;
+  --violet: #760fff;
+  --pink: #b80069;
+  --glow-green: none;
+  --glow-gold: none;
+  --glow-cyan: none;
+
+  --lp-page-top: #e8eceb;
+  --lp-page-bot: #e1e6e4;
+  --lp-header: rgba(232,236,235,0.94);
+  --lp-groove: rgba(84,96,92,0.35);
+  --lp-groove-lt: #ffffff;
+  --lp-panel-top: #f7f9f9;
+  --lp-panel-bot: #e9eeec;
+  --lp-panel-ground: #e9eeec;
+  --lp-panel-hi: #ffffff;
+  --lp-panel-neg-top: #fbf1f1;
+  --lp-panel-neg-bot: #f4e4e4;
+  --lp-hair: #5f6d69;
+  --lp-hair-top: #5f6d69;
+  --lp-hair-soft: rgba(95,109,105,0.4);
+  --lp-face-top: #d8dedc;
+  --lp-face-bot: #e6ebe9;
+  --lp-face-ground: #d8dedc;
+  --lp-bezel-mid: rgba(255,255,255,0.5);
+  --lp-bezel-hi: #ffffff;
+  --lp-foot: rgba(96,108,104,0.35);
+  --lp-rim-out: rgba(80,94,90,0.12);
+  --lp-drop: rgba(70,84,80,0.24);
+  --lp-drop-far: rgba(70,84,80,0.2);
+  --lp-lit-top: #00701d;
+  --lp-lit-bot: #00701d;
+  --lp-lit-ground: #00701d;
+  --lp-lit-ink: #f7f9f9;
+  --lp-lit-ring: #e8ff9a;
+  --lp-lit-bloom: rgba(255,255,255,0);
+  --lp-lit-text-glow: none;
+  --lp-press-top: #c3cbc8;
+  --lp-press-bot: #d4dbd8;
+  --lp-press-shade: rgba(60,72,68,0.45);
+  --lp-disabled-face: #e3e8e6;
+  --lp-disabled-edge: #a3aeaa;
+  --lp-btn-ink: #1f2a26;
+  --lp-hover-edge: var(--green);
+  --lp-well-top: #d2d9d6;
+  --lp-well-face: #d7dedb;
+  --lp-well-shade: rgba(70,84,80,0.35);
+  --lp-well-lip: #fbfcfc;
+  --lp-chip-top: #dbe1df;
+  --lp-chip-bot: #e3e8e6;
+  --lp-chip-ground: #dbe1df;
+  --lp-chip-edge: #b2bcb8;
+  --lp-chip-shade: rgba(70,84,80,0.3);
+  --lp-chip-lip: rgba(255,255,255,0.85);
+  --lp-divider: rgba(13,19,17,0.14);
+  --lp-overlay: rgba(40,48,46,0.45);
+  --lp-scan: transparent;
+  --lp-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23406946'/%3E%3C/svg%3E");
+  --lp-rank1-face: #f7f9f9;
+  color-scheme: light;
+}
+
+/* --- The page is the plate. ------------------------------------------- */
+:root body {
+  background-color: var(--lp-page-bot);
+  background-image: linear-gradient(to bottom, var(--lp-page-top), var(--lp-page-bot) 28rem);
+  background-repeat: no-repeat;
+}
+:root body::after {
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--lp-scan) 2px, var(--lp-scan) 4px);
+}
+:root header {
+  background: var(--lp-header);
+  border-bottom: 1px solid var(--lp-hair-soft);
+  box-shadow: 0 1px 0 0 var(--lp-groove), 0 2px 0 0 var(--lp-groove-lt);
+}
+:root[data-theme='space-white'] #bg-canvas,
+:root[data-theme='space-white'] body::after { display: none; }
+:root[data-theme='space-white'] .page-title,
+:root[data-theme='space-white'] .footer-sub { text-shadow: none; }
+:root[data-theme='space-white'] .footer-sub { color: var(--dim); }
+
+/* --- Keys: raised, the composite edge, 44px. ---------------------------- */
+:root :is(.tab-btn, .filter-btn, .refresh-btn, .share-btn, .print-lb-btn, .apply-role-btn, .page-btn, .contracts-sub-btn, .contract-claim-btn, .drawer-close, .guide-modal-close, .role-modal-close, .qr-close-btn, .role-submit-btn, .stats-info-close, .date-clear, .role-option, nav a),
+:root #stats-info-btn,
+:root #back-to-top {
+  border: 1px solid;
+  border-color: var(--lp-hair-top) var(--lp-hair) var(--lp-hair);
+  border-radius: var(--lp-r-control);
+  background:
+    linear-gradient(to bottom, var(--lp-face-top), var(--lp-face-bot)) padding-box,
+    linear-gradient(to bottom, var(--lp-hair-top), var(--lp-hair)) border-box;
+  background-color: var(--lp-face-ground);
+  box-shadow:
+    inset 0 0 0 1px var(--lp-bezel-mid),
+    inset 0 2px 0 0 var(--lp-bezel-hi),
+    inset 0 -2px 2px -1px var(--lp-foot),
+    0 0 0 1px var(--lp-rim-out),
+    0 2px 3px 0 var(--lp-drop),
+    0 6px 10px -5px var(--lp-drop-far);
+  color: var(--lp-btn-ink);
+  text-shadow: none;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0 1rem;
+  font-size: var(--lp-label);
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  line-height: 1.15;
+  margin: 0;
+}
+:root :is(.apply-role-btn, .role-submit-btn) { color: var(--cyan); }
+:root .contract-claim-btn { color: var(--green); }
+:root .date-clear { text-decoration: none; }
+:root .role-option { justify-content: flex-start; text-align: left; padding: 0.55rem 0.85rem; letter-spacing: 0.02em; text-transform: none; }
+:root #stats-info-btn { width: 44px; height: 44px; padding: 0; }
+:root :is(.tab-btn, .filter-btn, .refresh-btn, .share-btn, .print-lb-btn, .apply-role-btn, .page-btn, .contracts-sub-btn, .contract-claim-btn, .drawer-close, .guide-modal-close, .role-modal-close, .qr-close-btn, .role-submit-btn, .stats-info-close, .date-clear, .role-option, nav a):hover:not(:disabled),
+:root #stats-info-btn:hover,
+:root #back-to-top:hover {
+  border-color: var(--lp-hover-edge);
+  background-color: var(--lp-face-ground);
+}
+:root :is(.tab-btn, .filter-btn, .refresh-btn, .share-btn, .print-lb-btn, .page-btn, .contracts-sub-btn, .drawer-close, .guide-modal-close, .role-modal-close, .qr-close-btn, .stats-info-close, .date-clear, nav a):hover:not(:disabled),
+:root #stats-info-btn:hover { color: var(--lp-btn-ink); text-shadow: none; }
+/* PRESSED sinks: the shadow moves inside, nothing moves. */
+:root :is(.tab-btn, .filter-btn, .refresh-btn, .share-btn, .print-lb-btn, .apply-role-btn, .page-btn, .contracts-sub-btn, .contract-claim-btn, .drawer-close, .guide-modal-close, .role-modal-close, .qr-close-btn, .role-submit-btn, .stats-info-close, .date-clear, .role-option, nav a):active:not(:disabled),
+:root #stats-info-btn:active,
+:root #back-to-top:active {
+  background:
+    linear-gradient(to bottom, var(--lp-press-top), var(--lp-press-bot)) padding-box,
+    linear-gradient(to bottom, var(--lp-hair-top), var(--lp-hair)) border-box;
+  box-shadow:
+    inset 0 3px 4px 0 var(--lp-press-shade),
+    inset 0 -1px 0 0 var(--lp-bezel-hi),
+    0 0 0 1px var(--lp-rim-out);
+}
+/* LIT: a key that is ON wears the gold ring and says so in its word too. */
+:root :is(.tab-btn, .filter-btn, .contracts-sub-btn, nav a, .role-option):is(.active, .selected),
+:root :is(.tab-btn, .filter-btn, .contracts-sub-btn, nav a, .role-option):is(.active, .selected):hover {
+  background:
+    linear-gradient(to bottom, var(--lp-lit-top), var(--lp-lit-bot)) padding-box,
+    linear-gradient(to bottom, var(--lp-hair-top), var(--lp-hair)) border-box;
+  background-color: var(--lp-lit-ground);
+  color: var(--lp-lit-ink);
+  text-shadow: var(--lp-lit-text-glow);
+  box-shadow:
+    inset 0 0 0 1px var(--lp-bezel-mid),
+    inset 0 0 0 3px var(--lp-lit-ring),
+    inset 0 4px 0 0 var(--lp-panel-hi),
+    0 0 0 1px var(--lp-rim-out),
+    0 0 10px 1px var(--lp-lit-bloom),
+    0 2px 3px 0 var(--lp-drop);
+}
+/* DISABLED is an unlit key: flat, quieter edge, no shadow, the word itself. */
+:root :is(.refresh-btn, .page-btn, .contract-claim-btn, .role-submit-btn):disabled {
+  opacity: 1;
+  background: var(--lp-disabled-face);
+  border: 1px solid var(--lp-disabled-edge);
+  box-shadow: none;
+  color: var(--dim);
+}
+
+/* The tab bar is a row of keys now, not underlined text. */
+:root .tab-bar { gap: 0.5rem; border-bottom: 0; padding-bottom: 1rem; box-shadow: 0 1px 0 0 var(--lp-divider); margin-bottom: 1.5rem; }
+:root .tab-btn { margin-bottom: 0; padding: 0 1.1rem; letter-spacing: 0.12em; }
+:root .contracts-sub-bar { gap: 0.5rem; border-bottom: 0; }
+:root .contracts-sub-btn { margin-bottom: 0; }
+:root nav { gap: 0.5rem; }
+:root nav a { padding: 0 0.85rem; font-size: var(--lp-label); }
+:root .header-right { gap: 0.75rem; }
+:root .stats-bar { margin-bottom: 0.75rem; }
+/* The keys' display must not undo the page's own narrow-width hiding. */
+@media (max-width: 768px) {
+  :root header .header-year { display: none; }
+  :root header { gap: 0.5rem; }
+}
+@media (max-width: 520px) {
+  :root header .share-btn { display: none; }
+  :root .tab-btn { padding: 0 0.8rem; }
+  /* The drawer has room for the reason a phone's log hides, and its header
+     already names the column. */
+  :root .drawer-txn-table .txn-reason { display: table-cell; }
+}
+:root #back-to-top { color: var(--gold); }
+
+/* --- Wells: inputs and selects are set into the surface. --------------- */
+:root :is(.global-search, .txn-search, .txn-type-select, .txn-date-input, .guide-search, .role-input, .role-textarea),
+:root #lb-sort-select {
+  border: 1px solid var(--lp-hair);
+  border-radius: var(--lp-r-control);
+  background-color: var(--lp-well-face);
+  box-shadow:
+    inset 0 2px 3px 0 var(--lp-well-shade),
+    inset 0 -1px 0 0 var(--lp-well-lip);
+  color: var(--white);
+  min-height: 44px;
+  font-size: 0.75rem;
+}
+:root :is(.txn-type-select),
+:root #lb-sort-select {
+  background-image: var(--lp-caret);
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  padding-right: 2.2rem;
+}
+:root :is(.global-search, .txn-search, .txn-type-select, .txn-date-input, .guide-search, .role-input, .role-textarea):focus,
+:root #lb-sort-select:focus { border-color: var(--green); }
+:root :is(.txn-type-select, #lb-sort-select) option { background: var(--bg1); color: var(--white); }
+:root[data-theme='space-white'] .txn-date-input { color-scheme: light; }
+:root .guide-search-clear { min-width: 44px; min-height: 44px; justify-content: center; right: 0; }
+
+/* --- Panels: cards, tiles, the drawer and the modals. -------------------- */
+:root :is(.stat-tile, .coin-card, .spotlight-card, .weekly-col, .ra-item, .drawer-stat, .contract-history-row, .guide-callout, .qr-box, .guide-modal, .role-modal, #stats-info-popover, .contract-card.standard) {
+  border: 1px solid var(--lp-hair-soft);
+  border-radius: var(--lp-r-panel);
+  background-color: var(--lp-panel-ground);
+  background-image: linear-gradient(to bottom, var(--lp-panel-top), var(--lp-panel-bot));
+  box-shadow:
+    inset 0 1px 0 0 var(--lp-panel-hi),
+    0 0 0 1px var(--lp-rim-out),
+    0 2px 4px 0 var(--lp-drop),
+    0 10px 18px -10px var(--lp-drop-far);
+}
+:root .stat-tile::before { display: none; }
+:root .drawer-stat { border-radius: 8px; }
+:root .ra-item { border-radius: 8px; }
+/* A coin card keeps its section's colour as the rail down its left edge. */
+:root .coin-card {
+  border-left: 4px solid var(--sec-border-col, var(--lp-hair));
+}
+:root .coin-card:hover { border-color: var(--lp-hover-edge); border-left-color: var(--sec-border-hover-col, var(--lp-hair)); }
+:root .coin-card.negative {
+  background-color: var(--lp-panel-neg-top);
+  background-image: linear-gradient(to bottom, var(--lp-panel-neg-top), var(--lp-panel-neg-bot));
+  border-color: rgba(255,68,68,0.35);
+  border-left: 4px solid var(--sec-border-col, var(--lp-hair));
+}
+:root .coin-card.rank-1 {
+  background: var(--lp-rank1-face);
+  border: 2px solid transparent;
+  border-radius: var(--lp-r-panel);
+}
+:root .coin-card.rank-1::before { border-radius: calc(var(--lp-r-panel) + 2px); }
+:root .coin-card.rank-1::after { border-radius: calc(var(--lp-r-panel) - 2px); background: var(--lp-rank1-face); }
+:root .coin-card.rank-1 .shimmer-sweep { border-radius: var(--lp-r-panel); }
+:root .coin-meta { border-top: 1px solid var(--lp-divider); }
+:root .drawer {
+  background-color: var(--lp-panel-ground);
+  background-image: linear-gradient(to bottom, var(--lp-panel-top), var(--lp-panel-bot));
+  border-left: 1px solid var(--lp-hair);
+  border-radius: var(--lp-r-panel) 0 0 var(--lp-r-panel);
+}
+/* The shadow only while open: parked off the right edge, it drew a strip. */
+:root .drawer.open { box-shadow: -10px 0 30px -10px var(--lp-drop); }
+:root .drawer-stat-value { font-size: 0.95rem; }
+:root :is(.drawer-header, .guide-modal-header, .role-modal-header, .guide-modal-controls) { border-bottom: 1px solid var(--lp-divider); }
+:root :is(.drawer-overlay, .qr-overlay, .guide-modal-backdrop, .role-modal-backdrop) { background: var(--lp-overlay); }
+:root .drawer-close { position: absolute; top: 0.9rem; right: 0.9rem; }
+:root .guide-callout { background-image: linear-gradient(to bottom, var(--lp-panel-top), var(--lp-panel-bot)); border-color: var(--lp-hair-soft); }
+:root .guide-callout:hover { border-color: var(--lp-hover-edge); }
+/* The callout's "View guide" is the one key inside a pressable panel. */
+:root .guide-callout-cta {
+  border: 1px solid var(--lp-hair);
+  border-radius: var(--lp-r-control);
+  background-image: linear-gradient(to bottom, var(--lp-face-top), var(--lp-face-bot));
+  box-shadow: inset 0 2px 0 0 var(--lp-bezel-hi), 0 2px 3px 0 var(--lp-drop);
+  min-height: 44px; display: inline-flex; align-items: center; padding: 0 1rem;
+  font-size: var(--lp-label);
+}
+:root .guide-item { border-radius: 8px; background-color: var(--lp-panel-ground); }
+/* Contract cards keep their tier's colour and glow on the panel's corners. */
+:root .contract-card { border-radius: var(--lp-r-panel); }
+:root :is(.contract-card.rare, .contract-card.epic)::before { border-radius: var(--lp-r-panel); }
+:root .contract-card.legendary::before { border-radius: calc(var(--lp-r-panel) + 2px); }
+:root .contract-card.legendary::after { border-radius: calc(var(--lp-r-panel) - 2px); }
+:root .contract-rate-label { font-size: var(--lp-label); }
+:root .guide-item-main { min-height: 44px; }
+:root .guide-item-desc { background: var(--lp-well-face); }
+
+/* --- Tables: a header strip and quiet rules. ----------------------------- */
+:root .txn-table-wrap {
+  border: 1px solid var(--lp-hair-soft);
+  border-radius: var(--lp-r-panel);
+  background-color: var(--lp-panel-ground);
+  background-image: linear-gradient(to bottom, var(--lp-panel-top), var(--lp-panel-bot));
+  box-shadow: inset 0 1px 0 0 var(--lp-panel-hi), 0 2px 4px 0 var(--lp-drop);
+}
+:root .txn-table th { font-size: var(--lp-label); letter-spacing: 0.12em; border-bottom: 1px solid var(--lp-divider); padding-top: 0.85rem; padding-bottom: 0.85rem; }
+:root .txn-table td { border-bottom: 1px solid var(--lp-divider); }
+:root .breakdown-table th { font-size: var(--lp-label); letter-spacing: 0.12em; border-bottom: 1px solid var(--lp-divider); }
+:root .breakdown-table td { border-bottom: 1px solid var(--lp-divider); }
+:root .drawer-txn-table th { font-size: 0.625rem; letter-spacing: 0.06em; }
+
+/* --- Tags: recessed, never raised, never a drop shadow. ------------------ */
+:root :is(.type-badge, .tier-badge, .contract-status-badge, .role-badge, .pass-badge-basic, .drawer-section-badge, .contract-mine-badge, .reason-count, .header-year, .last-updated, .history-badge-reset, .history-badge-cancelled) {
+  display: inline-flex; align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--lp-r-small);
+  background-color: var(--lp-chip-ground);
+  background-image: linear-gradient(to bottom, var(--lp-chip-top), var(--lp-chip-bot));
+  box-shadow:
+    inset 0 0 0 1px var(--lp-chip-edge),
+    inset 0 2px 2px -1px var(--lp-chip-shade),
+    inset 0 -1px 0 0 var(--lp-chip-lip),
+    0 1px 0 0 var(--lp-chip-lip);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: var(--lp-label);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  text-shadow: none;
+  white-space: nowrap;
+}
+:root .tier-badge.standard { display: none; }
+:root .drawer-txn-table .type-badge { font-size: 0.625rem; padding: 0 5px; letter-spacing: 0.02em; }
+/* The Eating Pass is earned, so it is the one lit tag: a gold face. */
+:root .pass-badge-exec {
+  display: inline-flex; align-items: center;
+  min-height: 22px; padding: 0 7px;
+  border-radius: var(--lp-r-small);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: var(--lp-label); letter-spacing: 0.04em; line-height: 1;
+  box-shadow: inset 0 -2px 0 0 rgba(0,0,0,0.25), 0 0 8px rgba(200,255,0,0.35);
+}
+:root[data-theme='space-white'] .pass-badge-exec { color: #f7f9f9; box-shadow: inset 0 -2px 0 0 rgba(0,0,0,0.25); }
+:root .drawer-section-badge { margin-bottom: 1rem; }
+
+/* --- Labels: the 11px floor, uppercase, tracked. ------------------------- */
+:root :is(.coin-rank, .coin-balance-label, .coin-meta-label, .stat-label, .spotlight-label, .drawer-stat-label, .drawer-txn-title, .weekly-col-title, .reason-group-title, .analytics-section-title, .stats-info-name, .role-field-label, .date-filter-label, .txn-count, .page-info, .standings-label) {
+  font-size: var(--lp-label);
+  letter-spacing: 0.12em;
+}
+:root :is(.weekly-stat-label, .ra-section, .ra-date, .coin-section, .contract-contractors, .contract-notes-text, .contract-history-date, .contract-history-meta, .contract-history-notes, .reason-text, .txn-date, .txn-reason, .delta-up, .delta-dn, .delta-eq, .standings-value, .chart-note, .footer-sub) {
+  font-size: var(--lp-label);
+}
+:root .standings-bar-wrap { border-radius: var(--lp-r-small); background: var(--lp-well-face); box-shadow: inset 0 1px 2px var(--lp-well-shade); }
+:root .standings-bar { border-radius: var(--lp-r-small); }
+:root .bar { border-radius: 4px 4px 0 0; }
+:root .analytics-divider { border-top: 1px solid var(--lp-divider); }
+:root footer { border-top: 1px solid var(--lp-divider); }
+
+/* --- Space White: glows off, neon lifted to its twins. ------------------- */
+:root[data-theme='space-white'] :is(.coin-balance, .drawer-student-name, .guide-callout-coin, .guide-callout-title, .guide-modal-title, .qr-title, .role-modal-title, .stat-value, .contract-payout-display, .tier-badge, nav a.active, .logo, .loading-dot) {
+  text-shadow: none;
+  animation: none;
+}
+:root[data-theme='space-white'] .coin-card.rank-1 .coin-balance,
+:root[data-theme='space-white'] .contract-payout-display.legendary {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--gold);
+  filter: none;
+}
+:root[data-theme='space-white'] .coin-card.rank-1::before { background: linear-gradient(45deg, var(--gold), var(--green), var(--gold)); animation: none; }
+:root[data-theme='space-white'] .coin-card.rank-1 { animation: none; box-shadow: 0 2px 4px 0 var(--lp-drop), 0 10px 18px -10px var(--lp-drop-far); }
+:root[data-theme='space-white'] :is(.coin-card.rank-2, .coin-card.rank-3) { box-shadow: 0 2px 4px 0 var(--lp-drop), 0 10px 18px -10px var(--lp-drop-far); }
+:root[data-theme='space-white'] .coin-card.negative { border-color: rgba(194,0,0,0.35); }
+:root[data-theme='space-white'] :is(.bar, .contract-card.rare, .contract-card.epic, .contract-card.legendary) { box-shadow: none; }
+:root[data-theme='space-white'] .stat-value { text-shadow: none !important; }
+:root[data-theme='space-white'] :is(.contract-card.rare, .contract-card.epic, .contract-card.legendary) { background: var(--lp-panel-top); }
+:root[data-theme='space-white'] .tier-badge.legendary { color: var(--gold); background: var(--lp-chip-ground); animation: none; }
+:root[data-theme='space-white'] #scroll-bar { box-shadow: none; }
+/* The report control the route injects is styled inline for a dark header;
+   on the light header its word takes this page's own ink. */
+:root[data-theme='space-white'] #idea-ledger-report-btn { color: var(--lp-btn-ink) !important; background: var(--lp-face-bot) !important; border-color: var(--lp-hair) !important; }
+
+/* --- Motion: everything that loops stops under reduce. ------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+  #bg-canvas { display: none; }
+}
 </style>
 </head>
 <body>
@@ -1544,20 +2040,12 @@ body::after {
 
   <div class="stats-bar">
     <div class="stat-tile">
-      <div class="stat-label">Net Economy Value</div>
+      <div class="stat-label">Coins in Circulation</div>
       <div class="stat-value" id="stat-circulation">—</div>
     </div>
     <div class="stat-tile">
-      <div class="stat-label">Total Debt</div>
+      <div class="stat-label">Students in Debt</div>
       <div class="stat-value" id="stat-debt" style="color:var(--red);text-shadow:0 0 10px rgba(255,68,68,0.8),0 0 28px rgba(255,68,68,0.3)">—</div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-label">Transactions Logged</div>
-      <div class="stat-value" id="stat-txns">—</div>
-    </div>
-    <div class="stat-tile">
-      <div class="stat-label">Award / Fine Ratio</div>
-      <div class="stat-value" id="stat-ratio">—</div>
     </div>
   </div>
 
@@ -1581,19 +2069,9 @@ body::after {
   <div class="tab-panel active" id="tab-leaderboard">
     <div class="filter-bar" id="section-filters">
       <button class="filter-btn active" data-section="All">All</button>
-      <button class="filter-btn" data-section="IDEA-113">IDEA-113</button>
-      <button class="filter-btn" data-section="IDEA-208-1">IDEA-208-1</button>
-      <button class="filter-btn" data-section="IDEA-208-2">IDEA-208-2</button>
-      <button class="filter-btn" data-section="IDEA-304">IDEA-304</button>
-      <button class="filter-btn" data-section="IDEA-403">IDEA-403</button>
       <select id="lb-sort-select">
-        <option value="lifetime-desc">Lifetime Earned (High to Low)</option>
-        <option value="lifetime-asc">Lifetime Earned (Low to High)</option>
         <option value="balance-desc">Coin Balance (High to Low)</option>
         <option value="balance-asc">Coin Balance (Low to High)</option>
-        <option value="awarded-desc">Most Awarded</option>
-        <option value="fined-desc">Most Fined</option>
-        <option value="spent-desc">Most Spent</option>
         <option value="name-asc">Name (A - Z)</option>
         <option value="name-desc">Name (Z - A)</option>
         <option value="section">Section</option>
@@ -1607,28 +2085,12 @@ body::after {
           </div>
           <hr class="stats-info-divider">
           <div class="stats-info-block">
-            <div class="stats-info-name" style="color:var(--green)">Lifetime Earned</div>
-            <div class="stats-info-desc">Awarded coins minus fines. Determines your leaderboard rank. Spending coins does not affect this number, and neither does a refund or any other balance correction.</div>
-          </div>
-          <div class="stats-info-block">
             <div class="stats-info-name" style="color:var(--gold)">Coin Balance</div>
-            <div class="stats-info-desc">Your current economic standing. Awarded minus fines minus spent, plus any adjustments. Reflects how many coins you effectively own right now.</div>
+            <div class="stats-info-desc">How many coins you hold right now. Every award, fine, purchase and payout moves it, and the board ranks by it. Below zero means you are in debt.</div>
           </div>
           <div class="stats-info-block">
-            <div class="stats-info-name" style="color:var(--green)">Net Awards</div>
-            <div class="stats-info-desc">Total coins awarded to you across all time before any deductions.</div>
-          </div>
-          <div class="stats-info-block">
-            <div class="stats-info-name" style="color:var(--red)">Net Fines</div>
-            <div class="stats-info-desc">Total coins fined from you across all time.</div>
-          </div>
-          <div class="stats-info-block">
-            <div class="stats-info-name" style="color:var(--amber)">Net Spent</div>
-            <div class="stats-info-desc">Total coins spent on purchases across all time.</div>
-          </div>
-          <div class="stats-info-block">
-            <div class="stats-info-name" style="color:var(--violet)">Adjustments</div>
-            <div class="stats-info-desc">Refunds and other corrections to your record, added up with their own signs. They move your balance but are neither earnings nor spending, so they never change your Lifetime Earned rank. Shown only if you have any.</div>
+            <div class="stats-info-name" style="color:var(--teal)">Wage</div>
+            <div class="stats-info-desc">What you are paid each school week, set by your wage tier.</div>
           </div>
         </div>
       </div>
@@ -1844,10 +2306,8 @@ const COIN_SYMBOL = 'i¢';
 
 // ── State ────────────────────────────────────────────
 let summaryData = [];
-// The raw parsed transaction CSV, and the normalized view every surface below
-// actually reads. See normalizeTxnRows: the only difference is that a payout's
-// two stored halves are collapsed into the one event they were.
-let txnData = [];
+// The parsed transaction CSV every surface below reads. Since Coin V2 the feed
+// carries digital rows only, so a payout is one row and nothing is collapsed.
 let txnRows = [];
 let contractsData = [];
 let contractHistoryData = [];
@@ -1856,7 +2316,7 @@ let activeSection = 'All';
 let txnNameQ = '';
 let txnTypeQ = '';
 let globalSearchQ = '';
-let lbSort = 'lifetime-desc';
+let lbSort = 'balance-desc';
 let txnSortCol = 'date';
 let txnSortDir = 'desc';
 let txnPage = 1;
@@ -1908,9 +2368,15 @@ function escHtml(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+// Coin amounts are numeric(12,2) since Coin V2: a whole number prints bare,
+// anything else prints with exactly two decimals (12, 12.50, -0.25). Rounded
+// to the cent first, so a sum like 0.1 + 0.2 never prints its float noise.
 function fmtNum(n) {
+  n = Number(n);
   if (isNaN(n)) return '—';
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const cents = Math.round(n * 100);
+  if (cents % 100 === 0) return (cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function hexToRgb(hex) {
   return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
@@ -1947,14 +2413,10 @@ function typeBadgeClass(type) {
 // strings is what made a +40 balance correction render as a red -40: the
 // ledger's own sign was thrown away with Math.abs and a fresh one guessed.
 //
-// A transfer is the one row with no sign at all: a payout moves coins from
-// digital to physical, so nothing was gained or lost and a + or a - would be
-// a lie in either direction.
-function amountDisplay(amount, type, isTransfer) {
+// A payout is an ordinary debit since Coin V2: the feed carries digital rows
+// only, so the coins leaving the balance are shown leaving it, with their sign.
+function amountDisplay(amount, type) {
   const n = Number(amount) || 0;
-  if (isTransfer) {
-    return { cls: 'transfer', text: fmtNum(Math.abs(n)) };
-  }
   const t = (type || '').toLowerCase();
   let cls;
   if (t === 'adjustment')   cls = 'adjustment';
@@ -1962,72 +2424,6 @@ function amountDisplay(amount, type, isTransfer) {
   else if (t === 'purchase') cls = 'purchase';
   else                      cls = 'negative';
   return { cls: cls, text: (n > 0 ? '+' : n < 0 ? '-' : '') + fmtNum(Math.abs(n)) };
-}
-
-const MEDIUM_LABELS = { physical: 'Physical', digital: 'Digital' };
-function mediumLabel(m) {
-  return MEDIUM_LABELS[(m || '').toLowerCase()] || '';
-}
-
-/** The quiet line under an amount: which coins these are, or where they moved. */
-function mediumNote(medium, from, to, isTransfer) {
-  if (isTransfer) {
-    const f = mediumLabel(from);
-    const t = mediumLabel(to);
-    if (f && t) return f + ' &rarr; ' + t;
-    return f || t || '';
-  }
-  return mediumLabel(medium);
-}
-
-/**
- * A PAYOUT IS TWO STORED ROWS SHARING ONE TRANSFER ID -- a digital debit and
- * an equal physical credit -- because that is what the ledger records: the
- * coins changed form, they did not go anywhere. To a reader it is ONE
- * withdrawal, so the pair is collapsed here, once, into the row every surface
- * below then renders, filters, sorts and counts.
- *
- * The id is the real key and it is already stored, so nothing here pairs rows
- * by guessing at matching names, timestamps and amounts. A backend without
- * migration 0103 sends no transfer id at all; every row then passes through
- * untouched, which is the pre-0103 rendering -- two rows instead of one, but
- * each still carrying its own honest sign.
- */
-function normalizeTxnRows(rows) {
-  const out = [];
-  const byTransfer = {};
-  (rows || []).forEach(row => {
-    const p = pick(row);
-    const transferId = String(p('Transfer Id') || '').trim();
-    if (!transferId) { out.push(row); return; }
-
-    const amount = parseFloat(p('Amount') || 0) || 0;
-    const medium = String(p('Medium') || '').trim().toLowerCase();
-    let pair = byTransfer[transferId];
-    if (!pair) {
-      pair = {
-        'Date / Time': p('Date / Time', 'Date/Time', 'Date', 'Timestamp') || '',
-        'Name':        p('Name', 'Student', 'Full Name') || '',
-        'Amount':      0,
-        'Type':        'Payout',
-        'Reason':      p('Reason', 'Description', 'Note') || '',
-        'Transfer Id': transferId,
-        _transfer: true,
-        _from: '',
-        _to: ''
-      };
-      byTransfer[transferId] = pair;
-      out.push(pair);
-    }
-    // Each half names one end of the move: the debited medium is where the
-    // coins came from, the credited one is where they landed. Only one half
-    // reaching the feed (a row limit can cut between them) still reads
-    // correctly, with one end of the arrow unknown rather than a wrong sign.
-    if (amount < 0) pair._from = medium;
-    else if (amount > 0) pair._to = medium;
-    pair['Amount'] = Math.max(pair['Amount'], Math.abs(amount));
-  });
-  return out;
 }
 
 // ── Fetch ────────────────────────────────────────────
@@ -2043,13 +2439,10 @@ async function fetchData() {
     // so a real outage reads as one.
     if (!sRes.ok || !tRes.ok) throw new Error('coin read failed');
     summaryData = parseCSV(await sRes.text());
-    txnData = parseCSV(await tRes.text());
-    txnRows = normalizeTxnRows(txnData);
+    txnRows = parseCSV(await tRes.text());
 
-    summaryData.sort((a, b) => {
-      const calcBal = r => (parseFloat(pick(r)('Awarded') || 0) - parseFloat(pick(r)('Fines') || 0));
-      return calcBal(b) - calcBal(a);
-    });
+    summaryData.sort((a, b) => coinBalanceOf(b) - coinBalanceOf(a));
+    syncSectionFilters();
     txnRows.sort((a, b) => {
       const da = txnDateObj(a) || new Date(0);
       const db = txnDateObj(b) || new Date(0);
@@ -2155,17 +2548,91 @@ async function fetchSectionColors() {
   } catch(_) {}
 }
 
+// A class with no color of its own (every IDEA Classroom section since Coin V2)
+// takes one of the page's five from its name, so the same class keeps the
+// same color on every load.
+const SECTION_PALETTE = ['#00FF41', '#C8FF00', '#00F0FF', '#FF8C00', '#FF88CC'];
+// The same five on a light ground (Space White): each hue moved in lightness
+// only, to 4.6:1 or better on every light ground a section word sits on.
+const SECTION_LIGHT = {
+  '#00FF41': '#00701d', '#C8FF00': '#506600', '#00F0FF': '#006a70',
+  '#FF8C00': '#8f4e00', '#FF88CC': '#b80069', '#4A7A52': '#406946'
+};
+function isLightTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'space-white';
+}
 function sectionColor(section) {
-  return sectionColorMap[section] || SECTION_COLORS[section] || '#4A7A52';
+  let c;
+  if (sectionColorMap[section] || SECTION_COLORS[section]) {
+    c = sectionColorMap[section] || SECTION_COLORS[section];
+  } else {
+    const name = String(section || '');
+    if (!name || name === '—') {
+      c = '#4A7A52';
+    } else {
+      let h = 0;
+      for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+      c = SECTION_PALETTE[h % SECTION_PALETTE.length];
+    }
+  }
+  if (isLightTheme()) return SECTION_LIGHT[String(c).toUpperCase()] || SECTION_LIGHT[c] || '#406946';
+  return c;
 }
 
-// Tier-aware, per 0087: the summary's Wage column already carries this
-// student's own base x tier rate, so the hub can never report a weekly wage
-// that disagrees with what Coin Desk actually pays.
-function weeklyPayFor(wName) {
-  const wRow = summaryData.find(r => (pick(r)('Name', 'Student', 'Full Name') || '').trim() === wName);
-  const base = wRow ? (parseFloat(pick(wRow)('Wage', 'Weekly Wage', 'Base Wage', 'Weekly Pay') || 0)) : 0;
-  return base + (studentRoleMap[wName] ? 1 : 0);
+// The route follows a theme chosen in another tab (the storage event) and
+// announces it; the pieces drawn from script repaint in the new colours.
+window.addEventListener('idea-theme-change', () => {
+  if (!loaded) return;
+  renderLeaderboard();
+  renderAnalytics();
+});
+
+// THE one balance (Coin V2): the summary's Coin Balance column, signed. A
+// negative number is the debt; there is no second figure for it.
+function coinBalanceOf(row) {
+  const n = parseFloat(pick(row)('Coin Balance', 'Balance'));
+  return isNaN(n) ? 0 : n;
+}
+
+// The Wage column, exactly. It is already this student's own base x tier
+// rate (0087), and the page adds nothing to it: this used to add 1 for a role
+// holder, which reported a weekly pay Coin Desk never paid.
+function weeklyPayOf(row) {
+  const n = parseFloat(pick(row)('Wage', 'Weekly Wage', 'Base Wage', 'Weekly Pay'));
+  return isNaN(n) ? 0 : n;
+}
+
+// Whether the summary says an Eating Pass is active right now. Keyed on the
+// data, never on a reason string. A feed without the column falls back to a
+// purchase row whose category id is the eating pass.
+function holdsEatingPass(row, name) {
+  const v = String(pick(row)('Eating Pass') || '').trim().toLowerCase();
+  if (v) return v === 'true' || v === 't' || v === 'yes' || v === '1';
+  return txnRows.some(r => {
+    const rp = pick(r);
+    return (rp('Category Id') || '').trim() === 'eating_pass' &&
+      (rp('Name', 'Student', 'Full Name') || '').trim() === name;
+  });
+}
+
+// The section filter row is built from the sections on the board, so a class
+// the feed names always has a button and a retired one never does.
+function syncSectionFilters() {
+  const bar = document.getElementById('section-filters');
+  if (!bar) return;
+  const sections = [...new Set(summaryData
+    .map(r => (pick(r)('Section', 'Class', 'Course') || '').trim())
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  if (activeSection !== 'All' && sections.indexOf(activeSection) === -1) activeSection = 'All';
+  bar.querySelectorAll('.filter-btn[data-section]').forEach(b => b.remove());
+  const anchor = bar.firstChild;
+  ['All'].concat(sections).forEach(sec => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn' + (sec === activeSection ? ' active' : '');
+    btn.dataset.section = sec;
+    btn.textContent = sec;
+    bar.insertBefore(btn, anchor);
+  });
 }
 
 function renderGuideModal() {
@@ -2186,14 +2653,19 @@ function renderGuideModal() {
     const rows = items.map((r, i) => {
       const name = escHtml(r.reason || r.Reason || '');
       const detail = (r.detail || r.Detail || '').trim();
-      const hasDesc = detail.length > 0;
+      // The rule's own words (Coin V2: set by an admin beside the price), so a
+      // student reads what the rule IS and not only what it costs.
+      const explanation = String(r.explanation || r.Explanation || '').trim();
+      const hasDesc = detail.length > 0 || explanation.length > 0;
+      const descHtml = (detail ? `<div class="guide-item-detail">${escHtml(detail)}</div>` : '') +
+        (explanation ? `<div class="guide-item-explain">${escHtml(explanation)}</div>` : '');
       return `<div class="guide-item ${itemClass}" data-section="${secKey}" data-guide-idx="${i}">
           <div class="guide-item-main">
             <span class="type-badge ${badgeClass}">${escHtml(type)}</span>
             <span class="guide-item-name">${name}</span>
             ${hasDesc ? '<span class="guide-arrow">&#8250;</span>' : ''}
           </div>
-          ${hasDesc ? `<div class="guide-item-desc">${escHtml(detail)}</div>` : ''}
+          ${hasDesc ? `<div class="guide-item-desc">${descHtml}</div>` : ''}
         </div>`;
     }).join('');
     return `<div class="guide-section-wrap" data-guide-section="${secKey}">
@@ -2213,25 +2685,19 @@ function renderGuideModal() {
   const html =
     buildSection('Award',    'awards',    'Awards',             'var(--green)', 'guide-item-award',    'type-award')
   + buildSection('Purchase', 'purchases', 'Purchases / Expenses','var(--amber)', 'guide-item-purchase', 'type-purchase')
-  + buildSection('Fine',     'fines',     'Fines',              '#FF4444',      'guide-item-fine',     'type-fine');
+  + buildSection('Fine',     'fines',     'Fines',              'var(--red)',      'guide-item-fine',     'type-fine');
 
   bodyEl.innerHTML = '<div class="guide-col">' + (html || '<div style="padding:2rem;color:var(--dim);font-size:0.8rem;text-align:center;letter-spacing:0.04em;">No reasons found.</div>') + '</div>';
 }
 
 // ── Stats Bar ────────────────────────────────────────
+// Two figures, both from the one balance: what everyone holds in total, and
+// how many students are below zero.
 function updateStatsBar() {
-  const circulation = summaryData.reduce((s, r) => {
-    const bal = parseFloat(pick(r)('Awarded') || 0) - parseFloat(pick(r)('Fines') || 0);
-    return s + Math.max(0, bal);
-  }, 0);
-  const totalDebt    = summaryData.reduce((s, r) => s + parseFloat(pick(r)('Debt') || 0), 0);
-  const totalAwarded = summaryData.reduce((s, r) => s + parseFloat(pick(r)('Awarded') || 0), 0);
-  const totalFines   = summaryData.reduce((s, r) => s + parseFloat(pick(r)('Fines') || 0), 0);
-  const ratio = totalFines > 0 ? (totalAwarded / totalFines).toFixed(1) + ':1' : 'No Fines';
+  const circulation = summaryData.reduce((s, r) => s + coinBalanceOf(r), 0);
+  const inDebt = summaryData.filter(r => coinBalanceOf(r) < 0).length;
   document.getElementById('stat-circulation').textContent = fmtNum(circulation);
-  document.getElementById('stat-debt').textContent = fmtNum(totalDebt);
-  document.getElementById('stat-txns').textContent = txnRows.length.toLocaleString();
-  document.getElementById('stat-ratio').textContent = ratio;
+  document.getElementById('stat-debt').textContent = inDebt.toLocaleString();
 }
 
 // ── Contracts ────────────────────────────────────────
@@ -2417,38 +2883,16 @@ function renderLeaderboard() {
   data = data.slice().sort((a, b) => {
     const pa = pick(a), pb = pick(b);
     switch (lbSort) {
-      case 'lifetime-asc': {
-        const la = parseFloat(pa('Awarded')||0) - parseFloat(pa('Fines')||0);
-        const lb = parseFloat(pb('Awarded')||0) - parseFloat(pb('Fines')||0);
-        return la - lb;
-      }
-      case 'balance-desc': {
-        const ba = parseFloat(pa('Coin Balance')||0);
-        const bb = parseFloat(pb('Coin Balance')||0);
-        return bb - ba;
-      }
-      case 'balance-asc': {
-        const ba = parseFloat(pa('Coin Balance')||0);
-        const bb = parseFloat(pb('Coin Balance')||0);
-        return ba - bb;
-      }
-      case 'awarded-desc':
-        return parseFloat(pb('Awarded')||0) - parseFloat(pa('Awarded')||0);
-      case 'fined-desc':
-        return parseFloat(pb('Fines')||0) - parseFloat(pa('Fines')||0);
-      case 'spent-desc':
-        return parseFloat(pb('Spent')||0) - parseFloat(pa('Spent')||0);
+      case 'balance-asc':
+        return coinBalanceOf(a) - coinBalanceOf(b);
       case 'name-asc':
         return (pa('Name','Student','Full Name')||'').localeCompare(pb('Name','Student','Full Name')||'');
       case 'name-desc':
         return (pb('Name','Student','Full Name')||'').localeCompare(pa('Name','Student','Full Name')||'');
       case 'section':
         return (pa('Section','Class','Course')||'').localeCompare(pb('Section','Class','Course')||'');
-      default: { // lifetime-desc
-        const la = parseFloat(pa('Awarded')||0) - parseFloat(pa('Fines')||0);
-        const lb = parseFloat(pb('Awarded')||0) - parseFloat(pb('Fines')||0);
-        return lb - la;
-      }
+      default: // balance-desc
+        return coinBalanceOf(b) - coinBalanceOf(a);
     }
   });
 
@@ -2458,19 +2902,6 @@ function renderLeaderboard() {
     (sec.roles || []).forEach(role => {
       (role.holders || []).forEach(hName => { studentRoleMap[hName] = role.role; });
     });
-  });
-  const eatingPassMap = {};
-  txnRows.forEach(r => {
-    const rp = pick(r);
-    if ((rp('Type', 'Transaction Type') || '').toLowerCase() !== 'purchase') return;
-    const reason = (rp('Reason', 'Description', 'Note') || '').trim();
-    const rName  = (rp('Name', 'Student', 'Full Name') || '').trim();
-    if (!rName) return;
-    if (reason === 'Executive Classroom Eating Pass') {
-      eatingPassMap[rName] = 'Executive';
-    } else if (reason === 'Basic Classroom Eating Pass' && eatingPassMap[rName] !== 'Executive') {
-      eatingPassMap[rName] = 'Basic';
-    }
   });
 
   grid.innerHTML = '';
@@ -2484,23 +2915,10 @@ function renderLeaderboard() {
     const p = pick(row);
     const name    = p('Name', 'Student', 'Full Name') || '—';
     const section = p('Section', 'Class', 'Course') || '—';
-    const awarded        = parseFloat(p('Awarded') || 0);
-    const fines          = parseFloat(p('Fines') || 0);
-    const spent          = parseFloat(p('Spent') || 0);
-    // Refunds and other corrections, in their own bucket since 0107 and out of
-    // both Awarded and Spent. Lifetime Earned therefore no longer counts a
-    // refund as an earning -- which matters here, because it is what this
-    // board's default sort ranks by.
-    const adjustments    = parseFloat(p('Adjustments') || 0);
-    const lifetimeEarned = awarded - fines;
-    // The server's total where it sends one (0103); the same identity as a
-    // fallback. See openDrawer for why the two agree.
-    const serverBal      = parseFloat(p('Coin Balance'));
-    const coinBal        = isNaN(serverBal) ? lifetimeEarned - spent + adjustments : serverBal;
-    const physicalBal    = parseFloat(p('Physical Balance'));
-    const digitalBal     = parseFloat(p('Digital Balance'));
-    const hasSplit       = !isNaN(physicalBal) && !isNaN(digitalBal);
-    const isNeg          = lifetimeEarned < 0;
+    const coinBal        = coinBalanceOf(row);
+    const wage           = weeklyPayOf(row);
+    const wTier          = parseFloat(p('Wage Tier') || 0);
+    const isNeg          = coinBal < 0;
 
     const card = document.createElement('div');
     card.className = 'coin-card' + (isNeg ? ' negative' : '');
@@ -2522,10 +2940,8 @@ function renderLeaderboard() {
     const roleBadgeHtml = studentRoleMap[name]
       ? '<span class="role-badge">' + escHtml(studentRoleMap[name].toUpperCase()) + '</span>'
       : '';
-    const passType = eatingPassMap[name];
-    const passBadgeHtml = passType === 'Executive'
-      ? '<span class="pass-badge-exec">EXECUTIVE PASS</span>'
-      : passType === 'Basic' ? '<span class="pass-badge-basic">BASIC PASS</span>' : '';
+    const passBadgeHtml = holdsEatingPass(row, name)
+      ? '<span class="pass-badge-exec">EATING PASS</span>' : '';
     const badgesHtml = (roleBadgeHtml || passBadgeHtml)
       ? '<div class="card-badges">' + roleBadgeHtml + passBadgeHtml + '</div>' : '';
     card.innerHTML =
@@ -2534,26 +2950,13 @@ function renderLeaderboard() {
       '<div class="coin-name">' + escHtml(name) + '</div>' +
       '<div class="coin-section">' + escHtml(section) + '</div>' +
       badgesHtml +
-      '<div class="coin-balance-label">Lifetime Earned</div>' +
-      '<div class="coin-balance">' + fmtNum(lifetimeEarned) + '</div>' +
+      '<div class="coin-balance-label">Coin Balance</div>' +
+      '<div class="coin-balance">' + fmtNum(coinBal) + '</div>' +
       '<div class="coin-meta">' +
-        '<div class="coin-meta-item">' +
-          '<span class="coin-meta-label">Lifetime</span>' +
-          '<span class="coin-meta-value" style="color:var(--green)">' + (lifetimeEarned >= 0 ? '+' : '') + fmtNum(lifetimeEarned) + '</span>' +
-        '</div>' +
-        // The balance a student actually holds, and the two media it is made
-        // of. Always shown, unlike the old spent-gated single figure: "how
-        // much do I have and how much of it is in my hand" is the question
-        // this board is opened to answer.
-        '<div class="coin-meta-item"><span class="coin-meta-label">Balance</span><span class="coin-meta-value" style="color:' + (coinBal >= 0 ? 'var(--gold)' : 'var(--red)') + '">' + fmtNum(coinBal) + '</span></div>' +
-        (hasSplit ? '<div class="coin-meta-item"><span class="coin-meta-label">Physical</span><span class="coin-meta-value" style="color:' + (physicalBal >= 0 ? 'var(--ice)' : 'var(--red)') + '">' + fmtNum(physicalBal) + '</span></div>' : '') +
-        (hasSplit ? '<div class="coin-meta-item"><span class="coin-meta-label">Digital</span><span class="coin-meta-value" style="color:' + (digitalBal >= 0 ? 'var(--cyan)' : 'var(--red)') + '">' + fmtNum(digitalBal) + '</span></div>' : '') +
-        (fines > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Awards</span><span class="coin-meta-value" style="color:var(--green)">+' + fmtNum(awarded) + '</span></div>' : '') +
-        (fines > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Fines</span><span class="coin-meta-value" style="color:var(--red)">-' + fmtNum(fines) + '</span></div>' : '') +
-        (spent > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Spent</span><span class="coin-meta-value" style="color:var(--amber)">-' + fmtNum(spent) + '</span></div>' : '') +
-        // Only when there is one, so the common case stays uncluttered. Violet
-        // is the Adjustment type's own colour everywhere else on this page.
-        (adjustments !== 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Adjustments</span><span class="coin-meta-value" style="color:var(--violet)">' + (adjustments > 0 ? '+' : '') + fmtNum(adjustments) + '</span></div>' : '') +
+        // One balance, and the two facts that explain how it grows: the weekly
+        // wage (exactly the Wage column) and the tier that sets it.
+        '<div class="coin-meta-item"><span class="coin-meta-label">Wage</span><span class="coin-meta-value" style="color:var(--teal)">' + fmtNum(wage) + ' ' + COIN_SYMBOL + '/wk</span></div>' +
+        (wTier > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Tier</span><span class="coin-meta-value" style="color:var(--cyan)">' + fmtNum(wTier) + '</span></div>' : '') +
       '</div>';
 
     card.addEventListener('click', () => openDrawer(row));
@@ -2574,28 +2977,7 @@ function openDrawer(row) {
   const p = pick(row);
   const name    = p('Name', 'Student', 'Full Name') || '—';
   const section = p('Section', 'Class', 'Course') || '—';
-  const awarded = parseFloat(p('Awarded') || 0);
-  const fines   = parseFloat(p('Fines') || 0);
-  const spent   = parseFloat(p('Spent') || 0);
-  // Adjustments are their own bucket since 0107 -- out of awarded and out of
-  // spent whatever their sign, so they have to come back into the identity
-  // below or a refunded student's balance would read short.
-  const adjustments = parseFloat(p('Adjustments') || 0);
-  const debt    = parseFloat(p('Debt') || 0);
-  const lifetimeEarned = awarded - fines;
-  // The server sends the authoritative total; the client identity is the
-  // fallback for a feed that predates it. Both agree, because a transfer is
-  // excluded from awarded AND spent (0103) and so cancels out of
-  // `awarded - fines - spent` exactly as it cancels out of the real balance,
-  // and because an adjustment is excluded from both and added back here.
-  const serverBalance  = parseFloat(p('Coin Balance'));
-  const coinBalance    = isNaN(serverBalance) ? awarded - fines - spent + adjustments : serverBalance;
-  // The two components of that total. Both are real, signed numbers: a
-  // negative physical balance means a student was fined past what they were
-  // holding, and hiding it would be a nicer-looking lie.
-  const physicalBal = parseFloat(p('Physical Balance'));
-  const digitalBal  = parseFloat(p('Digital Balance'));
-  const hasSplit    = !isNaN(physicalBal) && !isNaN(digitalBal);
+  const coinBalance = coinBalanceOf(row);
 
   const nameEl = document.getElementById('drawer-student-name');
   nameEl.textContent = name;
@@ -2605,29 +2987,13 @@ function openDrawer(row) {
   const sc = sectionColor(section);
   badgeEl.style.cssText = 'color:' + sc + ';border:1px solid ' + sc + '55;background:' + sc + '11';
 
-  // Total first, then its two components: one balance is the headline and
-  // "which of these coins are in my hand" is answered right beside it.
+  // One balance, then what sets how it grows. A negative balance is the debt
+  // and reads red; there is no separate debt figure.
   let statsHtml =
-    drawerStatHtml('Total Balance', fmtNum(coinBalance) + ' ' + COIN_SYMBOL, coinBalance < 0 ? 'var(--red)' : 'var(--gold)');
-  if (hasSplit) {
-    statsHtml +=
-      drawerStatHtml('Physical (in hand)', fmtNum(physicalBal) + ' ' + COIN_SYMBOL, physicalBal < 0 ? 'var(--red)' : 'var(--ice)') +
-      drawerStatHtml('Digital (in system)', fmtNum(digitalBal) + ' ' + COIN_SYMBOL, digitalBal < 0 ? 'var(--red)' : 'var(--cyan)');
-  }
-  statsHtml +=
-    drawerStatHtml('Lifetime Earned', fmtNum(lifetimeEarned) + ' ' + COIN_SYMBOL, 'var(--green)') +
-    drawerStatHtml('Awarded', '+' + fmtNum(awarded), 'var(--green)') +
-    drawerStatHtml('Fines', '-' + fmtNum(fines), 'var(--red)') +
-    drawerStatHtml('Spent', '-' + fmtNum(spent), 'var(--amber)');
-  // Only when there is one. Violet is the Adjustment type's own colour on the
-  // transaction rows below, so the figure and the rows it sums agree by sight.
-  if (adjustments !== 0)
-    statsHtml += drawerStatHtml('Adjustments', (adjustments > 0 ? '+' : '') + fmtNum(adjustments) + ' ' + COIN_SYMBOL, 'var(--violet)');
-  if (debt > 0)
-    statsHtml += drawerStatHtml('Debt', fmtNum(debt), 'var(--red)');
-  const wPay = weeklyPayFor(name);
+    drawerStatHtml('Coin Balance', fmtNum(coinBalance) + ' ' + COIN_SYMBOL, coinBalance < 0 ? 'var(--red)' : 'var(--gold)');
+  const wPay = weeklyPayOf(row);
   if (wPay > 0)
-    statsHtml += drawerStatHtml('Weekly Pay', wPay + ' ' + COIN_SYMBOL + '/wk', 'var(--teal)');
+    statsHtml += drawerStatHtml('Weekly Pay', fmtNum(wPay) + ' ' + COIN_SYMBOL + '/wk', 'var(--teal)');
   const wTier = parseFloat(p('Wage Tier') || 0);
   if (wTier > 0)
     statsHtml += drawerStatHtml('Wage Tier', 'Tier ' + fmtNum(wTier), 'var(--cyan)');
@@ -2648,12 +3014,7 @@ function openDrawer(row) {
         dateObj: dateStr ? new Date(dateStr) : new Date(0),
         amount:  parseFloat(rp('Amount') || 0),
         type:    rp('Type', 'Transaction Type') || '-',
-        reason:  rp('Reason', 'Description', 'Note') || '-',
-        medium:  rp('Medium') || '',
-        // Already collapsed by normalizeTxnRows; the flags just ride through.
-        transfer: !!r._transfer,
-        from:    r._from || '',
-        to:      r._to || ''
+        reason:  rp('Reason', 'Description', 'Note') || '-'
       };
     });
   if (studentId) loadDrawerDetail(studentId, statsHtml);
@@ -2695,61 +3056,24 @@ async function loadDrawerDetail(studentId, baseStatsHtml) {
   document.getElementById('drawer-stats').innerHTML = statsHtml;
 
   if (Array.isArray(detail.history)) {
-    drawerTxns = collapseHistory(detail.history);
+    drawerTxns = historyRows(detail.history);
     renderDrawerTxns();
   }
 }
 
-/**
- * normalizeTxnRows' transfer collapse, over the drawer's own per-student
- * history -- which arrives as JSON from the per-student endpoint rather than
- * as CSV, so it is the same rule against a different shape. A student looking
- * at their own withdrawal should see the one thing that happened, not a debit
- * and a credit that cancel.
- */
-function collapseHistory(history) {
-  const out = [];
-  const byTransfer = {};
-  (history || []).forEach(h => {
+// The drawer's own per-student history, which arrives as JSON from the
+// per-student endpoint. Digital rows only since Coin V2, one row per event.
+function historyRows(history) {
+  return (history || []).map(h => {
     const dateStr = h.occurred_at || '';
-    const amount  = parseFloat(h.amount || 0) || 0;
-    const medium  = String(h.medium || '').toLowerCase();
-    const transferId = String(h.transfer_id || '').trim();
-    if (!transferId) {
-      out.push({
-        date:    dateStr || '-',
-        dateObj: dateStr ? new Date(dateStr) : new Date(0),
-        amount:  amount,
-        type:    h.type || '-',
-        reason:  h.reason || '-',
-        medium:  medium,
-        transfer: false,
-        from: '',
-        to: ''
-      });
-      return;
-    }
-    let pair = byTransfer[transferId];
-    if (!pair) {
-      pair = {
-        date:    dateStr || '-',
-        dateObj: dateStr ? new Date(dateStr) : new Date(0),
-        amount:  0,
-        type:    'Payout',
-        reason:  h.reason || '-',
-        medium:  '',
-        transfer: true,
-        from: '',
-        to: ''
-      };
-      byTransfer[transferId] = pair;
-      out.push(pair);
-    }
-    if (amount < 0) pair.from = medium;
-    else if (amount > 0) pair.to = medium;
-    pair.amount = Math.max(pair.amount, Math.abs(amount));
+    return {
+      date:    dateStr || '-',
+      dateObj: dateStr ? new Date(dateStr) : new Date(0),
+      amount:  parseFloat(h.amount || 0) || 0,
+      type:    h.type || '-',
+      reason:  h.reason || '-'
+    };
   });
-  return out;
 }
 
 let drawerTxns = [];
@@ -2777,7 +3101,7 @@ function renderDrawerTxns() {
     : '<span class="sort-indicator">&#8597;</span>';
 
   let html = '<table class="txn-table drawer-txn-table">' +
-    '<colgroup><col style="width:52px"><col style="width:40px"><col style="width:70px"><col></colgroup>' +
+    '<colgroup><col style="width:56px"><col style="width:52px"><col style="width:96px"><col></colgroup>' +
     '<thead><tr>' +
       '<th data-dsort="date">Date ' + ind('date') + '</th>' +
       '<th data-dsort="amount">Amt ' + ind('amount') + '</th>' +
@@ -2786,9 +3110,8 @@ function renderDrawerTxns() {
     '</tr></thead><tbody>';
 
   sorted.forEach(t => {
-    const amt  = amountDisplay(t.amount, t.type, t.transfer);
-    const note = mediumNote(t.medium, t.from, t.to, t.transfer);
-    const shortType = t.transfer ? 'Withdrawal' : t.type;
+    const amt  = amountDisplay(t.amount, t.type);
+    const shortType = t.type;
     const parts = String(t.date).split(' ');
     let dDate = parts[0] || String(t.date);
     const dTime = parts[1] || '';
@@ -2796,8 +3119,7 @@ function renderDrawerTxns() {
     if (ymd) dDate = ymd[1];
     html += '<tr>' +
       '<td class="txn-date">' + escHtml(dDate) + (dTime ? '<br><span class="t">' + escHtml(dTime) + '</span>' : '') + '</td>' +
-      '<td class="txn-amount ' + amt.cls + '">' + amt.text +
-        (note ? '<span class="txn-medium">' + note + '</span>' : '') + '</td>' +
+      '<td class="txn-amount ' + amt.cls + '">' + amt.text + '</td>' +
       '<td><span class="type-badge ' + typeBadgeClass(t.type) + '" title="' + escHtml(shortType) + '">' + escHtml(shortType) + '</span></td>' +
       '<td class="txn-reason">' + escHtml(t.reason) + '</td>' +
       '</tr>';
@@ -2899,15 +3221,13 @@ function renderTransactions() {
       const amount = parseFloat(p('Amount') || 0);
       const type   = p('Type', 'Transaction Type') || '—';
       const reason = p('Reason', 'Description', 'Note') || '—';
-      const amt    = amountDisplay(amount, type, row._transfer);
-      const note   = mediumNote(p('Medium'), row._from, row._to, row._transfer);
-      const label  = row._transfer ? 'Withdrawal' : type;
+      const amt    = amountDisplay(amount, type);
+      const label  = type;
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="txn-date">'  + escHtml(date)   + '</td>' +
         '<td class="txn-name">'  + escHtml(name)   + '</td>' +
-        '<td class="txn-amount ' + amt.cls + '">' + amt.text +
-          (note ? '<span class="txn-medium">' + note + '</span>' : '') + '</td>' +
+        '<td class="txn-amount ' + amt.cls + '">' + amt.text + '</td>' +
         '<td><span class="type-badge ' + typeBadgeClass(type) + '">' + escHtml(label) + '</span></td>' +
         '<td class="txn-reason">' + escHtml(reason) + '</td>';
       tbody.appendChild(tr);
@@ -2968,45 +3288,24 @@ function renderAnalytics() {
   const lastSunday = new Date(thisMonday); lastSunday.setDate(lastSunday.getDate() - 1);
   lastSunday.setHours(23, 59, 59, 999);
 
-  let thisAwarded = 0, thisFines = 0, thisSpent = 0, thisAdjust = 0, thisTxns = 0;
-  let lastAwarded = 0, lastFines = 0, lastSpent = 0, lastAdjust = 0, lastTxns = 0;
+  // COUNTS ONLY since Coin V2: no awarded, fined or spent sum appears
+  // anywhere on the Ledger, so a week is described by how much happened and
+  // to how many students, never by how many coins moved which way.
+  let thisTxns = 0, lastTxns = 0;
+  const thisPeople = new Set(), lastPeople = new Set();
 
   txnRows.forEach(r => {
     const dt = txnDateObj(r);
     if (!dt) return;
-    const type   = (pick(r)('Type', 'Transaction Type') || '').toLowerCase();
-    const signed = parseFloat(pick(r)('Amount') || 0) || 0;
-    const amount = Math.abs(signed);
-    // A transfer moved coins between two media the same student already
-    // held, so it belongs in none of these totals -- which is why PAYOUT is
-    // the one type with no row here while every other type has one. (Collapsed
-    // transfers are typed Payout and excluded by that alone; the flag also
-    // covers a feed that predates migration 0103 and sends the halves
-    // untagged.)
+    const who = (pick(r)('Name', 'Student', 'Full Name') || '').trim();
     if (dt >= thisMonday && dt <= now) {
       thisTxns++;
-      if (r._transfer) return;
-      if (type === 'award')      thisAwarded += amount;
-      if (type === 'fine')       thisFines   += amount;
-      // PURCHASES were the type this panel silently omitted. The breakdown
-      // below lists all five, so a reader comparing the two found a week's
-      // spending in one and not the other -- the same complaint 0107 fixed for
-      // adjustments, in the other half of the same tab.
-      if (type === 'purchase')   thisSpent   += amount;
-      // Adjustments run both ways, so this is a NET figure -- an absolute
-      // one would report a correction and its reversal as activity.
-      if (type === 'adjustment') thisAdjust  += signed;
+      if (who) thisPeople.add(who);
     } else if (dt >= lastMonday && dt <= lastSunday) {
       lastTxns++;
-      if (r._transfer) return;
-      if (type === 'award')      lastAwarded += amount;
-      if (type === 'fine')       lastFines   += amount;
-      if (type === 'purchase')   lastSpent   += amount;
-      if (type === 'adjustment') lastAdjust  += signed;
+      if (who) lastPeople.add(who);
     }
   });
-
-  const signedNum = (n) => (n > 0 ? '+' : '') + fmtNum(n);
 
   function wDelta(a, b) {
     if (a > b) return '<span class="delta-up">&#9650;</span>';
@@ -3025,40 +3324,31 @@ function renderAnalytics() {
     '<div class="weekly-wrap">' +
     '<div class="weekly-col">' +
       '<div class="weekly-col-title">This Week</div>' +
-      wRow('Coins Awarded',       fmtNum(thisAwarded),   wDelta(thisAwarded, lastAwarded)) +
-      wRow('Fines Issued',        fmtNum(thisFines),     wDelta(thisFines,   lastFines))   +
-      wRow('Coins Spent',         fmtNum(thisSpent),     wDelta(thisSpent,   lastSpent))   +
-      wRow('Adjustments (net)',   signedNum(thisAdjust), wDelta(thisAdjust,  lastAdjust))  +
-      wRow('Transactions Logged', thisTxns,              wDelta(thisTxns,    lastTxns))    +
+      wRow('Transactions Logged', thisTxns,          wDelta(thisTxns,        lastTxns))        +
+      wRow('Students Active',     thisPeople.size,   wDelta(thisPeople.size, lastPeople.size)) +
     '</div>' +
     '<div class="weekly-col">' +
       '<div class="weekly-col-title">Last Week</div>' +
-      wRow('Coins Awarded',       fmtNum(lastAwarded),   wDelta(lastAwarded, thisAwarded)) +
-      wRow('Fines Issued',        fmtNum(lastFines),     wDelta(lastFines,   thisFines))   +
-      wRow('Coins Spent',         fmtNum(lastSpent),     wDelta(lastSpent,   thisSpent))   +
-      wRow('Adjustments (net)',   signedNum(lastAdjust), wDelta(lastAdjust,  thisAdjust))  +
-      wRow('Transactions Logged', lastTxns,              wDelta(lastTxns,    thisTxns))    +
+      wRow('Transactions Logged', lastTxns,          wDelta(lastTxns,        thisTxns))        +
+      wRow('Students Active',     lastPeople.size,   wDelta(lastPeople.size, thisPeople.size)) +
     '</div></div>';
 
   // ── Transaction Breakdown ─────────────────────────
   // Adjustment is here because it is on every row above: a breakdown that
   // silently omits a type disagrees with the log it is summarizing.
   const TYPES = ['Award', 'Fine', 'Purchase', 'Adjustment', 'Payout'];
+  // How many of each, never how many coins: Coin V2 shows no awarded, fined
+  // or spent sum anywhere.
   const typeStats = TYPES.map(t => {
     const rows = txnRows.filter(r => (pick(r)('Type', 'Transaction Type') || '').toLowerCase() === t.toLowerCase());
-    return { t, count: rows.length, total: rows.reduce((s, r) => s + parseFloat(pick(r)('Amount') || 0), 0) };
+    return { t, count: rows.length };
   }).sort((a, b) => b.count - a.count);
 
-  let tblHtml = '<table class="breakdown-table"><thead><tr><th>Type</th><th>Count</th><th>Total</th></tr></thead><tbody>';
-  typeStats.forEach(({ t, count, total }) => {
-    // Same rule as every row above: the sign is the stored one, and a payout
-    // total is the amount MOVED between two media, so it carries no sign at
-    // all rather than reading as income.
-    const amt = amountDisplay(total, t, t === 'Payout');
+  let tblHtml = '<table class="breakdown-table"><thead><tr><th>Type</th><th>Count</th></tr></thead><tbody>';
+  typeStats.forEach(({ t, count }) => {
     tblHtml +=
       '<tr><td><span class="type-badge ' + typeBadgeClass(t) + '">' + t + '</span></td>' +
-      '<td style="font-family:\'Orbitron\',sans-serif;font-size:0.7rem;color:var(--ice)">' + count + '</td>' +
-      '<td class="txn-amount ' + amt.cls + '" style="font-size:0.68rem">' + amt.text + '</td></tr>';
+      '<td style="font-family:\'Orbitron\',sans-serif;font-size:0.7rem;color:var(--ice)">' + count + '</td></tr>';
   });
   tblHtml += '</tbody></table>';
   document.getElementById('analytics-breakdown-table').innerHTML = tblHtml;
@@ -3089,17 +3379,19 @@ function renderAnalytics() {
     reasonsHtml(topReasons(['Award']), 'var(--green)') + '</div>';
 
   // ── Student Spotlights ────────────────────────────
+  // Coin V2 has one balance, so the spotlights read it; the lifetime award,
+  // fine and spending figures these used are gone.
   const sData = summaryData.map(r => ({
-    name:    pick(r)('Name', 'Student', 'Full Name') || '—',
-    bal:     parseFloat(pick(r)('Awarded') || 0) - parseFloat(pick(r)('Fines') || 0),
-    debt:    parseFloat(pick(r)('Debt') || 0),
-    awarded: parseFloat(pick(r)('Awarded') || 0),
-    fines:   parseFloat(pick(r)('Fines') || 0),
-    spent:   parseFloat(pick(r)('Spent') || 0),
+    name: pick(r)('Name', 'Student', 'Full Name') || '—',
+    bal:  coinBalanceOf(r)
   }));
   function topBy(field) {
     if (!sData.length) return null;
     return sData.reduce((best, s) => s[field] > best[field] ? s : best, sData[0]);
+  }
+  function bottomBy(field) {
+    if (!sData.length) return null;
+    return sData.reduce((best, s) => s[field] < best[field] ? s : best, sData[0]);
   }
   const actMap = {};
   txnRows.forEach(r => {
@@ -3117,22 +3409,21 @@ function renderAnalytics() {
       (valStr ? '<div class="spotlight-value' + (red ? ' red' : '') + '">' + escHtml(valStr) + '</div>' : '') +
       '</div>';
   }
-  const w = topBy('bal'), d = topBy('debt'), aw = topBy('awarded'), fi = topBy('fines'), sp = topBy('spent');
+  // Three, so the three-column grid has no orphan card at desktop width.
+  const w = topBy('bal'), lo = bottomBy('bal');
   document.getElementById('analytics-spotlights').innerHTML =
-    spotCard('Wealthiest',   w  ? w.name  : null, w  ? fmtNum(w.bal)      + ' coins' : '', false) +
-    spotCard('Biggest Debt', d  ? d.name  : null, d  ? fmtNum(d.debt)     + ' debt'  : '', true)  +
-    spotCard('Most Awarded', aw ? aw.name : null, aw ? '+' + fmtNum(aw.awarded)       : '', false) +
-    spotCard('Most Fined',   fi ? fi.name : null, fi ? fmtNum(fi.fines)   + ' fines' : '', true)  +
-    spotCard('Most Active',  activeTop ? activeTop[0] : null, activeTop ? activeTop[1] + ' txns' : '', false) +
-    spotCard('Top Spender',  sp ? sp.name : null, sp ? fmtNum(sp.spent)   + ' spent' : '', false);
+    spotCard('Highest Balance', w  ? w.name  : null, w  ? fmtNum(w.bal) + ' ' + COIN_SYMBOL : '', false) +
+    spotCard('Lowest Balance',  lo ? lo.name : null, lo ? fmtNum(lo.bal) + ' ' + COIN_SYMBOL : '', lo ? lo.bal < 0 : false) +
+    spotCard('Most Active',     activeTop ? activeTop[0] : null, activeTop ? activeTop[1] + ' txns' : '', false);
 
   // ── Section Standings ─────────────────────────────
-  const SECTIONS = ['IDEA-113', 'IDEA-208-1', 'IDEA-208-2', 'IDEA-304', 'IDEA-403'];
+  // Every class on the board, averaged on the one balance.
+  const SECTIONS = [...new Set(summaryData
+    .map(r => (pick(r)('Section', 'Class') || '').trim()).filter(Boolean))];
   const sectionAvgs = SECTIONS.map(sec => {
     const students = summaryData.filter(r => (pick(r)('Section', 'Class') || '').trim() === sec);
     if (!students.length) return { sec, avg: 0 };
-    const total = students.reduce((s, r) =>
-      s + parseFloat(pick(r)('Awarded') || 0) - parseFloat(pick(r)('Fines') || 0), 0);
+    const total = students.reduce((s, r) => s + coinBalanceOf(r), 0);
     return { sec, avg: total / students.length };
   }).sort((a, b) => b.avg - a.avg);
 
@@ -3147,7 +3438,7 @@ function renderAnalytics() {
       '<div class="standings-bar-wrap">' +
         '<div class="standings-bar" style="width:' + pct + '%;background:' + color + ';opacity:0.8"></div>' +
       '</div>' +
-      '<div class="standings-value">' + fmtNum(Math.round(avg)) + ' ' + COIN_SYMBOL + '</div>' +
+      '<div class="standings-value">' + fmtNum(avg) + ' ' + COIN_SYMBOL + '</div>' +
       '</div>';
   });
   document.getElementById('analytics-standings').innerHTML =
@@ -3219,11 +3510,12 @@ function renderAnalytics() {
     raHtml = '<div class="recently-active-list">' +
       recentList.map(({ name, dateStr, type }) => {
         const sec   = studentSections[name] || '—';
-        const color = sectionColorMap[sec] || SECTION_COLORS[sec] || 'var(--dim)';
+        // Full strength: the 60% wash this used to add measured 3.5:1.
+        const color = sectionColor(sec);
         const dShort = dateStr.slice(0, 10);
         return '<div class="ra-item">' +
           '<div class="ra-name">' + escHtml(name) + '</div>' +
-          '<div class="ra-section" style="color:' + color + '99">' + escHtml(sec) + '</div>' +
+          '<div class="ra-section" style="color:' + color + '">' + escHtml(sec) + '</div>' +
           '<div class="ra-date">' + escHtml(dShort) + '</div>' +
           '<span class="type-badge ' + typeBadgeClass(type) + '">' + escHtml(type) + '</span>' +
           '</div>';
@@ -3287,14 +3579,15 @@ document.getElementById('lb-sort-select').addEventListener('change', e => {
 })();
 
 // ── Section Filters ───────────────────────────────────
-document.querySelectorAll('#section-filters .filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#section-filters .filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeSection = btn.dataset.section;
-    localStorage.setItem('idea-coins-section', activeSection);
-    if (loaded) renderLeaderboard();
-  });
+// Delegated, because syncSectionFilters rebuilds the buttons on every refresh.
+document.getElementById('section-filters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn[data-section]');
+  if (!btn) return;
+  document.querySelectorAll('#section-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeSection = btn.dataset.section;
+  localStorage.setItem('idea-coins-section', activeSection);
+  if (loaded) renderLeaderboard();
 });
 
 // ── Transaction Filters ───────────────────────────────
@@ -3432,20 +3725,18 @@ document.getElementById('print-header').textContent =
       if (panel) panel.classList.add('active');
     }
   }
+  // The buttons are built once the board loads; syncSectionFilters marks the
+  // saved one active, or falls back to All when that class is gone.
   const savedSection = localStorage.getItem('idea-coins-section');
-  if (savedSection) {
-    const secBtn = document.querySelector('#section-filters [data-section="' + savedSection + '"]');
-    if (secBtn) {
-      document.querySelectorAll('#section-filters .filter-btn').forEach(b => b.classList.remove('active'));
-      secBtn.classList.add('active');
-      activeSection = savedSection;
-    }
-  }
+  if (savedSection) activeSection = savedSection;
+  // A saved sort the select no longer offers (the retired Lifetime Earned,
+  // Awarded, Fined and Spent orders) is dropped rather than left selecting
+  // nothing.
   const savedSort = localStorage.getItem('idea-coins-sort');
-  if (savedSort) {
+  const sel = document.getElementById('lb-sort-select');
+  if (savedSort && sel && [...sel.options].some(o => o.value === savedSort)) {
     lbSort = savedSort;
-    const sel = document.getElementById('lb-sort-select');
-    if (sel) sel.value = savedSort;
+    sel.value = savedSort;
   }
 })();
 

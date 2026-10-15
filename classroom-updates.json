@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-10-15",
+			"title": "IDEA Coins: one balance, buying on your own, and automatic pay",
+			"body": "Your coins now have one balance, and it is the only number that counts. Physical coins are just cash now: Mr. Pina hands them out and takes them back without logging them. Open your coin page (Coins, under your profile, or ideabosco.com/coin-balance) to see your balance, your Eating Pass, and every coin you earned or spent with the reason beside it. You can buy things on your own there: an Eating Pass, extra credit on your returned work (up to 2 percent of each class's points this semester), a pay raise, or a 3D print by weight. A purchase only goes through if your balance stays at zero or more. The rules list on that page explains every fine and award: what causes it, how much it is, and how it is calculated. Your weekly wage, Highest Grade in Section and Perfect Score awards are now paid automatically. One more change: a hall pass that lasts 10 minutes is marked with a warning, and one that lasts 20 minutes is charged automatically.",
+			"tags": ["Coins"]
+		},
+		{
 			"date": "2026-10-14",
 			"title": "Notes from your teacher, right on your worksheet",
 			"body": "While you are still working on a worksheet, your teacher can now leave you a note about one question, or draw on a photo you handed in (circles, arrows, boxes and labels) to point at something. Notes show in a list above the worksheet, and a small Note pin appears beside the answer it is about. You can reply, and when you have fixed it, press Fixed it so your teacher knows to look again. Your teacher can see when you have read a note, and you can see their replies the same way. New notes arrive on their own while the page is open; you do not need to reload.",

@@ -108,9 +108,11 @@ async function resolveClaims(supabase: App.Locals['supabase']): Promise<App.Clai
  * (the FRC Training track), and `/greenline` (the combat-racing game) are open
  * to any authenticated user. GAUNTLET's teacher-only authoring page is gated in
  * that page's load; GREENLINE's tuning panel is teacher-gated in its own load.
- * `/coin-balance` and `/contracts` are deliberately ABSENT now: both 308 to
- * the IDEA Coin Ledger, which is public tier, so an anonymous visitor has to
- * reach the redirect rather than being bounced to `/` before it.
+ * `/coin-balance` and `/contracts` are deliberately ABSENT. `/contracts` 308s
+ * to the public IDEA Coin Ledger, so an anonymous visitor has to reach the
+ * redirect; `/coin-balance` is a student's own coin page since IDEA Coin V2
+ * (ledger 0383) and renders its own sign-in panel, which a bounce to `/` would
+ * pre-empt.
  */
 const authedPrefixes = [
 	'/dashboard',

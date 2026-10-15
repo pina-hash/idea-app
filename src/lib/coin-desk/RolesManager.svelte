@@ -17,7 +17,7 @@
 		type RoleQuizQuestion
 	} from './roles';
 	import { sectionDisplayName, type CoinSectionRow } from './sections';
-	import { COIN_SYMBOL } from '$lib/coin-format';
+	import { COIN_SYMBOL, signedCoins } from '$lib/coin-format';
 
 	/**
 	 * Roles admin: Shop Steward / Quartermaster / Safety Officer / Lab Tech
@@ -71,7 +71,8 @@
 			case 'ratio_cap_reached':
 				return `Blocked: role at capacity (${r.held}/${r.cap} filled for this section).`;
 			case 'debt':
-				return `Blocked: balance is negative (${r.balance}${COIN_SYMBOL}) -- purchases are locked until it clears.`;
+			case 'insufficient':
+				return `Refused: the balance (${signedCoins(Number(r.balance ?? 0))}) cannot cover it.`;
 			case 'cap_reached':
 				return `Blocked: already logged the max for this ${r.cap_period === 'day' ? 'day' : 'calendar month'}.`;
 			case 'error':
@@ -701,7 +702,7 @@
 		<div class="sub-panel">
 			<h3>Pay Weekly Role Stipend</h3>
 			<p class="note small">
-				Logs the 2{COIN_SYMBOL}/week stipend against every student who CURRENTLY holds a role (active,
+				Logs the role stipend (2{COIN_SYMBOL}, every two weeks) to the balance of every student who CURRENTLY holds a role (active,
 				not expired), filtered by role and/or section if set -- never against a whole section's
 				enrollment (see the note above "Log a transaction" &rarr; Section mode, which deliberately
 				excludes this category).
@@ -742,7 +743,7 @@
 							<div class="actions">
 								{#if r.ok}
 									<span class="txn-pos">
-										{typeof r.amount === 'number' ? `${r.amount > 0 ? '+' : ''}${r.amount}{COIN_SYMBOL}` : 'logged'}
+										{r.amount != null ? signedCoins(Number(r.amount)) : 'logged'}
 									</span>
 								{:else}
 									<span class="txn-neg">{reasonMessage(r)}</span>

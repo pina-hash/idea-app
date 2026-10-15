@@ -29,6 +29,16 @@
 	 * left looking identical to a paid one. A ledger from a deployment without
 	 * 0212 carries no such column and is marked NOTHING: cannot-tell is not
 	 * unpaid, and `rewardUnpaid` is the one place that distinction is made.
+	 *
+	 * AND SINCE IDEA COIN V2 (0239) NOTHING HERE IS PAID AUTOMATICALLY. A
+	 * reward is still recorded, one row per member, but with no coin row and
+	 * `awaiting_transfer` set: Mr. Pina adds the coins after the tournament.
+	 * So the panel claims no payment at all. The heading is "Reward history",
+	 * a standing note says who adds the coins and when, and a row still
+	 * waiting carries "to be added" in words. An awaiting row is folded as
+	 * one that reached no balance (it has not), through the SAME
+	 * `rewardAwards` fold, so there is still one place that counts them. A row
+	 * minted before V2 is marked nothing, which says nothing either way.
 	 */
 	import EntryChip from './EntryChip.svelte';
 	import { signedCoins } from '../coin-format';
@@ -51,8 +61,17 @@
 		entries?: Record<string, TournamentEntry>;
 	} = $props();
 
-	const totals = $derived(rewardTotals(ledger));
-	const history = $derived([...rewardAwards(ledger)].sort((a, b) => b.firstId - a.firstId));
+	/* An awaiting row has reached nobody's balance, so it folds as one that did
+	   not; the fold itself is unchanged and stays the one count. */
+	const folded = $derived(
+		ledger.map((r) =>
+			(r as RewardLedgerRow & { awaiting_transfer?: boolean }).awaiting_transfer === true
+				? { ...r, coin_transaction_id: null }
+				: r
+		)
+	);
+	const totals = $derived(rewardTotals(folded));
+	const history = $derived([...rewardAwards(folded)].sort((a, b) => b.firstId - a.firstId));
 	const ruleOrder: Record<string, number> = { win: 0, round_reached: 1, placement: 2 };
 	const orderedRules = $derived(
 		[...rules].sort(
@@ -82,6 +101,12 @@
 		</div>
 	{/if}
 
+	{#if orderedRules.length || totals.length}
+		<p class="note coin-note" data-testid="rewards-coin-note">
+			Mr. Pina adds these coins to each winner's IDEA Coin balance after the tournament.
+		</p>
+	{/if}
+
 	{#if totals.length}
 		<div class="totals card">
 			<h3>Standings</h3>
@@ -95,8 +120,8 @@
 						<span class="each">each · {t.recipients} registrants</span>
 					{/if}
 					{#if t.unpaid > 0}
-						<span class="unpaid" title="Not yet on a coin balance">
-							{t.unpaid} not paid
+						<span class="unpaid">
+							{t.unpaid} to be added
 						</span>
 					{/if}
 					<span class="total-amount">{signedCoins(t.total)}</span>
@@ -105,7 +130,7 @@
 		</div>
 
 		<div class="history card">
-			<h3>Payout history</h3>
+			<h3>Reward history</h3>
 			{#each history as row (row.firstId)}
 				<div class="ledger-row">
 					<span class="ledger-entry">
@@ -115,7 +140,7 @@
 					<span class="ledger-when">{when(row.awardedAt)}</span>
 					{#if row.unpaid > 0}
 						<span class="unpaid">
-							{row.unpaid === row.recipients ? 'not paid' : `${row.unpaid} not paid`}
+							{row.unpaid === row.recipients ? 'to be added' : `${row.unpaid} to be added`}
 						</span>
 					{/if}
 					<span class="ledger-amount"
@@ -128,8 +153,7 @@
 		</div>
 	{:else if orderedRules.length}
 		<p class="note">
-			No payouts yet. Rewards land here as matches are won, and are paid onto the winner's IDEA
-			Coin balance.
+			No rewards yet. Rewards are recorded here as matches are won.
 		</p>
 	{/if}
 </div>

@@ -1,153 +1,154 @@
 <script lang="ts">
-	import CoinBalanceView from '$lib/coin-balance/CoinBalanceView.svelte';
+	import { onMount } from 'svelte';
+	import { page as appPage } from '$app/state';
+	import CoinPageView from '$lib/coin-balance/CoinPageView.svelte';
 	import {
-		sumBalances,
-		withCategoryNames,
-		type CoinBalanceTransaction,
-		type EatingPassStatus
+		coinBalanceAfter,
+		coinCanAfford,
+		coinExtraCreditCost,
+		coinPrintPrice,
+		parseCoinMyPage,
+		type CoinBuyResult,
+		type CoinMyPage
 	} from '$lib/coin-balance';
+	import type { CoinPageTransports } from '$lib/coin-balance/transports';
+	import { fixturePage, SCENARIOS, type Scenario } from './fixture';
 
 	/**
-	 * Dev harness: mounts the REAL CoinBalanceView, with its balance run
-	 * through the REAL pure helper (coin-balance.ts) over sample rows shaped
-	 * exactly like a coin_transactions select -- so this exercises the same
-	 * derivation +page.server.ts runs, not a hand-picked total. Eating Pass
-	 * status is no longer derived at all (0072): the real page gets it
-	 * verbatim from `coin_my_eating_pass_status()`, so this harness supplies
-	 * the SAME answer that RPC would give for each sample history, hardcoded
-	 * per scenario rather than recomputed -- there is no TS mirror of that
-	 * rule left to run. No Supabase or auth needed.
+	 * Dev harness for /coin-balance. Mounts the REAL CoinPageView over a
+	 * `coin_my_page()`-shaped payload run through the REAL `parseCoinMyPage`,
+	 * with in-memory purchase transports that apply 0241's refusal order (not
+	 * available, already held, cap, insufficient) and then move the balance,
+	 * so a two-step purchase can be driven end to end with no database.
 	 *
-	 * Scenarios:
-	 *  - "populated" -- a normal history: fines, awards, an active Eating Pass
-	 *    with 1 strike, a Pay Raise (tier 2), a Balance Correction.
-	 *  - "revoked pass" -- 3 strikes auto-revoked the pass (coin_log_transaction's
-	 *    own rule): eating_pass_active reads false, but eating_pass_strikes
-	 *    still reads 3 -- the strike count is "since the last PURCHASE", not
-	 *    "since the pass was last active", exactly like the real SQL function
-	 *    coin_my_eating_pass_status() calls.
-	 *  - "empty" -- no transactions yet: the clear empty state, not a blank
-	 *    page or an error.
-	 *  - "not configured" -- migration 0070 not applied: the fail-soft card.
+	 * `?scenario=` picks the starting state so a browser-verify spec can open
+	 * one directly; the toolbar switches it by hand. 404s in production.
 	 */
-	const CATEGORIES = [
-		{ id: 'weekly_wage', name: 'Weekly Wage' },
-		{ id: 'above_and_beyond', name: 'Above and Beyond' },
-		{ id: 'shop_safety_violation', name: 'Shop Safety Violation' },
-		{ id: 'eating_pass', name: 'Eating Pass' },
-		{ id: 'eating_violation', name: 'Eating Violation' },
-		{ id: 'eating_pass_revoked', name: 'Eating Pass Revoked (system)' },
-		{ id: 'correct_answer_in_class', name: 'Correct Answer in Class' },
-		{ id: 'pay_raise', name: 'Pay Raise' },
-		{ id: 'balance_correction', name: 'Balance Correction / Refund' }
-	];
+	const NOW = Date.parse('2026-10-15T19:00:00Z');
 
-	/**
-	 * Sample rows carry a MEDIUM (0096). Defaulting to physical here mirrors
-	 * the logging default, and the explicit digital rows below are what make
-	 * the two-balance split render as something other than a copy of the
-	 * total.
-	 */
-	function tx(
-		id: string,
-		category_id: string,
-		amount: number,
-		created_at: string,
-		note: string | null = null,
-		meta: Record<string, unknown> | null = null,
-		medium: 'physical' | 'digital' = 'physical'
-	): CoinBalanceTransaction {
-		return { id, category_id, amount, medium, quantity: null, note, created_at, meta };
+	function pick(): Scenario {
+		const q = appPage.url.searchParams.get('scenario') ?? '';
+		return (SCENARIOS.find((s) => s.id === q)?.id ?? 'populated') as Scenario;
 	}
 
-	const POPULATED: CoinBalanceTransaction[] = [
-		tx('9', 'balance_correction', 10, '2026-08-06T15:00:00Z', 'Legacy Sheets balance carried over', null, 'digital'),
-		tx('8', 'pay_raise', -40, '2026-08-05T18:20:00Z'),
-		tx('7', 'eating_violation', -5, '2026-08-05T12:05:00Z', null, { strike: true }),
-		tx('6', 'eating_pass', -150, '2026-08-04T09:00:00Z', null, null, 'digital'),
-		tx('5', 'correct_answer_in_class', 1, '2026-08-03T14:10:00Z'),
-		tx('4', 'above_and_beyond', 2, '2026-08-01T16:45:00Z', 'Helped a classmate debug their code', null, 'digital'),
-		tx('3', 'shop_safety_violation', -12, '2026-07-30T11:15:00Z', 'No safety glasses at the bandsaw'),
-		tx('2', 'weekly_wage', 1, '2026-07-28T08:00:00Z'),
-		tx('1', 'weekly_wage', 1, '2026-07-21T08:00:00Z')
-	];
+	let scenario = $state<Scenario>(pick());
+	let current = $state<CoinMyPage | null>(parseCoinMyPage(fixturePage(pick())));
+	let hydrated = $state(false);
+	onMount(() => {
+		hydrated = true;
+	});
 
-	const REVOKED: CoinBalanceTransaction[] = [
-		tx('6', 'eating_pass_revoked', 0, '2026-08-06T13:00:00Z', 'Automatically revoked: third strike'),
-		tx('5', 'eating_violation', -5, '2026-08-06T12:50:00Z', null, { strike: true }),
-		tx('4', 'eating_violation', -5, '2026-08-05T12:10:00Z', null, { strike: true }),
-		tx('3', 'eating_violation', -5, '2026-08-03T12:00:00Z', null, { strike: true }),
-		tx('2', 'eating_pass', -150, '2026-08-01T09:00:00Z'),
-		tx('1', 'weekly_wage', 1, '2026-07-28T08:00:00Z')
-	];
+	function load(s: Scenario) {
+		scenario = s;
+		current = parseCoinMyPage(fixturePage(s));
+	}
 
-	type Scenario = 'populated' | 'revoked' | 'empty' | 'unconfigured';
-	let scenario = $state<Scenario>('populated');
+	const viewState = $derived(
+		scenario === 'signed_out' ? 'signed_out' : scenario === 'updating' ? 'updating' : 'ready'
+	) as 'ready' | 'signed_out' | 'updating';
 
-	// What coin_my_eating_pass_status() returns for each sample history above
-	// -- verified against the (now-removed) TS mirror before it was deleted,
-	// so these are the real SQL function's answers, not guesses.
-	const EATING_PASS: Record<Scenario, EatingPassStatus> = {
-		populated: { active: true, strikes: 1 },
-		revoked: { active: false, strikes: 3 },
-		empty: { active: false, strikes: 0 },
-		unconfigured: { active: false, strikes: 0 }
+	let seq = 100;
+	function charge(categoryId: string, name: string, cost: number, note: string): CoinBuyResult {
+		const p = current!;
+		if (!coinCanAfford(p.balance, cost)) return { ok: false, reason: 'insufficient', balance: p.balance, cost };
+		p.balance = coinBalanceAfter(p.balance, cost);
+		p.history = [
+			{ id: `x${seq++}`, at: new Date(NOW).toISOString(), amount: -cost, category_id: categoryId, name, kind: 'purchase', note, reverses: null, reversed: false, automatic: false },
+			...p.history
+		];
+		return { ok: true, cost, balance: p.balance };
+	}
+
+	const wait = () => new Promise((r) => setTimeout(r, 250));
+
+	const transports: CoinPageTransports = {
+		async buyEatingPass() {
+			await wait();
+			const p = current!;
+			if (p.eating_pass.price === null) return { ok: false, reason: 'not_available' };
+			if (p.eating_pass.active) return { ok: false, reason: 'pass_already_active' };
+			const r = charge('eating_pass', 'Eating Pass', p.eating_pass.price, 'Bought by the student.');
+			if (r.ok) p.eating_pass = { ...p.eating_pass, active: true, strikes: 0 };
+			return r;
+		},
+		async buyPayRaise() {
+			await wait();
+			const p = current!;
+			const q = p.pay_raise;
+			const r = charge('pay_raise', 'Pay Raise', q.cost, 'Bought by the student.');
+			if (!r.ok) return r;
+			const per = q.wage_now / q.tier;
+			p.wage_tier = q.new_tier;
+			p.weekly_wage = q.wage_after;
+			p.pay_raise = { tier: q.new_tier, new_tier: q.new_tier + 1, cost: (q.cost / q.tier) * q.new_tier, wage_now: q.wage_after, wage_after: per * (q.new_tier + 1) };
+			return { ...r, new_tier: q.new_tier };
+		},
+		async buyPrint(grams) {
+			await wait();
+			if (!(grams > 0 && grams <= 5000)) return { ok: false, reason: 'grams' };
+			return charge('three_d_printing', '3D Printing', coinPrintPrice(grams, current!.print.grams_per_coin), `3D print, ${grams} g.`);
+		},
+		async buyExtraCredit(sectionId, submissionId, points) {
+			await wait();
+			const p = current!;
+			const c = p.extra_credit.classes.find((x) => x.section_id === sectionId);
+			if (!c) return { ok: false, reason: 'not_your_class' };
+			const s = c.submissions.find((x) => x.submission_id === submissionId);
+			if (!s) return { ok: false, reason: 'not_your_work' };
+			if (points > c.room.remaining_points) return { ok: false, reason: 'cap', room: c.room };
+			const r = charge('extra_credit', 'Extra Credit', coinExtraCreditCost(points, p.extra_credit.price_per_point ?? 0), 'Bought by the student.');
+			if (!r.ok) return r;
+			c.room.used_points += points;
+			c.room.remaining_points -= points;
+			s.extra_credit += points;
+			s.score = (s.score ?? 0) + points;
+			return { ...r, points };
+		}
 	};
-
-	const rows = $derived(
-		scenario === 'populated' ? POPULATED : scenario === 'revoked' ? REVOKED : []
-	);
-	const configured = $derived(scenario !== 'unconfigured');
-	const displayTx = $derived(withCategoryNames(rows, CATEGORIES));
-	const balances = $derived(sumBalances(rows));
-	const eatingPass = $derived(EATING_PASS[scenario]);
-	const wageTier = $derived(scenario === 'populated' ? 2 : 1);
 </script>
 
-<div class="dev-toolbar">
+<div class="dev-toolbar" data-coin-hydrated={hydrated ? '' : undefined}>
 	<label>
 		Scenario
-		<select bind:value={scenario}>
-			<option value="populated">Populated</option>
-			<option value="revoked">Eating Pass revoked (3 strikes)</option>
-			<option value="empty">Empty (no transactions)</option>
-			<option value="unconfigured">Not configured (0070 unapplied)</option>
+		<select value={scenario} onchange={(e) => load(e.currentTarget.value as Scenario)}>
+			{#each SCENARIOS as s (s.id)}
+				<option value={s.id}>{s.label}</option>
+			{/each}
 		</select>
 	</label>
 </div>
 
 {#key scenario}
-	<CoinBalanceView
-		{configured}
-		email="student@boscotech.net"
-		displayName="Test Student"
-		balance={balances.balance}
-	physicalBalance={balances.physical_balance}
-	digitalBalance={balances.digital_balance}
-		transactions={displayTx}
-		{wageTier}
-		{eatingPass}
+	<CoinPageView
+		state={viewState}
+		page={current}
+		transports={viewState === 'ready' ? transports : {}}
+		now={NOW}
+		onsignin={() => {}}
+		onchanged={() => {}}
 	/>
 {/key}
 
 <style>
+	/* In flow, never fixed: a fixed toolbar sat over the Buy section in every
+	   full-page screenshot. */
 	.dev-toolbar {
-		position: fixed;
-		top: 0.5rem;
-		right: 0.5rem;
-		z-index: 20;
+		margin: 0.5rem 1rem;
+		width: fit-content;
 		background: var(--bg1);
-		border: 1px solid var(--line-strong);
+		border: 1px solid var(--boundary);
 		border-radius: 6px;
-		padding: 0.4rem 0.7rem;
-		font-family: 'Share Tech Mono', monospace;
+		padding: 0.3rem 0.6rem;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.dev-toolbar label {
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
-		cursor: pointer;
+	}
+	.dev-toolbar select {
+		min-height: 44px;
 	}
 </style>

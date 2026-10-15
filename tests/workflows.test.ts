@@ -1498,6 +1498,7 @@ describe('the invariants these particular workflows have to hold', () => {
 			pushLinesPerFile,
 			'the per-file push shape moved; a file that gained or lost a push line needs a look'
 		).toEqual({
+			'autopay.yml': 0,
 			'backup.yml': 0,
 			'ci.yml': 0,
 			'deploy.yml': 1,

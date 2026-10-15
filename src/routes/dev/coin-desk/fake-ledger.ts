@@ -1,4 +1,4 @@
-import { FORCED_MEDIUM, type CoinCategory, type CoinMedium, type StudentSuggestion } from '$lib/coin-desk';
+import type { CoinCategory, CoinMedium, StudentSuggestion } from '$lib/coin-desk';
 import type { CoinSectionRow, CoinSectionStudentRow } from '$lib/coin-desk/sections';
 import type { CoinRoleDefinition, QuizQuestionType } from '$lib/coin-desk/roles';
 import { COIN_SYMBOL } from '$lib/coin-format';
@@ -14,7 +14,7 @@ import { COIN_SYMBOL } from '$lib/coin-format';
 
 export const SAMPLE_CATEGORIES: CoinCategory[] = [
 	{ id: 'shop_safety_violation', name: 'Shop Safety Violation', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 12, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Real physical injury risk, priced at the top on purpose.' },
-	{ id: 'shop_not_cleaned_up', name: 'Shop Not Cleaned Up', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 12, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
+	{ id: 'shop_not_cleaned_up', name: 'Shop Not Cleaned Up', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 12, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null, active: false },
 	{ id: 'coin_theft', name: 'Coin Theft', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 12, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'classmate_trust_violation', name: 'Classmate Trust Violation', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 5, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'eating_violation', name: 'Eating Violation', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 5, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Eating with no pass, or breaking pass conduct rules badly enough to strike. A third strike while holding a pass revokes it.' },
@@ -23,8 +23,9 @@ export const SAMPLE_CATEGORIES: CoinCategory[] = [
 	{ id: 'printer_not_reset', name: '3D Printer Not Reset', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 3, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'long_bathroom_break', name: 'Long Bathroom Break', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 2, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'off_task_device_use', name: 'Off-Task Device Use', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 2, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
-	{ id: 'unauthorized_printing', name: 'Unauthorized Printing', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 2, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
+	{ id: 'unauthorized_printing', name: 'Unauthorized Printing', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 2, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null, active: false },
 	{ id: 'classroom_standards_violation', name: 'Classroom Standards Violation', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 1, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
+	{ id: 'inappropriate_screen_content', name: 'Inappropriate Screen Content', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 2, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'property_damage_careless', name: 'Property Damage (Careless)', kind: 'fine', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'property_damage_careless', semester_point_cap: null, cap_period: null, cap_count: null, notes: `3${COIN_SYMBOL} flat plus 1${COIN_SYMBOL} per $0.25 of repair/replacement cost.` },
 	{ id: 'property_damage_first_accident', name: 'Property Damage (First Accident)', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 0, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'No charge for a first accidental incident in a semester; logged, not billed.' },
 	{ id: 'property_damage_repeat_accident', name: 'Property Damage (Repeat Accident)', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 5, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
@@ -41,18 +42,19 @@ export const SAMPLE_CATEGORIES: CoinCategory[] = [
 	{ id: 'contract_completion', name: 'Contract Completion', kind: 'award', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'No fixed price: enter the amount at logging time.' },
 	{ id: 'competition_winnings', name: 'Competition Winnings', kind: 'award', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'weekly_wage', name: 'Weekly Wage', kind: 'award', scope: 'core', pricing_model: 'flat', amount: 1, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'The floor, not the engine: guaranteed just for being enrolled.' },
-	{ id: 'physical_coin_submission', name: 'Physical Coin Submission', kind: 'award', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
+	{ id: 'physical_coin_submission', name: 'Physical Coin Submission', kind: 'award', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null, active: false },
 	{ id: 'debt_payment', name: 'Debt Payment', kind: 'award', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Debt settlement, logged distinctly from Physical Coin Submission. Not capped at the current debt.' },
 
 	{ id: 'eating_pass', name: 'Eating Pass', kind: 'purchase', scope: 'core', pricing_model: 'flat', amount: 150, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'One tier, conduct rules attached. At most one active pass per student.' },
 	{ id: 'extra_credit', name: 'Extra Credit', kind: 'purchase', scope: '209h', pricing_model: 'per_unit', amount: 2, min_amount: null, max_amount: null, unit_label: 'point', formula_key: null, semester_point_cap: 21, cap_period: null, cap_count: null, notes: 'Restricted to Unit Labs, Unit Assignments, and Documentation checks.' },
-	{ id: 'platform_cosmetic_unlock', name: 'Platform Cosmetic Unlock', kind: 'purchase', scope: 'core', pricing_model: 'range', amount: null, min_amount: 15, max_amount: 25, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
+	{ id: 'platform_cosmetic_unlock', name: 'Platform Cosmetic Unlock', kind: 'purchase', scope: 'core', pricing_model: 'range', amount: null, min_amount: 15, max_amount: 25, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null, active: false },
 	{ id: 'coin_payout', name: 'Coin Payout', kind: 'purchase', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Converts digital balance to physical coins handed over.' },
-	{ id: 'three_d_printing', name: '3D Printing', kind: 'purchase', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'three_d_printing', semester_point_cap: null, cap_period: null, cap_count: null, notes: `Material 1${COIN_SYMBOL}/10g + a time band.` },
-	{ id: 'text_printing', name: 'Text Printing (B&W, per 4 pages)', kind: 'purchase', scope: 'core', pricing_model: 'per_unit', amount: 1, min_amount: null, max_amount: null, unit_label: '4 pages', formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
+	{ id: 'three_d_printing', name: '3D Printing', kind: 'purchase', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'three_d_printing', semester_point_cap: null, cap_period: null, cap_count: null, notes: `1${COIN_SYMBOL} per 10 g, by weight only.` },
+	{ id: 'text_printing', name: 'Text Printing (B&W, per 4 pages)', kind: 'purchase', scope: 'core', pricing_model: 'per_unit', amount: 1, min_amount: null, max_amount: null, unit_label: '4 pages', formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null, active: false },
 	{ id: 'song_request', name: 'Song Request', kind: 'purchase', scope: 'core', pricing_model: 'flat', amount: 3, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Approval-gated: nothing plays until reviewed.' },
-	{ id: 'pay_raise', name: 'Pay Raise', kind: 'purchase', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'pay_raise', semester_point_cap: null, cap_period: null, cap_count: null, notes: `40${COIN_SYMBOL} x the tier being left; permanently raises the wage tier.` },
+	{ id: 'pay_raise', name: 'Pay Raise', kind: 'purchase', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'pay_raise', semester_point_cap: null, cap_period: null, cap_count: null, notes: `100${COIN_SYMBOL} x the tier being left; permanently raises the wage tier.` },
 
+	{ id: 'reversal', name: 'Reversal (Undo)', kind: 'adjustment', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'System only: posted by Undo.' },
 	{ id: 'balance_correction', name: 'Balance Correction / Refund', kind: 'adjustment', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Admin-entered, signed amount with a required reason.' }
 ];
 
@@ -290,6 +292,8 @@ interface Txn {
 	 * recognised here even though it could be in production.
 	 */
 	transfer_id?: string | null;
+	/** Set on a `reversal` row (IDEA Coin V2 Undo): the id of the row it cancels. */
+	reverses?: string | null;
 	/** Sparse, like the real jsonb: the eating-violation strike flag, and the
 	 * legacy import's batch tag (0084). */
 	meta?: Record<string, unknown>;
@@ -302,15 +306,11 @@ interface StudentState {
 }
 
 /**
- * THE BALANCE IS DERIVED HERE TOO, exactly as it is in the database (0070's
- * coin_balances view, three columns since 0096). It used to be a stored
- * scalar on StudentState, which was fine while there was one number and
- * became a real hazard the moment there were three -- a stored triple can
- * drift from the transaction list this harness also keeps, and then the
- * harness would be verifying something the server would never do.
- *
- * A row with no `medium` counts as DIGITAL, which is the 0096 backfill's own
- * rule for every pre-0096 row.
+ * THE BALANCE IS DERIVED HERE TOO, exactly as it is in the database. IDEA
+ * COIN V2 (0239): THE BALANCE IS THE DIGITAL SUM. Physical rows stay in the
+ * history and count toward nothing; `physical_balance` is still reported
+ * because the pre-V2 coin_balances view keeps the column, and the desk never
+ * reads it. A row with no `medium` counts as digital (0096's backfill rule).
  */
 function balancesOf(email: string): { balance: number; physical_balance: number; digital_balance: number } {
 	const s = stateFor(email);
@@ -320,48 +320,30 @@ function balancesOf(email: string): { balance: number; physical_balance: number;
 		if (t.medium === 'physical') physical += t.amount;
 		else digital += t.amount;
 	}
-	return { balance: physical + digital, physical_balance: physical, digital_balance: digital };
+	digital = Math.round(digital * 100) / 100;
+	return { balance: digital, physical_balance: physical, digital_balance: digital };
 }
 
-/** One medium's balance -- what the per-medium debt lockout reads. */
-function balanceOfMedium(email: string, medium: CoinMedium): number {
-	const b = balancesOf(email);
-	return medium === 'physical' ? b.physical_balance : b.digital_balance;
-}
-
-/** Normalizes and validates a p_medium parameter the way 0096's RPCs do. */
-function mediumParam(params: Record<string, unknown>): CoinMedium {
-	const raw = String(params.p_medium ?? 'physical').toLowerCase().trim();
-	if (raw !== 'physical' && raw !== 'digital') {
-		throw new Error(`Coin medium must be "physical" or "digital" (got "${raw}").`);
-	}
-	return raw;
+/** The one balance (V2). */
+function balanceOf(email: string): number {
+	return balancesOf(email).balance;
 }
 
 /**
- * A bulk run's medium plus its per-student override map, mirroring 0096's
- * _coin_normalize_media: one resolver both bulk handlers share, so they can
- * never disagree about what an override means. A bad override VALUE throws,
- * exactly like the real one -- a run that would guess is worse than a run
- * that refuses.
+ * V2 refuses any medium but digital (0239's _coin_digital_only): a client that
+ * still names `p_medium` may only name 'digital' or nothing.
  */
-function normalizeMedia(params: Record<string, unknown>): {
-	run: CoinMedium;
-	overrides: Record<string, CoinMedium>;
-} {
-	const run = mediumParam(params);
-	const raw = (params.p_medium_overrides ?? {}) as Record<string, unknown>;
-	const overrides: Record<string, CoinMedium> = {};
-	for (const [key, value] of Object.entries(raw)) {
-		const v = String(value ?? '').toLowerCase().trim();
-		if (v !== 'physical' && v !== 'digital') {
-			throw new Error(
-				`Per-student medium override for "${key}" must be "physical" or "digital" (got "${value}").`
-			);
-		}
-		overrides[key.toLowerCase().trim()] = v;
+function assertDigital(params: Record<string, unknown>): void {
+	const raw = params.p_medium;
+	if (raw == null || raw === '') return;
+	if (String(raw).toLowerCase().trim() !== 'digital') {
+		throw new Error('Every coin row is digital now. Physical coins are not recorded as a balance.');
 	}
-	return { run, overrides };
+}
+
+/** Two decimals, the way numeric(12,2) stores an amount. */
+function money(n: number): number {
+	return Math.round(n * 100) / 100;
 }
 
 /**
@@ -386,7 +368,8 @@ const NAME_ONLY_CATEGORIES: Pick<CoinCategory, 'id' | 'name'>[] = [
 	// 0096's system-only physical half of a payout transfer: loggable = false,
 	// so it never enters the dropdown, but every payout writes one and the
 	// history has to resolve its name.
-	{ id: 'payout_physical_credit', name: 'Coin Payout (physical credit)' }
+	{ id: 'payout_physical_credit', name: 'Coin Payout (physical credit)' },
+	{ id: 'reversal', name: 'Reversal (Undo)' }
 ];
 
 /**
@@ -395,7 +378,15 @@ const NAME_ONLY_CATEGORIES: Pick<CoinCategory, 'id' | 'name'>[] = [
  * logging payout_physical_credit would mint physical coins out of nothing,
  * which is exactly the deposit path this model does not have.
  */
-const NON_LOGGABLE = new Set(['eating_pass_revoked', 'mint_tampering_unknown', 'payout_physical_credit']);
+const NON_LOGGABLE = new Set([
+	'eating_pass_revoked',
+	'mint_tampering_unknown',
+	'payout_physical_credit',
+	// IDEA Coin V2 (0239): a payout is the Economy transfer only, and an undo
+	// is posted by Undo only.
+	'coin_payout',
+	'reversal'
+]);
 /**
  * Mutable (unlike SAMPLE_CATEGORIES itself): 0080's coin_admin_create_category
  * / coin_admin_set_category_active RPCs both need somewhere to write a new
@@ -423,6 +414,186 @@ export function listCategories(): CoinCategory[] {
 }
 
 const ledger = new Map<string, StudentState>();
+
+// ---------------------------------------------------------------------------
+// IDEA Coin V2 (0239-0243) state: the settings table and its audit, the
+// explanations column, no shop today, and autopay's runs.
+// ---------------------------------------------------------------------------
+
+/** The functions 0240-0242 add. While the toggle is off they answer PGRST202. */
+const V2_FUNCTIONS = new Set([
+	'coin_reverse_transaction',
+	'coin_debt_list',
+	'coin_record_cash_purchase',
+	'coin_no_shop_set',
+	'coin_autopay_recent',
+	'coin_autopay_run',
+	'coin_settings_get',
+	'coin_settings_set',
+	'coin_settings_set_category',
+	'coin_settings_set_section_economy'
+]);
+
+let v2Applied = true;
+
+/** The harness's "V2 database update applied" toggle. */
+export function setV2Applied(on: boolean): void {
+	v2Applied = on;
+}
+
+const noShop = new Set<string>();
+
+/** 0239's seeded defaults. */
+const settings: Record<string, unknown> = {
+	autopay_paused: false,
+	autopay_start: '2026-10-12',
+	highest_grade_weeks: 2,
+	highest_grade_anchor: '2026-10-12',
+	semesters: [
+		{ key: '2026-fall', start: '2026-08-17', end: '2026-12-18' },
+		{ key: '2027-spring', start: '2027-01-05', end: '2027-06-03' }
+	],
+	no_pay_weeks: ['2026-11-23', '2026-12-21', '2026-12-28', '2027-03-29'],
+	no_pay_after: '2027-06-04',
+	hall_pass_warn_minutes: 10,
+	hall_pass_fine_minutes: 20,
+	fine_buttons: [
+		'shop_safety_violation',
+		'coin_theft',
+		'classmate_trust_violation',
+		'eating_violation',
+		'leaving_without_permission',
+		'property_damage',
+		'disruptive_behavior',
+		'printer_not_reset',
+		'off_task_device_use',
+		'inappropriate_screen_content',
+		'classroom_standards_violation'
+	],
+	extra_credit_cap_percent: 2,
+	pay_raise_cost_per_tier: 100,
+	print_grams_per_coin: 10,
+	property_damage_careless_base: 3,
+	property_damage_dollars_per_coin: 0.25,
+	student_actions_per_minute: 10
+};
+
+const settingsAudit: {
+	key: string;
+	old_value: unknown;
+	new_value: unknown;
+	changed_by: string;
+	changed_at: string;
+}[] = [];
+
+function audit(key: string, oldValue: unknown, newValue: unknown): void {
+	settingsAudit.unshift({
+		key,
+		old_value: oldValue ?? null,
+		new_value: newValue,
+		changed_by: 'admin@boscotech.edu',
+		changed_at: new Date().toISOString()
+	});
+}
+
+/** A loose mirror of 0240's _coin_setting_ok: enough to reach the 'invalid' refusal. */
+function settingOk(key: string, v: unknown): boolean {
+	const date = (x: unknown) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
+	const between = (x: unknown, lo: number, hi: number) => typeof x === 'number' && x >= lo && x <= hi;
+	switch (key) {
+		case 'autopay_paused':
+			return typeof v === 'boolean';
+		case 'autopay_start':
+		case 'highest_grade_anchor':
+		case 'no_pay_after':
+			return date(v);
+		case 'highest_grade_weeks':
+			return between(v, 1, 20) && Number.isInteger(v);
+		case 'hall_pass_warn_minutes':
+		case 'hall_pass_fine_minutes':
+			return between(v, 1, 240);
+		case 'extra_credit_cap_percent':
+			return between(v, 0, 100);
+		case 'pay_raise_cost_per_tier':
+		case 'print_grams_per_coin':
+		case 'property_damage_careless_base':
+		case 'property_damage_dollars_per_coin':
+			return between(v, 0.01, 100000);
+		case 'student_actions_per_minute':
+			return between(v, 1, 120);
+		case 'no_pay_weeks':
+			return (
+				Array.isArray(v) &&
+				v.every((d) => date(d) && new Date(`${d}T00:00:00Z`).getUTCDay() === 1)
+			);
+		case 'semesters':
+			return (
+				Array.isArray(v) &&
+				v.every(
+					(x) =>
+						x &&
+						typeof x === 'object' &&
+						/^[a-z0-9-]{1,30}$/.test(String((x as Semester).key)) &&
+						date((x as Semester).start) &&
+						date((x as Semester).end) &&
+						(x as Semester).end >= (x as Semester).start
+				)
+			);
+		case 'fine_buttons':
+			return Array.isArray(v) && v.length <= 30 && v.every((x) => typeof x === 'string' && /^[a-z0-9_]+$/.test(x));
+		default:
+			return false;
+	}
+}
+
+interface Semester {
+	key: string;
+	start: string;
+	end: string;
+}
+
+/** The settings page's class list: one never fined (auto check-in under the fine), one off. */
+const settingsSections: {
+	id: string;
+	label: string;
+	teacher_email: string | null;
+	economy_on: boolean;
+	auto_checkin_minutes: number | null;
+}[] = [
+	{ id: '11111111-1111-4111-8111-000000000001', label: 'IDEA 100 Block 3', teacher_email: 'apina@boscotech.edu', economy_on: true, auto_checkin_minutes: 30 },
+	{ id: '11111111-1111-4111-8111-000000000002', label: 'IDEA 209H Block 5', teacher_email: 'apina@boscotech.edu', economy_on: true, auto_checkin_minutes: 15 },
+	{ id: '11111111-1111-4111-8111-000000000003', label: 'IDEA 300 Block 1', teacher_email: 'other.teacher@boscotech.edu', economy_on: false, auto_checkin_minutes: null }
+];
+
+const explanations = new Map<string, string>([
+	['shop_safety_violation', 'Breaking a shop safety rule, or leaving the shop without cleaning up. Costs 12 coins. You are also not allowed in the shop for the rest of that school day.'],
+	['eating_pass', 'Lets you eat in class following the Eating Pass rules. Costs 150 coins. A third eating strike cancels it.'],
+	['weekly_wage', 'Paid automatically for every school week you are enrolled in a class with the coin economy on.']
+]);
+
+const autopayRuns: {
+	id: number;
+	trigger: string;
+	started_at: string;
+	finished_at: string | null;
+	result: { wages: number; highest_grade: number; perfect_score: number } | null;
+}[] = [];
+let wagesPaidThisWeek = false;
+
+/** Every id some reversal row cancels. */
+function reversedSet(): Set<string> {
+	const out = new Set<string>();
+	for (const st of ledger.values()) for (const t of st.txns) if (t.reverses) out.add(t.reverses);
+	return out;
+}
+
+function findTxn(id: string): { email: string; txn: Txn } | null {
+	for (const [e, st] of ledger.entries()) {
+		const txn = st.txns.find((t) => t.id === id);
+		if (txn) return { email: e, txn };
+	}
+	return null;
+}
 let txnSeq = 0;
 /** Shared by the two rows of a payout transfer (0096). */
 let transferSeq = 0;
@@ -569,7 +740,8 @@ function insert(
 	quantity: number | null,
 	note: string | null,
 	meta: Record<string, unknown> = {},
-	medium: CoinMedium = 'physical'
+	medium: CoinMedium = 'digital',
+	actor = 'admin@boscotech.edu'
 ): Txn {
 	const s = stateFor(email);
 	const txn: Txn = {
@@ -580,9 +752,11 @@ function insert(
 		medium,
 		quantity,
 		note,
-		actor_email: 'admin@boscotech.edu',
+		actor_email: actor,
 		created_at: new Date().toISOString(),
-		transfer_id: (meta.transfer_id as string | undefined) ?? null
+		transfer_id: (meta.transfer_id as string | undefined) ?? null,
+		reverses: (meta.reverses as string | undefined) ?? null,
+		meta
 	};
 	// No stored balance to bump: balancesOf() derives all three from txns.
 	s.txns.unshift(txn);
@@ -1080,6 +1254,44 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 
 	contractSeq = 5;
 
+	// IDEA Coin V2: one autopay run two days ago, paid by `system`, so the
+	// Coin Desk home's Autopay runs list has something to show and reverse.
+	v2Applied = true;
+	autopayRuns.length = 0;
+	settingsAudit.length = 0;
+	noShop.clear();
+	wagesPaidThisWeek = false;
+	const runAt = daysAgo(2);
+	autopayRuns.push({
+		id: 1,
+		trigger: 'nightly',
+		started_at: runAt,
+		finished_at: runAt,
+		result: { wages: 2, highest_grade: 1, perfect_score: 0 }
+	});
+	for (const [e, cat, amt] of [
+		['healthy.student@boscotech.net', 'weekly_wage', 1],
+		['pass.student@boscotech.net', 'weekly_wage', 2],
+		['healthy.student@boscotech.net', 'highest_grade_weekly', 2]
+	] as const) {
+		const row = insert(e, cat, amt, null, 'Paid automatically', { autopay_run: 1 }, 'digital', 'system');
+		row.created_at = runAt;
+	}
+	// One undone pair already in a history, so the folded line is on screen.
+	const undone = insert('debt.student@boscotech.net', 'disruptive_behavior', -3, null, 'talking over a demo');
+	undone.created_at = daysAgo(1);
+	const undo = insert('debt.student@boscotech.net', 'reversal', 3, null, 'Logged against the wrong student', {
+		reverses: undone.id
+	});
+	undo.created_at = daysAgo(0.5);
+	settingsAudit.push({
+		key: 'hall_pass_fine_minutes',
+		old_value: 25,
+		new_value: 20,
+		changed_by: 'apina@boscotech.edu',
+		changed_at: daysAgo(3)
+	});
+
 	return {
 		auth: { getClaims: async () => ({ data: { claims: null }, error: null }) },
 		rpc(fn: string, params: Record<string, unknown> = {}) {
@@ -1194,21 +1406,41 @@ async function handleRpc(
 ): Promise<{ data: unknown; error: { message: string } | null }> {
 	const email = String(params.p_email ?? '').toLowerCase().trim();
 
+	// IDEA Coin V2's own functions (0240-0242) answer PGRST202 while the
+	// harness's "V2 database update applied" toggle is off, which is how a
+	// surface's "not available" state is reachable here.
+	if (V2_FUNCTIONS.has(fn) && !v2Applied) {
+		return {
+			data: null,
+			error: { message: `Could not find the function public.${fn} in the schema cache`, code: 'PGRST202' }
+		} as unknown as { data: unknown; error: { message: string } };
+	}
+
 	if (fn === 'coin_admin_lookup') {
 		const s = stateFor(email);
+		const reversedIds = reversedSet();
 		return Promise.resolve(
 			ok({
 				email,
-				...balancesOf(email),
+				balance: balanceOf(email),
 				wage_tier: s.wageTier,
 				eating_pass_active: eatingPassActive(email),
 				eating_pass_strikes: eatingPassStrikes(email),
-				recent_transactions: s.txns.slice(0, 25)
+				...(v2Applied ? { no_shop_today: noShop.has(email) } : {}),
+				recent_transactions: [...s.txns]
+					.sort((x, y) => y.created_at.localeCompare(x.created_at))
+					.slice(0, 50)
+					.map((t) => ({
+					...t,
+					reverses: t.reverses ?? null,
+					reversed: reversedIds.has(t.id)
+				}))
 			})
 		);
 	}
 
 	if (fn === 'coin_log_transaction') {
+		assertDigital(params);
 		const categoryId = String(params.p_category_id);
 		const cat = catById.get(categoryId);
 		if (!cat) return Promise.resolve(rpcError(`Unknown coin category "${categoryId}".`));
@@ -1218,33 +1450,27 @@ async function handleRpc(
 		if (cat.pricing_model === 'formula' || categoryId === 'extra_credit') {
 			return Promise.resolve(rpcError(`"${cat.name}" needs its dedicated logging function.`));
 		}
-		// Physical Coin Submission is a correction of the PHYSICAL record and
-		// is forced, whatever the caller passed -- a digital one would be the
-		// deposit path this model does not have (0096).
-		const medium: CoinMedium = FORCED_MEDIUM[categoryId] ?? mediumParam(params);
 		const s = stateFor(email);
 		const note = (params.p_note as string | null) ?? null;
 		let magnitude: number;
 		let signed: number | undefined;
 		if (cat.pricing_model === 'flat') {
-			magnitude = cat.amount ?? 0;
-			// Mirrors 0084: Weekly Wage's stored amount is a BASE rate the
-			// student's own wage tier multiplies. Nested here rather than in the
-			// bulk handler for the same reason the SQL puts it here -- the bulk
-			// handler recurses into this case, so it inherits per-student tiers.
+			magnitude = Number(cat.amount ?? 0);
+			// Weekly Wage's stored amount is a BASE rate the student's own wage
+			// tier multiplies (0084).
 			if (cat.id === 'weekly_wage') {
-				magnitude = (cat.amount ?? 0) * Math.max(1, s.wageTier ?? 1);
+				magnitude = Number(cat.amount ?? 0) * Math.max(1, s.wageTier ?? 1);
 			}
 		} else if (cat.pricing_model === 'range') {
 			const amt = Number(params.p_amount);
-			if (!Number.isFinite(amt) || amt < (cat.min_amount ?? 0) || amt > (cat.max_amount ?? 0)) {
+			if (!Number.isFinite(amt) || amt < Number(cat.min_amount ?? 0) || amt > Number(cat.max_amount ?? 0)) {
 				return Promise.resolve(rpcError(`"${cat.name}" must be between ${cat.min_amount}${COIN_SYMBOL} and ${cat.max_amount}${COIN_SYMBOL}.`));
 			}
 			magnitude = amt;
 		} else if (cat.pricing_model === 'per_unit') {
 			const qty = Number(params.p_quantity);
 			if (!Number.isFinite(qty) || qty <= 0) return Promise.resolve(rpcError(`"${cat.name}" needs a positive quantity.`));
-			magnitude = Math.round((cat.amount ?? 0) * qty);
+			magnitude = money(Number(cat.amount ?? 0) * qty);
 		} else {
 			// variable
 			const amt = Number(params.p_amount);
@@ -1262,18 +1488,16 @@ async function handleRpc(
 		if (signed === undefined) {
 			signed = cat.kind === 'fine' || cat.kind === 'purchase' ? -magnitude : magnitude;
 		}
+		signed = money(signed);
 
 		if (capReached(email, cat)) {
 			return Promise.resolve(refused('cap_reached', { cap_period: cat.cap_period }));
 		}
-		// PER-MEDIUM debt lockout (0096): only the balance this purchase
-		// actually spends can block it. A student in digital debt can still
-		// spend physical coins they are holding.
-		const mediumBalance = balanceOfMedium(email, medium);
-		if (cat.kind === 'purchase' && mediumBalance < 0) {
-			return Promise.resolve(
-				refused('debt', { medium, balance: mediumBalance, medium_balance: mediumBalance })
-			);
+		// THE V2 PURCHASE RULE: refused before any charge unless the balance
+		// AFTER it is zero or more. Fines and awards post at any balance.
+		const balance = balanceOf(email);
+		if (cat.kind === 'purchase' && balance + signed < 0) {
+			return Promise.resolve(refused('insufficient', { balance, cost: -signed }));
 		}
 
 		let strike = false;
@@ -1285,32 +1509,30 @@ async function handleRpc(
 			meta.strike = strike;
 		}
 
-		insert(email, categoryId, signed, params.p_quantity as number | null, note, meta, medium);
+		const row = insert(email, categoryId, signed, (params.p_quantity as number | null) ?? null, note, meta);
+		if (categoryId === 'shop_safety_violation') noShop.add(email);
 
 		if (strike && eatingPassStrikes(email) >= 3) {
 			insert(email, 'eating_pass_revoked', 0, null, 'Automatically revoked: third eating-pass violation since this pass was purchased.', {
 				strikes: eatingPassStrikes(email)
-			}, medium);
+			});
 		}
 
 		return Promise.resolve(
 			ok({
-				transaction_id: `t${txnSeq}`,
+				transaction_id: row.id,
 				category_id: categoryId,
 				amount: signed,
-				medium,
+				medium: 'digital',
 				strike,
-				...balancesOf(email)
+				balance: balanceOf(email)
 			})
 		);
 	}
 
 	/**
-	 * 0070's admin adjustment, mirrored the way the real one is DEFINED: a
-	 * thin wrapper that hands straight off to coin_log_transaction under the
-	 * 'balance_correction' adjustment category, so every rule (and every
-	 * refusal shape) stays in the one implementation rather than gaining a
-	 * second copy here. Drives the balance tool on /coin-desk/students.
+	 * 0070's admin adjustment, a thin wrapper over coin_log_transaction under
+	 * the 'balance_correction' adjustment category, as the real one is.
 	 */
 	if (fn === 'coin_admin_adjust_balance') {
 		return handleRpc(
@@ -1328,57 +1550,57 @@ async function handleRpc(
 	}
 
 	if (fn === 'coin_log_perfect_score') {
+		assertDigital(params);
 		const points = Number(params.p_points);
 		if (!Number.isFinite(points) || points <= 0) return Promise.resolve(rpcError('Enter the number of points the graded work was worth.'));
 		const amount = Math.max(1, Math.round(points / 25));
-		const medium = mediumParam(params);
-		insert(email, 'perfect_score_graded_work', amount, points, (params.p_note as string | null) ?? null, {}, medium);
-		return Promise.resolve(ok({ amount, medium, ...balancesOf(email) }));
+		insert(email, 'perfect_score_graded_work', amount, points, (params.p_note as string | null) ?? null);
+		return Promise.resolve(ok({ amount, medium: 'digital', balance: balanceOf(email) }));
 	}
 
 	if (fn === 'coin_log_pay_raise') {
+		assertDigital(params);
 		const s = stateFor(email);
-		const medium = mediumParam(params);
-		const owed = balanceOfMedium(email, medium);
-		if (owed < 0) return Promise.resolve(refused('debt', { medium, balance: owed }));
 		const previousTier = s.wageTier;
 		const newTier = previousTier + 1;
-		const cost = 40 * previousTier;
-		insert(email, 'pay_raise', -cost, null, (params.p_note as string | null) ?? null, {}, medium);
+		const cost = Number(settings.pay_raise_cost_per_tier) * previousTier;
+		const balance = balanceOf(email);
+		if (balance - cost < 0) return Promise.resolve(refused('insufficient', { balance, cost }));
+		insert(email, 'pay_raise', -cost, null, (params.p_note as string | null) ?? null, {
+			previous_tier: previousTier,
+			new_tier: newTier
+		});
 		s.wageTier = newTier;
-		return Promise.resolve(ok({ previous_tier: previousTier, new_tier: newTier, cost, medium, ...balancesOf(email) }));
+		return Promise.resolve(ok({ previous_tier: previousTier, new_tier: newTier, cost, medium: 'digital', balance: balanceOf(email) }));
 	}
 
 	if (fn === 'coin_log_property_damage_careless') {
+		assertDigital(params);
 		const cost = Number(params.p_cost_dollars);
 		const note = (params.p_note as string | null) ?? null;
 		if (!Number.isFinite(cost) || cost < 0) return Promise.resolve(rpcError('Enter the repair/replacement cost in dollars (0 if none).'));
 		if (!note) return Promise.resolve(rpcError('Property Damage (Careless) needs a note describing the incident.'));
-		const base = 3;
-		const exchange = Math.round(cost / 0.25);
+		const base = Number(settings.property_damage_careless_base);
+		const exchange = Math.round(cost / Number(settings.property_damage_dollars_per_coin));
 		const amount = base + exchange;
-		const medium = mediumParam(params);
-		insert(email, 'property_damage_careless', -amount, cost, note, {}, medium);
-		return Promise.resolve(ok({ amount: -amount, base, exchange, medium, ...balancesOf(email) }));
+		insert(email, 'property_damage_careless', -amount, cost, note);
+		return Promise.resolve(ok({ amount: -amount, base, exchange, medium: 'digital', balance: balanceOf(email) }));
 	}
 
 	if (fn === 'coin_log_three_d_printing') {
+		assertDigital(params);
 		const grams = Number(params.p_grams);
-		const hours = Number(params.p_hours);
-		const overnight = params.p_overnight === true;
 		if (!Number.isFinite(grams) || grams < 0) return Promise.resolve(rpcError("Enter the slicer's reported weight in grams."));
-		if (!Number.isFinite(hours) || hours < 0) return Promise.resolve(rpcError("Enter the slicer's reported print time in hours."));
-		const medium = mediumParam(params);
-		const owed = balanceOfMedium(email, medium);
-		if (owed < 0) return Promise.resolve(refused('debt', { medium, balance: owed }));
-		const material = Math.round(grams / 10);
-		const time = overnight ? 0 : hours < 1 ? 0 : hours < 3 ? 2 : hours < 6 ? 4 : 6;
-		const amount = material + time;
-		insert(email, 'three_d_printing', -amount, grams, (params.p_note as string | null) ?? null, {}, medium);
-		return Promise.resolve(ok({ amount: -amount, material_ic: material, time_ic: time, medium, ...balancesOf(email) }));
+		// V2: by weight only; p_hours is accepted and ignored.
+		const amount = Math.round(grams / Number(settings.print_grams_per_coin));
+		const balance = balanceOf(email);
+		if (balance - amount < 0) return Promise.resolve(refused('insufficient', { balance, cost: amount }));
+		insert(email, 'three_d_printing', -amount, grams, (params.p_note as string | null) ?? null);
+		return Promise.resolve(ok({ amount: -amount, material_ic: amount, time_ic: 0, medium: 'digital', balance: balanceOf(email) }));
 	}
 
 	if (fn === 'coin_log_extra_credit') {
+		assertDigital(params);
 		const points = Number(params.p_points);
 		const gradingCategory = String(params.p_grading_category ?? '');
 		if (!Number.isFinite(points) || points <= 0) return Promise.resolve(rpcError('Enter a positive number of extra credit points.'));
@@ -1392,54 +1614,35 @@ async function handleRpc(
 				refused('cap_exceeded', { cap_points: cap, used_points: s.ecUsedPoints, remaining_points: Math.max(cap - s.ecUsedPoints, 0) })
 			);
 		}
-		const medium = mediumParam(params);
-		const owed = balanceOfMedium(email, medium);
-		if (owed < 0) return Promise.resolve(refused('debt', { medium, balance: owed }));
 		const cost = Math.round(2 * points);
-		insert(email, 'extra_credit', -cost, points, (params.p_note as string | null) ?? null, {}, medium);
+		const balance = balanceOf(email);
+		if (balance - cost < 0) return Promise.resolve(refused('insufficient', { balance, cost }));
+		insert(email, 'extra_credit', -cost, points, (params.p_note as string | null) ?? null);
 		s.ecUsedPoints += points;
-		return Promise.resolve(
-			ok({
-				points,
-				cost,
-				used_points: s.ecUsedPoints,
-				cap_points: cap,
-				remaining_points: Math.max(cap - s.ecUsedPoints, 0),
-				medium,
-				...balancesOf(email)
-			})
-		);
+		return Promise.resolve(ok({ points, cost, medium: 'digital', balance: balanceOf(email) }));
 	}
 
 	// -----------------------------------------------------------------------
-	// Payout (0079, a TRANSFER since 0096). coin_payout_student debits the
-	// DIGITAL balance and credits the PHYSICAL one by the same amount, as two
-	// linked rows sharing a transfer id -- so the total does not move. Both
-	// RPCs re-read the target's digital balance FRESH (from `ledger`, the same
-	// source coin_admin_lookup and coin_log_transaction already read) at the
-	// moment they run, never a client-supplied amount.
+	// Payout (0079, V2 0239). Hands a student physical coins for part or all of
+	// their balance: the digital debit lowers the balance, the physical credit
+	// is a history row that counts toward nothing.
 	// -----------------------------------------------------------------------
 
 	if (fn === 'coin_payout_student') {
-		const digital = balanceOfMedium(email, 'digital');
-		if (digital <= 0) {
-			return Promise.resolve(refused('no_balance', { digital_balance: digital, balance: digital }));
+		const balance = balanceOf(email);
+		if (balance <= 0) {
+			return Promise.resolve(refused('no_balance', { balance }));
 		}
-		const requested = params.p_amount == null ? digital : Math.round(Number(params.p_amount));
+		const requested = params.p_amount == null ? balance : money(Number(params.p_amount));
 		if (!Number.isFinite(requested) || requested <= 0) {
 			return Promise.resolve(rpcError('A payout amount must be positive.'));
 		}
-		if (requested > digital) {
-			return Promise.resolve(
-				refused('amount_exceeds_digital', { requested, digital_balance: digital, balance: digital })
-			);
+		if (requested > balance) {
+			return Promise.resolve(refused('amount_exceeds_digital', { requested, balance }));
 		}
 		const note = (params.p_note as string | null)?.trim() || 'Coin payout.';
 		const transferId = `xf${++transferSeq}`;
 		const meta = { transfer_id: transferId, transfer_amount: requested };
-		// Both halves through insert(), the way the real RPC goes through
-		// _coin_insert twice: a transfer is not a priced event, so there is no
-		// category price to look up and no rule that applies to it.
 		const debit = insert(email, 'coin_payout', -requested, null, note, { ...meta, transfer_side: 'digital_debit' }, 'digital');
 		insert(email, 'payout_physical_credit', requested, null, note, { ...meta, transfer_side: 'physical_credit' }, 'physical');
 		return Promise.resolve(
@@ -1447,21 +1650,15 @@ async function handleRpc(
 				transaction_id: debit.id,
 				transfer_id: transferId,
 				amount: requested,
-				partial: params.p_amount != null && requested < digital,
-				...balancesOf(email)
+				partial: params.p_amount != null && requested < balance,
+				balance: balanceOf(email)
 			})
 		);
 	}
 
 	if (fn === 'coin_bulk_payout') {
-		// Roster is read fresh here, at the top of the loop -- but it is
-		// coin_payout_student, called once per student BELOW, that re-reads
-		// that one student's DIGITAL balance again immediately before writing,
-		// so a fine or award landing on a not-yet-reached student mid-loop is
-		// still picked up correctly. Positive DIGITAL, not positive total: a
-		// student holding only physical coins has nothing to convert.
 		const targets = Array.from(ledger.keys())
-			.filter((e) => balanceOfMedium(e, 'digital') > 0)
+			.filter((e) => balanceOf(e) > 0)
 			.sort();
 		const results: Record<string, unknown>[] = [];
 		let succeeded = 0;
@@ -1474,6 +1671,238 @@ async function handleRpc(
 		return Promise.resolve(
 			ok({ total: results.length, succeeded, refused: results.length - succeeded, results })
 		);
+	}
+
+	// -----------------------------------------------------------------------
+	// IDEA Coin V2 (0240-0242): undo, the debt list, coin-paid purchases, no
+	// shop today, autopay, and the settings page.
+	// -----------------------------------------------------------------------
+
+	if (fn === 'coin_reverse_transaction') {
+		const id = String(params.p_transaction_id ?? '');
+		const found = findTxn(id);
+		if (!found) return refused('not_found');
+		const { email: owner, txn } = found;
+		if (txn.category_id === 'reversal') return refused('is_reversal');
+		if (txn.medium === 'physical' || txn.transfer_id) return refused('not_reversible');
+		if (reversedSet().has(txn.id)) return refused('already_reversed');
+		const rev = insert(
+			owner,
+			'reversal',
+			-txn.amount,
+			null,
+			(params.p_note as string | null)?.trim() || 'Undo',
+			{ reverses: txn.id, reversed_category: txn.category_id }
+		);
+		if (txn.category_id === 'shop_safety_violation') noShop.delete(owner);
+		return ok({ transaction_id: rev.id, reverses: txn.id, amount: rev.amount, balance: balanceOf(owner) });
+	}
+
+	if (fn === 'coin_debt_list') {
+		const rows = Array.from(ledger.keys())
+			.map((e) => ({ e, balance: balanceOf(e) }))
+			.filter((r) => r.balance < 0)
+			.map(({ e, balance }) => {
+				const student = SAMPLE_STUDENTS.find((x) => x.email === e);
+				const sid = sectionStudents.get(e);
+				const sec = sid ? sections.get(sid) : undefined;
+				return {
+					email: e,
+					name: student?.display_name || student?.full_name || e,
+					section: sec ? sec.label ?? sec.id : null,
+					balance
+				};
+			})
+			.sort((a, b) => a.balance - b.balance);
+		return { data: rows, error: null };
+	}
+
+	if (fn === 'coin_record_cash_purchase') {
+		const balance = balanceOf(email);
+		if (balance < 0) return refused('in_debt', { balance });
+		const cat = catById.get(String(params.p_category_id ?? ''));
+		if (!cat || cat.kind !== 'purchase' || cat.active === false || ['coin_payout', 'extra_credit'].includes(cat.id)) {
+			return refused('not_purchasable');
+		}
+		const qty = params.p_quantity == null ? null : Number(params.p_quantity);
+		let price: number;
+		if (cat.id === 'pay_raise') {
+			price = Number(settings.pay_raise_cost_per_tier) * stateFor(email).wageTier;
+		} else if (cat.id === 'three_d_printing') {
+			if (qty == null || !(qty > 0)) return refused('grams_required');
+			price = Math.round(qty / Number(settings.print_grams_per_coin));
+		} else if (cat.pricing_model === 'flat') {
+			price = Number(cat.amount ?? 0);
+		} else if (cat.pricing_model === 'per_unit') {
+			if (qty == null || !(qty > 0)) return refused('quantity_required');
+			price = money(Number(cat.amount ?? 0) * qty);
+		} else if (cat.pricing_model === 'variable' || cat.pricing_model === 'range') {
+			if (qty == null || !(qty > 0)) return refused('amount_required');
+			price = money(qty);
+		} else {
+			return refused('not_purchasable');
+		}
+		if (cat.id === 'eating_pass' && eatingPassActive(email)) return refused('pass_already_active');
+		const row = insert(
+			email,
+			cat.id,
+			-price,
+			qty,
+			(params.p_note as string | null)?.trim() || 'Paid in physical coins.',
+			{ paid_in: 'physical_coins' },
+			'physical'
+		);
+		if (cat.id === 'pay_raise') stateFor(email).wageTier += 1;
+		return ok({ transaction_id: row.id, price, balance: balanceOf(email) });
+	}
+
+	if (fn === 'coin_no_shop_set') {
+		if (!email.includes('@') || typeof params.p_on !== 'boolean') return refused('invalid');
+		if (params.p_on) noShop.add(email);
+		else noShop.delete(email);
+		return ok({ email, no_shop: params.p_on });
+	}
+
+	if (fn === 'coin_autopay_recent') {
+		const reversedIds = reversedSet();
+		const rows: Record<string, unknown>[] = [];
+		for (const [e, st] of ledger.entries()) {
+			for (const t of st.txns) {
+				if (t.actor_email !== 'system' || t.category_id === 'reversal') continue;
+				const student = SAMPLE_STUDENTS.find((x) => x.email === e);
+				rows.push({
+					id: t.id,
+					at: t.created_at,
+					email: e,
+					name: student?.display_name || student?.full_name || e,
+					category_id: t.category_id,
+					category: t.category_name,
+					amount: t.amount,
+					note: t.note,
+					run_id: t.meta?.autopay_run ?? null,
+					reversed: reversedIds.has(t.id)
+				});
+			}
+		}
+		rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+		return {
+			data: { paused: settings.autopay_paused === true, runs: [...autopayRuns].reverse(), rows },
+			error: null
+		};
+	}
+
+	if (fn === 'coin_autopay_run') {
+		if (settings.autopay_paused === true) return ok({ ran: false, reason: 'paused' });
+		const trigger = String(params.p_trigger ?? 'page');
+		const last = autopayRuns.at(-1);
+		if (trigger !== 'admin' && last && Date.now() - new Date(last.started_at).getTime() < 120_000) {
+			return ok({ ran: false, reason: 'recent' });
+		}
+		const id = autopayRuns.length + 1;
+		let wages = 0;
+		if (!wagesPaidThisWeek) {
+			wagesPaidThisWeek = true;
+			for (const e of ['healthy.student@boscotech.net', 'pass.student@boscotech.net', 'debt.student@boscotech.net']) {
+				const amount = Math.max(1, stateFor(e).wageTier);
+				insert(e, 'weekly_wage', amount, null, 'Weekly wage, this week', { autopay_run: id }, 'digital', 'system');
+				wages += 1;
+			}
+		}
+		const result = { wages, highest_grade: 0, perfect_score: 0 };
+		const at = new Date().toISOString();
+		autopayRuns.push({ id, trigger, started_at: at, finished_at: at, result });
+		return ok({ ran: true, run_id: id, ...result });
+	}
+
+	if (fn === 'coin_settings_get') {
+		return {
+			data: {
+				settings: { ...settings },
+				categories: Array.from(catById.values())
+					.filter((c) => !c.id.startsWith('legacy_'))
+					.map((c) => ({
+						id: c.id,
+						name: c.name,
+						kind: c.kind,
+						pricing_model: c.pricing_model,
+						amount: c.amount,
+						min_amount: c.min_amount,
+						max_amount: c.max_amount,
+						unit_label: c.unit_label,
+						cap_period: c.cap_period,
+						cap_count: c.cap_count,
+						loggable: !NON_LOGGABLE.has(c.id),
+						active: c.active !== false,
+						sort_order: 0,
+						explanation: explanations.get(c.id) ?? null
+					})),
+				sections: settingsSections.map((x) => ({ ...x })),
+				audit: [...settingsAudit]
+			},
+			error: null
+		};
+	}
+
+	if (fn === 'coin_settings_set') {
+		const key = String(params.p_key ?? '');
+		const value = params.p_value;
+		if (!settingOk(key, value)) return refused('invalid', { key });
+		const old = settings[key];
+		if (JSON.stringify(old) === JSON.stringify(value)) return ok({ changed: false, key, value });
+		settings[key] = value;
+		audit(key, old, value);
+		return ok({ changed: true, key, value });
+	}
+
+	if (fn === 'coin_settings_set_category') {
+		const id = String(params.p_id ?? '');
+		const cat = catById.get(id);
+		if (!cat) return refused('not_found');
+		const n = (k: string) => (params[k] == null ? null : Number(params[k]));
+		if ([n('p_amount'), n('p_min_amount'), n('p_max_amount')].some((v) => v != null && v < 0)) {
+			return refused('negative');
+		}
+		const name = params.p_name == null ? null : String(params.p_name).trim();
+		if (name !== null && (name.length < 1 || name.length > 120)) return refused('name');
+		const explanation = params.p_explanation == null ? null : String(params.p_explanation);
+		if (explanation !== null && explanation.length > 1500) return refused('explanation_too_long');
+		const before = { ...cat, explanation: explanations.get(id) ?? null };
+		const next: CoinCategory = { ...cat };
+		if (name) next.name = name;
+		if (['flat', 'per_unit'].includes(cat.pricing_model) && n('p_amount') != null) next.amount = money(n('p_amount')!);
+		if (cat.pricing_model === 'range') {
+			if (n('p_min_amount') != null) next.min_amount = money(n('p_min_amount')!);
+			if (n('p_max_amount') != null) next.max_amount = money(n('p_max_amount')!);
+			if (Number(next.min_amount) > Number(next.max_amount)) return refused('shape');
+		}
+		if (params.p_cap_period === 'none') {
+			next.cap_period = null;
+			next.cap_count = null;
+		} else if (params.p_cap_period === 'day' || params.p_cap_period === 'month') {
+			next.cap_period = params.p_cap_period;
+			if (params.p_cap_count != null) next.cap_count = Number(params.p_cap_count);
+			if (!next.cap_count) return refused('shape');
+		}
+		if (typeof params.p_active === 'boolean') next.active = params.p_active;
+		catById.set(id, next);
+		if (explanation !== null) {
+			if (explanation.trim()) explanations.set(id, explanation.trim());
+			else explanations.delete(id);
+		}
+		const after = { ...next, explanation: explanations.get(id) ?? null };
+		if (JSON.stringify(before) !== JSON.stringify(after)) audit(`category:${id}`, before, after);
+		return ok({ category: after });
+	}
+
+	if (fn === 'coin_settings_set_section_economy') {
+		const sec = settingsSections.find((x) => x.id === params.p_section_id);
+		if (typeof params.p_on !== 'boolean') return refused('invalid');
+		if (!sec) return refused('not_found');
+		if (sec.economy_on !== params.p_on) {
+			audit(`section_economy:${sec.id}`, sec.economy_on, params.p_on);
+			sec.economy_on = params.p_on;
+		}
+		return ok({ section_id: sec.id, economy_on: sec.economy_on });
 	}
 
 	// -----------------------------------------------------------------------
@@ -1699,7 +2128,7 @@ async function handleRpc(
 			}
 		}
 
-		const media = normalizeMedia(p);
+		assertDigital(p);
 
 		// Normalize, dedupe, sort -- exactly what 0115 does, so a picked set and
 		// a section roster come back in the same order.
@@ -1713,24 +2142,21 @@ async function handleRpc(
 			// Reuses the SAME coin_log_transaction handling every single-student
 			// log goes through -- no duplicated business rule, exactly mirroring
 			// how the real RPC nests the real coin_log_transaction.
-			const rowMedium = media.overrides[studentEmail] ?? media.run;
 			const single = await handleRpc('coin_log_transaction', {
 				p_email: studentEmail,
 				p_category_id: categoryId,
 				p_amount: p.p_amount,
 				p_quantity: null,
-				p_note: note,
-				p_medium: rowMedium
+				p_note: note
 			});
 			const data = single.error ? { ok: false, reason: 'error', message: single.error.message } : single.data;
 			if ((data as { ok?: boolean }).ok) succeeded += 1;
-			results.push({ email: studentEmail, medium: rowMedium, ...(data as Record<string, unknown>) });
+			results.push({ email: studentEmail, ...(data as Record<string, unknown>) });
 		}
 
 		return ok({
 			category_id: categoryId,
-			medium: media.run,
-			unmatched_overrides: Object.keys(media.overrides).filter((e) => !emails.includes(e)),
+			medium: 'digital',
 			total: results.length,
 			succeeded,
 			refused: results.length - succeeded,
@@ -2072,33 +2498,30 @@ async function handleRpc(
 			)
 		).sort();
 
-		const media = normalizeMedia(params);
+		assertDigital(params);
 		const results: Record<string, unknown>[] = [];
 		let succeeded = 0;
 		for (const studentEmail of emails) {
 			// The SAME single-student RPC coin_bulk_log_section already nests --
 			// no duplicated business rule, exactly mirroring the real
 			// coin_bulk_log_role_stipend's nested coin_log_transaction call.
-			const rowMedium = media.overrides[studentEmail] ?? media.run;
 			const single = await handleRpc('coin_log_transaction', {
 				p_email: studentEmail,
 				p_category_id: 'weekly_role_stipend',
 				p_amount: null,
 				p_quantity: null,
-				p_note: note,
-				p_medium: rowMedium
+				p_note: note
 			});
 			const data = single.error ? { ok: false, reason: 'error', message: single.error.message } : single.data;
 			if ((data as { ok?: boolean }).ok) succeeded += 1;
-			results.push({ email: studentEmail, medium: rowMedium, ...(data as Record<string, unknown>) });
+			results.push({ email: studentEmail, ...(data as Record<string, unknown>) });
 		}
 
 		return Promise.resolve(
 			ok({
 				role_id: roleId,
 				section_id: sectionId,
-				medium: media.run,
-				unmatched_overrides: Object.keys(media.overrides).filter((e) => !emails.includes(e)),
+				medium: 'digital',
 				total: results.length,
 				succeeded,
 				refused: results.length - succeeded,

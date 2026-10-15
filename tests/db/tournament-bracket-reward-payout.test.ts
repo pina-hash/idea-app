@@ -31,8 +31,12 @@ import { readdirSync } from 'node:fs';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './harness';
 
 const MIGRATION_DIR = new URL('../../supabase/migrations', import.meta.url);
+// PINNED SHORT OF IDEA COIN V2 (0239). This suite is 0212's world, where a
+// tournament result minted competition_winnings. V2 stopped the minting
+// (0239 part I); tests/db/coin-v2.test.ts asserts the new behaviour on the
+// whole tree, and this file keeps proving what 0212 did for the history.
 const ALL_MIGRATIONS = readdirSync(MIGRATION_DIR)
-	.filter((f) => f.endsWith('.sql'))
+	.filter((f) => f.endsWith('.sql') && f < '0239')
 	.sort();
 const FIXTURE_COMPLETION = '../../tests/db/full-chain-fixture-completion.sql';
 

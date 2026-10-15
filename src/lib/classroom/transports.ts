@@ -24,7 +24,6 @@ import {
 	type AssignmentTeacherTransports,
 	type CloseAssignmentResult,
 	type EngineOpResult,
-	type GradingData,
 	type InstructorCopyData,
 	type InstructorCopyRow,
 	type InstructorCopyTransports,
@@ -37,6 +36,14 @@ import {
 } from './assignment-spec';
 import { managedPostedSections, type PostedSection } from './grading-bulk';
 import type { BulkGradeReport, BulkGradingLoad, BulkGradingTransports } from './grading-bulk';
+import {
+	normalizePerfectScores,
+	withDirectScore,
+	type DirectGradeResult,
+	type DirectGradingTransports,
+	type GradingDataWithDirect,
+	type PerfectScoreTransports
+} from './grading-direct';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
 import {
 	checkInDraftIssue,
@@ -1065,7 +1072,7 @@ export async function readWorkPages<T = Record<string, unknown>>(
 async function loadItemWork(
 	supabase: SupabaseClient,
 	itemId: string
-): Promise<Omit<GradingData, 'roster'>> {
+): Promise<Omit<GradingDataWithDirect, 'roster'>> {
 	// Responses and approvals are one row per student per block (or module), so
 	// they are PAGED on their primary key's own columns. Submissions are one row
 	// per student and stay a single read.
@@ -1104,14 +1111,18 @@ async function loadItemWork(
 	return {
 		latches,
 		pastManifests: past.get(itemId) ?? [],
-		submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
-			normalizeSubmissionRow
+		// `direct_score` (0242) rides on the row beside the normalized columns:
+		// undefined off an older rung, null for none, a number for a typed score.
+		submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map((row) =>
+			withDirectScore(normalizeSubmissionRow(row), row.direct_score)
 		),
 		responses: (responsesRes.data ?? []) as ResponseRow[],
 		// The capability, reported rather than assumed: false means this payload
 		// cannot carry an award, so the console withholds the control instead of
 		// sending one into an arity that has no parameter for it.
 		extraCreditReady: submissionsRes.extraCreditReady,
+		// 0242's column came back, which is what licenses the typed score.
+		directScoreReady: submissionsRes.directScoreReady,
 		files: filesRes.rows,
 		// Same rung, same flag as the student's own view. Both surfaces read ONE
 		// ladder, so a teacher grading and the student who handed the file in can
@@ -1190,6 +1201,15 @@ const SUBMISSION_SELECT = `${SUBMISSION_SELECT_BASE}, criterion_comments`;
  */
 const SUBMISSION_SELECT_EXTRA_CREDIT = `${SUBMISSION_SELECT}, extra_credit`;
 
+/**
+ * + 0242's `direct_score` ("score out of N", typed). ITS OWN RUNG, for the
+ * reason the extra-credit rung is one: degrading past a missing `direct_score`
+ * must never cost the extra credit or the per-criterion notes. The capability
+ * it reports is `directScoreReady`, and it LICENSES `classroom_grade_direct`,
+ * which arrives in the same file as the column.
+ */
+const SUBMISSION_SELECT_DIRECT = `${SUBMISSION_SELECT_EXTRA_CREDIT}, direct_score`;
+
 export interface SubmissionsResult {
 	data: unknown;
 	error: unknown;
@@ -1201,6 +1221,8 @@ export interface SubmissionsResult {
 	 * only the flag tells those apart.
 	 */
 	extraCreditReady: boolean;
+	/** The same, for 0242's `direct_score`. Only the widest rung turns it on. */
+	directScoreReady: boolean;
 }
 
 /**
@@ -1222,12 +1244,14 @@ async function selectSubmissions(
 		const q = supabase.from('classroom_submissions').select(columns).eq('item_id', itemId);
 		return one ? q.maybeSingle() : q;
 	};
+	const direct = await run(SUBMISSION_SELECT_DIRECT);
+	if (!direct.error) return { data: direct.data, error: null, extraCreditReady: true, directScoreReady: true };
 	const widest = await run(SUBMISSION_SELECT_EXTRA_CREDIT);
-	if (!widest.error) return { data: widest.data, error: null, extraCreditReady: true };
+	if (!widest.error) return { data: widest.data, error: null, extraCreditReady: true, directScoreReady: false };
 	const full = await run(SUBMISSION_SELECT);
-	if (!full.error) return { data: full.data, error: null, extraCreditReady: false };
+	if (!full.error) return { data: full.data, error: null, extraCreditReady: false, directScoreReady: false };
 	const base = await run(SUBMISSION_SELECT_BASE);
-	return { data: base.data, error: base.error, extraCreditReady: false };
+	return { data: base.data, error: base.error, extraCreditReady: false, directScoreReady: false };
 }
 
 /**
@@ -1668,8 +1692,50 @@ export function createCheckInTransports(supabase: SupabaseClient): ClassCheckInT
 
 export function createTeacherEngineTransports(
 	supabase: SupabaseClient
-): AssignmentTeacherTransports {
+): AssignmentTeacherTransports & DirectGradingTransports & PerfectScoreTransports {
 	return {
+		/**
+		 * "SCORE OUT OF N", TYPED (0242). The console offers it only when the
+		 * submissions came back on the `direct_score` rung, which proves the RPC
+		 * exists; so this never has to spend a failed grade learning that.
+		 */
+		async gradeDirect(itemId, studentEmail, score, comment, release, extraCredit) {
+			const { data: res, error } = await supabase.rpc('classroom_grade_direct', {
+				p_item_id: itemId,
+				p_student_email: studentEmail,
+				p_score: score,
+				p_comment: comment,
+				p_return: release,
+				p_extra_credit: extraCredit
+			});
+			if (error) return fail(error);
+			return { ok: true, data: (res ?? { ok: true }) as DirectGradeResult };
+		},
+		/**
+		 * THE PERFECT SCORE SWITCHES (0242), one per class posting the caller
+		 * manages. A missing function (PGRST202, or 42883 from inside) answers
+		 * NULL, which removes the panel; it never reads as "every switch off".
+		 */
+		async perfectScores(itemId) {
+			const { data, error } = await supabase.rpc('classroom_posting_perfect_scores', {
+				p_item_id: itemId
+			});
+			if (error) {
+				const code = (error as { code?: string }).code;
+				if (code === 'PGRST202' || code === '42883') return { ok: true, data: null };
+				return fail(error);
+			}
+			return { ok: true, data: normalizePerfectScores(data) };
+		},
+		async setPerfectScore(itemId, sectionId, on) {
+			const { data, error } = await supabase.rpc('classroom_set_posting_perfect_score', {
+				p_item_id: itemId,
+				p_section_id: sectionId,
+				p_on: on
+			});
+			if (error) return fail(error);
+			return { ok: true, data: (data ?? { ok: true }) as { ok: boolean; reason?: string } };
+		},
 		async stampWorksheet(itemId, studentEmail, completedAt) {
 			const { data, error } = await supabase.rpc('classroom_worksheet_latch_for', {
 				p_item_id: itemId,

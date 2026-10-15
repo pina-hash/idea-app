@@ -42,9 +42,24 @@
  */
 export const COIN_SYMBOL = 'i¢';
 
+/**
+ * A coin figure as text, with no symbol: a whole number has no decimals and
+ * anything else shows exactly two (`12`, `12.50`, `-0.25`). IDEA Coin V2 made
+ * amounts fractional (numeric(12,2), migration 0239), and this is the ONE
+ * spelling of that rule; every coin surface formats through it. Accepts the
+ * string form PostgREST or pg can hand back for a numeric.
+ */
+export function coinNumber(amount: number | string | null | undefined): string {
+	const n = typeof amount === 'string' ? Number(amount) : (amount ?? 0);
+	if (!Number.isFinite(n)) return '0';
+	const cents = Math.round(n * 100);
+	if (cents % 100 === 0) return String(cents / 100);
+	return (cents / 100).toFixed(2);
+}
+
 /** `155i¢`. The symbol trails the number, like a dollar sign leads one. */
-export function coins(amount: number): string {
-	return `${amount}${COIN_SYMBOL}`;
+export function coins(amount: number | string): string {
+	return `${coinNumber(amount)}${COIN_SYMBOL}`;
 }
 
 /**
@@ -56,8 +71,9 @@ export function coins(amount: number): string {
  * module takes an absolute value except where a figure genuinely has no
  * direction (see `coinAmountDisplay` and transfers).
  */
-export function signedCoins(amount: number): string {
-	return `${amount > 0 ? '+' : ''}${amount}${COIN_SYMBOL}`;
+export function signedCoins(amount: number | string): string {
+	const n = Number(amount);
+	return `${n > 0 ? '+' : ''}${coinNumber(n)}${COIN_SYMBOL}`;
 }
 
 /** The medium a row moved, as a reader sees it. */

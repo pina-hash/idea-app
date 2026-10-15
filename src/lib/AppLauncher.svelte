@@ -289,8 +289,9 @@
 	TWO EXCEPTIONS, each for its own reason. FRC is the official FIRST emblem,
 	used unmodified: FIRST's brand guidelines prohibit altering the mark, and
 	that outranks looking consistent with the cards either side of it, so it is
-	an <img> and it does not move. `coin-balance` has no app pointing at it and
-	is left inline as the generic fallback branch rather than promoted.
+	an <img> and it does not move. `coin-balance` has no app card pointing at it
+	(a student reaches their coin page from the profile menu's My coins) and is
+	left inline as the generic fallback branch rather than promoted.
 
 	EVERY MARK PLAYS ONCE HERE AND RESTS ON ITS FINISHED FRAME (ledger 0298,
 	decision 40 item 3). The launcher used to mount them looping, so a grid of

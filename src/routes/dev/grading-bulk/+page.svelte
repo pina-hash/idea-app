@@ -27,6 +27,13 @@
 		ClassroomSection
 	} from '$lib/classroom/classroom';
 	import { postGradeChange } from '$lib/classroom/grading-export';
+	import {
+		directScoreOf,
+		type DirectGradingTransports,
+		type PerfectScoreToggle,
+		type PerfectScoreTransports,
+		type SubmissionWithDirect
+	} from '$lib/classroom/grading-direct';
 
 	const ITEM_ID = 'i-bulk-1';
 	const TEACHER = 'tvargas@boscotech.edu';
@@ -237,6 +244,15 @@
 
 	/** The pre-0171 branch, as a switch rather than a second route. */
 	const extraCreditReady = $derived(viewState !== 'pre-0171');
+	/**
+	 * THE 0242 SWITCHES. `?state=pre-0242` is the deployment before the typed
+	 * score and the Perfect Score award: the payload comes back without
+	 * `direct_score` and the transports carry neither method, so neither control
+	 * may exist. `?state=no-rubric` hands the console no rubric at all, which is
+	 * the item the typed score exists to make gradable.
+	 */
+	const pre0242 = $derived(viewState === 'pre-0242' || viewState === 'pre-0171');
+	const noRubric = $derived(viewState === 'no-rubric');
 
 	/**
 	 * OPEN THE CROSS-SECTION CLAUSE. `?leak=1` skips the intersection entirely,
@@ -277,6 +293,63 @@
 	/** Bumped to stand in for the instructor coming back to the page. */
 	let reloadKey = $state(0);
 
+	/** The class postings' Perfect Score switches, as 0242 stores them. Period 2 has coins off. */
+	let perfectRows = $state<PerfectScoreToggle[]>([
+		{ section_id: 's-p1', label: 'IDEA100 Period 1', on: true, economy_on: true, out_of: 20 },
+		{ section_id: 's-p2', label: 'IDEA100 Period 2', on: false, economy_on: false, out_of: 20 }
+	]);
+
+	/**
+	 * `classroom_grade_direct`, answered the way 0242 answers it: the two
+	 * refusals first, then the typed score stored (or cleared) and the ONE
+	 * grading rule run over the student's stored rubric scores.
+	 */
+	const directTransports: DirectGradingTransports = {
+		async gradeDirect(itemId, studentEmail, score, comment, release, extraCredit) {
+			note('gradeDirect', { studentEmail, score, release, extraCredit });
+			const outOf = noRubric ? (ITEM.points ?? 0) : 20;
+			if (score != null && !(outOf > 0)) return { ok: true, data: { ok: false, reason: 'no_total' } };
+			if (score != null && (score < 0 || score > outOf)) {
+				return { ok: true, data: { ok: false, reason: 'out_of_range', out_of: outOf } };
+			}
+			const existing = submissions.find((s) => s.student_email === studentEmail);
+			const base: SubmissionWithDirect = existing
+				? { ...existing }
+				: sub({ id: `sub-${studentEmail}`, student_email: studentEmail, state: 'draft' });
+			base.direct_score = score;
+			submissions = existing
+				? submissions.map((s) => (s.student_email === studentEmail ? base : s))
+				: [...submissions, base];
+			if (score == null && noRubric) {
+				return { ok: false, message: 'Create a rubric for this assignment before grading.' };
+			}
+			const total = writeGrade(
+				studentEmail,
+				base.rubric_scores ?? {},
+				comment,
+				release,
+				base.criterion_comments,
+				extraCredit
+			);
+			return {
+				ok: true,
+				data: { ok: true, score: total, state: release ? 'returned' : 'draft', direct_score: score, out_of: outOf }
+			};
+		}
+	};
+
+	const perfectTransports: PerfectScoreTransports = {
+		async perfectScores(itemId) {
+			note('perfectScores', { itemId });
+			return { ok: true, data: perfectRows.map((r) => ({ ...r })) };
+		},
+		async setPerfectScore(itemId, sectionId, on) {
+			note('setPerfectScore', { sectionId, on });
+			perfectRows = perfectRows.map((r) => (r.section_id === sectionId ? { ...r, on } : r));
+			return { ok: true, data: { ok: true } };
+		}
+	};
+
 	const teacherTransports: AssignmentTeacherTransports = {
 		async setSpec(itemId, spec) {
 			note('setSpec', { itemId, spec: spec ? 'set' : null });
@@ -306,11 +379,17 @@
 					files: [],
 					filesStorageReady: true,
 					extraCreditReady,
+					directScoreReady: !pre0242,
 					approvals: []
 				}
 			};
 		}
 	};
+
+	/** What the console is handed: the plain teacher transports before 0242, all three after. */
+	const consoleTransports = $derived(
+		pre0242 ? teacherTransports : { ...teacherTransports, ...directTransports, ...perfectTransports }
+	);
 
 	/** The write the RPC makes, including the `graded_at` stamp that clears 0011's signal. */
 	function writeGrade(
@@ -331,7 +410,9 @@
 		next.rubric_scores = { ...scores };
 		next.criterion_comments = critComments ? { ...critComments } : null;
 		next.extra_credit = award;
-		next.score = rubricSum + Number(award ?? 0);
+		// 0242: a stored typed score IS the score; the rubric sum is not used.
+		const typed = directScoreOf(next);
+		next.score = (typed ?? rubricSum) + Number(award ?? 0);
 		next.teacher_comment = comment;
 		next.graded_by = TEACHER;
 		next.graded_at = new Date().toISOString();
@@ -389,6 +470,7 @@
 						files: [],
 						filesStorageReady: true,
 						extraCreditReady,
+						directScoreReady: !pre0242,
 						approvals: []
 					}
 				}
@@ -524,7 +606,9 @@
 		States:
 		<a href="/dev/grading-bulk">default</a> ·
 		<a href="/dev/grading-bulk?state=pre-0171">pre-0171</a> ·
-		<a href="/dev/grading-bulk?state=single">single (no bulk transport)</a>
+		<a href="/dev/grading-bulk?state=single">single (no bulk transport)</a> ·
+		<a href="/dev/grading-bulk?state=no-rubric">no rubric (typed score only)</a> ·
+		<a href="/dev/grading-bulk?state=pre-0242">pre-0242 (no typed score, no Coins panel)</a>
 	</p>
 
 	<section class="oracle-box">
@@ -569,8 +653,8 @@
 			section={sections[0] ?? P1}
 			item={ITEM}
 			spec={SPEC}
-			rubric={RUBRIC}
-			transports={teacherTransports}
+			rubric={noRubric ? null : RUBRIC}
+			transports={consoleTransports}
 			bulk={bulkForState}
 		/>
 	{/key}

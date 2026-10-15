@@ -134,8 +134,8 @@ describe('a reward that reached no balance is marked, in words', () => {
 		expect(inTotals.length, 'standings').toBeGreaterThanOrEqual(1);
 		expect(inHistory.length, 'history').toBeGreaterThanOrEqual(1);
 		// COLOUR IS NEVER THE ONLY SIGNAL: the mark has to say it, in both.
-		expect(inTotals.map((e) => e.textContent ?? '').join(' ')).toContain('not paid');
-		expect(inHistory.map((e) => e.textContent ?? '').join(' ')).toContain('not paid');
+		expect(inTotals.map((e) => e.textContent ?? '').join(' ')).toContain('to be added');
+		expect(inHistory.map((e) => e.textContent ?? '').join(' ')).toContain('to be added');
 	});
 
 	it('a PAID row carries none: the positive control for the mark', () => {
@@ -156,13 +156,13 @@ describe('a reward that reached no balance is marked, in words', () => {
 				.all('.history .unpaid')
 				.map((e) => (e.textContent ?? '').trim())
 				.join(' | ')
-		).toContain('1 not paid');
+		).toContain('1 to be added');
 		expect(
 			v
 				.all('.totals .unpaid')
 				.map((e) => (e.textContent ?? '').trim())
 				.join(' | ')
-		).toContain('1 not paid');
+		).toContain('1 to be added');
 	});
 
 	it('A PRE-0212 LEDGER IS MARKED NOTHING: cannot-tell is not unpaid', () => {
@@ -212,14 +212,32 @@ describe('the fold that feeds the panel agrees with what it renders', () => {
 	});
 });
 
-describe('the empty state says where the coins go', () => {
-	it('names the balance rather than only a ledger', () => {
+describe('IDEA Coin V2: rewards are added by Mr. Pina after the tournament (0239)', () => {
+	it('an awaiting_transfer row is marked "to be added", even with a coin id on it', () => {
+		const v = open([row({ id: 1, coin_transaction_id: null, awaiting_transfer: true } as never)]);
+		expect(v.all('.history .unpaid').map((e) => e.textContent ?? '').join(' ')).toContain('to be added');
+		expect(v.all('.totals .unpaid').map((e) => e.textContent ?? '').join(' ')).toContain('to be added');
+	});
+
+	it('the panel says who adds the coins, and never says anything was paid', () => {
+		const v = open([row({ id: 1, awaiting_transfer: true } as never)]);
+		const text = (v.target.textContent ?? '').replace(/\s+/g, ' ');
+		expect(v.one('[data-testid="rewards-coin-note"]').textContent).toContain('Mr. Pina adds these coins');
+		expect(text).toContain('Reward history');
+		// The absence half: no heading or sentence claims a payment happened.
+		expect(text).not.toMatch(/Payout history|paid onto|\bwas paid\b/i);
+	});
+});
+
+describe('the empty state says how rewards arrive', () => {
+	it('names who adds the coins and when, and claims no payout', () => {
 		const v = open([]);
-		// Whitespace-normalised: the template wraps, so the rendered text carries
-		// a newline mid-sentence and a raw `toContain` would fail on prose that
-		// is perfectly correct on screen.
-		const note = (v.one('.note').textContent ?? '').replace(/\s+/g, ' ').trim();
-		expect(note).toContain('No payouts yet');
-		expect(note).toContain("paid onto the winner's IDEA Coin balance");
+		const notes = v
+			.all('.note')
+			.map((e) => (e.textContent ?? '').replace(/\s+/g, ' ').trim())
+			.join(' | ');
+		expect(notes).toContain('No rewards yet');
+		expect(notes).toContain("Mr. Pina adds these coins to each winner's IDEA Coin balance after the tournament");
+		expect(notes).not.toContain('No payouts yet');
 	});
 });

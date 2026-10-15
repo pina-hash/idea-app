@@ -3,6 +3,7 @@ import { error } from '@sveltejs/kit';
 import { deploy } from 'virtual:site-versions';
 import { legacyReportPanelScript } from '$lib/server/legacy-report-panel';
 import ledgerHtml from '$lib/legacy/coins/index.html?raw';
+import { injectLedgerTheme } from '$lib/server/coin-public';
 import type { RequestHandler } from './$types';
 
 /**
@@ -61,7 +62,21 @@ export const GET: RequestHandler = async ({ url, cookies, setHeaders }) => {
 	 * exercises is the REFUSAL branch. Drive `?signedIn=1` for the success
 	 * branch.
 	 */
-	const html = ledgerHtml.replace(/\/api\/coin\//g, '/dev/coins/api/').replace(
+	/*
+	 * THE THEME, THE SAME WAY THE REAL ROUTE DECIDES IT (`injectLedgerTheme`,
+	 * keyed on `?signedIn=1` here as the report control is), plus ONE harness
+	 * override: `?theme=space-white|matrix` pins the attribute so a palette can
+	 * be measured whatever the scope decides for `/coins`. The override is the
+	 * harness's alone; the real route has no such parameter.
+	 */
+	const forced = url.searchParams.get('theme');
+	const pin =
+		forced === 'space-white' || forced === 'matrix'
+			? `<script>document.documentElement.setAttribute('data-theme', ${JSON.stringify(forced)});</script>`
+			: '';
+	const html = injectLedgerTheme(ledgerHtml, signedIn)
+		.replace('</title>', `</title>\n${pin}`)
+		.replace(/\/api\/coin\//g, '/dev/coins/api/').replace(
 		'</body>',
 		`${legacyReportPanelScript({
 			signedIn,

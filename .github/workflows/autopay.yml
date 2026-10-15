@@ -1,0 +1,43 @@
+name: Autopay
+
+# THE SECOND NIGHTLY CALL TO IDEA COIN AUTOPAY (ledger 0383).
+#
+# `coin_autopay_run` (migration 0242) pays every wage, Highest Grade and
+# Perfect Score award that is owed and nothing more: each kind of pay is a
+# database uniqueness key, so calling it twice pays once. Vercel's cron
+# (`vercel.json`) is the first nightly call; this is the second, so a missed
+# Vercel run (an unverified plan limit, a failed deploy) never leaves a week
+# unpaid. Every coin page also calls it on load.
+#
+# IT HOLDS NO SECRET AND NEEDS NONE. It asks the public page
+# `https://ideabosco.com/api/coin/autopay`, which holds no credential either;
+# the route's own header says why that is safe. A failure here is reported
+# and changes nothing, because the next call settles whatever this one missed.
+
+on:
+  schedule:
+    # 11:23 UTC is 4:23 a.m. in Los Angeles in the summer and 3:23 a.m. in the
+    # winter: after the Vercel call, before school.
+    - cron: '23 11 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  autopay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask the site to pay what is owed
+        run: |
+          set -uo pipefail
+          BODY="$(curl -sS --max-time 120 -X POST https://ideabosco.com/api/coin/autopay || true)"
+          echo "answer: $BODY"
+          {
+            echo "## Autopay"
+            echo
+            echo '```'
+            echo "$BODY"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

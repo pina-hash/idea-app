@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { page } from '$app/state';
 	import SectionManager from '$lib/coin-desk/SectionManager.svelte';
 	import BalanceAdminPanel from '$lib/coin-desk/BalanceAdminPanel.svelte';
 	import { classRosterTransports } from '$lib/coin-desk/roster-import';
@@ -18,6 +19,11 @@
 	// "Import from class roster" reads the classroom roster through its one
 	// reader, on the admin's own client; the coin write is still SectionManager's.
 	const classRoster = $derived(classRosterTransports(data.supabase));
+
+	// The debt list links here with `?student=<email>`; the panel opens that
+	// student once, on mount. Read from the URL here, never in the load, so
+	// the load does not re-run on it.
+	const initialEmail = untrack(() => page.url.searchParams.get('student') ?? '');
 </script>
 
 <svelte:head>
@@ -31,4 +37,9 @@
 	{classRoster}
 />
 
-<BalanceAdminPanel supabase={data.supabase} categoryKinds={data.categoryKinds} />
+<BalanceAdminPanel
+	supabase={data.supabase}
+	categoryKinds={data.categoryKinds}
+	categories={data.categories}
+	{initialEmail}
+/>

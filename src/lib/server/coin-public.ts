@@ -6,8 +6,8 @@
  * TWO RULES GOVERN THIS MODULE.
  *
  * 1. NO EMAIL LEAVES IT, EVER. Every read below is an `anon`-granted
- *    SECURITY DEFINER RPC from migration 0089 that projects the email column
- *    away inside the database (see that file's header for why the boundary
+ *    SECURITY DEFINER RPC (0089, rewritten by 0239) that projects the email
+ *    column away inside the database (see that file's header for why the boundary
  *    lives there rather than here). Nothing in this module reads a
  *    `student_email`, and a per-student request is addressed by the opaque
  *    `student_id` those RPCs mint. Adding a field here that carries an
@@ -16,30 +16,29 @@
  * 2. THE OUTPUT SHAPE IS CSV BECAUSE THE PAGE PARSES CSV. The Ledger's own
  *    `parseCSV` reads by HEADER NAME, so the two feeds below are emitted as
  *    CSV under names that page looks for, and the JSON feeds keep the field
- *    names it already reads. `Debt` is the total balance being negative.
+ *    names it already reads.
  *
- * SINCE 0096 THE ECONOMY HAS TWO BALANCES, AND SINCE 0103 THIS LAYER SERVES
- * BOTH OF THEM RATHER THAN LEAVING THE PAGE TO INFER ONE. `Coin Balance` is
- * the TOTAL; `Physical Balance` (coins in the student's hand) and
- * `Digital Balance` (the part held in the system) are its two components and
- * always sum to it. They replace `Bank Balance`, the empty legacy slot 0089
- * served and 0096 temporarily borrowed for the digital figure — a stand-in
- * that only ever rendered when it was positive.
+ * SINCE COIN V2 (0239) THERE IS ONE BALANCE AND ONLY ONE. `Coin Balance` is
+ * the sum of a student's digital rows; physical rows are history and no
+ * longer count, so the old component figures (`Physical Balance`,
+ * `Digital Balance`) and the lifetime buckets (`Awarded`, `Fines`, `Spent`,
+ * `Adjustments`, `Paid Out`, `Debt`) are gone from the feed entirely rather
+ * than sent as zeros a reader could mistake for a fact. A negative balance IS
+ * the debt, and the page shows it as the balance.
  *
- * The transaction feed carries `Medium` and `Transfer Id` for the same reason:
- * a payout is TWO linked rows sharing one transfer id, and the page collapses
- * that pair into the single event it was. Inferring the pairing from names and
- * timestamps would be guesswork over a key that is already stored.
+ * Amounts are numeric(12,2) now. They are passed through as the database
+ * sends them; the page formats them (whole numbers bare, otherwise two
+ * decimals).
  *
- * SINCE 0107 THERE IS A FOURTH BUCKET, `Adjustments`. An adjustment-kind row
- * is a correction of the record, not something earned or spent, so it is out
- * of `Awarded` and out of `Spent` whatever its sign, and its signed total is
- * its own column. The identity the page reconciles with is therefore
- * `Awarded - Fines - Spent + Adjustments = Coin Balance`, and Lifetime Earned
- * (`Awarded - Fines`) no longer counts a refund as an earning.
+ * The transaction feed carries `Category Id` so the page keys on an id rather
+ * than on a display name (the Eating Pass badge used to match two reason
+ * strings the current categories do not use, so it never drew). It no longer
+ * carries `Medium` or `Transfer Id`: 0239 sends digital rows only, so a payout is one
+ * row and there is no pair to collapse.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { SITE_THEME_KEY, THEME_BOOT_MARKER, themeBootTable } from '$lib/theme';
 
 /** Read actions the public endpoint will serve. Nothing else is reachable. */
 export const PUBLIC_COIN_ACTIONS = new Set([
@@ -93,27 +92,19 @@ interface LeaderboardRow {
 	student_id: string;
 	name: string;
 	section: string | null;
-	awarded: number;
-	fines: number;
-	spent: number;
-	adjustments: number;
-	paid_out: number;
-	balance: number;
-	debt: number;
-	weekly_wage: number;
+	balance: number | string;
+	weekly_wage: number | string;
 	wage_tier: number;
-	physical_balance: number;
-	digital_balance: number;
+	eating_pass: boolean | null;
 }
 
 interface TransactionRow {
 	occurred_at: string;
 	name: string;
-	amount: number;
+	amount: number | string;
 	type: string;
 	reason: string;
-	medium: string | null;
-	transfer_id: string | null;
+	category_id: string | null;
 }
 
 interface ContractRow {
@@ -166,47 +157,26 @@ export async function readCoinPublic(
 						'Name',
 						'Section',
 						'Wage',
-						'Awarded',
-						'Fines',
-						'Spent',
-						'Adjustments',
 						'Coin Balance',
-						'Paid Out',
-						'Physical Balance',
-						'Digital Balance',
-						'Debt',
 						'Wage Tier',
+						'Eating Pass',
 						'Student Id'
 					],
 					rows.map((r) => [
 						r.name,
 						r.section ?? '',
+						// This student's own weekly wage (base x tier), exactly as
+						// the database computes it. The page shows this figure and
+						// adds nothing to it.
 						r.weekly_wage,
-						r.awarded,
-						r.fines,
-						r.spent,
-						// Adjustment-kind rows, at their STORED SIGN, in their own
-						// bucket since 0107 -- excluded from `Awarded` and `Spent`
-						// so a refund can no longer read as an earning and climb
-						// the Lifetime Earned board. Always sent; the page renders
-						// it only when it is nonzero.
-						r.adjustments,
-						// `Coin Balance` is the TOTAL (physical coins in hand plus
-						// digital) since 0096 -- one number for "how much IDEA
-						// Coin does this student have", which is what the column
-						// has always meant to a reader.
+						// THE one balance: the sum of digital rows. Signed; a
+						// negative number is the debt.
 						r.balance,
-						r.paid_out,
-						// The two components of that total, served explicitly
-						// since 0103. Both are signed and both are always sent:
-						// a negative physical balance is a real state (a student
-						// fined past what they were holding) and the page shows
-						// it rather than hiding it, unlike the positive-only
-						// `Bank Balance` stand-in these replace.
-						r.physical_balance,
-						r.digital_balance,
-						r.debt,
 						r.wage_tier,
+						// Whether an Eating Pass is active right now
+						// (`coin_eating_pass_active`), so the badge keys on data
+						// and never on a reason string.
+						r.eating_pass === true ? 'true' : 'false',
 						r.student_id
 					])
 				)
@@ -222,7 +192,7 @@ export async function readCoinPublic(
 			return {
 				contentType: 'text/csv; charset=utf-8',
 				body: toCsv(
-					['Date / Time', 'Name', 'Amount', 'Type', 'Reason', 'Medium', 'Transfer Id'],
+					['Date / Time', 'Name', 'Amount', 'Type', 'Reason', 'Category Id'],
 					rows.map((r) => [
 						ledgerDate(r.occurred_at),
 						r.name,
@@ -232,8 +202,7 @@ export async function readCoinPublic(
 						r.amount,
 						r.type,
 						r.reason,
-						r.medium ?? '',
-						r.transfer_id ?? ''
+						r.category_id ?? ''
 					])
 				)
 			};
@@ -371,4 +340,46 @@ export async function readCoinPublic(
 		default:
 			throw new Error(`unsupported action: ${action}`);
 	}
+}
+
+/* ===========================================================================
+   THE LEDGER FOLLOWS THE SITE THEME, AND THE DECISION IS THE SITE'S.
+
+   The Ledger is standalone HTML, so it cannot mount `ThemeRoot`. Its route
+   injects this script at `THEME_BOOT_MARKER` instead. The answers come from
+   `themeBootTable`, which asks `themeAttrFor` (the ONE decision: session gate,
+   default and route scope) for every theme on `/coins`, so this page paints
+   exactly what the site would paint there and never a second idea of it: a
+   signed-out visitor gets nothing, and a scoped theme whose scope does not
+   cover `/coins` is not in the table. The script only LOOKS UP the stored
+   value, then follows a change made in another tab through the `storage`
+   event (`themeFromStorageEvent`'s rule: a cleared or unknown value is the
+   default), announcing it as `idea-theme-change` so the page can repaint
+   what its own script drew.
+   =========================================================================== */
+/** The path the Ledger answers on, for the theme decision. */
+export const LEDGER_THEME_PATH = '/coins';
+
+export function ledgerThemeScript(signedIn: boolean): string {
+	const table = themeBootTable(LEDGER_THEME_PATH, signedIn);
+	if (Object.keys(table).length === 0) return '';
+	const json = JSON.stringify(table).replace(/</g, '\\u003c');
+	const key = JSON.stringify(SITE_THEME_KEY);
+	return (
+		'<script>(function(){try{' +
+		`var m=${json},k=${key},d=document.documentElement;` +
+		'function has(v){return v!==null&&Object.prototype.hasOwnProperty.call(m,v)}' +
+		'function put(v){if(has(v))d.setAttribute("data-theme",m[v].a);else d.removeAttribute("data-theme")}' +
+		'var s=null;try{s=localStorage.getItem(k)}catch(e){}' +
+		'if(has(s))put(s);' +
+		'window.addEventListener("storage",function(e){if(e.key!==null&&e.key!==k)return;' +
+		'put(e.key===null?null:e.newValue);' +
+		'try{window.dispatchEvent(new CustomEvent("idea-theme-change"))}catch(x){}});' +
+		'}catch(e){}})()</script>'
+	);
+}
+
+/** The Ledger's HTML with its theme script at the boot marker (or nothing there). */
+export function injectLedgerTheme(html: string, signedIn: boolean): string {
+	return html.replace(THEME_BOOT_MARKER, ledgerThemeScript(signedIn));
 }

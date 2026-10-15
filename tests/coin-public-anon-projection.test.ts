@@ -663,21 +663,21 @@ describe('/api/coin/public, driven as a signed-out visitor', () => {
 		expect(lines[1] + lines[2]).toContain('Ada Lovelace');
 	});
 
-	test('the summary CSV header is EXACTLY these fourteen columns', async () => {
+	test('the summary CSV header is EXACTLY these seven columns', async () => {
 		// The pin at the surface. `readCoinPublic` writes this header list by
 		// hand beside the row mapping, so the two can drift from the RPC and
 		// from each other; this is the only assertion that reads what a
-		// visitor's browser actually parses.
+		// visitor's browser actually parses. Coin V2 (0239) cut it to the one
+		// balance. This chain stops short of 0239, so the header is what this
+		// pins, not the V2 row values (tests/coin-public-v2-shape.test.ts
+		// drives those against the V2 row shape).
 		const header = (await route('summary')).body.split('\r\n')[0];
-		expect(header).toBe(
-			'Name,Section,Wage,Awarded,Fines,Spent,Adjustments,Coin Balance,Paid Out,' +
-				'Physical Balance,Digital Balance,Debt,Wage Tier,Student Id'
-		);
+		expect(header).toBe('Name,Section,Wage,Coin Balance,Wage Tier,Eating Pass,Student Id');
 	});
 
-	test('the transactions CSV header is EXACTLY these seven columns', async () => {
+	test('the transactions CSV header is EXACTLY these six columns', async () => {
 		const header = (await route('transactions')).body.split('\r\n')[0];
-		expect(header).toBe('Date / Time,Name,Amount,Type,Reason,Medium,Transfer Id');
+		expect(header).toBe('Date / Time,Name,Amount,Type,Reason,Category Id');
 	});
 
 	test('the student JSON carries the drawer keys and nothing more', async () => {

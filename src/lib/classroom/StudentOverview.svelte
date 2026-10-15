@@ -478,8 +478,7 @@
 			</div>
 			{#if data.coins && data.songs}
 				<p class="so-line">
-					IDEA Coins, across all classes: <strong>{coinAmount(data.coins.balance)}</strong>
-					({coinAmount(data.coins.physical)} physical, {coinAmount(data.coins.digital)} digital).
+					IDEA Coin balance, across all classes: <strong>{coinAmount(data.coins.balance)}</strong>.
 				</p>
 				<p class="so-line" data-testid="so-songs">
 					Music requests in this class: {data.songs.requested} asked, {data.songs.approved} approved,

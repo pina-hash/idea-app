@@ -626,8 +626,6 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		// (ledger 0360), so it is the case that proves the exclusion holds.
 		'/tournaments/abc/tv',
 		'/tournaments/abc/tv/',
-		'/coins',
-		'/coins/index.html',
 		'/ideacad',
 		'/assignments/blade-rulebook',
 		'/a/app-id/',
@@ -639,6 +637,16 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		'/dev/greenline-portal',
 		'/dev/ideacad'
 	];
+
+	it('the public IDEA Coin Ledger is IN scope since ledger 0383, and a lookalike is not', () => {
+		for (const p of ['/coins', '/coins/index.html']) expect(themeInScope(p), p).toBe(true);
+		expect(themeAttrFor('space-white', '/coins/index.html', true)).toBe('space-white');
+		// Signed out is still the default, always.
+		expect(themeAttrFor('space-white', '/coins/index.html', false)).toBeUndefined();
+		// The path boundary holds: a sibling that merely starts with the letters is out.
+		expect(themeInScope('/coinsx')).toBe(false);
+		expect(themeInScope('/coin-deskx')).toBe(false);
+	});
 
 	it('FRC and FSP are OUT of scope, and so is every identity room, for every scoped theme', () => {
 		expect(SCOPED_SITE_THEMES.length).toBeGreaterThan(0);
@@ -722,8 +730,9 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		// `/archive` and `/foundry` left this list in ledger 0360 (they are site-plate
 		// pages now and IN by the plate's prefixes); `//` stays, and is the case
 		// that would come in if the scope called `sitePlateInScope`, which strips
-		// a trailing slash and so reads `//` as `/`.
-		const underRoot = ['/frc', '/fsp', '/fsp/live', '/gauntlet', '/index.html', '//', '/209h', '/coins/'];
+		// a trailing slash and so reads `//` as `/`. `/coins/` left this list in
+		// ledger 0383, when the Ledger joined the scope by its own prefix.
+		const underRoot = ['/frc', '/fsp', '/fsp/live', '/gauntlet', '/index.html', '//', '/209h'];
 		for (const p of underRoot) {
 			expect(themeInScope(p), p).toBe(false);
 			for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, p, true), `${t} on ${p}`).toBeUndefined();
@@ -776,7 +785,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 			.filter((seg) => !/^\(.*\)$/.test(seg))
 			.map((seg) => (/^\[.*\]$/.test(seg) ? 'x' : seg))
 			.join('/') || '/';
-	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/armory', '/auth', '/coin-desk', '/foundry', '/maps', '/tournaments'];
+	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/armory', '/auth', '/coin-balance', '/coin-desk', '/foundry', '/maps', '/tournaments'];
 	const CLASSROOM_POLICY = ['/classroom', '/reference', '/notebook'];
 	const under = (p: string, x: string) => p === x || p.startsWith(x + '/');
 	const expectedIn = (p: string) =>

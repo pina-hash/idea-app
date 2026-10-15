@@ -14,27 +14,22 @@
  * of the write, not a cached number. See
  * supabase/migrations/0079_coin_bulk_payout.sql for the full RPC bodies.
  *
- * SINCE 0096 A PAYOUT IS A TRANSFER, NOT A DRAIN. It debits the DIGITAL
- * balance and credits the PHYSICAL one by the same amount, atomically, as two
- * linked rows sharing a transfer id -- so the student's TOTAL does not move
- * (the coins did not go anywhere, they changed form) and the candidate list
- * is filtered on the digital balance, not the total. A student holding only
- * physical coins has nothing to pay out: those coins are already in their
- * hand, and there is deliberately no path back the other way.
+ * IDEA COIN V2 (0239): THERE IS ONE BALANCE. A payout hands a student
+ * physical coins for part or all of their (digital) balance: the balance goes
+ * down by the amount handed over, and the physical half of the transfer is a
+ * history row that counts toward nothing. `coin_payout` is no longer a
+ * loggable category, so this is the only way to pay out.
  *
  * This module is plain types + pure helpers (client-safe, the sections.ts /
  * contracts.ts convention) -- it never talks to Supabase itself.
  */
 
-import { COIN_SYMBOL } from '$lib/coin-format';
+import { coins } from '$lib/coin-format';
 
 export interface CoinPayoutCandidate {
 	student_email: string;
-	/** Total (physical + digital). Shown for context; never what is paid. */
+	/** The one balance: what a full payout hands over. */
 	balance: number;
-	/** What a payout actually converts. The list is filtered on THIS since 0096. */
-	digital_balance: number;
-	physical_balance: number;
 	last_activity_at: string | null;
 	display_name: string | null;
 	full_name: string | null;
@@ -45,10 +40,8 @@ export interface CoinPayoutResult {
 	ok: boolean;
 	reason?: string;
 	balance?: number;
-	digital_balance?: number;
-	physical_balance?: number;
 	amount?: number;
-	/** True when the admin asked for less than the whole digital balance. */
+	/** True when the admin asked for less than the whole balance. */
 	partial?: boolean;
 	transfer_id?: string;
 	requested?: number;
@@ -88,11 +81,11 @@ export function payoutRefusalMessage(r: {
 }): string {
 	switch (r.reason) {
 		case 'no_balance':
-			return `Nothing to pay -- digital balance is ${r.digital_balance ?? r.balance ?? 0}${COIN_SYMBOL} right now.`;
+			return `Nothing to pay: the balance is ${coins(r.balance ?? r.digital_balance ?? 0)} right now.`;
 		case 'amount_exceeds_digital':
-			return `Blocked: asked for ${r.requested}${COIN_SYMBOL} but only ${r.digital_balance}${COIN_SYMBOL} is digital.`;
+			return `Refused: asked for ${coins(r.requested ?? 0)} but the balance is only ${coins(r.balance ?? r.digital_balance ?? 0)}.`;
 		case 'debt':
-			return `Blocked: balance is negative (${r.balance}${COIN_SYMBOL}).`;
+			return `Refused: the balance is negative (${coins(r.balance ?? 0)}).`;
 		case 'error':
 			return r.message ? `Error: ${r.message}` : 'An unexpected error occurred.';
 		default:

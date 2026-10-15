@@ -1,6 +1,19 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
+	import { page } from '$app/state';
+	import FineScreen from '$lib/coin-fine/FineScreen.svelte';
+	import type { FineTransports } from '$lib/coin-fine/fine';
+	import {
+		createFineTransports,
+		createHallPassEventsTransport,
+		createNoShopTransport,
+		type NoShopRow,
+		type NoShopTransport
+	} from '$lib/coin-fine/transports';
+	import { startPoller } from '$lib/classroom/poll';
+	import type { HallPassEventsTransport } from '$lib/classroom/hall-pass';
+	import type { SupabaseClient } from '@supabase/supabase-js';
 	import LiveGrid from './LiveGrid.svelte';
 	import {
 		addAgendaLine,
@@ -120,7 +133,10 @@
 		clock = () => Date.now(),
 		storage = undefined,
 		channelHost = undefined,
-		random = Math.random
+		random = Math.random,
+		coinFine = undefined,
+		noShop = undefined,
+		hallPassEvents = undefined
 	}: {
 		section: ClassroomSection;
 		/** The signed-in teacher's id: this device's slots are per viewer. */
@@ -150,7 +166,65 @@
 		channelHost?: ProjectorChannelHost;
 		/** Entropy for the picker's seed; the harness pins it. */
 		random?: () => number;
+		/**
+		 * THE FINE SCREEN, scoped to this class (IDEA Coin V2). Coin writes are
+		 * a site admin's (0240), so the panel exists only for an admin: null
+		 * removes it, and undefined means "build it from the page's own client
+		 * when this viewer is an admin" (`page.data.isAdmin`, the root layout's
+		 * answer). A teacher who is not an admin never sees it, and the database
+		 * would refuse every call if they did.
+		 */
+		coinFine?: FineTransports | null;
+		/** Today's no-shop list for this class, any manager. Undefined builds it from the page's client. */
+		noShop?: NoShopTransport | null;
+		/** The hall pass's warnings and fines (0243). Undefined builds it from the page's client. */
+		hallPassEvents?: HallPassEventsTransport | null;
 	} = $props();
+
+	/*
+	 * THE PAGE'S OWN CLIENT, for the three coin reads the live route does not
+	 * hand in yet. Read once: a client captured at mount is the item page's
+	 * convention, and a transport rebuilt on every page-data change would
+	 * restart whatever polls it. Signed out (a harness) there is no client to
+	 * use, so each panel stays off unless a transport is handed in.
+	 */
+	const pageClient = untrack(() =>
+		page.data?.claims && page.data?.supabase ? (page.data.supabase as SupabaseClient) : null
+	);
+	const viewerIsAdmin = untrack(() => page.data?.isAdmin === true);
+	const fineT: FineTransports | null = untrack(() =>
+		coinFine !== undefined ? coinFine : viewerIsAdmin && pageClient ? createFineTransports(pageClient) : null
+	);
+	const noShopT: NoShopTransport | null = untrack(() =>
+		noShop !== undefined ? noShop : pageClient ? createNoShopTransport(pageClient) : null
+	);
+	const hallEventsT: HallPassEventsTransport | null = untrack(() =>
+		hallPassEvents !== undefined ? hallPassEvents : pageClient ? createHallPassEventsTransport(pageClient) : null
+	);
+
+	// ---------------------------------------------------------------------
+	// TODAY'S NO-SHOP LIST (Shop Safety bars a student for the school day)
+	// ---------------------------------------------------------------------
+	/** Null until read; `'missing'` leaves the panel out (a database before 0240). */
+	let noShopRows = $state<NoShopRow[] | null | 'missing'>(null);
+	async function readNoShop(): Promise<'ok' | 'failed'> {
+		const read = noShopT;
+		if (!read) return 'ok';
+		try {
+			const next = await read(section.id);
+			if (next === null) return 'failed';
+			noShopRows = next;
+			return 'ok';
+		} catch {
+			return 'failed';
+		}
+	}
+	onMount(() => {
+		if (!noShopT) return;
+		void readNoShop();
+		const p = startPoller({ intervalMs: 300_000, run: () => readNoShop() });
+		return () => p.stop();
+	});
 
 	// ---------------------------------------------------------------------
 	// THE ONE CLOCK
@@ -768,6 +842,7 @@
 							transports={observedHallPass}
 							now={now}
 							{live}
+							events={hallEventsT}
 							tool
 						/>
 					</div>
@@ -779,6 +854,30 @@
 								{wallHall.word}
 							</span>
 						</p>
+					{/if}
+				</section>
+			{/if}
+
+			{#if noShopT && noShopRows !== null && noShopRows !== 'missing'}
+				<!--
+					WHO IS BARRED FROM THE SHOP TODAY (a Shop Safety fine, or a teacher's
+					mark), for anybody who manages the class. Names only, from a manager's
+					own read; a database without the coin update leaves the panel out.
+				-->
+				<section class="lc-panel" aria-labelledby="lc-noshop-title" data-testid="live-no-shop">
+					<h2 id="lc-noshop-title" class="lc-panel-title">No shop today</h2>
+					{#if noShopRows.length === 0}
+						<p class="lc-quiet" data-testid="live-no-shop-empty">Nobody in this class is barred from the shop today.</p>
+					{:else}
+						<ul class="lc-noshop">
+							{#each noShopRows as row (row.email)}
+								<li class="lc-noshop-row" data-testid="live-no-shop-row">
+									<span class="lc-noshop-glyph" aria-hidden="true">⊘</span>
+									<span class="person-name" title={row.name ?? row.email}>{row.name ?? row.email}</span>
+									{#if row.reason}<span class="lc-noshop-why">{row.reason}</span>{/if}
+								</li>
+							{/each}
+						</ul>
 					{/if}
 				</section>
 			{/if}
@@ -923,6 +1022,18 @@
 					onchoose={(id) => (pickedItemId = id)}
 				/>
 			</section>
+
+			{#if fineT}
+				<!--
+					THE FINE SCREEN, this class only, for a site admin (coin writes are
+					an admin's). The same component as /coin-desk/fine, with no class
+					picker; a post re-reads the no-shop list beside it.
+				-->
+				<section class="lc-panel" aria-labelledby="lc-fine-title" data-testid="live-fine">
+					<h2 id="lc-fine-title" class="lc-panel-title">Coins</h2>
+					<FineScreen transports={fineT} section={section.id} embedded onPosted={() => void readNoShop()} />
+				</section>
+			{/if}
 
 			<section class="lc-panel" aria-labelledby="lc-pick-title" data-testid="live-picker">
 				<h2 id="lc-pick-title" class="lc-panel-title">Random pick</h2>
@@ -1086,6 +1197,32 @@
 		margin: 0 0 var(--space-3);
 		font-size: 1.15rem;
 		line-height: 1.3;
+	}
+	.lc-quiet {
+		margin: 0;
+		color: var(--text-2);
+	}
+	.lc-noshop {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.lc-noshop-row {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+	.lc-noshop-glyph {
+		color: var(--status-warn, var(--amber));
+	}
+	.lc-noshop-why {
+		color: var(--text-2);
+		font-size: 0.88rem;
+		white-space: nowrap;
 	}
 	.lc-row {
 		display: flex;

@@ -3,22 +3,26 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
-	import CoinTransactionRows from '$lib/coin-balance/CoinTransactionRows.svelte';
 	import { coins, COIN_SYMBOL, signedCoins } from '$lib/coin-format';
+	import Disclosure from '$lib/Disclosure.svelte';
 	import DebtPaymentPanel from './DebtPaymentPanel.svelte';
+	import DeskHistory from './DeskHistory.svelte';
+	import StudentCoinTools from './StudentCoinTools.svelte';
+	import {
+		cents,
+		coinRefusalWords,
+		NEVER_IN_LOG_PICKER,
+		num as coinNum,
+		reverseTransaction,
+		type CoinRefusal,
+		type DeskTxn
+	} from './v2';
 	import CoinTypeGlyph from './CoinTypeGlyph.svelte';
 	import { categoryTxnType, sortByUse } from './transaction-types';
 	import {
-		balanceFor,
-		coinDefaultMedium,
 		coinLogMode,
-		effectiveMedium,
 		EXTRA_CREDIT_GRADING_CATEGORIES,
-		FORCED_MEDIUM,
 		KIND_LABELS,
-		MEDIA,
-		MEDIUM_HINTS,
-		MEDIUM_LABELS,
 		payRaisePreview,
 		perfectScorePreview,
 		priceHint,
@@ -31,7 +35,6 @@
 		type CoinCategory,
 		type CoinDeskPrefs,
 		type CoinLogMode,
-		type CoinMedium,
 		type StudentSuggestion
 	} from '$lib/coin-desk';
 	import {
@@ -128,7 +131,9 @@
 	 * document, and a reference document sorted by how often each row is used
 	 * is not a reference document.
 	 */
-	const selectableCategories = $derived(sortByUse(categories.filter((c) => c.active !== false)));
+	const selectableCategories = $derived(
+		sortByUse(categories.filter((c) => c.active !== false && !NEVER_IN_LOG_PICKER.has(c.id)))
+	);
 
 	/**
 	 * category id -> kind, for the history rows. Built from the list this view
@@ -146,34 +151,20 @@
 	// /coin-desk/students uses, returning balance, wage tier, Eating Pass
 	// status and recent history in one round trip)
 	// ---------------------------------------------------------------------
-	interface CoinTxn {
-		id: string;
-		category_id: string;
-		category_name: string;
-		amount: number;
-		medium: CoinMedium;
-		/**
-		 * Set on BOTH halves of a payout (0096). Declared here because it is
-		 * what CoinTransactionRows pairs on -- the RPC has always returned it
-		 * and this type simply ignored it, so a withdrawal rendered as two
-		 * unrelated rows with opposite signs.
-		 */
-		transfer_id: string | null;
-		quantity: number | null;
-		note: string | null;
-		actor_email: string;
-		created_at: string;
-	}
+	/**
+	 * `coin_admin_lookup`'s answer. IDEA Coin V2 (0239): `balance` is the ONE
+	 * balance (the digital sum), and a negative one is the debt. The two medium
+	 * figures a pre-V2 database also sends are never read.
+	 */
 	interface CoinLookup {
 		email: string;
-		/** The TOTAL. The two media below decompose it and always sum to it. */
-		balance: number;
-		physical_balance: number;
-		digital_balance: number;
+		balance: number | string;
 		wage_tier: number;
 		eating_pass_active: boolean;
 		eating_pass_strikes: number;
-		recent_transactions: CoinTxn[];
+		/** V2 only; absent on an older database, which cannot tell. */
+		no_shop_today?: boolean;
+		recent_transactions: DeskTxn[];
 	}
 
 	let query = $state('');
@@ -223,7 +214,6 @@
 
 	async function loadRoster(sectionId: string) {
 		roster = [];
-		mediumOverrides = {};
 		picked.clear();
 		if (!sectionId) return;
 		rosterBusy = true;
@@ -415,56 +405,7 @@
 	let gradingCategory = $state('');
 	let costDollarsInput = $state<string | number>('');
 	let gramsInput = $state<string | number>('');
-	let hoursInput = $state<string | number>('');
-	let overnight = $state(false);
 	let noteText = $state('');
-
-	/**
-	 * WHICH BALANCE THIS ENTRY MOVES (0096). Seeded from the stored preference
-	 * and defaulting to physical, because physical coins are the primary
-	 * system -- digital is the exception for a student who was not there to be
-	 * handed any. Deliberately NOT reset by onCategoryChange(): an admin
-	 * logging a session's worth of entries for one absent student sets it
-	 * once, and having it snap back between categories is exactly how the
-	 * wrong balance gets credited.
-	 */
-	let medium = $state<CoinMedium>(untrack(() => coinDefaultMedium(prefs)));
-
-	function setMedium(next: CoinMedium) {
-		if (medium === next) return;
-		medium = next;
-		onPrefs?.({ ...prefs, medium: next });
-	}
-
-	/**
-	 * What the server will ACTUALLY use. Physical Coin Submission is forced to
-	 * physical whatever is chosen (it is a correction of the physical record,
-	 * never a deposit into digital), so the picker says so rather than
-	 * offering a choice that would be silently ignored.
-	 */
-	const forcedMedium = $derived(category ? FORCED_MEDIUM[category.id] : undefined);
-	const activeMedium = $derived(category ? effectiveMedium(category.id, medium) : medium);
-
-	/** PER-STUDENT MEDIUM OVERRIDES for a bulk run (0096), keyed by lowercased email. */
-	let mediumOverrides = $state<Record<string, CoinMedium>>({});
-
-	function toggleOverride(email: string) {
-		const current = mediumOverrides[email] ?? medium;
-		const flipped: CoinMedium = current === 'physical' ? 'digital' : 'physical';
-		if (flipped === medium) {
-			const { [email]: _dropped, ...rest } = mediumOverrides;
-			mediumOverrides = rest;
-		} else {
-			mediumOverrides = { ...mediumOverrides, [email]: flipped };
-		}
-	}
-
-	const overrideCount = $derived(Object.keys(mediumOverrides).length);
-
-	/** The emails a bulk run will actually touch, for the override list. */
-	const bulkEmails = $derived(
-		target === 'picked' ? [...picked].sort() : roster.map((r) => r.student_email)
-	);
 
 	function resetEntryFields() {
 		selectedCategoryId = '';
@@ -475,8 +416,6 @@
 		gradingCategory = '';
 		costDollarsInput = '';
 		gramsInput = '';
-		hoursInput = '';
-		overnight = false;
 		noteText = '';
 	}
 
@@ -488,8 +427,6 @@
 		gradingCategory = '';
 		costDollarsInput = '';
 		gramsInput = '';
-		hoursInput = '';
-		overnight = false;
 		entryError = '';
 		entryNotice = '';
 		bulkError = '';
@@ -540,7 +477,6 @@
 			need('cd-cost', filled(costDollarsInput) && num(costDollarsInput) >= 0);
 		} else if (c.id === 'three_d_printing') {
 			need('cd-grams', filled(gramsInput) && num(gramsInput) >= 0);
-			need('cd-hours', filled(hoursInput) && num(hoursInput) >= 0);
 		} else if (c.id === 'extra_credit') {
 			need('cd-points', filled(pointsInput) && num(pointsInput) > 0);
 			need('cd-grading', !!gradingCategory);
@@ -618,30 +554,8 @@
 		else void advance();
 	}
 
-	function reasonMessage(r: {
-		reason?: string;
-		balance?: number;
-		medium?: string;
-		cap_period?: string;
-		used_points?: number;
-		cap_points?: number;
-		remaining_points?: number;
-		message?: string;
-	}): string {
-		switch (r.reason) {
-			case 'debt':
-				return `Blocked: the ${r.medium ?? ''} balance is negative (${r.balance}${COIN_SYMBOL}) -- ${r.medium ?? ''} purchases are locked until it clears. The other balance is unaffected.`;
-			case 'cap_reached':
-				return `Blocked: already logged the max for this ${r.cap_period === 'day' ? 'day' : 'calendar month'}.`;
-			case 'pass_already_active':
-				return 'Blocked: this student already holds an active Eating Pass.';
-			case 'cap_exceeded':
-				return `Blocked: Extra Credit cap reached (${r.used_points}/${r.cap_points}pt used this semester, ${r.remaining_points}pt remaining).`;
-			case 'error':
-				return r.message ? `Error: ${r.message}` : 'An unexpected error occurred.';
-			default:
-				return r.reason ? `Refused: ${r.reason}` : 'Refused by the server.';
-		}
+	function reasonMessage(r: CoinRefusal): string {
+		return coinRefusalWords(r);
 	}
 
 	function submit() {
@@ -655,47 +569,41 @@
 		entryBusy = true;
 		const email = lookup.email;
 
-		// EVERY call names p_medium. 0096 dropped the old arity of each of
-		// these six RPCs before recreating it, so the parameter is not
-		// optional in practice -- a client that omitted it would resolve
-		// against a signature that no longer exists.
+		// NO CALL NAMES p_medium (IDEA Coin V2, 0239): every row is digital,
+		// and the RPCs keep the parameter only for older clients.
 		let resp: { data: unknown; error: { message: string } | null };
 		if (category.id === 'perfect_score_graded_work') {
 			resp = await supabase.rpc('coin_log_perfect_score', {
 				p_email: email,
 				p_points: Math.round(num(pointsInput)),
-				p_note: noteOrNull(),
-				p_medium: medium
+				p_note: noteOrNull()
 			});
 		} else if (category.id === 'pay_raise') {
 			resp = await supabase.rpc('coin_log_pay_raise', {
 				p_email: email,
-				p_note: noteOrNull(),
-				p_medium: medium
+				p_note: noteOrNull()
 			});
 		} else if (category.id === 'property_damage_careless') {
 			resp = await supabase.rpc('coin_log_property_damage_careless', {
 				p_email: email,
 				p_cost_dollars: num(costDollarsInput),
-				p_note: noteText.trim(),
-				p_medium: medium
+				p_note: noteText.trim()
 			});
 		} else if (category.id === 'three_d_printing') {
 			resp = await supabase.rpc('coin_log_three_d_printing', {
 				p_email: email,
 				p_grams: num(gramsInput),
-				p_hours: num(hoursInput),
-				p_overnight: overnight,
-				p_note: noteOrNull(),
-				p_medium: medium
+				// V2 charges by weight only; the parameter has no default.
+				p_hours: null,
+				p_overnight: false,
+				p_note: noteOrNull()
 			});
 		} else if (category.id === 'extra_credit') {
 			resp = await supabase.rpc('coin_log_extra_credit', {
 				p_email: email,
 				p_points: Math.round(num(pointsInput)),
 				p_grading_category: gradingCategory,
-				p_note: noteOrNull(),
-				p_medium: medium
+				p_note: noteOrNull()
 			});
 		} else {
 			resp = await supabase.rpc('coin_log_transaction', {
@@ -703,13 +611,12 @@
 				p_category_id: category.id,
 				p_amount:
 					category.pricing_model === 'range'
-						? Math.round(num(rangeAmount))
+						? cents(num(rangeAmount))
 						: category.pricing_model === 'variable'
-							? Math.round(num(variableAmount))
+							? cents(num(variableAmount))
 							: null,
 				p_quantity: category.pricing_model === 'per_unit' ? num(quantityInput) : null,
-				p_note: noteOrNull(),
-				p_medium: medium
+				p_note: noteOrNull()
 			});
 		}
 
@@ -718,7 +625,7 @@
 			entryError = resp.error.message;
 			return;
 		}
-		const r = resp.data as { ok: boolean; balance?: number; [k: string]: unknown };
+		const r = resp.data as CoinRefusal & { ok: boolean };
 		if (!r.ok) {
 			entryError = reasonMessage(r);
 			return;
@@ -731,25 +638,22 @@
 	}
 
 	function successMessage(cat: CoinCategory, r: Record<string, unknown>): string {
-		const balance = typeof r.balance === 'number' ? r.balance : undefined;
+		const balance = r.balance == null ? '' : ` New balance: ${coins(coinNum(r.balance as number))}.`;
 		if (cat.id === 'pay_raise') {
-			return `Wage tier raised ${r.previous_tier} -> ${r.new_tier} for ${r.cost}${COIN_SYMBOL}. New balance: ${balance}${COIN_SYMBOL}.`;
+			return `Wage tier raised from ${r.previous_tier} to ${r.new_tier} for ${coins(coinNum(r.cost as number))}.${balance}`;
 		}
 		if (cat.id === 'extra_credit') {
-			return `Logged ${r.points}pt (${r.cost}${COIN_SYMBOL}). ${r.used_points}/${r.cap_points}pt used this semester. New balance: ${balance}${COIN_SYMBOL}.`;
+			return `Logged ${r.points} points for ${coins(coinNum(r.cost as number))}.${balance}`;
 		}
 		if (cat.id === 'three_d_printing') {
-			return `Logged ${r.amount}${COIN_SYMBOL} (material ${r.material_ic}${COIN_SYMBOL} + time ${r.time_ic}${COIN_SYMBOL}). New balance: ${balance}${COIN_SYMBOL}.`;
+			return `Logged ${signedCoins(coinNum(r.amount as number))} by weight.${balance}`;
 		}
 		if (cat.id === 'property_damage_careless') {
-			return `Logged ${r.amount}${COIN_SYMBOL} (${r.base}${COIN_SYMBOL} base + ${r.exchange}${COIN_SYMBOL} repair cost). New balance: ${balance}${COIN_SYMBOL}.`;
+			return `Logged ${signedCoins(coinNum(r.amount as number))} (${coins(coinNum(r.base as number))} base plus ${coins(coinNum(r.exchange as number))} for the repair cost).${balance}`;
 		}
-		const amt = typeof r.amount === 'number' ? r.amount : null;
-		const strikeNote = r.strike === true ? ' -- flagged as an Eating Pass strike.' : '';
-		// `balance` matches the four branches above deliberately: the RPC may
-		// omit it, and this line is not the place to start differing from its
-		// siblings about how that reads.
-		return `Logged "${cat.name}" for ${amt !== null ? signedCoins(amt) : 'the entered amount'}. New balance: ${balance}${COIN_SYMBOL}.${strikeNote}`;
+		const amt = r.amount == null ? null : coinNum(r.amount as number);
+		const strikeNote = r.strike === true ? ' It counts as an Eating Pass strike.' : '';
+		return `Logged "${cat.name}" for ${amt !== null ? (cat.kind === 'fine' || cat.kind === 'purchase' ? signedCoins(-Math.abs(amt)) : signedCoins(amt)) : 'the entered amount'}.${balance}${strikeNote}`;
 	}
 
 	/**
@@ -767,9 +671,9 @@
 		bulkBusy = true;
 		const amount =
 			category.pricing_model === 'range'
-				? Math.round(num(rangeAmount))
+				? cents(num(rangeAmount))
 				: category.pricing_model === 'variable'
-					? Math.round(num(variableAmount))
+					? cents(num(variableAmount))
 					: null;
 		const resp =
 			target === 'picked'
@@ -777,17 +681,13 @@
 						p_emails: [...picked].sort(),
 						p_category_id: category.id,
 						p_amount: amount,
-						p_note: noteOrNull(),
-						p_medium: medium,
-						p_medium_overrides: mediumOverrides
+						p_note: noteOrNull()
 					})
 				: await supabase.rpc('coin_bulk_log_section', {
 						p_section_id: selectedSectionId,
 						p_category_id: category.id,
 						p_amount: amount,
-						p_note: noteOrNull(),
-						p_medium: medium,
-						p_medium_overrides: mediumOverrides
+						p_note: noteOrNull()
 					});
 		bulkBusy = false;
 		if (resp.error) {
@@ -917,34 +817,6 @@
 	</section>
 {/if}
 
-{#snippet mediumPicker()}
-	<div class="field-row">
-		<span class="field-label">Which balance</span>
-		{#if forcedMedium}
-			<p class="preview">
-				Always {MEDIUM_LABELS[forcedMedium]}. This category credits physical coins the student
-				already holds that the record is missing -- it is a correction of the physical record, not
-				a deposit into digital. There is no path from physical into digital.
-			</p>
-		{:else}
-			<div class="medium-toggle">
-				{#each MEDIA as m (m)}
-					<button type="button" class:active={medium === m} onclick={() => setMedium(m)}>
-						{MEDIUM_LABELS[m]}
-					</button>
-				{/each}
-			</div>
-			{#if target === 'student' && lookup}
-				<p class="hint">
-					{MEDIUM_HINTS[medium]} Balance now: {balanceFor(lookup, activeMedium)}{COIN_SYMBOL}
-				</p>
-			{:else}
-				<p class="hint">{MEDIUM_HINTS[medium]}</p>
-			{/if}
-		{/if}
-	</div>
-{/snippet}
-
 {#snippet amountFields(cat: CoinCategory)}
 	{#if cat.pricing_model === 'flat'}
 		{#if cat.id === WEEKLY_WAGE_CATEGORY_ID}
@@ -956,31 +828,31 @@
 			-->
 			{#if bulkTarget}
 				<p class="preview">
-					{cat.amount}{COIN_SYMBOL} x each student's own wage tier. Paid per student, so a
+					{coins(coinNum(cat.amount))} x each student's own wage tier. Paid per student, so a
 					raised tier is honored without splitting the run.
 				</p>
 			{:else if lookup}
 				<p class="preview">
-					Amount: {weeklyWagePreview(cat.amount, lookup.wage_tier)}{COIN_SYMBOL}
-					({cat.amount}{COIN_SYMBOL} base x wage tier {lookup.wage_tier})
+					Amount: {coins(weeklyWagePreview(coinNum(cat.amount), lookup.wage_tier))}
+					({coins(coinNum(cat.amount))} base x wage tier {lookup.wage_tier})
 				</p>
 			{:else}
-				<p class="preview">{cat.amount}{COIN_SYMBOL} x the student's wage tier.</p>
+				<p class="preview">{coins(coinNum(cat.amount))} x the student's wage tier.</p>
 			{/if}
 		{:else}
-			<p class="preview">Fixed amount: {cat.amount}{COIN_SYMBOL}</p>
+			<p class="preview">Fixed amount: {coins(coinNum(cat.amount))}</p>
 		{/if}
 	{:else if cat.pricing_model === 'range'}
 		<div class="field-row">
 			<label for="cd-range">
-				Amount ({cat.min_amount}-{cat.max_amount}{COIN_SYMBOL})
+				Amount ({coins(coinNum(cat.min_amount))} to {coins(coinNum(cat.max_amount))})
 			</label>
 			<input
 				id="cd-range"
 				type="number"
 				min={cat.min_amount}
 				max={cat.max_amount}
-				step="1"
+				step="0.01"
 				bind:value={rangeAmount}
 				onkeydown={onFieldKeydown}
 			/>
@@ -993,7 +865,7 @@
 			<input
 				id="cd-variable"
 				type="number"
-				step="1"
+				step="0.01"
 				bind:value={variableAmount}
 				onkeydown={onFieldKeydown}
 			/>
@@ -1154,15 +1026,14 @@
 			{#if lookup}
 				<div class="strip" data-testid="cd-strip">
 					<span class="strip-who">{lookup.email}</span>
-					<span class="strip-total" class:negative={lookup.balance < 0}>
-						{coins(lookup.balance)}
+					<span
+						class="strip-total"
+						class:negative={coinNum(lookup.balance) < 0}
+						data-testid="cd-strip-balance"
+					>
+						{coins(coinNum(lookup.balance))}
 					</span>
-					<span class="strip-split" class:negative={lookup.physical_balance < 0}>
-						phys {coins(lookup.physical_balance)}
-					</span>
-					<span class="strip-split" class:negative={lookup.digital_balance < 0}>
-						dig {coins(lookup.digital_balance)}
-					</span>
+					{#if coinNum(lookup.balance) < 0}<span class="strip-meta debt-word">in debt</span>{/if}
 					<span class="strip-meta">tier {lookup.wage_tier}</span>
 					<span class="strip-meta">
 						pass: {lookup.eating_pass_active
@@ -1274,13 +1145,13 @@
 						/>
 					</div>
 					{#if filled(pointsInput)}
-						<p class="preview">Preview: {perfectScorePreview(num(pointsInput))}{COIN_SYMBOL}</p>
+						<p class="preview">Preview: {coins(perfectScorePreview(num(pointsInput)))}</p>
 					{/if}
 				{:else if !bulkTarget && category.id === 'pay_raise' && lookup}
 					<p class="preview">
 						Current tier {lookup.wage_tier}. This purchase raises it to {lookup.wage_tier + 1} for
-						{payRaisePreview(lookup.wage_tier)}{COIN_SYMBOL} (the server re-checks the tier and the exact cost
-						at submit time).
+						{coins(payRaisePreview(lookup.wage_tier))} (the server re-checks the tier and the exact cost
+						when it is logged).
 					</p>
 				{:else if !bulkTarget && category.id === 'property_damage_careless'}
 					<div class="field-row">
@@ -1295,7 +1166,7 @@
 						/>
 					</div>
 					{#if filled(costDollarsInput)}
-						<p class="preview">Preview: {propertyDamagePreview(num(costDollarsInput))}{COIN_SYMBOL}</p>
+						<p class="preview">Preview: {coins(propertyDamagePreview(num(costDollarsInput)))}</p>
 					{/if}
 				{:else if !bulkTarget && category.id === 'three_d_printing'}
 					<div class="field-row">
@@ -1309,25 +1180,9 @@
 							onkeydown={onFieldKeydown}
 						/>
 					</div>
-					<div class="field-row">
-						<label for="cd-hours">Print time (hours)</label>
-						<input
-							id="cd-hours"
-							type="number"
-							min="0"
-							step="0.1"
-							bind:value={hoursInput}
-							onkeydown={onFieldKeydown}
-						/>
-					</div>
-					<label class="checkbox-row">
-						<input type="checkbox" bind:checked={overnight} />
-						Printed overnight (no time charge)
-					</label>
-					{#if filled(gramsInput) || filled(hoursInput)}
-						{@const preview = threeDPrintingPreview(num(gramsInput), num(hoursInput), overnight)}
+					{#if filled(gramsInput)}
 						<p class="preview">
-							Preview: {preview.total}{COIN_SYMBOL} (material {preview.material}{COIN_SYMBOL} + time {preview.time}{COIN_SYMBOL})
+							Preview: {coins(threeDPrintingPreview(num(gramsInput), 0, false).total)}, by weight only
 						</p>
 					{/if}
 				{:else if !bulkTarget && category.id === 'extra_credit'}
@@ -1352,7 +1207,7 @@
 						</select>
 					</div>
 					{#if filled(pointsInput)}
-						<p class="preview">Preview: {Math.round(num(pointsInput) * (category.amount ?? 0))}{COIN_SYMBOL}</p>
+						<p class="preview">Preview: {coins(cents(num(pointsInput) * coinNum(category.amount)))}</p>
 					{/if}
 				{:else if !bulkTarget && category.pricing_model === 'per_unit'}
 					<div class="field-row">
@@ -1368,14 +1223,12 @@
 					</div>
 					{#if filled(quantityInput)}
 						<p class="preview">
-							Preview: {Math.round(num(quantityInput) * (category.amount ?? 0))}{COIN_SYMBOL}
+							Preview: {coins(cents(num(quantityInput) * coinNum(category.amount)))}
 						</p>
 					{/if}
 				{:else}
 					{@render amountFields(category)}
 				{/if}
-
-				{@render mediumPicker()}
 
 				<div class="field-row">
 					<label for="cd-note">Note{noteRequired ? ' (required)' : ' (optional)'}</label>
@@ -1387,33 +1240,6 @@
 						onkeydown={onFieldKeydown}
 					/>
 				</div>
-
-				{#if bulkTarget && !forcedMedium && bulkEmails.length}
-					<details class="overrides">
-						<summary>
-							Per-student exceptions{overrideCount ? ` (${overrideCount})` : ''}
-						</summary>
-						<p class="hint">
-							Everyone is logged as {MEDIUM_LABELS[medium]}. Flip anyone who was absent (or
-							present) to the other balance -- it all goes in one server-side pass, not a
-							second run.
-						</p>
-						<div class="override-grid">
-							{#each bulkEmails as email (email)}
-								{@const rowMedium = mediumOverrides[email] ?? medium}
-								<button
-									type="button"
-									class="override-chip"
-									class:flipped={!!mediumOverrides[email]}
-									onclick={() => toggleOverride(email)}
-								>
-									<span class="override-email">{email}</span>
-									<span class="override-medium">{MEDIUM_LABELS[rowMedium]}</span>
-								</button>
-							{/each}
-						</div>
-					</details>
-				{/if}
 
 				<div class="btn-row">
 					<button
@@ -1449,29 +1275,16 @@
 		{#if bulkResponse}
 			<div class="bulk-results" data-testid="cd-bulk-results">
 				<p class="feedback notice">
-					Logged against {bulkResponse.total} student{bulkResponse.total === 1 ? '' : 's'} as
-					{bulkResponse.medium ?? medium}: {bulkResponse.succeeded} succeeded, {bulkResponse.refused}
-					refused.
+					Logged against {bulkResponse.total} student{bulkResponse.total === 1 ? '' : 's'}:
+					{bulkResponse.succeeded} succeeded, {bulkResponse.refused} refused.
 				</p>
-				{#if bulkResponse.unmatched_overrides?.length}
-					<p class="feedback error">
-						{bulkResponse.unmatched_overrides.length} per-student exception{bulkResponse
-							.unmatched_overrides.length === 1
-							? ''
-							: 's'} matched nobody and did nothing:
-						{bulkResponse.unmatched_overrides.join(', ')}
-					</p>
-				{/if}
 				<div class="rows bulk-rows">
 					{#each bulkResponse.results as r (r.email)}
 						<div class="row" class:refused={!r.ok}>
 							<span class="email">{r.email}</span>
-							{#if r.medium}
-								<span class="medium-chip" class:digital={r.medium === 'digital'}>{r.medium}</span>
-							{/if}
 							{#if r.ok}
 								<span class="txn-pos">
-									{typeof r.amount === 'number' ? signedCoins(r.amount) : 'logged'}
+									{r.amount != null ? signedCoins(coinNum(r.amount as number)) : 'logged'}
 								</span>
 							{:else}
 								<span class="txn-neg">{reasonMessage(r)}</span>
@@ -1486,7 +1299,7 @@
 		     operator sometimes takes, and the history is a report they sometimes
 		     read. Both sit BELOW the form, and the history is closed. -->
 		{#if target === 'student' && lookup}
-			{#if lookup.physical_balance < 0 || lookup.digital_balance < 0}
+			{#if coinNum(lookup.balance) < 0}
 				<!--
 					BEHIND A DISCLOSURE FOR THE SAME REASON THE HISTORY IS, and this
 					one was found by measurement rather than reasoning: logging a
@@ -1495,31 +1308,53 @@
 					next frame after a successful log. Paying a debt is an ACTION the
 					operator sometimes takes, not a step in logging, and it must not
 					be able to push the form.
-					The debt itself is not hidden -- the strip above already reads it
-					in amber, and this summary names the amount.
+					The debt itself is not hidden: the strip above reads the balance
+					in amber, and this summary names it.
 				-->
 				<details class="debt" data-testid="cd-debt">
 					<summary>
-						Pay off debt ({coins(Math.min(lookup.physical_balance, lookup.digital_balance, 0))})
+						Pay off debt (balance {coins(coinNum(lookup.balance))})
 					</summary>
 					<DebtPaymentPanel
 						{supabase}
 						email={lookup.email}
-						physicalBalance={lookup.physical_balance}
-						digitalBalance={lookup.digital_balance}
+						balance={lookup.balance}
 						onLogged={() => runLookup(lookup!.email, true)}
 					/>
 				</details>
 			{/if}
 
+			<!-- Closed on arrival for the no-scroll rule: standing, no shop today
+			     and a purchase paid in coins are actions taken sometimes. -->
+			<div class="tools-disclosure cdx-disc">
+				<Disclosure
+					label="Student tools"
+					collapseWhen={true}
+					testId="cd-tools"
+				>
+					<StudentCoinTools
+						{supabase}
+						email={lookup.email}
+						balance={lookup.balance}
+						wageTier={lookup.wage_tier}
+						eatingPassActive={lookup.eating_pass_active}
+						eatingPassStrikes={lookup.eating_pass_strikes}
+						noShopToday={lookup.no_shop_today}
+						{categories}
+						onChanged={() => runLookup(lookup!.email, true)}
+					/>
+				</Disclosure>
+			</div>
+
 			<details class="history" data-testid="cd-history">
 				<summary>
 					Recent transactions ({lookup.recent_transactions.length})
 				</summary>
-				<CoinTransactionRows
+				<DeskHistory
 					transactions={lookup.recent_transactions}
 					kinds={categoryKinds}
-					showActor
+					reverse={(id) => reverseTransaction(supabase, id)}
+					onReversed={() => runLookup(lookup!.email, true)}
 				/>
 			</details>
 		{/if}
@@ -1749,10 +1584,9 @@
 		color: var(--green);
 	}
 	.strip-total.negative,
-	.strip-split.negative {
+	.strip-meta.debt-word {
 		color: var(--amber);
 	}
-	.strip-split,
 	.strip-meta {
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
@@ -1904,8 +1738,7 @@
 		flex-direction: column;
 		gap: 0.2rem;
 	}
-	.field-row label,
-	.field-label {
+	.field-row label {
 		color: var(--dim);
 		font-family: var(--font-mono);
 		font-size: 0.68rem;
@@ -1923,32 +1756,6 @@
 		font-size: 0.95rem;
 		padding: 0.35rem 0.5rem;
 		width: 100%;
-	}
-	.checkbox-row {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		color: var(--white);
-		font-size: 0.9rem;
-	}
-
-	.medium-toggle {
-		display: flex;
-		gap: 0.3rem;
-	}
-	.medium-toggle button {
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--dim);
-		cursor: pointer;
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		padding: 0.25rem 0.6rem;
-	}
-	.medium-toggle button.active {
-		border-color: var(--green);
-		color: var(--green);
 	}
 
 	.preview,
@@ -1994,59 +1801,33 @@
 		border: 1px solid var(--line);
 	}
 
-	.overrides,
 	.history,
 	.debt {
 		border: 1px solid var(--line);
 		border-radius: 4px;
 		padding: 0.3rem 0.6rem;
 	}
-	.overrides summary,
+	.tools-disclosure {
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		padding: 0.3rem 0.6rem;
+	}
 	.history summary,
 	.debt summary {
 		color: var(--dim);
 		cursor: pointer;
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		padding: 0.15rem 0;
+		/* 44px tall with the line: the summary is the control. */
+		min-height: 44px;
+		padding: 0.75rem 0;
+		box-sizing: border-box;
 	}
 	.debt {
 		border-color: var(--amber);
 	}
 	.debt summary {
 		color: var(--amber);
-	}
-	.override-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-		gap: 0.25rem;
-		max-height: 14rem;
-		overflow-y: auto;
-		margin-top: 0.35rem;
-	}
-	.override-chip {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.4rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		color: var(--white);
-		cursor: pointer;
-		font-family: var(--font-mono);
-		font-size: 0.66rem;
-		padding: 0.22rem 0.4rem;
-		text-align: left;
-	}
-	.override-chip.flipped {
-		border-color: var(--cyan);
-		color: var(--cyan);
-	}
-	.override-email {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.bulk-results .rows {
@@ -2073,14 +1854,6 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		color: var(--white);
-	}
-	.medium-chip {
-		color: var(--dim);
-		text-transform: uppercase;
-		font-size: 0.6rem;
-	}
-	.medium-chip.digital {
-		color: var(--cyan);
 	}
 	.txn-pos {
 		color: var(--green);

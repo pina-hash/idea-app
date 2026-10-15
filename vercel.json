@@ -14,5 +14,6 @@
 			"permanent": true,
 			"has": [{ "type": "host", "value": "idea-app-sage.vercel.app" }]
 		}
-	]
+	],
+	"crons": [{ "path": "/api/coin/autopay", "schedule": "17 10 * * *" }]
 }

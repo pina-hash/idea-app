@@ -21,7 +21,7 @@ export const GET: RequestHandler = async ({ cookies, setHeaders }) => {
 		signedIn: true,
 		isStudent: devState.isStudent,
 		name: 'Lovelace, Ada',
-		section: 'IDEA-113',
+		section: 'IDEA113 Block 3',
 		studentId: 'aa11bb22cc33dd44ee55ff6600112233'
 	});
 };

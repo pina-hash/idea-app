@@ -72,7 +72,9 @@ export default {
 		{ selector: '.cd-root .combo-option.tone-fine .combo-kind', label: 'FINE chip (--amber)', min: 4.5 },
 		{ selector: '.cd-root .combo-option.tone-purchase .combo-kind', label: 'PURCHASE chip (--gold)', min: 4.5 },
 		{ selector: '.cd-root .combo-option.tone-adjustment .combo-kind', label: 'ADJUSTMENT chip (--violet-ink)', min: 4.5 },
-		{ selector: '.cd-root .combo-option.tone-payout .combo-kind', label: 'PAYOUT chip (--cyan)', min: 4.5 },
+		/* No PAYOUT chip since IDEA Coin V2 (ledger 0383): Coin Payout is not
+		   loggable, so the picker carries four types; the payout transfer is the
+		   Economy page's. */
 		{ selector: '.cd-root [data-testid="cd-category-list"] .combo-name', label: 'the category name itself', min: 4.5 },
 		{ selector: '.cd-root [data-testid="cd-category-list"] .combo-price', label: 'the price hint', min: 4.5 }
 	],
@@ -106,13 +108,13 @@ export default {
 			label: 'the count of distinct glyphs equals the count of distinct types',
 			evaluate:
 				'() => { const rows = [...document.querySelectorAll("[data-testid=\\"cd-category-list\\"] .combo-option")]; if (!rows.length) return ["NO ROWS"]; const types = new Set(rows.map((r) => r.dataset.type)); const glyphs = new Set(rows.map((r) => { const g = r.querySelector(".coin-glyph"); return g && g.dataset.glyph; })); if (glyphs.has(null) || glyphs.has(undefined)) return ["A ROW HAS NO GLYPH"]; return [types.size + " types / " + glyphs.size + " glyphs"]; }',
-			expected: ['5 types / 5 glyphs']
+			expected: ['4 types / 4 glyphs']
 		},
 		{
 			label: 'every row carries a tone class, so none falls through uncoloured',
 			evaluate:
 				'() => { const rows = [...document.querySelectorAll("[data-testid=\\"cd-category-list\\"] .combo-option")]; if (!rows.length) return ["NO ROWS"]; const untoned = rows.filter((r) => ![...r.classList].some((c) => c.startsWith("tone-"))); return [untoned.length === 0 ? "all toned (" + rows.length + " rows)" : untoned.length + " untoned"]; }',
-			expected: ['all toned (38 rows)']
+			expected: ['all toned (33 rows)']
 		}
 	]
 };

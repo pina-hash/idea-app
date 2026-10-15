@@ -240,7 +240,15 @@ describe('docs/migrations-applied/ as committed', () => {
 			.filter((n) => Number(n) >= 193)
 			.sort();
 		expect(wanted.length).toBeGreaterThan(10); // positive control: migrations were read
-		expect([...recorded].sort()).toEqual(wanted);
+		// THE RECORDS ARE A GAP-FREE PREFIX OF THE MIGRATIONS. A bundle pushes its
+		// migrations to main and `migrate.yml` writes each record AFTER it
+		// applies, so the newest files are legitimately unrecorded for the
+		// minutes in between (ledger 0383 pushed five at once). What may never
+		// happen is a hole: an unrecorded file BELOW a recorded one.
+		const sorted = [...recorded].sort();
+		expect(sorted.length).toBeGreaterThan(10);
+		expect(sorted).toEqual(wanted.slice(0, sorted.length));
+		expect(sorted.every((n) => wanted.includes(n))).toBe(true);
 	});
 
 	it('every record names a migration file that exists, and hashes it correctly', () => {

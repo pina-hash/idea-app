@@ -25,5 +25,20 @@
 			"type": "image/png",
 			"purpose": "maskable"
 		}
+	],
+	"shortcuts": [
+		{
+			"name": "Fine",
+			"short_name": "Fine",
+			"description": "Log a fine or an award on the Coin Desk fine screen",
+			"url": "/coin-desk/fine",
+			"icons": [
+				{
+					"src": "/IDEA/icon-192.png",
+					"sizes": "192x192",
+					"type": "image/png"
+				}
+			]
+		}
 	]
 }

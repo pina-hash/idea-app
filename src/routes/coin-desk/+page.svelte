@@ -1,5 +1,6 @@
 <script lang="ts">
 	import LogView from '$lib/coin-desk/LogView.svelte';
+	import AutopayRuns from '$lib/coin-desk/AutopayRuns.svelte';
 	import { untrack } from 'svelte';
 	import { readCoinDeskPrefs, type CoinDeskPrefs } from '$lib/coin-desk';
 	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
@@ -10,8 +11,8 @@
 	/**
 	 * `profiles.preferences` rides `userProfile` from the ROOT layout, which
 	 * already loads it for every page (the AppLauncher reads its own namespace
-	 * out of the same object). So the coin desk's default mode and default
-	 * medium cost no query of their own -- only a parser.
+	 * out of the same object). So the coin desk's default mode costs no query
+	 * of its own -- only a parser.
 	 */
 	let prefs = $state<CoinDeskPrefs>(
 		untrack(() => readCoinDeskPrefs(data.userProfile?.preferences))
@@ -50,3 +51,7 @@
 	{prefs}
 	onPrefs={savePrefs}
 />
+
+<!-- Below the split, so it never moves the entry form: the runs are a report
+     read sometimes, not a step in logging. -->
+<AutopayRuns supabase={data.supabase} />

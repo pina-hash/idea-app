@@ -35,6 +35,7 @@ export const SITE_PLATE_PREFIXES: readonly string[] = [
 	'/archive',
 	'/armory',
 	'/auth',
+	'/coin-balance',
 	'/coin-desk',
 	'/foundry',
 	'/maps',

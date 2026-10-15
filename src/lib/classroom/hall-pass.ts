@@ -1,3 +1,5 @@
+import { coins } from '$lib/coin-format';
+
 /**
  * THE DIGITAL BATHROOM PASS -- the pure half.
  *
@@ -193,6 +195,13 @@ export interface HallPassClosed {
 	closed_by_manager: boolean;
 	/** Manager-only, null for a student closing their own. */
 	student_name: string | null;
+	/**
+	 * WHETHER THIS CLOSE WAS WARNED OR FINED (0243), when the transport carries
+	 * them. Absent is "cannot tell", never "no": the surface then reads the
+	 * events instead.
+	 */
+	warned?: boolean;
+	fined?: boolean;
 }
 
 export type HallPassResult<T> =
@@ -325,6 +334,17 @@ export function hallPassClockLabel(iso: string): string {
 }
 
 /**
+ * "Oct 14": the school's own calendar day, with no weekday name. For a list
+ * that spans days (the warnings and fines), where a clock time alone is not
+ * enough to tell this morning from last week.
+ */
+export function hallPassDateLabel(iso: string): string {
+	const at = new Date(iso);
+	if (Number.isNaN(at.getTime())) return '';
+	return at.toLocaleDateString('en-US', { timeZone: SCHOOL_TIME_ZONE, month: 'short', day: 'numeric' });
+}
+
+/**
  * Whole minutes between two instants, floored, never negative.
  *
  * FLOORED RATHER THAN ROUNDED so a figure on screen never claims more time has
@@ -344,10 +364,17 @@ export function hallPassMinutes(fromIso: string, toMs: number): number {
  * clock on this surface -- so this is assertable at a pinned instant and two
  * figures rendered in one paint cannot disagree with each other.
  *
- * NO WARNING TONE AT ANY DURATION. The database checks a pass in at the
- * section's auto check-in (0237) and charges it to the day; this label only
- * says how long, and a surface that started colouring minutes red would be
- * a second opinion about a limit that has one owner.
+ * NO WARNING TONE ON THIS LABEL, AND THE WARNING AND THE FINE ARE THE
+ * DATABASE'S (decision 67, 0243, which overrides what this comment and 0143's
+ * header used to say: that a pass had no coin link and showed no warning at
+ * any duration). A pass is judged ONCE, when it is closed: at or over the
+ * warning threshold it is logged as a warning, and at or over the fine
+ * threshold it is fined (`hall_pass_warn_minutes` and `hall_pass_fine_minutes`
+ * in the coin settings, 10 and 20 by default), never twice and never for a
+ * pass an instructor opened or closed. Both numbers reach the surface on the
+ * events payload (`HallPassEvents`), never as a literal here. This label only
+ * says how long; a surface that coloured minutes red as they passed would be a
+ * second opinion about a rule that has one owner.
  */
 export function hallPassElapsedLabel(fromIso: string, nowMs: number): string {
 	const mins = hallPassMinutes(fromIso, nowMs);
@@ -662,4 +689,105 @@ export function hallPassToolChip(state: HallPassState, nowMs: number): HallPassT
 	}
 	if (state.taken) return { tone: 'taken', word: state.out ? `Out · ${state.out.name}` : 'Taken' };
 	return { tone: 'free', word: 'Free' };
+}
+
+/* ------------------------------------------------------------------------
+ * WARNINGS AND FINES (decision 67, 0243).
+ * ------------------------------------------------------------------------ */
+
+/** One warning or fine on one pass (`classroom_hall_pass_events`). */
+export interface HallPassEvent {
+	pass_id: string;
+	kind: 'warning' | 'fine';
+	/** How long the pass counted for, in minutes (capped at the auto check-in). */
+	minutes: number | string;
+	created_at: string;
+	opened_at: string;
+	/** Manager scope only. A student's own rows carry no name and no address. */
+	student_name?: string | null;
+	student_email?: string | null;
+	/** The coins the fine took, positive; null for a warning or a fine nobody was charged for. */
+	fine_amount?: number | string | null;
+}
+
+export interface HallPassEvents {
+	scope: 'manager' | 'student';
+	warn_minutes: number | string;
+	fine_minutes: number | string;
+	events: HallPassEvent[];
+}
+
+/**
+ * THE READ, INJECTED. Null is a failed read (the list keeps what it had);
+ * `'missing'` is a database without 0243, and the list then leaves itself out.
+ */
+export type HallPassEventsTransport = (sectionId: string) => Promise<HallPassEvents | null | 'missing'>;
+
+const wholeMinutes = (v: number | string): number => {
+	const n = typeof v === 'string' ? Number(v) : v;
+	return Number.isFinite(n) ? Math.floor(n) : 0;
+};
+
+/**
+ * ONE ROW IN WORDS: a glyph AND a word, never colour alone.
+ * "Warning: 12 min" / "Fined 2i¢: 24 min".
+ */
+export function hallPassEventWords(event: HallPassEvent): {
+	tone: 'warning' | 'fine';
+	glyph: string;
+	word: string;
+} {
+	const mins = `${wholeMinutes(event.minutes)} min`;
+	if (event.kind === 'fine') {
+		const amount = event.fine_amount == null ? null : Number(event.fine_amount);
+		return {
+			tone: 'fine',
+			glyph: '\u2296',
+			word: amount != null && Number.isFinite(amount) ? `Fined ${coins(amount)}: ${mins}` : `Over the fine time: ${mins}`
+		};
+	}
+	return { tone: 'warning', glyph: '!', word: `Warning: ${mins}` };
+}
+
+/**
+ * THE ROWS A LIST SHOWS: a pass that was fined was also warned (the fine
+ * threshold is past the warning one), and two rows for one pass read as two
+ * passes. So a warning whose pass also has a fine is folded into the fine row.
+ */
+export function hallPassEventsShown(events: readonly HallPassEvent[]): HallPassEvent[] {
+	const fined = new Set(events.filter((e) => e.kind === 'fine').map((e) => e.pass_id));
+	return events.filter((e) => e.kind === 'fine' || !fined.has(e.pass_id));
+}
+
+/** The rule, said from the payload's own two numbers. */
+export function hallPassEventRule(payload: Pick<HallPassEvents, 'warn_minutes' | 'fine_minutes'>): string {
+	const warn = wholeMinutes(payload.warn_minutes);
+	const fine = wholeMinutes(payload.fine_minutes);
+	return `A pass of ${warn} minutes or more is logged as a warning, and ${fine} minutes or more is fined. It is checked once, when the pass ends.`;
+}
+
+/**
+ * WHAT A STUDENT IS TOLD RIGHT AFTER SIGNING BACK IN, from the close's own
+ * flags when the transport carried them, otherwise from the events for that
+ * pass. Null when nothing happened, or nothing can be told.
+ */
+export function hallPassCloseVerdict(
+	closed: Pick<HallPassClosed, 'pass_id' | 'warned' | 'fined'>,
+	events: HallPassEvents | null
+): string | null {
+	const mine = events?.events.filter((e) => e.pass_id === closed.pass_id) ?? [];
+	const fine = mine.find((e) => e.kind === 'fine');
+	const warning = mine.find((e) => e.kind === 'warning');
+	if (fine || closed.fined) {
+		const amount = fine?.fine_amount == null ? null : Number(fine.fine_amount);
+		const mins = fine ? ` That pass counted as ${wholeMinutes(fine.minutes)} minutes.` : '';
+		return amount != null && Number.isFinite(amount)
+			? `Signed back in. This pass went over the time limit, so it cost ${coins(amount)}.${mins}`
+			: `Signed back in. This pass went over the time limit, so it was fined.${mins}`;
+	}
+	if (warning || closed.warned) {
+		const mins = warning ? ` It counted as ${wholeMinutes(warning.minutes)} minutes.` : '';
+		return `Signed back in. This pass was long, so a warning was logged.${mins} A longer pass costs coins.`;
+	}
+	return null;
 }

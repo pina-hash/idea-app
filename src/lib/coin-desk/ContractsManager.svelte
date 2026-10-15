@@ -10,7 +10,7 @@
 		type ContractStatus
 	} from './contracts';
 	import { sectionDisplayName, type CoinSectionRow } from './sections';
-	import { COIN_SYMBOL } from '$lib/coin-format';
+	import { COIN_SYMBOL, coins } from '$lib/coin-format';
 
 	/**
 	 * Contracts admin: post a job, watch students self-claim it, complete it
@@ -160,7 +160,7 @@
 			...completeFeedback,
 			[c.id]: {
 				ok: true,
-				message: `Paid ${r.share}${COIN_SYMBOL} to each of ${r.claimant_count} claimant${r.claimant_count === 1 ? '' : 's'} (${r.succeeded} succeeded).`
+				message: `Paid ${coins(Number(r.share ?? 0))} to each of ${r.claimant_count} claimant${r.claimant_count === 1 ? '' : 's'} (${r.succeeded} succeeded).`
 			}
 		};
 		await loadContracts();

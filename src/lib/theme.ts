@@ -189,8 +189,14 @@ export function themeColorFor(attr: SiteThemeAttr | undefined): string {
 /** The themes whose attribute is written only on in-scope routes. */
 export const SCOPED_SITE_THEMES: readonly SiteTheme[] = ['space-white'];
 
-/** Production route prefixes a scoped theme covers: the prefix itself or anything under it. */
-export const THEME_SCOPE_PREFIXES: readonly string[] = ['/classroom', '/reference', '/notebook'];
+/**
+ * Production route prefixes a scoped theme covers: the prefix itself or anything
+ * under it. `/coins` (the public IDEA Coin Ledger, a legacy page served raw)
+ * joined in ledger 0383 on Mr. Pina's note that the Ledger must be visually
+ * compatible with the site's themes; its own stylesheet carries the Space White
+ * twins, measured at 4.5:1 or better, and its route injects the boot table.
+ */
+export const THEME_SCOPE_PREFIXES: readonly string[] = ['/classroom', '/reference', '/notebook', '/coins'];
 
 /** Production paths a scoped theme covers EXACTLY, with nothing under them: the home page. */
 export const THEME_SCOPE_EXACT: readonly string[] = ['/'];
@@ -208,6 +214,7 @@ export const THEME_SCOPE_EXACT: readonly string[] = ['/'];
  * here.
  */
 export const THEME_SCOPE_DEV_PREFIXES: readonly string[] = [
+	'/dev/coins',
 	'/dev/themes',
 	'/dev/theme-switch',
 	'/dev/classroom',

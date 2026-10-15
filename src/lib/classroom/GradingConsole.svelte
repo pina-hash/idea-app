@@ -72,6 +72,7 @@
 		applyPreset,
 		bottomLevelScores,
 		bulkCanSend,
+		gradeDirectMany,
 		bulkOutcome,
 		bulkPlan,
 		groupBySection,
@@ -136,6 +137,19 @@
 	} from '$lib/classroom/presence/state';
 	import type { PresenceTransports } from '$lib/classroom/presence/transports';
 	import { findStudentByToken, studentToken } from '$lib/classroom/grading-student-url';
+	import {
+		directGradingOf,
+		directRefusalSentence,
+		parseDirectScore,
+		perfectScoreNote,
+		perfectScoreOf,
+		perfectScoreRefusal,
+		studentDirectScore,
+		DIRECT_NO_TOTAL,
+		type DirectGradeResult,
+		type GradingDataWithDirect,
+		type PerfectScoreToggle
+	} from '$lib/classroom/grading-direct';
 
 	/**
 	 * The grading console for one assignment in one section: the roster with
@@ -610,7 +624,12 @@
 		heldFeedback?.session.destroy();
 		heldFeedback = null;
 	});
-	const outOf = $derived(rubric ? rubricTotal(rubric) : (item.points ?? 0));
+	/**
+	 * WHAT A SCORE IS OUT OF: the rubric's total when there is a rubric with
+	 * criteria, the item's own points otherwise -- `_classroom_item_out_of`'s
+	 * order (0241), so the field, the header and the refusal agree.
+	 */
+	const outOf = $derived(rubric?.length ? rubricTotal(rubric) : (item.points ?? 0));
 	const liveTotal = $derived(
 		rubric ? scoresTotal(rubric, scores as Record<string, number>) : 0
 	);
@@ -790,8 +809,91 @@
 	const extraCreditInvalid = $derived(
 		String(extraCredit ?? '').trim() !== '' && (extraCreditNumber == null || extraCreditNumber < 0)
 	);
-	/** The rubric sum plus whatever is typed -- what the server will stamp. */
-	const liveAwarded = $derived(liveTotal + (extraCreditNumber ?? 0));
+	// -----------------------------------------------------------------------
+	// "SCORE OUT OF N", TYPED (0242, IDEA Coin V2).
+	//
+	// A grader may type the score of record, with or without a rubric; typed, it
+	// replaces the rubric sum and extra credit is still added on top. Blank sends
+	// null, which puts the rubric sum back. ABSENCE IS THE MECHANISM TWICE: the
+	// transports must carry `gradeDirect`, and the payload must have come back on
+	// 0242's `direct_score` rung, which proves the RPC is there.
+	// -----------------------------------------------------------------------
+	const direct = $derived(directGradingOf(transports));
+	const directReady = $derived(
+		!!direct && (data as GradingDataWithDirect | null)?.directScoreReady === true
+	);
+	/** A string, for the same `bind:value` coercion reason as `extraCredit`. */
+	let directScore = $state('');
+	const directTyped = $derived(String(directScore ?? '').trim() !== '');
+	const directParsed = $derived(parseDirectScore(directScore, outOf));
+	const directInvalid = $derived(directReady && directTyped && !!directParsed.error);
+	/** The typed score when there is a usable one, which is then the score of record. */
+	const directValue = $derived(
+		directReady && directTyped && !directParsed.error ? directParsed.value : null
+	);
+	/** Is there a score card at all: a rubric to score, or a score to type. */
+	const scoreCardShown = $derived(!!rubric?.length || directReady);
+
+	/** The score of record plus whatever is typed -- what the server will stamp. */
+	const liveAwarded = $derived((directValue ?? liveTotal) + (extraCreditNumber ?? 0));
+
+	// -----------------------------------------------------------------------
+	// THE PERFECT SCORE AWARD (0242): one switch per class posting the caller
+	// manages, read once on mount. NULL means the database has no such function
+	// (pre-0242), and the panel is not drawn at all.
+	// -----------------------------------------------------------------------
+	const perfect = $derived(perfectScoreOf(transports));
+	let perfectRows = $state<PerfectScoreToggle[] | null>(null);
+	let perfectBusy = $state<string | null>(null);
+	let perfectError = $state<string | null>(null);
+	let perfectNotice = $state<string | null>(null);
+	const perfectOnCount = $derived((perfectRows ?? []).filter((r) => r.on).length);
+
+	async function loadPerfect(t: NonNullable<typeof perfect>) {
+		try {
+			const res = await t.perfectScores(item.id);
+			if (!res.ok) {
+				// A read that failed is not "every switch off": say so in the panel.
+				perfectError = `The Perfect Score settings could not be read. ${res.message}`;
+				perfectRows = perfectRows ?? [];
+				return;
+			}
+			perfectRows = res.data;
+		} catch {
+			perfectRows = null;
+		}
+	}
+	onMount(() => {
+		const t = untrack(() => perfect);
+		if (t) void loadPerfect(t);
+	});
+
+	async function setPerfect(row: PerfectScoreToggle, on: boolean) {
+		const t = perfect;
+		if (!t || perfectBusy) return;
+		perfectBusy = row.section_id;
+		perfectError = null;
+		perfectNotice = null;
+		try {
+			const res = await t.setPerfectScore(item.id, row.section_id, on);
+			if (!res.ok) {
+				perfectError = res.message;
+				return;
+			}
+			if (res.data.ok === false) {
+				perfectError = perfectScoreRefusal(res.data.reason);
+				return;
+			}
+			perfectRows = (perfectRows ?? []).map((r) =>
+				r.section_id === row.section_id ? { ...r, on } : r
+			);
+			perfectNotice = on
+				? `Perfect Score award is on for ${row.label}. Full scores already returned there are paid now.`
+				: `Perfect Score award is off for ${row.label}. Any award already paid there is taken back.`;
+		} finally {
+			perfectBusy = null;
+		}
+	}
 
 	// -----------------------------------------------------------------------
 	// ACROSS CLASSES (0175's read half).
@@ -1202,6 +1304,8 @@
 		comment: string;
 		/** As typed, so "3" and "3.0" are the same edit and "" is none. */
 		extraCredit: string;
+		/** "Score out of N", as typed; "" is none (the rubric sum). */
+		direct: string;
 	}
 	let baseline = $state<GradeSnapshot | null>(null);
 	/** A selection waiting on the confirm. `null` in `next` means "close". */
@@ -1212,14 +1316,15 @@
 			scores: { ...$state.snapshot(scores) },
 			critComments: { ...$state.snapshot(critComments) },
 			comment,
-			extraCredit: String(extraCredit ?? '').trim()
+			extraCredit: String(extraCredit ?? '').trim(),
+			direct: String(directScore ?? '').trim()
 		};
 	}
 
 	/** Which criteria differ from the baseline, and whether the comment does. */
 	const changed = $derived.by(() => {
 		const base = baseline;
-		if (!base) return { criteria: [] as string[], comment: false, extraCredit: false };
+		if (!base) return { criteria: [] as string[], comment: false, extraCredit: false, direct: false };
 		const ids = new Set([...Object.keys(base.scores), ...Object.keys(scores)]);
 		const criteria: string[] = [];
 		for (const id of ids) {
@@ -1234,10 +1339,13 @@
 		return {
 			criteria,
 			comment: (base.comment ?? '').trim() !== comment.trim(),
-			extraCredit: (base.extraCredit ?? '') !== String(extraCredit ?? '').trim()
+			extraCredit: (base.extraCredit ?? '') !== String(extraCredit ?? '').trim(),
+			direct: (base.direct ?? '') !== String(directScore ?? '').trim()
 		};
 	});
-	const dirty = $derived(changed.criteria.length > 0 || changed.comment || changed.extraCredit);
+	const dirty = $derived(
+		changed.criteria.length > 0 || changed.comment || changed.extraCredit || changed.direct
+	);
 
 	/** What the confirm has to name, in the grader's terms and with real counts. */
 	const dirtyCost = $derived.by(() => {
@@ -1246,6 +1354,7 @@
 		if (n) parts.push(`${n} criteri${n === 1 ? 'on' : 'a'}`);
 		if (changed.comment) parts.push('the comment to the student');
 		if (changed.extraCredit) parts.push('the extra credit');
+		if (changed.direct) parts.push(`the score out of ${outOf}`);
 		return parts.join(' and ');
 	});
 
@@ -1358,6 +1467,9 @@
 		// thing to a grader, and the difference is what `extraCreditReady` is for.
 		extraCredit =
 			next.submission?.extra_credit == null ? '' : String(next.submission.extra_credit);
+		// The stored typed score, if any; blank means the rubric sum is the score.
+		const storedDirect = studentDirectScore(next);
+		directScore = storedDirect == null ? '' : String(storedDirect);
 		const saved = next.submission?.rubric_scores ?? {};
 		const notes = next.submission?.criterion_comments ?? {};
 		scores = Object.fromEntries((rubric ?? []).map((c) => [c.id, saved[c.id] ?? null]));
@@ -1777,14 +1889,40 @@
 		if (selected) requestSelect(null);
 	}
 
+	/**
+	 * A REFUSAL FROM EITHER GRADING DOOR, IN ONE PLACE. Both answer
+	 * `classroom_grade_submission`'s shape; the typed-score door adds two
+	 * reasons of its own (`no_total`, `out_of_range`), which
+	 * `directRefusalSentence` words.
+	 */
+	function refusalOutcome(res: DirectGradeResult): SaveOutcome {
+		if (res.reason === 'override_needs_comment') needComment = res.missing ?? [];
+		gradeError =
+			res.reason === 'incomplete_scores' && !directReady
+				? `Score every criterion before returning (${res.missing?.length ?? 0} left).`
+				: directRefusalSentence(res);
+		// A refusal, not a failure: the server considered this and said no, so
+		// retrying it five times arrives at the same answer.
+		return { ok: false, retryable: false, message: gradeError };
+	}
+
 	async function grade(release: boolean): Promise<SaveOutcome> {
-		if (!selected || !rubric) return { ok: true };
+		if (!selected) return { ok: true };
+		/*
+		 * WHICH DOOR. The typed-score door (0242) when the field holds a score,
+		 * when it was just cleared (null is how a typed score is taken back), and
+		 * always when there is no rubric, since then the typed score IS the grade.
+		 * Otherwise the rubric door, exactly as before.
+		 */
+		const useDirect =
+			!!direct && directReady && (directTyped || changed.direct || !rubric?.length);
+		if (!rubric?.length && !useDirect) return { ok: true };
 		gradeError = null;
 		gradeNotice = null;
 		needComment = [];
 		const payload: Record<string, number> = {};
 		const notes: Record<string, string> = {};
-		for (const c of rubric) {
+		for (const c of rubric ?? []) {
 			const v = scores[c.id];
 			if (v != null && !Number.isNaN(Number(v))) payload[c.id] = Number(v);
 			const note = (critComments[c.id] ?? '').trim();
@@ -1797,43 +1935,76 @@
 			gradeError = 'Extra credit must be a number of 0 or more. Leave it blank to award none.';
 			return { ok: false, retryable: false, message: gradeError };
 		}
+		if (useDirect && directInvalid) {
+			gradeError = directParsed.error;
+			return { ok: false, retryable: false, message: gradeError ?? 'The score was refused.' };
+		}
+		if (useDirect && !rubric?.length && directValue == null) {
+			// With no rubric there is nothing to fall back to, so a blank box is
+			// not a grade.
+			gradeError =
+				outOf > 0
+					? `Type a score out of ${outOf}. This assignment has no rubric, so the score you type is the grade.`
+					: DIRECT_NO_TOTAL;
+			return { ok: false, retryable: false, message: gradeError };
+		}
+		// UNDEFINED WHERE THE COLUMN IS NOT THERE, so the transport omits the
+		// parameter entirely and binds to the arity that has always existed.
+		// Blank is 0 rather than null, because a grader who cleared the box
+		// meant to take the award back and null means LEAVE IT ALONE.
+		const award = extraCreditReady ? (extraCreditNumber ?? 0) : undefined;
 		busy = true;
 		try {
-			const res = await transports.gradeSubmission(
-				item.id,
-				selected.email,
-				payload,
-				comment.trim() || null,
-				release,
-				notes,
-				// UNDEFINED WHERE THE COLUMN IS NOT THERE, so the transport omits the
-				// parameter entirely and binds to the arity that has always existed.
-				// Blank is 0 rather than null, because a grader who cleared the box
-				// meant to take the award back and null means LEAVE IT ALONE.
-				extraCreditReady ? (extraCreditNumber ?? 0) : undefined
-			);
-			if (!res.ok) {
-				gradeError = res.message;
-				// The request did not reach the server: another attempt can
-				// still change the answer.
-				return { ok: false, retryable: true, message: res.message };
-			}
-			if (res.data.ok === false) {
-				if (res.data.reason === 'override_needs_comment') {
-					needComment = res.data.missing ?? [];
-					gradeError =
-						needComment.length === 1
-							? 'Say why you scored between levels (1 criterion still needs a comment).'
-							: `Say why you scored between levels (${needComment.length} criteria still need a comment).`;
-					// A refusal, not a failure: the server considered this and said
-					// no, so retrying it five times arrives at the same answer.
-					return { ok: false, retryable: false, message: gradeError };
+			if (useDirect && direct) {
+				// RUBRIC EDITS RIDE FIRST, AS A DRAFT, so the levels and their notes
+				// are stored too; the typed door re-uses what is stored. Nothing is
+				// released by this half.
+				if (rubric?.length && changed.criteria.length) {
+					const first = await transports.gradeSubmission(
+						item.id,
+						selected.email,
+						payload,
+						comment.trim() || null,
+						false,
+						notes,
+						award
+					);
+					if (!first.ok) {
+						gradeError = first.message;
+						return { ok: false, retryable: true, message: first.message };
+					}
+					if (first.data.ok === false) return refusalOutcome(first.data);
 				}
-				gradeError =
-					res.data.reason === 'incomplete_scores'
-						? `Score every criterion before returning (${res.data.missing?.length ?? 0} left).`
-						: 'The grade was refused.';
-				return { ok: false, retryable: false, message: gradeError };
+				const res = await direct.gradeDirect(
+					item.id,
+					selected.email,
+					directValue,
+					comment.trim() || null,
+					release,
+					award ?? null
+				);
+				if (!res.ok) {
+					gradeError = res.message;
+					return { ok: false, retryable: true, message: res.message };
+				}
+				if (res.data.ok === false) return refusalOutcome(res.data);
+			} else {
+				const res = await transports.gradeSubmission(
+					item.id,
+					selected.email,
+					payload,
+					comment.trim() || null,
+					release,
+					notes,
+					award
+				);
+				if (!res.ok) {
+					gradeError = res.message;
+					// The request did not reach the server: another attempt can
+					// still change the answer.
+					return { ok: false, retryable: true, message: res.message };
+				}
+				if (res.data.ok === false) return refusalOutcome(res.data);
 			}
 			// RETURNING RE-OPENS THE WORK, AND THE SENTENCE SAYS SO.
 			// 0086 defines `returned` as graded and released, EDITABLE AGAIN, and
@@ -1971,9 +2142,15 @@
 			extraCreditReady,
 			sectionOf,
 			sectionTitles,
-			release: armedRelease === true
+			release: armedRelease === true,
+			// 0242: a typed "score out of N" makes this a direct-score batch.
+			directScore: String(directScore ?? ''),
+			directReady,
+			itemPoints: item.points ?? null
 		})
 	);
+	/** How many students the plan would write, whichever door it uses. */
+	const planCount = $derived(plan.mode === 'direct' ? plan.direct.length : plan.grades.length);
 	/** ONE PREDICATE, read by the control and by the handler. */
 	const canSend = $derived(bulkCanSend(plan));
 
@@ -2002,6 +2179,15 @@
 	/** How many criteria the form on screen has scored: what the batch would send. */
 	const scoredCount = $derived((rubric ?? []).filter((c) => scores[c.id] != null).length);
 	const batchSource = $derived.by(() => {
+		if (plan.mode === 'direct') {
+			// A TYPED SCORE IS THE BATCH, and the sentence says the rubric is not.
+			return `Gives everyone ticked a score of ${String(directScore ?? '').trim()} / ${outOf}${
+				(extraCreditNumber ?? 0) > 0 ? ` plus ${extraCreditNumber} extra credit` : ''
+			}, with the comment on screen. Their own rubric scores are left as they are and not counted.`;
+		}
+		if (!selected && !rubric?.length && directReady) {
+			return `Open any student's work and type a score out of ${outOf} on the right. That score and comment then go to everyone ticked.`;
+		}
 		if (!selected) {
 			return "Open any student's work and score the rubric on the right. Those scores, notes and comment go to everyone ticked.";
 		}
@@ -2047,14 +2233,20 @@
 		const roster = pickedStudents;
 		batchBusy = true;
 		try {
-			const res = await bulk.gradeMany(item.id, sent, release);
+			// A DIRECT-SCORE BATCH (0242) goes one `classroom_grade_direct` per
+			// student and comes back in the batch report's own shape, so the
+			// outcome below names every student either way.
+			const res =
+				plan.mode === 'direct' && direct
+					? { ok: true as const, data: await gradeDirectMany(direct, item.id, plan.direct, release) }
+					: await bulk.gradeMany(item.id, sent, release);
 			if (!res.ok) {
 				// 0175 only RAISES on shapes it checked before writing anything, so
 				// this genuinely means nothing landed.
 				outcome = {
-					total: sent.length,
+					total: planCount,
 					succeeded: 0,
-					refused: sent.length,
+					refused: planCount,
 					released: release,
 					headline: `Nothing was graded. ${res.message}`,
 					rows: []
@@ -2468,7 +2660,7 @@
 				// The comment box is on screen only with a student open and a
 				// rubric to grade against, and its DICTATE button is off while
 				// a grade or a batch is being written: the key asks the same.
-				if (selected && rubric?.length && !busy && !batchBusy) dictate.toggle(commentTarget);
+				if (selected && scoreCardShown && !busy && !batchBusy) dictate.toggle(commentTarget);
 				return;
 		}
 	}
@@ -2907,6 +3099,62 @@
 					{/if}
 				</div>
 			</Disclosure>
+			{#if perfect && perfectRows !== null}
+				<!--
+					THE PERFECT SCORE AWARD (0242), IN THE PAGE HEADER BESIDE EXPORT,
+					because it is a setting of the ASSIGNMENT in each class, never
+					something done to the student who is open. One switch per class this
+					caller manages; a shared assignment in three classes is three
+					independent switches. Closed by default, with the count on the
+					trigger so it reads while shut. Absent entirely where the database
+					has no such function.
+				-->
+				<Disclosure
+					label="Coins"
+					scope={`grading-coins:${item.id}`}
+					collapseWhen
+					testId="perfect-score-disclosure"
+					bodyClass="gc-panel"
+				>
+					{#snippet meta()}
+						<span class="export-meta" data-testid="perfect-score-meta"
+							>Perfect Score {perfectOnCount} of {perfectRows?.length ?? 0} on</span
+						>
+					{/snippet}
+					<div class="gc-coins" data-testid="perfect-score-panel">
+						<p class="coins-note" data-testid="perfect-score-note">{perfectScoreNote(outOf)}</p>
+						{#if (perfectRows ?? []).length === 0}
+							<p class="coins-note">This assignment is not posted to any class you teach.</p>
+						{/if}
+						<ul class="coins-list">
+							{#each perfectRows ?? [] as row (row.section_id)}
+								<li class="coins-row" data-testid="perfect-score-row" data-section={row.section_id}>
+									<span class="coins-class">{row.label}</span>
+									<button
+										type="button"
+										class="btn secondary tiny tap-44"
+										aria-pressed={row.on}
+										class:on={row.on}
+										aria-disabled={perfectBusy !== null}
+										data-testid="perfect-score-toggle"
+										onclick={() => void setPerfect(row, !row.on)}
+									>
+										Perfect Score award: {row.on ? 'On' : 'Off'}
+									</button>
+									{#if !row.economy_on}
+										<span class="coins-off" data-testid="perfect-score-economy-off"
+											>Coins are off for this class, so nothing is paid until they are on.</span
+										>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+						{#if perfectBusy}<Pending label="Saving the Perfect Score setting" />{/if}
+						{#if perfectError}<p class="feedback error" data-testid="perfect-score-error">{perfectError}</p>{/if}
+						{#if perfectNotice}<p class="feedback ok" data-testid="perfect-score-notice">{perfectNotice}</p>{/if}
+					</div>
+				</Disclosure>
+			{/if}
 		{/if}
 	</header>
 
@@ -2915,7 +3163,20 @@
 	{:else if !data}
 		<Pending label="Loading the roster" />
 	{:else}
-		{#if !rubric?.length}
+		{#if !rubric?.length && directReady}
+			<!-- NO RUBRIC IS NOT A DEAD END ONCE A SCORE CAN BE TYPED (0242): the
+			     typed score is the grade. Said once, here, and again beside the box. -->
+			<section class="card warn-card" data-testid="no-rubric-direct">
+				<p class="warn-line">
+					{#if outOf > 0}
+						This assignment has no rubric. Open a student and type their score out of {outOf}:
+						the score you type is the grade.
+					{:else}
+						{DIRECT_NO_TOTAL}
+					{/if}
+				</p>
+			</section>
+		{:else if !rubric?.length}
 			<section class="card warn-card">
 				<p class="warn-line">
 					This assignment has no rubric yet, so nothing can be scored. Build one on the
@@ -2976,7 +3237,7 @@
 									To grade · {toGradeCount}
 								</button>
 							</div>
-							{#if batchReady && rubric?.length}
+							{#if batchReady && (rubric?.length || directReady)}
 								<!--
 									SELECTION IS A MODE YOU ENTER (ledger 0347, R17). Mr. Pina: "I
 									click check boxes and I don't really see any options to do
@@ -3000,7 +3261,7 @@
 							{/if}
 						</div>
 					</div>
-					{#if batchReady && !rubric?.length}
+					{#if batchReady && !rubric?.length && !directReady}
 						<p class="select-note" data-testid="select-unavailable">
 							Grading several students at once uses the rubric, and this assignment
 							has none yet.
@@ -3135,7 +3396,7 @@
 										type="button"
 										class="btn secondary tiny"
 										data-testid="batch-arm-draft"
-										aria-disabled={plan.grades.length === 0}
+										aria-disabled={planCount === 0}
 										disabled={batchBusy}
 										onclick={() => armBatch(false)}
 									>
@@ -3145,7 +3406,7 @@
 										type="button"
 										class="btn tiny"
 										data-testid="batch-arm-return"
-										aria-disabled={plan.grades.length === 0}
+										aria-disabled={planCount === 0}
 										disabled={batchBusy}
 										onclick={() => armBatch(true)}
 									>
@@ -3334,7 +3595,9 @@
 						<p class="batch-plan-head">
 							About to {armedRelease ? 'return' : 'save as drafts'}
 							{plan.rows.length}
-							{plan.rows.length === 1 ? 'grade' : 'grades'}, out of {plan.outOf} pts.
+							{plan.rows.length === 1 ? 'grade' : 'grades'}, out of {plan.outOf} pts{plan.mode === 'direct'
+								? ', as a typed score'
+								: ''}.
 						</p>
 						{#if plan.rows.length}
 							<table class="plan-table">
@@ -3683,7 +3946,7 @@
 					-->
 					<div
 						class="work-split"
-						class:has-rubric={!!rubric?.length}
+						class:has-rubric={scoreCardShown}
 						class:document-work={documentWork}
 						class:rubric-narrow={rubricMode === 'narrow' && rubricWidthRem === null}
 						class:rubric-hidden={rubricMode === 'hidden'}
@@ -3853,7 +4116,7 @@
 							{/if}
 						</div>
 
-						{#if rubric?.length}
+						{#if scoreCardShown}
 							{#if rubricMode !== 'hidden' && sideBySide}
 								<!-- THE RUBRIC'S SEPARATOR: the classroom split's window-splitter
 								     pattern at this scale, in the gap and taking no column.
@@ -3883,7 +4146,7 @@
 							<div class="work-col work-right" role="region" aria-label="Rubric">
 								{#if rubricMode === 'hidden'}
 									<div class="rubric-rail" data-testid="grade-rubric-rail">
-										<span class="rubric-rail-total" title="Rubric score">{liveTotal}/{outOf}</span>
+										<span class="rubric-rail-total" title="Score">{directValue ?? liveTotal}/{outOf}</span>
 										<button
 											type="button"
 											class="btn secondary rubric-rail-show"
@@ -3905,7 +4168,7 @@
 									-->
 									<div class="grade-main">
 										<div class="rubric-head">
-											<h3 class="section-label">Rubric score</h3>
+											<h3 class="section-label">{rubric?.length ? 'Rubric score' : 'Score'}</h3>
 											<!-- THE SIZE OF THE RUBRIC (ledger 0380): a group of pressed keys,
 											     shown only where the work and the rubric sit side by side. -->
 											<div class="rubric-size" role="group" aria-label="Rubric width" data-testid="grade-rubric-size">
@@ -4079,6 +4342,45 @@
 											and 0095's override machinery would read every award as an
 											unexplained off-level score forever.
 										-->
+										<!--
+											"SCORE OUT OF N", TYPED (0242). One field, and it is the score
+											of record whenever it holds a number: the rubric sum is not
+											added up, extra credit still is. Blank goes back to the rubric
+											sum. Shown only when the transports can send it AND the payload
+											came back on the rung that proves the database has it.
+										-->
+										{#if directReady}
+											{#if outOf > 0}
+												<div class="extra-credit direct-score" data-testid="direct-score">
+													<label class="ec-label" for="grade-direct-score">Score out of {outOf}</label>
+													<input
+														id="grade-direct-score"
+														class="ec-input tap-44"
+														type="number"
+														min="0"
+														max={outOf}
+														step="0.5"
+														placeholder={rubric?.length ? String(liveTotal) : ''}
+														data-testid="direct-score-input"
+														bind:value={directScore}
+													/>
+													<span class="ec-note" data-testid="direct-score-note">
+														{#if !rubric?.length}
+															This assignment has no rubric, so the score you type is the grade.
+														{:else if directTyped}
+															Typed, this is the score. The rubric is not added up. Clear it to use the rubric total.
+														{:else}
+															Leave blank to use the rubric total, or type a score to use instead of it.
+														{/if}
+													</span>
+												</div>
+												{#if directInvalid}
+													<p class="score-flag" data-testid="direct-score-invalid">{directParsed.error}</p>
+												{/if}
+											{:else}
+												<p class="ec-unavailable" data-testid="direct-score-no-total">{DIRECT_NO_TOTAL}</p>
+											{/if}
+										{/if}
 										{#if extraCreditReady}
 											<div class="extra-credit">
 												<label class="ec-label" for="grade-extra-credit">Extra credit</label>
@@ -4151,11 +4453,12 @@
 												</span>
 											</div>
 										{/if}
-										<div class="score-total">
+										<div class="score-total" data-testid="score-total">
 											Total: {liveAwarded} / {outOf} pts{#if extraCreditReady && (extraCreditNumber ?? 0) > 0}
 												&nbsp;<span class="ec-part"
-													>({liveTotal} rubric + {extraCreditNumber} extra credit)</span
-												>{/if}
+													>({directValue ?? liveTotal} {directValue != null ? 'typed' : 'rubric'} + {extraCreditNumber} extra credit)</span
+												>{:else if directValue != null && rubric?.length}
+												&nbsp;<span class="ec-part">(typed score, rubric not counted)</span>{/if}
 										</div>
 										<div class="comment-head">
 											<label class="comment-label" for="grade-comment">Comment to the student</label>
@@ -4430,6 +4733,44 @@
 	.export-meta {
 		text-transform: none;
 		letter-spacing: 0.02em;
+	}
+	/* THE PERFECT SCORE PANEL (0242): one line of explanation, then a row per
+	   class -- its name, its switch, and the economy note when coins are off
+	   there. The switch carries its state in WORDS as well as the lit key. */
+	.gc-coins {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		max-width: var(--measure-reading, 42rem);
+	}
+	.coins-note {
+		margin: 0;
+		color: var(--text-1);
+	}
+	.coins-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.coins-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		min-width: 0;
+	}
+	.coins-class {
+		font-weight: 600;
+		min-width: 0;
+		overflow-wrap: break-word;
+	}
+	.coins-off {
+		flex-basis: 100%;
+		font-size: 0.85rem;
+		color: var(--text-2);
 	}
 	/* ON A KEY FACE THE WHOLE TRIGGER TAKES THE KEY'S OWN INK. Disclosure's
 	   caret, meta and Show word read `--text-2`, measured for a flat trigger on

@@ -8,6 +8,9 @@
 	import RolesManager from '$lib/coin-desk/RolesManager.svelte';
 	import CategoriesManager from '$lib/coin-desk/CategoriesManager.svelte';
 	import PayoutManager from '$lib/coin-desk/PayoutManager.svelte';
+	import AutopayRuns from '$lib/coin-desk/AutopayRuns.svelte';
+	import DebtList from '$lib/coin-desk/DebtList.svelte';
+	import SettingsPanel from '$lib/coin-desk/SettingsPanel.svelte';
 	import type { CoinDeskAreaId } from '$lib/coin-desk/nav';
 	import type { CoinCategory, CoinDeskPrefs } from '$lib/coin-desk';
 	import '$lib/shell/split.css';
@@ -20,7 +23,8 @@
 		createFakeLedger,
 		listSections,
 		listRoleDefinitions,
-		listCategories
+		listCategories,
+		setV2Applied
 	} from './fake-ledger';
 	import { createFakeClassRoster } from './fake-classes';
 	import type { PageData } from './$types';
@@ -107,6 +111,26 @@
 	 *    "Pay All" -- the amount actually paid matches the NEW balance, not
 	 *    the stale one the list is still showing.
 	 *
+	 * IDEA COIN V2 (0239-0243). One balance, digital only, everywhere: no
+	 * medium choice exists on any area. Things to try:
+	 *  - LOG -- the strip shows one balance; "debt.student" is in debt
+	 *    (-8i¢), so "Pay off debt" opens and a purchase is refused with
+	 *    "insufficient". Open Recent transactions: Disruptive is folded with
+	 *    its undo as one "Undone" line; press Undo on any other row, then
+	 *    "Confirm undo". "Student tools" holds
+	 *    the no-shop toggle (a Shop Safety fine turns it on by itself) and the
+	 *    purchase recorded in coins (refused while in debt). Below the split,
+	 *    Autopay runs: one seeded run; Reverse a row; Run autopay now pays this
+	 *    week's wages once and nothing the second time.
+	 *  - DEBT -- the students in debt, deepest first; a name opens that
+	 *    student on Students.
+	 *  - SETTINGS -- every V2 setting, saved live, with the change log. IDEA
+	 *    209H Block 5 checks in at 15 minutes, under the 20-minute fine, so it
+	 *    is listed as never fined.
+	 *  - Untick "V2 database update applied" to see every V2 surface say it is
+	 *    not available yet instead of erroring.
+	 *  - FINE -- built separately at /coin-desk/fine; the harness says so.
+	 *
 	 * There was a sixth area, MIGRATE -- the legacy Sheets import wizard. That
 	 * import ran once, reconciled, and the Sheets system it read from is
 	 * retired, so the wizard is archived alongside it under
@@ -133,6 +157,14 @@
 	let sectionsApplied = $state(true);
 	let rolesApplied = $state(true);
 	let contractsApplied = $state(true);
+	let v2 = $state(true);
+	/** The Students area opens this student on mount (the debt list's link). */
+	let studentEmail = $state('');
+
+	function openStudent(email: string) {
+		studentEmail = email;
+		area = 'students';
+	}
 
 	let area = $state<CoinDeskAreaId>('log');
 
@@ -204,6 +236,20 @@
 		<input type="checkbox" bind:checked={contractsApplied} />
 		Migration 0077 (contracts) applied
 	</label>
+	<label>
+		<input
+			type="checkbox"
+			checked={v2}
+			data-testid="cd-harness-v2"
+			onchange={(e) => {
+				// Set on the ledger BEFORE the state moves, so the remounted area
+				// already reads the new answer when it loads.
+				setV2Applied(e.currentTarget.checked);
+				v2 = e.currentTarget.checked;
+			}}
+		/>
+		V2 database update applied
+	</label>
 </div>
 
 <div class="cd-root">
@@ -215,7 +261,7 @@
 
 	<CoinDeskNav active={area} onSelect={(next) => (area = next)} />
 
-	{#key `${area}:${migrationApplied}:${sectionsApplied}:${rolesApplied}:${contractsApplied}`}
+	{#key `${area}:${migrationApplied}:${sectionsApplied}:${rolesApplied}:${contractsApplied}:${v2}`}
 		{#if area === 'log'}
 			<LogView
 				categories={categoriesFor()}
@@ -226,6 +272,18 @@
 				{prefs}
 				{onPrefs}
 			/>
+			<AutopayRuns {supabase} settingsHref={null} />
+		{:else if area === 'fine'}
+			<section class="card">
+				<h2>Fine</h2>
+				<p class="note">
+					The fine screen is built separately at /coin-desk/fine and is not part of this harness.
+				</p>
+			</section>
+		{:else if area === 'debt'}
+			<DebtList {supabase} open={openStudent} />
+		{:else if area === 'settings'}
+			<SettingsPanel {supabase} />
 		{:else if area === 'students'}
 			<SectionManager
 				{supabase}
@@ -233,7 +291,12 @@
 				configured={sectionsApplied}
 				{classRoster}
 			/>
-			<BalanceAdminPanel {supabase} categoryKinds={harnessCategoryKinds} />
+			<BalanceAdminPanel
+				{supabase}
+				categoryKinds={harnessCategoryKinds}
+				categories={categoriesState}
+				initialEmail={studentEmail}
+			/>
 		{:else if area === 'contracts'}
 			<ContractsManager {supabase} sections={activeSections()} configured={contractsApplied} />
 		{:else if area === 'roles'}

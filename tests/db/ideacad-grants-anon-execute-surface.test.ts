@@ -478,6 +478,10 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
 	coin_public_student: COIN_PUBLIC_REASON,
 	coin_public_transactions: COIN_PUBLIC_REASON,
 
+	// --- IDEA Coin autopay (1). 0242, ledger 0383. ---
+	coin_autopay_run:
+		'The nightly autopay call (a Vercel cron and a GitHub Actions schedule) holds no credential. It takes no argument naming a person or an amount, can only pay what is already owed (every kind of pay is a uniqueness key, so a second call pays nothing), throttles itself, and answers a caller who is not an admin with counts only.',
+
 	// --- The public classroom surfaces (4). 0092, 0109, 0135. ---
 	classroom_public_reference:
 		'THE PUBLIC REFERENCE-DOCUMENT VIEWER at /reference/<itemId>, which resolves for a MATERIAL ' +
@@ -532,7 +536,7 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
  * moving it without reading the reason beside the new entry is what the pin
  * refuses.
  */
-const ANON_EXECUTE_SURFACE_SIZE = 23;
+const ANON_EXECUTE_SURFACE_SIZE = 24;
 
 // ---------------------------------------------------------------------------
 // Plumbing

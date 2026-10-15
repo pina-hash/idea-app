@@ -10,8 +10,8 @@ import type { RequestHandler } from './$types';
  *
  * It runs the REAL `readCoinPublic` against a fake client whose `.rpc()`
  * answers from the fixture, so what the page receives is shaped by the
- * shipping code -- CSV headers, date formatting, the honest Bank
- * Balance/Debt mapping, the contract field names, the role grouping -- and
+ * shipping code -- CSV headers, date formatting, the one-balance mapping,
+ * the contract field names, the role grouping -- and
  * not by a second implementation that could quietly disagree with it.
  */
 const fakeClient = {

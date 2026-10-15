@@ -62,8 +62,6 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 			displayName: null,
 			configured: true,
 			balance: 0,
-			physicalBalance: 0,
-			digitalBalance: 0,
 			transactions: [],
 			categoryKinds: {} as Record<string, string>,
 			wageTier: null,
@@ -82,9 +80,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 		]);
 
 	const detail = (lookup ?? {}) as {
-		balance?: number;
-		physical_balance?: number;
-		digital_balance?: number;
+		balance?: number | string;
 		wage_tier?: number;
 		eating_pass_active?: boolean;
 		eating_pass_strikes?: number;
@@ -114,9 +110,8 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 		configured: !lookupError,
 		// The RPC's own total, not a sum of `recent_transactions` -- that list
 		// is capped at 25 rows, so summing it would understate a busy account.
-		balance: lookupError ? 0 : (detail.balance ?? 0),
-		physicalBalance: lookupError ? 0 : (detail.physical_balance ?? 0),
-		digitalBalance: lookupError ? 0 : (detail.digital_balance ?? 0),
+		// The ONE balance (IDEA Coin V2, 0239): the digital sum.
+		balance: lookupError ? 0 : Number(detail.balance ?? 0),
 		transactions: withCategoryNames(rows, categories ?? []),
 		// A row's kind is what tells a balance CORRECTION apart from an ordinary
 		// award or fine; without it every non-payout row reads as a correction.

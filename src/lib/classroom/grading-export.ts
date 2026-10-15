@@ -82,6 +82,7 @@ import { hxBlockHasResponse, hxCompletion, hxProgress } from './html-assignment/
 import { htmlAnswerSheet, type HtmlAnswerGroup } from './html-assignment/mount';
 import { ASSIGNMENT_LOCK_CHIP, assignmentLockState } from './html-assignment/lock';
 import { blockLabelsFromManifest, type BlockLabel } from './bulk-download';
+import { directScoreOf } from './grading-direct';
 
 // ---------------------------------------------------------------------------
 // DID THE WORK CHANGE AFTER IT WAS GRADED
@@ -367,6 +368,15 @@ export interface ExportedStudent {
 		 * the itemisation and never a second number to add on.
 		 */
 		extraCredit: number | null;
+		/**
+		 * THE TYPED "SCORE OUT OF N" (0242), present ONLY when one is stored.
+		 * Then it is the score of record and the rubric criteria below did NOT
+		 * add up to `score`; `score` is this plus `extraCredit`, as the database
+		 * stamped it, and nothing here re-sums anything. Absent (never null) on
+		 * every row without one, so an export of a class nobody typed a score
+		 * for is byte-identical to what it was.
+		 */
+		directScore?: number;
 		/**
 		 * `postGradeChange`'s answer for this row, or null. The export carries
 		 * the derivation rather than re-deriving it: a reader of the file gets
@@ -955,6 +965,8 @@ function exportStudent(
 	const byBlock = filesByBlockCount(row.files);
 	const state = row.submission?.state ?? null;
 	const handedIn = state === 'submitted' || state === 'returned';
+	// 0242's typed score, read through the one helper (undefined off an older payload).
+	const directOf = directScoreOf(row.submission ?? null);
 
 	const entries: ExportedResponse[] = [];
 	for (const mod of spec?.modules ?? []) {
@@ -1037,6 +1049,7 @@ function exportStudent(
 			score: row.submission?.score ?? null,
 			outOf,
 			extraCredit: row.submission?.extra_credit ?? null,
+			...(directOf != null ? { directScore: directOf } : {}),
 			changedAfterGrading: postGradeChange(row)
 		},
 		completeness: worksheet ?? {

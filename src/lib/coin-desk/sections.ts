@@ -40,12 +40,9 @@ export interface BulkLogResult {
 	email: string;
 	ok: boolean;
 	reason?: string;
-	balance?: number;
-	physical_balance?: number;
-	digital_balance?: number;
-	/** Which balance this student's row moved -- the run medium, or their override. */
-	medium?: 'physical' | 'digital';
-	amount?: number;
+	/** The one balance after this row (IDEA Coin V2). */
+	balance?: number | string;
+	amount?: number | string;
 	message?: string;
 	strike?: boolean;
 	[key: string]: unknown;
@@ -60,14 +57,6 @@ export interface BulkLogResponse {
 	 */
 	section_id?: string;
 	category_id: string;
-	/** The RUN-level medium every student got unless overridden (0096). */
-	medium?: 'physical' | 'digital';
-	/**
-	 * Override emails that matched nobody on the roster. Reported rather than
-	 * silently ignored: a typo there would otherwise pay the right student the
-	 * wrong way with nothing to notice.
-	 */
-	unmatched_overrides?: string[];
 	total: number;
 	succeeded: number;
 	refused: number;

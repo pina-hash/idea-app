@@ -1,98 +1,60 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import { MEDIUM_LABELS, type CoinMedium } from '$lib/coin-desk';
-	import { COIN_SYMBOL } from '$lib/coin-format';
+	import { coins } from '$lib/coin-format';
+	import { cents, coinRefusalWords, num, type CoinRefusal } from './v2';
 
 	/**
-	 * Dedicated debt-payment logging, distinct from the generic category
-	 * dropdown below (which also lists "Debt Payment" as an ordinary option --
-	 * this panel is a shortcut, not the only door). Mounted in LogView.svelte
-	 * right under the student summary card, and ONLY while the looked-up
-	 * student's balance is negative -- a student with no debt has nothing
-	 * for this panel to do, so it stays out of the way entirely rather than
-	 * rendering a disabled or empty state.
+	 * DEBT PAYMENT (IDEA Coin V2): physical coins a student hands over to pay
+	 * down a negative balance, credited to the one balance as a `debt_payment`
+	 * row. Mounted only while the balance is below zero.
 	 *
-	 * Writes through the SAME 0070 coin_log_transaction RPC every other
-	 * 'variable' category already uses (see 0081's migration header for why
-	 * "debt_payment" is its own category id rather than reusing Physical
-	 * Coin Submission) -- no new RPC, no re-derived enforcement.
+	 * Since 0239 there is ONE balance, and it is digital: physical coins are
+	 * untracked cash, so handing some back is how a student in debt gets back
+	 * to zero. The call names no medium; the server writes digital.
+	 *
+	 * Writes through the same coin_log_transaction RPC every other variable
+	 * category uses (0081 gave debt payment its own category id).
 	 */
 	let {
 		supabase,
 		email,
-		physicalBalance,
-		digitalBalance,
+		balance,
 		onLogged
 	}: {
 		supabase: SupabaseClient;
 		email: string;
-		physicalBalance: number;
-		digitalBalance: number;
+		/** The one balance. The panel renders only while it is negative. */
+		balance: number | string;
 		onLogged: () => void | Promise<void>;
 	} = $props();
 
-	/**
-	 * DEBT IS PER MEDIUM SINCE 0096, and so is paying it off. A student can
-	 * be in digital debt while holding physical coins (or the reverse), and
-	 * the lockout only blocks purchases on the balance that is actually
-	 * negative -- so a payment has to say which one it is clearing, or it
-	 * would credit the healthy balance and leave the lockout in place.
-	 *
-	 * The panel offers whichever media are actually in debt, and preselects
-	 * the deeper one when both are.
-	 */
-	const physicalDebt = $derived(Math.max(0, -physicalBalance));
-	const digitalDebt = $derived(Math.max(0, -digitalBalance));
-	const inDebt = $derived(
-		(physicalDebt > 0 ? (['physical'] as CoinMedium[]) : []).concat(
-			digitalDebt > 0 ? (['digital'] as CoinMedium[]) : []
-		)
-	);
+	const debt = $derived(Math.max(0, -num(balance)));
 
-	let medium = $state<CoinMedium>('physical');
-	const debt = $derived(medium === 'physical' ? physicalDebt : digitalDebt);
-
-	let amountInput = $state('');
+	let amountInput = $state<string | number>('');
 	let noteText = $state('Debt payment');
 	let busy = $state(false);
 	let error = $state('');
 	let notice = $state('');
 
-	// Pre-fills from the current debt, but only on a genuinely NEW student
-	// (or the very first render) -- once an admin starts editing the amount,
-	// a balance refresh triggered by something else must never clobber it.
+	// Pre-fills from the debt on a new student; once the admin edits the
+	// amount, a refresh triggered by something else must not clobber it.
 	let seededForEmail = $state('');
+	let amountTouched = $state(false);
 	$effect(() => {
 		if (email !== seededForEmail) {
 			seededForEmail = email;
-			// Preselect the deeper debt, which is the one an admin most likely
-			// has in front of them.
-			const pick: CoinMedium = digitalDebt > physicalDebt ? 'digital' : 'physical';
-			medium = inDebt.includes(pick) ? pick : (inDebt[0] ?? 'physical');
-			amountInput = '';
+			amountTouched = false;
 			error = '';
 			notice = '';
 		}
 	});
-
-	// The amount follows the selected medium's debt until the admin edits it.
-	let amountTouched = $state(false);
 	$effect(() => {
-		const owed = medium === 'physical' ? physicalDebt : digitalDebt;
-		if (!amountTouched) amountInput = owed > 0 ? String(owed) : '';
+		if (!amountTouched) amountInput = debt > 0 ? String(debt) : '';
 	});
 
-	function chooseMedium(m: CoinMedium) {
-		medium = m;
-		amountTouched = false;
-	}
-
-	function num(v: string): number {
-		return Number(v);
-	}
-
+	const amountValue = $derived(Number(amountInput));
 	const canSubmit = $derived(
-		!busy && Number.isFinite(num(amountInput)) && num(amountInput) > 0 && !!noteText.trim()
+		!busy && String(amountInput).trim() !== '' && Number.isFinite(amountValue) && amountValue > 0 && !!noteText.trim()
 	);
 
 	async function submit() {
@@ -100,83 +62,58 @@
 		error = '';
 		notice = '';
 		busy = true;
-		const resp = await supabase.rpc('coin_log_transaction', {
-			p_email: email,
-			p_category_id: 'debt_payment',
-			p_amount: Math.round(num(amountInput)),
-			p_quantity: null,
-			p_note: noteText.trim(),
-			// Credits the balance that is actually in debt. Getting this wrong
-			// would top up the healthy balance and leave the lockout in place.
-			p_medium: medium
-		});
-		busy = false;
+		let resp: { data: unknown; error: { message: string } | null };
+		try {
+			resp = await supabase.rpc('coin_log_transaction', {
+				p_email: email,
+				p_category_id: 'debt_payment',
+				p_amount: cents(amountValue),
+				p_quantity: null,
+				p_note: noteText.trim()
+			});
+		} finally {
+			busy = false;
+		}
 		if (resp.error) {
 			error = resp.error.message;
 			return;
 		}
-		const r = resp.data as {
-			ok: boolean;
-			reason?: string;
-			amount?: number;
-			physical_balance?: number;
-			digital_balance?: number;
-		};
+		const r = resp.data as CoinRefusal & { ok: boolean; amount?: number | string };
 		if (!r.ok) {
-			error = r.reason ? `Refused: ${r.reason}` : 'Refused by the server.';
+			error = coinRefusalWords(r);
 			return;
 		}
-		const now = medium === 'physical' ? r.physical_balance : r.digital_balance;
-		notice = `Logged +${r.amount}${COIN_SYMBOL} against the ${medium} balance. It now reads ${now}${COIN_SYMBOL}.`;
+		notice = `Logged ${coins(num(r.amount ?? amountValue))} of physical coins handed over. The balance is now ${coins(num(r.balance))}.`;
 		amountTouched = false;
 		await onLogged();
 	}
 </script>
 
-{#if inDebt.length}
-	<section class="card debt-payment-panel">
+{#if debt > 0}
+	<section class="card debt-payment-panel" data-testid="cd-debt-panel">
 		<h2>Debt payment</h2>
 		<p class="debt-line">
-			{#each inDebt as m (m)}
-				<span class="debt-entry">
-					Owes <span class="debt-amount">{m === 'physical' ? physicalDebt : digitalDebt}{COIN_SYMBOL}</span>
-					{MEDIUM_LABELS[m].toLowerCase()}
-				</span>
-			{/each}
+			<span class="debt-entry">
+				Balance <span class="debt-amount">{coins(num(balance))}</span>
+			</span>
 		</p>
 		{#if error}<p class="feedback error">{error}</p>{/if}
 		{#if notice}<p class="feedback notice">{notice}</p>{/if}
 
-		{#if inDebt.length > 1}
-			<div class="field-row">
-				<span class="field-label">Which debt</span>
-				<div class="medium-toggle">
-					{#each inDebt as m (m)}
-						<button type="button" class:active={medium === m} onclick={() => chooseMedium(m)}>
-							{MEDIUM_LABELS[m]}
-						</button>
-					{/each}
-				</div>
-			</div>
-		{/if}
-
 		<div class="field-row-group">
 			<div class="field-row">
-				<label for="debt-amount-input">
-					Payment amount ({COIN_SYMBOL}, {MEDIUM_LABELS[medium].toLowerCase()})
-				</label>
+				<label for="debt-amount-input">Physical coins handed over</label>
 				<input
 					id="debt-amount-input"
 					type="number"
-					min="1"
-					step="1"
+					min="0.01"
+					step="0.01"
 					bind:value={amountInput}
 					oninput={() => (amountTouched = true)}
 				/>
 				<p class="hint">
-					Pre-filled from the current {medium} debt, but editable -- a partial payment or one that
-					overpays (leaving a small positive balance) are both fine, not errors. It credits the
-					{medium} balance only; the other one is untouched.
+					Filled in with what brings the balance back to zero. A smaller payment or one that leaves a
+					little positive balance are both fine.
 				</p>
 			</div>
 			<div class="field-row">
@@ -210,32 +147,6 @@
 		display: inline-flex;
 		align-items: baseline;
 		gap: 0.3rem;
-	}
-	.field-label {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--green);
-	}
-	.medium-toggle {
-		display: flex;
-		gap: 0.4rem;
-	}
-	.medium-toggle button {
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		padding: 0.3rem 0.8rem;
-		cursor: pointer;
-	}
-	.medium-toggle button.active {
-		color: var(--bg0);
-		background: var(--amber);
-		border-color: var(--amber);
 	}
 	.debt-amount {
 		font-family: 'Share Tech Mono', monospace;
@@ -280,6 +191,7 @@
 		color: var(--green);
 	}
 	.field-row input {
+		min-height: 44px;
 		background: var(--bg0);
 		border: 1px solid var(--line);
 		border-radius: 4px;

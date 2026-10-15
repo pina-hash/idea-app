@@ -1,0 +1,289 @@
+<script lang="ts">
+	import {
+		coinAmountDisplay,
+		coinTxnType,
+		COIN_TXN_TYPE_LABELS,
+		signedCoins,
+		type CoinAmountDisplay
+	} from '$lib/coin-format';
+	import CoinTypeGlyph from './CoinTypeGlyph.svelte';
+	import { deskHistoryRows, isUndoable, num, type DeskHistoryRow, type DeskTxn } from './v2';
+
+	/**
+	 * ONE STUDENT'S HISTORY ON THE DESK, WITH UNDO (IDEA Coin V2).
+	 *
+	 * It replaced `$lib/coin-balance/CoinTransactionRows` on the desk because
+	 * the desk's history now has two things the student's page does not: an
+	 * Undo on every row that can be undone, and undone pairs folded into one
+	 * line. `deskHistoryRows` in `./v2` is the rule; this file only draws it.
+	 *
+	 * UNDO IS TWO PRESSES. The first arms the row and says what it will do;
+	 * the second calls the `reverse` transport. Without a `reverse` transport
+	 * there is no Undo anywhere in the list: absence is the mechanism.
+	 *
+	 * A physical row is history only (it moved no balance since 0239), so it
+	 * carries a "Not counted" chip and never an Undo.
+	 */
+	let {
+		transactions,
+		kinds = {},
+		reverse,
+		onReversed,
+		emptyMessage = 'No transactions logged yet for this email.'
+	}: {
+		transactions: DeskTxn[];
+		kinds?: Record<string, string>;
+		reverse?: (id: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+		onReversed?: () => void | Promise<void>;
+		emptyMessage?: string;
+	} = $props();
+
+	const rows = $derived(deskHistoryRows(transactions));
+
+	let armed = $state<string | null>(null);
+	let busyId = $state<string | null>(null);
+	let rowError = $state<{ id: string; message: string } | null>(null);
+	let notice = $state('');
+
+	function amountOf(t: DeskHistoryRow): CoinAmountDisplay {
+		const type = coinTxnType(t, kinds[t.category_id]);
+		// A payout's digital half lowered the balance; it keeps its sign.
+		if (t.isPayout) return { tone: 'transfer', text: signedCoins(num(t.amount)) };
+		return coinAmountDisplay(num(t.amount), type);
+	}
+
+	function when(iso: string): string {
+		const d = new Date(iso);
+		return Number.isNaN(d.getTime())
+			? ''
+			: d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+	}
+
+	/** Who logged it and when, and who undid it and when: one sentence. */
+	function sinceLine(t: DeskHistoryRow): string {
+		const who = (e: string | null | undefined) => (e === 'system' ? 'autopay' : e);
+		const parts: string[] = [];
+		parts.push(t.actor_email ? `by ${who(t.actor_email)}, ${when(t.created_at)}` : when(t.created_at));
+		if (t.undoneBy) {
+			parts.push(
+				t.undoneBy.actor_email
+					? `undone by ${who(t.undoneBy.actor_email)}, ${when(t.undoneBy.created_at)}`
+					: `undone ${when(t.undoneBy.created_at)}`
+			);
+		}
+		return parts.join(' · ');
+	}
+
+	async function confirmUndo(t: DeskHistoryRow) {
+		if (!reverse) return;
+		busyId = t.id;
+		rowError = null;
+		notice = '';
+		let r: { ok: true } | { ok: false; message: string };
+		try {
+			r = await reverse(t.id);
+		} finally {
+			busyId = null;
+		}
+		armed = null;
+		if (!r.ok) {
+			rowError = { id: t.id, message: r.message };
+			return;
+		}
+		notice = `Undid ${t.category_name} (${signedCoins(num(t.amount))}).`;
+		await onReversed?.();
+	}
+</script>
+
+{#if notice}<p class="cdx-feedback notice" data-testid="cd-undo-notice">{notice}</p>{/if}
+
+{#if rows.length}
+	<ul class="desk-rows" data-testid="cd-desk-history">
+		{#each rows as t (t.id)}
+			{@const type = coinTxnType(t, kinds[t.category_id])}
+			{@const amount = amountOf(t)}
+			<li class="row" class:undone={t.undone} class:uncounted={!t.counted} data-testid="cd-history-row">
+				<div class="who">
+					<span class="reason">{t.isPayout ? 'Payout' : t.category_name}</span>
+					<span class="type-chip {type}">
+						<CoinTypeGlyph {type} size={12} />
+						{t.isPayout ? 'Payout' : COIN_TXN_TYPE_LABELS[type]}
+					</span>
+					{#if t.undone}
+						<span class="cdx-chip warn" data-testid="cd-undone-chip">Undone</span>
+					{/if}
+					{#if !t.counted}
+						<span class="cdx-chip" title="A physical coin row is history and does not count toward the balance.">
+							Not counted
+						</span>
+					{/if}
+					{#if t.reverses}
+						<span class="cdx-chip">Undo of an older row</span>
+					{/if}
+				</div>
+				<div class="meta">
+					{#if t.note}<span class="note-text">{t.note}</span>{/if}
+					<span class="since">{sinceLine(t)}</span>
+				</div>
+				<div class="actions">
+					<span class="amount {amount.tone}" class:struck={t.undone}>{amount.text}</span>
+					{#if reverse && isUndoable(t)}
+						{#if armed === t.id}
+							<button
+								type="button"
+								class="btn cdx-small"
+								data-testid="cd-undo-confirm"
+								disabled={busyId === t.id}
+								onclick={() => confirmUndo(t)}
+							>
+								{busyId === t.id ? 'Undoing…' : `Confirm undo ${signedCoins(-num(t.amount))}`}
+							</button>
+							<button type="button" class="btn secondary cdx-small" onclick={() => (armed = null)}>
+								Keep
+							</button>
+						{:else}
+							<button
+								type="button"
+								class="btn secondary cdx-small"
+								data-testid="cd-undo"
+								onclick={() => {
+									armed = t.id;
+									rowError = null;
+								}}
+							>
+								Undo
+							</button>
+						{/if}
+					{/if}
+				</div>
+				{#if rowError?.id === t.id}
+					<p class="cdx-feedback error row-error">{rowError.message}</p>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{:else}
+	<p class="cdx-note">{emptyMessage}</p>
+{/if}
+
+<style>
+	.desk-rows {
+		list-style: none;
+		margin: 0.2rem 0 0;
+		padding: 0;
+	}
+	.row {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem 0.8rem;
+		flex-wrap: wrap;
+		padding: 0.45rem 0;
+		border-bottom: 1px solid var(--line);
+	}
+	.row:last-child {
+		border-bottom: none;
+	}
+	.who {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		flex-wrap: wrap;
+		min-width: 0;
+		flex: 1 1 14rem;
+	}
+	.reason {
+		font-weight: 700;
+		color: var(--white);
+	}
+	.meta {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 0;
+		flex: 1 1 12rem;
+	}
+	.note-text {
+		font-size: 0.85rem;
+		color: var(--text-2, var(--dim));
+		overflow-wrap: anywhere;
+	}
+	.since {
+		font-family: var(--font-mono);
+		font-size: 0.65rem;
+		color: var(--text-2, var(--dim));
+	}
+	.actions {
+		margin-left: auto;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.row-error {
+		flex-basis: 100%;
+	}
+	.type-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-family: var(--font-mono);
+		font-size: 0.55rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		white-space: nowrap;
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 0.05rem 0.3rem;
+		color: var(--text-2, var(--dim));
+	}
+	.type-chip.award {
+		color: var(--green);
+		border-color: color-mix(in srgb, var(--green) 40%, transparent);
+	}
+	.type-chip.fine {
+		color: var(--amber);
+		border-color: color-mix(in srgb, var(--amber) 40%, transparent);
+	}
+	.type-chip.purchase {
+		color: var(--gold);
+		border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+	}
+	.type-chip.adjustment {
+		color: var(--violet-ink);
+		border-color: var(--violet);
+	}
+	.type-chip.payout {
+		color: var(--cyan);
+		border-color: var(--cyan);
+	}
+	.amount {
+		font-family: var(--font-mono);
+	}
+	.amount.positive {
+		color: var(--green);
+	}
+	.amount.negative,
+	.amount.purchase {
+		color: var(--amber);
+	}
+	.amount.adjustment {
+		color: var(--violet-ink);
+	}
+	.amount.transfer {
+		color: var(--cyan);
+	}
+	/* Undone is said in a word (the chip); the strike is the second signal. */
+	.amount.struck {
+		text-decoration: line-through;
+		color: var(--text-2, var(--dim));
+	}
+	.row.uncounted .reason,
+	.row.uncounted .amount {
+		color: var(--text-2, var(--dim));
+	}
+	@media (max-width: 32rem) {
+		.actions {
+			margin-left: 0;
+		}
+	}
+</style>
