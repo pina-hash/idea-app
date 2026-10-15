@@ -166,26 +166,23 @@ def robot(x, y, w, callouts=True):
     if not callouts:
         return out
     # (label, sub, point as fraction of image, label anchor)
-    pts = [("WIRED AND CODED", "BY STUDENTS", .44, .13, "up", None),
-           ("PRECISION METAL PARTS", "DESIGNED AND MADE BY STUDENTS", .62, .30, "up", 7.95),
-           ("EVEN THE BUMPERS", "MADE BY STUDENTS", .70, .80, "down", None)]
+    # Each callout: label, sub, dot (fraction of image), label box (inches from robot box), width, align.
+    pts = [("WIRED AND CODED", "BY STUDENTS", .44, .13, (.05, -.62), 1.45, "left"),
+           ("PRECISION METAL PARTS", "DESIGNED AND MADE BY STUDENTS", .80, .40, (w - 2.15, h + .2), 2.1, "right"),
+           ("EVEN THE BUMPERS", "MADE BY STUDENTS", .60, .84, (.12, h + .2), 1.4, "left")]
     lines, labels = [], []
-    for name, sub, fx, fy, where, fixed in pts:
+    for name, sub, fx, fy, (ox, oy), lw, align in pts:
         px, py = x + fx * w, y + fy * h
-        if where == "up":
-            ly = y - .18
-            lx = fixed if fixed else px - 1.5
-        else:
-            ly = y + h + .12
-            lx = px - 1.8
-        lines.append(f'<circle cx="{px}" cy="{py}" r=".045" fill="#FFE629"/>'
-                     f'<circle cx="{px}" cy="{py}" r=".09" fill="none" stroke="#FFE629" stroke-width=".015"/>'
-                     f'<polyline points="{px},{py} {px},{ly} {lx},{ly}" fill="none" stroke="#FFE629" stroke-width=".014"/>')
-        top = ly - .34 if where == "up" else ly + .05
-        if lx > px:
-            labels.append(f'<div class=co style="right:{8.5 - lx}in;top:{top}in;text-align:right">{name}<i>{sub}</i></div>')
-        else:
-            labels.append(f'<div class=co style="left:{lx}in;top:{top}in">{name}<i>{sub}</i></div>')
+        bx, by = x + ox, y + oy
+        shelf_y = by + .36 if oy < 0 else by - .04
+        # leader meets the shelf at the end nearest the dot
+        sx = bx + lw if abs(bx + lw - px) < abs(bx - px) else bx
+        lines.append(f'<circle cx="{px:.3f}" cy="{py:.3f}" r=".045" fill="#FFE629"/>'
+                     f'<circle cx="{px:.3f}" cy="{py:.3f}" r=".09" fill="none" stroke="#FFE629" stroke-width=".015"/>'
+                     f'<line x1="{px:.3f}" y1="{py:.3f}" x2="{sx:.3f}" y2="{shelf_y:.3f}" stroke="#FFE629" stroke-width=".014"/>'
+                     f'<line x1="{bx:.3f}" y1="{shelf_y:.3f}" x2="{bx + lw:.3f}" y2="{shelf_y:.3f}" stroke="#FFE629" stroke-width=".02"/>')
+        ty = by if oy < 0 else by + .02
+        labels.append(f'<div class=co style="left:{bx:.3f}in;top:{ty:.3f}in;width:{lw}in;text-align:{align}">{name}<i>{sub}</i></div>')
     return out + '<svg class=lines viewBox="0 0 8.5 11">' + "".join(lines) + "</svg>" + "".join(labels)
 
 
@@ -251,14 +248,14 @@ def flyer_html(air, c):
                 + '<div class=body style="top:5.25in"><div class=lede>Every member, every Monday. <b>Come straight to the meeting, then get your food.</b> '
                   'Miss it and you are out of the loop. New students welcome.</div>'
                 + f'<div class=k>EVERY WEEK</div>{WEEK}</div>' + STAMP.format(top=7.88))
-        return page(f'ROBOTICS TEAM <b>5669</b><br>{D} · <b>MANDATORY</b>', body)
+        return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
     if c["kind"] == "TUE":
         cells = "".join(f'<div class="cell role"><div class=ic>{i}</div><div><div class=t>{n}</div><div class=s>{d}</div></div></div>' for n, d, i in ROLES)
         body = (f'<div class=hero>WE<br>NEED<br><span>YOU.</span></div>{robot(3.35, 1.45, 4.8, callouts=False)}' + CTX.format(top=3.95, w=7.2)
                 + when([("d", "DATE", long_date(air)), ("", "TIME", "After school, until 5:00 PM"), ("", "PLACE", "IDEA building")], 4.58)
                 + '<div class=body style="top:5.12in">'
                 + f'<div class=k>EVERY TECHNOLOGY HAS A PLACE · NO EXPERIENCE REQUIRED</div><div class=grid style="grid-template-columns:repeat(2,1fr)">{cells}</div></div>')
-        return page(f'ROBOTICS TEAM <b>5669</b><br>{D} · <b>NOW RECRUITING</b>', body)
+        return page(f'ROBOTICS TEAM <b>5669</b> · <b>NOW RECRUITING</b>', body)
     if c["kind"] in ("FRI_BB", "FRI_BB0"):
         if c["kind"] == "FRI_BB":
             hero = f'<div class=hero>BEACH<br>BLITZ<br><span style="font-size:22pt;letter-spacing:.02em">IN {span(c["days"]).upper()}</span></div>'
@@ -272,12 +269,12 @@ def flyer_html(air, c):
                 + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat)
                 + '<div class=k>GOING TO BEACH BLITZ?</div><div class=cell><div class=t>Family sign-up is required to attend.</div>'
                   '<div class=s>No school transportation. Families carpool from the Bosco Tech front lot. See Mr. Pina.</div></div></div>')
-        return page(f'ROBOTICS TEAM <b>5669</b><br>{D} · <b>BEACH BLITZ</b>', body)
+        return page(f'ROBOTICS TEAM <b>5669</b> · <b>BEACH BLITZ</b>', body)
     body = ('<div class=hero>BUILD<br>DAY.<br><span style="font-size:22pt;letter-spacing:.02em">TODAY AFTER SCHOOL</span></div>' + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
             + when([("d", "DATE", long_date(air)), ("", "TIME", "After school"), ("", "PLACE", "IDEA building")], 4.5)
             + '<div class=body style="top:5.25in"><div class=lede>Build and test the robot. <b>New students welcome.</b></div>'
             + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat) + '</div>' + STAMP.format(top=7.6))
-    return page(f'ROBOTICS TEAM <b>5669</b><br>{D} · <b>BUILD DAY</b>', body)
+    return page(f'ROBOTICS TEAM <b>5669</b> · <b>BUILD DAY</b>', body)
 
 
 def render_pdf(html, out_pdf):
