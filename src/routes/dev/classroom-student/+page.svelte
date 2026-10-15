@@ -61,6 +61,8 @@
 			today={TODAY}
 			peopleHref={`${BASE}?view=people`}
 			itemHref={(id) => `${BASE}?item=${id}`}
+			gradeHref={(id) => `${BASE}?grade=${id}`}
+			workHref={(id) => `${BASE}?work=${id}`}
 			{notebookHref}
 		/>
 	</ClassroomShell>

@@ -23,8 +23,13 @@
 	import { ICONS } from '$lib/shell/commands';
 	import {
 		foundryAppHref,
+		isStudentAssignmentSortKey,
+		sortStudentAssignments,
+		STUDENT_ASSIGNMENT_SORTS,
 		STUDENT_OVERVIEW_ERROR_NOTE,
 		STUDENT_OVERVIEW_PENDING_NOTE,
+		type StudentAssignmentSortDir,
+		type StudentAssignmentSortKey,
 		type StudentPageData
 	} from '$lib/classroom/student-overview';
 
@@ -56,6 +61,8 @@
 		today,
 		peopleHref,
 		itemHref,
+		gradeHref = null,
+		workHref = null,
 		notebookHref = null
 	}: {
 		section: ClassroomSection;
@@ -64,6 +71,14 @@
 		today: string;
 		peopleHref: string;
 		itemHref: (itemId: string) => string;
+		/**
+		 * THE GRADING CONSOLE WITH THIS STUDENT ALREADY OPEN (report 5464ceb2),
+		 * or null for an item it cannot name; an absent prop removes the key
+		 * from every row (absence is the mechanism).
+		 */
+		gradeHref?: ((itemId: string) => string | null) | null;
+		/** Their filled assignment alone, on a full-screen page. Absent removes the key. */
+		workHref?: ((itemId: string) => string) | null;
 		/**
 		 * The student's whole notebook, read-only. NULL removes the link and says
 		 * why: it opens only while they are on the live roster (or for an admin),
@@ -92,6 +107,45 @@
 		coins: true,
 		models: true
 	});
+
+	/**
+	 * THE ASSIGNMENTS TABLE'S ORDER (report 5464ceb2). The column headers and
+	 * the Sort by control are two spellings of ONE state; `sortStudentAssignments`
+	 * is the one comparator. It starts on the page's own order and is never
+	 * stored: a conference is read in the order the teacher asks for that day.
+	 */
+	let sortKey = $state<StudentAssignmentSortKey>('default');
+	let sortDir = $state<StudentAssignmentSortDir>('asc');
+	const SORT_COLUMNS: { key: StudentAssignmentSortKey; label: string }[] = [
+		{ key: 'title', label: 'Assignment' },
+		{ key: 'due', label: 'Due' },
+		{ key: 'status', label: 'Status' },
+		{ key: 'turnedIn', label: 'Turned in' },
+		{ key: 'score', label: 'Score' },
+		{ key: 'working', label: 'Working time' },
+		{ key: 'lastTyped', label: 'Last typed' },
+		{ key: 'lastOpened', label: 'Last opened' }
+	];
+	const sortedAssignments = $derived(sortStudentAssignments(data.assignments, sortKey, sortDir));
+	function sortBy(key: StudentAssignmentSortKey) {
+		if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+		else {
+			sortKey = key;
+			sortDir = 'asc';
+		}
+	}
+	function pickSort(event: Event) {
+		// The select's own value goes through the predicate before it becomes
+		// state, so no value can put the control into a state with no option.
+		const value = (event.currentTarget as HTMLSelectElement).value;
+		if (isStudentAssignmentSortKey(value)) {
+			sortKey = value;
+			sortDir = 'asc';
+		}
+	}
+	function ariaSort(key: StudentAssignmentSortKey): 'ascending' | 'descending' | undefined {
+		return sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined;
+	}
 
 	const name = $derived(data.student.display_name || data.student.email);
 	const totals = $derived(data.totals);
@@ -274,6 +328,28 @@
 			<h2 id="so-h-assignments">Assignments</h2>
 			{@render printToggle('assignments', 'Assignments')}
 		</div>
+		{#if data.assignments.length > 1}
+			<div class="so-sort-row so-noprint-always" data-testid="so-sort">
+				<label class="so-sort-label">
+					<span>Sort by</span>
+					<select class="so-sort-select" value={sortKey} onchange={pickSort} data-testid="so-sort-select">
+						{#each STUDENT_ASSIGNMENT_SORTS as opt (opt.id)}
+							<option value={opt.id}>{opt.label}</option>
+						{/each}
+					</select>
+				</label>
+				<button
+					type="button"
+					class="btn secondary tiny so-sort-dir"
+					aria-pressed={sortDir === 'desc'}
+					onclick={() => (sortDir = sortDir === 'asc' ? 'desc' : 'asc')}
+					data-testid="so-sort-dir"
+				>
+					<span aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>
+					{sortDir === 'asc' ? 'Ascending' : 'Descending'}
+				</button>
+			</div>
+		{/if}
 		{#if !data.sources.submissions}
 			<p class="note so-source-note" data-testid="so-source-note">Could not load their hand-ins just now, so every status below is a guess. Reload to try again.</p>
 		{/if}
@@ -282,22 +358,34 @@
 				<table class="so-table">
 					<thead>
 						<tr>
-							<th scope="col">Assignment</th>
-							<th scope="col">Due</th>
-							<th scope="col">Status</th>
-							<th scope="col">Turned in</th>
-							<th scope="col">Score</th>
-							<th scope="col">Working time</th>
-							<th scope="col">Last typed</th>
-							<th scope="col">Last opened</th>
+							{#each SORT_COLUMNS as col (col.key)}
+								<th scope="col" aria-sort={ariaSort(col.key)}>
+									<!-- EVERY HEADER IS A SORT KEY: the word, and the direction as a
+									     glyph only while this column orders the rows. -->
+									<button type="button" class="so-sort-key" class:on={sortKey === col.key} onclick={() => sortBy(col.key)}>
+										{col.label}
+										{#if sortKey === col.key}<span aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+									</button>
+								</th>
+							{/each}
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.assignments as row (row.itemId)}
+						{#each sortedAssignments as row (row.itemId)}
 							<tr data-testid="so-assignment-row" data-item={row.itemId}>
 								<th scope="row" class="so-col-title" data-label="Assignment">
 									<a class="so-link tap-44" href={itemHref(row.itemId)}>{row.title}</a>
 									{#if !row.posted}<span class="chip tone-muted">Not posted now</span>{/if}
+									{#if gradeHref || workHref}
+										<!-- WHERE ELSE THIS ROW OPENS (report 5464ceb2): the assignment is the
+										     title's link; these open the same student in the grading console,
+										     or their filled assignment alone on one full-screen page. -->
+										{@const grade = gradeHref ? gradeHref(row.itemId) : null}
+										<span class="so-row-keys so-noprint-always">
+											{#if grade}<a class="so-row-key" href={grade} data-testid="so-grade-link">Grade</a>{/if}
+											{#if workHref}<a class="so-row-key" href={workHref(row.itemId)} data-testid="so-work-link">Full screen</a>{/if}
+										</span>
+									{/if}
 								</th>
 								<td class="so-when" data-label="Due">{row.dueAt ? when(row.dueAt) : 'No due date'}</td>
 								<td data-label="Status">
@@ -845,6 +933,88 @@
 		display: block;
 		margin-top: 0.15rem;
 	}
+	/* THE SORT. Header words are keys (the plate's key list lights `.on`);
+	   the Sort by row is the phone's control, where the header is hidden. */
+	.so-sort-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		margin: 0 0 0.6rem;
+	}
+	.so-sort-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.so-sort-select {
+		min-height: 2rem;
+		font: inherit;
+		font-family: var(--font-display);
+		font-size: 0.9rem;
+		text-transform: none;
+		letter-spacing: 0;
+		color: var(--text-1);
+		background: var(--surface-2, var(--bg2));
+		border: 1px solid var(--boundary);
+		border-radius: 0.35rem;
+		padding: 0.2rem 0.5rem;
+	}
+	.so-sort-key {
+		all: unset;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		min-height: 24px;
+		cursor: pointer;
+		font: inherit;
+		color: inherit;
+		border-bottom: 1px solid transparent;
+	}
+	.so-sort-key:hover,
+	.so-sort-key:focus-visible {
+		color: var(--hover-ink, var(--text-1));
+		border-bottom-color: currentColor;
+	}
+	.so-sort-key:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	.so-sort-key.on {
+		color: var(--text-1);
+	}
+	.so-row-keys {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		margin-left: 0.5rem;
+		vertical-align: middle;
+	}
+	.so-row-key {
+		display: inline-flex;
+		align-items: center;
+		min-height: 24px;
+		padding: 0 0.5rem;
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		font-weight: 400;
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.so-row-key:hover,
+	.so-row-key:focus-visible {
+		color: var(--hover-ink, var(--green));
+		border-color: currentColor;
+	}
 	@container (width < 46rem) {
 		.so-table thead {
 			display: none;
@@ -962,6 +1132,9 @@
 		.so-actions,
 		.so-print-toggle,
 		.so-noprint {
+			display: none !important;
+		}
+		.so-noprint-always {
 			display: none !important;
 		}
 		.classroom-page {

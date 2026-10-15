@@ -6,7 +6,11 @@ import {
 	studentAssignmentTotals,
 	studentHallPassSummary,
 	studentNotebook,
-	studentTeams
+	studentTeams,
+	isStudentAssignmentSortKey,
+	sortStudentAssignments,
+	STUDENT_ASSIGNMENT_SORTS,
+	studentWorkHref
 } from '../src/lib/classroom/student-overview';
 import { CLASSMATES, EMAIL, ITEMS, NOW, fixtureInputs, fixturePage } from '../src/routes/dev/classroom-student/fixture';
 
@@ -219,5 +223,89 @@ describe('the new read is parsed defensively', () => {
 	it('buildStudentPage is pure: the same inputs give the same page', () => {
 		expect(JSON.stringify(buildStudentPage(fixtureInputs('full')))).toBe(JSON.stringify(page));
 		expect(studentAssignmentTotals([])).toMatchObject({ assigned: 0, todo: 0 });
+	});
+});
+
+/**
+ * THE ASSIGNMENTS TABLE'S SORT (the 2026-10-15 round, report 5464ceb2). One
+ * comparator behind the headers and the Sort by control; a missing value sorts
+ * last in both directions; the default order is the page's own; nothing is
+ * reordered in place.
+ */
+describe('the assignments table sorts by one comparator', () => {
+	const rows = fixturePage('full').assignments;
+
+	it('the default is the page order, reversed by direction, and never mutates the input', () => {
+		const before = rows.map((r) => r.itemId);
+		expect(sortStudentAssignments(rows, 'default').map((r) => r.itemId)).toEqual(before);
+		expect(sortStudentAssignments(rows, 'default', 'desc').map((r) => r.itemId)).toEqual([...before].reverse());
+		expect(rows.map((r) => r.itemId)).toEqual(before);
+	});
+
+	it('every key orders ascending and descending with the missing values last both ways', () => {
+		for (const { id } of STUDENT_ASSIGNMENT_SORTS) {
+			if (id === 'default') continue;
+			const asc = sortStudentAssignments(rows, id, 'asc');
+			const desc = sortStudentAssignments(rows, id, 'desc');
+			expect(asc, id).toHaveLength(rows.length);
+			expect(new Set(asc.map((r) => r.itemId)).size, id).toBe(rows.length);
+			const value = (r: (typeof rows)[number]): number | string | null => {
+				switch (id) {
+					case 'title':
+						return r.title.toLowerCase();
+					case 'due':
+						return r.dueAt ? Date.parse(r.dueAt) : null;
+					case 'turnedIn':
+						return r.turnedInAt ? Date.parse(r.turnedInAt) : null;
+					case 'score':
+						return r.score;
+					case 'working':
+						return r.activeSeconds;
+					case 'lastTyped':
+						return r.lastWorkedAt ? Date.parse(r.lastWorkedAt) : null;
+					case 'lastOpened':
+						return r.lastOpenedAt ? Date.parse(r.lastOpenedAt) : null;
+					default:
+						return 0;
+				}
+			};
+			for (const list of [asc, desc]) {
+				const present = list.filter((r) => value(r) !== null);
+				const missing = list.filter((r) => value(r) === null);
+				// Missing last: every present row comes before every missing one.
+				expect(list.slice(0, present.length).every((r) => value(r) !== null), id).toBe(true);
+				expect(list.slice(present.length).every((r) => value(r) === null), id).toBe(true);
+				if (id !== 'status') {
+					const sign = list === asc ? 1 : -1;
+					for (let i = 1; i < present.length; i++) {
+						const a = value(present[i - 1])!;
+						const b = value(present[i])!;
+						const cmp = typeof a === 'string' ? a.localeCompare(b as string) : (a as number) - (b as number);
+						expect(cmp * sign, `${id} at ${i}`).toBeLessThanOrEqual(0);
+					}
+				}
+				expect(missing.length + present.length).toBe(rows.length);
+			}
+		}
+	});
+
+	it('status reads missing first, then open work, then finished, then returned', () => {
+		const rank = (r: (typeof rows)[number]) => (r.chip.missing ? 0 : !r.chip.done ? 1 : r.returned ? 3 : 2);
+		const asc = sortStudentAssignments(rows, 'status').map(rank);
+		expect(asc).toEqual([...asc].sort((a, b) => a - b));
+		// POSITIVE CONTROL: the fixture holds more than one rank, so the order is earned.
+		expect(new Set(asc).size).toBeGreaterThan(1);
+	});
+
+	it('only the offered keys are keys, so a stored or typed value cannot strand the control', () => {
+		for (const { id } of STUDENT_ASSIGNMENT_SORTS) expect(isStudentAssignmentSortKey(id)).toBe(true);
+		expect(isStudentAssignmentSortKey('points')).toBe(false);
+		expect(isStudentAssignmentSortKey(null)).toBe(false);
+	});
+
+	it('the full-screen work address sits under the student page and encodes once', () => {
+		expect(studentWorkHref('s-1', 'ana.reyes@boscotech.net', 'a-bridge')).toBe(
+			'/classroom/s-1/people/ana.reyes%40boscotech.net/work/a-bridge'
+		);
 	});
 });
