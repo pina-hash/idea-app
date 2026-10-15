@@ -33,8 +33,11 @@
 		inset 0 -1px 0 0 var(--plate-groove-dk, var(--hairline)),
 		inset 0 -2px 0 0 var(--plate-groove-lt, transparent);
 }
-/* Anchored scrolls land below the sticky bar (IDEA_INTERFACE_STANDARDS:
-   clicking an item scrolls it fully into view below the sticky bar). */
+/* Anchored scrolls land below the sticky bar (docs/CERTIFICATIONS.md, Student
+   screens: "Opening a kit part scrolls it fully into view below the sticky
+   bar"; the mechanism is CLAUDE.md's sticky-header rule: a positioned bar
+   needs its z-index and an opaque ground, and the targets need a scroll
+   margin). A scrolling PANE takes scroll-padding-top instead. */
 .cert-root [id] {
 	scroll-margin-top: calc(var(--cert-bar-h, 4.25rem) + 0.75rem);
 }
@@ -42,11 +45,17 @@
 .cert-root {
 	--cert-gutter: clamp(1rem, 3vw, 2rem);
 	--cert-bar-h: 4.25rem;
-	max-width: 90rem;
+	/* Widths are the design system's tokens (IDEA_INTERFACE_STANDARDS 1):
+	   a two-pane page takes the split measure; a console (the desk, the live
+	   sitting) takes the window through .cert-console. */
+	max-width: var(--measure-split, 92rem);
 	margin: 0 auto;
 	padding: 1.25rem var(--cert-gutter) 3rem;
 	color: var(--text-1);
 	font-family: var(--font-display);
+}
+.cert-root.cert-console {
+	max-width: var(--measure-console, 100%);
 }
 .cert-root * {
 	min-width: 0;
@@ -66,7 +75,7 @@
 
 /* Reading measure: widening a pane never widens a sentence. */
 .cert-prose {
-	max-width: 46rem;
+	max-width: var(--measure-reading, 46rem);
 	line-height: 1.55;
 }
 .cert-prose p {
@@ -114,7 +123,7 @@
 }
 .cert-lead {
 	color: var(--text-2);
-	max-width: 46rem;
+	max-width: var(--measure-reading, 46rem);
 	margin: 0 0 1.25rem;
 	line-height: 1.5;
 }
@@ -443,8 +452,10 @@
 .cert-chart .bar.is-warn {
 	fill: var(--amber);
 }
+/* An axis carries scale, so it is a load-bearing line: --boundary at 3:1,
+   never the decorative hairline (IDEA_INTERFACE_STANDARDS 10 and 14). */
 .cert-chart .axis {
-	stroke: var(--hairline);
+	stroke: var(--boundary);
 }
 .cert-chart text {
 	fill: var(--text-2);
