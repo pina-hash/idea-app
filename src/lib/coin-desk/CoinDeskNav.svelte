@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { COIN_DESK_AREAS, type CoinDeskAreaId } from './nav';
+	import { areasForScope, type CoinDeskAreaId, type CoinStaffScope } from './nav';
 
 	/**
 	 * The persistent sub-nav for the /coin-desk route group. ONE component,
@@ -13,18 +13,22 @@
 	 */
 	let {
 		active,
+		scope = 'full',
 		onSelect
 	}: {
 		active: CoinDeskAreaId;
+		/** Section coin staff are offered only their areas (decision 68). */
+		scope?: CoinStaffScope;
 		onSelect?: (id: CoinDeskAreaId) => void;
 	} = $props();
 
-	const current = $derived(COIN_DESK_AREAS.find((a) => a.id === active) ?? COIN_DESK_AREAS[0]);
+	const areas = $derived(areasForScope(scope));
+	const current = $derived(areas.find((a) => a.id === active) ?? areas[0]);
 </script>
 
 <nav class="desk-nav" aria-label="Coin Desk sections">
 	<ul>
-		{#each COIN_DESK_AREAS as area (area.id)}
+		{#each areas as area (area.id)}
 			<li>
 				{#if onSelect}
 					<button

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import CategoriesManager from '$lib/coin-desk/CategoriesManager.svelte';
-	import PayoutManager from '$lib/coin-desk/PayoutManager.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -19,5 +18,3 @@
 </svelte:head>
 
 <CategoriesManager supabase={data.supabase} bind:categories configured={data.configured} />
-
-<PayoutManager supabase={data.supabase} configured={data.configured} />

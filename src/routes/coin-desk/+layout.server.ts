@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { isAdmin } from '$lib/server/admin';
+import { coinStaff } from '$lib/server/coin-scope';
 import type { LayoutServerLoad } from './$types';
 
 /**
@@ -36,23 +36,26 @@ async function autopayCatchUp(supabase: App.Locals['supabase']): Promise<void> {
 }
 
 /**
- * The admin gate for the WHOLE /coin-desk route group -- Log, Fine, Students,
- * Debt, Contracts, Roles, Economy, Settings. Hoisting it here means a new area
- * cannot ship ungated by forgetting to copy the check.
+ * The coin staff gate for the WHOLE /coin-desk route group. Hoisting it here
+ * means a new area cannot ship ungated by forgetting to copy the check; each
+ * page still asks for itself (`requireCoinArea`), because a layout's load and
+ * a page's run concurrently.
  *
- * Gated on is_admin() specifically (0067: teacher alone grants nothing
- * elevated), not profiles.role, since every write RPC these pages call is
- * itself gated on is_admin() -- this check is convenience-with-teeth, the
- * RPCs are the boundary.
+ * TWO TIERS (decision 68, 0244): a full coin admin opens every area; section
+ * coin staff (every other admin, every class's teacher of record) open the
+ * fine screen, the queue, payday, the digest and the student view, over their
+ * own students. The database enforces both; this decides what is offered.
  *
- * A non-admin gets 404, not a redirect -- the /admin rule, so a probing
- * request learns nothing about whether the page exists. Deliberately NOT in
- * hooks.server.ts authedPrefixes for the same reason: an anonymous visitor
- * should get the same 404 a signed-in non-admin gets.
+ * Anybody else gets 404, not a redirect, so a probing request learns nothing
+ * about whether the page exists; deliberately NOT in authedPrefixes for the
+ * same reason. WHICH AREA a tier may open is each page's own first
+ * statement (`requireCoinArea`), never this load's: a layout load must not
+ * read `url`, or it re-runs on every navigation inside the desk.
  */
 export const load: LayoutServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) error(404, 'Not found');
-	if (!(await isAdmin(supabase, claims.sub))) error(404, 'Not found');
+	const staff = await coinStaff(supabase, claims.sub);
+	if (!staff) error(404, 'Not found');
 	await autopayCatchUp(supabase);
-	return {};
+	return { coinStaff: staff };
 };

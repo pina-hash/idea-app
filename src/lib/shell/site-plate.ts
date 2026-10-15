@@ -66,8 +66,6 @@ export const SITE_PLATE_DEV_PREFIXES: readonly string[] = [
 	'/dev/short-links',
 	'/dev/coin-desk',
 	'/dev/coin-balance',
-	'/dev/coin-preview',
-	'/dev/contracts',
 	'/dev/foundry-',
 	'/dev/tournaments',
 	'/dev/tournament-',

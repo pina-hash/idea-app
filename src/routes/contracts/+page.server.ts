@@ -8,9 +8,10 @@ import type { PageServerLoad } from './$types';
  * now carries the claim control too, so a standalone route is a second board
  * to keep in step with the first.
  *
- * A redirect rather than a delete because the URL is in bookmarks.
- * `ContractsView.svelte` is deliberately KEPT: `/coin-desk/preview` mounts it
- * to show an admin what a student sees.
+ * A redirect rather than a delete because the URL is in bookmarks. A student
+ * claims and marks a contract done on their own coin page (/coin-balance)
+ * since IDEA Coin V2 session two; the old ContractsView and the Coin Desk
+ * preview that mounted it are gone.
  */
 export const load: PageServerLoad = async () => {
 	redirect(308, '/coins/index.html');

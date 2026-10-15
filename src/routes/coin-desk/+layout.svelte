@@ -40,6 +40,7 @@
 	let { children } = $props();
 
 	const active = $derived(areaForPath(page.url.pathname));
+	const scope = $derived(page.data.coinStaff?.scope === 'section' ? 'section' : 'full');
 </script>
 
 <div class="cd-root">
@@ -52,8 +53,10 @@
 			     redirect nobody can see is a round trip, and the label went on
 			     promising a page that no longer exists. "Site admins" is the
 			     panel's own title on the console it lands in. -->
-			<a class="btn secondary" href="/dashboard#panel-admins">Site admins</a>
-			<a class="btn secondary" href="/dashboard">Dashboard</a>
+			{#if scope === 'full'}
+				<a class="btn secondary" href="/dashboard#panel-admins">Site admins</a>
+				<a class="btn secondary" href="/dashboard">Dashboard</a>
+			{/if}
 			<a class="btn secondary" href="/">&lsaquo; Home</a>
 			<ProfileMenu />
 		</div>
@@ -65,7 +68,7 @@
 			<h1>Coin desk</h1>
 		</section>
 
-		<CoinDeskNav {active} />
+		<CoinDeskNav {active} {scope} />
 
 		{@render children()}
 

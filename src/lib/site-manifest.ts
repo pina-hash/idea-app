@@ -57,8 +57,7 @@ export const APPS: SiteApp[] = [
 		prefixes: [
 			'src/lib/legacy/coins/',
 			'src/routes/coins/',
-			'src/routes/contracts/',
-			'src/lib/contracts/'
+			'src/routes/contracts/'
 		],
 		contains: ['coin']
 	},

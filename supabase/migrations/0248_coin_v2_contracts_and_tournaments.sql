@@ -452,7 +452,7 @@ begin
 					'members', case when exists (select 1 from public.tournament_entry_members m where m.entry_id = e.id)
 						then (select jsonb_agg(jsonb_build_object('user_id', m.user_id, 'name', m.name,
 								'has_account', m.user_id is not null and public._notebook_email_for_user(m.user_id) is not null)
-								order by (m.user_id = e.user_id) desc, m.created_at)
+								order by (m.user_id = e.user_id) is true desc, m.user_id is null, m.created_at)
 							from public.tournament_entry_members m where m.entry_id = e.id)
 						else jsonb_build_array(jsonb_build_object('user_id', e.user_id, 'name', e.display_name,
 							'has_account', e.user_id is not null and public._notebook_email_for_user(e.user_id) is not null)) end)
