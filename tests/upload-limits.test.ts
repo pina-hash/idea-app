@@ -243,12 +243,13 @@ describe('the registry is a transcription, not a second opinion', () => {
 	 * A registry that grew a row nobody checked is a registry back to being a
 	 * place numbers are typed.
 	 */
-	it('covers exactly the fifteen upload paths this sweep knows about', () => {
+	it('covers exactly the sixteen upload paths this sweep knows about', () => {
 		expect(UPLOAD_CEILING_LIST.map((c) => c.id)).toEqual([
 			'classroom-attachment',
 			'classroom-submission',
 			'classroom-instructor',
 			'classroom-quick-post',
+			'cert-evidence',
 			'classroom-deck',
 			'notebook-photo',
 			'maps-photo',

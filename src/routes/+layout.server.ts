@@ -14,6 +14,23 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * +layout.ts fetches it during hydration, so the name/avatar are still correct
  * without a manual refresh.
  */
+/**
+ * The signed-in person's unread certification notifications (ledger 0391), for
+ * the badge on the profile menu across the site. It NEVER rejects: a database
+ * without the certification migrations answers PGRST202, a network fault
+ * answers an error, and both read as "cannot tell" (null), which draws no
+ * badge, so a layout load can never fail over a count.
+ */
+async function loadCertUnread(supabase: SupabaseClient): Promise<number | null> {
+	try {
+		const { data, error } = await supabase.rpc('cert_notifications_unread');
+		if (error) return null;
+		return typeof data === 'number' && Number.isFinite(data) ? data : null;
+	} catch {
+		return null;
+	}
+}
+
 async function loadProfile(supabase: SupabaseClient, userId: string) {
 	for (let attempt = 0; attempt < 2; attempt++) {
 		if (attempt > 0) await sleep(200);
@@ -49,15 +66,18 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, coo
 	 * load, which is what `+error.svelte` and the `handleError` correlation id
 	 * exist for. Swallowing one would hand every page a silently empty profile.
 	 */
-	const [userProfile, admin] = await Promise.all([
+	const [userProfile, admin, certUnread] = await Promise.all([
 		claims ? loadProfile(supabase, claims.sub) : Promise.resolve(null),
-		claims ? isAdmin(supabase, claims.sub) : Promise.resolve(false)
+		claims ? isAdmin(supabase, claims.sub) : Promise.resolve(false),
+		// Independent of the two above, and it cannot reject (see loadCertUnread).
+		claims ? loadCertUnread(supabase) : Promise.resolve(null)
 	]);
 
 	return {
 		claims,
 		userProfile,
 		isAdmin: admin,
+		certUnread,
 		cookies: cookies.getAll()
 	};
 };

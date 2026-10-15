@@ -132,7 +132,10 @@ const CHAIN = [
 	'0215_short_link_reserve_ideacad.sql',
 	// Migration 0231 (supabase/migrations/0231_armory.sql) reserves `armory`
 	// for the /armory route.
-	PROPOSED_ENTRY
+	PROPOSED_ENTRY,
+	// 0260 (supabase/migrations/0260_cert_engine.sql) reserves `certifications`
+	// for the IDEA Certification Portal at /certifications (ledger 0391).
+	'0260_cert_engine.sql'
 ] as const;
 
 let db: TestDb;

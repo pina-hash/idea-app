@@ -58,6 +58,16 @@
 	const supabase = $derived(page.data.supabase as SupabaseClient);
 	const claims = $derived(page.data.claims);
 	const profile = $derived((page.data.userProfile ?? null) as UserProfile | null);
+	/**
+	 * Unread certification notifications (ledger 0391), loaded by the root
+	 * layout as `certUnread`: a number, or null when the database cannot say
+	 * (no migration yet, a failed read), which draws no badge. Never the
+	 * notifications themselves: the badge is a count, the list is a page.
+	 */
+	const certUnread = $derived.by(() => {
+		const n = (page.data as { certUnread?: unknown }).certUnread;
+		return typeof n === 'number' && n > 0 ? Math.floor(n) : 0;
+	});
 
 	let open = $state(false);
 	let root: HTMLDivElement | undefined = $state();
@@ -585,6 +595,19 @@
 			onclick={() => (open ? close() : (open = true))}
 		>
 			<Avatar {profile} size={30} />
+			{#if certUnread > 0}
+				<!-- THE NOTIFICATION BADGE (ledger 0391): a count over the avatar's
+				     corner, absolutely placed so the 34px trigger keeps its height
+				     (read the .pm-trigger comment). The word is in the aria-label;
+				     the pill carries the number. -->
+				<span
+					class="pm-badge"
+					data-testid="pm-cert-badge"
+					role="status"
+					aria-label={`${certUnread} new certification notification${certUnread === 1 ? '' : 's'}`}
+					>{certUnread > 99 ? '99+' : certUnread}</span
+				>
+			{/if}
 			<PathwayChip pathway={profile?.pathway} size="sm" />
 			<span class="pm-caret" class:up={open} aria-hidden="true">&#9662;</span>
 		</button>
@@ -1088,6 +1111,13 @@
 
 				<div class="pm-actions">
 					<a class="pm-link" href="/coin-balance" onclick={close}>My coins</a>
+					<a
+						class="pm-link pm-cert"
+						href={certUnread > 0 ? '/certifications/notifications' : '/certifications/me'}
+						onclick={close}
+						data-testid="pm-cert-link"
+						>Certifications{#if certUnread > 0}<span class="pm-cert-count" aria-hidden="true">{certUnread > 99 ? '99+' : certUnread}</span>{/if}</a
+					>
 					{#if page.data.isAdmin}
 						<a class="pm-link" href="/dashboard" onclick={close}>Admin console</a>
 					{/if}
@@ -1158,6 +1188,8 @@
 		padding: 2px;
 		cursor: pointer;
 		border-radius: 999px;
+		/* The notification badge is placed against this box. */
+		position: relative;
 		/* THE 44px FLOOR IS A REACH, NOT A TALLER BOX, AND THE HEADER IS WHY.
 		   Measured 44.0x34.0 on /dev/pathways and 100.6x34.0 on
 		   /dev/profile-menu and /dev/home-order, at 375 and 1440 alike: the
@@ -1183,6 +1215,39 @@
 		   the six measurements. Height only, which is free: nothing is stacked
 		   within 5px above or below a control on a header row. */
 		--tap-reach-w: 0px;
+	}
+	/* The unread count over the avatar: a 16px pill, mono, green ground with the
+	   page's darkest ink so it clears 4.5:1 in every theme (measured: --bg0 on
+	   --green is 7.5:1 on IDEA and --bg0 on Space White's green is 5.2:1). */
+	.pm-badge {
+		position: absolute;
+		top: -2px;
+		left: 20px;
+		min-width: 16px;
+		height: 16px;
+		padding: 0 4px;
+		border-radius: 999px;
+		background: var(--green);
+		color: var(--bg0);
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		font-weight: 700;
+		line-height: 16px;
+		text-align: center;
+		box-shadow: 0 0 0 2px var(--bg1);
+		pointer-events: none;
+	}
+	.pm-cert-count {
+		display: inline-block;
+		min-width: 1.3rem;
+		margin-left: 0.4rem;
+		padding: 0 0.3rem;
+		border-radius: 999px;
+		background: var(--green);
+		color: var(--bg0);
+		font-size: 0.7rem;
+		line-height: 1.3rem;
+		text-align: center;
 	}
 	.pm-caret {
 		font-size: 0.65rem;

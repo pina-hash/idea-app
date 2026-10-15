@@ -225,6 +225,24 @@ const CEILINGS = [
 		advice: 'Split it, zip it, or link to it instead.'
 	},
 	{
+		/**
+		 * IDEA Certification Portal evidence (ledger 0391): a photo or a file a
+		 * student hands in for a project or a checkout. The same three guards
+		 * and the same portal ceiling as a class notice's file; video is never
+		 * uploaded (a checkout is an unlisted YouTube link), so the ceiling is
+		 * for pictures and part files.
+		 */
+		id: 'cert-evidence',
+		label: 'a certification evidence file',
+		bucket: 'cert-evidence',
+		maxBytes: PORTAL_UPLOAD_MAX_BYTES,
+		guards: ['browser', 'route', 'bucket'],
+		statedBy:
+			'0261 file_size_limit 47185920; CERT_EVIDENCE_MAX_BYTES in $lib/server/certifications/evidence ' +
+			'and the evidence sign route refuse above it before the transfer',
+		advice: 'Send a smaller picture, zip the file, or link to it instead.'
+	},
+	{
 		id: 'classroom-deck',
 		label: 'a slide deck zip',
 		/**

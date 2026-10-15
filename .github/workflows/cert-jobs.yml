@@ -1,0 +1,67 @@
+name: Certification jobs
+
+# THE SECOND DAILY CALL TO THE IDEA CERTIFICATION PORTAL'S JOBS (ledger 0391).
+#
+# `/api/certifications/jobs/daily` runs, in order, the FRC app mirror resync,
+# the dormancy sweep, the expiry reminders and the notification email flush.
+# Every one is idempotent: a resync sends the whole record every time, a sweep
+# marks only what crossed the line, a reminder is keyed on the award it is
+# about, and a flushed email is stamped. Vercel's cron (`vercel.json`) is the
+# first daily call; this is the second, so a missed Vercel run (an unverified
+# plan limit, a failed deploy) never leaves the mirror a day behind.
+#
+# IT HOLDS ONE SECRET, `CRON_SECRET`. The job route is Vercel's own convention:
+# with the variable set in the project the route requires the bearer (Vercel
+# sends it on its own), and unset it is open with a one-run-a-minute floor, the
+# autopay shape, because every job is idempotent housekeeping. This caller
+# INSISTS on the secret so the lock gets set: a missing secret is a RED run
+# (the backup workflow's rule), never a green run that did nothing. The value
+# is never echoed, only its presence.
+
+on:
+  schedule:
+    # 11:47 UTC is 4:47 a.m. in Los Angeles in the summer and 3:47 a.m. in the
+    # winter: after the Vercel call (10:41 UTC) and after autopay, before school.
+    - cron: '47 11 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  certification-jobs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: The secret this needs is present
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            {
+              echo "## Certification jobs did not run"
+              echo
+              echo 'The repository secret `CRON_SECRET` is not set.'
+              echo
+              echo 'See `docs/certifications/DECISIONS.md`, D4, and the history entry for ledger 0391.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "missing secret: CRON_SECRET" >&2
+            exit 1
+          fi
+          echo "present"
+
+      - name: Ask the site to run the daily certification jobs
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          BODY="$(curl -sS --max-time 240 -X POST -H "authorization: Bearer $CRON_SECRET" https://ideabosco.com/api/certifications/jobs/daily || true)"
+          echo "answer: $BODY"
+          {
+            echo "## Certification jobs"
+            echo
+            echo '```'
+            echo "$BODY"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

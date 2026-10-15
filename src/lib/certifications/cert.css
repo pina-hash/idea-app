@@ -1,0 +1,493 @@
+/*
+ * IDEA Certifications: the room's stylesheet (ledger 0391). Every class is
+ * prefixed `cert-` so nothing collides with app.css's global names (`.card`,
+ * `.callout`, `.field` all carry layout of their own).
+ *
+ * THE ROOM WEARS THE SITE PLATE (IDEA_INTERFACE_STANDARDS 14), the Armory's
+ * shape: `/certifications` is in `SITE_PLATE_PREFIXES`, so the root layout's
+ * wrapper supplies `.site-plate` and the plate paints every `.btn` as a raised
+ * key, every `input`/`select`/`textarea` and `.plate-well` as a recessed well,
+ * every `.chip` and `.cert-readout` as a recessed tag, `.cert-panel` as a panel
+ * and `.cert-well` as a list tray, `.cert-tabs .cert-tab` as pads (joined to the
+ * plate's own lists in `$lib/classroom/plate.css`, room-qualified as
+ * `:where(.cert-root)`). This file sets LAYOUT and lengths; the colours it names
+ * are the site's register tokens, which Space White and the dark themes move,
+ * so the room needs no light twin. No grid or ruled background anywhere.
+ * Green is the main colour; another colour appears only where it carries a
+ * meaning (a danger key, a failed review, a suspended status), never for
+ * decoration, and never alone: a glyph or a word always sits beside it.
+ *
+ * A student surface: every control clears 44px at every width.
+ */
+
+/* The header outranks `main` (app.css gives both z-index 1; the dropdowns in
+   the header need to paint over the page). */
+.app-header.cert-header {
+	z-index: 2;
+	position: sticky;
+	top: 0;
+	/* A sticky box is positioned, so it needs an opaque ground and a z-index
+	   (CLAUDE.md: a sticky header needs both or later siblings paint over it). */
+	background-color: var(--plate-plate-bot, var(--bg0));
+	box-shadow:
+		inset 0 -1px 0 0 var(--plate-groove-dk, var(--hairline)),
+		inset 0 -2px 0 0 var(--plate-groove-lt, transparent);
+}
+/* Anchored scrolls land below the sticky bar (IDEA_INTERFACE_STANDARDS:
+   clicking an item scrolls it fully into view below the sticky bar). */
+.cert-root [id] {
+	scroll-margin-top: calc(var(--cert-bar-h, 4.25rem) + 0.75rem);
+}
+
+.cert-root {
+	--cert-gutter: clamp(1rem, 3vw, 2rem);
+	--cert-bar-h: 4.25rem;
+	max-width: 90rem;
+	margin: 0 auto;
+	padding: 1.25rem var(--cert-gutter) 3rem;
+	color: var(--text-1);
+	font-family: var(--font-display);
+}
+.cert-root * {
+	min-width: 0;
+}
+.cert-root h1::before,
+.cert-root h2::before,
+.cert-root h3::before,
+.cert-title::before,
+.cert-section-h::before {
+	content: none;
+}
+/* `.card` under the plate carries app.css's own rhythm; inside this room a
+   `.card` sits flush so panels tile. */
+.cert-root .card {
+	margin: 0;
+}
+
+/* Reading measure: widening a pane never widens a sentence. */
+.cert-prose {
+	max-width: 46rem;
+	line-height: 1.55;
+}
+.cert-prose p {
+	margin: 0 0 0.85rem;
+}
+
+.cert-crumbs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 0.6rem;
+	align-items: center;
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+}
+.cert-crumbs a {
+	color: var(--text-2);
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+}
+.cert-crumbs a:hover {
+	color: var(--hover-ink, var(--gold));
+}
+
+.cert-titlebar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 1rem;
+	margin: 0 0 0.75rem;
+}
+.cert-title {
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: clamp(1.6rem, 2.4vw + 0.8rem, 2.4rem);
+	line-height: 1.1;
+	margin: 0;
+	letter-spacing: 0.01em;
+}
+.cert-eyebrow {
+	margin: 0 0 0.25rem;
+}
+.cert-lead {
+	color: var(--text-2);
+	max-width: 46rem;
+	margin: 0 0 1.25rem;
+	line-height: 1.5;
+}
+
+/* Panels: the plate paints `.cert-panel` (panel list) and `.cert-well` (tray). */
+.cert-panel {
+	background: var(--surface-1, var(--bg1));
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	padding: 1rem 1.15rem;
+	margin: 0 0 1.25rem;
+}
+.cert-panel h2,
+.cert-section-h {
+	font-family: var(--font-mono);
+	font-size: 0.82rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	margin: 0 0 0.75rem;
+}
+.cert-well {
+	list-style: none;
+	margin: 0 0 0.75rem;
+	padding: 0.15rem 0.75rem;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	background: var(--surface-0, var(--bg0));
+}
+.cert-well > li + li,
+.cert-well > tbody > tr + tr {
+	border-top: 1px solid var(--hairline, var(--line));
+}
+
+/* Side-by-side panels of unequal height go in COLUMNS, never a grid (the
+   CLAUDE.md rule): a long one beside a short one leaves no void. */
+.cert-cols {
+	columns: 26rem 3;
+	column-gap: 1.25rem;
+}
+.cert-cols > * {
+	break-inside: avoid;
+	margin-bottom: 1.25rem;
+}
+
+/* A notice: a stripe, a glyph and words. Never colour alone. */
+.cert-notice {
+	display: flex;
+	gap: 0.75rem;
+	align-items: flex-start;
+	border: 1px solid var(--boundary);
+	border-left: 4px solid var(--amber);
+	border-radius: var(--radius-card);
+	background: var(--surface-1, var(--bg1));
+	padding: 0.85rem 1rem;
+	margin: 0 0 1.25rem;
+	line-height: 1.45;
+}
+.cert-notice-glyph {
+	font-size: 1.2rem;
+	line-height: 1.2;
+	color: var(--amber);
+}
+.cert-notice strong {
+	display: block;
+	margin-bottom: 0.15rem;
+}
+.cert-notice.cert-notice-ok {
+	border-left-color: var(--green);
+}
+.cert-notice.cert-notice-ok .cert-notice-glyph {
+	color: var(--green);
+}
+.cert-notice.cert-notice-bad {
+	border-left-color: var(--crimson);
+}
+.cert-notice.cert-notice-bad .cert-notice-glyph {
+	color: var(--crimson);
+}
+.cert-notice.cert-notice-quiet {
+	border-left-color: var(--text-2);
+}
+.cert-notice.cert-notice-quiet .cert-notice-glyph {
+	color: var(--text-2);
+	font-family: var(--font-mono);
+}
+
+/* A button is the shared `.btn`; this class adds the 44px floor and keeps a
+   wrapped label centred. The plate paints it. */
+.cert-btn {
+	min-height: 44px;
+	justify-content: center;
+	text-align: center;
+	text-decoration: none;
+	padding: 0.55rem 1.1rem;
+	white-space: normal;
+}
+.cert-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+/* A readout is a fact, recessed: never a link. A glyph and a word. */
+.cert-readout {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	min-height: 1.6rem;
+	padding: 0.1rem 0.5rem;
+	border: 1px solid var(--boundary);
+	border-radius: 999px;
+	font-family: var(--font-mono);
+	font-size: 0.74rem;
+	letter-spacing: 0.04em;
+	color: var(--text-2);
+	white-space: nowrap;
+}
+.cert-readouts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+/* Tones say what a readout means; the word beside them says it again. */
+.cert-readout.is-ok,
+.cert-tone-ok {
+	color: var(--green);
+}
+.cert-readout.is-warn,
+.cert-tone-warn {
+	color: var(--amber);
+}
+.cert-readout.is-bad,
+.cert-tone-bad {
+	color: var(--crimson);
+}
+.cert-readout.is-info,
+.cert-tone-info {
+	color: var(--cyan);
+}
+
+/* The tab strip: links with `aria-current="page"`, the plate's pads. */
+.cert-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 1.25rem;
+}
+.cert-tab {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0.45rem calc(0.85rem + 7px) 0.45rem 0.85rem;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-control, 4px);
+	background: var(--surface-1, var(--bg1));
+	color: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	text-decoration: none;
+}
+.cert-tab:hover {
+	color: var(--text-1);
+	border-color: var(--hover-ink, var(--gold));
+	text-decoration: none;
+}
+.cert-tab[aria-current='page'] {
+	color: var(--text-1);
+	font-weight: 700;
+	border-color: var(--green);
+}
+.cert-tab:focus-visible {
+	outline: 2px solid var(--focus-ring, var(--green));
+	outline-offset: 2px;
+}
+@media (max-width: 479.98px) {
+	.cert-tabs {
+		gap: 0.4rem;
+	}
+	.cert-tab {
+		padding: 0.4rem calc(0.5rem + 7px) 0.4rem 0.5rem;
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+	}
+}
+
+/* THE AWARD KEY: deliberately important. Dark until every part is checked,
+   then lit. The lit state is a raised primary key at a larger size with the
+   seal glyph beside the word; the dark state is `aria-disabled`, never
+   `disabled`, so it can explain itself. */
+.cert-award-key {
+	min-height: 56px;
+	font-size: 1.1rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	padding: 0.75rem 1.6rem;
+	gap: 0.6rem;
+}
+.cert-award-key[aria-disabled='true'] {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+.cert-award-key:not([aria-disabled='true']) {
+	box-shadow:
+		0 0 0 1px var(--green),
+		0 0 18px 0 color-mix(in srgb, var(--green) 45%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+	.cert-award-key:not([aria-disabled='true']) {
+		animation: cert-award-breathe 2.8s ease-in-out infinite;
+	}
+	@keyframes cert-award-breathe {
+		0%,
+		100% {
+			box-shadow:
+				0 0 0 1px var(--green),
+				0 0 10px 0 color-mix(in srgb, var(--green) 30%, transparent);
+		}
+		50% {
+			box-shadow:
+				0 0 0 1px var(--green),
+				0 0 22px 0 color-mix(in srgb, var(--green) 55%, transparent);
+		}
+	}
+}
+
+/* Checklist rows: a glyph, the part's word, who checked it and when. */
+.cert-checklist {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.cert-check-row {
+	display: grid;
+	grid-template-columns: 2rem 1fr auto;
+	gap: 0.6rem;
+	align-items: start;
+	padding: 0.65rem 0;
+	min-height: 44px;
+}
+.cert-check-row + .cert-check-row {
+	border-top: 1px solid var(--hairline);
+}
+.cert-check-glyph {
+	width: 1.6rem;
+	height: 1.6rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 999px;
+	border: 1px solid var(--boundary);
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+}
+.cert-check-row.is-done .cert-check-glyph {
+	border-color: var(--green);
+	color: var(--green);
+}
+.cert-check-row.is-waived .cert-check-glyph {
+	color: var(--text-3);
+	border-style: dashed;
+}
+.cert-check-row.is-locked .cert-check-glyph {
+	color: var(--text-3);
+}
+.cert-check-meta {
+	font-family: var(--font-mono);
+	font-size: 0.74rem;
+	color: var(--text-2);
+	letter-spacing: 0.04em;
+}
+
+/* Definition list used by the award confirm and the records page. */
+.cert-facts {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 0.35rem 1rem;
+	margin: 0;
+}
+.cert-facts dt {
+	font-family: var(--font-mono);
+	font-size: 0.74rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	padding-top: 0.15rem;
+}
+.cert-facts dd {
+	margin: 0;
+}
+@media (max-width: 479.98px) {
+	.cert-facts {
+		grid-template-columns: 1fr;
+		gap: 0.15rem 0;
+	}
+	.cert-facts dd {
+		margin-bottom: 0.5rem;
+	}
+}
+
+/* A serial is mono, spaced, selectable; never wrapped mid-group. */
+.cert-serial {
+	font-family: var(--font-mono);
+	letter-spacing: 0.12em;
+	font-size: 1.05rem;
+	user-select: all;
+	word-break: keep-all;
+}
+
+/* Plain-SVG charts: bars take the register tokens, the legend carries the
+   words. Colour is never the only signal (a label sits beside every bar). */
+.cert-chart {
+	width: 100%;
+	height: auto;
+	display: block;
+}
+.cert-chart .bar {
+	fill: var(--green);
+}
+.cert-chart .bar.is-bad {
+	fill: var(--crimson);
+}
+.cert-chart .bar.is-warn {
+	fill: var(--amber);
+}
+.cert-chart .axis {
+	stroke: var(--hairline);
+}
+.cert-chart text {
+	fill: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: 11px;
+}
+
+/* A form row: label over control, 44px controls. */
+.cert-field {
+	display: grid;
+	gap: 0.3rem;
+	margin: 0 0 0.9rem;
+}
+.cert-field > span,
+.cert-field > label {
+	font-family: var(--font-mono);
+	font-size: 0.76rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-2);
+}
+.cert-field input,
+.cert-field select,
+.cert-field textarea {
+	min-height: 44px;
+	font: inherit;
+	color: var(--text-1);
+	padding: 0.5rem 0.65rem;
+	border-radius: var(--radius-control, 4px);
+}
+.cert-field textarea {
+	min-height: 7rem;
+	resize: vertical;
+}
+.cert-help {
+	color: var(--text-2);
+	font-size: 0.9rem;
+	line-height: 1.45;
+}
+
+/* The sign-in panel for a signed-out visitor (the Armory's shape). */
+.cert-signin {
+	max-width: 32rem;
+	margin: 3rem auto;
+	text-align: center;
+}

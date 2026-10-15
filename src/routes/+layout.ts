@@ -74,5 +74,10 @@ export const load: LayoutLoad = async ({ fetch, data, depends }) => {
 		isAdmin = adminData === true;
 	}
 
-	return { supabase, claims, userProfile, isAdmin };
+	// The unread certification notifications count (ledger 0391) is the server
+	// load's answer, forwarded as is: a number, or null for "cannot tell", which
+	// draws no badge. Never re-fetched here; the notifications page invalidates.
+	const certUnread = typeof data?.certUnread === 'number' ? data.certUnread : null;
+
+	return { supabase, claims, userProfile, isAdmin, certUnread };
 };
