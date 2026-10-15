@@ -168,7 +168,7 @@ def robot(x, y, w, callouts=True):
     # (label, sub, point as fraction of image, label anchor)
     # Each callout: label, sub, dot (fraction of image), label box (inches from robot box), width, align.
     pts = [("WIRED AND CODED", "BY STUDENTS", .44, .13, (.05, -.62), 1.45, "left"),
-           ("PRECISION METAL PARTS", "DESIGNED AND MADE BY STUDENTS", .80, .40, (w - 2.15, h + .2), 2.1, "right"),
+           ("PRECISION METAL PARTS", "DESIGNED AND MADE BY STUDENTS", .80, .40, (w - 2.1, -.3), 2.1, "right"),
            ("EVEN THE BUMPERS", "MADE BY STUDENTS", .60, .84, (.12, h + .2), 1.4, "left")]
     lines, labels = [], []
     for name, sub, fx, fy, (ox, oy), lw, align in pts:
