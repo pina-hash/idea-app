@@ -1282,6 +1282,25 @@ begin
 			where e.certification_id = any (v_scope)
 				and (e.released_at at time zone 'America/Los_Angeles')::date = (now() at time zone 'America/Los_Angeles')::date
 		),
+		-- The seats a certifier may release: approved or booked, whose time (the
+		-- approval's own, else the window's start) is today in Los Angeles or
+		-- has passed, so the Sittings page and the Release key need no second
+		-- read. Tomorrow's seats are not here; a release needs the student in
+		-- the room.
+		'seats_today', coalesce((
+			select jsonb_agg(jsonb_build_object('seat_id', x.id, 'attempt_id', x.attempt_id, 'state', x.state,
+				'scheduled_at', coalesce(x.scheduled_at, st.starts_at),
+				'student', jsonb_build_object('email', x.email, 'name', public._cert_person_name(x.email)),
+				'certification', jsonb_build_object('id', c.id, 'code', c.code, 'name', c.name))
+				order by coalesce(x.scheduled_at, st.starts_at) nulls last, x.requested_at)
+			from public.cert_seats x
+			join public.cert_certifications c on c.id = x.certification_id
+			left join public.cert_sittings st on st.id = x.sitting_id
+			where x.state in ('approved', 'booked') and c.id = any (v_scope)
+				and (coalesce(x.scheduled_at, st.starts_at) is null
+					or (coalesce(x.scheduled_at, st.starts_at) at time zone 'America/Los_Angeles')::date
+						<= (now() at time zone 'America/Los_Angeles')::date)
+		), '[]'::jsonb),
 		'tiles', jsonb_build_object(
 			'active_attempts', (select count(*) from public.cert_attempts t where t.state = 'active' and t.certification_id = any (v_scope)),
 			'dormant_attempts', (select count(*) from public.cert_attempts t where t.state = 'dormant' and t.certification_id = any (v_scope)),

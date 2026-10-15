@@ -113,8 +113,13 @@ describe('the earning flow', () => {
 		const seatId = (seat.seat as Json).id as string;
 		expect(await rpc(people.ana, 'public.cert_exam_release($1::uuid)', [seatId])).toMatchObject({ ok: false });
 		expect((await rpc(people.certifier, `public.cert_seat_decide($1::uuid, 'approve', now(), null)`, [seatId])).ok).toBe(true);
+		// An approved seat for today is on the desk's release list (the Sittings page's rows) until it is used.
+		const before = await rpc(people.certifier, 'public.cert_desk()');
+		expect((before.seats_today as Json[]).map((x) => x.seat_id)).toEqual([seatId]);
+		expect((before.seats_today as Json[])[0]).toMatchObject({ state: 'approved', student: { email: people.ana.email }, certification: { code: 'SAFE-1' } });
 		const released = await rpc(people.certifier, 'public.cert_exam_release($1::uuid)', [seatId]);
 		expect(released.ok, JSON.stringify(released)).toBe(true);
+		expect((await rpc(people.certifier, 'public.cert_desk()')).seats_today).toEqual([]);
 		examId = released.exam_id as string;
 		const total = released.total as number;
 		expect(total).toBe(2);

@@ -247,8 +247,11 @@ describe('submissions and reviews', () => {
 		expect((desk.queue as Json[])[0]).toMatchObject({ part: 'guided', student: { email: people.ana.email, name: 'Ana Reyes' }, certification: { code: 'SAFE-1' } });
 		// Ana's and Ben's SAFE-1 attempts; Ben's LESSON-1 attempt is outside this certifier's scope.
 		expect(desk.tiles).toMatchObject({ pending_reviews: 1, active_attempts: 2, dormant_attempts: 0, awards_total: 0 });
+		// The seats a certifier may release today ride on the same read (the Sittings page's rows); none exist yet.
+		expect(desk.seats_today).toEqual([]);
 		const narrow = await rpc(millOnly, 'public.cert_desk()');
 		expect(narrow.queue).toEqual([]);
+		expect(narrow.seats_today).toEqual([]);
 		expect(narrow.tiles).toMatchObject({ pending_reviews: 0, active_attempts: 0 });
 		expect(await rpc(people.bystander, 'public.cert_desk()')).toMatchObject({ ok: false, reason: 'not_found' });
 	});
