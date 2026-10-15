@@ -36,12 +36,25 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	// takes `rows` whole and reads the `manages` flag as a LABEL rather than as
 	// a filter. `managesReady` false means the project has no 0138: the flag is
 	// unknown, so the tab says nothing about it and offers no Remove.
-	const roster = await loadSectionRoster(supabase, params.sectionId);
+	const [roster, badgesRes] = await Promise.all([
+		loadSectionRoster(supabase, params.sectionId),
+		// The class roles each student holds (IDEA Coin, 0247). An error, a
+		// database without it included, draws no badges.
+		supabase.rpc('coin_section_role_badges', { p_section_id: params.sectionId })
+	]);
+	const roleBadges: Record<string, string[]> = {};
+	if (!badgesRes.error && Array.isArray(badgesRes.data)) {
+		for (const b of badgesRes.data as { email?: string; role?: string }[]) {
+			if (!b.email || !b.role) continue;
+			(roleBadges[b.email.toLowerCase()] ??= []).push(b.role);
+		}
+	}
 
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage: true,
 		roster: roster.ok ? roster.data.rows : [],
-		removalReady: roster.ok ? roster.data.managesReady : false
+		removalReady: roster.ok ? roster.data.managesReady : false,
+		roleBadges: badgesRes.error ? null : roleBadges
 	};
 };

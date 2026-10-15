@@ -262,6 +262,7 @@ nav a.active { color: var(--gold); text-shadow: var(--glow-gold); }
   background: none; border: 1px solid rgba(74,122,82,0.3); border-radius: 2px;
   color: var(--dim); padding: 0.3rem 0.8rem; cursor: pointer;
   margin-left: auto;
+  white-space: nowrap; flex-shrink: 0;
   transition: color 0.2s, border-color 0.2s;
 }
 .print-lb-btn:hover { color: var(--white); border-color: rgba(0,255,65,0.4); }
@@ -1350,6 +1351,10 @@ body::after {
 }
 
 /* ── Card Badges (Role + Eating Pass) ─────────────────── */
+.coin-onhand {
+  margin-top: 0.5rem; font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem; letter-spacing: 0.04em; color: var(--white); opacity: 0.85;
+}
 .card-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0 0.55rem; }
 .role-badge {
   display: inline-block; font-family: 'Share Tech Mono', monospace;
@@ -1952,6 +1957,12 @@ body::after {
 }
 :root[data-theme='space-white'] .coin-card.rank-1::before { background: linear-gradient(45deg, var(--gold), var(--green), var(--gold)); animation: none; }
 :root[data-theme='space-white'] .coin-card.rank-1 { animation: none; box-shadow: 0 2px 4px 0 var(--lp-drop), 0 10px 18px -10px var(--lp-drop-far); }
+/* The champion's rim. The dark themes draw it as a glow; with glows off the
+   2px transparent border showed only the card's own face, so on Space White
+   the rim is a real gold border (5.4:1 on the page, 6.1:1 on a card).
+   The grid's id outranks the panel rule's :is(), which carries an id. */
+:root[data-theme='space-white'] #leaderboard-grid .coin-card.rank-1 { border: 2px solid var(--gold); }
+:root[data-theme='space-white'] #leaderboard-grid .coin-card.rank-1::before { display: none; }
 :root[data-theme='space-white'] :is(.coin-card.rank-2, .coin-card.rank-3) { box-shadow: 0 2px 4px 0 var(--lp-drop), 0 10px 18px -10px var(--lp-drop-far); }
 :root[data-theme='space-white'] .coin-card.negative { border-color: rgba(194,0,0,0.35); }
 :root[data-theme='space-white'] :is(.bar, .contract-card.rare, .contract-card.epic, .contract-card.legendary) { box-shadow: none; }
@@ -2278,17 +2289,6 @@ const APPLY_API        = "/api/coin/role-apply";
 const APPLY_SIGNIN_URL = "/api/coin/signin";
 const LEADERBOARD_URL  = 'https://ideabosco.com/coins/index.html';
 
-// Fallback only. The server sends the real per-section colors
-// (coin_sections.color) as an action=sections map, and those win; these stay
-// for a section that has none set — which includes every legacy section id
-// the 2026-08 import carried over.
-const SECTION_COLORS = {
-  'IDEA-113':   '#00FF41',
-  'IDEA-208-1': '#C8FF00',
-  'IDEA-208-2': '#00F0FF',
-  'IDEA-304':   '#FF8C00',
-  'IDEA-403':   '#FF88CC',
-};
 const TXN_PAGE_SIZE = 50;
 
 /**
@@ -2324,13 +2324,11 @@ let txnDateFrom = '';
 let txnDateTo = '';
 let loaded = false;
 let rolesData = [];
-let studentRoleMap = {};
 // Who is looking at the page, from /api/coin/me. Null until resolved; a
 // signed-out visitor resolves to { signedIn: false } and every signed-in
 // control below stays hidden.
 let coinMe = null;
 let myClaimIds = [];
-let sectionColorMap = {};
 
 // ── CSV Parsing ──────────────────────────────────────
 function parseCSVRow(line) {
@@ -2535,22 +2533,9 @@ async function fetchRolesData() {
   } catch(_) {}
 }
 
-// The real per-section colors. Merged OVER the hardcoded fallback map above,
-// so a section the server has no color for keeps the page's own.
-async function fetchSectionColors() {
-  try {
-    const res = await fetch(COIN_API + '?action=sections&_=' + Date.now(), { cache: 'no-store' });
-    const data = await res.json();
-    if (Array.isArray(data)) {
-      data.forEach(r => { if (r && r.section && r.color) sectionColorMap[r.section] = r.color; });
-    }
-    if (loaded) renderLeaderboard();
-  } catch(_) {}
-}
-
-// A class with no color of its own (every IDEA Classroom section since Coin V2)
-// takes one of the page's five from its name, so the same class keeps the
-// same color on every load.
+// Every class is an IDEA Classroom section (Coin V2) and has no color of its
+// own, so it takes one of the page's five from its name and keeps the same
+// color on every load. (The old coin sections and their colors are retired.)
 const SECTION_PALETTE = ['#00FF41', '#C8FF00', '#00F0FF', '#FF8C00', '#FF88CC'];
 // The same five on a light ground (Space White): each hue moved in lightness
 // only, to 4.6:1 or better on every light ground a section word sits on.
@@ -2563,17 +2548,13 @@ function isLightTheme() {
 }
 function sectionColor(section) {
   let c;
-  if (sectionColorMap[section] || SECTION_COLORS[section]) {
-    c = sectionColorMap[section] || SECTION_COLORS[section];
+  const name = String(section || '');
+  if (!name || name === '—') {
+    c = '#4A7A52';
   } else {
-    const name = String(section || '');
-    if (!name || name === '—') {
-      c = '#4A7A52';
-    } else {
-      let h = 0;
-      for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-      c = SECTION_PALETTE[h % SECTION_PALETTE.length];
-    }
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    c = SECTION_PALETTE[h % SECTION_PALETTE.length];
   }
   if (isLightTheme()) return SECTION_LIGHT[String(c).toUpperCase()] || SECTION_LIGHT[c] || '#406946';
   return c;
@@ -2605,6 +2586,25 @@ function weeklyPayOf(row) {
 // Whether the summary says an Eating Pass is active right now. Keyed on the
 // data, never on a reason string. A feed without the column falls back to a
 // purchase row whose category id is the eating pass.
+// The roles a student holds, from the summary's Roles column (joined with
+// ' | '). A feed without the column answers none.
+function rolesOf(row) {
+  return String(pick(row)('Roles') || '').split('|').map(s => s.trim()).filter(Boolean);
+}
+
+// A validated count of coins on hand, or null. The date is a calendar day.
+function coinsOnHandOf(row) {
+  const p = pick(row);
+  const c = parseFloat(p('Coins On Hand'));
+  if (isNaN(c)) return null;
+  const d = String(p('Coins On Hand Date') || '').trim();
+  const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T12:00:00') : null;
+  return {
+    coins: c,
+    label: dt && !isNaN(dt) ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'date unknown'
+  };
+}
+
 function holdsEatingPass(row, name) {
   const v = String(pick(row)('Eating Pass') || '').trim().toLowerCase();
   if (v) return v === 'true' || v === 't' || v === 'yes' || v === '1';
@@ -2896,13 +2896,6 @@ function renderLeaderboard() {
     }
   });
 
-  // ── Role / eating-pass maps ───────────────────────────
-  studentRoleMap = {};
-  rolesData.forEach(sec => {
-    (sec.roles || []).forEach(role => {
-      (role.holders || []).forEach(hName => { studentRoleMap[hName] = role.role; });
-    });
-  });
 
   grid.innerHTML = '';
 
@@ -2937,9 +2930,11 @@ function renderLeaderboard() {
     else if (i === 2) { rankLabel = '3RD PLACE'; card.classList.add('rank-3'); }
     else              { rankLabel = '#' + (i + 1); }
 
-    const roleBadgeHtml = studentRoleMap[name]
-      ? '<span class="role-badge">' + escHtml(studentRoleMap[name].toUpperCase()) + '</span>'
-      : '';
+    // Every role this student holds (the summary's Roles column, 0247): a
+    // public badge, one per role.
+    const roleBadgeHtml = rolesOf(row)
+      .map(r => '<span class="role-badge">' + escHtml(r.toUpperCase()) + '</span>').join('');
+    const onHand = coinsOnHandOf(row);
     const passBadgeHtml = holdsEatingPass(row, name)
       ? '<span class="pass-badge-exec">EATING PASS</span>' : '';
     const badgesHtml = (roleBadgeHtml || passBadgeHtml)
@@ -2957,7 +2952,10 @@ function renderLeaderboard() {
         // wage (exactly the Wage column) and the tier that sets it.
         '<div class="coin-meta-item"><span class="coin-meta-label">Wage</span><span class="coin-meta-value" style="color:var(--teal)">' + fmtNum(wage) + ' ' + COIN_SYMBOL + '/wk</span></div>' +
         (wTier > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Tier</span><span class="coin-meta-value" style="color:var(--cyan)">' + fmtNum(wTier) + '</span></div>' : '') +
-      '</div>';
+      '</div>' +
+      // A validated count of coins on hand (0245). Reported, never ranked:
+      // the board above still orders by the balance alone.
+      (onHand ? '<div class="coin-onhand">' + escHtml(fmtNum(onHand.coins)) + ' coins on hand (reported ' + escHtml(onHand.label) + ')</div>' : '');
 
     card.addEventListener('click', () => openDrawer(row));
     grid.appendChild(card);
@@ -2997,6 +2995,12 @@ function openDrawer(row) {
   const wTier = parseFloat(p('Wage Tier') || 0);
   if (wTier > 0)
     statsHtml += drawerStatHtml('Wage Tier', 'Tier ' + fmtNum(wTier), 'var(--cyan)');
+  const roles = rolesOf(row);
+  if (roles.length)
+    statsHtml += drawerStatHtml(roles.length === 1 ? 'Role' : 'Roles', roles.join(', '), 'var(--teal)');
+  const onHand = coinsOnHandOf(row);
+  if (onHand)
+    statsHtml += drawerStatHtml('Coins On Hand', fmtNum(onHand.coins) + ' (reported ' + onHand.label + ')', 'var(--white)');
   document.getElementById('drawer-stats').innerHTML = statsHtml;
 
   // History comes from the per-student endpoint, addressed by the OPAQUE id
@@ -3754,7 +3758,6 @@ setInterval(async () => { await fetchMyClaims(); await fetchContractsData(); }, 
 fetchReasonsGuide();
 fetchRolesData();
 setInterval(fetchRolesData, 60000);
-fetchSectionColors();
 
 // One delegated listener for every claim button, so a re-rendered board never
 // needs its handlers rebinding.

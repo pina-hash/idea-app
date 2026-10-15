@@ -48,9 +48,20 @@ export const PUBLIC_COIN_ACTIONS = new Set([
 	'contracts',
 	'reasons',
 	'roles',
-	'roleQuestions',
-	'sections'
+	'roleQuestions'
 ]);
+
+interface RoleBadgeRow {
+	student_id: string;
+	role_id: string;
+	role: string;
+}
+
+interface ReportedCoinsRow {
+	student_id: string;
+	coins: number | string;
+	reported_on: string;
+}
 
 /** How many ledger rows the public transaction feed carries. */
 const TRANSACTION_LIMIT = 5000;
@@ -147,9 +158,28 @@ export async function readCoinPublic(
 ): Promise<CoinPublicResult> {
 	switch (action) {
 		case 'summary': {
-			const { data, error } = await client.rpc('coin_public_leaderboard');
-			if (error) throw new Error(error.message);
-			const rows = (data ?? []) as LeaderboardRow[];
+			// The board, plus two session-two facts read beside it (0245, 0247):
+			// who holds a role, and a validated count of coins on hand. Both are
+			// keyed by the same opaque id and carry no address. A database
+			// without those functions answers PGRST202, and the columns are
+			// simply empty: the board itself never depends on them.
+			const [board, badges, onHand] = await Promise.all([
+				client.rpc('coin_public_leaderboard'),
+				client.rpc('coin_public_role_badges'),
+				client.rpc('coin_public_reported_coins')
+			]);
+			if (board.error) throw new Error(board.error.message);
+			const rows = (board.data ?? []) as LeaderboardRow[];
+			const rolesById = new Map<string, string[]>();
+			for (const b of (badges.error ? [] : (badges.data ?? [])) as RoleBadgeRow[]) {
+				const list = rolesById.get(b.student_id) ?? [];
+				list.push(b.role);
+				rolesById.set(b.student_id, list);
+			}
+			const coinsById = new Map<string, ReportedCoinsRow>();
+			for (const c of (onHand.error ? [] : (onHand.data ?? [])) as ReportedCoinsRow[]) {
+				coinsById.set(c.student_id, c);
+			}
 			return {
 				contentType: 'text/csv; charset=utf-8',
 				body: toCsv(
@@ -160,7 +190,10 @@ export async function readCoinPublic(
 						'Coin Balance',
 						'Wage Tier',
 						'Eating Pass',
-						'Student Id'
+						'Student Id',
+						'Roles',
+						'Coins On Hand',
+						'Coins On Hand Date'
 					],
 					rows.map((r) => [
 						r.name,
@@ -177,7 +210,14 @@ export async function readCoinPublic(
 						// (`coin_eating_pass_active`), so the badge keys on data
 						// and never on a reason string.
 						r.eating_pass === true ? 'true' : 'false',
-						r.student_id
+						r.student_id,
+						// Every role this student holds right now, joined.
+						(rolesById.get(r.student_id) ?? []).join(' | '),
+						// The latest validated count of coins on hand, and the day
+						// it was validated. It is reported, not ranked: the board
+						// still ranks by the balance alone.
+						coinsById.get(r.student_id)?.coins ?? '',
+						coinsById.get(r.student_id)?.reported_on ?? ''
 					])
 				)
 			};
@@ -325,15 +365,6 @@ export async function readCoinPublic(
 						options: Array.isArray(q.options) ? q.options : []
 					}))
 				)
-			};
-		}
-
-		case 'sections': {
-			const { data, error } = await client.rpc('coin_public_sections');
-			if (error) throw new Error(error.message);
-			return {
-				contentType: 'application/json; charset=utf-8',
-				body: JSON.stringify(data ?? [])
 			};
 		}
 

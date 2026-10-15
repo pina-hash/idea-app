@@ -36,9 +36,9 @@ export type CoinPricingModel = 'flat' | 'range' | 'per_unit' | 'variable' | 'for
 export type CoinMedium = 'physical' | 'digital';
 
 /**
- * The pre-V2 balance triple, kept only because `$lib/coin-balance` still
- * imports it. The desk reads `balance` (the digital sum since 0239) and never
- * shows the two medium fields.
+ * The pre-V2 balance triple. NOTHING ON THE DESK READS IT: it stays only
+ * because `$lib/coin-balance` (`sumBalances`) still imports it, and goes the
+ * day that module stops. The desk reads `balance`, the one digital sum.
  */
 export interface CoinBalances {
 	balance: number;
@@ -232,7 +232,7 @@ export function sanitizeSearchTerm(term: string): string {
 //
 // WHAT BELONGS HERE, and it is a narrow list on purpose: the one choice an
 // operator makes once and then wants to stop making, which TARGET they log
-// against (one student or a whole section). It is not data and changes
+// against (one student or a whole class). It is not data and changes
 // nothing any RPC enforces.
 //
 // A STORED `medium` FROM BEFORE V2 IS IGNORED ON READ. It used to pick which
@@ -244,7 +244,11 @@ export function sanitizeSearchTerm(term: string): string {
 // how the wrong student gets charged.
 // ---------------------------------------------------------------------------
 
-/** Log against one student, or against a whole section's roster. */
+/**
+ * Log against one student, or against a whole class's roster. The stored
+ * value stays 'section' (a stored id is append-only); a class is an IDEA
+ * Classroom section since V2 session two, so the word still fits.
+ */
 export type CoinLogMode = 'student' | 'section';
 
 export const COIN_LOG_MODES: CoinLogMode[] = ['student', 'section'];

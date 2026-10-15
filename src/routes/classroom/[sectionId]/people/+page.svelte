@@ -50,5 +50,6 @@
 	{teams}
 	{loadNotebookGrid}
 	studentHref={(email) => studentPageHref(data.section.id, email)}
+	roleBadges={data.roleBadges}
 	onchanged={() => invalidateAll()}
 />

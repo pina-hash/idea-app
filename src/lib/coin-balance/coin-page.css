@@ -1,0 +1,315 @@
+/*
+ * THE SESSION-TWO SECTIONS OF A STUDENT'S COIN PAGE (V2, 0245 to 0250): one
+ * stylesheet for every panel CoinPageBody mounts beyond the four purchases,
+ * so the field, the key and the outcome line are written once. Every class is
+ * `cpx-` prefixed so nothing here can reach another surface (the global class
+ * list in app.css is the trap this avoids: `.card`, `.field`, `.callout`).
+ *
+ * Colours only through the site's tokens, so the IDEA, Matrix and Space White
+ * themes each paint it with their own measured values.
+ */
+
+.cpx-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	min-width: 0;
+}
+.cpx-panel h2 {
+	margin: 0;
+}
+.cpx-panel h3 {
+	margin: 0.2rem 0 0;
+	font-size: 1.05rem;
+	color: var(--text-1);
+}
+.cpx-panel h3::before {
+	content: none;
+}
+.cpx-lead {
+	margin: 0;
+	color: var(--text-1);
+	font-size: 0.97rem;
+}
+.cpx-note {
+	margin: 0;
+	color: var(--text-2);
+	font-size: 0.93rem;
+}
+.cpx-limits {
+	margin: 0;
+	padding-left: 1.1rem;
+	color: var(--text-1);
+	font-size: 0.93rem;
+}
+.cpx-limits li {
+	margin: 0.15rem 0;
+}
+.cpx-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	min-width: 0;
+}
+.cpx-field input,
+.cpx-field select,
+.cpx-field textarea {
+	min-height: 44px;
+	font-family: var(--font-display);
+	font-size: 1rem;
+	letter-spacing: 0;
+	text-transform: none;
+	color: var(--text-1);
+	background: var(--bg0);
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-control, 6px);
+	padding: 0.4rem 0.6rem;
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+}
+.cpx-field textarea {
+	min-height: 5rem;
+	resize: vertical;
+}
+.cpx-field input[type='file'] {
+	padding: 0.55rem 0.6rem;
+}
+.cpx-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	align-items: center;
+}
+.cpx-key {
+	min-height: 44px;
+	justify-content: center;
+	align-self: flex-start;
+}
+.cpx-key[aria-disabled='true'] {
+	color: var(--text-2);
+	border-color: var(--boundary);
+	cursor: not-allowed;
+}
+.cpx-key[aria-disabled='true']:hover {
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-2);
+}
+.cpx-why {
+	margin: 0;
+	font-size: 0.95rem;
+	color: var(--amber);
+}
+.cpx-confirm {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	border-left: 3px solid var(--green);
+	padding-left: 0.75rem;
+}
+.cpx-confirm p {
+	margin: 0;
+	color: var(--text-1);
+}
+.cpx-outcome {
+	margin: 0;
+	font-size: 0.95rem;
+}
+.cpx-outcome.ok {
+	color: var(--green);
+}
+.cpx-outcome.no {
+	color: var(--amber);
+}
+.cpx-held {
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card, 8px);
+	background: var(--bg2);
+	padding: 0.7rem 0.9rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.45rem;
+}
+.cpx-held p {
+	margin: 0;
+	color: var(--text-1);
+}
+.cpx-big {
+	font-family: var(--font-mono);
+	font-size: 1.4rem;
+	color: var(--text-1);
+}
+.cpx-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	border: 1px solid var(--boundary);
+	border-radius: 3px;
+	padding: 0.08rem 0.4rem;
+	color: var(--text-2);
+}
+.cpx-chip.good {
+	color: var(--green);
+}
+.cpx-chip.bad {
+	color: var(--amber);
+}
+.cpx-chip.wait {
+	color: var(--cyan);
+}
+.cpx-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.cpx-list > li {
+	border-bottom: 1px solid var(--hairline);
+	padding: 0.55rem 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	min-width: 0;
+}
+.cpx-list > li:last-child {
+	border-bottom: none;
+}
+.cpx-line {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.3rem 0.8rem;
+	min-width: 0;
+}
+.cpx-name {
+	font-weight: 700;
+	color: var(--text-1);
+	overflow-wrap: break-word;
+	min-width: 0;
+}
+.cpx-meta {
+	font-family: var(--font-mono);
+	font-size: 0.74rem;
+	color: var(--text-2);
+}
+.cpx-text {
+	margin: 0;
+	color: var(--text-1);
+	font-size: 0.93rem;
+	overflow-wrap: break-word;
+}
+.cpx-pic {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	border: 1px solid var(--hairline);
+	border-radius: 6px;
+	background: var(--bg0);
+	object-fit: contain;
+}
+.cpx-thumb {
+	width: 3.5rem;
+	height: 3.5rem;
+	object-fit: cover;
+	border-radius: 4px;
+	border: 1px solid var(--hairline);
+	flex: none;
+}
+.cpx-prompt {
+	margin: 0;
+	padding: 0.6rem 0.75rem;
+	border-left: 3px solid var(--boundary);
+	background: var(--bg2);
+	color: var(--text-1);
+	font-size: 0.93rem;
+	overflow-wrap: break-word;
+}
+.cpx-table-wrap {
+	overflow-x: auto;
+	max-width: 100%;
+}
+.cpx-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.92rem;
+	color: var(--text-1);
+}
+.cpx-table th,
+.cpx-table td {
+	text-align: left;
+	padding: 0.35rem 0.5rem;
+	border-bottom: 1px solid var(--hairline);
+}
+.cpx-table th {
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	font-weight: 400;
+}
+.cpx-table td.num {
+	font-family: var(--font-mono);
+	white-space: nowrap;
+	text-align: right;
+}
+.cpx-chart {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-width: 100%;
+}
+.cpx-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 1rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: 0.9rem;
+	color: var(--text-1);
+}
+.cpx-legend li {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+.cpx-swatch {
+	display: inline-block;
+	width: 0.9rem;
+	height: 0.9rem;
+	border-radius: 2px;
+	flex: none;
+}
+.cpx-swatch.earned {
+	background: var(--green);
+}
+.cpx-swatch.spent {
+	background: repeating-linear-gradient(45deg, var(--amber) 0 2px, transparent 2px 4px);
+	border: 1px solid var(--amber);
+}
+.cpx-link {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	color: var(--cyan);
+}
+.cpx-card {
+	margin: 0 0 1.1rem;
+	min-width: 0;
+}
+.cpx-chip.wrap {
+	white-space: normal;
+	align-self: flex-start;
+}

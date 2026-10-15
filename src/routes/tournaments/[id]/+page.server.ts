@@ -9,6 +9,7 @@ import {
 	type QualPool,
 	type RewardLedgerRow,
 	type RewardRule,
+	type RewardSettlement,
 	type Tournament,
 	type TournamentEntry,
 	type TournamentEntryMember,
@@ -51,7 +52,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		hostsRes,
 		rulesRes,
 		ledgerRes,
-		stylesRes
+		stylesRes,
+		settlementRes
 	] = await Promise.all([
 		supabase
 			.from('tournament_entries')
@@ -74,7 +76,10 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 			.select('*')
 			.eq('tournament_id', params.id)
 			.order('id', { ascending: false }),
-		supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id)
+		supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id),
+		// Whether Mr. Pina has transferred this tournament's rewards (0248).
+		// A database without it answers an error, which reads as "not known".
+		supabase.rpc('tournament_reward_settlement', { p_tournament_id: params.id })
 	]);
 
 	const hostIds = (hostsRes.data ?? []).map((r: { user_id: string }) => r.user_id);
@@ -126,6 +131,9 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		// data), so the page renders without the migration applied.
 		rewardRules: (rulesRes.data ?? []) as RewardRule[],
 		rewardLedger: (ledgerRes.data ?? []) as RewardLedgerRow[],
+		rewardSettlement: settlementRes.error
+			? undefined
+			: ((settlementRes.data ?? null) as RewardSettlement | null),
 		// Same fail-soft rule: no 0064 yet means no styles, and every entry
 		// renders with the Phase 1 default treatment.
 		entryStyles: (stylesRes.data ?? []) as EntryStyle[]

@@ -344,7 +344,8 @@ export const roleQuestions: Record<string, unknown[]> = {
 	shop_steward: []
 };
 
-export const sections = [
-	{ section: 'IDEA113 Block 3', color: null },
-	{ section: 'IDEA209H Block 2', color: null }
-];
+/** Session two (0247): who holds a role, by the opaque id. */
+export const roleBadges = [{ student_id: ID_ADA, role_id: 'shop_steward', role: 'Shop Steward' }];
+
+/** Session two (0245): a validated count of coins on hand. */
+export const reportedCoins = [{ student_id: ID_WALKUP, coins: 12, reported_on: '2026-10-13' }];

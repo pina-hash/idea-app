@@ -8,6 +8,14 @@
 	} from '$lib/coin-format';
 	import CoinTypeGlyph from './CoinTypeGlyph.svelte';
 	import { deskHistoryRows, isUndoable, num, type DeskHistoryRow, type DeskTxn } from './v2';
+	import {
+		editLine,
+		isEditable,
+		liveEdits,
+		type DeskEdit,
+		type DeskHistoryTxn,
+		type DeskWrite
+	} from './student-view';
 
 	/**
 	 * ONE STUDENT'S HISTORY ON THE DESK, WITH UNDO (IDEA Coin V2).
@@ -23,20 +31,98 @@
 	 *
 	 * A physical row is history only (it moved no balance since 0239), so it
 	 * carries a "Not counted" chip and never an Undo.
+	 *
+	 * EDITING A PAST AMOUNT (0250) is the `edit` transport, handed in only for
+	 * a full coin admin (`coin_admin_lookup().can_edit`). Absent, there is no
+	 * Edit control anywhere in the list. An edited row shows its value NOW,
+	 * an "Edited" chip, and every change underneath it (old value, new value,
+	 * when); `undoEdit` puts back the value before the newest change.
 	 */
 	let {
 		transactions,
 		kinds = {},
 		reverse,
 		onReversed,
+		edit,
+		undoEdit,
 		emptyMessage = 'No transactions logged yet for this email.'
 	}: {
 		transactions: DeskTxn[];
 		kinds?: Record<string, string>;
 		reverse?: (id: string) => Promise<{ ok: true } | { ok: false; message: string }>;
 		onReversed?: () => void | Promise<void>;
+		/** Edit one row's amount (coin_edit_amount). Full coin admins only. */
+		edit?: (id: string, amount: number, note: string | null) => Promise<DeskWrite>;
+		/** Undo the newest edit of one row (coin_edit_undo). */
+		undoEdit?: (id: string) => Promise<DeskWrite>;
 		emptyMessage?: string;
 	} = $props();
+
+	function editsOf(t: DeskTxn): DeskEdit[] {
+		return (t as DeskHistoryTxn).edits ?? [];
+	}
+
+	function wasEdited(t: DeskTxn): boolean {
+		const h = t as DeskHistoryTxn;
+		return h.edited === true || liveEdits(h).length > 0;
+	}
+
+	// --- the amount editor: one row at a time ---------------------------------
+	let editing = $state<string | null>(null);
+	let editValue = $state<string | number>('');
+	let editNote = $state('');
+	let armedUndoEdit = $state<string | null>(null);
+
+	function openEdit(t: DeskHistoryRow) {
+		editing = t.id;
+		editValue = String(num(t.amount));
+		editNote = '';
+		rowError = null;
+		armed = null;
+	}
+
+	const editNumber = $derived(Number(editValue));
+	const editReady = $derived(String(editValue).trim() !== '' && Number.isFinite(editNumber));
+
+	async function saveEdit(t: DeskHistoryRow) {
+		if (!edit || !editReady) return;
+		busyId = t.id;
+		rowError = null;
+		notice = '';
+		let r: DeskWrite;
+		try {
+			r = await edit(t.id, editNumber, editNote.trim() || null);
+		} finally {
+			busyId = null;
+		}
+		if (!r.ok) {
+			rowError = { id: t.id, message: r.message };
+			return;
+		}
+		editing = null;
+		notice = `Changed ${t.category_name} from ${signedCoins(num(t.amount))} to ${signedCoins(editNumber)}.`;
+		await onReversed?.();
+	}
+
+	async function confirmUndoEdit(t: DeskHistoryRow) {
+		if (!undoEdit) return;
+		busyId = t.id;
+		rowError = null;
+		notice = '';
+		let r: DeskWrite;
+		try {
+			r = await undoEdit(t.id);
+		} finally {
+			busyId = null;
+		}
+		armedUndoEdit = null;
+		if (!r.ok) {
+			rowError = { id: t.id, message: r.message };
+			return;
+		}
+		notice = `Undid the last change to ${t.category_name}.`;
+		await onReversed?.();
+	}
 
 	const rows = $derived(deskHistoryRows(transactions));
 
@@ -120,6 +206,9 @@
 					{#if t.reverses}
 						<span class="cdx-chip">Undo of an older row</span>
 					{/if}
+					{#if wasEdited(t)}
+						<span class="cdx-chip warn" data-testid="cd-edited-chip">Edited</span>
+					{/if}
 				</div>
 				<div class="meta">
 					{#if t.note}<span class="note-text">{t.note}</span>{/if}
@@ -127,6 +216,45 @@
 				</div>
 				<div class="actions">
 					<span class="amount {amount.tone}" class:struck={t.undone}>{amount.text}</span>
+					{#if edit && isEditable(t as DeskHistoryTxn) && editing !== t.id}
+						<button
+							type="button"
+							class="btn secondary cdx-small"
+							data-testid="cd-edit-amount"
+							aria-label="Edit the amount of {t.category_name}"
+							onclick={() => openEdit(t)}
+						>
+							Edit amount
+						</button>
+					{/if}
+					{#if undoEdit && wasEdited(t) && !t.undone}
+						{#if armedUndoEdit === t.id}
+							<button
+								type="button"
+								class="btn cdx-small"
+								data-testid="cd-undo-edit-confirm"
+								disabled={busyId === t.id}
+								onclick={() => confirmUndoEdit(t)}
+							>
+								{busyId === t.id ? 'Undoing…' : 'Confirm undo edit'}
+							</button>
+							<button type="button" class="btn secondary cdx-small" onclick={() => (armedUndoEdit = null)}>
+								Keep
+							</button>
+						{:else}
+							<button
+								type="button"
+								class="btn secondary cdx-small"
+								data-testid="cd-undo-edit"
+								onclick={() => {
+									armedUndoEdit = t.id;
+									rowError = null;
+								}}
+							>
+								Undo edit
+							</button>
+						{/if}
+					{/if}
 					{#if reverse && isUndoable(t)}
 						{#if armed === t.id}
 							<button
@@ -156,6 +284,47 @@
 						{/if}
 					{/if}
 				</div>
+				{#if editsOf(t).length}
+					<ul class="edits" data-testid="cd-edit-trail">
+						{#each editsOf(t) as e, i (e.id ?? i)}
+							<li class:undone-edit={e.undone}>{editLine(e)}</li>
+						{/each}
+					</ul>
+				{/if}
+				{#if editing === t.id}
+					<div class="edit-form" data-testid="cd-edit-form">
+						<label class="cdx-field">
+							<span>New amount (signed: a fine is negative)</span>
+							<input
+								class="cdx-input"
+								type="number"
+								step="0.01"
+								data-testid="cd-edit-value"
+								bind:value={editValue}
+							/>
+						</label>
+						<label class="cdx-field grow">
+							<span>Why (optional)</span>
+							<input class="cdx-input" type="text" maxlength="300" bind:value={editNote} />
+						</label>
+						<button
+							type="button"
+							class="btn cdx-small"
+							data-testid="cd-edit-save"
+							aria-disabled={!editReady || busyId === t.id}
+							onclick={() => saveEdit(t)}
+						>
+							{busyId === t.id ? 'Saving…' : 'Save amount'}
+						</button>
+						<button type="button" class="btn secondary cdx-small" onclick={() => (editing = null)}>
+							Cancel
+						</button>
+						<p class="cdx-note edit-hint">
+							The history keeps the old value: an edit is a linked correction row, and Undo edit puts
+							the old value back.
+						</p>
+					</div>
+				{/if}
 				{#if rowError?.id === t.id}
 					<p class="cdx-feedback error row-error">{rowError.message}</p>
 				{/if}
@@ -221,6 +390,33 @@
 	}
 	.row-error {
 		flex-basis: 100%;
+	}
+	.edits {
+		flex-basis: 100%;
+		list-style: none;
+		margin: 0;
+		padding: 0 0 0 0.6rem;
+		border-left: 2px solid var(--line);
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2, var(--dim));
+	}
+	.edits .undone-edit {
+		text-decoration: line-through;
+	}
+	.edit-form {
+		flex-basis: 100%;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: 0.5rem;
+	}
+	.edit-form .grow {
+		flex: 1 1 12rem;
+	}
+	.edit-hint {
+		flex-basis: 100%;
+		margin: 0;
 	}
 	.type-chip {
 		display: inline-flex;

@@ -38,8 +38,10 @@ const fakeClient = {
 				return { data: fixture.roles, error: null };
 			case 'coin_public_role_questions':
 				return { data: fixture.roleQuestions[String(params?.p_role_id ?? '')] ?? [], error: null };
-			case 'coin_public_sections':
-				return { data: fixture.sections, error: null };
+			case 'coin_public_role_badges':
+				return { data: fixture.roleBadges, error: null };
+			case 'coin_public_reported_coins':
+				return { data: fixture.reportedCoins, error: null };
 			default:
 				return { data: null, error: { message: `unexpected rpc: ${name}` } };
 		}

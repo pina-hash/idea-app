@@ -124,6 +124,118 @@ export interface CoinPageHistoryRow {
 	reversed: boolean;
 	/** Written by the system (weekly wage, highest grade, a hall pass fine). */
 	automatic: boolean;
+	/**
+	 * Session two (0250). Every field below is optional in the payload: a
+	 * database before 0250 sends none of them, and the parser fills the
+	 * no-information answer (not edited, not disputable, no dispute).
+	 */
+	/** True when a full coin admin changed this row's amount since. */
+	edited: boolean;
+	/** The amount the row was written with, before any edit. */
+	original_amount: number | null;
+	/** Every edit, oldest first: the value before and after, and whether it was undone. */
+	edits: CoinHistoryEdit[];
+	/** An automatic fine the student may dispute (0245). */
+	disputable: boolean;
+	/** The latest dispute of this row, if one was sent. */
+	dispute: { status: CoinRequestStatus; decision_note: string | null } | null;
+}
+
+export interface CoinHistoryEdit {
+	at: string;
+	old: number;
+	new: number;
+	undone: boolean;
+}
+
+/** The four states of a queue card (0245's coin_requests.status). */
+export type CoinRequestStatus = 'pending' | 'approved' | 'denied' | 'cancelled';
+export const COIN_REQUEST_STATUSES: CoinRequestStatus[] = ['pending', 'approved', 'denied', 'cancelled'];
+
+/** The seven kinds of queue card (0245). */
+export type CoinRequestKind =
+	| 'background'
+	| 'donation'
+	| 'contract'
+	| 'role_day'
+	| 'split'
+	| 'reported_coins'
+	| 'dispute';
+export const COIN_REQUEST_KINDS: CoinRequestKind[] = [
+	'background',
+	'donation',
+	'contract',
+	'role_day',
+	'split',
+	'reported_coins',
+	'dispute'
+];
+
+/** One of the student's own queue cards, as coin_my_page's `requests` lists it. */
+export interface CoinMyRequest {
+	id: string;
+	kind: CoinRequestKind;
+	status: CoinRequestStatus;
+	amount: number | null;
+	note: string | null;
+	decision_note: string | null;
+	created_at: string;
+	decided_at: string | null;
+	/** The item: a donation's name, a split's item id. */
+	item: string | null;
+	/** A reported count of coins on hand. */
+	count: number | null;
+	/** A donation's quantity. */
+	quantity: number | null;
+	result: Record<string, unknown> | null;
+}
+
+/** The open coins-out request (0246), held until payday. */
+export interface CoinPayoutHeld {
+	id: string;
+	coins: number;
+	requested_at: string;
+}
+
+export interface CoinBackground {
+	request_id: string | null;
+	photo_path: string;
+	approved_at: string | null;
+	width: number | null;
+	height: number | null;
+}
+
+export interface CoinBackgroundRules {
+	guidance: string;
+	prompt: string | null;
+	min_width: number;
+	min_height: number;
+	min_kb_per_megapixel: number;
+	days_between: number;
+	/** What an approved background pays; null when backgrounds are switched off. */
+	award: number | null;
+}
+
+/**
+ * The fallback rules a database before 0250 implies: 0245's own seeded
+ * defaults, so the page states the same limits the submit function applies.
+ */
+export const COIN_BACKGROUND_RULES_FALLBACK: CoinBackgroundRules = {
+	guidance:
+		'Your background must be 16:9, at least 1920 by 1080 pixels, sharp and high quality, never grainy, blurry or cheap looking. It must pass the parent and tour test: you would be happy for a parent or a visitor touring the school to see it on your screen.',
+	prompt: null,
+	min_width: 1920,
+	min_height: 1080,
+	min_kb_per_megapixel: 100,
+	days_between: 14,
+	award: null
+};
+
+export interface CoinDonationRules {
+	cap_coins: number | null;
+	cap_days: number | null;
+	/** Coins still payable from donations in the current window. */
+	room: number | null;
 }
 
 export interface CoinPageRule {
@@ -177,10 +289,22 @@ export interface CoinMyPage {
 	pay_raise: CoinPayRaiseQuote;
 	eating_pass: { active: boolean; strikes: number; revoked_at: string | null; price: number | null };
 	no_shop_today: boolean;
-	print: { grams_per_coin: number; active: boolean };
+	/** `spool_grams` is the student's own spool credit (0250); 0 before it. */
+	print: { grams_per_coin: number; active: boolean; spool_grams: number };
 	extra_credit: { price_per_point: number | null; classes: CoinPageClass[] };
 	history: CoinPageHistoryRow[];
 	rules: CoinPageRule[];
+	/* Session two (0245 to 0250). Each is optional in the payload. */
+	/** The open coins-out request, or null. */
+	payout: CoinPayoutHeld | null;
+	/** The next payday, 'YYYY-MM-DD', or null when none is known. */
+	payday: string | null;
+	/** The newest approved desktop background, or null. */
+	background: CoinBackground | null;
+	background_rules: CoinBackgroundRules;
+	donation_rules: CoinDonationRules | null;
+	/** The student's own queue cards, newest first. Null before 0250. */
+	requests: CoinMyRequest[] | null;
 }
 
 function num(v: unknown, fallback = 0): number {
@@ -240,7 +364,11 @@ export function parseCoinMyPage(raw: unknown): CoinMyPage | null {
 			price: numOrNull(pass.price)
 		},
 		no_shop_today: r.no_shop_today === true,
-		print: { grams_per_coin: num(print.grams_per_coin, 10), active: print.active === true },
+		print: {
+			grams_per_coin: num(print.grams_per_coin, 10),
+			active: print.active === true,
+			spool_grams: Math.max(0, num(print.spool_grams))
+		},
 		extra_credit: {
 			price_per_point: numOrNull(ec.price_per_point),
 			classes: arr(ec.classes)
@@ -287,7 +415,17 @@ export function parseCoinMyPage(raw: unknown): CoinMyPage | null {
 					note: strOrNull(o.note),
 					reverses: strOrNull(o.reverses),
 					reversed: o.reversed === true,
-					automatic: o.automatic === true
+					automatic: o.automatic === true,
+					edited: o.edited === true,
+					original_amount: numOrNull(o.original_amount),
+					edits: arr(o.edits)
+						.map((e) => {
+							const eo = obj(e);
+							return { at: str(eo.at), old: num(eo.old), new: num(eo.new), undone: eo.undone === true };
+						})
+						.filter((e) => e.at),
+					disputable: o.disputable === true,
+					dispute: parseDispute(o.dispute)
 				};
 			})
 			.filter((h) => h.id),
@@ -303,8 +441,98 @@ export function parseCoinMyPage(raw: unknown): CoinMyPage | null {
 					explanation: strOrNull(o.explanation)
 				};
 			})
-			.filter((x) => x.reason)
+			.filter((x) => x.reason),
+		payout: parsePayout(r.payout),
+		payday: dayOrNull(r.payday),
+		background: parseBackground(r.background),
+		background_rules: parseBackgroundRules(r.background_rules),
+		donation_rules: parseDonationRules(r.donation_rules),
+		requests: 'requests' in r ? parseRequests(r.requests) : null
 	};
+}
+
+function dayOrNull(v: unknown): string | null {
+	const s = str(v).trim();
+	return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+}
+
+function isStatus(v: unknown): v is CoinRequestStatus {
+	return typeof v === 'string' && (COIN_REQUEST_STATUSES as string[]).includes(v);
+}
+
+function parseDispute(v: unknown): CoinPageHistoryRow['dispute'] {
+	const o = obj(v);
+	if (!isStatus(o.status)) return null;
+	return { status: o.status, decision_note: strOrNull(o.decision_note) };
+}
+
+function parsePayout(v: unknown): CoinPayoutHeld | null {
+	const o = obj(v);
+	const id = str(o.id);
+	const c = numOrNull(o.coins);
+	if (!id || c === null) return null;
+	return { id, coins: c, requested_at: str(o.requested_at) };
+}
+
+function parseBackground(v: unknown): CoinBackground | null {
+	const o = obj(v);
+	const path = str(o.photo_path).trim();
+	if (!path) return null;
+	return {
+		request_id: strOrNull(o.request_id),
+		photo_path: path,
+		approved_at: strOrNull(o.approved_at),
+		width: numOrNull(o.width),
+		height: numOrNull(o.height)
+	};
+}
+
+function parseBackgroundRules(v: unknown): CoinBackgroundRules {
+	const o = obj(v);
+	const f = COIN_BACKGROUND_RULES_FALLBACK;
+	const pos = (x: unknown, d: number) => {
+		const n = numOrNull(x);
+		return n !== null && n > 0 ? n : d;
+	};
+	const kb = numOrNull(o.min_kb_per_megapixel);
+	return {
+		guidance: strOrNull(o.guidance) ?? f.guidance,
+		prompt: strOrNull(o.prompt),
+		min_width: pos(o.min_width, f.min_width),
+		min_height: pos(o.min_height, f.min_height),
+		min_kb_per_megapixel: kb !== null && kb >= 0 ? kb : f.min_kb_per_megapixel,
+		days_between: pos(o.days_between, f.days_between),
+		award: numOrNull(o.award)
+	};
+}
+
+function parseDonationRules(v: unknown): CoinDonationRules | null {
+	if (!v || typeof v !== 'object') return null;
+	const o = obj(v);
+	return { cap_coins: numOrNull(o.cap_coins), cap_days: numOrNull(o.cap_days), room: numOrNull(o.room) };
+}
+
+function parseRequests(v: unknown): CoinMyRequest[] {
+	return arr(v)
+		.map((x) => {
+			const o = obj(x);
+			const kind = str(o.kind) as CoinRequestKind;
+			return {
+				id: str(o.id),
+				kind,
+				status: isStatus(o.status) ? o.status : 'pending',
+				amount: numOrNull(o.amount),
+				note: strOrNull(o.note),
+				decision_note: strOrNull(o.decision_note),
+				created_at: str(o.created_at),
+				decided_at: strOrNull(o.decided_at),
+				item: strOrNull(o.item),
+				count: numOrNull(o.count),
+				quantity: numOrNull(o.quantity),
+				result: o.result && typeof o.result === 'object' && !Array.isArray(o.result) ? (o.result as Record<string, unknown>) : null
+			};
+		})
+		.filter((r) => r.id && (COIN_REQUEST_KINDS as string[]).includes(r.kind));
 }
 
 /**
@@ -366,6 +594,21 @@ export function coinPrintPrice(grams: number, gramsPerCoin: number): number {
 	return Math.floor(q + 0.5 + 1e-9);
 }
 
+/**
+ * A print's price after the spool (0250's coin_buy_print): the grams the
+ * student's own spool covers are drawn first, and only what is left costs
+ * coins. Answers the grams drawn too, so the page can say both.
+ */
+export function coinPrintWithSpool(
+	grams: number,
+	gramsPerCoin: number,
+	spoolGrams: number
+): { spool: number; cost: number } {
+	const spool = Math.max(0, Math.min(grams, Number(spoolGrams) || 0));
+	const rest = grams - spool;
+	return { spool, cost: rest > 0 ? coinPrintPrice(rest, gramsPerCoin) : 0 };
+}
+
 /** Extra credit's cost: price per point times points, to the cent (0241). */
 export function coinExtraCreditCost(points: number, pricePerPoint: number): number {
 	return Math.round(pricePerPoint * points * 100) / 100;
@@ -383,13 +626,25 @@ export function coinCanAfford(balance: number, cost: number): boolean {
 
 /** What a student action answers. */
 export type CoinBuyResult =
-	| { ok: true; cost?: number; balance?: number; points?: number; new_tier?: number }
+	| {
+			ok: true;
+			cost?: number;
+			balance?: number;
+			points?: number;
+			new_tier?: number;
+			/** A split payment (0246): the price, the part charged now, the part handed over. */
+			price?: number;
+			digital?: number;
+			physical?: number;
+			request_id?: string;
+	  }
 	| {
 			ok: false;
 			reason: string;
 			balance?: number;
 			cost?: number;
 			room?: Partial<CoinPageRoom>;
+			price?: number;
 			message?: string;
 	  };
 
@@ -402,6 +657,7 @@ export function coinBuyRefusalWords(r: {
 	reason: string;
 	balance?: number | string | null;
 	cost?: number | string | null;
+	price?: number | string | null;
 	room?: Partial<CoinPageRoom> | null;
 }): string {
 	switch (r.reason) {
@@ -442,6 +698,18 @@ export function coinBuyRefusalWords(r: {
 			return 'Extra credit opens once Mr. Pina sets up this semester. Ask him about it.';
 		case 'not_available':
 			return 'This is not for sale right now.';
+		case 'in_debt':
+			return 'You cannot split a payment while your balance is below zero. Coins you hand over pay off the debt first.';
+		case 'already_pending':
+			return 'You already have a split payment for this waiting for your teacher. Wait until they confirm or deny it.';
+		case 'physical_part': {
+			const price = num(r.price, NaN);
+			return Number.isFinite(price)
+				? `The part you hand over must be more than ${coins(0)} and no more than the price, ${coins(price)}.`
+				: `The part you hand over must be more than ${coins(0)} and no more than the price.`;
+		}
+		case 'unknown_item':
+			return 'That item cannot be bought this way. Reload the page and try again.';
 		default:
 			return 'That did not go through. Nothing was charged. Try again in a minute.';
 	}

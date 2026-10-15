@@ -1,5 +1,5 @@
 /**
- * HOW A TRANSACTION TYPE LOOKS, AND WHICH ORDER THE PICKER OFFERS CATEGORIES IN.
+ * HOW A TRANSACTION TYPE LOOKS.
  *
  * Plain data + pure helpers, no Svelte and no Supabase (the coin-desk.ts /
  * pathways.ts convention), so every rule here is assertable without a browser
@@ -13,6 +13,12 @@
  * and a glyph for all five -- keyed on that same union, so a sixth type added
  * to `coin-format.ts` fails the exhaustiveness test here rather than quietly
  * rendering as nothing.
+ *
+ * THE PICKER'S ORDER IS NOT HERE ANY MORE. It used to be a static "most used"
+ * table counted from the retired Sheets ledger's archive; IDEA Coin V2 session
+ * two retired it, and the Log picker now offers categories in
+ * `coin_categories.sort_order`, the price list's own order, which an admin
+ * edits on the Economy page.
  */
 
 import { COIN_TXN_TYPES, coinTxnType, type CoinTxnType } from '$lib/coin-format';
@@ -121,133 +127,6 @@ export const COIN_TYPE_GLYPHS: Record<CoinTxnType, CoinTypeGlyph> = {
 
 /** Every glyph name, for a test that has to know the set is total and unique. */
 export const COIN_TYPE_GLYPH_NAMES = COIN_TXN_TYPES.map((t) => COIN_TYPE_GLYPHS[t].name);
-
-// ---------------------------------------------------------------------------
-// 3. "MOST USED" -- a STATIC order, and where its numbers came from
-//
-// WHAT THIS IS NOT: a live count. Nothing on `/coin-desk` loads a per-category
-// transaction tally -- the page's load reads `coin_categories` and the section
-// list and nothing else -- and adding a query to `coin_transactions` for a
-// picker's sort order is a read this bundle deliberately does not make. So
-// this is a static order, stated as one, and it is replaceable by a live
-// count the day somebody is willing to pay for the query.
-//
-// WHERE THE NUMBERS CAME FROM: `docs/coin-economy/archive/2026-08-11-transactions.csv`,
-// the committed export of the retired Google Sheets ledger this economy
-// replaced. 216 rows of REAL instructor logging, which is the only usage data
-// that exists anywhere in this repo. Counting it is an ALL-TIME count over
-// that archive -- not a recent window (the archive ends the day it was taken,
-// so a window would just be a smaller slice of the same term) and not a
-// per-instructor count (every row in it was logged by the same person, so the
-// two are the same number here).
-//
-// THE MAPPING IS BY HAND AND THAT IS THE WEAK JOINT. The Sheets ledger's
-// "Reason" strings are its own vocabulary, and 0084's import buckets every
-// legacy row into four `legacy_*` categories by TYPE while keeping the reason
-// only in the note -- so there is no authoritative reason -> category id map
-// to reuse and this one was written by reading both lists. 163 of the 216 rows
-// map; the 53 that do not are named below rather than dropped silently:
-//
-//   Legacy Wealth Declaration          43   the import's own opening-balance
-//                                           row, not an instructor action
-//   Unprofessional Conduct              4   no 0070 equivalent (retired)
-//   Bank Balance Applied to Purchase    4   a legacy banking mechanism with no
-//                                           equivalent in this economy
-//   Crashing Out                        2   no 0070 equivalent (retired)
-//
-// TWO JUDGEMENT CALLS worth naming: "Feet on 2nd Chair" and "Leaving Mess in
-// Classroom" both map to `classroom_standards_violation`, whose own seed note
-// is "furniture, general tidiness"; "Executive" and "Basic Classroom Eating
-// Pass" both map to `eating_pass`, which 0070 collapsed to one tier.
-//
-// THE MAP IS EXPORTED AND THE COUNTS ARE PINNED, WHICH IS THE POINT OF HAVING
-// BOTH. `tests/coin-transaction-types.test.ts` re-counts the committed CSV
-// through this very map and compares the result to the table below, so the
-// numbers are PROVEN to come from the archive rather than asserted to. The
-// pinned table is what ships -- a browser must not parse a CSV to sort a
-// dropdown -- and the test is what stops it drifting from its own source.
-//
-// EVERYTHING NOT IN THIS TABLE KEEPS THE PRICE LIST'S OWN ORDER. `sortByUse`
-// below is stable and falls back to the incoming index, which is
-// `coin_categories.sort_order` -- so an unused category is not shuffled, it
-// simply sits after the used ones. A tie inside the table resolves the same
-// way, so two categories logged three times each never swap between loads.
-// ---------------------------------------------------------------------------
-
-/**
- * Legacy Sheets "Reason" -> 0070 category id. A reason absent from this map is
- * one with no equivalent in this economy (see the four named above); it is not
- * a gap to fill in with the nearest-looking category.
- */
-export const COIN_USE_LEGACY_REASONS: Record<string, string> = {
-	'Weekly Wage': 'weekly_wage',
-	'Perfect Assignment Score': 'perfect_score_graded_work',
-	'Exceptional Performance / Going Above and Beyond': 'above_and_beyond',
-	'Contract Completion': 'contract_completion',
-	'Extra Credit (per point)': 'extra_credit',
-	'Competition Winnings': 'competition_winnings',
-	'3D Printing (per 10g)': 'three_d_printing',
-	'Physical Coin Submission': 'physical_coin_submission',
-	'Eating Without Eating Pass': 'eating_violation',
-	'100% IDEA Grade or Highest Grade in Section': 'highest_grade_weekly',
-	'Failure to Reset 3D Printer After Use': 'printer_not_reset',
-	'Inappropriate / Disruptive Behavior': 'disruptive_behavior',
-	'Using Device for Non-School Purposes': 'off_task_device_use',
-	'Executive Classroom Eating Pass': 'eating_pass',
-	'Basic Classroom Eating Pass': 'eating_pass',
-	'Feet on 2nd Chair': 'classroom_standards_violation',
-	'Leaving Mess in Classroom': 'classroom_standards_violation',
-	'Balance Correction': 'balance_correction',
-	'Donate Tissue Box': 'donate_supplies_small',
-	'Destruction of Property': 'property_damage_careless'
-};
-
-export const COIN_CATEGORY_USE_COUNTS: Record<string, number> = {
-	weekly_wage: 43,
-	perfect_score_graded_work: 29,
-	above_and_beyond: 16,
-	contract_completion: 13,
-	extra_credit: 11,
-	competition_winnings: 9,
-	three_d_printing: 8,
-	physical_coin_submission: 7,
-	eating_violation: 6,
-	classroom_standards_violation: 3,
-	disruptive_behavior: 3,
-	eating_pass: 3,
-	highest_grade_weekly: 3,
-	printer_not_reset: 3,
-	balance_correction: 2,
-	off_task_device_use: 2,
-	donate_supplies_small: 1,
-	property_damage_careless: 1
-};
-
-/** Rows in the archive, and how many of them the table above accounts for.
- *  Pinned so a test can re-derive both from the CSV and say when they drift. */
-export const COIN_USE_SOURCE = {
-	file: 'docs/coin-economy/archive/2026-08-11-transactions.csv',
-	rows: 216,
-	mapped: 163
-} as const;
-
-/** How many times the archive shows this category being logged. 0 is normal. */
-export function categoryUseCount(id: string): number {
-	return COIN_CATEGORY_USE_COUNTS[id] ?? 0;
-}
-
-/**
- * The picker's order: most-logged first, then the price list's own order.
- *
- * STABLE AND TOTAL. `Array.prototype.sort` is stable in every engine this
- * ships to, and the comparator only ever compares counts, so anything with an
- * equal count -- including the whole unused tail at 0 -- comes out in exactly
- * the order it went in. That is the property the picker needs: a category must
- * not move between two renders of the same list.
- */
-export function sortByUse<T extends { id: string }>(categories: T[]): T[] {
-	return [...categories].sort((a, b) => categoryUseCount(b.id) - categoryUseCount(a.id));
-}
 
 /**
  * A category's type for display, which is `coinTxnType`'s answer and not the

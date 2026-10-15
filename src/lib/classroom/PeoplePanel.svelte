@@ -93,6 +93,7 @@
 		loadNotebookGrid = null,
 		teams: teamTransports = null,
 		studentHref = null,
+		roleBadges = null,
 		onchanged = null
 	}: {
 		section: ClassroomSection;
@@ -144,6 +145,12 @@
 		 * that page answers 404 for a manager's own address (0138).
 		 */
 		studentHref?: ((email: string) => string) | null;
+		/**
+		 * The class roles each student holds (IDEA Coin, 0247), keyed by the
+		 * lowercased address: a badge beside the name. Null draws none, which
+		 * is every harness and a database without the roles migration.
+		 */
+		roleBadges?: Record<string, string[]> | null;
 		onchanged?: (() => void | Promise<void>) | null;
 	} = $props();
 
@@ -977,6 +984,9 @@
 		{:else}
 			<span class="roster-name person-name" title={e.display_name || e.student_email.split('@')[0]}>{e.display_name || e.student_email.split('@')[0]}</span>
 		{/if}
+		{#each roleBadges?.[e.student_email.toLowerCase()] ?? [] as role (role)}
+			<span class="roster-role" data-testid="roster-role">{role}</span>
+		{/each}
 		<span class="roster-email">{e.student_email}</span>
 		<span class="roster-status" data-tone={status.tone} data-testid="roster-status">
 			{status.label}
@@ -2235,6 +2245,18 @@
 		color: var(--body-link, var(--cyan));
 		text-decoration: underline;
 		text-underline-offset: 0.15em;
+	}
+	/* A class role (Shop Steward and the rest). A recessed tag, never a key:
+	   it is a fact about the student, not a control. */
+	.roster-role {
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-1);
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		padding: 0.1rem 0.5rem;
 	}
 	.roster-email {
 		font-family: var(--font-mono);

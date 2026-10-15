@@ -1,10 +1,11 @@
 // tests/coin-desk-prefs.test.ts
 //
-// Two pure layers of the coin desk's Log area: the `profiles.preferences
-// .coinDesk` namespace, and which curriculum sections the "add from
-// curriculum" picker offers.
+// One pure layer of the coin desk's Log area: the `profiles.preferences
+// .coinDesk` namespace. (It used to pin a second one, which curriculum
+// sections the coin-section picker offered; coin sections are retired in
+// IDEA Coin V2 session two and the picker went with them.)
 //
-// WHY THESE TWO ARE WORTH PINNING, when most of this repo's pure helpers are
+// WHY THIS IS WORTH PINNING, when most of this repo's pure helpers are
 // verified in a harness instead:
 //
 //   * A PREFERENCE PARSER FAILS SILENTLY BY DESIGN. Everything about it is
@@ -17,10 +18,6 @@
 //     namespaces live in `preferences`, and the failure mode of writing one
 //     wrongly is that another silently disappears -- a homepage layout, or a
 //     class view's folded units, gone with no error anywhere.
-//   * THE PICKER'S RULE DECIDES WHAT AN OPERATOR IS OFFERED, and both
-//     directions are wrong quietly: offering a concluded programme creates a
-//     coin section for a class that has finished, and over-filtering leaves
-//     the picker empty with nothing to say why.
 
 import { describe, expect, test } from 'vitest';
 import {
@@ -28,13 +25,6 @@ import {
 	readCoinDeskPrefs,
 	type CoinDeskPrefs
 } from '../src/lib/coin-desk';
-import {
-	curriculumSectionOptions,
-	isOfferableSection,
-	termLabel
-} from '../src/lib/coin-desk/sections';
-import { SECTIONS } from '../src/lib/curriculum';
-import { FSP_CONCLUDED } from '../src/lib/fsp/archive';
 
 describe('the coinDesk preferences namespace', () => {
 	test('reads a stored mode', () => {
@@ -131,87 +121,5 @@ describe('the coinDesk preferences namespace', () => {
 		const merged = { ...existing, coinDesk: { mode: 'section' as const } };
 		expect(readCoinDeskPrefs(merged)).toEqual({ mode: 'section' });
 		expect(merged.homepage).toEqual({ pinned: ['coins'] });
-	});
-});
-
-describe('which curriculum sections the picker offers', () => {
-	const ids = (existing: string[] = []) => curriculumSectionOptions(existing).map((s) => s.id);
-
-	test('still excludes a class that already has a coin section', () => {
-		const all = ids();
-		expect(all).toContain('eng1h-sophomore');
-		expect(ids(['eng1h-sophomore'])).not.toContain('eng1h-sophomore');
-	});
-
-	/**
-	 * The rule that was missing, tested against CONSTRUCTED sections.
-	 *
-	 * The catalog holds no 'planned' entry today, so asserting "nothing offered
-	 * is planned" over SECTIONS alone would pass whether or not the rule
-	 * existed -- it would be measuring the fixture, not the filter. These three
-	 * differ only in status.
-	 */
-	test('offers live and upcoming classes, and never a planned one', () => {
-		const base = {
-			id: 'made-up',
-			course: 'IDEA 999',
-			title: 'Constructed',
-			year: 2 as const,
-			yearLabel: 'Sophomore',
-			instructor: 'Pina',
-			term: 'S1' as const
-		};
-		expect(isOfferableSection({ ...base, status: 'live' })).toBe(true);
-		expect(isOfferableSection({ ...base, status: 'upcoming' })).toBe(true);
-		expect(isOfferableSection({ ...base, status: 'planned' })).toBe(false);
-	});
-
-	test('an upcoming class is still offered by the real picker', () => {
-		// The half that would break the picker in the other direction: every
-		// 2026-27 section is 'upcoming', and setting a roster up before a class
-		// starts is what this picker is for.
-		const offered = curriculumSectionOptions([]);
-		expect(offered.length).toBeGreaterThan(0);
-		expect(offered.some((s) => s.status === 'upcoming')).toBe(true);
-	});
-
-	/**
-	 * KEYED ON THE CONCLUDED FLAG, NOT ON `term === 'Summer'`. That is the rule
-	 * curriculum.ts's own activeCourseCount() applies, for the reason written
-	 * down there: a term label says WHEN a course runs, not whether it has
-	 * finished. This asserts the behaviour AND that the term was not what
-	 * produced it.
-	 */
-	test('does not offer the concluded summer programme', () => {
-		expect(FSP_CONCLUDED).toBe(true);
-		expect(ids()).not.toContain('summer-2026');
-
-		// AND THE EXCLUSION IS NOT "Summer". A constructed summer section that
-		// is NOT the concluded programme must still be offered -- which is the
-		// only assertion that can tell the flag rule from a term rule, since
-		// both produce the same answer for every section in the catalog today.
-		expect(
-			isOfferableSection({
-				id: 'summer-2027',
-				course: 'IDEA FSP',
-				title: 'Next Summer Programme',
-				year: 1,
-				yearLabel: 'Incoming Freshman',
-				instructor: 'Pina',
-				term: 'Summer',
-				status: 'upcoming'
-			})
-		).toBe(true);
-	});
-
-	test('never offers a section that no longer exists in the catalog', () => {
-		const catalog = new Set(SECTIONS.map((s) => s.id));
-		expect(ids().every((id) => catalog.has(id))).toBe(true);
-	});
-
-	test('the term is surfaced as a label rather than used as a gate', () => {
-		const s = SECTIONS.find((x) => x.id === 'intro-100-2')!;
-		expect(termLabel(s)).toBe('Term T2');
-		expect(termLabel(SECTIONS.find((x) => x.id === 'summer-2026')!)).toBe('Summer');
 	});
 });

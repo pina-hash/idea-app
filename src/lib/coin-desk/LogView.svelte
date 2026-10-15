@@ -9,6 +9,7 @@
 	import DeskHistory from './DeskHistory.svelte';
 	import StudentCoinTools from './StudentCoinTools.svelte';
 	import {
+		callV2,
 		cents,
 		coinRefusalWords,
 		NEVER_IN_LOG_PICKER,
@@ -18,7 +19,7 @@
 		type DeskTxn
 	} from './v2';
 	import CoinTypeGlyph from './CoinTypeGlyph.svelte';
-	import { categoryTxnType, sortByUse } from './transaction-types';
+	import { categoryTxnType } from './transaction-types';
 	import {
 		coinLogMode,
 		EXTRA_CREDIT_GRADING_CATEGORIES,
@@ -39,11 +40,13 @@
 	} from '$lib/coin-desk';
 	import {
 		isBulkEligible,
-		sectionDisplayName,
+		rosterEmails,
+		rosterStudentLabel,
 		type BulkLogResponse,
-		type CoinSectionRow,
-		type CoinSectionStudentRow
-	} from './sections';
+		type ClassRoster,
+		type ClassRosterStudent,
+		type CoinClass
+	} from './log';
 
 	/**
 	 * THE LOGGING SURFACE, rebuilt around one constraint: LOGGING A TRANSACTION
@@ -96,16 +99,20 @@
 		categories,
 		supabase,
 		configured = true,
-		sections = [],
-		sectionsConfigured = true,
+		classes = [],
 		prefs = {},
 		onPrefs
 	}: {
 		categories: CoinCategory[];
 		supabase: SupabaseClient;
 		configured?: boolean;
-		sections?: CoinSectionRow[];
-		sectionsConfigured?: boolean;
+		/**
+		 * The IDEA Classroom classes this caller may log against: the layout's
+		 * `coinStaff.sections` (0244's coin_staff_scope). A class's roster is
+		 * read when it is picked, through the same coin_fine_roster the fine
+		 * screen uses. The pre-V2 coin sections are retired (0251).
+		 */
+		classes?: CoinClass[];
 		/** `profiles.preferences.coinDesk`, already parsed. See coin-desk.ts. */
 		prefs?: CoinDeskPrefs;
 		/**
@@ -122,17 +129,14 @@
 	 * subset every picker below offers (a retired category stays readable in
 	 * history but can never be logged again).
 	 *
-	 * MOST-LOGGED FIRST, THEN THE PRICE LIST'S OWN ORDER. `sortByUse` is
-	 * stable, so this is the `sort_order` the load asked for with the
-	 * frequently-logged categories lifted out of it -- see
-	 * `transaction-types.ts` for where the counts come from and what they are
-	 * not. It is applied HERE and not on the price list at `/coin-desk/economy`:
-	 * this is a picker somebody uses forty times a period, that is a reference
-	 * document, and a reference document sorted by how often each row is used
-	 * is not a reference document.
+	 * THE PRICE LIST'S OWN ORDER, `coin_categories.sort_order`, exactly as the
+	 * load asked for it. It used to lift a "most used" set to the top from a
+	 * static table counted off the retired Sheets ledger's archive; that table
+	 * is gone with the rest of the pre-V2 model, and the order an admin sets on
+	 * the Economy page is now the one the picker shows. Typing still filters.
 	 */
 	const selectableCategories = $derived(
-		sortByUse(categories.filter((c) => c.active !== false && !NEVER_IN_LOG_PICKER.has(c.id)))
+		categories.filter((c) => c.active !== false && !NEVER_IN_LOG_PICKER.has(c.id))
 	);
 
 	/**
@@ -205,28 +209,40 @@
 	// ---------------------------------------------------------------------
 	// The roster: which students the nav pane lists.
 	//
-	// ONE SECTION SELECTOR SERVES BOTH JOBS -- whose roster is on screen, and
-	// which section a Section-mode run targets. They were never two questions.
+	// ONE CLASS SELECTOR SERVES BOTH JOBS -- whose roster is on screen, and
+	// which class a whole-class run targets. They were never two questions.
+	// A class is an IDEA Classroom section; its roster is coin_fine_roster.
 	// ---------------------------------------------------------------------
 	let selectedSectionId = $state('');
-	let roster = $state<CoinSectionStudentRow[]>([]);
+	let roster = $state<ClassRosterStudent[]>([]);
 	let rosterBusy = $state(false);
+	let rosterError = $state('');
+	/** Guards against a slow answer for a class the operator already left. */
+	let rosterToken = 0;
 
 	async function loadRoster(sectionId: string) {
 		roster = [];
+		rosterError = '';
 		picked.clear();
 		if (!sectionId) return;
+		const token = ++rosterToken;
 		rosterBusy = true;
-		const resp = await supabase.rpc('coin_admin_list_section_students', {
-			p_section_id: sectionId
-		});
+		const r = await callV2<ClassRoster>(supabase, 'coin_fine_roster', { p_section_id: sectionId });
+		if (token !== rosterToken) return;
 		rosterBusy = false;
-		if (resp.error) return;
-		roster = (resp.data ?? []) as CoinSectionStudentRow[];
+		if (r.kind === 'missing') {
+			rosterError = 'Class rosters are not available until the database update lands. The search box still works: type a full email address.';
+			return;
+		}
+		if (r.kind === 'error') {
+			rosterError = r.message;
+			return;
+		}
+		roster = r.data?.students ?? [];
 	}
 
-	function rosterLabel(r: CoinSectionStudentRow): string {
-		return r.display_name || r.full_name || r.student_email;
+	function rosterLabel(r: ClassRosterStudent): string {
+		return rosterStudentLabel(r);
 	}
 
 	/**
@@ -239,7 +255,7 @@
 		if (!term) return roster;
 		return roster.filter(
 			(r) =>
-				r.student_email.toLowerCase().includes(term) ||
+				r.email.toLowerCase().includes(term) ||
 				rosterLabel(r).toLowerCase().includes(term)
 		);
 	});
@@ -251,7 +267,7 @@
 	// them: a plain email always works regardless of matches.
 	//
 	// IT SEARCHES BEYOND THE ROSTER ON PURPOSE. A balance can exist for an
-	// email that has never signed in and is on nobody's section, and losing
+	// email that has never signed in and is on no class roster, and losing
 	// that would be losing the doctrine the whole tool is built on.
 	// ---------------------------------------------------------------------
 	let suggestions = $state<StudentSuggestion[]>([]);
@@ -288,7 +304,7 @@
 	/** Suggestions that are not already on the roster shown above them. */
 	const offRosterSuggestions = $derived.by(() => {
 		if (query.trim().length < 2) return [];
-		const on = new Set(roster.map((r) => r.student_email.toLowerCase()));
+		const on = new Set(roster.map((r) => r.email.toLowerCase()));
 		return suggestions.filter((s) => !on.has(s.email.toLowerCase()));
 	});
 
@@ -351,11 +367,11 @@
 	}
 
 	function pickAllVisible() {
-		for (const r of filteredRoster) picked.add(r.student_email);
+		for (const r of filteredRoster) picked.add(r.email);
 	}
 
 	// ---------------------------------------------------------------------
-	// Target: one student, the students you picked, or a whole section.
+	// Target: one student, the students you picked, or a whole class.
 	// ---------------------------------------------------------------------
 	type Target = 'student' | 'picked' | 'section';
 
@@ -386,11 +402,11 @@
 	}
 
 	// ---------------------------------------------------------------------
-	// Logging. Every write below is a call to an EXISTING RPC -- 0070's
+	// Logging. Every write below is a call to an EXISTING RPC --
 	// coin_log_transaction for flat/range/per_unit/variable categories, one of
-	// the five dedicated RPCs otherwise (see coin-desk.ts), 0115's
-	// coin_bulk_log_students for a picked set and 0073/0115's
-	// coin_bulk_log_section for a whole section -- never a direct table write,
+	// the five dedicated RPCs otherwise (see coin-desk.ts), and
+	// coin_bulk_log_students for a picked set or a whole class's roster --
+	// never a direct table write,
 	// because there is no other write path: coin_transactions grants clients
 	// select only, and every rule (debt, caps, Eating Pass strikes, Extra
 	// Credit's allowlist) lives inside those functions, not a trigger.
@@ -502,7 +518,7 @@
 
 	/**
 	 * A bulk run is scoped to exactly the pricing models where ONE amount,
-	 * entered once, applies uniformly (sections.ts / 0073 / 0115), which is
+	 * entered once, applies uniformly (log.ts / 0251), which is
 	 * also why bulk needs no field the single-student flow does not already
 	 * render.
 	 */
@@ -510,8 +526,15 @@
 		bulkTarget ? selectableCategories.filter(isBulkEligible) : selectableCategories
 	);
 
+	/** A whole-class run's emails: the roster on screen, normalized. */
+	const classEmails = $derived(rosterEmails(roster));
+
 	const hasSubject = $derived(
-		target === 'student' ? !!lookup : target === 'picked' ? picked.size > 0 : !!selectedSectionId
+		target === 'student'
+			? !!lookup
+			: target === 'picked'
+				? picked.size > 0
+				: !!selectedSectionId && !rosterBusy && classEmails.length > 0
 	);
 
 	const canSubmit = $derived(
@@ -658,11 +681,10 @@
 
 	/**
 	 * ONE round trip, ONE server-side transaction, whether the subject is a
-	 * hand-picked set (0115's coin_bulk_log_students) or a whole section
-	 * (coin_bulk_log_section, which since 0115 is a thin wrapper around the
-	 * same function). Never a client-side loop over coin_log_transaction: that
-	 * can be interrupted partway leaving nobody able to say how many of the
-	 * twenty students actually got logged.
+	 * hand-picked set or a whole class (its roster's emails): both are
+	 * coin_bulk_log_students. Never a client-side loop over
+	 * coin_log_transaction: that can be interrupted partway leaving nobody
+	 * able to say how many of the twenty students actually got logged.
 	 */
 	async function submitBulk() {
 		if (!category) return;
@@ -675,20 +697,12 @@
 				: category.pricing_model === 'variable'
 					? cents(num(variableAmount))
 					: null;
-		const resp =
-			target === 'picked'
-				? await supabase.rpc('coin_bulk_log_students', {
-						p_emails: [...picked].sort(),
-						p_category_id: category.id,
-						p_amount: amount,
-						p_note: noteOrNull()
-					})
-				: await supabase.rpc('coin_bulk_log_section', {
-						p_section_id: selectedSectionId,
-						p_category_id: category.id,
-						p_amount: amount,
-						p_note: noteOrNull()
-					});
+		const resp = await supabase.rpc('coin_bulk_log_students', {
+			p_emails: target === 'picked' ? rosterEmails([...picked].map((email) => ({ email }))) : classEmails,
+			p_category_id: category.id,
+			p_amount: amount,
+			p_note: noteOrNull()
+		});
 		bulkBusy = false;
 		if (resp.error) {
 			bulkError = resp.error.message;
@@ -801,8 +815,8 @@
 	});
 
 	onMount(() => {
-		if (!selectedSectionId && sections.length) {
-			selectedSectionId = sections[0].id;
+		if (!selectedSectionId && classes.length) {
+			selectedSectionId = classes[0].id;
 			void loadRoster(selectedSectionId);
 		}
 	});
@@ -895,18 +909,16 @@
 			{#if lookupError}<p class="feedback error">{lookupError}</p>{/if}
 
 			<div class="roster-head">
-				<label class="sr-only" for="cd-section">Section</label>
+				<label class="sr-only" for="cd-section">Class</label>
 				<select
 					id="cd-section"
 					data-testid="cd-section"
 					bind:value={selectedSectionId}
 					onchange={() => loadRoster(selectedSectionId)}
 				>
-					<option value="">No section</option>
-					{#each sections as s (s.id)}
-						<option value={s.id}>
-							{sectionDisplayName(s)} ({s.student_count})
-						</option>
+					<option value="">No class</option>
+					{#each classes as c (c.id)}
+						<option value={c.id}>{c.label}{c.students != null ? ` (${c.students})` : ''}</option>
 					{/each}
 				</select>
 				<button
@@ -931,34 +943,37 @@
 				</div>
 			{/if}
 
-			{#if !sectionsConfigured}
-				<p class="feedback error">
-					Migration 0073 does not appear to be applied yet -- rosters are unavailable. The search
-					box still works: type a full email address.
-				</p>
+			{#if rosterError}
+				<p class="feedback error" data-testid="cd-roster-error">{rosterError}</p>
 			{:else if rosterBusy}
 				<p class="note">Loading roster&hellip;</p>
+			{:else if !classes.length}
+				<p class="note">
+					No class has the coin economy on yet. Turn it on for a class under
+					<a href="/coin-desk/settings">Settings</a>, or type a full email address to log against
+					anyone.
+				</p>
 			{:else if !selectedSectionId}
 				<p class="note">
-					Pick a section to list its roster, or type a full email address to log against anyone.
+					Pick a class to list its roster, or type a full email address to log against anyone.
 				</p>
 			{:else if !roster.length}
 				<p class="note">
-					No students on this section's roster yet -- add them under
-					<a href="/coin-desk/students">Students</a>.
+					Nobody is on this class's coin roster. A roster comes from IDEA Classroom, and only a
+					class with the coin economy on has one.
 				</p>
 			{:else}
 				<ul class="roster" data-testid="cd-roster" class:selecting={selectMode}>
-					{#each filteredRoster as r (r.student_email)}
-						{@const isOpen = lookup?.email === r.student_email && !bulkTarget}
+					{#each filteredRoster as r (r.email)}
+						{@const isOpen = lookup?.email === r.email && !bulkTarget}
 						<li>
 							{#if selectMode}
-								<label class="roster-pick" title={r.student_email}>
+								<label class="roster-pick" title={r.email}>
 									<input
 										type="checkbox"
-										checked={picked.has(r.student_email)}
+										checked={picked.has(r.email)}
 										onchange={(e) =>
-											togglePick(r.student_email, (e.currentTarget as HTMLInputElement).checked)}
+											togglePick(r.email, (e.currentTarget as HTMLInputElement).checked)}
 									/>
 									<span class="roster-name">{rosterLabel(r)}</span>
 								</label>
@@ -968,8 +983,8 @@
 									class="roster-row"
 									class:open={isOpen}
 									aria-current={isOpen ? 'true' : undefined}
-									title={r.student_email}
-									onclick={() => chooseStudent(r.student_email)}
+									title={r.email}
+									onclick={() => chooseStudent(r.email)}
 								>
 									<span class="roster-name">{rosterLabel(r)}</span>
 								</button>
@@ -1015,7 +1030,7 @@
 				Students
 			</button>
 			<button type="button" class:active={logMode === 'section'} onclick={() => setMode('section')}>
-				Whole section
+				Whole class
 			</button>
 		</div>
 
@@ -1053,16 +1068,26 @@
 			</div>
 		{:else}
 			<div class="field-row">
-				<label for="cd-section-target">Section</label>
-				<select id="cd-section-target" bind:value={selectedSectionId} onchange={() => loadRoster(selectedSectionId)}>
-					<option value="" disabled selected>Choose a section&hellip;</option>
-					{#each sections as s (s.id)}
-						<option value={s.id}>
-							{sectionDisplayName(s)} ({s.student_count} student{s.student_count === 1 ? '' : 's'})
+				<label for="cd-section-target">Class</label>
+				<select
+					id="cd-section-target"
+					data-testid="cd-class-target"
+					bind:value={selectedSectionId}
+					onchange={() => loadRoster(selectedSectionId)}
+				>
+					<option value="" disabled selected>Choose a class&hellip;</option>
+					{#each classes as c (c.id)}
+						<option value={c.id}>
+							{c.label}{c.students != null ? ` (${c.students} student${c.students === 1 ? '' : 's'})` : ''}
 						</option>
 					{/each}
 				</select>
 			</div>
+			{#if selectedSectionId && !rosterBusy}
+				<p class="note" data-testid="cd-class-count">
+					{classEmails.length} student{classEmails.length === 1 ? '' : 's'} on this class's roster.
+				</p>
+			{/if}
 		{/if}
 
 		{#if entryError}<p class="feedback error" data-testid="cd-error">{entryError}</p>{/if}
@@ -1254,7 +1279,7 @@
 						{:else if target === 'picked'}
 							Log to {picked.size} student{picked.size === 1 ? '' : 's'}
 						{:else if target === 'section'}
-							Log to section
+							Log to {classEmails.length} student{classEmails.length === 1 ? '' : 's'} in this class
 						{:else}
 							Log transaction
 						{/if}
@@ -1267,7 +1292,7 @@
 				</div>
 			{/if}
 		{:else if target === 'section'}
-			<p class="note">Choose a section above.</p>
+			<p class="note">Choose a class above. A class with nobody on its roster cannot be logged against.</p>
 		{:else if target === 'picked'}
 			<p class="note">Tick some students on the left.</p>
 		{/if}

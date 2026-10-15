@@ -5,6 +5,7 @@
 	import CoinPageBody from './CoinPageBody.svelte';
 	import type { CoinMyPage } from '$lib/coin-balance';
 	import type { CoinPageTransports } from './transports';
+	import type { CoinPageExtras } from './extras';
 
 	/**
 	 * A STUDENT'S OWN IDEA COIN PAGE (V2, migration 0241): the site chrome
@@ -16,6 +17,7 @@
 		state: pageState,
 		page = null,
 		transports = {},
+		extras = {},
 		now,
 		onsignin = null,
 		onchanged = null
@@ -23,6 +25,7 @@
 		state: 'ready' | 'signed_out' | 'updating' | 'error';
 		page?: CoinMyPage | null;
 		transports?: CoinPageTransports;
+		extras?: CoinPageExtras;
 		now: number;
 		onsignin?: (() => void) | null;
 		onchanged?: (() => void) | null;
@@ -51,7 +54,7 @@
 		</p>
 	</section>
 
-	<CoinPageBody state={pageState} {page} {transports} {now} {onsignin} {onchanged} />
+	<CoinPageBody state={pageState} {page} {transports} {extras} {now} {onsignin} {onchanged} />
 
 	<footer class="page-footer">
 		<VersionBadge app="coins" />

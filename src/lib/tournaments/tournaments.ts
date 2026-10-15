@@ -159,6 +159,16 @@ export interface RewardRule {
 	amount: number;
 }
 
+/**
+ * How a concluded tournament's rewards were finished (0248): transferred to
+ * IDEA Coin balances from the coin desk, or recorded as paid in coins in the
+ * room. Null is "not yet"; undefined is a database that cannot say.
+ */
+export interface RewardSettlement {
+	outcome: 'transferred' | 'paid_physically';
+	settled_at: string;
+}
+
 export interface RewardLedgerRow {
 	id: number;
 	tournament_id: string;

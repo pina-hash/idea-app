@@ -1,28 +1,14 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { page } from '$app/state';
-	import SectionManager from '$lib/coin-desk/SectionManager.svelte';
-	import BalanceAdminPanel from '$lib/coin-desk/BalanceAdminPanel.svelte';
-	import { classRosterTransports } from '$lib/coin-desk/roster-import';
+	import StudentView from '$lib/coin-desk/StudentView.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	// SectionManager's `sections` prop is $bindable (it refetches after every
-	// mutation and writes the list back). Nothing else on this route reads it,
-	// so this local is simply where those writes land -- the old cross-component
-	// coupling into the bulk-log picker is gone with the route split.
-	// untrack: taking the load's value as the STARTING point is the whole
-	// intent here; SectionManager owns it from that moment on.
-	let sections = $state(untrack(() => data.sections));
-
-	// "Import from class roster" reads the classroom roster through its one
-	// reader, on the admin's own client; the coin write is still SectionManager's.
-	const classRoster = $derived(classRosterTransports(data.supabase));
-
-	// The debt list links here with `?student=<email>`; the panel opens that
-	// student once, on mount. Read from the URL here, never in the load, so
-	// the load does not re-run on it.
+	// Payday, the digest and the queue link here with `?student=<email>`; the
+	// view opens that student once, on mount. Read from the URL here, never in
+	// the load, so the load does not re-run on it.
 	const initialEmail = untrack(() => page.url.searchParams.get('student') ?? '');
 </script>
 
@@ -30,16 +16,11 @@
 	<title>Students // Coin Desk</title>
 </svelte:head>
 
-<SectionManager
+<StudentView
 	supabase={data.supabase}
-	bind:sections
-	configured={data.sectionsConfigured}
-	{classRoster}
-/>
-
-<BalanceAdminPanel
-	supabase={data.supabase}
-	categoryKinds={data.categoryKinds}
+	scope={data.coinStaff.scope}
+	classes={data.coinStaff.sections}
 	categories={data.categories}
+	categoryKinds={data.categoryKinds}
 	{initialEmail}
 />

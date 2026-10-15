@@ -678,7 +678,12 @@
 		{#if hasRewards}
 			<section class="block">
 				<h2 class="block-title">Rewards</h2>
-				<RewardsPanel rules={data.rewardRules} ledger={data.rewardLedger} {entries} />
+				<RewardsPanel
+					rules={data.rewardRules}
+					ledger={data.rewardLedger}
+					settlement={data.rewardSettlement}
+					{entries}
+				/>
 			</section>
 		{/if}
 

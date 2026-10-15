@@ -78,6 +78,7 @@ import { CLASSROOM_UPLOAD_MAX_BYTES } from '../src/lib/classroom/file-upload';
 import { QUICK_POST_FILE_MAX_BYTES } from '../src/lib/classroom/quick-posts';
 import { DECK_UPLOAD_MAX_ZIP_BYTES } from '../src/lib/classroom/deck';
 import { MAPS_MEDIA_MAX_BYTES } from '../src/lib/maps/media';
+import { COIN_UPLOAD_MAX_BYTES } from '../src/lib/coin-balance/uploads';
 import { FEEDBACK_SCREENSHOT_MAX_BYTES } from '../src/lib/feedback/screenshot';
 import { DECAL_MAX_BYTES } from '../src/lib/greenline/decals';
 import { MAX_PHOTO_BYTES } from '../src/lib/server/notebook-upload';
@@ -243,7 +244,7 @@ describe('the registry is a transcription, not a second opinion', () => {
 	 * A registry that grew a row nobody checked is a registry back to being a
 	 * place numbers are typed.
 	 */
-	it('covers exactly the fifteen upload paths this sweep knows about', () => {
+	it('covers exactly the sixteen upload paths this sweep knows about', () => {
 		expect(UPLOAD_CEILING_LIST.map((c) => c.id)).toEqual([
 			'classroom-attachment',
 			'classroom-submission',
@@ -252,6 +253,7 @@ describe('the registry is a transcription, not a second opinion', () => {
 			'classroom-deck',
 			'notebook-photo',
 			'maps-photo',
+			'coin-upload',
 			'feedback-screenshot',
 			'armory-feedback-screenshot',
 			'greenline-decal',
@@ -303,6 +305,7 @@ describe('the registry is a transcription, not a second opinion', () => {
 		['classroom-deck', DECK_UPLOAD_MAX_ZIP_BYTES],
 		['notebook-photo', MAX_PHOTO_BYTES],
 		['maps-photo', MAPS_MEDIA_MAX_BYTES],
+		['coin-upload', COIN_UPLOAD_MAX_BYTES],
 		['feedback-screenshot', FEEDBACK_SCREENSHOT_MAX_BYTES],
 		['greenline-decal', DECAL_MAX_BYTES]
 	] as [UploadPathId, number][])(

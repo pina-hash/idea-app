@@ -19,6 +19,12 @@ on:
     # 11:23 UTC is 4:23 a.m. in Los Angeles in the summer and 3:23 a.m. in the
     # winter: after the Vercel call, before school.
     - cron: '23 11 * * *'
+    # THE SECOND CALLER OF THE FRIDAY DIGEST NOTIFICATION (IDEA Coin V2,
+    # 2.13): 22:47 UTC on a Friday is 3:47 p.m. in Los Angeles in the summer
+    # and 2:47 p.m. in the winter, an hour after Vercel's cron. The database
+    # sends the week's notification once (`coin_digest_push_due` stamps the
+    # week), so this second call is free: it answers `already_sent`.
+    - cron: '47 22 * * 5'
   workflow_dispatch: {}
 
 permissions:
@@ -26,6 +32,8 @@ permissions:
 
 jobs:
   autopay:
+    # Every schedule but the Friday digest one (and by hand).
+    if: github.event.schedule != '47 22 * * 5'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -36,6 +44,25 @@ jobs:
           echo "answer: $BODY"
           {
             echo "## Autopay"
+            echo
+            echo '```'
+            echo "$BODY"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  digest-push:
+    # Only on the Friday schedule (and by hand): the nightly one is autopay's.
+    if: github.event.schedule == '47 22 * * 5' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask the site to send the Friday digest notification
+        run: |
+          set -uo pipefail
+          BODY="$(curl -sS --max-time 120 -X POST https://ideabosco.com/api/coin/digest-push || true)"
+          echo "answer: $BODY"
+          {
+            echo "## Coin digest notification"
             echo
             echo '```'
             echo "$BODY"

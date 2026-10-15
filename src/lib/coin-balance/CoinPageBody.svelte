@@ -1,11 +1,22 @@
 <script lang="ts">
+	import './coin-page.css';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import CoinTypeGlyph from '$lib/coin-desk/CoinTypeGlyph.svelte';
 	import CoinBuy from './CoinBuy.svelte';
+	import CoinPayout from './CoinPayout.svelte';
+	import CoinBackgroundPanel from './CoinBackgroundPanel.svelte';
+	import CoinDonationPanel from './CoinDonationPanel.svelte';
+	import CoinOnHand from './CoinOnHand.svelte';
+	import CoinRequestsList from './CoinRequestsList.svelte';
+	import CoinContractsPanel from './CoinContractsPanel.svelte';
+	import CoinStatsPanel from './CoinStatsPanel.svelte';
+	import CoinAuditorPanel from './CoinAuditorPanel.svelte';
+	import CoinDispute from './CoinDispute.svelte';
 	import {
 		coinAmountDisplay,
 		coinNumber,
 		coins,
+		signedCoins,
 		coinTxnType,
 		COIN_TXN_TYPE_LABELS
 	} from '$lib/coin-format';
@@ -13,7 +24,7 @@
 		coinBuyRefusalWords,
 		coinCanAfford,
 		coinExtraCreditCost,
-		coinPrintPrice,
+		coinPrintWithSpool,
 		coinScoreLine,
 		coinWhen,
 		groupCoinRules,
@@ -23,6 +34,7 @@
 	} from '$lib/coin-balance';
 	import { laCalendarDay, schoolDayOf } from '$lib/classroom/school-calendar';
 	import type { CoinPageTransports } from './transports';
+	import type { CoinPageExtras } from './extras';
 
 	/**
 	 * THE BODY OF A STUDENT'S OWN IDEA COIN PAGE, without the site chrome, so
@@ -44,6 +56,7 @@
 		state: pageState,
 		page = null,
 		transports = {},
+		extras = {},
 		now,
 		onsignin = null,
 		onchanged = null
@@ -51,6 +64,12 @@
 		state: 'ready' | 'signed_out' | 'updating' | 'error';
 		page?: CoinMyPage | null;
 		transports?: CoinPageTransports;
+		/**
+		 * The session-two reads (0245 to 0249), each its own function. NULL or
+		 * absent means that function is not there (its migration is not applied)
+		 * or it answered nothing, and its section is simply not drawn.
+		 */
+		extras?: CoinPageExtras;
 		/** The loader's clock, threaded down so "today" is the server's today. */
 		now: number;
 		onsignin?: (() => void) | null;
@@ -77,15 +96,33 @@
 	}
 
 	/* ---- Eating Pass ---- */
-	const passBlocked = $derived.by(() => {
+	const passBase = $derived.by(() => {
 		if (!page) return null;
 		if (page.eating_pass.price === null) return coinBuyRefusalWords({ reason: 'not_available' });
 		if (page.eating_pass.active) return coinBuyRefusalWords({ reason: 'pass_already_active' });
-		return insufficient(page.eating_pass.price);
+		return null;
 	});
+	const passBlocked = $derived(passBase ?? (page && page.eating_pass.price !== null ? insufficient(page.eating_pass.price) : null));
 
 	/* ---- Pay Raise ---- */
 	const raiseBlocked = $derived(page ? insufficient(page.pay_raise.cost) : null);
+
+	/* ---- Split payment (2.3): the same purchase, part paid in physical coins. ---- */
+	function splitFor(
+		item: 'eating_pass' | 'pay_raise' | 'three_d_printing' | 'extra_credit',
+		baseBlocked: string | null,
+		itemWords: string,
+		inputs: () => { grams?: number | null; sectionId?: string | null; submissionId?: string | null; points?: number | null }
+	) {
+		const buySplit = transports.buySplit;
+		if (!buySplit || !page) return null;
+		return {
+			onsplit: (physical: number) => buySplit(item, physical, inputs()),
+			inDebt,
+			baseBlocked,
+			itemWords
+		};
+	}
 
 	/* ---- 3D print ---- */
 	let gramsText = $state('');
@@ -95,14 +132,18 @@
 		const n = Number(t);
 		return n > 0 && n <= 5000 ? n : null;
 	});
-	const printCost = $derived(page && grams !== null ? coinPrintPrice(grams, page.print.grams_per_coin) : null);
-	const printBlocked = $derived.by(() => {
+	const printQuote = $derived(
+		page && grams !== null ? coinPrintWithSpool(grams, page.print.grams_per_coin, page.print.spool_grams) : null
+	);
+	const printCost = $derived(printQuote ? printQuote.cost : null);
+	const printBase = $derived.by(() => {
 		if (!page) return null;
 		if (!page.print.active) return coinBuyRefusalWords({ reason: 'not_available' });
 		if (!gramsText.trim()) return 'Enter the weight from the slicer first.';
 		if (grams === null) return coinBuyRefusalWords({ reason: 'grams' });
-		return insufficient(printCost ?? 0);
+		return null;
 	});
+	const printBlocked = $derived(printBase ?? insufficient(printCost ?? 0));
 
 	/* ---- Extra credit ---- */
 	let sectionPick = $state('');
@@ -119,7 +160,7 @@
 	});
 	const ecPrice = $derived(page?.extra_credit.price_per_point ?? null);
 	const ecCost = $derived(ecPrice !== null && points !== null ? coinExtraCreditCost(points, ecPrice) : null);
-	const ecBlocked = $derived.by(() => {
+	const ecBase = $derived.by(() => {
 		if (!page) return null;
 		if (ecPrice === null) return coinBuyRefusalWords({ reason: 'not_available' });
 		if (!ecClass) return 'None of your classes in the IDEA Coin economy has extra credit to buy.';
@@ -133,8 +174,17 @@
 		if (!pointsText.trim()) return 'Enter how many points you want.';
 		if (points === null) return coinBuyRefusalWords({ reason: 'points' });
 		if (points > ecClass.room.remaining_points) return coinBuyRefusalWords({ reason: 'cap', room: ecClass.room });
-		return insufficient(ecCost ?? 0);
+		return null;
 	});
+	const ecBlocked = $derived(ecBase ?? insufficient(ecCost ?? 0));
+
+	/* ---- Session two ---- */
+	const requests = $derived(page?.requests ?? null);
+	const onHandPending = $derived(!!requests?.some((r) => r.kind === 'reported_coins' && r.status === 'pending'));
+	const showPayout = $derived(!!page && (!!page.payout || (page.in_economy && !!transports.requestPayout)));
+	const showContracts = $derived(
+		!!page && !!extras.contracts && (extras.contracts.length > 0 || page.in_economy)
+	);
 
 	function changed() {
 		onchanged?.();
@@ -161,6 +211,7 @@
 		</section>
 	{:else}
 		<div class="cp-grid">
+			<div class="cp-col cp-col-main">
 			<!-- THE STANDING: one number, then the three things that change what you can do. -->
 			<section class="card cp-card cp-standing" aria-labelledby="cp-h-standing" data-testid="coin-standing">
 				<h2 id="cp-h-standing">Balance</h2>
@@ -216,7 +267,24 @@
 						bought. Your history stays here.
 					</p>
 				{/if}
+				{#if extras.hasRole}
+					<p class="cp-note" data-testid="coin-role-link">
+						You hold a class role. Prove each class day with a start and an end photo on your role page.
+						<a class="cpx-link" href="/coin-balance/role">Open your role page</a>
+					</p>
+				{/if}
 			</section>
+
+			{#if showPayout}
+				<CoinPayout
+					balance={page.balance}
+					payout={page.payout}
+					payday={page.payday}
+					request={page.in_economy ? (transports.requestPayout ?? null) : null}
+					cancel={transports.cancelPayout ?? null}
+					ondone={changed}
+				/>
+			{/if}
 
 			{#if page.in_economy && canBuyAny}
 				<section class="card cp-card cp-shop" aria-labelledby="cp-h-buy" data-testid="coin-buy">
@@ -236,6 +304,7 @@
 								blocked={passBlocked}
 								onbuy={() => transports.buyEatingPass!()}
 								ondone={changed}
+								split={splitFor('eating_pass', passBase, 'the Eating Pass', () => ({}))}
 							>
 								<p class="cp-help">
 									Lets you eat in class. Three eating strikes revoke it, and then you can buy another.
@@ -251,6 +320,7 @@
 								cost={page.pay_raise.cost}
 								balance={page.balance}
 								blocked={raiseBlocked}
+								split={splitFor('pay_raise', null, 'the Pay Raise', () => ({}))}
 								onbuy={() => transports.buyPayRaise!()}
 								ondone={changed}
 								doneWords={(r) => `Done. You are on tier ${r.new_tier ?? ''} now.${r.balance !== undefined ? ` Your balance is ${coins(r.balance)}.` : ''}`}
@@ -272,6 +342,7 @@
 								cost={printCost}
 								balance={page.balance}
 								blocked={printBlocked}
+								split={splitFor('three_d_printing', printBase, 'the print', () => ({ grams }))}
 								onbuy={() => transports.buyPrint!(grams ?? 0)}
 								ondone={() => {
 									gramsText = '';
@@ -283,6 +354,19 @@
 									the slicer shows. {coins(1)} per {coinNumber(page.print.grams_per_coin)} grams,
 									rounded to the nearest coin (a half rounds up). Print time is never charged.
 								</p>
+								<p class="cp-help" data-testid="print-spool">
+									{#if page.print.spool_grams > 0}
+										You have <strong>{coinNumber(page.print.spool_grams)} grams</strong> left on your own
+										spool. A print draws from it before coins, and only the grams past it cost anything.
+									{:else}
+										You have no spool grams. A spool you buy outright is used before coins.
+									{/if}
+								</p>
+								{#if printQuote && printQuote.spool > 0}
+									<p class="cp-room" data-testid="print-spool-draw">
+										{coinNumber(printQuote.spool)} grams come from your spool{printQuote.cost > 0 ? ', and the rest is charged.' : ', so this print costs nothing.'}
+									</p>
+								{/if}
 								<label class="cp-field">
 									<span>Weight in grams</span>
 									<input
@@ -305,6 +389,11 @@
 								cost={ecCost}
 								balance={page.balance}
 								blocked={ecBlocked}
+								split={splitFor('extra_credit', ecBase, 'the extra credit', () => ({
+									sectionId: ecClass?.section_id ?? null,
+									submissionId: ecWork?.submission_id ?? null,
+									points
+								}))}
 								onbuy={() => transports.buyExtraCredit!(ecClass?.section_id ?? '', ecWork?.submission_id ?? '', points ?? 0)}
 								ondone={() => {
 									pointsText = '';
@@ -377,6 +466,46 @@
 				</section>
 			{/if}
 
+			{#if page.in_economy}
+				<CoinBackgroundPanel
+					rules={page.background_rules}
+					background={page.background}
+					backgroundUrl={extras.backgroundUrl ?? null}
+					upload={transports.uploadPhoto ?? null}
+					submit={transports.submitBackground ?? null}
+					ondone={changed}
+				/>
+				{#if extras.donationItems}
+					<CoinDonationPanel
+						items={extras.donationItems}
+						rules={page.donation_rules}
+						upload={transports.uploadPhoto ?? null}
+						submit={transports.submitDonation ?? null}
+						ondone={changed}
+					/>
+				{/if}
+			{/if}
+			{#if showContracts && extras.contracts}
+				<CoinContractsPanel
+					contracts={extras.contracts}
+					claim={page.in_economy ? (transports.claimContract ?? null) : null}
+					markDone={transports.markContractDone ?? null}
+					ondone={changed}
+				/>
+			{/if}
+			{#if page.in_economy && transports.reportOnHand}
+				<CoinOnHand report={transports.reportOnHand} pending={onHandPending} ondone={changed} />
+			{/if}
+			</div>
+
+			<div class="cp-col cp-col-side">
+			{#if requests && requests.length}
+				<CoinRequestsList {requests} cancel={transports.cancelRequest ?? null} ondone={changed} />
+			{/if}
+			{#if extras.auditor}
+				<CoinAuditorPanel pending={extras.auditor} validate={transports.auditorValidate ?? null} ondone={changed} />
+			{/if}
+
 			<section class="card cp-card cp-history" aria-labelledby="cp-h-history" data-testid="coin-history">
 				<h2 id="cp-h-history">History</h2>
 				{#if history.rows.length}
@@ -396,8 +525,26 @@
 										{#if row.automatic}
 											<span class="cp-chip auto" data-testid="coin-auto">Automatic</span>
 										{/if}
+										{#if row.edited}
+											<span class="cp-chip edited" data-testid="coin-edited">Edited</span>
+										{/if}
 										<span class="cp-when">{coinWhen(row.at)}</span>
 									</span>
+									{#if row.edited && row.edits.length}
+										<ul class="cp-edits" data-testid="coin-edits">
+											{#each row.edits as e, i (e.at + i)}
+												<li class:undone={e.undone}>
+													Changed from {signedCoins(e.old)} to {signedCoins(e.new)}, {coinWhen(e.at)}{e.undone ? ' (this change was undone)' : ''}.
+												</li>
+											{/each}
+											{#if row.original_amount !== null}
+												<li>First written as {signedCoins(row.original_amount)}.</li>
+											{/if}
+										</ul>
+									{/if}
+									{#if row.disputable || row.dispute}
+										<CoinDispute {row} dispute={transports.disputeFine ?? null} ondone={changed} />
+									{/if}
 								</div>
 								<span class="cp-amount {amount.tone}" data-testid="coin-amount">{amount.text}</span>
 							</li>
@@ -413,6 +560,13 @@
 					</p>
 				{/if}
 			</section>
+			</div>
+
+			{#if extras.stats}
+				<div class="cp-wide">
+					<CoinStatsPanel stats={extras.stats} {now} exportRows={transports.exportRows ?? null} />
+				</div>
+			{/if}
 
 			<section class="card cp-card cp-rules" aria-labelledby="cp-h-rules" data-testid="coin-rules">
 				<h2 id="cp-h-rules">How coins work</h2>
@@ -464,24 +618,37 @@
 		grid-template-columns: minmax(0, 1fr);
 		gap: 0 1.1rem;
 	}
+	/* Two stacks side by side above 64rem, never a grid of rows: a row is as
+	   tall as its tallest member, and these panels differ a lot in height. */
+	.cp-col {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
 	@media (min-width: 64rem) {
 		.cp-grid {
 			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 			align-items: start;
 		}
-		.cp-standing {
-			grid-column: 1;
-		}
-		.cp-shop {
-			grid-column: 1;
-		}
-		.cp-history {
-			grid-column: 2;
-			grid-row: 1 / span 2;
-		}
+		.cp-wide,
 		.cp-rules {
 			grid-column: 1 / -1;
 		}
+	}
+	.cp-wide {
+		min-width: 0;
+	}
+	.cp-chip.edited {
+		color: var(--violet-ink);
+	}
+	.cp-edits {
+		margin: 0.15rem 0 0;
+		padding-left: 1rem;
+		color: var(--text-2);
+		font-size: 0.85rem;
+	}
+	.cp-edits li.undone {
+		text-decoration: line-through;
 	}
 
 	.cp-balance-row {

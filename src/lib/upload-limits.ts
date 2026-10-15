@@ -265,6 +265,20 @@ const CEILINGS = [
 		advice: 'Take it again at a smaller size, or pick a different one.'
 	},
 	{
+		/**
+		 * A PICTURE A STUDENT HANDS THE COIN DESK (0245, IDEA Coin V2 session
+		 * two): a desktop background, a donation photo, or a role's start and end
+		 * photo. Private, raster only, into the student's own folder.
+		 */
+		id: 'coin-upload',
+		label: 'a picture for the coin desk',
+		bucket: 'coin-uploads',
+		maxBytes: 20971520,
+		guards: ['browser', 'bucket'],
+		statedBy: '0245 file_size_limit 20971520; COIN_UPLOAD_MAX_BYTES in $lib/coin-balance/uploads',
+		advice: 'Take it again at a smaller size, or pick a different one.'
+	},
+	{
 		id: 'feedback-screenshot',
 		label: 'a screenshot on a report',
 		bucket: 'feedback-media',

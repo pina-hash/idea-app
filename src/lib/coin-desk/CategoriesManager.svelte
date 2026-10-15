@@ -5,7 +5,6 @@
 	import {
 		CREATABLE_PRICING_MODELS,
 		KIND_LABELS_SHORT,
-		PRICE_BAND_GUIDANCE,
 		PRICING_MODEL_LABELS,
 		slugifyCategoryId,
 		type CreatablePricingModel
@@ -15,7 +14,7 @@
 	 * Create a new coin category (flat / range / per_unit / variable only --
 	 * see category-admin.ts for why 'formula' is a hard boundary, not a
 	 * missing feature), or retire/reactivate an existing one. Its own
-	 * component, the SectionManager / RolesManager / ContractsManager
+	 * component, the RolesManager / ContractsManager
 	 * convention, so /coin-desk/economy and the dev harness mount the
 	 * identical thing.
 	 *
@@ -264,20 +263,6 @@
 					</select>
 				</div>
 			</div>
-
-			{#if PRICE_BAND_GUIDANCE[newKind]?.length}
-				<div class="guidance">
-					<p class="hint">
-						Guideline only, never enforced -- roughly where {KIND_LABELS[newKind].toLowerCase()} pricing
-						sits today:
-					</p>
-					<ul>
-						{#each PRICE_BAND_GUIDANCE[newKind] as line (line)}
-							<li>{line}</li>
-						{/each}
-					</ul>
-				</div>
-			{/if}
 
 			<div class="field-row">
 				<label for="new-cat-pricing">Pricing model</label>
@@ -536,22 +521,6 @@
 		color: var(--dim);
 		font-size: 0.75rem;
 		margin: 0;
-	}
-	.guidance {
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		padding: 0.5rem 0.7rem;
-		margin-bottom: 0.8rem;
-	}
-	.guidance ul {
-		margin: 0.3rem 0 0;
-		padding-left: 1.1rem;
-		font-size: 0.8rem;
-		color: var(--white);
-	}
-	.guidance li {
-		margin-bottom: 0.15rem;
 	}
 	.btn-row {
 		display: flex;

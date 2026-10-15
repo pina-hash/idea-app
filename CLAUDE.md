@@ -3948,12 +3948,22 @@ with its own answer for the rows already stored.
   own-row `WITH CHECK`, because there is nothing to forge in a comment about
   yourself; and the legacy coin import writes rows directly because they are
   HISTORY, not events, and no live rule should read them.
-- **EVERY ADMIN COIN WRITE OPENS WITH `is_admin()`, AND A STUDENT'S OWN COIN
-  ACTION GOES THROUGH ONE SEAM, `_coin_student_seam` (0241, IDEA Coin V2).**
-  `coin_log_transaction` and every other admin logger still open with the
-  identical `if not public.is_admin() then raise exception 'Only site admins
-  can log IDEA Coin transactions.';`, and a nested SECURITY DEFINER call does
-  not escape it: `is_admin()` reads the session's JWT claims.
+- **EVERY STAFF COIN WRITE OPENS WITH ONE OF TWO TIER GATES, AND A STUDENT'S
+  OWN COIN ACTION GOES THROUGH ONE SEAM, `_coin_student_seam` (0241, IDEA Coin
+  V2).** Decision 68 (0244): `_coin_full_staff()` (the owner, plus the
+  `coin_full_admins` list, and always `is_admin()` first) gates every full
+  power -- settings, amount edits, autopay reversals, contracts, roles,
+  tournament transfers, any student; `_coin_staff()` plus
+  `_coin_student_in_scope` / `_coin_section_in_scope` gates the section powers
+  (fine, Award, queue, payday, digest, student stats) for every other admin and
+  every class's teacher of record. **Scope is read from `teacher_email`, never
+  from `classroom_manages_section`**, which answers yes for every section to
+  any admin. `coin_log_transaction` refuses with 'Only coin staff can log IDEA
+  Coin transactions.'; a nested SECURITY DEFINER call does not escape either
+  gate, because both read the session's JWT claims. **A new coin function
+  that opens with `is_admin()` is the defect**: 0244 and 0251 each sweep every
+  `coin_%` function onto `_coin_full_staff()` and 0251's self-check refuses an
+  apply that leaves one.
   - **THE SEAM IS THE STATED EXCEPTION, AND IT IS THE RETROFIT THIS LINE USED TO
     NAME.** A student buys an Eating Pass, extra credit, a pay raise or a 3D
     print through `coin_buy_*`, each a definer function that TAKES NO EMAIL AND
@@ -4557,9 +4567,9 @@ inside the function fails closed rather than falling through to a weaker path.
     EXAMPLE.** It read `CoinDeskTool` in that list; no such component exists,
     and four source comments under `src/lib/coin-desk/` and
     `src/lib/coin-balance/` still name it as the thing they were factored out
-    of. The desk is one component per AREA now (`LogView`, `SectionManager`,
-    `BalanceAdminPanel`, `ContractsManager`, `RolesManager`,
-    `CategoriesManager`, `PayoutManager`), mounted by the route group and by
+    of. The desk is one component per AREA now (`LogView`, `QueueView`,
+    `PaydayView`, `DigestView`, `TournamentTransfer`, `ContractsManager`,
+    `RolesManager`, `CategoriesManager`), mounted by the route group and by
     `/dev/coin-desk` alike -- so the harness still mounts the identical
     components, and what the two no longer share is a screen-level parent. A
     surface split that way keeps the rule by mounting every real part; it does
@@ -6548,6 +6558,15 @@ neon colors, and carries Space White twins under `:root[data-theme]`. Its route
 injects the theme boot table (`injectLedgerTheme` in
 `src/lib/server/coin-public.ts`, from `themeBootTable`, so `themeAttrFor` stays
 the one decision). This is again a record of one exception, not a licence.
+
+**THE THIRD UNFREEZING OF THE SAME FILE: ledger 0385 (2026-10-15), IDEA Coin V2
+session two, item 2.17 of that prompt, which names the Ledger fixes.** The
+champion's rim is a real gold border on Space White (the glow it relied on is
+off there), the Print key no longer wraps, each card carries its holder's role
+badges and their reported coins on hand (the summary CSV's `Roles`, `Coins On
+Hand` and `Coins On Hand Date` columns), and the class-section colour table
+and its `sections` fetch are gone with the old section model. A record of one
+exception, not a licence.
 
 **The retired Sheets coin ledger is ARCHIVED under
 `docs/coin-economy/archive/legacy-system/`, not deleted.** `docs/` is not served and

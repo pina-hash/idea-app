@@ -46,8 +46,7 @@
 	categories={data.categories}
 	supabase={data.supabase}
 	configured={data.configured}
-	sections={data.sections}
-	sectionsConfigured={data.sectionsConfigured}
+	classes={data.classes}
 	{prefs}
 	onPrefs={savePrefs}
 />

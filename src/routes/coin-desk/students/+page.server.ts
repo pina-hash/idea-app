@@ -1,43 +1,31 @@
 import type { CoinCategory } from '$lib/coin-desk';
-import type { CoinSectionRow } from '$lib/coin-desk/sections';
+import { requireCoinArea } from '$lib/server/coin-scope';
 import type { PageServerLoad } from './$types';
 
 /**
- * Students: sections + rosters (0073), plus balance lookup and signed
- * adjustments by email (0070, moved here from /admin). Admin-gating lives
- * once in the group's +layout.server.ts.
+ * Students (IDEA Coin V2 session two): one student, end to end. Section coin
+ * staff open it over their own students; a full coin admin also gets the
+ * tools (decision 68). The page asks for its tier as its own first
+ * statement, because a layout's load and a page's run concurrently.
  *
- * Unlike the Log area this loads EVERY section, archived ones included --
- * archiving is reversible and a section keeps its roster and history, so it
- * has to stay visible and reactivatable here.
+ * The pre-V2 coin sections and the roster import are gone (0251): the class
+ * list is the layout's `coinStaff.sections`, and a class's roster is read on
+ * the client when it is picked (coin_fine_roster).
  */
-export const load: PageServerLoad = async ({ locals: { supabase } }) => {
-	const [{ data: sections, error: sectionsError }, { data: categories }] = await Promise.all([
-		supabase.rpc('coin_admin_list_sections'),
-		// Just the kinds, for the balance panel's transaction rows: a row's kind
-		// is what tells a BALANCE CORRECTION apart from an ordinary award or
-		// fine. EVERY category, not just loggable ones -- a student's history
-		// keeps rows logged under a category that has since been retired, and
-		// those must still read correctly.
-		// Since IDEA Coin V2 the name, pricing and active flag too: the student
-		// tools record a purchase paid in coins and need the purchase list.
-		supabase
-			.from('coin_categories')
-			.select(
-				'id, name, kind, scope, pricing_model, amount, min_amount, max_amount, unit_label, formula_key, semester_point_cap, cap_period, cap_count, notes, active'
-			)
-			.order('sort_order')
-	]);
+export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
+	await requireCoinArea(supabase, claims?.sub, 'students');
+	// Every category: the history's kinds (a retired category still names
+	// rows), and the student tools' purchase list.
+	const { data: categories } = await supabase
+		.from('coin_categories')
+		.select(
+			'id, name, kind, scope, pricing_model, amount, min_amount, max_amount, unit_label, formula_key, semester_point_cap, cap_period, cap_count, notes, active'
+		)
+		.order('sort_order');
 
+	const list = (categories ?? []) as CoinCategory[];
 	return {
-		sections: (sections ?? []) as CoinSectionRow[],
-		categoryKinds: Object.fromEntries(
-			((categories ?? []) as { id: string; kind: string }[]).map((c) => [c.id, c.kind])
-		) as Record<string, string>,
-		categories: (categories ?? []) as CoinCategory[],
-		// Fails soft: 0073 not applied yet reads as an empty, clearly-flagged
-		// section list rather than a crashed page. The balance tool below it
-		// only needs 0070 and keeps working either way.
-		sectionsConfigured: !sectionsError
+		categories: list,
+		categoryKinds: Object.fromEntries(list.map((c) => [c.id, c.kind])) as Record<string, string>
 	};
 };

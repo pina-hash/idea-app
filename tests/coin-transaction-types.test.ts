@@ -1,43 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { COIN_TXN_TYPES, coinTxnType, type CoinTxnType } from '../src/lib/coin-format';
 import {
 	categoryTxnType,
-	categoryUseCount,
-	COIN_CATEGORY_USE_COUNTS,
 	COIN_TYPE_GLYPHS,
 	COIN_TYPE_GLYPH_NAMES,
-	COIN_TYPE_TONES,
-	COIN_USE_LEGACY_REASONS,
-	COIN_USE_SOURCE,
-	sortByUse
+	COIN_TYPE_TONES
 } from '../src/lib/coin-desk/transaction-types';
 
 /**
  * THE COIN DESK'S TRANSACTION-TYPE PRESENTATION, and why any of it is worth a
  * test at all when almost nothing visual in this repo gets one.
  *
- * Three of these regress SILENTLY, which is the bar CLAUDE.md sets:
+ * Two of these regress SILENTLY, which is the bar CLAUDE.md sets:
  *
  *  - A SIXTH TYPE added to `coin-format.ts` with no tone and no glyph renders
  *    an EMPTY <svg> and inherits --dim. Nothing throws, nothing type-errors
  *    (a Record lookup on a widened union is checked, but only if every map
  *    here is written as an exhaustive Record -- which is exactly what the
  *    first two cases below assert stays true at runtime as well).
- *  - THE USE COUNTS drifting from the archive they claim to come from is
- *    invisible by construction: a wrong order is still an order, and nobody
- *    can tell by looking that `weekly_wage: 43` stopped being what the CSV
- *    says. So the counts are RE-DERIVED here from the committed file through
- *    the module's own exported map -- the expected value comes from the data,
- *    never from the table under test.
  *  - A TONE reaching for --crimson passes every visual review: it looks
  *    right, and it is the obvious colour for a fine. The rule it breaks
  *    (reserved for LIVE/REC/error, never identity) lives in a stylesheet
  *    comment nobody reads while picking a colour.
  *
- * The fourth case, `sortByUse` being stable, is not silent -- a jumping
- * dropdown is visible immediately -- but it costs one assertion and it is the
- * property the whole ordering rests on.
+ * The static "most used" order this file used to re-derive from the retired
+ * Sheets archive is gone (IDEA Coin V2 session two): the Log picker offers
+ * categories in `coin_categories.sort_order`, so there is no count to check.
  */
 
 describe('coin transaction type presentation', () => {
@@ -81,81 +69,6 @@ describe('coin transaction type presentation', () => {
 		// whose raw accent cannot carry text (--violet at 2.45:1).
 		const split = COIN_TXN_TYPES.filter((t) => COIN_TYPE_TONES[t].ink !== COIN_TYPE_TONES[t].accent);
 		expect(split).toEqual(['adjustment']);
-	});
-
-	it('re-derives the use counts from the archive the module cites', () => {
-		// THE EXPECTED VALUE COMES FROM THE COMMITTED CSV, not from the table
-		// being checked. Reading the archived legacy ledger as a fixture is
-		// explicitly fine (CLAUDE.md); it is never reintroduced as code.
-		const csv = readFileSync(COIN_USE_SOURCE.file, 'utf8');
-		const lines = csv.split(/\r?\n/).filter((l) => l.trim() !== '');
-		const header = lines.shift() ?? '';
-		expect(header.startsWith('Date / Time,Name,Amount,Type,Reason')).toBe(true);
-
-		// The Reason is the 5th field and the Name field is quoted, so a naive
-		// split on commas would shift every row. Parse the quoting properly.
-		const reasonOf = (line: string): string => {
-			const fields: string[] = [];
-			let cur = '';
-			let quoted = false;
-			for (const ch of line) {
-				if (ch === '"') quoted = !quoted;
-				else if (ch === ',' && !quoted) {
-					fields.push(cur);
-					cur = '';
-				} else cur += ch;
-			}
-			fields.push(cur);
-			return (fields[4] ?? '').trim();
-		};
-
-		const counts: Record<string, number> = {};
-		let mapped = 0;
-		for (const line of lines) {
-			const id = COIN_USE_LEGACY_REASONS[reasonOf(line)];
-			if (!id) continue;
-			counts[id] = (counts[id] ?? 0) + 1;
-			mapped += 1;
-		}
-
-		expect(lines.length).toBe(COIN_USE_SOURCE.rows);
-		expect(mapped).toBe(COIN_USE_SOURCE.mapped);
-		expect(counts).toEqual(COIN_CATEGORY_USE_COUNTS);
-
-		// A POSITIVE CONTROL for the parser itself: an equality against an
-		// empty object would pass if `reasonOf` returned nothing for every row.
-		expect(Object.keys(counts).length).toBeGreaterThan(10);
-		expect(counts.weekly_wage).toBeGreaterThan(0);
-	});
-
-	it('sorts most-logged first and leaves everything else exactly as it came', () => {
-		const input = [
-			{ id: 'shop_safety_violation' }, // unused
-			{ id: 'weekly_wage' }, // 43
-			{ id: 'coin_theft' }, // unused
-			{ id: 'extra_credit' }, // 11
-			{ id: 'above_and_beyond' } // 16
-		];
-		const out = sortByUse(input).map((c) => c.id);
-		expect(out).toEqual([
-			'weekly_wage',
-			'above_and_beyond',
-			'extra_credit',
-			// STABLE: the two unused ones keep their incoming order, which is the
-			// price list's own sort_order. A dropdown that reshuffles its tail
-			// between two renders of the same list is the failure this prevents.
-			'shop_safety_violation',
-			'coin_theft'
-		]);
-		// Not mutated in place: the caller's array is the load's payload.
-		expect(input[0].id).toBe('shop_safety_violation');
-
-		// Ties inside the table resolve the same way.
-		const ties = [{ id: 'printer_not_reset' }, { id: 'eating_pass' }];
-		expect(categoryUseCount('printer_not_reset')).toBe(categoryUseCount('eating_pass'));
-		expect(sortByUse(ties).map((c) => c.id)).toEqual(['printer_not_reset', 'eating_pass']);
-
-		expect(categoryUseCount('a_category_that_does_not_exist')).toBe(0);
 	});
 
 	it('reads a payout category as a payout, not as the purchase its kind says', () => {

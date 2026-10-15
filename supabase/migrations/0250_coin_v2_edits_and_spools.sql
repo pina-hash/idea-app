@@ -348,7 +348,32 @@ begin
 				and public._coin_listed(t2)
 				order by t2.created_at desc, t2.id desc limit 300) t
 		), '[]'::jsonb),
-		'rules', coalesce((select jsonb_agg(row_to_json(r)::jsonb) from public.coin_public_reasons() r), '[]'::jsonb)
+		'rules', coalesce((select jsonb_agg(row_to_json(r)::jsonb) from public.coin_public_reasons() r), '[]'::jsonb),
+		-- Session two (0245 to 0250).
+		'payout', (select jsonb_build_object('id', r.id, 'coins', r.amount, 'requested_at', r.created_at)
+			from public.coin_payout_requests r
+			where r.student_email = v_email and r.cancelled_at is null and r.settled_at is null limit 1),
+		'payday', public._coin_next_payday(),
+		'background', public._coin_current_background(v_email),
+		'background_rules', jsonb_build_object(
+			'guidance', public._coin_setting('background_guidance') #>> '{}',
+			'prompt', public._coin_setting('background_prompt') #>> '{}',
+			'min_width', (public._coin_setting('background_min_width') #>> '{}')::integer,
+			'min_height', (public._coin_setting('background_min_height') #>> '{}')::integer,
+			'min_kb_per_megapixel', (public._coin_setting('background_min_kb_per_megapixel') #>> '{}')::numeric,
+			'days_between', (public._coin_setting('background_days_between') #>> '{}')::integer,
+			'award', (select c.amount from public.coin_categories c where c.id = 'quality_desktop_background' and c.active)),
+		'donation_rules', jsonb_build_object(
+			'cap_coins', (public._coin_setting('donation_cap_coins') #>> '{}')::numeric,
+			'cap_days', (public._coin_setting('donation_cap_days') #>> '{}')::integer,
+			'room', public._coin_donation_room(v_email)),
+		'requests', coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'kind', r.kind, 'status', r.status,
+				'amount', r.amount, 'note', r.note, 'decision_note', r.decision_note, 'created_at', r.created_at,
+				'decided_at', r.decided_at, 'item', r.payload ->> 'item', 'count', (r.payload ->> 'count')::numeric,
+				'quantity', (r.payload ->> 'quantity')::numeric, 'result', r.result)
+				order by r.created_at desc)
+			from (select * from public.coin_requests r2 where r2.student_email = v_email
+				and r2.created_at > now() - interval '60 days' order by r2.created_at desc limit 50) r), '[]'::jsonb)
 	);
 end;
 $$;

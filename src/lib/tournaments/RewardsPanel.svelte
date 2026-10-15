@@ -48,18 +48,32 @@
 		rewardTotals,
 		type RewardLedgerRow,
 		type RewardRule,
+		type RewardSettlement,
 		type TournamentEntry
 	} from './tournaments';
 
 	let {
 		rules = [],
 		ledger = [],
-		entries = {}
+		entries = {},
+		settlement = undefined
 	}: {
 		rules?: RewardRule[];
 		ledger?: RewardLedgerRow[];
 		entries?: Record<string, TournamentEntry>;
+		/** 0248's answer: null is "not yet", undefined is "cannot say". */
+		settlement?: RewardSettlement | null;
 	} = $props();
+
+	/* Once the rewards are finished nothing is "to be added" any more, so the
+	   waiting marks go and the note says what happened instead. */
+	const settled = $derived(settlement != null);
+	function settledOn(iso: string): string {
+		const d = new Date(iso);
+		return Number.isNaN(d.getTime())
+			? ''
+			: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
+	}
 
 	/* An awaiting row has reached nobody's balance, so it folds as one that did
 	   not; the fold itself is unchanged and stays the one count. */
@@ -103,7 +117,13 @@
 
 	{#if orderedRules.length || totals.length}
 		<p class="note coin-note" data-testid="rewards-coin-note">
-			Mr. Pina adds these coins to each winner's IDEA Coin balance after the tournament.
+			{#if settlement?.outcome === 'transferred'}
+				These rewards were added to each winner's IDEA Coin balance on {settledOn(settlement.settled_at)}.
+			{:else if settlement?.outcome === 'paid_physically'}
+				These rewards were paid in coins in class on {settledOn(settlement.settled_at)}.
+			{:else}
+				Mr. Pina adds these coins to each winner's IDEA Coin balance after the tournament.
+			{/if}
 		</p>
 	{/if}
 
@@ -119,7 +139,7 @@
 					{#if t.recipients > 1}
 						<span class="each">each · {t.recipients} registrants</span>
 					{/if}
-					{#if t.unpaid > 0}
+					{#if t.unpaid > 0 && !settled}
 						<span class="unpaid">
 							{t.unpaid} to be added
 						</span>
@@ -138,7 +158,7 @@
 					</span>
 					<span class="ledger-reason">{row.reason}</span>
 					<span class="ledger-when">{when(row.awardedAt)}</span>
-					{#if row.unpaid > 0}
+					{#if row.unpaid > 0 && !settled}
 						<span class="unpaid">
 							{row.unpaid === row.recipients ? 'to be added' : `${row.unpaid} to be added`}
 						</span>
