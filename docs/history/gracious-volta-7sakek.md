@@ -118,4 +118,17 @@ reuses it, so the census stays at six).
 
 - No signed-in session: nothing here was driven against production or with a real Google account. The camera ran against a fake canvas stream; a real phone camera, iOS Safari's `capture` fallback, and a real push notification were not exercised.
 - The Print key's wrap did not reproduce in the harness, which loads no web fonts; the fix (`nowrap`, no shrink) holds whatever the font.
-- Applied state: the migrations apply after the push; the records under `docs/migrations-applied/` are the instrument.
+## How the migrations landed
+
+Pushed to `main` at `77fa650f`; CI green on it. Migrate applied 0244 to 0250 in
+order, one a minute (18:57 to 19:02 UTC), each `outcome: applied` with its history
+row. It then REFUSED 0251 (run 203, exit 2, nothing sent): the probe could not
+tell 0251's `coin_log_transaction` and `coin_log_property_damage_careless` from
+0244's, because only the medium argument had gone and every body line was the
+same, and "cannot say" is never a pass. 0251 had never reached the database, so
+it was corrected in place: a comment line inside each redefined writer's body
+(and `coin_admin_adjust_balance`'s, for margin) gives the probe a line to find.
+Pushed at `30f5cd55`; 0251 applied at 20:00:24 UTC, 27 functions dropped, 34
+objects listed in `coin_v2_retired`. The lesson for the next migration that only
+drops a parameter: give the body a line of its own, or the probe has nothing to
+read.
