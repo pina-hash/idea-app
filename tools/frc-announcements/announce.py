@@ -247,7 +247,7 @@ def flyer_html(air, c):
                 + when([("d", "DATE", long_date(air)), ("", "TIME", f"Start of lunch, {lunch}"), ("", "PLACE", "IDEA Classroom")], 4.5)
                 + '<div class=body style="top:5.25in"><div class=lede>Every member, every Monday. <b>Come straight to the meeting, then get your food.</b> '
                   '<b>Attendance is taken:</b> 80% of Monday meetings to stay on the team. New students welcome.</div>'
-                + f'<div class=k>EVERY WEEK</div>{WEEK}</div>' + STAMP.format(top=7.88))
+                + f'<div class=k>EVERY WEEK</div>{WEEK}</div>' + STAMP.format(top=8.08))
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
     if c["kind"] == "TUE":
         cells = "".join(f'<div class="cell role"><div class=ic>{i}</div><div><div class=t>{n}</div><div class=s>{d}</div></div></div>' for n, d, i in ROLES)
