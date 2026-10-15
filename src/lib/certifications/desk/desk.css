@@ -1,0 +1,439 @@
+/*
+ * The certifier desk's layout (ledger 0391, surface d). Every class is
+ * prefixed `dk-` so nothing lands on app.css's `.card`, `.callout`, `.field`
+ * or `.chip` and inherits their layout. Colours are the register's tokens
+ * only, so every theme paints the desk; the plate paints the controls and
+ * panels through `cert.css`'s classes, which this file sits beside and never
+ * restates. No grid or ruled background anywhere.
+ *
+ * A desktop layout above 1024px (columns, a two-pane review, a six-across tile
+ * row) and the phone layout underneath it (one column, tiles two to a line,
+ * every control 44px). Lengths only; a theme block never appears here.
+ */
+
+/* The desk's sub-bar: tabs, the search, the page title. */
+.dk-bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem 1rem;
+	align-items: center;
+	justify-content: space-between;
+	margin: 0 0 1rem;
+}
+.dk-search {
+	display: flex;
+	gap: 0.5rem;
+	align-items: stretch;
+	flex: 1 1 18rem;
+	max-width: 32rem;
+}
+.dk-search input {
+	flex: 1 1 auto;
+	min-height: 44px;
+	font: inherit;
+	color: var(--text-1);
+	padding: 0.5rem 0.65rem;
+	border-radius: var(--radius-control, 4px);
+}
+
+/* Queue rows: a list well, one person a row, the key on the right. */
+.dk-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.5rem 1rem;
+	align-items: center;
+	padding: 0.6rem 0;
+	min-height: 44px;
+}
+.dk-row-main {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 0.75rem;
+	align-items: baseline;
+}
+.dk-row-name {
+	font-weight: 700;
+}
+.dk-row-meta {
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	letter-spacing: 0.04em;
+	color: var(--text-2);
+}
+.dk-row-note {
+	color: var(--text-2);
+	flex-basis: 100%;
+	line-height: 1.4;
+}
+@media (max-width: 639.98px) {
+	.dk-row {
+		grid-template-columns: 1fr;
+	}
+	.dk-row .cert-actions {
+		justify-content: flex-start;
+	}
+}
+
+/* Tiles: two to a line on a phone, six across at 1440. */
+.dk-tiles {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.75rem;
+	margin: 0 0 1.25rem;
+}
+@media (min-width: 640px) {
+	.dk-tiles {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+@media (min-width: 1024px) {
+	.dk-tiles {
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+	}
+}
+.dk-tile {
+	display: grid;
+	gap: 0.2rem;
+	padding: 0.75rem 0.85rem;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	background: var(--surface-0, var(--bg0));
+	min-height: 44px;
+}
+.dk-tile-figure {
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+	line-height: 1;
+	color: var(--text-1);
+}
+.dk-tile-word {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-2);
+}
+
+/* Charts: columns of panels, each its own chart. */
+.dk-charts {
+	columns: 30rem 2;
+	column-gap: 1.25rem;
+}
+.dk-charts > * {
+	break-inside: avoid;
+}
+.dk-legend {
+	list-style: none;
+	margin: 0.5rem 0 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 1rem;
+	font-family: var(--font-mono);
+	font-size: 0.74rem;
+	letter-spacing: 0.04em;
+	color: var(--text-2);
+}
+
+/* Two-pane work: the evidence or the form beside the decision. */
+.dk-split {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1.25rem;
+	align-items: start;
+}
+@media (min-width: 1024px) {
+	.dk-split {
+		grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr);
+	}
+	.dk-split-sticky {
+		position: sticky;
+		top: calc(var(--cert-bar-h, 4.25rem) + 0.75rem);
+	}
+}
+
+/* An embedded video keeps 16:9 and never opens a tab. */
+.dk-video {
+	position: relative;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	overflow: hidden;
+	background: var(--bg0);
+}
+.dk-video iframe {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+}
+
+/* Evidence pictures: a tile grid, each opening the lightbox. */
+.dk-gallery {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+	gap: 0.6rem;
+	margin: 0 0 0.75rem;
+}
+.dk-thumb {
+	display: block;
+	width: 100%;
+	aspect-ratio: 1;
+	padding: 0;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	background: var(--bg0);
+	overflow: hidden;
+	cursor: zoom-in;
+	min-height: 44px;
+}
+.dk-thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+.dk-file-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	min-height: 44px;
+	padding: 0.35rem 0;
+}
+
+/* A lit-able pair of keys and the decision block. */
+.dk-choice {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 0.75rem;
+}
+.dk-choice .cert-btn {
+	flex: 1 1 8rem;
+}
+
+/* The sticky engine sub-bar. */
+.dk-subbar {
+	position: sticky;
+	top: var(--cert-bar-h, 4.25rem);
+	z-index: 1;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 0.75rem;
+	align-items: center;
+	padding: 0.6rem 0;
+	margin: 0 0 1rem;
+	background-color: var(--plate-plate-bot, var(--bg0));
+	box-shadow: inset 0 -1px 0 0 var(--hairline);
+}
+.dk-subbar-title {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem 0.75rem;
+	align-items: center;
+	margin-right: auto;
+}
+.dk-subbar-code {
+	font-family: var(--font-mono);
+	font-weight: 700;
+	letter-spacing: 0.1em;
+}
+
+/* Editor sections: two columns of fields at 1440, one on a phone. */
+.dk-fields {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0 1.25rem;
+}
+@media (min-width: 1024px) {
+	.dk-fields {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.dk-fields > .dk-wide {
+		grid-column: 1 / -1;
+	}
+}
+.dk-switches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1.25rem;
+	margin: 0 0 0.9rem;
+}
+.dk-switch {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 44px;
+	cursor: pointer;
+}
+.dk-switch input {
+	width: 1.25rem;
+	height: 1.25rem;
+	margin: 0;
+}
+
+/* A list of editable rows (steps, questions, items) in a well. */
+.dk-items {
+	list-style: none;
+	margin: 0 0 0.75rem;
+	padding: 0;
+	display: grid;
+	gap: 0.75rem;
+}
+.dk-item {
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	padding: 0.75rem 0.85rem;
+	background: var(--surface-0, var(--bg0));
+}
+.dk-item-head {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+	justify-content: space-between;
+	margin: 0 0 0.5rem;
+}
+.dk-item-title {
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-2);
+}
+
+/* Tables: a well with rows, scrolling sideways on a phone and never the page. */
+.dk-table-wrap {
+	overflow-x: auto;
+	margin: 0 0 1rem;
+}
+.dk-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.92rem;
+}
+.dk-table th {
+	text-align: left;
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	padding: 0.5rem 0.6rem;
+	white-space: nowrap;
+}
+.dk-table td {
+	padding: 0.5rem 0.6rem;
+	vertical-align: top;
+	border-top: 1px solid var(--hairline);
+	min-height: 44px;
+}
+.dk-table td.dk-mono {
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	letter-spacing: 0.04em;
+}
+.dk-table td.dk-cell-wrap {
+	max-width: 22rem;
+	overflow-wrap: anywhere;
+}
+
+/* The authority grid: people by certification. */
+.dk-grid-cell {
+	text-align: center;
+}
+
+/* Study guide beside its preview at 1440. */
+.dk-preview {
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	padding: 0.85rem 1rem;
+	background: var(--surface-0, var(--bg0));
+	max-height: 32rem;
+	overflow: auto;
+}
+
+/* The award dialog and every native dialog on the desk. */
+.dk-dialog {
+	max-width: min(40rem, calc(100vw - 2rem));
+	width: 100%;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	background: var(--surface-1, var(--bg1));
+	color: var(--text-1);
+	padding: 1.25rem 1.35rem;
+	font-family: var(--font-display);
+}
+.dk-dialog::backdrop {
+	background: rgb(0 0 0 / 0.6);
+}
+.dk-dialog h2 {
+	margin: 0 0 0.5rem;
+	font-size: 1.3rem;
+}
+.dk-dialog .cert-actions {
+	margin-top: 1rem;
+	justify-content: flex-end;
+}
+
+/* The award key sits alone, centred, under its checklist. */
+.dk-award-stage {
+	display: grid;
+	gap: 0.75rem;
+	justify-items: center;
+	padding: 1.25rem 0 0.5rem;
+	text-align: center;
+}
+.dk-seal {
+	display: inline-block;
+	width: 1.1em;
+	height: 1.1em;
+	vertical-align: -0.15em;
+}
+
+/* The import diff. */
+.dk-diff-cell {
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-width: 24rem;
+}
+
+/* Lit tab keys on the logs page. */
+.dk-tabkeys {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 1rem;
+}
+
+/* A sentence beside a held control. */
+.dk-held {
+	color: var(--text-2);
+	font-size: 0.92rem;
+	line-height: 1.45;
+	margin: 0.35rem 0 0;
+}
+
+/* Statements that answer the whole page. */
+.dk-empty {
+	color: var(--text-2);
+	margin: 0;
+	padding: 0.5rem 0;
+	line-height: 1.45;
+}
+
+/* A visually hidden sentence a screen reader still hears. */
+.dk-sr {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
