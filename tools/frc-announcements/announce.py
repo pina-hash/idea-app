@@ -62,7 +62,7 @@ def content(air):
             title="TODAY! Robotics Team Meeting, MANDATORY",
             body=("The Techmen robotics team meets today at the start of lunch in the IDEA Classroom. "
                   "Come straight to the meeting, then get your food. This meeting is mandatory for every team member. "
-                  "Miss it, and you are out of the loop. Team responsibility goes to the members who show up. "
+                  "Attendance is taken, and members must make 80 percent of Monday meetings to stay on the team. "
                   "Want to join the robotics team? Come today at the start of lunch."),
             file="Flyer_Techmen Robotics Team Meeting.pdf")
     if k == "TUE":
@@ -70,7 +70,7 @@ def content(air):
             title="Robotics Team: We Need You",
             body=("The Techmen robotics team is looking for new members. We need students for mechanical, "
                   "electrical, programming, design, media, and management. No experience needed. Training is today "
-                  "after school in the IDEA building. Come find your place on the team."),
+                  "after school in the IDEA building. Come find your place on the team. Team members, bring a friend."),
             file="Flyer_Techmen Robotics Recruiting.pdf")
     if k == "FRI":
         days = (BEACH_BLITZ[0] - air).days
@@ -246,7 +246,7 @@ def flyer_html(air, c):
         body = (f'<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>{robot(4.2, 1.6, 3.95)}' + CTX.format(top=3.42, w=3.3)
                 + when([("d", "DATE", long_date(air)), ("", "TIME", f"Start of lunch, {lunch}"), ("", "PLACE", "IDEA Classroom")], 4.5)
                 + '<div class=body style="top:5.25in"><div class=lede>Every member, every Monday. <b>Come straight to the meeting, then get your food.</b> '
-                  'Miss it and you are out of the loop. New students welcome.</div>'
+                  '<b>Attendance is taken:</b> 80% of Monday meetings to stay on the team. New students welcome.</div>'
                 + f'<div class=k>EVERY WEEK</div>{WEEK}</div>' + STAMP.format(top=7.88))
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
     if c["kind"] == "TUE":
@@ -254,7 +254,7 @@ def flyer_html(air, c):
         body = (f'<div class=hero>WE<br>NEED<br><span>YOU.</span></div>{robot(3.35, 1.45, 4.8, callouts=False)}' + CTX.format(top=3.95, w=7.2)
                 + when([("d", "DATE", long_date(air)), ("", "TIME", "After school, until 5:00 PM"), ("", "PLACE", "IDEA building")], 4.58)
                 + '<div class=body style="top:5.12in">'
-                + f'<div class=k>EVERY TECHNOLOGY HAS A PLACE · NO EXPERIENCE REQUIRED</div><div class=grid style="grid-template-columns:repeat(2,1fr)">{cells}</div></div>')
+                + f'<div class=k>NO EXPERIENCE REQUIRED · BRING A FRIEND</div><div class=grid style="grid-template-columns:repeat(2,1fr)">{cells}</div></div>')
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>NOW RECRUITING</b>', body)
     if c["kind"] in ("FRI_BB", "FRI_BB0"):
         if c["kind"] == "FRI_BB":
