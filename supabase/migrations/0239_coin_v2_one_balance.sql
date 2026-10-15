@@ -38,6 +38,22 @@
 -- (a numeric column holding whole numbers is harmless). The settings and
 -- no-shop tables can be dropped; nothing else references them.
 
+-- THE SETTINGS TABLE COMES FIRST, AND ITS POSITION IS LOAD-BEARING.
+-- tools/idea-status.py derives this file's applied-state probe from the FIRST
+-- object it creates. The first used to be the recreated coin_balances view,
+-- which already exists in production (0070, 0096), so the probe read the
+-- whole file as applied and tools/apply-migration.mjs refused it (Migrate run
+-- 182, nothing sent). coin_settings is new and depends on nothing, so it is
+-- created first and answers that question honestly.
+create table if not exists public.coin_settings (
+	key text primary key check (key ~ '^[a-z0-9_:]+$' and char_length(key) <= 80),
+	value jsonb not null,
+	updated_by text not null default 'system',
+	updated_at timestamptz not null default now()
+);
+alter table public.coin_settings enable row level security;
+revoke all on table public.coin_settings from public, anon, authenticated, service_role;
+
 -- ===== PART A BEGIN =====
 -- ===== PART A: FRACTIONAL AMOUNTS =====
 
@@ -84,14 +100,7 @@ grant select on public.coin_balances to authenticated;
 -- admin functions, every change written to coin_settings_audit. No client
 -- grant on either: the reads go through definer functions.
 
-create table if not exists public.coin_settings (
-	key text primary key check (key ~ '^[a-z0-9_:]+$' and char_length(key) <= 80),
-	value jsonb not null,
-	updated_by text not null default 'system',
-	updated_at timestamptz not null default now()
-);
-alter table public.coin_settings enable row level security;
-revoke all on table public.coin_settings from public, anon, authenticated, service_role;
+-- (coin_settings is created at the top of this file; see there.)
 
 create table if not exists public.coin_settings_audit (
 	id bigserial primary key,
