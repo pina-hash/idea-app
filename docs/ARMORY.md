@@ -779,6 +779,13 @@ Each has the default that will be taken if he does not choose otherwise.
    SolidWorks versions at once", with personal computers installing the vault's release
    as the fallback if the spike shows back-saving is not licensed. Either way the vault
    stays at the oldest release in use, 2025 for this season.
+8. **Code signing for the Windows installer.** Not started. Default: **Azure Artifact
+   Signing** (about $9.99 a month), so Windows stops showing "Windows protected your PC"
+   on the downloaded Setup.exe. Until then the USB zip install avoids the warning.
+9. **Migrations apply as `postgres`, not `idea_migrator`.** 0231 onward ran with
+   session_user `postgres`, because the `IDEA_MIGRATION_URL` secret holds the owner's
+   connection string. Default: re-point the secret at the scoped role
+   (`docs/MIGRATIONS.md` has the steps). Not urgent: every apply so far was clean.
 
 ## Sources
 
