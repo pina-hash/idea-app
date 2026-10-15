@@ -1,206 +1,93 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import CoinDeskNav from '$lib/coin-desk/CoinDeskNav.svelte';
 	import LogView from '$lib/coin-desk/LogView.svelte';
-	import SectionManager from '$lib/coin-desk/SectionManager.svelte';
-	import BalanceAdminPanel from '$lib/coin-desk/BalanceAdminPanel.svelte';
+	import StudentView from '$lib/coin-desk/StudentView.svelte';
 	import ContractsManager from '$lib/coin-desk/ContractsManager.svelte';
 	import RolesManager from '$lib/coin-desk/RolesManager.svelte';
 	import CategoriesManager from '$lib/coin-desk/CategoriesManager.svelte';
-	import PayoutManager from '$lib/coin-desk/PayoutManager.svelte';
 	import AutopayRuns from '$lib/coin-desk/AutopayRuns.svelte';
-	import DebtList from '$lib/coin-desk/DebtList.svelte';
 	import SettingsPanel from '$lib/coin-desk/SettingsPanel.svelte';
-	import type { CoinDeskAreaId } from '$lib/coin-desk/nav';
+	import { areasForScope, type CoinDeskAreaId } from '$lib/coin-desk/nav';
 	import type { CoinCategory, CoinDeskPrefs } from '$lib/coin-desk';
 	import '$lib/shell/split.css';
 	// The room's geometry, the SAME file the real layout imports. A harness
 	// with its own copy of a page measure is a harness that can measure a
 	// width production does not have.
 	import '$lib/coin-desk/coin-desk.css';
-	import type { CoinSectionRow } from '$lib/coin-desk/sections';
 	import {
 		createFakeLedger,
-		listSections,
-		listRoleDefinitions,
+		HARNESS_CLASSES,
+		HARNESS_USER_ID,
 		listCategories,
+		setHarnessScope,
 		setV2Applied
 	} from './fake-ledger';
-	import { createFakeClassRoster } from './fake-classes';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	/**
-	 * Dev harness: mirrors the /coin-desk ROUTE GROUP -- the same sub-nav
-	 * (the real CoinDeskNav in its callback mode, since this harness has no
-	 * router) driving the same real components per area, all against an
-	 * in-memory ledger (fake-ledger.ts) shaped like 0070's real enforcement,
-	 * plus 0073's sections/bulk-log RPCs, 0074/0076's roles RPCs, 0077's
-	 * contracts RPCs, 0079's payout RPCs and 0080/0081's category + debt
-	 * work. No auth, no live Supabase project.
-	 *
-	 * Per-area data is loaded HERE the way each route's own +page.server.ts
-	 * loads it (Log gets active sections only; Students gets every section;
-	 * Economy gets every loggable category, active or not), so the harness
-	 * exercises the same per-route loading rule the real group uses instead
-	 * of one shared blob.
+	 * DEV HARNESS FOR THE /coin-desk ROUTE GROUP (IDEA Coin V2 session two).
+	 * The real sub-nav (CoinDeskNav in its callback mode, since this harness
+	 * has no router) drives the REAL per-area components against an in-memory
+	 * ledger (fake-ledger.ts) that answers the 0244 to 0251 shapes. No auth,
+	 * no live Supabase project.
 	 *
 	 * Things to try:
-	 *  - LOG -- "healthy.student" -> a clean lookup, log a flat fine or a
-	 *    range award; "debt.student" -> negative balance, so any
-	 *    purchase-kind category is refused with the debt message until an
-	 *    award clears it, AND a dedicated amber "Debt payment" card (0081)
-	 *    appears under the summary pre-filled with the exact debt (8i¢),
-	 *    editable, no cap -- pay less (panel stays), exactly (panel goes,
-	 *    balance 0), or more (balance positive, panel goes).
-	 *    "pass.student" -> an active Eating Pass with 1 strike already; log
-	 *    Eating Violation twice more to watch it auto-revoke on strike 3,
-	 *    then try Eating Pass again post-revoke (full price). Quality
-	 *    Desktop Background / Correct Answer in Class twice in a row -> the
-	 *    calendar-boundary cap refusal. Extra Credit near/at the 21pt cap on
-	 *    "pass.student" (already at 15pt). Pay Raise then Weekly Wage --
-	 *    watch the wage tier change but the award stay flat (the documented
-	 *    gap). Type a name with no match ("zzz") for the graceful no-match
-	 *    note. Switch to Section mode and bulk-log Weekly Wage (flat) or
-	 *    Above and Beyond (range) -- watch the per-student results list,
-	 *    including a debt refusal for "debt.student" that never blocks the
-	 *    rest of the section.
-	 *  - STUDENTS -- two seeded sections ("Engineering I Honors (Sophomore)"
-	 *    via a real curriculum.ts id, and a custom "Period 3 Makeup Group"),
-	 *    plus "Ratio Cap Demo (10 students)" for the roles area. Add/edit/
-	 *    archive a section, paste emails to assign, remove a roster row.
-	 *    Below it, the balance tool MOVED here from /admin: look any email
-	 *    up (signed in or not) and apply a signed adjustment with a required
-	 *    reason -- the same coin_admin_lookup / coin_admin_adjust_balance
-	 *    RPCs, unchanged.
-	 *  - CONTRACTS -- five seeded contracts cover every status: "Rewire the
-	 *    LED strip" (open, one claimant, room for more), "Deep-clean and
-	 *    inventory the fastener bins" (full), "Sophomore section supply
-	 *    restock" (section-restricted), "Label the storage bins" (completed,
-	 *    already paid), "Order more filament" (cancelled, its one claim
-	 *    still visible as history). Post one, Complete a contract with 3+
-	 *    claimants to see the rounded even split, Cancel one with a claim on
-	 *    it (no payout, claim stays), Reset a claimed-but-open one. The REAL
-	 *    concurrency guarantee (two students racing the last slot) is proven
-	 *    separately against genuine Postgres connections in
-	 *    tests/coin-contracts.test.ts -- this mock cannot re-demonstrate it.
-	 *  - ROLES -- "Ratio Cap Demo (10 students)" holds two PENDING Shop
-	 *    Steward applications, and Shop Steward's ratio (3 per ~25 students)
-	 *    computes a cap of exactly 1 there. Approve the first (0 held < cap
-	 *    1) and it succeeds; approve the second and watch it refused inline
-	 *    (1 held >= cap 1) while staying pending. Expand that section under
-	 *    "Current holders by section", revoke the first, then approve the
-	 *    still-pending second -- it now succeeds. Log an application against
-	 *    a student already in a section (pick a role and watch its REAL
-	 *    question bank load: MC as radios, written as free text, and
-	 *    Quartermaster deliberately has none). Approving pre-fills an
-	 *    expiration from the role's suggested duration (90 days); set one to
-	 *    a past date and it reads "expired" immediately, dropping out of the
-	 *    ratio count and the stipend payout. "Pay Weekly Role Stipend"
-	 *    bulk-logs 2i¢ against exactly the ACTIVE holders, never the section.
-	 *  - ECONOMY -- create a flat/range/per_unit/variable category and it
-	 *    appears in Log's dropdown on that route's next load; retire one and
-	 *    it disappears there while any transaction that already used it
-	 *    still shows its real name in history. The pricing-model select only
-	 *    ever offers the four creatable shapes -- 'formula' is not an
-	 *    option, and the boundary note above the form says why. Below it,
-	 *    Payout (0079): "healthy.student" starts positive (42i¢) so appears
-	 *    in the list; "Pay" zeroes it. The decisive check: log a fresh fine
-	 *    against a candidate from LOG, come back WITHOUT reloading, and hit
-	 *    "Pay All" -- the amount actually paid matches the NEW balance, not
-	 *    the stale one the list is still showing.
-	 *
-	 * IDEA COIN V2 (0239-0243). One balance, digital only, everywhere: no
-	 * medium choice exists on any area. Things to try:
-	 *  - LOG -- the strip shows one balance; "debt.student" is in debt
-	 *    (-8i¢), so "Pay off debt" opens and a purchase is refused with
-	 *    "insufficient". Open Recent transactions: Disruptive is folded with
-	 *    its undo as one "Undone" line; press Undo on any other row, then
-	 *    "Confirm undo". "Student tools" holds
-	 *    the no-shop toggle (a Shop Safety fine turns it on by itself) and the
-	 *    purchase recorded in coins (refused while in debt). Below the split,
-	 *    Autopay runs: one seeded run; Reverse a row; Run autopay now pays this
-	 *    week's wages once and nothing the second time.
-	 *  - DEBT -- the students in debt, deepest first; a name opens that
-	 *    student on Students.
-	 *  - SETTINGS -- every V2 setting, saved live, with the change log. IDEA
-	 *    209H Block 5 checks in at 15 minutes, under the 20-minute fine, so it
-	 *    is listed as never fined.
-	 *  - Untick "V2 database update applied" to see every V2 surface say it is
+	 *  - LOG -- the class list is IDEA Classroom sections; "IDEA 100 Block 3"
+	 *    lists three students. "debt.student" is below zero (Pay off debt
+	 *    opens, a purchase is refused). "Whole class" logs one amount to every
+	 *    student on the class's roster in one call (Above and Beyond, range).
+	 *    The category picker is in the price list's own order.
+	 *  - STUDENTS -- pick a class, then a student: the balance chart, weekly
+	 *    bars, totals and every event; the history with Undo; "Edit amount" on
+	 *    a row (healthy.student's Correct Answer is already edited once, with
+	 *    Undo edit); the export (one student, one class, the whole economy);
+	 *    and the full tools (adjust, standing, cash purchase, debt, the 3D
+	 *    print spool, the Student Auditor switch). `?scope=section` shows it
+	 *    as section staff do: no tools, no edit, no whole-economy export.
+	 *  - CONTRACTS -- five seeded: an open flat one with a claimant marked
+	 *    done (it links to the Queue), a full hourly one, a restitution job
+	 *    (Students in debt only), a completed and a cancelled one. Post one,
+	 *    cancel one, reset one.
+	 *  - ROLES -- two applications for the one Shop Steward seat in IDEA 100:
+	 *    accept the first, then the second is refused as full; a Lab Tech
+	 *    application with no class (Set class first). Two holders with two
+	 *    weeks of days and photos; Accept, Reject or Clear a day; give one
+	 *    rules of their own; the stipend by hand.
+	 *  - ECONOMY -- the price list: create a category, retire one.
+	 *  - SETTINGS -- every setting, the calendars, full coin admins, the want
+	 *    list (with a photo upload), the Student Auditors, the change log.
+	 *  - Untick "V2 database update applied" to see every surface say it is
 	 *    not available yet instead of erroring.
-	 *  - FINE -- built separately at /coin-desk/fine; the harness says so.
 	 *
-	 * There was a sixth area, MIGRATE -- the legacy Sheets import wizard. That
-	 * import ran once, reconciled, and the Sheets system it read from is
-	 * retired, so the wizard is archived alongside it under
-	 * docs/coin-economy/archive/legacy-system/ and this harness no longer
-	 * mounts it. 0084's import RPCs stay live; they are SQL-editor operations
-	 * now, with no page driving them.
+	 * Fine, Queue, Payday, Digest and Tournaments are built and harnessed
+	 * separately; their tabs here say so.
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
 
-	/**
-	 * STUDENTS -> "manage" on a section -> "Import from class roster": the
-	 * classroom half in memory (fake-classes.ts). Against the first section,
-	 * "IDEA 100 · Section 1 · Block 3" previews "Add 27 students" with one
-	 * already there, one left in another coin section, a teacher and an
-	 * inactive enrollment not counted; "IDEA 209H" has nobody to add.
-	 * `?roster=none` omits the transport (the control must go) and
-	 * `?roster=degraded` answers a roster with no manager flag (it must refuse).
-	 */
-	const classRoster = $derived(
-		data.rosterMode === 'none' ? undefined : createFakeClassRoster(data.rosterMode)
+	const scope = untrack(() => data.scope);
+	setHarnessScope(scope);
+	const offered = areasForScope(scope);
+
+	let v2 = $state(true);
+	let migrationApplied = $state(true);
+	let area = $state<CoinDeskAreaId>(
+		untrack(() => (data.area && offered.some((a) => a.id === data.area) ? data.area : offered[0].id))
 	);
 
-	let migrationApplied = $state(true);
-	let sectionsApplied = $state(true);
-	let rolesApplied = $state(true);
-	let contractsApplied = $state(true);
-	let v2 = $state(true);
-	/** The Students area opens this student on mount (the debt list's link). */
-	let studentEmail = $state('');
-
-	function openStudent(email: string) {
-		studentEmail = email;
-		area = 'students';
-	}
-
-	let area = $state<CoinDeskAreaId>('log');
-
-	// Mirrors each route's own load. Recomputed when the migration toggles
-	// flip (the {#key} below remounts the area), the way a real navigation
-	// re-runs that route's load.
 	function categoriesFor(): CoinCategory[] {
 		return migrationApplied ? listCategories() : [];
 	}
-	function allSections(): CoinSectionRow[] {
-		return sectionsApplied ? listSections() : [];
-	}
-	function activeSections(): CoinSectionRow[] {
-		return allSections().filter((s) => s.active);
-	}
 
-	// SectionManager / CategoriesManager both take a $bindable list; these are
-	// where those writes land, exactly as on the real routes. Re-seeded from
-	// the fake ledger whenever the area or a migration toggle changes -- the
-	// way arriving at a real route re-runs that route's own load.
-	let sectionsState = $state<CoinSectionRow[]>([]);
+	/** CategoriesManager's `categories` is bindable; this is where it writes. */
 	let categoriesState = $state<CoinCategory[]>([]);
-
-	/** What the real /coin-desk/students load reads off coin_categories: the
-	 *  kind is what tells a correction apart from an ordinary award or fine. */
-	const harnessCategoryKinds = $derived(
-		Object.fromEntries(categoriesState.map((c) => [c.id, c.kind])) as Record<string, string>
+	const categoryKinds = $derived(
+		Object.fromEntries(listCategories().map((c) => [c.id, c.kind])) as Record<string, string>
 	);
 
-	/**
-	 * `profiles.preferences.coinDesk`, standing in for the real route's
-	 * whole-blob spread-merge. Held in module-free component state so a
-	 * changed default survives an area switch inside the harness the way a
-	 * persisted one survives a reload -- and logged, so what the real route
-	 * would have written is visible.
-	 */
 	let prefs = $state<CoinDeskPrefs>({});
 	let prefsLog = $state<string[]>([]);
 	function onPrefs(next: CoinDeskPrefs) {
@@ -209,32 +96,18 @@
 	}
 
 	$effect(() => {
-		// Tracked: the area and the toggles. The reseed functions read plain
-		// module state, so this cannot re-trigger itself.
 		void area;
-		void sectionsApplied;
 		void migrationApplied;
-		sectionsState = allSections();
-		categoriesState = categoriesFor();
+		categoriesState = untrack(() => categoriesFor());
 	});
+
+	const builtElsewhere = new Set<CoinDeskAreaId>(['fine', 'queue', 'payday', 'digest', 'tournaments']);
 </script>
 
 <div class="dev-toolbar">
 	<label>
 		<input type="checkbox" bind:checked={migrationApplied} />
-		Migration 0070 applied
-	</label>
-	<label>
-		<input type="checkbox" bind:checked={sectionsApplied} />
-		Migration 0073 (sections) applied
-	</label>
-	<label>
-		<input type="checkbox" bind:checked={rolesApplied} />
-		Migrations 0074/0076 (roles) applied
-	</label>
-	<label>
-		<input type="checkbox" bind:checked={contractsApplied} />
-		Migration 0077 (contracts) applied
+		Categories readable
 	</label>
 	<label>
 		<input
@@ -250,83 +123,66 @@
 		/>
 		V2 database update applied
 	</label>
+	<span class="scope-word" data-testid="cd-harness-scope">
+		{scope === 'full' ? 'Full coin admin' : 'Section coin staff'} (?scope=section to switch)
+	</span>
 </div>
 
 <div class="cd-root">
-<main class="coin-desk-page">
-	<section class="hero">
-		<div class="eyebrow">IDEA // Coin Desk (dev harness)</div>
-		<h1>Coin desk</h1>
-	</section>
+	<main class="coin-desk-page">
+		<section class="hero">
+			<div class="eyebrow">IDEA // Coin Desk (dev harness)</div>
+			<h1>Coin desk</h1>
+		</section>
 
-	<CoinDeskNav active={area} onSelect={(next) => (area = next)} />
+		<CoinDeskNav active={area} {scope} onSelect={(next) => (area = next)} />
 
-	{#key `${area}:${migrationApplied}:${sectionsApplied}:${rolesApplied}:${contractsApplied}:${v2}`}
-		{#if area === 'log'}
-			<LogView
-				categories={categoriesFor()}
-				{supabase}
-				configured={migrationApplied}
-				sections={activeSections()}
-				sectionsConfigured={sectionsApplied}
-				{prefs}
-				{onPrefs}
-			/>
-			<AutopayRuns {supabase} settingsHref={null} />
-		{:else if area === 'fine'}
-			<section class="card">
-				<h2>Fine</h2>
-				<p class="note">
-					The fine screen is built separately at /coin-desk/fine and is not part of this harness.
-				</p>
-			</section>
-		{:else if area === 'debt'}
-			<DebtList {supabase} open={openStudent} />
-		{:else if area === 'settings'}
-			<SettingsPanel {supabase} />
-		{:else if area === 'students'}
-			<SectionManager
-				{supabase}
-				bind:sections={sectionsState}
-				configured={sectionsApplied}
-				{classRoster}
-			/>
-			<BalanceAdminPanel
-				{supabase}
-				categoryKinds={harnessCategoryKinds}
-				categories={categoriesState}
-				initialEmail={studentEmail}
-			/>
-		{:else if area === 'contracts'}
-			<ContractsManager {supabase} sections={activeSections()} configured={contractsApplied} />
-		{:else if area === 'roles'}
-			<RolesManager
-				{supabase}
-				roleDefinitions={rolesApplied ? listRoleDefinitions() : []}
-				sections={activeSections()}
-				configured={rolesApplied}
-			/>
-		{:else}
-			<CategoriesManager {supabase} bind:categories={categoriesState} configured={migrationApplied} />
-			<PayoutManager {supabase} configured={migrationApplied} />
+		{#key `${area}:${migrationApplied}:${v2}`}
+			{#if area === 'log'}
+				<LogView
+					categories={categoriesFor()}
+					{supabase}
+					configured={migrationApplied}
+					classes={HARNESS_CLASSES}
+					{prefs}
+					{onPrefs}
+				/>
+				<AutopayRuns {supabase} settingsHref={null} />
+			{:else if area === 'students'}
+				<StudentView
+					{supabase}
+					{scope}
+					classes={HARNESS_CLASSES}
+					categories={categoriesFor()}
+					{categoryKinds}
+				/>
+			{:else if area === 'contracts'}
+				<ContractsManager {supabase} classes={HARNESS_CLASSES} queueHref={null} />
+			{:else if area === 'roles'}
+				<RolesManager {supabase} />
+			{:else if area === 'economy'}
+				<CategoriesManager {supabase} bind:categories={categoriesState} configured={migrationApplied} />
+			{:else if area === 'settings'}
+				<SettingsPanel {supabase} userId={HARNESS_USER_ID} />
+			{:else if builtElsewhere.has(area)}
+				<section class="card">
+					<h2>{offered.find((a) => a.id === area)?.label}</h2>
+					<p class="note">This area has its own harness and is not part of this one.</p>
+				</section>
+			{/if}
+		{/key}
+
+		{#if prefsLog.length}
+			<p class="prefs-log" data-testid="cd-prefs-log">preferences.coinDesk &rarr; {prefsLog.at(-1)}</p>
 		{/if}
-	{/key}
-
-	{#if prefsLog.length}
-		<p class="prefs-log" data-testid="cd-prefs-log">preferences.coinDesk &rarr; {prefsLog.at(-1)}</p>
-	{/if}
-</main>
+	</main>
 </div>
 
 <style>
 	/*
-	 * THE TOOLBAR FLOATS ONLY WHERE THERE IS ROOM BESIDE THE PAGE, and it did
-	 * not used to. Fixed at top-right on a 375px viewport it measured
-	 * 268x88 at (99, 8) and covered the sub-nav row at y=66 -- hit-tested:
-	 * Students, Contracts and Roles all answered the toolbar's own <label>,
-	 * so three of the five areas could not be reached at phone width at all
-	 * and had never been measured there. It flows above the room instead, and
-	 * floats again once the window is wide enough to have a margin to float in.
+	 * THE TOOLBAR FLOATS ONLY WHERE THERE IS ROOM BESIDE THE PAGE. Fixed at
+	 * top-right on a 375px viewport it covered the sub-nav and three areas
+	 * could not be reached at phone width; it flows above the room there.
 	 */
 	.dev-toolbar {
 		position: static;
@@ -348,6 +204,11 @@
 		/* A harness control is still a control somebody taps. */
 		min-height: 44px;
 	}
+	.scope-word {
+		display: block;
+		color: var(--text-2, var(--dim));
+		padding: 0.2rem 0;
+	}
 	@media (min-width: 1024px) {
 		.dev-toolbar {
 			position: fixed;
@@ -356,8 +217,6 @@
 			margin: 0;
 		}
 	}
-	/* The page measure, the masthead line and the card rhythm are in
-	   `$lib/coin-desk/coin-desk.css`, imported above -- not restated here. */
 	.prefs-log {
 		color: var(--cyan);
 		font-family: 'Share Tech Mono', monospace;

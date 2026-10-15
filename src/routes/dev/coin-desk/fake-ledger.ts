@@ -779,6 +779,15 @@ export function setV2Applied(on: boolean): void {
 	v2Applied = on;
 }
 
+/**
+ * Which coin tier the harness is (decision 68). A section coin staff member's
+ * lookup answers `can_edit: false`, which is what removes every amount edit.
+ */
+let harnessScope: 'full' | 'section' = 'full';
+export function setHarnessScope(scope: 'full' | 'section'): void {
+	harnessScope = scope;
+}
+
 // ---------------------------------------------------------------------------
 // SEEDING
 // ---------------------------------------------------------------------------
@@ -1039,7 +1048,7 @@ function handleRpc(fn: string, params: Record<string, unknown>): Answer | Promis
 				eating_pass_strikes: eatingPassStrikes(email),
 				no_shop_today: noShop.has(email),
 				spool_grams: spoolGrams.get(email) ?? 0,
-				can_edit: true,
+				can_edit: harnessScope === 'full',
 				recent_transactions: [...s.txns]
 					.filter(listed)
 					.sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -1186,7 +1195,7 @@ function handleRpc(fn: string, params: Record<string, unknown>): Answer | Promis
 			const results = emails.map((e) => {
 				const r = logTransaction(e, cat.id, params.p_amount, null, (params.p_note as string | null) ?? null);
 				const d = r.error ? { ok: false, reason: 'error', message: r.error.message } : (r.data as Record<string, unknown>);
-				return { email: e, ...d };
+				return { email: e, ...d } as Record<string, unknown> & { ok?: boolean };
 			});
 			const succeeded = results.filter((r) => r.ok).length;
 			return ok({ category_id: cat.id, total: results.length, succeeded, refused: results.length - succeeded, results });
@@ -1525,7 +1534,7 @@ function handleRpc(fn: string, params: Record<string, unknown>): Answer | Promis
 			const targets = [...new Set(holders.filter((h) => holderActive(h) && (!params.p_role_id || h.role_id === params.p_role_id) && (!params.p_section_id || h.section_id === params.p_section_id)).map((h) => h.email))].sort();
 			const results = targets.map((e) => {
 				const r = logTransaction(e, 'weekly_role_stipend', null, null, String(params.p_note));
-				return { email: e, ...(r.data as Record<string, unknown>) };
+				return { email: e, ...(r.data as Record<string, unknown>) } as Record<string, unknown> & { ok?: boolean };
 			});
 			const succeeded = results.filter((r) => r.ok).length;
 			return ok({ total: results.length, succeeded, refused: results.length - succeeded, results });

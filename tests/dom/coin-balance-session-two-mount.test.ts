@@ -114,6 +114,26 @@ describe('every session-two control is structural', () => {
 	});
 });
 
+describe('a coin_my_page from before 0250', () => {
+	it('draws no section that acts on a held payout or a card it cannot show', () => {
+		m = mountInto(CoinPageBody as unknown as Component<Record<string, unknown>>, {
+			state: 'ready',
+			page: parseCoinMyPage(fixturePage('pre0250')),
+			transports: every(),
+			extras: {},
+			now: NOW,
+			onsignin: () => {},
+			onchanged: vi.fn()
+		});
+		for (const id of ['coin-payout', 'coin-background', 'coin-onhand', 'coin-requests', 'coin-edited', 'coin-dispute']) {
+			expect(m.all(`[data-testid="${id}"]`), id).toHaveLength(0);
+		}
+		// The positive control: the V2 page itself is all there.
+		expect(m.all('[data-testid="coin-row"]')).toHaveLength(10);
+		expect(m.all('[data-testid="coin-buy"] [data-testid="buy-arm"]')).toHaveLength(4);
+	});
+});
+
 describe('a split payment', () => {
 	it('sends the item and the physical part, only on the confirm', async () => {
 		const t = every();

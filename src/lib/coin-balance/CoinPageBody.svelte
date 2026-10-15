@@ -178,10 +178,17 @@
 	});
 	const ecBlocked = $derived(ecBase ?? insufficient(ecCost ?? 0));
 
-	/* ---- Session two ---- */
+	/* ---- Session two ----
+	   `requests` is the tell that coin_my_page is 0250's: before it, the page
+	   cannot show a held payout or a pending card, so the sections that act on
+	   them (coins out, the background, donations, coins on hand) stay hidden
+	   rather than offering a second request the student cannot see. */
 	const requests = $derived(page?.requests ?? null);
+	const sessionTwo = $derived(requests !== null);
 	const onHandPending = $derived(!!requests?.some((r) => r.kind === 'reported_coins' && r.status === 'pending'));
-	const showPayout = $derived(!!page && (!!page.payout || (page.in_economy && !!transports.requestPayout)));
+	const showPayout = $derived(
+		!!page && sessionTwo && (!!page.payout || (page.in_economy && !!transports.requestPayout))
+	);
 	const showContracts = $derived(
 		!!page && !!extras.contracts && (extras.contracts.length > 0 || page.in_economy)
 	);
@@ -466,7 +473,7 @@
 				</section>
 			{/if}
 
-			{#if page.in_economy}
+			{#if page.in_economy && sessionTwo}
 				<CoinBackgroundPanel
 					rules={page.background_rules}
 					background={page.background}
@@ -493,7 +500,7 @@
 					ondone={changed}
 				/>
 			{/if}
-			{#if page.in_economy && transports.reportOnHand}
+			{#if page.in_economy && sessionTwo && transports.reportOnHand}
 				<CoinOnHand report={transports.reportOnHand} pending={onHandPending} ondone={changed} />
 			{/if}
 			</div>
