@@ -65,6 +65,18 @@ function fakeClient(): SupabaseClient {
 		async rpc(name: string) {
 			if (name === 'coin_public_leaderboard') return { data: BOARD, error: null };
 			if (name === 'coin_public_transactions') return { data: TXNS, error: null };
+			// Session two (0247, 0245): a role badge and a reported count, both
+			// keyed by the opaque id, never an address.
+			if (name === 'coin_public_role_badges')
+				return {
+					data: [
+						{ student_id: 'aa11bb22cc33dd44ee55ff6600112233', role_id: 'shop_steward', role: 'Shop Steward' },
+						{ student_id: 'aa11bb22cc33dd44ee55ff6600112233', role_id: 'lab_tech', role: 'Lab Tech' }
+					],
+					error: null
+				};
+			if (name === 'coin_public_reported_coins')
+				return { data: [{ student_id: 'aa11bb22cc33dd44ee55ff6600112233', coins: 12, reported_on: '2026-10-13' }], error: null };
 			return { data: null, error: { message: `unexpected rpc ${name}` } };
 		}
 	} as unknown as SupabaseClient;
@@ -91,17 +103,20 @@ const RETIRED = [
 ];
 
 describe('readCoinPublic over the 0239 shapes', () => {
-	test('summary: exactly the seven columns, the values passed through', async () => {
+	test('summary: exactly the ten columns, the values passed through', async () => {
 		const { body, contentType } = await readCoinPublic(fakeClient(), 'summary', new URLSearchParams());
 		expect(contentType).toContain('text/csv');
 		expect(body.split('\r\n')[0]).toBe(
-			'Name,Section,Wage,Coin Balance,Wage Tier,Eating Pass,Student Id'
+			'Name,Section,Wage,Coin Balance,Wage Tier,Eating Pass,Student Id,Roles,Coins On Hand,Coins On Hand Date'
 		);
 		const rows = parse(body);
 		expect(rows).toHaveLength(2);
 		// The quoted name breaks the naive split, so read by position-safe keys.
-		expect(body).toContain('"Lovelace, Ada",IDEA113 Block 3,3,155,3,true,aa11bb22');
-		expect(body).toContain('"Hopper, Grace",,1.00,-74.50,1,false,bb22cc33');
+		expect(body).toContain(
+			'"Lovelace, Ada",IDEA113 Block 3,3,155,3,true,aa11bb22cc33dd44ee55ff6600112233,Shop Steward | Lab Tech,12,2026-10-13'
+		);
+		// A student with no role and no report: three empty cells, never "null".
+		expect(body).toContain('"Hopper, Grace",,1.00,-74.50,1,false,bb22cc33dd44ee55ff6600112233aa11,,,');
 	});
 
 	test('transactions: the six columns, signed amounts and the category id', async () => {

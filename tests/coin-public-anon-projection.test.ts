@@ -663,16 +663,19 @@ describe('/api/coin/public, driven as a signed-out visitor', () => {
 		expect(lines[1] + lines[2]).toContain('Ada Lovelace');
 	});
 
-	test('the summary CSV header is EXACTLY these seven columns', async () => {
+	test('the summary CSV header is EXACTLY these ten columns', async () => {
 		// The pin at the surface. `readCoinPublic` writes this header list by
 		// hand beside the row mapping, so the two can drift from the RPC and
 		// from each other; this is the only assertion that reads what a
 		// visitor's browser actually parses. Coin V2 (0239) cut it to the one
 		// balance. This chain stops short of 0239, so the header is what this
 		// pins, not the V2 row values (tests/coin-public-v2-shape.test.ts
-		// drives those against the V2 row shape).
+		// drives those against the V2 row shape). Session two (ledger 0386)
+		// added the public role badges and the reported coins on hand.
 		const header = (await route('summary')).body.split('\r\n')[0];
-		expect(header).toBe('Name,Section,Wage,Coin Balance,Wage Tier,Eating Pass,Student Id');
+		expect(header).toBe(
+			'Name,Section,Wage,Coin Balance,Wage Tier,Eating Pass,Student Id,Roles,Coins On Hand,Coins On Hand Date'
+		);
 	});
 
 	test('the transactions CSV header is EXACTLY these six columns', async () => {

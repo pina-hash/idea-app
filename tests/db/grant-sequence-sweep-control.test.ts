@@ -91,8 +91,9 @@ describe('the sequence sweep bites: a granted privilege is named', () => {
 				'assertion in section D, and the BEFORE assertion below, is green for the wrong reason. ' +
 				'Four since 0231: the Armory change feed cursor, revoked by 0232 (ledger 0366). Seven ' +
 				'since IDEA Coin V2 (ledger 0384): coin_settings_audit, coin_student_actions and ' +
-				'coin_autopay_runs, each revoked from every client role in its own migration.'
-		).toBe(7);
+				'coin_autopay_runs, each revoked from every client role in its own migration. Eight ' +
+				'since IDEA Coin V2 session two (ledger 0386): coin_edit_log, revoked the same way by 0250.'
+		).toBe(8);
 	});
 
 	it('BEFORE: reads clean, which is what 0203 leaves behind', async () => {

@@ -990,11 +990,14 @@ describe('the section colours, called by a signed-out visitor', () => {
 		expect(rows.map((r) => r.section)).not.toContain('Engineering II, Junior');
 	});
 
-	test('THE ROUTE PASSES THE RPC THROUGH WHOLE: an added column would reach the wire', async () => {
-		const served = await routeJson<Record<string, unknown>[]>('sections');
-		const rpcRows = await readPublic('coin_public_sections');
-		expect(served).toEqual(rpcRows);
-		expect(keysOf(served[0])).toEqual([...PROJECTIONS.coin_public_sections].sort());
+	// IDEA Coin V2 session two (ledger 0386) took the route's `sections`
+	// action away with the old section model (0251 drops the function; this
+	// chain stops before it, which is why the RPC is still here to read). The
+	// route refuses the action, and `contracts` answering is the control that
+	// the refusal is about this action and not the route.
+	test('THE ROUTE NO LONGER SERVES THE SECTION COLOURS (with a positive control)', async () => {
+		expect((await route('sections')).status).toBe(400);
+		expect((await route('contracts')).status).toBe(200);
 	});
 });
 
@@ -1041,7 +1044,7 @@ describe('no address leaves any of the five, under any parameter', () => {
 	});
 
 	test('and neither does any of the five route actions', async () => {
-		for (const action of ['contracts', 'reasons', 'roles', 'sections']) {
+		for (const action of ['contracts', 'reasons', 'roles']) {
 			const body = (await route(action)).body;
 			expect(body.length, `${action} served nothing`).toBeGreaterThan(2);
 			expect(body, `${action} served an address`).not.toMatch(

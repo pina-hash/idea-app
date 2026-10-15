@@ -2923,7 +2923,7 @@ This applies to every change. Prompts do not need to restate it.
     cause: nothing has generated the `.svelte-kit` output yet.
   - The 33 break down as 29 `state_referenced_locally`, 3
     `css_unused_selector`, 1 `perf_avoid_nested_class`, over 18 files (ledger
-    0386 deleted `src/lib/contracts/ContractsView.svelte`, which carried two
+    0386 deleted the old contracts view component, which carried two
     `state_referenced_locally`; it said 35, 31, 19 before). The breakdown is
     the diagnostic: it says WHICH kind moved when the total does, and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"

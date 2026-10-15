@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
+	import { revealDetailPane } from '$lib/shell/reveal';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import { coins } from '$lib/coin-format';
 	import type { CoinCategory } from '$lib/coin-desk';
@@ -110,6 +111,8 @@
 	let lookupError = $state('');
 	let backgroundUrl = $state<string | null>(null);
 	let openToken = 0;
+	/** The split's detail pane, for revealDetailPane. See $lib/shell/reveal.ts. */
+	let detailEl = $state<HTMLElement | null>(null);
 
 	async function open(email: string, refresh = false) {
 		const target = email.trim().toLowerCase();
@@ -117,6 +120,11 @@
 		const token = ++openToken;
 		selected = target;
 		busy = true;
+		// The pane flows with the page (scroll="page"), so a student opened from
+		// far down a roster would otherwise render above where the click
+		// happened. `tick` first: the pane has to exist before its position
+		// means anything.
+		if (!refresh) void tick().then(() => revealDetailPane(detailEl));
 		if (!refresh) {
 			stats = null;
 			statsState = null;
@@ -214,7 +222,14 @@
 	});
 </script>
 
-<ClassSplit hasDetail={!!selected} navWidth="list" detailWidth="roomy" scroll="page" narrow="stack-nav-first">
+<ClassSplit
+	hasDetail={!!selected}
+	navWidth="list"
+	detailWidth="roomy"
+	scroll="page"
+	narrow="stack-nav-first"
+	bind:detailEl
+>
 	{#snippet nav()}
 		<div class="pane" data-testid="cd-students-nav">
 			<label class="cdx-field">
