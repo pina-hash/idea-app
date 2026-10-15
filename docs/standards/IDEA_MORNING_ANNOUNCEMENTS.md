@@ -1,5 +1,5 @@
 # IDEA Morning Announcements Standard
-**Version 1.1 - 2026-09-30**
+**Version 1.2 - 2026-10-14**
 
 How FRC Team 5669 and the IDEA pathway get an item into Bosco Tech's morning
 announcements: where the request goes, when it is due, what the email looks like, how the
@@ -147,6 +147,31 @@ Recorded types, each from a real accepted request, plus the new one coming:
 - **A first meeting gets two:** advance notice the school day before, day-of the morning
   of.
 
+## FRC weekly rotation and automation (from 1.2)
+
+Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
+
+- **Three days a week: Monday, Tuesday, Friday.** Monday is the mandatory team
+  meeting at the start of lunch in the IDEA Classroom (stern with members,
+  welcoming to new students; the stated consequence is being out of the loop and
+  losing team responsibility). Tuesday recruits across every technology
+  (mechanical, electrical, programming, design, media, management). Friday is the
+  build and training day, with a countdown while an event is coming.
+- **Every announcement serves a purpose and has one same-day action.**
+- **The bulletin is also read over the PA.** Wording is optimized for being heard
+  first and read second: team name first, short sentences, nothing hard to say
+  aloud ("design", not "CAD"), the key fact repeated.
+- **Each request carries a dated flyer PDF** (`Flyer_FRC 5669 <Name>.pdf`, the
+  office's own naming) with a specific date and time, a large QR code and a tapped
+  link to the team app, and the robot photo with plain-language callouts on what
+  students made. Solid colors only.
+- **The meeting stays at the start of lunch.** "Come straight to the meeting, then
+  get your food" is part of the Monday text.
+- **Drafts, never sends.** A scheduled task at 7:50 AM each weekday runs
+  `tools/frc-announcements/announce.py --auto`, leaves a Gmail draft for the next
+  school day when it is a Monday, Tuesday or Friday, and notifies Mr. Pina with the
+  flyer to attach. To change one day, he edits the draft before sending.
+
 ## What Claude does when asked for an announcement
 
 1. Checks the bell schedule for the air date and the meeting date.
@@ -168,6 +193,7 @@ Recorded types, each from a real accepted request, plus the new one coming:
 
 ## Changelog
 
+- **1.2 (2026-10-14)** - Added "FRC weekly rotation and automation": the Monday, Tuesday, Friday rotation, PA-first wording, dated flyers, and the scheduled draft task built on `tools/frc-announcements/announce.py`.
 - **1.1 (2026-09-30)** - Rebuilt against Mr. Pina's ten sent requests
   (Aug 2025 to Aug 2026) and the 2026-08-20 chat that drafted the August 2026 pair. 1.0
   had been written from the office email alone and departed from real practice in six
