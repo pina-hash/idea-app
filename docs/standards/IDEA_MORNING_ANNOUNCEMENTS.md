@@ -1,5 +1,5 @@
 # IDEA Morning Announcements Standard
-**Version 1.2 - 2026-10-14**
+**Version 1.3 - 2026-10-14**
 
 How FRC Team 5669 and the IDEA pathway get an item into Bosco Tech's morning
 announcements: where the request goes, when it is due, what the email looks like, how the
@@ -161,10 +161,16 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
 - **The bulletin is also read over the PA.** Wording is optimized for being heard
   first and read second: team name first, short sentences, nothing hard to say
   aloud ("design", not "CAD"), the key fact repeated.
-- **Each request carries a dated flyer PDF** (`Flyer_FRC 5669 <Name>.pdf`, the
+- **Each request carries a dated flyer PDF** (`Flyer_Techmen Robotics <Name>.pdf`, the
   office's own naming) with a specific date and time, a large QR code and a tapped
   link to the team app, and the robot photo with plain-language callouts on what
   students made. Solid colors only.
+- **Written for someone who knows nothing about robots.** No team jargon in the
+  spoken text or on a flyer: not FRC, FIRST, FLL or CAD. Say "the Techmen robotics
+  team", "coach kids' robotics teams", "model every part in 3D", and name an event
+  as "a robotics competition" the first time. What students made is described by
+  what it took (designed, machined, wired, coded), never a word that undersells it
+  such as "cut". Short beats complete: when a line needs explaining, cut the line.
 - **The meeting stays at the start of lunch.** "Come straight to the meeting, then
   get your food" is part of the Monday text.
 - **Drafts, never sends.** A scheduled task at 7:50 AM each weekday runs
@@ -193,6 +199,7 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
 
 ## Changelog
 
+- **1.3 (2026-10-14)** - Added the plain-language rule (no FRC, FIRST, FLL or CAD; describe student work by what it took) after Mr. Pina's audit request; flyer filenames are `Flyer_Techmen Robotics <Name>.pdf`.
 - **1.2 (2026-10-14)** - Added "FRC weekly rotation and automation": the Monday, Tuesday, Friday rotation, PA-first wording, dated flyers, and the scheduled draft task built on `tools/frc-announcements/announce.py`.
 - **1.1 (2026-09-30)** - Rebuilt against Mr. Pina's ten sent requests
   (Aug 2025 to Aug 2026) and the 2026-08-20 chat that drafted the August 2026 pair. 1.0

@@ -5,4 +5,4 @@
 - Migration permitted: no. Claims: none.
 - Status: pushed
 - Branch: none. Pushed straight to `main`.
-- Notes: 2026-10-14 follow-up: callouts reworded (every custom part), "What we do" context added. Standalone generator read by the scheduled task "FRC morning announcement draft" (trig_01SUjnxt2me2jCjGKT1WHFu3). Nothing in `src/` imports it.
+- Notes: 2026-10-14 second follow-up: plain-language audit (no FRC, FIRST, FLL, CAD), standard 1.3. Earlier follow-up: callouts reworded (every custom part), "What we do" context added. Standalone generator read by the scheduled task "FRC morning announcement draft" (trig_01SUjnxt2me2jCjGKT1WHFu3). Nothing in `src/` imports it.
