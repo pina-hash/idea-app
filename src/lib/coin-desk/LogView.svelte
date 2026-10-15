@@ -1733,6 +1733,13 @@
 		--cd-tone-accent: var(--amber);
 		--cd-tone-ink: var(--amber);
 	}
+	/* On the HIGHLIGHTED row the ground lifts, and --amber as a word measured
+	   4.23:1 there (the first fine is the highlighted row now the list is in
+	   sort_order). The ink moves in lightness only, on the dark themes, to the
+	   same hue at 60% (4.89:1 on that ground); Space White keeps its own amber. */
+	:global(:root:not([data-theme='space-white'])) .combo-option.highlighted.tone-fine {
+		--cd-tone-ink: hsl(30 63% 60%);
+	}
 	.combo-option.tone-purchase {
 		--cd-tone-accent: var(--gold);
 		--cd-tone-ink: var(--gold);

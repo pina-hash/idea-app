@@ -298,6 +298,8 @@
 	.dev-toolbar {
 		margin: 0.5rem 1rem;
 		width: fit-content;
+		max-width: calc(100% - 2rem);
+		box-sizing: border-box;
 		background: var(--bg1);
 		border: 1px solid var(--boundary);
 		border-radius: 6px;
@@ -313,5 +315,7 @@
 	}
 	.dev-toolbar select {
 		min-height: 44px;
+		min-width: 0;
+		max-width: 100%;
 	}
 </style>

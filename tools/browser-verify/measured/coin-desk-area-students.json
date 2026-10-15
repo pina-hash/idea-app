@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "coin-desk-area-students.mjs",
+	"date": "2026-10-15T18:16:38.421Z",
+	"sha": "c096015492de0c9ff59345e5fc9e5ca4b1d92081",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 36,
+	"outsideRows": [],
+	"ms": 5202
+}

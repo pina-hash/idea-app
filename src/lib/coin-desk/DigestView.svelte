@@ -194,7 +194,7 @@
 			<div class="d-notify" data-testid="cd-digest-notify">
 				<button
 					type="button"
-					class="btn cdx-small d-switch"
+					class="btn secondary cdx-small d-switch"
 					class:on={notify}
 					aria-pressed={notify}
 					data-testid="cd-digest-notify-toggle"

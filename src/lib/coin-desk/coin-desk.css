@@ -268,8 +268,10 @@
 	color: var(--amber);
 }
 /* A compact `.btn` for a row action: smaller type and side padding, never a
-   smaller height. */
+   smaller height, and never narrower than 44px (a two-letter "On" measured
+   39.9px wide). */
 .cd-root .btn.cdx-small {
+	min-width: 44px;
 	font-size: 0.7rem;
 	padding: 0.35rem 0.75rem;
 	letter-spacing: 0.08em;

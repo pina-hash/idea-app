@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "coin-fine.mjs",
-	"date": "2026-10-15T04:51:09.580Z",
-	"sha": "4d8411db3cefbdf8c85d7ffa5e8a73580e249196",
-	"dirty": false,
+	"date": "2026-10-15T18:16:38.421Z",
+	"sha": "c096015492de0c9ff59345e5fc9e5ca4b1d92081",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 48,
 	"outsideRows": [],
-	"ms": 6023
+	"ms": 5202
 }
