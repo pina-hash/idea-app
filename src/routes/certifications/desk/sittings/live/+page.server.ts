@@ -1,4 +1,5 @@
 import { requireCertifier } from '$lib/server/certifications/gate';
+import { deskShell } from '$lib/certifications/student/shell';
 import type { ExamLiveRow } from '$lib/certifications/types';
 import { dataOrNull, isUuid, loadRpc, refuseAction, runAction, str } from '../../desk-server';
 import type { Actions, PageServerLoad } from './$types';
@@ -12,7 +13,7 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	await requireCertifier(locals);
 	const live = await loadRpc<ExamLiveRow[]>(locals.supabase, 'cert_exam_live', { p_cert: null });
-	return { title: 'Live exam', unavailable: !live.ok, rows: dataOrNull(live) ?? [] };
+	return { title: 'Live exam', shell: deskShell('Live exam'), unavailable: !live.ok, rows: dataOrNull(live) ?? [] };
 };
 
 export const actions: Actions = {

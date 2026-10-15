@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { deskShell } from '$lib/certifications/student/shell';
 import { requireCertifier } from '$lib/server/certifications/gate';
 import { isRefusal, type CertGetJson, type CertSubmissionJson } from '$lib/certifications/types';
 import type { StudentViewJson } from '$lib/certifications/desk/desk';
@@ -25,7 +26,7 @@ export const load: PageServerLoad = async ({ locals, params, url, parent }) => {
 	if (!email.includes('@')) error(404, 'Not found');
 
 	const view = await loadRpc<StudentViewJson>(locals.supabase, 'cert_student_view', { p_email: email });
-	if (!view.ok) return { title: 'Review', unavailable: true as const, submission: null, attempt: null, student: null, spec: null, checkout: null };
+	if (!view.ok) return { title: 'Review', shell: deskShell('Review'), unavailable: true as const, submission: null, attempt: null, student: null, spec: null, checkout: null };
 	if (!view.data || isRefusal(view.data)) error(404, 'Not found');
 	let submission: CertSubmissionJson | null = null;
 	let attempt: StudentViewJson['attempts'][number] | null = null;
@@ -43,7 +44,7 @@ export const load: PageServerLoad = async ({ locals, params, url, parent }) => {
 	const pkg = got.ok && got.data && !isRefusal(got.data) ? got.data.package : null;
 	const spec = submission.part === 'guided' ? pkg?.guided_project ?? null : submission.part === 'autonomous' ? pkg?.autonomous_project ?? null : null;
 	return {
-		title: `Review: ${view.data.name ?? email}`,
+		title: `Review: ${view.data.name ?? email}`, shell: deskShell(`Review: ${view.data.name ?? email}`),
 		unavailable: false as const,
 		submission,
 		attempt,

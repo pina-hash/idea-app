@@ -135,14 +135,14 @@ describe('runCertJob', () => {
 		const summary = await runCertJob('daily', db.client, 'https://ideabosco.com', {
 			sendMirror: async (t) => (order.push('mirror:' + t), { ok: true, catalog_count: 0, holder_count: 0, remote_log_id: null, duration_ms: 1 }),
 			sendCertNotifications: async (rows, _o, _c, d) => {
-				order.push('notify:' + (d?.channels?.join(',') ?? 'both') + ':' + rows.length);
+				order.push('notify:' + (d?.channels?.join(',') ?? 'both') + ':' + (Array.isArray(rows) ? rows.length : -1));
 				return { attempted: 0, emailed: 0, pushed: 0, notified: 0, unstamped: 0, errors: 0 };
 			}
 		});
 		expect(order).toEqual(['mirror:daily', 'notify:both:0', 'notify:email:0']);
 		expect(db.calls.map((c) => c.fn)).toEqual(['cert_sweep_dormant', 'cert_expiry_reminders', 'cert_notifications_unsent']);
 		expect(summary).toMatchObject({ ok: true, job: 'daily' });
-		const steps = (summary as { steps: Record<string, { ok: boolean; job: string }> }).steps;
+		const steps = (summary as unknown as { steps: Record<string, { ok: boolean; job: string }> }).steps;
 		expect(Object.keys(steps)).toEqual(['mirror', 'dormant', 'expiry', 'emails']);
 		expect(steps.dormant).toMatchObject({ ok: true, marked: 1 });
 	});

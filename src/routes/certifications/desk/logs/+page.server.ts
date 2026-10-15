@@ -1,4 +1,5 @@
 import { requireCertifier } from '$lib/server/certifications/gate';
+import { deskShell } from '$lib/certifications/student/shell';
 import { laCalendarDay } from '$lib/classroom/school-calendar';
 import { isRefusal } from '$lib/certifications/types';
 import type { SyncLogRow } from '$lib/certifications/desk/desk';
@@ -36,7 +37,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		isAdmin ? exportOf('errors') : Promise.resolve(null)
 	]);
 	return {
-		title: 'Logs',
+		title: 'Logs', shell: deskShell('Logs'),
 		unavailable: !sync.ok,
 		sync: dataOrNull(sync) ?? [],
 		events: events.ok ? rowsOf(events.data) : null,

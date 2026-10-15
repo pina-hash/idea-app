@@ -1,4 +1,5 @@
 import { requireCertAdmin } from '$lib/server/certifications/gate';
+import { deskShell } from '$lib/certifications/student/shell';
 import type { AdminListRow, AuthorityRow } from '$lib/certifications/desk/desk';
 import { dataOrNull, isUuid, loadRpc, refuseAction, runAction, str } from '../desk-server';
 import type { Actions, PageServerLoad } from './$types';
@@ -15,7 +16,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		loadRpc<AdminListRow[]>(locals.supabase, 'cert_admin_list')
 	]);
 	return {
-		title: 'Authority',
+		title: 'Authority', shell: deskShell('Authority'),
 		unavailable: !grants.ok || !certifications.ok,
 		grants: dataOrNull(grants) ?? [],
 		certifications: dataOrNull(certifications) ?? []

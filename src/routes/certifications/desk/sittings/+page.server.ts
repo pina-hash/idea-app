@@ -1,4 +1,5 @@
 import { requireCertAdmin, requireCertifier } from '$lib/server/certifications/gate';
+import { deskShell } from '$lib/certifications/student/shell';
 import { schoolLocalToIso, type SeatTodayRow } from '$lib/certifications/desk/desk';
 import { formatCertTime } from '$lib/certifications/status';
 import type { CertSettings, CertSittingJson } from '$lib/certifications/types';
@@ -29,7 +30,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 	const seatsRaw = (desk as unknown as { seats_today?: unknown } | null)?.seats_today;
 	const seats = Array.isArray(seatsRaw) ? (seatsRaw as SeatTodayRow[]) : [];
 	return {
-		title: 'Sittings',
+		title: 'Sittings', shell: deskShell('Sittings'),
 		unavailable: !sittings.ok,
 		sittings: dataOrNull(sittings) ?? [],
 		requests: desk?.requests ?? [],

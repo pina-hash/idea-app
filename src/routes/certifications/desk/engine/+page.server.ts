@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { deskShell } from '$lib/certifications/student/shell';
 import { requireCertAdmin, requireCertifier } from '$lib/server/certifications/gate';
 import { deskEngineHref } from '$lib/certifications/nav';
 import { emptyPackage, type CertSettings } from '$lib/certifications/types';
@@ -18,7 +19,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		loadRpc<AdminListRow[]>(locals.supabase, 'cert_admin_list'),
 		loadRpc<CertSettings>(locals.supabase, 'cert_settings')
 	]);
-	return { title: 'Engine', unavailable: !rows.ok, rows: dataOrNull(rows) ?? [], settings: dataOrNull(settings) };
+	return { title: 'Engine', shell: deskShell('Engine'), unavailable: !rows.ok, rows: dataOrNull(rows) ?? [], settings: dataOrNull(settings) };
 };
 
 export const actions: Actions = {

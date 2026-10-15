@@ -1,20 +1,10 @@
 <script lang="ts">
 	import SittingsPanel from '$lib/certifications/desk/SittingsPanel.svelte';
 	import { formFor } from '$lib/certifications/desk/desk';
-	import { PORTAL_NAME } from '$lib/certifications/copy';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 </script>
-
-<svelte:head><title>Sittings, {PORTAL_NAME}</title></svelte:head>
-
-<header class="cert-titlebar">
-	<div>
-		<p class="eyebrow cert-eyebrow">IDEA // Certifications</p>
-		<h1 class="cert-title plate-title">Sittings</h1>
-	</div>
-</header>
 
 {#if data.unavailable}
 	<p class="cert-notice cert-notice-quiet" data-testid="cert-not-available">

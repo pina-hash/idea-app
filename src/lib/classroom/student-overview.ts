@@ -32,6 +32,7 @@
  * shown for the same reason.
  */
 
+import { studentPageHref } from '$lib/classroom/nav';
 import {
 	completionIsLate,
 	itemTitle,
@@ -337,6 +338,110 @@ export function studentAssignmentRows(input: {
 		return a.title.localeCompare(b.title);
 	});
 	return rows;
+}
+
+/**
+ * HOW THE ASSIGNMENTS TABLE MAY BE ORDERED (the 2026-10-15 round, report
+ * 5464ceb2: "I also want to be able to sort items on this page").
+ *
+ * `default` is the page's own order, due-first and undated last, exactly as
+ * `studentAssignmentRows` hands the rows over; every other key is one column.
+ * A missing value (no due date, no score, no typing) sorts LAST in either
+ * direction, because "nothing here" is not a smallest value. The sort is
+ * stable, so rows tied on the key keep the default order between them, and it
+ * returns a new array: the page's data is never reordered in place.
+ */
+export type StudentAssignmentSortKey =
+	| 'default'
+	| 'title'
+	| 'due'
+	| 'status'
+	| 'turnedIn'
+	| 'score'
+	| 'working'
+	| 'lastTyped'
+	| 'lastOpened';
+
+export type StudentAssignmentSortDir = 'asc' | 'desc';
+
+export const STUDENT_ASSIGNMENT_SORTS: readonly { id: StudentAssignmentSortKey; label: string }[] = [
+	{ id: 'default', label: 'Due date (default)' },
+	{ id: 'title', label: 'Assignment' },
+	{ id: 'due', label: 'Due' },
+	{ id: 'status', label: 'Status' },
+	{ id: 'turnedIn', label: 'Turned in' },
+	{ id: 'score', label: 'Score' },
+	{ id: 'working', label: 'Working time' },
+	{ id: 'lastTyped', label: 'Last typed' },
+	{ id: 'lastOpened', label: 'Last opened' }
+];
+
+export function isStudentAssignmentSortKey(value: unknown): value is StudentAssignmentSortKey {
+	return typeof value === 'string' && STUDENT_ASSIGNMENT_SORTS.some((s) => s.id === value);
+}
+
+/** Status reads in the order a teacher triages it: missing first, then open work, then finished. */
+function statusRank(row: StudentAssignmentRow): number {
+	if (row.chip.missing) return 0;
+	if (!row.chip.done) return 1;
+	return row.returned ? 3 : 2;
+}
+
+function sortValue(row: StudentAssignmentRow, key: StudentAssignmentSortKey): number | string | null {
+	switch (key) {
+		case 'title':
+			return row.title.toLowerCase();
+		case 'due':
+			return row.dueAt ? Date.parse(row.dueAt) : null;
+		case 'status':
+			return statusRank(row);
+		case 'turnedIn':
+			return row.turnedInAt ? Date.parse(row.turnedInAt) : null;
+		case 'score':
+			return row.score;
+		case 'working':
+			return row.activeSeconds;
+		case 'lastTyped':
+			return row.lastWorkedAt ? Date.parse(row.lastWorkedAt) : null;
+		case 'lastOpened':
+			return row.lastOpenedAt ? Date.parse(row.lastOpenedAt) : null;
+		default:
+			return null;
+	}
+}
+
+export function sortStudentAssignments(
+	rows: readonly StudentAssignmentRow[],
+	key: StudentAssignmentSortKey,
+	dir: StudentAssignmentSortDir = 'asc'
+): StudentAssignmentRow[] {
+	const out = rows.slice();
+	if (key === 'default') return dir === 'asc' ? out : out.reverse();
+	const sign = dir === 'asc' ? 1 : -1;
+	return out
+		.map((row, index) => ({ row, index, value: sortValue(row, key) }))
+		.sort((a, b) => {
+			const an = a.value === null || (typeof a.value === 'number' && Number.isNaN(a.value));
+			const bn = b.value === null || (typeof b.value === 'number' && Number.isNaN(b.value));
+			if (an && bn) return a.index - b.index;
+			if (an) return 1;
+			if (bn) return -1;
+			let cmp = 0;
+			if (typeof a.value === 'string' && typeof b.value === 'string') cmp = a.value.localeCompare(b.value);
+			else cmp = (a.value as number) - (b.value as number);
+			return cmp !== 0 ? cmp * sign : a.index - b.index;
+		})
+		.map((e) => e.row);
+}
+
+/**
+ * ONE STUDENT'S FILLED ASSIGNMENT ALONE ON A FULL-SCREEN PAGE (report
+ * 5464ceb2): the student page's own address with the item under it, so the
+ * route's gate is the student page's gate. The address is the roster's, encoded
+ * once, as `studentPageHref` encodes it.
+ */
+export function studentWorkHref(sectionId: string, email: string, itemId: string, basePath = '/classroom'): string {
+	return `${studentPageHref(sectionId, email, basePath)}/work/${encodeURIComponent(itemId)}`;
 }
 
 export interface StudentAssignmentTotals {

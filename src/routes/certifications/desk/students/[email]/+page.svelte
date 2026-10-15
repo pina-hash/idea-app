@@ -1,13 +1,10 @@
 <script lang="ts">
 	import StudentView from '$lib/certifications/desk/StudentView.svelte';
 	import { formFor } from '$lib/certifications/desk/desk';
-	import { PORTAL_NAME } from '$lib/certifications/copy';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 </script>
-
-<svelte:head><title>{data.title}, {PORTAL_NAME}</title></svelte:head>
 
 {#if data.unavailable || !data.view}
 	<p class="cert-notice cert-notice-quiet" data-testid="cert-not-available">

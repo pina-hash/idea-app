@@ -27,6 +27,19 @@ export const CERT_EYEBROW = 'IDEA // Certifications';
 
 export const DEFAULT_SHELL: CertShellData = { title: PORTAL_NAME, eyebrow: CERT_EYEBROW };
 
+/** The eyebrow over every desk page: the desk is the portal's console. */
+export const DESK_EYEBROW = 'IDEA // Certifications // Desk';
+
+/**
+ * What every DESK page returns as `shell`: the desk eyebrow, the page's own
+ * title, and the crumbs that lead back (the engine's import page names the
+ * engine). The desk renders no second title bar; the layout's `CertShell`
+ * draws this one.
+ */
+export function deskShell(title: string, lead: string | null = null, crumbs: CertCrumb[] = []): CertShellData {
+	return { title, eyebrow: DESK_EYEBROW, lead, crumbs };
+}
+
 /** The one sentence a page shows when a `cert_*` function does not exist yet. */
 export const CERT_UNAVAILABLE_SENTENCE = 'This part of IDEA Certifications is not available yet.';
 

@@ -68,7 +68,10 @@ export function formatCertDateTime(at: string | Date | null | undefined): string
 	if (!at) return '';
 	const d = typeof at === 'string' ? new Date(at) : at;
 	if (Number.isNaN(d.getTime())) return '';
-	return dateTimeFmt.format(d).replace(', ', ', ').replace(/(\d{4}),? /, '$1 at ');
+	// Some ICU builds already write "October 22, 2026 at 3:15 PM" and some write
+	// "October 22, 2026, 3:15 PM": the word is added only where it is missing,
+	// so no build prints "at at" (ledger 0391, surface f found it on ICU 77).
+	return dateTimeFmt.format(d).replace(/(\d{4}),? (?!at )/, '$1 at ');
 }
 
 /** "3:05 PM". */

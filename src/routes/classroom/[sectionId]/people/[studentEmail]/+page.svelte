@@ -1,7 +1,9 @@
 <script lang="ts">
 	import StudentOverview from '$lib/classroom/StudentOverview.svelte';
 	import { sectionTitle } from '$lib/classroom/classroom';
+	import { STUDENT_PARAM } from '$lib/classroom/grading-student-url';
 	import { studentNotebookHref } from '$lib/classroom/nav';
+	import { studentWorkHref } from '$lib/classroom/student-overview';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -28,5 +30,10 @@
 	today={data.classClock.today}
 	peopleHref={`/classroom/${data.section.id}/people`}
 	itemHref={(itemId) => `/classroom/${data.section.id}/item/${itemId}`}
+	gradeHref={(itemId) =>
+		data.gradeTokens[itemId]
+			? `/classroom/${data.section.id}/item/${itemId}/grade?${STUDENT_PARAM}=${data.gradeTokens[itemId]}`
+			: null}
+	workHref={(itemId) => studentWorkHref(data.section.id, data.studentPage.student.email, itemId)}
 	{notebookHref}
 />

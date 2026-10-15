@@ -10,7 +10,6 @@
 	import { invalidateAll } from '$app/navigation';
 	import EngineEditor from '$lib/certifications/desk/EngineEditor.svelte';
 	import { formFor, type EngineSaveAnswer } from '$lib/certifications/desk/desk';
-	import { PORTAL_NAME } from '$lib/certifications/copy';
 	import type { CertPackage } from '$lib/certifications/types';
 	import type { ActionData, PageData } from './$types';
 
@@ -50,8 +49,6 @@
 		deleteLesson: formFor(form, 'deleteLesson')
 	});
 </script>
-
-<svelte:head><title>{data.title}, {PORTAL_NAME}</title></svelte:head>
 
 {#if data.unavailable || !data.cert}
 	<p class="cert-notice cert-notice-quiet" data-testid="cert-not-available">

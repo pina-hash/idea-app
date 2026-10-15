@@ -1,5 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
 import { studentEmailParam } from '$lib/classroom/nav';
+import { studentToken } from '$lib/classroom/grading-student-url';
 import { loadSectionRoster } from '$lib/classroom/transports';
 import { readAllPages, readWorksheetCompletions } from '$lib/classroom/student-work';
 import { createTeamTransports } from '$lib/classroom/teams';
@@ -155,7 +156,21 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 		foundry
 	});
 
-	return { student: studentPage.student, studentPage };
+	/**
+	 * THE GRADING CONSOLE'S OPAQUE STUDENT TOKEN, ONE PER ASSIGNMENT ROW (report
+	 * 5464ceb2): the console keeps the student being graded in its address as
+	 * `studentToken(itemId, email)` and never as the address, so the key on
+	 * each row carries the same token and the console opens on this student.
+	 * Computed here, once, because the hash is async and the component is pure.
+	 */
+	const gradeTokens: Record<string, string> = {};
+	await Promise.all(
+		studentPage.assignments.map(async (row) => {
+			gradeTokens[row.itemId] = await studentToken(row.itemId, email);
+		})
+	);
+
+	return { student: studentPage.student, studentPage, gradeTokens };
 };
 
 type EntryRow = { session_id: string | null; upload_timestamp: string; submitted_at: string | null };

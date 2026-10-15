@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { deskShell } from '$lib/certifications/student/shell';
 import { requireCertAdmin, requireCertifier } from '$lib/server/certifications/gate';
 import { isRefusal, type CertAwardJson } from '$lib/certifications/types';
 import { isUuid, loadRpc, refuseAction, runAction, str } from '../../desk-server';
@@ -15,9 +16,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	await requireCertifier(locals);
 	if (!isUuid(params.awardId)) error(404, 'Not found');
 	const award = await loadRpc<CertAwardJson>(locals.supabase, 'cert_award_get', { p_id: params.awardId });
-	if (!award.ok) return { title: 'Record', unavailable: true as const, award: null };
+	if (!award.ok) return { title: 'Record', shell: deskShell('Record'), unavailable: true as const, award: null };
 	if (!award.data || isRefusal(award.data)) error(404, 'Not found');
-	return { title: `Record ${award.data.serial}`, unavailable: false as const, award: award.data };
+	return { title: `Record ${award.data.serial}`, shell: deskShell(`Record ${award.data.serial}`), unavailable: false as const, award: award.data };
 };
 
 const ACTIONS = new Set(['suspend', 'reinstate', 'revoke']);

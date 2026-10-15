@@ -1,4 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
+import { deskShell } from '$lib/certifications/student/shell';
 import { requireCertAdmin, requireCertifier } from '$lib/server/certifications/gate';
 import { CERT_PATHS } from '$lib/certifications/nav';
 import { isRefusal, type CertPackage, type ExamQuestion } from '$lib/certifications/types';
@@ -24,7 +25,7 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 		loadRpc<AdminGetJson>(locals.supabase, 'cert_admin_get', { p_id: params.id }),
 		loadRpc<AdminListRow[]>(locals.supabase, 'cert_admin_list')
 	]);
-	if (!cert.ok) return { title: 'Engine', unavailable: true as const, cert: null, pool: null, others: [] };
+	if (!cert.ok) return { title: 'Engine', shell: deskShell('Engine'), unavailable: true as const, cert: null, pool: null, others: [] };
 	if (!cert.data || isRefusal(cert.data)) error(404, 'Not found');
 	let pool: ExamQuestion[] | null = null;
 	if (isAdmin) {
@@ -32,7 +33,7 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 		pool = Array.isArray(dataOrNull(got)) ? (dataOrNull(got) as ExamQuestion[]) : [];
 	}
 	const others = (dataOrNull(list) ?? []).filter((r) => r.id !== params.id).map((r) => ({ code: r.code, name: r.name }));
-	return { title: `${cert.data.code} in the engine`, unavailable: false as const, cert: cert.data, pool, others };
+	return { title: `${cert.data.code} in the engine`, shell: deskShell(`${cert.data.code} in the engine`), unavailable: false as const, cert: cert.data, pool, others };
 };
 
 function parsePackage(raw: string): CertPackage | null {

@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { deskShell } from '$lib/certifications/student/shell';
 import { requireCertifier } from '$lib/server/certifications/gate';
 import { formatCertTime } from '$lib/certifications/status';
 import { isRefusal } from '$lib/certifications/types';
@@ -25,9 +26,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const email = params.email.trim().toLowerCase();
 	if (!emailOk(email)) error(404, 'Not found');
 	const view = await loadRpc<StudentViewJson>(locals.supabase, 'cert_student_view', { p_email: email });
-	if (!view.ok) return { title: 'Student', unavailable: true as const, view: null };
+	if (!view.ok) return { title: 'Student', shell: deskShell('Student'), unavailable: true as const, view: null };
 	if (!view.data || isRefusal(view.data)) error(404, 'Not found');
-	return { title: view.data.name ?? email, unavailable: false as const, view: view.data };
+	return { title: view.data.name ?? email, shell: deskShell(view.data.name ?? email), unavailable: false as const, view: view.data };
 };
 
 export const actions: Actions = {

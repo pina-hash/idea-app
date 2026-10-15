@@ -4,7 +4,7 @@ import { CERT_MARK_SRC, CERT_MARK_SRCSET } from '$lib/certifications/certificate
 import { qrSvgDataUrl } from '$lib/certifications/certificate/qr';
 import { CERT_PATHS, verifyUrl } from '$lib/certifications/nav';
 import { normalizeSerial } from '$lib/certifications/serial';
-import { isRefusal, type CertificateJson } from '$lib/certifications/types';
+import { isRefusal, type CertificateJson, type CertRefusal } from '$lib/certifications/types';
 import { readCert } from '$lib/certifications/student/load';
 import { CERT_EYEBROW, type CertShellData } from '$lib/certifications/student/shell';
 import { certSiteOrigin } from '$lib/server/certifications/gate';
@@ -39,12 +39,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const serial = normalizeSerial(params.serial ?? '');
 	if (!serial) error(404, 'Not found');
 
-	const got = await readCert<CertificateJson | { ok: false; reason: string } | null>(locals.supabase, 'cert_certificate', {
-		p_serial: serial
-	});
-	if (!got.ok) return { shell: shellFor(null), unavailable: true, record: null, qrSrc: '', verifyUrl: '', markSrc: CERT_MARK_SRC, markSrcset: CERT_MARK_SRCSET };
-	const record = got.data;
-	if (!record || typeof record !== 'object' || isRefusal(record) || typeof (record as CertificateJson).serial !== 'string') error(404, 'Not found');
+	const got = await readCert<CertificateJson | CertRefusal | null>(locals.supabase, 'cert_certificate', { p_serial: serial });
+	if (!got.ok) {
+		return { shell: shellFor(null), unavailable: true, record: null as CertificateJson | null, qrSrc: '', verifyUrl: '', markSrc: CERT_MARK_SRC, markSrcset: CERT_MARK_SRCSET };
+	}
+	const answer = got.data;
+	if (!answer || typeof answer !== 'object' || isRefusal(answer) || typeof answer.serial !== 'string') error(404, 'Not found');
+	const record: CertificateJson = answer;
 
 	const verify = verifyUrl(record.serial, certSiteOrigin(url));
 	const qrSrc = await qrSvgDataUrl(verify);

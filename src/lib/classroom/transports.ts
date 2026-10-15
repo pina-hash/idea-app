@@ -32,7 +32,8 @@ import {
 	type PastManifest,
 	type ResponseRow,
 	type StudentEngineData,
-	type SubmissionFileRow
+	type SubmissionFileRow,
+	type SubmissionRow
 } from './assignment-spec';
 import { managedPostedSections, type PostedSection } from './grading-bulk';
 import type { BulkGradeReport, BulkGradingLoad, BulkGradingTransports } from './grading-bulk';
@@ -1238,10 +1239,13 @@ export interface SubmissionsResult {
 async function selectSubmissions(
 	supabase: SupabaseClient,
 	itemId: string,
-	one: boolean
+	one: boolean,
+	/** Pinned to one student's address (attribution, never authorization): one student's page. */
+	email: string | null = null
 ): Promise<SubmissionsResult> {
 	const run = (columns: string) => {
-		const q = supabase.from('classroom_submissions').select(columns).eq('item_id', itemId);
+		let q = supabase.from('classroom_submissions').select(columns).eq('item_id', itemId);
+		if (email) q = q.eq('student_email', email);
 		return one ? q.maybeSingle() : q;
 	};
 	const direct = await run(SUBMISSION_SELECT_DIRECT);
@@ -1302,15 +1306,16 @@ function submissionFileQuery(
 	itemId: string,
 	columns: string,
 	from: number,
-	to: number
+	to: number,
+	email: string | null = null
 ) {
-	return supabase
+	let q = supabase
 		.from('classroom_submission_files')
-		.select(`${columns}, classroom_submissions!inner(item_id)`)
-		.eq('classroom_submissions.item_id', itemId)
-		.order('sort_order')
-		.order('id')
-		.range(from, to);
+		.select(`${columns}, classroom_submissions!inner(item_id, student_email)`)
+		.eq('classroom_submissions.item_id', itemId);
+	// One student's page pins the join to their address too (attribution).
+	if (email) q = q.eq('classroom_submissions.student_email', email);
+	return q.order('sort_order').order('id').range(from, to);
 }
 
 export interface SubmissionFilesResult {
@@ -1332,17 +1337,18 @@ export interface SubmissionFilesResult {
  */
 async function selectSubmissionFiles(
 	supabase: SupabaseClient,
-	itemId: string
+	itemId: string,
+	email: string | null = null
 ): Promise<SubmissionFilesResult> {
 	const wide = await readWorkPages(
-		(from, to) => submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT_STORAGE, from, to),
+		(from, to) => submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT_STORAGE, from, to, email),
 		fileKey
 	);
 	if (!wide.error) {
 		return { rows: (wide.data ?? []) as unknown as SubmissionFileRow[], storageReady: true, error: null };
 	}
 	const narrow = await readWorkPages(
-		(from, to) => submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT, from, to),
+		(from, to) => submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT, from, to, email),
 		fileKey
 	);
 	return {
@@ -1837,6 +1843,68 @@ export function createTeacherEngineTransports(
 			if (!rosterRes.ok) return rosterRes;
 			return { ok: true, data: { roster: rosterRes.data.rows, ...work } };
 		}
+	};
+}
+
+/**
+ * ONE STUDENT'S WORK ON ONE ITEM, EVERY READ PINNED TO THEIR ADDRESS (the
+ * 2026-10-15 round, report 5464ceb2: "open their filled assignment alone on a
+ * full screen page"). It is `loadItemWork` narrowed to one student through the
+ * SAME select strings and the same pager, so the two cannot drift, and it is
+ * the read one student's page makes: a manager's RLS hands them the whole
+ * class, and `.eq('student_email', ...)` is attribution, never authorization
+ * (CLAUDE.md, the read-path rule; the student page's own load is the model).
+ *
+ * The shape is a `StudentWork` minus the roster facts the caller already holds
+ * (name and active flag come from the roster row the page gate read).
+ */
+export async function loadStudentItemWork(
+	supabase: SupabaseClient,
+	itemId: string,
+	email: string
+): Promise<{
+	submission: SubmissionRow | null;
+	responses: ResponseRow[];
+	files: SubmissionFileRow[];
+	approvals: ModuleApprovalRow[];
+	storageReady: boolean;
+	/** False when a read failed and the slice may be short; the surface says so. */
+	complete: boolean;
+}> {
+	const who = email.trim().toLowerCase();
+	const [submissionRes, responsesRes, filesRes, approvalsRes] = await Promise.all([
+		selectSubmissions(supabase, itemId, true, who),
+		readWorkPages(
+			(from, to) =>
+				supabase
+					.from('classroom_responses')
+					.select('item_id, student_email, block_id, value, updated_at')
+					.eq('item_id', itemId)
+					.eq('student_email', who)
+					.order('block_id')
+					.range(from, to),
+			(r) => String((r as { block_id?: unknown }).block_id)
+		),
+		selectSubmissionFiles(supabase, itemId, who),
+		readWorkPages(
+			(from, to) =>
+				supabase
+					.from('classroom_module_approvals')
+					.select('item_id, student_email, module_id, approved_by, approved_at')
+					.eq('item_id', itemId)
+					.eq('student_email', who)
+					.order('module_id')
+					.range(from, to),
+			(r) => String((r as { module_id?: unknown }).module_id)
+		)
+	]);
+	return {
+		submission: (submissionRes.data as SubmissionRow | null) ?? null,
+		responses: Array.isArray(responsesRes.data) ? (responsesRes.data as ResponseRow[]) : [],
+		files: filesRes.rows,
+		approvals: Array.isArray(approvalsRes.data) ? (approvalsRes.data as ModuleApprovalRow[]) : [],
+		storageReady: filesRes.storageReady,
+		complete: !submissionRes.error && !responsesRes.error && !filesRes.error && !approvalsRes.error
 	};
 }
 

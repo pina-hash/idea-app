@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { deskShell } from '$lib/certifications/student/shell';
 import { requireCertifier } from '$lib/server/certifications/gate';
 import { isRefusal, type AwardRecordPreview, type CertAttemptJson } from '$lib/certifications/types';
 import type { StudentViewJson } from '$lib/certifications/desk/desk';
@@ -29,7 +30,7 @@ export const load: PageServerLoad = async ({ locals, params, url, parent }) => {
 	if (!email.includes('@')) error(404, 'Not found');
 
 	const view = await loadRpc<StudentViewJson>(locals.supabase, 'cert_student_view', { p_email: email });
-	if (!view.ok) return { title: 'Award', unavailable: true as const, attempt: null, student: null, record: null, refusal: null, callerEmail };
+	if (!view.ok) return { title: 'Award', shell: deskShell('Award'), unavailable: true as const, attempt: null, student: null, record: null, refusal: null, callerEmail };
 	if (!view.data || isRefusal(view.data)) error(404, 'Not found');
 	const attempt: CertAttemptJson | undefined = view.data.attempts.find((a) => a.id === attemptId);
 	if (!attempt) error(404, 'Not found');
@@ -49,7 +50,7 @@ export const load: PageServerLoad = async ({ locals, params, url, parent }) => {
 		refusal = { reason: 'unavailable', message: 'The award cannot be prepared yet: this part of IDEA Certifications is not available on this database.' };
 	}
 	return {
-		title: `Award: ${view.data.name ?? email}`,
+		title: `Award: ${view.data.name ?? email}`, shell: deskShell(`Award: ${view.data.name ?? email}`),
 		unavailable: false as const,
 		attempt,
 		student: { email: view.data.email, name: view.data.name },

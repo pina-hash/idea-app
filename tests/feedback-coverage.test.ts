@@ -128,7 +128,9 @@ describe('coverage is structural, not per page', () => {
 		// shell control is excluded by category and relocated to its own strip.
 		const ROOT_RESETS: Record<string, string> = {
 			'src/routes/classroom/[sectionId]/live/projector/+page@.svelte':
-				'the class projector: no classroom chrome on a wall, and no section payload in its data'
+				'the class projector: no classroom chrome on a wall, and no section payload in its data',
+			'src/routes/classroom/[sectionId]/people/[studentEmail]/work/[itemId]/+page@.svelte':
+				"one student's filled assignment alone on a full-screen page for a conference (report 5464ceb2): no classroom chrome, no section payload, the control relocated to its own bar"
 		};
 		const resets = ROUTE_FILES.filter((f) => /\/\+(page|layout|error)@[^/]*\.svelte$/.test(f));
 		expect([...resets].sort()).toEqual(Object.keys(ROOT_RESETS).sort());

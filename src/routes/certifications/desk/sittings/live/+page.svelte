@@ -11,7 +11,6 @@
 	import { page } from '$app/state';
 	import { deserialize } from '$app/forms';
 	import ProctorLive from '$lib/certifications/exam/ProctorLive.svelte';
-	import { PORTAL_NAME } from '$lib/certifications/copy';
 	import type { ExamLiveRow } from '$lib/certifications/types';
 	import { isSignedOutFailure, startPoller, type Poller } from '$lib/classroom/poll';
 	import type { PageData } from './$types';
@@ -73,15 +72,6 @@
 		await readLive();
 	}
 </script>
-
-<svelte:head><title>Live exam, {PORTAL_NAME}</title></svelte:head>
-
-<header class="cert-titlebar">
-	<div>
-		<p class="eyebrow cert-eyebrow">IDEA // Certifications</p>
-		<h1 class="cert-title plate-title">Live exam</h1>
-	</div>
-</header>
 
 <p class="cert-notice cert-notice-quiet" data-testid="cert-live-note">
 	<span class="cert-notice-glyph" aria-hidden="true">i</span>
