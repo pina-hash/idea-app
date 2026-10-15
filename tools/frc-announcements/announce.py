@@ -128,6 +128,8 @@ svg.lines{position:absolute;left:0;top:0;width:8.5in;height:11in}
 .when div small{display:block;font-family:SM;font-size:8pt;letter-spacing:.18em;color:#94989C;margin-bottom:.03in}
 .when .d{background:#FFE629;color:#000}
 .when .d small{color:#000}
+.ctx{position:absolute;left:.75in;font-weight:500;font-size:10pt;line-height:1.35;color:#FFFFFF}
+.ctx b{display:block;font-family:SM;font-weight:700;font-size:8.5pt;letter-spacing:.18em;color:#FFE629;margin-bottom:.04in}
 .stamp{position:absolute;left:.75in;right:.55in;display:flex;align-items:center;gap:.14in;font-family:SM;font-weight:700;font-size:8.5pt;letter-spacing:.08em;color:#fff;line-height:1.4}
 .stamp b{background:#FFE629;color:#000;padding:.04in .1in;white-space:nowrap}
 .body{position:absolute;left:.75in;right:.55in}
@@ -142,8 +144,8 @@ svg.lines{position:absolute;left:0;top:0;width:8.5in;height:11in}
 .cell.hot .d{color:#FFE629}
 .cell .t{font-weight:700;font-size:13.5pt;margin-top:.03in;line-height:1.1}
 .cell .s{font-weight:500;font-size:10pt;color:#B9BCC0;margin-top:.03in;line-height:1.3}
-.role{display:flex;gap:.16in;align-items:center}
-.ic{width:.58in;height:.58in;flex:none}.ic svg{width:100%;height:100%;display:block}
+.role{display:flex;gap:.14in;align-items:center;padding:.08in .13in}
+.ic{width:.5in;height:.5in;flex:none}.ic svg{width:100%;height:100%;display:block}
 .join{position:absolute;left:.22in;right:0;bottom:.2in;height:2.3in;background:#FFE629;color:#000;display:flex;align-items:center;gap:.35in;padding:0 .55in 0 .53in}
 .qr{width:1.85in;height:1.85in;background:#fff;padding:.12in;border:3px solid #000;flex:none;display:block}
 .qr svg{width:100%;height:100%;display:block}
@@ -165,7 +167,7 @@ def robot(x, y, w, callouts=True):
         return out
     # (label, sub, point as fraction of image, label anchor)
     pts = [("WIRED BY STUDENTS", "EVERY WIRE", .44, .13, "up", None),
-           ("CUT BY STUDENTS", "CUSTOM STEEL PLATES", .62, .30, "up", 7.95),
+           ("CUT BY STUDENTS", "EVERY CUSTOM PART", .62, .30, "up", 7.95),
            ("EVEN THE BUMPERS", "MADE BY STUDENTS", .70, .80, "down", None)]
     lines, labels = [], []
     for name, sub, fx, fy, where, fixed in pts:
@@ -185,6 +187,10 @@ def robot(x, y, w, callouts=True):
         else:
             labels.append(f'<div class=co style="left:{lx}in;top:{top}in">{name}<i>{sub}</i></div>')
     return out + '<svg class=lines viewBox="0 0 8.5 11">' + "".join(lines) + "</svg>" + "".join(labels)
+
+
+CTX = ('<div class=ctx style="top:{top}in;width:{w}in"><b>WHAT WE DO</b>Every season, students build a brand-new '
+       'competition robot and take on some of the best teams in the world. California is one of the toughest regions in FIRST.</div>')
 
 
 def when(cells, top):
@@ -240,17 +246,17 @@ def flyer_html(air, c):
     sat = (air + dt.timedelta(days=1)).strftime("SAT %-m/%-d")
     if c["kind"] == "MON":
         lunch = LUNCH.get(air, "11:05 AM")
-        body = (f'<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>{robot(4.2, 1.6, 3.95)}'
-                + when([("d", "DATE", long_date(air)), ("", "TIME", f"Start of lunch, {lunch}"), ("", "PLACE", "IDEA Classroom")], 4.2)
-                + '<div class=body style="top:5.0in"><div class=lede>Every member, every Monday. <b>Come straight to the meeting, then get your food.</b> '
+        body = (f'<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>{robot(4.2, 1.6, 3.95)}' + CTX.format(top=3.42, w=3.3)
+                + when([("d", "DATE", long_date(air)), ("", "TIME", f"Start of lunch, {lunch}"), ("", "PLACE", "IDEA Classroom")], 4.5)
+                + '<div class=body style="top:5.25in"><div class=lede>Every member, every Monday. <b>Come straight to the meeting, then get your food.</b> '
                   'Miss it and you are out of the loop. New students welcome.</div>'
-                + f'<div class=k>EVERY WEEK</div>{WEEK}</div>' + STAMP.format(top=7.72))
+                + f'<div class=k>EVERY WEEK</div>{WEEK}</div>' + STAMP.format(top=7.88))
         return page(f'FRC TEAM <b>5669</b><br>{D} · <b>MANDATORY</b>', body)
     if c["kind"] == "TUE":
         cells = "".join(f'<div class="cell role"><div class=ic>{i}</div><div><div class=t>{n}</div><div class=s>{d}</div></div></div>' for n, d, i in ROLES)
-        body = (f'<div class=hero>WE<br>NEED<br><span>YOU.</span></div>{robot(3.35, 1.45, 4.8, callouts=False)}'
-                + when([("d", "DATE", long_date(air)), ("", "TIME", "After school, until 5:00 PM"), ("", "PLACE", "IDEA building")], 3.95)
-                + '<div class=body style="top:4.55in">'
+        body = (f'<div class=hero>WE<br>NEED<br><span>YOU.</span></div>{robot(3.35, 1.45, 4.8, callouts=False)}' + CTX.format(top=3.95, w=7.2)
+                + when([("d", "DATE", long_date(air)), ("", "TIME", "After school, until 5:00 PM"), ("", "PLACE", "IDEA building")], 4.58)
+                + '<div class=body style="top:5.12in">'
                 + f'<div class=k>EVERY TECHNOLOGY HAS A PLACE · NO EXPERIENCE REQUIRED</div><div class=grid style="grid-template-columns:repeat(2,1fr)">{cells}</div></div>')
         return page(f'FRC TEAM <b>5669</b><br>{D} · <b>NOW RECRUITING</b>', body)
     if c["kind"] in ("FRI_BB", "FRI_BB0"):
@@ -260,17 +266,17 @@ def flyer_html(air, c):
         else:
             hero = '<div class=hero>BEACH<br>BLITZ<br><span>TODAY.</span></div>'
             third = ("", "THROUGH", "Sunday, Nov 1")
-        body = (hero + robot(4.2, 1.6, 3.95)
-                + when([("d", "DATE", long_date(air)), ("", "WHERE", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else "After school, IDEA building"), third], 4.2)
-                + '<div class=body style="top:5.0in"><div class=lede>The most competitive event the team has ever entered. <b>Every hour before the event counts.</b></div>'
+        body = (hero + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
+                + when([("d", "DATE", long_date(air)), ("", "WHERE", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else "After school, IDEA building"), third], 4.5)
+                + '<div class=body style="top:5.25in"><div class=lede>The most competitive event the team has ever entered. <b>Every hour before the event counts.</b></div>'
                 + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat)
                 + '<div class=k>GOING TO BEACH BLITZ?</div><div class=cell><div class=t>Family sign-up is required to attend.</div>'
                   '<div class=s>No school transportation. Families carpool from the Bosco Tech front lot. See Mr. Pina.</div></div></div>')
         return page(f'FRC TEAM <b>5669</b><br>{D} · <b>BEACH BLITZ</b>', body)
-    body = ('<div class=hero>BUILD<br>DAY.<br><span style="font-size:22pt;letter-spacing:.02em">TODAY AFTER SCHOOL</span></div>' + robot(4.2, 1.6, 3.95)
-            + when([("d", "DATE", long_date(air)), ("", "TIME", "After school"), ("", "PLACE", "IDEA building")], 4.2)
-            + '<div class=body style="top:5.0in"><div class=lede>Build, test and train on the robot. <b>New students welcome.</b> Come find your place on the team.</div>'
-            + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat) + '</div>' + STAMP.format(top=7.4))
+    body = ('<div class=hero>BUILD<br>DAY.<br><span style="font-size:22pt;letter-spacing:.02em">TODAY AFTER SCHOOL</span></div>' + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
+            + when([("d", "DATE", long_date(air)), ("", "TIME", "After school"), ("", "PLACE", "IDEA building")], 4.5)
+            + '<div class=body style="top:5.25in"><div class=lede>Build, test and train on the robot. <b>New students welcome.</b> Come find your place on the team.</div>'
+            + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat) + '</div>' + STAMP.format(top=7.6))
     return page(f'FRC TEAM <b>5669</b><br>{D} · <b>BUILD DAY</b>', body)
 
 
