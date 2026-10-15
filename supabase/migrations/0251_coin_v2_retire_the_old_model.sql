@@ -171,6 +171,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+-- 0251 coin_log_transaction: no medium argument; every write is digital.
 declare
 	v_email text := lower(btrim(coalesce(p_email, '')));
 	v_cat public.coin_categories;
@@ -349,6 +350,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+-- 0251 coin_log_property_damage_careless: no medium argument; every write is digital.
 declare
 	v_email text := lower(btrim(coalesce(p_email, '')));
 	v_note text := nullif(btrim(coalesce(p_note, '')), '');
@@ -560,6 +562,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+-- 0251 coin_admin_adjust_balance: no medium argument; every write is digital.
 begin
 	return public.coin_log_transaction(lower(btrim(coalesce(p_email, ''))), 'balance_correction', p_amount, null, p_note);
 end;
