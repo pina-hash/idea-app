@@ -1,7 +1,12 @@
 import { error, redirect } from '@sveltejs/kit';
 import { studentEmailParam } from '$lib/classroom/nav';
 import { studentToken } from '$lib/classroom/grading-student-url';
-import { loadSectionRoster } from '$lib/classroom/transports';
+import { loadSectionRoster, SUBMISSION_FILE_SELECT } from '$lib/classroom/transports';
+import { isSubmissionFileImage, submissionFileSrc, type SubmissionFileRow } from '$lib/classroom/assignment-spec';
+import { photoSrc } from '$lib/notebook';
+import { photoThumbSrc } from '$lib/notebook-folders';
+import { laCalendarDay } from '$lib/classroom/school-calendar';
+import { timelineDayLabel } from '$lib/notebook/timeline';
 import { readAllPages, readWorksheetCompletions } from '$lib/classroom/student-work';
 import { createTeamTransports } from '$lib/classroom/teams';
 import { classDayStreak } from '$lib/notebook/timeline';
@@ -9,6 +14,9 @@ import type { SectionGrid } from '$lib/notebook-review';
 import {
 	buildStudentPage,
 	parseStudentOverview,
+	studentGallery,
+	type GalleryNotebookPhoto,
+	type GallerySubmissionFile,
 	type SourceState,
 	type StudentOverviewPayload,
 	type StudentPresenceRow,
@@ -128,6 +136,39 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 		userId ? readFoundryApps(supabase, userId) : Promise.resolve([] as { id: string; slug: string; title: string }[])
 	]);
 
+	/*
+	 * THEIR WORK AS PICTURES (ledger 0392): the hand-in files hanging off THIS
+	 * student's submission rows, and the photos on notebook entries they turned
+	 * in to this class. Both reads are the caller's own, pinned to rows already
+	 * attributed to the one student, and both pictures are served by the proxies
+	 * a thumbnail already uses, which re-ask the same policies.
+	 */
+	const [files, photos] = await Promise.all([
+		readSubmissionFiles(supabase, (submissions ?? []).map((s) => s.id).filter((id): id is string => typeof id === 'string')),
+		entries ? readNotebookPhotos(supabase, entries.map((e) => e.id)) : Promise.resolve(null)
+	]);
+	const labels = new Map(checkIns.map((c) => [c.session_id, c.session_label]));
+	const gallery =
+		files === null && photos === null
+			? null
+			: studentGallery({
+					items,
+					submissions: submissions ?? [],
+					files: files ?? [],
+					isImage: (f) => isSubmissionFileImage(f as unknown as SubmissionFileRow),
+					fileSrc: submissionFileSrc,
+					photos: photos ?? [],
+					entries: new Map(
+						(entries ?? []).map((e) => [
+							e.id,
+							{ at: e.submitted_at ?? e.upload_timestamp, label: e.session_id ? (labels.get(e.session_id) ?? null) : null }
+						])
+					),
+					photoSrc,
+					photoThumb: photoThumbSrc,
+					day: (iso) => (iso ? timelineDayLabel(laCalendarDay(new Date(iso)), classClock.today) : '')
+				});
+
 	const studentPage = buildStudentPage({
 		email,
 		roster: {
@@ -153,7 +194,8 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 		entriesFiled: entries ? entries.length : null,
 		board,
 		ideacad: ideacadRead,
-		foundry
+		foundry,
+		gallery
 	});
 
 	/**
@@ -173,7 +215,46 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 	return { student: studentPage.student, studentPage, gradeTokens };
 };
 
-type EntryRow = { session_id: string | null; upload_timestamp: string; submitted_at: string | null };
+type EntryRow = { id: string; session_id: string | null; upload_timestamp: string; submitted_at: string | null };
+
+/**
+ * THE FILES ON THEIR SUBMISSION ROWS, for the gallery. The storage key rides
+ * its own rung (0133): without it a storage-backed picture cannot be told from
+ * a CAD file, so the narrow rung's rows simply read as their recorded type.
+ * Null when neither rung answers, which the page says rather than showing an
+ * empty gallery as "no pictures".
+ */
+async function readSubmissionFiles(
+	supabase: App.Locals['supabase'],
+	submissionIds: string[]
+): Promise<GallerySubmissionFile[] | null> {
+	if (!submissionIds.length) return [];
+	for (const cols of [`${SUBMISSION_FILE_SELECT}, storage_key`, SUBMISSION_FILE_SELECT]) {
+		const res = await supabase
+			.from('classroom_submission_files')
+			.select(cols)
+			.in('submission_id', submissionIds)
+			.order('created_at', { ascending: false })
+			.limit(400);
+		if (!res.error) return (res.data ?? []) as unknown as GallerySubmissionFile[];
+	}
+	return null;
+}
+
+/** The photos on their turned-in entries in this class. Null when the read failed. */
+async function readNotebookPhotos(
+	supabase: App.Locals['supabase'],
+	entryIds: string[]
+): Promise<GalleryNotebookPhoto[] | null> {
+	if (!entryIds.length) return [];
+	const res = await supabase
+		.from('notebook_entry_photos')
+		.select('id, entry_id, variant, sequence_order, created_at')
+		.in('entry_id', entryIds.slice(0, 300))
+		.order('created_at', { ascending: false })
+		.limit(400);
+	return res.error ? null : ((res.data ?? []) as GalleryNotebookPhoto[]);
+}
 
 /** Postgres's undefined-column code: the one failure a narrower rung answers. */
 const UNDEFINED_COLUMN = '42703';

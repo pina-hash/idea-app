@@ -25,11 +25,15 @@
  * calls Complete. Presence goes through `presenceLineKind`, the one decision
  * of what a missing heartbeat row may say.
  *
- * IT GRADES NOTHING. Points are summed over RETURNED work only and are shown
- * as "earned of possible"; there is no percent and no letter, because a grade
- * computed here would be a second grade that can disagree with FACTS' weighted
- * categories in front of a parent. The notebook's presence pre-fill is not
- * shown for the same reason.
+ * ITS GRADE IS POINTS OVER RETURNED WORK, LABELLED AS EXACTLY THAT. Until
+ * ledger 0392 this page showed no percent at all, so a second grade could not
+ * disagree with FACTS' weighted categories in front of a parent. Mr. Pina
+ * asked for the grade on this page for conferences (2026-10-16: "I should be
+ * able to see their grade in the class"), so `studentGrade` gives the percent
+ * of points earned on returned work, and every surface that shows it says
+ * that it is points on returned work and that FACTS weighs categories. There
+ * is still no letter: the scale is the school's, and it is a decision owed.
+ * The notebook's presence pre-fill is still not shown.
  */
 
 import { studentPageHref } from '$lib/classroom/nav';
@@ -204,6 +208,8 @@ export function parseStudentOverview(value: unknown): StudentOverviewPayload | n
 
 /** A submission row as the page selects it, attributed to the one student. */
 export interface StudentSubmissionRow extends SubmissionSummary {
+	/** The row's own id (selected by the route), which the gallery joins its files on. */
+	id?: string | null;
 	student_email: string;
 	submitted_at?: string | null;
 	returned_at?: string | null;
@@ -365,9 +371,9 @@ export type StudentAssignmentSortKey =
 export type StudentAssignmentSortDir = 'asc' | 'desc';
 
 export const STUDENT_ASSIGNMENT_SORTS: readonly { id: StudentAssignmentSortKey; label: string }[] = [
-	{ id: 'default', label: 'Due date (default)' },
+	{ id: 'due', label: 'Due date' },
+	{ id: 'default', label: 'Class order' },
 	{ id: 'title', label: 'Assignment' },
-	{ id: 'due', label: 'Due' },
 	{ id: 'status', label: 'Status' },
 	{ id: 'turnedIn', label: 'Turned in' },
 	{ id: 'score', label: 'Score' },
@@ -375,6 +381,26 @@ export const STUDENT_ASSIGNMENT_SORTS: readonly { id: StudentAssignmentSortKey; 
 	{ id: 'lastTyped', label: 'Last typed' },
 	{ id: 'lastOpened', label: 'Last opened' }
 ];
+
+/**
+ * THE ORDER THE TABLE OPENS ON: newest due date first (Mr. Pina, 2026-10-16:
+ * "the default sorting order should be latest assignment to oldest"). An
+ * undated row still sorts last, because the due key puts "nothing here" last in
+ * either direction.
+ */
+export const STUDENT_ASSIGNMENT_DEFAULT_SORT: { key: StudentAssignmentSortKey; dir: StudentAssignmentSortDir } = {
+	key: 'due',
+	dir: 'desc'
+};
+
+/**
+ * Which way a column opens when it is first picked: a date, a score or a time
+ * opens biggest and newest first, which is the question a teacher is asking;
+ * a name and a status open in reading and triage order.
+ */
+export function studentAssignmentSortStartDir(key: StudentAssignmentSortKey): StudentAssignmentSortDir {
+	return key === 'title' || key === 'status' || key === 'default' ? 'asc' : 'desc';
+}
 
 export function isStudentAssignmentSortKey(value: unknown): value is StudentAssignmentSortKey {
 	return typeof value === 'string' && STUDENT_ASSIGNMENT_SORTS.some((s) => s.id === value);
@@ -484,6 +510,90 @@ export function studentAssignmentTotals(rows: readonly StudentAssignmentRow[]): 
 		pointsEarned,
 		pointsPossible
 	};
+}
+
+/** The grade this page shows: the percent of points earned on RETURNED work, or null before any. */
+export interface StudentGrade {
+	/** Rounded to one decimal place; null with nothing returned. */
+	percent: number | null;
+	earned: number;
+	possible: number;
+	/** How many returned assignments it covers. */
+	counted: number;
+}
+
+export function studentGrade(rows: readonly StudentAssignmentRow[]): StudentGrade {
+	let earned = 0;
+	let possible = 0;
+	let counted = 0;
+	for (const r of rows) {
+		if (r.score !== null && r.points !== null && r.points > 0) {
+			earned += r.score;
+			possible += r.points;
+			counted++;
+		}
+	}
+	return {
+		percent: possible > 0 ? Math.round((earned / possible) * 1000) / 10 : null,
+		earned,
+		possible,
+		counted
+	};
+}
+
+/** The words that sit beside the grade wherever it is shown. */
+export const STUDENT_GRADE_NOTE =
+	'Points earned on returned work in this class. FACTS weighs categories, so the report card grade can differ.';
+
+/** One returned assignment's score as a share of its points, for the score bars. */
+export interface StudentScoreBar {
+	itemId: string;
+	title: string;
+	score: number;
+	points: number;
+	/** 0 to 100, one decimal; may pass 100 with extra credit. */
+	percent: number;
+	dueAt: string | null;
+}
+
+/** Every returned, scored assignment, oldest due first, so the bars read left to right as the term went. */
+/** How many "coming up" rows the page's top shows. */
+export const STUDENT_UPCOMING_MAX = 3;
+
+/**
+ * WHAT IS COMING UP (ledger 0392, for a conference: "what is next for them").
+ * Assignments still live for the class, not yet done, and due from now on,
+ * soonest first. Undated work is never "coming up" (it has no date to be
+ * up to), and past-due work is the Needs attention list's, not this one.
+ */
+export function studentUpcoming(
+	rows: readonly StudentAssignmentRow[],
+	now: string,
+	limit = STUDENT_UPCOMING_MAX
+): StudentAssignmentRow[] {
+	const at = new Date(now).getTime();
+	return rows
+		.filter((r) => r.posted && !r.chip.done && r.dueAt !== null && new Date(r.dueAt).getTime() >= at)
+		.sort((a, b) => new Date(a.dueAt as string).getTime() - new Date(b.dueAt as string).getTime() || a.title.localeCompare(b.title))
+		.slice(0, limit);
+}
+
+export function studentScoreBars(rows: readonly StudentAssignmentRow[]): StudentScoreBar[] {
+	return rows
+		.filter((r) => r.score !== null && r.points !== null && r.points > 0)
+		.map((r) => ({
+			itemId: r.itemId,
+			title: r.title,
+			score: r.score as number,
+			points: r.points as number,
+			percent: Math.round(((r.score as number) / (r.points as number)) * 1000) / 10,
+			dueAt: r.dueAt
+		}))
+		.sort((a, b) => {
+			const da = a.dueAt ? Date.parse(a.dueAt) : Number.POSITIVE_INFINITY;
+			const db = b.dueAt ? Date.parse(b.dueAt) : Number.POSITIVE_INFINITY;
+			return da - db || a.title.localeCompare(b.title);
+		});
 }
 
 /** Total active seconds across this class's assignments, or null when presence never answered with a row. */
@@ -643,6 +753,139 @@ export function studentTeams(board: TeamBoardResult | null, email: string): Stud
 }
 
 // ---------------------------------------------------------------------------
+// 5b. Their work, as pictures (ledger 0392)
+// ---------------------------------------------------------------------------
+
+/**
+ * ONE PICTURE OF THEIR WORK, for the slideshow beside their name (Mr. Pina,
+ * 2026-10-16: "a little automatic slideshow with their uploaded work ... their
+ * personal student gallery"). Two sources, both already readable by this
+ * page's caller and both already served by a proxy that answers to the same
+ * policies: a picture handed in on an assignment of this class
+ * (`classroom_submission_files`, `submissionFileSrc`) and a photo on a notebook
+ * entry turned in to this class (`notebook_entry_photos`, the photo proxy).
+ * Nothing here is a new read path; `src` is the proxy a thumbnail already uses.
+ */
+export interface StudentGalleryItem {
+	key: string;
+	source: 'assignment' | 'notebook';
+	/** The small rendition where the source has one; the picture otherwise. */
+	thumb: string;
+	/** The whole picture, for the viewer. */
+	src: string;
+	/** Where it came from, in words: the assignment's title, or the notebook day. */
+	caption: string;
+	/** When it arrived, or null. */
+	at: string | null;
+	/** The assignment it belongs to, for a link; null for a notebook photo. */
+	itemId: string | null;
+}
+
+/** A hand-in file as the gallery reads it. */
+export interface GallerySubmissionFile {
+	id: string;
+	submission_id: string;
+	filename: string;
+	mime_type: string;
+	caption?: string | null;
+	created_at?: string | null;
+	storage_key?: string | null;
+}
+
+/** A notebook photo as the gallery reads it, with its entry's filing. */
+export interface GalleryNotebookPhoto {
+	id: string;
+	entry_id: string;
+	variant: 'original' | 'enhanced' | string;
+	sequence_order: number;
+	created_at?: string | null;
+}
+
+/** At most this many pictures ride the page: a conference needs a sample, not an archive. */
+export const STUDENT_GALLERY_MAX = 48;
+
+/**
+ * THE NOTEBOOK'S PAIRING RULE, READ, NOT RESTATED IN A NEW SHAPE: an enhanced
+ * copy pairs with the original immediately before it in sequence order
+ * (CLAUDE.md's capture rule), and where one exists the gallery shows the
+ * straightened copy in the original's place, so a page is shown once.
+ */
+export function notebookPhotosShown(photos: readonly GalleryNotebookPhoto[]): GalleryNotebookPhoto[] {
+	const byEntry = new Map<string, GalleryNotebookPhoto[]>();
+	for (const p of photos) {
+		const list = byEntry.get(p.entry_id) ?? [];
+		list.push(p);
+		byEntry.set(p.entry_id, list);
+	}
+	const out: GalleryNotebookPhoto[] = [];
+	for (const list of byEntry.values()) {
+		const ordered = list.slice().sort((a, b) => a.sequence_order - b.sequence_order);
+		for (let i = 0; i < ordered.length; i++) {
+			const p = ordered[i];
+			if (p.variant === 'enhanced') continue;
+			const next = ordered[i + 1];
+			out.push(next && next.variant === 'enhanced' ? next : p);
+		}
+	}
+	return out;
+}
+
+export function studentGallery(input: {
+	items: readonly ClassroomItem[];
+	submissions: readonly { id?: string | null; item_id: string }[];
+	files: readonly GallerySubmissionFile[];
+	isImage: (f: GallerySubmissionFile) => boolean;
+	fileSrc: (fileId: string) => string;
+	photos: readonly GalleryNotebookPhoto[];
+	/** Each turned-in entry's filing: its upload time and the check-in label, when it has one. */
+	entries: ReadonlyMap<string, { at: string | null; label: string | null }>;
+	photoSrc: (photoId: string) => string;
+	photoThumb: (photoId: string) => string;
+	day: (iso: string | null) => string;
+}): StudentGalleryItem[] {
+	const titles = new Map(input.items.map((i) => [i.id, itemTitle(i)]));
+	const itemOfSub = new Map(
+		input.submissions.filter((s) => typeof s.id === 'string').map((s) => [s.id as string, s.item_id])
+	);
+	const out: StudentGalleryItem[] = [];
+	for (const f of input.files) {
+		if (!input.isImage(f)) continue;
+		const itemId = itemOfSub.get(f.submission_id) ?? null;
+		if (!itemId) continue;
+		const src = input.fileSrc(f.id);
+		out.push({
+			key: `file:${f.id}`,
+			source: 'assignment',
+			thumb: src,
+			src,
+			caption: titles.get(itemId) ?? 'An assignment',
+			at: f.created_at ?? null,
+			itemId
+		});
+	}
+	for (const p of notebookPhotosShown(input.photos)) {
+		const entry = input.entries.get(p.entry_id);
+		if (!entry) continue;
+		const at = entry.at ?? p.created_at ?? null;
+		out.push({
+			key: `photo:${p.id}`,
+			source: 'notebook',
+			thumb: input.photoThumb(p.id),
+			src: input.photoSrc(p.id),
+			caption: entry.label ? `Notebook: ${entry.label}` : `Notebook, ${input.day(at)}`,
+			at,
+			itemId: null
+		});
+	}
+	out.sort((a, b) => {
+		const ta = a.at ? Date.parse(a.at) : 0;
+		const tb = b.at ? Date.parse(b.at) : 0;
+		return tb - ta || a.key.localeCompare(b.key);
+	});
+	return out.slice(0, STUDENT_GALLERY_MAX);
+}
+
+// ---------------------------------------------------------------------------
 // 6. The whole page
 // ---------------------------------------------------------------------------
 
@@ -694,9 +937,17 @@ export interface StudentPageData {
 		teams: SourceState;
 		ideacad: boolean;
 		foundry: boolean;
+		gallery: boolean;
 	};
 	assignments: StudentAssignmentRow[];
 	totals: StudentAssignmentTotals;
+	/** Points over returned work as a percent (ledger 0392). */
+	grade: StudentGrade;
+	scoreBars: StudentScoreBar[];
+	/** What is coming up next for this student: `studentUpcoming`. */
+	upcoming: StudentAssignmentRow[];
+	/** Pictures of their work, newest first; empty when there are none or the read failed (`sources.gallery`). */
+	gallery: StudentGalleryItem[];
 	workingSeconds: number | null;
 	presenceLimits: PresenceLimits;
 	materials: StudentMaterialRow[];
@@ -743,6 +994,8 @@ export interface StudentPageInputs {
 	board: TeamBoardResult | null;
 	ideacad: { id: string; item_id: string | null; title: string | null; updated_at: string | null; archived_at: string | null }[] | null;
 	foundry: { id: string; slug: string; title: string }[] | null;
+	/** Built by `studentGallery` from the hand-in and photo reads; null when they could not answer, absent before 0392. */
+	gallery?: StudentGalleryItem[] | null;
 }
 
 export function buildStudentPage(input: StudentPageInputs): StudentPageData {
@@ -793,10 +1046,15 @@ export function buildStudentPage(input: StudentPageInputs): StudentPageData {
 			notebookEntries: input.streak !== null,
 			teams: input.board === null ? 'error' : input.board.ok ? 'ready' : input.board.reason === 'unavailable' ? 'unavailable' : 'error',
 			ideacad: input.ideacad !== null,
-			foundry: input.foundry !== null
+			foundry: input.foundry !== null,
+			gallery: input.gallery !== null
 		},
 		assignments,
 		totals: studentAssignmentTotals(assignments),
+		grade: studentGrade(assignments),
+		scoreBars: studentScoreBars(assignments),
+		upcoming: studentUpcoming(assignments, input.now),
+		gallery: input.gallery ?? [],
 		workingSeconds: studentWorkingSeconds(assignments),
 		presenceLimits: ov?.presenceLimits ?? PRESENCE_LIMITS_FALLBACK,
 		materials,

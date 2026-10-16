@@ -23,7 +23,7 @@ export default {
 		{ selector: '#idea-legacy-report-btn', label: 'the floating Report control', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '#idea-legacy-report', label: 'the report panel, once opened', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '#idea-legacy-report button[data-kind]', label: 'one chip per feedback kind', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
-		{ selector: '#idea-legacy-report textarea', label: 'the message field', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '#idea-legacy-report textarea[id$="-msg"]', label: 'the message field', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '#idea-legacy-report input[type="text"]', label: 'the optional contact field (signed out only)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [

@@ -19,6 +19,10 @@
 	 *   &overrides=1                       the stored config carries per-round overrides
 	 *   &refuse=host|team|<text>           the stand-in refuses every call, verbatim
 	 *   &quals=1                           qualifying on in the stored config with no pools yet
+	 *   &admin=1                           the viewer is a site admin: on a live event the
+	 *                                      format opens, and Save previews then confirms
+	 *                                      through stand-ins for 0266's preview and apply
+	 *                                      (3 matches decided, 1 started, 4 not started)
 	 *   &cohost=1                          a button that plays a co-host's rename arriving
 	 *                                      the way the host console's refetch delivers it
 	 *                                      (a whole new row object), so the draft's
@@ -36,6 +40,13 @@
 		type SettingsDraft
 	} from '$lib/tournaments/settings';
 	import { parseConfig, type TournamentStatus } from '$lib/tournaments/tournaments';
+	import LiveSettingsConfirm from '$lib/tournaments/LiveSettingsConfirm.svelte';
+	import {
+		LIVE_EDIT_NOTE,
+		liveRefusalSentence,
+		normalizeLivePlan,
+		type LivePlan
+	} from '$lib/tournaments/live-settings';
 
 	const STATUSES: TournamentStatus[] = ['draft', 'registration_open', 'seeding', 'live', 'complete'];
 	const q = page.url.searchParams;
@@ -79,7 +90,59 @@
 		} as Record<string, unknown>
 	});
 
-	const locks = $derived(settingsLocks({ status, pools, qualResults: results }));
+	const admin = q.get('admin') === '1';
+	const liveAdmin = status === 'live' && admin;
+	const locks = $derived(settingsLocks({ status, pools, qualResults: results, liveAdmin }));
+
+	/** Stand-ins for 0266: the preview's plan over a fixed bracket, and an
+	 * apply that refuses a stale preview exactly as the database does. */
+	const PLAYED = 3;
+	const STARTED = 1;
+	const UNSTARTED = 4;
+	let livePlan = $state<LivePlan | null>(null);
+	let livePending: ReturnType<typeof tournamentUpdateArgs> | null = null;
+	let liveBusy = $state(false);
+	let liveError = $state('');
+	function simPreview(next: Record<string, unknown>): LivePlan {
+		const before = parseConfig(stored.config) as unknown as Record<string, unknown>;
+		const after = parseConfig(next) as unknown as Record<string, unknown>;
+		if (after.quals_enabled !== before.quals_enabled) return normalizeLivePlan({ ok: false, reason: 'quals_locked' });
+		const changes = ['score_entry', 'best_of_default', 'best_of', 'team_size']
+			.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]))
+			.map((k) => ({ key: k, from: before[k], to: after[k] }));
+		const lengthMoves = before.best_of_default !== after.best_of_default;
+		return normalizeLivePlan({
+			ok: true,
+			changes,
+			matches_restamped: lengthMoves ? UNSTARTED : 0,
+			matches_kept_length: lengthMoves ? PLAYED + STARTED : 0,
+			matches_played: PLAYED,
+			stored: JSON.parse(JSON.stringify(stored.config)),
+			after
+		});
+	}
+	async function applyLive() {
+		if (!livePlan || !livePending?.p_config) return;
+		liveBusy = true;
+		liveError = '';
+		try {
+			await sleep(150);
+			calls += 1;
+			lastCall = { rpc: 'tournament_live_config_apply', args: { p_config: livePending.p_config, p_expected_config: livePlan.stored } };
+			if (JSON.stringify(livePlan.stored) !== JSON.stringify(stored.config)) {
+				liveError = liveRefusalSentence({ reason: 'stale' });
+				return;
+			}
+			stored.config = { ...parseConfig(livePending.p_config) };
+			if (livePending.p_name !== null) stored.name = livePending.p_name;
+			if (livePending.p_description !== null) stored.description = livePending.p_description;
+			saved = `Live settings changed at 9:41 AM. ${livePlan.matchesRestamped} upcoming matches were updated.`;
+			livePlan = null;
+			livePending = null;
+		} finally {
+			liveBusy = false;
+		}
+	}
 	const minTeamSize = Math.max(1, team);
 
 	let busy = $state(false);
@@ -143,6 +206,17 @@
 				draft,
 				locks
 			);
+			if (liveAdmin && args.p_config) {
+				lastCall = { rpc: 'tournament_live_config_preview', args: { p_config: args.p_config } };
+				const plan = simPreview(args.p_config);
+				if (!plan.ok) {
+					error = liveRefusalSentence(plan);
+					return;
+				}
+				livePending = args;
+				livePlan = plan;
+				return;
+			}
 			lastCall = { rpc: 'tournament_update', args };
 			const refusal = simUpdate(args);
 			if (refusal) {
@@ -185,8 +259,21 @@
 					{busy}
 					{error}
 					{saved}
+					note={liveAdmin ? LIVE_EDIT_NOTE : ''}
 					onsubmit={save}
 				/>
+				{#if livePlan}
+					<LiveSettingsConfirm
+						plan={livePlan}
+						busy={liveBusy}
+						error={liveError}
+						onapply={applyLive}
+						oncancel={() => {
+							livePlan = null;
+							livePending = null;
+						}}
+					/>
+				{/if}
 			</section>
 		{/if}
 

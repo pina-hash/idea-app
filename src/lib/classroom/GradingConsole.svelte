@@ -138,6 +138,14 @@
 	import type { PresenceTransports } from '$lib/classroom/presence/transports';
 	import { findStudentByToken, studentToken } from '$lib/classroom/grading-student-url';
 	import {
+		gradeUndoOf,
+		revocationWhen,
+		revokeCostSentence,
+		undoCoinSentence,
+		undoRefusalSentence,
+		type GradeRevocation
+	} from '$lib/classroom/grading-undo';
+	import {
 		directGradingOf,
 		directRefusalSentence,
 		parseDirectScore,
@@ -842,6 +850,96 @@
 	// manages, read once on mount. NULL means the database has no such function
 	// (pre-0242), and the panel is not drawn at all.
 	// -----------------------------------------------------------------------
+	// -----------------------------------------------------------------------
+	// TAKING A GRADE BACK (0265, report 6bedda49). Three acts the database owns:
+	// undo a return (the grade stays, the student stops seeing it), revoke (the
+	// grade off entirely, a snapshot kept) and restore (the last revoked grade
+	// back exactly). ABSENCE IS THE MECHANISM: no transport, or a database
+	// before 0265 (`unavailable`), and no control is drawn. Coins follow through
+	// the one Perfect Score path and never gate the grade.
+	// -----------------------------------------------------------------------
+	const undo = $derived(gradeUndoOf(transports));
+	let undoUnavailable = $state(false);
+	let undoBusy = $state(false);
+	let armRevoke = $state(false);
+	let revocation = $state<GradeRevocation | null>(null);
+	let revocationFor = '';
+	const selectedHasGrade = $derived(
+		!!selected?.submission &&
+			(selected.submission.graded_at != null ||
+				selected.submission.score != null ||
+				selected.submission.state === 'returned')
+	);
+	const selectedReturned = $derived(selected?.submission?.state === 'returned');
+	const undoOffered = $derived(!!undo && !undoUnavailable);
+
+	async function readRevocation(email: string) {
+		const t = undo;
+		if (!t) return;
+		const res = await t.gradeRevocation(item.id, email);
+		// A stale answer for a student no longer open is dropped.
+		if (selectedEmail !== email) return;
+		revocation = res.ok ? res.data : null;
+	}
+	$effect(() => {
+		const email = selectedEmail;
+		const t = undo;
+		if (!t || !email) {
+			revocation = null;
+			return;
+		}
+		if (email === revocationFor) return;
+		revocationFor = email;
+		revocation = null;
+		armRevoke = false;
+		untrack(() => void readRevocation(email));
+	});
+
+	async function runUndo(kind: 'unreturn' | 'revoke' | 'restore') {
+		const t = undo;
+		const who = selected;
+		if (!t || !who || undoBusy) return;
+		undoBusy = true;
+		gradeError = null;
+		gradeNotice = null;
+		try {
+			const res =
+				kind === 'unreturn'
+					? await t.unreturnGrade(item.id, who.email)
+					: kind === 'revoke'
+						? await t.revokeGrade(item.id, who.email)
+						: await t.restoreGrade(item.id, who.email);
+			if (!res.ok) {
+				gradeError = res.message;
+				return;
+			}
+			if (!res.data.ok) {
+				if (res.data.reason === 'unavailable') undoUnavailable = true;
+				gradeError = undoRefusalSentence(res.data.reason);
+				return;
+			}
+			armRevoke = false;
+			await load();
+			// RE-SEED THE FORM FROM WHAT IS NOW STORED, so the rubric on screen is
+			// the grade of record and switching away asks nothing about it.
+			const fresh = students.find((s) => s.email === who.email) ?? null;
+			applySelect(fresh);
+			const coins = undoCoinSentence(res.data.coins);
+			const head =
+				kind === 'unreturn'
+					? `Taken back from ${who.displayName}. The grade is saved as a draft only you can see${res.data.state === 'submitted' ? ', and the work is back in To grade' : ''}.`
+					: kind === 'revoke'
+						? `The grade is off ${who.displayName}\u2019s work. Restore puts it back exactly as it was.`
+						: `Restored ${who.displayName}\u2019s grade${res.data.score != null ? ` (${res.data.score})` : ''}, exactly as it was.`;
+			gradeNotice = coins ? `${head} ${coins}` : head;
+			revocationFor = '';
+			await readRevocation(who.email);
+			revocationFor = who.email;
+		} finally {
+			undoBusy = false;
+		}
+	}
+
 	const perfect = $derived(perfectScoreOf(transports));
 	let perfectRows = $state<PerfectScoreToggle[] | null>(null);
 	let perfectBusy = $state<string | null>(null);
@@ -1450,6 +1548,7 @@
 		if (dictate.listeningKey !== null) dictate.drop();
 		pending = null;
 		armReturn = false;
+		armRevoke = false;
 		gradeError = null;
 		gradeNotice = null;
 		needComment = [];
@@ -4554,6 +4653,75 @@
 											     means the draft is stored, never that a request went out. -->
 											<SaveIndicator state={save} />
 										</span>
+										{#if undoOffered && selected && (selectedHasGrade || revocation)}
+											<!-- TAKING A GRADE BACK (0265). Undo return is one press because
+											     Return undoes it; Revoke names its cost and asks twice;
+											     Restore appears only when a taken-back grade is waiting. -->
+											<div class="grade-undo" data-testid="grade-undo">
+												{#if selectedReturned}
+													<button
+														type="button"
+														class="btn secondary tiny"
+														disabled={busy || undoBusy}
+														data-testid="grade-unreturn"
+														onclick={() => void runUndo('unreturn')}
+													>
+														Undo return
+													</button>
+												{/if}
+												{#if selectedHasGrade && !armRevoke}
+													<button
+														type="button"
+														class="btn secondary tiny"
+														disabled={busy || undoBusy}
+														data-testid="grade-revoke"
+														onclick={() => (armRevoke = true)}
+													>
+														Revoke grade
+													</button>
+												{/if}
+												{#if !selectedHasGrade && revocation}
+													<button
+														type="button"
+														class="btn secondary tiny"
+														disabled={busy || undoBusy}
+														data-testid="grade-restore"
+														onclick={() => void runUndo('restore')}
+													>
+														Restore taken-back grade{revocation.score != null ? ` (${revocation.score})` : ''}
+													</button>
+													<span class="grade-undo-note">Taken back {revocationWhen(revocation.revoked_at)}</span>
+												{/if}
+												{#if armRevoke && selected.submission}
+													<div class="grade-undo-confirm" role="group" aria-label="Confirm revoking the grade" data-testid="grade-revoke-confirm">
+														<p>
+															{revokeCostSentence({
+																name: selected.displayName,
+																score: selected.submission.score,
+																outOf,
+																returned: selectedReturned,
+																criteria: Object.keys(selected.submission.rubric_scores ?? {}).length,
+																hasComment: !!selected.submission.teacher_comment
+															})}
+														</p>
+														<div class="grade-undo-keys">
+															<button
+																type="button"
+																class="btn tiny danger"
+																disabled={undoBusy}
+																data-testid="grade-revoke-go"
+																onclick={() => void runUndo('revoke')}
+															>
+																Revoke the grade
+															</button>
+															<button type="button" class="btn secondary tiny" onclick={() => (armRevoke = false)}>
+																Keep it
+															</button>
+														</div>
+													</div>
+												{/if}
+											</div>
+										{/if}
 									</div>
 
 								</div>
@@ -6421,6 +6589,36 @@
 	     `scrollIntoView` lands a cell. Nothing here scrolls a target under this
 	     row -- `focusLevel` scrolls a LEVEL control, which lives above the dock
 	     inside the same block, and `block: 'nearest'` brings it to the near edge. */
+	.grade-undo {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		margin-top: var(--space-2);
+	}
+	.grade-undo-note {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+	}
+	.grade-undo-confirm {
+		flex: 1 1 100%;
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--boundary);
+		border-left: 3px solid var(--amber);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	.grade-undo-confirm p {
+		margin: 0 0 var(--space-2);
+		color: var(--text-1);
+		line-height: 1.45;
+	}
+	.grade-undo-keys {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
 	.grade-actions {
 		position: sticky;
 		bottom: 0;

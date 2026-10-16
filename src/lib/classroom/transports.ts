@@ -45,6 +45,11 @@ import {
 	type GradingDataWithDirect,
 	type PerfectScoreTransports
 } from './grading-direct';
+import {
+	normalizeRevocation,
+	normalizeUndoResult,
+	type GradeUndoTransports
+} from './grading-undo';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
 import {
 	checkInDraftIssue,
@@ -1698,8 +1703,35 @@ export function createCheckInTransports(supabase: SupabaseClient): ClassCheckInT
 
 export function createTeacherEngineTransports(
 	supabase: SupabaseClient
-): AssignmentTeacherTransports & DirectGradingTransports & PerfectScoreTransports {
+): AssignmentTeacherTransports & DirectGradingTransports & PerfectScoreTransports & GradeUndoTransports {
+	/* TAKING A GRADE BACK (0265). PGRST202 ALONE is "this database is before
+	   0265" and answers `unavailable`, which removes the controls; any other
+	   error is a failure the console reports. */
+	const undoCall = async (fn: string, itemId: string, studentEmail: string) => {
+		const { data, error } = await supabase.rpc(fn, { p_item_id: itemId, p_student_email: studentEmail });
+		if (error) {
+			if ((error as { code?: string }).code === 'PGRST202') {
+				return { ok: true as const, data: { ok: false, reason: 'unavailable' } };
+			}
+			return fail(error);
+		}
+		return { ok: true as const, data: normalizeUndoResult(data) };
+	};
 	return {
+		unreturnGrade: (itemId, studentEmail) => undoCall('classroom_unreturn_grade', itemId, studentEmail),
+		revokeGrade: (itemId, studentEmail) => undoCall('classroom_revoke_grade', itemId, studentEmail),
+		restoreGrade: (itemId, studentEmail) => undoCall('classroom_restore_grade', itemId, studentEmail),
+		async gradeRevocation(itemId, studentEmail) {
+			const { data, error } = await supabase.rpc('classroom_grade_revocation', {
+				p_item_id: itemId,
+				p_student_email: studentEmail
+			});
+			if (error) {
+				if ((error as { code?: string }).code === 'PGRST202') return { ok: true, data: null };
+				return fail(error);
+			}
+			return { ok: true, data: normalizeRevocation(data) };
+		},
 		/**
 		 * "SCORE OUT OF N", TYPED (0242). The console offers it only when the
 		 * submissions came back on the `direct_score` rung, which proves the RPC

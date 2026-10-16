@@ -34,6 +34,7 @@
 		type PerfectScoreTransports,
 		type SubmissionWithDirect
 	} from '$lib/classroom/grading-direct';
+	import type { GradeUndoTransports } from '$lib/classroom/grading-undo';
 
 	const ITEM_ID = 'i-bulk-1';
 	const TEACHER = 'tvargas@boscotech.edu';
@@ -386,9 +387,63 @@
 		}
 	};
 
-	/** What the console is handed: the plain teacher transports before 0242, all three after. */
+	/**
+	 * TAKING A GRADE BACK (0265), answered the way 0265 answers it: undo a
+	 * return keeps the grade; revoke clears it and keeps a snapshot; restore
+	 * puts the snapshot back and refuses once a new grade was saved since.
+	 */
+	let revoked = $state<Record<string, { snap: SubmissionRow; at: string }>>({});
+	const ungradedState = (r: SubmissionRow) =>
+		r.state !== 'returned' ? r.state : r.submitted_at ? 'submitted' : 'draft';
+	const undoTransports: GradeUndoTransports = {
+		async unreturnGrade(itemId, studentEmail) {
+			note('unreturnGrade', { studentEmail });
+			const r = submissions.find((x) => x.student_email === studentEmail);
+			if (!r || r.state !== 'returned') return { ok: true, data: { ok: false, reason: 'not_returned' } };
+			const state = ungradedState(r);
+			submissions = submissions.map((x) => (x === r ? { ...r, state, returned_at: null } : x));
+			return { ok: true, data: { ok: true, state, score: r.score, coins: 'unchanged' } };
+		},
+		async revokeGrade(itemId, studentEmail) {
+			note('revokeGrade', { studentEmail });
+			const r = submissions.find((x) => x.student_email === studentEmail);
+			if (!r || (r.graded_at == null && r.score == null && r.state !== 'returned')) {
+				return { ok: true, data: { ok: false, reason: 'nothing_to_revoke' } };
+			}
+			revoked = { ...revoked, [studentEmail]: { snap: { ...r }, at: new Date().toISOString() } };
+			const state = ungradedState(r);
+			submissions = submissions.map((x) =>
+				x === r
+					? ({ ...r, state, rubric_scores: null, criterion_comments: null, score: null, direct_score: null, extra_credit: null, teacher_comment: null, graded_by: null, graded_at: null, returned_at: null } as SubmissionRow)
+					: x
+			);
+			return { ok: true, data: { ok: true, state, previous_score: r.score, coins: 'unchanged' } };
+		},
+		async restoreGrade(itemId, studentEmail) {
+			note('restoreGrade', { studentEmail });
+			const held = revoked[studentEmail];
+			const r = submissions.find((x) => x.student_email === studentEmail);
+			if (!held || !r) return { ok: true, data: { ok: false, reason: 'nothing_to_restore' } };
+			if (r.graded_at != null || r.score != null) return { ok: true, data: { ok: false, reason: 'graded_since' } };
+			const { [studentEmail]: _gone, ...rest } = revoked;
+			revoked = rest;
+			submissions = submissions.map((x) => (x === r ? { ...held.snap } : x));
+			return { ok: true, data: { ok: true, state: held.snap.state, score: held.snap.score, coins: 'unchanged' } };
+		},
+		async gradeRevocation(itemId, studentEmail) {
+			const held = revoked[studentEmail];
+			return {
+				ok: true,
+				data: held ? { revoked_at: held.at, revoked_by: TEACHER, score: held.snap.score, state: held.snap.state } : null
+			};
+		}
+	};
+
+	/** What the console is handed: the plain teacher transports before 0242, all four after. */
 	const consoleTransports = $derived(
-		pre0242 ? teacherTransports : { ...teacherTransports, ...directTransports, ...perfectTransports }
+		pre0242
+			? teacherTransports
+			: { ...teacherTransports, ...directTransports, ...perfectTransports, ...undoTransports }
 	);
 
 	/** The write the RPC makes, including the `graded_at` stamp that clears 0011's signal. */

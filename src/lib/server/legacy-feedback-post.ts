@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
 	FEEDBACK_MAX_BODY_BYTES,
 	FEEDBACK_MAX_LEN,
+	FEEDBACK_TRIED_MAX,
 	feedbackIssue,
 	submitFeedback,
 	type FeedbackKind
@@ -108,12 +109,22 @@ export async function handleLegacyFeedbackPost(
 	if (!message) return refuse('message_empty', 200);
 	if (message.length > FEEDBACK_MAX_LEN) return refuse('message_too_long', 200);
 
+	// WHAT THEY TRIED AND WHEN IT IS FOR (ledger 0392): the two fields the
+	// site's own box sends, through the same ladder `submitFeedback` already
+	// climbs. Only `long_term` is ever named, exactly as the box sends it.
+	const tried = str(body.tried);
+	if (tried.length > FEEDBACK_TRIED_MAX) return refuse('tried_too_long', 200);
+	const horizon = body.horizon === 'long_term' ? ('long_term' as const) : undefined;
+	const { tried: _t, horizon: _h, ...plainMeta } = meta;
+
 	const result = await submitFeedback(supabase, claims.sub, {
 		app,
 		context: context || null,
 		kind,
 		message,
-		meta
+		meta: plainMeta,
+		...(tried ? { tried } : {}),
+		...(horizon ? { horizon } : {})
 	});
 
 	if (!result.error) return json({ ok: true });

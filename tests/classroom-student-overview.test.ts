@@ -78,7 +78,7 @@ describe('the assignments say what the student reads', () => {
 		expect(row('a-gear').awaitingGrade).toBe(true);
 	});
 
-	it('totals count, and points are over returned work only, with no percent anywhere', () => {
+	it('totals count, and points are over returned work only; a percent exists only as the grade and its bars', () => {
 		expect(page.totals).toEqual({
 			assigned: 7,
 			done: 4,
@@ -89,7 +89,15 @@ describe('the assignments say what the student reads', () => {
 			pointsEarned: 27,
 			pointsPossible: 40
 		});
-		expect(JSON.stringify(page)).not.toMatch(/percent|%"/i);
+		// Ledger 0392: the grade is points over RETURNED work, and nowhere else is
+		// a percent derived. The control is the same walk finding exactly the two.
+		expect(page.grade).toEqual({ percent: 67.5, earned: 27, possible: 40, counted: 2 });
+		const { grade: _g, scoreBars: _b, ...rest } = page;
+		expect(JSON.stringify(rest)).not.toMatch(/percent|%"/i);
+		expect(page.scoreBars.map((b) => [b.itemId, b.percent])).toEqual([
+			['a-old', 45],
+			['a-bridge', 90]
+		]);
 	});
 });
 
@@ -307,5 +315,110 @@ describe('the assignments table sorts by one comparator', () => {
 		expect(studentWorkHref('s-1', 'ana.reyes@boscotech.net', 'a-bridge')).toBe(
 			'/classroom/s-1/people/ana.reyes%40boscotech.net/work/a-bridge'
 		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Ledger 0392: the conference dashboard's grade, its default order, and the
+// gallery of their work.
+// ---------------------------------------------------------------------------
+import {
+	notebookPhotosShown,
+	studentAssignmentSortStartDir,
+	studentGallery,
+	studentGrade,
+	STUDENT_ASSIGNMENT_DEFAULT_SORT
+} from '../src/lib/classroom/student-overview';
+
+describe('the grade', () => {
+	it('is null before anything is returned, and counts only returned, scored work with points', () => {
+		expect(studentGrade([])).toEqual({ percent: null, earned: 0, possible: 0, counted: 0 });
+		const page = fixturePage('full');
+		// Control: a submitted, ungraded row and a missing one are on the page and not counted.
+		expect(page.assignments.some((r) => r.awaitingGrade && r.score === null)).toBe(true);
+		expect(page.grade.counted).toBe(page.assignments.filter((r) => r.score !== null).length);
+	});
+});
+
+describe('the default order is newest due first', () => {
+	it('opens on due date, descending, with an undated row still last', () => {
+		expect(STUDENT_ASSIGNMENT_DEFAULT_SORT).toEqual({ key: 'due', dir: 'desc' });
+		const page = fixturePage('full');
+		const rows = sortStudentAssignments(page.assignments, 'due', 'desc');
+		const dates = rows.map((r) => (r.dueAt ? Date.parse(r.dueAt) : null));
+		const dated = dates.filter((d): d is number => d !== null);
+		expect(dated).toEqual([...dated].sort((a, b) => b - a));
+		expect(rows[0].itemId).toBe('a-cad');
+		expect(studentAssignmentSortStartDir('turnedIn')).toBe('desc');
+		expect(studentAssignmentSortStartDir('title')).toBe('asc');
+	});
+});
+
+describe('the gallery of their work', () => {
+	it('a straightened page replaces its original, once', () => {
+		const shown = notebookPhotosShown([
+			{ id: 'a', entry_id: 'e', variant: 'original', sequence_order: 1 },
+			{ id: 'a2', entry_id: 'e', variant: 'enhanced', sequence_order: 2 },
+			{ id: 'b', entry_id: 'e', variant: 'original', sequence_order: 3 }
+		]);
+		expect(shown.map((p) => p.id)).toEqual(['a2', 'b']);
+	});
+
+	it('pictures only, from this student\'s own rows, newest first; a CAD file and a file on no known row are left out', () => {
+		const gallery = studentGallery({
+			items: ITEMS,
+			submissions: [{ id: 's1', item_id: 'a-bridge' }],
+			files: [
+				{ id: 'f1', submission_id: 's1', filename: 'a.jpg', mime_type: 'application/octet-stream', storage_key: 's1/a.jpg', created_at: '2026-09-01T00:00:00Z' },
+				{ id: 'f2', submission_id: 's1', filename: 'b.SLDPRT', mime_type: 'application/octet-stream', storage_key: 's1/b.sldprt', created_at: '2026-09-02T00:00:00Z' },
+				{ id: 'f3', submission_id: 'someone-else', filename: 'c.jpg', mime_type: 'image/jpeg', storage_key: null, created_at: '2026-09-03T00:00:00Z' }
+			],
+			isImage: (f) => /\.(jpe?g|png)$/i.test(f.storage_key ?? f.filename),
+			fileSrc: (id) => `/f/${id}`,
+			photos: [
+				{ id: 'p1', entry_id: 'e1', variant: 'original', sequence_order: 1, created_at: '2026-09-05T00:00:00Z' },
+				// A photo on an entry that is not one of theirs: never shown.
+				{ id: 'p9', entry_id: 'e-other', variant: 'original', sequence_order: 1, created_at: '2026-09-06T00:00:00Z' }
+			],
+			entries: new Map([['e1', { at: '2026-09-05T00:00:00Z', label: 'Day 3' }]]),
+			photoSrc: (id) => `/p/${id}`,
+			photoThumb: (id) => `/p/${id}?size=thumb`,
+			day: () => 'x'
+		});
+		expect(gallery.map((g) => g.key)).toEqual(['photo:p1', 'file:f1']);
+		expect(gallery[0]).toMatchObject({ source: 'notebook', caption: 'Notebook: Day 3', thumb: '/p/p1?size=thumb' });
+		expect(gallery[1]).toMatchObject({ source: 'assignment', caption: 'Bridge truss lab', itemId: 'a-bridge' });
+	});
+
+	it('the fixture page carries seven pictures and no classmate', () => {
+		const page = fixturePage('full');
+		expect(page.gallery).toHaveLength(7);
+		expect(page.sources.gallery).toBe(true);
+		const text = JSON.stringify(page.gallery);
+		for (const c of CLASSMATES) expect(text).not.toContain(c.email);
+	});
+});
+
+import { studentUpcoming } from '../src/lib/classroom/student-overview';
+
+describe('coming up', () => {
+	it('is the work still to do with a due date ahead, soonest first, and nothing else', () => {
+		const page = fixturePage('full');
+		// The fixture's one undone, live assignment due after NOW is the CAD sketch.
+		expect(page.upcoming.map((r) => r.itemId)).toEqual(['a-cad']);
+		const base = page.assignments.find((r) => r.itemId === 'a-cad')!;
+		const mk = (id: string, dueAt: string | null, over: Partial<typeof base> = {}) => ({ ...base, itemId: id, title: id, dueAt, ...over });
+		const rows = [
+			mk('later', '2026-10-30T06:59:00Z'),
+			mk('sooner', '2026-10-09T06:59:00Z'),
+			mk('done', '2026-10-08T06:59:00Z', { chip: { ...base.chip, done: true } }),
+			mk('past', '2026-10-01T06:59:00Z'),
+			mk('undated', null),
+			mk('draft', '2026-10-10T06:59:00Z', { posted: false }),
+			mk('third', '2026-10-20T06:59:00Z'),
+			mk('fourth', '2026-11-20T06:59:00Z')
+		];
+		expect(studentUpcoming(rows, NOW).map((r) => r.itemId)).toEqual(['sooner', 'third', 'later']);
+		expect(studentUpcoming(rows, NOW, 10).map((r) => r.itemId)).toEqual(['sooner', 'third', 'later', 'fourth']);
 	});
 });

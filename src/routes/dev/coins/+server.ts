@@ -4,6 +4,7 @@ import { deploy } from 'virtual:site-versions';
 import { legacyReportPanelScript } from '$lib/server/legacy-report-panel';
 import ledgerHtml from '$lib/legacy/coins/index.html?raw';
 import { injectLedgerTheme } from '$lib/server/coin-public';
+import { injectLedgerLogo } from '$lib/server/ledger-logo';
 import type { RequestHandler } from './$types';
 
 /**
@@ -74,7 +75,7 @@ export const GET: RequestHandler = async ({ url, cookies, setHeaders }) => {
 		forced === 'space-white' || forced === 'matrix'
 			? `<script>document.documentElement.setAttribute('data-theme', ${JSON.stringify(forced)});</script>`
 			: '';
-	const html = injectLedgerTheme(ledgerHtml, signedIn)
+	const html = injectLedgerLogo(injectLedgerTheme(ledgerHtml, signedIn))
 		.replace('</title>', `</title>\n${pin}`)
 		.replace(/\/api\/coin\//g, '/dev/coins/api/').replace(
 		'</body>',

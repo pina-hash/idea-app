@@ -52,6 +52,7 @@
 		error = '',
 		saved = '',
 		submitLabel,
+		note = '',
 		onsubmit
 	}: {
 		/** `create` for a new tournament, `edit` for the host console. */
@@ -70,6 +71,8 @@
 		/** The acknowledgement of a landed save, with its clock time. */
 		saved?: string;
 		submitLabel?: string;
+		/** A sentence shown above the format controls (an admin editing a live event). */
+		note?: string;
 		onsubmit: (draft: SettingsDraft) => void;
 	} = $props();
 
@@ -168,6 +171,10 @@
 
 	{#if mode === 'edit'}
 		<p class="ts-group" id="ts-format-label">Format</p>
+	{/if}
+
+	{#if note && !locks.format}
+		<p class="ts-live-note" data-testid="settings-live-note">{note}</p>
 	{/if}
 
 	{#if locks.format}
@@ -291,6 +298,15 @@
 	 * nothing there. */
 	.ts-form {
 		max-width: var(--measure-form, 48rem);
+	}
+	.ts-live-note {
+		margin: 0 0 0.9rem;
+		padding: 0.6rem 0.8rem;
+		border: 1px solid var(--tnm-line-strong, var(--boundary));
+		border-left: 3px solid var(--amber);
+		border-radius: 4px;
+		color: var(--tnm-ink, var(--text-1));
+		line-height: 1.45;
 	}
 	.ts-row {
 		display: flex;

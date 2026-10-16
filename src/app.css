@@ -2759,6 +2759,11 @@ a:hover {
 .legacy-index .course-card.collapsed .assignment-list {
 	max-height: 0;
 	opacity: 0;
+	/* NO BAND UNDER A FOLDED CARD (ledger 0392, report 54b43698). The list's
+	   own padding stayed when it folded to zero height, so every collapsed card
+	   carried an empty 16px strip of a second ground under its header. */
+	padding-top: 0;
+	padding-bottom: 0;
 }
 .legacy-index .assignment-item {
 	display: flex;

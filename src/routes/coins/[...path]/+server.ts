@@ -6,6 +6,7 @@ import { rewriteLegacyLinks } from '$lib/legacy';
 import { injectVersionBadge } from '$lib/version-badge';
 import { legacyReportPanelScript } from '$lib/server/legacy-report-panel';
 import { injectLedgerTheme } from '$lib/server/coin-public';
+import { injectLedgerLogo } from '$lib/server/ledger-logo';
 import type { RequestHandler } from './$types';
 
 /**
@@ -55,7 +56,7 @@ export const GET: RequestHandler = async ({ params, locals: { claims } }) => {
 	// and this visitor's session (see `ledgerThemeScript`). Signed out, the
 	// marker is simply removed and the Ledger paints its default.
 	const html = injectVersionBadge(
-		injectLedgerTheme(rewriteLegacyLinks(ledgerHtmlRaw), !!claims).replace(
+		injectLedgerLogo(injectLedgerTheme(rewriteLegacyLinks(ledgerHtmlRaw), !!claims)).replace(
 			'</body>',
 			`${legacyReportPanelScript({
 				signedIn: !!claims,

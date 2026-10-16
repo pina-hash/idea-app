@@ -2415,6 +2415,12 @@
 			"title": "IDEA Certifications: earn a certification, with a certificate you can verify",
 			"body": "There is a new Certifications door at the top of the classroom (and at ideabosco.com/certifications). Each certification is a kit: watch the training videos (the player counts only what you actually play, at normal speed or up to double, and asks you to press Continue now and then), read the lessons, pass the quick checks and the practice quiz, build the guided project and then your own, pass a proctored exam, and finish with an in-person checkout. Your certifier checks each part off and awards the certification when everything is done. You get a serial number, a printed certificate with a QR code, and a page anyone can use to confirm it is real. Your Notifications key shows what moved, and the same notes arrive by email once that is switched on. Nothing shows until a certification is published, so the list may be short at first.",
 			"tags": ["certifications", "new"]
+		},
+		{
+			"date": "2026-10-16",
+			"title": "A tidier Classes menu, and grades your teacher can take back",
+			"body": "The Classes menu at the top of the classroom is cleaner: All my classes first, then your classes, each on one line with its course code beside it and a check on the class you are in, and last year's classes under their own Archived heading. If your teacher returns a grade by mistake they can now take it back or restore it exactly as it was; if a grade disappears from your work for a moment, that is why, and a Perfect Score reward follows the grade (taken back with it, given back when it is restored). The IDEA Coin Ledger page now has the same Feedback box as the rest of the site, with a place to say what you already tried.",
+			"tags": ["classroom", "coins"]
 		}
 	]
 }

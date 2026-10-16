@@ -1590,6 +1590,17 @@ other.
   there and it walks the whole list, which is the page's job. `aria-disabled` and
   never `disabled` at the ends, because a disabled control swallows its own
   pointer events and the pager's live note explains itself.
+- **A RETURNED GRADE CAN BE TAKEN BACK, REVOKED AND RESTORED, AND NONE OF IT
+  DELETES ANYTHING (0265, ledger 0392).** `classroom_unreturn_grade` puts a
+  returned row back to graded-not-returned; `classroom_revoke_grade` copies
+  every grading column into `classroom_grade_revocations` and clears them;
+  `classroom_restore_grade` puts the snapshot back exactly, refused as
+  `graded_since` when somebody graded in between. All three gate on
+  `classroom_can_review_submission` (a teacher of record or an admin), never
+  on coins, and re-run the Perfect Score sync so a reward follows the grade;
+  the weekly Highest Score payout is NOT reversed (a decision owed, stated in
+  0265's header). `$lib/classroom/grading-undo.ts` is the client's one
+  vocabulary, and an absent transport (`PGRST202`) removes the row.
 - **THE RUBRIC'S WIDTH IS THE GRADER'S, BY THE CLASS LIST'S OWN GESTURE (ledger
   0381, report c0964d99: "move it over just like ... on the classroom page").**
   Beside the work, a `role="separator"` (`.rubric-sep`, in the gap, no track of
@@ -1808,9 +1819,11 @@ pointing at the tab. The header's per-person control says `Display settings`
 **ARCHIVED IS ONE PREDICATE, `splitArchived` IN `nav.ts` (report R12).** My
 Classes puts archived classes under a closed `Disclosure` with the count
 outside; the header's class strip draws active classes plus one Archived key
-over an `anchored` list. `keep` is the class on screen: it keeps its own key
-when archived, so nobody is stranded on a page whose key vanished. `active`
-absent reads as active.
+over an `anchored` list, and its Classes menu (ledger 0392, report 2f019c5b)
+lists Your classes and Archived under their own labels, one line per class
+with the course code in a fixed column. `keep` is the class on screen: it keeps
+its own key when archived, so nobody is stranded on a page whose key vanished.
+`active` absent reads as active.
 
 **A CONTROL THAT OPENS A PANEL IS LIT WHILE IT IS OPEN (report R15)**:
 `class:on` beside `aria-expanded`, which the plate's key list already draws, so
@@ -2181,8 +2194,27 @@ through `studentPageHref`; it is a place under the People tab, not a tab.
 - **ONLY THE ONE STUDENT'S SLICE LEAVES THE SERVER.** The grid, the team board
   and the roster carry the whole class and are reduced in the load; a team is a
   name and a size, never its members, and the notebook's presence pre-fill is
-  not shown. No Foundry play is shown (decisions 05 and 07). There is no
-  percent and no letter grade: points are summed over returned work only.
+  not shown. No Foundry play is shown (decisions 05 and 07).
+- **THE GRADE IS POINTS ON RETURNED WORK, AS A PERCENT, AND SAYS SO (ledger
+  0392, Mr. Pina for conferences: "I want to see a grade").** `studentGrade`
+  sums returned, scored work with points and nothing else, and
+  `STUDENT_GRADE_NOTE` sits beside it saying FACTS weighs categories, so the
+  report card can differ. There is still no letter grade: a scale is a
+  decision owed, not a default. This line read "There is no percent" until
+  then.
+- **IT IS A CONFERENCE DASHBOARD AS WELL AS A RECORD (ledger 0392).** The top
+  holds the grade, `studentUpcoming` (live work still to do with a due date
+  ahead, soonest first) and `StudentWorkSlideshow`: a carousel over
+  `studentGallery` (hand-in pictures and turned-in notebook photos, a
+  straightened page replacing its original through `notebookPhotosShown`,
+  newest first, at most `STUDENT_GALLERY_MAX`), advancing on a timer that
+  stops under `reduce`, on hover, on focus, in a hidden tab and while the
+  Lightbox is open, with Previous, Next and Pause as 44px keys. Its caption
+  sits on a band BELOW the picture, never over it, because a handwritten
+  page's last lines are at its foot. Assignments open on due date, newest
+  first (`STUDENT_ASSIGNMENT_DEFAULT_SORT`). Print is two Letter pages for the
+  fixture at 0.75in margins with no text under 9pt; a score bar's fill is the
+  one background `_student-print.mjs` lets through, by name.
 - **PRESENCE SPEAKS THROUGH `presenceLineKind`, AND AN OPEN RECORD OUTRANKS ITS
   VERDICT** as work does; `presenceCoverageNote` is printed verbatim once,
   under the assignments table, because paper has no hover.
@@ -4735,6 +4767,13 @@ inside the function fails closed rather than falling through to a weaker path.
   constant -- a hero wraps, a notice appears, someone else's banner sits above --
   so the bar measures itself and the body takes what is left. Above 1024px only;
   below it the document scrolls as it always did.
+  - **THAT FRAME IS `overflow: clip`, NEVER `hidden` ALONE (ledger 0392, report
+    c2a5260e).** `hidden` is still a scroll container: a focus, a
+    `scrollIntoView` or find-in-page can move it, and nothing on the page can
+    move it back. Measured on the grading console at 1920x912 with a ported
+    worksheet: content 1019px in a 912px frame, scrolled 107 and stuck with the
+    window's foot blank. `clip` has no scroll position to get stuck at;
+    `hidden` stays first as the fallback.
 - **NOTHING OPEN IS ONE PANE, at every width.** `hasDetail` false renders no detail
   pane and gives the navigation the whole measure; it is not a placeholder state.
   A surface whose detail pane always holds something (the coin desk's logging
@@ -6594,6 +6633,17 @@ served STRING, never to the source file on disk.
   `/api/assignment-feedback`, which differ by one `app` string; the ANONYMOUS
   endpoint is taken from the shared constant and no caller can override it, so a
   signed-out report cannot be pointed anywhere but `/api/feedback`.
+  - **IT ASKS WHAT THE SITE'S BOX ASKS, AND WEARS THE PAGE'S PLATE WHEN THERE
+    IS ONE (ledger 0392, report about the Ledger's outdated button).** The
+    horizon chips, "What happened" and the optional "What did you try?" (capped
+    by `FEEDBACK_TRIED_MAX`, refused as `tried_too_long` by the one handler)
+    are the root box's own; on a page whose `:root` declares the Ledger's plate
+    tokens (its face-top colour) it borrows that page's own key and panel
+    classes rather than drawing a second look. **The Ledger's text mark is
+    swapped for the site emblem on the served string** by `injectLedgerLogo`
+    in `$lib/server/ledger-logo.ts` (server-rendered `AnimatedLogo`, its
+    layout rules restated and pinned by `tests/ledger-logo.test.ts`); the
+    frozen file itself was not edited for either.
   - **A LEGACY PAGE IN A SHARED CACHE ASKS FOR THE SESSION; IT IS NEVER TOLD
     (report 20).** The Ledger bakes `signedIn` into its bytes and pays with
     `Vary: Cookie`. `/assignments/<slug>` is one public cache entry for a whole
@@ -7198,6 +7248,14 @@ properly. That is a bundle, not a line.
   trademark line stays: "FIRST and FIRST Robotics Competition are trademarks of For
   Inspiration and Recognition of Science and Technology (FIRST)."
 - **`.fsp-root` -- FSP neutral navy/gold**, system sans. Deliberately not IDEA.
+- **A LIVE TOURNAMENT'S FORMAT IS AN ADMIN'S TO CHANGE, PREVIEWED FIRST (0266,
+  ledger 0392).** `tournament_live_config_preview` answers what would change
+  and what it does to played matches in words (`liveEffectLines`), and
+  `tournament_live_config_apply` takes the previewed config back as its
+  `expected` argument and refuses `stale` if anything moved in between. Played
+  and started matches keep their length, nothing is re-decided, no coins
+  move, qualifying stays locked (`LIVE_QUALS_LOCK`), and the change is logged
+  as a correction. `tournament_update` is untouched.
 - **`.tnm-root` -- Tournaments emerald.** **Restraint is a hard rule: at most ONE
   dominant emerald element per screen** (the active-match indicator, the primary
   action, or one key status); a third surface takes the panel token instead. Gold is

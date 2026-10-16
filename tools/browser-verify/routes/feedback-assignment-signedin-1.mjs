@@ -17,7 +17,7 @@ export default {
 		{ waitFor: '() => !!document.getElementById("idea-legacy-report-btn")', timeoutMs: 20000, label: 'the injected trigger has mounted' },
 		openPanel(`() => /carries your account/.test(document.querySelector('#idea-legacy-report > div > div:nth-child(2)').textContent)`),
 		{
-			evaluate: `() => { const t = document.querySelector('#idea-legacy-report textarea'); t.value = 'The rubric table is cut off on my phone.'; return 'typed ' + t.value.length; }`,
+			evaluate: `() => { const t = document.querySelector('#idea-legacy-report textarea[id$="-msg"]'); t.value = 'The rubric table is cut off on my phone.'; return 'typed ' + t.value.length; }`,
 			label: 'type a report'
 		},
 		{
@@ -30,7 +30,7 @@ export default {
 		{ selector: '#idea-legacy-report-btn', label: 'the floating Report control', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		/* PRESENT, NOT VISIBLE: the panel closes itself 1.2s after "Sent", which is
 		   before the checks run, so its fields are in the DOM and off screen. */
-		{ selector: '#idea-legacy-report textarea', label: 'the message field (positive control for the absence below)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
+		{ selector: '#idea-legacy-report textarea[id$="-msg"]', label: 'the message field (positive control for the absence below)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
 		{ selector: '#idea-legacy-report input[type="text"]', label: 'no contact field when signed in', expectPresent: 0 }
 	],
 	textContains: [

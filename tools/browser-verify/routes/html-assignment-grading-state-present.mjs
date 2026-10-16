@@ -25,6 +25,14 @@ export default {
 	widths: WIDTHS,
 	prepare: [
 		{ waitFor: `() => document.querySelectorAll('.roster-row').length === 3`, label: 'the roster has loaded (3 rows)' },
+		/* At 375x900 the key sits at the bottom of the window, under the
+		   harness's FLOATING report control (the real classroom docks it in the
+		   shell, which this harness does not mount), so a press at the key's
+		   centre opened the report box instead (ledger 0392). Centre it first. */
+		{
+			evaluate: `() => { document.querySelector('[data-testid="present-open-key"]')?.scrollIntoView({ block: 'center', behavior: 'instant' }); return true; }`,
+			label: 'bring the key out from under the floating report control'
+		},
 		{
 			click: '[data-testid="present-open-key"]',
 			until: `() => document.querySelector('[data-testid="present-dialog"]')?.open === true && !!document.querySelector('[data-testid="present-name"]')`,

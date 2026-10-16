@@ -128,7 +128,14 @@ export default {
 		{ selector: '#idea-ledger-report-btn', label: 'the report trigger, in the page header', expectPresent: 1, maxPresent: 1 },
 		{ selector: '#idea-ledger-report', label: 'the report panel, once opened', expectPresent: 1, maxPresent: 1 },
 		{ selector: '#idea-ledger-report button[data-kind]', label: 'one chip per feedback kind', expectPresent: 4, maxPresent: 4 },
-		{ selector: '#idea-ledger-report textarea', label: 'the message field', expectPresent: 1, maxPresent: 1 },
+		{ selector: '#idea-ledger-report textarea[id$="-msg"]', label: 'the message field', expectPresent: 1, maxPresent: 1 },
+		// LEDGER 0392 (reports 911eefa0 and cead7265): the box the rest of the
+		// site has, and the site's own mark in place of the old "IDEA." text.
+		{ selector: '#idea-ledger-report [data-horizon]', label: 'Fix soon and Long-term idea', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+		{ selector: '#idea-ledger-report textarea[id$="-tried"]', label: 'What did you try (optional)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '#idea-ledger-report-btn svg', label: 'the trigger carries the site control\'s glyph', expectPresent: 1, maxPresent: 1 },
+		{ selector: 'header .idea-ledger-logo .idea-logo', label: 'the emblem lockup, top left', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: 'header a.logo', label: 'no old text mark', expectPresent: 0 },
 		/* SIGNED OUT IS THE HARNESS'S DEFAULT, and the optional contact field is
 		   offered ONLY where there is no account -- a signed-in report already
 		   carries one. This is the row that says the branch exists; the

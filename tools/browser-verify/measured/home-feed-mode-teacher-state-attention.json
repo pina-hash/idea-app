@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "home-feed-mode-teacher-state-attention.mjs",
+	"date": "2026-10-16T06:49:50.437Z",
+	"sha": "6e1c4af888d50c9b76fb9faf1802b78e47020dc0",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 20,
+	"outsideRows": [],
+	"ms": 10226
+}

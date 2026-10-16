@@ -46,6 +46,15 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
 		{ id: 'e-2', student_id: STUDENT_ID, section_id: 's-1', session_id: 'ns-1', upload_timestamp: '2026-10-05T18:00:00Z', submitted_at: '2026-10-05T18:00:00Z', deleted_at: '2026-10-07T18:00:00Z' },
 		{ id: 'e-9', student_id: 'ben-uuid', section_id: 's-1', session_id: 'ns-1', upload_timestamp: '2026-10-06T18:00:00Z', submitted_at: '2026-10-06T18:00:00Z' }
 	],
+	// Ledger 0392: the gallery's two reads. Ben's rows are planted beside Ana's.
+	classroom_submission_files: [
+		{ id: 'file-a', submission_id: 'sub-a', block_id: null, caption: null, filename: 'truss.jpg', mime_type: 'application/octet-stream', storage_key: 'sub-a/1.jpg', created_at: '2026-09-19T18:00:00Z' },
+		{ id: 'file-b', submission_id: 'sub-b', block_id: null, caption: null, filename: 'ben-truss.jpg', mime_type: 'application/octet-stream', storage_key: 'sub-b/1.jpg', created_at: '2026-09-19T18:00:00Z' }
+	],
+	notebook_entry_photos: [
+		{ id: 'photo-a', entry_id: 'e-1', variant: 'original', sequence_order: 1, created_at: '2026-10-06T18:00:00Z' },
+		{ id: 'photo-b', entry_id: 'e-9', variant: 'original', sequence_order: 1, created_at: '2026-10-06T18:00:00Z' }
+	],
 	classroom_items: [],
 	classroom_html_assignments: []
 };
@@ -100,6 +109,9 @@ function client(
 				return b;
 			},
 			order() {
+				return b;
+			},
+			limit() {
 				return b;
 			},
 			range(from: number, to: number) {
@@ -266,8 +278,12 @@ describe('no classmate reaches the payload', () => {
 		expect(text).toContain('The Gearheads');
 		expect(text).toContain('Gear Calculator');
 		expect(text).toContain('4800');
-		const page = (answer as { studentPage: { streak: number; entriesFiled: number; notebook: { covered: number } } }).studentPage;
+		const page = (answer as { studentPage: { streak: number; entriesFiled: number; notebook: { covered: number }; gallery: { key: string }[] } }).studentPage;
 		expect(page.entriesFiled).toBe(1);
+		// The gallery: Ana's hand-in picture and her notebook photo, never Ben's.
+		expect(page.gallery.map((g) => g.key).sort()).toEqual(['file:file-a', 'photo:photo-a']);
+		expect(text).not.toContain('file-b');
+		expect(text).not.toContain('photo-b');
 		expect(page.notebook.covered).toBe(1);
 	});
 
@@ -287,6 +303,16 @@ describe('no classmate reaches the payload', () => {
 		for (const q of entries) {
 			expect(q.filters).toContainEqual({ op: 'eq', col: 'student_id', val: STUDENT_ID });
 			expect(q.filters).toContainEqual({ op: 'eq', col: 'section_id', val: 's-1' });
+		}
+		// The gallery's reads are keyed on rows already attributed to her: her
+		// submission ids and her turned-in entry ids, and nothing else.
+		for (const [t, col, ids] of [
+			['classroom_submission_files', 'submission_id', ['sub-a']],
+			['notebook_entry_photos', 'entry_id', ['e-1']]
+		] as const) {
+			const reads = byTable(t);
+			expect(reads.length, t).toBeGreaterThan(0);
+			for (const q of reads) expect(q.filters, t).toContainEqual({ op: 'in', col, val: ids });
 		}
 		// The new read is asked about the one student, in the one class.
 		expect(supabase.rpcLog.find((r) => r.fn === 'classroom_student_overview')?.args).toEqual({

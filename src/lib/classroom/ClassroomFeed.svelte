@@ -205,7 +205,11 @@
 						<span class="course-id">{feed.section.course?.code ?? 'CLASS'}</span>
 						<span class="course-badge badge-block">{sectionLabelText(feed.section.label)}</span>
 						{#if summary}
-							<span class="feed-flag tone-attention">{summary}</span>
+							<span class="feed-flag tone-attention feed-attn" data-testid="feed-attention"
+								><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
+									><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
+								>{summary}</span
+							>
 						{/if}
 					</div>
 					<div class="feed-subline">
@@ -429,6 +433,30 @@
 		gap: 0.5rem;
 		flex-wrap: wrap;
 		min-width: 0;
+	}
+	/* THE ATTENTION COUNT (ledger 0392, report 54b43698). A mark beside the
+	   words, never colour alone; the plate gives it a warm wash (plate.css),
+	   so it is the one warm thing on the card. */
+	.feed-attn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-weight: 700;
+	}
+	.feed-attn-mark {
+		width: 0.85rem;
+		height: 0.85rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	/* SPACE WHITE: the section label steps back to the room's quiet ink, so the
+	   card holds two colours (the class code and the warning) rather than four. */
+	:global(:root[data-theme='space-white']) .feed-ident :global(.badge-block) {
+		color: var(--text-2);
+		border-color: var(--hairline);
 	}
 	.feed-subline {
 		display: flex;

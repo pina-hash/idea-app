@@ -1,9 +1,12 @@
 import {
 	ANONYMOUS_FEEDBACK_ENDPOINT,
 	FEEDBACK_CONTACT_MAX,
+	FEEDBACK_HORIZONS,
 	FEEDBACK_KINDS,
 	FEEDBACK_MAX_LEN,
-	FEEDBACK_REFUSALS
+	FEEDBACK_REFUSALS,
+	FEEDBACK_TRIED_MAX,
+	feedbackTriedIssue
 } from '$lib/feedback/feedback';
 import {
 	describeBuild,
@@ -165,6 +168,12 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 			// anywhere but /api/feedback.
 			anonymousEndpoint: ANONYMOUS_FEEDBACK_ENDPOINT,
 			kinds: FEEDBACK_KINDS,
+			// THE SAME TWO HORIZONS AND THE SAME "WHAT DID YOU TRY" THE SITE'S BOX
+			// OFFERS (ledger 0392, report 911eefa0: "the coin ledger feedback
+			// button is outdated"), with the box's own words and caps.
+			horizons: FEEDBACK_HORIZONS,
+			triedMax: FEEDBACK_TRIED_MAX,
+			triedTooLong: feedbackTriedIssue('x'.repeat(FEEDBACK_TRIED_MAX + 1)),
 			refusals: FEEDBACK_REFUSALS,
 			// THE CONTROL'S WORDS AND MARK, from the one place the site's own
 			// control reads them (report e36c5437), so this panel cannot go on
@@ -197,8 +206,14 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 (function () {
 	var CFG = ${config};
 	var ID = CFG.id, BTN_ID = CFG.btnId;
-	var panel = null, textEl = null, contactEl = null, contactWrap = null, noteEl = null, sendBtn = null, statusEl = null;
-	var kind = 'bug', captured = {}, sending = false;
+	var panel = null, textEl = null, triedEl = null, contactEl = null, contactWrap = null, noteEl = null, sendBtn = null, statusEl = null, hintEl = null;
+	var kind = 'bug', horizon = 'now', captured = {}, sending = false;
+	/* PLATE MODE: a page that carries the site plate's own key and panel recipe
+	   (the Ledger since ledger 0384 declares its --lp-* tokens on :root) gets a
+	   control built from THAT recipe, by wearing the page's own key and panel
+	   classes, so it looks like every other key on the page in every theme. A
+	   page without the tokens keeps the neon or paper palette below. */
+	var plate = false;
 	/* null until known. Known at serve time for the Ledger; asked at open for a
 	   page whose bytes every reader shares. */
 	var session = CFG.signedIn === true || CFG.signedIn === false ? CFG.signedIn : null;
@@ -323,7 +338,7 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 			contactWrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
 			var cl = document.createElement('div');
 			cl.textContent = 'A way to reach you (optional)';
-			cl.style.cssText = 'font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase;color:' + P.note + ';';
+			cl.style.cssText = 'font-size:' + (plate ? '0.68rem' : '0.62rem') + ';letter-spacing:0.08em;text-transform:uppercase;color:' + (plate ? 'var(--dim)' : P.note) + ';';
 			contactWrap.appendChild(cl);
 			contactEl = field('An email, a first name, or when to ask you', CFG.contactMax, 1);
 			contactWrap.appendChild(contactEl);
@@ -345,8 +360,17 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 
 	function post() {
 		var message = (textEl && textEl.value ? textEl.value : '').trim();
+		var tried = (triedEl && triedEl.value ? triedEl.value : '').trim();
 		var contact = (contactEl && contactEl.value ? contactEl.value : '').trim();
-		var body = { app: CFG.app, context: CFG.context, kind: kind, message: message, meta: captured };
+		var meta = Object.assign({}, captured);
+		/* The anonymous route forwards meta verbatim and its function lifts both
+		   of these into their columns (0170, 0230); the signed-in route reads the
+		   body's own fields. Only long_term is ever sent, as the box does. */
+		if (tried) meta.tried = tried;
+		if (horizon === 'long_term') meta.horizon = 'long_term';
+		var body = { app: CFG.app, context: CFG.context, kind: kind, message: message, meta: meta };
+		if (tried) body.tried = tried;
+		if (horizon === 'long_term') body.horizon = 'long_term';
 		if (session === false && contact) body.contact = contact;
 		var endpoint = CFG.endpoint || (session ? CFG.signedInEndpoint : CFG.anonymousEndpoint);
 		setStatus('Sending...', false);
@@ -363,6 +387,7 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 				setStatus('Sent. Thank you.', false);
 				if (statusEl) statusEl.style.color = P.ok;
 				if (textEl) textEl.value = '';
+				if (triedEl) triedEl.value = '';
 				setTimeout(close, 1200);
 				return;
 			}
@@ -384,6 +409,8 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		var message = (textEl && textEl.value ? textEl.value : '').trim();
 		if (!message) { setStatus(words('message_empty'), true); return; }
 		if (message.length > CFG.maxLen) { setStatus(words('message_too_long'), true); return; }
+		var tried = (triedEl && triedEl.value ? triedEl.value : '').trim();
+		if (tried.length > CFG.triedMax) { setStatus(CFG.triedTooLong, true); return; }
 		var contact = (contactEl && contactEl.value ? contactEl.value : '').trim();
 		if (session === false && contact.length > CFG.contactMax) { setStatus(words('contact_too_long'), true); return; }
 
@@ -404,19 +431,55 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		if (rows > 1) el.rows = rows; else el.type = 'text';
 		el.placeholder = placeholder;
 		el.maxLength = maxLen;
+		if (plate) {
+			/* The page's own well (set into the surface), its focus edge included. */
+			el.className = rows > 1 ? 'role-textarea' : 'role-input';
+			el.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;font-size:0.85rem;padding:0.6rem 0.7rem;resize:vertical;min-height:44px;';
+			return el;
+		}
 		el.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;font-size:0.78rem;background:' + P.field + ';color:' + P.ink + ';border:1px solid ' + P.fieldEdge + ';border-radius:2px;padding:0.5rem 0.6rem;outline:none;resize:vertical;';
 		el.addEventListener('focus', function () { el.style.borderColor = P.focus; });
 		el.addEventListener('blur', function () { el.style.borderColor = P.fieldEdge; });
 		return el;
 	}
 
+	function label(text, forEl) {
+		var l = document.createElement('label');
+		l.textContent = text;
+		if (forEl && forEl.id) l.htmlFor = forEl.id;
+		l.style.cssText = 'font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;color:' + (plate ? 'var(--dim)' : P.note) + ';';
+		return l;
+	}
+
 	function chip(label) {
 		var b = document.createElement('button');
 		b.type = 'button';
 		b.textContent = label;
+		if (plate) {
+			/* The page's own raised key: .qr-close-btn is a style-only class in
+			   the Ledger (its script reaches the QR close by id), so wearing it
+			   adds this control to the key recipe and to no script's query. */
+			b.className = 'qr-close-btn';
+			b.style.cssText = 'cursor:pointer;font-weight:600;';
+			return b;
+		}
 		/* 44px, the tap-target floor, on every control in here. */
-		b.style.cssText = 'font-family:' + P.title + ';font-size:0.55rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;background:none;border:1px solid ' + P.chipEdge + ';border-radius:2px;color:' + P.chipInk + ';padding:0.35rem 0.8rem;min-height:44px;cursor:pointer;';
+		b.style.cssText = 'font-family:' + P.title + ';font-size:0.55rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;background:none;border:1px solid ' + P.chipEdge + ';border-radius:2px;color:' + P.chipInk + ';padding:0.35rem 0.8rem;min-height:44px;min-width:44px;cursor:pointer;';
 		return b;
+	}
+
+	/* A pressed choice: the word, aria-pressed, and the page's lit key. */
+	function paintChoice(b, on) {
+		b.setAttribute('aria-pressed', on ? 'true' : 'false');
+		if (plate) {
+			b.style.background = on ? 'linear-gradient(to bottom, var(--lp-lit-top), var(--lp-lit-bot)) padding-box, linear-gradient(to bottom, var(--lp-hair-top), var(--lp-hair)) border-box' : '';
+			b.style.color = on ? 'var(--lp-lit-ink)' : '';
+			b.style.boxShadow = on ? 'inset 0 0 0 1px var(--lp-bezel-mid), inset 0 0 0 3px var(--lp-lit-ring), 0 0 0 1px var(--lp-rim-out), 0 0 10px 1px var(--lp-lit-bloom)' : '';
+			return;
+		}
+		b.style.color = on ? P.onInk : P.chipInk;
+		b.style.borderColor = on ? P.onEdge : P.chipEdge;
+		b.style.background = on ? P.onFill : 'none';
 	}
 
 	function build() {
@@ -427,31 +490,40 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		panel.setAttribute('aria-label', CFG.label);
 		/* Above everything the page itself draws: a floating panel opens over a
 		   page whose own overlays reach z-index 9999. */
-		panel.style.cssText = 'position:fixed;inset:0;z-index:' + (CFG.mount === 'float' ? '2147483600' : '2000') + ';display:flex;align-items:center;justify-content:center;padding:16px;background:' + P.shade + ';font-family:' + P.font + ';';
+		panel.style.cssText = 'position:fixed;inset:0;z-index:' + (CFG.mount === 'float' ? '2147483600' : '2000') + ';display:flex;align-items:center;justify-content:center;padding:16px;background:' + (plate ? 'var(--lp-overlay, ' + P.shade + ')' : P.shade) + ';font-family:' + P.font + ';';
 
 		var card = document.createElement('div');
-		card.style.cssText = 'width:100%;max-width:420px;max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:16px;background:' + P.card + ';border:1px solid ' + P.cardEdge + ';border-left:3px solid ' + P.rule + ';border-radius:4px;color:' + P.ink + ';box-shadow:0 10px 40px rgba(0,0,0,0.6);';
+		if (plate) {
+			card.className = 'qr-box';
+			card.style.cssText = 'width:100%;max-width:480px;max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:18px 20px;color:var(--white);text-align:left;';
+		} else {
+			card.style.cssText = 'width:100%;max-width:420px;max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:16px;background:' + P.card + ';border:1px solid ' + P.cardEdge + ';border-left:3px solid ' + P.rule + ';border-radius:4px;color:' + P.ink + ';box-shadow:0 10px 40px rgba(0,0,0,0.6);';
+		}
 
+		/* THE HEAD: the title and a close key, as the site's box has them. */
+		var headRow = document.createElement('div');
+		headRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;';
 		var head = document.createElement('div');
 		head.textContent = CFG.label.toUpperCase();
-		head.style.cssText = 'font-family:' + P.title + ';font-size:0.7rem;font-weight:700;letter-spacing:0.15em;color:' + P.head + ';';
-		card.appendChild(head);
+		head.style.cssText = 'font-family:' + P.title + ';font-size:0.72rem;font-weight:700;letter-spacing:0.15em;color:' + (plate ? 'var(--white)' : P.head) + ';';
+		headRow.appendChild(head);
+		var x = chip('\u2715');
+		x.setAttribute('aria-label', 'Close');
+		x.addEventListener('click', function (e) { e.stopPropagation(); close(); });
+		headRow.appendChild(x);
+		card.appendChild(headRow);
 
 		noteEl = document.createElement('div');
-		noteEl.style.cssText = 'font-size:0.72rem;line-height:1.5;color:' + P.note + ';';
+		noteEl.style.cssText = 'font-size:' + (plate ? '0.8rem' : '0.72rem') + ';line-height:1.5;color:' + (plate ? 'var(--dim)' : P.note) + ';';
 		card.appendChild(noteEl);
 
 		var kinds = document.createElement('div');
 		kinds.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
 		var kindBtns = [];
+		kinds.setAttribute('role', 'group');
+		kinds.setAttribute('aria-label', 'What kind of feedback');
 		function paint() {
-			for (var i = 0; i < kindBtns.length; i++) {
-				var on = kindBtns[i].getAttribute('data-kind') === kind;
-				kindBtns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
-				kindBtns[i].style.color = on ? P.onInk : P.chipInk;
-				kindBtns[i].style.borderColor = on ? P.onEdge : P.chipEdge;
-				kindBtns[i].style.background = on ? P.onFill : 'none';
-			}
+			for (var i = 0; i < kindBtns.length; i++) paintChoice(kindBtns[i], kindBtns[i].getAttribute('data-kind') === kind);
 		}
 		for (var ki = 0; ki < CFG.kinds.length; ki++) {
 			(function (k) {
@@ -466,12 +538,44 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		paint();
 		card.appendChild(kinds);
 
+		/* WHEN IT IS FOR: fix soon, or a long-term idea, with the box's hint. */
+		var horizons = document.createElement('div');
+		horizons.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+		horizons.setAttribute('role', 'group');
+		horizons.setAttribute('aria-label', 'When it is for');
+		var hBtns = [];
+		hintEl = document.createElement('div');
+		hintEl.style.cssText = 'font-size:0.72rem;line-height:1.4;color:' + (plate ? 'var(--dim)' : P.note) + ';margin-top:-4px;';
+		function paintH() {
+			for (var i = 0; i < hBtns.length; i++) paintChoice(hBtns[i], hBtns[i].getAttribute('data-horizon') === horizon);
+			for (var j = 0; j < CFG.horizons.length; j++) if (CFG.horizons[j].id === horizon) hintEl.textContent = 'For ' + CFG.horizons[j].hint + '.';
+		}
+		for (var hi = 0; hi < CFG.horizons.length; hi++) {
+			(function (h) {
+				var b = chip(h.label);
+				b.setAttribute('data-horizon', h.id);
+				b.addEventListener('click', function (e) { e.stopPropagation(); horizon = h.id; paintH(); });
+				hBtns.push(b);
+				horizons.appendChild(b);
+			})(CFG.horizons[hi]);
+		}
+		paintH();
+		card.appendChild(horizons);
+		card.appendChild(hintEl);
+
 		textEl = field('What happened?', CFG.maxLen, 4);
+		textEl.id = ID + '-msg';
+		card.appendChild(label('What happened', textEl));
 		card.appendChild(textEl);
+
+		triedEl = field('Anything you tried first, like reloading or another browser', CFG.triedMax, 2);
+		triedEl.id = ID + '-tried';
+		card.appendChild(label('What did you try? (optional)', triedEl));
+		card.appendChild(triedEl);
 
 		statusEl = document.createElement('div');
 		statusEl.setAttribute('role', 'status');
-		statusEl.style.cssText = 'font-size:0.72rem;line-height:1.4;color:' + P.note + ';min-height:16px;';
+		statusEl.style.cssText = 'font-size:0.75rem;line-height:1.4;color:' + (plate ? 'var(--dim)' : P.note) + ';min-height:16px;';
 		card.appendChild(statusEl);
 
 		var row = document.createElement('div');
@@ -549,11 +653,45 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		   takes the muted sage the injected panel already uses for its own copy
 		   (9.17:1 there). The hover is the share button's gold, unchanged, so
 		   the two still behave like siblings. */
+		if (plate) {
+			/* THE PAGE'S OWN KEY, WITH THE SITE CONTROL'S GLYPH AND WORD (ledger
+			   0392, report 911eefa0). Not .share-btn, which the Ledger hides
+			   below 768px; .qr-close-btn is style-only and stays visible. */
+			btn.className = 'qr-close-btn';
+			btn.style.cssText = 'cursor:pointer;white-space:nowrap;font-weight:600;';
+			btn.appendChild(glyph(14));
+			var w = document.createElement('span');
+			w.textContent = CFG.labelShort;
+			btn.appendChild(w);
+			host.appendChild(btn);
+			return;
+		}
 		btn.style.cssText = 'font-family:' + P.title + ';font-size:0.52rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;background:' + P.trigBg + ';border:1px solid ' + P.trigEdge + ';border-radius:2px;color:' + P.trigInk + ';padding:0.25rem 0.65rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;white-space:nowrap;';
 		btn.addEventListener('mouseenter', function () { btn.style.color = P.hoverInk; btn.style.borderColor = P.hoverEdge; });
 		btn.addEventListener('mouseleave', function () { btn.style.color = P.trigInk; btn.style.borderColor = P.trigEdge; });
 		btn.textContent = CFG.labelShort;
 		host.appendChild(btn);
+	}
+
+	/* The speech-bubble glyph the portal's own control carries. */
+	function glyph(size) {
+		var svgNs = 'http://www.w3.org/2000/svg';
+		var svg = document.createElementNS(svgNs, 'svg');
+		svg.setAttribute('viewBox', '0 0 24 24');
+		svg.setAttribute('aria-hidden', 'true');
+		svg.setAttribute('width', String(size));
+		svg.setAttribute('height', String(size));
+		svg.setAttribute('fill', 'none');
+		svg.setAttribute('stroke', 'currentColor');
+		svg.setAttribute('stroke-width', '1.7');
+		svg.setAttribute('stroke-linecap', 'round');
+		svg.setAttribute('stroke-linejoin', 'round');
+		CFG.glyph.forEach(function (d) {
+			var path = document.createElementNS(svgNs, 'path');
+			path.setAttribute('d', d);
+			svg.appendChild(path);
+		});
+		return svg;
 	}
 
 	/* A PAGE WITH NO HEADER TO PUT IT IN: a floating trigger in the bottom-left
@@ -569,23 +707,7 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 		btn.style.cssText = 'position:fixed;left:max(12px, env(safe-area-inset-left, 0px));bottom:calc(12px + env(safe-area-inset-bottom, 0px));z-index:2147483500;font-family:' + P.title + ';font-size:0.6rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;background:' + P.floatBg + ';border:1px solid ' + P.floatEdge + ';border-radius:999px;color:' + P.trigInk + ';padding:0 0.9rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:0.45rem;min-height:44px;min-width:44px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,0.3);';
 		btn.addEventListener('mouseenter', function () { btn.style.color = P.hoverInk; btn.style.borderColor = P.hoverEdge; });
 		btn.addEventListener('mouseleave', function () { btn.style.color = P.trigInk; btn.style.borderColor = P.floatEdge; });
-		var svgNs = 'http://www.w3.org/2000/svg';
-		var svg = document.createElementNS(svgNs, 'svg');
-		svg.setAttribute('viewBox', '0 0 24 24');
-		svg.setAttribute('aria-hidden', 'true');
-		svg.setAttribute('width', '15');
-		svg.setAttribute('height', '15');
-		svg.setAttribute('fill', 'none');
-		svg.setAttribute('stroke', 'currentColor');
-		svg.setAttribute('stroke-width', '1.7');
-		svg.setAttribute('stroke-linecap', 'round');
-		svg.setAttribute('stroke-linejoin', 'round');
-		CFG.glyph.forEach(function (d) {
-			var path = document.createElementNS(svgNs, 'path');
-			path.setAttribute('d', d);
-			svg.appendChild(path);
-		});
-		btn.appendChild(svg);
+		btn.appendChild(glyph(15));
 		var word = document.createElement('span');
 		word.textContent = CFG.labelShort;
 		btn.appendChild(word);
@@ -613,6 +735,9 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 			P = pageIsLight() ? LIGHT : DARK;
 			mountFloat();
 		} else {
+			try {
+				plate = getComputedStyle(document.documentElement).getPropertyValue('--lp-face-top').trim() !== '';
+			} catch (e) { plate = false; }
 			mountHeader();
 		}
 	}

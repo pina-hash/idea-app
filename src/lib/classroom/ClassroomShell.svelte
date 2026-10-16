@@ -231,6 +231,8 @@
 	 * `splitArchived` in nav.ts is the one definition, shared with My Classes.
 	 */
 	const stripSplit = $derived(splitArchived(ordered, currentSectionId));
+	/** The class menu's two groups: live classes, then archived ones under their own label. */
+	const menuSplit = $derived(splitArchived(ordered));
 	const stripSections = $derived(stripSplit.active);
 	const archivedSections = $derived(stripSplit.archived);
 	let archivedOpen = $state(false);
@@ -576,42 +578,65 @@
 					</button>
 
 					{#if switcherOpen}
+						<!-- THE CLASS MENU (ledger 0392, report 2f019c5b: "Classes dropdown
+						     is ugly"). Groups with labels, one aligned row per class (the
+						     course code in a fixed column, the section on one line), the
+						     class on screen marked with a check as well as the plate's
+						     selection, archived classes under their own label rather than a
+						     flag that broke the row, and the staff doors last with glyphs. -->
 						<div class="sw-menu" role="menu" data-testid="section-switcher-menu">
 							<a
-								class="sw-item"
+								class="sw-item sw-all"
 								class:current={!currentSectionId}
 								role="menuitem"
 								href="/classroom"
 								onclick={closeMenu}
 							>
+								<svg class="sw-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.classes} /></svg>
 								<span class="sw-item-name">All my classes</span>
+								{#if !currentSectionId}<svg class="sw-check" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>{/if}
 							</a>
-							{#if ordered.length}
-								<div class="sw-sep" aria-hidden="true"></div>
-							{/if}
-							{#each ordered as s (s.id)}
-								<a
-									class="sw-item"
-									class:current={s.id === currentSectionId}
-									role="menuitem"
-									aria-current={s.id === currentSectionId ? 'true' : undefined}
-									href={`/classroom/${s.id}`}
-									data-testid="switcher-section"
-									onclick={closeMenu}
-								>
-									<span class="sw-item-code">{s.course?.code ?? 'CLASS'}</span>
-									<span class="sw-item-name">{formatSectionLabel(s.label, s.block)}</span>
-									{#if s.active === false}<span class="sw-item-flag">Archived</span>{/if}
-								</a>
+							{#each [{ label: 'Your classes', list: menuSplit.active }, { label: 'Archived', list: menuSplit.archived }] as group (group.label)}
+								{#if group.list.length}
+									<div class="sw-group" role="presentation">
+										<span class="sw-group-label" aria-hidden="true">{group.label}</span>
+									</div>
+									{#each group.list as s (s.id)}
+										<a
+											class="sw-item sw-class"
+											class:current={s.id === currentSectionId}
+											class:archived={s.active === false}
+											role="menuitem"
+											aria-current={s.id === currentSectionId ? 'true' : undefined}
+											aria-label={`${s.course?.code ?? 'Class'}, ${formatSectionLabel(s.label, s.block)}${s.active === false ? ', archived' : ''}`}
+											href={`/classroom/${s.id}`}
+											data-testid="switcher-section"
+											onclick={closeMenu}
+										>
+											<span class="sw-item-code">{s.course?.code ?? 'CLASS'}</span>
+											<span class="sw-item-name" title={formatSectionLabel(s.label, s.block)}>{formatSectionLabel(s.label, s.block)}</span>
+											{#if s.id === currentSectionId}<svg class="sw-check" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>{/if}
+										</a>
+									{/each}
+								{/if}
 							{/each}
 							{#if isStaff}
-								<div class="sw-sep" aria-hidden="true"></div>
+								<div class="sw-group" role="presentation">
+									<span class="sw-group-label" aria-hidden="true">Setup</span>
+								</div>
 								<a class="sw-item" role="menuitem" href="/classroom/admin" onclick={closeMenu}>
+									<svg class="sw-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.settings} /></svg>
 									<span class="sw-item-name">Courses &amp; setup</span>
 								</a>
-							{/if}
-							{#if isAdmin}
+								{#if isAdmin}
+									<a class="sw-item" role="menuitem" href="/classroom/view-as" onclick={closeMenu}>
+										<svg class="sw-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.notebook} /></svg>
+										<span class="sw-item-name">Student notebooks</span>
+									</a>
+								{/if}
+							{:else if isAdmin}
 								<a class="sw-item" role="menuitem" href="/classroom/view-as" onclick={closeMenu}>
+									<svg class="sw-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.notebook} /></svg>
 									<span class="sw-item-name">Student notebooks</span>
 								</a>
 							{/if}
@@ -1160,11 +1185,12 @@
 		top: calc(100% + 0.35rem);
 		right: 0;
 		z-index: 40;
-		min-width: 15rem;
-		max-width: min(22rem, 90vw);
-		max-height: 60vh;
+		width: max-content;
+		min-width: 19rem;
+		max-width: min(26rem, 92vw);
+		max-height: 70vh;
 		overflow-y: auto;
-		padding: 0.3rem;
+		padding: 0.4rem;
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
@@ -1172,11 +1198,17 @@
 		   and a hard ledge under Space White. */
 		box-shadow: var(--elevation-2);
 	}
+	/* ONE ROW SHAPE FOR EVERY ITEM: a fixed first column (the course code, or a
+	   glyph), the name on one line, and a check on the class on screen. The
+	   name never wraps (the old row broke "Section 1 · Block 1" over two lines
+	   beside an ARCHIVED flag); a long one ends in an ellipsis with the whole of
+	   it in its title. */
 	.sw-item {
-		display: flex;
+		display: grid;
+		grid-template-columns: 6.2rem minmax(0, 1fr) auto;
 		align-items: center;
-		gap: 0.45rem;
-		padding: 0.45rem 0.55rem;
+		column-gap: 0.6rem;
+		padding: 0.4rem 0.6rem;
 		border-radius: var(--radius-card);
 		text-decoration: none;
 		color: var(--text-1);
@@ -1185,35 +1217,82 @@
 		min-height: 44px;
 		box-sizing: border-box;
 	}
-	.sw-item:hover {
+	.sw-item:hover,
+	.sw-item:focus-visible {
 		background: var(--surface-2);
 	}
-	/* The current class is marked by more than colour: it carries a gold rule. */
+	/* The current class is marked by more than colour: a check, and a gold rule. */
 	.sw-item.current {
 		background: var(--surface-2);
 		box-shadow: inset 2px 0 0 var(--gold);
 	}
+	/* A glyph row (All my classes, the staff doors) keeps its words beside the
+	   glyph; only a class row needs the code column. */
+	.sw-item:not(.sw-class) {
+		grid-template-columns: 1.15rem minmax(0, 1fr) auto;
+	}
+	/* The glyph and the check take the row's own ink, so a selected row's
+	   glyph is as legible as its words on the selection face. */
+	.sw-item.current .sw-glyph {
+		color: inherit;
+	}
+	.sw-glyph {
+		justify-self: start;
+		width: 1.05rem;
+		height: 1.05rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		color: var(--text-2);
+	}
+	.sw-check {
+		width: 1rem;
+		height: 1rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
 	.sw-item-code {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: 0.68rem;
+		letter-spacing: 0.06em;
 		color: var(--text-2);
 		white-space: nowrap;
-	}
-	.sw-item-name {
-		font-size: 0.85rem;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	.sw-item-flag {
-		margin-left: auto;
-		font-family: var(--font-mono);
-		font-size: 0.6rem;
+	.sw-item-name {
+		font-size: 0.92rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		min-width: 0;
+	}
+	.sw-item.archived .sw-item-name {
 		color: var(--text-2);
 	}
-	.sw-sep {
+	.sw-group {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0.45rem 0.6rem 0.2rem;
+	}
+	.sw-group::after {
+		content: '';
+		flex: 1;
 		height: 1px;
-		margin: 0.3rem 0.2rem;
 		background: var(--hairline);
+	}
+	.sw-group-label {
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--text-2);
 	}
 
 	/* --- The tools ----------------------------------------------------------
@@ -1331,6 +1410,7 @@
 		}
 		.sw-menu {
 			position: static;
+			width: auto;
 			min-width: 0;
 			max-width: none;
 			max-height: none;

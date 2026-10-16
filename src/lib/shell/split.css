@@ -262,10 +262,22 @@
 }
 
 @media (min-width: 1024px) {
+	/* CLIP, NEVER HIDDEN (ledger 0392, report c2a5260e). `overflow: hidden`
+	   still makes the frame a SCROLL CONTAINER: the wheel cannot move it, but
+	   a focus, a `scrollIntoView` or find-in-page can, and once it moved
+	   nothing on the page could move it back (every pane is
+	   `overscroll-behavior: contain`). Measured on the grading console at
+	   1920x912 with a ported worksheet open: the frame's content measured
+	   1019px in a 912px box, a scroll of 107 put the footer under the console
+	   with the bottom of the window blank, and a wheel over the work did
+	   nothing. `clip` is not a scroll container at all, so there is no
+	   position to get stuck at. `hidden` stays first as the fallback for a
+	   browser without `clip`. */
 	.cr-app,
 	.cr-root:has(> .cr-split:not(.page-flow)) {
 		height: 100dvh;
 		overflow: hidden;
+		overflow: clip;
 	}
 	/* THE COLUMN ITSELF, and it is declared HERE rather than in the
 	   unconditional `.cr-app` rule above because the classroom's room is an

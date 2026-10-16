@@ -175,6 +175,10 @@ try {
 			const boxes = [...document.querySelectorAll('.so-root, .so-root *, .cr-root')];
 			const painted = boxes.filter((el) => {
 				const cs = getComputedStyle(el);
+				/* A score bar's fill IS the figure (ledger 0392): a bar with no ink
+				   is no bar. It is the one data graphic that paints, so it is named
+				   here rather than let through by a looser rule. */
+				if (el.matches('.so-bar-fill')) return false;
 				if (el.matches('.cr-root')) return !(cs.backgroundColor === 'rgb(255, 255, 255)' && cs.backgroundImage === 'none');
 				return !isClear(cs.backgroundColor) || cs.backgroundImage !== 'none';
 			});

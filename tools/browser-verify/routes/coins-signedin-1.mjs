@@ -61,7 +61,7 @@ export default {
 		/* THE POSITIVE CONTROL FOR THE ABSENCE BELOW. The message field is what
 		   says the panel built its fields at all, so "no contact field" cannot
 		   pass by the panel being empty. */
-		{ selector: '#idea-ledger-report textarea', label: 'the message field (positive control)', expectPresent: 1, maxPresent: 1 },
+		{ selector: '#idea-ledger-report textarea[id$="-msg"]', label: 'the message field (positive control)', expectPresent: 1, maxPresent: 1 },
 		{ selector: '#idea-ledger-report button[data-kind]', label: 'one chip per feedback kind', expectPresent: 4, maxPresent: 4 },
 		/* NO CONTACT FIELD WHERE THERE IS AN ACCOUNT. It is offered only where
 		   there is none, and it is NEVER an identity -- nothing verifies it --

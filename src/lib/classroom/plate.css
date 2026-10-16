@@ -946,6 +946,23 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 		background-color: color-mix(in srgb, var(--amber) 14%, var(--plate-chip-ground));
 		background-image: none;
 	}
+	/* So does a home class card's "needs attention" count (ledger 0392, report
+	   54b43698: on Space White the amber word sat on a grey well and "the color
+	   doesn't look nice"), with the same wash, so the one warm thing on the
+	   card is the thing to look at. */
+	:root :scope:is(.cr-plate, .site-plate) .feed-flag.tone-attention {
+		background-color: color-mix(in srgb, var(--amber) 14%, var(--plate-chip-ground));
+		background-image: none;
+		box-shadow:
+			inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent),
+			inset 0 2px 2px -1px var(--plate-chip-shade);
+	}
+	/* On Space White the wash is laid over WHITE, not the grey tag ground: the
+	   grey under 14% amber came out a muddy beige (207, 203, 202), the colour
+	   the report was about, and its word only just cleared (4.74:1). */
+	:root[data-theme='space-white'] :scope:is(.cr-plate, .site-plate) .feed-flag.tone-attention {
+		background-color: color-mix(in srgb, var(--amber) 14%, #fff);
+	}
 	/* A chip that goes somewhere, or that does something, is pressable, so it
 	   is a small raised key: a link chip, a chip-shaped button (the notebook's
 	   next check-in and drafts counts) and the composer's insert-a-template
@@ -1583,6 +1600,17 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 			0 0 0 1px var(--plate-rim-out),
 			0 10px 24px -4px var(--plate-drop),
 			0 22px 40px -18px var(--plate-drop-far);
+	}
+	/* Below the fold the class list sits INSIDE the Menu's housing, so it is
+	   a section of that panel and never a second housing nested in it. */
+	@media (max-width: 1179.98px) {
+		:root :scope:is(.cr-plate, .site-plate) .cr-header .sw-menu {
+			border: none;
+			border-top: 1px solid var(--plate-hair);
+			border-radius: 0;
+			background: none;
+			box-shadow: none;
+		}
 	}
 	:root :scope:is(.cr-plate, .site-plate) .cr-header :is(.sw-item-code, .sw-item-flag) {
 		color: var(--plate-ink-2);

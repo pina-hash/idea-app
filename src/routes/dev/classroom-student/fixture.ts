@@ -18,6 +18,9 @@ import type { SectionGrid } from '$lib/notebook-review';
 import {
 	buildStudentPage,
 	parseStudentOverview,
+	studentGallery,
+	type GalleryNotebookPhoto,
+	type GallerySubmissionFile,
 	type StudentPageData,
 	type StudentPageInputs
 } from '$lib/classroom/student-overview';
@@ -281,6 +284,73 @@ function coin(
 
 export type FixtureState = 'full' | 'no-account' | 'unavailable' | 'inactive';
 
+/**
+ * PICTURES OF THEIR WORK, drawn here as inline SVG so the harness carries no
+ * binary and loads nothing off the network. An `<img>` renders an SVG inert,
+ * and these never leave the dev route. Each is a different shape and hue so a
+ * slide change is visible in a screenshot.
+ */
+function workPicture(label: string, hue: number, shape: 'truss' | 'gear' | 'page' | 'bracket'): string {
+	const bg = `hsl(${hue} 30% 22%)`;
+	const ink = `hsl(${hue} 70% 72%)`;
+	const art =
+		shape === 'truss'
+			? `<path d="M40 220 L200 60 L360 220 Z M120 140 L280 140 M200 60 L200 220" stroke="${ink}" stroke-width="10" fill="none"/>`
+			: shape === 'gear'
+				? `<circle cx="200" cy="140" r="70" stroke="${ink}" stroke-width="18" fill="none" stroke-dasharray="22 12"/><circle cx="200" cy="140" r="22" fill="${ink}"/>`
+				: shape === 'page'
+					? `<rect x="110" y="40" width="180" height="200" rx="8" fill="#f4f1e8"/><path d="M135 85 H265 M135 115 H265 M135 145 H240 M135 175 H255" stroke="#3a4a3e" stroke-width="7"/>`
+					: `<path d="M90 200 V90 H310 V130 H150 V200 Z" fill="${ink}"/><circle cx="120" cy="115" r="10" fill="${bg}"/><circle cx="280" cy="110" r="10" fill="${bg}"/>`;
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280"><rect width="400" height="280" fill="${bg}"/>${art}<text x="200" y="268" font-family="sans-serif" font-size="18" fill="#ffffff" text-anchor="middle">${label}</text></svg>`;
+	return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+const SUB_IDS: Record<string, string> = { 'a-bridge': 'sub-bridge', 'a-motor': 'sub-motor', 'a-essay': 'sub-essay', 'a-old': 'sub-old' };
+const FIXTURE_PICTURES: Record<string, string> = {
+	'f-1': workPicture('Bridge truss, before load test', 140, 'truss'),
+	'f-2': workPicture('Bridge truss, after 40 lb', 30, 'truss'),
+	'f-3': workPicture('Motor bench wiring', 200, 'gear'),
+	'f-4': workPicture('Design reflection sketch', 280, 'bracket'),
+	'p-1': workPicture('Notebook, gear ratios', 95, 'page'),
+	'p-2': workPicture('Notebook, test rig', 55, 'page'),
+	'p-2e': workPicture('Notebook, test rig (straightened)', 160, 'page'),
+	'p-3': workPicture('Notebook, motor bench', 330, 'page')
+};
+
+function fixtureGallery(hasAccount: boolean) {
+	if (!hasAccount) return [];
+	const files: GallerySubmissionFile[] = [
+		{ id: 'f-1', submission_id: 'sub-bridge', filename: 'truss-before.jpg', mime_type: 'application/octet-stream', storage_key: 'sub-bridge/f1.jpg', created_at: '2026-09-18T18:00:00Z' },
+		{ id: 'f-2', submission_id: 'sub-bridge', filename: 'truss-after.jpg', mime_type: 'application/octet-stream', storage_key: 'sub-bridge/f2.jpg', created_at: '2026-09-19T18:00:00Z' },
+		{ id: 'f-3', submission_id: 'sub-motor', filename: 'wiring.png', mime_type: 'application/octet-stream', storage_key: 'sub-motor/f3.png', created_at: '2026-10-01T18:00:00Z' },
+		{ id: 'f-4', submission_id: 'sub-essay', filename: 'sketch.jpg', mime_type: 'application/octet-stream', storage_key: 'sub-essay/f4.jpg', created_at: '2026-10-06T19:00:00Z' },
+		// A CAD file on the same row: never a picture, never in the gallery.
+		{ id: 'f-5', submission_id: 'sub-essay', filename: 'bracket.SLDPRT', mime_type: 'application/octet-stream', storage_key: 'sub-essay/f5.sldprt', created_at: '2026-10-06T19:05:00Z' }
+	];
+	const photos: GalleryNotebookPhoto[] = [
+		{ id: 'p-1', entry_id: 'e-1', variant: 'original', sequence_order: 1, created_at: '2026-09-30T18:00:00Z' },
+		{ id: 'p-2', entry_id: 'e-2', variant: 'original', sequence_order: 1, created_at: '2026-10-01T18:00:00Z' },
+		{ id: 'p-2e', entry_id: 'e-2', variant: 'enhanced', sequence_order: 2, created_at: '2026-10-01T18:01:00Z' },
+		{ id: 'p-3', entry_id: 'e-3', variant: 'original', sequence_order: 1, created_at: '2026-10-06T18:00:00Z' }
+	];
+	return studentGallery({
+		items: ITEMS,
+		submissions: Object.entries(SUB_IDS).map(([item_id, id]) => ({ id, item_id })),
+		files,
+		isImage: (f) => /\.(jpe?g|png|gif|webp|heic)$/i.test(f.storage_key ?? f.filename),
+		fileSrc: (id) => FIXTURE_PICTURES[id] ?? '',
+		photos,
+		entries: new Map([
+			['e-1', { at: '2026-09-30T18:00:00Z', label: 'Day 14 gear ratios' }],
+			['e-2', { at: '2026-10-01T18:00:00Z', label: 'Day 15 test rig' }],
+			['e-3', { at: '2026-10-06T18:00:00Z', label: 'Day 18 motor bench' }]
+		]),
+		photoSrc: (id) => FIXTURE_PICTURES[id] ?? '',
+		photoThumb: (id) => FIXTURE_PICTURES[id] ?? '',
+		day: (iso) => (iso ? iso.slice(5, 10) : '')
+	});
+}
+
 /** The raw reads for one state, before `buildStudentPage`. */
 export function fixtureInputs(state: FixtureState): StudentPageInputs {
 	const hasAccount = state !== 'no-account';
@@ -296,10 +366,10 @@ export function fixtureInputs(state: FixtureState): StudentPageInputs {
 		now: NOW,
 		overview,
 		submissions: [
-			{ item_id: 'a-bridge', student_email: EMAIL, state: 'returned', score: 18, submitted_at: '2026-09-19T18:00:00Z', returned_at: '2026-09-22T15:00:00Z', graded_at: '2026-09-22T15:00:00Z' },
-			{ item_id: 'a-motor', student_email: EMAIL, state: 'draft', score: null, submitted_at: null, returned_at: null, graded_at: null },
-			{ item_id: 'a-essay', student_email: EMAIL, state: 'submitted', score: null, submitted_at: '2026-10-06T19:30:00Z', returned_at: null, graded_at: null },
-			{ item_id: 'a-old', student_email: EMAIL, state: 'returned', score: 9, submitted_at: '2026-09-04T18:00:00Z', returned_at: '2026-09-08T15:00:00Z', graded_at: '2026-09-08T15:00:00Z' }
+			{ id: 'sub-bridge', item_id: 'a-bridge', student_email: EMAIL, state: 'returned', score: 18, submitted_at: '2026-09-19T18:00:00Z', returned_at: '2026-09-22T15:00:00Z', graded_at: '2026-09-22T15:00:00Z' },
+			{ id: 'sub-motor', item_id: 'a-motor', student_email: EMAIL, state: 'draft', score: null, submitted_at: null, returned_at: null, graded_at: null },
+			{ id: 'sub-essay', item_id: 'a-essay', student_email: EMAIL, state: 'submitted', score: null, submitted_at: '2026-10-06T19:30:00Z', returned_at: null, graded_at: null },
+			{ id: 'sub-old', item_id: 'a-old', student_email: EMAIL, state: 'returned', score: 9, submitted_at: '2026-09-04T18:00:00Z', returned_at: '2026-09-08T15:00:00Z', graded_at: '2026-09-08T15:00:00Z' }
 		],
 		presence: hasAccount
 			? [
@@ -320,7 +390,8 @@ export function fixtureInputs(state: FixtureState): StudentPageInputs {
 					{ id: 'doc-2', item_id: 'a-gear', title: null, updated_at: '2026-09-25T18:00:00Z', archived_at: '2026-09-30T18:00:00Z' }
 				]
 			: [],
-		foundry: hasAccount ? [{ id: 'app-1', slug: 'gear-calculator', title: 'Gear Calculator' }] : []
+		foundry: hasAccount ? [{ id: 'app-1', slug: 'gear-calculator', title: 'Gear Calculator' }] : [],
+		gallery: fixtureGallery(hasAccount)
 	};
 }
 

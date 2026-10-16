@@ -35,6 +35,7 @@
  */
 
 import { parseConfig, TEAM_SIZE_MAX, type TournamentStatus } from './tournaments';
+import { LIVE_QUALS_LOCK } from './live-settings';
 
 /** The best-of lengths the form offers. A stored value outside this list
  * (the normalizer admits any odd number 1 to 15) is added to the choices
@@ -273,7 +274,17 @@ export function settingsLocks(input: {
 	pools: number;
 	/** Qualifying matches with a winner recorded. */
 	qualResults: number;
+	/**
+	 * A SITE ADMIN ON A LIVE EVENT (0266, report d1d40a60). The format opens
+	 * again, through the admin-only preview and apply, and only qualifying
+	 * stays locked, because the bracket was drawn from it. Absent or false is
+	 * every other caller's lock, unchanged.
+	 */
+	liveAdmin?: boolean;
 }): SettingsLocks {
+	if (input.status === 'live' && input.liveAdmin) {
+		return { format: null, quals: LIVE_QUALS_LOCK, score: null };
+	}
 	if (input.status === 'live' || input.status === 'complete') {
 		return {
 			format:

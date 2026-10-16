@@ -21,11 +21,15 @@
 	import { laCalendarDay } from '$lib/classroom/school-calendar';
 	import { timelineDayLabel } from '$lib/notebook/timeline';
 	import { ICONS } from '$lib/shell/commands';
+	import StudentWorkSlideshow from './StudentWorkSlideshow.svelte';
 	import {
 		foundryAppHref,
 		isStudentAssignmentSortKey,
 		sortStudentAssignments,
+		studentAssignmentSortStartDir,
+		STUDENT_ASSIGNMENT_DEFAULT_SORT,
 		STUDENT_ASSIGNMENT_SORTS,
+		STUDENT_GRADE_NOTE,
 		STUDENT_OVERVIEW_ERROR_NOTE,
 		STUDENT_OVERVIEW_PENDING_NOTE,
 		type StudentAssignmentSortDir,
@@ -88,6 +92,9 @@
 	} = $props();
 
 	const SECTIONS = [
+		{ id: 'gallery', label: 'Work pictures' },
+		{ id: 'attention', label: 'Needs attention' },
+		{ id: 'scores', label: 'Scores' },
 		{ id: 'assignments', label: 'Assignments' },
 		{ id: 'notebook', label: 'Notebook' },
 		{ id: 'activity', label: 'Activity' },
@@ -99,6 +106,9 @@
 	type SectionId = (typeof SECTIONS)[number]['id'];
 
 	let printing = $state<Record<SectionId, boolean>>({
+		gallery: true,
+		attention: true,
+		scores: true,
 		assignments: true,
 		notebook: true,
 		activity: true,
@@ -114,8 +124,8 @@
 	 * is the one comparator. It starts on the page's own order and is never
 	 * stored: a conference is read in the order the teacher asks for that day.
 	 */
-	let sortKey = $state<StudentAssignmentSortKey>('default');
-	let sortDir = $state<StudentAssignmentSortDir>('asc');
+	let sortKey = $state<StudentAssignmentSortKey>(STUDENT_ASSIGNMENT_DEFAULT_SORT.key);
+	let sortDir = $state<StudentAssignmentSortDir>(STUDENT_ASSIGNMENT_DEFAULT_SORT.dir);
 	const SORT_COLUMNS: { key: StudentAssignmentSortKey; label: string }[] = [
 		{ key: 'title', label: 'Assignment' },
 		{ key: 'due', label: 'Due' },
@@ -131,7 +141,7 @@
 		if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
 		else {
 			sortKey = key;
-			sortDir = 'asc';
+			sortDir = studentAssignmentSortStartDir(key);
 		}
 	}
 	function pickSort(event: Event) {
@@ -140,7 +150,7 @@
 		const value = (event.currentTarget as HTMLSelectElement).value;
 		if (isStudentAssignmentSortKey(value)) {
 			sortKey = value;
-			sortDir = 'asc';
+			sortDir = studentAssignmentSortStartDir(value);
 		}
 	}
 	function ariaSort(key: StudentAssignmentSortKey): 'ascending' | 'descending' | undefined {
@@ -163,6 +173,18 @@
 			: null
 	);
 	const hasModels = $derived(data.ideacad.length > 0 || data.foundry.length > 0);
+	const grade = $derived(data.grade);
+	/** Missing work and late hand-ins, oldest due first: what a conference talks about first. */
+	const attention = $derived(
+		data.assignments
+			.filter((r) => r.chip.missing || r.late)
+			.slice()
+			.sort((a, b) => (a.dueAt ? Date.parse(a.dueAt) : Infinity) - (b.dueAt ? Date.parse(b.dueAt) : Infinity))
+	);
+	const flaggedCheckIns = $derived(data.notebook ? data.notebook.checkIns.filter((c) => c.display === 'flagged' || c.display === 'missing') : []);
+	function pct(n: number): string {
+		return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
+	}
 	/** The At a glance row prints while any tile in it does. */
 	const glancePrints = $derived(
 		printing.assignments || printing.notebook || printing['hall-passes'] || printing.coins
@@ -231,42 +253,89 @@
 		<p class="so-print-only so-print-line">
 			IDEA Classroom &middot; {sectionTitle(section)} &middot; as of {when(data.at)}
 		</p>
-		<div class="so-id-row">
-			<span class="so-avatar">
-				<Avatar subject={rosterSubject({ ...data.student, student_email: data.student.email })} tintKey={data.student.email} size={56} />
-			</span>
-			<div class="so-id-text">
-				<h1 class="so-name person-name" title={name}>{name}</h1>
-				<p class="so-email">{data.student.email}</p>
-				<p class="so-class">{sectionTitle(section)}</p>
-				<p class="so-id-chips">
-					{#if data.student.active}
-						<span class="chip tone-good" data-testid="so-roster-chip">On the class roster</span>
+		<div class="so-hero">
+			<div class="so-hero-main">
+				<div class="so-id-row">
+					<span class="so-avatar">
+						<Avatar subject={rosterSubject({ ...data.student, student_email: data.student.email })} tintKey={data.student.email} size={72} />
+					</span>
+					<div class="so-id-text">
+						<h1 class="so-name person-name" title={name}>{name}</h1>
+						<p class="so-email">{data.student.email}</p>
+						<p class="so-class">{sectionTitle(section)}</p>
+						<p class="so-id-chips">
+							{#if data.student.active}
+								<span class="chip tone-good" data-testid="so-roster-chip">On the class roster</span>
+							{:else}
+								<span class="chip tone-attention" data-testid="so-roster-chip">Not on the live roster</span>
+							{/if}
+							{#if data.student.has_account === false}
+								<span class="chip tone-muted" data-testid="so-no-account">Has not signed in yet</span>
+							{/if}
+							{#if data.student.enrolled_at}
+								<span class="so-meta">On this roster since {day(data.student.enrolled_at)}</span>
+							{/if}
+						</p>
+					</div>
+				</div>
+				<!-- THE GRADE, FIRST AND LARGEST (ledger 0392, Mr. Pina: "I want to
+				     see a grade"). Points on returned work, said in words beside it. -->
+				<div class="so-grade" class:so-noprint={!printing.scores && !printing.assignments} data-testid="so-grade">
+					<span class="so-grade-label">Grade so far</span>
+					<span class="so-grade-figure" data-testid="so-grade-figure">
+						{grade.percent === null ? 'Nothing graded yet' : pct(grade.percent)}
+					</span>
+					{#if grade.percent !== null}
+						<span class="so-grade-sub">
+							{grade.earned} of {grade.possible} points on {plural(grade.counted, 'returned assignment', 'returned assignments')}
+						</span>
+					{/if}
+					<span class="so-grade-note">{STUDENT_GRADE_NOTE}</span>
+				</div>
+				<!-- COMING UP: the next work still to do, soonest first, so a
+				     conference can end on what is next (ledger 0392). -->
+				<div class="so-upcoming" class:so-noprint={!printing.assignments} data-testid="so-upcoming">
+					<span class="so-grade-label">Coming up</span>
+					{#if data.upcoming.length}
+						<ul class="so-upcoming-list">
+							{#each data.upcoming as row (row.itemId)}
+								<li class="so-upcoming-row" data-testid="so-upcoming-row">
+									<a class="so-link tap-44 so-upcoming-title" href={itemHref(row.itemId)}>{row.title}</a>
+									<span class="so-meta">Due {when(row.dueAt as string)}</span>
+								</li>
+							{/each}
+						</ul>
 					{:else}
-						<span class="chip tone-attention" data-testid="so-roster-chip">Not on the live roster</span>
+						<p class="so-upcoming-none" data-testid="so-upcoming-none">Nothing with a due date ahead right now.</p>
 					{/if}
-					{#if data.student.has_account === false}
-						<span class="chip tone-muted" data-testid="so-no-account">Has not signed in yet</span>
+				</div>
+				<div class="so-actions">
+					<button type="button" class="btn tiny" data-testid="so-print" onclick={() => window.print()}>Print</button>
+					<a class="btn secondary tiny" href={peopleHref}>Back to People</a>
+					{#if notebookHref}
+						<a class="btn secondary tiny" href={notebookHref} data-testid="so-notebook-link">Open full notebook</a>
 					{/if}
-					{#if data.student.enrolled_at}
-						<span class="so-meta">On this roster since {day(data.student.enrolled_at)}</span>
-					{/if}
-				</p>
+				</div>
+				{#if !notebookHref}
+					<p class="note so-actions" data-testid="so-notebook-closed">
+						Their full notebook opens only while they are on the live roster. Their check-ins in this class
+						are listed below.
+					</p>
+				{/if}
+			</div>
+			<div class="so-hero-gallery" class:so-noprint={!printing.gallery}>
+				<div class="so-gallery-head so-noprint-always">
+					<span class="so-gallery-title">Their work</span>
+					{@render printToggle('gallery', 'Work pictures')}
+				</div>
+				<p class="so-print-only so-print-label">Their work</p>
+				{#if data.sources.gallery}
+					<StudentWorkSlideshow items={data.gallery} {name} {day} />
+				{:else}
+					<p class="note" data-testid="so-gallery-error">Could not load pictures of their work just now.</p>
+				{/if}
 			</div>
 		</div>
-		<div class="so-actions">
-			<button type="button" class="btn tiny" data-testid="so-print" onclick={() => window.print()}>Print</button>
-			<a class="btn secondary tiny" href={peopleHref}>Back to People</a>
-			{#if notebookHref}
-				<a class="btn secondary tiny" href={notebookHref} data-testid="so-notebook-link">Open full notebook</a>
-			{/if}
-		</div>
-		{#if !notebookHref}
-			<p class="note so-actions" data-testid="so-notebook-closed">
-				Their full notebook opens only while they are on the live roster. Their check-ins in this class
-				are listed below.
-			</p>
-		{/if}
 	</header>
 
 	<!-- EACH TILE FOLLOWS ITS SECTION'S PRINT BOX, so a section cleared for a
@@ -281,19 +350,19 @@
 		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Assignments done</span>
 			<span class="so-tile-figure">{totals.done} of {totals.assigned}</span>
-			<span class="so-tile-sub">{totals.missing} missing, {totals.todo} to do</span>
+			<span class="so-tile-sub">{totals.todo} still to do</span>
+		</div>
+		<div class="so-tile" class:so-tile-alert={totals.missing > 0} class:so-noprint={!printing.assignments} data-tile="assignments" data-testid="so-tile-missing">
+			<span class="so-tile-label">Missing</span>
+			<span class="so-tile-figure">
+				{#if totals.missing > 0}<svg class="so-tile-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>{/if}{totals.missing}
+			</span>
+			<span class="so-tile-sub">{totals.missing === 0 ? 'Nothing past due' : 'Past due with nothing turned in'}</span>
 		</div>
 		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Waiting for grading</span>
 			<span class="so-tile-figure">{totals.awaitingGrade}</span>
 			<span class="so-tile-sub">{plural(totals.returned, 'returned', 'returned')} so far</span>
-		</div>
-		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
-			<span class="so-tile-label">Points on returned work</span>
-			<span class="so-tile-figure">
-				{totals.pointsPossible > 0 ? `${totals.pointsEarned} of ${totals.pointsPossible}` : 'None yet'}
-			</span>
-			<span class="so-tile-sub">The grade of record is in FACTS.</span>
 		</div>
 		<div class="so-tile" class:so-noprint={!printing.notebook} data-tile="notebook">
 			<span class="so-tile-label">Notebook check-ins</span>
@@ -322,6 +391,63 @@
 			<span class="so-tile-sub">Across all classes</span>
 		</div>
 	</section>
+
+	<div class="so-duo">
+		<section class="card so-card" class:so-noprint={!printing.attention} data-testid="so-attention" aria-labelledby="so-h-attention">
+			<div class="so-card-head">
+				<h2 id="so-h-attention">Needs attention</h2>
+				{@render printToggle('attention', 'Needs attention')}
+			</div>
+			{#if attention.length || flaggedCheckIns.length}
+				<ul class="so-list">
+					{#each attention as row (row.itemId)}
+						<li class="so-list-row" data-testid="so-attention-row">
+							<span class="chip work-chip tone-{row.chip.tone}">
+								{#if row.chip.missing}<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>{/if}
+								{row.chip.missing ? 'Missing' : 'Late'}
+							</span>
+							<a class="so-list-main so-link tap-44" href={itemHref(row.itemId)}>{row.title}</a>
+							<span class="so-meta">{row.dueAt ? `Due ${when(row.dueAt)}` : 'No due date'}</span>
+						</li>
+					{/each}
+					{#each flaggedCheckIns as c (c.sessionId)}
+						<li class="so-list-row" data-testid="so-attention-checkin">
+							<span class="so-cell so-cell-{c.display}" aria-hidden="true">{c.glyph}</span>
+							<span class="so-list-main">Notebook: {c.label}, {c.word.toLowerCase()}</span>
+							<span class="so-meta">{timelineDayLabel(c.date, today)}</span>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="so-line so-all-clear" data-testid="so-all-clear">
+					<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
+					Nothing missing or late, and no notebook check-in waiting.
+				</p>
+			{/if}
+		</section>
+
+		<section class="card so-card" class:so-noprint={!printing.scores} data-testid="so-scores" aria-labelledby="so-h-scores">
+			<div class="so-card-head">
+				<h2 id="so-h-scores">Scores on returned work</h2>
+				{@render printToggle('scores', 'Scores')}
+			</div>
+			{#if data.scoreBars.length}
+				<ul class="so-bars">
+					{#each data.scoreBars as b (b.itemId)}
+						<li class="so-bar-row" data-testid="so-score-bar">
+							<span class="so-bar-title" title={b.title}>{b.title}</span>
+							<span class="so-bar-track" aria-hidden="true">
+								<span class="so-bar-fill" class:so-bar-low={b.percent < 70} style="width: {Math.min(100, Math.max(0, b.percent))}%"></span>
+							</span>
+							<span class="so-bar-figure">{b.score} of {b.points} <span class="so-meta">({pct(b.percent)})</span></span>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="note">No graded work has been returned yet.</p>
+			{/if}
+		</section>
+	</div>
 
 	<section class="card so-card so-assignments-card" class:so-noprint={!printing.assignments} data-testid="so-assignments" aria-labelledby="so-h-assignments">
 		<div class="so-card-head">
@@ -630,6 +756,11 @@
 		flex-direction: column;
 		gap: var(--space-3, 0.75rem);
 		min-width: 0;
+		/* READ ACROSS A DESK (ledger 0392, Mr. Pina: "the text is way too small
+		   to see for a parent-teacher conference"). Every size below is relative
+		   to this one. */
+		font-size: 1.125rem;
+		line-height: 1.5;
 	}
 	.so-root :global(.card) {
 		margin: 0;
@@ -656,7 +787,7 @@
 	}
 	.so-name {
 		margin: 0;
-		font-size: 1.6rem;
+		font-size: clamp(1.75rem, 5vw, 2.3rem);
 		line-height: 1.15;
 		color: var(--text-1);
 	}
@@ -664,7 +795,7 @@
 	.so-class {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: 0.9rem;
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
@@ -684,11 +815,11 @@
 	.chip {
 		flex: none;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: 0.78rem;
 		color: var(--text-2);
 		border: 1px solid var(--boundary);
 		border-radius: 999px;
-		padding: 0.08rem 0.5rem;
+		padding: 0.1rem 0.55rem;
 		white-space: nowrap;
 	}
 	.tone-good {
@@ -731,7 +862,7 @@
 	}
 	.so-meta {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: 0.8rem;
 		color: var(--text-2);
 	}
 	.so-quiet {
@@ -764,20 +895,209 @@
 	}
 	.so-tile-label {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: 0.78rem;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
 	.so-tile-figure {
-		font-size: 1.25rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 1.9rem;
+		line-height: 1.15;
 		font-weight: 700;
 		color: var(--text-1);
 		font-variant-numeric: tabular-nums;
 	}
 	.so-tile-sub {
-		font-size: 0.8rem;
+		font-size: 0.9rem;
 		color: var(--text-2);
+	}
+
+	/* THE HERO: who they are and their grade beside a slideshow of their work.
+	   One column on a phone; side by side once there is room for both. */
+	.so-hero {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-4, 1rem);
+		align-items: start;
+	}
+	@container so-identity (width >= 52rem) {
+		.so-hero {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+		}
+	}
+	.so-identity {
+		container: so-identity / inline-size;
+	}
+	.so-hero-main {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3, 0.75rem);
+		min-width: 0;
+	}
+	.so-hero-gallery {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		min-width: 0;
+	}
+	.so-gallery-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+	.so-gallery-title {
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.so-grade {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 0.8rem 1rem;
+		border: 1px solid var(--boundary);
+		border-left: 4px solid var(--green);
+		border-radius: var(--radius-card, 10px);
+		background: var(--surface-2, var(--bg2));
+	}
+	.so-grade-label {
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.so-grade-figure {
+		font-size: 2.8rem;
+		font-weight: 700;
+		line-height: 1.05;
+		color: var(--text-1);
+		font-variant-numeric: tabular-nums;
+	}
+	.so-grade-sub {
+		font-size: 1rem;
+		color: var(--text-1);
+	}
+	.so-grade-note {
+		font-size: 0.85rem;
+		color: var(--text-2);
+	}
+	.so-upcoming {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding: 0.85rem 1.1rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card, 10px);
+	}
+	.so-upcoming-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.so-upcoming-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0 0.8rem;
+		border-top: 1px solid var(--hairline);
+	}
+	.so-upcoming-row:first-child {
+		border-top: none;
+	}
+	.so-upcoming-title {
+		display: inline-flex;
+		align-items: center;
+		font-size: 1.05rem;
+		min-width: 0;
+	}
+	.so-upcoming-none {
+		margin: 0;
+		color: var(--text-2);
+	}
+	.so-tile-alert {
+		border-color: var(--amber);
+		border-left-width: 4px;
+	}
+	.so-tile-alert .so-tile-figure {
+		color: var(--amber);
+	}
+	.so-tile-mark {
+		width: 1.4rem;
+		height: 1.4rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	/* TWO CARDS OF UNEQUAL HEIGHT SIDE BY SIDE: columns, never a grid row. */
+	.so-duo {
+		columns: 24rem 2;
+		column-gap: var(--space-3, 0.75rem);
+	}
+	.so-duo > .so-card {
+		break-inside: avoid;
+		margin: 0 0 var(--space-3, 0.75rem);
+	}
+	.so-all-clear {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		color: var(--green);
+	}
+	.so-bars {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.45rem;
+	}
+	.so-bar-row {
+		display: grid;
+		grid-template-columns: minmax(0, 11rem) minmax(4rem, 1fr) auto;
+		align-items: center;
+		gap: 0.6rem;
+		min-width: 0;
+	}
+	.so-bar-title {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--text-1);
+	}
+	.so-bar-track {
+		height: 0.8rem;
+		border-radius: 999px;
+		background: var(--surface-2, var(--bg2));
+		border: 1px solid var(--boundary);
+		overflow: hidden;
+	}
+	.so-bar-fill {
+		display: block;
+		height: 100%;
+		background: var(--green);
+	}
+	.so-bar-fill.so-bar-low {
+		background: var(--amber);
+	}
+	.so-bar-figure {
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+		color: var(--text-1);
+	}
+	.so-print-label {
+		margin: 0;
+		font-weight: 700;
 	}
 
 	.so-card {
@@ -796,7 +1116,7 @@
 	}
 	.so-card-head h2 {
 		margin: 0;
-		font-size: 1.05rem;
+		font-size: 1.35rem;
 	}
 	.so-h3 {
 		margin: 0.4rem 0 0;
@@ -809,7 +1129,7 @@
 		gap: 0.4rem;
 		min-height: 44px;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: 0.78rem;
 		color: var(--text-2);
 		cursor: pointer;
 	}
@@ -863,7 +1183,7 @@
 	}
 	.so-word {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: 0.82rem;
 		color: var(--text-1);
 		min-width: 7.5rem;
 	}
@@ -904,7 +1224,7 @@
 	.so-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.85rem;
+		font-size: 0.95rem;
 	}
 	.so-table th,
 	.so-table td {
@@ -916,7 +1236,7 @@
 	}
 	.so-table thead th {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: 0.74rem;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1003,7 +1323,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: 0.74rem;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		font-weight: 400;
@@ -1117,12 +1437,13 @@
 		.so-root :global(.card),
 		.so-root :global(.chip),
 		.so-tile,
+		.so-grade,
 		.so-table th,
-		.so-table td {
+		.so-table td,
+		.so-list-row {
 			border-color: #bbb !important;
 		}
 		/* The picture is ink and carries nothing the name beside it does not. */
-		.so-root :global(img),
 		.so-root :global(.avatar) {
 			display: none !important;
 		}
@@ -1137,35 +1458,173 @@
 		.so-noprint-always {
 			display: none !important;
 		}
+
+		/* SPACE ON PAPER (ledger 0392, report 6b1f8fc7: "the printed page needs
+		   to be far more space efficient"). Measured before at Letter with 0.75in
+		   margins: 6 sheets, because the paper is narrower than the table's 46rem
+		   container query, so every assignment printed as a stacked block of
+		   labelled lines (two and a half sheets for seven rows). The card stops
+		   being a size container on paper, so the table prints as a table; the
+		   type is set in points with 9pt as the floor and 1.3 leading; tiles sit
+		   seven to a row; and the panels share two columns. */
+		.so-card,
+		.so-identity {
+			container-type: normal !important;
+		}
 		.classroom-page {
 			max-width: none;
 			padding: 0;
+			gap: 0.1in;
+			font-size: 9.5pt;
+			line-height: 1.3;
 		}
 		.so-root :global(.card),
 		.so-tile {
 			box-shadow: none !important;
 			background: none !important;
+			padding: 0.07in 0.1in !important;
+			border-radius: 3px !important;
+		}
+		.so-hero {
+			grid-template-columns: minmax(0, 1fr) !important;
+			gap: 0.06in;
+		}
+		.so-hero-main {
+			gap: 0.05in;
+		}
+		.so-name {
+			font-size: 16pt;
+		}
+		.so-email,
+		.so-class,
+		.so-meta,
+		.so-root :global(.chip),
+		.so-tile-label,
+		.so-tile-sub,
+		.so-grade-label,
+		.so-grade-note,
+		.so-print-line,
+		.so-coverage,
+		.so-word,
+		.so-table thead th,
+		.so-root :global(.note) {
+			font-size: 9pt !important;
+			line-height: 1.3 !important;
+		}
+		.so-id-chips {
+			margin: 0;
+		}
+		.so-grade {
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: baseline;
+			gap: 0 0.12in;
+			padding: 0.05in 0.1in !important;
+			border-left-width: 3px;
+		}
+		.so-grade-figure,
+		.so-tile-figure,
+		.so-name {
+			line-height: 1.25 !important;
+		}
+		.so-grade-figure {
+			font-size: 16pt;
+		}
+		.so-grade-sub {
+			font-size: 9.5pt;
+		}
+		.so-glance {
+			grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+			gap: 0.05in;
+		}
+		.so-tile {
+			padding: 0.04in 0.06in !important;
+			gap: 0;
+		}
+		.so-tile-figure {
+			font-size: 12pt;
+		}
+		.so-tile-mark {
+			width: 10pt;
+			height: 10pt;
+		}
+		.so-card {
+			gap: 0.04in;
+		}
+		.so-card-head h2 {
+			font-size: 11pt;
+			line-height: 1.3;
+		}
+		.so-duo,
+		.so-panels {
+			columns: 2 !important;
+			column-gap: 0.12in;
+		}
+		.so-duo > .so-card,
+		.so-panels > .so-card {
+			margin: 0 0 0.1in;
+		}
+		.so-list-row {
+			padding: 0.02in 0;
+			gap: 0 0.08in;
+		}
+		/* A finger's 44px reach is no use on paper. */
+		.so-root :global(.tap-44),
+		.so-root :global(.btn) {
+			min-height: 0 !important;
+		}
+		.so-list-main {
+			flex-basis: 1.4in;
+		}
+		.so-cell {
+			width: 13pt;
+			height: 13pt;
+			font-size: 9pt;
+		}
+		.so-word {
+			min-width: 0;
+		}
+		.so-bars {
+			gap: 0.03in;
+		}
+		.so-bar-row {
+			grid-template-columns: minmax(0, 1.6in) minmax(0.5in, 1fr) auto;
+			gap: 0.06in;
+		}
+		.so-bar-track {
+			height: 7pt;
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
+		}
+		.so-bar-fill {
+			background: #555 !important;
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
+		}
+		/* A CARD NEVER BREAKS AROUND A SHORT LIST, and a long one may: held whole,
+		   the assignments card pushed the whole table to the next sheet and left
+		   two-thirds of the first blank (measured). A row never breaks, and the
+		   table's head repeats on each sheet. */
+		.so-root :global(.card),
+		.so-tile {
 			break-inside: avoid;
 		}
-		/* THE ASSIGNMENTS CARD MAY BREAK BETWEEN ROWS. Held whole, it is taller
-		   than what is left of the first sheet and pushed the whole table onto
-		   the second, leaving the first two-thirds blank (measured). A row never
-		   breaks, and the head repeats on each sheet. */
 		.so-root .so-assignments-card {
 			break-inside: auto;
-		}
-		.so-panels {
-			columns: auto;
 		}
 		.so-table-wrap {
 			overflow: visible;
 		}
 		.so-table {
-			font-size: 0.72rem;
+			font-size: 9pt;
 		}
 		.so-table th,
 		.so-table td {
-			padding: 0.3rem 0.35rem;
+			padding: 0.03in 0.05in;
+			line-height: 1.3;
+		}
+		.so-col-title {
+			min-width: 0;
 		}
 		.so-table thead {
 			display: table-header-group;
@@ -1175,6 +1634,10 @@
 		}
 		.so-when {
 			white-space: nowrap;
+		}
+		.so-coin-rows :global(*) {
+			font-size: 9pt !important;
+			line-height: 1.3 !important;
 		}
 		a.so-link {
 			color: inherit;

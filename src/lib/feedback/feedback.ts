@@ -449,6 +449,7 @@ export const FEEDBACK_REFUSALS: Record<string, string> = {
 	message_empty: 'Write a little about what you noticed.',
 	message_too_long: `That is longer than ${FEEDBACK_MAX_LEN} characters, trim it down a little.`,
 	contact_too_long: `That way of reaching you is longer than ${FEEDBACK_CONTACT_MAX} characters, shorten it a little.`,
+	tried_too_long: `That is longer than ${FEEDBACK_TRIED_MAX} characters, trim it down a little.`,
 	// NO COUNTS, NO WINDOW, NO RESET TIME. 0126 refuses without saying anything
 	// about the address, and a friendlier sentence here would be the place that
 	// gave it away.

@@ -10,6 +10,13 @@
 	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
 	import TournamentSettingsForm from '$lib/tournaments/TournamentSettingsForm.svelte';
+	import LiveSettingsConfirm from '$lib/tournaments/LiveSettingsConfirm.svelte';
+	import {
+		LIVE_EDIT_NOTE,
+		liveRefusalSentence,
+		normalizeLivePlan,
+		type LivePlan
+	} from '$lib/tournaments/live-settings';
 	import {
 		largestRoster,
 		settingsLocks,
@@ -254,11 +261,16 @@
 	// the format once the bracket exists (the RPC's own rule), qualifying
 	// on/off once pools are drawn, and score entry once a qualifying result
 	// is recorded. Its refusals render in the card, not at the top of the page.
+	// A SITE ADMIN MAY CHANGE A LIVE EVENT'S FORMAT (0266, report d1d40a60),
+	// through a preview that says what happens to played matches and an apply
+	// that refuses a stale preview. A host keeps the lock.
+	const liveAdmin = $derived(t.status === 'live' && data.isAdmin === true);
 	const settingsLock = $derived(
 		settingsLocks({
 			status: t.status,
 			pools: data.pools.length,
-			qualResults: data.qualMatches.filter((m) => m.winner_id !== null).length
+			qualResults: data.qualMatches.filter((m) => m.winner_id !== null).length,
+			liveAdmin
 		})
 	);
 	const minTeamSize = $derived(
@@ -279,6 +291,29 @@
 				draft,
 				settingsLock
 			);
+			if (liveAdmin && args.p_config) {
+				// PREVIEW FIRST: nothing is written until the confirm is pressed.
+				const { data: res, error } = await data.supabase.rpc('tournament_live_config_preview', {
+					p_tournament_id: t.id,
+					p_config: args.p_config
+				});
+				if (error) {
+					settingsError =
+						(error as { code?: string }).code === 'PGRST202'
+							? liveRefusalSentence({ reason: 'unavailable' })
+							: error.message;
+					return;
+				}
+				const plan = normalizeLivePlan(res);
+				if (!plan.ok) {
+					settingsError = liveRefusalSentence(plan);
+					return;
+				}
+				liveError = '';
+				livePending = args;
+				livePlan = plan;
+				return;
+			}
 			const { error } = await data.supabase.rpc('tournament_update', args);
 			if (error) {
 				settingsError = error.message;
@@ -292,6 +327,58 @@
 		} finally {
 			settingsBusy = false;
 		}
+	}
+
+	let livePlan = $state<LivePlan | null>(null);
+	let livePending: ReturnType<typeof tournamentUpdateArgs> | null = null;
+	let liveBusy = $state(false);
+	let liveError = $state('');
+
+	async function applyLive() {
+		const plan = livePlan;
+		const args = livePending;
+		if (!plan || !args?.p_config) return;
+		liveBusy = true;
+		liveError = '';
+		try {
+			const { data: res, error } = await data.supabase.rpc('tournament_live_config_apply', {
+				p_tournament_id: t.id,
+				p_config: args.p_config,
+				p_expected_config: plan.stored
+			});
+			if (error) {
+				liveError = error.message;
+				return;
+			}
+			const answer = normalizeLivePlan(res);
+			if (!answer.ok) {
+				liveError = liveRefusalSentence(answer);
+				return;
+			}
+			// The name and the description ride the ordinary write, with no config.
+			if (args.p_name !== null || args.p_description !== null) {
+				const { error: e2 } = await data.supabase.rpc('tournament_update', { ...args, p_config: null });
+				if (e2) {
+					liveError = `The format changed, but the name or description did not save: ${e2.message}`;
+					return;
+				}
+			}
+			livePlan = null;
+			livePending = null;
+			settingsSaved = `Live settings changed at ${new Date().toLocaleTimeString([], {
+				hour: 'numeric',
+				minute: '2-digit'
+			})}. ${answer.matchesRestamped === 1 ? '1 upcoming match was' : `${answer.matchesRestamped} upcoming matches were`} updated.`;
+			await invalidateAll();
+		} finally {
+			liveBusy = false;
+		}
+	}
+
+	function cancelLive() {
+		livePlan = null;
+		livePending = null;
+		liveError = '';
 	}
 
 	// --- invites / hosts ---
@@ -517,8 +604,12 @@
 			busy={settingsBusy}
 			error={settingsError}
 			saved={settingsSaved}
+			note={liveAdmin ? LIVE_EDIT_NOTE : ''}
 			onsubmit={saveSettings}
 		/>
+		{#if livePlan}
+			<LiveSettingsConfirm plan={livePlan} busy={liveBusy} error={liveError} onapply={applyLive} oncancel={cancelLive} />
+		{/if}
 	</section>
 {/snippet}
 
