@@ -90,6 +90,20 @@ exactly one probe moves (0239's marker) and every other kind count holds;
 0141 to 0147 and `tests/deploy-probe-history.test.ts` the verdict. This
 paragraph was written in the follow-up commit that carries the fix.
 
+**How the five migrations landed.** The fix pushed as `0414fcfd` (CI run
+38828579105 green, the full suite 800 files and 14,753 tests green locally
+first). Migrate run 208 (38828579005) then read production, targeted 0260,
+applied it and chained itself, and the chain ran 0261 to 0264 in order
+(38828660538, 38828744981, 38828817870, 38828893340), one record commit each:
+`aff89e0c`, `c679dc7d`, `c56f2e19`, `3bc47e92`, `4615602d`, all between
+00:17:32Z and 00:20:54Z on 2026-10-16. Every record under
+`docs/migrations-applied/` reads `outcome: applied`, every object the file
+names present (48, 42, 28, 26 and 16 objects), and the history row inserted
+by the apply. The run after the last (38828975025) asked production, found
+nothing unapplied and skipped every step. Nothing in this paragraph was
+measured against the live database from this container; it is what the
+workflow wrote.
+
 ## What was built
 
 ### The database (0260 to 0264, surface a)
