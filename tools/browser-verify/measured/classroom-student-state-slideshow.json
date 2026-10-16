@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "classroom-student-state-slideshow.mjs",
-	"date": "2026-10-16T06:47:41.552Z",
-	"sha": "6e1c4af888d50c9b76fb9faf1802b78e47020dc0",
+	"date": "2026-10-16T07:17:18.843Z",
+	"sha": "420912d1fd5926bba68ffad88f2e10573aa9dde7",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 24,
 	"outsideRows": [],
-	"ms": 8147
+	"ms": 8687
 }

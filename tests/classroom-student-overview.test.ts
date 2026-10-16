@@ -422,3 +422,19 @@ describe('coming up', () => {
 		expect(studentUpcoming(rows, NOW, 10).map((r) => r.itemId)).toEqual(['sooner', 'third', 'later', 'fourth']);
 	});
 });
+
+import { GRADE_BANDS, gradeBand, gradeBandWord } from '../src/lib/classroom/student-overview';
+
+describe('the grade band', () => {
+	it('cuts at 90, 80 and 70, with a word for every band and none without a grade', () => {
+		const at = [100, 90, 89.9, 80, 79.9, 70, 69.9, 0].map((p) => gradeBand(p));
+		expect(at).toEqual(['excellent', 'excellent', 'good', 'good', 'fair', 'fair', 'low', 'low']);
+		expect(gradeBand(null)).toBeNull();
+		expect(gradeBand(Number.NaN)).toBeNull();
+		expect(gradeBandWord(67.5)).toBe('Needs improvement');
+		expect(gradeBandWord(null)).toBeNull();
+		expect(new Set(GRADE_BANDS.map((b) => b.word)).size).toBe(GRADE_BANDS.length);
+		// The fixture's grade (27 of 40) is the low band, which the harness shows.
+		expect(gradeBand(fixturePage('full').grade.percent)).toBe('low');
+	});
+});

@@ -15,6 +15,7 @@
 		studentNotebookHref
 	} from '$lib/classroom/nav';
 	import { EMAIL, SECTION, TODAY, fixturePage, fixtureState } from './fixture';
+	import { createMemoryAvatarModeration } from '$lib/avatar-moderation';
 
 	/**
 	 * ONE STUDENT'S PAGE, AS A TEACHER OPENS IT FROM PEOPLE (the 2026-10-07
@@ -25,10 +26,17 @@
 	 *   no-account   a student on the roster who has never signed in
 	 *   unavailable  a database without 0233: the new read answers PGRST202
 	 *   inactive     a student who left the class (no full-notebook link)
+	 * `&moderate=1` hands in the admin's profile picture control over an
+	 * in-memory stand-in (`&held=1` starts with the picture already off), as the
+	 * route does for a site admin; without it there is no control, as for a
+	 * teacher who is not one.
 	 */
 	const BASE = '/dev/classroom-student';
 	const fixture = fixtureState(page.url.searchParams.get('state'));
-	const data = fixturePage(fixture);
+	const moderating = page.url.searchParams.get('moderate') === '1';
+	/* Under `moderate=1` Ana has chosen a preset picture, so turning it off visibly changes something. */
+	const base = fixturePage(fixture);
+	const data = moderating ? { ...base, student: { ...base.student, avatar: 'preset:gear' } } : base;
 
 	const loc = locateClassroom(`/classroom/s-1/people/${encodeURIComponent(EMAIL)}`);
 	const measure = classroomMeasure(loc);
@@ -39,6 +47,16 @@
 	);
 	const tabs = sectionTabs('s-1', BASE);
 	const notebookHref = data.student.active ? studentNotebookHref(EMAIL, 's-1', BASE) : null;
+	const avatarModeration =
+		moderating
+			? createMemoryAvatarModeration({
+					accounts: [EMAIL],
+					held:
+						page.url.searchParams.get('held') === '1'
+							? [{ email: EMAIL, name: data.student.display_name, hiddenAt: '2026-10-16T15:12:00Z', hiddenBy: 'apina@boscotech.edu', reason: 'Not school appropriate.', hadPicture: true }]
+							: []
+				})
+			: null;
 
 	let ready = $state(false);
 	onMount(() => {
@@ -64,6 +82,7 @@
 			gradeHref={(id) => `${BASE}?grade=${id}`}
 			workHref={(id) => `${BASE}?work=${id}`}
 			{notebookHref}
+			{avatarModeration}
 		/>
 	</ClassroomShell>
 </div>

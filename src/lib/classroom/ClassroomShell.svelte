@@ -1221,7 +1221,7 @@
 	.sw-item:focus-visible {
 		background: var(--surface-2);
 	}
-	/* The current class is marked by more than colour: a check, and a gold rule. */
+	/* The current class is marked by more than color: a check, and a gold rule. */
 	.sw-item.current {
 		background: var(--surface-2);
 		box-shadow: inset 2px 0 0 var(--gold);

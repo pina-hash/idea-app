@@ -557,6 +557,35 @@ export interface StudentScoreBar {
 }
 
 /** Every returned, scored assignment, oldest due first, so the bars read left to right as the term went. */
+/**
+ * THE GRADE'S STATUS BAND (ledger 0392, Mr. Pina for conferences: "better
+ * grade looks nice and green, lower grade looks bad and red"). One rule, read
+ * by the grade box, its meter and every score bar, so a bar and the grade can
+ * never disagree about what a number means. The cut points are the usual
+ * 90/80/70 and are a DEFAULT, not a decision anybody made: changing them is
+ * this one table. Each band carries a WORD, because color is never the only
+ * signal.
+ */
+export type GradeBand = 'excellent' | 'good' | 'fair' | 'low';
+export const GRADE_BANDS: readonly { band: GradeBand; min: number; word: string }[] = [
+	{ band: 'excellent', min: 90, word: 'Excellent' },
+	{ band: 'good', min: 80, word: 'Good' },
+	{ band: 'fair', min: 70, word: 'Fair' },
+	{ band: 'low', min: -Infinity, word: 'Needs improvement' }
+];
+
+/** The band a percent falls in, or null for no grade yet (or a value that is not a number). */
+export function gradeBand(percent: number | null): GradeBand | null {
+	if (percent === null || !Number.isFinite(percent)) return null;
+	return GRADE_BANDS.find((b) => percent >= b.min)!.band;
+}
+
+/** The band's word, or null for no grade. */
+export function gradeBandWord(percent: number | null): string | null {
+	const band = gradeBand(percent);
+	return band ? GRADE_BANDS.find((b) => b.band === band)!.word : null;
+}
+
 /** How many "coming up" rows the page's top shows. */
 export const STUDENT_UPCOMING_MAX = 3;
 

@@ -67,6 +67,11 @@ export const CONSOLE_PANELS: ConsolePanel[] = [
 		blurb: 'Who can administer the portal. Every admin can read this list; only the owner can change it.'
 	},
 	{
+		id: 'pictures',
+		title: 'Profile pictures',
+		blurb: 'Turn off a profile picture that should not be on the site; it shows as initials everywhere until you turn it back on.'
+	},
+	{
 		id: 'links',
 		title: 'Short links',
 		blurb: 'The short paths printed on QR codes. The paper does not change, so the row here is what re-points a document that moved.'

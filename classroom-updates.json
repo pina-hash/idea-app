@@ -2421,6 +2421,12 @@
 			"title": "A tidier Classes menu, and grades your teacher can take back",
 			"body": "The Classes menu at the top of the classroom is cleaner: All my classes first, then your classes, each on one line with its course code beside it and a check on the class you are in, and last year's classes under their own Archived heading. If your teacher returns a grade by mistake they can now take it back or restore it exactly as it was; if a grade disappears from your work for a moment, that is why, and a Perfect Score reward follows the grade (taken back with it, given back when it is restored). The IDEA Coin Ledger page now has the same Feedback box as the rest of the site, with a place to say what you already tried.",
 			"tags": ["classroom", "coins"]
+		},
+		{
+			"date": "2026-10-16",
+			"title": "Profile pictures: when one is turned off",
+			"body": "A site admin can now turn off a profile picture that should not be on the site. If that happens to yours, you will show as your initials everywhere and Change picture will say so instead of offering choices; nothing is deleted, and when it is turned back on your picture returns exactly as it was. Ask a teacher if you think it was a mistake.",
+			"tags": ["classroom"]
 		}
 	]
 }

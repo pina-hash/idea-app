@@ -435,7 +435,7 @@
 		min-width: 0;
 	}
 	/* THE ATTENTION COUNT (ledger 0392, report 54b43698). A mark beside the
-	   words, never colour alone; the plate gives it a warm wash (plate.css),
+	   words, never color alone; the plate gives it a warm wash (plate.css),
 	   so it is the one warm thing on the card. */
 	.feed-attn {
 		display: inline-flex;
@@ -453,7 +453,7 @@
 		stroke-linejoin: round;
 	}
 	/* SPACE WHITE: the section label steps back to the room's quiet ink, so the
-	   card holds two colours (the class code and the warning) rather than four. */
+	   card holds two colors (the class code and the warning) rather than four. */
 	:global(:root[data-theme='space-white']) .feed-ident :global(.badge-block) {
 		color: var(--text-2);
 		border-color: var(--hairline);

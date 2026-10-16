@@ -28,6 +28,8 @@ export default {
 		{ selector: '[data-testid="so-print-toggle"]', label: 'an include-when-printing box per section (work pictures, needs attention and scores joined in ledger 0392)', expectPresent: 10, maxPresent: 10 },
 		{ selector: '[data-testid="so-slideshow"]', label: 'the slideshow of their work beside their name', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="so-grade"]', label: 'the grade, in the hero', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="so-grade"][data-band="low"]', label: 'a 67.5% grade is in the low band', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="avatar-hold"], [data-testid="avatar-hold-arm"]', label: 'no picture control without the admin transport', expectPresent: 0 },
 		{ selector: '[data-testid="so-upcoming-row"]', label: 'coming up: the one live assignment still to do with a date ahead', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="so-attention-row"]', label: 'missing and late work, named', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
 		{ selector: '[data-testid="so-score-bar"]', label: 'one bar per returned, scored assignment', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
@@ -79,11 +81,13 @@ export default {
 	textContains: [
 		{ selector: '[data-testid="so-coverage"]', label: 'the coverage sentence names the retention window', must: ['only the last 90 days', 'never evidence a student did nothing'] },
 		{ selector: '[data-testid="so-glance"]', label: 'tiles say words', must: ['4 of 7', 'Missing', 'Past due with nothing turned in'] },
+		{ selector: '[data-testid="so-grade-band"]', label: 'the grade says its band in words, beside the color', must: ['Needs improvement'] },
 		{ selector: '[data-testid="so-upcoming"]', label: 'coming up names it and its due date', must: ['Coming up', 'CAD sketch of the bracket', 'Due Oct 14'] },
 		{ selector: '[data-testid="so-grade"]', label: 'the grade is points on returned work, said so in words', must: ['67.5%', '27 of 40 points on 2 returned assignments', 'FACTS weighs categories'] }
 	],
 	contrast: [
 		{ selector: '.so-grade-figure, .so-grade-sub, .so-grade-note, .so-grade-label', label: 'the grade and its words', min: 4.5 },
+		{ selector: '[data-testid="so-grade-band"]', label: 'the grade band word', min: 4.5 },
 		{ selector: '.so-upcoming-title, .so-upcoming .so-meta', label: 'coming up, its title and date', min: 4.5 },
 		{ selector: '.so-bar-title, .so-bar-figure', label: 'score bar words', min: 4.5 },
 		{ selector: '.sws-count, .sws-key', label: 'slideshow count and keys', min: 4.5 },

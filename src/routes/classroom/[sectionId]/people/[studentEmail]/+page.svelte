@@ -4,6 +4,7 @@
 	import { STUDENT_PARAM } from '$lib/classroom/grading-student-url';
 	import { studentNotebookHref } from '$lib/classroom/nav';
 	import { studentWorkHref } from '$lib/classroom/student-overview';
+	import { createAvatarModerationTransports } from '$lib/avatar-moderation';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -18,6 +19,10 @@
 			? studentNotebookHref(data.studentPage.student.email, data.section.id)
 			: null
 	);
+
+	/* A SITE ADMIN CAN TURN THE STUDENT'S PROFILE PICTURE OFF (ledger 0392,
+	   migration 0267). Handed in only for an admin; every RPC re-checks. */
+	const avatarModeration = $derived(data.navIsAdmin === true ? createAvatarModerationTransports(data.supabase) : null);
 </script>
 
 <svelte:head>
@@ -36,4 +41,5 @@
 			: null}
 	workHref={(itemId) => studentWorkHref(data.section.id, data.studentPage.student.email, itemId)}
 	{notebookHref}
+	{avatarModeration}
 />

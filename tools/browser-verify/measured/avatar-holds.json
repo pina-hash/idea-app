@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "avatar-holds.mjs",
+	"date": "2026-10-16T07:17:18.843Z",
+	"sha": "420912d1fd5926bba68ffad88f2e10573aa9dde7",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 32,
+	"outsideRows": [],
+	"ms": 8687
+}

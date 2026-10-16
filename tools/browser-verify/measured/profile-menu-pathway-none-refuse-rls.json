@@ -1,15 +1,28 @@
 {
 	"schema": 1,
 	"spec": "profile-menu-pathway-none-refuse-rls.mjs",
-	"date": "2026-10-01T17:03:53.166Z",
-	"sha": "9e6407b18cfd662d948e2f38c7216c137a83720b",
-	"dirty": false,
+	"date": "2026-10-16T07:17:18.843Z",
+	"sha": "420912d1fd5926bba68ffad88f2e10573aa9dde7",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
 	"measurements": 32,
-	"outsideRows": [],
-	"ms": 6747
+	"outsideRows": [
+		{
+			"path": "/dev/profile-menu?pathway=none&refuse=rls",
+			"width": 375,
+			"check": "order-result",
+			"label": "the refusal is inside the viewport, not below the fold, and not under the Sign out footer"
+		},
+		{
+			"path": "/dev/profile-menu?pathway=none&refuse=rls",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the refusal is inside the viewport, not below the fold, and not under the Sign out footer"
+		}
+	],
+	"ms": 8687
 }

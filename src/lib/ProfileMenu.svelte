@@ -17,6 +17,7 @@
 		todaySchoolDay
 	} from '$lib/pathway-choice';
 	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
+	import { AVATAR_HELD_NOTE, myAvatarHold } from '$lib/avatar-moderation';
 	import {
 		SITE_THEMES,
 		SITE_THEME_LABELS,
@@ -283,6 +284,24 @@
 		await saveProfile({ display_name: trimmed.length ? trimmed.slice(0, 60) : null });
 		if (!errorMsg) editingName = false;
 	};
+
+	/*
+	 * A PICTURE A SITE ADMIN TURNED OFF (ledger 0392, migration 0267). Asked
+	 * each time the panel opens, never on page load: the picker's controls are
+	 * replaced by the sentence saying why, because every save from them would
+	 * be refused by the database's lock. Null (not applied, or the read failed)
+	 * leaves the picker as it was, and the lock still answers any save.
+	 */
+	let pictureHeld = $state<boolean | null>(null);
+	$effect(() => {
+		if (!open || !claims) return;
+		const client = supabase;
+		untrack(() => {
+			void myAvatarHold(client).then((held) => {
+				pictureHeld = held;
+			});
+		});
+	});
 
 	const choosePreset = (id: string) => saveProfile({ avatar: `preset:${id}` });
 	const useGooglePhoto = () => saveProfile({ avatar: null });
@@ -729,6 +748,9 @@
 					<Disclosure label="Change picture" collapseWhen={true} testId="pm-picture-toggle">
 						{#snippet meta()}<span class="pm-pic-now">{pictureName}</span>{/snippet}
 						{#snippet children()}
+							{#if pictureHeld === true}
+								<p class="pm-note pm-held" data-testid="pm-picture-held">{AVATAR_HELD_NOTE}</p>
+							{:else}
 							<div class="pm-picker" data-testid="pm-picker">
 								<!-- GROUPED BY TIER (ledger 0289, report 14: "there should be more
 								     options"). Eight marks were a grid; seventeen without a word
@@ -797,6 +819,7 @@
 									{/if}
 								</div>
 							</div>
+							{/if}
 						{/snippet}
 					</Disclosure>
 				</div>

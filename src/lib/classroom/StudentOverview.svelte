@@ -22,8 +22,13 @@
 	import { timelineDayLabel } from '$lib/notebook/timeline';
 	import { ICONS } from '$lib/shell/commands';
 	import StudentWorkSlideshow from './StudentWorkSlideshow.svelte';
+	import CountFigure from '$lib/CountFigure.svelte';
+	import AvatarHoldControl from '$lib/AvatarHoldControl.svelte';
+	import type { AvatarModerationTransports } from '$lib/avatar-moderation';
 	import {
 		foundryAppHref,
+		gradeBand,
+		gradeBandWord,
 		isStudentAssignmentSortKey,
 		sortStudentAssignments,
 		studentAssignmentSortStartDir,
@@ -42,7 +47,9 @@
 	 * and 63fb1c49): everything this class holds about one student, for the
 	 * teacher, and a printout for a parent conference.
 	 *
-	 * PROPS ONLY, NO FETCHING AND NO WRITE. The route and `/dev/classroom-student`
+	 * PROPS ONLY, NO FETCHING AND NO WRITE OF ITS OWN (the one write, an admin
+	 * turning a profile picture off, goes through the injected
+	 * `avatarModeration` transport). The route and `/dev/classroom-student`
 	 * mount this identical component with the page `buildStudentPage` made, so
 	 * the harness measures the real projection. There is no poll and no live
 	 * subscription: a page opened for a conference is read, not watched.
@@ -67,7 +74,8 @@
 		itemHref,
 		gradeHref = null,
 		workHref = null,
-		notebookHref = null
+		notebookHref = null,
+		avatarModeration = null
 	}: {
 		section: ClassroomSection;
 		data: StudentPageData;
@@ -81,6 +89,11 @@
 		 * from every row (absence is the mechanism).
 		 */
 		gradeHref?: ((itemId: string) => string | null) | null;
+		/**
+		 * A SITE ADMIN'S PROFILE PICTURE CONTROL (ledger 0392, migration 0267).
+		 * The route hands it in only for an admin; absent, there is no control.
+		 */
+		avatarModeration?: AvatarModerationTransports | null;
 		/** Their filled assignment alone, on a full-screen page. Absent removes the key. */
 		workHref?: ((itemId: string) => string) | null;
 		/**
@@ -174,6 +187,17 @@
 	);
 	const hasModels = $derived(data.ideacad.length > 0 || data.foundry.length > 0);
 	const grade = $derived(data.grade);
+	const band = $derived(gradeBand(grade.percent));
+	/** True once an admin turned the picture off on this page (or the hold was already there): draw initials. */
+	let pictureHidden = $state(false);
+	const pictureSubject = $derived(
+		rosterSubject({
+			...data.student,
+			...(pictureHidden ? { avatar: null, avatar_url: null } : {}),
+			student_email: data.student.email
+		})
+	);
+	const bandWord = $derived(gradeBandWord(grade.percent));
 	/** Missing work and late hand-ins, oldest due first: what a conference talks about first. */
 	const attention = $derived(
 		data.assignments
@@ -184,6 +208,11 @@
 	const flaggedCheckIns = $derived(data.notebook ? data.notebook.checkIns.filter((c) => c.display === 'flagged' || c.display === 'missing') : []);
 	function pct(n: number): string {
 		return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
+	}
+	/** A counting percent keeps its final figure's decimal places all the way, so it never changes width mid-count. */
+	function pctOf(final: number): (n: number) => string {
+		const places = Number.isInteger(final) ? 0 : 1;
+		return (n) => `${n.toFixed(places)}%`;
 	}
 	/** The At a glance row prints while any tile in it does. */
 	const glancePrints = $derived(
@@ -240,7 +269,7 @@
 
 {#snippet presenceCell(row: StudentPageData['assignments'][number])}
 	{#if row.presence === 'row'}
-		<span class="so-figure">{presenceActiveLabel(row.activeSeconds ?? 0)}</span>
+		<span class="so-figure"><CountFigure value={row.activeSeconds ?? 0} format={presenceActiveLabel} /></span>
 	{:else if row.presence === 'unknown'}
 		<span class="so-quiet">{PRESENCE_UNKNOWN}</span>
 	{:else if row.presence === 'never-opened'}
@@ -257,7 +286,7 @@
 			<div class="so-hero-main">
 				<div class="so-id-row">
 					<span class="so-avatar">
-						<Avatar subject={rosterSubject({ ...data.student, student_email: data.student.email })} tintKey={data.student.email} size={72} />
+						<Avatar subject={pictureSubject} tintKey={data.student.email} size={72} />
 					</span>
 					<div class="so-id-text">
 						<h1 class="so-name person-name" title={name}>{name}</h1>
@@ -276,18 +305,44 @@
 								<span class="so-meta">On this roster since {day(data.student.enrolled_at)}</span>
 							{/if}
 						</p>
+						{#if avatarModeration}
+							<AvatarHoldControl
+								email={data.student.email}
+								{name}
+								transports={avatarModeration}
+								onchange={(hidden) => (pictureHidden = hidden)}
+							/>
+						{/if}
 					</div>
 				</div>
 				<!-- THE GRADE, FIRST AND LARGEST (ledger 0392, Mr. Pina: "I want to
 				     see a grade"). Points on returned work, said in words beside it. -->
-				<div class="so-grade" class:so-noprint={!printing.scores && !printing.assignments} data-testid="so-grade">
-					<span class="so-grade-label">Grade so far</span>
+				<div
+					class="so-grade"
+					class:so-noprint={!printing.scores && !printing.assignments}
+					data-band={band ?? 'none'}
+					data-testid="so-grade"
+				>
+					<span class="so-grade-glow" aria-hidden="true"></span>
+					<span class="so-grade-head">
+						<span class="so-grade-label">Grade so far</span>
+						{#if bandWord}
+							<span class="so-band" data-testid="so-grade-band">
+								<svg class="so-band-mark" viewBox="0 0 24 24" aria-hidden="true"
+									><path d={band === 'low' ? ICONS.missing : band === 'fair' ? 'M6 12h12' : ICONS.done} /></svg
+								>{bandWord}
+							</span>
+						{/if}
+					</span>
 					<span class="so-grade-figure" data-testid="so-grade-figure">
-						{grade.percent === null ? 'Nothing graded yet' : pct(grade.percent)}
+						{#if grade.percent === null}Nothing graded yet{:else}<CountFigure value={grade.percent} places={Number.isInteger(grade.percent) ? 0 : 1} format={pctOf(grade.percent)} />{/if}
 					</span>
 					{#if grade.percent !== null}
+						<span class="so-grade-meter" aria-hidden="true"
+							><span class="so-grade-meter-fill" style="width: {Math.min(100, Math.max(0, grade.percent))}%"></span></span
+						>
 						<span class="so-grade-sub">
-							{grade.earned} of {grade.possible} points on {plural(grade.counted, 'returned assignment', 'returned assignments')}
+							<CountFigure value={grade.earned} /> of {grade.possible} points on {plural(grade.counted, 'returned assignment', 'returned assignments')}
 						</span>
 					{/if}
 					<span class="so-grade-note">{STUDENT_GRADE_NOTE}</span>
@@ -349,25 +404,25 @@
 	>
 		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Assignments done</span>
-			<span class="so-tile-figure">{totals.done} of {totals.assigned}</span>
+			<span class="so-tile-figure"><CountFigure value={totals.done} /> of {totals.assigned}</span>
 			<span class="so-tile-sub">{totals.todo} still to do</span>
 		</div>
 		<div class="so-tile" class:so-tile-alert={totals.missing > 0} class:so-noprint={!printing.assignments} data-tile="assignments" data-testid="so-tile-missing">
 			<span class="so-tile-label">Missing</span>
 			<span class="so-tile-figure">
-				{#if totals.missing > 0}<svg class="so-tile-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>{/if}{totals.missing}
+				{#if totals.missing > 0}<svg class="so-tile-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>{/if}<CountFigure value={totals.missing} />
 			</span>
 			<span class="so-tile-sub">{totals.missing === 0 ? 'Nothing past due' : 'Past due with nothing turned in'}</span>
 		</div>
 		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Waiting for grading</span>
-			<span class="so-tile-figure">{totals.awaitingGrade}</span>
+			<span class="so-tile-figure"><CountFigure value={totals.awaitingGrade} /></span>
 			<span class="so-tile-sub">{plural(totals.returned, 'returned', 'returned')} so far</span>
 		</div>
 		<div class="so-tile" class:so-noprint={!printing.notebook} data-tile="notebook">
 			<span class="so-tile-label">Notebook check-ins</span>
 			<span class="so-tile-figure">
-				{data.notebook ? `${data.notebook.covered} of ${data.notebook.total}` : 'Not known'}
+				{#if data.notebook}<CountFigure value={data.notebook.covered} /> of {data.notebook.total}{:else}Not known{/if}
 			</span>
 			<span class="so-tile-sub">
 				{#if data.streak !== null}{plural(data.streak, 'class day', 'class days')} in a row{:else}Streak not known{/if}
@@ -375,19 +430,19 @@
 		</div>
 		<div class="so-tile" class:so-noprint={!printing.assignments} data-tile="assignments">
 			<span class="so-tile-label">Working time</span>
-			<span class="so-tile-figure">{data.workingSeconds === null ? 'None recorded' : presenceActiveLabel(data.workingSeconds)}</span>
+			<span class="so-tile-figure">{#if data.workingSeconds === null}None recorded{:else}<CountFigure value={data.workingSeconds} format={presenceActiveLabel} />{/if}</span>
 			<span class="so-tile-sub">See the note under Assignments.</span>
 		</div>
 		<div class="so-tile" class:so-noprint={!printing['hall-passes']} data-tile="hall-passes">
 			<span class="so-tile-label">Hall passes</span>
-			<span class="so-tile-figure">{data.hallPasses ? data.hallPasses.summary.total : 'Not known'}</span>
+			<span class="so-tile-figure">{#if data.hallPasses}<CountFigure value={data.hallPasses.summary.total} />{:else}Not known{/if}</span>
 			<span class="so-tile-sub">
 				{#if !data.hallPasses}See Hall passes{:else if data.hallPasses.summary.shown < data.hallPasses.summary.total}{minutes(data.hallPasses.summary.minutesTotal)} out over the newest {data.hallPasses.summary.shown}{:else}{minutes(data.hallPasses.summary.minutesTotal)} out in all{/if}
 			</span>
 		</div>
 		<div class="so-tile" class:so-noprint={!printing.coins} data-tile="coins">
 			<span class="so-tile-label">IDEA Coins</span>
-			<span class="so-tile-figure">{data.coins ? coinAmount(data.coins.balance) : 'Not known'}</span>
+			<span class="so-tile-figure">{#if data.coins}<CountFigure value={data.coins.balance} format={coinAmount} />{:else}Not known{/if}</span>
 			<span class="so-tile-sub">Across all classes</span>
 		</div>
 	</section>
@@ -437,9 +492,11 @@
 						<li class="so-bar-row" data-testid="so-score-bar">
 							<span class="so-bar-title" title={b.title}>{b.title}</span>
 							<span class="so-bar-track" aria-hidden="true">
-								<span class="so-bar-fill" class:so-bar-low={b.percent < 70} style="width: {Math.min(100, Math.max(0, b.percent))}%"></span>
+								<span class="so-bar-fill" data-band={gradeBand(b.percent)} style="width: {Math.min(100, Math.max(0, b.percent))}%"></span>
 							</span>
-							<span class="so-bar-figure">{b.score} of {b.points} <span class="so-meta">({pct(b.percent)})</span></span>
+							<span class="so-bar-figure"
+								><CountFigure value={b.score} /> of {b.points} <span class="so-meta">(<CountFigure value={b.percent} places={Number.isInteger(b.percent) ? 0 : 1} format={pctOf(b.percent)} />)</span></span
+							>
 						</li>
 					{/each}
 				</ul>
@@ -531,7 +588,7 @@
 									{/if}
 								</td>
 								<td data-label="Score">
-									{#if row.score !== null}{row.points !== null ? `${row.score} of ${row.points}` : row.score}{/if}
+									{#if row.score !== null}<CountFigure value={row.score} />{#if row.points !== null}{' '}of {row.points}{/if}{/if}
 								</td>
 								<td data-label="Working time">{@render presenceCell(row)}</td>
 								<td class="so-when" data-label="Last typed">
@@ -956,15 +1013,137 @@
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
+	/* THE GRADE'S STATUS (ledger 0392): the band colors the rule, a faint
+	   wash, the figure, the meter and the band's word, one hue each --
+	   green for Excellent and Good, amber for Fair, and the room's crimson for
+	   Needs improvement, which is a status and the one place this page uses
+	   it. No grade yet is the quiet ground with no band at all. */
 	.so-grade {
+		--so-band: var(--boundary);
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 0.15rem;
 		padding: 0.8rem 1rem;
 		border: 1px solid var(--boundary);
-		border-left: 4px solid var(--green);
+		border-left: 4px solid var(--so-band);
 		border-radius: var(--radius-card, 10px);
 		background: var(--surface-2, var(--bg2));
+		isolation: isolate;
+	}
+	.so-grade[data-band='excellent'],
+	.so-grade[data-band='good'] {
+		--so-band: var(--green);
+	}
+	.so-grade[data-band='fair'] {
+		--so-band: var(--amber);
+	}
+	.so-grade[data-band='low'] {
+		--so-band: var(--crimson);
+	}
+	.so-grade:not([data-band='none']) {
+		background: color-mix(in srgb, var(--so-band) 7%, var(--surface-2, var(--bg2)));
+	}
+	/* Words take the band moved a step toward the room's own text color, so
+	   they clear 4.5:1 on the washed ground in every theme (crimson alone
+	   measured 4.46 on the dark wash); the rule, the meter and the glow keep
+	   the band itself. */
+	.so-grade {
+		--so-band-ink: color-mix(in srgb, var(--so-band) 80%, var(--text-1));
+	}
+	.so-grade:not([data-band='none']) .so-grade-figure {
+		color: var(--so-band-ink);
+	}
+	/* The glow is its own layer and only its OPACITY moves: two slow breaths
+	   (4.8s, under the five seconds WCAG 2.2.2 allows without an off switch)
+	   after the figure has counted, then it rests at a soft steady glow. */
+	.so-grade-glow {
+		position: absolute;
+		inset: -1px;
+		z-index: -1;
+		border-radius: inherit;
+		pointer-events: none;
+		box-shadow: 0 0 22px 1px color-mix(in srgb, var(--so-band) 34%, transparent);
+		opacity: 0.55;
+	}
+	.so-grade[data-band='none'] .so-grade-glow {
+		display: none;
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.so-grade-glow {
+			animation: so-grade-breathe 2.4s ease-in-out 0.9s 2;
+		}
+		@keyframes so-grade-breathe {
+			0%,
+			100% {
+				opacity: 0.55;
+			}
+			50% {
+				opacity: 1;
+			}
+		}
+	}
+	.so-grade-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.3rem 0.8rem;
+	}
+	.so-band {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.15rem 0.6rem;
+		border: 1px solid color-mix(in srgb, var(--so-band) 55%, transparent);
+		border-radius: 999px;
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--so-band-ink);
+		background: var(--surface-1, var(--bg1));
+	}
+	.so-band-mark {
+		width: 0.9rem;
+		height: 0.9rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.so-grade-meter {
+		display: block;
+		height: 0.5rem;
+		margin: 0.35rem 0 0.2rem;
+		border-radius: 999px;
+		background: var(--surface-1, var(--bg1));
+		border: 1px solid var(--hairline);
+		overflow: hidden;
+	}
+	.so-grade-meter-fill {
+		display: block;
+		height: 100%;
+		background: var(--so-band);
+		transform-origin: left center;
+	}
+	/* The meter and every score bar grow with the count, by transform only,
+	   and are drawn whole in their base state, so reduced motion and print
+	   see the final length. */
+	@media (prefers-reduced-motion: no-preference) {
+		.so-grade-meter-fill,
+		.so-bar-fill {
+			animation: so-grow 0.9s cubic-bezier(0.33, 1, 0.68, 1) both;
+		}
+		@keyframes so-grow {
+			from {
+				transform: scaleX(0);
+			}
+			to {
+				transform: scaleX(1);
+			}
+		}
 	}
 	.so-grade-label {
 		font-family: var(--font-mono);
@@ -1087,8 +1266,14 @@
 		height: 100%;
 		background: var(--green);
 	}
-	.so-bar-fill.so-bar-low {
+	.so-bar-fill {
+		transform-origin: left center;
+	}
+	.so-bar-fill[data-band='fair'] {
 		background: var(--amber);
+	}
+	.so-bar-fill[data-band='low'] {
+		background: var(--crimson);
 	}
 	.so-bar-figure {
 		white-space: nowrap;
@@ -1397,6 +1582,16 @@
 	   the `body:has(.so-root)` condition, because a route's stylesheet stays in
 	   the page after a client-side navigation (CLAUDE.md's DOM trap). */
 	@media print {
+		/* The glow and the meter are the screen's; the paper keeps the figure,
+		   its band word and the rule down the box's edge. */
+		.so-grade-glow,
+		.so-grade-meter {
+			display: none !important;
+		}
+		.so-grade,
+		.so-band {
+			background: none !important;
+		}
 		:global(body:has(.so-root)) :global(:is(.cr-header, .cr-chrome, .bg-fx, .sfb, [data-nav-progress], #bg-canvas, .tour-offer, .install-prompt, .pwp-overlay)) {
 			display: none !important;
 		}

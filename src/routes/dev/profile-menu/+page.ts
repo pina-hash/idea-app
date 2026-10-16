@@ -68,8 +68,14 @@ const store = {
  */
 type RefuseMode = 'rls' | 'error' | null;
 
-function makeStubSupabase(refuse: RefuseMode) {
+function makeStubSupabase(refuse: RefuseMode, held = false) {
 	return {
+		/* `profile_avatar_my_hold` (ledger 0392, migration 0267): `?held=1`
+		   answers that a site admin turned this picture off. */
+		rpc(name: string) {
+			if (name === 'profile_avatar_my_hold') return Promise.resolve({ data: { held }, error: null });
+			return Promise.resolve({ data: null, error: { code: 'PGRST202', message: 'not in the stub' } });
+		},
 		from() {
 			return {
 				/* THE READ `$lib/preferences/profile-io` MAKES BEFORE IT MERGES ONE
@@ -174,6 +180,6 @@ export const load: PageLoad = async ({ url }) => {
 		claims: { sub: store.profile.id, email: store.profile.email },
 		userProfile: row,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		supabase: makeStubSupabase(refuse) as any
+		supabase: makeStubSupabase(refuse, url.searchParams.get('held') === '1') as any
 	};
 };

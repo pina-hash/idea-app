@@ -2215,6 +2215,16 @@ through `studentPageHref`; it is a place under the People tab, not a tab.
   first (`STUDENT_ASSIGNMENT_DEFAULT_SORT`). Print is two Letter pages for the
   fixture at 0.75in margins with no text under 9pt; a score bar's fill is the
   one background `_student-print.mjs` lets through, by name.
+- **EVERY FIGURE COUNTS UP ONCE, AND THE GRADE HAS A BAND (ledger 0392).**
+  `CountFigure` is a thin caller of `countUp` (a decimal counts in tenths, the
+  final figure is server-rendered and carried in a visually hidden copy for
+  assistive tech). `gradeBand` (90 Excellent, 80 Good, 70 Fair, under 70
+  Needs improvement, a default in one table) colors the grade box, its meter
+  and every score bar, and the band's WORD sits beside the color. Needs
+  improvement takes `--crimson`, a status use; words take the band moved
+  toward `--text-1` so they clear 4.5:1. The glow animates opacity only,
+  breathes twice (4.8s, under WCAG 2.2.2's five seconds) and rests; bars and
+  the meter grow by `transform` and are whole in their base state.
 - **PRESENCE SPEAKS THROUGH `presenceLineKind`, AND AN OPEN RECORD OUTRANKS ITS
   VERDICT** as work does; `presenceCoverageNote` is printed verbatim once,
   under the assignments table, because paper has no hover.
@@ -3149,7 +3159,8 @@ it is not required to browse.
   is PUBLIC per the maps spec, has shipped, and must never be prefix-guarded) and GAUNTLET's ranked-run review
   (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`), and IDEA Armory's
   Delete forever and storage cleanup (`POST /api/armory/purge`,
-  `POST /api/armory/sweep`, 0233) -- all of which answer
+  `POST /api/armory/sweep`, 0233), and profile picture moderation
+  (`/admin/avatars`, 0267) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
   **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
   GAUNTLET AUTHOR TIER below.
@@ -3476,6 +3487,21 @@ profile name.** Adding a badge or a flourish means editing that module AND
   directions on the real consumers. It used to also assert, from `git diff`,
   that 0289 had not edited them; that could only pass on 0289's own branch and
   was removed (ledger 0295).
+
+**A SITE ADMIN CAN TURN A PROFILE PICTURE OFF, AND THE LOCK IS THE DATABASE'S
+(0267, ledger 0392).** `profile_avatar_hide` snapshots `avatar` and
+`avatar_url` into `profile_avatar_holds` and clears both, so every surface that
+shows a picture (each reads the two columns live and copies them nowhere)
+draws initials with no other function changed; `profile_avatar_restore` puts
+the snapshot back exactly and releases the hold, which is kept, never deleted.
+The `enforce_avatar_hold` trigger (the `enforce_role_change` pattern) refuses
+the owner a change to either column while held, because the owner holds
+table-level UPDATE. Every admin function asks `is_admin()` and answers a
+non-admin like an address with no account. `$lib/avatar-moderation.ts` is the
+one client vocabulary; `AvatarHoldControl` is the student page's control
+(handed in only for an admin, absence is the mechanism) and
+`AvatarHoldsConsole` is `/admin/avatars`; the profile menu replaces its picker
+with `AVATAR_HELD_NOTE` while held. An uploaded file stays in the bucket.
 
 **AND THE AVATAR PRESET SET IS APPEND-ONLY, FOR THE REASON `curriculum.ts`'s
 `SECTIONS` IS.** `profiles.avatar` is free text holding `preset:<id>`, so every
@@ -6638,7 +6664,7 @@ served STRING, never to the source file on disk.
     horizon chips, "What happened" and the optional "What did you try?" (capped
     by `FEEDBACK_TRIED_MAX`, refused as `tried_too_long` by the one handler)
     are the root box's own; on a page whose `:root` declares the Ledger's plate
-    tokens (its face-top colour) it borrows that page's own key and panel
+    tokens (its face-top color) it borrows that page's own key and panel
     classes rather than drawing a second look. **The Ledger's text mark is
     swapped for the site emblem on the served string** by `injectLedgerLogo`
     in `$lib/server/ledger-logo.ts` (server-rendered `AnimatedLogo`, its

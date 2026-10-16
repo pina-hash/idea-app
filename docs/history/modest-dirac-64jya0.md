@@ -1,9 +1,9 @@
 ---
-title: "Ledger 0392: feedback triage batch 2026-10-16, eight items plus the conference dashboard (0265, 0266) (`claude/modest-dirac-64jya0`)"
+title: "Ledger 0392: feedback triage batch 2026-10-16, eight items plus the conference dashboard (0265 to 0267) (`claude/modest-dirac-64jya0`)"
 date: 2026-10-16
 branches: [claude/modest-dirac-64jya0]
-migrations: ["0265", "0266"]
-subsystems: [Classroom, Grading, Student page, Coins, Ledger, Feedback, Tournaments, Home, Migrations]
+migrations: ["0265", "0266", "0267"]
+subsystems: [Classroom, Grading, Student page, Coins, Ledger, Feedback, Tournaments, Home, Profiles, Moderation, Migrations]
 ---
 
 Mr. Pina's export of 2026-10-16 carried eight reports for this batch (the
@@ -69,7 +69,7 @@ assignments opening newest due date first.
    logged as a correction.
 8. **"Need attention" on home cards in Space White.** The count now carries a
    warning mark beside its words, sits on a warm wash laid over white on
-   Space White (it was a muddy grey-beige at 4.74:1; now 6.16:1) and over the
+   Space White (it was a muddy gray-beige at 4.74:1; now 6.16:1) and over the
    chip ground on the dark themes (4.70:1), and a folded card has no empty
    16px band under its header.
 
@@ -102,7 +102,7 @@ due date, newest first.
 
 - `html-assignment-grading-state-present` failed at 375 with HEAD's own
   console: the harness's floating Feedback pill sits over the Present key at
-  375x900 (the real classroom docks it). The spec now centres the key first.
+  375x900 (the real classroom docks it). The spec now centers the key first.
 - On this checkout, `classroom-palette` (a row's wording), its settings-help
   count (11 against 10), the list-width spec, and every changelog spec (the
   checkout is shallow, so the changelog holds 27 entries) fail with files this
@@ -130,3 +130,52 @@ due date, newest first.
 0265: drop the four client functions, the three helpers and
 `classroom_grade_revocations`. 0266: drop `tournament_live_config_apply`,
 `tournament_live_config_preview` and `_tournament_live_config_plan`.
+
+## Second push, the same night (0267)
+
+After the first push (`420912d1`) Mr. Pina asked for three more things.
+
+1. **Every figure on the student page counts up when it opens.** `CountFigure`
+   is a thin caller of `countUp` from `$lib/count-up` (same ease, duration and
+   reduced-motion answer as GAUNTLET and the home banner). A decimal grade
+   counts in tenths and keeps its decimal places the whole way, so it never
+   changes width. The server renders the final figure and a visually hidden
+   copy carries it for assistive tech. Measured: 19 figures counting at once;
+   the grade goes 0.0% to 67.5% in about 0.9s.
+2. **The grade shows a status, professionally.** `gradeBand`: 90 and up
+   Excellent, 80s Good, 70s Fair, under 70 Needs improvement. The band colors
+   the box's rule, a faint wash, the figure, a meter under it and every score
+   bar (green, amber, and crimson for Needs improvement, a status use), with
+   the word and a mark beside it. A glow layer breathes twice (4.8s, under the
+   five seconds WCAG 2.2.2 allows without an off switch) and then rests; only
+   its opacity animates, so no `color-mix` sits inside a keyframe. Crimson on
+   the dark wash measured 4.46:1, so the words take the band moved toward the
+   room's text color (6.37:1 for the band word). Print drops the glow and the
+   meter and still prints 2 pages, nothing under 9pt.
+3. **A site admin can turn off a profile picture.** Migration 0267: a hold
+   table with the snapshot, five functions, and a guard trigger that refuses
+   the owner a new picture while held. On the student page an admin gets Turn
+   off profile picture (two presses, optional reason, a sentence saying what it
+   does); `/admin/avatars` (linked from the admin console) lists every picture
+   turned off and turns one off by address; a held student's Change picture
+   says why instead of offering choices.
+
+**Measured:** `tests/db/profile-avatar-holds.test.ts` 7 pass over pictures set
+the way a student sets them; mutants killed: the lock letting the owner
+through, hide without the admin gate, a restore that drops the Google photo, a
+hide that leaves the Google photo, and an anon grant (refused by 0267's own
+self-check). Browser: the moderation specs both directions (control present
+with the admin transport, absent without), 0 outside; the student page 332
+measurements 0 outside.
+
+**Found, not this push's:** `profile-menu-pathway-none-refuse-rls` fails
+(the refusal sits under the Sign out footer, 807 > 774) with HEAD's profile
+menu too.
+
+**Decisions owed:** the band cut points (90/80/70) and words are defaults; who
+besides a site admin may turn a picture off (a teacher of record, today no);
+whether a turned-off upload should be deleted from storage (today kept).
+
+**Undo 0267:** restore any held picture, then drop the five client functions,
+the trigger and its function, `_profile_avatar_held` and
+`profile_avatar_holds`.

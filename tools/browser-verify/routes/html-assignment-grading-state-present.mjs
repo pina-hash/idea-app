@@ -28,7 +28,7 @@ export default {
 		/* At 375x900 the key sits at the bottom of the window, under the
 		   harness's FLOATING report control (the real classroom docks it in the
 		   shell, which this harness does not mount), so a press at the key's
-		   centre opened the report box instead (ledger 0392). Centre it first. */
+		   center opened the report box instead (ledger 0392). Center it first. */
 		{
 			evaluate: `() => { document.querySelector('[data-testid="present-open-key"]')?.scrollIntoView({ block: 'center', behavior: 'instant' }); return true; }`,
 			label: 'bring the key out from under the floating report control'

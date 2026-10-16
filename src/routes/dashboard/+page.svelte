@@ -542,6 +542,10 @@
 						myEmail={data.myEmail ?? null}
 						supabase={data.supabase}
 					/>
+				{:else if panel.id === 'pictures'}
+					<div class="panel-meta">
+						<a class="btn secondary" href="/admin/avatars">Manage profile pictures</a>
+					</div>
 				{:else if panel.id === 'links'}
 					<div class="panel-meta">
 						<a class="btn secondary" href="/admin/links">Manage short links</a>

@@ -5,7 +5,7 @@
  *
  * The teacher feed with every card folded, which is how Mr. Pina's home page
  * was when he filed it. Measured: the count carries a mark beside its words
- * (never colour alone) and clears 4.5:1 on its own warm wash, and a folded card
+ * (never color alone) and clears 4.5:1 on its own warm wash, and a folded card
  * has no band under its header (the list's padding used to survive the fold
  * as an empty 16px strip of a second ground).
  */

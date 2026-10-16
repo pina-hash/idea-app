@@ -82,6 +82,7 @@ export default {
 		}
 	],
 	presence: [
+		{ selector: '[data-testid="pm-picture-held"]', label: 'no hold sentence without a hold (ledger 0392)', expectPresent: 0 },
 		{ selector: '.pm-panel', label: 'the panel (positive control)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		/* THE RULE, NOT THE COUNT (ledger 0289). These pinned EIGHT, which was
 		   the whole registry when this spec was written and which a legitimate
