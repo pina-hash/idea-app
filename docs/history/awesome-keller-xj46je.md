@@ -69,6 +69,27 @@ non-terminal ledger entry claims the numbers; the 0391 entry claims them, the
 way ledger 0360 claims 0228 and 0229, with a note saying no file was written
 at any of them. Filling the gap with tombstones is Mr. Pina's decision.
 
+**The deploy probe, after the push.** The push landed at `3c6cefa5` and
+`migrate.yml` run 207 refused to apply anything: `tools/deploy-probe.mjs` read
+0239 as NOT APPLIED, a CONFLICT against the history row, because 0239's body
+marker asked the catalog for `coin_public_sections`, which 0251 (Coin V2
+session two) had dropped by design. The workflow applies the lowest
+not-applied migration, so it targeted 0239 on every push, was refused as
+already recorded, and 0260 to 0264 could not land; runs 205 and 206, on main
+before this push, had failed the same way. The fix is in
+`tools/idea-status.py`, which derives the probes: an object a LATER migration
+in range drops and does not create again (statically, or dynamically in
+0251's `execute 'drop function ' || v_sig` shape) is handed to the history
+record (`kind: dropped`, `sql: null`, the path a migration with nothing
+probeable already takes), so a row is APPLIED and no row is CANNOT SAY,
+never a false refusal; a drop followed by a create of the same object in one
+file is a re-signing and keeps its catalog probe. `tools/deploy-probe.mjs`
+keeps the generator's own sentence for such a probe. At the workflow's range
+exactly one probe moves (0239's marker) and every other kind count holds;
+`tests/idea-status.test.ts` drives both directions on fixture migrations
+0141 to 0147 and `tests/deploy-probe-history.test.ts` the verdict. This
+paragraph was written in the follow-up commit that carries the fix.
+
 ## What was built
 
 ### The database (0260 to 0264, surface a)

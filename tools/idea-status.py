@@ -348,6 +348,19 @@ def two_authors(repo, rows):
 #     later migration replaced is asked whether the live body is its own OR
 #     any later one's (`superseded`, ledger 0338) -- see `probes`.
 #
+#     AN OBJECT A LATER MIGRATION IN RANGE DROPS IS NO EVIDENCE AT ALL (ledger
+#     0391). 0251 retired `coin_public_sections`, which 0239 had redefined, so
+#     0239's body marker asked the catalog for a function that is gone by
+#     design: FALSE, a CONFLICT against the record, NOT APPLIED -- and
+#     migrate.yml, which applies the lowest unapplied migration, targeted 0239
+#     on every push and was refused as already recorded (runs 205 to 207),
+#     so nothing above it could ever land. Such a probe, object or marker,
+#     is handed to the history record instead (`dropped`, `sql: None`), the
+#     same path a migration with nothing probeable already takes: a row is
+#     APPLIED, no row is CANNOT SAY, never a false refusal. A drop followed by
+#     a create of the same object in the SAME file is a redefinition with a
+#     new signature, not a retirement, and changes nothing.
+#
 #     Every probe reads pg_catalog / information_schema and none reads a
 #     migrations table, because production has none.
 # --------------------------------------------------------------------------
@@ -366,6 +379,23 @@ CREATE_ANY_RE = re.compile(
     r"([a-zA-Z_][\w\.\"]*)",
     re.IGNORECASE,
 )
+# A static drop of something a probe could name. `procedure` and `view` are
+# accepted so a later file retiring one is read the same way as a function.
+DROP_ANY_RE = re.compile(
+    r"\bdrop\s+(function|procedure|view|materialized\s+view|table)\s+(?:if\s+exists\s+)?"
+    r"([a-zA-Z_][\w\.\"]*)",
+    re.IGNORECASE,
+)
+# A DYNAMIC drop: `execute 'drop function ' || v_sig` or
+# `execute format('drop function if exists %s', v_sig)` over a list of quoted
+# signatures, which is how 0251 retired fourteen functions behind a caller
+# guard. Where a file executes one, every quoted `schema.name(` literal in it
+# is read as a dropped function. That over-reads a `to_regprocedure('...')`
+# guard on a function the file keeps, and the cost of over-reading is only a
+# weaker probe (the record answers instead of the catalog), never a false
+# NOT APPLIED; under-reading is the conflict this exists to end.
+DYNAMIC_DROP_FN_RE = re.compile(r"\bexecute\s+(?:format\s*\(\s*)?'\s*drop\s+function\b", re.IGNORECASE)
+SIG_LITERAL_RE = re.compile(r"'([a-zA-Z_]\w*\.[a-zA-Z_]\w*)\s*\(")
 
 
 def split_name(raw):
@@ -479,6 +509,30 @@ def function_bodies(blob):
     return out
 
 
+def dropped_objects(blob):
+    """Every object a file DROPS and does not create again in the same file,
+    as probe keys (`function public.x`, `table public.y`). A drop followed by a
+    create of the same object is a redefinition (a new signature), not a
+    retirement, and is not in the set. Comments are stripped first, so a
+    `drop` named in prose is not a drop."""
+    clean = strip_sql_comments(blob)
+    dropped = set()
+    for m in DROP_ANY_RE.finditer(clean):
+        kind = re.sub(r"\s+", " ", m.group(1).lower())
+        s, n = split_name(m.group(2))
+        dropped.add(f"{kind} {s}.{n}")
+    if DYNAMIC_DROP_FN_RE.search(clean):
+        for m in SIG_LITERAL_RE.finditer(clean):
+            s, n = split_name(m.group(1))
+            dropped.add(f"function {s}.{n}")
+    created = set()
+    for m in CREATE_ANY_RE.finditer(clean):
+        kind = re.sub(r"\s+", " ", m.group(2).lower())
+        s, n = split_name(m.group(3))
+        created.add(f"{kind} {s}.{n}")
+    return dropped - created
+
+
 def body_marker(later, others):
     """A line present in `later` and absent from every body in `others`.
     Prefer a non-comment line; longest first, so the marker is distinctive."""
@@ -506,12 +560,44 @@ def probes(repo, rows, collisions):
         blobs[r["num"]] = git(repo, "show", f"origin/main:{MIG_DIR}/{r['file']}")
         bodies[r["num"]] = function_bodies(blobs[r["num"]])
 
+    # Which objects a LATER file in range retires. A probe that would ask the
+    # catalog for one of these is handed to the record instead (see the 3a
+    # note above): the object is gone by design, so its absence says nothing
+    # about whether the earlier migration ran.
+    retired = {}
+    for r in rows:
+        for key in dropped_objects(blobs[r["num"]]):
+            retired.setdefault(key, []).append(r["num"])
+
+    def dropped_after(key, num):
+        return sorted(n for n in retired.get(key, []) if n > num)
+
+    def dropped_probe(num, label, later):
+        return {
+            "num": num,
+            "file": file_of(num),
+            "kind": "dropped",
+            "object": f"{label} (dropped by {', '.join(later)}; answered by the record)",
+            "dropped_by": later,
+            "sql": None,
+            "refused": (f"the object this probe would ask for was dropped by migration "
+                        f"{', '.join(later)}, so the catalog cannot speak for it; the record answers"),
+        }
+
+    def file_of(num):
+        return next(r["file"] for r in rows if r["num"] == num)
+
     shared = frozenset(collisions.keys())
     out = []
     for r in rows:
         p = first_object(blobs[r["num"]], shared)
         if p:
-            out.append({"num": r["num"], "file": r["file"], "kind": "object", "object": p[0], "sql": p[1]})
+            key = p[0].split(" (", 1)[0]
+            later = dropped_after(key, r["num"])
+            if later:
+                out.append(dropped_probe(r["num"], p[0], later))
+            else:
+                out.append({"num": r["num"], "file": r["file"], "kind": "object", "object": p[0], "sql": p[1]})
         else:
             out.append({"num": r["num"], "file": r["file"], "kind": "none", "object": "no probe", "sql": None})
 
@@ -548,9 +634,6 @@ def probes(repo, rows, collisions):
     # A live body the OR cannot recognise would read false, and false is NOT
     # APPLIED; `sql: None` hands the verdict to the history record instead,
     # and with no row it is CANNOT SAY -- never a pass, never a false refusal.
-    def file_of(num):
-        return next(r["file"] for r in rows if r["num"] == num)
-
     def fn_probe(skey, lines):
         pos = " or ".join(f"position({sql_lit(m)} in p.prosrc) > 0" for m in lines)
         return (f"exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
@@ -568,6 +651,13 @@ def probes(repo, rows, collisions):
         ordered = sorted(nums)
         fname = f"function {skey[0]}.{skey[1]}"
         for i, num in enumerate(ordered[1:], start=1):
+            # A function a later file drops (and does not define again in that
+            # file) is gone by design: no body of any definer before the drop
+            # can be in the catalog, so the record answers for them.
+            gone = dropped_after(fname, num)
+            if gone:
+                out.append(dropped_probe(num, f"{fname} carries {num}'s body", gone))
+                continue
             later_bodies = bodies.get(num, {}).get(skey, [])
             others = []
             for o in ordered[:i]:
@@ -781,8 +871,11 @@ def report(repo_name, since, data):
         print("    existence proves nothing, so it checks the later text is what is live.")
         print("    `... or a later one (superseded by ...)` is a body a later migration replaced:")
         print("    it reads applied when the live body is that one or any later definer's.")
+        print("    `(dropped by NNNN; answered by the record)` is an object a later migration")
+        print("    retired: the catalog cannot speak for it, so the history row decides.")
         for p in plist:
-            tag = {"object": "probe ", "marker": "marker", "superseded": "marker", "none": "NO PROBE", "marker-missing": "NO PROBE"}[p["kind"]]
+            tag = {"object": "probe ", "marker": "marker", "superseded": "marker", "none": "NO PROBE",
+                   "marker-missing": "NO PROBE", "dropped": "RECORD"}[p["kind"]]
             print(f"      {p['num']}  {tag}  {p['object']}")
         print()
         for line in data["probe_sql"].splitlines():

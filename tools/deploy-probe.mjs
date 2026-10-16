@@ -482,7 +482,8 @@ export function toCatalogOnly(sql) {
 /* ------------------------------------------------------------------------ */
 
 /**
- * @typedef {{ num: string, file: string, kind: string, object: string, sql: string | null }} RawProbe
+ * @typedef {{ num: string, file: string, kind: string, object: string, sql: string | null,
+ *             refused?: string | null, dropped_by?: string[] }} RawProbe
  * @typedef {{ num: string, file: string, kind: string, object: string, sql: string | null,
  *             translated: boolean, refused: string | null }} Probe
  */
@@ -559,7 +560,10 @@ export function migrationsOnlyOn(root, ref) {
  */
 export function prepare(raw) {
 	return raw.map((p) => {
-		if (!p.sql) return { ...p, translated: false, refused: null };
+		// A probe the generator already handed to the record (`kind: dropped`,
+		// an object a later migration retired, ledger 0391) says why in its own
+		// `refused`; keep that sentence rather than the generic one.
+		if (!p.sql) return { ...p, translated: false, refused: typeof p.refused === 'string' ? p.refused : null };
 		const t = toCatalogOnly(p.sql);
 		if (!t.ok) return { ...p, sql: null, translated: false, refused: t.why };
 		return { ...p, sql: t.sql, translated: t.changed, refused: null };

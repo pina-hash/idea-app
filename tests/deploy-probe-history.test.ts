@@ -11,6 +11,7 @@ import {
 	exitFor,
 	noHistory,
 	normalizeVersion,
+	prepare,
 	readFrom,
 	readHistory,
 	verdicts
@@ -151,6 +152,43 @@ describe('the record and the objects, one verdict', () => {
 		expect(f[0].record).toBe('unrecorded');
 		expect(f[0].agreement).toBe('neither');
 		expect(exitFor(f)).toBe(EXIT.cannotConfirm);
+	});
+
+	// ---------------------------------------------------------------------
+	// AN OBJECT A LATER MIGRATION DROPPED (ledger 0391). 0251 retired
+	// `coin_public_sections`, 0239's marker asked the catalog for it, read
+	// FALSE, and the row became a CONFLICT: NOT APPLIED, the one verdict
+	// migrate.yml acts on, so it targeted 0239 on every push and was refused
+	// (runs 205 to 207). idea-status now hands such a probe over with
+	// `sql: null`, `kind: 'dropped'` and its own `refused` sentence; this is
+	// the record answering for it, in both directions.
+	// ---------------------------------------------------------------------
+	it('a probe handed to the record because its object was dropped is APPLIED with a row and CANNOT SAY without, and keeps its reason', () => {
+		const dropped = {
+			...probe('0239', null),
+			kind: 'dropped',
+			object: "function public.coin_public_sections carries 0239's body (dropped by 0251; answered by the record)",
+			dropped_by: ['0251'],
+			refused: 'the object this probe would ask for was dropped by migration 0251, so the catalog cannot speak for it; the record answers'
+		};
+		// `prepare` keeps the generator's sentence for a probe it never translates.
+		const [prepared] = prepare([dropped]);
+		expect(prepared.sql).toBeNull();
+		expect(prepared.refused).toContain('dropped by migration 0251');
+
+		const withRow = verdicts([prepared], new Map(), record('0239'));
+		expect(withRow[0].state).toBe('applied');
+		expect(withRow[0].agreement).toBe('record-only');
+		expect(withRow[0].why).toContain('dropped by migration 0251');
+		expect(exitFor(withRow)).toBe(EXIT.allApplied);
+
+		const withoutRow = verdicts([prepared], new Map(), record('0238'));
+		expect(withoutRow[0].state).toBe('unknown');
+		expect(withoutRow[0].why).toContain('dropped by migration 0251');
+		expect(exitFor(withoutRow)).toBe(EXIT.cannotConfirm);
+
+		// And it is never NOT APPLIED, which is the verdict that blocked the chain.
+		expect(verdicts([prepared], new Map([[0, false]]), record('0239'))[0].state).toBe('applied');
 	});
 
 	it('a probe that was sent and answered nothing is CANNOT SAY, row or no row', () => {

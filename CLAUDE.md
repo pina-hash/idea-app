@@ -2891,10 +2891,14 @@ for a signed-out visitor on every other path.
   with `active: false`; `sendMirror` fires after every award and catalog
   change and from the daily job, and writes `cert_sync_log` whether the
   Techmen side answered or not.
-- **THE SCHEDULED JOBS ARE ONE DAILY VERCEL CRON PLUS A GITHUB CALLER**, both
-  on `/api/certifications/jobs/daily`, behind `CRON_SECRET` when it is set
-  (D4). They reuse `serviceClient()` from `$lib/server/push.ts`, so the
-  service-role key's reader census above stays at six.
+- **THE SCHEDULED JOBS HAVE ONE CALLER, `.github/workflows/cert-jobs.yml`, AND
+  NO VERCEL CRON** (D4, amended at landing): it calls
+  `/api/certifications/jobs/daily` once a day, sending the bearer when the
+  repository secret `CRON_SECRET` is set and calling the open route when it is
+  not. The project is a Hobby account whose two cron slots the coin economy
+  holds (see `CRON_SECRET` under Environment). The jobs reuse `serviceClient()`
+  from `$lib/server/push.ts`, so the service-role key's reader census above
+  stays at six.
 - **NOTHING A STUDENT SEES EXISTS UNTIL A CERTIFICATION IS PUBLISHED, and
   publishing refuses an incomplete kit** (`_cert_publish_check`: every
   required part with content, the pool rule, at least one lesson or video).

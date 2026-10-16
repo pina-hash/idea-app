@@ -88,6 +88,83 @@ begin
 	return 2;
 end;
 $$;
+`,
+
+	// --- THE RETIREMENT FIXTURES (ledger 0391). All numbered BELOW 0151 so the
+	// `--since 151` and `--since 153` assertions above keep their ranges; they
+	// are read only by `--since 141`. The shape is the real 0239/0251 one:
+	// 0251 retired `coin_public_sections`, which 0239 had redefined, so 0239's
+	// body marker asked the catalog for a function that is gone BY DESIGN and
+	// read NOT APPLIED against the record, and migrate.yml, which applies the
+	// lowest unapplied migration, targeted 0239 on every push (runs 205 to
+	// 207) and was refused as already recorded; nothing above it could land.
+
+	// A function, defined once...
+	'0141_fixture_beta.sql': `
+create or replace function public.fixture_beta() returns int
+language plpgsql as $$
+begin
+	return 1;
+end;
+$$;
+`,
+	// ...redefined (so it would ordinarily earn a body marker)...
+	'0142_fixture_beta_again.sql': `
+create or replace function public.fixture_beta() returns int
+language plpgsql as $$
+begin
+	raise notice 'the second beta body';
+	return 2;
+end;
+$$;
+`,
+	// ...and DROPPED DYNAMICALLY, 0251's exact shape: a list of quoted
+	// signatures, a caller guard, `execute 'drop function ' || v_sig`. Nothing
+	// here is created, so this file itself has no probe.
+	'0143_fixture_retire_beta.sql': `
+do $drop$
+declare
+	v_sigs text[] := array[
+		'public.fixture_beta()'
+	];
+	v_sig text;
+begin
+	foreach v_sig in array v_sigs loop
+		if to_regprocedure(v_sig) is null then
+			continue;
+		end if;
+		execute 'drop function ' || v_sig;
+	end loop;
+end
+$drop$;
+`,
+	// A table created by one file and statically dropped by the next.
+	'0144_fixture_gamma.sql': `
+create table if not exists public.fixture_gamma (id uuid primary key);
+`,
+	'0145_fixture_drop_gamma.sql': `
+drop table if exists public.fixture_gamma;
+`,
+	// THE NEGATIVE CONTROL: a drop followed by a create of the same function
+	// in the SAME file is a re-signing, not a retirement. 0147 must keep an
+	// ordinary body marker and 0146 an ordinary object probe.
+	'0146_fixture_delta.sql': `
+create or replace function public.fixture_delta() returns int
+language plpgsql as $$
+begin
+	return 1;
+end;
+$$;
+`,
+	'0147_fixture_delta_resigned.sql': `
+drop function if exists public.fixture_delta();
+create function public.fixture_delta(p_times int) returns int
+language plpgsql as $$
+begin
+	raise notice 'the re-signed delta body';
+	return 2 * p_times;
+end;
+$$;
 `
 };
 
@@ -337,5 +414,160 @@ describe('tools/idea-status.py against a fixture repository', () => {
 		// no marker is generated -- the collision is a property of the RANGE.
 		expect(d.two_authors).toEqual({});
 		expect(d.probes.filter((p: { kind: string }) => p.kind === 'marker')).toHaveLength(0);
+	});
+});
+
+/**
+ * AN OBJECT A LATER MIGRATION DROPS IS NO EVIDENCE ABOUT THE EARLIER ONE
+ * (ledger 0391). The real case: 0251 retired `coin_public_sections`, which
+ * 0239 had redefined. 0239's body marker then asked the catalog for a
+ * function that is gone BY DESIGN, read FALSE against a history row that said
+ * applied, and the deploy probe called that a CONFLICT and NOT APPLIED. That
+ * is the one verdict `migrate.yml` acts on -- it applies the LOWEST
+ * not-applied migration -- so every push targeted 0239, was refused as
+ * already recorded, and nothing numbered above it could land (Migrate runs
+ * 205, 206 and 207, 2026-10-15). Silent in every direction: the tool ran
+ * green, the summary read sensibly, and the migrations simply never applied.
+ *
+ * The rule under test: a probe, object OR marker, whose object a LATER file in
+ * range drops without creating it again is handed to the record (`kind:
+ * dropped`, `sql: null`), the path a migration with nothing probeable already
+ * takes. Both directions are driven on one fixture: the retired function and
+ * the retired table go to the record; a drop-and-recreate in the same file is
+ * a re-signing and keeps its catalog probe; and the untouched fixtures above
+ * (0152's table, 0154's marker) answer exactly as they did.
+ */
+describe('a probe whose object a later migration dropped is handed to the record', () => {
+	const probesFor = (num: string) => runTool('--since', '141').probes.filter((p: { num: string }) => p.num === num);
+
+	it('reads the whole retirement range', () => {
+		const d = runTool('--since', '141');
+		expect(d.migrations.rows.map((r: { num: string }) => r.num)).toEqual([
+			'0141', '0142', '0143', '0144', '0145', '0146', '0147', '0151', '0152', '0153', '0154'
+		]);
+		// Every migration in range still gets a verdict, retirements included.
+		const probed = new Set(d.probes.map((p: { num: string }) => p.num));
+		expect([...probed].sort()).toEqual(d.migrations.rows.map((r: { num: string }) => r.num).sort());
+	});
+
+	it('a function body marker whose function a later file drops dynamically goes to the record', () => {
+		// 0142 carries TWO probes, as any redefining migration does: its own
+		// object probe (the shared function) and the body marker. Both go to
+		// the record, because both would ask the catalog for the gone function.
+		const all = probesFor('0142');
+		expect(all).toHaveLength(2);
+		for (const q of all) {
+			expect(q.kind).toBe('dropped');
+			expect(q.sql).toBeNull();
+			expect(q.dropped_by).toEqual(['0143']);
+			expect(q.object).toContain('fixture_beta');
+			expect(q.object).toContain('dropped by 0143');
+			expect(q.object).toContain('answered by the record');
+			expect(q.refused).toContain('0143');
+		}
+		expect(all.filter((q: { object: string }) => q.object.includes("carries 0142's body"))).toHaveLength(1);
+		// The collision itself is still reported: the drop changes the probe,
+		// not the fact that two files defined the function.
+		expect(Object.keys(runTool('--since', '141').two_authors)).toContain('function public.fixture_beta');
+	});
+
+	it("the first definer's object probe goes to the record too, because the object is gone", () => {
+		const [p] = probesFor('0141');
+		expect(p.kind).toBe('dropped');
+		expect(p.sql).toBeNull();
+		expect(p.dropped_by).toEqual(['0143']);
+		expect(p.object).toContain('fixture_beta');
+	});
+
+	it('a table a later file drops statically goes to the record, and the dropping file has no probe of its own', () => {
+		const [gamma] = probesFor('0144');
+		expect(gamma.kind).toBe('dropped');
+		expect(gamma.sql).toBeNull();
+		expect(gamma.dropped_by).toEqual(['0145']);
+		expect(gamma.object).toContain('table public.fixture_gamma');
+		const [dropper] = probesFor('0145');
+		expect(dropper.kind).toBe('none');
+		expect(dropper.sql).toBeNull();
+		const [retirer] = probesFor('0143');
+		expect(retirer.kind).toBe('none');
+	});
+
+	it('a drop followed by a create of the same function in ONE file is a re-signing and keeps its catalog probes', () => {
+		// 0147 drops `fixture_delta()` and creates `fixture_delta(int)`: the
+		// function is still there, under a new signature, so 0147 earns an
+		// ordinary body marker and 0146 an ordinary (shared-object) probe.
+		const markers = probesFor('0147').filter((p: { kind: string }) => p.kind === 'marker');
+		expect(markers).toHaveLength(1);
+		expect(markers[0].sql).toBeTruthy();
+		expect(MIGRATIONS['0147_fixture_delta_resigned.sql']).toContain(markers[0].marker);
+		expect(MIGRATIONS['0146_fixture_delta.sql']).not.toContain(markers[0].marker);
+		const [delta] = probesFor('0146');
+		expect(delta.kind).toBe('object');
+		expect(delta.sql).toBeTruthy();
+		expect(delta.object).toContain('fixture_delta');
+		expect(probesFor('0146').some((p: { kind: string }) => p.kind === 'dropped')).toBe(false);
+		expect(probesFor('0147').some((p: { kind: string }) => p.kind === 'dropped')).toBe(false);
+	});
+
+	it('leaves every probe the retirements do not touch exactly as it was', () => {
+		// Negative controls: the fixtures the earlier block measured answer the
+		// same with the retirement files in range.
+		const [thing] = probesFor('0152');
+		expect(thing.kind).toBe('object');
+		expect(thing.object).toBe('table public.fixture_thing');
+		const alphaMarkers = probesFor('0154').filter((p: { kind: string }) => p.kind === 'marker');
+		expect(alphaMarkers).toHaveLength(1);
+		expect(alphaMarkers[0].marker).toBe(MARKER_LINE);
+		// Exactly the four above (0141's object, 0142's object and marker,
+		// 0144's table) and nothing else.
+		const dropped = runTool('--since', '141').probes.filter((p: { kind: string }) => p.kind === 'dropped');
+		expect(dropped.map((p: { num: string }) => p.num).sort()).toEqual(['0141', '0142', '0142', '0144']);
+	});
+
+	it('a dropped probe contributes no SQL to the pasted block, so nothing can read FALSE for it', () => {
+		const d = runTool('--since', '141');
+		const sql: string = d.probe_sql;
+		expect(sql).not.toContain('fixture_beta');
+		expect(sql).not.toContain('fixture_gamma');
+		// Positive control beside the absences: the block is not empty, the
+		// re-signed function and the untouched table are still in it.
+		expect(sql).toContain('fixture_delta');
+		expect(sql).toContain('fixture_thing');
+	});
+
+	it('does not read a drop that is only named in a comment', () => {
+		// `0152_fixture_thing.sql` is the untouched table above; a comment in
+		// another file naming `drop table public.fixture_thing` must not retire
+		// it. Driven on a second fixture repo rather than by mutating this one.
+		const dir2 = mkdtempSync(join(tmpdir(), 'idea-status-fixture-comment-'));
+		const repo2 = join(dir2, 'fixture');
+		try {
+			mkdirSync(repo2);
+			const g = (...a: string[]) => execFileSync('git', ['-C', repo2, ...a], { encoding: 'utf8' }).trim();
+			g('init', '--quiet', '--initial-branch=main');
+			g('config', 'user.email', 'fixture@example.invalid');
+			g('config', 'user.name', 'Fixture');
+			mkdirSync(join(repo2, 'supabase', 'migrations'), { recursive: true });
+			writeFileSync(join(repo2, 'supabase/migrations/0152_fixture_thing.sql'), MIGRATIONS['0152_fixture_thing.sql']);
+			writeFileSync(
+				join(repo2, 'supabase/migrations/0153_fixture_prose.sql'),
+				'-- a later bundle may drop table public.fixture_thing; this one does not.\n' +
+					'update public.fixture_thing set id = id where false;\n'
+			);
+			g('add', '-A');
+			g('commit', '--quiet', '-m', 'fixture');
+			g('update-ref', 'refs/remotes/origin/main', g('rev-parse', 'HEAD'));
+			const r = spawnSync('python3', [TOOL, '--local', repo2, '--json', '--since', '151'], {
+				encoding: 'utf8',
+				maxBuffer: 32 * 1024 * 1024
+			});
+			if (r.error) throw r.error;
+			const d = JSON.parse(r.stdout);
+			const [thing] = d.probes.filter((p: { num: string }) => p.num === '0152');
+			expect(thing.kind).toBe('object');
+			expect(thing.sql).toBeTruthy();
+		} finally {
+			rmSync(dir2, { recursive: true, force: true });
+		}
 	});
 });
