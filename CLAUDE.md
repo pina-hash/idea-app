@@ -1991,6 +1991,55 @@ the rubric last.
   video from a draft or a scheduled item (a manager is told how many it holds
   back).
 
+### POST THUMBNAILS -- a slot, a shape that is CSS, and a frame the parent owns
+
+**EVERY POST HAS A THUMBNAIL SLOT AND `PostThumbnail.svelte` IS ITS ONE
+RENDERER (0268, ledger 0396, report a6a037f3).** A slot shows a picture a
+teacher set, a live HTML thumbnail the document's manifest declares, or the
+generated identity (the post's kind glyph on a plate tile tinted by its unit);
+no row means the generated identity, so a class page is never a wall of text.
+The class page rows, the home page's class card rows and the to-do rows mount
+it; the lists deliberately left without one are named in that ledger's history
+entry.
+
+- **A ONE-TO-ONE TABLE, NEVER COLUMNS ON `classroom_items`.** Items are copied,
+  revisioned and exported, and a column joins every one of those paths.
+  `classroom_item_thumbnails` is read through its own ladder rung
+  (`ITEM_SELECT_THUMBS`) and written only by 0268's definer functions, gated on
+  the existing manage predicates. **A hand-set thumbnail beats the manifest
+  structurally**: the document trigger's sync (`_classroom_thumbnail_sync`)
+  never overwrites a `manual` row, and Automatic deletes it and re-reads the
+  manifest. A manifest naming a template the document does not carry writes no
+  live row (`_classroom_html_may_carry_template`, deliberately wider than the
+  route's exact `servedThumbnailTemplate`, so a document the route serves always
+  gets one).
+- **THE SHAPE IS A DISPLAY SETTING, NEVER A PROPERTY OF THE POST, AND IT IS
+  CSS.** `resolveThumbShape` is the one precedence (the person's
+  `display.thumbShape`, per device, then the class default on
+  `classroom_sections`, then Tile, never Off by default). The slot's size comes
+  from `--thumb-w`, `--thumb-h` and `--thumb-shape` keyed on `data-shape`, so a
+  new shape is a rule plus a `THUMB_SHAPES` entry and never a data change; a
+  picture is `object-fit: cover` around its stored focal point.
+- **THE TILE SITS INSIDE THE ROW'S OWN LINK**, so a row stays one 44px target;
+  only an `"interactive": true` live thumbnail sits beside it and keeps its own
+  clicks. A non-interactive frame is inert and the slot forwards the pointer to
+  it, because a parent cannot learn whether a click inside a cross-origin
+  sandboxed frame was handled.
+- **A LIVE THUMBNAIL IS SERVED BY `/hx/<doc>/thumbnail` UNDER THE WORKSHEET
+  ROUTE'S OWN GATES AND HEADERS**: the author's template contents byte for byte
+  inside a fixed shell, `HX_SANDBOX_FLAGS`, never `allow-same-origin`, and a
+  bridge (`hxThumbReceive`) that answers only the frame's own window at the
+  sandbox's expected origin. Draft and scheduled posts plan the generated look
+  (`thumbnailPlan`, on the loader's clock), so no frame is made for a post the
+  route refuses.
+- **PERFORMANCE IS THE PARENT'S JOB** (`HtmlThumbnailFrame.svelte`): frames are
+  made near the viewport, one per idle period and never while scrolling,
+  paused off screen, in a hidden tab and while scrolling, and taken down far
+  away; under reduced motion a thumbnail draws `HX_THUMB_STILL_FRAMES` frames and
+  stops, never nothing. A `:has(... :hover)` rule over the list cost 704ms of
+  style work in 3s at 4x CPU, which is why the row hover is written with
+  descendant rules only.
+
 ### WHAT A STUDENT OWES -- one predicate, one read, one day
 
 **"MISSING" HAS ONE IMPLEMENTATION: `assignmentStanding` AND `checkInStanding`
