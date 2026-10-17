@@ -2000,7 +2000,11 @@ generated identity (the post's kind glyph on a plate tile tinted by its unit);
 no row means the generated identity, so a class page is never a wall of text.
 The class page rows, the home page's class card rows and the to-do rows mount
 it; the lists deliberately left without one are named in that ledger's history
-entry.
+entry. **A post is one identity on the class page and on the home page**: the
+home load reads each course's unit order (`loadClassroomWork`'s `units`, one
+read, skipped while nothing is filed) so `unitTint` gives a post the same tint
+in both, and the home card's Tile and Off draw `KIND_GLYPHS`, never a second
+glyph set.
 
 - **A ONE-TO-ONE TABLE, NEVER COLUMNS ON `classroom_items`.** Items are copied,
   revisioned and exported, and a column joins every one of those paths.

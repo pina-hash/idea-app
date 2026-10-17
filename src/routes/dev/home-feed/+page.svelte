@@ -156,6 +156,8 @@
 	/* `?thumbs=1` (ledger 0396): three rows carry a post thumbnail of their own
 	   -- a picture, and two live HTML thumbnails from the /hx dev fixtures -- in
 	   the row's 34px mark box. Without it the fixture is exactly as it was. */
+	/* The course's unit order, as the home load hands it over (`feedUnitOrder`). */
+	const unitOrder: Record<string, string[]> = page.url.searchParams.get('thumbs') === '1' ? { c1: ['u-1', 'u-2', 'u-3'] } : {};
 	if (page.url.searchParams.get('thumbs') === '1') {
 		const t = (over: Record<string, unknown>) => ({
 			source: 'image', manual: true, image_key: null, attachment_id: null, image_width: 800, image_height: 600,
@@ -172,6 +174,20 @@
 		// mark shows, and what a Wide or Banner slot draws for it.
 		const returned = items.find((i) => i.id === 'i-returned');
 		if (returned) Object.assign(returned, { body_doc: [{ type: 'img', src: '/IDEA/icon-512.png', alt: 'The badge' }] });
+		// Units (integration review): the generated thumbnails are tinted by
+		// their unit's place in the course's order, as on the class page, and a
+		// post in no unit stays neutral. i-syllabus and i-pinned are unfiled.
+		const units: Record<string, string> = {
+			'i-overdue': 'u-1',
+			'i-returned': 'u-1',
+			'i-soon': 'u-1',
+			'i-unsub': 'u-2',
+			'i-updated': 'u-2',
+			'i-safety': 'u-3',
+			'i-p2-soon': 'u-2',
+			'i-p2-draft': 'u-3'
+		};
+		for (const it of items) if (units[it.id]) Object.assign(it, { unit_id: units[it.id] });
 	}
 
 	/* `&mine=off|tile|wide|banner|class` (ledger 0396): the person's Display
@@ -297,7 +313,7 @@
 <div class="legacy-index">
 	<div class="courses" style="margin-top:1rem">
 		<div class="year-label">Your Classes</div>
-		<ClassroomFeed {feeds} {collapsed} {onToggle} {basePath} ready={mode !== 'notready'} now={NOW} />
+		<ClassroomFeed {feeds} {collapsed} {onToggle} {basePath} ready={mode !== 'notready'} now={NOW} {unitOrder} />
 	</div>
 </div>
 

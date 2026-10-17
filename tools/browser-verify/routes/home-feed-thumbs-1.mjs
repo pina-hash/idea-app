@@ -1,9 +1,13 @@
 /**
  * THE HOME PAGE'S CLASS CARDS IN TILE, the built-in default (ledger 0396): a
  * post's own thumbnail in the row's 34px mark box, a post with a picture in
- * its body keeps its cover, and every other row keeps its kind glyph. The
- * positive control for ./home-feed-thumbs-1-mine-off.mjs, which is the same
- * fixture with the person's Off.
+ * its body keeps its cover, and every other row shows the generated identity,
+ * the class page's own Tile for the post: its kind glyph on a plate tile in
+ * its unit's tint (integration review: these rows used to draw an older glyph
+ * set, untinted, so a post's mark changed between shapes and between the home
+ * page and its class). The positive control for
+ * ./home-feed-thumbs-1-mine-off.mjs, which is the same fixture with the
+ * person's Off.
  */
 import { HOME_LIST_FITS, HOME_ROWS, HOME_THUMBS, HOME_THUMBS_CONSOLE, HOME_THUMBS_READY } from './_home-feed-thumbs.mjs';
 
@@ -15,7 +19,12 @@ export default {
 		{
 			label: "each row's shape and mark",
 			evaluate: HOME_ROWS,
-			expected: ['tile image', 'tile cover', 'tile html', 'tile html', 'tile glyph', 'tile glyph', 'tile glyph', 'tile glyph', 'tile glyph']
+			expected: ['tile image', 'tile cover', 'tile html', 'tile html', 'tile generated', 'tile generated', 'tile generated', 'tile generated', 'tile generated']
+		},
+		{
+			label: "each slot's unit tint (the harness files its posts across three units; two are in none)",
+			evaluate: `() => [...document.querySelectorAll('.feed-card .assignment-list > .feed-row')].map((r) => { const pt = r.querySelector('[data-testid="post-thumb"]'); return pt ? pt.getAttribute('data-tint') : 'cover'; })`,
+			expected: ['0', 'cover', '1', '0', '1', 'none', 'none', '2', '1']
 		},
 		{ ...HOME_LIST_FITS, expected: ['fits, 0 of 9 outside, overflow clip', 'fits, 0 of 2 outside, overflow clip', 'fits, 0 of 1 outside, overflow clip'] }
 	],
