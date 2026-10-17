@@ -59,7 +59,7 @@ import type { TourStep } from './tour';
 import { classroomTourFor, resolveTourSteps, type ClassroomTourStep } from './classroom-tours';
 import type { ClassroomTourId } from '$lib/preferences/classroom';
 import { visibleApps, type PortalApp } from '$lib/portal-apps';
-import { REPORT_LABEL, REPORT_LABEL_SHORT } from '$lib/feedback/context';
+import { REPORT_LABEL } from '$lib/feedback/context';
 
 export type TourPhase = 'signin' | 'home';
 
@@ -331,7 +331,7 @@ export function homeTourDefs(tour: HomeTourId, isAdmin: boolean): HomeTourStep[]
 				{
 					target: hook('report'),
 					title: REPORT_LABEL,
-					body: `Press ${REPORT_LABEL} on any page to tell us about a problem, an idea or something that works. In a class it sits in the header as ${REPORT_LABEL_SHORT}.`
+					body: `Press ${REPORT_LABEL} on any page to tell us about a problem, an idea or something that works. It is in this same corner on every page, classes included.`
 				}
 			]
 		},

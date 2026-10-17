@@ -135,7 +135,10 @@ const CHAIN = [
 	PROPOSED_ENTRY,
 	// 0260 (supabase/migrations/0260_cert_engine.sql) reserves `certifications`
 	// for the IDEA Certification Portal at /certifications (ledger 0391).
-	'0260_cert_engine.sql'
+	'0260_cert_engine.sql',
+	// 0269 (ledger 0396) reserves `feedback`, the top-level directory of the
+	// feedback window's own page at /feedback/embed.
+	'0269_short_link_reserve_feedback.sql'
 ] as const;
 
 let db: TestDb;

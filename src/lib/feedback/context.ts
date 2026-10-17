@@ -11,31 +11,54 @@
  * only usable if it is not floating over the thing being reported on.
  */
 
+import { pendingLabel } from '$lib/pending';
+
 // ---------------------------------------------------------------------------
 // 1. WHERE THE AFFORDANCE SITS
 // ---------------------------------------------------------------------------
 
 /**
- * A surface that does NOT get the shell's floating control, and what carries
- * it instead. AN EXCLUSION RELOCATES, IT NEVER DELETES: a projected deck and a
- * running challenge are exactly the surfaces where something goes wrong, so
- * losing the report affordance there would cost the reports worth having.
+ * A surface that does NOT get the shell's floating button, and what carries a
+ * feedback control instead.
+ *
+ * ONE WINDOW, ONE BUTTON, ONE PLACE (ledger 0396, Mr. Pina: "the functionality,
+ * the interface and the location of its buttons are identical everywhere").
+ * The button sits in the bottom-right corner of every page, drawn by the root
+ * layout, and this registry is now SHORT on purpose. It used to relocate the
+ * button into the classroom header, the Armory header, the deck bar, the
+ * projector strip and the error card; every one of those is the corner button
+ * again, and the room keeps it off its own controls by reserving the corner
+ * (`--feedback-clear-block` and `--feedback-clear-inline`, declared beside the
+ * button in `FeedbackTrigger.svelte`), never by moving it.
+ *
+ * WHAT IS LEFT: the two products that keep their own feedback systems by Mr.
+ * Pina's decision (GREENLINE and VANGUARD), the IDEA Coin Ledger (served HTML
+ * with no layout, which carries the SAME button server-rendered into its bytes
+ * and opens the SAME window in a frame), and the window's own page. AN
+ * EXCLUSION STILL RELOCATES, IT NEVER DELETES: each rule names what carries
+ * the control instead.
  *
  * BY CATEGORY, NEVER BY PAGE. `match` reads a ROUTE ID, so a new page added
  * under an excluded section inherits the exclusion instead of having to
- * remember it, which is the same reason the affordance is mounted in the shell
- * in the first place.
+ * remember it, which is the same reason the button is mounted in the shell in
+ * the first place.
  */
-export type FeedbackExclusionId =
-	| 'deck'
-	| 'projector'
-	| 'classroom'
-	| 'gauntlet'
-	| 'greenline'
-	| 'vanguard'
-	| 'coins'
-	| 'armory'
-	| 'error';
+export type FeedbackExclusionId = 'greenline' | 'vanguard' | 'coins' | 'embed';
+
+/**
+ * THE FEEDBACK WINDOW'S OWN PAGE (ledger 0396), where a legacy page that
+ * renders no layout opens the official window in a same-origin frame. The
+ * address, its route id and the predicate live HERE, beside the registry that
+ * asks it, and `$lib/feedback/embed.ts` re-exports them, so the two modules
+ * import in one direction only.
+ */
+export const FEEDBACK_EMBED_PATH = '/feedback/embed';
+export const FEEDBACK_EMBED_ROUTE_ID = '/feedback/embed';
+
+/** Is this route the window itself? Read by the registry and by the root layout. */
+export function isFeedbackEmbedRoute(routeId: string | null | undefined): boolean {
+	return routeId === FEEDBACK_EMBED_ROUTE_ID;
+}
 
 export interface FeedbackExclusionRule {
 	id: FeedbackExclusionId;
@@ -57,15 +80,9 @@ const under = (prefix: string) => (routeId: string) =>
 	routeId === prefix || routeId.startsWith(prefix + '/');
 
 /**
- * The `/dev` harnesses that mount the REAL ClassroomShell, which carries the
- * relocated Report control in its header. Exported so a test can
- * sweep src/routes/dev for every harness that imports the shell and fail when
- * one is missing from this list (a harness showing both the floating pill and
- * the docked one measures an arrangement production never has).
- */
-/**
- * THE REPORT CONTROL'S WORD, spelled once (ledger 0297, LEARN). The floating
- * pill reads the long form; the classroom header docks it with the short one.
+ * THE REPORT CONTROL'S WORD, spelled once (ledger 0297, LEARN). The button
+ * reads the long form everywhere; the short one is what a tour or a sentence
+ * uses where the long one would not fit.
  * A page that tells somebody where to report reads it from here, because the
  * update log's intro pointed at the control by an old name for months after
  * the control stopped being called that.
@@ -100,6 +117,22 @@ export const FEEDBACK_GLYPH: readonly string[] = ['M4 5h16v10H10l-4.5 4v-4H4z'];
 export const PROBLEM_GLYPH: readonly string[] = ['M12 3l9 16H3z', 'M12 9v4', 'M12 16.5v.01'];
 
 /**
+ * WHAT THE BUTTON SAYS WHEN THE WINDOW BEHIND IT DID NOT LOAD, spelled once
+ * (ledger 0396). The Svelte control's lazy chunk and the legacy launcher's
+ * frame fail for the same reasons (offline, a deploy that rotated the files
+ * under an open tab), so they say the same sentence beside the same button.
+ */
+export const FEEDBACK_LOAD_FAILED =
+	'The feedback window did not load. Check the connection and press it again.';
+
+/**
+ * WHAT THE BUTTON SAYS BETWEEN THE PRESS AND THE WINDOW (ledger 0396): a cold
+ * tap on a phone, where nothing hovers first to load the window early, waits
+ * for it, and the wait is said rather than silent. `$lib/pending`'s spelling.
+ */
+export const FEEDBACK_OPENING = pendingLabel('Opening');
+
+/**
  * WHERE THE REPORTS GO, for an admin (report R15, 2026-09-30): the report box
  * links straight to the console from its own header. Spelled once, so the
  * link, the "already here" test in `SiteFeedback` and the harness cannot name
@@ -126,127 +159,7 @@ export function feedbackConsoleHref(isAdmin: unknown, pathname: string): string 
 	return FEEDBACK_CONSOLE_PATH;
 }
 
-export const CLASSROOM_SHELL_HARNESSES = [
-	'/dev/animated-logo-room',
-	'/dev/classroom',
-	'/dev/classroom-live',
-	'/dev/classroom-nav',
-	'/dev/classroom-palette',
-	'/dev/classroom-profile-menu',
-	'/dev/classroom-split',
-	'/dev/classroom-stream',
-	'/dev/classroom-student',
-	'/dev/classroom-theme',
-	'/dev/classroom-todo',
-	'/dev/classroom-tour',
-	'/dev/classroom-view-as-notebook',
-	'/dev/item-gallery',
-	'/dev/item-returned',
-	'/dev/notebook',
-	'/dev/notebook-capture',
-	'/dev/notebook-review',
-	'/dev/notebook-review-student',
-	'/dev/notebook-timeline',
-	'/dev/quick-note',
-	'/dev/theme-switch',
-	'/dev/themes-shape'
-] as const;
-
-/**
- * The `/dev` harnesses that mount a classroom SURFACE without the shell around
- * it (the grading console, People). In production those surfaces sit under
- * `/classroom`, where the controls are docked in the header and nothing
- * floats over them, so the harness takes the same exclusion: a floating pill
- * over the grading dock in a harness is an arrangement production never has.
- */
-export const CLASSROOM_SURFACE_HARNESSES = [
-	'/dev/grading',
-	'/dev/grading-bulk',
-	'/dev/grading-rubric',
-	'/dev/presence',
-	'/dev/instructor-tools'
-] as const;
-
 export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
-	{
-		id: 'deck',
-		label: 'Presentation deck',
-		relocatedTo: 'the deck control bar',
-		// The stage is projected onto a wall. A floating control over it is in
-		// the photograph of the lesson.
-		match: (routeId) =>
-			// A `/classroom/view-as/.../deck` alternative used to sit here. It never
-			// matched anything -- the view-as tree has never had a deck route -- and
-			// the class and item previews it was written in anticipation of are now
-			// deleted outright. Removing an alternative that matched no route is not
-			// removing an exclusion: no surface loses or gains the control.
-			/^\/classroom\/\[sectionId\]\/item\/\[itemId\]\/deck$/.test(routeId) ||
-			under('/dev/classroom-deck')(routeId),
-		samples: ['/classroom/[sectionId]/item/[itemId]/deck', '/dev/classroom-deck']
-	},
-	{
-		id: 'projector',
-		label: 'Class projector view',
-		relocatedTo: "the projector view's own strip, beside Full screen",
-		// The class's wall display (ledger 0297): the agenda, the clock and the
-		// timer, projected. A floating control over it is on the wall in front of
-		// the class, exactly as it would be over a deck.
-		match: (routeId) =>
-			routeId === '/classroom/[sectionId]/live/projector' || under('/dev/classroom-projector')(routeId),
-		samples: ['/classroom/[sectionId]/live/projector', '/dev/classroom-projector']
-	},
-	{
-		id: 'classroom',
-		label: 'IDEA Classroom and the notebook inside it',
-		relocatedTo: 'the classroom header, in its own slot before the profile menu, at every width',
-		// LEDGER 0297, report 34's neighbour: the floating Report and Voice pills
-		// sat over live classroom content on every class and notebook page -- a
-		// row's checkbox and grip, a menu trigger, People's Deactivate and Remove,
-		// the grading dock's Return button at 960, the photo corrector's buttons
-		// -- and a hit test at the overlap answered the pill. The room has chrome
-		// of its own on every one of those pages, so Report docks into it
-		// (ClassroomShell mounts SiteFeedback at `place="relocated"`), and nothing
-		// floats over the class any more. Voice has no pill at all since ledger
-		// 0298 (report 31): it is the command palette's Speak control.
-		//
-		// REPORT NEVER FOLDS INTO THE MENU (report 30, 2026-09-25). Below 1180px
-		// the header's tools fold behind one Menu button; Report used to fold with
-		// them, so on a narrow window it was one press away and read as missing
-		// ("the report button does not show up in the classroom app", report 20).
-		// It has its own slot outside the fold now, visible at every width.
-		//
-		// AFTER THE DECK AND THE PROJECTOR, the two classroom routes with chrome
-		// of their own (the deck's bar, the wall strip) and which this rule must
-		// not claim: the first match wins.
-		// The dev harnesses that mount the real ClassroomShell are listed so a
-		// measurement there sees the production arrangement and not a pill over
-		// the fixture with a second copy in the header.
-		match: (routeId) =>
-			under('/classroom')(routeId) ||
-			CLASSROOM_SHELL_HARNESSES.some((p) => under(p)(routeId)) ||
-			CLASSROOM_SURFACE_HARNESSES.some((p) => under(p)(routeId)),
-		samples: [
-			'/classroom',
-			'/classroom/[sectionId]',
-			'/classroom/[sectionId]/item/[itemId]',
-			'/classroom/[sectionId]/people',
-			'/classroom/[sectionId]/notebook',
-			'/classroom/notebook',
-			'/classroom/todo',
-			'/dev/classroom-split/[sectionId]'
-		]
-	},
-	{
-		id: 'gauntlet',
-		label: 'GAUNTLET',
-		relocatedTo: 'the GAUNTLET viewport footer',
-		// The whole section, not just the timed runs: the VIEWPORT owns its own
-		// chrome and a portal-styled control floating in it is off-brand as well
-		// as in the way. The footer renders on every /gauntlet page, so the
-		// relocation covers the section the same way the exclusion does.
-		match: under('/gauntlet'),
-		samples: ['/gauntlet', '/gauntlet/speedrun/[id]', '/gauntlet/rooms/[id]']
-	},
 	{
 		id: 'greenline',
 		label: 'GREENLINE',
@@ -254,8 +167,15 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// The race route ONLY. The track and piece builders are ordinary pages
 		// with ordinary chrome and keep the shell control; the game is the one
 		// that is a live 3D surface with menus of its own to put this in.
-		match: (routeId) => routeId === '/greenline',
-		samples: ['/greenline']
+		//
+		// AND ITS HARNESS (review round 2 of ledger 0396): `/dev/greenline-portal`
+		// mounts the REAL GREENLINE portal, its own Send feedback included, so
+		// with the corner button floating over it too the harness showed two
+		// controls where the race shows one -- a harness must mirror the whole
+		// mechanism it stands in for. The builder harnesses are the builders'
+		// stand-ins and keep the corner button, as the builders do.
+		match: (routeId) => routeId === '/greenline' || routeId === '/dev/greenline-portal',
+		samples: ['/greenline', '/dev/greenline-portal']
 	},
 	{
 		id: 'vanguard',
@@ -288,7 +208,8 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'coins',
 		label: 'IDEA Coin Ledger',
-		relocatedTo: "the Ledger's own Feedback button, in the page header beside Share",
+		relocatedTo:
+			'the same Send feedback button, server-rendered into the Ledger at the bottom right, opening the same window in a frame (/feedback/embed)',
 		// The Ledger is carried-over legacy HTML served from a `+server.ts`
 		// (`src/routes/coins/[...path]/+server.ts`) and renders no layout at all,
 		// so this rule excludes nothing the shell mount could ever have reached
@@ -296,13 +217,14 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// stands: a coin surface that DOES render the shell inherits the
 		// exclusion rather than discovering it in front of a class.
 		//
-		// The page carries a real report control now, injected into the served
-		// HTML by `$lib/server/legacy-report-panel.ts`, reaching the SAME
-		// feedback system as everything else: signed in posts through
-		// `/api/coin-feedback` (the RLS-scoped insert, as the caller), signed
-		// out through the shared anonymous route. Both land in `app_feedback`
-		// carrying the same capture. Unlike VANGUARD there is only ONE control
-		// on this page.
+		// LEDGER 0396 (reports 0fe82a80 and 80bb4d23): the page used to carry a
+		// hand-built imitation of the box, injected by a module of its own, and
+		// Mr. Pina called it "an inferior design". It now carries the REAL
+		// `FeedbackTrigger`, server-rendered into its bytes in the official
+		// position by `$lib/server/feedback-launch.ts`, and the button opens the
+		// REAL window -- this site's own `/feedback/embed` page -- in a frame
+		// placed exactly where the home box opens. The report records the Ledger
+		// (its route, path, tab and build), never the frame.
 		//
 		// `/coin-desk` and `/coin-balance` are NOT claimed by this rule.
 		// `appForRouteId` folds all three onto the app id 'coins', but those two
@@ -312,46 +234,59 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		samples: ['/coins', '/coins/[...path]']
 	},
 	{
-		id: 'armory',
-		label: 'IDEA Armory',
-		relocatedTo: 'the Armory header, before the profile menu, at every width',
-		// The floating pill sat over Armory's own controls: the file filters at
-		// 375 and the Add people box at the foot of a 1440 window (the committed
-		// screenshots of 2026-10-06). Every Armory page renders ArmoryFrame, whose
-		// header mounts SiteFeedback at place="relocated" (decision of 2026-10-07),
-		// and so does the /dev/armory harness, which is listed so a measurement
-		// there sees the production arrangement.
-		match: (routeId) => under('/armory')(routeId) || under('/dev/armory')(routeId),
-		samples: ['/armory', '/armory/[project]', '/armory/[project]/file/[file]', '/armory/start', '/dev/armory']
-	},
-	{
-		id: 'error',
-		label: 'Error boundary',
-		relocatedTo: 'the error page report panel, with the status filled in',
-		// Not a route: `feedbackExclusion` is asked with the error flag set. The
-		// error page mounts the affordance itself, prominently and prefilled, so
-		// the floating copy beside it would be a second control offering less.
-		match: () => false,
-		samples: []
+		id: 'embed',
+		label: 'The feedback window itself',
+		relocatedTo: 'nowhere: this page IS the window, and its button is on the page that framed it',
+		// `/feedback/embed` renders the official box alone, inside a frame a
+		// legacy page opened (ledger 0396). A floating button over it would be a
+		// second button drawn inside the window it opens -- the frame covers the
+		// whole viewport while it is up -- so the shell draws none here. The
+		// relocation is real all the same: the framing page carries the same
+		// `FeedbackTrigger`, server-rendered into its bytes.
+		match: isFeedbackEmbedRoute,
+		samples: [FEEDBACK_EMBED_ROUTE_ID]
 	}
 ];
 
-const BY_ID = new Map(FEEDBACK_EXCLUSIONS.map((r) => [r.id, r]));
-
 /**
- * Which category (if any) takes the affordance off the shell for this route.
+ * Which category (if any) takes the button off the shell for this route.
  * Null means the shell shows it, which is the default every new route gets.
+ *
+ * AN ERROR PAGE IS NEVER EXCLUDED (ledger 0396). The error boundary replaces
+ * the page, so a room's own control (GREENLINE's menus, VANGUARD's button) is
+ * not on screen to relocate to; the corner button is, with the status, the
+ * route and the reference already captured, and the error card's own "Tell us
+ * what happened" opens that same window (`openSiteFeedback`).
  */
 export function feedbackExclusion(
 	routeId: string | null | undefined,
 	opts: { hasError?: boolean } = {}
 ): FeedbackExclusionRule | null {
-	if (opts.hasError) return BY_ID.get('error') ?? null;
+	if (opts.hasError) return null;
 	if (!routeId) return null;
 	for (const rule of FEEDBACK_EXCLUSIONS) {
 		if (rule.match(routeId)) return rule;
 	}
 	return null;
+}
+
+/**
+ * DOES THE CORNER BUTTON WEAR THE CLASSROOM'S PLATE HERE? (ledger 0396)
+ *
+ * The button and its window are mounted by the root layout, a SIBLING of every
+ * page, so a room's plate (`.cr-root` carrying `CLASSROOM_PLATE`) never reaches
+ * them by ancestry. The site-plate pages wrap their siblings in the plate
+ * already; every `/classroom` route is the other production room that draws a
+ * plate, and the root layout wraps the window in the same class there, so the
+ * classroom's button is the home page's key and its window the home page's
+ * box, in the site theme. An error page draws no room, so it gets no plate.
+ */
+export function feedbackWearsClassroomPlate(
+	routeId: string | null | undefined,
+	hasError = false
+): boolean {
+	if (hasError || !routeId) return false;
+	return under('/classroom')(routeId);
 }
 
 /**
@@ -497,6 +432,13 @@ export interface FeedbackContextInput {
 	errorMessage?: string | null;
 	/** The id handleError logged, so a server log and a report can be joined. */
 	errorId?: string | null;
+	/**
+	 * WHICH SCREEN OF THE PAGE, where one address carries several: the Coin
+	 * Ledger answers five tabs on one URL, so its tab is the only thing that
+	 * says which screen a report is about (ledger 0396 carries it across the
+	 * feedback window's frame, as the injected panel it replaced did).
+	 */
+	tab?: string | null;
 }
 
 /** A path with every email-shaped segment (raw `@` or encoded `%40`) replaced by `:student`. */
@@ -536,6 +478,7 @@ export function captureMeta(input: FeedbackContextInput): Record<string, unknown
 	if (typeof input.status === 'number') meta.status = input.status;
 	if (input.errorMessage) meta.error = input.errorMessage;
 	if (input.errorId) meta.errorId = input.errorId;
+	if (input.tab) meta.tab = input.tab;
 	return meta;
 }
 

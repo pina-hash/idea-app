@@ -36,19 +36,11 @@
 	let {
 		deck,
 		backHref,
-		backLabel = 'Back',
-		controls
+		backLabel = 'Back'
 	}: {
 		deck: ClassroomDeck;
 		backHref: string;
 		backLabel?: string;
-		/**
-		 * Extra chrome for the bar. THE STAGE IS PROJECTED, so nothing may float
-		 * over it: the shell's report affordance is excluded on this route and the
-		 * route hands it in here instead, where it sits in the bar the viewer
-		 * already owns rather than in the photograph of the lesson.
-		 */
-		controls?: import('svelte').Snippet;
 	} = $props();
 
 	let frame = $state<HTMLIFrameElement | null>(null);
@@ -285,9 +277,6 @@
 		<button type="button" class="deck-btn" onclick={toggleFullscreen}>
 			{isFull ? 'Exit full screen' : 'Full screen'}
 		</button>
-		{#if controls}
-			<span class="deck-extra">{@render controls()}</span>
-		{/if}
 	</div>
 
 	<div class="deck-screen">
@@ -348,6 +337,16 @@
 		flex-direction: column;
 		background: #000;
 	}
+	/* THE CORNER IS THE FEEDBACK BUTTON'S, AND THE SLIDE NEVER SITS UNDER IT
+	   (ledger 0396). The button is the root layout's, in the bottom-right corner
+	   as on every page, so outside full screen the stage stops short of it: a
+	   black band the height of the button's clearance, where the slide's
+	   letterbox already is. In full screen the band goes and so does the
+	   button, because the full-screen element is this page and the button is
+	   not inside it: a projected lesson shows nothing to click. */
+	.deck-page:not(.full) {
+		padding-bottom: var(--feedback-clear-block, 0px);
+	}
 	.deck-screen {
 		position: relative;
 		flex: 1 1 auto;
@@ -375,10 +374,6 @@
 	}
 	.deck-spacer {
 		flex: 1;
-	}
-	.deck-extra {
-		display: inline-flex;
-		align-items: center;
 	}
 	.deck-title {
 		font-family: var(--font-mono);

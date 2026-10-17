@@ -9,7 +9,7 @@
  * the order-result row turns them into a verdict; the `contrast` rows below
  * are the harness's own text reads of the same box, for a second instrument.
  */
-import { OPEN_REPORT_BOX, ROOM_INKS, ROOM_INKS_CHECK, TYPE_REPORT } from './_report-room.mjs';
+import { HOME_METRICS_CHECK, OPEN_REPORT_BOX, ROOM_INKS, ROOM_INKS_CHECK, TYPE_REPORT } from './_report-room.mjs';
 
 export default {
 	path: '/dev/fsp-tech-selection?report=room',
@@ -34,5 +34,5 @@ export default {
 		{ selector: '.sfb-shell .sfb-trigger', label: 'the floating report control', min: 44 },
 		{ selector: '.fb-box .fb-btn', label: 'the box buttons', min: 44 }
 	],
-	orderResult: [ROOM_INKS_CHECK]
+	orderResult: [ROOM_INKS_CHECK, HOME_METRICS_CHECK]
 };

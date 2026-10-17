@@ -1,7 +1,7 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
-	import { REPORT_LABEL_SHORT } from '$lib/feedback/context';
+	import { REPORT_LABEL } from '$lib/feedback/context';
 	import { CLASSROOM_UPDATES, updateDateLabel, updatesByDay, updatesByMonth } from '$lib/classroom/updates';
 
 	/**
@@ -56,7 +56,7 @@
 		<h1>What's new</h1>
 		<p class="lead" data-testid="updates-lead">
 			Everything that has changed in IDEA Classroom, newest first. If something here does not match
-			what you see, press {REPORT_LABEL_SHORT} at the top of the page.
+			what you see, press {REPORT_LABEL} at the bottom right of the page.
 		</p>
 	</section>
 

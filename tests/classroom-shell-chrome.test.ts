@@ -1,8 +1,10 @@
 /**
  * THE CLASSROOM MASTHEAD (ledger 0297, package F2): class icons in the banner
- * (report 26) and the Report control docked into the room's own chrome
- * instead of floating over its content (Voice, docked beside it until ledger
- * 0298, is the command palette's Speak control now).
+ * (report 26). The feedback control was docked into this header from ledger
+ * 0297 until ledger 0396, which put it back in the page's bottom-right corner,
+ * the same place on every page (Mr. Pina: "the location of its buttons are
+ * identical everywhere"). Voice, docked beside it until ledger 0298, is the
+ * command palette's Speak control.
  *
  * Two guarantees here would regress SILENTLY, which is why they are tests and
  * not only a browser spec:
@@ -10,17 +12,18 @@
  *   - the icon's glyph is DERIVED (there is no per-section glyph in the data),
  *     and a derivation that quietly started printing the same glyph for every
  *     IDEA course would still render 44px squares with text in them;
- *   - every `/dev` harness that mounts the real ClassroomShell must be in the
- *     `classroom` exclusion, or it shows the floating pill AND the docked one
- *     and measures an arrangement production never has. The list is swept
- *     against the tree in BOTH directions, with the tree read as the positive
- *     control (a sweep that found nothing proves nothing).
+ *   - every `/dev` harness that mounts the real ClassroomShell must be in
+ *     `CLASSROOM_SHELL_HARNESSES`, or the quick note's predicate says no there
+ *     and the harness measures a header production never has. The list is
+ *     swept against the tree in BOTH directions, with the tree read as the
+ *     positive control (a sweep that found nothing proves nothing).
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { classGlyph, classGlyphCode, compactSectionField, CLASS_GLYPH_MAX } from '../src/lib/classroom/class-glyph';
-import { CLASSROOM_SHELL_HARNESSES, CLASSROOM_SURFACE_HARNESSES, feedbackExclusion } from '../src/lib/feedback/context';
+import { feedbackExclusion, feedbackWearsClassroomPlate } from '../src/lib/feedback/context';
+import { CLASSROOM_SHELL_HARNESSES, quickNoteOffered } from '../src/lib/notebook/quick-note';
 
 const ROOT = new URL('../', import.meta.url).pathname;
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -57,43 +60,70 @@ describe('a class glyph is derived from the course code and the section', () => 
 	});
 });
 
-describe('Report is docked in the classroom chrome, and nothing floats over it', () => {
+describe('the feedback button is the corner button on every classroom page, and the header docks none', () => {
 	/*
-	 * GENERALIZED (ledger 0298, report 31) FROM "the shell mounts both". Voice
-	 * has no control of its own any more, docked or floating: it is the command
-	 * palette's Speak button. What stays true is that nothing floats over the
-	 * class -- so the assertion is now that no voice pill is mounted anywhere,
-	 * with the palette's microphone as the positive control that voice was
-	 * moved rather than dropped.
+	 * REWRITTEN (ledger 0396) FROM "Report is docked in the classroom chrome".
+	 * What stays true is that nothing floats over the class that the class has
+	 * not reserved room for: no voice pill anywhere (the palette's microphone is
+	 * the positive control that voice was moved rather than dropped), and the
+	 * header mounts no second feedback window. The one window is the root
+	 * layout's, and its corner is the same on every page.
 	 */
-	it('the shell mounts Report relocated, and neither the shell nor the root mounts a voice pill', () => {
+	it('the shell mounts no feedback window and no voice pill; the root layout mounts the one window', () => {
 		const shell = read('src/lib/classroom/ClassroomShell.svelte');
-		expect(shell).toMatch(/<SiteFeedback[\s\S]*?place="relocated"/);
+		expect(shell).not.toMatch(/<SiteFeedback/);
+		expect(shell).not.toMatch(/data-testid="shell-report"/);
 		expect(shell).not.toMatch(/VoiceNav/);
-		expect(read('src/routes/+layout.svelte')).not.toMatch(/VoiceNav/);
-		// POSITIVE CONTROL: the palette the shell mounts carries the microphone.
+		const root = read('src/routes/+layout.svelte');
+		expect(root).not.toMatch(/VoiceNav/);
+		// POSITIVE CONTROLS: the root layout mounts the window, and the palette
+		// the shell mounts carries the microphone.
+		expect(root).toMatch(/<SiteFeedback/);
 		expect(shell).toMatch(/<CommandPalette/);
 		expect(read('src/lib/shell/CommandPalette.svelte')).toContain('data-testid="palette-mic"');
 	});
 
-	it('every classroom route is claimed, except the deck, which has its own bar', () => {
+	it('no classroom route takes the button off the corner, the deck and the projector included', () => {
 		for (const r of [
 			'/classroom',
 			'/classroom/[sectionId]',
 			'/classroom/[sectionId]/item/[itemId]',
 			'/classroom/[sectionId]/item/[itemId]/grade',
+			'/classroom/[sectionId]/item/[itemId]/deck',
+			'/classroom/[sectionId]/live/projector',
 			'/classroom/[sectionId]/people',
+			'/classroom/[sectionId]/people/[studentEmail]/work/[itemId]',
 			'/classroom/[sectionId]/notebook',
 			'/classroom/notebook/review',
 			'/classroom/todo'
 		]) {
-			expect(feedbackExclusion(r)?.id, r).toBe('classroom');
+			expect(feedbackExclusion(r), r).toBeNull();
+			// ...and the window there wears the classroom's own plate.
+			expect(feedbackWearsClassroomPlate(r), r).toBe(true);
 		}
-		expect(feedbackExclusion('/classroom/[sectionId]/item/[itemId]/deck')?.id).toBe('deck');
-		// Positive control on the other side: ordinary rooms keep the pill.
-		expect(feedbackExclusion('/foundry')).toBeNull();
-		expect(feedbackExclusion('/classroomx')).toBeNull();
-		expect(feedbackExclusion('/reference/[itemId]')).toBeNull();
+		// Positive control on the other side: a product that keeps its own
+		// feedback system is still excluded, so the predicate is not just null.
+		expect(feedbackExclusion('/greenline')?.id).toBe('greenline');
+		expect(feedbackWearsClassroomPlate('/classroomx')).toBe(false);
+		expect(feedbackWearsClassroomPlate('/foundry')).toBe(false);
+		// An error page draws no room, so the window there takes no plate.
+		expect(feedbackWearsClassroomPlate('/classroom/[sectionId]', true)).toBe(false);
+	});
+
+	it('no relocated feedback window is mounted anywhere outside the feedback harness', () => {
+		const offenders: string[] = [];
+		const walk = (dir: string) => {
+			for (const name of readdirSync(dir)) {
+				const full = join(dir, name);
+				if (statSync(full).isDirectory()) walk(full);
+				else if (name.endsWith('.svelte') && /<SiteFeedback[\s\S]*?place="relocated"/.test(readFileSync(full, 'utf8')))
+					offenders.push(full.slice(ROOT.length));
+			}
+		};
+		walk(join(ROOT, 'src'));
+		// The two harnesses that mount several inline windows side by side (the
+		// corner cannot hold more than one) are the only callers left.
+		expect(offenders.sort()).toEqual(['src/routes/dev/classroom/+page.svelte', 'src/routes/dev/feedback/+page.svelte']);
 	});
 
 	it('the harness list is exactly the /dev routes that mount the real shell', () => {
@@ -114,17 +144,7 @@ describe('Report is docked in the classroom chrome, and nothing floats over it',
 		expect(found.has('/dev/classroom-split')).toBe(true);
 		expect(found.size).toBeGreaterThan(5);
 		expect([...found].sort()).toEqual([...CLASSROOM_SHELL_HARNESSES].sort());
-		for (const h of CLASSROOM_SHELL_HARNESSES) expect(feedbackExclusion(h)?.id, h).toBe('classroom');
-	});
-
-	it('the shell-less classroom harnesses exist and are claimed too', () => {
-		const devRoot = join(ROOT, 'src/routes/dev');
-		for (const h of CLASSROOM_SURFACE_HARNESSES) {
-			expect(statSync(join(devRoot, h.slice('/dev/'.length), '+page.svelte')).isFile(), h).toBe(true);
-			expect(feedbackExclusion(h)?.id, h).toBe('classroom');
-			// None of them is a shell harness: the two lists do not overlap.
-			expect((CLASSROOM_SHELL_HARNESSES as readonly string[]).includes(h), h).toBe(false);
-		}
+		for (const h of CLASSROOM_SHELL_HARNESSES) expect(quickNoteOffered(h), h).toBe(true);
 	});
 });
 

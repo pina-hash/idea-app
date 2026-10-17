@@ -153,7 +153,11 @@ describe('the words are written for somebody who was never shown anything', () =
 			const step = homeTourDefs(tour, false).find((d) => d.id === 'report')!;
 			expect(step.variants[0].title).toBe(REPORT_LABEL);
 			expect(step.variants[0].body).toContain(REPORT_LABEL);
-			expect(step.variants[0].body).toContain(REPORT_LABEL_SHORT);
+			// It says where the button is, and since ledger 0396 that is the same
+			// corner everywhere: no second, shorter name for a docked copy in a
+			// class header, because there is no docked copy.
+			expect(step.variants[0].body).toMatch(/same corner on every page/);
+			expect(step.variants[0].body).not.toContain(`as ${REPORT_LABEL_SHORT}`);
 		}
 		const source = readFileSync(join(process.cwd(), 'src/lib/tour/orientation.ts'), 'utf8');
 		expect(source).not.toContain(REPORT_LABEL);

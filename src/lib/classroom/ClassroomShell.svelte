@@ -27,12 +27,7 @@
 	import { formatSectionLabel } from '$lib/section-label';
 	import { classGlyph } from '$lib/classroom/class-glyph';
 	import { anchored } from '$lib/shell/anchored';
-	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import QuickNoteDock from '$lib/notebook/QuickNoteDock.svelte';
-	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
-	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
-	import { version as buildId } from '$app/environment';
-	import { deploy } from 'virtual:site-versions';
 	import CommandPalette from '$lib/shell/CommandPalette.svelte';
 	import ClassroomSettings from '$lib/classroom/ClassroomSettings.svelte';
 	import ClassroomTour from '$lib/tour/ClassroomTour.svelte';
@@ -132,17 +127,15 @@
 	let stripEl = $state<HTMLElement | null>(null);
 
 	/*
-	 * REPORT LIVES IN THIS HEADER (ledger 0297). `FEEDBACK_EXCLUSIONS` takes
-	 * the floating pill off every classroom route (its `classroom` rule), and
-	 * this is where it reappears, so nothing floats over a row, a grip or a
-	 * Return button. VOICE HAS NO CONTROL HERE ANY MORE (ledger 0298, report
-	 * 31): it is the Speak button inside the command palette, which is on
-	 * every classroom page already. The same props the root mount hands
-	 * SiteFeedback, derived the same way the GAUNTLET layout derives them for
-	 * its own relocation: one predicate for the writer and the anonymous flag.
-	 * Not on the deck: that route has its own bar and its own relocation.
+	 * THE FEEDBACK BUTTON IS NOT IN THIS HEADER ANY MORE (ledger 0396, Mr.
+	 * Pina: "the location of its buttons are identical everywhere"). It used
+	 * to be docked here (ledger 0297, reports 20 and 30); it is the root
+	 * layout's own button now, in the bottom-right corner of every classroom
+	 * page, and the room keeps it off its controls by reserving that corner
+	 * (`--feedback-clear-block`, see `$lib/feedback/FeedbackTrigger.svelte`).
+	 * VOICE HAS NO CONTROL HERE EITHER (ledger 0298, report 31): it is the
+	 * Speak button inside the command palette.
 	 */
-	const feedbackBuild = describeBuild(deploy, buildId);
 
 	/*
 	 * THE QUICK NOTE (ledger 0298). Its control is in the row from 560px up; below
@@ -154,8 +147,6 @@
 	 */
 	let quickNoteDock = $state<ReturnType<typeof QuickNoteDock> | null>(null);
 	let quickNoteHere = $state(false);
-	const feedbackSubmit = $derived(feedbackWriter(page.data.supabase, page.data.claims?.sub));
-	const feedbackAnonymous = $derived(feedbackIsAnonymous(page.data.supabase, page.data.claims?.sub));
 
 	/**
 	 * THE NAV-COLLAPSE TOGGLE (see $lib/classroom/nav-collapse.ts for why this
@@ -429,8 +420,9 @@
 	the group is the class menu and the tools in a row; below it the tools fold
 	into ONE labeled Menu button with the class list inside it. Nothing is
 	dropped: every control is either in the row or one press away in the Menu,
-	and the command palette reaches Settings and the theme too. Report is the
-	exception to the fold and stays in the row at every width (report 30).
+	and the command palette reaches Settings and the theme too. The feedback
+	button is not in this row at all: it is the root layout's corner button,
+	in the same place on every page (ledger 0396).
 -->
 <div class="app-header cr-header" class:cr-header-minimal={minimal}>
 	{#if minimal}
@@ -729,22 +721,14 @@
 			{/if}
 		</div>
 		<!--
-			REPORT HAS ITS OWN SLOT AND NEVER FOLDS INTO THE MENU (report 30,
-			2026-09-25: "the report button has to be immediately accessible").
-			It used to sit in a docked group beside Voice, inside the tools the
-			fold hides below 1180px, so on a narrow window -- where most of that
-			evening's reports were filed -- it was one press inside Menu and read
-			as missing (report 20). It is outside `.shell-tools` now, so the fold
-			cannot reach it: in the row above the breakpoint exactly where it
-			was, and still in the row below it, before the profile menu. Below
-			480px it stacks its word under its glyph (as Menu does) so a phone
-			keeps a class icon beside it. Not on the deck, which has its own
-			bar and its own relocation.
+			NO FEEDBACK SLOT HERE (ledger 0396). The header used to dock the
+			feedback control in its own slot outside the fold (reports 20 and 30);
+			it is the root layout's corner button now, on every classroom page,
+			which is also never folded away.
 		-->
 		<!--
-			THE QUICK NOTE (ledger 0298, R33) docks here, beside Report and outside
-			the fold, for the reason Report does: a control that is one press inside
-			Menu reads as missing. Below 560px there is no room for it in the row
+			THE QUICK NOTE (ledger 0298, R33) docks here, outside the fold: a control
+			that is one press inside Menu reads as missing. Below 560px there is no room for it in the row
 			without losing the last class icon, so there it is the Menu's first
 			entry instead (`quicknote-menu-item`, and the CSS at the fold). Never
 			floating (0297 took the floating pills off the classroom), never on the
@@ -760,21 +744,6 @@
 				itemTitle={quickNoteItemTitle}
 				anchorFallback={() => switcherEl?.querySelector<HTMLElement>('.menu-trigger')}
 			/>
-		{/if}
-		{#if loc.place !== 'item-deck' && feedbackSubmit}
-			<span class="shell-report" data-testid="shell-report">
-				<SiteFeedback
-					place="relocated"
-					label={REPORT_LABEL_SHORT}
-					routeId={page.route.id}
-					pathname={page.url.pathname}
-					role={page.data.userProfile?.role ?? null}
-					sectionId={page.params.sectionId ?? null}
-					build={feedbackBuild}
-					submit={feedbackSubmit}
-					anonymous={feedbackAnonymous}
-				/>
-			</span>
 		{/if}
 		<ProfileMenu />
 	</div>
@@ -1303,18 +1272,6 @@
 		align-items: center;
 		gap: var(--space-2);
 	}
-	/* Docked, the report control is one of the header's tools and takes their
-	   shape and their load-bearing edge rather than the floating pill's. Its
-	   slot sits OUTSIDE `.shell-tools`, so the fold below never hides it. */
-	.shell-report {
-		flex: none;
-		display: inline-flex;
-		align-items: center;
-	}
-	.shell-report :global(.sfb-trigger) {
-		border-radius: var(--radius-card);
-		border-color: var(--boundary);
-	}
 	.shell-tool {
 		appearance: none;
 		display: inline-flex;
@@ -1371,11 +1328,12 @@
 	   BELOW 1180px the tools do not fit beside a class row worth having, so
 	   they fold behind the Menu button and the class list folds in with them.
 	   The breakpoint is where the full row stops fitting a teacher's masthead
-	   (logo, Classes, Search, Settings, Light, Tour, Report and the profile
-	   menu; Voice left the row for the palette in ledger 0298); a student's
-	   row carries To-do as well. It is the same DOM in both arrangements -- one copy of every control -- so no test id is doubled and
-	   no control has a second handler to keep in step. REPORT IS NOT IN WHAT
-	   FOLDS: its slot is outside `.shell-tools` (report 30). */
+	   (logo, Classes, Search, Settings, Light, Tour and the profile menu;
+	   Voice left the row for the palette in ledger 0298, and the feedback
+	   button for the page's corner in ledger 0396); a student's row carries
+	   To-do as well. It is the same DOM in both arrangements -- one copy of
+	   every control -- so no test id is doubled and no control has a second
+	   handler to keep in step. */
 	@media (max-width: 1179.98px) {
 		.menu-trigger {
 			display: inline-flex;
@@ -1430,17 +1388,18 @@
 		}
 	}
 
-	/* --- A phone: Menu and Report stack their word under their glyph --------
-	   REPORT STAYS IN THE ROW AT EVERY WIDTH (report 30), and in a row it costs
-	   width the class icons need. Measured on /dev/theme-switch at 375 with the
-	   profile menu present (avatar and pathway chip, 100.6px): the icons had
-	   about 36px to spare, and Report in its row form is 94.8px, so beside an
-	   unchanged 75.8px Menu the class row would have gone to nothing. Stacked,
-	   each keeps its glyph AND its word and needs the 44px floor, not a line's
-	   width. Above 480px the row form fits beside a class icon, so it stays. */
+	/* --- A phone: Menu stacks its word under its glyph ----------------------
+	   In a row its word costs width the class icons need. Measured on
+	   /dev/theme-switch at 375 with the profile menu present (avatar and
+	   pathway chip, 100.6px): the icons had about 36px to spare beside a
+	   75.8px Menu. Stacked, it keeps its glyph AND its word and needs the 44px
+	   floor, not a line's width. The right-hand group's gaps halve (8px to 4px,
+	   still no two boxes touching), which was measured when the feedback
+	   control still shared this row (2026-10-07) and is kept: the room it
+	   frees goes to the class icons. Above 480px the row form fits beside a
+	   class icon, so it stays. */
 	@media (max-width: 479.98px) {
-		.menu-trigger,
-		.shell-report :global(.sfb-trigger) {
+		.menu-trigger {
 			flex-direction: column;
 			justify-content: center;
 			gap: 2px;
@@ -1450,27 +1409,6 @@
 		.menu-trigger .shell-tool-word {
 			font-size: 0.7rem;
 			line-height: 1;
-		}
-		.shell-report :global(.sfb-trigger) {
-			font-size: 0.6rem;
-			letter-spacing: 0.04em;
-			line-height: 1;
-		}
-		/* "FEEDBACK" IS TWO LETTERS LONGER THAN "REPORT" (2026-10-07, report
-		   e36c5437), and the word may not shrink: the plate holds every mono
-		   label at its 11px floor, which is what the stacked word measures
-		   (49.3px). Measured at 375 with the old spacing: the control was
-		   48.6px wide reading REPORT and 60.9px reading FEEDBACK, and the
-		   class row lost exactly those 12.3px, from 60.9px to 48.6px -- the
-		   same two figures trading places, which is arithmetic, not a typo --
-		   leaving it under the 52.9px of one class icon.
-		   The room comes from the row instead: the right-hand group's gaps
-		   halve (8px to 4px, still no two boxes touching) and the stacked
-		   control's sides go to 4px, the control-fit sweep's own inset floor.
-		   Measured at 375 on /dev/theme-switch: control 59.3px, class row
-		   58.2px, one whole class icon with 2.3px to spare. */
-		.shell-report :global(.sfb-trigger) {
-			padding: 0 0.25rem;
 		}
 		.cr-header :global(.header-right) {
 			gap: var(--space-1);

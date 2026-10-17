@@ -1,18 +1,11 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
-	import { page } from '$app/state';
-	import { version as buildId } from '$app/environment';
-	import { deploy } from 'virtual:site-versions';
-	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
-	import { describeBuild } from '$lib/feedback/context';
 	import '$lib/gauntlet/viewport/viewport.css';
 	import ViewportBackground from '$lib/gauntlet/viewport/ViewportBackground.svelte';
 	import CursorLayer from '$lib/gauntlet/viewport/CursorLayer.svelte';
 	import FeatureTreeNav from '$lib/gauntlet/viewport/FeatureTreeNav.svelte';
-	import TrademarkFooter from '$lib/gauntlet/viewport/TrademarkFooter.svelte';
-	import VersionBadge from '$lib/VersionBadge.svelte';
+	import GauntletFoot from '$lib/gauntlet/GauntletFoot.svelte';
 	import { entranceSweep } from '$lib/gauntlet/viewport/motion';
 
 	/**
@@ -25,27 +18,17 @@
 
 	let { children } = $props();
 
-	/**
-	 * THE GAUNTLET EXCLUSION, RELOCATED. /gauntlet is excluded from the shell's
-	 * floating control by category: the VIEWPORT owns its own chrome, and a
-	 * portal-styled pill floating over a timed run is both off-brand and in the
-	 * way. It reappears HERE, in the footer this layout already renders on every
-	 * gauntlet page, so the relocation has exactly the same coverage the
-	 * exclusion does -- a new mode added under /gauntlet inherits both.
-	 *
-	 * Not the FeatureManager rail: that is hidden by default and display:none
-	 * below 1440px, so the only affordance on a phone would be no affordance.
+	/*
+	 * THE FEEDBACK BUTTON IS THE SITE'S, IN THE SITE'S PLACE (ledger 0396, Mr.
+	 * Pina: GAUNTLET "is not an exception"). It used to be relocated into the
+	 * footer below, which put it at the bottom of every scroll -- present but
+	 * hidden -- and laid out unlike everywhere else. The root layout's
+	 * `SiteFeedback` now draws it on every /gauntlet page, floating at the bottom
+	 * right like the home page's, opening the same window. It wears GAUNTLET's
+	 * colours through the room hooks `SiteFeedback` declares on
+	 * `body:has(.gt-root)`, tokens only: the VIEWPORT's own stylesheet is not
+	 * touched.
 	 */
-	const build = describeBuild(deploy, buildId);
-	/**
-	 * Signed out cannot happen here today -- this section is behind
-	 * `authedPrefixes` -- so `anonymous` is passed for correctness rather than
-	 * for a case that arises: the flag and the writer come from ONE predicate,
-	 * and a mount that hard-codes false is a mount that lies the day the gate
-	 * changes.
-	 */
-	const submit = $derived(feedbackWriter(page.data.supabase, page.data.claims?.sub));
-	const anonymous = $derived(feedbackIsAnonymous(page.data.supabase, page.data.claims?.sub));
 
 	// Staggered entrance for every page's top-level blocks, re-run per
 	// navigation so future pages get the choreography with zero wiring.
@@ -63,32 +46,8 @@
 	<FeatureTreeNav />
 	<div class="gt-content">
 		{@render children()}
-		<TrademarkFooter />
-		<p class="gt-version"><VersionBadge app="gauntlet" /></p>
-		<p class="gt-feedback">
-			<SiteFeedback
-				place="relocated"
-				routeId={page.route.id}
-				pathname={page.url.pathname}
-				role={page.data.userProfile?.role ?? null}
-				{build}
-				{submit}
-				{anonymous}
-			/>
-		</p>
+		<!-- The trademark disclaimer and the build stamp, clear of the
+		     feedback button's corner; the shell harness mounts the same foot. -->
+		<GauntletFoot />
 	</div>
 </div>
-
-<style>
-	.gt-version {
-		text-align: center;
-		padding: 0 1.5rem 0.6rem;
-		margin: 0;
-	}
-	.gt-feedback {
-		display: flex;
-		justify-content: center;
-		padding: 0 1.5rem 1.5rem;
-		margin: 0;
-	}
-</style>

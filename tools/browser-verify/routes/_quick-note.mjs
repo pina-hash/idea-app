@@ -92,9 +92,16 @@ export const HEADER_PROBE = `() => {
 		const b = i.getBoundingClientRect();
 		return b.width > 0 && b.left >= strip.left - 0.5 && b.right <= strip.right + 0.5;
 	}).length;
+	/* THE FEEDBACK BUTTON IS THE PAGE'S CORNER BUTTON (ledger 0396), not a key
+	   in this header: it answers at its centre, it is in the corner, and the
+	   header carries no feedback control at all. */
+	const fb = document.querySelector('.sfb-shell .sfb-trigger');
+	const fr = fb && fb.getBoundingClientRect();
+	const corner = !!fr && fr.width > 0 && Math.round(window.innerWidth - fr.right) <= 16 && Math.round(window.innerHeight - fr.bottom) <= 24;
 	const out = [
 		note,
-		'report ' + hits('.shell-report .sfb-trigger'),
+		'feedback ' + hits('.sfb-shell .sfb-trigger') + (corner ? ' in the corner' : ' NOT IN THE CORNER'),
+		document.querySelector('.cr-header .sfb-trigger') ? 'A FEEDBACK CONTROL IN THE HEADER' : 'no feedback control in the header',
 		'profile ' + hits('.cr-header .pm-trigger'),
 		whole >= 1 ? 'a whole class icon on screen' : 'NO WHOLE CLASS ICON (strip ' + Math.round(strip.width * 10) / 10 + 'px)'
 	];
@@ -104,7 +111,8 @@ export const HEADER_PROBE = `() => {
 
 export const HEADER_EXPECTED = [
 	'one Note control for this width, answering at its centre, word inside',
-	'report answers',
+	'feedback answers in the corner',
+	'no feedback control in the header',
 	'profile answers',
 	'a whole class icon on screen'
 ];

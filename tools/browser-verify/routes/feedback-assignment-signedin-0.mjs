@@ -1,50 +1,52 @@
 /**
- * A CARRIED-OVER ASSIGNMENT PAGE CARRIES A REPORT CONTROL (report 20,
- * 2026-09-25: "must be available on every single possible page"), measured
- * SIGNED OUT on the REAL `idea100-blade-01.html` served through the REAL
- * `/assignments/<slug>` pipeline (`/dev/feedback/assignment`).
+ * A CARRIED-OVER ASSIGNMENT PAGE CARRIES THE SITE'S OWN FEEDBACK BUTTON AND
+ * WINDOW (report 20, 2026-09-25: "must be available on every single possible
+ * page"; ledger 0396: the same window everywhere), measured SIGNED OUT on the
+ * REAL `idea100-blade-01.html` served through the REAL `/assignments/<slug>`
+ * pipeline (`/dev/feedback/assignment`).
  *
  * The page's bytes are the same for every reader -- the route is a shared
- * public cache entry with no `Vary: Cookie` -- so the panel learns whether this
- * reader is signed in by asking when it OPENS. Signed out, it says the report
- * carries no name and offers a way to be reached; the signed-in spec beside
- * this one is the other half of both of those.
+ * public cache entry with no `Vary: Cookie` -- and since ledger 0396 the page
+ * does not even ask: the window is a page of the site and knows the session
+ * the way the home box does. Signed out, its note says the report carries no
+ * name and it offers a way to be reached; the signed-in spec beside this one
+ * is the other half of both.
  */
-import { openPanel, TRIGGER_FACTS, TRIGGER_FACTS_EXPECTED } from './_legacy-report.mjs';
+import { ESCAPE_CLOSES_FRAME, frameFields, FRAME_TYPESET_CHECK, OFFICIAL_CORNER_CHECK, OPEN_FRAME_BOX, ROOM_INKS, ROOM_INKS_CHECK, sinkReportCheck, TYPE_FRAME_REPORT } from './_report-room.mjs';
 
 export default {
 	path: '/dev/feedback/assignment?signedIn=0',
-	label: 'Assignment page (signed out): the injected Report control and its panel, in the page palette',
-	prepare: [
-		{ waitFor: '() => !!document.getElementById("idea-legacy-report-btn")', timeoutMs: 20000, label: 'the injected trigger has mounted' },
-		openPanel(`() => !!document.querySelector('#idea-legacy-report input[type="text"]')`)
-	],
+	label: 'Assignment page (signed out): the official feedback button and its framed window, in the page palette',
+	settleMs: 1200,
+	prepare: [OPEN_FRAME_BOX, TYPE_FRAME_REPORT, ROOM_INKS],
 	presence: [
-		{ selector: '#idea-legacy-report-btn', label: 'the floating Report control', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '#idea-legacy-report', label: 'the report panel, once opened', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '#idea-legacy-report button[data-kind]', label: 'one chip per feedback kind', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
-		{ selector: '#idea-legacy-report textarea[id$="-msg"]', label: 'the message field', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '#idea-legacy-report input[type="text"]', label: 'the optional contact field (signed out only)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
+		{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the official feedback button, server-rendered', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '#idea-feedback-frame.is-open', label: 'the window, open in its frame', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '#idea-legacy-report, #idea-legacy-report-btn', label: 'no look-alike panel or its button', expectPresent: 0 }
 	],
-	textContains: [
-		{ selector: '#idea-legacy-report-btn', label: 'the control carries its word', must: ['Feedback'] },
-		{ selector: '#idea-legacy-report > div > div:nth-child(2)', label: 'the note says this report carries no name', must: ['not signed in', 'no name'], mustNot: ['carries your account'] }
-	],
-	contrast: [
-		{ selector: '#idea-legacy-report-btn span', label: 'the Report word on the floating control', min: 4.5 },
-		{ selector: '#idea-legacy-report > div > div:nth-child(1)', label: 'the panel heading', min: 4.5 },
-		{ selector: '#idea-legacy-report > div > div:nth-child(2)', label: 'the panel note', min: 4.5 },
-		{ selector: '#idea-legacy-report button', label: 'the chips and the Close and Send controls', min: 4.5 }
-	],
-	tapTargets: [
-		{ selector: '#idea-legacy-report-btn', label: 'the floating Report control', min: 44 },
-		{ selector: '#idea-legacy-report button', label: 'every control inside the panel', min: 44 }
-	],
+	contrast: [{ selector: '#idea-feedback-launch .sfb-word', label: 'the button word', min: 4.5 }],
+	tapTargets: [{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the feedback button', min: 44 }],
 	orderResult: [
+		frameFields(false),
+		FRAME_TYPESET_CHECK,
+		OFFICIAL_CORNER_CHECK,
+		ROOM_INKS_CHECK,
 		{
-			label: 'the control answers a tap at its centre, its edge clears 3:1 on the page, and the panel took the page palette',
-			evaluate: TRIGGER_FACTS,
-			expected: TRIGGER_FACTS_EXPECTED
-		}
+			label: 'the window files against the assignment route, without the plate, and the page stays session-blind',
+			evaluate: `() => {
+				const f = document.getElementById('idea-feedback-frame');
+				if (!f) return ['NO FRAME'];
+				const q = new URL(f.src, location.href).searchParams;
+				const scripts = [...document.scripts].map((s) => s.textContent || '').join('\\n');
+				return [
+					'route ' + q.get('route'),
+					'plate ' + (q.get('plate') || 'off'),
+					/signedIn|sessionProbe|assignment-feedback/.test(scripts.replace(/"extra":\\{[^}]*\\}/, '')) ? 'THE PAGE NAMES A SESSION' : 'the page names no session'
+				];
+			}`,
+			expected: ['route /assignments/[slug]', 'plate off', 'the page names no session']
+		},
+		ESCAPE_CLOSES_FRAME,
+		sinkReportCheck(false)
 	]
 };

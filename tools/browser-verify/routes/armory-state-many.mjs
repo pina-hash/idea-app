@@ -38,8 +38,10 @@ export default {
 		{ selector: '[data-testid="armory-folder-toggle"][aria-expanded="false"]', label: 'eleven still closed', expectPresent: 11, maxPresent: 11, expectVisible: 11 },
 		{ selector: '[data-testid="armory-file-row"]', label: 'all 240 rows in the DOM, twenty showing (the opened folder)', expectPresent: 240, maxPresent: 240, expectVisible: 20, maxVisible: 20 },
 		{ selector: '[data-folder="Arm"] .ar-subfolder', label: 'the opened folder shows its subfolder', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="armory-report"] .sfb-trigger', label: 'the report control is docked', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.sfb-shell .sfb-trigger', label: 'nothing floats over the files', expectPresent: 0, maxPresent: 0 }
+		/* THE FEEDBACK BUTTON IS THE PAGE'S CORNER BUTTON (ledger 0396), and the
+		   page's foot is padded past it so the last file row scrolls clear. */
+		{ selector: '.sfb-shell .sfb-trigger', label: 'the feedback button, in the page corner', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="armory-header"] .sfb-trigger', label: 'and none docked in the header', expectPresent: 0, maxPresent: 0 }
 	],
 	textContains: [
 		{ selector: '[data-folder="Arm"] [data-testid="armory-folder-toggle"]', label: 'a folder says what is in it', must: ['Arm', '20 files', '5 checked out'] },

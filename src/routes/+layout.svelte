@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	import { version as buildId } from '$app/environment';
+	import { dev, version as buildId } from '$app/environment';
 	import { deploy } from 'virtual:site-versions';
 	import { onMount } from 'svelte';
 	import '@fontsource/rajdhani/300.css';
@@ -26,7 +26,9 @@
 	import ThemeRoot from '$lib/design-system/themes/ThemeRoot.svelte';
 	import TabIcon from '$lib/tab-icon/TabIcon.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
-	import { describeBuild } from '$lib/feedback/context';
+	import { describeBuild, feedbackWearsClassroomPlate, isFeedbackEmbedRoute } from '$lib/feedback/context';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
+	import { embedDevTransports } from '$lib/feedback/embed-dev-sink';
 	import { sitePlateClass } from '$lib/shell/site-plate';
 	import '$lib/classroom/plate.css';
 	import '$lib/shell/site-plate.css';
@@ -42,9 +44,11 @@
 	 * rejected alternative, and tests/feedback-coverage.test.ts reddens if it
 	 * moves back to one.
 	 *
-	 * Exclusions are the component's own business (a projected deck, the
-	 * GAUNTLET viewport, the GREENLINE race, an error page), read from the
-	 * registry in $lib/feedback/context.ts BY CATEGORY rather than by page.
+	 * ITS BUTTON IS IN THE SAME CORNER ON EVERY PAGE (ledger 0396): the
+	 * classroom, the notebook, Armory, GAUNTLET, an error page and the rest. The
+	 * few rooms that keep their own control (GREENLINE, VANGUARD) are the
+	 * component's own business, read from the registry in
+	 * $lib/feedback/context.ts BY CATEGORY rather than by page.
 	 *
 	 * THE BUILD IDENTIFIER IS THE HONEST PROBLEM. Both candidates go to
 	 * `describeBuild`, which picks one and records WHAT IT IS: `deploy.sha` is
@@ -65,6 +69,18 @@
 	const submitFeedback = $derived(feedbackWriter(supabase, claims?.sub));
 	const anonymousReport = $derived(feedbackIsAnonymous(supabase, claims?.sub));
 	/**
+	 * THE HARNESS SINK, AND ONLY IN DEV (ledger 0396). `?feedbackSink=memory` on
+	 * a page's first load files the root window's reports through the same
+	 * recorder `/feedback/embed?sink=memory` uses -- the REAL `submitFeedback`
+	 * against a client that only records its insert, as a stand-in account, with
+	 * a screenshot transport -- so a browser pass can put a report from the home
+	 * page, from GAUNTLET and from the Coin Ledger's frame side by side and
+	 * compare the rows rather than assert them. `dev` is a build-time constant,
+	 * so a production build carries no branch that reads the parameter.
+	 */
+	const devSink =
+		dev && page.url.searchParams.get('feedbackSink') === 'memory' ? embedDevTransports() : null;
+	/**
 	 * THE SITE PLATE (ledger 0346), decided from the path alone so the server
 	 * renders the same answer the client does and nothing flashes. On an
 	 * in-scope route the page and its root-mounted siblings sit inside one
@@ -75,6 +91,59 @@
 	 * classroom's room; nothing in it matches without one of its two classes.
 	 */
 	const plate = $derived(sitePlateClass(page.url.pathname));
+	/**
+	 * A WINDOW INSIDE ANOTHER PAGE (ledger 0396). `/feedback/embed` is the
+	 * official feedback window drawn in a transparent frame over a legacy page
+	 * that renders no layout (the Coin Ledger, an assignment handout). Anything
+	 * this layout floats over a page would be drawn over THAT page from inside
+	 * the frame: the scan-line background, the pathway sheet, the install
+	 * prompt. So the window's own route takes none of them. Its floating
+	 * feedback button is the exclusion registry's business, like every other
+	 * surface's (`$lib/feedback/context.ts`, the `embed` rule).
+	 */
+	const bare = $derived(isFeedbackEmbedRoute(page.route.id));
+	/**
+	 * THE CORNER BUTTON WEARS THE ROOM'S PLATE (ledger 0396). On a site-plate
+	 * page it sits inside the plate wrapper above; a classroom page wears the
+	 * plate on its own `.cr-root`, which the root mount is a sibling of, so the
+	 * window is wrapped in the same class here and draws the same key and the
+	 * same box the home page does, in the same theme. Production decides it
+	 * from the route; a `/dev` harness that draws a `.cr-plate` room is
+	 * recognised once it has mounted, so the harness measures what production
+	 * draws.
+	 */
+	let devPlated = $state(false);
+	const feedbackPlate = $derived(
+		!!CLASSROOM_PLATE &&
+			!plate &&
+			(feedbackWearsClassroomPlate(page.route.id, !!page.error) || devPlated)
+	);
+	$effect(() => {
+		if (!dev || !CLASSROOM_PLATE) return;
+		// One tracked read: the path. The DOM is read after the page has mounted,
+		// and watched for a moment, because a harness may draw its room only
+		// once its fixture has loaded.
+		const path = page.url.pathname;
+		if (!path.startsWith('/dev/')) {
+			devPlated = false;
+			return;
+		}
+		const look = () =>
+			!!document.querySelector(`.${CLASSROOM_PLATE}:not([data-feedback-plate])`);
+		devPlated = look();
+		if (devPlated) return;
+		const watch = new MutationObserver(() => {
+			if (!look()) return;
+			devPlated = true;
+			watch.disconnect();
+		});
+		watch.observe(document.body, { childList: true, subtree: true });
+		const stop = setTimeout(() => watch.disconnect(), 5000);
+		return () => {
+			clearTimeout(stop);
+			watch.disconnect();
+		};
+	});
 
 	onMount(() => {
 		const { data: authData } = supabase.auth.onAuthStateChange((_, newSession) => {
@@ -87,7 +156,7 @@
 	});
 </script>
 
-<div class="bg-fx" aria-hidden="true"></div>
+{#if !bare}<div class="bg-fx" aria-hidden="true"></div>{/if}
 <!-- THE ONE ROUTE-TRANSITION INDICATOR. Mounted here for the reason SiteFeedback
      is: there are no layout resets in src/routes, so every page route inherits
      it rather than having to remember one. It reads `navigating` from
@@ -106,23 +175,36 @@
 <TabIcon />
 {#snippet site()}
 	{@render children()}
-	<!-- First-login pathway picker: renders only for a signed-in student with no
-	     pathway set (self-contained, reads page data like ProfileMenu). -->
-	<PathwayPicker />
-	<InstallPrompt />
+	{#if !bare}
+		<!-- First-login pathway picker: renders only for a signed-in student with no
+		     pathway set (self-contained, reads page data like ProfileMenu). -->
+		<PathwayPicker />
+		<InstallPrompt />
+	{/if}
 	<!-- VOICE HAS NO FLOATING CONTROL (ledger 0298, report 31). It is the Speak
 	     button inside the classroom's command palette (Ctrl K), whose vocabulary is
 	     the palette's own rows; see $lib/voice/commands.ts. -->
+	{#if feedbackPlate}
+		<div class={CLASSROOM_PLATE} style="display: contents" data-feedback-plate>
+			{@render feedback()}
+		</div>
+	{:else}
+		{@render feedback()}
+	{/if}
+{/snippet}
+{#snippet feedback()}
 	<SiteFeedback
 		routeId={page.route.id}
 		pathname={page.url.pathname}
 		role={data.userProfile?.role ?? null}
 		sectionId={page.params.sectionId ?? null}
 		{build}
-		submit={submitFeedback}
-		anonymous={anonymousReport}
+		submit={devSink ? devSink.submit : submitFeedback}
+		anonymous={devSink ? false : anonymousReport}
+		uploadScreenshot={devSink ? devSink.uploadScreenshot : null}
 		status={page.error ? page.status : null}
 		errorMessage={page.error?.message ?? null}
+		errorId={page.error?.id ?? null}
 	/>
 {/snippet}
 {#if plate}

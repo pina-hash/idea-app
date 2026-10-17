@@ -39,7 +39,7 @@ import {
 	type FeedbackFilter
 } from '../src/lib/feedback/console';
 import { SECTIONS } from '../src/lib/curriculum';
-import { handleLegacySessionProbe } from '../src/lib/server/legacy-feedback-post';
+import { GET as COINS_GET } from '../src/routes/coins/[...path]/+server';
 
 /**
  * EVERY SURFACE REPORTS ITS OWN DEFECTS, asserted where it fails SILENTLY.
@@ -62,7 +62,7 @@ import { handleLegacySessionProbe } from '../src/lib/server/legacy-feedback-post
  * derived from the filter's own rule.
  *
  * WHAT IS SOURCE-WALKED RATHER THAN RENDERED, and why: the root layout, the
- * root error boundary, the deck route and the GAUNTLET layout all import
+ * root error boundary, the deck route and the embed page all import
  * `$app/state`, `$app/navigation` and font CSS, none of which exist under
  * `environment: 'node'`. What matters about them is structural -- WHERE the
  * component is mounted and WHICH props it is handed -- so those are read from
@@ -124,13 +124,14 @@ describe('coverage is structural, not per page', () => {
 		// each reset is named here with its reason and any other one reddens.
 		// The one on file is the class projector (ledger 0297, LIVE): a wall
 		// display that must render no classroom chrome, and whose load must not
-		// inherit the section payload (roster, hall pass holder, items). Its
-		// shell control is excluded by category and relocated to its own strip.
+		// inherit the section payload (roster, hall pass holder, items). Both
+		// keep the root layout's corner feedback button (ledger 0396), which is
+		// the coverage this sweep is protecting.
 		const ROOT_RESETS: Record<string, string> = {
 			'src/routes/classroom/[sectionId]/live/projector/+page@.svelte':
 				'the class projector: no classroom chrome on a wall, and no section payload in its data',
 			'src/routes/classroom/[sectionId]/people/[studentEmail]/work/[itemId]/+page@.svelte':
-				"one student's filled assignment alone on a full-screen page for a conference (report 5464ceb2): no classroom chrome, no section payload, the control relocated to its own bar"
+				"one student's filled assignment alone on a full-screen page for a conference (report 5464ceb2): no classroom chrome, no section payload, the root layout's corner button as on every page"
 		};
 		const resets = ROUTE_FILES.filter((f) => /\/\+(page|layout|error)@[^/]*\.svelte$/.test(f));
 		expect([...resets].sort()).toEqual(Object.keys(ROOT_RESETS).sort());
@@ -169,23 +170,42 @@ describe('coverage is structural, not per page', () => {
 		}
 		// Both build candidates reach describeBuild, which is what makes the row
 		// able to say WHICH one it carried.
-		expect(layout).toContain("import { version as buildId } from '$app/environment'");
+		expect(layout).toMatch(/import \{[^}]*\bversion as buildId\b[^}]*\} from '\$app\/environment'/);
+		// The harness sink (ledger 0396) is dev-only: `dev` is a build-time
+		// constant, so a production build carries no branch that reads it.
+		expect(layout).toMatch(/const devSink =\s*dev && page\.url\.searchParams\.get\('feedbackSink'\) === 'memory'/);
 		expect(layout).toContain("import { deploy } from 'virtual:site-versions'");
 		expect(layout).toContain('describeBuild(deploy, buildId)');
 	});
 
-	it('is not mounted per page: no page route carries a shell placement', () => {
+	it('is not mounted per page: no page route mounts a window of its own', () => {
 		// THE REJECTED ALTERNATIVE. Mounting this per page is what the shell mount
 		// replaces; a page doing it again would be a second control on that page
 		// and a coverage story that stops being true for the next route added.
-		// Excluded: the dev harness, which drives the component's own placements
-		// on purpose, and the three RELOCATED mounts, which are checked below.
-		const offenders = PAGES.filter((f) => !f.startsWith('src/routes/dev/')).filter((f) => {
-			const src = read(f);
-			if (!src.includes('<SiteFeedback')) return false;
-			return !src.includes('place="relocated"');
-		});
-		expect(offenders).toEqual([]);
+		// SINCE LEDGER 0396 THERE IS NO RELOCATED MOUNT EITHER: the classroom
+		// header, the Armory header, the deck bar, the projector strip and the
+		// error card all took the corner button back, so the only non-dev page
+		// that mounts the component is the feedback window's own page, in its
+		// embed place. Excluded: the dev harnesses, which drive the component's
+		// placements on purpose.
+		const mounting = PAGES.filter((f) => !f.startsWith('src/routes/dev/')).filter((f) =>
+			read(f).includes('<SiteFeedback')
+		);
+		expect(mounting).toEqual(['src/routes/feedback/embed/+page.svelte']);
+		// ...and no component outside the feedback subsystem mounts one either
+		// (the classroom shell and the Armory frame used to).
+		const libMounts = walk('src/lib')
+			.filter((f) => f.endsWith('.svelte') && !f.startsWith('src/lib/feedback/'))
+			.filter((f) => codeOnly(read(f)).includes('<SiteFeedback'));
+		expect(libMounts).toEqual([]);
+		// The error card opens the root window rather than mounting its own.
+		const errorPage = read('src/routes/+error.svelte');
+		expect(codeOnly(errorPage)).not.toContain('<SiteFeedback');
+		expect(errorPage).toContain('openSiteFeedback()');
+		// The embed placement is that one page's and no other's: a second page
+		// mounting the window alone would be a second window.
+		const embeds = PAGES.filter((f) => read(f).includes('place="embed"'));
+		expect(embeds).toEqual(['src/routes/feedback/embed/+page.svelte']);
 	});
 });
 
@@ -257,13 +277,17 @@ function servesHtml(file: string): boolean {
 	return localImports(file, src).some((m) => HTML_RESPONSE.test(codeOnly(read(m))));
 }
 
-/** A route that injects a report control into what it serves. */
+/**
+ * A route that injects a report control into what it serves: the official
+ * button and window (`injectFeedbackLaunch`, ledger 0396), or VANGUARD's own
+ * panel, which keeps its own feedback system as the one game the site serves
+ * as legacy HTML.
+ */
 function injectsReport(file: string): boolean {
 	const src = codeOnly(read(file));
 	return (
-		src.includes('injectLegacyReportPanel(') ||
-		src.includes('legacyReportPanelScript(') ||
-		// VANGUARD's own injected panel (a migration candidate, CLAUDE.md).
+		src.includes('injectFeedbackLaunch(') ||
+		// VANGUARD keeps its own feedback system (Mr. Pina: the games are the exception).
 		src.includes('__ideaVanguardReport')
 	);
 }
@@ -286,12 +310,64 @@ const HTML_EXEMPT: Record<string, string> = {
 	'src/routes/foundry/starter/+server.ts':
 		"a file DOWNLOAD (content-disposition: attachment) of the starter index.html, never shown as a page; its refusal is the same default-src 'none' page",
 	'src/routes/api/classroom/deck/[deck_id]/[...path]/+server.ts':
-		"an instructor's uploaded deck files, framed by the deck viewer, whose bar carries the relocated control",
+		"an instructor's uploaded deck files, framed by the deck viewer on a classroom page, which carries the site's corner feedback button like every other page",
 	'src/routes/api/classroom/deck/+server.ts':
 		'a JSON upload API; it only imports the deck module whose MIME map names text/html',
 	'src/routes/admin/drive-connect/callback/+server.ts':
 		'shows a Google Drive refresh token to an admin exactly once; nothing is injected into a page that carries a credential'
 };
+
+/**
+ * Every rule in a stylesheet that MOVES the corner button (any offset on
+ * `.sfb` or `.sfb-shell`) or HIDES its word (`.sfb-word` at display none).
+ * Only `<style>` blocks of a component are read, with comments stripped, so a
+ * selector named in a script or a sentence is never mistaken for a rule.
+ */
+function cornerOverrides(file: string, text: string): string[] {
+	const styles = file.endsWith('.svelte') ? [...text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]) : [text];
+	const hits: string[] = [];
+	for (const css of styles) {
+		const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+		for (const m of bare.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+			const selector = m[1].trim();
+			const body = m[2];
+			const moves = /\.sfb(-shell)?(?![\w-])/.test(selector) && /(^|[;\s])(bottom|right|left|top|inset(-[a-z-]+)?)\s*:/.test(body);
+			const hides = /\.sfb-word(?![\w-])/.test(selector) && /display\s*:\s*none/.test(body);
+			if (moves || hides) hits.push(`${file}: ${selector.replace(/\s+/g, ' ')}`);
+		}
+	}
+	return hits;
+}
+
+describe('no room moves the corner button or hides its word (ledger 0396, review round 4)', () => {
+	// Mr. Pina: the location of the window's button is identical on every page
+	// but VANGUARD and GREENLINE. A room makes room for it (`--feedback-clear-*`)
+	// and never moves it: IdeaCAD's workspace pulled it into its footer and, on
+	// a phone, hid its word, which left a glyph with no accessible name over the
+	// tool strip, and nothing said so for three review rounds.
+	const files = walk('src').filter((f) => /\.(svelte|css)$/.test(f) && !f.startsWith('src/lib/feedback/'));
+
+	it('sweeps a real set of stylesheets', () => {
+		expect(files.length).toBeGreaterThan(300);
+		expect(files).toContain('src/lib/ideacad/solid/SolidWorkspace.svelte');
+	});
+
+	it('finds no rule outside the feedback components that offsets the button or hides its word', () => {
+		const hits = files.flatMap((f) => cornerOverrides(f, read(f)));
+		expect(hits).toEqual([]);
+	});
+
+	it('POSITIVE CONTROLS: the matcher finds the button\'s own corner rule, and the two IdeaCAD rules it replaced', () => {
+		const own = cornerOverrides('src/lib/feedback/FeedbackTrigger.svelte', read('src/lib/feedback/FeedbackTrigger.svelte'));
+		expect(own.length).toBeGreaterThan(0);
+		const planted = `<style>
+	:global(body:has(.solid-workspace) .sfb-shell){bottom:calc(2px + env(safe-area-inset-bottom, 0px));right:8px}
+	@media(max-width:700px){:global(body:has(.solid-workspace) .sfb-word){display:none}}
+	:global(body:has(.lp-root) .sfb-shell) { transition: opacity 0.3s ease; }
+</style>`;
+		expect(cornerOverrides('planted.svelte', planted)).toHaveLength(2);
+	});
+});
 
 describe('every page a +server.ts serves as HTML carries a report control, or says why not', () => {
 	const html = SERVER_ROUTES.filter(servesHtml);
@@ -329,27 +405,36 @@ describe('every page a +server.ts serves as HTML carries a report control, or sa
 		}
 	});
 
-	it('the session probe answers one boolean, privately, for either kind of reader', async () => {
-		// The one session-dependent answer on the assignment path. Cached and
-		// shared, a "yes" would send the next signed-out reader's report to the
-		// signed-in route (and a refusal); anything more than the boolean would be
-		// a disclosure on a route any page can call.
-		const yes = handleLegacySessionProbe({ sub: 'u-1' });
-		const no = handleLegacySessionProbe(null);
-		for (const r of [yes, no]) {
-			expect(r.headers.get('cache-control')).toBe('private, no-store');
-			expect(r.headers.get('vary')).toBe('Cookie');
-		}
-		expect(await yes.json()).toEqual({ signedIn: true });
-		expect(await no.json()).toEqual({ signedIn: false });
+	it('the injected button and window are the same bytes for a signed-in and a signed-out reader', async () => {
+		// THE ONE SESSION-DEPENDENT THING ON THESE PATHS USED TO BE THE FEEDBACK
+		// (a signed-in boolean baked into the Ledger's script, a session probe on
+		// the assignment path). Since ledger 0396 the window is a page of the site
+		// and knows the session itself, so what the page carries for feedback must
+		// not move with the reader. Driven through the REAL Ledger route twice.
+		const feedbackPart = async (claims: unknown) => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const res = (await COINS_GET({ params: { path: '' }, locals: { claims } } as any)) as Response;
+			const html = await res.text();
+			const start = html.indexOf(`<div class="sfb sfb-shell`);
+			const end = html.indexOf('</script>', start);
+			expect(start, 'the button is in the served page').toBeGreaterThan(-1);
+			return html.slice(start, end);
+		};
+		const signedIn = await feedbackPart({ sub: 'u-1' });
+		const signedOut = await feedbackPart(null);
+		expect(signedIn.length).toBeGreaterThan(500);
+		expect(signedIn).toBe(signedOut);
+		// And nothing in it names a session or an endpoint that depends on one.
+		expect(signedIn).not.toMatch(/signedIn|coin-feedback|assignment-feedback|\/api\/feedback/);
 	});
 
 	it('the assignment page stays session-independent, so its shared cache stays shared', () => {
 		// The route is a public cache entry with no `Vary: Cookie` (thirty phones
-		// on one QR code inside a minute). Its panel asks for the session at open;
-		// the route itself must read nothing that varies by reader.
+		// on one QR code inside a minute). Its feedback window reads the session
+		// in its own private response; the route itself must read nothing that
+		// varies by reader.
 		const src = codeOnly(read('src/routes/assignments/[slug]/+server.ts'));
-		expect(src).toContain('ASSIGNMENT_REPORT_OPTIONS');
+		expect(src).toContain('ASSIGNMENT_FEEDBACK_LAUNCH');
 		expect(src).toMatch(/'cache-control': 'public, max-age=0, s-maxage=60, must-revalidate'/);
 		expect(src).not.toMatch(/\bvary\b/i);
 		expect(src).not.toMatch(/locals|cookies|claims|getSession|request\.headers/);
@@ -365,13 +450,10 @@ describe('every page a +server.ts serves as HTML carries a report control, or sa
 // 2. EXCLUSIONS RELOCATE, THEY DO NOT DELETE
 // ---------------------------------------------------------------------------
 
-type Case = { id: FeedbackExclusionId; routeId: string; status: number | null };
+type Case = { id: FeedbackExclusionId; routeId: string };
 
 const EXCLUSION_CASES: Case[] = FEEDBACK_EXCLUSIONS.flatMap((rule): Case[] =>
-	rule.samples.length
-		? rule.samples.map((routeId) => ({ id: rule.id, routeId, status: null }))
-		: // The error category is not a route: it is asked for with the flag set.
-			[{ id: rule.id, routeId: '/notebook', status: 500 }]
+	rule.samples.map((routeId) => ({ id: rule.id, routeId }))
 );
 
 describe('every exclusion is by category, and each has a positive control', () => {
@@ -382,51 +464,121 @@ describe('every exclusion is by category, and each has a positive control', () =
 		);
 		// A category with no relocation is an exclusion that deleted the control.
 		for (const rule of FEEDBACK_EXCLUSIONS) expect(rule.relocatedTo.trim().length).toBeGreaterThan(0);
+		// THE REGISTRY IS SHORT ON PURPOSE (ledger 0396): the two products that
+		// keep their own feedback systems, the served Ledger (the same button,
+		// server-rendered) and the window's own page. A fifth is a decision.
+		expect(FEEDBACK_EXCLUSIONS.map((r) => r.id).sort()).toEqual(['coins', 'embed', 'greenline', 'vanguard']);
 	});
 
 	it.each(EXCLUSION_CASES)(
-		'$id: $routeId renders nothing in the shell and the control when relocated',
-		({ id, routeId, status }) => {
-			expect(feedbackExclusion(routeId, { hasError: status !== null })?.id).toBe(id);
+		'$id: $routeId renders nothing in the shell and the control when drawn inline',
+		({ id, routeId }) => {
+			expect(feedbackExclusion(routeId)?.id).toBe(id);
 			// ABSENT where it must be absent...
-			expect(triggers({ place: 'shell', routeId, pathname: routeId, status })).toBe(0);
+			expect(triggers({ place: 'shell', routeId, pathname: routeId })).toBe(0);
 			// ...and PRESENT in the same render path, which is what makes the zero
 			// above a result rather than a component that renders nothing at all.
-			expect(triggers({ place: 'relocated', routeId, pathname: routeId, status })).toBe(1);
+			expect(triggers({ place: 'relocated', routeId, pathname: routeId })).toBe(1);
 		}
 	);
 
 	it('an ordinary route keeps the shell control (the whole-file positive control)', () => {
-		// '/classroom/[sectionId]' left this list in ledger 0297: the classroom
-		// docks the control in its own header now (the `classroom` rule), and
-		// '/foundry' took its place as a second ordinary signed-in surface.
-		for (const routeId of ['/', '/notebook', '/foundry', '/greenline/builder']) {
-			expect(feedbackExclusion(routeId)).toBeNull();
-			expect(triggers({ place: 'shell', routeId, pathname: routeId })).toBe(1);
+		// EVERY CLASSROOM, NOTEBOOK, ARMORY, DECK AND PROJECTOR ROUTE JOINED THIS
+		// LIST IN LEDGER 0396 (Mr. Pina: "the location of its buttons are
+		// identical everywhere"), as GAUNTLET did: each takes the shell's button
+		// in the corner, and keeps its own controls out of that corner instead.
+		for (const routeId of [
+			'/',
+			'/notebook',
+			'/foundry',
+			'/greenline/builder',
+			// The builders' harness keeps the corner button, as the builders
+			// do; only the portal harness mirrors the race's own control.
+			'/dev/greenline-track-builder',
+			'/gauntlet',
+			'/gauntlet/speedrun/[id]',
+			'/gauntlet/rooms/[id]',
+			'/certifications',
+			'/coin-desk',
+			'/classroom',
+			'/classroom/[sectionId]',
+			'/classroom/[sectionId]/item/[itemId]',
+			'/classroom/[sectionId]/item/[itemId]/grade',
+			'/classroom/[sectionId]/item/[itemId]/deck',
+			'/classroom/[sectionId]/live/projector',
+			'/classroom/[sectionId]/people/[studentEmail]/work/[itemId]',
+			'/classroom/notebook',
+			'/armory',
+			'/armory/[project]'
+		]) {
+			expect(feedbackExclusion(routeId), routeId).toBeNull();
+			expect(triggers({ place: 'shell', routeId, pathname: routeId }), routeId).toBe(1);
 		}
+	});
+
+	it('an error page always has the corner button, even in a room that keeps its own control', () => {
+		// The error boundary REPLACES the page, so GREENLINE's menus are not on
+		// screen to relocate to; the corner button is, carrying the status.
+		for (const routeId of ['/greenline', '/vanguard', '/notebook', '/classroom/[sectionId]', null]) {
+			expect(feedbackExclusion(routeId, { hasError: true }), String(routeId)).toBeNull();
+			expect(triggers({ place: 'shell', routeId, pathname: routeId ?? '/x', status: 500 }), String(routeId)).toBe(1);
+		}
+		// Positive control: without the error the same GREENLINE route is excluded.
+		expect(triggers({ place: 'shell', routeId: '/greenline', pathname: '/greenline' })).toBe(0);
+		// The error page's button carries the warning triangle and the status.
+		const { body } = render(SiteFeedback, {
+			props: {
+				routeId: '/notebook',
+				pathname: '/notebook',
+				build: BUILD,
+				submit: async () => ({ error: null, retryable: false }),
+				status: 500
+			}
+		});
+		expect(body).toContain('sfb-trigger-error');
+	});
+
+	it('GAUNTLET is no longer a category, and its layout mounts no control of its own', () => {
+		expect(FEEDBACK_EXCLUSIONS.map((r) => r.id)).not.toContain('gauntlet');
+		const layout = read('src/routes/gauntlet/+layout.svelte');
+		expect(codeOnly(layout)).not.toContain('<SiteFeedback');
+		// Its colours reach the floating button through the room hooks, tokens only.
+		expect(read('src/lib/feedback/SiteFeedback.svelte')).toMatch(
+			/:global\(body:has\(\.gt-root\)\) \{[^}]*--fb-room-bg:/
+		);
+		// THE FOOT THE BUTTON FLOATS OVER IS ONE COMPONENT (review polish round):
+		// the layout and the shell harness mount the same `GauntletFoot`, so the
+		// browser pass measures the stamp's clearance on the foot the layout
+		// draws, and that foot takes the button's own clearance token.
+		expect(codeOnly(layout)).toContain('<GauntletFoot />');
+		expect(codeOnly(read('src/routes/dev/gauntlet-shell/+page.svelte'))).toContain('<GauntletFoot />');
+		// NEGATIVE CONTROL: neither carries its own copy of the stamp.
+		expect(codeOnly(layout)).not.toContain('<VersionBadge');
+		expect(codeOnly(read('src/routes/dev/gauntlet-shell/+page.svelte'))).not.toContain('<VersionBadge');
+		expect(read('src/lib/gauntlet/GauntletFoot.svelte')).toContain(
+			'padding-bottom: max(1.5rem, var(--feedback-clear-block, 0px));'
+		);
 	});
 
 	it('a nested route inherits its category rather than having to remember it', () => {
-		// The point of matching route ids by CATEGORY: a mode added under
-		// /gauntlet next month is excluded without anyone editing the registry.
-		expect(feedbackExclusion('/gauntlet/some-new-mode-2027/[id]')?.id).toBe('gauntlet');
-		expect(feedbackExclusion('/gauntlet-adjacent')).toBeNull();
+		// The point of matching route ids by CATEGORY: a page added under
+		// /vanguard next month is excluded without anyone editing the registry.
+		expect(feedbackExclusion('/vanguard/some-new-page-2027/[id]')?.id).toBe('vanguard');
+		expect(feedbackExclusion('/vanguard-adjacent')).toBeNull();
 	});
 
-	it('each relocation is real: the named surface mounts the same component', () => {
-		const relocations: Record<string, string> = {
-			deck: 'src/routes/classroom/[sectionId]/item/[itemId]/deck/+page.svelte',
-			gauntlet: 'src/routes/gauntlet/+layout.svelte',
-			classroom: 'src/lib/classroom/ClassroomShell.svelte',
-			error: 'src/routes/+error.svelte',
-			projector: 'src/routes/classroom/[sectionId]/live/projector/+page@.svelte',
-			armory: 'src/lib/armory/ArmoryFrame.svelte'
-		};
-		for (const [id, file] of Object.entries(relocations)) {
-			const src = read(file);
-			expect(src, id).toContain('SiteFeedback');
-			expect(src, id).toContain('place="relocated"');
-		}
+	it('each relocation is real: the named surface carries the same component or its own system', () => {
+		// THE LEDGER'S BUTTON IS THE SAME COMPONENT, SERVER-RENDERED (ledger
+		// 0396): the route injects it, and the injector renders FeedbackTrigger,
+		// the button SiteFeedback itself mounts.
+		expect(codeOnly(read('src/routes/coins/[...path]/+server.ts'))).toContain('injectFeedbackLaunch(');
+		const launch = read('src/lib/server/feedback-launch.ts');
+		expect(launch).toContain("import FeedbackTrigger from '$lib/feedback/FeedbackTrigger.svelte'");
+		expect(read('src/lib/feedback/SiteFeedback.svelte')).toContain('<FeedbackTrigger');
+		// THE WINDOW'S OWN PAGE is where the frame's box comes from, and it is the
+		// same SiteFeedback, in its embed place.
+		const embed = read('src/routes/feedback/embed/+page.svelte');
+		expect(embed).toMatch(/<SiteFeedback[\s\S]*?place="embed"/);
 		// GREENLINE's relocation predates this bundle: the race mounts the shared
 		// FeedbackBox from its own title / garage / race / results menus.
 		const greenline = read('src/routes/greenline/+page.svelte');
@@ -435,7 +587,9 @@ describe('every exclusion is by category, and each has a positive control', () =
 	});
 
 	it('print takes it off the page', () => {
-		const css = read('src/lib/feedback/SiteFeedback.svelte');
+		// The button's rules live with the button (ledger 0396), so the Ledger's
+		// server-rendered copy prints without it too.
+		const css = read('src/lib/feedback/FeedbackTrigger.svelte');
 		expect(css).toMatch(/@media print \{\s*\.sfb \{\s*display: none/);
 	});
 });
@@ -551,7 +705,10 @@ describe('a signed-out visitor gets the control, which is the point of the bundl
 		expect(err).not.toContain('We are not taking');
 		expect(err).not.toContain('Sign in from the portal home page to send a report');
 		expect(err).toContain('feedbackWriter(page.data.supabase, page.data.claims?.sub)');
-		expect(err).toContain('{anonymous}');
+		// SINCE LEDGER 0396 the window is the root layout's, and the root layout
+		// is what hands it the anonymous flag (asserted on the root mount above);
+		// the error card only opens it.
+		expect(err).toContain('openSiteFeedback()');
 	});
 });
 
@@ -706,13 +863,21 @@ describe('the first error boundary', () => {
 		const err = read('src/routes/+error.svelte');
 		expect(err).toContain('AnimatedLogo');
 		expect(err).toContain('VersionBadge');
-		expect(err).toContain('place="relocated"');
-		// The status and the route are already filled in: the person answers what
-		// they were doing, not where they were.
-		expect(err).toContain('status={page.status}');
-		expect(err).toContain('routeId={page.route.id}');
-		expect(err).toContain('pathname={page.url.pathname}');
-		expect(err).toContain('{errorId}');
+		// THE CARD OPENS THE ONE WINDOW (ledger 0396): "Tell us what happened"
+		// calls the root layout's window, and the corner button is on this page
+		// as on every page. It mounts no second window of its own.
+		expect(err).toContain('openSiteFeedback()');
+		expect(err).toContain('Tell us what happened');
+		expect(codeOnly(err)).not.toContain('<SiteFeedback');
+		// The status, the route and the reference are already filled in, by the
+		// ROOT mount: the person answers what they were doing, not where they were.
+		const layout = read('src/routes/+layout.svelte');
+		const mount = layout.slice(layout.indexOf('<SiteFeedback'));
+		expect(mount).toContain('status={page.error ? page.status : null}');
+		expect(mount).toContain('errorMessage={page.error?.message ?? null}');
+		expect(mount).toContain('errorId={page.error?.id ?? null}');
+		expect(mount).toContain('routeId={page.route.id}');
+		expect(mount).toContain('pathname={page.url.pathname}');
 	});
 
 	it('records enough server-side to correlate a log line with a report', () => {

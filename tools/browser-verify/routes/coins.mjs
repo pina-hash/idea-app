@@ -1,22 +1,24 @@
 /**
- * The IDEA Coin Ledger, with the report control it did not have.
+ * The IDEA Coin Ledger, with the site's own feedback button and window.
  *
- * "The coin ledger pages have no way to report a problem. Every other surface
- * carries one." They did not, and the reason was structural rather than an
- * omission: the Ledger is carried-over legacy HTML with no Svelte layout above
- * it, so `SiteFeedback` -- mounted once in the root layout, which is what makes
- * report coverage something a new route INHERITS -- could never reach it. It is
- * injected into the served HTML instead, the convention this repo already uses
- * for everything added to a legacy page, and the file on disk is untouched.
+ * LEDGER 0396 (report 80bb4d23: "it should just be the same exact system
+ * that's on the rest of the website except maybe a different color scheme").
+ * The Ledger is carried-over legacy HTML with no Svelte layout above it, so
+ * `SiteFeedback` -- mounted once in the root layout -- could never reach it, and
+ * it used to carry a hand-built look-alike panel. It now carries the REAL
+ * `FeedbackTrigger`, server-rendered into its bytes in the official corner, and
+ * the button opens the REAL window, `/feedback/embed`, in a same-origin frame
+ * over the page. The file on disk is untouched.
  *
  * THIS DRIVES `/dev/coins`, WHICH SERVES THE SHIPPING BYTES. The harness reads
  * the same `src/lib/legacy/coins/index.html` the public route reads, rewrites
- * `/api/coin/` to its own fixtures, and injects the report panel through the
- * SAME `legacyReportPanelScript` with the same options -- so what is measured
- * here is the shipping markup and the shipping control, not a copy of either.
- * `/coins/index.html` itself is a real route and outside this harness's `/dev`
- * boundary; it was measured by hand and the numbers agree (63x44 trigger, panel
- * opening in one click, six controls all at or above 44px, at both widths).
+ * `/api/coin/` to its own fixtures, and injects the button through the SAME
+ * `injectFeedbackLaunch` with the same options; the one addition is the
+ * window's in-memory sink (`sink=memory`), so a report lands on this page as the
+ * exact row `submitFeedback` would have sent. What is measured here is the
+ * shipping button and the shipping window, not a copy of either. The window is
+ * read out of the frame's document (same origin), which is why its rows are
+ * `orderResult` probes rather than selector rows.
  *
  * THE 51px HORIZONTAL-SCROLL FINDING AT 375 WAS THE LEDGER'S FOURTH TAB, AND
  * IT IS FIXED. This paragraph has now been wrong twice and the second way is
@@ -75,29 +77,36 @@
  * strip would look complete and still be hiding a tab, which is this same
  * defect wearing different clothes.
  *
- * THE TRIGGER IS THE ROW THAT MATTERS AND IT IS THE ONE THAT WAS WRONG. The
- * first version reused the Ledger's own `.share-btn` class -- and that class is
- * `display: none` below 768px in the Ledger's own media query, so the control
- * measured 0x0 at 375px: perfect at 1440, invisible on the width a student
- * actually reads this page at, with nothing to say so.
+ * THE BUTTON SITS WHERE THE HOME PAGE'S DOES, NOT IN THE LEDGER'S HEADER. The
+ * look-alike panel's trigger lived beside Share (and its first version reused
+ * `.share-btn`, which is `display: none` below 768px, so it measured 0x0 on a
+ * phone). The official button floats in the official corner at every width,
+ * and the Ledger's own Back to top key and the version chip are lifted above it
+ * by the injected stylesheet rather than sitting under it.
  */
+import {
+	frameFields,
+	FRAME_TYPESET_CHECK,
+	OFFICIAL_CORNER_CHECK,
+	OPEN_FRAME_BOX,
+	ROOM_INKS,
+	ROOM_INKS_CHECK,
+	TYPE_FRAME_REPORT
+} from './_report-room.mjs';
+
 export default {
 	path: '/dev/coins',
-	label: 'IDEA Coin Ledger (shipping bytes) with the injected report control',
+	label: 'IDEA Coin Ledger (shipping bytes) with the official feedback button and its framed window',
 	/* The Ledger is not a SvelteKit app, so there is no hydration to wait on --
 	   the injected script mounts on DOMContentLoaded. What needs settling is the
 	   page's own entrance animations and its fixture fetches. */
 	settleMs: 1200,
 	prepare: [
-		{
-			/* THE PANEL IS BUILT LAZILY, on first press, so this predicate names
-			   something only the click can produce: at rest the panel element
-			   does not exist at all. */
-			click: '#idea-ledger-report-btn',
-			until: '() => { const p = document.getElementById("idea-ledger-report"); return !!p && getComputedStyle(p).display !== "none"; }',
-			attempts: 8,
-			waitMs: 250
-		},
+		/* THE FRAME LOADS ON THE WAY TO THE PRESS, so this predicate names
+		   something only the click can produce: at rest there is no frame. */
+		OPEN_FRAME_BOX,
+		TYPE_FRAME_REPORT,
+		ROOM_INKS,
 		{
 			/* THE OVERFLOW MEASUREMENT ITSELF, printed rather than gated. An
 			   `evaluate` step's return value is the only raw number this report
@@ -125,31 +134,19 @@ export default {
 		/* THE POSITIVE CONTROL: the Ledger's own tab bar. Without it, every row
 		   below could pass on a page that failed to render at all. */
 		{ selector: '.tab-bar .tab-btn', label: 'the Ledger rendered (its own tabs)', expectPresent: 4 },
-		{ selector: '#idea-ledger-report-btn', label: 'the report trigger, in the page header', expectPresent: 1, maxPresent: 1 },
-		{ selector: '#idea-ledger-report', label: 'the report panel, once opened', expectPresent: 1, maxPresent: 1 },
-		{ selector: '#idea-ledger-report button[data-kind]', label: 'one chip per feedback kind', expectPresent: 4, maxPresent: 4 },
-		{ selector: '#idea-ledger-report textarea[id$="-msg"]', label: 'the message field', expectPresent: 1, maxPresent: 1 },
-		// LEDGER 0392 (reports 911eefa0 and cead7265): the box the rest of the
-		// site has, and the site's own mark in place of the old "IDEA." text.
-		{ selector: '#idea-ledger-report [data-horizon]', label: 'Fix soon and Long-term idea', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-		{ selector: '#idea-ledger-report textarea[id$="-tried"]', label: 'What did you try (optional)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '#idea-ledger-report-btn svg', label: 'the trigger carries the site control\'s glyph', expectPresent: 1, maxPresent: 1 },
+		{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the official feedback button, server-rendered', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '#idea-feedback-launch .sfb-glyph svg', label: 'the button carries the site control\'s glyph', expectPresent: 1, maxPresent: 1 },
+		{ selector: '#idea-feedback-frame.is-open', label: 'the window, open in its frame', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: 'header .idea-ledger-logo .idea-logo', label: 'the emblem lockup, top left', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: 'header a.logo', label: 'no old text mark', expectPresent: 0 },
-		/* SIGNED OUT IS THE HARNESS'S DEFAULT, and the optional contact field is
-		   offered ONLY where there is no account -- a signed-in report already
-		   carries one. This is the row that says the branch exists; the
-		   signed-in spec beside it is the row that says it is a branch. */
-		{ selector: '#idea-ledger-report input[type="text"]', label: 'the optional contact field (signed out)', expectPresent: 1, maxPresent: 1 }
+		/* THE LOOK-ALIKE IS GONE, button and panel both (the rejected design). */
+		{ selector: '#idea-ledger-report, #idea-ledger-report-btn', label: 'no look-alike panel or its header button', expectPresent: 0 }
 	],
 	contrast: [
-		{ selector: '#idea-ledger-report-btn', label: 'the trigger on the Ledger header', min: 4.5 },
-		{ selector: '#idea-ledger-report [role="dialog"] > div > div:nth-child(1), #idea-ledger-report > div > div:nth-child(1)', label: 'the panel heading', min: 4.5 },
-		{ selector: '#idea-ledger-report > div > div:nth-child(2)', label: 'the panel note copy', min: 4.5 }
+		{ selector: '#idea-feedback-launch .sfb-word', label: 'the button word on its Ledger key', min: 4.5 }
 	],
 	tapTargets: [
-		{ selector: '#idea-ledger-report-btn', label: 'the report trigger', min: 44 },
-		{ selector: '#idea-ledger-report button', label: 'every control inside the panel', min: 44 },
+		{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the feedback button', min: 44 },
 		/* THE LEDGER'S OWN TABS, WHICH NOTHING HAD EVER MEASURED. They were
 		   33.8px tall at 1440 and 39.6px at 375 -- under the floor at both, on a
 		   page a student reaches without signing in, so IDEA_INTERFACE_STANDARDS
@@ -161,71 +158,31 @@ export default {
 		   not `.tap-reach-44`'s), and the box is what a finger lands on. */
 		{ selector: '.tab-bar .tab-btn', label: "the Ledger's own tabs", min: 44 }
 	],
-	textContains: [
-		{
-			selector: '#idea-ledger-report',
-			label: 'the panel says what a signed-out report carries, before it is sent',
-			must: [
-				'SEND FEEDBACK',
-				'not signed in',
-				'this report carries no name',
-				'A way to reach you (optional)'
-			],
-			/* A REPORT IS NEVER PRESENTED AS ANONYMOUS AND ALSO IDENTIFIED, and
-			   this phrase is the signed-in sentence's own -- it appears in that
-			   state and in no other, which is what makes the prohibition mean
-			   something rather than forbid a string nothing ever writes. Its
-			   mirror is the `coins-signed-in` spec, which requires this phrase
-			   and forbids the three above. */
-			mustNot: ['carries your account']
-		}
-	],
 	orderResult: [
+		frameFields(false),
+		FRAME_TYPESET_CHECK,
+		OFFICIAL_CORNER_CHECK,
+		ROOM_INKS_CHECK,
 		{
-			label: 'a signed-out report posts to the anonymous route and nowhere else',
-			/* THE ENDPOINT IS READ OFF THE INJECTED CONFIG, which is the only
-			   place it exists -- the two paths must never swap, and a signed-in
-			   student travelling the anonymous route would file a row carrying
-			   no account and attributable to an address instead. */
-			evaluate:
-				'() => { const src = [...document.scripts].map((s) => s.textContent || "").find((t) => t.indexOf("idea-ledger-report-btn") !== -1); if (!src) return ["NO INJECTED SCRIPT"]; const m = /"endpoint":"([^"]+)"/.exec(src); return [m ? m[1] : "NO ENDPOINT IN CONFIG"]; }',
-			expected: ['/api/feedback']
-		},
-		{
-			/* THE LONGER WORD (2026-10-07, "Feedback" for "Report") MUST STILL
-			   SIT INSIDE THE VIEWPORT. This page sets `body { overflow-x: hidden }`,
-			   so a trigger pushed past the right edge would add no scroll for the
-			   horizontal-scroll check to see and would simply be unreachable, the
-			   defect that unfroze the tab bar. So the box is read against the
-			   window and hit-tested at its own centre.
-
-			   THE PANEL IS OPEN WHEN THIS RUNS (the prepare step opened it), and
-			   it is `position: fixed; inset: 0` over the whole page, so a plain
-			   hit test answers the panel's shade. That is read FIRST, as the
-			   positive control that this hit test can see a covered trigger at
-			   all; then the panel is lifted (`visibility: hidden`, which
-			   elementFromPoint skips) for the real read and put back exactly as
-			   it was. */
-			label: 'the header Feedback button sits inside the window and answers a tap at its centre',
+			/* THE REPORT RECORDS THE LEDGER, NEVER THE FRAME. The window's
+			   address carries the opener's route, build and room, and the window
+			   files the report against that route (`parseEmbedParams`). Read off
+			   the frame's own URL, and its note off its own document. */
+			label: 'the window files against the Ledger, in its plate, and says a signed-out report carries no name',
 			evaluate: `() => {
-				const b = document.getElementById('idea-ledger-report-btn');
-				if (!b) return ['NO TRIGGER'];
-				const p = document.getElementById('idea-ledger-report');
-				const r = b.getBoundingClientRect();
-				const at = () => document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-				const covered = p && p.contains(at()) ? 'covered by the open panel' : 'PANEL NOT OVER IT';
-				const was = p ? p.style.visibility : '';
-				if (p) p.style.visibility = 'hidden';
-				const hit = at();
-				if (p) p.style.visibility = was;
+				const f = document.getElementById('idea-feedback-frame');
+				if (!f) return ['NO FRAME'];
+				const q = new URL(f.src, location.href).searchParams;
+				const note = f.contentDocument?.querySelector('.fb-note')?.textContent || '';
 				return [
-					r.left >= -0.5 && r.right <= window.innerWidth + 0.5 ? 'inside the window' : 'PAST THE EDGE: right ' + r.right + ' of ' + window.innerWidth,
-					covered,
-					hit && b.contains(hit) ? 'answers at its centre once the panel is lifted' : 'COVERED at its centre by ' + (hit ? hit.tagName + '.' + hit.className : 'nothing'),
-					b.textContent.trim()
+					'route ' + q.get('route'),
+					'plate ' + q.get('plate'),
+					'room tokens ' + (Object.keys(JSON.parse(q.get('room') || '{}')).length >= 20 ? 'handed over' : 'MISSING'),
+					note.includes('not signed in') && note.includes('carries no name') ? 'says no name' : 'NOTE: ' + note.slice(0, 60),
+					f.contentDocument?.querySelector('.site-plate .fb-box') ? 'plate keys' : 'NO PLATE'
 				];
 			}`,
-			expected: ['inside the window', 'covered by the open panel', 'answers at its centre once the panel is lifted', 'Feedback']
+			expected: ['route /coins', 'plate 1', 'room tokens handed over', 'says no name', 'plate keys']
 		},
 		{
 			label: 'no part of the injected control contributes to the overflow, at either width',
@@ -239,7 +196,7 @@ export default {
 			   whether any of them is the trigger or the panel. The measurement
 			   naming the drawer is the `prepare-eval` line above. */
 			evaluate:
-				'() => { const d = document.documentElement; if (d.scrollWidth <= d.clientWidth) return ["not the injected control"]; const offenders = [...document.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().right > d.clientWidth + 0.5); const trigger = document.getElementById("idea-ledger-report-btn"); const panel = document.getElementById("idea-ledger-report"); const ours = offenders.filter((e) => (trigger && (e === trigger || trigger.contains(e))) || (panel && (e === panel || panel.contains(e)))); return [ours.length === 0 ? "not the injected control" : "THE INJECTED CONTROL: " + ours.length + " node(s)"]; }',
+				'() => { const d = document.documentElement; if (d.scrollWidth <= d.clientWidth) return ["not the injected control"]; const offenders = [...document.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().right > d.clientWidth + 0.5); const trigger = document.getElementById("idea-feedback-launch"); const panel = document.getElementById("idea-feedback-frame"); const ours = offenders.filter((e) => (trigger && (e === trigger || trigger.contains(e))) || (panel && (e === panel || panel.contains(e)))); return [ours.length === 0 ? "not the injected control" : "THE INJECTED CONTROL: " + ours.length + " node(s)"]; }',
 			expected: ['not the injected control']
 		},
 		{
@@ -279,28 +236,45 @@ export default {
 			   `orderResult` requires -- at 1440 the bar is one row and at 375 it
 			   is two, and "all four reachable" is true of both.
 
-			   IT LOOKS PAST THE INJECTED REPORT PANEL, and the first draft of
-			   this row did not: `#idea-ledger-report` is a `position: fixed`
-			   MODAL covering the whole viewport (measured 0,0 -> 375x900 and
-			   1440x900), the `prepare` step above opens it, and it therefore
-			   sits on top of all four tabs at both widths. A plain
-			   `elementFromPoint` answered "UNREACHABLE: Leaderboard,
-			   Transaction Log, Analytics, Contracts" on a page whose tab bar was
-			   completely fine -- a false red that would have been read as this
-			   fix not working. The claim that is actually wanted is that nothing
-			   of the PAGE's own is between a finger and a tab, so the stack is
-			   walked and everything inside the injected panel is skipped; a tab
-			   covered by anything else still fails by name. */
-			label: 'all four tabs are inside the viewport and hit-testable',
-			evaluate:
-				'() => { const d = document.documentElement; const panel = document.getElementById("idea-ledger-report"); const btns = [...document.querySelectorAll(".tab-bar .tab-btn")]; if (btns.length !== 4) return ["EXPECTED 4 TABS, FOUND " + btns.length]; const bad = btns.filter((b) => { const r = b.getBoundingClientRect(); if (r.left < -0.5 || r.right > d.clientWidth + 0.5 || r.width < 1 || r.height < 1) return true; const stack = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2); const top = stack.find((e) => !(panel && (e === panel || panel.contains(e)))); return !(top === b || b.contains(top)); }); return [bad.length === 0 ? "4/4 reachable" : "UNREACHABLE: " + bad.map((b) => b.textContent.trim()).join(", ")]; }',
-			expected: ['4/4 reachable']
-		},
-		{
-			label: 'the trigger is inside the page header, not floating over the leaderboard',
-			evaluate:
-				'() => { const b = document.getElementById("idea-ledger-report-btn"); if (!b) return ["NO TRIGGER"]; const fixed = getComputedStyle(b).position === "fixed"; const inHeader = !!b.closest("header"); return [inHeader && !fixed ? "in the header" : (fixed ? "floating" : "outside the header")]; }',
-			expected: ['in the header']
+			   IT MEASURES THE TABS ONCE THE WINDOW HAS CLOSED, AND THAT THE PAGE
+			   WAS INERT WHILE IT WAS OPEN (ledger 0396, review round 1). The
+			   `prepare` step above opens the window, whose frame covers the
+			   viewport, and the launcher now makes every other child of the
+			   page's body `inert` while it is up, so the tabs are rightly out of
+			   reach then (the first draft of this row looked past the frame in
+			   the stack, which `inert` ends: an inert tab is not hit-tested at
+			   all). So it reads `inert` on every tab while the window is open,
+			   closes the window through its own Escape, hit-tests each tab with
+			   the page given back (a launcher that left the page inert fails it
+			   by name), and opens the window again for any read after this one. */
+			label: 'the page is inert behind the open window, and once it closes all four tabs are inside the viewport and hit-testable',
+			evaluate: `async () => {
+				const d = document.documentElement;
+				const f = document.getElementById('idea-feedback-frame');
+				const t = document.querySelector('#idea-feedback-launch .sfb-trigger');
+				const btns = [...document.querySelectorAll('.tab-bar .tab-btn')];
+				if (btns.length !== 4) return ['EXPECTED 4 TABS, FOUND ' + btns.length, ''];
+				if (!f || !t || !f.classList.contains('is-open')) return ['NO OPEN WINDOW', ''];
+				const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+				const inertOpen = btns.every((b) => !!b.closest('[inert]'));
+				const ta = f.contentDocument.querySelector('#fb-msg');
+				ta.focus();
+				ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+				for (let i = 0; i < 30 && f.classList.contains('is-open'); i++) await wait(100);
+				const bad = btns.filter((b) => {
+					const r = b.getBoundingClientRect();
+					if (r.left < -0.5 || r.right > d.clientWidth + 0.5 || r.width < 1 || r.height < 1) return true;
+					const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+					return !(top === b || b.contains(top));
+				});
+				t.click();
+				for (let i = 0; i < 30 && !(f.classList.contains('is-open') && f.contentDocument.querySelector('#fb-msg')); i++) await wait(100);
+				return [
+					inertOpen ? 'the page behind the open window is inert' : 'THE PAGE BEHIND THE OPEN WINDOW IS NOT INERT',
+					bad.length === 0 ? '4/4 reachable once it closes' : 'UNREACHABLE: ' + bad.map((b) => b.textContent.trim()).join(', ')
+				];
+			}`,
+			expected: ['the page behind the open window is inert', '4/4 reachable once it closes']
 		}
 	]
 };

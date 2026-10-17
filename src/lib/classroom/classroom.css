@@ -75,6 +75,23 @@
 	   stylesheet rules on this element now, so specificity decides, and the
 	   more specific one is the split. */
 	--cr-measure: var(--cr-measure-route, var(--measure-page));
+
+	/* THE PAGE'S FOOT CLEARS THE FEEDBACK BUTTON (ledger 0396). The button is
+	   the root layout's, in the bottom-right corner as on every page, so a
+	   classroom page that scrolls as a document ends at least the button's
+	   height above the bottom edge and its last control (People's Remove, a
+	   row's menu, the grading dock's Return) always scrolls clear. The room is
+	   `border-box`, so a page shorter than the window gains no scroll. */
+	padding-bottom: var(--feedback-clear-block, 0px);
+}
+/* ABOVE 1024px A CLASSROOM PAGE IS USUALLY AN APPLICATION FRAME, the viewport
+   and no taller, whose panes scroll on their own: there the panes' feet clear
+   the button (split.css, the grading console's own columns) and the frame
+   itself must not grow by the clearance, or the document would scroll. */
+@media (min-width: 1024px) {
+	.cr-root:is(.cr-app, :has(> .cr-split:not(.page-flow))) {
+		padding-bottom: 0;
+	}
 }
 
 /* The scanline + vignette overlay is a SIBLING of this wrapper's ancestor, so

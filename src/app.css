@@ -3328,12 +3328,17 @@ a:hover {
 	pointer-events: none;
 }
 
-/* Footer */
+/* Footer. Its foot clears the floating feedback button's corner (ledger
+   0396, review round 2): at 375 the archive link and the version line ended
+   under the button with the page scrolled to its end. `--feedback-clear-block`
+   is declared only while the button is on the page, so nothing is reserved
+   where there is none. */
 .legacy-index footer {
 	position: relative;
 	z-index: 1;
 	border-top: 1px solid color-mix(in srgb, var(--li-mint) 10%, transparent);
 	padding: 2rem;
+	padding-bottom: max(2rem, var(--feedback-clear-block, 0px));
 	text-align: center;
 }
 .legacy-index .footer-logo {
@@ -3462,6 +3467,7 @@ a:hover {
 	}
 	.legacy-index footer {
 		padding: 1.5rem 1rem;
+		padding-bottom: max(1.5rem, var(--feedback-clear-block, 0px));
 	}
 }
 

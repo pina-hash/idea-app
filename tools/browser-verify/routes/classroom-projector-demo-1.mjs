@@ -14,8 +14,9 @@
  *   - the frame was built from a MANAGER hall-pass state naming who is out,
  *     and the wall says only "Taken"; the one roster name on the wall is the
  *     pick the teacher chose to show, and no address appears;
- *   - the relocated report control is in the strip, and the shell's floating
- *     one is not on the page;
+ *   - (ledger 0396) the feedback button is the root layout's corner button, as
+ *     on every page, at the right end of the strip, which its own keys stop
+ *     short of: every strip key answers at its centre and none sits under it;
  *   - (ledger 0298) the running timer reads TENTHS with more than ten seconds
  *     left, and ticks: watched for a second on every animation frame, the face
  *     showed at least eight different readings (the sample and this machine's
@@ -42,6 +43,22 @@ export default {
 		},
 		{ label: 'the wall timer ticks: different readings in one second, watched on every frame', evaluate: timerTicked(8), expected: ['at least 8 distinct readings'] },
 		{
+			label: 'the corner feedback button sits clear of every strip key, and each key answers at its centre',
+			evaluate: `() => {
+				const fb = document.querySelector('.sfb-shell .sfb-trigger');
+				const keys = [...document.querySelectorAll('[data-testid="projector-strip"] button')];
+				if (!fb || !keys.length) return ['setup: button=' + !!fb + ' keys=' + keys.length];
+				/* A portrait window may scroll (the fit row above), so the strip is
+				   brought into view first: a key below the fold answers nothing. */
+				keys[keys.length - 1].scrollIntoView({ block: 'end', behavior: 'instant' });
+				const f = fb.getBoundingClientRect();
+				const under = keys.filter((k) => { const r = k.getBoundingClientRect(); return r.right > f.left && r.left < f.right && r.bottom > f.top && r.top < f.bottom; });
+				const answers = keys.every((k) => { const r = k.getBoundingClientRect(); const h = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return h && k.contains(h); });
+				return [under.length === 0 ? 'no strip key under the button' : under.length + ' STRIP KEY(S) UNDER THE BUTTON', answers ? 'every strip key answers' : 'A STRIP KEY IS COVERED'];
+			}`,
+			expected: ['no strip key under the button', 'every strip key answers']
+		},
+		{
 			label: 'the hall pass in the student word',
 			evaluate: `() => [document.querySelector('[data-testid="projector-hall"]').textContent.replace(/\\s+/g, ' ').trim()]`,
 			expected: ['Hall pass ◐ Taken']
@@ -57,8 +74,9 @@ export default {
 		{ selector: '[data-testid="projector-timer"][data-final="true"], [data-testid="projector-timer-pulse"]', label: 'not in its last seconds: no warning edge, no beat', expectPresent: 0 },
 		{ selector: '[data-testid="projector-pick"]', label: 'the shown pick', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '.cr-header, .cr-root', label: 'no classroom chrome (header, room)', expectPresent: 0 },
-		{ selector: '[data-testid="projector-strip"] .sfb-trigger', label: 'the relocated report control, in the strip', expectPresent: 1, maxPresent: 1 },
-		{ selector: '.sfb-trigger', label: 'exactly one report control on the page', expectPresent: 1, maxPresent: 1 }
+		{ selector: '.sfb-shell .sfb-trigger', label: 'the feedback button, the page corner one (ledger 0396)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="projector-strip"] .sfb-trigger', label: 'none inside the strip any more', expectPresent: 0 },
+		{ selector: '.sfb-trigger', label: 'exactly one feedback control on the page', expectPresent: 1, maxPresent: 1 }
 	],
 	contrast: [
 		{ selector: '.lp-class', label: 'class name', min: 4.5 },

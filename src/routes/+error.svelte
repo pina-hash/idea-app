@@ -2,11 +2,8 @@
 	import { page } from '$app/state';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
-	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
-	import { describeBuild } from '$lib/feedback/context';
-	import { version as buildId } from '$app/environment';
-	import { deploy } from 'virtual:site-versions';
+	import { feedbackWriter } from '$lib/feedback/feedback';
+	import { openSiteFeedback } from '$lib/feedback/opener';
 
 	/**
 	 * THE FIRST ERROR BOUNDARY IN THIS REPO.
@@ -22,11 +19,13 @@
 	 * puts the report affordance in the root layout. A per-section error page
 	 * would be one more thing each new area has to remember.
 	 *
-	 * THE AFFORDANCE IS THE SHARED ONE, RELOCATED. `place="relocated"` is what
-	 * takes it off the shell's floating position and puts it in this panel, with
-	 * the status, the route and the correlation id already filled in. The shell's
-	 * own copy stands down here (the `error` exclusion category), so there is one
-	 * control offering more rather than two offering different things.
+	 * THE WINDOW IS THE SHARED ONE, AND SO IS ITS BUTTON (ledger 0396). The root
+	 * layout's corner button is on this page as on every page, carrying the
+	 * status, the route and the correlation id (the root layout hands it
+	 * `page.error`), and "Tell us what happened" below opens THAT window
+	 * (`openSiteFeedback`). It used to mount a second window of its own in this
+	 * card, with the corner button standing down; one window, one corner, and a
+	 * second way in to it is what replaced that.
 	 *
 	 * IT NO LONGER NEEDS A SESSION, OR EVEN A SUPABASE CLIENT. This boundary
 	 * catches a failure in a LAYOUT load, which is precisely when `page.data`
@@ -36,9 +35,11 @@
 	 * those cases now, so the highest-value report in the portal is the one
 	 * report that can always be filed.
 	 */
-	const build = describeBuild(deploy, buildId);
+	/* The same writer the root layout hands its window, asked only to decide
+	   whether there is a window to open (a caller can hand in none). */
 	const submit = $derived(feedbackWriter(page.data.supabase, page.data.claims?.sub));
-	const anonymous = $derived(feedbackIsAnonymous(page.data.supabase, page.data.claims?.sub));
+	/* A press that found no window says so, rather than doing nothing. */
+	let noWindow = $state(false);
 
 	const heading = $derived(
 		page.status === 404 ? 'That page is not here' : 'Something went wrong'
@@ -97,22 +98,18 @@
 				<a class="btn" href={classHref}>Back to the class</a>
 			{/if}
 			<a class="btn" href="/">Back to the portal</a>
-			<SiteFeedback
-				place="relocated"
-				routeId={page.route.id}
-				pathname={page.url.pathname}
-				role={page.data.userProfile?.role ?? null}
-				sectionId={page.params.sectionId ?? null}
-				{build}
-				{submit}
-				{anonymous}
-				status={page.status}
-				errorMessage={page.error?.message ?? null}
-				{errorId}
-				label="Tell us what happened"
-			/>
+			{#if submit}
+				<button
+					type="button"
+					class="btn"
+					data-testid="error-report"
+					onclick={() => (noWindow = !openSiteFeedback())}
+				>
+					Tell us what happened
+				</button>
+			{/if}
 		</div>
-		{#if !submit}
+		{#if !submit || noWindow}
 			<!--
 				A STATE THAT NO LONGER HAS A CAUSE, KEPT RATHER THAN DELETED. Every
 				visitor gets a writer now, signed in or not, so this cannot render

@@ -43,13 +43,13 @@ import {
  * path -- their row would carry no account and be attributable to an address
  * instead. The two paths stay apart; see the note in $lib/feedback/feedback.ts.
  *
- * WHY IT IS A SHARED FUNCTION RATHER THAN A SECOND ROUTE. `/api/vanguard-feedback`
- * was the first of these and `/api/coin-feedback` is the second; the two differ
- * by one string. Two copies of a body-size cap, a kind allowlist and a refusal
- * ladder is two things to keep in step, and the half that would drift silently
- * is the refusal ladder -- both routes' answers are read by the same injected
- * bootstrap contract, so a divergence shows up as one page wording a refusal
- * differently from the other rather than as an error.
+ * ONE CALLER NOW, AND IT IS VANGUARD'S (ledger 0396). `/api/coin-feedback` and
+ * `/api/assignment-feedback` called this too, for the injected look-alike panel
+ * the Coin Ledger and the assignment handouts carried; both pages now open the
+ * site's own window (`/feedback/embed`), which writes through the same
+ * `feedbackWriter` every Svelte page does, so both routes and that panel are
+ * deleted. VANGUARD keeps its own feedback system (Mr. Pina: the games are the
+ * exception), and its panel posts here.
  */
 
 const KINDS: FeedbackKind[] = ['bug', 'idea', 'praise', 'other'];
@@ -136,27 +136,4 @@ export async function handleLegacyFeedbackPost(
 	// (`feedbackIssue`); anything else was refused BY the database.
 	if (feedbackIssue(message)) return refuse('message_empty', 200);
 	return refuse('server_refused', 502);
-}
-
-/**
- * "IS THIS READER SIGNED IN?", FOR A LEGACY PAGE WHOSE BYTES EVERY READER
- * SHARES (report 20, 2026-09-25).
- *
- * `/assignments/<slug>` is served from one shared cache entry with no
- * `Vary: Cookie`, so its injected report panel cannot be told at serve time
- * whether the reader has a session -- that answer would be served to the next
- * thirty readers too. The panel asks here instead, when the box OPENS, and
- * this answer is the only session-dependent thing on that path.
- *
- * `private, no-store` IS THE WHOLE POINT: a cached "yes" handed to the next
- * reader is exactly the leak the page itself avoids. It says one boolean and
- * nothing else -- no name, no role, no address -- because the only question
- * the panel has is which of two routes a report takes and whether to offer a
- * way to be reached.
- */
-export function handleLegacySessionProbe(claims: { sub: string } | null | undefined): Response {
-	return json(
-		{ signedIn: !!claims },
-		{ headers: { 'cache-control': 'private, no-store', vary: 'Cookie' } }
-	);
 }

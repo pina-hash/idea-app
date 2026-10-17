@@ -338,9 +338,10 @@ describe('the old address, /classroom/feedback', () => {
 describe('the console is a site page now, not a classroom one', () => {
 	it('takes the site plate and the root layout report control', () => {
 		expect(sitePlateInScope('/admin/feedback')).toBe(true);
-		// Positive control for the report-control half: a classroom route is
-		// excluded (the classroom docks the control in its header), this is not.
-		expect(feedbackExclusion('/classroom/[sectionId]')?.id).toBe('classroom');
+		// Positive control for the report-control half: GREENLINE keeps its own
+		// feedback system and is excluded; this page takes the corner button, as
+		// every classroom page does since ledger 0396.
+		expect(feedbackExclusion('/greenline')?.id).toBe('greenline');
 		expect(feedbackExclusion('/admin/feedback')).toBeNull();
 	});
 

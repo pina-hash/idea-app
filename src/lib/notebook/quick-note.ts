@@ -32,11 +32,45 @@ import {
 import { docToTiptap, noteThreads } from '$lib/notebook-notes';
 import { captureLabel } from '$lib/notebook/capture';
 import { isProjectorRoute } from '$lib/shell/deploy-safety';
-import { CLASSROOM_SHELL_HARNESSES } from '$lib/feedback/context';
 
 // ---------------------------------------------------------------------------
 // Where the control is offered
 // ---------------------------------------------------------------------------
+
+/**
+ * THE `/dev` HARNESSES THAT MOUNT THE REAL ClassroomShell, which carries the
+ * quick note in its header, so a measurement there sees the production header.
+ * `tests/classroom-shell-chrome.test.ts` sweeps src/routes/dev for every
+ * harness that imports the shell and fails when one is missing here, in both
+ * directions. It lived in `$lib/feedback/context.ts` while the shell also
+ * docked the feedback control (until ledger 0396), and the quick note is its
+ * one reader now.
+ */
+export const CLASSROOM_SHELL_HARNESSES = [
+	'/dev/animated-logo-room',
+	'/dev/classroom',
+	'/dev/classroom-live',
+	'/dev/classroom-nav',
+	'/dev/classroom-palette',
+	'/dev/classroom-profile-menu',
+	'/dev/classroom-split',
+	'/dev/classroom-stream',
+	'/dev/classroom-student',
+	'/dev/classroom-theme',
+	'/dev/classroom-todo',
+	'/dev/classroom-tour',
+	'/dev/classroom-view-as-notebook',
+	'/dev/item-gallery',
+	'/dev/item-returned',
+	'/dev/notebook',
+	'/dev/notebook-capture',
+	'/dev/notebook-review',
+	'/dev/notebook-review-student',
+	'/dev/notebook-timeline',
+	'/dev/quick-note',
+	'/dev/theme-switch',
+	'/dev/themes-shape'
+] as const;
 
 /**
  * The `/dev` harnesses that render the control, besides the classroom shell's

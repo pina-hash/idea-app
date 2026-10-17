@@ -195,8 +195,22 @@ export const SCOPED_SITE_THEMES: readonly SiteTheme[] = ['space-white'];
  * joined in ledger 0384 on Mr. Pina's note that the Ledger must be visually
  * compatible with the site's themes; its own stylesheet carries the Space White
  * twins, measured at 4.5:1 or better, and its route injects the boot table.
+ *
+ * `/feedback` (ledger 0396) is the official feedback window's own page,
+ * `/feedback/embed`, which the Ledger opens in a frame over itself. It decides
+ * its theme exactly as the Ledger does -- the same stored value, the same
+ * session, the same scope -- so the window over a Space White Ledger is a Space
+ * White window. Opened over a page that is OUT of scope (an assignment handout),
+ * every colour the box paints arrives from that page as a room hook instead, so
+ * the theme decides nothing it draws there.
  */
-export const THEME_SCOPE_PREFIXES: readonly string[] = ['/classroom', '/reference', '/notebook', '/coins'];
+export const THEME_SCOPE_PREFIXES: readonly string[] = [
+	'/classroom',
+	'/reference',
+	'/notebook',
+	'/coins',
+	'/feedback'
+];
 
 /** Production paths a scoped theme covers EXACTLY, with nothing under them: the home page. */
 export const THEME_SCOPE_EXACT: readonly string[] = ['/'];

@@ -38,7 +38,12 @@ export default {
 		/* The controls it sits beside, so a regression that removed the whole
 		   menu could not read as "the moderation entry is correctly absent". */
 		{ selector: '.tt-builder', label: 'the two editor entries beside it (control)', expectPresent: 2, expectVisible: 2 },
-		{ selector: '.tt-start', label: 'START still the primary action', expectPresent: 1, expectVisible: 1 }
+		{ selector: '.tt-start', label: 'START still the primary action', expectPresent: 1, expectVisible: 1 },
+		/* GREENLINE KEEPS ITS OWN FEEDBACK (ledger 0396): the game's own SEND
+		   FEEDBACK is the one control, and the site's corner button is not drawn
+		   over the harness, as it is not over the race. Both directions. */
+		{ selector: '.tt-feedback', label: 'GREENLINE\u2019s own SEND FEEDBACK (control)', expectPresent: 1, expectVisible: 1 },
+		{ selector: '.sfb-shell .sfb-trigger', label: 'no site corner button over the game', expectPresent: 0, maxPresent: 0 }
 	],
 	textContains: [
 		{

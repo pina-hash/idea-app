@@ -4,7 +4,12 @@
  * table, oldest first, 25 rows at a time. Measured: the page's height against
  * a budget at both widths, the holder keys adding up to the whole list, 50
  * rows after one "Show more", and every Force check in key answering a tap at
- * its own centre (the docked report control and the next row never take it).
+ * its own centre (the corner feedback button and the next row never take it).
+ *
+ * THE DESKTOP BUDGET IS 1860, NOT 1800 (ledger 0396). The page's foot clears
+ * the corner feedback button now (`--feedback-clear-block`, 64px against the
+ * 48px foot it had), and this tree measured the page at 1833px at 1440 with
+ * the old foot, already past the old 1800, before that change.
  */
 import { ARMORY_HYDRATED, DOC_HEIGHT, hitsSelf } from './_armory.mjs';
 
@@ -17,7 +22,7 @@ export default {
 		{ evaluate: `() => { const y = (sel, edge = 'bottom') => { const e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect()[edge] + scrollY) : -1; }; return ['header ' + y('.ar-header'), 'h1 ' + y('h1'), 'lead ' + y('.ar-lead'), 'status ' + y('.ar-status'), 'tabs ' + y('.ar-tabs'), 'view-h ' + y('.ar-view-h'), 'toolbar ' + y('.ar-toolbar'), 'holders ' + y('.ar-holders'), 'count ' + y('.ar-count'), 'table top ' + y('.ar-out-table', 'top'), 'row1 h ' + Math.round(document.querySelector('[data-testid=armory-checkout]').getBoundingClientRect().height), 'table ' + y('.ar-out-table'), 'more ' + y('.ar-more'), 'main ' + y('main.ar-root')].join(' | '); }` },
 		{
 			evaluate: `() => document.documentElement.scrollHeight`,
-			until: `() => document.documentElement.scrollHeight <= (innerWidth < 600 ? 2600 : 1800)`
+			until: `() => document.documentElement.scrollHeight <= (innerWidth < 600 ? 2600 : 1860)`
 		},
 		{
 			evaluate: `() => document.querySelectorAll('[data-testid="armory-checkout"]').length`,
@@ -50,7 +55,8 @@ export default {
 		{ selector: '[data-testid="armory-out-all"]', label: 'and Show all', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="armory-holder"]', label: 'Everyone, Mine and five people (keys where the view is wide)', expectPresent: 7, maxPresent: 7, expectVisible: 0 },
 		{ selector: '[data-testid="armory-holder-select"] option', label: 'and the same seven in the select a phone shows', expectPresent: 7, maxPresent: 7, expectVisible: 0 },
-		{ selector: '.sfb-shell .sfb-trigger', label: 'nothing floats over the table', expectPresent: 0, maxPresent: 0 }
+		{ selector: '.sfb-shell .sfb-trigger', label: 'the feedback button, in the page corner (ledger 0396)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="armory-header"] .sfb-trigger', label: 'and none docked in the header', expectPresent: 0, maxPresent: 0 }
 	],
 	textContains: [
 		{ selector: '[data-testid="armory-out-count"]', label: 'the count, in words', must: ['60 files checked out, oldest first', 'Showing the first 50'] },

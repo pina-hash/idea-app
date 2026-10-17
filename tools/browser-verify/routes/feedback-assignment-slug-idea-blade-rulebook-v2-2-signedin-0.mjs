@@ -1,77 +1,70 @@
 /**
- * THE INJECTED REPORT CONTROL ON THE BLADE RULEBOOK, THE ONE ASSIGNMENT PAGE
- * THAT HIDES THE MOUSE POINTER (ledger 0298 review of report 20).
+ * THE BLADE RULEBOOK, THE ONE ASSIGNMENT PAGE THAT HIDES THE MOUSE POINTER
+ * (ledger 0298 review of report 20), and a page that keeps fixed controls of
+ * its own near the bottom right.
  *
  * `IDEA-Blade_Rulebook_v2_2.html` sets `*,*::before,*::after{cursor:none}` and
- * draws its own dot at z-index 99999. The injected panel sits above that, so
- * before the fix every element in the box -- the scrim, the card, the text
- * field -- and the word on the trigger computed `cursor: none`, and a desktop
- * reader lost the pointer the moment the box opened. The panel now carries an
- * id-scoped `cursor` rule that outranks the page's universal one.
+ * draws its own dot at z-index 99999. The universal rule matches the button's
+ * word and glyph directly, so the injected stylesheet gives the button an
+ * id-scoped pointer; inside the frame the window's own document decides its
+ * cursors, so nothing in the window hides the pointer either.
  *
  * WHAT IS READ: that the page really does hide its own cursor (the positive
- * control, without which a zero proves nothing), that no element of the
- * control or the box computes `cursor: none`, and that Escape closes the box
- * and hands focus back to Report (the box is reopened afterwards so any read
- * after this one still has it).
+ * control, without which a zero proves nothing), that no element of the button
+ * or the window computes `cursor: none`, and that Escape closes the window and
+ * hands focus back to the button.
  */
-import { openPanel, TRIGGER_FACTS, TRIGGER_FACTS_EXPECTED } from './_legacy-report.mjs';
+import { ESCAPE_CLOSES_FRAME, frameFields, OFFICIAL_CORNER_CHECK, OPEN_FRAME_BOX, ROOM_INKS, ROOM_INKS_CHECK, TYPE_FRAME_REPORT } from './_report-room.mjs';
 
 export default {
 	path: '/dev/feedback/assignment?slug=IDEA-Blade_Rulebook_v2_2&signedIn=0',
-	label: 'Blade Rulebook (hides its own cursor): the report box keeps a visible pointer, and Escape closes it',
-	prepare: [
-		{ waitFor: '() => !!document.getElementById("idea-legacy-report-btn")', timeoutMs: 20000, label: 'the injected trigger has mounted' },
-		openPanel(`() => !!document.querySelector('#idea-legacy-report input[type="text"]')`)
-	],
+	label: 'Blade Rulebook (hides its own cursor): the button and window keep a visible pointer, and Escape closes it',
+	settleMs: 1200,
+	prepare: [OPEN_FRAME_BOX, TYPE_FRAME_REPORT, ROOM_INKS],
 	presence: [
-		{ selector: '#idea-legacy-report-btn', label: 'the floating Report control', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '#idea-legacy-report', label: 'the report panel, once opened', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
+		{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the official feedback button, server-rendered', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '#idea-feedback-frame.is-open', label: 'the window, open in its frame', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '#idea-legacy-report, #idea-legacy-report-btn', label: 'no look-alike panel or its button', expectPresent: 0 }
 	],
-	contrast: [
-		{ selector: '#idea-legacy-report-btn span', label: 'the Report word on the floating control', min: 4.5 },
-		{ selector: '#idea-legacy-report > div > div:nth-child(2)', label: 'the panel note', min: 4.5 }
-	],
-	tapTargets: [
-		{ selector: '#idea-legacy-report-btn', label: 'the floating Report control', min: 44 },
-		{ selector: '#idea-legacy-report button', label: 'every control inside the panel', min: 44 }
-	],
+	contrast: [{ selector: '#idea-feedback-launch .sfb-word', label: 'the button word', min: 4.5 }],
+	tapTargets: [{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the feedback button', min: 44 }],
 	orderResult: [
+		frameFields(false),
+		OFFICIAL_CORNER_CHECK,
+		ROOM_INKS_CHECK,
 		{
-			label: 'the control answers a tap at its centre, its edge clears 3:1 on the page, and the panel took the page palette',
-			evaluate: TRIGGER_FACTS,
-			expected: TRIGGER_FACTS_EXPECTED
-		},
-		{
-			label: 'the page hides its own cursor, and nothing in the report control or box does',
+			label: 'the window files against the assignment route, without the plate, and the page stays session-blind',
 			evaluate: `() => {
-				const p = document.getElementById('idea-legacy-report');
-				const t = document.getElementById('idea-legacy-report-btn');
-				if (!p || !t) return ['NO PANEL OR TRIGGER'];
-				const els = [p, ...p.querySelectorAll('*'), t, ...t.querySelectorAll('*')];
-				const hidden = els.filter((el) => getComputedStyle(el).cursor === 'none').length;
+				const f = document.getElementById('idea-feedback-frame');
+				if (!f) return ['NO FRAME'];
+				const q = new URL(f.src, location.href).searchParams;
+				const scripts = [...document.scripts].map((s) => s.textContent || '').join('\\n');
 				return [
-					getComputedStyle(document.body).cursor === 'none' ? 'the page hides its own cursor' : 'THE PAGE DOES NOT HIDE ITS CURSOR (the fixture lost its point)',
-					hidden === 0 ? 'no element of the report control or box hides the pointer' : hidden + ' OF ' + els.length + ' ELEMENTS HIDE THE POINTER'
+					'route ' + q.get('route'),
+					'plate ' + (q.get('plate') || 'off'),
+					/signedIn|sessionProbe|assignment-feedback/.test(scripts.replace(/"extra":\\{[^}]*\\}/, '')) ? 'THE PAGE NAMES A SESSION' : 'the page names no session'
 				];
 			}`,
-			expected: ['the page hides its own cursor', 'no element of the report control or box hides the pointer']
+			expected: ['route /assignments/[slug]', 'plate off', 'the page names no session']
 		},
 		{
-			label: 'Escape in the box closes it and hands focus back to Report',
+			label: 'the page hides its own cursor, and nothing in the button or the window does',
 			evaluate: `() => {
-				const p = document.getElementById('idea-legacy-report');
-				const t = document.getElementById('idea-legacy-report-btn');
-				if (!p || !t) return ['NO PANEL OR TRIGGER'];
-				const ta = p.querySelector('textarea');
-				ta.focus();
-				ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-				const closed = getComputedStyle(p).display === 'none';
-				const back = document.activeElement === t;
-				t.click();
-				return [closed ? 'Escape closes the box' : 'ESCAPE LEFT THE BOX OPEN', back ? 'focus returns to Report' : 'FOCUS DID NOT RETURN TO REPORT'];
+				const f = document.getElementById('idea-feedback-frame');
+				const w = document.getElementById('idea-feedback-launch');
+				if (!f || !w) return ['NO FRAME OR BUTTON'];
+				const t = w.querySelector('.sfb-trigger');
+				const own = [t, ...t.querySelectorAll('*')].filter((el) => getComputedStyle(el).cursor === 'none').length;
+				const d = f.contentDocument;
+				const inner = [...d.querySelectorAll('.fb-scrim, .fb-scrim *')].filter((el) => d.defaultView.getComputedStyle(el).cursor === 'none').length;
+				return [
+					getComputedStyle(document.body).cursor === 'none' ? 'the page hides its own cursor' : 'THE PAGE DOES NOT HIDE ITS CURSOR (the fixture lost its point)',
+					own === 0 ? 'no element of the button hides the pointer' : own + ' BUTTON ELEMENTS HIDE THE POINTER',
+					inner === 0 ? 'no element of the window hides the pointer' : inner + ' WINDOW ELEMENTS HIDE THE POINTER'
+				];
 			}`,
-			expected: ['Escape closes the box', 'focus returns to Report']
-		}
+			expected: ['the page hides its own cursor', 'no element of the button hides the pointer', 'no element of the window hides the pointer']
+		},
+		ESCAPE_CLOSES_FRAME
 	]
 };

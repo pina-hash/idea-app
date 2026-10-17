@@ -1721,11 +1721,15 @@ It loads the class label and nothing that names a person.
   the last keystroke was on an earlier Los Angeles school day, and hours and
   minutes inside one; 0200 keeps `last_input_at` for life, so a bare minute count
   printed "No typing for 1463 min".
-- **A PROJECTED ROUTE JOINS `PROJECTOR_ROUTES` AND `FEEDBACK_EXCLUSIONS` IN THE
-  SAME CHANGE**, the first so a deploy never reloads it mid-lesson and the
-  second so the report control relocates into the wall strip rather than
-  floating over a projected image. Wall text is sized to be read from the back
-  of the room and measured under the projector wash (`PROJECTOR_MODEL`).
+- **A PROJECTED ROUTE JOINS `PROJECTOR_ROUTES` IN THE SAME CHANGE, AND KEEPS
+  THE FEEDBACK BUTTON'S CORNER OFF THE PROJECTED IMAGE**: the first so a deploy
+  never reloads it mid-lesson, the second because the button is the root
+  layout's, in the same corner on every page (ledger 0396), never relocated. The
+  wall strip stops short of it (`--feedback-clear-inline`) and fades it with
+  itself, the deck's stage stops short of it outside full screen, and in full
+  screen it is not drawn at all, because the full-screen element is the stage.
+  Wall text is sized to be read from the back of the room and measured under
+  the projector wash (`PROJECTOR_MODEL`).
 
 
 
@@ -1792,10 +1796,12 @@ step names keeps its hook**, and a step names a control by its printed word.
   the button said "Report a problem". **They are "Send feedback" and "Feedback"
   since 2026-10-07** (report e36c5437: the box takes ideas and praise too), with
   `FEEDBACK_PROMPT` and the speech-bubble `FEEDBACK_GLYPH` beside them (the error
-  page keeps `PROBLEM_GLYPH`); the legacy panel and VANGUARD get all of them
-  through their config JSON, never as literals. The identifiers and every hook
-  (`data-tour="report"`, `shell-report`, `.sfb-*`, the legacy panels' ids) keep
-  their names, because tours and specs address them.
+  page keeps `PROBLEM_GLYPH`); VANGUARD gets all of them through its config
+  JSON, never as literals, and a legacy page's button is the real
+  `FeedbackTrigger`, server-rendered, so it reads them as every page does. The
+  identifiers and every hook (`data-tour="report"`, `.sfb-*`, VANGUARD's panel
+  ids) keep their names, because tours and specs address them; the classroom
+  header's `shell-report` slot went with the docked control (ledger 0396).
 - **`InfoTip` OPENS ON A TAP AND STAYS OPEN UNTIL A TAP ELSEWHERE, ESCAPE OR
   BLUR.** A tip a phone cannot open is a `title` by another name. It has two
   sizes and the caller says which: `tap="reach"` (the default) for a trigger
@@ -5113,24 +5119,42 @@ inside the function fails closed rather than falling through to a weaker path.
   mount it per page** -- that is the rejected alternative, and
   `tests/feedback-coverage.test.ts` sweeps every `+page.svelte` and reddens if it
   moves back to one.
-  - **AN EXCLUSION IS BY CATEGORY AND IT RELOCATES, NEVER DELETES.** The registry
-    is `FEEDBACK_EXCLUSIONS` in `src/lib/feedback/context.ts`, matched on ROUTE ID
-    so a page added under an excluded section inherits it. A surface that takes
-    the control off the shell mounts it itself at `place="relocated"` (the deck
-    bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page,
-    the classroom header, the classroom projector's wall strip and the Armory
-    header, `ArmoryFrame`). **Every
-    route under `/classroom` is the `classroom` category since ledger 0297**:
-    the floating Report pill won hit tests over row controls, People's Remove
-    and the grading dock, so `ClassroomShell` docks it (voice has no pill of its
-    own since ledger 0298: it is the command palette's Speak control), and a
-    `/dev` harness that mounts the real shell is listed
-    in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement.
-    **The feedback control (`REPORT_LABEL_SHORT`) has its own header slot and
-    never folds into the Menu** (report 30:
-    folded below 1180px, it read as missing); on a phone it stacks its word under
-    its glyph so a class icon still fits. A
-    category with nowhere to relocate to is an exclusion that deleted the control.
+  - **THE BUTTON IS IN ONE PLACE ON EVERY PAGE, AND A ROOM MAKES ROOM FOR IT
+    RATHER THAN MOVING IT (ledger 0396, Mr. Pina: "the location of its buttons
+    are identical everywhere").** It is the root layout's corner button on the
+    classroom, the notebook, Armory, GAUNTLET, the deck, the projector, an error
+    page and the rest; the classroom header, the Armory header, the deck bar,
+    the projector strip and the error card used to carry docked copies at
+    `place="relocated"`, and all of them are gone (ledger 0297 had docked the
+    classroom's over hit-test collisions; report 30 kept it out of the Menu).
+    `FeedbackTrigger` declares `--feedback-clear-block` and
+    `--feedback-clear-inline` on `body` only while a floating button is on the
+    page, and a room reads them with a 0px fallback: the classroom's `.cr-root`
+    and Armory's `.ar-root` pad their foot, `ClassSplit`'s scrolling panes pad
+    theirs and set `scroll-padding-bottom`, the grading dock (which pins against
+    the window below 1024px) pins at the button's top instead of the window's
+    edge (`bottom: var(--feedback-clear-block)`), and the projector strip and the
+    deck's stage stop short of it. A new surface with a
+    control at its bottom-right edge does the same, and the instrument is a hit
+    test of its controls at the end of every scroll container. On a `.cr-root`
+    route the root layout wraps the window in `CLASSROOM_PLATE`
+    (`feedbackWearsClassroomPlate`), so the button and the box are the home
+    page's plate key and plate box. The error card's "Tell us what happened"
+    opens the same window through `openSiteFeedback` (`$lib/feedback/opener.ts`);
+    a surface wanting a second way in does that, never a second mount.
+  - **AN EXCLUSION IS BY CATEGORY AND IT RELOCATES, NEVER DELETES, AND THE
+    REGISTRY IS SHORT ON PURPOSE.** `FEEDBACK_EXCLUSIONS` in
+    `src/lib/feedback/context.ts`, matched on ROUTE ID so a page added under an
+    excluded section inherits it, is GREENLINE and VANGUARD (Mr. Pina's two
+    products that keep their own feedback systems), the served Coin Ledger
+    (which carries the same button server-rendered and opens the same window in
+    a frame) and `embed`, `/feedback/embed`, the window's own page, which IS the
+    window. An error page is never excluded: the error boundary replaces the
+    page, so the room's own control is not there. **GAUNTLET is not a category
+    since ledger 0396** (report 80bb4d23). A category with nowhere to relocate
+    to is an exclusion that deleted the control. `CLASSROOM_SHELL_HARNESSES`
+    (the `/dev` routes mounting the real shell) lives with the quick note now,
+    its one reader.
   - **CONTEXT IS CAPTURED, NEVER TYPED**, through `captureMeta`: route id, path,
     role, section, viewport, clock time, and the build. A field somebody has to
     fill in is a field that arrives empty.
@@ -6650,40 +6674,53 @@ carried-over content must follow one of these three patterns:**
 rewriting, the version badge, VANGUARD's cloud-save bootstrap): applied to the
 served STRING, never to the source file on disk.
 
-- **THE REPORT CONTROL FOR A LEGACY PAGE IS `$lib/server/legacy-report-panel.ts`,
-  AND A THIRD SURFACE IS A CALLER OF IT.** `SiteFeedback` is mounted once in the
+- **A LEGACY PAGE CARRIES THE REAL BUTTON AND OPENS THE REAL WINDOW IN A FRAME
+  (ledger 0396, reports 0fe82a80 and 80bb4d23), AND A THIRD SURFACE IS A CALLER
+  OF `$lib/server/feedback-launch.ts`.** `SiteFeedback` is mounted once in the
   root layout, which is what makes report coverage something a new route
   INHERITS; a page served from a `+server.ts` renders no layout and inherits
-  nothing, so the control is injected. Every string that could drift is
-  IMPORTED -- the kind list, the caps, the refusal wording, `describeBuild` --
-  and the row lands in `app_feedback` through the same two endpoints as every
-  other surface. **`$lib/server/legacy-feedback-post.ts` is the one signed-in
-  handler**, called by `/api/vanguard-feedback`, `/api/coin-feedback` and
-  `/api/assignment-feedback`, which differ by one `app` string; the ANONYMOUS
-  endpoint is taken from the shared constant and no caller can override it, so a
-  signed-out report cannot be pointed anywhere but `/api/feedback`.
-  - **IT ASKS WHAT THE SITE'S BOX ASKS, AND WEARS THE PAGE'S PLATE WHEN THERE
-    IS ONE (ledger 0392, report about the Ledger's outdated button).** The
-    horizon chips, "What happened" and the optional "What did you try?" (capped
-    by `FEEDBACK_TRIED_MAX`, refused as `tried_too_long` by the one handler)
-    are the root box's own; on a page whose `:root` declares the Ledger's plate
-    tokens (its face-top color) it borrows that page's own key and panel
-    classes rather than drawing a second look. **The Ledger's text mark is
+  nothing, so `injectFeedbackLaunch` puts the server-rendered `FeedbackTrigger`
+  (the root control's own button and its own scoped stylesheet) in the official
+  corner, with a small launcher that opens `/feedback/embed` in a transparent,
+  same-origin frame over the viewport. That page renders `SiteFeedback` alone at
+  `place="embed"`, so the window IS the home box -- the fields, voice, the
+  screenshot paste, the horizon chips, the submit path and the refusals -- and
+  nothing is rebuilt or copied. The frame reports the opener's route, live path,
+  build and (the Ledger) its active tab; it closes on the box's own close and on
+  Escape and hands focus back to the button; a frame whose document is not the
+  window's page fails the press at once (`FEEDBACK_EMBED_MARKER`). A room's
+  colours travel as `?room=<json>` over the one allowlist
+  (`FEEDBACK_ROOM_TOKENS`), each value checked by `roomTokenValueOk` and set one
+  property at a time, never as a style string, and again as a `room` message
+  through the same filter (`filterRoomTokens`) whenever the page's theme
+  attribute moves and at every open: the frame is kept once loaded, so the
+  address alone went stale when a theme was switched in another tab, and the
+  Ledger's box kept one theme's field under the other's ink, 1.0:1 (review
+  round 2). A room hands the field AND the ink it is typed in together
+  (`--plate-ink` beside the panel and well tokens). **The look-alike panel and its
+  two signed-in endpoints are deleted**; `$lib/server/legacy-feedback-post.ts`
+  is VANGUARD's alone. `/feedback` is a reserved short-link name (0269).
+  - **THE WINDOW KNOWS WHO IS SIGNED IN FROM ITS OWN SESSION, SO THE PAGE THAT
+    FRAMED IT STAYS SESSION-BLIND (report 20).** `/assignments/<slug>` is one
+    public cache entry for a whole class and must not vary; the injected bytes
+    are identical for every reader and the window reads the root layout's own
+    claims, so a signed-in report is the RLS-scoped insert and a signed-out one
+    the anonymous route, exactly as on the home page. The Ledger still bakes the
+    theme and pays `Vary: Cookie` for that, never for the button.
+    `tests/feedback-launch.test.ts` drives both real `GET`s signed in and out and
+    fails on a drifted anchor; `tests/feedback-coverage.test.ts` sweeps every
+    non-dev `+server.ts` that can answer with HTML and requires a control or a
+    named exemption with a reason.
+  - **THE LEDGER'S WINDOW WEARS THE PLATE IN THE LEDGER'S COLOURS** (`plate=1`,
+    its `--lp-*` read off the page), and an assignment's is the plain box in the
+    page's palette, light on a light handout. **The Ledger's text mark is
     swapped for the site emblem on the served string** by `injectLedgerLogo`
     in `$lib/server/ledger-logo.ts` (server-rendered `AnimatedLogo`, its
     layout rules restated and pinned by `tests/ledger-logo.test.ts`); the
     frozen file itself was not edited for either.
-  - **A LEGACY PAGE IN A SHARED CACHE ASKS FOR THE SESSION; IT IS NEVER TOLD
-    (report 20).** The Ledger bakes `signedIn` into its bytes and pays with
-    `Vary: Cookie`. `/assignments/<slug>` is one public cache entry for a whole
-    class and must not vary, so its panel (`injectLegacyReportPanel` with
-    `ASSIGNMENT_REPORT_OPTIONS`) asks `GET /api/assignment-feedback`
-    (`private, no-store`) when the box OPENS, and sends nothing until it knows.
-    `tests/feedback-coverage.test.ts` sweeps every non-dev `+server.ts` that can
-    answer with HTML and requires a control or a named exemption with a reason.
-- **VANGUARD'S OWN INJECTED PANEL PREDATES THAT MODULE AND IS A MIGRATION
-  CANDIDATE, NOT A SECOND SANCTIONED PATTERN** (the standing the hand-rolled
-  disclosures have). It is woven into the GAME -- it wears `.fbovl` so the
+- **VANGUARD'S OWN INJECTED PANEL IS THE ONE LOOK-ALIKE LEFT, AND IT IS KEPT ON
+  PURPOSE** (ledger 0396 names VANGUARD and GREENLINE as the two places that
+  keep their own). It is woven into the GAME -- it wears `.fbovl` so the
   game's pointer, mouse and wheel handlers stand down, it reads
   `__ideaGameInfo` for the mode and sector, it shares VANGUARD's own button
   factory -- so folding it in belongs in a bundle that can play the game to
@@ -6936,7 +6973,9 @@ the source of truth; **do not invent colours or swap fonts.**
 - **A SITE THEME MAY BE ROUTE-SCOPED, AND SPACE WHITE IS (ledger 0297).**
   `SCOPED_SITE_THEMES` names the themes that apply only inside
   `THEME_SCOPE_PREFIXES` (the classroom, the reference viewer, the notebook,
-  and since ledger 0384 the public IDEA Coin Ledger at `/coins`),
+  since ledger 0384 the public IDEA Coin Ledger at `/coins`, and since ledger
+  0396 the feedback window's own page at `/feedback`, so the Ledger's framed
+  window follows the stored theme the Ledger does),
   the site plate's own scope (since ledger 0360; see the site-plate rule) and
   `THEME_SCOPE_EXACT` (the home page, as the exact path `/` and never as a
   prefix, because every route starts with a slash). `themeInScope` matches on a
@@ -7069,7 +7108,9 @@ descendant and beats the room. **The one exception is a component mounted as the
 room's SIBLING**, which no wrapper declaration can reach: the root-mounted report
 box reads `--fb-room-bg` and its siblings (`SiteFeedback.svelte` lists them), and
 each out-of-scope room declares them on `body:has(.<room>)` in its own
-stylesheet, as literals (report 35). **MEASURE WHEN A SHARED COMPONENT ENTERS A NEW
+stylesheet, as literals (report 35) -- except GAUNTLET's, which sit in
+`SiteFeedback.svelte` itself, because the viewport stylesheet is the game's own
+design system (ledger 0396). **MEASURE WHEN A SHARED COMPONENT ENTERS A NEW
 ROOM**; both of those had passed review in the room they were written for.
 
 **AND THE SAME ARITHMETIC BINDS A TOKEN MOVE, IN THE OTHER DIRECTION: A PORTAL

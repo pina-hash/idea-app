@@ -81,7 +81,10 @@ const CHAIN = [
 	// `_app_short_link_reserved` with `certifications` added, because
 	// /certifications is a real top-level route. It depends only on profiles,
 	// the admin tier and the short-link tables, all of which are above.
-	'0260_cert_engine.sql'
+	'0260_cert_engine.sql',
+	// 0269 (ledger 0396) reserves `feedback`, the top-level directory of the
+	// feedback window's own page at /feedback/embed.
+	'0269_short_link_reserve_feedback.sql'
 ] as const;
 
 /**
