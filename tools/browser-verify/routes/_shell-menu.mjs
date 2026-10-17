@@ -7,8 +7,9 @@
  * button is not rendered (no box), the tools sit in the row, and this step
  * does nothing -- so one spec file measures both arrangements.
  *
- * REPORT IS NOT IN THE MENU (report 30, 2026-09-25): it keeps its own slot in
- * the header row at every width, so no spec opens the Menu to reach it.
+ * THE FEEDBACK BUTTON IS NOT IN THE MENU OR THE HEADER: it is the page's
+ * bottom-right corner button at every width since ledger 0396, so no spec
+ * opens the Menu to reach it.
  *
  * `_`-prefixed: a helper module, not a route spec.
  */

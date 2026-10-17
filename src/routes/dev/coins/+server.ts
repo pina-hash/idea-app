@@ -1,7 +1,8 @@
+import { SITE_THEME_KEY } from '$lib/theme';
 import { dev, version as buildId } from '$app/environment';
 import { error } from '@sveltejs/kit';
 import { deploy } from 'virtual:site-versions';
-import { legacyReportPanelScript } from '$lib/server/legacy-report-panel';
+import { injectFeedbackLaunch } from '$lib/server/feedback-launch';
 import ledgerHtml from '$lib/legacy/coins/index.html?raw';
 import { injectLedgerTheme } from '$lib/server/coin-public';
 import { injectLedgerLogo } from '$lib/server/ledger-logo';
@@ -42,51 +43,45 @@ export const GET: RequestHandler = async ({ url, cookies, setHeaders }) => {
 	const signedIn = url.searchParams.get('signedIn') === '1';
 
 	/*
-	 * THE REPORT CONTROL, INJECTED THE SAME WAY THE REAL ROUTE INJECTS IT.
+	 * THE FEEDBACK BUTTON AND WINDOW, INJECTED THE SAME WAY THE REAL ROUTE
+	 * INJECTS THEM (ledger 0396).
 	 *
-	 * A harness must mirror the whole mechanism it stands in for. Without this
-	 * the harness would serve the shipping markup with the one thing this
-	 * bundle ADDED to it missing -- so a passing drive would prove nothing
-	 * about the control, and nothing on screen would say so. Same module, same
-	 * options, only the endpoint differs: `/dev/coins/api/feedback` is an
-	 * in-memory sink answering the identical `{ok}` / `{ok:false, reason}`
-	 * contract, so the panel's send, its refusal wording and its retry branch
-	 * are all exercised with no session and no Supabase.
-	 *
-	 * ONLY THE SIGNED-IN ENDPOINT IS OVERRIDABLE, AND THAT IS DELIBERATE.
-	 * `legacyReportPanelScript` takes the ANONYMOUS endpoint from the shared
-	 * constant and offers no parameter for it, so no caller -- harness
-	 * included -- can point a signed-out report somewhere other than
-	 * `/api/feedback`. The cost is small and worth naming: a signed-OUT drive
-	 * here posts to the real anonymous route, which with no service-role key
-	 * answers a structured `not_configured` refusal, so what that path
-	 * exercises is the REFUSAL branch. Drive `?signedIn=1` for the success
-	 * branch.
+	 * A harness must mirror the whole mechanism it stands in for, so this is the
+	 * real `injectFeedbackLaunch` with the real route's options. The one thing it
+	 * adds is the window's harness sink: `sink=memory` makes `/feedback/embed`
+	 * (in dev, and only in dev) file a report into an in-memory list on THIS
+	 * page, `window.__ideaFeedbackSink`, the row built by the real
+	 * `submitFeedback`, so a spec can read exactly what would have been sent.
+	 * `?signedIn=1` asks the window for its signed-in arrangement; the window,
+	 * not this page, decides what that means, exactly as on the real route.
 	 */
 	/*
 	 * THE THEME, THE SAME WAY THE REAL ROUTE DECIDES IT (`injectLedgerTheme`,
 	 * keyed on `?signedIn=1` here as the report control is), plus ONE harness
 	 * override: `?theme=space-white|matrix` pins the attribute so a palette can
 	 * be measured whatever the scope decides for `/coins`. The override is the
-	 * harness's alone; the real route has no such parameter.
+	 * harness's alone; the real route has no such parameter. It also stores the
+	 * choice the way the site's own switch does, so the feedback window, which
+	 * reads the stored theme like every page of the site (and, signed in, may
+	 * apply it), opens in the theme the Ledger is pinned to.
 	 */
 	const forced = url.searchParams.get('theme');
 	const pin =
 		forced === 'space-white' || forced === 'matrix'
-			? `<script>document.documentElement.setAttribute('data-theme', ${JSON.stringify(forced)});</script>`
+			? `<script>document.documentElement.setAttribute('data-theme', ${JSON.stringify(forced)});try{localStorage.setItem(${JSON.stringify(SITE_THEME_KEY)}, ${JSON.stringify(forced)});}catch(e){}</script>`
 			: '';
-	const html = injectLedgerLogo(injectLedgerTheme(ledgerHtml, signedIn))
-		.replace('</title>', `</title>\n${pin}`)
-		.replace(/\/api\/coin\//g, '/dev/coins/api/').replace(
-		'</body>',
-		`${legacyReportPanelScript({
-			signedIn,
-			signedInEndpoint: '/dev/coins/api/feedback',
-			app: 'coins',
+	const html = injectFeedbackLaunch(
+		injectLedgerLogo(injectLedgerTheme(ledgerHtml, signedIn))
+			.replace('</title>', `</title>\n${pin}`)
+			.replace(/\/api\/coin\//g, '/dev/coins/api/'),
+		{
 			route: '/coins',
+			room: 'ledger',
 			deploy,
-			buildId
-		})}\n</body>`
+			buildId,
+			tabSelector: '.tab-btn.active',
+			embedQuery: { sink: 'memory', ...(signedIn ? { signedIn: '1' } : {}) }
+		}
 	);
 
 	setHeaders({ 'cache-control': 'no-store' });

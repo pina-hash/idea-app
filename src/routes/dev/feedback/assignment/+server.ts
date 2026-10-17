@@ -3,32 +3,31 @@ import { error } from '@sveltejs/kit';
 import { deploy } from 'virtual:site-versions';
 import { assignmentSlugs, loadAssignmentHtml, rewriteLegacyLinks } from '$lib/legacy';
 import { injectVersionBadge } from '$lib/version-badge';
-import { ASSIGNMENT_REPORT_OPTIONS, injectLegacyReportPanel } from '$lib/server/legacy-report-panel';
+import { ASSIGNMENT_FEEDBACK_LAUNCH, injectFeedbackLaunch } from '$lib/server/feedback-launch';
 import type { RequestHandler } from './$types';
 
 /**
- * Dev harness for the report control on a carried-over ASSIGNMENT page
- * (report 20, 2026-09-25). 404 in production, no auth, no Supabase.
+ * Dev harness for the feedback button and window on a carried-over ASSIGNMENT
+ * page (report 20, 2026-09-25; ledger 0396). 404 in production, no auth, no
+ * Supabase.
  *
  * It serves the REAL `src/lib/legacy/assignments/<slug>.html` through the SAME
  * pipeline `/assignments/<slug>` uses -- `rewriteLegacyLinks`, then
- * `injectLegacyReportPanel` with the route's own `ASSIGNMENT_REPORT_OPTIONS`,
- * then the version badge -- and overrides exactly two things: the session
- * probe and the signed-in endpoint point at fixtures beside this file, so both
- * sessions can be driven with no Google account. The anonymous endpoint cannot
- * be overridden (the module takes it from the shared constant), so a signed-out
- * send here reaches the REAL `/api/feedback`, which with no service key answers
- * a structured `not_configured` refusal -- the refusal branch, reported once.
+ * `injectFeedbackLaunch` with the route's own `ASSIGNMENT_FEEDBACK_LAUNCH`,
+ * then the version badge -- and adds exactly one thing: the window's harness
+ * sink (`sink=memory`), so a report lands in `window.__ideaFeedbackSink` on this
+ * page, the row built by the real `submitFeedback`, instead of the database.
  *
- *   ?slug=<slug>          which assignment (default idea100-blade-01)
- *   ?signedIn=1 | 0 | fail  what the probe answers: signed in, signed out, or a
- *                         503 (the "could not check" branch)
+ *   ?slug=<slug>      which assignment (default idea100-blade-01)
+ *   ?signedIn=1 | 0   which arrangement the window shows: signed in (no
+ *                     contact field, the account note) or signed out
+ *   ?signedIn=fail    the window's page cannot load (it answers the site's
+ *                     error page), so the button says so beside itself
  *
- * The toggle rides a COOKIE scoped to this harness, not the probe's URL, for
- * the reason `/dev/coins` gives: the probe URL is fixed in the injected bytes,
- * exactly as it is on the real route.
+ * The page's own bytes stay session-blind, exactly as the real route's do: the
+ * parameter only reaches the window, which decides what it means.
  */
-export const GET: RequestHandler = async ({ url, cookies, setHeaders }) => {
+export const GET: RequestHandler = async ({ url, setHeaders }) => {
 	if (!dev) error(404, 'Not found');
 
 	const slug = url.searchParams.get('slug') ?? 'idea100-blade-01';
@@ -36,19 +35,15 @@ export const GET: RequestHandler = async ({ url, cookies, setHeaders }) => {
 	const html = await loadAssignmentHtml(slug);
 	if (html === null) error(404, 'Assignment not found');
 
-	const mode = url.searchParams.get('signedIn');
-	cookies.set('dev_assignment_report', mode === '1' ? '1' : mode === 'fail' ? 'fail' : '0', {
-		path: '/dev/feedback/assignment',
-		httpOnly: false
-	});
+	const signedIn = url.searchParams.get('signedIn') === '1';
+	const failing = url.searchParams.get('signedIn') === 'fail';
 
 	const served = injectVersionBadge(
-		injectLegacyReportPanel(rewriteLegacyLinks(html), {
-			...ASSIGNMENT_REPORT_OPTIONS,
-			sessionProbe: '/dev/feedback/assignment/session',
-			signedInEndpoint: '/dev/feedback/assignment/sink',
+		injectFeedbackLaunch(rewriteLegacyLinks(html), {
+			...ASSIGNMENT_FEEDBACK_LAUNCH,
 			deploy,
-			buildId
+			buildId,
+			embedQuery: { sink: 'memory', ...(signedIn ? { signedIn: '1' } : {}), ...(failing ? { fail: '1' } : {}) }
 		}),
 		'assignments'
 	);

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, type Snippet } from 'svelte';
+	import { onMount } from 'svelte';
 	import { laCalendarDay } from '$lib/classroom/school-calendar';
 	import { isTypingTarget } from '$lib/shell/keys';
 	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
@@ -62,13 +62,16 @@
 	 * that was also its own size container, collapsed to zero width with no
 	 * agenda, and drew a 48px timer on a 1440px wall.
 	 *
-	 * NO CHROME AND NO FLOATING CONTROLS. The page is reset to the root layout
-	 * (no classroom masthead), it is in the feedback exclusion registry (so the
-	 * report control does not float over it) and in the deploy-safety projector
+	 * NO CHROME AND NOTHING TO CLICK ON THE WALL. The page is reset to the root
+	 * layout (no classroom masthead) and is in the deploy-safety projector
 	 * registry (so a new version never reloads it off the wall). Its own
 	 * controls are one strip at the bottom that exists only outside full screen,
 	 * and it fades when the pointer is still, so a window dragged onto the wall
-	 * without full screen still shows the class nothing to click.
+	 * without full screen still shows the class nothing to click. THE FEEDBACK
+	 * BUTTON IS THE ROOT LAYOUT'S CORNER BUTTON (ledger 0396: the same place on
+	 * every page), and it follows the strip: it sits at the strip's right end,
+	 * which the strip keeps clear, it fades with it, and in full screen it is
+	 * not drawn at all, because the full-screen element is the wall.
 	 *
 	 * SIZED BY THE 8H RULE. Text a class reads from the back of a room is at
 	 * least 1/50 of the screen's height; every size below is a fraction of the
@@ -88,16 +91,13 @@
 		viewer,
 		sectionId,
 		clock = () => Date.now(),
-		channelHost = undefined,
-		controls = null
+		channelHost = undefined
 	}: {
 		classLabel: string;
 		viewer: string;
 		sectionId: string;
 		clock?: () => number;
 		channelHost?: ProjectorChannelHost;
-		/** The relocated report control, drawn in the strip (the deck's own arrangement). */
-		controls?: Snippet | null;
 	} = $props();
 
 	// svelte-ignore state_referenced_locally
@@ -538,7 +538,6 @@
 					Reset <kbd>R</kbd>
 				</button>
 			{/if}
-			{#if controls}{@render controls()}{/if}
 		</div>
 	{/if}
 </main>
@@ -1120,8 +1119,21 @@
 	.lp-strip.quiet:not(:focus-within) {
 		opacity: 0;
 	}
+	/* THE CORNER FEEDBACK BUTTON SITS AT THE STRIP'S RIGHT END (ledger 0396).
+	   The strip's own keys stop short of it (`--feedback-clear-inline`, the
+	   button's width plus its margin), and the button fades with the strip, by
+	   the same rule and the same easing, unless it holds focus. In full screen
+	   the strip is gone and the button is not drawn: the full-screen element is
+	   the wall, and the button is not inside it. */
+	.lp-strip {
+		padding-inline-end: max(3vw, var(--feedback-clear-inline, 0px));
+	}
+	:global(body:has(.lp-strip.quiet:not(:focus-within)) .sfb-shell:not(:focus-within)) {
+		opacity: 0;
+	}
 	@media (prefers-reduced-motion: no-preference) {
-		.lp-strip {
+		.lp-strip,
+		:global(body:has(.lp-root) .sfb-shell) {
 			transition: opacity 0.3s ease;
 		}
 	}

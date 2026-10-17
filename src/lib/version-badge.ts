@@ -19,10 +19,19 @@ export function versionLine(appId: string): string {
 	return stampText(appId, apps, deploy);
 }
 
+/*
+ * `--idea-version-badge-bottom` IS A HOOK, NOT A SETTING (ledger 0396). A page
+ * that also carries the site's floating feedback button in the same corner
+ * (the Coin Ledger, an assignment handout: `$lib/server/feedback-launch.ts`)
+ * sets it on `body` so the chip sits just above the button instead of over it.
+ * Unset -- VANGUARD -- it is the 6px it always was. `data-idea-version-badge`
+ * is how that page finds the chip to stand it aside while the button's "did
+ * not load" sentence sits where the chip was lifted to.
+ */
 const BADGE_STYLE = [
 	'position:fixed',
 	'right:8px',
-	'bottom:6px',
+	'bottom:var(--idea-version-badge-bottom,6px)',
 	'z-index:2147483000',
 	'pointer-events:none',
 	"font:10px 'Share Tech Mono',monospace",
@@ -37,7 +46,7 @@ const BADGE_STYLE = [
 
 /** Insert the version chip just before `</body>` (appended if none found). */
 export function injectVersionBadge(html: string, appId: string): string {
-	const badge = `<div style="${BADGE_STYLE}" aria-hidden="true">${versionLine(appId)}</div>`;
+	const badge = `<div style="${BADGE_STYLE}" aria-hidden="true" data-idea-version-badge>${versionLine(appId)}</div>`;
 	const i = html.toLowerCase().lastIndexOf('</body>');
 	if (i === -1) return html + badge;
 	return html.slice(0, i) + badge + html.slice(i);

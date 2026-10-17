@@ -644,6 +644,25 @@
 	.cr-root > .cr-split:not(.page-flow) > .cr-nav > * {
 		max-height: 100%;
 	}
+
+	/* THE CORNER IS THE FEEDBACK BUTTON'S, AND A PANE'S LAST ROW SCROLLS CLEAR
+	   OF IT (ledger 0396). The button floats in the bottom-right corner of every
+	   page, and a pane that scrolls on its own ends at the window's bottom edge,
+	   so its foot is padded past the button (`--feedback-clear-block`, declared
+	   beside the button only while one is on the page) and a scrolled-to control
+	   stops above it (`scroll-padding-bottom`). A pane whose content fits gains
+	   nothing; one that already ran to the edge gains the clearance. Under
+	   `page-flow` the document owns the scroll and the room's own foot clears
+	   it instead. */
+	.cr-split:not(.page-flow) > .cr-nav {
+		padding-bottom: max(var(--space-5), var(--feedback-clear-block, 0px));
+		scroll-padding-bottom: var(--feedback-clear-block, 0px);
+	}
+	.cr-split.nav-wide:not(.page-flow) > .cr-nav,
+	.cr-split:not(.page-flow) > .cr-detail {
+		padding-bottom: var(--feedback-clear-block, 0px);
+		scroll-padding-bottom: var(--feedback-clear-block, 0px);
+	}
 }
 
 /* --- The list width knob (ledger 0297, LEARN) ------------------------------

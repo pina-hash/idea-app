@@ -3,8 +3,9 @@
 	import ViewportBackground from '$lib/gauntlet/viewport/ViewportBackground.svelte';
 	import CursorLayer from '$lib/gauntlet/viewport/CursorLayer.svelte';
 	import FeatureTreeNav from '$lib/gauntlet/viewport/FeatureTreeNav.svelte';
-	import TrademarkFooter from '$lib/gauntlet/viewport/TrademarkFooter.svelte';
+	import GauntletFoot from '$lib/gauntlet/GauntletFoot.svelte';
 	import CountdownOverlay from '$lib/gauntlet/viewport/CountdownOverlay.svelte';
+	import { page } from '$app/state';
 
 	/**
 	 * Dev-only harness for the VIEWPORT chrome the GAUNTLET layout mounts on
@@ -16,14 +17,20 @@
 	 * THE WRAPPER IS THE REAL ONE, ARRANGED THE WAY THE REAL LAYOUT ARRANGES IT
 	 * (`src/routes/gauntlet/+layout.svelte`): `.gt-root` > ViewportBackground,
 	 * the vignette, CursorLayer, FeatureTreeNav, then `.gt-content` holding the
-	 * page and TrademarkFooter. Every one of these components reads tokens off
-	 * `.gt-root` and two of them position against it, so a harness that mounted
-	 * them bare would measure colours and geometry that exist nowhere.
+	 * page and `GauntletFoot` (the trademark footer and the version line, the
+	 * one component the layout mounts there too, so the foot's clearance of the
+	 * feedback button is measured on the real foot). Every one of these
+	 * components reads tokens off `.gt-root` and two of them position against
+	 * it, so a harness that mounted them bare would measure colours and geometry
+	 * that exist nowhere. The feedback button and window are the root layout's
+	 * own `SiteFeedback`, exactly as on /gauntlet.
 	 *
-	 * WHAT IS DELIBERATELY NOT COPIED from the layout: SiteFeedback and
-	 * VersionBadge, which are portal components already driven elsewhere and
-	 * would need a session; and `entranceSweep`, whose staggered opacity would
-	 * put every measurement below on a moving target for no gain here.
+	 * WHAT IS DELIBERATELY NOT COPIED from the layout: `entranceSweep`, whose
+	 * staggered opacity would put every measurement below on a moving target for
+	 * no gain here.
+	 *
+	 * `?foot=clear` makes the page taller than any window, so a spec can scroll to
+	 * the end and hit-test the version line against the feedback button.
 	 *
 	 * The countdown starts INACTIVE, which is its state on every page that is
 	 * not mid-room-start, and renders nothing at all in that state. The button
@@ -31,6 +38,7 @@
 	 */
 	let countdown = $state(false);
 	let doneCount = $state(0);
+	const long = page.url.searchParams.get('foot') === 'clear';
 </script>
 
 <svelte:head><title>GAUNTLET viewport chrome harness</title></svelte:head>
@@ -70,8 +78,12 @@
 				against something it covers rather than against empty page.
 			</p>
 			<button class="under" type="button" data-testid="under-overlay">covered control</button>
+			{#if long}
+				<!-- A page taller than any window, so the end of it is a scroll away. -->
+				<div class="long" aria-hidden="true"></div>
+			{/if}
 		</main>
-		<TrademarkFooter />
+		<GauntletFoot />
 	</div>
 	<CountdownOverlay
 		active={countdown}
@@ -114,6 +126,9 @@
 		border: 1px solid var(--line-strong);
 		border-radius: 3px;
 		cursor: pointer;
+	}
+	.long {
+		height: 150vh;
 	}
 	.readout {
 		font-family: var(--font-mono, monospace);

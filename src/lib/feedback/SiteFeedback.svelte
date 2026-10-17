@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import type FeedbackBox from './FeedbackBox.svelte';
+	import FeedbackTrigger from './FeedbackTrigger.svelte';
 	import {
 		probeFeedbackCapabilities,
 		type FeedbackCapabilities,
@@ -14,14 +15,13 @@
 		contextOf,
 		feedbackConsoleHref,
 		feedbackExclusion,
-		FEEDBACK_GLYPH,
 		FEEDBACK_PROMPT,
-		PROBLEM_GLYPH,
 		REPORT_LABEL,
 		type BuildStamp
 	} from './context';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { holdDeployReload } from '$lib/shell/deploy-safety';
+	import { provideSiteFeedbackOpener } from './opener';
 
 	/**
 	 * THE ONE REPORT AFFORDANCE, mounted once in the root layout.
@@ -52,12 +52,23 @@
 	 * ONE extra field -- an optional way to be reached, which a signed-in
 	 * reporter does not need because their report already carries an account.
 	 *
-	 * TWO PLACES IT CAN BE MOUNTED:
-	 * - `place="shell"` (the default) applies the exclusion registry, so a deck
-	 *   stage or a GAUNTLET viewport gets nothing floating over it.
-	 * - `place="relocated"` is what those excluded surfaces mount in their OWN
-	 *   chrome, plus the error boundary. An exclusion relocates the control; it
-	 *   never deletes it.
+	 * THREE PLACES IT CAN BE MOUNTED:
+	 * - `place="shell"` (the default) is the root layout's: the button in the
+	 *   bottom-right corner of every page, the same place everywhere (ledger
+	 *   0396), minus the few rooms the exclusion registry names. It is also the
+	 *   window every other way in opens (`openSiteFeedback`, the error card's
+	 *   "Tell us what happened").
+	 * - `place="relocated"` draws the button inline, in a host's own layout. No
+	 *   production surface uses it since ledger 0396 (the classroom header, the
+	 *   Armory header, the deck bar, the projector strip and the error card all
+	 *   took the corner button back); `/dev/feedback` mounts several windows side
+	 *   by side with it, which the corner could not hold.
+	 * - `place="embed"` is `/feedback/embed` (ledger 0396): the window alone,
+	 *   with no button of its own, opened by `openWindow()` on behalf of a legacy page
+	 *   whose real `FeedbackTrigger` was server-rendered into its bytes. It
+	 *   reports the box closing through `onClose`, which is what hides the
+	 *   frame. The button and the box are therefore the same two components on
+	 *   every surface that has either; see `$lib/feedback/embed.ts`.
 	 */
 	let {
 		routeId,
@@ -78,6 +89,8 @@
 		dictation = undefined,
 		micLevel = undefined,
 		consoleHref = undefined,
+		onClose = undefined,
+		onstate = undefined,
 		now = () => Date.now()
 	}: {
 		routeId: string | null;
@@ -101,7 +114,7 @@
 		 * report is not something to infer from a function reference.
 		 */
 		anonymous?: boolean;
-		place?: 'shell' | 'relocated';
+		place?: 'shell' | 'relocated' | 'embed';
 		/**
 		 * WHAT A SCREENSHOT NEEDS, AND WHY IT IS READ OFF `page.data` RATHER THAN
 		 * PASSED IN.
@@ -153,6 +166,13 @@
 		 * is how a harness shows the admin arrangement with no session.
 		 */
 		consoleHref?: string | null;
+		/** Called after the box closes, however it closed. The embed hides its frame on it. */
+		onClose?: () => void;
+		/**
+		 * The window's life, for the embed: `opened` once the box is on screen,
+		 * `failed` when its code could not load. Nothing else listens.
+		 */
+		onstate?: (state: 'opened' | 'failed') => void;
 		/** Injectable clock, so a harness can pin the captured timestamp. */
 		now?: () => number;
 	} = $props();
@@ -161,7 +181,10 @@
 		place === 'shell' ? feedbackExclusion(routeId, { hasError: status !== null }) : null
 	);
 
-	const shown = $derived(!!submit && !excluded);
+	/** The button. The embed has none: its button is on the page that framed it. */
+	const shown = $derived(!!submit && !excluded && place !== 'embed');
+	/** Whether this mount can open a box at all, button or not. */
+	const live = $derived(!!submit && !excluded);
 
 	/**
 	 * THE CLIENT AND THE VIEWER, resolved once: the prop when a caller passed
@@ -261,12 +284,24 @@
 		return loading;
 	}
 
+	/**
+	 * THE OTHER WAYS IN (ledger 0396). The button's own window is the one every
+	 * other entry point opens, so a surface that wants a second way in calls
+	 * `openSiteFeedback()` instead of mounting a second window with its own
+	 * captured context. Only a mount with a button registers: the embed's
+	 * window is opened by the page that framed it, never by this page.
+	 */
 	$effect(() => {
-		// The mount-time fetch. `shown` is the one tracked read, so a surface
+		if (!shown) return;
+		return provideSiteFeedbackOpener(() => openBox());
+	});
+
+	$effect(() => {
+		// The mount-time fetch. `live` is the one tracked read, so a surface
 		// with no control asks for nothing; nothing injected is called, and
 		// `preload` touches only this component's own state. A macrotask, not
 		// a microtask, so hydration's own flush finishes first.
-		if (!shown) return;
+		if (!live) return;
 		const id = setTimeout(() => void preload(), 0);
 		return () => clearTimeout(id);
 	});
@@ -286,8 +321,60 @@
 	 * they were looking at when they decided something was wrong. */
 	let captured = $state<Record<string, unknown>>({});
 
+	/**
+	 * What the page that framed the embed said about itself at the press: its
+	 * live path and, on the Ledger, which tab is showing. Empty everywhere else.
+	 */
+	let opener = $state<{ pathname: string | null; tab: string | null }>({ pathname: null, tab: null });
+
+	/**
+	 * OPEN THE WINDOW FROM OUTSIDE (the embed's open message). Exactly what a
+	 * press on the button does, plus the opener's live path and tab, which only
+	 * the framing page can know.
+	 */
+	export function openWindow(context: { pathname?: string | null; tab?: string | null } = {}) {
+		opener = { pathname: context.pathname ?? null, tab: context.tab ?? null };
+		openBox();
+	}
+
+	/** Close it from outside (the framing page heard Escape itself). */
+	export function closeWindow() {
+		if (!open) return;
+		closeBox();
+	}
+
+	/**
+	 * WHERE FOCUS GOES BACK TO (ledger 0396). A dialog hands focus back to what
+	 * opened it: the corner button after a press, the error card's "Tell us what
+	 * happened" after that, and the page is never left with focus on `<body>`
+	 * at the top of the document. Captured at OPEN, before the box takes focus.
+	 * The embed returns nothing here: its frame is hidden on close, and the
+	 * page that framed it puts focus back on its own button.
+	 */
+	let returnTo: HTMLElement | null = null;
+	let trigger = $state<ReturnType<typeof FeedbackTrigger> | null>(null);
+
+	function closeBox() {
+		open = false;
+		onClose?.();
+		if (place === 'embed' || typeof document === 'undefined') return;
+		const back = returnTo;
+		returnTo = null;
+		// After the box has unmounted, so nothing inside it takes focus back.
+		queueMicrotask(() => {
+			if (back && back.isConnected && back !== document.body) back.focus({ preventScroll: true });
+			else trigger?.focus();
+		});
+	}
+
 	function openBox() {
-		void preload();
+		if (place !== 'embed' && typeof document !== 'undefined') {
+			const active = document.activeElement;
+			returnTo = active instanceof HTMLElement && active !== document.body ? active : null;
+		}
+		void preload().then(() => {
+			if (loadFailed) onstate?.('failed');
+		});
 		const viewport =
 			typeof window === 'undefined'
 				? null
@@ -309,7 +396,7 @@
 		}
 		captured = captureMeta({
 			routeId,
-			pathname,
+			pathname: opener.pathname ?? pathname,
 			role,
 			sectionId,
 			viewport,
@@ -318,7 +405,8 @@
 			build,
 			status,
 			errorMessage,
-			errorId
+			errorId,
+			tab: opener.tab
 		});
 		open = true;
 	}
@@ -368,6 +456,50 @@
 		return 'Attaching a screenshot is not switched on for this deployment yet.';
 	});
 
+	/**
+	 * THE BOX IS ON SCREEN. Said once per open, from the host's mount, and on a
+	 * microtask so the embed's handler (a `postMessage`) runs outside any
+	 * tracking context: it is caller-supplied code.
+	 */
+	function announceOpened(node: HTMLElement) {
+		queueMicrotask(() => onstate?.('opened'));
+		/*
+		 * TAB STAYS IN THE BOX WHILE IT IS OPEN (ledger 0396). The box is a modal
+		 * dialog (`aria-modal`), so Tab past its last control comes back to its
+		 * first, and Shift+Tab the other way, rather than walking into the page
+		 * under the shade. Bound on this host, which the focused control's
+		 * keydown bubbles through before the box's own window handler sees it.
+		 */
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key !== 'Tab' || e.altKey || e.ctrlKey || e.metaKey) return;
+			const box = node.querySelector<HTMLElement>('.fb-box');
+			if (!box) return;
+			const items = Array.from(
+				box.querySelectorAll<HTMLElement>(
+					'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+				)
+			).filter((el) => el.getClientRects().length > 0 && !el.closest('[inert]'));
+			if (items.length === 0) {
+				e.preventDefault();
+				box.focus();
+				return;
+			}
+			const first = items[0];
+			const last = items[items.length - 1];
+			const active = document.activeElement;
+			const inside = active instanceof HTMLElement && box.contains(active) && active !== box;
+			if (e.shiftKey && (!inside || active === first)) {
+				e.preventDefault();
+				last.focus();
+			} else if (!e.shiftKey && (!inside || active === last)) {
+				e.preventDefault();
+				first.focus();
+			}
+		};
+		node.addEventListener('keydown', onKey);
+		return { destroy: () => node.removeEventListener('keydown', onKey) };
+	}
+
 	const noteFor = $derived(
 		status === null
 			? anonymous
@@ -380,48 +512,20 @@
 </script>
 
 {#if shown}
-	<div class="sfb sfb-{place}">
-		<button
-			type="button"
-			class="sfb-trigger"
-			class:sfb-trigger-error={status !== null}
-			data-tour="report"
-			onclick={openBox}
-			onpointerenter={preload}
-			onpointerdown={preload}
-			onfocus={preload}
-		>
-			<span class="sfb-glyph" aria-hidden="true">
-				<svg
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.7"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
-					<!-- A speech bubble, from the one list in context.ts; the error
-					     page keeps the warning triangle, because a report there is a
-					     problem report by definition. -->
-					{#each status === null ? FEEDBACK_GLYPH : PROBLEM_GLYPH as d (d)}
-						<path {d} />
-					{/each}
-				</svg>
-			</span>
-			<span class="sfb-word">{label}</span>
-		</button>
-		{#if loadFailed}
-			<!-- Said beside the control, not swallowed: the one thing worse than a
-			     report window that will not open is one that will not say so. -->
-			<p class="sfb-load-failed" role="alert">
-				The report window did not load. Check the connection and press it again.
-			</p>
-		{/if}
-	</div>
+	<FeedbackTrigger
+		bind:this={trigger}
+		place={place === 'relocated' ? 'relocated' : 'shell'}
+		{label}
+		error={status !== null}
+		{loadFailed}
+		pending={open && !Box && !loadFailed}
+		onopen={openBox}
+		onpreload={preload}
+	/>
 {/if}
 
 {#if open && submit && Box}
-	<div class="sfb-host">
+	<div class="sfb-host" use:announceOpened>
 		<Box
 			app={appForRouteId(routeId, pathname)}
 			context={contextOf({ routeId, pathname })}
@@ -434,7 +538,7 @@
 			{micLevel}
 			offerHorizon
 			consoleHref={consoleLink}
-			onClose={() => (open = false)}
+			onClose={closeBox}
 			title={status === null ? REPORT_LABEL : `Report this ${status}`}
 			note={noteFor}
 		/>
@@ -442,143 +546,10 @@
 {/if}
 
 <style>
-	.sfb-shell {
-		position: fixed;
-		right: max(0.75rem, env(safe-area-inset-right, 0px));
-		bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-		/* Below the box's own scrim (120) and below the install prompt (1000),
-		   above ordinary page content (1). */
-		z-index: 90;
-	}
-	.sfb-relocated {
-		display: inline-flex;
-	}
-	/* ON A PHONE THE PILL IS BIGGER AND SITS HIGHER (ledger 0380, report
-	   3d9e02d1, Safari on an iPhone at 393x793: "make the button bigger or raise
-	   it up a tad so it's easier to use"). 44px is the floor and this is the
-	   thumb's corner: 48px tall, the glyph and the word a step larger, and
-	   1.5rem clear of the bottom edge so it sits above Safari's floating toolbar
-	   rather than against it. Only the floating pill; a relocated one lives in
-	   somebody's own header and keeps their sizing. */
-	@media (max-width: 30rem) {
-		.sfb-shell:not(.sfb-relocated) {
-			right: max(1rem, env(safe-area-inset-right, 0px));
-			bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
-		}
-		.sfb-shell:not(.sfb-relocated) .sfb-trigger {
-			min-height: 48px;
-			min-width: 48px;
-			padding: 0 1.1rem;
-			font-size: 0.8rem;
-		}
-		.sfb-shell:not(.sfb-relocated) .sfb-glyph {
-			width: 1.2rem;
-			height: 1.2rem;
-		}
-	}
-
-	.sfb-trigger {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.45rem;
-		/* 44px, the tap-target floor. */
-		min-height: 44px;
-		min-width: 44px;
-		padding: 0 0.9rem;
-		appearance: none;
-		/* EVERY PAINTED VALUE READS A ROOM HOOK FIRST (report 35, 2026-09-25),
-		   with the site token as the fallback -- see the scrim block at the
-		   bottom of this file for the whole hook set and why a room declares
-		   it on `body:has(.<room>)` rather than on its own wrapper. With no
-		   room hook set, every line below resolves to exactly what it did. */
-		background: var(--fb-room-bg, var(--surface-2, #0d1a12));
-		/* THE LOAD-BEARING EDGE, NOT THE HAIRLINE. The pill's outer edge is the
-		   only thing separating a control from the page under it, which is what
-		   `--boundary` exists for (CLAUDE.md, "A BOUNDARY THAT CARRIES MEANING").
-		   It was `--hairline` everywhere but Space White: measured 1.18:1 against
-		   the portal page at 375 and 1.22:1 at 1440, a control nobody could see
-		   the edge of (report 20: "the report button does not show up"). */
-		border: 1px solid var(--fb-room-edge, var(--boundary, rgba(140, 220, 160, 0.22)));
-		border-radius: 999px;
-		color: var(--fb-room-ink-muted, var(--text-2, #9fb8a6));
-		font-family: var(--fb-room-font-mono, var(--font-mono, 'Share Tech Mono', monospace));
-		font-size: 0.7rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		cursor: pointer;
-		box-shadow: var(--fb-room-lift, 0 6px 18px rgba(0, 0, 0, 0.35));
-	}
-	/* UNDER SPACE WHITE (ledger 0297, package F1b): the pill lifts on the
-	   theme's hard elevation rather than a blurred dark drop. Its load-bearing
-	   edge used to be set here too; every theme takes it now (above). */
-	:global(:root[data-theme='space-white']) .sfb-trigger {
-		box-shadow: var(--elevation-2);
-	}
-	:global(:root[data-theme='space-white']) .sfb-relocated .sfb-trigger {
-		box-shadow: none;
-	}
-	.sfb-relocated .sfb-trigger {
-		box-shadow: none;
-	}
-	.sfb-trigger:hover,
-	.sfb-trigger:focus-visible {
-		color: var(--fb-room-ink, var(--text-1, #dff3e3));
-		border-color: var(--fb-room-accent, var(--green, #3ddc84));
-		outline: none;
-	}
-	.sfb-trigger-error {
-		/* An error page is the one place this is the primary action. */
-		color: var(--fb-room-ink, var(--text-1, #dff3e3));
-		border-color: var(--fb-room-accent, var(--green, #3ddc84));
-	}
-	.sfb-glyph {
-		display: grid;
-		place-items: center;
-		width: 0.95rem;
-		height: 0.95rem;
-	}
-	.sfb-glyph svg {
-		width: 100%;
-		height: 100%;
-	}
-	/* Colour is never the only signal, and a tooltip is not discoverable: the
-	   word rides beside the glyph at every width. */
-	.sfb-word {
-		white-space: nowrap;
-	}
-
-	@media (prefers-reduced-motion: no-preference) {
-		.sfb-trigger {
-			transition:
-				color 140ms ease,
-				border-color 140ms ease;
-		}
-	}
-
-	.sfb-load-failed {
-		margin: 0.4rem 0 0;
-		max-width: 16rem;
-		color: var(--fb-room-danger, var(--amber, #d08030));
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.68rem;
-		line-height: 1.4;
-	}
-	.sfb-shell .sfb-load-failed {
-		/* Above the floating pill, which sits at the bottom edge: the pill
-		   stays where it was and the sentence takes no space it could push. */
-		position: absolute;
-		right: 0;
-		bottom: calc(100% + 0.4rem);
-		text-align: right;
-	}
-
-	/* A control that cannot be pressed on paper is ink. */
-	@media print {
-		.sfb {
-			display: none !important;
-		}
-	}
+	/* THE BUTTON'S OWN RULES LIVE IN `FeedbackTrigger.svelte` (ledger 0396),
+	   so the Coin Ledger and an assignment handout, which server-render that
+	   component into the bytes they serve, are drawn by the same stylesheet as
+	   every Svelte page. What stays here is the box's theme. */
 
 	/*
 	   THE IDEA THEME FOR THE REPORT WINDOW, and the reason it is written ON THE
@@ -631,10 +602,17 @@
 	     --fb-room-ink, --fb-room-ink-muted                 text, 4.5:1
 	     --fb-room-edge                                     control edges, 3:1
 	     --fb-room-accent                                   primary action
+	     --fb-room-focus                                    the focus ring, 3:1
 	     --fb-room-danger, --fb-room-live                   refusal, open mic
 	     --fb-room-ok, --fb-room-info, --fb-room-warn,
 	     --fb-room-error                                    the save line
-	     --fb-room-font, --fb-room-font-mono, --fb-room-lift
+	     --fb-room-lift                                     the box's drop
+	   NO TYPEFACE HOOK, AND THERE MUST NOT BE ONE (ledger 0396, review round
+	   4). The box always sets the site's own faces, so it has the home box's
+	   metrics, its height and its keys in the same place in every room: FRC's
+	   Roboto and FSP's system stack, handed in through a font hook, made the
+	   box 869px of content in an 826px box at 1440x900 and put SEND below its
+	   edge. A room changes the box's colours, never its type.
 	   A room sets only what differs; the rest falls through to the site
 	   theme. An in-scope room (the classroom, the notebook, the home page)
 	   sets none, so the box follows the site theme there -- Space White
@@ -663,8 +641,13 @@
 		--fb-field: var(--fb-room-field, var(--bg2));
 		--fb-chip: var(--fb-room-field, var(--bg2));
 		--fb-control: var(--fb-room-field, var(--bg2));
-		--fb-font: var(--fb-room-font, var(--font-display));
-		--fb-font-mono: var(--fb-room-font-mono, var(--font-mono));
+		--fb-font: var(--font-display);
+		--fb-font-mono: var(--font-mono);
+		/* THE SITE'S FOCUS RING ON EVERY KEY AND FIELD IN THE BOX (review round
+		   3): the global `:focus-visible` rule's 2px of `--focus-ring` at a 2px
+		   offset, which the box's own `outline: none` used to cancel. A room
+		   hands in its own ring colour through `--fb-room-focus`. */
+		--fb-focus-ring: 2px solid var(--fb-room-focus, var(--focus-ring, #5abda8));
 		/* THE SAVE INDICATOR INSIDE THE BOX reads its own four hooks with the
 		   raw semantic tokens as fallback, and those are tuned for a dark
 		   plate: on a light room's paper "Unsaved changes" in --amber is about
@@ -680,5 +663,63 @@
 		   reserved for live and rec. The word and the "!" mark carry the state;
 		   the hue only has to be readable. */
 		--save-error: var(--fb-room-error, var(--amber));
+	}
+
+	/*
+	   GAUNTLET'S ROOM HOOKS, AND WHY THEY ARE DECLARED HERE (ledger 0396).
+
+	   GAUNTLET is not an exception to the one feedback window (Mr. Pina): its
+	   button floats at the bottom right like the home page's, drawn by the root
+	   layout's mount, which is a SIBLING of `.gt-root` -- so the VIEWPORT's
+	   re-pointed tokens (`--green`, `--bg0/1/2`, its fonts), which reached the
+	   box for free while it was relocated INSIDE `.gt-root`, no longer reach
+	   it. The room therefore declares the hooks on `body:has(.gt-root)`, the
+	   common ancestor, the way FRC, FSP, the Foundry and the Tournaments do in
+	   their own stylesheets. GAUNTLET's own stylesheet is its design system and
+	   this bundle does not edit it, so the block lives with the component it
+	   styles. Every value is a VIEWPORT token's literal (viewport.css), named
+	   beside it. No typeface is declared: the VIEWPORT's `--font-body` and
+	   `--font-data` are the site's Rajdhani and Share Tech Mono, which the box
+	   sets in every room anyway.
+
+	   Measured, WCAG 2.x relative luminance, against the box's three grounds
+	   (panel #0a1014 / void #04070a / panel-2 #0e161b):
+	     ink     #e8fff0   18.22 / 19.23 / 17.40   (--white)
+	     muted   #5f8a78    4.92 /  5.19 /  4.69   (--dim)
+	     edge    #5f8a78    4.92 /  5.19 /  4.69   (bar 3.0)
+	     accent  #00ff41   14.02 / 14.79 / 13.38   (--green)
+	     refusal #ff3355    5.34 /  5.63 /  5.10   (--crimson: GAUNTLET reserves
+	                                                it for live, rec and ERROR, and a
+	                                                refusal is an error state)
+	     info    #00f0ff   (--cyan, the knowledge family; well above 4.5)
+	     focus   #c8ff00   16.19 / 17.08 / 15.45   (--lime: `.gt-root :focus-visible`
+	                                                draws its ring in it)
+	   The warning line keeps the site's amber (#d08030, 5.93 on panel-2):
+	   GAUNTLET's two other warm tones are reserved for a run state.
+	*/
+	:global(body:has(.gt-root)) {
+		--fb-room-bg: #0a1014; /* --panel */
+		--fb-room-bg-deep: #04070a; /* --void */
+		--fb-room-field: #0e161b; /* --panel-2 */
+		--fb-room-shade: rgba(4, 7, 10, 0.82); /* --void, as a veil */
+		--fb-room-ink: #e8fff0; /* --white */
+		--fb-room-ink-muted: #5f8a78; /* --dim */
+		--fb-room-edge: #5f8a78; /* --dim, a control's outer edge */
+		--fb-room-accent: #00ff41; /* --green */
+		--fb-room-focus: #c8ff00; /* --lime, the VIEWPORT's own focus ring */
+		--fb-room-danger: #ff3355; /* --crimson */
+		--fb-room-live: #ff3355; /* --crimson */
+		--fb-room-ok: #00ff41; /* --green */
+		--fb-room-info: #00f0ff; /* --cyan */
+		--fb-room-error: #ff3355; /* --crimson */
+		--fb-room-lift: 0 6px 18px rgba(0, 0, 0, 0.55);
+	}
+	/* GAUNTLET DRAWS ITS OWN CURSOR, and hides the native one only inside
+	   `.gt-root` (viewport.css, `.gt-cursor-on`). The button and the box sit
+	   outside that root, so without this the crosshair and the native arrow
+	   were both drawn over them. The same rule, reaching the window that floats
+	   over the room; while the crosshair is off, the native cursor is untouched. */
+	:global(body:has(.gt-root.gt-cursor-on) :is(.sfb, .sfb *, .fb-scrim, .fb-scrim *)) {
+		cursor: none !important;
 	}
 </style>

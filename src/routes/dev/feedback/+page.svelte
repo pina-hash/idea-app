@@ -425,16 +425,12 @@
 
 	/**
 	 * Every excluded category, driven at `place="shell"` (nothing renders) and
-	 * again at `place="relocated"` (the same component does render).
-	 *
-	 * A rule with no samples is not a rule with no case: the `error` category is
-	 * asked for with the status flag rather than by route, so it is driven that
-	 * way here instead of quietly dropping out of the table.
+	 * again at `place="relocated"` (the same component does render). Since
+	 * ledger 0396 the registry is the four rooms that keep a control of their
+	 * own; an error page is never excluded, so it has no row here.
 	 */
 	const cases = FEEDBACK_EXCLUSIONS.flatMap((rule) =>
-		rule.samples.length
-			? rule.samples.map((routeId) => ({ rule, routeId, status: null as number | null }))
-			: [{ rule, routeId: '/notebook', status: 500 as number | null }]
+		rule.samples.map((routeId) => ({ rule, routeId, status: null as number | null }))
 	);
 
 	/**
@@ -632,7 +628,7 @@
 		<section class="hx-card">
 			<h2>Relocated placement</h2>
 			<p class="hx-note">
-				What the deck bar, the GAUNTLET footer and the error boundary mount. Same component,
+				What the deck bar, the classroom header and the error boundary mount. Same component,
 				same box, no floating position.
 			</p>
 			<div class="hx-row">

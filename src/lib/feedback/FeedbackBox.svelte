@@ -962,6 +962,12 @@
 		/* The small viewport on a phone, so the Send row clears Safari's toolbar. */
 		max-height: 92dvh;
 		overflow-y: auto;
+		/* A KEY THAT FOCUS SCROLLS INTO VIEW KEEPS ITS WHOLE RING (review round
+		   3). On a phone the box scrolls, and a Tab onto Send or the close key
+		   lines the key up flush with the scrolled edge, where the focus ring
+		   (2px, 2px out) was cut off along that side. Measured at 375: Cancel,
+		   Send and the close key each lost one side of the ring. */
+		scroll-padding-block: 0.5rem;
 		padding: 0.9rem 1.05rem 1rem;
 		background: linear-gradient(180deg, var(--fb-bg) 0%, var(--fb-bg-deep) 100%);
 		/* Under the gradient, never seen: the gradient is opaque. It is here so a
@@ -1018,7 +1024,6 @@
 	.fb-x:focus-visible {
 		color: var(--fb-ink);
 		border-color: var(--fb-line);
-		outline: none;
 	}
 	.fb-note {
 		margin: 0 0 0.65rem;
@@ -1053,7 +1058,6 @@
 	.fb-kind:hover,
 	.fb-kind:focus-visible {
 		border-color: var(--fb-line-strong);
-		outline: none;
 	}
 	.fb-kind.on {
 		color: var(--fb-accent);
@@ -1124,7 +1128,7 @@
 		color: var(--fb-ink-faint);
 	}
 	.fb-area:focus-visible {
-		outline: 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent);
+		outline: var(--fb-focus-ring, 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent));
 		outline-offset: 1px;
 	}
 	.fb-contact {
@@ -1145,7 +1149,7 @@
 		color: var(--fb-ink-faint);
 	}
 	.fb-contact:focus-visible {
-		outline: 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent);
+		outline: var(--fb-focus-ring, 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent));
 		outline-offset: 1px;
 	}
 	.fb-contact-note {
@@ -1285,7 +1289,7 @@
 	.fb-shot-input:focus-visible + .fb-shot-choose {
 		color: var(--fb-ink);
 		border-color: var(--fb-line-strong);
-		outline: 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent);
+		outline: var(--fb-focus-ring, 1px solid color-mix(in srgb, var(--fb-accent) 55%, transparent));
 		outline-offset: 1px;
 	}
 	.fb-shot-remove {
@@ -1381,7 +1385,24 @@
 	.fb-btn:focus-visible:not(:disabled) {
 		color: var(--fb-ink);
 		border-color: var(--fb-line-strong);
-		outline: none;
+	}
+	/* THE FOCUS RING IS A HOOK, AND A HOST THAT SETS NONE DRAWS WHAT IT ALWAYS
+	   DID (ledger 0396, review round 3). Every key here used to say focus with
+	   its edge colour alone (`outline: none` beside a border change), and a room
+	   that draws its keys as the plate's (the home page, the classroom, the coin
+	   desk, the Coin Ledger's window) paints that border with a gradient and
+	   sets its colours at a heavier specificity, so a keyboard focus on Cancel,
+	   Send or a kind chip changed nothing at all on screen. `--fb-focus-ring` is
+	   a whole outline value: `SiteFeedback` hands in the site's ring (2px of
+	   `--focus-ring`, or a room's own `--fb-room-focus`), and a host that sets
+	   nothing (GREENLINE mounts this box itself) keeps `none` and its edge
+	   change, byte for byte. The fields and the screenshot picker read the same
+	   hook over their own 1px tint. */
+	.fb-x:focus-visible,
+	.fb-kind:focus-visible,
+	.fb-btn:focus-visible {
+		outline: var(--fb-focus-ring, none);
+		outline-offset: 2px;
 	}
 	.fb-btn:disabled {
 		opacity: 0.45;

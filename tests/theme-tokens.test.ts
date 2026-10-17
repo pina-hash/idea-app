@@ -638,6 +638,13 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		'/dev/ideacad'
 	];
 
+	it('the feedback window the Ledger opens is IN scope with it (ledger 0396), and a lookalike is not', () => {
+		expect(themeInScope('/feedback/embed')).toBe(true);
+		expect(themeAttrFor('space-white', '/feedback/embed', true)).toBe('space-white');
+		expect(themeAttrFor('space-white', '/feedback/embed', false)).toBeUndefined();
+		expect(themeInScope('/feedbackx')).toBe(false);
+	});
+
 	it('the public IDEA Coin Ledger is IN scope since ledger 0384, and a lookalike is not', () => {
 		for (const p of ['/coins', '/coins/index.html']) expect(themeInScope(p), p).toBe(true);
 		expect(themeAttrFor('space-white', '/coins/index.html', true)).toBe('space-white');
@@ -786,7 +793,10 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 			.map((seg) => (/^\[.*\]$/.test(seg) ? 'x' : seg))
 			.join('/') || '/';
 	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/armory', '/auth', '/certifications', '/coin-balance', '/coin-desk', '/foundry', '/maps', '/tournaments'];
-	const CLASSROOM_POLICY = ['/classroom', '/reference', '/notebook'];
+	// `/feedback` is the feedback window's own page (ledger 0396), which a Space
+	// White Ledger opens over itself: it follows the theme exactly as the Ledger
+	// does, through the same scope.
+	const CLASSROOM_POLICY = ['/classroom', '/reference', '/notebook', '/feedback'];
 	const under = (p: string, x: string) => p === x || p.startsWith(x + '/');
 	const expectedIn = (p: string) =>
 		p === '/' ||

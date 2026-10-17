@@ -39,8 +39,10 @@ export const SLUG_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/;
  * it would only mislead whoever created it.
  *
  * Mirrors _app_short_link_reserved, most recently redefined in 0215
- * (`ideacad`) and then in 0231 (`armory`, supabase/migrations/0231_armory.sql) -- earlier copies are immutable applied records and are never
- * edited to match this one; change both together.
+ * (`ideacad`), 0231 (`armory`, supabase/migrations/0231_armory.sql), 0260
+ * (`certifications`) and 0269 (`feedback`, the feedback window's own page at
+ * /feedback/embed, ledger 0396) -- earlier copies are immutable applied records
+ * and are never edited to match this one; change both together.
  * tests/short-link-reserved-names.test.ts asserts they agree, and separately
  * walks the real route tree so a route added later reddens the suite instead
  * of drifting silently the way this list did for a year.
@@ -68,6 +70,7 @@ export const RESERVED_SLUGS = [
 	'dashboard',
 	'dev',
 	'downloads',
+	'feedback',
 	'foundry',
 	'frc',
 	'fsp',

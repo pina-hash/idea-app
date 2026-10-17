@@ -5,8 +5,9 @@
  * nothing in it. What a student sees first is the Front, Top and Right planes
  * with the Origin (drawn into the canvas, so `canvasContent` is the pixel
  * claim), ONE short cue line and TWO direct actions, the view control in words,
- * the corner triad's slot, and the footer with the shell's Voice and Report
- * controls docked in its ends. Every control clears 44px at every width, and
+ * the corner triad's slot, and the footer, as tall as the page's corner
+ * feedback button reaches (`ideacad-solid-state-feedback-corner` measures the
+ * button). Every control clears 44px at every width, and
  * nothing interactive is covered (`layoutSanity`).
  *
  * THE CUE IS PROSE-FREE BY COUNT: one line of text and two buttons. A third

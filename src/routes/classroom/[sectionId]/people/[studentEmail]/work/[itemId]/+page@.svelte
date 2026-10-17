@@ -1,9 +1,6 @@
 <script lang="ts">
 	import '$lib/classroom/classroom.css';
 	import { env as publicEnv } from '$env/dynamic/public';
-	import { page } from '$app/state';
-	import { version as buildId } from '$app/environment';
-	import { deploy } from 'virtual:site-versions';
 	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import HtmlGradingWork from '$lib/classroom/html-assignment/HtmlGradingWork.svelte';
 	import { htmlAssignmentMount } from '$lib/classroom/html-assignment/mount';
@@ -13,9 +10,6 @@
 	import { itemTitle, sectionTitle } from '$lib/classroom/classroom';
 	import { STUDENT_PARAM } from '$lib/classroom/grading-student-url';
 	import { studentPageHref } from '$lib/classroom/nav';
-	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
-	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import type { PageData } from './$types';
 
 	/**
@@ -32,16 +26,11 @@
 	 * answers. No write, no transport, no poll: a page opened for a conference
 	 * is read, not graded, and the Grade key goes to the console for that.
 	 *
-	 * THE REPORT CONTROL IS RELOCATED, NOT DELETED: every route under
-	 * /classroom is the `classroom` feedback category, whose shell mount is
-	 * `ClassroomShell`, which this page does not render, so the control lives
-	 * in this page's own bar.
+	 * THE FEEDBACK BUTTON IS THE ROOT LAYOUT'S, in the bottom-right corner as on
+	 * every page (ledger 0396); the room's own foot clears it (`.cr-root` in
+	 * classroom.css).
 	 */
 	let { data }: { data: PageData } = $props();
-
-	const build = describeBuild(deploy, buildId);
-	const submit = $derived(feedbackWriter(data.supabase, data.claims?.sub));
-	const anonymous = $derived(feedbackIsAnonymous(data.supabase, data.claims?.sub));
 
 	const student: StudentWork = $derived({
 		email: data.student.email,
@@ -77,17 +66,6 @@
 			<a class="btn secondary tiny" href={backHref} data-testid="sw-back">Back to student</a>
 			<a class="btn secondary tiny" href={gradeHref} data-testid="sw-grade">Grade</a>
 			<a class="btn secondary tiny" href={`/classroom/${data.section.id}/item/${data.item.id}`} data-testid="sw-item">Assignment</a>
-			<SiteFeedback
-				place="relocated"
-				routeId={page.route.id}
-				pathname={page.url.pathname}
-				role={data.userProfile?.role ?? null}
-				sectionId={page.params.sectionId ?? null}
-				{build}
-				{submit}
-				{anonymous}
-				label={REPORT_LABEL_SHORT}
-			/>
 		</nav>
 	</header>
 

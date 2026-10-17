@@ -3,7 +3,7 @@ import { version as buildId } from '$app/environment';
 import { deploy } from 'virtual:site-versions';
 import { loadAssignmentHtml, rewriteLegacyLinks } from '$lib/legacy';
 import { injectVersionBadge } from '$lib/version-badge';
-import { ASSIGNMENT_REPORT_OPTIONS, injectLegacyReportPanel } from '$lib/server/legacy-report-panel';
+import { ASSIGNMENT_FEEDBACK_LAUNCH, injectFeedbackLaunch } from '$lib/server/feedback-launch';
 import type { RequestHandler } from './$types';
 
 /**
@@ -14,18 +14,20 @@ import type { RequestHandler } from './$types';
  * so this endpoint remains the only way to reach it (and the serve-time
  * `rewriteLegacyLinks` fixes its legacy asset/link paths).
  *
- * IT CARRIES A REPORT CONTROL (report 20, 2026-09-25: "the report a problem
- * button ... must be available on every single possible page"). A page served
- * from a `+server.ts` renders no layout, so the root layout's control never
- * reaches it; the panel is injected into the served STRING, the IDEA Coin
- * Ledger's arrangement, and the file on disk is untouched.
+ * IT CARRIES THE SITE'S OWN FEEDBACK BUTTON AND WINDOW (report 20, 2026-09-25:
+ * "must be available on every single possible page"; ledger 0396: the same
+ * window everywhere). A page served from a `+server.ts` renders no layout, so
+ * the root layout's control never reaches it: the real `FeedbackTrigger` is
+ * server-rendered into the served STRING at the bottom right, and it opens the
+ * real window, `/feedback/embed`, in a frame placed exactly where the home
+ * page's box opens (`$lib/server/feedback-launch.ts`). The file on disk is
+ * untouched.
  *
  * THE INJECTED BYTES ARE THE SAME FOR EVERY READER, and that is forced by the
- * cache header below. The Ledger bakes a signed-in boolean into its script and
- * pays for it with `Vary: Cookie`; this route must not, so its panel asks
- * `/api/assignment-feedback` (private, no-store) whether the reader has a
- * session when the box OPENS. Nothing here reads a session, a cookie or a
- * claim, and `tests/feedback-coverage.test.ts` holds it to that.
+ * cache header below: this response is one shared cache entry for a whole
+ * class. Nothing here reads a session, a cookie or a claim -- the window is a
+ * page of the site and knows who is signed in the way every page does -- and
+ * `tests/feedback-coverage.test.ts` holds it to that.
  */
 export const GET: RequestHandler = async ({ params }) => {
 	const html = await loadAssignmentHtml(params.slug);
@@ -34,7 +36,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 
 	const served = injectVersionBadge(
-		injectLegacyReportPanel(rewriteLegacyLinks(html), { ...ASSIGNMENT_REPORT_OPTIONS, deploy, buildId }),
+		injectFeedbackLaunch(rewriteLegacyLinks(html), { ...ASSIGNMENT_FEEDBACK_LAUNCH, deploy, buildId }),
 		'assignments'
 	);
 
@@ -55,10 +57,10 @@ export const GET: RequestHandler = async ({ params }) => {
 			   OTHERWISE IDENTICAL HEADER. That route injects a signed-in
 			   boolean, so its bytes genuinely vary by session. This handler
 			   reads no session, no cookie and no claim: `loadAssignmentHtml`,
-			   `rewriteLegacyLinks`, `injectLegacyReportPanel` and
+			   `rewriteLegacyLinks`, `injectFeedbackLaunch` and
 			   `injectVersionBadge` are all pure functions of the slug and the
-			   build. The report panel asks for the session itself, at open,
-			   from an endpoint that is `private, no-store`. Adding `Vary: Cookie` here
+			   build. The feedback window is a page of the site and reads the
+			   session itself, in its own private response. Adding `Vary: Cookie` here
 			   would fragment the shared cache by every student's distinct
 			   session cookie, which is exactly the class-wide burst this is
 			   for -- it would cost the whole benefit to describe a variance

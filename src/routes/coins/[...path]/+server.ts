@@ -4,7 +4,7 @@ import { deploy } from 'virtual:site-versions';
 import ledgerHtmlRaw from '$lib/legacy/coins/index.html?raw';
 import { rewriteLegacyLinks } from '$lib/legacy';
 import { injectVersionBadge } from '$lib/version-badge';
-import { legacyReportPanelScript } from '$lib/server/legacy-report-panel';
+import { injectFeedbackLaunch } from '$lib/server/feedback-launch';
 import { injectLedgerTheme } from '$lib/server/coin-public';
 import { injectLedgerLogo } from '$lib/server/ledger-logo';
 import type { RequestHandler } from './$types';
@@ -41,7 +41,16 @@ import type { RequestHandler } from './$types';
  * IT IS PUBLIC, exactly as it was. The Ledger is the public coin leaderboard
  * and reads its data through `/api/coin/public`, which projects every address
  * away inside the database. This route reads no session for authorization; it
- * reads one only to decide which endpoint the report control posts to.
+ * reads one only to decide the site theme the page paints (`injectLedgerTheme`).
+ *
+ * ITS FEEDBACK IS THE SITE'S OWN (ledger 0396, report 80bb4d23: "it should just
+ * be the same exact system that's on the rest of the website"). The real
+ * `FeedbackTrigger` is server-rendered into the page at the bottom right and
+ * opens the real window, `/feedback/embed`, in a frame placed exactly where the
+ * home page's box opens; see `$lib/server/feedback-launch.ts`. The injected
+ * look-alike panel this route used to carry is deleted, and the session no
+ * longer decides anything about feedback here: the window knows who is signed
+ * in the way every page of the site does.
  */
 
 /** The one path this route serves, plus the two bare forms of it. */
@@ -56,17 +65,13 @@ export const GET: RequestHandler = async ({ params, locals: { claims } }) => {
 	// and this visitor's session (see `ledgerThemeScript`). Signed out, the
 	// marker is simply removed and the Ledger paints its default.
 	const html = injectVersionBadge(
-		injectLedgerLogo(injectLedgerTheme(rewriteLegacyLinks(ledgerHtmlRaw), !!claims)).replace(
-			'</body>',
-			`${legacyReportPanelScript({
-				signedIn: !!claims,
-				signedInEndpoint: '/api/coin-feedback',
-				app: 'coins',
-				route: '/coins',
-				deploy,
-				buildId
-			})}\n</body>`
-		),
+		injectFeedbackLaunch(injectLedgerLogo(injectLedgerTheme(rewriteLegacyLinks(ledgerHtmlRaw), !!claims)), {
+			route: '/coins',
+			room: 'ledger',
+			deploy,
+			buildId,
+			tabSelector: '.tab-btn.active'
+		}),
 		'coins'
 	);
 
@@ -79,10 +84,9 @@ export const GET: RequestHandler = async ({ params, locals: { claims } }) => {
 			   `/api/coin/public` after load -- so a short shared cache costs a
 			   reader nothing and keeps this off the function on a class-wide
 			   refresh. `private` is wrong here: the bytes do not vary by caller
-			   except for one boolean the injected script reads, and that boolean
-			   only chooses which endpoint a report posts to. `Vary: Cookie` is
-			   what keeps a signed-in shell from being served to a signed-out
-			   reader. */
+			   except for the site-theme table `injectLedgerTheme` writes, which
+			   only a session may turn on. `Vary: Cookie` is what keeps a
+			   signed-in shell from being served to a signed-out reader. */
 			'cache-control': 'public, max-age=0, s-maxage=60, must-revalidate',
 			vary: 'Cookie'
 		}

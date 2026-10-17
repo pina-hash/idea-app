@@ -6674,6 +6674,31 @@
 	.grade-actions > :global(.save-ind) {
 		flex-basis: 100%;
 	}
+	/* THE PINNED DOCK STOPS ABOVE THE FEEDBACK BUTTON (ledger 0396, review
+	   round 2). Below 1024px the dock pins against the WINDOW's bottom edge,
+	   which is where the root layout's feedback button floats, and measured at
+	   375 the button sat over Return to student. Round 1 kept the corner empty
+	   with a spacer in the dock's last slot, which made the pinned dock 131px
+	   tall at 375 with its lower 80px an empty opaque band over the rubric, and
+	   did nothing for a dock sitting in flow at the fold (at 960 three of nine
+	   points of Save draft landed on the button). So the dock's sticky edge is
+	   the button's top instead of the window's: `--feedback-clear-block` is how
+	   far up the bottom edge the button reaches plus a gap, the dock pins that
+	   far up and is only as tall as its own buttons, the rubric scrolls on
+	   beneath it round the button, and a dock whose place in flow falls inside
+	   that band is held above it too. It still sits back down at the end of the
+	   rubric. With no floating button on the page the clearance is 0 and the
+	   dock pins to the window's edge as before. Above 1024px the dock pins
+	   inside its own column, which ends above the page footer, clear of the
+	   corner, so none of this applies there. The rail takes a bottom rule as
+	   well, so pinned above the edge it reads as a bar rather than as content
+	   cut off. */
+	@media (max-width: 1023.98px) {
+		.grade-actions {
+			bottom: var(--feedback-clear-block, 0px);
+			border-bottom: 1px solid var(--boundary);
+		}
+	}
 	/* The dock is sticky against THIS box rather than against the card, so the
 	   batch panel below keeps its own controls to itself. */
 	.grade-main {

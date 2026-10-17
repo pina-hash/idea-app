@@ -111,8 +111,8 @@ export default {
 		{ selector: '[data-view="download-none"] [data-testid="armory-flash-drive"]', label: 'no release: the flash-drive sentence', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="download-none"] [data-testid="armory-download-link"]', label: 'no release: no broken download link', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-view="download"] [data-testid="armory-download-link"]', label: 'two installer links', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-		{ selector: '[data-testid="armory-header"] [data-testid="armory-report"] .sfb-trigger', label: 'the report control is docked in the Armory header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.sfb-shell .sfb-trigger', label: 'and nothing floats over the room', expectPresent: 0, maxPresent: 0 }
+		{ selector: '.sfb-shell .sfb-trigger', label: 'the feedback button, in the page corner as on every page (ledger 0396)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="armory-header"] .sfb-trigger', label: 'and none docked in the Armory header', expectPresent: 0, maxPresent: 0 }
 	],
 	textContains: [
 		{ selector: '[data-view="editing"] [data-testid="armory-file"][data-state="editing"]', label: 'checked out is said in plain words', must: ['Checked out by Ana Reyes on Lab PC 3, since'] },
@@ -160,7 +160,7 @@ export default {
 		{ selector: '[data-view="file-side"] [data-testid="armory-version-download"]', label: 'version downloads', min: 44 },
 		{ selector: '[data-view="connect"] .btn', label: 'Connect and Not now', min: 44 },
 		{ selector: '[data-view="download"] .btn', label: 'download buttons', min: 44 },
-		{ selector: '[data-testid="armory-report"] .sfb-trigger', label: 'the docked report control', min: 44 }
+		{ selector: '.sfb-shell .sfb-trigger', label: 'the corner feedback button', min: 44 }
 	],
 	contrast: [
 		{ selector: '[data-view="editing"] .ar-file-name', label: 'file names', min: 4.5 },

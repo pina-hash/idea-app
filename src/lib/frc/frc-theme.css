@@ -182,6 +182,10 @@
    declares them on `body`, the one ancestor the room and the box share, only
    while an FRC page is on screen. HOOK DECLARATIONS ONLY: nothing here styles
    an FRC element.
+   COLOURS ONLY, NEVER A TYPEFACE (ledger 0396, review round 4): the box
+   keeps the home box's own faces, so it is the home box's height with its
+   keys in the same place. This room's face, handed in, wrapped the box's
+   notes onto more lines and put SEND below the box's edge at 1440x900.
 
    `body` CANNOT SEE THE `--frc-*` TOKENS ABOVE (they are declared on the
    descendant `.frc-root`), so every value is a LITERAL, named for the token it
@@ -203,6 +207,9 @@
      saved      #004f8a    8.16 /  7.46   (--frc-blue-deep)
      danger     #d51118    5.17 /  4.73
      edge       #868386    3.62 /  3.31   (bar 3.0)
+     focus      #0066b3    5.71 /  5.22   (--frc-blue: the focus ring round the
+                                           button and every key in the box; the
+                                           site's #5abda8 is 2.00 on this paper)
    The live dot and edge beside STOP take the brand red itself, #ed1c24, which
    is decoration beside a word (3.87 on bg against the 3:1 non-text bar).
    ========================================================================== */
@@ -215,13 +222,12 @@ body:has(.frc-root) {
 	--fb-room-ink-muted: #676567; /* --frc-gray, 60% -> 40% lightness */
 	--fb-room-edge: #868386; /* --frc-gray, 60% -> 52% lightness */
 	--fb-room-accent: #0066b3; /* --frc-blue */
+	--fb-room-focus: #0066b3; /* --frc-blue: the focus ring, ledger 0396 */
 	--fb-room-danger: #d51118; /* --frc-red, 52% -> 45% lightness */
 	--fb-room-live: #ed1c24; /* --frc-red, decoration beside the word STOP */
 	--fb-room-ok: #004f8a; /* --frc-blue-deep: saved, never IDEA green */
 	--fb-room-info: #0066b3; /* --frc-blue */
 	--fb-room-warn: #676567; /* the muted ink: no amber in this room */
 	--fb-room-error: #d51118;
-	--fb-room-font: 'Roboto', sans-serif; /* --frc-font */
-	--fb-room-font-mono: 'Roboto', sans-serif;
 	--fb-room-lift: 0 2px 8px rgba(35, 31, 32, 0.18);
 }

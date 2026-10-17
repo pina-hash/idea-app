@@ -19,7 +19,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { scanFile } from '../../tools/apply-migration.mjs';
 import { startTestDb, type TestDb } from './harness';
 import {
-	CERT_FILES, WITH_CERT, certSql, pasteTrap, catalogFingerprint, procCount, tableSurface,
+	CERT_FILES, PRE_CERT, WITH_CERT, certSql, pasteTrap, catalogFingerprint, procCount, tableSurface,
 	rpcAs, rpcAnon, seedPeople, samplePackage, samplePool, publishSample, type CertPeople, type Json
 } from './cert-chain';
 
@@ -91,11 +91,20 @@ describe('the file', () => {
 		}
 	});
 
+	// On the chain that ENDS with this file, not on WITH_CERT: a later migration
+	// may redefine one of its functions (0269 redefines _app_short_link_reserved
+	// to reserve 'feedback'), and re-applying 0260 over that puts 0260's own
+	// definition back, which is the file working rather than drifting.
 	test('re-applying the file over itself changes no catalog object', async () => {
-		const before = await catalogFingerprint(db);
-		await db.sql(SQL);
-		expect(await catalogFingerprint(db)).toBe(before);
-	});
+		const own = await startTestDb([...PRE_CERT, FILE]);
+		try {
+			const before = await catalogFingerprint(own);
+			await own.sql(SQL);
+			expect(await catalogFingerprint(own)).toBe(before);
+		} finally {
+			await own.stop();
+		}
+	}, 600_000);
 });
 
 // ===========================================================================
@@ -387,13 +396,31 @@ async function createUserNoName(): Promise<string> {
 
 // ===========================================================================
 describe('the slug reservation', () => {
-	test('certifications is reserved, the open-lab control is not, and the predicate holds 37 names closed to clients', async () => {
-		const { rows } = await db.sql<{ a: boolean; b: boolean; n: number; anon: boolean }>(
+	/** 0260's own thirty-seven names, written out rather than read from the file. */
+	const NAMES_0260 = [
+		'a', 'admin', 'api', 'archive', 'armory', 'assignments', 'auth', 'b',
+		'certifications', 'classroom',
+		'coin-balance', 'coin-desk', 'coin-entry', 'coins', 'contracts',
+		'dashboard', 'dev', 'downloads', 'foundry', 'frc', 'fsp', 'fsp-pulse',
+		'fsp-tech-selection', 'gauntlet', 'greenline', 'hx', 'ideacad',
+		'manifest.webmanifest', 'maps', 'notebook', 'push-sw.js', 'reference',
+		'robots.txt', 'sitemap.xml', 'tools', 'tournaments', 'vanguard'
+	];
+
+	// A later migration may reserve more names (0269 adds 'feedback'), so the
+	// total is the newest reservation file's own test to pin. What 0260 owes is
+	// that none of ITS names is ever given back.
+	test('certifications and every other name 0260 reserves stay reserved, the open-lab control is not, and the predicate is closed to clients', async () => {
+		expect(NAMES_0260).toHaveLength(37);
+		const { rows } = await db.sql<{ a: boolean; b: boolean; n: number; kept: number; anon: boolean }>(
 			`select public._app_short_link_reserved('certifications') as a, public._app_short_link_reserved('open-lab') as b,
 				(select count(*)::int from pg_proc p, lateral regexp_matches(p.prosrc, '''([^'']*)''', 'g') m
 					where p.proname = '_app_short_link_reserved' and p.pronamespace = 'public'::regnamespace) as n,
-				has_function_privilege('anon', 'public._app_short_link_reserved(text)', 'execute') as anon`
+				(select count(*)::int from unnest($1::text[]) s where public._app_short_link_reserved(s)) as kept,
+				has_function_privilege('anon', 'public._app_short_link_reserved(text)', 'execute') as anon`,
+			[NAMES_0260]
 		);
-		expect(rows[0]).toEqual({ a: true, b: false, n: 37, anon: false });
+		expect(rows[0]).toMatchObject({ a: true, b: false, kept: 37, anon: false });
+		expect(rows[0].n).toBeGreaterThanOrEqual(37);
 	});
 });

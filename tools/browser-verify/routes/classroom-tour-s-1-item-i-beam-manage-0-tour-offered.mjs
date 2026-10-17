@@ -106,14 +106,14 @@ export default {
 	presence: [
 		/* In the DOM at every width; on screen only where the split has two panes. */
 		{ selector: '[data-testid="nav-collapse-toggle"]', label: 'the class list button (on screen above 1024px)', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 1 },
-		{ selector: '.shell-report .sfb-trigger', label: 'Report, in its own header slot', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
+		{ selector: '.sfb-shell .sfb-trigger', label: 'the feedback button, in the page corner as on every page (ledger 0396)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	contrast: [{ selector: '[data-testid="nav-collapse-toggle"] .nav-toggle-label', label: 'the class list button word', min: 4.5 }],
 	orderResult: [
 		{
-			label: 'the walk found nothing wrong, and Report answers a tap at its own centre',
+			label: 'the walk found nothing wrong, and the feedback button answers a tap at its own centre',
 			evaluate: `() => {
-				const report = document.querySelector('.shell-report .sfb-trigger');
+				const report = document.querySelector('.sfb-shell .sfb-trigger');
 				const r = report ? report.getBoundingClientRect() : null;
 				const hit = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
 				return [String(window.__navA), hit && report.contains(hit) ? 'report answers' : 'REPORT COVERED'];

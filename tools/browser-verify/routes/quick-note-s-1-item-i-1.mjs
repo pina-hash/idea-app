@@ -45,7 +45,8 @@ export default {
 	presence: [
 		{ selector: '.cr-header [data-testid="qn-trigger"]', label: 'the Note control, one, in the header (drawn from 560px up; the header probe reads the width)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
 		{ selector: '.shell-tools [data-testid="qn-trigger"]', label: 'the row control is never inside the fold (the row above is the positive control)', expectPresent: 0 },
-		{ selector: '.cr-header .shell-report .sfb-trigger', label: 'Report still in its own slot beside it', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '.sfb-shell .sfb-trigger', label: 'the feedback button, in the page corner as on every page (ledger 0396)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '.cr-header .sfb-trigger', label: 'and no feedback control in the header (the row above is the positive control)', expectPresent: 0 },
 		{ selector: '[data-testid="qn-done"]', label: 'the saved confirmation, where the box was', expectPresent: 1, expectVisible: 1 }
 	],
 	textContains: [
@@ -60,7 +61,7 @@ export default {
 	],
 	orderResult: [
 		{
-			label: 'the header at rest: one Note control for this width, Report and the profile menu answer at their centres, a class icon survives',
+			label: 'the header at rest: one Note control for this width, the corner feedback button and the profile menu answer at their centres, a class icon survives',
 			evaluate: '() => window.__qnHeader',
 			expected: HEADER_EXPECTED
 		},

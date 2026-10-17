@@ -50,6 +50,14 @@ const shell = (body, head = '') =>
     html,body{margin:0;padding:0;background:#0a0c0b;color:#eae6d8;font:16px/1.4 sans-serif}
     ${head}</style></head><body>${body}</body></html>`;
 
+/* Thirty full-width 44px rows, taller than any viewport this runs at, and the
+   feedback button's corner pill: the control-fit `floating` fixtures. */
+const ROWS30 = Array.from(
+	{ length: 30 },
+	(_, i) => `<button style="display:block;width:100%;height:44px;margin:0;padding:0 12px;text-align:left">Row ${i + 1}</button>`
+).join('');
+const CORNER_PILL = '<button id="pill" style="position:fixed;right:12px;bottom:12px;width:150px;height:44px;padding:0 12px">Send feedback</button>';
+
 /**
  * A REAL WebGL CANVAS, drawn or merely cleared, for `canvasContent`.
  *
@@ -1252,6 +1260,52 @@ const CASES = [
 			name: 'the same two controls side by side',
 			html: shell('<div id="r"><label style="display:inline-block;padding:12px"><input type="checkbox" style="width:20px;height:20px"> row</label><button style="width:120px;height:44px;padding:0 12px">Voice</button></div>'),
 			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
+			expect: 'within'
+		}
+	},
+	{
+		/* LEDGER 0396: the feedback button floats in the same corner of every
+		   page, so rows pass under it while the page scrolls, and a room's
+		   promise is that its last row scrolls clear (a padded foot). The bad
+		   page has no foot, so its last row is still under the pill at the end;
+		   the good page pads its foot by the pill's corner, and the assert makes
+		   it show a row passing under the pill where the page sat, so the
+		   deferral is what passes it, not an empty pairing. */
+		group: 'control-fit (a floating corner control, judged at the end of every scroller)',
+		bad: {
+			name: 'a corner pill over the last row, with no room made at the foot',
+			html: shell(`<div id="r">${ROWS30}</div>${CORNER_PILL}`),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture', floating: '#pill' }),
+			expect: 'outside',
+			assert: (r) =>
+				r.data.floatingFound === 1 && r.data.overlap.some((o) => o.includes('at the end of every scroller'))
+					? null
+					: `expected the last row under the pill at the end, got ${JSON.stringify(r.data.overlap)}`
+		},
+		good: {
+			name: 'the same page with its foot padded past the pill',
+			html: shell(`<div id="r" style="padding-bottom:68px">${ROWS30}</div>${CORNER_PILL}`),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture', floating: '#pill' }),
+			expect: 'within',
+			assert: (r) => (r.data.passedUnder >= 1 ? null : `expected a row passing under the pill where the page sat, got ${r.data.passedUnder}`)
+		}
+	},
+	{
+		/* A FLOATING CONTROL NAMED AND NOT FOUND IS A FAILURE: "nothing is stuck
+		   under the button" is true of a page with no button. */
+		group: 'control-fit (a floating control named and not found)',
+		bad: {
+			name: 'the padded page with no pill on it',
+			html: shell(`<div id="r" style="padding-bottom:68px">${ROWS30}</div>`),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture', floating: '#pill' }),
+			expect: 'outside',
+			assert: (r) =>
+				r.data.floatingFound === 0 && r.data.overlap.length === 0 ? null : `expected no pill and no overlap, got ${r.data.floatingFound}/${r.data.overlap.length}`
+		},
+		good: {
+			name: 'the same page with the pill',
+			html: shell(`<div id="r" style="padding-bottom:68px">${ROWS30}</div>${CORNER_PILL}`),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture', floating: '#pill' }),
 			expect: 'within'
 		}
 	},

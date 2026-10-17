@@ -23,7 +23,11 @@
 	--ar-gutter: clamp(1rem, 3vw, 2rem);
 	max-width: 80rem;
 	margin: 0 auto;
-	padding: 1.25rem var(--ar-gutter) 3rem;
+	/* THE FOOT CLEARS THE FEEDBACK BUTTON (ledger 0396). The button floats in
+	   the page's bottom-right corner, so the page ends at least its height
+	   above the bottom edge: the last control on the page (the Add people box,
+	   a filter key at 375) always scrolls clear of it. */
+	padding: 1.25rem var(--ar-gutter) max(3rem, var(--feedback-clear-block, 0px));
 	color: var(--text-1);
 	font-family: var(--font-display);
 }
@@ -1368,30 +1372,13 @@ span.ar-person-out {
 	margin: 0;
 }
 
-/* The docked report control (decision of 2026-10-07). Below 480px it stacks
-   its word under its glyph, as the classroom header's does, so it keeps both
-   at the 44px floor without taking a line of its own. */
-.ar-report {
-	display: inline-flex;
-	align-items: center;
-}
-.ar-report .sfb-trigger {
-	border-radius: var(--radius-card);
-	border-color: var(--boundary);
-}
+/* The header's keys sit closer on a phone. This made room for the docked
+   feedback control from 2026-10-07; the feedback button is the page's corner
+   button since ledger 0396, and the closer keys still leave the profile menu
+   more room. */
 @media (max-width: 479.98px) {
 	.ar-header .header-right {
 		gap: 0.5rem;
-	}
-	.ar-report .sfb-trigger {
-		flex-direction: column;
-		justify-content: center;
-		gap: 2px;
-		min-width: 44px;
-		padding: 0 0.3rem;
-		font-size: 0.6rem;
-		letter-spacing: 0.04em;
-		line-height: 1;
 	}
 }
 

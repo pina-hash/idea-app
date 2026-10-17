@@ -2,8 +2,6 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import ProjectorView from '$lib/classroom/live-class/ProjectorView.svelte';
-	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import {
 		buildProjectorFrame,
 		projectorStorageKey,
@@ -188,23 +186,9 @@
 		document.body.setAttribute('data-projector-hydrated', 'true');
 		return () => document.body.removeAttribute('data-projector-hydrated');
 	});
-
-	const build = describeBuild({ sha: 'harness', complete: false }, null);
-	const submit = async () => ({ error: null, retryable: false });
 </script>
 
-<ProjectorView classLabel={CLASS_LABEL} viewer={VIEWER} sectionId={SECTION_ID} {clock}>
-	{#snippet controls()}
-		<SiteFeedback
-			place="relocated"
-			routeId={page.route.id}
-			pathname={page.url.pathname}
-			role="teacher"
-			sectionId={SECTION_ID}
-			{build}
-			{submit}
-			anonymous={false}
-			label={REPORT_LABEL_SHORT}
-		/>
-	{/snippet}
-</ProjectorView>
+<!-- The feedback button is the root layout's corner button here as on the
+     real route (ledger 0396): ProjectorView keeps the strip's right end clear
+     for it and fades it with the strip. -->
+<ProjectorView classLabel={CLASS_LABEL} viewer={VIEWER} sectionId={SECTION_ID} {clock} />

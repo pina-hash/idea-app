@@ -13,8 +13,6 @@
 		StudentEngineData
 	} from '$lib/classroom/assignment-spec';
 	import type { ClassroomItem } from '$lib/classroom/classroom';
-	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import { appendLog } from './harness';
 
 	/**
@@ -126,23 +124,10 @@
 <svelte:head><title>Deploy safety</title></svelte:head>
 
 {#if data.dsCase === 'deck'}
-	<!-- IN THE ROOM THE REAL DECK ROUTE IS IN: its report control relocated into
-	     the bar (the real route's `controls` snippet), and the shell's floating
-	     copies absent, as the real route's exclusion makes them (see the style
-	     block). A floating control left over the bar sits on Full screen. -->
-	<DeckViewer deck={DECK} backHref="/dev/deploy-safety/next" backLabel="Back to the class">
-		{#snippet controls()}
-			<SiteFeedback
-				place="relocated"
-				routeId="/classroom/[sectionId]/item/[itemId]/deck"
-				pathname="/dev/deploy-safety"
-				role="teacher"
-				build={describeBuild({ sha: 'a1b2c3d', complete: true }, null)}
-				submit={async () => ({ error: null, retryable: false })}
-				label={REPORT_LABEL_SHORT}
-			/>
-		{/snippet}
-	</DeckViewer>
+	<!-- IN THE ROOM THE REAL DECK ROUTE IS IN: the viewer alone, as the real
+	     route mounts it, under the root layout's corner feedback button
+	     (ledger 0396), which the viewer keeps off the slide. -->
+	<DeckViewer deck={DECK} backHref="/dev/deploy-safety/next" backLabel="Back to the class" />
 {:else}
 	<main class="harness">
 		<h1>A new version lands under an open page</h1>
@@ -183,14 +168,6 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
-	}
-	/* The real deck route is in the shell's exclusion registry, so neither the
-	   floating report control nor voice navigation is rendered over it. A dev
-	   route cannot join that registry, so the harness hides them while a deck is
-	   on the page, and only then. */
-	:global(body:has(.deck-page) .sfb-shell),
-	:global(body:has(.deck-page) .vnav) {
-		display: none;
 	}
 	.engine-box {
 		border: 1px solid var(--boundary);

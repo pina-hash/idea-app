@@ -177,9 +177,19 @@ export default {
 				const main = document.querySelector('.grade-main');
 				if (!dock || !main) return ['dock=' + !!dock, 'grademain=' + !!main];
 				const cs = getComputedStyle(dock);
+				/* THE STICKY EDGE IS THE FEEDBACK BUTTON'S TOP WHERE THE DOCK PINS
+				   AGAINST THE WINDOW (ledger 0396, review round 2): below 1024px the
+				   dock's bottom offset is the corner's clearance -- the distance from the
+				   window's bottom edge to the button's top, plus the 8px gap --
+				   read off the real button, and 0 where the dock pins inside its
+				   own pane, whose foot is clear of the corner. */
+				const fb = document.querySelector('.sfb-shell .sfb-trigger');
+				const windowPinned = window.innerWidth < 1024;
+				const want = windowPinned && fb ? window.innerHeight - fb.getBoundingClientRect().top + 8 : 0;
+				const lift = parseFloat(cs.bottom);
 				return [
 					'position=' + cs.position,
-					'bottom=' + cs.bottom,
+					'bottomIsTheCornerClearance=' + (Math.abs(lift - want) < 1.5 ? 'true' : 'false (' + cs.bottom + ', want ' + want.toFixed(1) + 'px)'),
 					/* POSITIONED SIBLINGS PAINT IN TREE ORDER, so a dock at
 					   z-index auto is painted over by everything after it. */
 					'zIndexAboveAuto=' + (Number(cs.zIndex) > 0),
@@ -197,7 +207,7 @@ export default {
 			}`,
 			expected: [
 				'position=sticky',
-				'bottom=0px',
+				'bottomIsTheCornerClearance=true',
 				'zIndexAboveAuto=true',
 				'opaqueGround=true',
 				'boundedByGradeMain=true',
@@ -297,7 +307,10 @@ export default {
 					dock pins inside a pane -- so both are read off the same box rather
 					than from two different ideas of "the bottom".
 				*/
-				const fold = inPane ? box.getBoundingClientRect().bottom : window.innerHeight;
+				/* THE DOCK'S STICKY EDGE SITS ITS OWN BOTTOM OFFSET ABOVE THE FOLD: 0 in
+				   a pane, the feedback corner's clearance against the window
+				   (ledger 0396, review round 2). */
+				const fold = (inPane ? box.getBoundingClientRect().bottom : window.innerHeight) - parseFloat(getComputedStyle(dock).bottom);
 				const db = dock.getBoundingClientRect();
 				const mb = main.getBoundingClientRect();
 				const rb = ret.getBoundingClientRect();
@@ -305,6 +318,18 @@ export default {
 				if (rb.width > 0 && rb.top >= 0 && rb.bottom <= window.innerHeight) {
 					const el = document.elementFromPoint(rb.left + rb.width / 2, rb.top + rb.height / 2);
 					hit = el ? (el.getAttribute('data-testid') || el.tagName) : 'null';
+				}
+				/* AND NO CONTROL IN THE PINNED DOCK SHARES A POINT WITH THE FEEDBACK
+				   BUTTON: every button's nine points hit-test to itself. */
+				let covered = 0, points = 0;
+				for (const b of dock.querySelectorAll('button')) {
+					const r = b.getBoundingClientRect();
+					if (r.width === 0 || r.bottom <= 0 || r.top >= window.innerHeight) continue;
+					for (const fx of [0.15, 0.5, 0.85]) for (const fy of [0.2, 0.5, 0.8]) {
+						points++;
+						const el = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy);
+						if (!el || !b.contains(el)) covered++;
+					}
 				}
 				return [
 					/*
@@ -327,7 +352,8 @@ export default {
 					/* HIT-TESTED, NOT READ OFF A BOX. This is the row that tells a
 					   covered control from a clickable one: sticky makes the dock
 					   POSITIONED, and positioned siblings paint in tree order. */
-					'elementAtReturnCentre=' + hit
+					'elementAtReturnCentre=' + hit,
+					'dockPointsOnTheirOwnControl=' + (points > 0 && covered === 0 ? 'all' : covered + ' of ' + points + ' covered')
 				];
 			}`,
 			expected: [
@@ -336,7 +362,8 @@ export default {
 				'blockTopAboveTheFold=true',
 				'blockStillBelowTheFold=true',
 				'pinnedToTheFold=true',
-				'elementAtReturnCentre=grade-return'
+				'elementAtReturnCentre=grade-return',
+				'dockPointsOnTheirOwnControl=all'
 			]
 		},
 		{

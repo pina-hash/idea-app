@@ -550,14 +550,25 @@ export async function layoutSanity(
  *
  * Both are COUNTED over a stated population and every finding names its
  * element, so a zero says how many were looked at.
+ *
+ * `floating` NAMES A CONTROL THAT FLOATS OVER THE PAGE ON PURPOSE AND IS
+ * JUDGED WHERE THE PAGE MAKES ROOM FOR IT (ledger 0396). The site's feedback
+ * button sits in the same corner of every page, so rows pass under it as the
+ * page scrolls, exactly as they do on the home page; what a room promises is
+ * that nothing is STUCK under it, which is true at the end of every scroll
+ * container (each room pads its foot by `--feedback-clear-block`). So a pair
+ * with one side matching `floating` is measured again after every scroller has
+ * been scrolled to its end, and counts only if it still overlaps there; the
+ * scroll positions are put back afterwards. Every other pair, a fixed pill the
+ * spec did not name included, is judged where the page is, as before.
  */
 export async function controlFit(
 	page,
-	{ label = 'control fit', root = null, interactive = INTERACTIVE, minInset = 4, overlapPx = 4 } = {}
+	{ label = 'control fit', root = null, interactive = INTERACTIVE, minInset = 4, overlapPx = 4, floating = null } = {}
 ) {
 	await ensureHelpers(page);
 	const data = await page.evaluate(
-		({ root, interactive, minInset, overlapPx }) => {
+		({ root, interactive, minInset, overlapPx, floating }) => {
 			const h = window.__bvHelpers;
 			const scope = root ? document.querySelector(root) : document.body;
 			if (!scope) return { scopeFound: false, root };
@@ -636,7 +647,19 @@ export async function controlFit(
 				}
 				return false;
 			};
-			const boxes = nodes.filter((el) => !inSticky(el)).map((el) => ({ el, r: el.getBoundingClientRect() }));
+			/* The floating control is looked up in the whole document, since it
+			   sits outside any room a sweep is scoped to, and only joins the pairs. */
+			const floats = floating ? Array.from(document.querySelectorAll(floating)).filter(rendered) : [];
+			const pairable = nodes.concat(floats.filter((el) => !nodes.includes(el)));
+			const boxes = pairable.filter((el) => !inSticky(el)).map((el) => ({ el, r: el.getBoundingClientRect() }));
+			const isFloating = (el) => !!floating && !!el.closest(floating);
+			const area = (ra, rc) => {
+				const iw = Math.min(ra.right, rc.right) - Math.max(ra.left, rc.left);
+				const ih = Math.min(ra.bottom, rc.bottom) - Math.max(ra.top, rc.top);
+				return iw > 0 && ih > 0 ? iw * ih : 0;
+			};
+			const deferred = [];
+			let passedUnder = 0;
 			for (let i = 0; i < boxes.length; i++) {
 				for (let j = i + 1; j < boxes.length; j++) {
 					const a = boxes[i];
@@ -647,16 +670,42 @@ export async function controlFit(
 					if (la && (la === lc || la.contains(c.el) || (lc && lc.contains(a.el)))) continue;
 					if (a.el.tagName === 'LABEL' && a.el.control === c.el) continue;
 					if (c.el.tagName === 'LABEL' && c.el.control === a.el) continue;
-					const iw = Math.min(a.r.right, c.r.right) - Math.max(a.r.left, c.r.left);
-					const ih = Math.min(a.r.bottom, c.r.bottom) - Math.max(a.r.top, c.r.top);
-					if (iw > 0 && ih > 0 && iw * ih > overlapPx) {
-						overlap.push(`${(iw * ih).toFixed(0)}px2: ${name(a.el)}  x  ${name(c.el)}`);
+					if (isFloating(a.el) !== isFloating(c.el)) {
+						deferred.push([a.el, c.el]);
+						continue;
 					}
+					const ov = area(a.r, c.r);
+					if (ov > overlapPx) overlap.push(`${ov.toFixed(0)}px2: ${name(a.el)}  x  ${name(c.el)}`);
 				}
 			}
-			return { scopeFound: true, root: root ?? 'body', population: nodes.length, edged, tight, overlap };
+			if (deferred.length) {
+				const scrollers = [document.scrollingElement || document.documentElement];
+				for (const el of document.querySelectorAll('*')) {
+					const cs = getComputedStyle(el);
+					if (/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1) scrollers.push(el);
+				}
+				const before = scrollers.map((s) => s.scrollTop);
+				for (const [a, c] of deferred) if (area(a.getBoundingClientRect(), c.getBoundingClientRect()) > overlapPx) passedUnder++;
+				for (const s of scrollers) s.scrollTo({ top: s.scrollHeight, behavior: 'instant' });
+				for (const [a, c] of deferred) {
+					const ov = area(a.getBoundingClientRect(), c.getBoundingClientRect());
+					if (ov > overlapPx) overlap.push(`${ov.toFixed(0)}px2 at the end of every scroller: ${name(a)}  x  ${name(c)}`);
+				}
+				scrollers.forEach((s, k) => s.scrollTo({ top: before[k], behavior: 'instant' }));
+			}
+			return {
+				scopeFound: true,
+				root: root ?? 'body',
+				population: nodes.length,
+				edged,
+				tight,
+				overlap,
+				floatingFound: floating ? floats.length : null,
+				floatingPairs: deferred.length,
+				passedUnder
+			};
 		},
-		{ root, interactive, minInset, overlapPx }
+		{ root, interactive, minInset, overlapPx, floating }
 	);
 	if (!data.scopeFound) {
 		return {
@@ -668,14 +717,27 @@ export async function controlFit(
 			data
 		};
 	}
+	/* A FLOATING CONTROL NAMED AND NOT FOUND IS A FAILURE, NEVER A SILENT ZERO,
+	   the reserved-region rule above: "nothing is stuck under the button" is
+	   perfectly true of a page with no button. */
+	const floatingMissing = floating !== null && !data.floatingFound;
+	const floatingNote =
+		floating === null
+			? ''
+			: floatingMissing
+				? `; the floating control ${floating} MATCHED NOTHING`
+				: `; ${data.floatingPairs} pair(s) with the floating control judged at the end of every scroller (${data.passedUnder} passing under it where the page sat, not counted)`;
 	return {
 		check: 'control-fit',
 		label,
 		measured:
 			`${data.population} rendered control(s) in ${data.root}, ${data.edged} drawing an edge around a label; ` +
-			`${data.tight.length} label(s) under ${minInset}px from their edge, ${data.overlap.length} overlapping pair(s)`,
-		threshold: `0 labels within ${minInset}px of their edge, 0 overlapping controls (over ${overlapPx}px2)`,
-		withinThreshold: data.tight.length === 0 && data.overlap.length === 0 && data.population > 0,
+			`${data.tight.length} label(s) under ${minInset}px from their edge, ${data.overlap.length} overlapping pair(s)` +
+			floatingNote,
+		threshold:
+			`0 labels within ${minInset}px of their edge, 0 overlapping controls (over ${overlapPx}px2)` +
+			(floating === null ? '' : ', the floating control present and clear at the end of every scroller'),
+		withinThreshold: data.tight.length === 0 && data.overlap.length === 0 && data.population > 0 && !floatingMissing,
 		data
 	};
 }

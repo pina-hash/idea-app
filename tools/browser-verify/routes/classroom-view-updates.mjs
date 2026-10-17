@@ -29,7 +29,10 @@ export default {
 		{ selector: `${TOGGLES}[aria-expanded="true"]`, label: 'exactly one month open', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [
-		{ selector: '[data-testid="updates-lead"]', label: 'the intro names the control by its printed word', must: ['Feedback'], mustNot: ['Feedback button'] }
+		/* The control's printed word and where it is: the page's bottom-right
+		   corner on every page since ledger 0396 (it used to say "at the top of
+		   the page", where the classroom header docked it). */
+		{ selector: '[data-testid="updates-lead"]', label: 'the intro names the control by its printed word and its place', must: ['Send feedback', 'bottom right'], mustNot: ['Feedback button', 'top of the page'] }
 	],
 	contrast: [
 		{ selector: '[data-testid="updates-lead"]', label: 'intro', min: 4.5 },
