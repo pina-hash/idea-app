@@ -176,13 +176,13 @@ block behind until the next branch's CI says so. Closing that is a change to
 
 | Count | Value |
 | --- | --- |
-| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 782 |
+| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 788 |
 | Distinct routes those specs drive (alias-resolved, query string stripped) | 169 |
 | Directories under `src/routes/dev` with a page (the candidate set) | 191 |
 | Widths | 2 (375, 1440) |
-| Route/width runs a full pass makes (specs x widths) | 1564 |
+| Route/width runs a full pass makes (specs x widths) | 1576 |
 
-<!-- counts:static:data {"schema":1,"specs":782,"routes":169,"devPages":191,"widths":[375,1440],"runs":1564} -->
+<!-- counts:static:data {"schema":1,"specs":788,"routes":169,"devPages":191,"widths":[375,1440],"runs":1576} -->
 <!-- counts:static:end -->
 
 ### Measured -- summed from `measured/`, one file per route spec

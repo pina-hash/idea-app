@@ -60,6 +60,34 @@
 			comment, which is why it is one.
 		-->
 		<!--idea-theme-boot-->
+		<!--
+			THE ONE INSTALL LISTENER (ledger 0396). Chromium fires
+			`beforeinstallprompt` once per page load, after the load event and a
+			manifest check, and a page that is not listening at that moment has
+			lost it until the next full load. On a slow school desktop the app's
+			JavaScript can still be parsing then, so the listener lives here, in
+			the document itself, ahead of every module, and nowhere else: it stashes
+			the event in `window.__ideaInstall` and calls `notify`, which
+			`$lib/install-app.ts` sets. The header's Install app key and the phone
+			pop-up both read that one mailbox, so two listeners never race for one
+			event. tests/install-app.test.ts runs this exact script.
+		-->
+		<script>
+			(function (w) {
+				if (w.__ideaInstall) return;
+				var box = (w.__ideaInstall = { event: null, installed: false, notify: null });
+				w.addEventListener('beforeinstallprompt', function (e) {
+					e.preventDefault();
+					box.event = e;
+					if (box.notify) box.notify();
+				});
+				w.addEventListener('appinstalled', function () {
+					box.event = null;
+					box.installed = true;
+					if (box.notify) box.notify();
+				});
+			})(window);
+		</script>
 		<title>IDEA</title>
 		%sveltekit.head%
 	</head>

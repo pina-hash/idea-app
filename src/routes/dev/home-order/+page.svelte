@@ -1,5 +1,7 @@
 <script lang="ts">
 	import Home from '../../+page.svelte';
+	import { browser } from '$app/environment';
+	import { INSTALL_HARNESS_DEVICES, type InstallHarnessDevice } from './install-devices';
 
 	/**
 	 * THE REAL HOME PAGE, mounted with harness data (see +page.ts).
@@ -21,6 +23,39 @@
 	 * meaningful.
 	 */
 	const homeData = $derived(data as unknown as Parameters<typeof Home>[1]['data']);
+
+	/**
+	 * THE INSTALL APP KEY'S DEVICES (ledger 0396). `?ua=` names a device from
+	 * ./install-devices.ts and `?display=standalone` says the site is running
+	 * installed. Neither can be emulated by this container's Chromium (a CDP
+	 * `display-mode` emulation is accepted and does nothing, measured), and a
+	 * route spec cannot set a user agent, so the browser's own answers are
+	 * overridden HERE, in the harness's script, which runs during hydration
+	 * before any component under it mounts and reads them. Nothing in the app
+	 * is told it is in a harness: `$lib/install-app` reads `navigator` and
+	 * `matchMedia` exactly as it does on a real phone.
+	 */
+	const params = browser ? new URLSearchParams(location.search) : null;
+	const device = (params?.get('ua') ?? '') as InstallHarnessDevice | '';
+	const standalone = params?.get('display') === 'standalone';
+	if (browser) {
+		const d = device ? INSTALL_HARNESS_DEVICES[device] : undefined;
+		if (d) {
+			Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => d.userAgent });
+			Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => d.maxTouchPoints });
+		}
+		if (standalone) {
+			const real = window.matchMedia.bind(window);
+			window.matchMedia = (query: string) => {
+				if (!/display-mode:\s*standalone/.test(query)) return real(query);
+				const mql = real('(min-width: 0px)');
+				return Object.defineProperties(mql, {
+					matches: { value: true },
+					media: { value: query }
+				});
+			};
+		}
+	}
 </script>
 
 <div class="harness-strip">
@@ -28,6 +63,8 @@
 	&middot; rows/card=<strong>{data.harness.rows}</strong>
 	&middot; admin=<strong>{data.harness.admin}</strong>
 	{#if data.harness.due?.length}&middot; due=<strong>{data.harness.due.join(',')}</strong>{/if}
+	{#if device}&middot; ua=<strong>{device}</strong>{/if}
+	{#if standalone}&middot; display=<strong>standalone</strong>{/if}
 	&middot; <a href="?role=student&classes=1&rows=3">student x1</a>
 	&middot; <a href="?role=teacher&classes=4&rows=3">teacher x4</a>
 	&middot; <a href="?role=teacher&classes=1&rows=3">teacher x1</a>
