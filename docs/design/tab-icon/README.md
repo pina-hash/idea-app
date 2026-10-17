@@ -32,9 +32,13 @@ this page says why they are what they are.
   with face, so it keeps the key's bevel and iOS never paints black. The
   maskable icon is the face edge to edge with the gear inside the 80 percent
   safe circle.
-- **Live and Error look clearly different.** Live pulses: the lamp and the
-  hairline pulse crimson. Error is a steady amber warning triangle in the
-  corner, no ring, lamp off.
+- **Live and Error look clearly different.** Live is the only state that
+  animates on its own: the lamp and the hairline pulse crimson. Error is a
+  steady amber warning triangle in the corner, no ring, lamp off. (As recorded.
+  The same prompt's build list also gives saving a blink on its own timer, and
+  the port follows the build list, so in the code live and saving both
+  animate unprompted, and progress repaints only as its fraction moves. The
+  states table below is what ships.)
 - **Glyphs:**
   - GAUNTLET is a shaded isometric CAD part with a bored hole, because GAUNTLET
     is SolidWorks.
