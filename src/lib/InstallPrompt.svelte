@@ -15,10 +15,12 @@
 	 * memory (`INSTALL_POPUP_DISMISSED_KEY`): dismissing the pop-up never hides
 	 * the header key, which reads nothing from storage.
 	 *
-	 * WHILE THE HEADER KEY'S CARD IS OPEN IT STEPS ASIDE (`installCardOpen`), so
-	 * the same Share steps are never on screen twice, and comes back when the
-	 * card closes. That is page state: its once-and-dismissed memory is not
-	 * touched by it.
+	 * WHILE THE HEADER KEY'S CARD IS OPEN IT STEPS ASIDE, so the same Share
+	 * steps are never on screen twice, and comes back when the card closes. It
+	 * steps aside the same way while the feedback window is open (integration
+	 * review), which it used to be drawn over, Cancel and Send included. Both
+	 * are `installPopupAside`, and both are page state: its once-and-dismissed
+	 * memory is not touched by either.
 	 *
 	 * Everything that touches window or storage runs in `onMount`, so the server
 	 * render never reads a browser global.
@@ -29,7 +31,7 @@
 		INSTALL_COPY,
 		INSTALL_POPUP_DISMISSED_KEY,
 		UNKNOWN_INSTALL,
-		installCardOpen,
+		installPopupAside,
 		installPopupMode,
 		promptInstall,
 		readInstall,
@@ -41,7 +43,7 @@
 	/* Until storage has been read, treat the pop-up as dismissed, so it never
 	   flashes on for somebody who already said no. */
 	let dismissed = $state(true);
-	/* The header key's card is open: step aside, without dismissing. */
+	/* The header key's card or the feedback window is open: step aside, without dismissing. */
 	let stepAside = $state(false);
 	const platform = $derived(installPopupMode(snapshot, dismissed));
 
@@ -80,9 +82,9 @@
 	onMount(() => {
 		dismissed = alreadyHandled();
 		snapshot = readInstall();
-		stepAside = installCardOpen();
+		stepAside = installPopupAside();
 		return subscribeInstall(() => {
-			stepAside = installCardOpen();
+			stepAside = installPopupAside();
 			const next = readInstall();
 			// Installed some other way (the header key, the browser menu): stop nagging.
 			if (next.installed && !snapshot.installed) remember();

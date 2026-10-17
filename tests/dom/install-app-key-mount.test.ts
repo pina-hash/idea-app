@@ -19,7 +19,11 @@
 //     card's containing block), the Tab key still walks key, Close, Take the
 //     tour, and tearing the key down takes the layer and nothing else;
 //   - while the card is open the iPhone pop-up steps aside without being
-//     dismissed, and comes back when the card closes.
+//     dismissed, and comes back when the card closes;
+//   - and it steps aside the same way while the corner feedback window is
+//     open (integration review: at 1000 it was drawn over the window's Cancel
+//     and Send), coming back on Cancel and on Escape, and staying gone once
+//     its own Got it dismissed it.
 //
 // Structure, events, focus and storage only: happy-dom has no layout engine,
 // so the key's 44px, its icon fit and the card's place in the window are
@@ -32,11 +36,14 @@ import { join } from 'node:path';
 import type { Component } from 'svelte';
 import InstallAppKey from '$lib/InstallAppKey.svelte';
 import InstallPrompt from '$lib/InstallPrompt.svelte';
+import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
+import { describeBuild } from '$lib/feedback/context';
 import { INSTALL_MAILBOX, INSTALL_POPUP_DISMISSED_KEY } from '$lib/install-app';
 import { mountInto, type Mounted } from './mount';
 
 const Key = InstallAppKey as unknown as Component<Record<string, unknown>>;
 const Popup = InstallPrompt as unknown as Component<Record<string, unknown>>;
+const Feedback = SiteFeedback as unknown as Component<Record<string, unknown>>;
 
 const APP_HTML = readFileSync(join(__dirname, '..', '..', 'src', 'app.html'), 'utf8');
 const CAPTURE = [...APP_HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).find((s) => s.includes(INSTALL_MAILBOX))!;
@@ -594,5 +601,91 @@ describe('in the home header', () => {
 		flushSync();
 		expect(popup()).not.toBeNull();
 		await h.cleanup();
+	});
+});
+
+describe('the feedback window', () => {
+	beforeEach(() => device(UA.iphone));
+
+	/** The corner button's real window, with a transport that records nothing. */
+	function feedback(): Mounted {
+		const m = mountInto(Feedback, {
+			routeId: '/',
+			pathname: '/',
+			build: describeBuild({ sha: 'a1b2c3d', complete: true }, null),
+			submit: async () => ({ error: null, retryable: false })
+		});
+		mounted.push(m);
+		return m;
+	}
+
+	/** Press the button and wait for the box, which arrives on a dynamic import. */
+	async function openWindow(f: Mounted) {
+		f.one<HTMLButtonElement>('.sfb-trigger').click();
+		for (let i = 0; i < 100; i++) {
+			f.flush();
+			if (f.all('#fb-msg').length) return;
+			await new Promise((r) => setTimeout(r, 10));
+		}
+		throw new Error('the feedback window did not open within 1s of the press');
+	}
+	const windowOpen = (f: Mounted) => f.all('.fb-box').length === 1;
+
+	it('the iPhone pop-up steps aside while the window is open, undismissed, and comes back on Cancel and on Escape', async () => {
+		const p = open(Popup);
+		const f = feedback();
+		await settle(p);
+		// POSITIVE CONTROL: the pop-up is on screen before the press, so its
+		// absence below is the step aside and not a pop-up that never showed.
+		expect(popup()).not.toBeNull();
+
+		await openWindow(f);
+		await settle(f);
+		expect(windowOpen(f)).toBe(true);
+		expect(popup()).toBeNull();
+		expect(localStorage.getItem(INSTALL_POPUP_DISMISSED_KEY)).toBeNull();
+
+		f.all<HTMLButtonElement>('.fb-box button').find((b) => b.textContent?.trim() === 'CANCEL')!.click();
+		await settle(f);
+		expect(windowOpen(f)).toBe(false);
+		expect(popup()).not.toBeNull();
+
+		await openWindow(f);
+		await settle(f);
+		expect(popup()).toBeNull();
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		await settle(f);
+		expect(windowOpen(f)).toBe(false);
+		expect(popup()).not.toBeNull();
+		expect(localStorage.getItem(INSTALL_POPUP_DISMISSED_KEY)).toBeNull();
+	});
+
+	it('a pop-up dismissed with its own Got it stays gone after the window closes', async () => {
+		const p = open(Popup);
+		const f = feedback();
+		await settle(p);
+		popup()!.querySelector<HTMLButtonElement>('.ip-dismiss')!.click();
+		await settle(p);
+		expect(popup()).toBeNull();
+
+		await openWindow(f);
+		await settle(f);
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		await settle(f);
+		expect(windowOpen(f)).toBe(false);
+		expect(popup()).toBeNull();
+		expect(localStorage.getItem(INSTALL_POPUP_DISMISSED_KEY)).toBe('1');
+	});
+
+	it('a window torn down while open hands the pop-up back', async () => {
+		const p = open(Popup);
+		const f = feedback();
+		await settle(p);
+		await openWindow(f);
+		await settle(f);
+		expect(popup()).toBeNull();
+		await f.stop();
+		await settle(p);
+		expect(popup()).not.toBeNull();
 	});
 });

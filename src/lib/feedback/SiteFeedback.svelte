@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 	import type FeedbackBox from './FeedbackBox.svelte';
 	import FeedbackTrigger from './FeedbackTrigger.svelte';
 	import {
@@ -21,6 +22,7 @@
 	} from './context';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { holdDeployReload } from '$lib/shell/deploy-safety';
+	import { stepInstallPopupAside } from '$lib/install-app';
 	import { provideSiteFeedbackOpener } from './opener';
 
 	/**
@@ -218,6 +220,21 @@
 	$effect(() => {
 		if (!open) return;
 		return holdDeployReload('a feedback box is open');
+	});
+
+	/**
+	 * THE PHONE INSTALL POP-UP STEPS ASIDE WHILE THE WINDOW IS OPEN, and comes
+	 * back when it closes, unanswered, as it does after the Install app key's
+	 * card (`$lib/install-app`). It floats at 1000 over everything, so it was
+	 * drawn over this window's shade and its controls: Cancel and Send on an
+	 * iPad, the contact field on an iPhone (integration review, ledger 0396).
+	 * `open` is the one tracked read. The call is UNTRACKED because it tells
+	 * the pop-up synchronously, and the pop-up's own handler reads its state,
+	 * which would otherwise become this effect's dependency.
+	 */
+	$effect(() => {
+		if (!open) return;
+		return untrack(() => stepInstallPopupAside());
 	});
 
 	/**

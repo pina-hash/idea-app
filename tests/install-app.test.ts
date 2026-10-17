@@ -29,11 +29,13 @@ import {
 	installCardOpen,
 	installKeyMode,
 	installPlatform,
+	installPopupAside,
 	installPopupMode,
 	installSentence,
 	promptInstall,
 	readInstall,
 	setInstallCardOpen,
+	stepInstallPopupAside,
 	subscribeInstall,
 	type InstallSnapshot
 } from '../src/lib/install-app';
@@ -257,6 +259,42 @@ describe('the one listener, in app.html', () => {
 		expect([installCardOpen(), heard]).toEqual([false, 2]);
 		// Page state, not the pop-up's memory and not the snapshot either reader decides from.
 		expect(readInstall(win)).not.toHaveProperty('cardOpen');
+		off();
+	});
+
+	it('anything else that opens over the page (the feedback window) steps the pop-up aside until the last asker lets go, and is heard only when the answer moves', () => {
+		// Integration review: the pop-up at 1000 was drawn over the feedback
+		// window's Cancel and Send. The window asks it to step aside, by the
+		// same rule as the key's card.
+		const { win } = fakeWindow();
+		boot(win);
+		let heard = 0;
+		const off = subscribeInstall(() => heard++, win as never);
+		expect(installPopupAside()).toBe(false);
+
+		const releaseA = stepInstallPopupAside();
+		expect([installPopupAside(), heard]).toEqual([true, 1]);
+		// A second asker changes nothing anybody can see, so nothing is said.
+		const releaseB = stepInstallPopupAside();
+		expect([installPopupAside(), heard]).toEqual([true, 1]);
+		releaseA();
+		releaseA(); // releasing twice is a no-op, never a second asker's release
+		expect([installPopupAside(), heard]).toEqual([true, 1]);
+		releaseB();
+		expect([installPopupAside(), heard]).toEqual([false, 2]);
+
+		// With the key's card open too, the pop-up stays aside until BOTH are gone.
+		setInstallCardOpen(true);
+		expect([installPopupAside(), heard]).toEqual([true, 3]);
+		const releaseC = stepInstallPopupAside();
+		expect(heard).toBe(3);
+		setInstallCardOpen(false);
+		expect(installPopupAside()).toBe(true);
+		releaseC();
+		expect([installPopupAside(), installCardOpen()]).toEqual([false, false]);
+		expect(heard).toBe(5);
+		// Nothing stored: it is page state, like the card.
+		expect(readInstall(win)).not.toHaveProperty('aside');
 		off();
 	});
 });
