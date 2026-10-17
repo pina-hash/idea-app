@@ -2265,13 +2265,52 @@ through `studentPageHref`; it is a place under the People tab, not a tab.
   `studentGallery` (hand-in pictures and turned-in notebook photos, a
   straightened page replacing its original through `notebookPhotosShown`,
   newest first, at most `STUDENT_GALLERY_MAX`), advancing on a timer that
-  stops under `reduce`, on hover, on focus, in a hidden tab and while the
-  Lightbox is open, with Previous, Next and Pause as 44px keys. Its caption
+  stops under `reduce`, under a resting mouse, on keyboard focus, in a hidden
+  tab and while the Lightbox is open, with Previous, Next and one Pause key as
+  44px keys (it reads Play while paused and carries no pressed state, which
+  drew a lit "Play" over a stopped slideshow). **The Pause key itself never
+  holds the timer** (neither a mouse on it nor focus on it), so its word is
+  true whenever it is looked at or heard: pressing Play left focus on the key
+  and the slideshow stood still under "Pause" (ledger 0396). Its caption
   sits on a band BELOW the picture, never over it, because a handwritten
-  page's last lines are at its foot. Assignments open on due date, newest
+  page's last lines are at its foot. **Every move wraps both ways
+  (`slideIndex`), the timer's included, and the thumbnail strip scrolls ITSELF
+  to centre the selected picture (`stripScrollLeft`, ledger 0396, report
+  169b931d)**: the thumbnail is measured against the strip's own box, never by
+  its `offsetLeft`, whose offset parent is the page (`main` is positioned), which
+  is what sent the strip to its far end when the first picture was picked; and
+  never with a bare `scrollIntoView`, which moves the page too. The shared
+  Lightbox keeps its own clamp at the ends. Assignments open on due date, newest
   first (`STUDENT_ASSIGNMENT_DEFAULT_SORT`). Print is two Letter pages for the
   fixture at 0.75in margins with no text under 9pt; a score bar's fill is the
   one background `_student-print.mjs` lets through, by name.
+- **A TEACHER HIDES WHOLE SECTIONS FROM THE SECTIONS KEY IN THE PAGE HEADER
+  (ledger 0396, report bd38fa25)**, and the choice applies to every student
+  page they open, on any computer: the classroom store's `studentPage` group
+  (account, through the store's read-first writer, no migration), section ids
+  from `$lib/classroom/student-sections`, which are stored and append-only. A
+  hidden section is NOT RENDERED, so it leaves no gap (a group of cards takes
+  as many columns as it has cards, `studentColumns`; with the grade or Coming
+  up hidden the pictures move UNDER the identity, centred and as wide as a
+  16:9 stage at the slideshow's `--sws-stage-max` height, because beside a
+  short column they left a 200 to 400px hole and across the whole card a
+  landscape picture sat in a black band) and nothing on the paper,
+  and what belongs to it goes with it: its At a glance tile, and for the
+  notebook its Needs attention rows, its photos in Their work
+  (`studentGalleryFor`) and the Open full notebook key.
+  `studentPageLayout` is the one decision of what is drawn and what prints,
+  so the screen and the paper cannot disagree. `StudentSectionsMenu` is the
+  one control (a popover over `anchored`, never over its own key: it opens on
+  the side with more room and shrinks to it, `studentSectionsMenuFit`, with no
+  fixed floor); with no store in context there is no key. Settings reads it
+  out to a teacher with a Reset.
+- **NEEDS ATTENTION CARRIES ITS ASSIGNMENT ROW'S OWN KEYS (ledger 0396, report
+  08bafda7)**: Grade and Full screen are ONE snippet rendered on both lists,
+  so they cannot drift into two spellings of where a row opens, and they sit
+  on the title's line wherever they fit. Needs attention and Scores share a
+  line only while about the same height (`studentDuoStacks`, decided from the
+  rows each lists so the server render already has it); otherwise each takes
+  the whole width. The paper keeps two columns.
 - **EVERY FIGURE COUNTS UP ONCE, AND THE GRADE HAS A BAND (ledger 0392).**
   `CountFigure` is a thin caller of `countUp` (a decimal counts in tenths, the
   final figure is server-rendered and carried in a visually hidden copy for
@@ -2291,8 +2330,11 @@ through `studentPageHref`; it is a place under the People tab, not a tab.
   section's "Include when printing" box starts ticked and is never stored. A
   cleared box takes the section's card AND its At a glance tile off the paper
   (a tile is a section's figure, and a figure left behind says what the
-  teacher chose not to print). `tools/browser-verify/_student-print.mjs`
-  measures both. No poll, ever.
+  teacher chose not to print). A HIDDEN section is neither on screen nor on
+  the paper, and the grade, which follows Scores and Assignments, prints on
+  its own when both are hidden rather than unticked.
+  `tools/browser-verify/_student-print.mjs` measures all of it (pass its port flag
+  when another dev server may hold 5199). No poll, ever.
 - **A REPORT FILED FROM AN ADDRESS-BEARING PATH CARRIES `:student`**, never the
   address: `captureMeta` runs `scrubAddressSegments`.
 

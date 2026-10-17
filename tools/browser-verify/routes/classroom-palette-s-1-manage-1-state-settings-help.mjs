@@ -31,11 +31,13 @@ export default {
 			   Assignment and material pages each carry a help sentence. TEN since
 			   the projector's clock face (idea 26033e4b), a teacher's setting.
 			   ELEVEN since ledger 0381's Class banner motion, which this spec
-			   missed, and TWELVE since ledger 0396's Post thumbnails. */
-			label: "a tip on each of a teacher's twelve setting titles",
-			expectPresent: 12,
-			maxPresent: 12,
-			expectVisible: 12
+			   missed, TWELVE since ledger 0396's Post thumbnails and THIRTEEN
+			   since the same ledger's Student pages read-out (Sections shown,
+			   a teacher's). */
+			label: "a tip on each of a teacher's thirteen setting titles",
+			expectPresent: 13,
+			maxPresent: 13,
+			expectVisible: 13
 		},
 		{
 			selector: '[data-testid="classroom-settings"] .cs-option .info-tip',
@@ -68,7 +70,7 @@ export default {
 				}
 				return ['triggers ' + triggers.length, 'overlaps ' + overlaps, 'centre hits self ' + selfHits];
 			}`,
-			expected: ['triggers 12', 'overlaps 0', 'centre hits self 12']
+			expected: ['triggers 13', 'overlaps 0', 'centre hits self 13']
 		},
 		{
 			label: 'a tap opens the Density tip on screen with its own sentence, and a tap elsewhere closes it',

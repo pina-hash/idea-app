@@ -6,9 +6,20 @@
  * there, every status says its own word (Missing, Complete late, Not opened),
  * no classmate's name or address is anywhere on the page (the fixture's grid
  * and team board carry three), the table never pushes the page sideways, and
- * the controls clear 44px.
+ * the controls clear 44px (the row keys by their reach).
  */
-import { CLASSMATE_TEXT, SECTIONS, STUDENT, STUDENT_READY } from './_classroom-student.mjs';
+import {
+	ATTENTION_DATES_ONE_COLUMN,
+	ATTENTION_KEYS_MATCH,
+	ATTENTION_KEYS_ON_TITLE_LINE,
+	ATTENTION_TITLE_REACH,
+	BAR_TITLES_WHOLE,
+	CLASSMATE_TEXT,
+	DUO_NO_HOLE,
+	SECTIONS,
+	STUDENT,
+	STUDENT_READY
+} from './_classroom-student.mjs';
 
 export default {
 	path: STUDENT,
@@ -32,7 +43,12 @@ export default {
 		{ selector: '[data-testid="avatar-hold"], [data-testid="avatar-hold-arm"]', label: 'no picture control without the admin transport', expectPresent: 0 },
 		{ selector: '[data-testid="so-upcoming-row"]', label: 'coming up: the one live assignment still to do with a date ahead', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="so-attention-row"]', label: 'missing and late work, named', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		{ selector: '[data-testid="so-attention-row"] [data-testid="so-grade-link"]', label: 'a Grade key on each Needs attention row (report 08bafda7)', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		{ selector: '[data-testid="so-attention-row"] [data-testid="so-work-link"]', label: 'a Full screen key on each Needs attention row (report 08bafda7)', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		{ selector: '[data-testid="so-sections"]', label: 'the Sections key in the page header (report bd38fa25)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="so-sections-panel"]', label: 'its menu, closed until pressed', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 },
 		{ selector: '[data-testid="so-score-bar"]', label: 'one bar per returned, scored assignment', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+		{ selector: '[data-testid="so-duo"][data-arrangement="stacked"]', label: 'Needs attention over Scores: four rows and two notebook rows against two bars are too far apart to share a line', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="so-coverage"]', label: 'the coverage sentence, once', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	orderResult: [
@@ -48,6 +64,18 @@ export default {
 			expected: ['a-safety']
 		},
 		{ label: 'no classmate is named anywhere on the page', evaluate: CLASSMATE_TEXT, expected: [] },
+		ATTENTION_KEYS_MATCH,
+		{
+			/* Four late or missing pieces of work and two notebook rows against two
+			   scores: far apart, so one above the other (polish round). */
+			label: 'Needs attention and Scores leave no block of nothing beside either',
+			evaluate: DUO_NO_HOLE,
+			expected: ['no block beside either card']
+		},
+		{ label: 'each Needs attention row keeps its keys on its title line (under it on a phone)', evaluate: ATTENTION_KEYS_ON_TITLE_LINE, expected: ['ok'] },
+		{ label: 'every Needs attention date, assignments and check-ins alike, in one column (polish round C)', evaluate: ATTENTION_DATES_ONE_COLUMN, expected: ['one column of dates'] },
+		{ label: 'nothing covers a Needs attention title link anywhere in its 44px (polish round C)', evaluate: ATTENTION_TITLE_REACH, expected: ['every point of every title link answers the link'] },
+		{ label: 'every score bar title is shown whole, its title attribute kept (polish round C)', evaluate: BAR_TITLES_WHOLE, expected: ['whole'] },
 		{
 			label: 'the team rows give a name and a size, never a member',
 			evaluate: `() => [...document.querySelectorAll('[data-testid="so-team"] .so-list-main')].map((n) => n.textContent.replace(/\\s+/g, ' ').trim())`,
@@ -58,10 +86,12 @@ export default {
 			/* PANELS OF UNEQUAL HEIGHT GO IN COLUMNS (CLAUDE.md): two on a desktop,
 			   one on a phone, read off where each card actually sits. The answer
 			   names the count it found when it is wrong. */
-			label: 'the panels under the table: two columns from 1024px, one below',
+			label: 'the panels under the table: two columns wherever two 26rem columns fit, one below',
 			evaluate: `() => {
-				const lefts = new Set([...document.querySelectorAll('.so-panels > .so-card')].map((c) => Math.round(c.getBoundingClientRect().left)));
-				const want = window.innerWidth >= 1024 ? 2 : 1;
+				const panels = document.querySelector('.so-panels');
+				const lefts = new Set([...panels.querySelectorAll(':scope > .so-card')].map((c) => Math.round(c.getBoundingClientRect().left)));
+				const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+				const want = panels.getBoundingClientRect().width >= 2 * 26 * rem + parseFloat(getComputedStyle(panels).columnGap) ? 2 : 1;
 				return [lefts.size === want ? 'as expected' : lefts.size + ' column(s) at ' + window.innerWidth + 'px'];
 			}`,
 			expected: ['as expected']
@@ -69,10 +99,12 @@ export default {
 		{
 			/* The table is a table where its card has room and labelled blocks where
 			   it does not (a container query at 46rem of the card). */
-			label: 'the assignments are a table on a desktop and stacked blocks on a phone',
+			label: 'the assignments are a table where their card holds 46rem and stacked blocks on a phone',
 			evaluate: `() => {
 				const d = getComputedStyle(document.querySelector('.so-table')).display;
-				const want = window.innerWidth >= 1024 ? 'table' : 'block';
+				const el = document.querySelector('[data-testid="so-assignments"]'), cs = getComputedStyle(el);
+				const inner = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+				const want = inner >= 46 * parseFloat(getComputedStyle(document.documentElement).fontSize) ? 'table' : 'block';
 				return [d === want ? 'as expected' : 'display ' + d + ' at ' + window.innerWidth + 'px'];
 			}`,
 			expected: ['as expected']
@@ -113,9 +145,14 @@ export default {
 		{ selector: '.so-upcoming-title', label: 'a coming-up link', min: 44 },
 		{ selector: '[data-testid="so-slide-prev"], [data-testid="so-slide-next"], [data-testid="so-slide-play"]', label: 'slideshow Previous, Next and Pause', min: 44 },
 		{ selector: '.so-identity .so-actions a', label: 'Back to People and Open full notebook', min: 44 },
+		{ selector: '[data-testid="so-sections"]', label: 'the Sections key', min: 44 },
 		{ selector: '.so-print-toggle', label: 'Include when printing', min: 44 },
 		{ selector: '.so-col-title .so-link', label: 'assignment links', min: 44 },
 		{ selector: '[data-testid="so-material"] .so-link', label: 'handout links', min: 44 },
 		{ selector: '[data-testid="so-models"] .so-link', label: 'Foundry links', min: 44 }
-	]
+	],
+	/* GRADE AND FULL SCREEN ARE 24px TO DRAW AND 44px TO TAP (report bd38fa25,
+	   round 2): a height-only `.tap-reach-44`, hit-tested, in both lists that
+	   share the snippet. */
+	tapReach: [{ selector: '.so-row-key', label: 'Grade and Full screen keys, both lists', min: 44 }]
 };
