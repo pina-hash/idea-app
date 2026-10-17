@@ -71,8 +71,9 @@ export interface AnchorOptions {
 	 * corner the floating feedback button claims on every page (ledger 0396).
 	 * Where the panel's columns cross it, its top edge is the window's bottom
 	 * edge for the panel (and `margin` the gap above it), above the anchor as
-	 * well as below it; a panel too tall to fit above it moves sideways off it
-	 * instead, where that fits. Null or absent: the whole window is the panel's.
+	 * well as below it; a panel that room cannot take without covering its own
+	 * anchor moves sideways instead (beside the anchor, or off the box), where
+	 * that fits. Null or absent: the whole window is the panel's.
 	 */
 	avoid?: AnchorBox | null;
 }
@@ -109,8 +110,9 @@ function clamp(value: number, low: number, high: number): number {
  * anchor: below, its room ends there, and above, its foot may not run past
  * there either (integration review 2: a key flush with the bottom of a phone
  * window opened the student page's Sections menu upward with its Done key 9px
- * under the feedback button). A panel too tall for the room above the corner
- * moves sideways off it, where the window has the columns.
+ * under the feedback button). And when that room cannot take the panel, the
+ * panel is never clamped over its own anchor or left under the corner: it
+ * moves SIDEWAYS, to the nearest place that does neither (see `besideCorner`).
  */
 export function anchorPosition(
 	anchor: AnchorBox,
@@ -138,24 +140,14 @@ export function anchorPosition(
 	const left = clamp(rawLeft, margin, viewport.width - margin - panel.width);
 
 	const at = placeRows(anchor, panel, viewport, left, avoid, gap, margin, preferSide);
-	const top = at.top;
-	const side = at.side;
+	const placed: AnchorPlacement = { left, top: at.top, side: at.side, align, flipped: at.side !== preferSide || align !== preferAlign };
 
-	// TOO TALL FOR THE ROOM ABOVE THE CORNER: the low edge won the clamp and the
-	// panel still runs under it. Moved sideways off the corner instead, when the
-	// window has the columns for it; otherwise it stays where the clamp put it,
-	// its start on screen, which is the same answer as a panel taller than the
-	// window.
-	if (avoid && at.floor < viewport.height && top + panel.height > at.floor - margin) {
-		const shifted = avoid.left - margin - panel.width;
-		if (shifted >= margin) {
-			const rawTop = side === 'above' ? anchor.top - gap - panel.height : anchor.bottom + gap;
-			const free = clamp(rawTop, margin, viewport.height - margin - panel.height);
-			return { left: shifted, top: free, side, align, flipped: true };
-		}
+	// CROSSING THE CORNER: clear of it and of the anchor, or moved sideways.
+	if (avoid && at.floor < viewport.height && !placementClear(anchor, panel, viewport, placed, avoid, margin)) {
+		const beside = besideCorner(anchor, panel, viewport, placed, avoid, gap, margin, preferSide);
+		if (beside) return beside;
 	}
-
-	return { left, top, side, align, flipped: side !== preferSide || align !== preferAlign };
+	return placed;
 }
 
 /**
@@ -203,6 +195,70 @@ function placeRows(
 
 	const rawTop = side === 'above' ? anchor.top - gap - panel.height : anchor.bottom + gap;
 	return { top: clamp(rawTop, margin, room.floor - margin - panel.height), side, floor: room.floor };
+}
+
+/** Whether two boxes share any area (touching edges do not). */
+function boxesMeet(a: { left: number; top: number; width: number; height: number }, b: AnchorBox): boolean {
+	return a.left < b.right && a.left + a.width > b.left && a.top < b.bottom && a.top + a.height > b.top;
+}
+
+/**
+ * A PLACEMENT A PERSON CAN USE: inside the window, off its own anchor (a menu
+ * drawn over the key that opened it reads as the row above's menu), and clear
+ * of the reserved corner by the margin wherever its columns cross it.
+ */
+function placementClear(
+	anchor: AnchorBox,
+	panel: AnchorSize,
+	viewport: AnchorSize,
+	at: { left: number; top: number },
+	avoid: AnchorBox | null,
+	margin: number
+): boolean {
+	const box = { left: at.left, top: at.top, width: panel.width, height: panel.height };
+	if (at.left < margin || at.left + panel.width > viewport.width - margin) return false;
+	if (at.top < margin || at.top + panel.height > viewport.height - margin) return false;
+	if (boxesMeet(box, anchor)) return false;
+	const floor = clearBottom({ left: at.left, right: at.left + panel.width }, viewport.height, avoid);
+	return at.top + panel.height <= floor - margin;
+}
+
+/**
+ * NO ROOM ABOVE THE CORNER FOR A PANEL THAT CROSSES IT: the clamp would draw it
+ * over its own anchor, or leave it under the corner. Moved sideways instead, to
+ * the nearest of three places that does neither (integration review 2: a class
+ * page row menu in a 667x375 window was clamped up over its own key and read
+ * as the row above's menu):
+ *   - beside the anchor on the side the panel already extends to (an end-aligned
+ *     menu goes to the anchor's left, a start-aligned one to its right),
+ *   - beside the anchor on the other side,
+ *   - left of the corner, with the whole window's height.
+ * Each is placed in rows against its own columns' floor, as any panel is. When
+ * none fits, the clamped placement stands: clear of the corner, its start on
+ * screen, the same answer as a panel taller than the window.
+ */
+function besideCorner(
+	anchor: AnchorBox,
+	panel: AnchorSize,
+	viewport: AnchorSize,
+	placed: AnchorPlacement,
+	avoid: AnchorBox,
+	gap: number,
+	margin: number,
+	preferSide: 'above' | 'below'
+): AnchorPlacement | null {
+	const toLeft = anchor.left - gap - panel.width;
+	const toRight = anchor.right + gap;
+	const columns = placed.align === 'end' ? [toLeft, toRight] : [toRight, toLeft];
+	columns.push(avoid.left - margin - panel.width);
+	for (const left of columns) {
+		if (left < margin || left + panel.width > viewport.width - margin) continue;
+		const at = placeRows(anchor, panel, viewport, left, avoid, gap, margin, preferSide);
+		if (placementClear(anchor, panel, viewport, { left, top: at.top }, avoid, margin)) {
+			return { left, top: at.top, side: at.side, align: placed.align, flipped: true };
+		}
+	}
+	return null;
 }
 
 /**

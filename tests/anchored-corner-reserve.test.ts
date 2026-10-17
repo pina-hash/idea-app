@@ -153,3 +153,82 @@ describe('the room ABOVE a key ends at a corner its panel crosses', () => {
 		expect(underBefore).toBe(3);
 	});
 });
+
+describe('a menu the room above the corner cannot take moves beside its key, never over it', () => {
+	// The class page's row menu: 176 wide, end-aligned to its 32x44 key at the
+	// row's right edge, below first, 3px gap, 8px margin. 198 tall without the
+	// Unit select, 234 with it.
+	const WINDOWS = [
+		{ viewport: { width: 667, height: 375 }, button: { left: 505, top: 319, right: 655, bottom: 363, width: 150, height: 44 }, keyLeft: 586 },
+		{ viewport: { width: 568, height: 320 }, button: { left: 406, top: 264, right: 556, bottom: 308, width: 150, height: 44 }, keyLeft: 487 },
+		{ viewport: { width: 320, height: 568 }, button: { left: 143, top: 496, right: 304, bottom: 544, width: 161, height: 48 }, keyLeft: 239 },
+		{ viewport: { width: 375, height: 812 }, button: { left: 198, top: 740, right: 359, bottom: 788, width: 161, height: 48 }, keyLeft: 294 },
+		{ viewport: { width: 1440, height: 900 }, button: { left: 1278, top: 844, right: 1428, bottom: 888, width: 150, height: 44 }, keyLeft: 1340 }
+	];
+	const MENU = { prefer: 'below' as const, align: 'end' as const, gap: 3, margin: 8 };
+
+	it('the reported case: the Engineering glossary menu at 667x375 sits to the left of its key, off the button', () => {
+		const { viewport, button } = WINDOWS[0];
+		const key = box(586, 125);
+		const size = { width: 176, height: 198 };
+		const at = anchorPosition(key, size, viewport, { ...MENU, avoid: button });
+		// Clamped against the button's top it would have been drawn at 113, over
+		// the key's 125 to 169; beside the key, its right edge is the key's left
+		// less the gap, and it keeps the room above the button.
+		expect(at.left).toBe(586 - 3 - 176);
+		expect(at.top).toBe(319 - 8 - 198);
+		expect(overlaps({ ...at, ...size }, key)).toBe(false);
+		expect(overlaps({ ...at, ...size }, button)).toBe(false);
+	});
+
+	it('over every key position in five windows: no menu covers its key or meets the button, and the clamp alone covered keys', () => {
+		let cases = 0;
+		let clampCovered = 0;
+		for (const { viewport, button, keyLeft } of WINDOWS) {
+			for (const height of [198, 234]) {
+				const size = { width: 176, height };
+				// Every key whose box sits clear of the button (a key under the
+				// button cannot be pressed in the first place).
+				for (let y = 8; y + 44 <= viewport.height - 8; y += 4) {
+					const key = box(keyLeft, y);
+					if (overlaps({ left: key.left, top: key.top, width: key.width, height: key.height }, button)) continue;
+					const at = anchorPosition(key, size, viewport, { ...MENU, avoid: button });
+					cases += 1;
+					expect(overlaps({ ...at, ...size }, key), `covers its key at ${viewport.width}x${viewport.height} y=${y} h=${height}`).toBe(false);
+					expect(overlaps({ ...at, ...size }, button), `meets the button at ${viewport.width}x${viewport.height} y=${y} h=${height}`).toBe(false);
+					expect(at.left).toBeGreaterThanOrEqual(8);
+					expect(at.top).toBeGreaterThanOrEqual(8);
+					expect(at.left + size.width).toBeLessThanOrEqual(viewport.width - 8);
+					expect(at.top + size.height).toBeLessThanOrEqual(viewport.height - 8);
+					// THE POSITIVE CONTROL, by hand: the end-aligned columns cross
+					// the button, so the floor is its top; a panel taller than both
+					// rooms there is clamped to it, and that clamp covers the key.
+					const floor = button.top;
+					const below = floor - 8 - (key.bottom + 3);
+					const above = Math.min(key.top - 3, floor - 8) - 8;
+					const side = below < height && above > below ? 'above' : 'below';
+					const raw = side === 'above' ? key.top - 3 - height : key.bottom + 3;
+					const top = Math.max(8, Math.min(raw, Math.max(8, floor - 8 - height)));
+					if (top < key.bottom && top + height > key.top) clampCovered += 1;
+				}
+			}
+		}
+		expect(cases, 'the sweep generated nothing').toBeGreaterThan(500);
+		expect(clampCovered, 'the sweep never reached a key the clamp covers').toBeGreaterThan(20);
+	});
+
+	it('with no room beside the key either, the menu stays clear of the button and keeps its start on screen', () => {
+		// A 320px window and a start-aligned panel nearly as wide as it: neither
+		// side of the key nor the left of the button has the columns.
+		const viewport = { width: 320, height: 568 };
+		const button = { left: 143, top: 496, right: 304, bottom: 544, width: 161, height: 48 };
+		const key = box(102, 300);
+		const size = { width: 296, height: 400 };
+		const at = anchorPosition(key, size, viewport, { prefer: 'below', align: 'start', gap: 6, margin: 12, avoid: button });
+		expect(overlaps({ ...at, ...size }, button)).toBe(false);
+		// Above the key (it has more room there), clamped to the top margin.
+		expect(at.side).toBe('above');
+		expect(at.top).toBe(12);
+		expect(at.left).toBe(12);
+	});
+});

@@ -5237,8 +5237,10 @@ inside the function fails closed rather than falling through to a weaker path.
     live and `anchorPosition`'s `avoid` treats its top as the window's bottom
     for a panel whose columns cross it, above its key as well as below,
     because a panel inside `main` is always painted under the button; a panel
-    sized by hand to the room beside its key (the student page's Sections
-    menu) measures it with `anchorRooms`. On a `.cr-root`
+    that room cannot take moves sideways (beside its key, or left of the
+    button) rather than being clamped over its own key, and a panel sized by
+    hand to the room beside its key (the student page's Sections menu)
+    measures it with `anchorRooms`. On a `.cr-root`
     route the root layout wraps the window in `CLASSROOM_PLATE`
     (`feedbackWearsClassroomPlate`), so the button and the box are the home
     page's plate key and plate box. The error card's "Tell us what happened"
