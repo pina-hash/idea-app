@@ -24,6 +24,7 @@
 	import NavigationProgress from '$lib/NavigationProgress.svelte';
 	import DeployWatch from '$lib/shell/DeployWatch.svelte';
 	import ThemeRoot from '$lib/design-system/themes/ThemeRoot.svelte';
+	import TabIcon from '$lib/tab-icon/TabIcon.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild } from '$lib/feedback/context';
 	import { sitePlateClass } from '$lib/shell/site-plate';
@@ -102,6 +103,7 @@
      reason the two above it are: there are no layout resets in src/routes, so
      every page route inherits it. It renders nothing; see the component. -->
 <ThemeRoot />
+<TabIcon />
 {#snippet site()}
 	{@render children()}
 	<!-- First-login pathway picker: renders only for a signed-in student with no

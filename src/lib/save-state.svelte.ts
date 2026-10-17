@@ -26,7 +26,19 @@
  * NOT tied to SvelteKit: the navigation guard lives next door in
  * `save-guard.svelte.ts`, so this module stays importable -- and the state
  * machine stays assertable -- with no `$app/*` in scope.
+ *
+ * AND IT LIGHTS THE TAB ICON (ledger 0396), because every surface that saves
+ * work goes through here: while a write is in flight the tab's lamp blinks
+ * (`saving`), an acknowledged write shows the done rim for four seconds, and a
+ * write that stopped retrying shows the error mark until this machine leaves
+ * `failed` (a retry landed, the work was re-edited or discarded, or the
+ * surface went away). Per instance, like everything else here: each machine
+ * raises and clears its own handles, and the tab shows the highest of them.
+ * `$lib/tab-icon/live` needs no `$app/*` either, and on the server its
+ * `raise` is a no-op.
  */
+
+import { raise as raiseTabStatus, type TabStatusHandle } from '$lib/tab-icon/live';
 
 /**
  * What one attempt at a write came back with.
@@ -124,6 +136,10 @@ export class SaveState {
 	#pending = false;
 	#destroyed = false;
 
+	/** This machine's statuses on the tab icon, while they last. */
+	#tabSaving: TabStatusHandle | null = null;
+	#tabError: TabStatusHandle | null = null;
+
 	constructor(options: SaveStateOptions) {
 		this.#opts = {
 			autosave: true,
@@ -185,6 +201,7 @@ export class SaveState {
 			this.#phase = 'dirty';
 			this.#message = null;
 		}
+		this.#syncTab();
 		if (this.#opts.autosave) this.#schedule();
 	}
 
@@ -200,6 +217,7 @@ export class SaveState {
 		this.#savedAt = at;
 		this.#message = null;
 		this.#attempt = 0;
+		this.#syncTab();
 	}
 
 	/** Back to `clean`: the work was discarded, or the surface moved on. */
@@ -210,6 +228,7 @@ export class SaveState {
 		this.#savedAt = null;
 		this.#message = null;
 		this.#attempt = 0;
+		this.#syncTab();
 	}
 
 	/** Write now, skipping any pending debounce. Resolves when the run settles. */
@@ -257,6 +276,34 @@ export class SaveState {
 	destroy(): void {
 		this.#destroyed = true;
 		this.#cancelTimer();
+		this.#syncTab();
+	}
+
+	/**
+	 * The tab icon follows the phase: `saving` exactly while `writing`, `error`
+	 * exactly while `failed`, and neither once destroyed. Idempotent, so every
+	 * place the phase moves can call it.
+	 *
+	 * RAISE FIRST, CLEAR SECOND. The painter paints each change as it lands, so
+	 * clearing `saving` before raising `error` put the resting icon on the tab
+	 * for a frame between them. Raised first, the new status is already held
+	 * when the old one goes, and the tab moves straight from one to the other.
+	 * The acknowledged path raises `done` before calling this, for the same
+	 * reason.
+	 */
+	#syncTab(): void {
+		const writing = !this.#destroyed && this.#phase === 'writing';
+		const failed = !this.#destroyed && this.#phase === 'failed';
+		if (writing && !this.#tabSaving) this.#tabSaving = raiseTabStatus('saving');
+		if (failed && !this.#tabError) this.#tabError = raiseTabStatus('error');
+		if (!writing && this.#tabSaving) {
+			this.#tabSaving.clear();
+			this.#tabSaving = null;
+		}
+		if (!failed && this.#tabError) {
+			this.#tabError.clear();
+			this.#tabError = null;
+		}
 	}
 
 	#flush(): void {
@@ -305,6 +352,7 @@ export class SaveState {
 				this.#attempt = attempt;
 				this.#phase = 'writing';
 				this.#message = attempt > 1 ? `Retrying (attempt ${attempt} of ${maxAttempts})...` : null;
+				this.#syncTab();
 
 				// Cleared HERE, immediately before the value goes out: anything
 				// typed after this point is a genuinely newer edit and must cause
@@ -329,6 +377,10 @@ export class SaveState {
 					this.#message = null;
 					this.#attempt = 0;
 					settledOk = true;
+					// Done before saving goes (see `#syncTab`), so the tab never
+					// rests between the two.
+					if (!this.#destroyed) raiseTabStatus('done');
+					this.#syncTab();
 					break;
 				}
 
@@ -336,6 +388,7 @@ export class SaveState {
 					this.#phase = 'failed';
 					this.#message = outcome.message || fallbackMessage;
 					this.#attempt = 0;
+					this.#syncTab();
 					break;
 				}
 

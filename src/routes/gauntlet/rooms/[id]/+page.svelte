@@ -6,6 +6,7 @@
 	import DrawingViewer from '$lib/gauntlet/DrawingViewer.svelte';
 	import RoomClocks from '$lib/gauntlet/RoomClocks.svelte';
 	import CountdownOverlay from '$lib/gauntlet/viewport/CountdownOverlay.svelte';
+	import { raise as raiseTabStatus } from '$lib/tab-icon/live';
 	import {
 		difficultyLabel,
 		formatTime,
@@ -114,6 +115,15 @@
 	// null until the first effect run, so a page opened mid-round never fires it.
 	let countdown = $state(false);
 	let prevRoomState: string | null = null;
+
+	// The browser tab pulses crimson while the round is live (ledger 0396), so a
+	// racer modelling in another window sees the host start it from the tab
+	// strip. Only an observer of room.state: the clock stays the server's.
+	$effect(() => {
+		if (room.state !== 'live') return;
+		const tab = raiseTabStatus('live');
+		return () => tab.clear();
+	});
 
 	// The drawing is gated server-side: only revealed once the room is live. A
 	// plain (non-reactive) guard so the effect only fires the RPC once per round.

@@ -2970,7 +2970,8 @@ node tools/claude-md-check.mjs          # does THIS file still agree with the tr
 npm run verify:browser                  # the visual pass: /dev routes at 375 and 1440
 npm run verify:browser -- --probe       # what this machine's browser can actually do
 npm run verify:browser -- --selftest    # negative controls for every check
-python3 tools/idea_icon_gen.py <outdir> # regenerates the site icons; it and `tools/idea_logo_vector.py` are the ONLY place icon and logo geometry is edited
+npm run tab-icon:build                  # writes the tab and home-screen icons in static/IDEA/ from src/lib/tab-icon/geometry.ts, the ONLY place their geometry is edited (ledger 0396, docs/design/tab-icon/README.md)
+python3 tools/idea_logo_vector.py <outdir> # the emblem and logo geometry, the ONLY place it is edited; tools/idea_icon_gen.py now writes only a retired icon exploration to its outdir, nothing the site serves
 npm run build                           # see the Windows EPERM trap below
 ```
 

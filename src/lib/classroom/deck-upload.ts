@@ -34,7 +34,15 @@
  * connection dropped" and "the request timed out" still read identically
  * from the outside unless they say so. Each throws a DeckUploadError carrying
  * a `code`, and each is logged to the console under one prefix.
+ *
+ * THE TAB ICON FOLLOWS THE BYTES (ledger 0396), exactly as it does for every
+ * other classroom upload (`./upload-progress.ts`): its hairline fills as the
+ * zip goes, and the status is cleared on every way the request can end. The
+ * unpacking after it is server work counted in files, not a transfer, and is
+ * deliberately not drawn (the ledger 0396 history entry says why).
  */
+
+import { raise as raiseTabStatus } from '$lib/tab-icon/live';
 
 export type DeckUploadCode = 'cancelled' | 'network' | 'timeout';
 
@@ -119,21 +127,26 @@ const xhrPostTransport: DeckPostTransport = {
 	post({ url, form, signal, timeoutMs, onProgress }) {
 		return new Promise((resolve, reject) => {
 			const xhr = new XMLHttpRequest();
+			const tab = raiseTabStatus('progress', { p: 0 });
 
 			function onAbort() {
+				tab.clear();
 				xhr.abort();
 				reject(new DeckUploadCancelled());
 			}
 			if (signal?.aborted) return onAbort();
 			signal?.addEventListener('abort', onAbort, { once: true });
 			function done() {
+				tab.clear();
 				signal?.removeEventListener('abort', onAbort);
 			}
 
 			xhr.open('POST', url, true);
 			xhr.timeout = timeoutMs;
 			xhr.upload.onprogress = (e) => {
-				if (e.lengthComputable) onProgress?.(e.loaded);
+				if (!e.lengthComputable) return;
+				if (e.total > 0) tab.update({ p: e.loaded / e.total });
+				onProgress?.(e.loaded);
 			};
 			xhr.onerror = () => {
 				done();
@@ -158,7 +171,12 @@ const xhrPostTransport: DeckPostTransport = {
 				}
 				resolve({ status: xhr.status, body });
 			};
-			xhr.send(form);
+			try {
+				xhr.send(form);
+			} catch (err) {
+				done();
+				throw err;
+			}
 		});
 	}
 };
