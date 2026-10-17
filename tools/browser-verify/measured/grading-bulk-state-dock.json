@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "grading-bulk-state-dock.mjs",
-	"date": "2026-10-15T05:03:10.468Z",
-	"sha": "5ca0ee1fb4ce63dfea08f697b66d9e499ea791bf",
-	"dirty": false,
+	"date": "2026-10-17T10:28:18.849Z",
+	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 44,
 	"outsideRows": [],
-	"ms": 7438
+	"ms": 8651
 }

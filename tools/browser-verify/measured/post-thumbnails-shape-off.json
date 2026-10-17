@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "post-thumbnails-shape-off.mjs",
+	"date": "2026-10-17T10:19:20.859Z",
+	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 11730
+}

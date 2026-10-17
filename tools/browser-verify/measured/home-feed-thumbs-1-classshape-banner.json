@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "home-feed-thumbs-1-classshape-banner.mjs",
+	"date": "2026-10-18T01:09:10.446Z",
+	"sha": "bdd1f4956d89bb92cf74ce9424127f326cadf196",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 20,
+	"outsideRows": [],
+	"ms": 9784
+}

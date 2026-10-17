@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "home-feed-state-fold-key-theme-space-white.mjs",
+	"date": "2026-10-17T10:24:13.974Z",
+	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 36,
+	"outsideRows": [],
+	"ms": 10411
+}
