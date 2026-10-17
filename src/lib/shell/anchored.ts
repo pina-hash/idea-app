@@ -70,9 +70,9 @@ export interface AnchorOptions {
 	 * A box in viewport coordinates the panel must not be drawn under: the
 	 * corner the floating feedback button claims on every page (ledger 0396).
 	 * Where the panel's columns cross it, its top edge is the window's bottom
-	 * edge for the panel (and `margin` the gap above it); a panel too tall to
-	 * fit above it moves sideways off it instead, where that fits. Null or
-	 * absent: the whole window is the panel's.
+	 * edge for the panel (and `margin` the gap above it), above the anchor as
+	 * well as below it; a panel too tall to fit above it moves sideways off it
+	 * instead, where that fits. Null or absent: the whole window is the panel's.
 	 */
 	avoid?: AnchorBox | null;
 }
@@ -103,6 +103,14 @@ function clamp(value: number, low: number, high: number): number {
  * Flips in BOTH axes, independently: a panel near the top of the window opens
  * downward, one near the right edge lines up with the anchor's right edge
  * instead of its left, and one near a corner does both.
+ *
+ * WITH A RESERVED CORNER (`avoid`, ledger 0396) a panel whose columns cross it
+ * treats the corner's top as the window's bottom edge, on BOTH sides of its
+ * anchor: below, its room ends there, and above, its foot may not run past
+ * there either (integration review 2: a key flush with the bottom of a phone
+ * window opened the student page's Sections menu upward with its Done key 9px
+ * under the feedback button). A panel too tall for the room above the corner
+ * moves sideways off it, where the window has the columns.
  */
 export function anchorPosition(
 	anchor: AnchorBox,
@@ -114,6 +122,7 @@ export function anchorPosition(
 	const margin = options.margin ?? DEFAULT_MARGIN;
 	const preferSide = options.prefer ?? 'above';
 	const preferAlign = options.align ?? 'start';
+	const avoid = options.avoid ?? null;
 
 	// THE COLUMNS FIRST: nothing about them depends on the side, and whether the
 	// panel crosses the reserved corner depends on them.
@@ -126,33 +135,23 @@ export function anchorPosition(
 		align = 'start';
 		rawLeft = anchor.left;
 	}
-	let left = clamp(rawLeft, margin, viewport.width - margin - panel.width);
+	const left = clamp(rawLeft, margin, viewport.width - margin - panel.width);
 
-	const floor = clearBottom({ left, right: left + panel.width }, viewport.height, options.avoid);
-
-	const roomAbove = anchor.top - margin;
-	const roomBelow = floor - anchor.bottom - margin;
-	const needed = panel.height + gap;
-
-	let side = preferSide;
-	if (preferSide === 'above' && roomAbove < needed && roomBelow > roomAbove) side = 'below';
-	else if (preferSide === 'below' && roomBelow < needed && roomAbove > roomBelow) side = 'above';
-
-	const rawTop = side === 'above' ? anchor.top - gap - panel.height : anchor.bottom + gap;
-	const top = clamp(rawTop, margin, floor - margin - panel.height);
+	const at = placeRows(anchor, panel, viewport, left, avoid, gap, margin, preferSide);
+	const top = at.top;
+	const side = at.side;
 
 	// TOO TALL FOR THE ROOM ABOVE THE CORNER: the low edge won the clamp and the
 	// panel still runs under it. Moved sideways off the corner instead, when the
 	// window has the columns for it; otherwise it stays where the clamp put it,
 	// its start on screen, which is the same answer as a panel taller than the
 	// window.
-	const avoid = options.avoid;
-	if (avoid && floor < viewport.height && top + panel.height > floor - margin) {
+	if (avoid && at.floor < viewport.height && top + panel.height > at.floor - margin) {
 		const shifted = avoid.left - margin - panel.width;
 		if (shifted >= margin) {
-			left = shifted;
+			const rawTop = side === 'above' ? anchor.top - gap - panel.height : anchor.bottom + gap;
 			const free = clamp(rawTop, margin, viewport.height - margin - panel.height);
-			return { left, top: free, side, align, flipped: true };
+			return { left: shifted, top: free, side, align, flipped: true };
 		}
 	}
 
@@ -160,10 +159,56 @@ export function anchorPosition(
 }
 
 /**
+ * THE ROOM ON EACH SIDE OF AN ANCHOR for a panel at these columns: the panel
+ * height each side can take, and the floor its columns meet (`clearBottom`).
+ * Below, from the anchor plus the gap down to the floor less the margin; above,
+ * from the top margin down to the anchor less the gap OR the floor less the
+ * margin, whichever is higher, because no placement lets a panel's foot run
+ * past the floor on either side. One rule, so a caller that sizes its panel to
+ * the room beside its key (the student page's Sections menu) measures the same
+ * room this places it in.
+ */
+export function anchorRooms(
+	anchor: AnchorBox,
+	span: { left: number; right: number },
+	viewport: AnchorSize,
+	options: { gap?: number; margin?: number; avoid?: AnchorBox | null } = {}
+): { above: number; below: number; floor: number } {
+	const gap = options.gap ?? DEFAULT_GAP;
+	const margin = options.margin ?? DEFAULT_MARGIN;
+	const floor = clearBottom(span, viewport.height, options.avoid);
+	return {
+		above: Math.min(anchor.top - gap, floor - margin) - margin,
+		below: floor - margin - (anchor.bottom + gap),
+		floor
+	};
+}
+
+/** The rows for a panel at these columns: which side of the anchor, and how far down. */
+function placeRows(
+	anchor: AnchorBox,
+	panel: AnchorSize,
+	viewport: AnchorSize,
+	left: number,
+	avoid: AnchorBox | null,
+	gap: number,
+	margin: number,
+	preferSide: 'above' | 'below'
+): { top: number; side: 'above' | 'below'; floor: number } {
+	const room = anchorRooms(anchor, { left, right: left + panel.width }, viewport, { gap, margin, avoid });
+
+	let side = preferSide;
+	if (preferSide === 'above' && room.above < panel.height && room.below > room.above) side = 'below';
+	else if (preferSide === 'below' && room.below < panel.height && room.above > room.below) side = 'above';
+
+	const rawTop = side === 'above' ? anchor.top - gap - panel.height : anchor.bottom + gap;
+	return { top: clamp(rawTop, margin, room.floor - margin - panel.height), side, floor: room.floor };
+}
+
+/**
  * WHERE THE WINDOW ENDS FOR A PANEL SPANNING THESE COLUMNS: the window's bottom
- * edge, or the top of the reserved box where the columns cross it. One rule,
- * so a caller that sizes its panel to the room below its key (the student
- * page's Sections menu) measures the same room this places it in.
+ * edge, or the top of the reserved box where the columns cross it. The one
+ * statement of the floor; `anchorRooms` measures both rooms against it.
  */
 export function clearBottom(
 	span: { left: number; right: number },

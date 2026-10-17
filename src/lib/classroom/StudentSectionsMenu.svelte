@@ -54,7 +54,7 @@
 	 * one line at 375 and the list keeps its height.
 	 */
 	import { untrack } from 'svelte';
-	import { anchored, anchorPosition, clearBottom, cornerReserve, type AnchoredParams } from '$lib/shell/anchored';
+	import { anchored, anchorPosition, anchorRooms, cornerReserve, type AnchoredParams } from '$lib/shell/anchored';
 	import {
 		STUDENT_PAGE_SECTIONS,
 		setStudentSectionShown,
@@ -114,19 +114,23 @@
 
 	/**
 	 * The rooms above and below the key, each less the margin and the gap.
-	 * BELOW ENDS AT THE FEEDBACK BUTTON where the panel's columns cross it
+	 * BOTH END AT THE FEEDBACK BUTTON where the panel's columns cross it
 	 * (ledger 0396): the panel is drawn inside `main`, so the button paints over
 	 * it, and on a phone it covered Show all and Done and a tap on Done opened
-	 * the feedback window. `clearBottom` is the same floor `anchored` places the
-	 * panel against, so the cap and the placement agree.
+	 * the feedback window. Below, the room stops at the button's top; above, the
+	 * panel's foot may not run past it either, which is the case of a key flush
+	 * with the window's bottom beside the button (integration review 2: Done was
+	 * 9px under the button at 375x740). `anchorRooms` is the one statement of
+	 * both rooms, and `anchorPosition` places the panel by it, so the cap and the
+	 * placement agree.
 	 */
 	function rooms() {
 		const k = (trigger as HTMLElement).getBoundingClientRect();
 		const width = panel?.getBoundingClientRect().width ?? 0;
 		const viewport = { width: window.innerWidth, height: window.innerHeight };
 		const { left } = anchorPosition(k, { width, height: 0 }, viewport, { align: 'start', margin: MARGIN });
-		const floor = clearBottom({ left, right: left + width }, viewport.height, cornerReserve());
-		return { above: k.top - MARGIN - GAP, under: floor - k.bottom - MARGIN - GAP };
+		const room = anchorRooms(k, { left, right: left + width }, viewport, { gap: GAP, margin: MARGIN, avoid: cornerReserve() });
+		return { above: room.above, under: room.below };
 	}
 
 	/** The nearest box that scrolls the key, or the page. */

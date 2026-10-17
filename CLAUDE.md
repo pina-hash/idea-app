@@ -5235,9 +5235,10 @@ inside the function fails closed rather than falling through to a weaker path.
     placed by `$lib/shell/anchored` keeps clear of it on its own**: the
     button's wrapper carries `data-corner-reserve`, `cornerReserve` reads it
     live and `anchorPosition`'s `avoid` treats its top as the window's bottom
-    for a panel whose columns cross it, because a panel inside `main` is always
-    painted under the button; a panel sized by hand to the room below its key
-    (the student page's Sections menu) measures that room with `clearBottom`. On a `.cr-root`
+    for a panel whose columns cross it, above its key as well as below,
+    because a panel inside `main` is always painted under the button; a panel
+    sized by hand to the room beside its key (the student page's Sections
+    menu) measures it with `anchorRooms`. On a `.cr-root`
     route the root layout wraps the window in `CLASSROOM_PLATE`
     (`feedbackWearsClassroomPlate`), so the button and the box are the home
     page's plate key and plate box. The error card's "Tell us what happened"
