@@ -287,6 +287,7 @@
 		class:on={shown}
 		data-install="key"
 		data-install-mode={mode}
+		data-tour="install"
 		aria-haspopup={mode === 'prompt' ? undefined : 'dialog'}
 		aria-expanded={mode === 'prompt' ? undefined : shown}
 		aria-controls={mode === 'prompt' ? undefined : cardId}
