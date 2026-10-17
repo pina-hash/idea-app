@@ -914,6 +914,48 @@ export function studentGallery(input: {
 	return out.slice(0, STUDENT_GALLERY_MAX);
 }
 
+/**
+ * THE SLIDESHOW'S NEXT PICTURE, WRAPPING BOTH WAYS (report 169b931d): Next on
+ * the last picture is the first, Previous on the first is the last, and the
+ * timer that moves it on by itself takes the same step. Zero pictures is 0.
+ */
+export function slideIndex(next: number, count: number): number {
+	if (!Number.isFinite(count) || count < 1 || !Number.isFinite(next)) return 0;
+	const n = Math.floor(count);
+	return ((Math.trunc(next) % n) + n) % n;
+}
+
+/**
+ * WHERE THE THUMBNAIL STRIP SCROLLS SO THE SELECTED PICTURE SITS IN ITS MIDDLE
+ * (report 169b931d: "when I select the first image the scroll bar goes all the
+ * way to the right"), clamped to what the strip can actually scroll, so the
+ * first picture sits at the left edge and the last at the right.
+ *
+ * EVERY LENGTH IS IN THE STRIP'S OWN SCROLL COORDINATES. The defect was the
+ * thumbnail's `offsetLeft`, which is measured from its OFFSET PARENT -- the
+ * nearest positioned ancestor, the whole page (`main` is positioned) and not
+ * the strip -- so on a desktop the first thumbnail read about 600px in from a
+ * strip that starts 600px across the page, and asking for it scrolled the
+ * strip as far right as it goes. `thumbStart` is the thumbnail's distance from
+ * the strip's own left padding edge with the strip at scroll 0, which the
+ * caller reads from two bounding boxes and the strip's current `scrollLeft`,
+ * so no ancestor can move it.
+ */
+export function stripScrollLeft(m: {
+	/** The thumbnail's left edge, from the strip's padding edge at scroll 0. */
+	thumbStart: number;
+	thumbWidth: number;
+	/** The strip's visible width (`clientWidth`). */
+	viewWidth: number;
+	/** Everything the strip can scroll through (`scrollWidth`). */
+	contentWidth: number;
+}): number {
+	const max = Math.max(0, m.contentWidth - m.viewWidth);
+	const centered = m.thumbStart + m.thumbWidth / 2 - m.viewWidth / 2;
+	if (!Number.isFinite(centered)) return 0;
+	return Math.round(Math.min(max, Math.max(0, centered)));
+}
+
 // ---------------------------------------------------------------------------
 // 6. The whole page
 // ---------------------------------------------------------------------------

@@ -10,7 +10,9 @@ import {
 	isStudentAssignmentSortKey,
 	sortStudentAssignments,
 	STUDENT_ASSIGNMENT_SORTS,
-	studentWorkHref
+	studentWorkHref,
+	slideIndex,
+	stripScrollLeft
 } from '../src/lib/classroom/student-overview';
 import { CLASSMATES, EMAIL, ITEMS, NOW, fixtureInputs, fixturePage } from '../src/routes/dev/classroom-student/fixture';
 
@@ -436,5 +438,39 @@ describe('the grade band', () => {
 		expect(new Set(GRADE_BANDS.map((b) => b.word)).size).toBe(GRADE_BANDS.length);
 		// The fixture's grade (27 of 40) is the low band, which the harness shows.
 		expect(gradeBand(fixturePage('full').grade.percent)).toBe('low');
+	});
+});
+
+describe('the slideshow wraps and its strip follows (report 169b931d)', () => {
+	it('Next on the last is the first and Previous on the first is the last', () => {
+		expect(slideIndex(11, 11)).toBe(0);
+		expect(slideIndex(-1, 11)).toBe(10);
+		expect(slideIndex(5, 11)).toBe(5);
+		expect(slideIndex(23, 11)).toBe(1);
+		expect(slideIndex(3, 0)).toBe(0);
+		expect(slideIndex(Number.NaN, 4)).toBe(0);
+	});
+
+	// The strip Mr. Pina had: 11 thumbnails of 70.4px with a 6.4px gap and 1.6px
+	// of padding, in a 614px strip (measured at 1278px). Content 846, so 232 of scroll.
+	const strip = { viewWidth: 614, contentWidth: 846 };
+	const start = (i: number) => 1.6 + i * (70.4 + 6.4);
+
+	it('the first picture puts the strip at its start, the last at its end, a middle one in the middle', () => {
+		expect(stripScrollLeft({ ...strip, thumbStart: start(0), thumbWidth: 70.4 })).toBe(0);
+		expect(stripScrollLeft({ ...strip, thumbStart: start(10), thumbWidth: 70.4 })).toBe(232);
+		// Picture 6's centre is 1.6 + 5 * 76.8 + 35.2 = 420.8; minus half of 614 is 113.8.
+		expect(stripScrollLeft({ ...strip, thumbStart: start(5), thumbWidth: 70.4 })).toBe(114);
+	});
+
+	it('the defect, by number: measured from the page instead of the strip, the first picture asked for the far right', () => {
+		// offsetLeft against the page's offset parent read 609 for the first thumbnail at 1278px.
+		expect(stripScrollLeft({ ...strip, thumbStart: 609, thumbWidth: 70.4 })).toBe(232);
+		// Measured from the strip it is 1.6, which is the start.
+		expect(stripScrollLeft({ ...strip, thumbStart: 1.6, thumbWidth: 70.4 })).toBe(0);
+	});
+
+	it('a strip with nothing to scroll never scrolls', () => {
+		expect(stripScrollLeft({ viewWidth: 700, contentWidth: 539, thumbStart: 460, thumbWidth: 70 })).toBe(0);
 	});
 });

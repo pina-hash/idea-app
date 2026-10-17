@@ -351,6 +351,30 @@ function fixtureGallery(hasAccount: boolean) {
 	});
 }
 
+/**
+ * A LONG STRIP (report 169b931d): Mr. Pina's student had eleven pictures, and
+ * seven fit the strip at 1440 without scrolling, so the default set cannot
+ * show the strip scrolled at all. `&pictures=N` replaces the gallery with N
+ * numbered pictures, each a different hue and its number on the picture, so a
+ * screenshot says which one is selected and where the strip sits.
+ */
+export function fixtureManyPictures(count: number) {
+	const n = Math.max(1, Math.min(48, Math.floor(count)));
+	const shapes = ['truss', 'gear', 'page', 'bracket'] as const;
+	return Array.from({ length: n }, (_, i) => {
+		const src = workPicture(`Picture ${i + 1}`, (i * 37) % 360, shapes[i % shapes.length]);
+		return {
+			key: `many-${i + 1}`,
+			source: (i % 3 === 2 ? 'notebook' : 'assignment') as 'notebook' | 'assignment',
+			thumb: src,
+			src,
+			caption: `Picture ${i + 1}`,
+			at: null,
+			itemId: null
+		};
+	});
+}
+
 /** The raw reads for one state, before `buildStudentPage`. */
 export function fixtureInputs(state: FixtureState): StudentPageInputs {
 	const hasAccount = state !== 'no-account';

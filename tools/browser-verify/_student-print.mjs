@@ -6,7 +6,7 @@
  * IT IS `_`-PREFIXED, so `routes.mjs` does not pick it up as a route spec: a
  * route spec measures the screen at 375 and 1440, and this question is paper.
  *
- *   node tools/browser-verify/_student-print.mjs [--state full|no-account|unavailable|inactive] [--pdf out.pdf]
+ *   node tools/browser-verify/_student-print.mjs [--state full|no-account|unavailable|inactive] [--pdf out.pdf] [--port 5199]
  *
  * FOR EACH STARTING THEME (IDEA, Matrix, Space White) it loads
  * /dev/classroom-student, puts that theme on the page, dispatches
@@ -28,8 +28,19 @@
  *     with the Assignments tile still painted as the positive control;
  *   - with every tile's box cleared, whether the At a glance row itself
  *     leaves the paper;
+ *   - the smallest printed type, in points (expected 9 or more);
  * then dispatches `afterprint` and reads the attribute back (expected the
  * starting value exactly, absent included).
+ *
+ * AND ONCE MORE WITH SECTIONS HIDDEN (ledger 0396, report bd38fa25): with the
+ * notebook, the coins and the scores hidden through the Sections key's store,
+ * none of the three cards nor the two tiles exists to print, Needs attention
+ * prints across the whole sheet, the page count does not grow and no printed
+ * type falls under 9pt.
+ *
+ * `--port` picks the dev server's port (default 5199, the harness's own). A
+ * session sharing the machine with another worktree passes its own, because
+ * the server helper REUSES whatever already answers on the port.
  *
  * RUN IT ALONE: it boots its own dev server and browser.
  */
@@ -45,6 +56,7 @@ const flag = (name, fallback) => {
 const state = flag('--state', 'full');
 /** `--pdf <file>` keeps the first theme's PDF, to look at or extract text from. */
 const pdfOut = flag('--pdf', '');
+const port = Number(flag('--port', '5199'));
 const THEMES = [
 	{ name: 'idea', attr: null },
 	{ name: 'matrix', attr: 'matrix' },
@@ -52,13 +64,36 @@ const THEMES = [
 ];
 const CLASSMATES = ['Ben Cho', 'Cara Diaz', 'Dev Patel', 'ben.cho@', 'cara.diaz@', 'dev.patel@'];
 
-const server = await startDevServer({ cwd: process.cwd() });
+const server = await startDevServer({ cwd: process.cwd(), port });
 const { browser, executablePath } = await launch();
 let failures = 0;
 const check = (ok, line) => {
 	if (!ok) failures++;
 	console.log(`${ok ? '  ok  ' : '  FAIL'} ${line}`);
 };
+
+/** The smallest font size, in points, of any box that paints text on the paper. */
+const SMALLEST_TYPE = `() => {
+	let min = Infinity;
+	let who = '';
+	let examined = 0;
+	for (const el of document.querySelectorAll('.so-root *')) {
+		if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+		const cs = getComputedStyle(el);
+		if (cs.visibility === 'hidden') continue;
+		const r = el.getBoundingClientRect();
+		/* Zero boxes (under a display:none section) and the 1px visually hidden
+		   copies a counting figure carries for assistive tech print nothing. */
+		if (r.width <= 1 || r.height <= 1) continue;
+		examined++;
+		const px = parseFloat(cs.fontSize);
+		if (px < min) {
+			min = px;
+			who = (el.className || el.tagName).toString().split(' ')[0];
+		}
+	}
+	return { pt: Math.round(min * 0.75 * 100) / 100, who, examined };
+}`;
 
 try {
 	console.log(`chromium ${executablePath}`);
@@ -193,6 +228,8 @@ try {
 		const pdf = await page.pdf({ format: 'Letter', printBackground: true });
 		const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
 		console.log(`  pdf: ${pages} page(s), ${pdf.length} bytes (Letter, no background graphics)`);
+		const type = await page.evaluate(`(${SMALLEST_TYPE})()`);
+		check(type.examined > 50 && type.pt >= 9, `smallest printed type: ${type.pt}pt (${type.who}), over ${type.examined} text boxes`);
 		if (pdfOut && theme === THEMES[0]) writeFileSync(pdfOut, pdf);
 
 		// A section cleared for this meeting leaves the paper: its card AND its
@@ -255,6 +292,46 @@ try {
 		await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
 		const after = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
 		check(after === theme.attr, `theme after print: ${after ?? 'absent'} (started ${theme.attr ?? 'absent'})`);
+		await context.close();
+	}
+
+	{
+		console.log(`\n== sections hidden through the Sections key: notebook, coins, scores (state ${state})`);
+		const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+		const page = await context.newPage();
+		await page.route(
+			(url) => !(url.hostname === '127.0.0.1' || url.hostname === 'localhost'),
+			(r) => r.abort()
+		);
+		await page.goto(`${server.origin}/dev/classroom-student?state=${state}&hide=notebook,coins,scores`, { waitUntil: 'domcontentloaded' });
+		await waitForApp(page);
+		await page.waitForFunction(() => document.querySelector('.cr-root[data-ready="true"]'), null, { timeout: 30_000 });
+		await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+		await page.emulateMedia({ media: 'print' });
+		await page.waitForTimeout(200);
+		const hidden = await page.evaluate(() => {
+			const painted = (el) => {
+				if (!el) return false;
+				const cs = getComputedStyle(el);
+				if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+				const r = el.getBoundingClientRect();
+				return r.width > 0 && r.height > 0;
+			};
+			const gone = ['so-notebook', 'so-coins', 'so-scores'].filter((id) => document.querySelector('[data-testid="' + id + '"]'));
+			const tiles = document.querySelectorAll('[data-testid="so-glance"] [data-tile="notebook"], [data-testid="so-glance"] [data-tile="coins"]').length;
+			const shown = ['so-assignments', 'so-attention', 'so-activity', 'so-hall-passes', 'so-teams'].filter((id) => painted(document.querySelector('[data-testid="' + id + '"]')));
+			const att = document.querySelector('[data-testid="so-attention"]').getBoundingClientRect();
+			const asg = document.querySelector('[data-testid="so-assignments"]').getBoundingClientRect();
+			return { gone, tiles, shown, attentionFull: Math.abs(att.width - asg.width) <= 1, att: Math.round(att.width), asg: Math.round(asg.width) };
+		});
+		check(hidden.gone.length === 0 && hidden.tiles === 0, `hidden cards still in the page: ${hidden.gone.join(', ') || 'none'}; their tiles: ${hidden.tiles}`);
+		check(hidden.shown.length === 5, `POSITIVE CONTROL, shown cards printed: ${hidden.shown.length} of 5 (${hidden.shown.join(', ')})`);
+		check(hidden.attentionFull, `Needs attention, alone in its row, prints across the sheet: ${hidden.att}px against Assignments ${hidden.asg}px`);
+		const type = await page.evaluate(`(${SMALLEST_TYPE})()`);
+		check(type.examined > 50 && type.pt >= 9, `smallest printed type: ${type.pt}pt (${type.who}), over ${type.examined} text boxes`);
+		const pdf = await page.pdf({ format: 'Letter', printBackground: true });
+		const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+		check(pages <= 2, `pdf with three sections hidden: ${pages} page(s)`);
 		await context.close();
 	}
 } finally {

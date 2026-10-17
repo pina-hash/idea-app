@@ -43,6 +43,11 @@
  *                      "saved to their account" is Mr. Pina's own word for it). An
  *                      arrangement is a way of working, so it follows the person to
  *                      the lab computer. It holds panel ids only (`panel-layout.ts`).
+ *   studentPage ACCOUNT. Which sections one student's page shows (ledger 0396,
+ *                      report bd38fa25): a teacher who does not use the notebook
+ *                      hides it once and every student page they open, on any
+ *                      computer, leaves it off. Section ids only
+ *                      (`$lib/classroom/student-sections`), never a student.
  *
  * A COMMENT BANK HAS ROOM HERE WITHOUT A MIGRATION: it would be one more
  * ACCOUNT group. Every store writes only the groups that changed, merged into
@@ -72,6 +77,11 @@ import {
 	type PreferenceStore,
 	type ProfileNamespaceWriter
 } from './store';
+import {
+	readStudentPageHidden,
+	studentHiddenSummary,
+	type StudentPageSectionId
+} from '$lib/classroom/student-sections';
 
 export const CLASSROOM_PREFERENCES_NAMESPACE = 'classroom';
 /** One slot per viewer, namespaced beside the classroom's other device keys (`idea:classnav-collapsed:1:`). */
@@ -235,6 +245,13 @@ export interface ClassroomPreferences {
 	 * hide a panel that may not be hidden, whatever the row says.
 	 */
 	panels: { classPage: PanelLayout | null; itemPage: PanelLayout | null };
+	/**
+	 * THE SECTIONS A TEACHER HIDES ON ONE STUDENT'S PAGE (ledger 0396, report
+	 * bd38fa25), for every student page they open. Read through
+	 * `readStudentPageHidden`, which keeps known ids only, once each, in page
+	 * order.
+	 */
+	studentPage: { hidden: StudentPageSectionId[] };
 }
 export type ClassroomPreferenceGroup = keyof ClassroomPreferences;
 
@@ -245,7 +262,8 @@ export const CLASSROOM_PREFERENCE_HOMES: Readonly<Record<ClassroomPreferenceGrou
 	guidance: 'account',
 	search: 'device',
 	notebookReview: 'account',
-	panels: 'account'
+	panels: 'account',
+	studentPage: 'account'
 };
 
 export function defaultClassroomPreferences(): ClassroomPreferences {
@@ -256,7 +274,8 @@ export function defaultClassroomPreferences(): ClassroomPreferences {
 		guidance: { retiredHints: [], tours: { teacher: 'unseen', student: 'unseen' } },
 		search: { recent: [] },
 		notebookReview: { lastLooked: {}, comments: [...NOTEBOOK_COMMENT_SEEDS] },
-		panels: { classPage: null, itemPage: null }
+		panels: { classPage: null, itemPage: null },
+		studentPage: { hidden: [] }
 	};
 }
 
@@ -283,6 +302,7 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 	const search = isObject(r.search) ? r.search : {};
 	const review = isObject(r.notebookReview) ? r.notebookReview : {};
 	const panels = isObject(r.panels) ? r.panels : {};
+	const studentPage = isObject(r.studentPage) ? r.studentPage : {};
 	return {
 		display: {
 			density: oneOf(display.density, DENSITIES, d.display.density),
@@ -321,7 +341,8 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 		panels: {
 			classPage: readPanelLayout(panels.classPage, 'class'),
 			itemPage: readPanelLayout(panels.itemPage, 'item')
-		}
+		},
+		studentPage: { hidden: readStudentPageHidden(studentPage.hidden) }
 	};
 }
 
@@ -349,7 +370,7 @@ function readLastLooked(v: unknown): Record<string, string> {
 }
 
 export const CLASSROOM_PREFERENCE_SCHEMA: PreferenceSchema<ClassroomPreferences> = {
-	groups: ['display', 'classView', 'panels', 'grading', 'guidance', 'search', 'notebookReview'],
+	groups: ['display', 'classView', 'panels', 'studentPage', 'grading', 'guidance', 'search', 'notebookReview'],
 	defaults: defaultClassroomPreferences,
 	read: readClassroomPreferences
 };
@@ -465,7 +486,8 @@ export const CLASSROOM_GROUP_TITLES: Readonly<Record<ClassroomPreferenceGroup, s
 	guidance: 'Tours',
 	search: 'Recent searches',
 	notebookReview: 'Notebook review',
-	panels: 'Page layout'
+	panels: 'Page layout',
+	studentPage: 'Student pages'
 };
 
 /** A tour's state, in words, for the panel. */
@@ -592,6 +614,15 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 			'Choose which sections show when you open a post, and in what order, for every post at once. The work itself always stays where it is.',
 		roles: ['student', 'manager'],
 		summary: (p, role) => panelSummary('item', role, p.panels.itemPage)
+	},
+	{
+		kind: 'summary',
+		group: 'studentPage',
+		title: 'Sections shown',
+		help:
+			"The page you open for one student from People, for a conference. Hide or show its sections with the Sections key at the top of that page; Reset puts every section back.",
+		roles: ['manager'],
+		summary: (p) => studentHiddenSummary(p.studentPage.hidden)
 	},
 	{
 		group: 'grading',

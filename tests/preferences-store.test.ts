@@ -289,7 +289,9 @@ describe('the classroom schema validates on read', () => {
 				]
 			},
 			// Absent too, so both pages read as they ship (ledger 0360, R23).
-			panels: { classPage: null, itemPage: null }
+			panels: { classPage: null, itemPage: null },
+			// Absent, so every section of a student's page shows (ledger 0396).
+			studentPage: { hidden: [] }
 		});
 	});
 
@@ -370,7 +372,7 @@ describe('the classroom schema validates on read', () => {
 		const offered = [...new Set(CLASSROOM_SETTINGS.map((s) => s.group))].sort();
 		expect(offered).toEqual([...CLASSROOM_PREFERENCE_SCHEMA.groups].sort());
 		// Positive control: the sweep sees the groups that exist, the newest included.
-		expect(offered).toEqual(expect.arrayContaining(['classView', 'display', 'grading', 'guidance', 'notebookReview', 'panels', 'search']));
+		expect(offered).toEqual(expect.arrayContaining(['classView', 'display', 'grading', 'guidance', 'notebookReview', 'panels', 'search', 'studentPage']));
 		// Each page's arrangement is offered once, to both roles.
 		const panels = CLASSROOM_SETTINGS.filter((s) => s.kind === 'panels');
 		expect(panels.map((s) => ('page' in s ? s.page : null))).toEqual(['class', 'item']);
