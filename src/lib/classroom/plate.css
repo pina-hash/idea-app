@@ -63,7 +63,8 @@
    inside. Ledger 0346 added the site's islands when the same rules started
    painting the rest of the site under `.site-plate`: the tournament TV stage,
    the maps viewer's plan and elevation drawings, and the frame a student's
-   Foundry app runs in.
+   Foundry app runs in. Ledger 0396 added a post's thumbnail picture or live
+   HTML thumbnail (`.pt-media`); the generated tile around it is the plate's.
 
    TWO SWITCHES, ONE STYLESHEET (ledger 0346). Every rule keys on
    `:is(.cr-plate, .site-plate)`, which has the specificity `.cr-plate` alone
@@ -655,7 +656,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
    4. RULES. Written once; none names a theme. The lower bound is every
    island of content (see the header).
    -------------------------------------------------------------------------- */
-@scope (.cr-plate, .site-plate) to (.ic-root, .deck-stage, .nb-island, .item-body, .md, .ProseMirror, .hx-frame-box, .note-content, .lb-stage, .grid-card, .tnm-root.tv, .mv-plan, .mv-elev-sheet, .fdy-frame-wrap) {
+@scope (.cr-plate, .site-plate) to (.ic-root, .deck-stage, .nb-island, .item-body, .md, .ProseMirror, .hx-frame-box, .note-content, .lb-stage, .grid-card, .tnm-root.tv, .mv-plan, .mv-elev-sheet, .fdy-frame-wrap, .pt-media) {
 	/* --- Mono labels: the 11px floor, uppercase, tracked. -------------------
 	   A label is always caps: wide tracking on lower case reads as spaced-out
 	   letters. `.section-label` and `.eyebrow` name a section of content and

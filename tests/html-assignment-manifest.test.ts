@@ -818,3 +818,43 @@ describe('the display-key readers', () => {
 		expect(hxBlockIsOptional(null)).toBe(false);
 	});
 });
+
+describe("a manifest's thumbnail (ledger 0396)", () => {
+	/*
+	 * THE KEY IS READ, NEVER GATED. Every problem with it is a WARNING that says
+	 * the class page shows the generated look instead; the errors a document
+	 * gets are byte-for-byte the errors it gets without the key, so a document
+	 * cannot be refused for its thumbnail and a stored one cannot start being.
+	 */
+	const withThumb = (thumbnail: unknown, template = '') => {
+		const m = { ...legalManifest(), thumbnail };
+		return documentFor(m).replace('</body>', `${template}</body>`);
+	};
+
+	it('a thumbnail the document carries adds no warning', () => {
+		const ok = validateHtmlManifest(
+			withThumb({ kind: 'html', template: 'idea-thumbnail' }, '<template id="idea-thumbnail"><b>gear</b></template>')
+		);
+		expect(ok.errors).toEqual([]);
+		expect(ok.warnings.filter((w) => /thumbnail/i.test(w))).toEqual([]);
+		expect((ok.manifest as HtmlAssignmentManifest | null)?.thumbnail).toEqual({ kind: 'html', template: 'idea-thumbnail' });
+	});
+
+	it('every thumbnail problem warns and refuses nothing', () => {
+		const base = validateHtmlManifest(documentFor(legalManifest()));
+		expect(base.errors).toEqual([]);
+		for (const bad of [
+			{ kind: 'html', template: 'nowhere' },
+			{ kind: 'html', template: '9bad' },
+			{ kind: 'image', src: 'attachment:logo.svg' },
+			{ kind: 'image', src: 'https://example.com/cover.png' },
+			{ kind: 'video' },
+			'cover.png'
+		]) {
+			const got = validateHtmlManifest(withThumb(bad));
+			expect(got.errors, JSON.stringify(bad)).toEqual(base.errors);
+			expect(got.manifest, JSON.stringify(bad)).not.toBeNull();
+			expect(got.warnings.some((w) => /thumbnail/i.test(w) && /generated look/.test(w)), JSON.stringify(bad)).toBe(true);
+		}
+	});
+});

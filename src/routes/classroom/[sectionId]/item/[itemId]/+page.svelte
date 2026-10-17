@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { createThumbnailTransports } from '$lib/classroom/thumbnail-transports';
 	import {
 		createIdeacadHistoryTransports,
 		createIdeacadTransports,
@@ -86,6 +87,9 @@
 	const checkInTransports = createCheckInTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const layoutTransports = createLayoutTransports(data.supabase);
+	// Post thumbnails (0268, ledger 0396): the edit form's writes.
+	// svelte-ignore state_referenced_locally
+	const thumbnailTransports = createThumbnailTransports(data.supabase);
 
 	/**
 	 * THE 0193 WRITES, handed down ONLY when this item's own read answered the
@@ -1162,6 +1166,7 @@
 		? notebookCapture
 		: null}
 	layoutTransports={liveLayoutTransports}
+	thumbnailTransports={data.canManage && data.thumbShape?.ready ? thumbnailTransports : null}
 	htmlAssignment={data.htmlAssignment}
 	ideacad={data.ideacad}
 	{ideacadTeam}

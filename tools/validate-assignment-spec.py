@@ -56,6 +56,14 @@ HTML_BLOCK_TYPES = ("text", "longText", "checkbox", "radio", "image", "table")
 HTML_LINK_KINDS = ("presentation",)
 HTML_PROMPT_MAX = 500
 MANIFEST_SCRIPT_ID = "idea-manifest"
+# THE THUMBNAIL KEY (ledger 0396, 0268). Kept with HTML_THUMBNAIL_TEMPLATE_RE and
+# HTML_THUMBNAIL_DATA_MAX in src/lib/classroom/html-assignment/thumbnail.ts,
+# which tests/html-assignment-manifest-parity.test.ts asserts. Every problem is
+# a WARNING: 0195 never read a manifest's top-level keys, so nothing about a
+# thumbnail may decide whether a document imports.
+HTML_THUMBNAIL_TEMPLATE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+HTML_THUMBNAIL_DATA_MAX = 400000
+HTML_THUMBNAIL_DATA_RE = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$")
 
 # THE HANDSHAKE A WORKSHEET CANNOT OMIT. Mirrors HX_READY_TYPE in
 # src/lib/classroom/html-assignment/bridge.ts, which is where the parent's own
@@ -342,6 +350,49 @@ def document_text(html):
     return re.sub(r"\s+", " ", TAG_RE.sub(" ", _inert_stripped(html))).strip()
 
 
+def thumbnail_warnings(manifest, html):
+    """The manifest's `thumbnail`, as warnings that each say what the class
+    page shows instead. The mirror of manifestThumbnailWarnings."""
+    if "thumbnail" not in manifest:
+        return []
+    t = manifest["thumbnail"]
+    fallback = "so posts show the generated look instead"
+    if not isinstance(t, dict):
+        return [f"the manifest's thumbnail is not an object, {fallback}"]
+    kind = t.get("kind")
+    if kind not in ("html", "image"):
+        return [f"the manifest's thumbnail kind is {kind!r}; it must be \"html\" or \"image\", {fallback}"]
+    out = []
+    if kind == "html":
+        template = t.get("template")
+        if not isinstance(template, str) or not HTML_THUMBNAIL_TEMPLATE_RE.match(template):
+            return [f"the manifest's thumbnail template must name a <template> by its id, {fallback}"]
+        if "interactive" in t and not isinstance(t["interactive"], bool):
+            out.append(f"the manifest's thumbnail sets interactive to {t['interactive']!r}; "
+                       f"it must be true or false, so it is read as false")
+        if html:
+            stripped = COMMENT_RE.sub(" ", html)
+            pattern = re.compile(r"<template\b[^>]*\bid\s*=\s*[\"']?" + re.escape(template) + r"[\"'\s>]", re.I)
+            if not pattern.search(stripped):
+                out.append(f"the manifest names a thumbnail template {template!r} the document "
+                           f"does not carry; add <template id=\"{template}\">, or posts show "
+                           f"the generated look")
+        return out
+    src = t.get("src")
+    if not isinstance(src, str):
+        return [f"the manifest's thumbnail image needs a src, {fallback}"]
+    if re.search(r"\.svgz?$", src, re.I) or src.lower().startswith("data:image/svg"):
+        return [f"the manifest's thumbnail image is an SVG, which is never shown, {fallback}"]
+    if src.lower().startswith("data:") and len(src) > HTML_THUMBNAIL_DATA_MAX:
+        return [f"the manifest's thumbnail image is {len(src)} characters as a data URI and "
+                f"the limit is {HTML_THUMBNAIL_DATA_MAX}, {fallback}"]
+    alias = src.startswith("attachment:") and len(src) > len("attachment:") and len(src) <= 311
+    if not alias and not HTML_THUMBNAIL_DATA_RE.match(src):
+        return [f"the manifest's thumbnail image must be \"attachment:<filename>\" or a data: "
+                f"PNG, JPEG, GIF or WebP, {fallback}"]
+    return out
+
+
 def check_manifest(manifest, name, html=None):
     """A ported HTML assignment. `html` is the document; None means the manifest
     arrived on its own, and the checks that need the document are SKIPPED WITH A
@@ -589,6 +640,9 @@ def check_manifest(manifest, name, html=None):
             E("document mentions allow-same-origin. With allow-scripts that "
               "pair lets the frame remove its own sandbox attribute.")
         errs.extend(copy_errors(document_text(html), "the document"))
+
+    for w in thumbnail_warnings(manifest, html):
+        W(w)
 
     raw = json.dumps(manifest, ensure_ascii=False)
     if "\u2014" in raw:

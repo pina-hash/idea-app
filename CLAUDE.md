@@ -1100,10 +1100,11 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
   handle and keeps serving through the same route, and the ONE place that
   branches is the serve route. Do not write a migration that moves them: the
   branch is cheaper than the move and the move can only lose bytes.
-- **ONE UPLOAD PATH AND ONE COMPONENT, FOUR ROLES.**
+- **ONE UPLOAD PATH AND ONE COMPONENT, FIVE ROLES.**
   `$lib/classroom/file-upload.ts` does sign -> PUT -> record for a student-facing
-  attachment, a student hand-in, (since 0135) an instructor-only answer key and
-  (since 0233) a file on a class notice alike, gated by a `role` that changes
+  attachment, a student hand-in, (since 0135) an instructor-only answer key,
+  (since 0233) a file on a class notice and (since 0268) a post's thumbnail
+  picture alike, gated by a `role` that changes
   only the wording and which pair of routes is called; `ENDPOINTS` is that map, a literal rather than a string built from
   the role, so a typo is a type error and grepping for a route finds its caller.
   A role is THREE things or it is none: a `sign` route naming its own bucket, a
@@ -1125,9 +1126,10 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
   CAMERA button, which keeps `accept="image/*" capture="environment"` because
   `capture` is what makes a phone open its camera at all and an unfiltered
   capture input opens a file browser instead -- and it only ever sits BESIDE an
-  unfiltered picker, so it gates nothing. The deck zip input keeps `.zip`
-  because that is what the FEATURE consumes, not a policy about what a person
-  may hand in. `tests/classroom-attachment-mime.test.ts` sweeps for both.
+  unfiltered picker, so it gates nothing. The deck zip input keeps `.zip`, and
+  (since 0268) a post's thumbnail picker keeps `image/*`, because that is what
+  each FEATURE consumes, not a policy about what a person may hand in.
+  `tests/classroom-attachment-mime.test.ts` sweeps for all of them.
 - **A REFUSAL NAMES ITS GATE AND "Upload failed" IS NEVER THE WHOLE MESSAGE.**
   `$lib/classroom/upload-errors.ts` is the one vocabulary, shared by the sign
   routes and the browser uploader: a size refusal states the size AND the

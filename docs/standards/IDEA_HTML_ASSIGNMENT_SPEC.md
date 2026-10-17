@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.8 - 2026-10-14**
+**Version 1.9 - 2026-10-16**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -132,7 +132,12 @@ interface HtmlAssignmentManifest {
   points: number;           // whole, 0..10000
   header?: HtmlBlock[];     // identity fields; no points, never reach the rubric
   modules: HtmlModule[];    // non-empty, at most 40
+  thumbnail?: HtmlThumbnail; // how the post looks in a class list (section 4.10); read, never gated
 }
+
+type HtmlThumbnail =
+  | { kind: 'html'; template: string; interactive?: boolean } // a <template id> in this document
+  | { kind: 'image'; src: string };   // "attachment:<filename>" or a data: PNG/JPEG/GIF/WebP
 
 interface HtmlModule {
   id: string;               // HTML_ID_RE, unique across the manifest
@@ -357,6 +362,82 @@ python tool, in the same words:
 
 0195 stores `optional` verbatim and the write gates never read it: an optional block
 saves exactly like any other.
+
+### 4.10 The thumbnail key: how the post looks in a class list
+
+Ledger 0396 (report a6a037f3) gave every post a thumbnail slot on the class page and the
+home page's class cards. **A document may declare its own thumbnail**, which the post
+wears until a teacher sets one by hand:
+
+```json
+"thumbnail": { "kind": "html", "template": "idea-thumbnail" }
+"thumbnail": { "kind": "html", "template": "idea-thumbnail", "interactive": true }
+"thumbnail": { "kind": "image", "src": "attachment:cover.png" }
+"thumbnail": { "kind": "image", "src": "data:image/png;base64,iVBOR..." }
+```
+
+- **`kind: "html"`** names a `<template id="...">` in the same document
+  (`HTML_THUMBNAIL_TEMPLATE_RE`: a letter, then letters, digits, `-` and `_`, at most 64).
+  Its contents are served at `/hx/<document id>/thumbnail` (section 6.8) and run live in
+  the post's slot. The id `idea-thumbnail` is the convention and nothing more.
+  `extractThumbnailTemplate` finds the FIRST template carrying the id by a scan over the
+  source that skips comments and every raw-text element's contents, counts nested
+  templates, and returns the exact bytes between the two tags; the composer, the tests and
+  the serving route all call it. `servedThumbnailTemplate` is that slice when it has
+  something in it, and is the one test of "this document can show its live thumbnail": the
+  route serves it or answers its 404, and the post's form asks it of a staged file.
+- **`interactive: true`** keeps the thumbnail's own clicks (section 6.8). Absent or
+  anything but the literal `true` is not interactive.
+- **`kind: "image"`** is a picture: `attachment:<filename>` names a picture attached to the
+  post (the figure alias rule, resolved through `resolveFigureSrc`, never an SVG), or a
+  `data:` URI of a PNG, JPEG, GIF or WebP of at most `HTML_THUMBNAIL_DATA_MAX` (400,000)
+  characters. Any other `src` (an `https:` address included) is no thumbnail: the class
+  page fetches nothing a document names off another host.
+
+**THE KEY IS READ AND NEVER GATED.** `manifestThumbnail` (TypeScript) and 0268's
+`_classroom_manifest_thumbnail` (SQL) are the two readers and agree on one corpus
+(`tests/db/classroom-item-thumbnails.test.ts`). `manifestThumbnailWarnings` gives every
+problem as a WARNING that ends "so posts show the generated look instead": a kind that is
+not `html` or `image`, a bad template id, a template the document does not carry or one
+that is empty, a non-boolean `interactive`, an SVG, an oversized data URI, or a `src` of
+any other shape; `tools/validate-assignment-spec.py` (`thumbnail_warnings`) gives the same
+warnings as `W` lines and never an `E`, which `tests/html-assignment-manifest-parity.test.ts`
+holds. **0195 never read the top-level keys of a manifest**, so a manifest with
+`thumbnail` was stored verbatim before 0268 existed, and the db test stores one through the
+deployed setter before it applies 0268 to prove it. Nothing refuses a document for its
+thumbnail and nothing stored can start being refused.
+
+**WHAT THE POST SHOWS IS 0268'S, NOT THE MANIFEST'S.** `classroom_item_thumbnails` holds one
+row per post: `source` (`image`, `html` or `none`), `manual`, the picture's key or
+attachment, its natural size and focal point, the document id and `interactive`. A trigger
+on `classroom_html_assignments` keeps the row in step with the stored manifest in the same
+statement as every upload, re-upload and removal, **and never touches a row a teacher set
+by hand (`manual`)**: a hand-set thumbnail survives every re-upload, and the editor's
+Automatic hands the post back to whatever the current manifest says. A post with no row,
+and a manifest that declares nothing, show the generated identity: the post's type glyph on
+a tile tinted by its unit.
+
+**A TEMPLATE THE DOCUMENT DOES NOT CARRY RECORDS NO LIVE THUMBNAIL** (ledger 0396, polish
+round). 0268's sync asks `_classroom_html_may_carry_template` before it writes a live
+thumbnail, so a manifest naming a template the document lacks (the author's typo is the usual
+case) leaves no automatic row and the post shows the generated look on every list at once,
+with nothing asked of the route; before, every viewer's slot requested the route, logged its
+404 and waited two and a half seconds to give up. The SQL test is deliberately WIDER than
+`servedThumbnailTemplate` (any `<template` start tag followed anywhere by an `id` naming the
+template, case-insensitive, with any spacing and quoting), so a document the route serves is
+never refused a row there, which the db test asserts case for case on a corpus; what it lets
+through that the route refuses (a template only inside a comment or a script string, an
+empty one) keeps the route's 404 and the generated look. Measured: 34ms for both answers
+over a 2,070,090-character document. The post's form never promises a live thumbnail it
+cannot show: a staged file answers from its own bytes, the stored one from the row the
+database wrote (`liveTemplateMissing`), and either way the form says the template is
+missing, names the one to add and shows the generated look; where it cannot tell (a
+thumbnail set by hand hides the database's answer) the preview asks the route, and a frame
+that never says it is ready is said in words too.
+
+**A DRAFT'S LIVE THUMBNAIL IS NOT SERVED** (the route answers what the worksheet route
+answers: a published, live assignment or the bodyless 404), so a draft shows the generated
+identity until it goes live.
 
 ---
 
@@ -1083,6 +1164,121 @@ only navigate within a sandbox that grants no top-level navigation.
 
 ---
 
+### 6.8 The thumbnail half: a live thumbnail in a post's slot
+
+A document whose manifest names an HTML thumbnail (section 4.10) gets a SECOND document:
+`GET /hx/<document id>/thumbnail` serves the template's contents, byte for byte, inside a
+fixed shell (`thumbnailDocument`): our charset, a transparent body, one style rule that
+pauses CSS animations while the thumbnail is paused, the shim (`HX_THUMB_SHIM`), and
+nothing else of ours. **It is the worksheet route's twin and decides nothing on its own**:
+the host gate, the access decision (re-checked on every request), the version cache and
+its ETag (folding `HX_THUMB_SHELL_VERSION`, so a shim change revalidates every copy once)
+and THE WHOLE HEADER SET are the worksheet route's, called rather than copied, so the CSP's
+`sandbox` directive and every other line are byte-identical. The frame attribute reads
+`HX_SANDBOX_FLAGS`; `allow-same-origin` is never granted. A thumbnail is the same author's
+code under the same policy as the worksheet, shown in more places.
+
+**THE THUMBNAIL EXISTS ONLY NEAR THE SCREEN AND IS PAUSED WHEN NOBODY IS WATCHING IT.**
+The class page makes the frame only when its row comes within half a screen of the
+viewport, one frame per idle period, and none while the reader is scrolling (a scroll, a
+wheel turn or a finger moving, since a wheel turned against the end of the list fires no
+scroll); a row that comes near and goes away again before its turn gets no frame. It takes
+the frame down again once the row has been more than a screen and a half away for three
+seconds with the page still, so a long class costs what is around the reader rather than
+everything the reader has passed; coming back is a parse from the browser's cache. Both
+margins are scroll margins too, because above 1024px the list scrolls in its own pane. A
+frame held while its row is further away than the near margin is not drawn
+(`visibility: hidden`, which skips its painting without a layout). The page tells a frame
+to pause while the slot is off screen, while the tab is hidden and while the reader scrolls
+(it goes on 250ms after the last scroll), forwards no hover while the list moves under a
+still pointer, and shows the frame only after it says it is ready (the generated identity
+shows under it until then, and a thumbnail that has not said ready two and a half seconds
+after it loaded is taken away). A draft, and a post scheduled ahead of the loader's clock,
+are never asked for a live thumbnail at all: the route would refuse them, so the slot shows
+the generated look. The page has one message listener and one of each observer however many
+thumbnails it holds.
+
+Parent to thumbnail:
+
+| Type | Payload |
+|---|---|
+| `idea:thumb` | `width`, `height` (the slot, whole pixels), `shape` (`tile`, `wide`, `banner`, or a later shape: `^[a-z][a-z0-9-]{0,23}$`), `theme` (the site theme's name: `idea`, `matrix`, `space-white`), `scheme` (`light` or `dark`), `reducedMotion`, `paused` |
+| `idea:pointer` | `x`, `y` (0 to 1 across the slot), `inside` -- a non-interactive thumbnail's hover, forwarded from the slot itself, whichever link it sits in |
+
+Thumbnail to parent:
+
+| Type | Payload |
+|---|---|
+| `idea:thumb-ready` | none. Sent by the shim once the document has parsed. |
+| `idea:thumb-open` | none. Interactive only: a click on nothing the thumbnail handles. |
+
+The page checks `event.origin === "null"` and `event.source` against the frame it created
+before it reads either (`hxThumbReceive`), as section 6.4 does for the worksheet.
+
+**WHAT THE SHIM GIVES THE THUMBNAIL.** `<html>` carries `data-idea-shape`,
+`data-idea-theme`, `data-idea-scheme` and `data-idea-motion` (`full` or `reduce`); `:root`
+carries `--idea-thumb-w` and `--idea-thumb-h` in px; `window.ideaThumbnail` is the current
+state and an `idea:thumbnail` event fires on `window` with it as `detail` on every change.
+While a pointer is over it, `data-idea-pointer` is on `<html>`, `--idea-pointer-x` and
+`--idea-pointer-y` say where, and an `idea:pointer` event fires; this is the same whether
+the pointer reaches an interactive thumbnail directly or is forwarded over a non-interactive
+one. While it is paused (off screen, a hidden tab, a scrolling page, or reduced motion)
+`data-idea-paused` is
+on `<html>`, CSS and script-made animations stop (under reduced motion, on their first
+frame) and `requestAnimationFrame` callbacks are held until it lifts. **Under reduced motion
+a thumbnail still shows a still frame of itself, at its current size and in the current
+theme**: its callbacks run in the next `HX_THUMB_STILL_FRAMES` (2) display frames after it
+loads and after every change a still frame has to show (a new width, height, shape, theme or
+scheme, a window resize, reduced motion switching on), then are held again; frames are
+counted only while it is not paused, so a change made off screen is drawn when it comes
+back. (Held for good after its first two frames instead, a canvas that sized itself to the
+slot after drawing was left blank, because setting `canvas.width` clears it.) The shim
+writes an attribute or a property on `<html>` only when its value changes: writing the same
+value again restyled the whole document in every thumbnail on every state message. A
+callback runs at most once per display frame: measured in Chromium, a page with N sandboxed
+frames services each one's animation frame N times per display frame, and the shim holds a
+callback back until a later frame instead.
+
+**CLICKS.** A non-interactive thumbnail takes no pointer events and no focus (the frame is
+`inert`); it sits inside a link to the post (a class page Tile is part of the row's own
+link; Wide and Banner carry a link of their own over the slot), so a click opens the post
+exactly as the row's title does, and a thumbnail that is busy or wedged cannot stop it. An
+interactive thumbnail
+(`"interactive": true`) has no link over it: its own controls (a link, a button, a form
+field, a label, a summary, anything with a button role or a tabindex) and any click it
+calls `preventDefault()` or `stopPropagation()` on are its own; any other click sends
+`idea:thumb-open`, and the page opens the post only while the pointer or the focus is on
+that slot, so a thumbnail cannot send a reader anywhere by itself and only ever to its own
+post. A class page Tile for an interactive thumbnail sits beside the row's link rather
+than in it. The home page's class cards draw each row in the person's own shape (their
+Display settings choice from this device, else the class's default, else Tile), and a Wide
+or Banner slot for an interactive thumbnail sits ABOVE that row's link and keeps its own
+clicks there too; in a home card's Tile and on the to-do page the whole row is a link, so
+an interactive thumbnail is mounted as a plain, inert one. Until an interactive thumbnail
+says it is ready, and after one that failed, the slot carries the ordinary link over it, so
+a slot is never a dead area.
+
+Measured on 2026-10-16 (ledger 0396) in the harness Chromium: the size, the shape, a theme
+change, reduced motion and a pause each arrive at the thumbnail, and it lays itself out
+again (it reports what it was told AND what it then drew back to the harness page), a click
+on a non-interactive thumbnail lands on the post, two presses of an interactive thumbnail's
+own button stay on the page and change its count, and a click on its background opens the
+post. Under reduced motion every live canvas thumbnail holds a still picture of itself in
+every shape at 1440 and 375, in IDEA and Space White, repaints it after a theme change and
+after a resize, and does not move (`tools/browser-verify/_post-thumbnails-still.mjs` reads
+the canvas pixels inside the frame, with the no-preference state as its moving control).
+
+Frame timing, measured on 2026-10-17 in the harness Chromium on a class page of thirty live
+thumbnails (CSS and canvas alternating) under six seconds of scrolling (a mouse wheel at
+1440 and 960, `scrollBy` with phone emulation at 375), as the main thread's frames a
+second, with the CPU slowed four times (the same class with nothing set held 57.8 to 60
+throughout): Wide 52.3 to 59.3 at 1440 (median of nine runs 56.5), Banner 57.5 to 59.5, and
+Tile 59.7 (a Tile class of thirty fits the 1440 pane, so it barely scrolls); Wide 59.3 to
+60, Banner and Tile 60 at 960; Wide 55.4 to 59.8, Banner 57.2 to 58.8 and Tile 54.0 to 56.5
+at 375. With the CPU at full speed every case held 57.8 or more. The per-run figures and the
+method are in the bundle's history entry; the container was shared with another build, so
+single runs vary by a few frames.
+
 ## 7. What the sandbox costs
 
 Stated together so nobody discovers one of these during a port.
@@ -1128,6 +1324,7 @@ Stated together so nobody discovers one of these during a port.
 | The rubric | `classroom_rubrics`, via `classroom_set_rubric` | The SAME table and RPC a spec rubric uses. There is no HTML-assignment rubric table and there must never be one. |
 | A student's answers | `classroom_responses (item_id, student_email, block_id)` | Ordinary rows. See section 9. |
 | A student's photographs | `classroom_submission_files` | The ordinary hand-in path. |
+| What the post shows in a class list | `classroom_item_thumbnails` (0268) | One row per post, kept in step with the manifest's `thumbnail` by a trigger that never touches a hand-set row (section 4.10). |
 
 `item_id` is the primary key of `classroom_html_assignments`, exactly as it is for
 `classroom_assignment_specs`, so an item carries at most one.
@@ -1570,6 +1767,27 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
+- **1.9 (2026-10-16).** Ledger 0396, migration 0268 (post thumbnails, report a6a037f3).
+  Section 4.1 gains the optional top-level `thumbnail` key and the new section 4.10 says
+  what it means: an HTML thumbnail named by a `<template id>` in the same document
+  (optionally `interactive`), or a picture (`attachment:<filename>` or a raster `data:`
+  URI); that both readers agree on one corpus; that every problem is a warning and nothing
+  is refused for it (0195 never read top-level keys, proven by storing one before 0268);
+  and that 0268's row, kept in step by a trigger that never touches a hand-set thumbnail,
+  is what the post shows. The new section 6.8 is the thumbnail half of the bridge: the
+  `/hx/<id>/thumbnail` route (the worksheet route's header set, access check and cache,
+  called rather than copied), `idea:thumb`, `idea:pointer`, `idea:thumb-ready` and
+  `idea:thumb-open`, what the shim gives a thumbnail (state attributes, size variables,
+  pointer, pause, one animation frame per display frame, and under reduced motion a still
+  frame that is drawn again after every resize, shape or theme change), when the page
+  creates, pauses and takes down a thumbnail (within half a screen, one per idle period,
+  never while the reader scrolls; paused off screen, in a hidden tab and while the page
+  scrolls; not drawn past the near margin; taken down a screen and a half away; never asked
+  for on a draft or a scheduled post), the measured frame timing, and the click rule for
+  plain and interactive thumbnails. Section 8 names the new table. No CSP or sandbox flag
+  changed. A manifest naming a template the document does not carry records no live
+  thumbnail (`_classroom_html_may_carry_template`, a wider test than the route's own), so
+  the post shows the generated look with no request, and the post's form says so.
 - **1.8 (2026-10-14).** Ledger 0381, migration 0238 (progressive feedback, decision 60).
   Section 6.1 gains `idea:field-box` (frame to parent: where an answer sits, the
   `idea:image-box` shape judged by the same `hxBoxOf` rule, the field through the parent's

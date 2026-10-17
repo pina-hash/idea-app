@@ -45,7 +45,14 @@ import {
 	type ClassroomItem,
 	type ClassroomSection
 } from '$lib/classroom/classroom';
-import { SECTION_SELECT, htmlManifestShaped, readPastManifests, readWorksheetLatches, selectItemsWithDoc } from '$lib/classroom/transports';
+import {
+	SECTION_SELECT,
+	SECTION_SELECT_THUMBS,
+	htmlManifestShaped,
+	readPastManifests,
+	readWorksheetLatches,
+	selectItemsWithDoc
+} from '$lib/classroom/transports';
 import type { PastManifest } from '$lib/classroom/assignment-spec';
 
 export { readWorksheetLatches };
@@ -55,6 +62,7 @@ import { laCalendarDay } from '$lib/classroom/school-calendar';
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
 import { isHtmlAssignment } from '$lib/classroom/html-assignment/mount';
+import { withItemThumbnail, withSectionThumbShape } from '$lib/classroom/thumbnail';
 import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 import {
 	hxCompletion,
@@ -779,6 +787,13 @@ export interface ClassroomWorkOptions {
 	isAdmin: boolean | PromiseLike<boolean>;
 	/** Read the caller's check-ins too (the to-do, My Classes, the home page's counts). */
 	checkIns?: boolean;
+	/**
+	 * Read each class's default thumbnail shape too (0268, ledger 0396): the
+	 * home page's class cards draw post thumbnails in it. Its own rung on the
+	 * one sections read, taken only by a surface that draws them, so no other
+	 * load pays the retry a database without 0268 costs.
+	 */
+	thumbShapes?: boolean;
 	/** The clock read, when the caller already made it; otherwise it is made here, once. */
 	clock?: ClassroomClock;
 }
@@ -807,9 +822,12 @@ export async function loadClassroomWork(
 		clock
 	});
 
-	const { data: sectionRows, error: sectionError } = await supabase
+	let { data: sectionRows, error: sectionError } = await supabase
 		.from('classroom_sections')
-		.select(SECTION_SELECT);
+		.select(options.thumbShapes ? SECTION_SELECT_THUMBS : SECTION_SELECT);
+	if (sectionError && options.thumbShapes) {
+		({ data: sectionRows, error: sectionError } = await supabase.from('classroom_sections').select(SECTION_SELECT));
+	}
 	if (sectionError) return empty(false);
 
 	/**
@@ -828,7 +846,9 @@ export async function loadClassroomWork(
 	 * cannot say it is archived is not treated as one.
 	 */
 	const sections = sortSections(
-		((sectionRows ?? []) as Record<string, unknown>[]).map(normalizeSectionRow).filter((s) => s.active)
+		((sectionRows ?? []) as unknown as Record<string, unknown>[])
+			.map((row) => withSectionThumbShape(normalizeSectionRow(row), row))
+			.filter((s) => s.active)
 	);
 	const sectionIds = sections.map((s) => s.id);
 	if (!sectionIds.length) return { ...empty(true), sections };
@@ -843,7 +863,10 @@ export async function loadClassroomWork(
 			.in('posted_in.section_id', sectionIds)
 			.order('created_at', { ascending: false })
 	);
-	const items = ((itemRows ?? []) as unknown as Record<string, unknown>[]).map(normalizeItemRow);
+	// The thumbnail rides along (0268), so a home card's row can draw it.
+	const items = ((itemRows ?? []) as unknown as Record<string, unknown>[]).map((row) =>
+		withItemThumbnail(normalizeItemRow(row), row)
+	);
 
 	const me = options.email.trim().toLowerCase();
 	let submissions: FeedSubmission[] = [];

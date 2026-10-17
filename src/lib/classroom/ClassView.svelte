@@ -96,6 +96,15 @@
 	import { navWidthRem, type ClassOpensOn } from '$lib/preferences/classroom';
 	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
 	import { classDuplicatesHref, paneStreamColumns } from '$lib/classroom/nav';
+	import PostThumbnail from '$lib/classroom/PostThumbnail.svelte';
+	import {
+		KIND_GLYPHS,
+		resolveThumbShape,
+		unitTint,
+		type ThumbPlanOptions,
+		type ThumbShape,
+		type ThumbnailTransports
+	} from '$lib/classroom/thumbnail';
 	import { duplicateDoorLabel } from '$lib/classroom/duplicate-count';
 
 	/**
@@ -154,7 +163,10 @@
 		teamsNotice = null,
 		quickPost = null,
 		panelLayout = null,
-		onArrange = null
+		onArrange = null,
+		classThumbShape = null,
+		thumbnailTransports = null,
+		thumbImageSrc = null
 	}: {
 		section: ClassroomSection;
 		items: ClassroomItem[];
@@ -314,6 +326,16 @@
 		panelLayout?: PanelLayout | null;
 		/** Opens Display settings at this page's arrangement. Null removes the hidden-panels line's Arrange. */
 		onArrange?: (() => void) | null;
+		/**
+		 * THE CLASS'S DEFAULT THUMBNAIL SHAPE (0268, ledger 0396), which a
+		 * person's own Display settings choice beats (`resolveThumbShape`); null
+		 * is the built-in default, Tile.
+		 */
+		classThumbShape?: ThumbShape | null;
+		/** The row editor's thumbnail writes; absence removes the editor's control. */
+		thumbnailTransports?: ThumbnailTransports | null;
+		/** A harness's own pictures, standing in for the image route. */
+		thumbImageSrc?: ThumbPlanOptions['imageSrc'];
 	} = $props();
 
 	let unitsOpen = $state(false);
@@ -608,6 +630,28 @@
 	 */
 	const paneStore = classroomPreferences();
 	const panePrefs = paneStore ? reactivePreferences(paneStore) : null;
+
+	/**
+	 * HOW EVERY ROW DRAWS ITS THUMBNAIL (ledger 0396): this person's Display
+	 * settings choice, else the class's default, else Tile. One value for the
+	 * whole list, so every row in a class shares one shape.
+	 */
+	const thumbShape = $derived(
+		resolveThumbShape(panePrefs ? panePrefs.current.display.thumbShape : 'class', classThumbShape)
+	);
+	/** The class's own unit order, which is what a post's tint is a position in. */
+	const unitOrder = $derived(orderedUnits.map((u) => u.id));
+	/**
+	 * A LIVE THUMBNAIL THAT KEEPS ITS OWN CLICKS (`"interactive": true`) is the
+	 * one tile drawn BESIDE the row's link rather than inside it: a frame that
+	 * takes the pointer cannot sit inside a link, and its own controls are the
+	 * point of it. Every other tile is part of the row's link, a
+	 * non-interactive live thumbnail included: its frame is `inert` (out of the
+	 * tab order, hidden from assistive tech, no pointer), so the link holds no
+	 * control a person can reach, which the home feed's row already relies on.
+	 */
+	const keepsOwnClicks = (item: ClassroomItem) =>
+		item.thumbnail?.source === 'html' && !!item.thumbnail.html_document_id && item.thumbnail.interactive;
 	let lingerColumns = $state<number | null>(null);
 	let lastPaneColumns: number | null = null;
 	const paneColumnsNow = $derived(
@@ -1467,23 +1511,30 @@
 
 {#snippet kindGlyph(kind: ClassroomItem['kind'])}
 	<span class="kind-glyph kind-{kind}" aria-hidden="true">
-		{#if kind === 'assignment'}
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M7 3.5h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z" />
-				<path d="M14 3.5v5h5" />
-				<path d="M9 14.5l2 2 4-4.5" />
-			</svg>
-		{:else if kind === 'material'}
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10l2 2.5h6.5A1.5 1.5 0 0 1 20 8v10.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z" />
-			</svg>
-		{:else}
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M4 9.5h3.5L14 5v14l-6.5-4.5H4z" />
-				<path d="M17.5 9.5a4 4 0 0 1 0 5" />
-			</svg>
-		{/if}
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			{#each KIND_GLYPHS[kind] as d (d)}<path {d} />{/each}
+		</svg>
 	</span>
+{/snippet}
+
+{#snippet postThumb(item: ClassroomItem, shape: 'tile' | 'wide' | 'banner', inLink = false)}
+	<!-- THE POST'S VISUAL IDENTITY (ledger 0396, report a6a037f3): its picture,
+	     its live HTML thumbnail, or its type glyph on a tile in its unit's tint.
+	     The shape is this person's Display settings choice (or the class's
+	     default); `PostThumbnail` is the one renderer. `inLink`: drawn INSIDE
+	     the row's own link (a tile, where the kind glyph sat), so it is part of
+	     that one 44px target rather than a second, smaller one beside it. -->
+	<PostThumbnail
+		{item}
+		{shape}
+		glyph={item.kind}
+		tint={unitTint(item.unit_id, unitOrder)}
+		href={inLink ? null : `${basePath}/${section.id}/item/${item.id}`}
+		label={itemTitle(item)}
+		imageSrc={thumbImageSrc}
+		passive={inLink}
+		now={clock?.now ?? null}
+	/>
 {/snippet}
 
 {#snippet badges(item: ClassroomItem)}
@@ -1623,7 +1674,10 @@
 		data-sort-item
 		data-item-id={item.id}
 	>
-		<div class="row" data-testid="item-row" data-selected={selectedItemId === item.id ? 'true' : undefined}>
+		{#if thumbShape === 'banner'}<div class="row-banner">{@render postThumb(item, 'banner')}</div>{/if}<div
+			class="row"
+			data-testid="item-row"
+			data-selected={selectedItemId === item.id ? 'true' : undefined}>
 			{#if editable}
 				<label class="row-select-hit">
 					<input
@@ -1666,13 +1720,18 @@
 				<span aria-hidden="true">{expanded[item.id] ? '▾' : '▸'}</span>
 			</button>
 
+			<!-- THE LINK IS A SNIPPET so a Wide row can stack its thumbnail above it
+			     and every other shape can put it beside, with ONE copy of the row's
+			     words. With thumbnails Off the markup is the row as it was, kind glyph
+			     and all (tests/classroom-panel-layout-render.test.ts holds that). -->
+			{#snippet rowMain()}
 			<a
 				class="row-main"
 				href={`${basePath}/${section.id}/item/${item.id}`}
 				aria-current={selectedItemId === item.id ? 'page' : undefined}
 				data-testid="row-open"
 			>
-				{@render kindGlyph(item.kind)}
+				{#if thumbShape === 'off'}{@render kindGlyph(item.kind)}{:else if thumbShape === 'tile' && !keepsOwnClicks(item)}{@render postThumb(item, 'tile', true)}{/if}
 				<!--
 					THE NAME IS WHAT IDENTIFIES THE ROW, so it is what gets the width.
 					The title line WRAPS: a name longer than the line takes the whole
@@ -1831,6 +1890,10 @@
 					</span>
 				</span>
 			</a>
+			{/snippet}{#if thumbShape === 'wide'}<div class="row-body">
+					{@render postThumb(item, 'wide')}
+					{@render rowMain()}
+				</div>{:else}{#if thumbShape === 'tile' && keepsOwnClicks(item)}{@render postThumb(item, 'tile')}{/if}{@render rowMain()}{/if}
 
 			{#if editable}
 				<div class="row-menu">
@@ -1983,6 +2046,7 @@
 						{instructorAttachmentsEnabled}
 						screen
 						{layoutTransports}
+						{thumbnailTransports}
 						onsaved={saved}
 						ondirtychange={(d) => (editDirty = d)}
 						oncancel={closeRowEditor}
@@ -2005,15 +2069,29 @@
 		     chip, and the position is the third. The LINK stays: filing early is
 		     something the grid explicitly credits (0140), so the door has to be
 		     open. -->
-		<div class="row check-in-row" class:upcoming>
+		{#if thumbShape === 'banner'}<div class="row-banner">{@render checkInThumb(checkIn, 'banner', href, upcoming)}</div>{/if}<div
+			class="row check-in-row"
+			class:upcoming
+		>
+			<!-- On a teacher's list every item row leads with its checkbox and its
+			     grip; a check-in has neither, so with a thumbnail showing it holds
+			     their room open and its slot lines up with the slots above and
+			     below it. Off keeps the row exactly as it was. -->
+			{#if editable && thumbShape !== 'off'}<span class="row-select-hit spacer" aria-hidden="true"></span><span
+					class="row-grip spacer"
+					aria-hidden="true"
+				></span>{/if}
 			<span class="row-expand spacer" aria-hidden="true"></span>
 			{#snippet inner()}
-				<span class="kind-glyph kind-checkin" aria-hidden="true">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M6 3.5h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z" />
-						<path d="M9 9h6M9 13h6M9 17h3" />
-					</svg>
-				</span>
+				{#if thumbShape === 'off'}
+					<span class="kind-glyph kind-checkin" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+							{#each KIND_GLYPHS.checkin as d (d)}<path {d} />{/each}
+						</svg>
+					</span>
+				{:else if thumbShape === 'tile'}
+					{@render checkInThumb(checkIn, 'tile', null, upcoming)}
+				{/if}
 				<!-- The same two-line shape as an item row: name gives way, chip
 				     keeps its width. -->
 				<span class="row-text">
@@ -2037,13 +2115,36 @@
 					</span>
 				</span>
 			{/snippet}
-			{#if href}
-				<a class="row-main" {href} data-testid="check-in-link">{@render inner()}</a>
-			{:else}
-				<span class="row-main">{@render inner()}</span>
-			{/if}
+			{#snippet main()}
+				{#if href}
+					<a class="row-main" {href} data-testid="check-in-link">{@render inner()}</a>
+				{:else}
+					<span class="row-main">{@render inner()}</span>
+				{/if}
+			{/snippet}{#if thumbShape === 'wide'}<div class="row-body">
+					{@render checkInThumb(checkIn, 'wide', href, upcoming)}
+					{@render main()}
+				</div>{:else}{@render main()}{/if}
+			<!-- And the row menu's room at the end, so a Wide slot is as wide as
+			     the slots above and below it. -->
+			{#if editable && thumbShape !== 'off'}<span class="row-menu spacer" aria-hidden="true"
+					><span class="menu-trigger"></span></span
+				>{/if}
 		</div>
 	</li>
+{/snippet}
+
+{#snippet checkInThumb(checkIn: ClassCheckIn, shape: 'tile' | 'wide' | 'banner', href: string | null | undefined, upcoming: boolean)}
+	<!-- A check-in carries no thumbnail of its own: its glyph on the quiet
+	     tile, so a list of tiles stays one column of tiles. -->
+	<PostThumbnail
+		item={{ id: `check-in-${checkIn.session_id}-${checkIn.section_id}` }}
+		{shape}
+		glyph="checkin"
+		href={href || null}
+		label={checkIn.session_label}
+		muted={upcoming}
+	/>
 {/snippet}
 
 <svelte:head>
@@ -2448,6 +2549,7 @@
 	<div
 		class="stream"
 		style={streamColumns === null ? undefined : `columns: var(--cr-stream-col) ${streamColumns}`}
+		data-thumbs={thumbShape === 'off' ? undefined : thumbShape}
 		bind:this={menuHost}
 	>
 		{#each shownGroups as group (group.id)}
@@ -3143,6 +3245,15 @@
 	.row-expand.spacer {
 		cursor: default;
 	}
+	/* A check-in's room-holders take their boxes' sizes and draw nothing: the
+	   plate paints `.menu-trigger` as a key, and an empty key at the end of a
+	   row reads as a control that does nothing. */
+	.row-select-hit.spacer,
+	.row-grip.spacer,
+	.row-menu.spacer {
+		visibility: hidden;
+		pointer-events: none;
+	}
 	/* THE ROW'S OWN AIR, and the floor under it is the tap target rather than
 	   taste. Two lines measure 36.2px (18.7 + 0.8 + 16.6), so 0.3rem top and
 	   bottom lands the row at 45.8px -- still over the 44px minimum, and 4.8px
@@ -3650,9 +3761,12 @@
 	   tree. Every other meta field stays, whole where it fits (ledger 0281:
 	   nothing Mr. Pina acts on is cut or hidden). The unit card has no side
 	   padding of its own to give back (measured 0px at every width), so the
-	   rows already run edge to edge. */
+	   rows already run edge to edge. A row whose thumbnail is showing the
+	   post's own picture or live thumbnail (ledger 0396) has no glyph saying
+	   the kind, so its word stays (`.pt.showing` is set only once the media
+	   has painted; a generated tile carries the glyph). */
 	@container class-stream (max-width: 20rem) {
-		.classroom-page.as-pane .row-kind {
+		.classroom-page.as-pane .row-wrap:not(:has(:global(.pt.showing))) .row-kind {
 			position: absolute;
 			width: 1px;
 			height: 1px;
@@ -3661,8 +3775,88 @@
 			clip: rect(0 0 0 0);
 			white-space: nowrap;
 		}
-		.classroom-page.as-pane .row-kind + .meta-bit > .meta-sep {
+		.classroom-page.as-pane .row-wrap:not(:has(:global(.pt.showing))) .row-kind + .meta-bit > .meta-sep {
 			display: none;
+		}
+	}
+
+	/* POST THUMBNAILS (ledger 0396, report a6a037f3). The shape is one value for
+	   the whole list (`thumbShape`), carried on `.stream` as `data-thumbs` and
+	   absent when it is Off, which leaves every row exactly as it was. The slot's
+	   own size is `PostThumbnail`'s (`--thumb-w`, `--thumb-h`); these rules only
+	   place it in the row and give each row room to be told from the next.
+
+	   TILE sits where the kind glyph sat, INSIDE the row's own link, in front of
+	   the title, and replaces it: the tile carries the identity, the meta line
+	   still says the kind in a word, and the row stays one 44px target rather
+	   than a link plus a smaller one beside it. The row link's own 0.3rem
+	   padding is the tile's air, so a tile row is 57.6px at 1440 (48px tile)
+	   against 45.8px for a two-line row with thumbnails Off. The one tile drawn
+	   BESIDE the link (a live thumbnail that keeps its own clicks) takes the
+	   link's own padding as its margin (0.3rem above and below, 0.2rem before,
+	   and whatever after makes the row's gap plus the link's padding equal the
+	   link's own gap to the title), so both kinds line up to the pixel. WIDE is a 16:9 picture
+	   over the title, the full width of the row's text, so it never takes a
+	   character from the title; the row's controls line up with its top. BANNER
+	   is a short strip across the whole row, above it, so the row under it is
+	   the row as it was. */
+	.stream[data-thumbs='wide'] .row-wrap,
+	.stream[data-thumbs='banner'] .row-wrap {
+		padding-block: 0.5rem;
+	}
+	.stream[data-thumbs='tile'] .row > :global(.pt) {
+		margin: 0.3rem 0.05rem 0.3rem 0.2rem;
+	}
+	.row-body {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 0.3rem 0.2rem 0;
+	}
+	.row-body > .row-main {
+		padding-inline: 0;
+	}
+	.stream[data-thumbs='wide'] .row {
+		align-items: flex-start;
+	}
+	.row-banner {
+		padding: 0 0.2rem 0.15rem;
+	}
+	/* The slot answers the row's own hover, the way the title does. NEVER
+	   `.row-wrap:has(a.row-main:hover)`: a `:has()` around `:hover` re-styles
+	   the whole list on every hover change, and a wheel scroll changes the
+	   hovered row many times a second. Measured with the CPU slowed four
+	   times, Banner at 1440: the `:has` rule cost 704ms of style recalculation
+	   in 3s of scrolling and ten tasks over 50ms; these descendant rules cost
+	   none over 50ms. A Tile is inside the link, a Wide picture shares
+	   `.row-body` with it, and a Banner spans the whole row. */
+	a.row-main:hover :global(.pt),
+	.row-body:hover :global(.pt),
+	.row-wrap:hover > .row-banner :global(.pt),
+	.row-wrap :global(.pt:hover) {
+		outline-color: var(--hover-ink);
+	}
+	/* A PHONE'S ROW IS THE NARROWEST A MANAGER'S CONTROLS LEAVE ROOM IN, and
+	   the title is what identifies the row, so the tile gives it back what it
+	   can: 36px and a 0.4rem gap to the title. Measured in a teacher's row at
+	   375 (checkbox, grip, expand, tile, menu), a 48px tile beside the link
+	   left the title 87px and cut 9 of 13 titles short; inside the link at
+	   36px and 0.4rem it is 105px and cuts 5, against 120px and 4 with
+	   thumbnails Off. */
+	@container class-stream (max-width: 25rem) {
+		/* A container query reaches the container's DESCENDANTS, never the
+		   container itself, so this names the rows inside `.stream`. */
+		.stream[data-thumbs] .row-wrap {
+			--thumb-tile: 2.25rem;
+			--thumb-tile-r: 7px;
+		}
+		.stream[data-thumbs='tile'] .row-main {
+			gap: 0.4rem;
+		}
+		.stream[data-thumbs='tile'] .row > :global(.pt) {
+			margin-inline-end: -0.1rem;
 		}
 	}
 

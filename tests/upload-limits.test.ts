@@ -73,6 +73,7 @@ import {
 	uploadTooLargeMessage,
 	type UploadPathId
 } from '../src/lib/upload-limits';
+import { THUMBNAIL_UPLOAD_MAX_BYTES } from '../src/lib/classroom/thumbnail';
 import { notebookPhotoRefusal } from '../src/lib/notebook/photo-prepare';
 import { CLASSROOM_UPLOAD_MAX_BYTES } from '../src/lib/classroom/file-upload';
 import { QUICK_POST_FILE_MAX_BYTES } from '../src/lib/classroom/quick-posts';
@@ -250,6 +251,7 @@ describe('the registry is a transcription, not a second opinion', () => {
 			'classroom-submission',
 			'classroom-instructor',
 			'classroom-quick-post',
+			'classroom-thumbnail',
 			'cert-evidence',
 			'classroom-deck',
 			'notebook-photo',
@@ -373,7 +375,13 @@ describe('the registry is a transcription, not a second opinion', () => {
 	 * indistinguishable from this, and a registry that quietly under-reports a
 	 * ceiling refuses files that would have worked.
 	 */
-	const TIGHTER_THAN_ITS_BUCKET: UploadPathId[] = ['avatar'];
+	// A post thumbnail (ledger 0396) shares `classroom-attachments` with the
+	// post's files and is held to 10 MiB in the browser and at the sign route.
+	const TIGHTER_THAN_ITS_BUCKET: UploadPathId[] = ['avatar', 'classroom-thumbnail'];
+
+	it('states the thumbnail ceiling the editor and its sign route use', () => {
+		expect(uploadCeiling('classroom-thumbnail').maxBytes).toBe(THUMBNAIL_UPLOAD_MAX_BYTES);
+	});
 
 	it('never states a ceiling ABOVE the bucket the migration chain gives it', () => {
 		const chain = bucketLimitsFromChain();

@@ -56,6 +56,12 @@ import { TODO_VIEW_LABELS, type TodoView } from '$lib/classroom/todo';
 import { panelSummary, readPanelLayout, type PanelLayout, type PanelPage } from '$lib/classroom/panel-layout';
 import { WALL_CLOCK_FACES, type WallClockFace } from '$lib/classroom/live-class/wall-clock';
 import {
+	THUMB_SHAPE_CHOICES,
+	THUMB_SHAPE_HINTS,
+	THUMB_SHAPE_LABELS,
+	type ThumbShapeChoice
+} from '$lib/classroom/thumbnail-shape';
+import {
 	LocalPreferenceStore,
 	MemoryPreferenceStore,
 	ProfilePreferenceStore,
@@ -197,7 +203,17 @@ const HINT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export interface ClassroomPreferences {
 	/** `wallClock`: the projector's hero clock, digits or the analog face (idea 26033e4b). */
-	display: { density: Density; navWidth: number | null; wallClock: WallClockFace; bannerMotion: BannerMotion };
+	/**
+	 * `thumbShape`: how a class page draws each post's thumbnail (ledger 0396),
+	 * `class` meaning "the class's own default" (`resolveThumbShape`).
+	 */
+	display: {
+		density: Density;
+		navWidth: number | null;
+		wallClock: WallClockFace;
+		bannerMotion: BannerMotion;
+		thumbShape: ThumbShapeChoice;
+	};
 	classView: { opensOn: ClassOpensOn; todoOpensOn: TodoOpensOn };
 	grading: { advanceAfterReturn: boolean; gradesOrder: GradingOrderKey };
 	guidance: { retiredHints: string[]; tours: Record<ClassroomTourId, TourState> };
@@ -234,7 +250,7 @@ export const CLASSROOM_PREFERENCE_HOMES: Readonly<Record<ClassroomPreferenceGrou
 
 export function defaultClassroomPreferences(): ClassroomPreferences {
 	return {
-		display: { density: 'comfortable', navWidth: null, wallClock: 'digits', bannerMotion: 'moving' },
+		display: { density: 'comfortable', navWidth: null, wallClock: 'digits', bannerMotion: 'moving', thumbShape: 'class' },
 		classView: { opensOn: 'all', todoOpensOn: 'assigned' },
 		grading: { advanceAfterReturn: false, gradesOrder: GRADING_ORDER_DEFAULT },
 		guidance: { retiredHints: [], tours: { teacher: 'unseen', student: 'unseen' } },
@@ -275,7 +291,8 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 			// should keep them at its own widest rather than snapping them back.
 			navWidth: clampNavWidth(display.navWidth),
 			wallClock: oneOf(display.wallClock, WALL_CLOCK_FACES, d.display.wallClock),
-			bannerMotion: oneOf(display.bannerMotion, BANNER_MOTIONS, d.display.bannerMotion)
+			bannerMotion: oneOf(display.bannerMotion, BANNER_MOTIONS, d.display.bannerMotion),
+			thumbShape: oneOf(display.thumbShape, THUMB_SHAPE_CHOICES, d.display.thumbShape)
 		},
 		classView: {
 			opensOn: oneOf(classView.opensOn, CLASS_OPENS_ON, d.classView.opensOn),
@@ -514,6 +531,21 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 		]
 	},
 	{
+		group: 'display',
+		title: 'Post thumbnails',
+		help:
+			'How each post shows its picture on a class page and your home page: a square before the title, a wide picture above it, a strip across the row, or none, which your to-do list follows too. Class default is the teacher\'s choice, else Tile.',
+		roles: ['student', 'manager'],
+		field: 'thumbShape',
+		options: () => [
+			{ value: 'class', label: 'Class default' },
+			...(['tile', 'wide', 'banner', 'off'] as const).map((v) => ({
+				value: v,
+				label: `${THUMB_SHAPE_LABELS[v]}: ${THUMB_SHAPE_HINTS[v].toLowerCase()}`
+			}))
+		]
+	},
+	{
 		group: 'classView',
 		title: 'A class opens on',
 		help:
@@ -637,6 +669,19 @@ export interface ClassroomPreferenceBackends {
 	account: { initial: unknown; writer: ProfileNamespaceWriter } | null;
 	/** Storage override for tests; undefined uses this browser's localStorage. */
 	storage?: PreferenceStorage | null;
+}
+
+/**
+ * THIS DEVICE'S CLASSROOM CHOICES, READ WHERE THE CLASSROOM'S STORE IS NOT
+ * (ledger 0396). The home page's class cards draw post thumbnails in the shape
+ * a person chose in Display settings, which lives in this browser's device
+ * slot for the same viewer the classroom layout keys it on. Read through the
+ * store itself, so a value this build does not know reads as the default and
+ * nothing is written. The account groups come back as their defaults, which
+ * is why this is for a device group only.
+ */
+export function readDeviceClassroomPreferences(viewer: string | null, storage?: PreferenceStorage | null): ClassroomPreferences {
+	return createClassroomPreferences({ viewer, account: null, storage }).current;
 }
 
 export function classroomLocalKey(viewer: string | null): string {

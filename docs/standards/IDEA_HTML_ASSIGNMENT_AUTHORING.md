@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.24 - 2026-10-14**
+**Version 1.25 - 2026-10-16**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -568,6 +568,79 @@ it after every fold, tested together in Chromium against the real gate.
 
 ---
 
+## 10d. A thumbnail: how the post looks in a class list (0268)
+
+Ledger 0396 gave every post a thumbnail slot on the class page and the home page's class
+cards (report a6a037f3). A document may declare its own, which the post wears until a
+teacher sets one by hand on the post's form; a re-upload never replaces a hand-set one.
+`IDEA_HTML_ASSIGNMENT_SPEC.md` sections 4.10 and 6.8 are the contract; this is what an author
+does.
+
+- **Declare it in the manifest, at the top level**, beside `modules`:
+  `"thumbnail": { "kind": "html", "template": "idea-thumbnail" }` for a live thumbnail, or
+  `"thumbnail": { "kind": "image", "src": "attachment:cover.png" }` for a picture attached
+  to the post (a `data:` PNG, JPEG, GIF or WebP under 400,000 characters also works; an SVG
+  and any `https:` address never do). Every problem with the key is a warning saying the
+  post shows the generated look instead, and nothing about it can stop an upload.
+- **The template's id must be the one the manifest names.** A manifest naming a template the
+  document does not carry (a typo between the two is the usual way) gets no live thumbnail:
+  the post shows the generated look on every list, the import warns, and the post's form
+  says the template is missing and which one to add.
+- **A live thumbnail is a `<template id="idea-thumbnail">` in the same file.** Its contents
+  are served alone, in a fixed shell with a transparent background, in the post's slot under
+  the same sandbox as the worksheet: write it as a small self-contained page (a `<style>`,
+  the markup, a `<script>` if it needs one). Nothing in it can see the worksheet, its fields
+  or its answers. It is inert inside the worksheet itself, because a template is.
+- **Fill the box, whatever its shape.** The slot is one of three shapes, chosen by each
+  reader: Tile (a square about 48px, 36px in a phone's narrow list), Wide (16:9, the
+  row's width) and Banner (the row's width, about 56px tall). `<html>` carries
+  `data-idea-shape`, and `--idea-thumb-w` and `--idea-thumb-h` hold the size in px;
+  position things with `position: absolute; inset: 0` and sizes in `%`, and say anything
+  in words only where there is room (Wide and Banner).
+- **Follow the site's light or dark look**: `data-idea-scheme` is `light` or `dark` and
+  `data-idea-theme` names the theme (`idea`, `matrix`, `space-white`). Key colours on them.
+- **Animate freely, and let the portal stop it.** CSS animations and
+  `requestAnimationFrame` loops stop on their own while the thumbnail is off screen, the tab
+  is hidden, the page is scrolling, or the reader asks for reduced motion
+  (`data-idea-paused`, `data-idea-motion`). Do not add your own pause. Under reduced motion
+  a CSS animation rests on its first frame, and a `requestAnimationFrame` loop runs for two
+  display frames after the thumbnail loads and again after every resize, shape change or
+  theme change, then waits: so a canvas that sizes itself to the slot (setting
+  `canvas.width` clears it) draws a still picture of itself at the right size and in the
+  right colours. Draw from your loop, not once at load, and redraw on `idea:thumbnail`.
+- **Hover works without code**: `--idea-pointer-x` and `--idea-pointer-y` (0 to 1) and
+  `data-idea-pointer` follow the pointer over the slot, and `idea:thumbnail` and
+  `idea:pointer` events fire on `window` for script that wants them.
+- **A click opens the post.** Make it interactive (`"interactive": true`) only when the
+  thumbnail has its own controls, a toy a student can press: then its buttons, links and
+  inputs keep their clicks and a click anywhere else still opens the post. Keep interactive
+  controls usable at 36px or mark them for Wide and Banner only
+  (`:root[data-idea-shape="tile"] button { display: none; }`), and in a Tile draw what the
+  controls change instead, so a press there opens the post.
+
+A working thumbnail to copy (it is the one in `src/lib/legacy/assignments/_TEMPLATE.html`):
+
+```html
+<template id="idea-thumbnail">
+<style>
+  :root { --t-a: #1c4a2a; --t-b: #0b1d12; --t-ink: #9ff0a8; }
+  :root[data-idea-scheme="light"] { --t-a: #eef8f0; --t-b: #cfe9d6; --t-ink: #1d6b2c; }
+  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6%;
+       background: radial-gradient(circle at calc(var(--idea-pointer-x, .5) * 100%) calc(var(--idea-pointer-y, .5) * 100%), var(--t-a), var(--t-b) 75%);
+       color: var(--t-ink); font: 700 15px/1.2 system-ui, sans-serif; overflow: hidden; }
+  .t svg { height: 70%; aspect-ratio: 1; animation: t-spin 6s linear infinite; }
+  .t .w { display: none; }
+  :root[data-idea-shape="wide"] .t .w, :root[data-idea-shape="banner"] .t .w { display: block; }
+  :root[data-idea-pointer] .t svg { animation-duration: 2s; }
+  @keyframes t-spin { to { transform: rotate(360deg); } }
+</style>
+<div class="t">
+  <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" stroke-width="14" stroke-dasharray="11 8.9"/><circle cx="50" cy="50" r="9" fill="currentColor"/></svg>
+  <span class="w">Gear ratios</span>
+</div>
+</template>
+```
+
 ## 11. Validate before delivering, with both validators
 
 Both run in the container and neither is optional.
@@ -1058,6 +1131,17 @@ right or wrong with one change, a slide in the class deck) and adds four rules.
 
 ## Changelog
 
+- **1.25 (2026-10-16).** Ledger 0396, migration 0268 (post thumbnails, report a6a037f3).
+  New section 10d: a document may declare how its post looks in a class list with a
+  top-level `thumbnail` key, a live thumbnail in a `<template id="idea-thumbnail">` or a
+  picture (`attachment:` or a raster `data:` URI); fill the slot in every shape from the
+  shape attribute and the size variables; follow the light or dark look; animate and let the
+  portal pause it (under reduced motion a canvas loop still draws a still picture of itself,
+  again after every resize, shape or theme change); hover with no code; and `interactive`
+  only for a thumbnail with controls of its own, kept to Wide and Banner when they are too
+  small for a Tile. Carries a working example, the one now in `_TEMPLATE.html`. A manifest
+  naming a template the document does not carry gets the generated look, never a live
+  thumbnail that cannot appear.
 - **1.24 (2026-10-14).** Ledger 0381, migration 0238. New section 10c: the document reports
   each answer's box with `idea:field-box` so the portal pins a teacher's note beside it,
   answering the advisory `idea:feedback` (field names only, never waited on), with the

@@ -29,11 +29,13 @@ export default {
 			selector: '[data-testid="classroom-settings"] [data-testid="settings-help"] button.info-tip-trigger',
 			/* NINE since ledger 0360's Page layout group (R23): Class page and
 			   Assignment and material pages each carry a help sentence. TEN since
-			   the projector's clock face (idea 26033e4b), a teacher's setting. */
-			label: "a tip on each of a teacher's ten setting titles",
-			expectPresent: 10,
-			maxPresent: 10,
-			expectVisible: 10
+			   the projector's clock face (idea 26033e4b), a teacher's setting.
+			   ELEVEN since ledger 0381's Class banner motion, which this spec
+			   missed, and TWELVE since ledger 0396's Post thumbnails. */
+			label: "a tip on each of a teacher's twelve setting titles",
+			expectPresent: 12,
+			maxPresent: 12,
+			expectVisible: 12
 		},
 		{
 			selector: '[data-testid="classroom-settings"] .cs-option .info-tip',
@@ -66,7 +68,7 @@ export default {
 				}
 				return ['triggers ' + triggers.length, 'overlaps ' + overlaps, 'centre hits self ' + selfHits];
 			}`,
-			expected: ['triggers 10', 'overlaps 0', 'centre hits self 10']
+			expected: ['triggers 12', 'overlaps 0', 'centre hits self 12']
 		},
 		{
 			label: 'a tap opens the Density tip on screen with its own sentence, and a tap elsewhere closes it',

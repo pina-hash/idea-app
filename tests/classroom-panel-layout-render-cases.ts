@@ -27,6 +27,14 @@
 // db499adb), one column at the default width. Nothing else in the file moved,
 // so any other difference is still a regression.
 //
+// Ledger 0396 (post thumbnails, report a6a037f3) made Tile the class page's
+// built-in thumbnail shape, which deliberately changes every row. So every case
+// below passes `classThumbShape: 'off'`, the shape that is the list as it was:
+// with it the golden is untouched and still has to match byte for byte, and
+// `tests/classroom-panel-layout-render.test.ts` asserts the other direction
+// (the default draws a thumbnail on every row and moves the kind glyph into
+// it).
+//
 // What each case is for: a teacher with every header slot filled (tools, the
 // theme vote, notices, the posted teams, the teams key, Quick post) under a
 // voted look, a student with no theme, a teacher whose list is a pane beside
@@ -127,7 +135,7 @@ export interface RenderCase {
 }
 
 export function renderCases(): RenderCase[] {
-	return [
+	return withThumbsOff([
 		{
 			name: 'teacher, every header slot, a voted look',
 			props: {
@@ -191,7 +199,12 @@ export function renderCases(): RenderCase[] {
 			name: 'an empty class',
 			props: { section: SECTION, items: [], canManage: false, clock: CLOCK, basePath: '/classroom' }
 		}
-	];
+	]);
+}
+
+/** Every case with post thumbnails Off (ledger 0396; the header says why). */
+function withThumbsOff(cases: RenderCase[]): RenderCase[] {
+	return cases.map((c) => ({ ...c, props: { ...c.props, classThumbShape: 'off' } }));
 }
 
 /** The server render of one case, with Svelte's hydration comments stripped. */

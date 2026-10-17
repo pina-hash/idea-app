@@ -83,6 +83,36 @@ describe('the class page with no stored layout is the page as it was', () => {
 		expect(dropRootWhitespace('<main><img src="x"> <br> <p>t</p></main>')).toBe('<main><img src="x"><br><p>t</p></main>');
 	});
 
+	it('THE OTHER DIRECTION FOR THUMBNAILS (ledger 0396): every shape but Off draws one per row', () => {
+		const { classThumbShape: _off, ...teacher } = cases[0].props;
+		const count = (html: string, needle: string) => html.split(needle).length - 1;
+		const off = renderCase(cases[0].props);
+		const rows = count(off, 'data-testid="item-row"') + count(off, 'check-in-row');
+		expect(rows).toBeGreaterThanOrEqual(4);
+		expect(count(off, 'data-testid="post-thumb"')).toBe(0);
+		expect(count(off, 'class="kind-glyph')).toBe(rows);
+		// No shape stored anywhere is the built-in Tile: a thumbnail on every row,
+		// the kind glyph moved into it, and the same rows as Off.
+		for (const [shape, props] of [
+			['tile', teacher],
+			['tile', { ...teacher, classThumbShape: 'tile' }],
+			['wide', { ...teacher, classThumbShape: 'wide' }],
+			['banner', { ...teacher, classThumbShape: 'banner' }]
+		] as const) {
+			const html = renderCase(props as Record<string, unknown>);
+			expect(count(html, 'data-testid="item-row"') + count(html, 'check-in-row'), shape).toBe(rows);
+			expect(count(html, 'data-testid="post-thumb"'), shape).toBe(rows);
+			expect(count(html, `data-shape="${shape}"`), shape).toBe(rows);
+			expect(count(html, 'class="kind-glyph'), shape).toBe(0);
+			expect(html).toContain(`data-thumbs="${shape}"`);
+			expect(count(html, 'class="row-body'), shape).toBe(shape === 'wide' ? rows : 0);
+			expect(count(html, 'class="row-banner'), shape).toBe(shape === 'banner' ? rows : 0);
+		}
+		// (A person's own Display settings choice beats the class default; that
+		// rule is `resolveThumbShape`'s, pinned in tests/classroom-thumbnail.test.ts,
+		// because a server render has no preference store to hold one.)
+	});
+
 	it('POSITIVE CONTROL: the golden holds the pieces each case was handed', () => {
 		const [teacher, student, pane, bare, empty] = golden.cases.map((c) => c.html);
 		for (const needle of ['data-testid="class-header"', 'data-testid="class-tools"', 'data-testid="class-theme-panel"', 'data-testid="quick-posts"', 'data-testid="class-teams"', 'data-testid="class-header-teams"', 'data-testid="quick-post-open"', 'data-testid="new-post"', 'data-testid="stream-find"']) {
