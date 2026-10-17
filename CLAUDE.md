@@ -5231,7 +5231,13 @@ inside the function fails closed rather than falling through to a weaker path.
     edge (`bottom: var(--feedback-clear-block)`), and the projector strip and the
     deck's stage stop short of it. A new surface with a
     control at its bottom-right edge does the same, and the instrument is a hit
-    test of its controls at the end of every scroll container. On a `.cr-root`
+    test of its controls at the end of every scroll container. **A popover
+    placed by `$lib/shell/anchored` keeps clear of it on its own**: the
+    button's wrapper carries `data-corner-reserve`, `cornerReserve` reads it
+    live and `anchorPosition`'s `avoid` treats its top as the window's bottom
+    for a panel whose columns cross it, because a panel inside `main` is always
+    painted under the button; a panel sized by hand to the room below its key
+    (the student page's Sections menu) measures that room with `clearBottom`. On a `.cr-root`
     route the root layout wraps the window in `CLASSROOM_PLATE`
     (`feedbackWearsClassroomPlate`), so the button and the box are the home
     page's plate key and plate box. The error card's "Tell us what happened"
