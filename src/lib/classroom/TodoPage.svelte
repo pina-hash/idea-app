@@ -1,6 +1,9 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { ICONS } from '$lib/shell/commands';
+	import PostThumbnail from '$lib/classroom/PostThumbnail.svelte';
+	import { hasThumbnailMedia } from '$lib/classroom/thumbnail';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
 	import { sectionTitle, type ClassroomItem, type ClassroomSection } from '$lib/classroom/classroom';
 	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 	import type { FeedSubmission } from '$lib/classroom/feed';
@@ -62,6 +65,23 @@
 		classId?: string | null;
 		onstatechange?: ((view: TodoView, classId: string | null) => void) | null;
 	} = $props();
+
+	/* A post's own thumbnail (ledger 0396) stands in for the row's glyph, the
+	   home feed's rule: a post with nothing set keeps the glyph exactly as it
+	   was, so the list only changes where a teacher or a document gave it one. */
+	const itemById = $derived(new Map(items.map((i) => [i.id, i])));
+	/* A person who chose Off in Display settings sees no pictures here either:
+	   the to-do list is a list of the same posts, read from the same store the
+	   class page reads (no store, as in a harness that provides none, is the
+	   default, which shows them). */
+	const prefStore = classroomPreferences();
+	const prefs = prefStore ? reactivePreferences(prefStore) : null;
+	const thumbsOff = $derived(prefs?.current.display.thumbShape === 'off');
+	const thumbFor = (key: string) => {
+		if (thumbsOff) return null;
+		const item = key.startsWith('item:') ? itemById.get(key.slice(5)) : undefined;
+		return item && hasThumbnailMedia(item) ? item : null;
+	};
 
 	/* A press overrides what the route opened on; until then the route's answer
 	   stands, so a door followed while the page is open is honoured too. */
@@ -181,9 +201,16 @@
 									data-key={row.key}
 									data-tone={row.tone}
 								>
-									<svg class="todo-glyph" viewBox="0 0 24 24" aria-hidden="true">
-										<path d={row.kind === 'check-in' ? ICONS.notebook : ICONS.assignment} />
-									</svg>
+									{#if thumbFor(row.key)}
+										<!-- `passive`: the row is the link, so the click is the row's. -->
+										<span class="todo-thumb" data-testid="todo-thumb">
+											<PostThumbnail item={thumbFor(row.key)!} shape="tile" glyph="assignment" label={row.title} passive />
+										</span>
+									{:else}
+										<svg class="todo-glyph" viewBox="0 0 24 24" aria-hidden="true">
+											<path d={row.kind === 'check-in' ? ICONS.notebook : ICONS.assignment} />
+										</svg>
+									{/if}
 									<span class="todo-text">
 										<span class="todo-title">{row.title}</span>
 										<span class="todo-meta">
@@ -560,5 +587,16 @@
 		.todo-controls {
 			width: 100%;
 		}
+	}
+
+	/* A post's own thumbnail in the glyph's place (ledger 0396): a 30px tile
+	   whose box counts as the glyph's 20px (negative inline margins, inside the
+	   row's 0.7rem gap), so its title lines up with every glyph row's title
+	   rather than sitting 16px further in. */
+	.todo-thumb {
+		display: block;
+		--thumb-tile: 30px;
+		--thumb-tile-r: 6px;
+		margin-inline: -5px;
 	}
 </style>

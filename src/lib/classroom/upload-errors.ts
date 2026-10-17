@@ -57,8 +57,12 @@ export interface UploadRefusal {
  * `quick-post` is a file on a class notice (0233's `quick-post-files` bucket):
  * the fourth role, refused when the caller is not the teacher who posted the
  * notice or the notice has ended.
+ *
+ * `thumbnail` is a post's own picture (0268, ledger 0396): the item's prefix in
+ * `classroom-attachments`, the same insert rule as an attachment, recorded by
+ * `classroom_set_item_thumbnail` rather than as a file on the post.
  */
-export type UploadRole = 'attachment' | 'submission' | 'instructor' | 'quick-post';
+export type UploadRole = 'attachment' | 'submission' | 'instructor' | 'quick-post' | 'thumbnail';
 
 export function formatBytesShort(size: number): string {
 	if (size < 1024) return `${size} B`;
@@ -96,7 +100,11 @@ const DENIED_REASON: Record<UploadRole, string> = {
 		'somebody unposted it, or added a class you do not teach, that is what changed.',
 	'quick-post':
 		'Storage refused this file because of who is asking. A file can only go on a notice ' +
-		'you posted yourself, while it is still up.'
+		'you posted yourself, while it is still up.',
+	thumbnail:
+		'Storage refused this picture because of who is asking. A thumbnail can only be set by ' +
+		'the teacher of record for every class this post is in. If somebody added a class you ' +
+		'do not teach, that is what changed.'
 };
 
 /**

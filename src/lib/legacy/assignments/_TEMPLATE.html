@@ -769,6 +769,38 @@ body {
          words at most, and no full stop at the end.
        - No weekday names and no British spellings, anywhere a student reads.
      =================================================================== -->
+<!-- ===================================================================
+     THE POST'S THUMBNAIL (IDEA_HTML_ASSIGNMENT_AUTHORING.md section 10d).
+     The manifest's "thumbnail" names this template. Its contents run on their
+     own, in the post's slot on the class page, in every shape a reader picks:
+     a small square tile (36 to 48px), a 16:9 picture or a short banner.
+     Inside this document a template is inert, so it changes nothing here.
+       - <html> carries data-idea-shape (tile, wide, banner) and
+         data-idea-scheme (light, dark); --idea-thumb-w and --idea-thumb-h are
+         the slot's size.
+       - --idea-pointer-x and --idea-pointer-y follow the pointer, 0 to 1.
+       - Animations pause on their own off screen, in a hidden tab, while the
+         page scrolls and for a reader who asks for reduced motion.
+       - Replace the gear and the words with this assignment's own.
+     =================================================================== -->
+<template id="idea-thumbnail">
+<style>
+  :root { --t-a: #1c4a2a; --t-b: #0b1d12; --t-ink: #9ff0a8; }
+  :root[data-idea-scheme="light"] { --t-a: #eef8f0; --t-b: #cfe9d6; --t-ink: #1d6b2c; }
+  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6%;
+       background: radial-gradient(circle at calc(var(--idea-pointer-x, .5) * 100%) calc(var(--idea-pointer-y, .5) * 100%), var(--t-a), var(--t-b) 75%);
+       color: var(--t-ink); font: 700 15px/1.2 system-ui, sans-serif; overflow: hidden; }
+  .t svg { height: 70%; aspect-ratio: 1; animation: t-spin 6s linear infinite; }
+  .t .w { display: none; }
+  :root[data-idea-shape="wide"] .t .w, :root[data-idea-shape="banner"] .t .w { display: block; }
+  :root[data-idea-pointer] .t svg { animation-duration: 2s; }
+  @keyframes t-spin { to { transform: rotate(360deg); } }
+</style>
+<div class="t">
+  <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" stroke-width="14" stroke-dasharray="11 8.9"/><circle cx="50" cy="50" r="9" fill="currentColor"/></svg>
+  <span class="w">Assignment Title</span>
+</div>
+</template>
 <script type="application/json" id="idea-manifest">
 {
   "schemaVersion": 3,
@@ -776,6 +808,7 @@ body {
   "title": "IDEA-000 Assignment 00: Assignment Title",
   "course": "IDEA-000",
   "points": 20,
+  "thumbnail": { "kind": "html", "template": "idea-thumbnail" },
   "header": [
     { "id": "hdr-student-name", "field": "student-name", "type": "text" },
     { "id": "hdr-team-name", "field": "team-name", "type": "text" },

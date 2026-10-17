@@ -11,6 +11,18 @@
 		type SectionFeed
 	} from '$lib/classroom/feed';
 	import type { ClassroomItemKind } from '$lib/classroom/classroom';
+	import PostThumbnail from '$lib/classroom/PostThumbnail.svelte';
+	import {
+		hasThumbnailMedia,
+		resolveThumbShape,
+		type ItemThumbnail,
+		type ThumbShape,
+		type ThumbShapeChoice
+	} from '$lib/classroom/thumbnail';
+	import { onMount } from 'svelte';
+	import { page } from '$app/state';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { readDeviceClassroomPreferences } from '$lib/preferences/classroom';
 	import { sectionLabelText, sectionBlockText } from '$lib/section-label';
 
 	/**
@@ -103,6 +115,56 @@
 
 	const itemHref = (section: ClassroomSection, entry: FeedEntry) =>
 		`${basePath}/${section.id}/item/${entry.item.id}`;
+
+	/*
+	 * THE SHAPE A CARD'S ROWS DRAW POST THUMBNAILS IN (ledger 0396): the
+	 * person's own Display settings choice, else the class's default, else
+	 * Tile, the class page's one rule (`resolveThumbShape`). The choice lives
+	 * in this device's classroom slot; the home page provides no classroom
+	 * store, so the slot is read once the page is in the browser (the server
+	 * cannot see it, and reading it before hydration would draw a different
+	 * page than the server sent). A surface that does provide the store (a
+	 * harness) is read through it, live.
+	 */
+	const prefStore = classroomPreferences();
+	const storePrefs = prefStore ? reactivePreferences(prefStore) : null;
+	let deviceShape = $state<ThumbShapeChoice>('class');
+	onMount(() => {
+		if (prefStore) return;
+		deviceShape = readDeviceClassroomPreferences(page.data.claims?.sub ?? null).display.thumbShape;
+	});
+	const personalShape = $derived(storePrefs ? storePrefs.current.display.thumbShape : deviceShape);
+	const shapeFor = (feed: SectionFeed): ThumbShape => resolveThumbShape(personalShape, feed.section.thumbnail_shape);
+
+	/** The body's first picture as a thumbnail row, drawn through the one slot renderer. */
+	const COVER_THUMB: ItemThumbnail = {
+		source: 'image',
+		manual: true,
+		image_key: 'cover',
+		attachment_id: null,
+		image_width: null,
+		image_height: null,
+		focal_x: 0.5,
+		focal_y: 0.5,
+		html_document_id: null,
+		interactive: false,
+		updated_at: null
+	};
+	/**
+	 * WHAT A WIDE OR BANNER SLOT DRAWS: the post's own thumbnail, else its
+	 * body's first picture (the cover this card's mark already shows in Tile),
+	 * else the generated look. One slot renderer for all three.
+	 */
+	/** A live thumbnail that declared `"interactive": true`, the class page's own test. */
+	const keepsOwnClicks = (item: FeedEntry['item']) =>
+		item.thumbnail?.source === 'html' && !!item.thumbnail.html_document_id && item.thumbnail.interactive;
+
+	function slotOf(entry: FeedEntry): { item: { id: string; thumbnail?: ItemThumbnail | null; published?: boolean; publish_at?: string | null }; src: ((item: { id: string }) => string | null) | null } {
+		if (hasThumbnailMedia(entry.item)) return { item: entry.item, src: null };
+		const cover = feedCover(entry.item);
+		if (!cover || failedCovers.has(entry.item.id)) return { item: { id: entry.item.id, thumbnail: null }, src: null };
+		return { item: { id: entry.item.id, thumbnail: COVER_THUMB }, src: () => cover.src };
+	}
 </script>
 
 {#snippet icon(kind: ClassroomItemKind)}
@@ -126,8 +188,22 @@
 	{/if}
 {/snippet}
 
-{#snippet thumb(entry: FeedEntry)}
-	{@const cover = feedCover(entry.item)}
+{#snippet thumb(entry: FeedEntry, glyphOnly = false)}
+	{@const cover = glyphOnly ? null : feedCover(entry.item)}
+	<!-- `glyphOnly`: thumbnails Off, so the mark is the kind glyph and nothing
+	     else, the cover included ("no pictures, titles only"). -->
+	{#if !glyphOnly && hasThumbnailMedia(entry.item)}
+		<!--
+			A POST WITH A THUMBNAIL OF ITS OWN (ledger 0396) shows it in the same
+			34px box the cover and the glyph use, so the row's geometry does not
+			move. `passive`: the row is the link, so an interactive HTML thumbnail
+			is mounted as a plain one here and the click is the row's. A post with
+			nothing set keeps the cover-or-glyph below, exactly as before.
+		-->
+		<div class="assignment-icon-thumb has-cover feed-post-thumb" data-testid="feed-post-thumb">
+			<PostThumbnail item={entry.item} shape="tile" glyph={entry.item.kind} label={itemTitle(entry.item)} passive />
+		</div>
+	{:else}
 	<div class="assignment-icon-thumb" class:has-cover={cover && !failedCovers.has(entry.item.id)}>
 		{#if cover && !failedCovers.has(entry.item.id)}
 			<!--
@@ -159,18 +235,63 @@
 			{@render icon(entry.item.kind)}
 		{/if}
 	</div>
+	{/if}
 {/snippet}
 
-{#snippet row(feed: SectionFeed, entry: FeedEntry)}
+{#snippet slot(entry: FeedEntry, shape: 'wide' | 'banner')}
+	{@const s = slotOf(entry)}
+	<!-- Wide and Banner (ledger 0396): the slot above the title, the class
+	     page's two stacked shapes, inside the row's own link (`passive`). -->
+	<div class="feed-slot" data-testid="feed-post-thumb">
+		<PostThumbnail item={s.item} {shape} glyph={entry.item.kind} label={itemTitle(entry.item)} imageSrc={s.src} passive />
+	</div>
+{/snippet}
+
+{#snippet rowText(feed: SectionFeed, entry: FeedEntry, shape: ThumbShape, own = false)}
 	<a
 		class="assignment-item linked feed-row"
+		class:feed-row-under={own}
 		href={itemHref(feed.section, entry)}
 		data-urgency={dueUrgency(entry, now) ?? undefined}
+		data-thumbs={shape}
 	>
-		{@render thumb(entry)}
+		{#if own}
+			<!-- The slot is above this link, keeping its own clicks. -->
+		{:else if shape === 'wide' || shape === 'banner'}
+			{@render slot(entry, shape)}
+			{#if shape === 'wide' && dueUrgency(entry, now)}
+				<!-- The deadline marker beside this post's own slot and title, not
+				     on the row's edge, which in columns is the line between two. -->
+				<span class="feed-mark" aria-hidden="true"></span>
+			{/if}
+		{:else}
+			{@render thumb(entry, shape === 'off')}
+		{/if}
 		<div class="assignment-name">{itemTitle(entry.item)}</div>
 		<span class="feed-flag tone-{reasonTone(entry.reason)}">{feedIndicator(entry, now)}</span>
 	</a>
+{/snippet}
+
+{#snippet row(feed: SectionFeed, entry: FeedEntry)}
+	{@const shape = shapeFor(feed)}
+	{#if (shape === 'wide' || shape === 'banner') && keepsOwnClicks(entry.item)}
+		<!-- AN INTERACTIVE LIVE THUMBNAIL KEEPS ITS OWN CLICKS where it is drawn
+		     big enough to have controls (the class page's rule): it sits ABOVE
+		     the row's link rather than inside it, a press on one of its own
+		     controls is its own, and a press anywhere else in it opens the post.
+		     Drawn inert inside the link, its controls would show and do nothing. -->
+		<div class="feed-own" data-thumbs={shape} data-urgency={dueUrgency(entry, now) ?? undefined}>
+			{#if shape === 'wide' && dueUrgency(entry, now)}
+				<span class="feed-mark" aria-hidden="true"></span>
+			{/if}
+			<div class="feed-slot" data-testid="feed-post-thumb">
+				<PostThumbnail item={entry.item} {shape} glyph={entry.item.kind} label={itemTitle(entry.item)} href={itemHref(feed.section, entry)} />
+			</div>
+			{@render rowText(feed, entry, shape, true)}
+		</div>
+	{:else}
+		{@render rowText(feed, entry, shape)}
+	{/if}
 {/snippet}
 
 {#if !ready}
@@ -435,6 +556,8 @@
 	 * cycle never passes through a frame the base state does not already show.
 	 */
 	@media (prefers-reduced-motion: no-preference) {
+		.feed-row[data-urgency='today'] > .feed-mark,
+		.feed-own[data-urgency='today'] > .feed-mark,
 		.feed-row[data-urgency='today'] {
 			animation: feed-due-today 2.8s ease-in-out infinite;
 		}
@@ -743,5 +866,221 @@
 		align-items: center;
 		min-height: 44px;
 		box-sizing: border-box;
+	}
+
+	/* A post's own thumbnail (ledger 0396) fills the 34px mark box exactly:
+	   the slot draws its own edge, so the box gives up its border and wash.
+	   (The box keeps its 1px border, transparent, so the row's geometry is the
+	   mark's to the pixel, and the slot fills what is inside it.) */
+	.assignment-icon-thumb.feed-post-thumb {
+		--thumb-tile: 100%;
+		--thumb-tile-r: var(--radius-control, 3px);
+		border-color: transparent;
+		background: none;
+	}
+
+	/*
+	 * WIDE AND BANNER ON A CARD'S ROWS (ledger 0396, the person's Display
+	 * settings shape reaching the home page). The slot takes the row's first
+	 * line and the title and its flag sit under it, the class page's stacked
+	 * shapes; the kind glyph steps aside, as it does there, because the slot
+	 * carries the identity. A Wide picture is held to the class list's own
+	 * pane width (26rem) so a card on a wide window stays a list a reader can
+	 * scan rather than a column of posters; a Banner is the strip across the
+	 * whole row. Tile and Off keep the 34px mark column exactly as it was.
+	 */
+	.feed-row[data-thumbs='wide'],
+	.feed-row[data-thumbs='banner'] {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas:
+			'thumb'
+			'name'
+			'flag';
+		row-gap: 0.35rem;
+		/* A row stretched to its grid line's tallest neighbour keeps its slot
+		   and its title at the top, so titles line up across the line. */
+		align-content: start;
+	}
+	.feed-slot {
+		grid-area: thumb;
+		min-width: 0;
+	}
+	.feed-row[data-thumbs='wide'] .feed-slot {
+		width: 100%;
+		max-width: 26rem;
+	}
+	@media (min-width: 700px) {
+		.feed-row[data-thumbs='wide'],
+		.feed-row[data-thumbs='banner'] {
+			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-areas:
+				'thumb thumb'
+				'name flag';
+		}
+	}
+	/*
+	 * A WIDE CARD USES ITS WIDTH. One Wide row a line left most of a desktop
+	 * card empty beside each picture (measured at 1440: a 416px slot in a
+	 * 1034px row), so the rows go into as many columns of at least 20rem as
+	 * the card holds, read left to right in the ranking's order, the way the
+	 * class page lays its units in columns; a phone keeps one. The shelf label,
+	 * an empty card's sentence and the Open class link span the whole card.
+	 */
+	.assignment-list:has(> [data-thumbs='wide']) {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+	}
+	.assignment-list:has(> [data-thumbs='wide']) > :not([data-thumbs]) {
+		grid-column: 1 / -1;
+	}
+
+	/* The slot answers the row's own hover, the way the class page's does. */
+	.feed-row:hover :global(.pt),
+	.feed-own:hover :global(.pt) {
+		outline-color: var(--hover-ink);
+	}
+	/*
+	 * An interactive live thumbnail's row: the slot above, inset by the row's
+	 * own padding (app.css: 1.5rem, 1rem at 768px and under) so it lines up
+	 * with every other row's slot, and the title's link under it carrying the
+	 * divider the whole row would carry. The link keeps its hover shift; the
+	 * slot is its own control and does not move with it.
+	 */
+	.feed-own {
+		border-bottom: 1px solid color-mix(in srgb, var(--li-mint, var(--green)) 5%, transparent);
+	}
+	.feed-own > .feed-slot {
+		padding: 0.65rem 1.5rem 0;
+	}
+	.feed-own[data-thumbs='wide'] > .feed-slot {
+		max-width: calc(26rem + 3rem);
+		box-sizing: border-box;
+	}
+	.feed-own > .feed-row-under {
+		align-content: start;
+		padding-top: 0.35rem;
+		/* Its own 44px target: on one line above 700px it measured 39.2px. */
+		min-height: 44px;
+		box-sizing: border-box;
+		border-bottom: none;
+		grid-template-areas:
+			'name'
+			'flag';
+	}
+	/* The deadline's leading-edge marker runs down the whole row, slot
+	   included, so it is the wrapper's here rather than the title link's (the
+	   static marks only: this rare row does not breathe). */
+	.feed-own[data-urgency='imminent'] {
+		box-shadow: inset 3px 0 0 -1px color-mix(in srgb, var(--cyan) 45%, transparent);
+	}
+	.feed-own[data-urgency='today'] {
+		box-shadow: inset 3px 0 0 0 var(--cyan);
+	}
+	.feed-own[data-urgency='overdue'] {
+		box-shadow: inset 3px 0 0 0 var(--amber);
+	}
+	.feed-own > .feed-row {
+		box-shadow: none;
+		animation: none;
+	}
+	@media (max-width: 768px) {
+		.feed-own > .feed-slot {
+			padding-inline: 1rem;
+		}
+		.feed-own[data-thumbs='wide'] > .feed-slot {
+			max-width: calc(26rem + 2rem);
+		}
+	}
+	@media (min-width: 700px) {
+		.feed-own > .feed-row-under {
+			grid-template-areas: 'name flag';
+		}
+	}
+
+	/*
+	 * AN EXPANDED CARD SHOWS EVERY ROW AND ITS OPEN CLASS LINK, IN EVERY SHAPE
+	 * (ledger 0396, review of the polish round). app.css caps
+	 * `.legacy-index .assignment-list` at 1200px with `overflow: hidden` so the
+	 * fold has a height to ease from, which was harmless while every row was a
+	 * 34px mark. A Wide row is about 250px at 375 and a Banner row about 133px,
+	 * so the cap clipped whole posts and the Open class link (measured: a full
+	 * card in Wide at 375 was 1200 of 2349px, five rows and the link out of
+	 * reach), and `hidden`, being a scroll container, let a focus or a
+	 * `scrollIntoView` onto the link scroll the list inside itself and strand
+	 * the rows at its top. So an open card's list has no ceiling and clips
+	 * rather than hides (`clip` has no scroll position to get stuck at), and
+	 * the fold eases from the list's real height: `interpolate-size` lets
+	 * `max-height` move between `max-content` and 0, and it sits on the list in
+	 * BOTH states because a transition reads it from the style it moves to. A
+	 * browser without it folds at once (`max-content` cannot be interpolated
+	 * there), which costs a 0.35s ease and never a row.
+	 */
+	.feed-card > .assignment-list {
+		interpolate-size: allow-keywords;
+	}
+	.feed-card:not(.collapsed) > .assignment-list {
+		max-height: none;
+		max-height: max-content;
+		overflow: hidden;
+		overflow: clip;
+	}
+
+	/*
+	 * A WIDE ROW'S DEADLINE MARKER HUGS ITS OWN POST (ledger 0396, review of
+	 * the polish round). On a list row the inset marker runs down the row's
+	 * leading edge, which is the card's edge; once Wide lays the rows in
+	 * columns, a row's leading edge is the line between two columns, so the
+	 * third column's marker read as a rule belonging to the second. In Wide the
+	 * marker is its own element instead (`.feed-mark`, a real node: Svelte
+	 * prunes a scoped pseudo-element), a grid item spanning the slot, the title
+	 * and the flag, sitting 4px from the post's own left edge in the row's
+	 * padding. It follows the row's hover shift because it is in the row's
+	 * grid, and it breathes on the same keyframe as the list marker
+	 * (`feed-due-today`, in the reduced-motion block above). The row itself
+	 * draws no marker in Wide.
+	 */
+	.feed-row[data-thumbs='wide'][data-urgency],
+	.feed-own[data-thumbs='wide'][data-urgency] {
+		box-shadow: none;
+		animation: none;
+	}
+	.feed-mark {
+		grid-column: 1;
+		grid-row: 1 / -1;
+		justify-self: start;
+		align-self: stretch;
+		width: 7px;
+		margin-left: -11px;
+		pointer-events: none;
+	}
+	.feed-row[data-urgency='imminent'] > .feed-mark,
+	.feed-own[data-urgency='imminent'] > .feed-mark {
+		box-shadow: inset 3px 0 0 -1px color-mix(in srgb, var(--cyan) 45%, transparent);
+	}
+	.feed-row[data-urgency='today'] > .feed-mark,
+	.feed-own[data-urgency='today'] > .feed-mark {
+		box-shadow: inset 3px 0 0 0 var(--cyan);
+	}
+	.feed-row[data-urgency='overdue'] > .feed-mark,
+	.feed-own[data-urgency='overdue'] > .feed-mark {
+		box-shadow: inset 3px 0 0 0 var(--amber);
+	}
+	/* The interactive thumbnail's row is a block, not the row's grid: the
+	   marker is placed against the wrapper, from the slot's top to the title
+	   link's foot, at the same 4px from the slot as every other Wide row. */
+	.feed-own[data-thumbs='wide'] {
+		position: relative;
+	}
+	.feed-own > .feed-mark {
+		position: absolute;
+		top: 0.65rem;
+		bottom: 0.65rem;
+		left: calc(1.5rem - 11px);
+		margin-left: 0;
+	}
+	@media (max-width: 768px) {
+		.feed-own > .feed-mark {
+			left: calc(1rem - 11px);
+		}
 	}
 </style>

@@ -87,6 +87,7 @@ import { deckUploadSizeIssue, normalizeDeckRow, type ClassroomDeck, type DeckTra
 import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError } from './deck-upload';
 import { uploadClassroomFile } from './file-upload';
 import { holdDeployReload } from '$lib/shell/deploy-safety';
+import { withItemThumbnail } from './thumbnail';
 import {
 	RENAME_REFUSALS,
 	withItemLayout,
@@ -136,6 +137,14 @@ export async function fetchLinkPreviewClient(url: string): Promise<LinkPreview |
 
 export const SECTION_SELECT =
 	'id, course_id, label, block, teacher_email, active, classroom_courses(id, code, title, active)';
+
+/**
+ * SECTION_SELECT plus 0268's class default thumbnail shape (ledger 0396), the
+ * rung a read takes first only where it draws post thumbnails (the home page's
+ * class cards, through `loadClassroomWork`'s `thumbShapes`). A database without
+ * 0268 refuses the column and the read retries on SECTION_SELECT.
+ */
+export const SECTION_SELECT_THUMBS = `${SECTION_SELECT}, thumbnail_shape`;
 
 /**
  * One canonical item and everything hanging off it. `classroom_postings` is
@@ -208,6 +217,21 @@ export const ITEM_SELECT_UNITS = `${ITEM_SELECT_SCHEDULED}, unit_id`;
 export const ITEM_SELECT_LAYOUT = `${ITEM_SELECT_UNITS}, files_placement, links_placement`;
 
 /**
+ * ITEM_SELECT_LAYOUT plus 0268's thumbnail -- the widest rung (ledger 0396).
+ *
+ * An EMBED of the one-to-one `classroom_item_thumbnails` row rather than
+ * columns on the item, and its own rung for the reason every rung above has
+ * one: 0268 is applied separately from the deploy, and PostgREST refuses the
+ * WHOLE select over one unknown embed (PGRST200). Degrading past it costs a
+ * read only the thumbnail: `withItemThumbnail` leaves `thumbnail` undefined,
+ * every slot draws the generated identity, and the editor says thumbnails are
+ * not switched on rather than offering a save that would be refused.
+ */
+export const ITEM_SELECT_THUMBS =
+	`${ITEM_SELECT_LAYOUT}, classroom_item_thumbnails(source, manual, image_key, attachment_id, ` +
+	'image_width, image_height, focal_x, focal_y, html_document_id, interactive, updated_at)';
+
+/**
  * Run an item query with the rich body if the backend has it, without if not.
  *
  * Takes a FUNCTION OF THE SELECT STRING rather than a finished query because
@@ -220,6 +244,8 @@ export const ITEM_SELECT_LAYOUT = `${ITEM_SELECT_UNITS}, files_placement, links_
 export async function selectItemsWithDoc<T extends { error: { message?: string } | null }>(
 	run: (select: string) => PromiseLike<T>
 ): Promise<T> {
+	const thumbs = await run(ITEM_SELECT_THUMBS);
+	if (!thumbs.error) return thumbs;
 	const layout = await run(ITEM_SELECT_LAYOUT);
 	if (!layout.error) return layout;
 	const units = await run(ITEM_SELECT_UNITS);
@@ -436,7 +462,7 @@ export async function itemsForSection(
 		// carried them answered, so an older read stays "could not tell" rather
 		// than claiming the default as a fact.
 		items: ((data ?? []) as unknown as Record<string, unknown>[]).map((row) =>
-			withItemLayout(normalizeItemRow(row), row)
+			withItemThumbnail(withItemLayout(normalizeItemRow(row), row), row)
 		),
 		error
 	};
@@ -457,7 +483,7 @@ export async function itemById(
 	);
 	if (!data) return null;
 	const row = data as unknown as Record<string, unknown>;
-	return withItemLayout(normalizeItemRow(row), row);
+	return withItemThumbnail(withItemLayout(normalizeItemRow(row), row), row);
 }
 
 /**

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ClassThemeSettings from '$lib/classroom/ClassThemeSettings.svelte';
+	import ClassThumbnailSettings from '$lib/classroom/ClassThumbnailSettings.svelte';
+	import type { SectionThumbShapeWriter, ThumbShape } from '$lib/classroom/thumbnail';
 	import type { ClassThemeTransports } from '$lib/classroom/class-theme';
 	import {
 		sectionDeleteBlockedLabel,
@@ -32,7 +34,9 @@
 		transports,
 		onchanged = null,
 		ondeleted = null,
-		themeTransports = null
+		themeTransports = null,
+		thumbShape = null,
+		setThumbShape = null
 	}: {
 		section: ClassroomSection;
 		/**
@@ -40,6 +44,13 @@
 		 * card; a deployment without 0225 removes it too, inside the card.
 		 */
 		themeTransports?: ClassThemeTransports | null;
+		/**
+		 * The class's default post-thumbnail shape (ledger 0396) and its writer.
+		 * Either absent, or a read that says thumbnails are not there yet,
+		 * removes the card.
+		 */
+		thumbShape?: { ready: boolean; shape: ThumbShape | null } | null;
+		setThumbShape?: SectionThumbShapeWriter | null;
 		transports: Pick<ClassroomPeopleTransports, 'upsertSection' | 'setSectionActive' | 'deleteSection'>;
 		onchanged?: (() => void | Promise<void>) | null;
 		/**
@@ -295,6 +306,10 @@
 				</div>
 			{/if}
 		</section>
+
+		{#if thumbShape && setThumbShape}
+			<ClassThumbnailSettings sectionId={section.id} current={thumbShape} write={setThumbShape} {onchanged} />
+		{/if}
 
 		{#if themeTransports && section.course_id}
 			<ClassThemeSettings

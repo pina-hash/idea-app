@@ -265,7 +265,14 @@ describe('the classroom schema validates on read', () => {
 			commentBank: { entries: ['kept by the store, not by the reader'] }
 		});
 		expect(p).toEqual({
-			display: { density: 'comfortable', navWidth: null, wallClock: 'digits', bannerMotion: 'moving' },
+			display: {
+				density: 'comfortable',
+				navWidth: null,
+				wallClock: 'digits',
+				bannerMotion: 'moving',
+				// Absent from the stored value (ledger 0396): the class's own default.
+				thumbShape: 'class'
+			},
 			classView: { opensOn: 'missing', todoOpensOn: 'assigned' },
 			grading: { advanceAfterReturn: false, gradesOrder: 'due' },
 			guidance: { retiredHints: ['open-palette'], tours: { teacher: 'finished', student: 'unseen' } },

@@ -688,12 +688,233 @@ ${fieldBoxReporter()}
 </html>
 `;
 
+/**
+ * THE LIVE THUMBNAIL FIXTURES (ledger 0396, report a6a037f3): the worksheet's
+ * manifest and fields, plus a manifest `thumbnail` key and the
+ * `<template id="idea-thumbnail">` it names, served by
+ * `/hx/<id>/thumbnail` inside the thumbnail shell. Dev only.
+ *
+ *   thumb-gear         CSS animation, theme- and shape-aware, follows the
+ *                      pointer the class page forwards over its overlay
+ *   thumb-canvas       a requestAnimationFrame canvas loop, which the shim
+ *                      holds while paused
+ *   thumb-interactive  `"interactive": true`: its own buttons keep their
+ *                      clicks, and a click anywhere else asks to open the post
+ *   thumb-gear-quiet,  the first two with no reports, for frame timing
+ *   thumb-canvas-quiet
+ *   thumb-notemplate   a manifest naming `cam-thumbnail` over a document that
+ *                      carries only `idea-thumbnail`, the typo an author
+ *                      makes: its thumbnail route answers the 404, and 0268
+ *                      records no live thumbnail for it
+ *
+ * EACH ONE REPORTS WHAT IT RECEIVED to the page with a `harness:` message (the
+ * class page ignores any type it does not know), because the frame is an
+ * opaque origin a test cannot read into: that report is how the browser pass
+ * proves the bridge delivered a resize, a theme change and a pause.
+ */
+function thumbFixtureHtml(
+	id: string,
+	title: string,
+	thumbnail: Record<string, unknown>,
+	template: string,
+	report = true
+): string {
+	const manifest = { ...WORKSHEET_MANIFEST, title, thumbnail };
+	return [
+		'<!doctype html>',
+		'<html lang="en">',
+		'<head>',
+		'<meta charset="utf-8">',
+		'<meta name="viewport" content="width=device-width, initial-scale=1">',
+		'<title>' + title + '</title>',
+		'<script type="application/json" id="idea-manifest">',
+		manifestJson(manifest),
+		'</script>',
+		'<style>body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1rem; background: #fff; color: #111; }</style>',
+		'</head>',
+		'<body>',
+		'<h1>' + title + '</h1>',
+		'<label>Team name <input type="text" data-field="teamName"></label>',
+		'<label>What did your team change, and why? <textarea data-field="reflection"></textarea></label>',
+		'<label><input type="checkbox" data-field="checkedOff"> Bench cleared</label>',
+		'<template id="idea-thumbnail">',
+		template,
+		report ? thumbReporter(id) : '',
+		'</template>',
+		'<script>',
+		bridgeClient(),
+		'	announce();',
+		'	reportHeight();',
+		'</script>',
+		'</body>',
+		'</html>',
+		''
+	].join('\n');
+}
+
+/** The `harness:` report a thumbnail fixture sends on every state it is told. */
+function thumbReporter(id: string): string {
+	return [
+		'<script>',
+		'(function () {',
+		"	var DOC = '" + id + "';",
+		/* `layout` is what the thumbnail actually drew after it was told, read
+		   off its own boxes (the gear's laid-out height, which its spin does not
+		   move, and whether its label shows), so a pass can prove it re-laid
+		   itself out rather than merely heard. */
+		"	function layout() { var g = document.querySelector('.tg svg'), w = document.querySelector('.tg .w'); return g ? { gearH: Math.round(parseFloat(getComputedStyle(g).height)), label: !!(w && w.getClientRects().length) } : null; }",
+		"	function tell(kind, extra) { try { parent.postMessage({ type: 'harness:thumb', doc: DOC, kind: kind, state: window.ideaThumbnail || null, extra: extra || null, layout: layout() }, '*'); } catch (e) {} }",
+		"	addEventListener('idea:thumbnail', function () { tell('state'); });",
+		"	addEventListener('idea:pointer', function (e) { if (e.detail && e.detail.inside) tell('pointer', e.detail); });",
+		'})();',
+		'</script>'
+	].join('\n');
+}
+
+const THUMB_GEAR_TEMPLATE = [
+	'<style>',
+	'	:root { --tg-a: #1c4a2a; --tg-b: #0b1d12; --tg-ink: #9ff0a8; --tg-ink2: #e8c86a; }',
+	'	:root[data-idea-scheme="light"] { --tg-a: #f2fbf3; --tg-b: #cfead5; --tg-ink: #1d6b2c; --tg-ink2: #7a5208; }',
+	'	.tg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 4%; overflow: hidden;',
+	'		background: radial-gradient(circle at calc(var(--idea-pointer-x, 0.5) * 100%) calc(var(--idea-pointer-y, 0.5) * 100%), var(--tg-a), var(--tg-b) 75%);',
+	'		color: var(--tg-ink); font: 700 15px/1.15 system-ui, sans-serif; }',
+	'	:root[data-idea-shape="banner"] .tg { justify-content: flex-start; padding-left: 4%; }',
+	'	.tg svg { height: 74%; aspect-ratio: 1; flex: none; animation: tg-spin 6s linear infinite; }',
+	'	.tg svg.small { height: 46%; margin-left: calc(-0.12 * var(--idea-thumb-h, 48px)); color: var(--tg-ink2); animation-duration: 3.6s; animation-direction: reverse; }',
+	'	:root[data-idea-pointer] .tg svg { animation-duration: 2s; }',
+	'	:root[data-idea-pointer] .tg svg.small { animation-duration: 1.2s; }',
+	'	.tg .w { display: none; margin-left: 3%; }',
+	'	:root[data-idea-shape="wide"] .tg .w, :root[data-idea-shape="banner"] .tg .w { display: block; }',
+	'	:root[data-idea-shape="wide"] .tg { flex-direction: column; }',
+	'	:root[data-idea-shape="wide"] .tg svg { height: 52%; }',
+	'	:root[data-idea-shape="wide"] .tg svg.small { display: none; }',
+	'	@keyframes tg-spin { to { transform: rotate(360deg); } }',
+	'</style>',
+	'<div class="tg">',
+	'	<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" stroke-width="14" stroke-dasharray="11 8.9"/><circle cx="50" cy="50" r="26" fill="none" stroke="currentColor" stroke-width="7"/><circle cx="50" cy="50" r="7" fill="currentColor"/></svg>',
+	'	<svg class="small" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" stroke-width="16" stroke-dasharray="13.3 10.6"/><circle cx="50" cy="50" r="10" fill="currentColor"/></svg>',
+	'	<span class="w">Gear ratios</span>',
+	'</div>'
+].join('\n');
+
+const thumbCanvasTemplate = (report: boolean): string => [
+	'<style> .tc { position: absolute; inset: 0; display: block; width: 100%; height: 100%; } </style>',
+	'<canvas class="tc" id="tc" aria-hidden="true"></canvas>',
+	'<script>',
+	'(function () {',
+	"	var c = document.getElementById('tc');",
+	"	var ctx = c.getContext('2d');",
+	'	var frames = 0, windowStart = 0, last = 0, longest = 0;',
+	// Only a real change of size reallocates the canvas: every state message
+	// (a pause, a theme) fires `idea:thumbnail`, and a reallocation per pause
+	// is work a scrolling page would pay for in every frame on screen.
+	'	function size() {',
+	'		var d = Math.min(2, window.devicePixelRatio || 1);',
+	'		var w = Math.max(1, Math.round(window.innerWidth * d)), h = Math.max(1, Math.round(window.innerHeight * d));',
+	'		if (c.width !== w) c.width = w;',
+	'		if (c.height !== h) c.height = h;',
+	'	}',
+	"	addEventListener('resize', size);",
+	"	addEventListener('idea:thumbnail', size);",
+	'	size();',
+	'	function draw(now) {',
+	'		if (!windowStart) windowStart = now;',
+	'		if (last) longest = Math.max(longest, now - last);',
+	'		last = now;',
+	'		frames++;',
+	"		var light = document.documentElement.getAttribute('data-idea-scheme') === 'light';",
+	'		var w = c.width, h = c.height, r = Math.min(w, h) * 0.38, a = now / 900;',
+	"		ctx.fillStyle = light ? '#eef3fb' : '#0e1726';",
+	'		ctx.fillRect(0, 0, w, h);',
+	'		ctx.save();',
+	'		ctx.translate(w / 2, h / 2);',
+	'		ctx.lineCap = "round";',
+	'		for (var i = 0; i < 12; i++) {',
+	'			var t = a + (i * Math.PI) / 6;',
+	"			ctx.strokeStyle = 'hsla(' + (200 + i * 6) + ', 80%, ' + (light ? 38 : 66) + '%, ' + (0.35 + 0.65 * ((i + 1) / 12)) + ')';",
+	'			ctx.lineWidth = Math.max(1.5, r * 0.12);',
+	'			ctx.beginPath();',
+	'			ctx.moveTo(Math.cos(t) * r * 0.35, Math.sin(t) * r * 0.35);',
+	'			ctx.lineTo(Math.cos(t) * r, Math.sin(t) * r);',
+	'			ctx.stroke();',
+	'		}',
+	'		ctx.restore();',
+	'		if (now - windowStart >= 1000) {',
+	report
+		? "			try { parent.postMessage({ type: 'harness:fps', doc: 'thumb-canvas', fps: Math.round((frames * 1000) / (now - windowStart)), longest: Math.round(longest) }, '*'); } catch (e) {}"
+		: '',
+	'			frames = 0; windowStart = now; longest = 0;',
+	'		}',
+	'		requestAnimationFrame(draw);',
+	'	}',
+	'	requestAnimationFrame(draw);',
+	'})();',
+	'</script>'
+].join('\n');
+
+const THUMB_INTERACTIVE_TEMPLATE = [
+	'<style>',
+	'	:root { --ti-bg: #241a3a; --ti-ink: #d9ccff; --ti-key: #3a2d5c; }',
+	'	:root[data-idea-scheme="light"] { --ti-bg: #f1ecff; --ti-ink: #3d2a7a; --ti-key: #ffffff; }',
+	'	.ti { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--ti-bg); color: var(--ti-ink); font: 700 14px/1 system-ui, sans-serif; }',
+	'	.ti button { min-width: 32px; min-height: 32px; border-radius: 6px; border: 1px solid currentColor; background: var(--ti-key); color: inherit; font: inherit; cursor: pointer; }',
+	'	.ti output { min-width: 2ch; text-align: center; }',
+	'	.ti .unit { font-size: 0.8em; font-weight: 600; }',
+	/* AUTHORING 10d: a control too small to press in a Tile is shown only in
+	   Wide and Banner. In a Tile the count is drawn and no control is, so a
+	   press there is on nothing the thumbnail handles and opens the post. */
+	'	:root[data-idea-shape="tile"] .ti { flex-direction: column; gap: 0; font-size: 13px; line-height: 1.05; }',
+	'	:root[data-idea-shape="tile"] .ti button { display: none; }',
+	'	:root[data-idea-shape="tile"] .ti .unit { font-size: 9px; }',
+	'</style>',
+	'<div class="ti" id="ti">',
+	'	<button type="button" id="ti-down" aria-label="Fewer teeth">-</button>',
+	'	<output id="ti-n">12</output>',
+	'	<span class="unit">teeth</span>',
+	'	<button type="button" id="ti-up" aria-label="More teeth">+</button>',
+	'</div>',
+	'<script>',
+	'(function () {',
+	'	var n = 12;',
+	"	function show() { document.getElementById('ti-n').textContent = String(n); try { parent.postMessage({ type: 'harness:interactive', doc: 'thumb-interactive', n: n }, '*'); } catch (e) {} }",
+	"	document.getElementById('ti-up').addEventListener('click', function () { n++; show(); });",
+	"	document.getElementById('ti-down').addEventListener('click', function () { n = Math.max(1, n - 1); show(); });",
+	'})();',
+	'</script>'
+].join('\n');
+
+const THUMB_GEAR_HTML = thumbFixtureHtml('thumb-gear', 'Gear ratios (live thumbnail)', { kind: 'html', template: 'idea-thumbnail' }, THUMB_GEAR_TEMPLATE);
+const THUMB_CANVAS_HTML = thumbFixtureHtml('thumb-canvas', 'Spokes (canvas thumbnail)', { kind: 'html', template: 'idea-thumbnail' }, thumbCanvasTemplate(true));
+/* The same two thumbnails with no `harness:` reports, for frame timing: a
+   report per state change is the harness measuring itself, and a real
+   thumbnail sends nothing back but its one `idea:thumb-ready`. */
+const THUMB_GEAR_QUIET_HTML = thumbFixtureHtml('thumb-gear-quiet', 'Gear ratios (live thumbnail)', { kind: 'html', template: 'idea-thumbnail' }, THUMB_GEAR_TEMPLATE, false);
+const THUMB_CANVAS_QUIET_HTML = thumbFixtureHtml('thumb-canvas-quiet', 'Spokes (canvas thumbnail)', { kind: 'html', template: 'idea-thumbnail' }, thumbCanvasTemplate(false), false);
+const THUMB_NOTEMPLATE_HTML = thumbFixtureHtml(
+	'thumb-notemplate',
+	'Cam profiles (its manifest names a template it lacks)',
+	{ kind: 'html', template: 'cam-thumbnail' },
+	THUMB_GEAR_TEMPLATE
+);
+const THUMB_INTERACTIVE_HTML = thumbFixtureHtml(
+	'thumb-interactive',
+	'Tooth counter (interactive thumbnail)',
+	{ kind: 'html', template: 'idea-thumbnail', interactive: true },
+	THUMB_INTERACTIVE_TEMPLATE
+);
+
 const DOCUMENTS: Record<string, HxDocument> = {
 	worksheet: { html: WORKSHEET_HTML, devOnly: false, fieldToBlockId: WORKSHEET_FIELDS },
 	probe: { html: PROBE_HTML, devOnly: true, fieldToBlockId: PROBE_FIELDS },
 	video: { html: VIDEO_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS },
 	photo: { html: PHOTO_HTML, devOnly: true, fieldToBlockId: PHOTO_FIELDS },
-	feedback: { html: FEEDBACK_HTML, devOnly: true, fieldToBlockId: PHOTO_FIELDS }
+	feedback: { html: FEEDBACK_HTML, devOnly: true, fieldToBlockId: PHOTO_FIELDS },
+	'thumb-gear': { html: THUMB_GEAR_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS },
+	'thumb-canvas': { html: THUMB_CANVAS_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS },
+	'thumb-interactive': { html: THUMB_INTERACTIVE_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS },
+	'thumb-gear-quiet': { html: THUMB_GEAR_QUIET_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS },
+	'thumb-canvas-quiet': { html: THUMB_CANVAS_QUIET_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS },
+	'thumb-notemplate': { html: THUMB_NOTEMPLATE_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS }
 };
 
 /** Every document id this module can answer for, in a stable order. */

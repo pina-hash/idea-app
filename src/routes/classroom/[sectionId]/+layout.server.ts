@@ -25,6 +25,7 @@ import {
 } from '$lib/classroom/student-work';
 import { loadPostedTeams } from '$lib/classroom/class-teams';
 import { loadQuickPosts } from '$lib/classroom/quick-posts';
+import { loadSectionThumbShape } from '$lib/classroom/thumbnail-transports';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import type { LayoutServerLoad } from './$types';
 
@@ -256,7 +257,7 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	 */
 	const teamsRead = loadPostedTeams(supabase, params.sectionId);
 
-	const [{ data: manages }, content, checkInRows, hallPass, songQueue, layoutReady, quickPosts] = await Promise.all([
+	const [{ data: manages }, content, checkInRows, hallPass, songQueue, layoutReady, quickPosts, thumbShape] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
 		itemsForSection(supabase, params.sectionId),
 		sectionCheckIns(supabase, params.sectionId),
@@ -273,7 +274,10 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		// 0230's class notices (ledger 0360, R22), in the same round. Null for
 		// any failure, the function missing included, removes the notices and
 		// the Quick post key rather than the class page.
-		loadQuickPosts(supabase, params.sectionId)
+		loadQuickPosts(supabase, params.sectionId),
+		// 0268's class default shape (ledger 0396), its one scalar column as the
+		// probe: `ready` false removes every thumbnail control, never the page.
+		loadSectionThumbShape(supabase, params.sectionId)
 	]);
 
 	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
@@ -567,6 +571,12 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 * refused; the item page asks its own read (`itemLayoutKnown`) instead,
 		 * because that read already answers the question for free.
 		 */
-		layoutReady
+		layoutReady,
+		/**
+		 * 0268 (ledger 0396): the class's default thumbnail shape, and whether
+		 * this database can hold a thumbnail at all. The layout hands the
+		 * thumbnail editor its transports only when `ready`.
+		 */
+		thumbShape
 	};
 };

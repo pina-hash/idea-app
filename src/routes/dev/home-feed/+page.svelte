@@ -1,8 +1,11 @@
 <script lang="ts">
 	import ClassroomFeed from '$lib/classroom/ClassroomFeed.svelte';
+	import { page } from '$app/state';
+	import { browser } from '$app/environment';
+	import { classroomLocalKey } from '$lib/preferences/classroom';
+	import { isThumbShape, isThumbShapeChoice } from '$lib/classroom/thumbnail';
 	import { buildFeed, type FeedSubmission } from '$lib/classroom/feed';
 	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
-	import { page } from '$app/state';
 	import { toggleLog } from './toggle-log';
 
 	/**
@@ -149,6 +152,57 @@
 			published: false
 		})
 	];
+
+	/* `?thumbs=1` (ledger 0396): three rows carry a post thumbnail of their own
+	   -- a picture, and two live HTML thumbnails from the /hx dev fixtures -- in
+	   the row's 34px mark box. Without it the fixture is exactly as it was. */
+	if (page.url.searchParams.get('thumbs') === '1') {
+		const t = (over: Record<string, unknown>) => ({
+			source: 'image', manual: true, image_key: null, attachment_id: null, image_width: 800, image_height: 600,
+			focal_x: 0.7, focal_y: 0.6, html_document_id: null, interactive: false, updated_at: '2026-10-15T09:00:00.000Z', ...over
+		});
+		const set = (id: string, thumbnail: Record<string, unknown>) => {
+			const it = items.find((i) => i.id === id);
+			if (it) Object.assign(it, { thumbnail });
+		};
+		set('i-overdue', t({ image_key: 'i-overdue/bench.png' }));
+		set('i-soon', t({ source: 'html', manual: false, html_document_id: 'thumb-gear' }));
+		set('i-unsub', t({ source: 'html', manual: false, html_document_id: 'thumb-interactive', interactive: true }));
+		// A post with no thumbnail but a picture in its body: the cover a Tile
+		// mark shows, and what a Wide or Banner slot draws for it.
+		const returned = items.find((i) => i.id === 'i-returned');
+		if (returned) Object.assign(returned, { body_doc: [{ type: 'img', src: '/IDEA/icon-512.png', alt: 'The badge' }] });
+	}
+
+	/* `&mine=off|tile|wide|banner|class` (ledger 0396): the person's Display
+	   settings shape, written into THIS DEVICE'S classroom slot for a
+	   signed-out viewer before the feed mounts, which is exactly where the home
+	   page reads it from (no classroom store is provided here, as on the real
+	   page). With no value the slot is cleared, so a run starts from the
+	   default. `&classShape=<shape>`: Period 1's teacher chose a class default. */
+	if (browser) {
+		const mine = page.url.searchParams.get('mine');
+		try {
+			if (isThumbShapeChoice(mine)) {
+				localStorage.setItem(classroomLocalKey(null), JSON.stringify({ display: { thumbShape: mine } }));
+			} else {
+				localStorage.removeItem(classroomLocalKey(null));
+			}
+		} catch {
+			/* storage blocked: the default */
+		}
+	}
+	/* `&full=1` (ledger 0396): a third reference material in Period 1, so its
+	   card holds the most a home card ever shows (six rows to act on and three
+	   reference rows, `URGENT_LIMIT` and `STANDING_LIMIT`), the case a shape
+	   with tall rows has to fit whole. */
+	if (page.url.searchParams.get('full') === '1') {
+		items.push(
+			item({ id: 'i-glossary', section: p1.id, kind: 'material', title: 'Bench tools glossary', points: null })
+		);
+	}
+	const classShape = page.url.searchParams.get('classShape');
+	if (isThumbShape(classShape)) Object.assign(p1, { thumbnail_shape: classShape });
 
 	const submissions: FeedSubmission[] = [
 		// Handed back and never opened -> "Returned".

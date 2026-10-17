@@ -275,6 +275,8 @@ const HTML_EXEMPT: Record<string, string> = {
 		"a student's own build, the frame src on the apps origin: the byte rule and the origin split again, and the page framing it carries the control",
 	'src/routes/hx/[docId]/+server.ts':
 		'a ported HTML assignment document, framed by the item page whose chrome already carries the control; its bytes are the author\'s and its CSP sandboxes it',
+	'src/routes/hx/[docId]/thumbnail/+server.ts':
+		"a ported HTML assignment's live thumbnail, framed inside a post's thumbnail slot on the class page, which carries the control; its bytes are the author's template and the same /hx/ CSP sandboxes it (ledger 0396)",
 	'src/routes/certifications/lesson/[lessonId]/+server.ts':
 		"a certification lesson document, framed by the certification page whose shell already carries the control; its bytes are the admin's and the same /hx/ CSP sandboxes it (DECISIONS D3)",
 	'src/routes/foundry/preview/[appId]/[versionId]/[...path]/+server.ts':

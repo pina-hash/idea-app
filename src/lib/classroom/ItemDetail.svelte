@@ -172,6 +172,7 @@
 		type HtmlAssignmentData
 	} from '$lib/classroom/html-assignment/mount';
 	import { env as publicEnv } from '$env/dynamic/public';
+	import type { ThumbnailTransports } from '$lib/classroom/thumbnail';
 	import SpecTextEditor from '$lib/classroom/SpecTextEditor.svelte';
 	import { uploadClassroomFile } from '$lib/classroom/file-upload';
 	import { checkInDuplicateRefusal } from '$lib/classroom/nav';
@@ -298,6 +299,7 @@
 		checkInTransports = null,
 		notebookCapture = null,
 		layoutTransports = null,
+		thumbnailTransports = null,
 		htmlAssignment = null,
 		htmlAnswers = null,
 		feedback = null,
@@ -391,6 +393,8 @@
 		 * control is never offered whose save would be refused.
 		 */
 		layoutTransports?: ClassroomLayoutTransports | null;
+		/** The edit form's thumbnail writes (0268, ledger 0396); absence removes the thumbnail editor. */
+		thumbnailTransports?: ThumbnailTransports | null;
 		/**
 		 * THE PORTED DOCUMENT (0195), when this item is one and the load could
 		 * read it. Null covers three different things -- a v1 spec assignment, a
@@ -1626,6 +1630,7 @@
 								{instructorAttachmentsEnabled}
 								screen
 								{layoutTransports}
+								{thumbnailTransports}
 								{htmlAssignmentTransports}
 								{htmlAssignmentAdmin}
 								{htmlAssignment}

@@ -363,7 +363,8 @@ describe('no client code branches on File.type', () => {
 			'src/lib/classroom/FileUploadPanel.svelte',
 			'src/lib/classroom/ContentComposer.svelte',
 			'src/lib/classroom/AssignmentEngine.svelte',
-			'src/lib/classroom/SpecRenderer.svelte'
+			'src/lib/classroom/SpecRenderer.svelte',
+			'src/lib/classroom/ThumbnailEditor.svelte'
 		];
 		let inputs = 0;
 		for (const path of surfaces) {
@@ -379,6 +380,12 @@ describe('no client code branches on File.type', () => {
 				// its own testid rather than by "contains .zip", so a new picker
 				// cannot inherit the exemption by accident.
 				if (tag.includes('data-testid="staged-deck-input"')) continue;
+				// THE THUMBNAIL PICKER IS NOT AN ATTACHMENT PICKER EITHER (ledger
+				// 0396): a thumbnail is a picture the class page draws, so
+				// `image/*` says what the feature consumes, the deck's argument.
+				// The post's files still go through FileUploadPanel, unfiltered.
+				// Exempt by its own testid, for the same reason.
+				if (tag.includes('data-testid="thumbnail-upload-input"')) continue;
 				// THE ONE EXEMPTION, and it is narrow: a camera button. `capture`
 				// is what makes a phone open its camera, and an unfiltered capture
 				// input opens a file browser instead -- so it needs `image/*` to

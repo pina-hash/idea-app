@@ -1,6 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { normalizeItemRow } from '$lib/classroom/classroom';
 import { withItemLayout } from '$lib/classroom/attachments';
+import { withItemThumbnail } from '$lib/classroom/thumbnail';
 import {
 	selectItemsWithDoc,
 	loadItemDeck,
@@ -226,7 +227,11 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		 * when the read could not tell (a pre-0193 project), and the page reads
 		 * absence as "offer no layout controls" rather than as the default.
 		 */
-		item: withItemLayout(item, itemRow as unknown as Record<string, unknown>),
+		// And its thumbnail (0268), the same way, for the editor's current choice.
+		item: withItemThumbnail(
+			withItemLayout(item, itemRow as unknown as Record<string, unknown>),
+			itemRow as unknown as Record<string, unknown>
+		),
 		deck,
 		engine,
 		instructorCopy,

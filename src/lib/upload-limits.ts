@@ -226,6 +226,26 @@ const CEILINGS = [
 	},
 	{
 		/**
+		 * A post's thumbnail picture (ledger 0396, 0268): a picture uploaded to
+		 * stand for a post on the class page, under the post's own prefix in
+		 * `classroom-attachments`. Deliberately TIGHTER than the bucket it shares
+		 * with the post's files: a thumbnail is drawn thirty times on one page,
+		 * so the editor redraws anything large to 1600px before it is sent
+		 * (`prepareThumbnailFile`) and refuses what is still over this, and the
+		 * thumbnail sign route refuses it again before minting a URL.
+		 */
+		id: 'classroom-thumbnail',
+		label: 'a post thumbnail picture',
+		bucket: 'classroom-attachments',
+		maxBytes: 10 * 1024 * 1024,
+		guards: ['browser', 'route', 'bucket'],
+		statedBy:
+			'THUMBNAIL_UPLOAD_MAX_BYTES in $lib/classroom/thumbnail; prepareThumbnailFile in ' +
+			'$lib/classroom/thumbnail-image redraws a larger picture and the thumbnail sign route refuses above it',
+		advice: 'Pick a smaller picture, or take a screenshot of it and use that.'
+	},
+	{
+		/**
 		 * IDEA Certification Portal evidence (ledger 0391): a photo or a file a
 		 * student hands in for a project or a checkout. The same three guards
 		 * and the same portal ceiling as a class notice's file; video is never

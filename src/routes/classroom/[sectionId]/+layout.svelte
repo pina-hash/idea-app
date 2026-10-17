@@ -55,6 +55,7 @@
 	import { loadDuplicateDraftCount } from '$lib/classroom/duplicate-count';
 	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
 	import { classOpensOnFor } from '$lib/preferences/classroom';
+	import { createThumbnailTransports } from '$lib/classroom/thumbnail-transports';
 	import type { LayoutData } from './$types';
 
 	/**
@@ -213,6 +214,11 @@
 	// svelte-ignore state_referenced_locally
 	const layoutTransports = createLayoutTransports(data.supabase);
 	const liveLayoutTransports = $derived(data.layoutReady ? layoutTransports : null);
+	/* Post thumbnails (0268, ledger 0396): the editor's writes only where the
+	   database can hold one, which the load's own probe answered. */
+	// svelte-ignore state_referenced_locally
+	const thumbnailTransports = createThumbnailTransports(data.supabase);
+	const liveThumbnailTransports = $derived(data.thumbShape?.ready ? thumbnailTransports : null);
 
 	/**
 	 * THE PORTED-DOCUMENT IMPORT (0195/0197), AND THE ADMIN GATE IS THE ABSENCE.
@@ -533,6 +539,8 @@
 		{quickPost}
 		panelLayout={classPrefs?.current.panels.classPage ?? null}
 		onArrange={classPrefStore ? () => runCommand('settings.open', 'panels:class') : null}
+		classThumbShape={data.thumbShape?.shape ?? null}
+		thumbnailTransports={data.canManage ? liveThumbnailTransports : null}
 	/>
 {/snippet}
 
@@ -701,6 +709,7 @@
 			layoutTransports={liveLayoutTransports}
 			htmlAssignmentTransports={liveHtmlAssignmentTransports}
 			htmlAssignmentAdmin={isAdmin}
+			thumbnailTransports={liveThumbnailTransports}
 			initialFiles={composeFiles}
 			screen
 			onsaved={composerSaved}

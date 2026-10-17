@@ -57,6 +57,9 @@ import {
 // it and the module that answers it. A literal here would be a refusal keyed on
 // this file's idea of what the token is called.
 import { HX_READY_TYPE } from '$lib/classroom/html-assignment/bridge';
+// THE THUMBNAIL KEY HAS ITS OWN READER (ledger 0396), and this validator only
+// carries its sentences: every one a warning, never a refusal (SPEC 4.8).
+import { manifestThumbnailWarnings } from '$lib/classroom/html-assignment/thumbnail';
 
 // ---------------------------------------------------------------------------
 // The contract's types, verbatim.
@@ -194,6 +197,13 @@ export interface HtmlAssignmentManifest {
 	 */
 	header?: HtmlBlock[];
 	modules: HtmlModule[];
+	/**
+	 * THE POST'S THUMBNAIL (ledger 0396): `{ kind: 'html', template, interactive? }`
+	 * naming a `<template>` in this document, or `{ kind: 'image', src }`. Read
+	 * by `manifestThumbnail` and 0268's SQL twin; a value either does not
+	 * understand is no thumbnail, never a refusal.
+	 */
+	thumbnail?: unknown;
 }
 
 export const HTML_MANIFEST_SCHEMA_VERSION = 3;
@@ -969,6 +979,11 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 			}
 		}
 	}
+
+	// THE THUMBNAIL (ledger 0396): a display key in the sense of SPEC 4.8. A
+	// malformed one, or a template the document does not carry, is said here and
+	// shows the generated look on the class page; it never stops an import.
+	warnings.push(...manifestThumbnailWarnings(m, html));
 
 	if (errors.length) return fail();
 	return { manifest: raw as HtmlAssignmentManifest, errors: [], warnings };

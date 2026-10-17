@@ -45,6 +45,7 @@ import {
 } from '../src/lib/classroom/html-assignment/manifest';
 import { MIN_LEVELS, MAX_LEVELS } from '../src/lib/classroom/assignment-spec';
 import { HX_READY_TYPE } from '../src/lib/classroom/html-assignment/bridge';
+import { HTML_THUMBNAIL_DATA_MAX, HTML_THUMBNAIL_TEMPLATE_RE } from '../src/lib/classroom/html-assignment/thumbnail';
 
 const PY = readFileSync(
 	fileURLToPath(new URL('../tools/validate-assignment-spec.py', import.meta.url)),
@@ -132,6 +133,15 @@ describe('the manifest rules that exist in two languages', () => {
 		expect(block.length).toBeGreaterThan(100);
 		expect(block).not.toMatch(/\bE\(/);
 		expect((block.match(/\bW\(/g) ?? []).length).toBe(5);
+	});
+
+	it('reads the thumbnail key with the same template rule and data cap, and only ever warns (ledger 0396)', () => {
+		expect(PY).toContain(`r"${HTML_THUMBNAIL_TEMPLATE_RE.source}"`);
+		expect(PY).toContain(`HTML_THUMBNAIL_DATA_MAX = ${HTML_THUMBNAIL_DATA_MAX}`);
+		const fn = PY.slice(PY.indexOf('def thumbnail_warnings'), PY.indexOf('def check_manifest'));
+		expect(fn.length).toBeGreaterThan(200); // positive control
+		expect(fn).not.toMatch(/\bE\(/);
+		expect(PY).toMatch(/for w in thumbnail_warnings\(manifest, html\):\s+W\(w\)/);
 	});
 
 	it('refuses a non-boolean optional and warns about the same three progress traps (ledger 0360)', () => {

@@ -94,7 +94,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 		userId: claims.sub,
 		email: (claims.email as string | undefined) ?? '',
 		isAdmin: layout.then(({ isAdmin }) => isAdmin),
-		checkIns: true
+		checkIns: true,
+		// Each class's default thumbnail shape, for the cards' rows (0268).
+		thumbShapes: true
 	});
 
 	if (!work.ready || !work.sections.length) {

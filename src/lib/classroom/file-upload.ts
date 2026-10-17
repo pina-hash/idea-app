@@ -59,7 +59,7 @@ export interface UploadedFileRow {
 }
 
 export type UploadOutcome =
-	| { ok: true; storageKey: string; row?: UploadedFileRow }
+	| { ok: true; storageKey: string; row?: UploadedFileRow; recorded?: Record<string, unknown> }
 	| ({ ok: false } & UploadRefusal);
 
 export interface UploadRequest {
@@ -72,6 +72,12 @@ export interface UploadRequest {
 	blockId?: string | null;
 	caption?: string | null;
 	onProgress?: (fraction: number) => void;
+	/**
+	 * EXTRA FIELDS FOR THE RECORD STEP, named by the role that needs them (a
+	 * thumbnail's natural size and focal point). They ride beside the four the
+	 * record route always gets and can never replace one of them.
+	 */
+	record?: Record<string, unknown>;
 }
 
 /**
@@ -111,6 +117,16 @@ const ENDPOINTS: Record<UploadRole, { sign: string; record: string }> = {
 	'quick-post': {
 		sign: '/api/classroom/quick-post-file/sign',
 		record: '/api/classroom/quick-post-file'
+	},
+	/**
+	 * A post's own thumbnail picture (0268, ledger 0396). A FIFTH pair: the
+	 * bucket and insert rule are an attachment's (the item's prefix in
+	 * `classroom-attachments`), but the record is `classroom_set_item_thumbnail`
+	 * and no file joins the post's list.
+	 */
+	thumbnail: {
+		sign: '/api/classroom/thumbnail/sign',
+		record: '/api/classroom/thumbnail'
 	}
 };
 
@@ -261,6 +277,7 @@ async function sendClassroomFile(req: UploadRequest): Promise<UploadOutcome> {
 	let record: { status: number; body: Record<string, unknown> | null };
 	try {
 		record = await postJson(endpoints.record, {
+			...(req.record ?? {}),
 			item_id: itemId,
 			storage_key: signed.key,
 			filename: file.name,
@@ -307,5 +324,5 @@ async function sendClassroomFile(req: UploadRequest): Promise<UploadOutcome> {
 		};
 	}
 
-	return { ok: true, storageKey: signed.key, row: recorded.file };
+	return { ok: true, storageKey: signed.key, row: recorded.file, recorded: recorded as Record<string, unknown> };
 }

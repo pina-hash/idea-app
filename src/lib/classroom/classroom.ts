@@ -11,6 +11,8 @@
  * at" -- there is only one, and editing it changes every class at once.
  */
 
+import type { ItemThumbnail } from './thumbnail';
+import type { ThumbShape } from './thumbnail-shape';
 import { formatSectionLabel } from '$lib/section-label';
 import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
 import { parseMarkdown } from '$lib/classroom/reference-spec';
@@ -41,6 +43,12 @@ export interface ClassroomSection {
 	active?: boolean;
 	/** Embedded course row (normalized from the PostgREST embed key). */
 	course: ClassroomCourse | null;
+	/**
+	 * 0268's class default thumbnail shape (ledger 0396), attached by
+	 * `withSectionThumbShape` only from a read that asked for it: `undefined`
+	 * is "not read", null is "the built-in default".
+	 */
+	thumbnail_shape?: ThumbShape | null;
 }
 
 /**
@@ -302,6 +310,13 @@ export interface ClassroomItem {
 	 */
 	instructorAttachments?: ClassroomAttachment[];
 	instructorLinks?: ItemLink[];
+	/**
+	 * 0268's THUMBNAIL (ledger 0396), attached beside the item by
+	 * `withItemThumbnail` from the select's widest rung. `undefined` means the
+	 * read could not tell (a deployment without 0268), null means the post has
+	 * none of its own; both draw the generated identity.
+	 */
+	thumbnail?: ItemThumbnail | null;
 }
 
 export const ITEM_KINDS: { id: ClassroomItemKind; label: string; blurb: string }[] = [

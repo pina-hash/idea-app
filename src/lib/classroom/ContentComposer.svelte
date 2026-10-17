@@ -9,6 +9,9 @@
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
+	import ThumbnailEditor from '$lib/classroom/ThumbnailEditor.svelte';
+	import { liveTemplateMissing, type ThumbnailTransports } from '$lib/classroom/thumbnail';
+	import { manifestThumbnail } from '$lib/classroom/html-assignment/thumbnail';
 	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
 	import {
@@ -95,6 +98,7 @@
 		courseCategorySuggestions,
 		formatBytes,
 		instructorAttachmentSrc,
+		isScheduled,
 		isoToLocalInput,
 		localInputToIso,
 		sectionTitle,
@@ -193,6 +197,7 @@
 		figureSources = [],
 		specDrop = null,
 		initialFiles = [],
+		thumbnailTransports = null,
 		onsaved,
 		ondirtychange = null,
 		oncancel = null
@@ -347,6 +352,12 @@
 		 * neither. Create only.
 		 */
 		initialFiles?: File[];
+		/**
+		 * THE POST'S THUMBNAIL WRITES (0268, ledger 0396). Absent removes the
+		 * thumbnail editor, which is the state of a surface that offers none and
+		 * of a database without the migration (the layout load's own probe).
+		 */
+		thumbnailTransports?: ThumbnailTransports | null;
 		onsaved: (info: {
 			kind: ClassroomItemKind;
 			published: boolean;
@@ -948,6 +959,30 @@
 	 */
 	let stagedFileNames = $state<string[]>([]);
 	let filePanel = $state<FileUploadPanel | null>(null);
+
+	/**
+	 * THE POST'S THUMBNAIL (0268, ledger 0396): staged in `ThumbnailEditor`
+	 * like every other part of this form and written by `apply` once the post
+	 * exists. Its pending choice is unsaved work (`thumbDirty`, OR'd into
+	 * `dirty` below); the pictures staged in the Files panel are offered to it
+	 * as the post's own, read off the panel whenever its count moves.
+	 */
+	let thumbEditor = $state<ThumbnailEditor | null>(null);
+	let thumbDirty = $state(false);
+	const stagedPictureFiles = $derived.by(() => {
+		void stagedFileCount;
+		void stagedFileNames;
+		return filePanel?.files() ?? [];
+	});
+	const thumbManifest = $derived(
+		editingKind === 'assignment' ? manifestThumbnail(stagedHtml?.manifest ?? htmlAssignment?.manifest ?? null) : null
+	);
+	/* Whether that document is missing the template its manifest names: a
+	   staged file answers from its own bytes, the stored one from the row the
+	   database wrote (`liveTemplateMissing`). */
+	const thumbTemplateMissing = $derived(
+		liveTemplateMissing(thumbManifest, stagedHtml?.html ?? null, mode === 'edit' ? item?.thumbnail : undefined)
+	);
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
 	/**
@@ -1868,7 +1903,7 @@
 	// exists only in this tab's memory, exactly like a staged file, so closing
 	// the form over one asks first.
 	const dirty = $derived(
-		baseline.changed(composerDraftSignature(draft)) || !!stagedHtml || zipQueue.length > 0
+		baseline.changed(composerDraftSignature(draft)) || !!stagedHtml || zipQueue.length > 0 || thumbDirty
 	);
 	$effect(() => {
 		// `dirty` tracked, the notification untracked: `ondirtychange` belongs to
@@ -2164,6 +2199,11 @@
 		failures.push(...fileFailures);
 		failures.push(...instructorFailures.map((line) => `instructor ${line}`));
 
+		// THE THUMBNAIL, on the same terms: attempted, named when it fails, and
+		// still staged when it does (ledger 0396).
+		const hadThumb = !!thumbEditor?.hasChange();
+		if (thumbEditor && hadThumb) failures.push(...(await thumbEditor.apply(itemId)));
+
 		/**
 		 * The instructor links are written only when they actually CHANGED.
 		 *
@@ -2343,6 +2383,7 @@
 		// alongside the post is told all three happened, not just the post.
 		const alsoLanded = [
 			hadFiles ? 'Files attached.' : '',
+			hadThumb ? 'Thumbnail set.' : '',
 			hadDeck ? 'Deck uploaded.' : '',
 			hadSpec ? (specKind === 'reference' ? 'Document attached.' : 'Spec attached.') : '',
 			hadRubric || htmlRubricWritten ? 'Rubric attached.' : '',
@@ -2935,6 +2976,34 @@
 		     refused out loud here rather than swallowed by a zone that said
 		     nothing. -->
 		{@render dropNote()}
+	{/if}
+
+	{#if thumbnailTransports}
+		<!-- THE POST'S THUMBNAIL (ledger 0396): its picture, the HTML document's
+		     own, or the generated look, previewed in every shape. Keyed on the
+		     body editor's seed, so a fresh post after a publish starts fresh.
+		     A document staged over the stored one hides the stored one's live
+		     thumbnail (`documentId` null): it is not what the post will show,
+		     and the new one is served only once it is saved. -->
+		{#key editorSeed}
+			<div class="attach-editor thumb-editor">
+				<ThumbnailEditor
+					bind:this={thumbEditor}
+					transports={thumbnailTransports}
+					item={mode === 'edit' ? item : null}
+					glyph={editingKind}
+					attachments={mode === 'edit' ? existing : []}
+					stagedFiles={stagedPictureFiles}
+					manifest={thumbManifest}
+					templateMissing={thumbTemplateMissing}
+					documentId={stagedHtml ? null : (htmlAssignment?.documentId ?? null)}
+					{title}
+					live={mode === 'edit' && !!item && item.published && !isScheduled(item)}
+					unavailable={mode === 'edit' && !!item && item.thumbnail === undefined}
+					ondirtychange={(d) => (thumbDirty = d)}
+				/>
+			</div>
+		{/key}
 	{/if}
 
 	<!--

@@ -602,12 +602,14 @@ describe('a manager opening the same assignment', () => {
 		const manager = await ok(full, full.teacher, full.p1, full.material);
 		expect(manager.data.referenceSpec).toMatchObject({ kind: 'reference' });
 		expect(manager.data.item.is_public).toBe(true);
-		// THREE reads of the item table on THIS world, not two: the ladder's
-		// widest rung (0193's placement columns) is refused here, the units rung
-		// answers, and the manager's `is_public` read is the third. The refused
-		// round trip is the documented cost of a rung on a project that lacks
-		// it; the world that HAS 0193 reads twice (the rung-0 test below).
-		expect(manager.tables.filter((t) => t === 'classroom_items')).toHaveLength(3);
+		// FOUR reads of the item table on THIS world, not two: the ladder's two
+		// widest rungs (0268's thumbnail embed, then 0193's placement columns)
+		// are refused here, the units rung answers, and the manager's
+		// `is_public` read is the fourth. Each refused round trip is the
+		// documented cost of a rung on a project that lacks it; the world that
+		// HAS 0193 reads three times (the rung-0 test below), and one with 0268
+		// reads once (`tests/db/classroom-item-thumbnails.test.ts`).
+		expect(manager.tables.filter((t) => t === 'classroom_items')).toHaveLength(4);
 		expect((manager.data.item as { layout?: unknown }).layout).toBeUndefined();
 
 		const student = await ok(full, full.alice, full.p1, full.material);
@@ -617,8 +619,8 @@ describe('a manager opening the same assignment', () => {
 		// that is genuinely public. Asserted so nobody reads a student payload's
 		// false as "this material is private".
 		expect(student.data.item.is_public).toBe(false);
-		// The refused rung and the one that answered; no `is_public` read.
-		expect(student.tables.filter((t) => t === 'classroom_items')).toHaveLength(2);
+		// The two refused rungs and the one that answered; no `is_public` read.
+		expect(student.tables.filter((t) => t === 'classroom_items')).toHaveLength(3);
 	});
 
 	test('an assignment asks for no reference spec at all', async () => {
@@ -679,7 +681,7 @@ describe('an item framed under a class it was never posted to', () => {
 // 4. THE DEGRADE RUNGS, EACH NAMED
 // ---------------------------------------------------------------------------
 describe('the item select ladder, rung by rung', () => {
-	test('rung 0 (0193): the layout rides beside the item, and the read costs no retry', async () => {
+	test('rung 0 (0193): the layout rides beside the item, past the one refused 0268 thumbnail rung', async () => {
 		const manager = await ok(withLayout, withLayout.teacher, withLayout.p1, withLayout.material);
 		const item = manager.data.item as ClassroomItem & { layout?: { files: string; links: string } };
 		// Attached BESIDE the item (`withItemLayout`), never through the
@@ -690,11 +692,17 @@ describe('the item select ladder, rung by rung', () => {
 		// carried, never the `undefined` a narrower rung would leave.
 		expect(item.unit_id).toBeNull();
 		expect(Array.isArray(item.body_doc)).toBe(true);
-		// The widest rung answered first time: one item read plus `is_public`.
-		expect(manager.tables.filter((t) => t === 'classroom_items')).toHaveLength(2);
+		// 0268's thumbnail rung (the widest since ledger 0396) is refused on this
+		// world, then the layout rung answers: two item reads plus `is_public`.
+		// The rung's no-retry read on a world WITH 0268 is
+		// `tests/db/classroom-item-thumbnails.test.ts`'s.
+		expect(manager.tables.filter((t) => t === 'classroom_items')).toHaveLength(3);
+		// And the thumbnail is UNDEFINED, "could not tell", never a claim that
+		// the post has none.
+		expect((item as { thumbnail?: unknown }).thumbnail).toBeUndefined();
 		const student = await ok(withLayout, withLayout.alice, withLayout.p1, withLayout.material);
 		expect((student.data.item as { layout?: unknown }).layout).toEqual({ files: 'bottom', links: 'bottom' });
-		expect(student.tables.filter((t) => t === 'classroom_items')).toHaveLength(1);
+		expect(student.tables.filter((t) => t === 'classroom_items')).toHaveLength(2);
 		// THE OTHER DIRECTION, on the same fixture shape one migration back: a
 		// world without 0193 answers no layout at all -- undefined, "could not
 		// tell", never a default claimed as a fact.
