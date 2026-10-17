@@ -1081,7 +1081,11 @@
 		margin: 0;
 		min-width: 15rem;
 		max-width: min(22rem, calc(100vw - 16px));
-		max-height: min(60vh, 26rem);
+		/* `--anchor-room` is the room beside its key, which `anchored` writes:
+		   60vh is more than a short window has under the class strip once the
+		   list's columns cross the corner feedback button (ledger 0396,
+		   integration review 4). */
+		max-height: min(60vh, 26rem, var(--anchor-room, 100vh));
 		overflow-y: auto;
 		padding: 0.3rem;
 		box-sizing: border-box;

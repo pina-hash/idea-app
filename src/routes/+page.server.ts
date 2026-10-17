@@ -96,7 +96,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 		isAdmin: layout.then(({ isAdmin }) => isAdmin),
 		checkIns: true,
 		// Each class's default thumbnail shape, for the cards' rows (0268).
-		thumbShapes: true
+		thumbShapes: true,
+		// Each course's unit order, which tints a post's generated thumbnail as
+		// the class page tints it (ledger 0396).
+		units: true
 	});
 
 	if (!work.ready || !work.sections.length) {
@@ -107,6 +110,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 			feedSubmissions: [] as FeedSubmission[],
 			feedCheckIns: [] as ClassCheckIn[],
 			feedManagerEmails: {} as Record<string, string[]>,
+			feedUnitOrder: {} as Record<string, string[]>,
 			feedClock: work.clock as ClassroomClock | null,
 			foundryReviewPending: await pending
 		};
@@ -156,6 +160,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 		feedSubmissions: work.submissions,
 		feedCheckIns: work.checkIns,
 		feedManagerEmails,
+		/** Each course's unit ids in the class page's order, for the rows' generated thumbnails. */
+		feedUnitOrder: work.unitOrder,
 		/**
 		 * THE LOADER'S ONE CLOCK READ, handed to the page so the feed's ranking,
 		 * its "Due tomorrow" words and the To-do door's counts are all measured

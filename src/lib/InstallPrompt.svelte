@@ -15,10 +15,12 @@
 	 * memory (`INSTALL_POPUP_DISMISSED_KEY`): dismissing the pop-up never hides
 	 * the header key, which reads nothing from storage.
 	 *
-	 * WHILE THE HEADER KEY'S CARD IS OPEN IT STEPS ASIDE (`installCardOpen`), so
-	 * the same Share steps are never on screen twice, and comes back when the
-	 * card closes. That is page state: its once-and-dismissed memory is not
-	 * touched by it.
+	 * WHILE THE HEADER KEY'S CARD IS OPEN IT STEPS ASIDE, so the same Share
+	 * steps are never on screen twice, and comes back when the card closes. It
+	 * steps aside the same way while the feedback window or the header's Quick
+	 * note is open (integration review), which it used to be drawn over, Cancel
+	 * and Send, and Save, included. All of it is `installPopupAside`, and all of
+	 * it is page state: its once-and-dismissed memory is not touched.
 	 *
 	 * Everything that touches window or storage runs in `onMount`, so the server
 	 * render never reads a browser global.
@@ -29,7 +31,7 @@
 		INSTALL_COPY,
 		INSTALL_POPUP_DISMISSED_KEY,
 		UNKNOWN_INSTALL,
-		installCardOpen,
+		installPopupAside,
 		installPopupMode,
 		promptInstall,
 		readInstall,
@@ -41,7 +43,7 @@
 	/* Until storage has been read, treat the pop-up as dismissed, so it never
 	   flashes on for somebody who already said no. */
 	let dismissed = $state(true);
-	/* The header key's card is open: step aside, without dismissing. */
+	/* The header key's card, the feedback window or the Quick note is open: step aside, without dismissing. */
 	let stepAside = $state(false);
 	const platform = $derived(installPopupMode(snapshot, dismissed));
 
@@ -80,9 +82,9 @@
 	onMount(() => {
 		dismissed = alreadyHandled();
 		snapshot = readInstall();
-		stepAside = installCardOpen();
+		stepAside = installPopupAside();
 		return subscribeInstall(() => {
-			stepAside = installCardOpen();
+			stepAside = installPopupAside();
 			const next = readInstall();
 			// Installed some other way (the header key, the browser menu): stop nagging.
 			if (next.installed && !snapshot.installed) remember();
@@ -117,7 +119,13 @@
 		position: fixed;
 		left: 0.75rem;
 		right: 0.75rem;
-		bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+		/* ABOVE THE CORNER FEEDBACK BUTTON, never over it (ledger 0396). The
+		   button is the only feedback control on every page now, and at 1000 this
+		   sat over it until Got it was pressed (and the home tour's Send feedback
+		   step lit the pop-up instead). `--feedback-clear-block` is how far up
+		   the button reaches plus its gap, declared only while one is on the
+		   page, so a page with no button keeps the old inset. */
+		bottom: max(calc(0.75rem + env(safe-area-inset-bottom, 0px)), var(--feedback-clear-block, 0px));
 		z-index: 1000;
 		display: flex;
 		align-items: center;

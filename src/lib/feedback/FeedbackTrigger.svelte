@@ -1,7 +1,7 @@
 <svelte:options css="injected" />
 
 <script lang="ts">
-	import { FEEDBACK_GLYPH, FEEDBACK_LOAD_FAILED, FEEDBACK_OPENING, PROBLEM_GLYPH, REPORT_LABEL } from './context';
+	import { FEEDBACK_GLYPH, FEEDBACK_LOAD_FAILED, FEEDBACK_OPENING, FEEDBACK_RELOAD, PROBLEM_GLYPH, REPORT_LABEL } from './context';
 
 	/**
 	 * THE FEEDBACK BUTTON, AND THE ONLY COPY OF IT (ledger 0396, reports
@@ -36,7 +36,8 @@
 		pending = false,
 		id = undefined,
 		onopen = undefined,
-		onpreload = undefined
+		onpreload = undefined,
+		onreload = undefined
 	}: {
 		place?: 'shell' | 'relocated';
 		label?: string;
@@ -57,6 +58,11 @@
 		id?: string;
 		onopen?: () => void;
 		onpreload?: () => void;
+		/**
+		 * The "did not load" sentence's Reload page key. Absent, there is no key
+		 * (the legacy launcher's script builds its own, on the same classes).
+		 */
+		onreload?: () => void;
 	} = $props();
 
 	let buttonEl = $state<HTMLButtonElement | null>(null);
@@ -67,7 +73,10 @@
 	}
 </script>
 
-<div class="sfb sfb-{place}" {id}>
+<!-- `data-corner-reserve` names the corner this button claims, so a popover
+     placed by `$lib/shell/anchored` (a row menu, the Sections menu) keeps clear
+     of it rather than opening under it. -->
+<div class="sfb sfb-{place}" {id} data-corner-reserve={place === 'shell' ? '' : undefined}>
 	<button
 		bind:this={buttonEl}
 		type="button"
@@ -104,7 +113,10 @@
 	{#if loadFailed}
 		<!-- Said beside the control, not swallowed: the one thing worse than a
 		     report window that will not open is one that will not say so. -->
-		<p class="sfb-load-failed" role="alert">{FEEDBACK_LOAD_FAILED}</p>
+		<p class="sfb-load-failed" role="alert">
+			<span class="sfb-load-words">{FEEDBACK_LOAD_FAILED}</span>
+			{#if onreload}<button type="button" class="sfb-reload" onclick={() => onreload?.()}>{FEEDBACK_RELOAD}</button>{/if}
+		</p>
 	{/if}
 </div>
 
@@ -311,6 +323,39 @@
 		background: var(--fb-room-bg, var(--surface-2, #0d1a12));
 		border: 1px solid var(--fb-room-edge, var(--boundary, rgba(159, 184, 166, 0.5)));
 		border-radius: 6px;
+	}
+
+	/* THE SENTENCE ON ITS LINE, THE RELOAD KEY UNDER IT (integration review 4):
+	   a key in the button's own room hooks, 44px tall because a phone touches
+	   it, with the trigger's own focus ring. The legacy launcher's script draws
+	   the same two elements on the same classes, so this rule paints both. */
+	.sfb-load-words {
+		display: block;
+	}
+	.sfb-reload {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		margin: 0.4rem 0 0;
+		padding: 0 0.8rem;
+		appearance: none;
+		background: var(--fb-room-trigger-face, var(--fb-room-bg, var(--surface-2, #0d1a12)));
+		border: 1px solid var(--fb-room-edge, var(--boundary, rgba(140, 220, 160, 0.22)));
+		border-radius: var(--fb-room-radius, var(--plate-r-control, 11px));
+		color: var(--fb-room-trigger-ink, var(--fb-room-ink, var(--text-1, #dff3e3)));
+		font: inherit;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		cursor: pointer;
+	}
+	.sfb-reload:hover,
+	.sfb-reload:focus-visible {
+		border-color: var(--fb-room-accent, var(--green, #3ddc84));
+	}
+	.sfb-reload:focus-visible {
+		outline: 2px solid var(--fb-room-focus, var(--focus-ring, #5abda8));
+		outline-offset: 2px;
 	}
 
 	/* A control that cannot be pressed on paper is ink. */

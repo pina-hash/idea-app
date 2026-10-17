@@ -11,7 +11,7 @@
 	 * student never learns exists.
 	 */
 	import { onMount, tick } from 'svelte';
-	import { anchorPosition } from '$lib/shell/anchored';
+	import { anchorInWindow } from '$lib/shell/anchored';
 	import { keyLabel, searchCommands, type Command, type CommandGroup } from './command-registry';
 	let { commands, recent, keys, group, at, unavailable, onrun, onclose }: {
 		commands: readonly Command[];
@@ -45,7 +45,7 @@
 	onMount(() => {
 		const box = { left: at.x, right: at.x, top: at.y, bottom: at.y, width: 0, height: 0 };
 		const r = panel?.getBoundingClientRect();
-		const at_ = anchorPosition(box, { width: r?.width ?? 320, height: r?.height ?? 420 }, { width: window.innerWidth, height: window.innerHeight }, { prefer: 'below', align: 'start', gap: 10, margin: 8 });
+		const at_ = anchorInWindow(box, { width: r?.width ?? 320, height: r?.height ?? 420 }, { prefer: 'below', align: 'start', gap: 10, margin: 8 });
 		place = at_.side === 'above' ? { left: at_.left, bottom: Math.max(8, window.innerHeight - (at_.top + (r?.height ?? 420))) } : { left: at_.left, top: at_.top };
 		/* Focus once it is visible: a hidden input cannot take focus, and the keys typed next are the query. */
 		void tick().then(() => input?.focus());

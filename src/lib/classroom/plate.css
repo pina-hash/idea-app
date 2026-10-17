@@ -1440,6 +1440,20 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 			inset 0 -1px 0 0 var(--plate-groove-dk),
 			inset 0 -2px 0 0 var(--plate-groove-lt);
 	}
+	/* A HEADER THE PLATE HAS UNSTUCK CARRIES NO BACKDROP BLUR (ledger 0396,
+	   integration review 4). The home header's blur (`--li-header-blur`) is
+	   for content scrolling under a sticky header; the rule above makes it
+	   scroll with the page and paints it with an opaque gradient, so nothing is
+	   ever seen through it, and the filter's one remaining effect was to make
+	   the header the containing block of every `position: fixed` box inside it.
+	   `anchored` writes window coordinates, so after 120px of scroll the home
+	   Quick note was drawn at -112px with its Close and title above the window
+	   and opened at scrollY 10 3.5px over its own key, and the lines-of-code
+	   panel the same. With no filter, fixed means the window again for both. */
+	:root :scope:is(.cr-plate, .site-plate) :where(.legacy-index) > header {
+		-webkit-backdrop-filter: none;
+		backdrop-filter: none;
+	}
 	/* The pads' strip is centred on the header's row, with 4px on every side,
 	   which is exactly the focus ring's reach: the strip scrolls, so it
 	   clips, and anything less cuts the ring (61% of it drawn today). */

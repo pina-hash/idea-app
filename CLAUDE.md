@@ -2000,7 +2000,11 @@ generated identity (the post's kind glyph on a plate tile tinted by its unit);
 no row means the generated identity, so a class page is never a wall of text.
 The class page rows, the home page's class card rows and the to-do rows mount
 it; the lists deliberately left without one are named in that ledger's history
-entry.
+entry. **A post is one identity on the class page and on the home page**: the
+home load reads each course's unit order (`loadClassroomWork`'s `units`, one
+read, skipped while nothing is filed) so `unitTint` gives a post the same tint
+in both, and the home card's Tile and Off draw `KIND_GLYPHS`, never a second
+glyph set.
 
 - **A ONE-TO-ONE TABLE, NEVER COLUMNS ON `classroom_items`.** Items are copied,
   revisioned and exported, and a column joins every one of those paths.
@@ -5227,7 +5231,30 @@ inside the function fails closed rather than falling through to a weaker path.
     edge (`bottom: var(--feedback-clear-block)`), and the projector strip and the
     deck's stage stop short of it. A new surface with a
     control at its bottom-right edge does the same, and the instrument is a hit
-    test of its controls at the end of every scroll container. On a `.cr-root`
+    test of its controls at the end of every scroll container. **Every
+    popover placed with `$lib/shell/anchored` keeps clear of it**: the
+    button's wrapper carries `data-corner-reserve`, and `cornerReserve` reads
+    it live for the action (on by default) and for `anchorInWindow`, which a
+    component placing its own panel calls instead of a bare `anchorPosition`
+    (IdeaCAD's right-click and row menus, command search and context toolbar,
+    the grading roster's card); IdeaCAD's list beside a menu and its tool card
+    take the reserve as an argument, and `tests/anchored-direct-callers.test.ts`
+    sweeps the tree for a call that leaves it out. `anchorPosition`'s `avoid`
+    treats its top as the window's bottom for a panel whose columns cross it,
+    above its key as well as below, because a panel inside `main` is always
+    painted under the button; a panel that room cannot take moves sideways
+    (beside its key, or left of the button) rather than being clamped over its
+    own key. The action re-places a panel when its own size changes (never for
+    a scroll inside it) and writes `--anchor-room` (`anchorFitHeight`, which
+    weighs the same sideways places before it shortens a panel), which every
+    panel whose content can outgrow its room caps its height with and scrolls
+    inside (the Quick note, the editor's picture panel, the row menu);
+    `tests/anchored-room-cap.test.ts` holds every `use:anchored` panel to that
+    cap or a listed reason. A panel sized by hand to the room beside its key
+    (the student page's Sections menu) measures it with `anchorRooms`. The
+    action writes window coordinates, so an ancestor with a `transform`, a
+    `filter` or a `backdrop-filter` (the home header's blur, which the plate
+    now takes off the header it unsticks) misplaces every fixed panel inside it. On a `.cr-root`
     route the root layout wraps the window in `CLASSROOM_PLATE`
     (`feedbackWearsClassroomPlate`), so the button and the box are the home
     page's plate key and plate box. The error card's "Tell us what happened"

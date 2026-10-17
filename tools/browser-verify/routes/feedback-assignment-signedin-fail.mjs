@@ -4,9 +4,12 @@
  * page (the harness's `signedIn=fail`, which reaches only the window). The
  * launcher sees a document without the window's mark, throws the frame away
  * at once rather than after the full wait for `ready`, and the button says in
- * words beside itself that the window did not load and to press it again --
- * the root control's own sentence, `FEEDBACK_LOAD_FAILED`, on its own ground so
- * it stays legible over whatever the page has under the corner.
+ * words beside itself that the window did not load and to reload the page, with
+ * the Reload page key that does it -- the root control's own sentence,
+ * `FEEDBACK_LOAD_FAILED`, on its own ground so it stays legible over whatever
+ * the page has under the corner. (The sentence said "press it again" until
+ * integration review 4: true here, where a press loads a fresh frame, and false
+ * in the Svelte control, whose failed import Chromium keeps.)
  */
 export default {
 	path: '/dev/feedback/assignment?signedIn=fail',
@@ -20,13 +23,20 @@ export default {
 	presence: [
 		{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the button stays, to be pressed again', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '#idea-feedback-launch .sfb-load-failed', label: 'the did-not-load sentence, beside the button', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '#idea-feedback-launch .sfb-load-failed button.sfb-reload', label: 'its Reload page key', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '#idea-feedback-frame', label: 'the frame that never became the window is thrown away', expectPresent: 0 }
 	],
 	textContains: [
-		{ selector: '#idea-feedback-launch .sfb-load-failed', label: 'it says what happened and what to do, in words', must: ['did not load', 'press it again'] }
+		{ selector: '#idea-feedback-launch .sfb-load-failed', label: 'it says what happened and what to do, in words', must: ['did not load', 'reload the page', 'Reload page'], mustNot: ['press it again'] }
 	],
-	contrast: [{ selector: '#idea-feedback-launch .sfb-load-failed', label: 'the did-not-load sentence on its own ground', min: 4.5 }],
-	tapTargets: [{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the feedback button', min: 44 }],
+	contrast: [
+		{ selector: '#idea-feedback-launch .sfb-load-words', label: 'the did-not-load sentence on its own ground', min: 4.5 },
+		{ selector: '#idea-feedback-launch .sfb-reload', label: 'the Reload page key\'s word', min: 4.5 }
+	],
+	tapTargets: [
+		{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the feedback button', min: 44 },
+		{ selector: '#idea-feedback-launch .sfb-reload', label: 'the Reload page key', min: 44 }
+	],
 	/* The window's 503 IS the state under test; the browser logs it. */
 	ignoreConsole: [/503/]
 };

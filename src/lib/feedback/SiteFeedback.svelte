@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { untrack } from 'svelte';
 	import type FeedbackBox from './FeedbackBox.svelte';
 	import FeedbackTrigger from './FeedbackTrigger.svelte';
 	import {
@@ -21,6 +22,7 @@
 	} from './context';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { holdDeployReload } from '$lib/shell/deploy-safety';
+	import { stepInstallPopupAside } from '$lib/install-app';
 	import { provideSiteFeedbackOpener } from './opener';
 
 	/**
@@ -221,6 +223,31 @@
 	});
 
 	/**
+	 * THE PHONE INSTALL POP-UP STEPS ASIDE WHILE THE WINDOW IS OPEN, and comes
+	 * back when it closes, unanswered, as it does after the Install app key's
+	 * card (`$lib/install-app`). It floats at 1000 over everything, so it was
+	 * drawn over this window's shade and its controls: Cancel and Send on an
+	 * iPad, the contact field on an iPhone (integration review, ledger 0396).
+	 *
+	 * AND WHILE THE "DID NOT LOAD" SENTENCE IS ON SCREEN (integration review 4).
+	 * It sits just above the button inside the button's own layer (90), so on a
+	 * first visit on a phone the pop-up was drawn over the whole of it and a
+	 * failed press showed nothing at all. One derived answer, so a press that
+	 * fails (`open` going false as the sentence appears) never lets the pop-up
+	 * back for a frame between the two; it comes back when the sentence goes,
+	 * which is when a later load succeeds or the page reloads.
+	 *
+	 * `asideWanted` is the one tracked read. The call is UNTRACKED because it
+	 * tells the pop-up synchronously, and the pop-up's own handler reads its
+	 * state, which would otherwise become this effect's dependency.
+	 */
+	const asideWanted = $derived.by(() => open || (shown && loadFailed));
+	$effect(() => {
+		if (!asideWanted) return;
+		return untrack(() => stepInstallPopupAside());
+	});
+
+	/**
 	 * THE BOX IS NOT IN THE SHELL CHUNK, AND THE CLICK MUST NOT WAIT FOR IT.
 	 *
 	 * This component is mounted once in the root layout, so everything it
@@ -243,9 +270,12 @@
 	 *     on the static import, because idle had not come yet. Asking at
 	 *     mount shrinks that window to the fetch itself, in flight.
 	 *   * the pointer ENTERS the trigger, it gains FOCUS, or the pointer goes
-	 *     DOWN on it -- redundant while the mount-time fetch succeeded, and the
-	 *     retry when it did not: a failed fetch forgets itself, and the next
-	 *     hover or tab asks again before the click does.
+	 *     DOWN on it -- redundant while the mount-time fetch succeeded. A failed
+	 *     fetch forgets itself here and the next hover or press asks again, but
+	 *     the browser need not fetch again: Chromium keeps a dynamic import that
+	 *     failed and answers every later ask from it, with no request (measured,
+	 *     integration review 4), which is why the sentence below offers a
+	 *     reload rather than another press.
 	 * None of this runs on the server, and none of it runs twice.
 	 *
 	 * IF THE CHUNK IS NOT THERE WHEN THE CLICK LANDS, the click still does
@@ -253,7 +283,7 @@
 	 * clock, the route as they were), `open` is set, and the box mounts the
 	 * moment the module resolves. A fetch that FAILS (offline, a deploy that
 	 * rotated the hashes under an open tab) is said out loud beside the
-	 * trigger and the next press tries again, because a report control that
+	 * trigger with a Reload page key, because a report control that
 	 * does nothing on the one day the network is broken is the worst possible
 	 * version of this control.
 	 */
@@ -276,7 +306,7 @@
 				loadFailed = false;
 			},
 			() => {
-				// Forget the attempt so the next press tries again, and say so.
+				// Forget the attempt (a browser that does fetch again gets the chance), and say so.
 				loading = null;
 				loadFailed = true;
 			}
@@ -372,8 +402,22 @@
 			const active = document.activeElement;
 			returnTo = active instanceof HTMLElement && active !== document.body ? active : null;
 		}
+		/*
+		 * A FAILED OPEN IS NOT AN OPEN (integration review 3, ledger 0396). The
+		 * press sets `open` before the box's code has arrived, so a fetch that
+		 * fails leaves no box on screen; left `open`, it held the install pop-up
+		 * aside and a deploy reload off for the rest of the visit, with nothing
+		 * on screen to close. The deploy hold is the same defect, not a separate
+		 * one: it exists for writing in an open box, there is none, and a fetch
+		 * that failed because a deploy rotated the chunk names under this tab is
+		 * mended by exactly the reload it was holding off. So `open` goes back to
+		 * false and both let go; the trigger says the window did not load, with
+		 * the key that reloads the page.
+		 */
 		void preload().then(() => {
-			if (loadFailed) onstate?.('failed');
+			if (!loadFailed) return;
+			open = false;
+			onstate?.('failed');
 		});
 		const viewport =
 			typeof window === 'undefined'
@@ -521,6 +565,7 @@
 		pending={open && !Box && !loadFailed}
 		onopen={openBox}
 		onpreload={preload}
+		onreload={() => location.reload()}
 	/>
 {/if}
 

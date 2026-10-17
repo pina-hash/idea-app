@@ -177,8 +177,10 @@
 		{/if}
 
 		{#if open}
-			<!-- ANCHORED RATHER THAN ABSOLUTELY PLACED. The header is sticky and
-			     carries a backdrop filter, and at 375px a panel laid out from the
+			<!-- ANCHORED RATHER THAN ABSOLUTELY PLACED. Outside the site plate the
+			     header is sticky and carries a backdrop filter (under the plate it
+			     scrolls with the page and carries none, which is what keeps this
+			     fixed panel's coordinates the window's), and at 375px a panel laid out from the
 			     chip's own box runs off the right edge; `anchored` writes
 			     `position: fixed` plus two coordinates and clamps to the viewport,
 			     which is the one mechanism in the repo that does not need a media
@@ -481,7 +483,10 @@
 		left: 0;
 		z-index: 3;
 		width: min(30rem, calc(100vw - 1.5rem));
-		max-height: min(72vh, 36rem);
+		/* `--anchor-room`: the room beside its chip, which `anchored` writes, and
+		   less than 72vh in a short window once the panel crosses the corner
+		   feedback button (ledger 0396, integration review 4). */
+		max-height: min(72vh, 36rem, var(--anchor-room, 100vh));
 		overflow: auto;
 		/* THE FACE AND THE EDGE ARE THE PLATE'S where the site plate is on (the
 		   panel is in plate.css's panel list, report R10); these are what a

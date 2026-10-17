@@ -50,6 +50,36 @@ export default {
 			until: '() => { const p = document.querySelector("[data-testid=\\"qn-panel\\"]"); return !!p && !p.hidden; }',
 			attempts: 12,
 			waitMs: 250
+		},
+		/* THE PAGE SCROLLED UNDER THE OPEN PANEL (ledger 0396, integration review
+		   4). The home header used to carry a backdrop blur, which made it the
+		   containing block of the fixed panel, so the window coordinates the
+		   action writes were applied from the header's box: 10px of scroll drew
+		   the panel 3.5px over its key and 120px drew it at -112px with Close
+		   above the window. Read at 10px and 120px, then scrolled back so the
+		   rows below measure the page as it opened. */
+		{
+			evaluate: `async () => {
+				const panel = document.querySelector('[data-testid="qn-panel"]');
+				const key = document.querySelector('header [data-testid="qn-trigger"]');
+				if (!panel || panel.hidden || !key) { window.__qnScrolled = ['NO OPEN PANEL']; return 'no open panel'; }
+				const out = [];
+				for (const y of [10, 120]) {
+					window.scrollTo({ top: y, behavior: 'instant' });
+					await new Promise((r) => setTimeout(r, 300));
+					const p = panel.getBoundingClientRect();
+					const k = key.getBoundingClientRect();
+					const c = panel.querySelector('[data-testid="qn-close"]').getBoundingClientRect();
+					const hit = c.top + c.height / 2 >= 0 ? document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2) : null;
+					const inside = p.top >= 0 && p.left >= 0 && p.right <= window.innerWidth + 0.5;
+					const overKey = p.left < k.right && p.right > k.left && p.top < k.bottom && p.bottom > k.top;
+					out.push('scrolled ' + y + ': ' + (inside ? 'inside the window' : 'OFF SCREEN at ' + Math.round(p.top)) + ', ' + (hit && hit.closest('[data-testid="qn-close"]') ? 'Close answers' : 'CLOSE NOT REACHABLE') + ', ' + (overKey ? 'OVER ITS KEY' : 'off its key'));
+				}
+				window.scrollTo({ top: 0, behavior: 'instant' });
+				await new Promise((r) => setTimeout(r, 300));
+				window.__qnScrolled = out;
+				return out.join('; ');
+			}`
 		}
 	],
 	presence: [
@@ -67,6 +97,11 @@ export default {
 	],
 	orderResult: [
 		{ label: 'the Note control does not grow the home header', evaluate: '() => window.__qnHomeHeight', expected: ['the header is the same height with the Note control'] },
+		{
+			label: 'with the page scrolled under it, the open panel stays in the window, off its key, its Close answering',
+			evaluate: '() => window.__qnScrolled',
+			expected: ['scrolled 10: inside the window, Close answers, off its key', 'scrolled 120: inside the window, Close answers, off its key']
+		},
 		{
 			label: 'Note sits on the profile menu\'s row, answers at its centre, and its panel opened inside the viewport',
 			evaluate: `() => {

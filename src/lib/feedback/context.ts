@@ -120,10 +120,23 @@ export const PROBLEM_GLYPH: readonly string[] = ['M12 3l9 16H3z', 'M12 9v4', 'M1
  * WHAT THE BUTTON SAYS WHEN THE WINDOW BEHIND IT DID NOT LOAD, spelled once
  * (ledger 0396). The Svelte control's lazy chunk and the legacy launcher's
  * frame fail for the same reasons (offline, a deploy that rotated the files
- * under an open tab), so they say the same sentence beside the same button.
+ * under an open tab), so they say the same sentence beside the same button,
+ * with a key that reloads the page (`FEEDBACK_RELOAD`).
+ *
+ * RELOAD, NOT "PRESS IT AGAIN" (integration review 4). A browser keeps a
+ * dynamic import that failed: measured in Chromium with the window's chunk
+ * refused at the mount-time fetch, neither a press nor a second press once
+ * the network was back made any request for it, so the sentence's old advice
+ * did nothing on the one surface most people see. A reload asks for the code
+ * afresh, and after a deploy it is also what fetches the new file names. The
+ * legacy launcher's next press does load a fresh frame, so on the Ledger and
+ * the handouts both work; the sentence names the one that works everywhere.
  */
 export const FEEDBACK_LOAD_FAILED =
-	'The feedback window did not load. Check the connection and press it again.';
+	'The feedback window did not load. Check the connection, then reload the page to try again.';
+
+/** The key beside that sentence, which reloads the page. */
+export const FEEDBACK_RELOAD = 'Reload page';
 
 /**
  * WHAT THE BUTTON SAYS BETWEEN THE PRESS AND THE WINDOW (ledger 0396): a cold

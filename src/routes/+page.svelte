@@ -769,6 +769,7 @@
 					ready={data.classroomReady !== false}
 					{now}
 					todoHref={hasStudentClasses ? '/classroom/todo' : null}
+					unitOrder={data.feedUnitOrder ?? {}}
 				/>
 			{:else}
 				<div class="course-card section-card feed-card">

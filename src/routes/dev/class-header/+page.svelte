@@ -545,6 +545,12 @@
 	.harness-class {
 		min-width: 0;
 	}
+	/* The pane's direct child here, where the real route's is ClassView's own
+	   root: unbounded the same way (ClassView's rule), so the pane's foot
+	   clearance lands after the class page exactly as it does on the route. */
+	:global(.cr-root .cr-split .cr-nav) > .harness-class {
+		max-height: none;
+	}
 	.harness-after {
 		margin: 0;
 		padding: var(--space-3) 0;

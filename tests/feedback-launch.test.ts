@@ -24,6 +24,7 @@ import {
 	feedbackExclusion,
 	FEEDBACK_LOAD_FAILED,
 	FEEDBACK_OPENING,
+	FEEDBACK_RELOAD,
 	isFeedbackEmbedRoute,
 	REPORT_LABEL
 } from '../src/lib/feedback/context';
@@ -197,6 +198,27 @@ describe('the button is the component, not a copy', () => {
 		expect(read('src/lib/feedback/FeedbackTrigger.svelte')).toContain('{FEEDBACK_LOAD_FAILED}');
 		const script = feedbackLaunchScript({ route: '/coins', room: 'ledger', deploy: null, buildId: null });
 		expect(script).toContain(JSON.stringify(FEEDBACK_LOAD_FAILED));
+	});
+
+	/* INTEGRATION REVIEW 4: "press it again" was false in the Svelte control, whose
+	   failed import Chromium keeps, so the sentence says to reload and both surfaces
+	   carry the key that does, drawn on the same classes so one rule paints it. */
+	it('both say to reload the page and carry the Reload page key, on the same classes', () => {
+		expect(FEEDBACK_LOAD_FAILED).toContain('reload the page');
+		expect(FEEDBACK_LOAD_FAILED).not.toMatch(/press it again/i);
+		const trigger = read('src/lib/feedback/FeedbackTrigger.svelte');
+		expect(trigger).toContain('class="sfb-reload"');
+		expect(trigger).toContain('{FEEDBACK_RELOAD}');
+		expect(trigger).toMatch(/\.sfb-reload \{[^}]*min-height: 44px/);
+		const script = feedbackLaunchScript({ route: '/coins', room: 'ledger', deploy: null, buildId: null });
+		expect(script).toContain(JSON.stringify(FEEDBACK_RELOAD));
+		expect(script).toContain("cls('sfb-reload')");
+		expect(script).toContain("cls('sfb-load-words')");
+		expect(script).toContain('location.reload()');
+		// The stylesheet the launcher ships carries the key's rule (the button is drawn by it).
+		const own = render(FeedbackTrigger, { props: { id: FEEDBACK_LAUNCH_ID, loadFailed: true, onreload: () => {} } });
+		expect(own.head).toMatch(/\.sfb-reload\.svelte-[a-z0-9]+ \{/);
+		expect(own.body).toContain(FEEDBACK_RELOAD);
 	});
 });
 

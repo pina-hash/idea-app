@@ -7,6 +7,7 @@
 	import { EditBaseline, serializeForBaseline } from '$lib/edit-baseline.svelte';
 	import { anchored } from '$lib/shell/anchored';
 	import { holdDeployReload } from '$lib/shell/deploy-safety';
+	import { stepInstallPopupAside } from '$lib/install-app';
 	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
 	import {
 		DRAFT_MIRROR_DEBOUNCE_MS,
@@ -287,6 +288,21 @@
 	$effect(() => {
 		if (!(unsaved || save.dirty)) return;
 		return untrack(() => holdDeployReload('writing a quick note'));
+	});
+
+	/**
+	 * THE PHONE INSTALL POP-UP STEPS ASIDE WHILE THE PANEL IS OPEN, and comes
+	 * back when it closes, unanswered (`$lib/install-app`: a panel a person opens
+	 * over the page asks it to). It floats at 1000 and this panel sits at 60
+	 * inside `main`, so on the smallest phones it was drawn over Save, Open
+	 * notebook and Hide this button (320x568; Hide this button at 360x640;
+	 * ledger 0396, integration review 3). `open` is the one tracked read; the
+	 * call is untracked because it tells the pop-up synchronously and the
+	 * pop-up's handler reads its own state.
+	 */
+	$effect(() => {
+		if (!open) return;
+		return untrack(() => stepInstallPopupAside());
 	});
 
 	// ---- the mirror -----------------------------------------------------------
@@ -757,12 +773,19 @@
 
 	/* THE PANEL: a notepad under the header, never over a row until somebody
 	   opens it. `anchored` places it (fixed, flipped and clamped to the
-	   viewport); these rules are its size and its ground. */
+	   viewport); these rules are its size and its ground.
+	   ITS HEIGHT NEVER OUTGROWS THE ROOM BESIDE ITS KEY (`--anchor-room`, which
+	   the action writes): the editor loads after the panel opens and grows it
+	   from 344 to 448px, and in a short window (375x548, 1024x560) the room
+	   below the key and above the corner feedback button cannot take that, so
+	   the panel was first drawn under the button and then clamped up over the
+	   Menu key that opened it (ledger 0396, integration review 3). Capped, it
+	   stays under its key and scrolls inside. */
 	.qn-panel {
 		position: absolute;
 		z-index: 60;
 		width: min(26rem, calc(100vw - 16px));
-		max-height: min(34rem, calc(100vh - 90px));
+		max-height: min(34rem, calc(100vh - 90px), var(--anchor-room, 100vh));
 		overflow-y: auto;
 		box-sizing: border-box;
 		padding: var(--space-3, 0.75rem);

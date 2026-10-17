@@ -108,14 +108,22 @@ export interface SubmenuPlacement {
  * list sits against the PANEL's edge, not the row's, so it never covers the
  * menu. `inset` is the list's own padding and border above its first row, so
  * its first ROW, not its frame, lines up with the row that opened it.
+ *
+ * `avoid` is the corner the feedback button claims (`cornerReserve`), and it
+ * goes in transposed like everything else (ledger 0396): two boxes overlap
+ * exactly when their transposes do, so a list that `anchorPosition` keeps off
+ * the transposed button is off the real one. Turned on its side, the button's
+ * left edge is the floor for a list whose ROWS cross the button's rows, so a
+ * list near the window's foot opens to the menu's left, or moves up off the
+ * button, rather than under it.
  */
-export function submenuPlacement(row: Pick<AnchorBox, 'top' | 'bottom'>, menu: Pick<AnchorBox, 'left' | 'right'>, panel: AnchorSize, viewport: AnchorSize, inset = 0, gap = 0): SubmenuPlacement {
+export function submenuPlacement(row: Pick<AnchorBox, 'top' | 'bottom'>, menu: Pick<AnchorBox, 'left' | 'right'>, panel: AnchorSize, viewport: AnchorSize, inset = 0, gap = 0, avoid: AnchorBox | null = null): SubmenuPlacement {
 	const top = row.top - inset, bottom = row.bottom + inset;
 	const t = anchorPosition(
 		{ left: top, right: bottom, top: menu.left, bottom: menu.right, width: bottom - top, height: menu.right - menu.left },
 		{ width: panel.height, height: panel.width },
 		{ width: viewport.height, height: viewport.width },
-		{ prefer: 'below', align: 'start', gap, margin: MENU_MARGIN }
+		{ prefer: 'below', align: 'start', gap, margin: MENU_MARGIN, avoid: avoid && { left: avoid.top, right: avoid.bottom, top: avoid.left, bottom: avoid.right, width: avoid.height, height: avoid.width } }
 	);
 	return { left: t.top, top: t.left, side: t.side === 'below' ? 'right' : 'left', align: t.align };
 }

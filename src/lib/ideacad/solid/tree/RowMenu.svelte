@@ -14,11 +14,12 @@
 	 *
 	 * IT ESCAPES THE TREE'S SCROLL BOX. The list scrolls, so a menu positioned
 	 * inside it would be clipped; this one is `position: fixed` and placed by
-	 * `anchorPosition`, the same arithmetic `$lib/shell/anchored` uses, against
-	 * a zero-size box at the point it was opened.
+	 * `anchorInWindow`, the same arithmetic `$lib/shell/anchored` uses, against
+	 * a zero-size box at the point it was opened, clear of the corner feedback
+	 * button.
 	 */
 	import { onMount, tick } from 'svelte';
-	import { anchorPosition } from '$lib/shell/anchored';
+	import { anchorInWindow } from '$lib/shell/anchored';
 	import type { TreeMenuRequest, TreeMenuItem } from './api';
 	let { request, onclose, onrefused }: { request: TreeMenuRequest; onclose: (restoreFocus: boolean) => void; onrefused: (reason: string) => void } = $props();
 	let menu = $state<HTMLElement>();
@@ -45,7 +46,7 @@
 	function position() {
 		if (!menu) return;
 		const r = menu.getBoundingClientRect();
-		const at = anchorPosition({ left: request.x, top: request.y, right: request.x, bottom: request.y, width: 0, height: 0 }, { width: r.width, height: r.height }, { width: window.innerWidth, height: window.innerHeight }, { prefer: 'below', align: 'start', gap: 2 });
+		const at = anchorInWindow({ left: request.x, top: request.y, right: request.x, bottom: request.y, width: 0, height: 0 }, { width: r.width, height: r.height }, { prefer: 'below', align: 'start', gap: 2 });
 		place = { left: Math.round(at.left), top: Math.round(at.top) };
 	}
 	onMount(() => {

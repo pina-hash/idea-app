@@ -60,6 +60,7 @@ import { classroomTourFor, resolveTourSteps, type ClassroomTourStep } from './cl
 import type { ClassroomTourId } from '$lib/preferences/classroom';
 import { visibleApps, type PortalApp } from '$lib/portal-apps';
 import { REPORT_LABEL } from '$lib/feedback/context';
+import { INSTALL_COPY } from '$lib/install-app';
 
 export type TourPhase = 'signin' | 'home';
 
@@ -280,6 +281,19 @@ export function homeTourDefs(tour: HomeTourId, isAdmin: boolean): HomeTourStep[]
 					target: tid('qn-trigger'),
 					title: 'Note',
 					body: "Note jots down a private note from any page. Written in a class it is filed there; anywhere else it waits in your notebook's Inbox."
+				}
+			]
+		},
+		{
+			// The Install app key (ledger 0396) sits in this header on every
+			// browser that can install the site, icon-only on a phone; where none
+			// can, or it already runs installed, the key is absent and so is this.
+			id: 'install',
+			variants: [
+				{
+					target: hook('install'),
+					title: INSTALL_COPY.key,
+					body: `${INSTALL_COPY.key} puts IDEA on your home screen or desktop, so it opens in its own window like any other app.`
 				}
 			]
 		},

@@ -41,13 +41,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
+	normalizeUnitRow,
 	sortSections,
+	sortUnits,
 	type ClassroomItem,
-	type ClassroomSection
+	type ClassroomSection,
+	type ClassroomUnit
 } from '$lib/classroom/classroom';
 import {
 	SECTION_SELECT,
 	SECTION_SELECT_THUMBS,
+	UNIT_SELECT,
 	htmlManifestShaped,
 	readPastManifests,
 	readWorksheetLatches,
@@ -772,6 +776,13 @@ export interface ClassroomWork {
 	checkIns: ClassCheckIn[];
 	checkInsReady: boolean;
 	clock: ClassroomClock;
+	/**
+	 * Each course's units in the class page's own order (`sortUnits`), as ids,
+	 * keyed by course id: what a post's generated thumbnail is tinted by
+	 * (`unitTint`). Read only when asked (`units`); empty otherwise, and empty
+	 * where the units table cannot answer, which draws every post untinted.
+	 */
+	unitOrder: Record<string, string[]>;
 }
 
 export interface ClassroomWorkOptions {
@@ -794,6 +805,13 @@ export interface ClassroomWorkOptions {
 	 * load pays the retry a database without 0268 costs.
 	 */
 	thumbShapes?: boolean;
+	/**
+	 * Read each course's unit order too (ledger 0396): the home page's class
+	 * cards tint a post's generated thumbnail by its unit, as the class page
+	 * does, so a post looks the same in both places. One small read beside the
+	 * worksheet and check-in reads, taken only when an item is filed in a unit.
+	 */
+	units?: boolean;
 	/** The clock read, when the caller already made it; otherwise it is made here, once. */
 	clock?: ClassroomClock;
 }
@@ -819,7 +837,8 @@ export async function loadClassroomWork(
 		submissions: [],
 		checkIns: [],
 		checkInsReady: false,
-		clock
+		clock,
+		unitOrder: {}
 	});
 
 	let { data: sectionRows, error: sectionError } = await supabase
@@ -930,7 +949,27 @@ export async function loadClassroomWork(
 		return { checkIns: await readOwnCheckIns(supabase, options.userId, rows, clock.today), ready: true };
 	};
 
-	const [completions, own] = await Promise.all([readCompletions(), readCheckIns()]);
+	const readUnitOrder = async (): Promise<Record<string, string[]>> => {
+		if (!options.units || !items.some((i) => i.unit_id)) return {};
+		const courseIds = [...new Set(sections.map((s) => s.course_id).filter(Boolean))];
+		if (!courseIds.length) return {};
+		try {
+			const { data, error } = await supabase.from('classroom_units').select(UNIT_SELECT).in('course_id', courseIds);
+			if (error) return {};
+			const byCourse = new Map<string, ClassroomUnit[]>();
+			for (const row of (data ?? []) as Record<string, unknown>[]) {
+				const unit = normalizeUnitRow(row);
+				const list = byCourse.get(unit.course_id);
+				if (list) list.push(unit);
+				else byCourse.set(unit.course_id, [unit]);
+			}
+			return Object.fromEntries([...byCourse].map(([course, units]) => [course, sortUnits(units).map((u) => u.id)]));
+		} catch {
+			return {};
+		}
+	};
+
+	const [completions, own, unitOrder] = await Promise.all([readCompletions(), readCheckIns(), readUnitOrder()]);
 	submissions = withWorksheetCompletions(submissions, completions, (item_id, student_email) => ({
 		item_id,
 		student_email,
@@ -942,5 +981,5 @@ export async function loadClassroomWork(
 	const checkIns = own.checkIns;
 	const checkInsReady = own.ready;
 
-	return { ready: true, sections, items, submissions, checkIns, checkInsReady, clock };
+	return { ready: true, sections, items, submissions, checkIns, checkInsReady, clock, unitOrder };
 }

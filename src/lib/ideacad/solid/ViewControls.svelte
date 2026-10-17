@@ -84,7 +84,8 @@
 	button[aria-disabled='true'] { color: var(--text-2); }
 	.more span { font-size: 12px; color: var(--text-2); }
 	.measurer { position: absolute; left: 0; top: 0; display: flex; gap: 2px; visibility: hidden; pointer-events: none; height: 0; overflow: hidden; }
-	.menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 170px; display: flex; flex-direction: column; padding: 4px; background: var(--surface-1); border: 1px solid var(--boundary); border-radius: 7px; pointer-events: auto; }
+	/* Never taller than the room beside its key (`--anchor-room`, which `anchored` writes): all seven views folded measured 316px against 275px of room at 1024x400, and the clamp drew the menu over its own Views key (ledger 0396, integration review 4). It scrolls instead. */
+	.menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 170px; max-height: var(--anchor-room, none); overflow-y: auto; display: flex; flex-direction: column; padding: 4px; background: var(--surface-1); border: 1px solid var(--boundary); border-radius: 7px; pointer-events: auto; }
 	.menu button { justify-content: space-between; text-align: left; width: 100%; }
 	.menu small { font: 13px Rajdhani, sans-serif; color: var(--text-2); }
 	@media (max-width: 700px) { button { font-size: 14px; padding: 0 8px; } }

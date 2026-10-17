@@ -16,7 +16,7 @@
 	 * ONE CARD, NOT ONE PER ROW. Thirty hidden cards are thirty copies of the
 	 * presence line in the DOM for one that is ever on screen, and a row-level
 	 * popover is clipped by the roster's own scroll container. This one is
-	 * `position: fixed`, placed with `anchorPosition` against the row's RIGHT
+	 * `position: fixed`, placed with `anchorInWindow` against the row's RIGHT
 	 * edge (the pure arithmetic `$lib/shell/anchored` is built on; the action
 	 * itself only places above or below its anchor), so it opens over the work
 	 * pane rather than over the next names.
@@ -28,7 +28,7 @@
 	 * announces after the name. Absent at rest: `open` false renders nothing.
 	 */
 	import PresenceLine from '$lib/classroom/presence/PresenceLine.svelte';
-	import { anchorPosition } from '$lib/shell/anchored';
+	import { anchorInWindow } from '$lib/shell/anchored';
 	import type { PresenceLimits, PresenceRow } from '$lib/classroom/presence/state';
 
 	let {
@@ -85,10 +85,11 @@
 			if (!anchorEl || typeof window === 'undefined') return;
 			const r = anchorEl.getBoundingClientRect();
 			const panel = node.getBoundingClientRect();
-			const at = anchorPosition(
+			// `anchorInWindow`: clear of the corner feedback button, which paints
+			// over a card under it (ledger 0396).
+			const at = anchorInWindow(
 				{ left: r.right, right: r.right, top: r.top, bottom: r.top, width: 0, height: 0 },
 				{ width: panel.width, height: panel.height },
-				{ width: window.innerWidth, height: window.innerHeight },
 				{ prefer: 'below', align: 'start', gap: 8 }
 			);
 			node.style.left = `${Math.round(at.left)}px`;

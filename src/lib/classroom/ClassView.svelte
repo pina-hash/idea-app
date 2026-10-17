@@ -3102,6 +3102,19 @@
 	.classroom-page.edit-layer-open {
 		z-index: auto;
 	}
+	/* NEVER BOUNDED TO THE PANE'S HEIGHT, for ClassTeams' reason. Above 1024px
+	   split.css gives every DIRECT child of the class pane `max-height: 100%`
+	   (so a bounded surface can keep its header while its body scrolls), and
+	   this page is one there and is not bounded: its stream ran out of the
+	   capped box, so the pane's foot padding (the corner feedback button's
+	   clearance, ledger 0396) landed partway down the stream instead of after
+	   it. Measured at 1440x900 on the class-header harness: the last row ended
+	   13px under the button's top and its menu key hit-tested as the button.
+	   The page is content in the pane's flow, so the pane scrolls it whole. The
+	   selector outranks split.css's (0,4,0) and names the split only to do that. */
+	:global(.cr-root .cr-split .cr-nav) > .classroom-page {
+		max-height: none;
+	}
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto;
@@ -4003,6 +4016,13 @@
 		   A pinned width cannot drift between the measurement and the paint. */
 		width: 11rem;
 		max-width: calc(100vw - 1rem);
+		/* NEVER TALLER THAN THE ROOM BESIDE ITS KEY (`--anchor-room`, which the
+		   action writes), scrolling inside instead: seven actions and the Unit
+		   select outgrow a short window's room above and below a row, and the
+		   clamp then drew the menu over the key that opened it (6px over it at
+		   1280x400 without the Unit select; ledger 0396, integration review 4). */
+		max-height: var(--anchor-room, none);
+		overflow-y: auto;
 		padding: 0.25rem;
 		display: flex;
 		flex-direction: column;

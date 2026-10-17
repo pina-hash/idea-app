@@ -21,7 +21,7 @@
 	 * model reaches it; the arrows move along it, Escape closes it.
 	 */
 	import { onMount } from 'svelte';
-	import { anchorPosition } from '$lib/shell/anchored';
+	import { anchorInWindow, cornerReserve } from '$lib/shell/anchored';
 	import type { MenuItem } from './context-menu';
 	import type { Crumb } from './context-menu';
 	let { at, touch = false, avoid = () => [], commands, crumbs, onrun, oncrumb, onpreview, onclose }: {
@@ -48,19 +48,21 @@
 	const FADE_PX = 180, CLOSE_PX = 360;
 	/**
 	 * Four places around the pointer (above or below it, reaching right or
-	 * left), each kept on screen by `anchorPosition`, and the one that covers
-	 * the least of the chrome it must avoid wins, above and to the right first.
+	 * left), each kept on screen and clear of the corner feedback button by
+	 * `anchorInWindow`, and the one that covers the least of the chrome it must
+	 * avoid (that button's box among it) wins, above and to the right first.
 	 * A box around the pointer means every one clears it by a finger's width.
 	 */
 	function position() {
 		if (!bar) return;
-		const r = bar.getBoundingClientRect(), size = { width: r.width, height: r.height }, view = { width: window.innerWidth, height: window.innerHeight };
+		const r = bar.getBoundingClientRect(), size = { width: r.width, height: r.height };
 		const box = { left: at.x - 8, right: at.x + 8, top: at.y - 22, bottom: at.y + 22, width: 16, height: 44 };
-		const chrome = avoid();
+		const corner = cornerReserve();
+		const chrome = corner ? [...avoid(), corner] : avoid();
 		const covered = (left: number, top: number) => chrome.reduce((sum, c) => sum + Math.max(0, Math.min(left + size.width, c.right) - Math.max(left, c.left)) * Math.max(0, Math.min(top + size.height, c.bottom) - Math.max(top, c.top)), 0);
 		let best: { left: number; top: number; side: 'above' | 'below'; cost: number } | null = null;
 		for (const prefer of ['above', 'below'] as const) for (const align of ['start', 'end'] as const) {
-			const p = anchorPosition(box, size, view, { prefer, align, gap: 6, margin: 8 });
+			const p = anchorInWindow(box, size, { prefer, align, gap: 6, margin: 8, avoid: corner });
 			const cost = covered(p.left, p.top);
 			if (!best || cost < best.cost - 0.5) best = { left: p.left, top: p.top, side: p.side, cost };
 		}

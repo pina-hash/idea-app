@@ -49,15 +49,18 @@
 	 * where the profile menu's and the quick note's panels scroll away with the
 	 * header.
 	 *
-	 * THE CARD IS MOVED OUT OF THE HEADER, TO THE ROOM'S ROOT, AND THAT IS FORCED
-	 * (review round 1). The header carries a `backdrop-filter`, which makes it
-	 * the containing block of every `position: fixed` box inside it, so the
-	 * viewport coordinates `anchored` writes were applied from the header's own
-	 * box: after 24px of scroll the card opened 15.8px up over the key, and after
-	 * 44px its title was off the top of the window (the error was the scroll
-	 * offset, measured at 375 and 1440). At `.legacy-index`, the room's root, it
-	 * keeps the room's tokens and the plate's panel housing, and `fixed` means
-	 * the window again. It goes straight after the header, so it is next in
+	 * THE CARD IS MOVED OUT OF THE HEADER, TO THE ROOM'S ROOT (review round 1).
+	 * The header carried a `backdrop-filter`, which made it the containing block
+	 * of every `position: fixed` box inside it, so the viewport coordinates
+	 * `anchored` writes were applied from the header's own box: after 24px of
+	 * scroll the card opened 15.8px up over the key, and after 44px its title
+	 * was off the top of the window (the error was the scroll offset, measured
+	 * at 375 and 1440). At `.legacy-index`, the room's root, it keeps the room's
+	 * tokens and the plate's panel housing, and `fixed` means the window.
+	 * Since integration review 4 the plate also takes that filter off the
+	 * header it unsticks (plate.css), which closed the same trap for the Quick
+	 * note and the lines-of-code panel beside this key; the card's move is
+	 * right with or without it. It goes straight after the header, so it is next in
 	 * reading order, and the Tab key is walked by hand (`onCardKeydown`,
 	 * `onKeyKeydown`) so the order stays what it was in the header: the key, the
 	 * card's Close, then Take the tour.
@@ -287,6 +290,7 @@
 		class:on={shown}
 		data-install="key"
 		data-install-mode={mode}
+		data-tour="install"
 		aria-haspopup={mode === 'prompt' ? undefined : 'dialog'}
 		aria-expanded={mode === 'prompt' ? undefined : shown}
 		aria-controls={mode === 'prompt' ? undefined : cardId}

@@ -100,7 +100,10 @@ function item(sectionId: string, n: number, dueAt?: string): ClassroomItem {
 		author_name: 'T. Vargas',
 		published: true,
 		pinned: false,
-		unit_id: null,
+		// Filed across the course's three units (and every fourth post in none),
+		// so the cards' generated thumbnails show the unit tints the class page
+		// shows (integration review, ledger 0396).
+		unit_id: n % 4 === 3 ? null : `u-${(n % 4) + 1}`,
 		sort_order: n,
 		created_at: new Date(NOW.getTime() - n * 86_400_000).toISOString(),
 		edited_at: null,
@@ -235,6 +238,7 @@ export const load: PageLoad = async ({ url }) => {
 		feedSubmissions: signedOut ? [] : submissions,
 		feedCheckIns: [] as ClassCheckIn[],
 		feedClock: clock,
+		feedUnitOrder: { c1: ['u-1', 'u-2', 'u-3'] } as Record<string, string[]>,
 		// What the root layout normally supplies, overridden here so the page and
 		// the launcher both see a signed-in viewer of the chosen role.
 		claims: signedOut ? null : { sub: 'harness-user', email: me },

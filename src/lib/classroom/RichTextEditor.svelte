@@ -897,6 +897,18 @@
 	   note that the picture panel is the one that genuinely NEEDS two rows --
 	   two fields, a picker and a sentence -- where the link panel wraps only
 	   when it has to. */
+	/* THE PICTURE PANEL NEVER OUTGROWS THE ROOM BESIDE ITS KEY (`--anchor-room`,
+	   which `anchored` writes on every placement), and scrolls inside instead.
+	   Two fields, a picker and a sentence make it about 284px tall, and on a
+	   short phone the room under the Image key ends above the corner feedback
+	   button: at 375x548 with the key's top at 164px the room below was 255px,
+	   so the placement was clamped up over the key that opened it, and a tap
+	   on the key landed on the panel (ledger 0396, integration review 4). The
+	   Link panel is one row and always fits, so it keeps its natural height. */
+	.image-pop {
+		max-height: var(--anchor-room, none);
+		overflow-y: auto;
+	}
 	/* THE PICKER. A full-width row inside the popover so the names have room to
 	   be read: a file called `IMG_4821.jpg` beside `IMG_4822.jpg` is exactly the
 	   case where a truncated label is no help at all. */

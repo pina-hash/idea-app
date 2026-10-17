@@ -10,11 +10,12 @@
 		type FeedEntry,
 		type SectionFeed
 	} from '$lib/classroom/feed';
-	import type { ClassroomItemKind } from '$lib/classroom/classroom';
 	import PostThumbnail from '$lib/classroom/PostThumbnail.svelte';
 	import {
+		KIND_GLYPHS,
 		hasThumbnailMedia,
 		resolveThumbShape,
+		unitTint,
 		type ItemThumbnail,
 		type ThumbShape,
 		type ThumbShapeChoice
@@ -80,6 +81,14 @@
 		 * the door, which is what a teacher's feed gets.
 		 */
 		todoHref?: string | null;
+		/**
+		 * EACH COURSE'S UNITS IN THE CLASS PAGE'S ORDER (ledger 0396), keyed by
+		 * course id: a post's generated thumbnail is tinted by its unit's place
+		 * there (`unitTint`), exactly as the class page tints it, so a post is
+		 * one identity in both places. Absent or empty draws every post in the
+		 * neutral ink, which is a post in no unit.
+		 */
+		unitOrder?: Record<string, string[]>;
 	}
 
 	let {
@@ -89,7 +98,8 @@
 		ready = true,
 		basePath = '/classroom',
 		now = new Date(),
-		todoHref = null
+		todoHref = null,
+		unitOrder = {}
 	}: Props = $props();
 
 	const collapsedSet = $derived(new Set(collapsed));
@@ -103,15 +113,9 @@
 	 */
 	let failedCovers = $state(new Set<string>());
 
-	// Kind glyphs, the legacy ICON_KINDS approach: one distinct mark per item
-	// kind so a row's nature reads before its title does. Deliberately NO live
-	// pulse and no opened-progress dot -- this surface has no live state, and
-	// item views stay consumed only by the Updated badge.
-	const ICON_KINDS: Record<ClassroomItemKind, 'announcement' | 'assignment' | 'material'> = {
-		post: 'announcement',
-		assignment: 'assignment',
-		material: 'material'
-	};
+	/** A post's unit tint, the class page's own rule over its course's unit order. */
+	const tintOf = (feed: SectionFeed, entry: FeedEntry): number | null =>
+		unitTint(entry.item.unit_id, unitOrder[feed.section.course_id] ?? []);
 
 	const itemHref = (section: ClassroomSection, entry: FeedEntry) =>
 		`${basePath}/${section.id}/item/${entry.item.id}`;
@@ -167,28 +171,18 @@
 	}
 </script>
 
-{#snippet icon(kind: ClassroomItemKind)}
-	{#if ICON_KINDS[kind] === 'announcement'}
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M4 10v4h3l6 4V6l-6 4H4z" />
-				<path d="M17 9.5a3.5 3.5 0 010 5" />
-				<path d="M19.5 7a7 7 0 010 10" />
-			</svg>
-		{:else if ICON_KINDS[kind] === 'assignment'}
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-				<rect x="5" y="4" width="14" height="17" rx="1.5" />
-				<rect x="9" y="2.5" width="6" height="3" rx="1" />
-				<path d="M8.5 12l2.2 2.2L15.5 9.5" />
-			</svg>
-		{:else}
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M4 5.5C4 4.67 4.67 4 5.5 4H12v16H5.5A1.5 1.5 0 014 18.5v-13z" />
-			<path d="M20 5.5c0-.83-.67-1.5-1.5-1.5H12v16h6.5a1.5 1.5 0 001.5-1.5v-13z" />
-		</svg>
-	{/if}
+{#snippet icon(kind: FeedEntry['item']['kind'])}
+	<!-- The class page's own kind glyphs (`KIND_GLYPHS`, the same marks its Off
+	     rows and every generated thumbnail draw), so a post's mark does not
+	     change between the home page and its class, or between shapes.
+	     Deliberately NO live pulse and no opened-progress dot: this surface has
+	     no live state, and item views stay consumed only by the Updated badge. -->
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		{#each KIND_GLYPHS[kind] as d (d)}<path {d} />{/each}
+	</svg>
 {/snippet}
 
-{#snippet thumb(entry: FeedEntry, glyphOnly = false)}
+{#snippet thumb(feed: SectionFeed, entry: FeedEntry, glyphOnly = false)}
 	{@const cover = glyphOnly ? null : feedCover(entry.item)}
 	<!-- `glyphOnly`: thumbnails Off, so the mark is the kind glyph and nothing
 	     else, the cover included ("no pictures, titles only"). -->
@@ -198,10 +192,20 @@
 			34px box the cover and the glyph use, so the row's geometry does not
 			move. `passive`: the row is the link, so an interactive HTML thumbnail
 			is mounted as a plain one here and the click is the row's. A post with
-			nothing set keeps the cover-or-glyph below, exactly as before.
+			nothing set shows its body's cover, or the generated identity below.
 		-->
 		<div class="assignment-icon-thumb has-cover feed-post-thumb" data-testid="feed-post-thumb">
-			<PostThumbnail item={entry.item} shape="tile" glyph={entry.item.kind} label={itemTitle(entry.item)} passive />
+			<PostThumbnail item={entry.item} shape="tile" glyph={entry.item.kind} tint={tintOf(feed, entry)} label={itemTitle(entry.item)} passive />
+		</div>
+	{:else if !glyphOnly && !(cover && !failedCovers.has(entry.item.id))}
+		<!--
+			NOTHING OF ITS OWN AND NO PICTURE IN ITS BODY: the generated identity,
+			the class page's Tile for the same post (its type glyph on a plate tile
+			in its unit's tint), in the same 34px box. A cover that fails to decode
+			lands here too.
+		-->
+		<div class="assignment-icon-thumb feed-post-thumb" data-testid="feed-post-glyph">
+			<PostThumbnail item={{ id: entry.item.id, thumbnail: null }} shape="tile" glyph={entry.item.kind} tint={tintOf(feed, entry)} label={itemTitle(entry.item)} passive />
 		</div>
 	{:else}
 	<div class="assignment-icon-thumb" class:has-cover={cover && !failedCovers.has(entry.item.id)}>
@@ -218,8 +222,8 @@
 				a reader is actually looking at the picture. This is the same call the
 				per-kind glyph already makes with `aria-hidden`.
 
-				A COVER THAT FAILS TO DECODE FALLS BACK TO THE GLYPH, through the
-				img's own `onerror` -- the classroom rule for a storage-backed
+				A COVER THAT FAILS TO DECODE FALLS BACK TO THE GENERATED IDENTITY,
+				through the img's own `onerror` -- the classroom rule for a storage-backed
 				thumbnail, applied here for the same reason: an attachment can be
 				deleted after the body that names it was written, and a broken image
 				icon in a 44px box is worse than the mark that was there before.
@@ -238,12 +242,12 @@
 	{/if}
 {/snippet}
 
-{#snippet slot(entry: FeedEntry, shape: 'wide' | 'banner')}
+{#snippet slot(feed: SectionFeed, entry: FeedEntry, shape: 'wide' | 'banner')}
 	{@const s = slotOf(entry)}
 	<!-- Wide and Banner (ledger 0396): the slot above the title, the class
 	     page's two stacked shapes, inside the row's own link (`passive`). -->
 	<div class="feed-slot" data-testid="feed-post-thumb">
-		<PostThumbnail item={s.item} {shape} glyph={entry.item.kind} label={itemTitle(entry.item)} imageSrc={s.src} passive />
+		<PostThumbnail item={s.item} {shape} glyph={entry.item.kind} tint={tintOf(feed, entry)} label={itemTitle(entry.item)} imageSrc={s.src} passive />
 	</div>
 {/snippet}
 
@@ -258,14 +262,14 @@
 		{#if own}
 			<!-- The slot is above this link, keeping its own clicks. -->
 		{:else if shape === 'wide' || shape === 'banner'}
-			{@render slot(entry, shape)}
+			{@render slot(feed, entry, shape)}
 			{#if shape === 'wide' && dueUrgency(entry, now)}
 				<!-- The deadline marker beside this post's own slot and title, not
 				     on the row's edge, which in columns is the line between two. -->
 				<span class="feed-mark" aria-hidden="true"></span>
 			{/if}
 		{:else}
-			{@render thumb(entry, shape === 'off')}
+			{@render thumb(feed, entry, shape === 'off')}
 		{/if}
 		<div class="assignment-name">{itemTitle(entry.item)}</div>
 		<span class="feed-flag tone-{reasonTone(entry.reason)}">{feedIndicator(entry, now)}</span>
@@ -285,7 +289,7 @@
 				<span class="feed-mark" aria-hidden="true"></span>
 			{/if}
 			<div class="feed-slot" data-testid="feed-post-thumb">
-				<PostThumbnail item={entry.item} {shape} glyph={entry.item.kind} label={itemTitle(entry.item)} href={itemHref(feed.section, entry)} />
+				<PostThumbnail item={entry.item} {shape} glyph={entry.item.kind} tint={tintOf(feed, entry)} label={itemTitle(entry.item)} href={itemHref(feed.section, entry)} />
 			</div>
 			{@render rowText(feed, entry, shape, true)}
 		</div>
@@ -900,6 +904,23 @@
 		/* A row stretched to its grid line's tallest neighbour keeps its slot
 		   and its title at the top, so titles line up across the line. */
 		align-content: start;
+	}
+	/* THE HOVER NUDGE NEVER RESIZES A PICTURE (integration review). app.css's
+	   shared row hover grows the row's left padding, which in a Tile or Off row
+	   slides the mark and the title; a Wide or Banner slot takes its height from
+	   its width, so the same nudge shrank and recropped the picture and moved
+	   every row under a row alone on its line (375: 309x174 to 296x167, the card
+	   below jumping 7.2px). These rows keep their resting padding (app.css's own
+	   two values, 1.5rem and 1rem at 768px and under) and keep the wash. */
+	:global(.legacy-index) .feed-row[data-thumbs='wide']:hover,
+	:global(.legacy-index) .feed-row[data-thumbs='banner']:hover {
+		padding-left: 1.5rem;
+	}
+	@media (max-width: 768px) {
+		:global(.legacy-index) .feed-row[data-thumbs='wide']:hover,
+		:global(.legacy-index) .feed-row[data-thumbs='banner']:hover {
+			padding-left: 1rem;
+		}
 	}
 	.feed-slot {
 		grid-area: thumb;

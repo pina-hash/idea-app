@@ -26,19 +26,33 @@ export const HIDE_STRIP = {
 /**
  * A signed-out first visit gets the orientation tour, whose backdrop takes
  * every tap. Close it the way a visitor would (its own X), and only call the
- * page settled once the app has hydrated (the install mailbox is wired) and no
- * tour has appeared for a full second, because the tour mounts after paint.
+ * page settled once the app has hydrated (the install mailbox is wired), no
+ * tour can still be on its way, and none has appeared for a full second.
+ *
+ * "NO TOUR CAN STILL BE ON ITS WAY" IS HomeTour's OWN RULE, READ OFF THE PAGE,
+ * NEVER A QUIET WINDOW ALONE. A visitor who is signed out (the header carries
+ * the Google sign-in control the tour points at) and has no `idea_tour_seen`
+ * record gets the tour, and closing it is what writes that record. A second of
+ * quiet was the whole test before, and under load it was met before the tour
+ * had mounted: "1 OF 1 Sign in with Google" arrived about 2s later and stayed,
+ * so every step after it ran under its callout and dimmed page (integration
+ * review 3). Now a signed-out page is not settled until the tour has come and
+ * been closed; a signed-in one, which this rule never sends a tour, keeps the
+ * quiet second.
  */
 export const CLOSE_TOUR = {
 	waitFor: `() => {
 		const x = document.querySelector('[data-testid="tour-close"]');
 		if (x) { x.click(); window.__iaQuiet = 0; return false; }
 		if (typeof window.__ideaInstall?.notify !== 'function') return false;
+		let seen = null;
+		try { seen = localStorage.getItem('idea_tour_seen'); } catch { seen = 'unavailable'; }
+		if (document.querySelector('[data-tour="signin"]') && !seen) { window.__iaQuiet = 0; return false; }
 		window.__iaQuiet = (window.__iaQuiet || 0) + 1;
-		return window.__iaQuiet >= 10;
+		return window.__iaQuiet >= 10 && !document.querySelector('[data-testid="tour-close"]');
 	}`,
 	timeoutMs: 30000,
-	label: 'the app has hydrated and no orientation tour is over the header'
+	label: 'the app has hydrated, the signed-out orientation tour (if this page gets one) has come and been closed, and no tour is over the header'
 };
 
 /** Chromium's offer, as Chromium dispatches it. Logs whether the page took it. */

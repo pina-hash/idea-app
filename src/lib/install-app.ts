@@ -314,6 +314,44 @@ export function installCardOpen(): boolean {
 	return cardOpen;
 }
 
+/**
+ * A PANEL A PERSON OPENS OVER THE PAGE ASKS THE POP-UP TO STEP ASIDE WHILE IT
+ * IS OPEN, by the same rule as the key's card: page state, nothing stored,
+ * back the moment the last asker lets go unless it was dismissed. The askers
+ * are the feedback window (integration review, ledger 0396) and the header's
+ * Quick note panel (integration review 3): the pop-up floats at 1000 over
+ * everything, so with either on screen it was drawn OVER their controls
+ * (Cancel and Send on an iPad, the contact field on an iPhone, Dictate on a
+ * phone on its side; the note's Save, Open notebook and Hide this button on a
+ * 320px phone). A new panel of that kind, one somebody opened to work in, is
+ * a third asker; a tooltip or a menu passing by is not. Stepping aside rather than painting
+ * the window higher, because the window is a modal and a toast has no
+ * business on screen beside one, and because a higher window would also bury
+ * what is meant to sit over it (GAUNTLET's own cursor layer is drawn at 900,
+ * over the window, while the native cursor is hidden there).
+ *
+ * Returns the release; releasing twice is a no-op. Subscribers hear only a
+ * change in the answer `installPopupAside` gives.
+ */
+const asides = new Set<object>();
+
+export function stepInstallPopupAside(): () => void {
+	const token = {};
+	const was = installPopupAside();
+	asides.add(token);
+	if (installPopupAside() !== was) broadcast();
+	return () => {
+		const before = installPopupAside();
+		if (!asides.delete(token)) return;
+		if (installPopupAside() !== before) broadcast();
+	};
+}
+
+/** Whether the phone pop-up is stepped aside: the key's card, or any other asker. */
+export function installPopupAside(): boolean {
+	return cardOpen || asides.size > 0;
+}
+
 export type InstallOutcome = 'accepted' | 'dismissed' | 'unavailable';
 
 /**

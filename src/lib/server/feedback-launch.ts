@@ -5,6 +5,7 @@ import {
 	FEEDBACK_EMBED_PATH,
 	FEEDBACK_LOAD_FAILED,
 	FEEDBACK_OPENING,
+	FEEDBACK_RELOAD,
 	REPORT_LABEL,
 	type BuildStamp
 } from '$lib/feedback/context';
@@ -406,6 +407,7 @@ export function feedbackLaunchScript(opts: FeedbackLaunchOptions): string {
 			title: REPORT_LABEL,
 			opening: FEEDBACK_OPENING,
 			failed: FEEDBACK_LOAD_FAILED,
+			reload: FEEDBACK_RELOAD,
 			timeoutMs: FEEDBACK_LAUNCH_TIMEOUT_MS,
 			marker: FEEDBACK_EMBED_MARKER
 		})
@@ -526,15 +528,27 @@ export function feedbackLaunchScript(opts: FeedbackLaunchOptions): string {
 		if (note) { note.remove(); note = null; }
 	}
 	/* SAID BESIDE THE BUTTON, in the button's own words and its own scoped
-	   class, so it is drawn by the same rule the Svelte control's is. */
+	   classes, so it is drawn by the same rules the Svelte control's is: the
+	   sentence, then its Reload page key. A press of the button also loads a
+	   fresh frame here; the key is the answer that works on every page. */
 	function showNote() {
 		clearNote();
 		note = document.createElement('p');
 		var scoped = '';
 		for (var i = 0; i < btn.classList.length; i++) if (btn.classList[i].indexOf('svelte-') === 0) scoped = btn.classList[i];
-		note.className = 'sfb-load-failed' + (scoped ? ' ' + scoped : '');
+		var cls = function (name) { return name + (scoped ? ' ' + scoped : ''); };
+		note.className = cls('sfb-load-failed');
 		note.setAttribute('role', 'alert');
-		note.textContent = CFG.failed;
+		var words = document.createElement('span');
+		words.className = cls('sfb-load-words');
+		words.textContent = CFG.failed;
+		note.appendChild(words);
+		var again = document.createElement('button');
+		again.type = 'button';
+		again.className = cls('sfb-reload');
+		again.textContent = CFG.reload;
+		again.addEventListener('click', function () { location.reload(); });
+		note.appendChild(again);
 		wrap.appendChild(note);
 	}
 

@@ -170,6 +170,7 @@ interface HomeData {
 	feedCheckIns: ClassCheckIn[];
 	feedManagerEmails: Record<string, string[]>;
 	feedClock: ClassroomWork['clock'] | null;
+	feedUnitOrder?: Record<string, string[]>;
 }
 
 async function runHome(user: SeededUser, isAdmin = false) {
@@ -441,5 +442,36 @@ describe('/classroom/todo', () => {
 		expect(feedShape(buildTodo({ ...args, items: data.todo.items }) as never)).toEqual(
 			feedShape(buildTodo({ ...args, items: full.items }) as never)
 		);
+	});
+});
+
+describe('the unit order, for the home cards\' generated thumbnails (ledger 0396)', () => {
+	it('reads no units while nothing is filed, then exactly one read in the class page\'s order once a post is', async () => {
+		// Positive control first: nothing in this fixture is filed in a unit yet,
+		// so the read is skipped and the cards draw every post untinted.
+		const before = await runHome(alice);
+		expect(count(before.calls, 'from:classroom_units')).toBe(0);
+		expect(before.data.feedUnitOrder).toEqual({});
+
+		const { rows } = await db.sql<{ course_id: string }>('select course_id from public.classroom_sections where id = $1', [section]);
+		const course = rows[0].course_id;
+		const unit = async (name: string) =>
+			(await rpc<{ unit_id: string }>(teacher.id, 'public.classroom_upsert_unit($1::uuid, $2)', [course, name])).unit_id;
+		const shop = await unit('Shop safety');
+		const intro = await unit('Intro');
+		// The teacher's own order puts Intro first, so the order read back is the
+		// set order and not the order the units were made in.
+		await rpc(teacher.id, 'public.classroom_set_unit_order($1::uuid, $2::uuid[])', [course, [intro, shop]]);
+		await rpc(teacher.id, 'public.classroom_set_item_unit($1::uuid, $2::uuid)', [itemIds.noImage, shop]);
+
+		const after = await runHome(alice);
+		console.info(`[load budget] / as a student, one post filed: ${after.calls.length} requests: ${after.calls.join(', ')}`);
+		expect(count(after.calls, 'from:classroom_units')).toBe(1);
+		expect(after.data.feedUnitOrder).toEqual({ [course]: [intro, shop] });
+		expect(after.data.feedItems.find((i) => i.id === itemIds.noImage)?.unit_id).toBe(shop);
+
+		// The to-do draws no tint and asks for none.
+		const todo = await runTodo(alice);
+		expect(count(todo.calls, 'from:classroom_units')).toBe(0);
 	});
 });

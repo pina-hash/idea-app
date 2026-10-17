@@ -15,7 +15,7 @@ export default {
 		{
 			label: "each row's shape and mark",
 			evaluate: HOME_ROWS,
-			expected: ['banner image', 'banner image', 'banner html', 'banner html', 'banner generated', 'banner generated', 'banner generated', 'banner generated', 'tile glyph']
+			expected: ['banner image', 'banner image', 'banner html', 'banner html', 'banner generated', 'banner generated', 'banner generated', 'banner generated', 'tile generated']
 		},
 		{ ...HOME_LIST_FITS, expected: ['fits, 0 of 9 outside, overflow clip', 'fits, 0 of 2 outside, overflow clip', 'fits, 0 of 1 outside, overflow clip'] },
 		{

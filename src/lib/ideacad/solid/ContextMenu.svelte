@@ -42,7 +42,7 @@
 	 * its reason already says why.
 	 */
 	import { onMount, tick } from 'svelte';
-	import { anchorPosition } from '$lib/shell/anchored';
+	import { anchorInWindow, cornerReserve } from '$lib/shell/anchored';
 	import { SUBMENU_GRACE_MS, SUBMENU_OPEN_MS, submenuLayout, submenuPlacement, type MenuItem } from './context-menu';
 	let { items, at, label = 'Menu', onclose }: { items: MenuItem[]; at: { x: number; y: number }; label?: string; onclose: () => void } = $props();
 	/* IN PLACE: the lists opened in place, deepest last; the menu shows the last one. */
@@ -69,7 +69,8 @@
 	async function position() {
 		await tick(); if (!panel) return;
 		const r = panel.getBoundingClientRect();
-		const p = anchorPosition({ left: at.x, right: at.x, top: at.y, bottom: at.y, width: 0, height: 0 }, { width: r.width, height: r.height }, { width: window.innerWidth, height: window.innerHeight }, { prefer: 'below', align: 'start', gap: 2, margin: 8 });
+		/* Clear of the corner feedback button (`anchorInWindow` reads its reserve): a menu opened near the bottom-right drew Search commands under it (ledger 0396). */
+		const p = anchorInWindow({ left: at.x, right: at.x, top: at.y, bottom: at.y, width: 0, height: 0 }, { width: r.width, height: r.height }, { prefer: 'below', align: 'start', gap: 2, margin: 8 });
 		place = { left: p.left, top: p.top };
 		if (!stack.length) layout = submenuLayout(finePointer(), { left: p.left, right: p.left + r.width }, window.innerWidth);
 	}
@@ -111,7 +112,7 @@
 		const r = row.getBoundingClientRect(), m = parent.getBoundingClientRect(), p = el.getBoundingClientRect();
 		const first = el.querySelector<HTMLElement>('[data-menu-row]');
 		const inset = first ? first.getBoundingClientRect().top - p.top : 0;
-		const to = submenuPlacement({ top: r.top, bottom: r.bottom }, { left: m.left, right: m.right }, { width: p.width, height: p.height }, { width: window.innerWidth, height: window.innerHeight }, inset);
+		const to = submenuPlacement({ top: r.top, bottom: r.bottom }, { left: m.left, right: m.right }, { width: p.width, height: p.height }, { width: window.innerWidth, height: window.innerHeight }, inset, 0, cornerReserve());
 		sides = sides.map((s, k) => (k === level ? { ...s, place: { left: to.left, top: to.top, side: to.side } } : s));
 	}
 	/**
