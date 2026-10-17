@@ -54,7 +54,7 @@
 	 * one line at 375 and the list keeps its height.
 	 */
 	import { untrack } from 'svelte';
-	import { anchored, type AnchoredParams } from '$lib/shell/anchored';
+	import { anchored, anchorPosition, clearBottom, cornerReserve, type AnchoredParams } from '$lib/shell/anchored';
 	import {
 		STUDENT_PAGE_SECTIONS,
 		setStudentSectionShown,
@@ -112,10 +112,21 @@
 		return { chrome: Math.max(0, chrome), row };
 	}
 
-	/** The rooms above and below the key, each less the margin and the gap. */
+	/**
+	 * The rooms above and below the key, each less the margin and the gap.
+	 * BELOW ENDS AT THE FEEDBACK BUTTON where the panel's columns cross it
+	 * (ledger 0396): the panel is drawn inside `main`, so the button paints over
+	 * it, and on a phone it covered Show all and Done and a tap on Done opened
+	 * the feedback window. `clearBottom` is the same floor `anchored` places the
+	 * panel against, so the cap and the placement agree.
+	 */
 	function rooms() {
 		const k = (trigger as HTMLElement).getBoundingClientRect();
-		return { above: k.top - MARGIN - GAP, under: window.innerHeight - k.bottom - MARGIN - GAP };
+		const width = panel?.getBoundingClientRect().width ?? 0;
+		const viewport = { width: window.innerWidth, height: window.innerHeight };
+		const { left } = anchorPosition(k, { width, height: 0 }, viewport, { align: 'start', margin: MARGIN });
+		const floor = clearBottom({ left, right: left + width }, viewport.height, cornerReserve());
+		return { above: k.top - MARGIN - GAP, under: floor - k.bottom - MARGIN - GAP };
 	}
 
 	/** The nearest box that scrolls the key, or the page. */

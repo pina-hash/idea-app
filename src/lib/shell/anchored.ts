@@ -66,6 +66,15 @@ export interface AnchorOptions {
 	gap?: number;
 	/** How close to a viewport edge the panel may come. */
 	margin?: number;
+	/**
+	 * A box in viewport coordinates the panel must not be drawn under: the
+	 * corner the floating feedback button claims on every page (ledger 0396).
+	 * Where the panel's columns cross it, its top edge is the window's bottom
+	 * edge for the panel (and `margin` the gap above it); a panel too tall to
+	 * fit above it moves sideways off it instead, where that fits. Null or
+	 * absent: the whole window is the panel's.
+	 */
+	avoid?: AnchorBox | null;
 }
 
 export interface AnchorPlacement {
@@ -106,17 +115,8 @@ export function anchorPosition(
 	const preferSide = options.prefer ?? 'above';
 	const preferAlign = options.align ?? 'start';
 
-	const roomAbove = anchor.top - margin;
-	const roomBelow = viewport.height - anchor.bottom - margin;
-	const needed = panel.height + gap;
-
-	let side = preferSide;
-	if (preferSide === 'above' && roomAbove < needed && roomBelow > roomAbove) side = 'below';
-	else if (preferSide === 'below' && roomBelow < needed && roomAbove > roomBelow) side = 'above';
-
-	const rawTop = side === 'above' ? anchor.top - gap - panel.height : anchor.bottom + gap;
-	const top = clamp(rawTop, margin, viewport.height - margin - panel.height);
-
+	// THE COLUMNS FIRST: nothing about them depends on the side, and whether the
+	// panel crosses the reserved corner depends on them.
 	let align = preferAlign;
 	let rawLeft = align === 'start' ? anchor.left : anchor.right - panel.width;
 	if (align === 'start' && rawLeft + panel.width > viewport.width - margin) {
@@ -126,9 +126,67 @@ export function anchorPosition(
 		align = 'start';
 		rawLeft = anchor.left;
 	}
-	const left = clamp(rawLeft, margin, viewport.width - margin - panel.width);
+	let left = clamp(rawLeft, margin, viewport.width - margin - panel.width);
+
+	const floor = clearBottom({ left, right: left + panel.width }, viewport.height, options.avoid);
+
+	const roomAbove = anchor.top - margin;
+	const roomBelow = floor - anchor.bottom - margin;
+	const needed = panel.height + gap;
+
+	let side = preferSide;
+	if (preferSide === 'above' && roomAbove < needed && roomBelow > roomAbove) side = 'below';
+	else if (preferSide === 'below' && roomBelow < needed && roomAbove > roomBelow) side = 'above';
+
+	const rawTop = side === 'above' ? anchor.top - gap - panel.height : anchor.bottom + gap;
+	const top = clamp(rawTop, margin, floor - margin - panel.height);
+
+	// TOO TALL FOR THE ROOM ABOVE THE CORNER: the low edge won the clamp and the
+	// panel still runs under it. Moved sideways off the corner instead, when the
+	// window has the columns for it; otherwise it stays where the clamp put it,
+	// its start on screen, which is the same answer as a panel taller than the
+	// window.
+	const avoid = options.avoid;
+	if (avoid && floor < viewport.height && top + panel.height > floor - margin) {
+		const shifted = avoid.left - margin - panel.width;
+		if (shifted >= margin) {
+			left = shifted;
+			const free = clamp(rawTop, margin, viewport.height - margin - panel.height);
+			return { left, top: free, side, align, flipped: true };
+		}
+	}
 
 	return { left, top, side, align, flipped: side !== preferSide || align !== preferAlign };
+}
+
+/**
+ * WHERE THE WINDOW ENDS FOR A PANEL SPANNING THESE COLUMNS: the window's bottom
+ * edge, or the top of the reserved box where the columns cross it. One rule,
+ * so a caller that sizes its panel to the room below its key (the student
+ * page's Sections menu) measures the same room this places it in.
+ */
+export function clearBottom(
+	span: { left: number; right: number },
+	viewportHeight: number,
+	avoid: AnchorBox | null | undefined
+): number {
+	if (!avoid || avoid.width <= 0 || avoid.height <= 0) return viewportHeight;
+	const crosses = span.right > avoid.left && span.left < avoid.right;
+	return crosses ? Math.min(viewportHeight, avoid.top) : viewportHeight;
+}
+
+/**
+ * THE BOX A FLOATING CONTROL CLAIMS IN A CORNER OF THE WINDOW, read live: the
+ * element carrying `data-corner-reserve` (the feedback button's wrapper, on
+ * every page that has one). Null where there is none, or it has no box.
+ */
+export function cornerReserve(): AnchorBox | null {
+	if (typeof document === 'undefined') return null;
+	const el = document.querySelector<HTMLElement>('[data-corner-reserve]');
+	if (!el) return null;
+	const r = el.getBoundingClientRect();
+	if (r.width <= 0 || r.height <= 0) return null;
+	return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
 }
 
 export interface AnchoredParams extends AnchorOptions {
@@ -136,6 +194,14 @@ export interface AnchoredParams extends AnchorOptions {
 	anchor?: HTMLElement | null;
 	/** The caller decides visibility; this only decides WHERE. */
 	open?: boolean;
+	/**
+	 * Keep clear of the corner the feedback button claims (`cornerReserve`).
+	 * On by default, because that button floats over every page's content and
+	 * a panel inside `main` (a stacking context at 1) is always painted under
+	 * it: a row menu opened near the bottom-right had its Unit select covered
+	 * (ledger 0396). False only for a panel that is painted above it anyway.
+	 */
+	keepClear?: boolean;
 }
 
 /**
@@ -180,7 +246,7 @@ export function anchored(node: HTMLElement, params: AnchoredParams = {}) {
 			box,
 			{ width: panel.width, height: panel.height },
 			{ width: window.innerWidth, height: window.innerHeight },
-			current
+			{ ...current, avoid: current.keepClear === false ? null : (current.avoid ?? cornerReserve()) }
 		);
 		node.style.position = 'fixed';
 		node.style.left = `${Math.round(at.left)}px`;

@@ -67,7 +67,10 @@
 	}
 </script>
 
-<div class="sfb sfb-{place}" {id}>
+<!-- `data-corner-reserve` names the corner this button claims, so a popover
+     placed by `$lib/shell/anchored` (a row menu, the Sections menu) keeps clear
+     of it rather than opening under it. -->
+<div class="sfb sfb-{place}" {id} data-corner-reserve={place === 'shell' ? '' : undefined}>
 	<button
 		bind:this={buttonEl}
 		type="button"
