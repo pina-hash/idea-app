@@ -12,7 +12,9 @@ import { CARD, CLOSE_TOUR, HIDE_STRIP, KEY, ROW_PROBE } from './_install-key.mjs
  * and comes back after; Escape, a tap outside and its Close key each shut it
  * with focus back on the key (`aria-expanded` following); Tab from Close goes
  * on to Take the tour; dismissing the phone pop-up leaves the key where it
- * was; with the page scrolled (24px before opening, and 30px after) the card
+ * was, and while the pop-up shows it sits above the corner feedback button,
+ * which still answers at its centre (integration review: at 1000 the pop-up
+ * used to cover the only feedback control on the page); with the page scrolled (24px before opening, and 30px after) the card
  * still opens 8px under the key and inside the window, and the key still
  * answers at its centre (review round 1: the header's backdrop filter used to
  * pin the fixed card to the header's box, so it slid up over the key by the
@@ -62,7 +64,7 @@ export default {
 		{ click: `${CARD} .ia-close`, until: `() => !document.querySelector('${CARD}')`, attempts: 6, label: 'press Close' },
 		{ evaluate: `() => { ${LOG}.push('Close shut it'); ${LOG}.push(${FOCUS}); return window.__iaLog.join(' | '); }` },
 		{
-			evaluate: `async () => { const d = document.querySelector('[data-install="popup"] .ip-dismiss'); if (!d) { ${LOG}.push('NO PHONE POP-UP'); return 'no pop-up'; } d.click(); await new Promise((r) => setTimeout(r, 250)); ${LOG}.push(document.querySelector('[data-install="popup"]') ? 'POP-UP STILL UP' : 'pop-up dismissed'); ${LOG}.push(document.querySelector('${KEY}') ? 'the key is still there' : 'THE KEY WENT WITH IT'); return window.__iaLog.join(' | '); }`,
+			evaluate: `async () => { const d = document.querySelector('[data-install="popup"] .ip-dismiss'); if (!d) { ${LOG}.push('NO PHONE POP-UP'); return 'no pop-up'; } const fb = document.querySelector('.sfb-shell .sfb-trigger').getBoundingClientRect(); const pop = document.querySelector('[data-install="popup"]').getBoundingClientRect(); const at = document.elementFromPoint(fb.left + fb.width / 2, fb.top + fb.height / 2); ${LOG}.push((at && at.closest('.sfb-shell') ? 'the feedback button answers at its centre' : 'THE FEEDBACK BUTTON IS COVERED') + ', ' + (pop.bottom <= fb.top ? 'the pop-up sits above it' : 'THE POP-UP REACHES ' + Math.round(pop.bottom - fb.top) + 'px INTO IT')); d.click(); await new Promise((r) => setTimeout(r, 250)); ${LOG}.push(document.querySelector('[data-install="popup"]') ? 'POP-UP STILL UP' : 'pop-up dismissed'); ${LOG}.push(document.querySelector('${KEY}') ? 'the key is still there' : 'THE KEY WENT WITH IT'); return window.__iaLog.join(' | '); }`,
 			label: 'dismiss the phone pop-up (its own Got it)'
 		},
 		{
@@ -161,6 +163,7 @@ export default {
 				'focus on the key',
 				'Close shut it',
 				'focus on the key',
+				'the feedback button answers at its centre, the pop-up sits above it',
 				'pop-up dismissed',
 				'the key is still there',
 				'opened after 24px of scroll: card 8px under the key, inside the window, key answers at its centre',

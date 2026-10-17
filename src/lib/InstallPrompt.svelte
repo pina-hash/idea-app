@@ -117,7 +117,13 @@
 		position: fixed;
 		left: 0.75rem;
 		right: 0.75rem;
-		bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+		/* ABOVE THE CORNER FEEDBACK BUTTON, never over it (ledger 0396). The
+		   button is the only feedback control on every page now, and at 1000 this
+		   sat over it until Got it was pressed (and the home tour's Send feedback
+		   step lit the pop-up instead). `--feedback-clear-block` is how far up
+		   the button reaches plus its gap, declared only while one is on the
+		   page, so a page with no button keeps the old inset. */
+		bottom: max(calc(0.75rem + env(safe-area-inset-bottom, 0px)), var(--feedback-clear-block, 0px));
 		z-index: 1000;
 		display: flex;
 		align-items: center;
