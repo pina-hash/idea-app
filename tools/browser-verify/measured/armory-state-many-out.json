@@ -1,15 +1,15 @@
 {
 	"schema": 1,
 	"spec": "armory-state-many-out.mjs",
-	"date": "2026-10-08T03:16:23.646Z",
-	"sha": "6708f114d0233ad9c3126f05b88ffa1b85edf13b",
+	"date": "2026-10-17T10:19:20.859Z",
+	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
 	"dirty": false,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 56,
+	"measurements": 58,
 	"outsideRows": [],
-	"ms": 9128
+	"ms": 11730
 }

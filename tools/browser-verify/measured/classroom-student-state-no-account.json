@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "classroom-student-state-no-account.mjs",
-	"date": "2026-10-16T07:17:18.843Z",
-	"sha": "420912d1fd5926bba68ffad88f2e10573aa9dde7",
-	"dirty": true,
+	"date": "2026-10-17T10:19:20.859Z",
+	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 20,
 	"outsideRows": [],
-	"ms": 8687
+	"ms": 11730
 }

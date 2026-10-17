@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "coin-balance-scenario-auditor.mjs",
-	"date": "2026-10-16T06:47:41.552Z",
-	"sha": "6e1c4af888d50c9b76fb9faf1802b78e47020dc0",
-	"dirty": true,
+	"date": "2026-10-17T10:19:20.859Z",
+	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 38,
 	"outsideRows": [],
-	"ms": 8147
+	"ms": 11730
 }
