@@ -14,6 +14,7 @@
 	import EntryBanner from './EntryBanner.svelte';
 	import MatchTimelineView from './MatchTimeline.svelte';
 	import './tournaments-theme.css';
+	import { raise as raiseTabStatus } from '$lib/tab-icon/live';
 	import { styleMap, type EntryStyle } from './entry-styles';
 	import {
 		entryHref,
@@ -90,6 +91,13 @@
 	);
 
 	const isLive = $derived(bm?.status === 'in_progress');
+	/* The browser tab pulses crimson while this match is live (ledger 0396),
+	   so a match running in a background tab can be seen from the tab strip. */
+	$effect(() => {
+		if (!isLive) return;
+		const tab = raiseTabStatus('live');
+		return () => tab.clear();
+	});
 	const isBye = $derived(!!bm && isByeMatch(bm));
 	const forfeit = $derived(!!bm && isForfeitMatch(bm));
 

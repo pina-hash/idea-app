@@ -20,7 +20,8 @@
 	import Disclosure from '$lib/Disclosure.svelte';
 	import Pending from '$lib/Pending.svelte';
 	import FeedbackThreadView from './FeedbackThreadView.svelte';
-	import { attentionCount, feedbackPlace, feedbackPlaces, type FeedbackThread } from './notes';
+	import { attentionCount, feedbackPlace, feedbackPlaces, threadUnseen, type FeedbackThread } from './notes';
+	import { raise as raiseTabStatus } from '$lib/tab-icon/live';
 	import type { FeedbackSession } from './session.svelte';
 	import { submissionFileSrc } from '$lib/classroom/assignment-spec';
 
@@ -106,6 +107,24 @@
 			clearTimeout(timer);
 			document.removeEventListener('visibilitychange', onVisible);
 		};
+	});
+
+	/**
+	 * THE TAB SAYS SO TOO (ledger 0396): an open note this side has not seen
+	 * lights the tab's unread lamp and puts the count in the title, so a note
+	 * that arrives while this page sits in a background tab is seen from the tab
+	 * strip. It ends exactly when the seen stamp above lands (on a visible tab)
+	 * or this list goes away. A resolved note is not counted, for the reason it
+	 * never counts as wanting attention.
+	 */
+	const unseenOpen = $derived(
+		session.state === 'ready' ? session.threads.filter((t) => !t.resolvedAt && threadUnseen(t, session.side)).length : 0
+	);
+	$effect(() => {
+		const n = unseenOpen;
+		if (n <= 0) return;
+		const tab = untrack(() => raiseTabStatus('unread', { n }));
+		return () => tab.clear();
 	});
 
 	/** The picture a note was drawn on, from the file the note names, so a

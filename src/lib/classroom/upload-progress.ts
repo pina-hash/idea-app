@@ -18,6 +18,8 @@
  * invitation to write the 4 MiB path again.
  */
 
+import { raise as raiseTabStatus } from '$lib/tab-icon/live';
+
 export interface UploadProgressResult {
 	status: number;
 	body: Record<string, unknown> | null;
@@ -40,6 +42,10 @@ export interface UploadProgressResult {
  * Resolves with the status and the parsed body whatever the status, exactly as
  * every other caller here expects -- a refusal is a result to be classified, not an
  * exception. Rejects only on a genuine network failure or an abort.
+ *
+ * THE TAB ICON FOLLOWS THE TRANSFER (ledger 0396): its hairline fills as the
+ * bytes go, so a long hand-in can be watched from another tab. The status is
+ * raised when the request opens and cleared on every way it can end.
  */
 export function putFileWithProgress(
 	url: string,
@@ -49,6 +55,7 @@ export function putFileWithProgress(
 ): Promise<UploadProgressResult> {
 	return new Promise((resolve, reject) => {
 		const xhr = new XMLHttpRequest();
+		const tab = raiseTabStatus('progress', { p: 0 });
 		xhr.open('PUT', url, true);
 		xhr.setRequestHeader('content-type', contentType);
 		// Storage's own default. Stated rather than left implicit, because a
@@ -57,11 +64,20 @@ export function putFileWithProgress(
 		// means something went wrong upstream, not that a file was replaced).
 		xhr.setRequestHeader('x-upsert', 'false');
 		xhr.upload.onprogress = (e) => {
-			if (e.lengthComputable && e.total > 0) onProgress?.(e.loaded / e.total);
+			if (!(e.lengthComputable && e.total > 0)) return;
+			tab.update({ p: e.loaded / e.total });
+			onProgress?.(e.loaded / e.total);
 		};
-		xhr.onerror = () => reject(new Error('The connection dropped while uploading.'));
-		xhr.onabort = () => reject(new Error('The upload was cancelled.'));
+		xhr.onerror = () => {
+			tab.clear();
+			reject(new Error('The connection dropped while uploading.'));
+		};
+		xhr.onabort = () => {
+			tab.clear();
+			reject(new Error('The upload was cancelled.'));
+		};
 		xhr.onload = () => {
+			tab.clear();
 			let body: Record<string, unknown> | null = null;
 			try {
 				body = xhr.responseText ? (JSON.parse(xhr.responseText) as Record<string, unknown>) : null;
@@ -71,6 +87,11 @@ export function putFileWithProgress(
 			onProgress?.(1);
 			resolve({ status: xhr.status, body });
 		};
-		xhr.send(file);
+		try {
+			xhr.send(file);
+		} catch (err) {
+			tab.clear();
+			throw err;
+		}
 	});
 }
