@@ -29,10 +29,20 @@
 	 *
 	 * ACCESSIBILITY, and the reason it is stated here: the legacy cards collapsed
 	 * through a document-level click listener on a bare <div>, so the control was
-	 * mouse-only and invisible to assistive tech. Here the header IS a <button>
-	 * with aria-expanded and aria-controls, so it is reachable by keyboard and
-	 * announces its own state. Do not reintroduce a delegated handler for these
-	 * cards -- it would double-toggle against this one.
+	 * mouse-only and invisible to assistive tech. Do not reintroduce a delegated
+	 * handler for these cards -- it would fire on top of the two controls below.
+	 *
+	 * THE HEADER IS TWO CONTROLS SIDE BY SIDE, NEVER ONE INSIDE THE OTHER (ledger
+	 * 0396, part 3: "open a class in one click, without expanding its card
+	 * first"). The class's identity (code, section, attention count, title,
+	 * block and teacher) is ONE real <a> to the class page, so a plain click
+	 * goes in and a middle-click or Ctrl-click opens a tab like any link. The
+	 * fold is its OWN <button> at the header's right edge, with aria-expanded
+	 * and aria-controls, a 44px box and a word beside the arrow (a glyph alone is
+	 * not a control). They are siblings: a button inside an anchor is invalid
+	 * markup, and a click on either would reach both. Tab order is the link,
+	 * then the fold, which is their order in the DOM. The collapse state and its
+	 * persistence stay the parent's, through `onToggle`, exactly as before.
 	 */
 
 	interface Props {
@@ -192,43 +202,63 @@
 		{@const open = !collapsedSet.has(feed.section.id)}
 		{@const summary = actionSummary(feed)}
 		{@const listId = `feed-list-${feed.section.id}`}
+		{@const code = feed.section.course?.code ?? 'CLASS'}
+		{@const label = sectionLabelText(feed.section.label)}
 		<div class="course-card section-card feed-card" class:collapsed={!open}>
-			<button
-				type="button"
-				class="course-header collapsible"
-				aria-expanded={open}
-				aria-controls={listId}
-				onclick={() => onToggle?.(feed.section.id)}
-			>
-				<div class="course-header-left">
-					<div class="feed-ident">
-						<span class="course-id">{feed.section.course?.code ?? 'CLASS'}</span>
-						<span class="course-badge badge-block">{sectionLabelText(feed.section.label)}</span>
-						{#if summary}
-							<span class="feed-flag tone-attention feed-attn" data-testid="feed-attention"
-								><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
-									><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
-								>{summary}</span
+			<div class="course-header feed-head">
+				<a class="feed-open" href="{basePath}/{feed.section.id}" data-testid="feed-open">
+					<div class="course-header-left">
+						<div class="feed-ident">
+							<span class="course-id">{code}</span>
+							<span class="course-badge badge-block">{label}</span>
+							{#if summary}
+								<span class="feed-flag tone-attention feed-attn" data-testid="feed-attention"
+									><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
+										><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
+									>{summary}</span
+								>
+							{/if}
+						</div>
+						<div class="feed-subline">
+							<span class="course-updated"
+								>{feed.section.course?.title ?? sectionTitle(feed.section)}</span
 							>
-						{/if}
+							<span class="section-meta">
+								{#if sectionBlockText(feed.section.block)}{sectionBlockText(
+										feed.section.block
+									)}&nbsp;&middot;&nbsp;{/if}{feed.manages
+									? 'You teach this'
+									: emailLocal(feed.section.teacher_email)}
+							</span>
+						</div>
 					</div>
-					<div class="feed-subline">
-						<span class="course-updated"
-							>{feed.section.course?.title ?? sectionTitle(feed.section)}</span
-						>
-						<span class="section-meta">
-							{#if sectionBlockText(feed.section.block)}{sectionBlockText(
-									feed.section.block
-								)}&nbsp;&middot;&nbsp;{/if}{feed.manages
-								? 'You teach this'
-								: emailLocal(feed.section.teacher_email)}
-						</span>
-					</div>
-				</div>
-				<span class="course-collapse-arrow" aria-hidden="true">&#9662;</span>
-			</button>
+				</a>
+				<!--
+					THE FOLD, AND ITS WORD. Wears `.changelog-toggle` because that is the
+					home page's own key (Clear and Show more wear it for the same reason),
+					so plate.css's key list draws it raised in every theme, and `.on` is
+					the lit state a control that opens something keeps while open. The
+					visible word is the start of its name, and the class it folds follows
+					it for a screen reader, so four cards are not four "Hide" buttons.
+				-->
+				<button
+					type="button"
+					class="changelog-toggle feed-toggle"
+					class:on={open}
+					aria-expanded={open}
+					aria-controls={listId}
+					data-testid="feed-toggle"
+					onclick={() => onToggle?.(feed.section.id)}
+				>
+					<span class="feed-toggle-word">{open ? 'Hide' : 'Show'}</span><span class="feed-sr"
+						>&nbsp;{code} {label}</span
+					><svg class="course-collapse-arrow" viewBox="0 0 10 6" aria-hidden="true"
+						><path d="M0.5 0.5h9L5 5.5z" /></svg
+					>
+				</button>
+			</div>
 
-			<div class="assignment-list" id={listId}>
+			<div class="assignment-list" id={listId} inert={!open}>
 				{#if feed.urgent.length}
 					{#each feed.urgent as entry (entry.item.id)}
 						{@render row(feed, entry)}
@@ -427,6 +457,197 @@
 	 * two lines instead of three (111px -> 78px measured). Nothing was removed:
 	 * every field the header carried, it still carries.
 	 */
+	/*
+	 * THE HEADER IS A ROW OF TWO CONTROLS (ledger 0396, part 3). The shared
+	 * `.course-header` rule keeps the ground, the rule under it and the plate;
+	 * this takes its padding OFF the row and puts it on the link, so the link
+	 * IS the header's whole left side and a click anywhere on the class's
+	 * identity goes in, not just a click on its words. The fold sits at the
+	 * right edge in a column of its own and never wraps under the link: a fold
+	 * that dropped to a second line at 375 would sit under a different part of
+	 * the header on every card. `.course-card` in the selector out-ranks the
+	 * shared `.legacy-index .course-header` padding and its phone override.
+	 */
+	.course-card .feed-head {
+		display: flex;
+		flex-wrap: nowrap;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 0;
+		padding: 0;
+	}
+	/*
+	 * ONE HOVER FOR THE WHOLE HEADER. The wash the header took when it was one
+	 * button goes on the HEADER, never on the link: on the link it stopped at
+	 * the fold key's column and drew a seam down the card beside the key. What
+	 * says WHICH control the pointer is on is that control's own cue, the
+	 * underlined title for the link and the key's lit edge for the fold.
+	 * Pointer devices only, so a tap on Show does not leave a phone's header
+	 * washed until the next tap somewhere else.
+	 */
+	@media (hover: hover) {
+		.course-card .feed-head:hover {
+			background: color-mix(in srgb, var(--green) 4%, var(--bg2));
+		}
+	}
+	/*
+	 * 0.75rem of right padding at EVERY width keeps the class's words at least
+	 * 12px off the fold key. It was 0.25rem on a phone, where a teacher's
+	 * "You teach this" ran to 5.4px from the key; a subline that no longer
+	 * fits takes a second line instead.
+	 *
+	 * THE FOCUS RING FOLLOWS THE CARD'S CORNER. The card clips the header to
+	 * its own inner radius (its panel radius less its 1px edge), so the link
+	 * takes that radius wherever its corner IS the card's corner: the top left
+	 * always, and the bottom left while the card is folded and the header is
+	 * its last line. `--plate-r-panel` is the plate's card radius; 4px is
+	 * app.css's, for the `SITE_PLATE = ''` revert.
+	 */
+	.feed-open {
+		flex: 1 1 auto;
+		align-self: stretch;
+		display: flex;
+		align-items: center;
+		min-width: 0;
+		padding: 1.1rem 0.75rem 1.1rem 1.5rem;
+		color: inherit;
+		text-decoration: none;
+		cursor: pointer;
+		border-top-left-radius: calc(var(--plate-r-panel, 4px) - 1px);
+	}
+	.feed-card.collapsed .feed-open {
+		border-bottom-left-radius: calc(var(--plate-r-panel, 4px) - 1px);
+	}
+	/* The app-shell `a:hover` glow would blur every word of the identity at
+	   once; the header's wash and an underlined title say it instead. */
+	.feed-open,
+	.feed-open:hover {
+		text-shadow: none;
+	}
+	.feed-open:hover .course-updated,
+	.feed-open:focus-visible .course-updated {
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+	}
+	.feed-open:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: -2px;
+	}
+	.feed-open .course-header-left {
+		min-width: 0;
+	}
+	/*
+	 * THE FOLD. A 44px key at the right edge with its word beside the arrow.
+	 * `.changelog-toggle` (app.css) is a full-width row with its parts pushed
+	 * apart; this sizes it to its content, through `.feed-head` so it wins on
+	 * specificity rather than on which stylesheet the dev server happened to
+	 * inject last (a tie there flipped once on a cold start and drew the key
+	 * across the whole header). Under the site plate, plate.css's
+	 * key list paints the face, the hover and the lit state; the line and the
+	 * word colour app.css gives it are the `SITE_PLATE = ''` revert.
+	 *
+	 * THE ARROW POINTS WHERE THE PRESS GOES, AS THE CHANGELOG'S KEY ON THIS
+	 * PAGE ALREADY DOES: down while folded (Show opens downward), up while open
+	 * (Hide folds it up). It pointed the other way while the whole header was
+	 * the control and carried no word; with "Show" beside it, an up arrow on a
+	 * folded card would contradict the word it sits next to.
+	 */
+	.feed-head .feed-toggle {
+		flex: none;
+		position: relative;
+		width: auto;
+		min-width: 44px;
+		min-height: 44px;
+		box-sizing: border-box;
+		margin: 0 1.5rem 0 0;
+		padding: 0 0.85rem;
+		gap: 0.5rem;
+		justify-content: center;
+		white-space: nowrap;
+	}
+	/*
+	 * THE FOLD ANSWERS ITS WHOLE COLUMN. The key is 44px tall in a header
+	 * 79 to 134px tall with its margin to the card's edge beside it, so a press
+	 * a little above, below or right of the face used to land on the bare
+	 * header and do nothing (19 of 280 grid points a header at 1440, 24 to 28
+	 * at 375). A transparent `::before` runs from the key's left edge past the
+	 * header's top, bottom and right, and the header clips it, so the reach is
+	 * exactly the column: the key's own button, never a second control and
+	 * never a listener on the header, and nothing it can reach outside the
+	 * header (the list's rows below keep every press). Behind `@supports`,
+	 * because without `overflow: clip` the reach would run out over the list.
+	 * plate.css draws nothing on a `.changelog-toggle`'s `::before`.
+	 */
+	@supports (overflow: clip) {
+		.course-card .feed-head {
+			overflow: clip;
+		}
+		.feed-head .feed-toggle::before {
+			content: '';
+			position: absolute;
+			top: -20rem;
+			bottom: -20rem;
+			left: -1px;
+			right: -20rem;
+		}
+	}
+	/* The arrow is the same small down triangle the header always drew (the
+	   `&#9662;` glyph), drawn as a shape: a font's triangle sits low in its em
+	   box, so turned over for the open state it rode visibly above the word
+	   beside it. A path turns about its own centre. */
+	.feed-toggle .course-collapse-arrow {
+		display: block;
+		flex: none;
+		width: 0.6rem;
+		height: 0.36rem;
+		color: inherit;
+		fill: currentColor;
+		transform: rotate(180deg);
+	}
+	.feed-card.collapsed .feed-toggle .course-collapse-arrow {
+		transform: none;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.feed-toggle .course-collapse-arrow {
+			transition: none;
+		}
+	}
+	.feed-sr {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+		border: 0;
+	}
+	/* The shared header's phone padding (0.9rem 1rem at 768px and under),
+	   moved onto the link and the fold with the rest of it. */
+	@media (max-width: 768px) {
+		.feed-open {
+			padding: 0.9rem 0.75rem 0.9rem 1rem;
+		}
+		.feed-head .feed-toggle {
+			margin-right: 1rem;
+			padding: 0 0.7rem;
+		}
+	}
+	/* ON A PHONE THE ARROW STANDS OVER ITS WORD, the way the header's
+	   feedback control stacks its glyph over its word there. Side by side the
+	   key took 66px of a 341px header and pushed the class's own subline onto
+	   a second line (79.4px to 102.4px on a card with no attention count,
+	   measured at 375); stacked it is 44px wide and the identity keeps the
+	   room. The word stays: a glyph alone is not a control. */
+	@media (max-width: 480px) {
+		.feed-head .feed-toggle {
+			flex-direction: column-reverse;
+			gap: 0.3rem;
+			margin-right: 0.625rem;
+			padding: 0.35rem 0.45rem;
+		}
+	}
 	.feed-ident {
 		display: flex;
 		align-items: center;

@@ -2,6 +2,8 @@
 	import ClassroomFeed from '$lib/classroom/ClassroomFeed.svelte';
 	import { buildFeed, type FeedSubmission } from '$lib/classroom/feed';
 	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
+	import { page } from '$app/state';
+	import { toggleLog } from './toggle-log';
 
 	/**
 	 * Dev harness for the home-page classroom feed (404 in production; no auth,
@@ -12,7 +14,17 @@
 	 *
 	 * Collapse is local state here; the real page persists the same toggle to
 	 * profiles.preferences.classroomFeed.
+	 *
+	 * `?base=dev` POINTS THE CLASS LINK AT A LANDING PAGE OF THIS HARNESS'S OWN
+	 * (./class/[sectionId]) instead of the real `/classroom`, which a signed-out
+	 * harness cannot open. Every fold is also written to `toggleLog`, which the
+	 * landing prints, so a spec can prove a click on the class link went in
+	 * without folding the card on the way (ledger 0396, part 3). With no
+	 * parameter the link is the production `/classroom/<id>`, unchanged.
 	 */
+	const basePath = $derived(
+		page.url.searchParams.get('base') === 'dev' ? '/dev/home-feed/class' : '/classroom'
+	);
 
 	const NOW = new Date('2026-10-15T12:00:00Z');
 	const iso = (d: string) => new Date(d).toISOString();
@@ -209,7 +221,9 @@
 		collapsed = collapsed.includes(id)
 			? collapsed.filter((c) => c !== id)
 			: [...collapsed, id];
-		log = [`toggle ${id} -> ${collapsed.includes(id) ? 'collapsed' : 'open'}`, ...log].slice(0, 12);
+		const line = `toggle ${id} -> ${collapsed.includes(id) ? 'collapsed' : 'open'}`;
+		toggleLog.push(line);
+		log = [line, ...log].slice(0, 12);
 	};
 </script>
 
@@ -223,13 +237,13 @@
 		</button>
 	{/each}
 	<button type="button" onclick={() => (collapsed = [])}>Expand all</button>
-	<span class="hf-state">collapsed=[{collapsed.join(', ')}]</span>
+	<span class="hf-state">collapsed=[{collapsed.join(', ')}] &middot; links to {basePath}</span>
 </div>
 
 <div class="legacy-index">
 	<div class="courses" style="margin-top:1rem">
 		<div class="year-label">Your Classes</div>
-		<ClassroomFeed {feeds} {collapsed} {onToggle} ready={mode !== 'notready'} now={NOW} />
+		<ClassroomFeed {feeds} {collapsed} {onToggle} {basePath} ready={mode !== 'notready'} now={NOW} />
 	</div>
 </div>
 
