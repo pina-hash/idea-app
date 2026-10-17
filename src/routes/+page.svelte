@@ -12,6 +12,8 @@
 	} from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import InstallAppKey from '$lib/InstallAppKey.svelte';
+	import { fitHomeHeader } from '$lib/home-header-fit';
 	import QuickNoteDock from '$lib/notebook/QuickNoteDock.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
@@ -580,7 +582,7 @@
 	<div id="scroll-bar"></div>
 	<canvas id="bg-canvas"></canvas>
 
-	<header>
+	<header class="home-header" use:fitHomeHeader>
 		<!--
 			THE LOGO AND THE CODE READOUT ARE ONE GROUP, AND THAT IS A MEASURED
 			DECISION RATHER THAN A TIDY ONE.
@@ -609,18 +611,45 @@
 			<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width="clamp(72px, 19vw, 104px)" /></a>
 			<CodeCounter census={codeCensus} loadUpdates={loadCodeUpdates} />
 		</div>
+		<!--
+			THE ACTIONS ARE TWO GROUPS (ledger 0396): the tools (the class chip, the
+			Install app key, Take the tour, Admin) and the account (the quick note
+			and the profile menu, or Sign in). On a desktop the tools group is
+			`display: contents`, so every control is a key in one row exactly as
+			before. On a signed-in phone the account sits on the logo's row and the
+			tools take the second row as one flex line, where the class chip is the
+			one control that gives way (an ellipsis, its whole name in `title`), so
+			nothing overlaps: the chip used to run 3px under Take the tour at 375,
+			and an admin's row ran 20px over the logo. Admin moved here from the
+			account group for that second reason.
+
+			THE INSTALL APP KEY renders only after hydration and only where this
+			browser has an install path, so it sits FIRST among the right-aligned
+			controls: when it appears, Take the tour and Sign in do not move (on a
+			signed-out phone too, because app.css tightens that row from the first
+			paint rather than when the key arrives).
+
+			WHAT GIVES WAY WHEN THE ROW IS SHORT OF ROOM is `fitHomeHeader`'s
+			decision, on this header: the lines-of-code readout first, then the
+			key's word (it becomes its icon), and the class chip last, each once
+			as the window narrows. `home-header` is what scopes this header's own
+			rules in app.css, so the other pages in this room keep theirs.
+		-->
 		<div class="header-right">
-			{#if classChip}
-				<a class="class-chip" href="/classroom">{classChip}</a>
-			{/if}
-			<button class="auth-link tour-link" type="button" data-tour="tour-trigger" onclick={() => homeTour?.start()}>
-				Take the tour
-			</button>
+			<div class="header-tools">
+				{#if classChip}
+					<a class="class-chip" href="/classroom" title={classChip}><span class="class-chip-text">{classChip}</span></a>
+				{/if}
+				<InstallAppKey />
+				<button class="auth-link tour-link" type="button" data-tour="tour-trigger" onclick={() => homeTour?.start()}>
+					Take the tour
+				</button>
+				{#if signedIn && isAdmin}
+					<a class="auth-link admin-link" href="/dashboard">Admin</a>
+				{/if}
+			</div>
 			<div class="auth-block">
 				{#if signedIn}
-					{#if isAdmin}
-						<a class="auth-link" href="/dashboard">Admin</a>
-					{/if}
 					<!-- The quick note (ledger 0298): beside the profile menu, in this
 					     header's own control style; see QuickNoteDock. -->
 					<QuickNoteDock place="home" triggerClass="auth-link tap-reach-44" />

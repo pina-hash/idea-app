@@ -2229,16 +2229,145 @@ a:hover {
 		grid-row: 1;
 		justify-self: end;
 	}
-	.legacy-index header:has(.auth-block .pm-root) .class-chip {
-		grid-column: 1;
+}
+/* THE HOME PAGE'S HEADER (ledger 0396). Every rule from here to the 44px floor
+   names `header.home-header`, the one header the home page draws, because the
+   other pages that wear this room (/archive, /fsp/class, the admin console)
+   share `.legacy-index header` and keep it exactly as it was: their actions
+   still wrap inside themselves (review round 2: un-scoped, a signed-in
+   /fsp/class ran 8px sideways at 320).
+
+   THE ACTIONS ARE ONE ROW THAT NEVER WRAPS INSIDE ITSELF. When it is short of
+   room `fitHomeHeader` (`$lib/home-header-fit`, on the header) decides what
+   gives way, in order: the lines-of-code readout (`data-readout`), then the
+   Install app key's word (it becomes its icon), and last the class chip, with
+   an ellipsis and its whole name in `title`. The header itself still wraps the
+   whole group under the logo below 768px, as it always did. */
+.legacy-index header.home-header .header-left {
+	/* The emblem and the readout keep their size; the chip gives instead. */
+	flex-shrink: 0;
+}
+.legacy-index header.home-header .header-right {
+	flex-wrap: nowrap;
+	min-width: 0;
+}
+/* The tools group (the chip, Install app, Take the tour, Admin) is a box only
+   on a signed-in phone, below; everywhere else its keys are the row's own. */
+.legacy-index header.home-header .header-tools {
+	display: contents;
+}
+.legacy-index header.home-header[data-readout='hidden'] .header-left .loc {
+	display: none;
+}
+/* The chip's text ends in an ellipsis rather than running under its
+   neighbour. */
+.legacy-index header.home-header .class-chip {
+	min-width: 0;
+	flex: 0 1 auto;
+}
+.legacy-index header.home-header .class-chip-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* SIGNED IN ON A PHONE, THE SECOND ROW IS ONE LINE: the class chip at the
+   left, giving way with an ellipsis, then Install app, Take the tour and Admin
+   at the right. Two grid cells used to hold the chip and the tour, and a long
+   class name ran under the tour key. */
+@media (max-width: 520px) {
+	.legacy-index header.home-header:has(.auth-block .pm-root):not([data-fit-probe]) .header-tools {
+		grid-column: 1 / -1;
 		grid-row: 2;
-		justify-self: start;
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.6rem;
+		min-width: 0;
 	}
-	.legacy-index header:has(.auth-block .pm-root) .tour-link {
-		grid-column: 2;
-		grid-row: 2;
-		justify-self: end;
+	.legacy-index header.home-header:has(.auth-block .pm-root):not([data-fit-probe]) .class-chip {
+		margin-right: auto;
 	}
+}
+/* SIGNED OUT ON A PHONE, THE INSTALL APP KEY FITS BESIDE TAKE THE TOUR AND SIGN
+   IN ON THE LOGO'S ROW. Measured at 375: the row had 44.9px spare and the icon
+   key with its gap needs 53.6px. So from 400px down the two text keys' side
+   padding comes in from 11.2px to 7.2px, which is what a 360px Android phone
+   needs, and the gaps close a little. It is one step, not two (review polish
+   D): a second at 370px gave the row room back a second time, one more width
+   the fit would have had to read past.
+   THIS HOLDS FROM THE FIRST PAINT, KEY OR NO KEY (review round 1). The key
+   renders only after hydration, and while these rules waited for it with
+   `:has(.install-key)`, Take the tour slid 14.4px right as it arrived (19.2px
+   at 360), seconds after paint, on exactly the phones the pop-up is for. Now
+   the key slots in at the left of a group that is already in its final place,
+   so Take the tour and Sign in do not move when it appears. */
+@media (max-width: 400px) {
+	.legacy-index header.home-header:not(:has(.pm-root)):not([data-fit-probe]) {
+		gap: 0.5rem;
+	}
+	.legacy-index header.home-header:not(:has(.pm-root)):not([data-fit-probe]) .header-right {
+		gap: 0.4rem;
+	}
+	.legacy-index header.home-header:not(:has(.pm-root)):not([data-fit-probe]) .header-right .auth-link:not(.install-key) {
+		padding-inline: 0.45rem;
+	}
+}
+/* WHAT THE FIT READS (review round 2, rebuilt in review polish D).
+   `fitHomeHeader` keeps an arrangement at a width only when it fits there AND
+   at every wider width, so each thing gives way once as the window narrows,
+   the readout first, then the Install app key's word, and only where it does
+   not fit. Narrowing the window gives the row room at four widths
+   (`HEADER_FLOORS` in `$lib/home-header-fit`): the quick note leaves it from
+   899px down, the side padding and the actions' gaps close at 768, a
+   signed-in phone's tools take a row of their own at 520, and a signed-out
+   phone's keys tighten at 400. So the fit reads the row as it is just above
+   each of those widths the window is narrower than, and the real row here.
+   Below 900px every reading is taken on a hidden copy of the header at the
+   end of the room (fixed, so outside the page's flow), made and removed inside
+   one task, so none is ever painted and the page never moves while it is read;
+   from 900 up the one reading is the real row, which is one line and 64px tall
+   whatever it holds.
+   `data-fit-line`: the real row at this width, held on ONE line, so a row that
+   does not fit shows as an overflow or a cut chip. Wrapping under the logo
+   costs every arrangement the same height once they all wrap, which is how a
+   word came back at a narrower width.
+   `data-fit-probe`: the row at a wider window, laid out at that width (the
+   script gives the copy that width and the emblem its width there, through
+   `--fit-logo`). `wide` is the desktop row from 900px up, quick note
+   included; `mid` is the row from 769 to 899; `narrow` is the row from 401
+   (signed out) or 521 (signed in) to 768, on one line. The narrow-width rules
+   above stand down for every probe. The lengths here are those rows' own
+   (`.legacy-index header`, `.header-right`, and the 768px block below), and
+   tests/home-header-fit.test.ts holds them equal. */
+.legacy-index header.home-header[data-fit-line] {
+	flex-wrap: nowrap;
+}
+.legacy-index header.home-header[data-fit-probe] {
+	display: flex;
+	flex-wrap: nowrap;
+	padding-inline: 2rem;
+	gap: 1rem;
+}
+.legacy-index header.home-header[data-fit-probe] .header-right {
+	display: flex;
+	gap: 1rem;
+}
+.legacy-index header.home-header[data-fit-probe] .qn-home {
+	display: revert;
+}
+.legacy-index header.home-header[data-fit-probe] .logo-mark .idea-logo {
+	width: var(--fit-logo) !important;
+}
+.legacy-index header.home-header[data-fit-probe='mid'] .qn-home,
+.legacy-index header.home-header[data-fit-probe='narrow'] .qn-home {
+	display: none;
+}
+.legacy-index header.home-header[data-fit-probe='narrow'] {
+	padding-inline: 1rem;
+}
+.legacy-index header.home-header[data-fit-probe='narrow'] .header-right {
+	gap: 0.6rem;
 }
 /* THE HOME HEADER'S CONTROLS TAKE THE 44px FLOOR (ledger 0297). The home page
    is a student surface, and Sign in measured 71x23.6px signed out -- the one

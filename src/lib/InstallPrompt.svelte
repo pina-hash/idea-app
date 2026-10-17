@@ -1,53 +1,53 @@
 <script lang="ts">
-	// Platform-detected PWA install prompt, mobile only. Shown once, dismissible,
-	// remembered in localStorage so it never reappears once dismissed or installed.
-	// - iOS (Safari) has no programmatic install, so we show Add to Home Screen
-	//   instructions (tap Share, then "Add to Home Screen").
-	// - Android/Chromium fires `beforeinstallprompt`; we stash it and expose an
-	//   Install button that calls prompt().
-	// Everything that touches window/navigator/localStorage is guarded so SSR
-	// never crashes: the module top level references no browser globals.
-	import { browser } from '$app/environment';
+	/**
+	 * THE ONE-TIME PHONE POP-UP (unchanged behaviour since before ledger 0396):
+	 * phones only, shown once, and gone for good when dismissed or installed.
+	 * - iOS has no programmatic install, so it shows the Share, then Add to Home
+	 *   Screen steps.
+	 * - Android Chromium offers `beforeinstallprompt`; the pop-up shows an
+	 *   Install key that opens the browser's own dialog.
+	 *
+	 * IT NO LONGER LISTENS FOR THE EVENT ITSELF (ledger 0396). It used to add its
+	 * own `beforeinstallprompt` listener on mount, which could miss an event fired
+	 * before mount and would have raced the home header's Install app key for the
+	 * one event a page gets. Both now read `$lib/install-app`, whose mailbox is
+	 * filled by the single listener in `src/app.html`. Its dismissal is ITS OWN
+	 * memory (`INSTALL_POPUP_DISMISSED_KEY`): dismissing the pop-up never hides
+	 * the header key, which reads nothing from storage.
+	 *
+	 * WHILE THE HEADER KEY'S CARD IS OPEN IT STEPS ASIDE (`installCardOpen`), so
+	 * the same Share steps are never on screen twice, and comes back when the
+	 * card closes. That is page state: its once-and-dismissed memory is not
+	 * touched by it.
+	 *
+	 * Everything that touches window or storage runs in `onMount`, so the server
+	 * render never reads a browser global.
+	 */
 	import { onMount } from 'svelte';
+	import InstallSteps from '$lib/InstallSteps.svelte';
+	import {
+		INSTALL_COPY,
+		INSTALL_POPUP_DISMISSED_KEY,
+		UNKNOWN_INSTALL,
+		installCardOpen,
+		installPopupMode,
+		promptInstall,
+		readInstall,
+		subscribeInstall,
+		type InstallSnapshot
+	} from '$lib/install-app';
 
-	const STORAGE_KEY = 'idea_pwa_prompt_dismissed';
-
-	type Platform = 'ios' | 'android' | null;
-
-	let platform = $state<Platform>(null);
-	let visible = $state(false);
-	// The stashed BeforeInstallPromptEvent (Android). Typed loosely since the
-	// event is not in the standard lib DOM typings.
-	let deferredPrompt: (Event & { prompt: () => Promise<void> }) | null = null;
-
-	function isStandalone(): boolean {
-		if (!browser) return false;
-		const displayStandalone =
-			typeof window.matchMedia === 'function' &&
-			window.matchMedia('(display-mode: standalone)').matches;
-		// iOS Safari exposes navigator.standalone when launched from the home screen.
-		const iosStandalone = (navigator as Navigator & { standalone?: boolean }).standalone === true;
-		return displayStandalone || iosStandalone;
-	}
-
-	function isIos(): boolean {
-		if (!browser) return false;
-		const ua = navigator.userAgent || '';
-		const iOsDevice = /iPhone|iPad|iPod/.test(ua);
-		// iPadOS 13+ reports as Mac; distinguish it by touch support.
-		const iPadOs = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
-		return iOsDevice || iPadOs;
-	}
-
-	function isAndroid(): boolean {
-		if (!browser) return false;
-		return /Android/.test(navigator.userAgent || '');
-	}
+	let snapshot = $state<InstallSnapshot>(UNKNOWN_INSTALL);
+	/* Until storage has been read, treat the pop-up as dismissed, so it never
+	   flashes on for somebody who already said no. */
+	let dismissed = $state(true);
+	/* The header key's card is open: step aside, without dismissing. */
+	let stepAside = $state(false);
+	const platform = $derived(installPopupMode(snapshot, dismissed));
 
 	function alreadyHandled(): boolean {
-		if (!browser) return true;
 		try {
-			return localStorage.getItem(STORAGE_KEY) === '1';
+			return localStorage.getItem(INSTALL_POPUP_DISMISSED_KEY) === '1';
 		} catch {
 			// Private mode / disabled storage: fail open so we do not nag.
 			return true;
@@ -55,75 +55,50 @@
 	}
 
 	function remember() {
-		if (!browser) return;
 		try {
-			localStorage.setItem(STORAGE_KEY, '1');
+			localStorage.setItem(INSTALL_POPUP_DISMISSED_KEY, '1');
 		} catch {
 			// Storage unavailable; nothing to persist.
 		}
 	}
 
 	function dismiss() {
-		visible = false;
+		dismissed = true;
 		remember();
 	}
 
 	async function install() {
-		if (!deferredPrompt) return;
 		try {
-			await deferredPrompt.prompt();
+			await promptInstall();
 		} finally {
 			// One-shot: the event cannot be reused. Remember either way so we do
 			// not re-prompt on the next visit.
-			deferredPrompt = null;
 			dismiss();
 		}
 	}
 
 	onMount(() => {
-		// Desktop, standalone, or already handled: never show.
-		if (isStandalone() || alreadyHandled()) return;
-
-		if (isIos()) {
-			platform = 'ios';
-			visible = true;
-			return;
-		}
-
-		if (isAndroid()) {
-			const onBeforeInstall = (e: Event) => {
-				e.preventDefault();
-				deferredPrompt = e as Event & { prompt: () => Promise<void> };
-				platform = 'android';
-				visible = true;
-			};
-			window.addEventListener('beforeinstallprompt', onBeforeInstall);
-
-			// If the app gets installed some other way, stop nagging.
-			const onInstalled = () => {
-				visible = false;
-				remember();
-			};
-			window.addEventListener('appinstalled', onInstalled);
-
-			return () => {
-				window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-				window.removeEventListener('appinstalled', onInstalled);
-			};
-		}
+		dismissed = alreadyHandled();
+		snapshot = readInstall();
+		stepAside = installCardOpen();
+		return subscribeInstall(() => {
+			stepAside = installCardOpen();
+			const next = readInstall();
+			// Installed some other way (the header key, the browser menu): stop nagging.
+			if (next.installed && !snapshot.installed) remember();
+			snapshot = next;
+		});
 	});
 </script>
 
-{#if visible && platform}
-	<div class="install-prompt" role="dialog" aria-label="Install the IDEA app">
+{#if platform && !stepAside}
+	<div class="install-prompt" role="dialog" aria-label="Install the IDEA app" data-install="popup">
 		<div class="ip-body">
-			<span class="ip-title">Install IDEA</span>
+			<span class="ip-title">{INSTALL_COPY.title}</span>
 			{#if platform === 'ios'}
-				<p class="ip-copy">
-					Tap the Share icon, then "Add to Home Screen" to install IDEA on your device.
-				</p>
+				<p class="ip-copy"><InstallSteps steps={INSTALL_COPY.ios} /></p>
 			{:else}
-				<p class="ip-copy">Add IDEA to your home screen for quick, full-screen access.</p>
+				<p class="ip-copy">{INSTALL_COPY.androidBody}</p>
 			{/if}
 		</div>
 		<div class="ip-actions">

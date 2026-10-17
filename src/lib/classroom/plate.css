@@ -1586,9 +1586,10 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   frame, its contents sitting in the recess the frame makes; a menu's
 	   current row is the list's selection. The command palette, the
 	   settings, the hall pass and song queue, the tour's callout, the report
-	   box, the quick note, the profile menu and an info tip are all this one
-	   housing, so a panel that floats reads the same wherever it opens. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .sw-menu, .pm-panel, .cp-dialog, .cs-dialog, .ctool-dialog, .tour-callout, .fb-box, .qn-panel, .info-tip-panel) {
+	   box, the quick note, the profile menu, an info tip and the home
+	   header's Install app card are all this one housing, so a panel that
+	   floats reads the same wherever it opens. */
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .sw-menu, .pm-panel, .cp-dialog, .cs-dialog, .ctool-dialog, .tour-callout, .fb-box, .qn-panel, .info-tip-panel, :where(.legacy-index) .ia-card) {
 		border: 1px solid var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-panel-ground);
