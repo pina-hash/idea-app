@@ -6,7 +6,8 @@
  * search matches (the gear worksheet, and the shop tour, which matches through
  * its unit's name, Gears) and the Videos section to the one video among them
  * -- the count on the trigger with it -- while "2 of 5 shown" says the page is
- * narrowed. The shop tour carries links and no video, so a search that keeps
+ * narrowed. Since ledger 0396 the trigger is a key in the toolbar row and the
+ * count is the bare number beside its word ("Videos 1"). The shop tour carries links and no video, so a search that keeps
  * an item keeps a card only where there is a video to card.
  * The unfiltered class is the student spec (three cards), which is this
  * reading's positive control.
@@ -26,7 +27,7 @@ export default {
 				input.dispatchEvent(new Event('input', { bubbles: true }));
 				return document.querySelector('[data-testid="class-videos-count"]')?.textContent.trim() ?? 'no count';
 			}`,
-			until: `() => document.querySelector('[data-testid="class-videos-count"]')?.textContent.trim() === '1 video'`
+			until: `() => document.querySelector('[data-testid="class-videos-count"]')?.textContent.trim() === '1'`
 		},
 		OPEN_VIDEOS
 	],
@@ -39,7 +40,7 @@ export default {
 		{ selector: '[data-testid="stream-find-result"]', label: 'the page says it is narrowed', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [
-		{ selector: '[data-testid="class-videos-count"]', label: 'the count follows the search', must: ['1 video'], mustNot: ['3 videos'] },
+		{ selector: '[data-testid="class-videos-toggle"]', label: 'the count follows the search (the bare number on the toolbar key, ledger 0396)', must: ['Videos 1'], mustNot: ['Videos 3'] },
 		{ selector: '[data-testid="stream-find-result"]', label: 'the narrowed count', must: ['2 of 5 shown'] }
 	]
 };

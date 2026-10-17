@@ -30,7 +30,9 @@ export default {
 		/* The pane control still reaches every row, which is what makes the
 		   bare case selectable at all. */
 		{ selector: '[data-testid="bulk-select-all"]', label: 'pane select-all still present', expectPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="bulk-bar"]', label: 'resting bulk bar', expectPresent: 1, expectVisible: 1 }
+		/* At rest that is the whole bulk set: no action tray until a tick
+		   (ledger 0396, part 7, review round 2). */
+		{ selector: '[data-testid="bulk-bar"]', label: 'no action tray before a tick', expectPresent: 0 }
 	],
 	contrast: [
 		{ selector: '.units-prompt-title', label: 'prompt heading', min: 4.5 },

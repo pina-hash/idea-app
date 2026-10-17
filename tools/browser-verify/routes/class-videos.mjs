@@ -2,8 +2,8 @@
  * EVERY VIDEO IN A CLASS, ON THE CLASS PAGE (ledger 0298, R08), as a student.
  *
  * Over the harness's fixture, the Videos section:
- *   - sits between the search row and the units, CLOSED, with "3 videos" on
- *     its trigger, and asks YouTube for nothing while closed (the three stills
+ *   - is a key in the toolbar row after the search (ledger 0396), CLOSED,
+ *     with "Videos 3" on it, and asks YouTube for nothing while closed (the three stills
  *     are in the DOM, lazy and no-referrer, and none fired its error; every
  *     off-loopback request is aborted here, so a requested still would have);
  *   - once opened, lists three cards in the page's own order: the caliper
@@ -81,7 +81,10 @@ export default {
 	],
 	presence: [
 		{ selector: '[data-testid="videos-class"].cr-root', label: 'the classroom room mounted', expectPresent: 1, maxPresent: 1 },
-		{ selector: '[data-testid="class-videos"]', label: 'one Videos section', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		// The section takes no box since ledger 0396 (a key in the toolbar row,
+		// its list a band under the row), so what paints is its key.
+		{ selector: '[data-testid="class-videos"]', label: 'one Videos section, drawing no box of its own', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 },
+		{ selector: '[data-testid="class-videos-toggle"]', label: 'its key', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="class-video"]', label: 'three cards', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 		{ selector: '[data-testid="class-video-also"]', label: 'one Also in link', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="class-video"] .cvid-play', label: 'a play mark on every card', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
@@ -90,11 +93,11 @@ export default {
 		{ selector: '[data-testid="class-videos-held"]', label: 'no held-back note for a student', expectPresent: 0 }
 	],
 	textContains: [
-		{ selector: '[data-testid="class-videos-count"]', label: 'the count on the trigger', must: ['3 videos'] },
+		{ selector: '[data-testid="class-videos-toggle"]', label: 'the count on the trigger, the bare number beside its word (ledger 0396)', must: ['Videos 3'] },
 		{ selector: '[data-testid="class-videos-toggle"]', label: 'the trigger says what it does', must: ['Videos', 'Hide'] }
 	],
 	domOrder: [
-		{ before: '[data-testid="stream-find"]', after: '[data-testid="class-videos"]', label: 'under the search row' },
+		{ before: '[data-testid="stream-search"]', after: '[data-testid="class-videos-toggle"]', label: 'after the search, in the toolbar row (ledger 0396)' },
 		{ before: '[data-testid="class-videos"]', after: '[data-testid="item-row"]', label: 'above the first unit' }
 	],
 	tapTargets: [

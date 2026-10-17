@@ -19,15 +19,17 @@ export default {
 		points, a due date, a category, two files and two links.
 	*/
 	presence: [
-		/* ITEM 1: the bar is on screen BEFORE anything is selected. This is the
-		   whole finding, and `expectVisible` is the half that matters -- a bar
-		   rendered at height 0 would satisfy a present-count and satisfy
-		   nobody else. */
-		{ selector: '[data-testid="bulk-bar"]', label: 'bulk bar at rest (before any selection)', expectPresent: 1, expectVisible: 1 },
-		/* NO RESTING SENTENCE (ledger 0297): the prose row is gone; the bar at
-		   rest is its Select all, and the actions name themselves once shown. */
+		/* ITEM 1: the bulk control is on screen BEFORE anything is selected.
+		   This is the whole finding, and `expectVisible` is the half that
+		   matters -- a control rendered at height 0 would satisfy a
+		   present-count and satisfy nobody else. At rest it is Select all,
+		   alone (ledger 0396, part 7, review round 2: the actions' tray only
+		   exists once something is ticked, in the toolbar's filters' places). */
+		{ selector: '[data-testid="bulk-select-all"]', label: 'the bulk control at rest: Select all (before any selection)', expectPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="bulk-bar"]', label: 'no action tray before the first tick', expectPresent: 0 },
+		/* NO RESTING SENTENCE (ledger 0297): the prose row is gone; at rest
+		   there is Select all, and the actions name themselves once shown. */
 		{ selector: '[data-testid="bulk-hint"]', label: 'no resting sentence', expectPresent: 0 },
-		{ selector: '[data-testid="bulk-select-all"]', label: 'Select all at rest (positive control)', expectPresent: 1, expectVisible: 1 },
 		/* At rest the ACTIONS are absent, not disabled: five greyed controls
 		   above every class is the clutter this deliberately is not, and a
 		   `disabled` control cannot explain itself either (CLAUDE.md). */

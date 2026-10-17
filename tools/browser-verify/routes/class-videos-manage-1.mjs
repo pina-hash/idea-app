@@ -45,7 +45,7 @@ export default {
 			label: 'what is held back, and why',
 			must: ['1 more video is in a draft or scheduled post', 'once students can see it']
 		},
-		{ selector: '[data-testid="class-videos-count"]', label: 'the count is the class count', must: ['3 videos'] }
+		{ selector: '[data-testid="class-videos-toggle"]', label: 'the count is the class count (the bare number on the toolbar key, ledger 0396)', must: ['Videos 3'], mustNot: ['Videos 4'] }
 	],
 	contrast: [{ selector: '[data-testid="class-videos-held"]', label: 'held-back line', min: 4.5 }],
 	tapTargets: [{ selector: '[data-testid="class-videos-toggle"]', label: 'the Videos trigger', min: 44 }]
