@@ -15,6 +15,8 @@
 	import { classVideos } from '$lib/classroom/class-videos';
 	import PanelStack from '$lib/classroom/PanelStack.svelte';
 	import PanelsHiddenNote from '$lib/classroom/PanelsHiddenNote.svelte';
+	import { bulkInToolbar, classToolbars, isToolbarPanel, toolbarAt, toolbarShape, type ClassToolbar } from '$lib/classroom/class-toolbar';
+	import { balanceToolbar } from '$lib/classroom/toolbar-lines';
 	import {
 		classNoticesFirst,
 		classPanelDefaults,
@@ -731,6 +733,15 @@
 	const panels = $derived(resolvePanels('class', classPanelDefaults(), panelLayout, panelsPresent));
 	const hiddenPanels = $derived(new Set(panels.hidden));
 	const findShown = $derived(!hiddenPanels.has('find'));
+	/**
+	 * THE TOOLBAR UNDER THE BANNER (ledger 0396, part 7): the search row, the
+	 * Videos key and Select all share ONE row where this person's arrangement
+	 * puts them next to each other (`classToolbars`, which says why the search
+	 * always keeps its own slot). `bulkInRow` says the bulk bar is in that row,
+	 * so the posts do not draw it a row of its own.
+	 */
+	const toolbars = $derived(classToolbars(panels));
+	const bulkInRow = $derived(bulkInToolbar(toolbars));
 	/** The notices lead the page once anything is moved above the header (`classNoticesFirst`). */
 	const noticesFirst = $derived(classNoticesFirst(panels));
 
@@ -830,6 +841,59 @@
 	function clearFilter() {
 		setFilter({ ...EMPTY_STREAM_FILTER });
 	}
+	/**
+	 * CLEAR HANDS THE FOCUS BACK TO THE SEARCH FIELD (ledger 0396, part 7,
+	 * polish rounds 1 and 2). The count line and its Clear go away with the
+	 * filter they report, which dropped a keyboard user's focus to the page, as
+	 * Clear selection's did (round 3). So the focus goes back to the search
+	 * field, the thing the person was using, in the same row, whether Clear was
+	 * pressed from the keyboard, with a mouse or with a tap. Polish round 1
+	 * sent a tap to the row's first key that was not a text field instead, to
+	 * keep a phone's keyboard down, and that key was the kind filter: a select
+	 * matches `:focus-visible` on any focus in Chromium, so it lit up with the
+	 * keyboard's ring and read as a filter just switched on (polish round 2,
+	 * which settled that the field is where the focus belongs on every device,
+	 * a phone's keyboard coming back up included). The "No items match" card's
+	 * Clear, under the posts, hands it to the same field.
+	 *
+	 * With the search row hidden there is no field, so the focus goes to the
+	 * nearest control after where the count stood (Select all, or the class's
+	 * first unit). A press from a pointer never paints the keyboard's ring
+	 * there: it lands only on a button or a link (a select lights up however
+	 * it is focused), and asks for no ring where a browser honours the request
+	 * (`focusVisible`; Chromium 141 ignores it). A press from the keyboard may
+	 * land on any control, ring and all.
+	 */
+	const FOCUSABLE = 'input:not([type="hidden"]), select, button, a[href]';
+	async function clearFilterFrom(event: MouseEvent) {
+		const pressed = event.currentTarget as HTMLElement | null;
+		const own = pressed?.closest<HTMLElement>('.class-toolbar') ?? null;
+		const page = pressed?.closest<HTMLElement>('.classroom-page') ?? null;
+		// Where the count stood: the pressed key's own row, or, for the "No items
+		// match" card with the search row hidden, the count at the top of the posts.
+		const anchor = own ? pressed : (page?.querySelector<HTMLElement>('.find-result') ?? pressed);
+		// The controls after it, in reading order, read while it is there.
+		const after =
+			page && anchor
+				? [...page.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+						(el) => anchor.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
+					)
+				: [];
+		const fromKeyboard = event.detail === 0;
+		clearFilter();
+		await tick();
+		const shown = (el: HTMLElement) => el.isConnected && el.getClientRects().length > 0;
+		const row = own?.isConnected ? own : searchEl?.isConnected ? searchEl.closest<HTMLElement>('.class-toolbar') : null;
+		const field = row?.querySelector<HTMLInputElement>('.find-field input') ?? null;
+		if (field && shown(field)) {
+			field.focus({ preventScroll: true });
+			return;
+		}
+		const takes = (el: HTMLElement) =>
+			shown(el) && !el.closest('.find-field') && (fromKeyboard || el.matches('button, a[href]'));
+		const key = row ? [...row.querySelectorAll<HTMLElement>(FOCUSABLE)].find(takes) : after.find(takes);
+		key?.focus({ preventScroll: true, focusVisible: fromKeyboard });
+	}
 	function toggleStatus(status: StreamStatusFilter) {
 		setFilter({ status: filter.status === status ? 'all' : status });
 	}
@@ -876,8 +940,18 @@
 		if (!menuHost?.offsetParent) await goto(`${basePath}/${section.id}`);
 	}
 
-	/** The class search, from the palette or `/`: on screen first, then focused. */
+	/**
+	 * The class search, from the palette or `/`: on screen first, then focused.
+	 * While anything is ticked the toolbar's filters make way for the
+	 * selection's actions (`toolbarPanel`), and typing a word would clear the
+	 * selection anyway (`setFilter`), so asking for the search ends the
+	 * selection first and the field is back to take the focus.
+	 */
 	async function focusSearch() {
+		if (bulkSelected.size && bulkInRow) {
+			clearSelection();
+			await tick();
+		}
 		if (!searchEl?.offsetParent) await goto(`${basePath}/${section.id}`);
 		await tick();
 		searchEl?.focus();
@@ -1222,6 +1296,23 @@
 	}
 
 	/**
+	 * CLEAR SELECTION PUTS THE FOCUS ON SELECT ALL (ledger 0396, part 7,
+	 * review round 3). The key goes away with the tray it sits in, which
+	 * dropped a keyboard user's focus to the page and sent their next Tab back
+	 * to the top of it. Select all is where a selection starts, it stays in the
+	 * same row (the toolbar, or the bulk row at the top of the posts), and it
+	 * does not move when the tray goes, so the focus lands there: the Select
+	 * all in the pressed key's own row, which is the row that stays.
+	 */
+	async function clearSelectionFrom(event: MouseEvent) {
+		const row = (event.currentTarget as HTMLElement | null)?.closest('.class-toolbar, .bulk-row') ?? null;
+		clearSelection();
+		await tick();
+		const key = row?.isConnected ? row.querySelector<HTMLElement>('[data-testid="bulk-select-all"]') : null;
+		key?.focus({ preventScroll: true });
+	}
+
+	/**
 	 * SELECT-ALL REACHES WHAT IS ON SCREEN, NEVER A ROW NOBODY CAN SEE.
 	 *
 	 * A collapsed group's rows are not rendered, and the next click after a
@@ -1240,6 +1331,116 @@
 
 	function allSelected(ids: string[]): boolean {
 		return ids.length > 0 && ids.every((id) => bulkSelected.has(id));
+	}
+
+	/**
+	 * THE SELECTION'S KEYS KEEP ONE WIDTH WHATEVER THEY SAY (ledger 0396, part 7,
+	 * review rounds 1 and 2). A key that grew under the pointer would wrap the
+	 * row it sits in onto another line and move the class under a teacher's next
+	 * press: measured in round 2, arming Delete in a 16px band of widths moved
+	 * the bar up a line and the confirming press opened a unit instead. So each
+	 * label that changes holds the room of its longest form (`data-reserve`,
+	 * drawn invisibly in the same grid cell, `bulkActions`): the count holds
+	 * every count this page can reach, Select all "Deselect all (00)", and
+	 * Delete the longer of "Delete (00)" and "Really delete", because its
+	 * armed words wrap to a second line inside the 44px key ("Really delete" /
+	 * "21 items?"), the way a run's words already wrap in the count's room.
+	 * One line, that label held 169px and made the tray, the Videos key and
+	 * Select all too wide for one line at 1024 (846px of row); wrapped, it
+	 * holds 105. Every reserve is sized by the class's own item count, never
+	 * by what is open, so folding a unit (which changes Select all's number)
+	 * cannot step a width either. The labels are mono, so one zero per digit
+	 * holds any number of that length.
+	 */
+	const bulkDigits = $derived(Math.max(2, String(shownGroups.reduce((n, g) => n + g.items.length, 0)).length));
+	const bulkCountReserve = $derived(`${'0'.repeat(bulkDigits)} selected`);
+	const bulkDeleteReserve = $derived(
+		[`Delete (${'0'.repeat(bulkDigits)})`, 'Really delete'].reduce((a, b) => (b.length > a.length ? b : a))
+	);
+	const bulkAllReserve = $derived(`Deselect all (${'0'.repeat(bulkDigits)})`);
+	/** Select all, and the selection's actions once anything is ticked, are this teacher's to use here. */
+	const bulkShown = $derived(editable && (openGroupIds.length > 0 || bulkSelected.size > 0));
+
+	/**
+	 * A TICK NEVER MOVES THE CLASS UNDER THE POINTER (ledger 0396, part 7,
+	 * review round 2). The first tick puts the selection's tray in the
+	 * toolbar row and the filters make way for it (`toolbarPanel`), which is one
+	 * line for one line at every desktop width (measured from about 870px up).
+	 * Where the tray, the Videos key and Select all need more lines than the
+	 * row had at rest (some phone widths, and a window between about 650 and
+	 * 870px wide), the row grows, and an unanswered line would push the class
+	 * down under a teacher's next press:
+	 * measured in round 2 on a phone, the tap meant for the second row's
+	 * checkbox unticked the first. So when the selection starts or ends, the
+	 * list is put back where it was by scrolling whatever this page scrolls in
+	 * by exactly what the row grew or shrank, and the toolbar takes the
+	 * difference ABOVE the list instead: the rows, and Select all on the row's
+	 * last line, stay under the pointer. The same holds where the bulk
+	 * controls are their own row at the top of the posts (the toolbar moved
+	 * below them, or hidden): there the tray takes lines of its own on a
+	 * phone, measured 104px.
+	 *
+	 * WHAT STAYS PUT IS WHAT WAS PRESSED, when that is in the list. A first
+	 * tick also puts File here in every open unit's header, and on a narrow
+	 * phone that wraps the header onto another line (measured 16 to 50px at
+	 * 360 to 368px wide), which moves the rows under it as surely as the
+	 * toolbar does. So the anchor is the control just pressed or focused in
+	 * the list (a row's checkbox, a unit's Select all), and the list's own top
+	 * otherwise (Select all and the tray in the toolbar, whose last line the
+	 * list's top holds still).
+	 *
+	 * It reads the anchor before the DOM moves (`$effect.pre`) and again after
+	 * (`$effect`), both untracked, keyed only on the selection starting or
+	 * ending. `selectionAnchor` and `lastPress` are PLAIN lets, never
+	 * `$state`, so neither effect writes anything the other tracks. A change
+	 * of under half a pixel is left alone, so where nothing grows nothing
+	 * scrolls at all.
+	 */
+	const selectionLive = $derived(bulkShown && bulkSelected.size > 0);
+	let lastPress: { el: Element; at: number } | null = null;
+	let selectionAnchor: { el: Element; top: number } | null = null;
+	/** The pointer's last press in the list, for the anchor (`selectionLive`). A
+	 *  capturing, passive listener, so no row's own handler can hide a press
+	 *  from it and it never delays one. */
+	function notePress(event: PointerEvent) {
+		if (event.target instanceof Element) lastPress = { el: event.target, at: performance.now() };
+	}
+	$effect(() => {
+		const host = menuHost;
+		if (!host) return;
+		host.addEventListener('pointerdown', notePress, { capture: true, passive: true });
+		return () => host.removeEventListener('pointerdown', notePress, { capture: true });
+	});
+	$effect.pre(() => {
+		void selectionLive;
+		untrack(() => {
+			const host = menuHost;
+			selectionAnchor = null;
+			if (!host?.isConnected) return;
+			const inList = (el: Element | null | undefined) => (el && el.isConnected && host.contains(el) ? el : null);
+			const pressed = lastPress && performance.now() - lastPress.at < 1500 ? inList(lastPress.el) : null;
+			const el = pressed ?? inList(document.activeElement) ?? host;
+			selectionAnchor = { el, top: el.getBoundingClientRect().top };
+		});
+	});
+	$effect(() => {
+		void selectionLive;
+		untrack(() => {
+			const anchor = selectionAnchor;
+			selectionAnchor = null;
+			lastPress = null;
+			const host = menuHost;
+			if (!anchor || !anchor.el.isConnected || !host?.isConnected) return;
+			const moved = anchor.el.getBoundingClientRect().top - anchor.top;
+			if (Math.abs(moved) >= 0.5) scrollerOf(host).scrollBy({ top: moved, behavior: 'instant' });
+		});
+	});
+	/** The box this page scrolls in: the class pane above 1024px, the document below it. */
+	function scrollerOf(el: HTMLElement): Element | Window {
+		for (let node = el.parentElement; node; node = node.parentElement) {
+			if (/(auto|scroll)/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight) return node;
+		}
+		return window;
 	}
 
 	/**
@@ -2192,10 +2393,12 @@
 		{:else if id === 'teams'}
 			<!-- The posted teams, the section layout's own `ClassTeams`. -->
 			{#if belowHeader}{@render belowHeader()}{/if}
-		{:else if id === 'find'}
-			{@render findPanel()}
-		{:else if id === 'videos'}
-			{@render videosPanel()}
+		{:else if isToolbarPanel(id)}
+			<!-- The search row and the Videos key, ONE toolbar row wherever they
+			     sit next to each other (`classToolbars`); a member drawn in
+			     another member's row renders nothing in its own slot. -->
+			{@const bar = toolbarAt(toolbars, id)}
+			{#if bar}{@render toolbarPanel(bar)}{/if}
 		{/if}
 	{/snippet}
 
@@ -2257,121 +2460,217 @@
 	{/snippet}
 
 	<!--
-		SEARCH AND FILTER (ledger 0297, report 19). One wrapping row: the search
-		field, the kind select where the class holds more than one kind, the
-		status chips (a student's own work: To do, Missing, Done; a manager's
-		Drafts, when there is one), and, whenever anything is narrowing the page,
-		the count and Clear. A filtered class can therefore never pass for a
-		class that lost its items. Everything here is 44px: this pane is the
-		student's class page.
+		THE TOOLBAR (ledger 0396, part 7): ONE wrapping row under the banner
+		holding the search row, the Videos key and, directly above the posts, a
+		teacher's Select all at its right edge. It replaced three stacked rows --
+		the search, a full-width Videos row and a row holding only Select all --
+		which Mr. Pina reported as the space between the banner and the class.
+		`classToolbars` decides what joins (two panels this person put next to
+		each other, in their order); the snippets below are the same controls
+		they always were, and none of them does anything new.
+
+		WHILE ANYTHING IS TICKED THE FILTERS MAKE WAY (review round 2). The
+		selection's actions (`bulkActions`) lead the row and the search, the kind
+		filter, the status chips and the duplicates door step out of it, kept
+		mounted and hidden (`.selecting`), so the actions take their places on
+		the same line and Select all keeps the right edge. That is safe because
+		every filter change already clears the selection (`setFilter`), so a
+		filter was never something to use while anything was ticked; Clear
+		selection (or Deselect all, or a finished run) brings them back exactly
+		as they were, the half-typed word included. The count of a narrowed list
+		stays ("3 of 20 shown"), so a filtered class never passes for one that
+		lost its items, and the Videos key stays, because it is not a filter.
+		Round 1 instead held the actions' room open, unpainted, at rest, which
+		left Select all alone on a line of its own at Mr. Pina's own window
+		width: the row he reported.
+
+		NO KEY ALONE ON A LINE (review round 3), AND DRAWN THAT WAY FROM THE
+		FIRST PAINT (review round 4). Where the row wraps, a plain flex wrap
+		fills each line greedily and could strand Select all (or a student's
+		Videos key) on the last line by itself at a phone's 390px or a tablet's
+		744, the very row Mr. Pina reported. The lines are planned instead
+		(`toolbarLines`): the same number of lines, the keys in the same order,
+		no small key alone where another arrangement fits, and the status chips
+		together where that costs nothing. The stylesheet draws the plan for the
+		rows a class page usually holds (`data-shape`, the `.tb-br` breaks and
+		their container queries below), so the server render already has it and
+		hydration moves nothing; `balanceToolbar` then only corrects a row the
+		stylesheet has no rule for, and holds the row still while somebody types
+		in the search: the field keeps its place, its width and the room of a
+		Videos key before it that a word took away, and every other key keeps
+		its line, so a key the word takes away leaves a gap rather than pulling
+		its neighbours after it.
+
+		THE COUNT OF A NARROWED LIST IS A LINE OF ITS OWN UNDER THE KEYS (review
+		round 4), after Select all in reading order, so it never takes width from
+		the search field: in the row it squeezed the field under the caret (277
+		to 133px on a phone) and pulled the kind filter up beside it.
+
+		`stream-find` stays the hook of the row that holds the search, so every
+		spec and tour step naming the search row still names it; a row of the
+		Videos key alone (the search hidden) is `class-toolbar`.
 	-->
-	{#snippet findPanel()}
-	{#if totalCount > 0}
-		<div class="find" data-testid="stream-find">
-			<label class="find-field">
-				<svg class="find-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.search} /></svg>
-				<span class="sr-only">Search this class</span>
-				<input
-					bind:this={searchEl}
-					class="find-input"
-					type="search"
-					value={filter.query}
-					placeholder="Search this class"
-					autocomplete="off"
-					spellcheck="false"
-					data-testid="stream-search"
-					oninput={(e) => setFilter({ query: e.currentTarget.value })}
-					onkeydown={(e) => {
-						if (e.key === 'Escape' && filter.query) {
-							e.preventDefault();
-							e.stopPropagation();
-							setFilter({ query: '' });
-						}
-					}}
-				/>
-			</label>
-			{#if kindOptions.length}
-				<label class="find-kind">
-					<span class="sr-only">Show only</span>
-					<select
-						class="cr-select"
-						value={filter.kind}
-						data-testid="stream-kind"
-						onchange={(e) => setFilter({ kind: e.currentTarget.value as StreamKindFilter })}
-					>
-						{#each kindOptions as k (k)}
-							<option value={k}>{STREAM_KIND_LABELS[k]}</option>
-						{/each}
-					</select>
-				</label>
+	{#snippet toolbarPanel(bar: ClassToolbar)}
+		{@const hasFind = bar.members.includes('find')}
+		{@const carries = bar.bulk && bulkShown}
+		{@const selecting = carries && bulkSelected.size > 0}
+		<div
+			class="class-toolbar"
+			class:selecting
+			data-testid={hasFind ? 'stream-find' : 'class-toolbar'}
+			data-toolbar={bar.members.join(' ')}
+			data-shape={toolbarShape({
+				members: bar.members,
+				selecting,
+				carries,
+				kinds: kindOptions.length > 0,
+				statuses: statusOptions,
+				duplicates: canManage && duplicateCount > 0
+			})}
+			use:balanceToolbar
+		>
+			<!-- (the tray's block and the members' run touch, so no text node sits
+			     between them in the row) -->
+			{#if selecting}{@render bulkActions()}{/if}{#each bar.members as member, i (member)}
+				{#if member === 'find'}{@render findControls()}{:else}{#if i > 0}{@render lineBreak('videos')}{/if}{@render
+						videosKey()}{/if}
+			{/each}
+			{#if carries}{@render selectAllKey()}{/if}
+			{#if hasFind && filtering}{@render findResult()}{/if}
+			{#if hasFind}
+				<p class="sr-only" aria-live="polite">{filtering ? `${shownCount} of ${totalCount} shown` : ''}</p>
 			{/if}
-			{#if statusOptions.length}
-				<div class="find-chips" role="group" aria-label="Show by status" data-testid="stream-status">
-					{#each statusOptions as st (st)}
-						<button
-							type="button"
-							class="find-chip"
-							data-status={st}
-							aria-pressed={filter.status === st}
-							data-testid="stream-status-{st}"
-							onclick={() => toggleStatus(st)}
-						>
-							<svg viewBox="0 0 24 24" aria-hidden="true"><path d={STATUS_GLYPHS[st]} /></svg>
-							{STREAM_STATUS_LABELS[st]}
-							<span class="find-count">{statusCount(st)}</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
-			{#if canManage && duplicateCount > 0}
-				<!-- THE DUPLICATES DOOR (ledger 0298, report 28): the page left the
-				     tab bar, and this is where it is found when there is something
-				     to act on -- beside Drafts, a link rather than a filter, quiet
-				     until then because it is not rendered at all. -->
-				<a class="find-door" href={classDuplicatesHref(section.id, basePath)} data-testid="stream-duplicates-door">
-					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.duplicates} /></svg>
-					{duplicateDoorLabel(duplicateCount)}
-				</a>
-			{/if}
-			{#if filtering}
-				<div class="find-result" data-testid="stream-find-result">
-					<span>{shownCount} of {totalCount} shown</span>
-					<button type="button" class="find-clear" data-testid="stream-clear" onclick={clearFilter}>Clear</button>
-				</div>
-			{/if}
-			<p class="sr-only" aria-live="polite">{filtering ? `${shownCount} of ${totalCount} shown` : ''}</p>
 		</div>
-	{/if}
 	{/snippet}
 
-	<!-- VIDEOS (ledger 0298, R08): a closed section under the search row, only
-	     when the class has one, and not beside an open item, where this list
-	     is the navigation column. See ClassVideos for why it is not a kind. -->
-	{#snippet videosPanel()}
-	{#if !asPane && videoIndex.videos.length}
+	<!--
+		SEARCH AND FILTER (ledger 0297, report 19): the search field, the kind
+		select where the class holds more than one kind, the status chips (a
+		student's own work: To do, Missing, Done; a manager's Drafts, when there
+		is one) and the duplicates door. Whenever anything is narrowing the page
+		the toolbar adds the count and Clear as a line of its own under the keys
+		(`findResult`), so a filtered class can never pass for a class that lost
+		its items. Everything here is 44px: this pane is the student's class
+		page. Each is a flex item of the toolbar row above.
+	-->
+	{#snippet findControls()}
+		<label class="find-field">
+			<svg class="find-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.search} /></svg>
+			<span class="sr-only">Search this class</span>
+			<input
+				bind:this={searchEl}
+				class="find-input"
+				type="search"
+				value={filter.query}
+				placeholder="Search this class"
+				autocomplete="off"
+				spellcheck="false"
+				data-testid="stream-search"
+				oninput={(e) => setFilter({ query: e.currentTarget.value })}
+				onkeydown={(e) => {
+					if (e.key === 'Escape' && filter.query) {
+						e.preventDefault();
+						e.stopPropagation();
+						setFilter({ query: '' });
+					}
+				}}
+			/>
+			<!-- THE FIELD'S WORDS, drawn rather than left to the placeholder
+			     (ledger 0396, part 7, review round 1): where the row is tight the
+			     field is narrower than "Search this class", and a placeholder cut
+			     to "Search th" says less than a word. So the field reads "Search
+			     this class" where that fits, "Search" where only that fits, and
+			     only its magnifier below that (a container query on the field's
+			     own width). The input's own placeholder stays, unpainted, so the
+			     words leave the moment anything is typed (`:placeholder-shown`);
+			     the field's name is its label either way. -->
+			<span class="find-ph" aria-hidden="true"><span class="find-ph-long">Search this class</span><span class="find-ph-short">Search</span></span>
+		</label>
+		{@render lineBreak('search')}
+		{#if kindOptions.length}
+			<label class="find-kind">
+				<span class="sr-only">Show only</span>
+				<select
+					class="cr-select"
+					value={filter.kind}
+					data-testid="stream-kind"
+					onchange={(e) => setFilter({ kind: e.currentTarget.value as StreamKindFilter })}
+				>
+					{#each kindOptions as k (k)}
+						<option value={k}>{STREAM_KIND_LABELS[k]}</option>
+					{/each}
+				</select>
+			</label>
+		{/if}
+		{#if statusOptions.length}
+			{@render lineBreak('chips')}
+			<div class="find-chips" role="group" aria-label="Show by status" data-testid="stream-status">
+				{#each statusOptions as st (st)}
+					{#if st === 'done'}{@render lineBreak('done')}{/if}
+					<button
+						type="button"
+						class="find-chip"
+						data-status={st}
+						aria-pressed={filter.status === st}
+						data-testid="stream-status-{st}"
+						onclick={() => toggleStatus(st)}
+					>
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d={STATUS_GLYPHS[st]} /></svg>
+						{STREAM_STATUS_LABELS[st]}
+						<span class="find-count">{statusCount(st)}</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
+		{#if canManage && duplicateCount > 0}
+			<!-- THE DUPLICATES DOOR (ledger 0298, report 28): the page left the
+			     tab bar, and this is where it is found when there is something
+			     to act on -- beside Drafts, a link rather than a filter, quiet
+			     until then because it is not rendered at all. -->
+			<a class="find-door" href={classDuplicatesHref(section.id, basePath)} data-testid="stream-duplicates-door">
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.duplicates} /></svg>
+				{duplicateDoorLabel(duplicateCount)}
+			</a>
+		{/if}
+	{/snippet}
+
+	<!-- THE COUNT OF A NARROWED LIST AND ITS CLEAR: in the toolbar a line of
+	     its own under the keys, and at the top of the posts when the search
+	     row is hidden. -->
+	{#snippet findResult()}
+		<div class="find-result" data-testid="stream-find-result">
+			<span>{shownCount} of {totalCount} shown</span>
+			<button type="button" class="find-clear" data-testid="stream-clear" onclick={clearFilterFrom}>Clear</button>
+		</div>
+	{/snippet}
+
+	<!-- A PLACE THE TOOLBAR'S LINE MAY BREAK (review round 4): nothing at all
+	     until a container query for this row's shape shows it, when it is a
+	     full-width line of no height that starts the next key on a new line
+	     (`.tb-br`). The planner hides every one while it draws a row itself
+	     (`data-planned`). -->
+	{#snippet lineBreak(at: 'search' | 'chips' | 'done' | 'videos')}
+		<span class="tb-br" data-br={at} aria-hidden="true"></span>
+	{/snippet}
+
+	<!-- VIDEOS (ledger 0298, R08): only when the class has one, and not beside
+	     an open item, where this list is the navigation column. A key in the
+	     toolbar row since ledger 0396, its list a full-width band under the row
+	     when open (ClassVideos' `inline`). See ClassVideos for why it is not a
+	     kind. -->
+	{#snippet videosKey()}
 		<ClassVideos
 			index={videoIndex}
 			itemHref={(id) => `${basePath}/${section.id}/item/${id}`}
 			scope={`class-videos:${section.id}`}
 			showHeld={canManage}
+			inline
 		/>
-	{/if}
 	{/snippet}
 
-	{#snippet streamPanel()}
-	{#if !findShown && filtering}
-		<!-- THE SEARCH ROW IS HIDDEN AND SOMETHING STILL NARROWS THE LIST (a
-		     palette filter, or the view this class opens on): its count and its
-		     Clear, so a filtered class never passes for one that lost its items. -->
-		<div class="find-result" data-testid="stream-find-result">
-			<span>{shownCount} of {totalCount} shown</span>
-			<button type="button" class="find-clear" data-testid="stream-clear" onclick={clearFilter}>Clear</button>
-		</div>
-		<p class="sr-only" aria-live="polite">{`${shownCount} of ${totalCount} shown`}</p>
-	{/if}
 	<!--
-		BULK ACTIONS. A row's own checkbox is the selection; this bar is what
-		acts on the whole set at once -- "bundle multiple posts together" is a
+		BULK ACTIONS. A row's own checkbox is the selection; these are what act
+		on the whole set at once -- "bundle multiple posts together" is a
 		selection model, not a second grouping, since units already group items.
 
 		Delete is the one that names its cost: the label itself becomes the
@@ -2385,50 +2684,47 @@
 		bulk PUBLISHED set is recoverable: publish is a toggle, so drafts can be
 		selected again and this bar has no unpublish action, but the per-row
 		menu's own toggle still reaches each one directly.
+
+		THE CHECKBOXES HAVE TO SAY WHAT THEY ARE FOR BEFORE THE FIRST TICK. The
+		bar used to render only once something was selected, so a manager read a
+		column of checkboxes with nothing anywhere naming what they drive, and
+		the actions went unused. At rest it is ONE control -- Select all -- not
+		the action set greyed out: five disabled buttons above every class is
+		the clutter this is trying not to become, and a disabled control cannot
+		explain itself either. NO SENTENCE AT REST (ledger 0297): "Tick items to
+		publish, file or delete several at once." sat on its own row above every
+		class; the row checkboxes and Select all name themselves (each
+		checkbox's label names its item). The actions appear, named, the moment
+		anything is ticked, as one tray (`bulkActions`).
+
+		WHERE THEY SIT (ledger 0396, part 7). In the toolbar row directly above
+		the posts: the tray LEADS the row in the filters' places (they make way,
+		`toolbarPanel`) and Select all keeps the row's right edge, so a tick
+		paints the tray on a line the filters held and moves nothing below it on
+		a desktop. Anywhere else (the toolbar moved below the posts, or both its
+		panels hidden) they are their own row at the top of the posts, as they
+		always were, Select all at that row's right edge (`bulkRow`).
 	-->
-	{#if editable && (openGroupIds.length > 0 || bulkSelected.size > 0)}
-		<div class="bulk-bar" class:resting={bulkSelected.size === 0} data-testid="bulk-bar">
+	{#snippet bulkActions()}
+		{@const armed = armBulkDelete}
+		<div class="bulk-bar" data-testid="bulk-bar">
 			<!--
-				THE BAR IS WHAT THE CHECKBOXES ARE FOR, AND IT HAS TO SAY SO BEFORE
-				THE FIRST TICK. It used to render only once something was selected,
-				so a manager read a column of checkboxes with nothing anywhere
-				naming what they drive, and the actions went unused. At rest it is
-				ONE line -- a sentence and a select-all -- not the action set greyed
-				out: five disabled buttons above every class is the clutter this is
-				trying not to become, and a disabled control cannot explain itself
-				either.
+				THE READOUT: the count, or, while a run works, the acknowledgement
+				in its place, so the tray never changes size mid-run and pushes
+				the list the person is watching. Its room is fixed by the longest
+				count this page can reach (`bulkCountReserve`), and a run's longer
+				words wrap inside it to two short lines within the 44px keys
+				beside it.
 			-->
-			<!--
-				THE ACKNOWLEDGEMENT, beside the controls it belongs to. It replaces
-				the count rather than sitting under it, so the bar does not change
-				height mid-run and push the list the person is watching.
-			-->
-			{#if bulkPending}
-				<span class="bulk-pending" data-testid="bulk-pending">
-					<Pending label={bulkPending} variant="inline" />
-				</span>
-			{:else if bulkSelected.size === 0}
-				<!-- NO SENTENCE AT REST (ledger 0297). "Tick items to publish, file or
-				     delete several at once." sat on its own row above every class a
-				     teacher opened; a control that needs a sentence explaining it is
-				     the wrong control, and the row's checkboxes and Select all name
-				     themselves (each checkbox's label names its item). The actions
-				     appear, named, the moment anything is ticked. -->
-			{:else}
-				<span class="bulk-count" data-testid="bulk-count">{bulkSelected.size} selected</span>
-			{/if}
-			<button
-				type="button"
-				class="btn secondary tiny"
-				disabled={busy}
-				data-testid="bulk-select-all"
-				onclick={() => toggleAll(openGroupIds)}
-			>
-				{allSelected(openGroupIds)
-					? `Deselect all (${openGroupIds.length})`
-					: `Select all (${openGroupIds.length})`}
-			</button>
-		{#if bulkSelected.size > 0}
+			<span class="bulk-slot" data-reserve={bulkCountReserve}>
+				{#if bulkPending}
+					<span class="bulk-pending" data-testid="bulk-pending">
+						<Pending label={bulkPending} variant="inline" />
+					</span>
+				{:else}
+					<span class="bulk-count" data-testid="bulk-count">{bulkSelected.size} selected</span>
+				{/if}
+			</span>
 			<button
 				type="button"
 				class="btn secondary tiny"
@@ -2461,6 +2757,10 @@
 					</select>
 				</label>
 			{/if}
+			<!-- Delete holds its armed label's room from the first tick
+			     (`bulkDeleteReserve`), the armed words wrapping to two lines
+			     inside it, so arming it never widens the tray and the confirming
+			     press lands where the first one did. -->
 			<button
 				type="button"
 				class="btn secondary tiny danger"
@@ -2468,21 +2768,70 @@
 				data-testid="bulk-delete"
 				onclick={() => bulkDelete([...bulkSelected])}
 			>
-				{armBulkDelete
-					? `Really delete ${bulkSelected.size} item${bulkSelected.size === 1 ? '' : 's'}?`
-					: `Delete (${bulkSelected.size})`}
+				<span class="bulk-label bulk-wraps" data-reserve={bulkDeleteReserve}
+					><span
+						>{armed
+							? `Really delete ${bulkSelected.size} item${bulkSelected.size === 1 ? '' : 's'}?`
+							: `Delete (${bulkSelected.size})`}</span
+					></span
+				>
 			</button>
 			<button
 				type="button"
 				class="btn secondary tiny"
 				disabled={busy}
 				data-testid="bulk-clear"
-				onclick={clearSelection}
+				onclick={clearSelectionFrom}
 			>
 				Clear selection
 			</button>
-		{/if}
 		</div>
+	{/snippet}
+
+	<!-- SELECT ALL, the one bulk control at rest. Its label holds the room of
+	     "Deselect all (00)" (`bulkAllReserve`), so the press that turns it into
+	     Deselect all moves nothing. -->
+	{#snippet selectAllKey()}
+		<button
+			type="button"
+			class="btn secondary tiny bulk-all"
+			disabled={busy}
+			data-testid="bulk-select-all"
+			onclick={() => toggleAll(openGroupIds)}
+		>
+			<span class="bulk-label" data-reserve={bulkAllReserve}
+				><span
+					>{allSelected(openGroupIds)
+						? `Deselect all (${openGroupIds.length})`
+						: `Select all (${openGroupIds.length})`}</span
+				></span
+			>
+		</button>
+	{/snippet}
+
+	<!-- THE BULK ROW at the top of the posts, for an arrangement whose toolbar
+	     is not directly above them: the tray once anything is ticked, Select all
+	     at the right edge. -->
+	{#snippet bulkRow()}
+		<div class="bulk-row" class:selecting={bulkSelected.size > 0} data-testid="bulk-row">
+			{#if bulkSelected.size > 0}{@render bulkActions()}{/if}
+			{@render selectAllKey()}
+		</div>
+	{/snippet}
+
+	{#snippet streamPanel()}
+	{#if !findShown && filtering}
+		<!-- THE SEARCH ROW IS HIDDEN AND SOMETHING STILL NARROWS THE LIST (a
+		     palette filter, or the view this class opens on): its count and its
+		     Clear, so a filtered class never passes for one that lost its items. -->
+		{@render findResult()}
+		<p class="sr-only" aria-live="polite">{`${shownCount} of ${totalCount} shown`}</p>
+	{/if}
+	<!-- THE BULK ROW, here only when the toolbar row is not directly above the
+	     posts to carry Select all and the tray (the search and the Videos key
+	     both hidden, or moved below the posts). -->
+	{#if !bulkInRow && bulkShown}
+		{@render bulkRow()}
 	{/if}
 
 	<!-- BELOW THE TOOLBAR, NEVER ABOVE IT. A status line that appears after an
@@ -2696,7 +3045,7 @@
 	{#if filtering && shownCount === 0}
 		<section class="card find-none" data-testid="stream-find-none">
 			<p class="note">No items match.</p>
-			<button type="button" class="find-clear" onclick={clearFilter}>Clear</button>
+			<button type="button" class="find-clear" onclick={clearFilterFrom}>Clear</button>
 		</section>
 	{/if}
 
@@ -2936,55 +3285,124 @@
 	.tool-panel {
 		margin-bottom: var(--space-4);
 	}
-	/* THE BULK BAR: a peer of the class header's keys above it. It sits BELOW
-	   the header (ledger 0360) and ABOVE the status line, matching the
+	/* THE BULK ACTIONS: peers of the class header's keys above them. They sit
+	   BELOW the header (ledger 0360) and ABOVE the status line, matching the
 	   toolbar-then-status ordering the rest of the pane already follows.
-	   
-	   IT IS PRESENT BEFORE THE FIRST SELECTION, in a RESTING state that is one
-	   sentence and one control -- see the markup for why that is not the same
-	   thing as showing the action set greyed out. The resting state drops the
-	   filled surface and the border so a line that is on screen permanently for
-	   a manager does not read at the weight of the content beneath it. */
+
+	   AT REST THERE IS ONE CONTROL, Select all (see the markup for why that is
+	   not the same thing as showing the action set greyed out), and once
+	   anything is ticked the actions are ONE TRAY (`.bulk-bar`): a filled
+	   surface inside an edge, so the set reads as one thing that acts on the
+	   selection. The tray is its own 2px padding inside its 1px edge, with as
+	   much again taken back outside, so it is the height of its 44px keys and
+	   takes a line of the row exactly as a key does: painting it moves no
+	   line. */
 	.bulk-bar {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-2);
-		margin-bottom: var(--space-4);
-		padding: var(--space-2) var(--space-3);
+		max-width: 100%;
+		min-width: 0;
+		margin: -3px 0;
+		padding: 2px 2px 2px var(--space-3);
 		background: var(--surface-2);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
+		box-sizing: border-box;
 	}
-	/* At rest the bar is its Select all alone, at the row's end. */
-	.bulk-bar.resting {
-		background: none;
-		border-color: transparent;
-		padding: 0;
-		justify-content: flex-end;
-		margin-bottom: var(--space-3);
+	/* In the toolbar the tray takes the half step above and below that every
+	   key there does (`--tb-line-gap`), less the 3px it already takes back. */
+	.class-toolbar .bulk-bar {
+		margin-block: calc(var(--tb-line-gap) / 2 - 3px);
 	}
-	.bulk-pending {
-		display: inline-flex;
+	/* THE BULK ROW at the top of the posts, for an arrangement whose toolbar
+	   is elsewhere: the tray once anything is ticked, Select all at the right
+	   edge (`.bulk-all`), the plate's step under it. */
+	.bulk-row {
+		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-3);
 		min-width: 0;
 	}
-	.bulk-count {
+	/* Select all keeps the right edge of whichever line it lands on, at rest
+	   and ticked, so the key a teacher just pressed is still under the pointer
+	   when the tray appears. */
+	.bulk-all {
+		margin-left: auto;
+	}
+	/* THE READOUT'S ROOM IS ITS RESERVE: the count and a run's words sit in
+	   the cell the longest count holds (`bulkCountReserve`), and neither can
+	   widen it (a zero width that grows to the cell), so a run's longer words
+	   wrap to two short lines inside the 44px keys' height instead. */
+	.bulk-slot {
+		display: inline-grid;
+		align-items: center;
+		margin-right: var(--space-1);
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
+		line-height: 1.15;
 		color: var(--text-2);
-		margin-right: var(--space-1);
 	}
-	/* THIS BAR DELETES SEVERAL ITEMS AT ONCE, so its controls take the same
-	   44px floor the console and the engine host do (classroom.css), not the
-	   21px chip `.btn.tiny` measures everywhere else it is the right size.
+	.bulk-slot > * {
+		grid-area: 1 / 1;
+		width: 0;
+		min-width: 100%;
+	}
+	.bulk-slot :global(.pending) {
+		font-size: inherit;
+		letter-spacing: 0;
+		line-height: inherit;
+		overflow-wrap: normal;
+	}
+	/* A label holding the room of its longest form: the words and an unpainted
+	   copy of the longest in one grid cell, centred, so "Select all (21)" sits
+	   in the room "Deselect all (21)" will need and "Delete (3)" in the room of
+	   "Really delete". The copy is generated content with empty alternative
+	   text, so it is never read or named. */
+	.bulk-label {
+		display: inline-grid;
+		justify-items: center;
+	}
+	.bulk-label > * {
+		grid-area: 1 / 1;
+		white-space: nowrap;
+	}
+	/* Delete's words may wrap inside the room its reserve holds (a zero width
+	   that grows to the cell, as the count's do), at a line height that keeps
+	   two lines inside the 44px key: measured, the armed key stays 44px tall
+	   and keeps its width. */
+	.bulk-wraps {
+		line-height: 1.15;
+	}
+	.bulk-wraps > * {
+		width: 0;
+		min-width: 100%;
+		white-space: normal;
+		text-align: center;
+	}
+	:global(.bulk-slot)::after,
+	:global(.bulk-label)::after {
+		grid-area: 1 / 1;
+		content: attr(data-reserve);
+		content: attr(data-reserve) / '';
+		visibility: hidden;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+	/* THESE CONTROLS DELETE SEVERAL ITEMS AT ONCE, so they take the same 44px
+	   floor the console and the engine host do (classroom.css), not the 21px
+	   chip `.btn.tiny` measures everywhere else it is the right size.
 	   `.btn.tiny` alone measured 21px tall here -- under the 24px hard floor,
 	   on the one control in the module where a mis-hit is the expensive
 	   kind. `min-height` and block padding only, never a fixed height, for
 	   the same reason classroom.css gives: rounding to reach a floor rounds
 	   both ways. */
 	.bulk-bar .btn,
-	.bulk-bar .btn.tiny {
+	.bulk-bar .btn.tiny,
+	.btn.tiny.bulk-all {
 		min-height: 44px;
 		padding-block: var(--space-2);
 		display: inline-flex;
@@ -2996,6 +3414,14 @@
 	.bulk-unit {
 		display: inline-flex;
 		min-width: 0;
+	}
+	/* A select is as wide as its longest option, and this one always reads
+	   "File into..." (it resets after every choice), so a unit called
+	   "Documents and references" made it 200px of mostly air in the toolbar.
+	   7.5rem is "File into..." and its chevron whole (measured 115px of the
+	   120); the open list still shows every name whole. */
+	.bulk-unit .cr-select {
+		max-width: 7.5rem;
 	}
 	/* The same crimson the per-row menu's own Delete carries -- reserved for
 	   this kind of destructive action, never a general accent. */
@@ -3901,23 +4327,157 @@
 		}
 	}
 
-	/* SEARCH AND FILTER. One wrapping row, so a wide pane spends one 44px line on
-	   it and the 26rem navigation pane wraps it to two or three. The field grows
+	/* THE TOOLBAR (ledger 0396, part 7). One wrapping row, so a wide pane spends
+	   one 44px line on the search, the filters, the Videos key and Select all,
+	   and the 26rem navigation pane wraps it to two or three. The field grows
 	   and is capped, so it never becomes a 1200px box above a stream laid out in
-	   columns; everything else takes its own width. */
-	.find {
+	   columns; everything else takes its own width.
+
+	   ITS SPACING IS THE PLATE'S STEP, `--space-3`, ON BOTH SIDES: the banner
+	   sits 12px above it (ClassThemeBanner's own margin) and the first unit 12px
+	   below, the same step the unit cards keep from each other, so the toolbar
+	   reads as the top row of the class rather than a band of its own. It was
+	   `--space-4` here, then a 12px Videos row and a 12px Select all row: 188px
+	   from the banner to the first unit for a teacher at 1440, 68px now (12,
+	   one 44px line, 12).
+
+	   ITS LINES ARE SPACED BY THE KEYS' OWN MARGINS, NOT A ROW GAP (review
+	   round 4), so a line break (`.tb-br`, below) can be a full-width flex item
+	   of no height without adding a gap of its own: with `row-gap` the empty
+	   line it makes would add 8px. Every key takes half the plate's 8px step
+	   above and below (`--tb-line-gap`, which ClassVideos' key and band read
+	   too), and the row takes the same half back outside, so the lines are 8px
+	   apart and the keys sit exactly where they did (measured: 68px from the
+	   banner to the first unit at 1440 and 960 and 172px at 375, before and
+	   after, for a teacher and a student). The row's own box is therefore 4px
+	   taller than its keys at each edge; anything measuring the step measures
+	   the keys. */
+	.class-toolbar {
+		--tb-line-gap: var(--space-2);
+		container: class-toolbar / inline-size;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--space-2);
-		margin: 0 0 var(--space-4);
+		column-gap: var(--space-2);
+		row-gap: 0;
+		margin: calc(var(--tb-line-gap) / -2) 0 calc(var(--space-3) - var(--tb-line-gap) / 2);
 		min-width: 0;
 	}
-	/* A 10rem basis is what lets the field and the kind select share one row
-	   at 375 (measured: 13rem put the select on a row of its own, 52px more
-	   chrome above the first item on a phone). */
+	.class-toolbar :is(.find-field, .find-chip, .find-door, .find-result, .bulk-all) {
+		margin-block: calc(var(--tb-line-gap) / 2);
+	}
+	/* THE COUNT OF A NARROWED LIST: a line of its own under the keys (the
+	   markup says why), its words and Clear at the start of it. */
+	.class-toolbar .find-result {
+		flex-basis: 100%;
+	}
+	/*
+	   THE LINE BREAKS (review round 4). A `.tb-br` is nothing until one of the
+	   rules below shows it, and then it is a full-width item of no height, so
+	   the key after it starts a new line and no line is added. The rules draw
+	   the PLANNED lines (`toolbarLines` in class-toolbar.ts) for the rows a
+	   class page usually holds, keyed on the row's `data-shape` and on its own
+	   width, so the server render already has them and hydration moves
+	   nothing: at a phone's 375 and 390, an iPad's 768 and 820, 960 and 1440,
+	   a teacher with and without a draft and a student are drawn exactly as the
+	   planner would draw them. Each width is a sum of the keys' measured widths
+	   in the plate (Rajdhani and Share Tech Mono loaded; single-digit counts):
+	   the search's 9.25rem basis 148, the kind picker 136.19 (its widest
+	   option, "Announcements", which `.find-kind select` holds for every
+	   class), Drafts 102.58, To do 98.05, Missing 111.61, Done 95.84, Videos
+	   138.03, Select all 130.72 (its label holds "Deselect all (00)"), 8 apart,
+	   less the planner's own hundredth of a pixel of slack (`FIT_SLACK`), so
+	   the two never disagree at a boundary. Where a class's keys are wider (a two-digit count) or a row has a shape
+	   no rule names, the row is the plain wrap and `balanceToolbar` corrects
+	   it, which is the only time hydration moves anything here.
+	   `tests/classroom-class-toolbar.test.ts` reads these rules back and puts
+	   them through the planner's own judgement at every width from a 320px
+	   phone's 256 to 1900px. The planner hides them all while it draws a row itself
+	   (`data-planned`).
+	*/
+	.tb-br {
+		display: none;
+		flex: 0 0 100%;
+		height: 0;
+		margin: 0;
+	}
+	/* shape: search kinds drafts videos all */
+	@container class-toolbar (width < 387.32px) {
+		.class-toolbar[data-shape='search kinds drafts videos all']:not([data-planned]) > .tb-br[data-br='search'] {
+			display: block;
+		}
+	}
+	@container class-toolbar (548.79px <= width < 687.51px) {
+		.class-toolbar[data-shape='search kinds drafts videos all']:not([data-planned]) > .tb-br[data-br='videos'] {
+			display: block;
+		}
+	}
+	/* shape: search kinds videos all */
+	@container class-toolbar (width < 292.18px) or (438.21px <= width < 576.93px) {
+		.class-toolbar[data-shape='search kinds videos all']:not([data-planned]) > .tb-br[data-br='videos'] {
+			display: block;
+		}
+	}
+	/* shape: search kinds todo missing done videos */
+	@container class-toolbar (width < 292.18px) or (467.52px <= width < 767.71px) {
+		.class-toolbar[data-shape='search kinds todo missing done videos']:not([data-planned]) > .tb-br[data-br='chips'] {
+			display: block;
+		}
+	}
+	@container class-toolbar (width < 398.23px) {
+		.class-toolbar[data-shape='search kinds todo missing done videos']:not([data-planned]) .tb-br[data-br='done'] {
+			display: block;
+		}
+	}
+	/* shape: search kinds drafts all */
+	@container class-toolbar (width < 541.48px) {
+		.class-toolbar[data-shape='search kinds drafts all']:not([data-planned]) > .tb-br[data-br='chips'] {
+			display: block;
+		}
+	}
+	/* shape: search kinds all */
+	@container class-toolbar (width < 430.9px) {
+		.class-toolbar[data-shape='search kinds all']:not([data-planned]) > .tb-br[data-br='search'] {
+			display: block;
+		}
+	}
+	/* shape: search kinds todo missing done */
+	@container class-toolbar (width < 321.49px) {
+		.class-toolbar[data-shape='search kinds todo missing done']:not([data-planned]) > .tb-br[data-br='search'] {
+			display: block;
+		}
+	}
+	@container class-toolbar (321.49px <= width < 621.68px) {
+		.class-toolbar[data-shape='search kinds todo missing done']:not([data-planned]) > .tb-br[data-br='chips'] {
+			display: block;
+		}
+	}
+	/*
+	   WHILE ANYTHING IS TICKED THE FILTERS MAKE WAY FOR THE TRAY (review round
+	   2; the markup says why that is safe). They stay mounted, so the search
+	   keeps its word and its caret for when the selection ends; the count of a
+	   narrowed list stays (`.find-result`). The tray then leads the row on the
+	   line the filters held: at a desktop width the tray, the Videos key and
+	   Select all are one line, as the filters, the Videos key and Select all
+	   were, so a tick moves no line and nothing under the pointer. Every label
+	   in the tray holds its longest form (`bulkDigits`), so Select all, Deselect
+	   all, arming Delete and a run's words never change its width either.
+	*/
+	.class-toolbar.selecting :is(.find-field, .find-kind, .find-chips, .find-door) {
+		display: none;
+	}
+	/* A 9.25rem basis is what lets the field and the kind select share one
+	   row on a 360px phone, the commonest Android width, even when the select
+	   holds its widest option ("Announcements", 136.2px): 148 + 8 + 136.2 is
+	   292.2 of the row's 296 (review round 3). 10rem shared it only from 375,
+	   so at 360 the select took a line of its own and a student's chips four
+	   lines with one stranded; 13rem put the select on a row of its own at 375
+	   too, 52px more chrome above the first item on a phone. The field still
+	   grows to fill its line, so this is only where lines break. */
 	.find-field {
-		flex: 1 1 10rem;
+		position: relative;
+		container: find-field / inline-size;
+		flex: 1 1 9.25rem;
 		max-width: 30rem;
 		min-width: 0;
 		display: flex;
@@ -3957,18 +4517,77 @@
 		font: inherit;
 		outline: none;
 	}
+	/* THE FIELD'S WORDS ARE `.find-ph`, so the input's own placeholder is
+	   never painted (it is still what `:placeholder-shown` reads). */
 	.find-input::placeholder {
-		color: var(--text-2);
+		color: transparent;
 	}
+	/* Laid over the input where its text starts (the field's padding, the
+	   glyph and the gap), in the input's own font, gone the moment it holds a
+	   character. */
+	.find-ph {
+		position: absolute;
+		inset-block: 0;
+		inset-inline: calc(0.7rem + 18px + 0.4rem) 0.7rem;
+		display: flex;
+		align-items: center;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		color: var(--text-2);
+		pointer-events: none;
+	}
+	.find-input:not(:placeholder-shown) ~ .find-ph {
+		display: none;
+	}
+	.find-ph-short {
+		display: none;
+	}
+	/* THE WIDTHS ARE THE WORDS' OWN, measured in the input's Rajdhani with a
+	   few pixels spare, against the field's content box (the glyph, its gap and
+	   the input): "Search this class" is 113.6px and needs 138px of it (8.65rem holds 138.4),
+	   "Search" 46.5px and 71px. */
+	@container find-field (max-width: 8.65rem) {
+		.find-ph-long {
+			display: none;
+		}
+		.find-ph-short {
+			display: inline;
+		}
+	}
+	@container find-field (max-width: 4.75rem) {
+		.find-ph {
+			display: none;
+		}
+	}
+	/* The plate draws the kind picker's well on this label, a 1px edge round
+	   its 44px select, so it stands 46px where every other key in the row is
+	   44: the row's line was 46 at rest and 44 once the filters made way for a
+	   selection, and the class moved 2px under the first tick (measured, review
+	   round 2). The edge is taken back outside, so the well looks exactly as
+	   it did and takes a 44px line like the keys beside it. */
 	.find-kind {
 		flex: 0 1 auto;
 		min-width: 0;
+		margin-block: calc(var(--tb-line-gap, 0px) / 2 - 1px);
 	}
+	/* ONE WIDTH FOR THE KIND PICKER IN EVERY CLASS (review round 4): the room
+	   of its widest option, "Announcements", whichever kinds this class holds,
+	   so the widths the toolbar's line breaks are planned on (above) hold in
+	   every class rather than only in one that has announcements. The plate
+	   draws the picker in Share Tech Mono capitals, which is what 8.387rem is
+	   measured against (134.19px, the select's own box at that option). */
+	.find-kind select {
+		width: 8.387rem;
+	}
+	/* THE STATUS CHIPS ARE ITEMS OF THE TOOLBAR'S OWN ROW (ledger 0396): the
+	   group takes no box, so a phone wraps "To do, Missing" and "Done, Videos"
+	   two to a line rather than giving Done a line of its own inside a group
+	   box and the Videos key another below it. The group's role and label stay
+	   in the accessibility tree (measured in this Chromium: `group "Show by
+	   status"` is exposed with `display: contents`). */
 	.find-chips {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2);
-		min-width: 0;
+		display: contents;
 	}
 	.find-chip {
 		display: inline-flex;

@@ -68,7 +68,10 @@ export default {
 		{ selector: '[data-testid="item-check-in-status"]', label: 'the check-in chip on the material', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="item-check-in-status"][data-missing="true"] .chip-mark', label: 'a mark beside the missing check-in word', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="work-status"][data-missing="true"]', label: 'missing work chips', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-		{ selector: '[data-testid="standing-student"] [data-testid="stream-status"]', label: 'status chips', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
+		// The group takes no box since ledger 0396 (its chips are items of the
+		// class toolbar's own row), so what paints is each chip.
+		{ selector: '[data-testid="standing-student"] [data-testid="stream-status"]', label: 'the status group, once, drawing no box of its own', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 },
+		{ selector: '[data-testid="standing-student"] [data-testid="stream-status"] [data-testid^="stream-status-"]', label: 'status chips', expectPresent: 3, maxPresent: 3, expectVisible: 3 }
 	],
 	contrast: [
 		{ selector: '[data-testid="item-check-in-status"]', label: 'check-in chip', min: 4.5 },

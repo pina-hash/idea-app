@@ -16,7 +16,35 @@ import { dropRootWhitespace, renderCase, renderCases } from './classroom-panel-l
  * `tests/fixtures/class-view-null-layout-golden.json` was written by running
  * these cases through ClassView AS IT STOOD AT bbc2fae5, before it rendered
  * through `PanelStack` (see the cases file for the command), with only its
- * root tag rewritten mechanically in ledger 0368 (the cases file says how). This replays the
+ * root tag rewritten mechanically in ledger 0368 (the cases file says how)
+ * and, in ledger 0396 (part 7, the toolbar under the banner), its TOOLBAR
+ * REGION replaced mechanically: in each of the four cases that have one, the
+ * markup from the search row's opening `<div` up to the stream's opening
+ * `<div class="stream` was swapped for the same span of the current render
+ * and nothing else was touched. That span is the search row, the Videos
+ * section and (in the two teacher cases) the resting bulk bar, which are one
+ * `class-toolbar` row now: the Videos trigger a key in it, its list a band
+ * under it, Select all at its right edge. Before splicing, everything outside
+ * the span was checked equal between the old golden and the new render under
+ * this file's own normalization (and the empty class, which has no span,
+ * equal whole), so the splice moved exactly the toolbar. Review rounds 1 and
+ * 2 spliced the same span again, by the same check. Round 1: the search field
+ * draws its own words (`.find-ph`). Round 2: at rest a teacher's row holds
+ * Select all alone as its last key, with no bulk bar around it and no
+ * reserve of actions (the selection's tray only exists once something is
+ * ticked, when the filters make way for it), and Select all's label holds
+ * "Deselect all (00)"; only the two teacher cases moved, and the student and
+ * bare cases' spans came out byte-identical to round 1's. Review round 4
+ * spliced it again, by the same check, and in every case with a span exactly
+ * this moved: the row carries `data-shape` (its keys word by word, which the
+ * stylesheet's line-break rules key on); empty, `aria-hidden` line breaks
+ * (`<span class="tb-br">`) sit after the search field, before the status
+ * chips, before the Done chip (a student's) and before the Videos key
+ * wherever the row has each; and the kind picker's `<select>` carries
+ * ClassView's scope class, because the stylesheet now gives it one width in
+ * every class. The count of a narrowed list moved to the row's end, which no
+ * case shows (none of them is filtered).
+ * `tests/classroom-class-toolbar.test.ts` asserts the row's composition. This replays the
  * same props through ClassView as it stands now, with no `panelLayout`, and
  * requires the markup to match character for character once Svelte's
  * hydration comments are stripped (they mark block boundaries, which a

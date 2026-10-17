@@ -31,12 +31,33 @@
 	 *
 	 * The caller mounts this only when there is at least one video, so a class
 	 * with none has no section at all rather than an empty one.
+	 *
+	 * A KEY IN THE CLASS TOOLBAR (ledger 0396, part 7: "Videos 7"). `inline`
+	 * is the class page's toolbar row, where a full-width row for one closed
+	 * section was the dead space Mr. Pina reported. The component is laid out in
+	 * two parts there, the way the grading console's header lays out its panels
+	 * (ledger 0347): the section and the `Disclosure` take no box of their own
+	 * (`display: contents`), so the trigger is a key in the toolbar's own flex
+	 * row and the open list drops to a full-width band under the whole row
+	 * (`order` and a 100% basis), pushing the class down rather than covering
+	 * it, and giving the space back when it closes. The `Disclosure` still owns
+	 * the open state, `aria-expanded`/`aria-controls`, the per-class memory and
+	 * the print rule; this file only places the two boxes. The count is the
+	 * bare number beside the word, since "Videos 7 videos" says it twice.
+	 * KNOWN LIMIT, recorded rather than worked around: open, the band comes
+	 * right after its key in the tab order, so a teacher tabs through the
+	 * video links before reaching Select all, which sits on the key's own line
+	 * (the grading console's header has the same order). That is the
+	 * disclosure pattern's own order (the content follows its trigger), and
+	 * putting the band after the bar would mean moving a node the Disclosure
+	 * renders.
 	 */
 	let {
 		index,
 		itemHref,
 		scope = null,
-		showHeld = false
+		showHeld = false,
+		inline = false
 	}: {
 		index: ClassVideoIndex;
 		/** Where an item lives in this class. */
@@ -45,6 +66,8 @@
 		scope?: string | null;
 		/** A manager is told what drafts and scheduled posts are holding back. */
 		showHeld?: boolean;
+		/** A key in the class toolbar's row, its list a band under the row (see above). */
+		inline?: boolean;
 	} = $props();
 
 	/** A still that failed to load keeps its card, with the play mark alone (ItemBody's rule). */
@@ -52,10 +75,10 @@
 	const heldNote = $derived(showHeld ? heldVideosNote(index.held) : null);
 </script>
 
-<section class="cvid-root" aria-label="Videos in this class" data-testid="class-videos">
-	<Disclosure label="Videos" {scope} collapseWhen={true} testId="class-videos-toggle">
+<section class="cvid-root" class:cvid-inline={inline} aria-label="Videos in this class" data-testid="class-videos">
+	<Disclosure label="Videos" {scope} collapseWhen={true} testId="class-videos-toggle" bodyClass="cvid-body">
 		{#snippet meta()}
-			<span class="cvid-count" data-testid="class-videos-count">{videoCountLabel(index.videos.length)}</span>
+			<span class="cvid-count" data-testid="class-videos-count">{inline ? index.videos.length : videoCountLabel(index.videos.length)}</span>
 		{/snippet}
 		<ul class="cvid-grid" data-testid="class-videos-grid">
 			{#each index.videos as video (video.id)}
@@ -113,6 +136,55 @@
 	.cvid-root {
 		margin: 0 0 var(--space-3);
 		min-width: 0;
+	}
+	/* THE TOOLBAR KEY AND ITS BAND (see the header). `div.disc` for specificity
+	   over the component's own `.disc` rule, as the grading console does. The
+	   trigger is sized as a key here and painted as one by plate.css's key list,
+	   which names it (`:where(.class-toolbar) .disc-trigger`); the edge below is
+	   for a deployment with the plate switched off. */
+	.cvid-inline,
+	.cvid-inline :global(div.disc) {
+		display: contents;
+	}
+	.cvid-inline :global(.disc-trigger) {
+		flex: none;
+		width: auto;
+		max-width: 100%;
+		/* The toolbar spaces its lines by its keys' own margins (ClassView's
+		   `--tb-line-gap`), so its line breaks add no gap. */
+		margin-block: calc(var(--tb-line-gap, 0px) / 2);
+		padding: 0 0.8rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card, 6px);
+		font-size: 0.72rem;
+	}
+	/* On a key face every word is the key's ink: Disclosure's caret, count and
+	   Show word read `--text-2`, measured for a flat trigger on a card. */
+	.cvid-inline :global(.disc-trigger :is(.disc-caret, .disc-meta, .disc-action)),
+	.cvid-inline .cvid-count {
+		color: inherit;
+	}
+	.cvid-inline :global(.disc-meta) {
+		flex: none;
+		overflow: visible;
+	}
+	.cvid-inline :global(.disc-action) {
+		margin-left: 0;
+	}
+	/* The open list: a full-width band under the toolbar's whole row, after
+	   Select all at its right edge. Closed, Disclosure's own `display: none`
+	   applies and the row is one line again. */
+	.cvid-inline :global(.cvid-body) {
+		order: 1;
+		flex: 1 0 100%;
+		min-width: 0;
+		margin-block: calc(var(--tb-line-gap, 0px) / 2);
+	}
+	.cvid-inline :global(.cvid-body[data-open='true']) {
+		padding-top: 0;
+	}
+	.cvid-inline .cvid-grid {
+		margin-top: 0;
 	}
 	.cvid-count {
 		font-family: var(--font-mono);

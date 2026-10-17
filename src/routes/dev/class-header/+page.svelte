@@ -33,6 +33,7 @@
 	} from '$lib/classroom/quick-posts';
 	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 	import type { HallPassState } from '$lib/classroom/hall-pass';
+	import { CLASS_FIXTURE_FOLDED, classFixture } from './class-fixture';
 	import type { SongQueueState } from '$lib/classroom/song-queue';
 
 	/*
@@ -79,7 +80,14 @@
 		hidden: { order: [], hidden: ['tools', 'theme', 'teams'] },
 		'search-first': { order: ['find', 'banner', 'teams', 'videos', 'stream'], hidden: [] },
 		'posts-first': { order: ['stream', 'banner', 'teams', 'find', 'videos'], hidden: [] },
-		'find-hidden': { order: [], hidden: ['find'] }
+		'find-hidden': { order: [], hidden: ['find'] },
+		/* Ledger 0396, part 7: the toolbar row over each arrangement of its two
+		   panels -- the Videos key first, the Videos key hidden, and the two
+		   split apart by the teams (two rows, the bulk bar with the one above
+		   the posts). */
+		'videos-first': { order: ['banner', 'teams', 'videos', 'find', 'stream'], hidden: [] },
+		'videos-hidden': { order: [], hidden: ['videos'] },
+		split: { order: ['banner', 'find', 'teams', 'videos', 'stream'], hidden: [] }
 	};
 	const layoutStore = createClassroomPreferences({ viewer: null, account: null, storage: null });
 	layoutStore.set('panels', { classPage: LAYOUTS[params.get('layout') ?? ''] ?? null, itemPage: null });
@@ -90,6 +98,13 @@
 	if (viewClass || motionStill) provideClassroomPreferences(layoutStore);
 	const layoutPrefs = reactivePreferences(layoutStore);
 	let settingsEl = $state<ReturnType<typeof ClassroomSettings> | null>(null);
+	/* `?items=class` (with `view=class`): a whole class, the page Mr. Pina
+	   screenshotted on 2026-10-16 (ledger 0396, part 7): three units and the
+	   unfiled group, one unit folded, twenty-one items and seven videos, so the
+	   toolbar under the banner holds the search, the kind filter, the Videos
+	   key and a teacher's Select all at once. `?folded=0` opens every unit. */
+	const fullClass = params.get('items') === 'class';
+	let foldedUnits = $state<string[]>(params.get('folded') === '0' ? [] : [...CLASS_FIXTURE_FOLDED]);
 	/* `?opens=todo` (with `view=class`): a student's class opens on To do, which
 	   is the filter a hidden search row has to own up to. */
 	const opensOn = params.get('opens') === 'todo' && !params.get('role') ? 'todo' : 'all';
@@ -164,12 +179,19 @@
 		instructorLinks: [],
 		...over
 	});
-	const ITEMS: ClassroomItem[] = [
-		item('i-late', 'Gear ratio worksheet', -2 * DAY),
-		item('i-next', 'Truss sketch: a bridge that holds a textbook', 2 * DAY),
-		item('i-later', 'Bridge load test', 5 * DAY),
-		item('i-draft', 'Draft: next week quiz', DAY, { published: false })
-	];
+	/* `?drafts=0` (with `items=class`): a teacher's class with no draft, so no
+	   Drafts chip, the toolbar Mr. Pina's own screenshot shows. `?videos=0`:
+	   a class with no video, so no Videos key (ledger 0396, part 7, review
+	   round 4: the row most classes have). */
+	const FULL = fullClass ? classFixture(SECTION, now, teacher && params.get('drafts') !== '0', params.get('videos') !== '0') : null;
+	const ITEMS: ClassroomItem[] = FULL
+		? FULL.items
+		: [
+				item('i-late', 'Gear ratio worksheet', -2 * DAY),
+				item('i-next', 'Truss sketch: a bridge that holds a textbook', 2 * DAY),
+				item('i-later', 'Bridge load test', 5 * DAY),
+				item('i-draft', 'Draft: next week quiz', DAY, { published: false })
+			];
 	const nextDue = nextDueFor({
 		items: ITEMS,
 		work: {},
@@ -352,8 +374,12 @@
 	}
 	let composing = $state(params.get('compose') === '1' && teacher);
 	/* `?view=class` hands a teacher's ClassView write transports so its New post
-	   and Units keys render as they do on the class page; nothing presses them. */
-	const FAKE_WRITES = {} as never;
+	   and Units keys render as they do on the class page; nothing presses them.
+	   `?writes=slow` (ledger 0396, part 7, review round 1) makes the bulk bar's
+	   Publish and Delete take four seconds an item, so the run's own words can
+	   be measured in the bar while they show; nothing is written anywhere. */
+	const slowWrite = () => new Promise<void>((resolve) => setTimeout(resolve, 4000));
+	const FAKE_WRITES = (params.get('writes') === 'slow' ? { setPublished: slowWrite, deleteItem: slowWrite } : {}) as never;
 
 	/* ---------------------------------------------------------------- *
 	 * THE CLASS THEME VOTE, the classroom-theme harness's answers, trimmed.
@@ -430,6 +456,11 @@
 			<ClassView
 				section={SECTION}
 				items={ITEMS}
+				units={FULL?.units ?? []}
+				collapsed={foldedUnits}
+				onToggleGroup={(id) => {
+					foldedUnits = foldedUnits.includes(id) ? foldedUnits.filter((u) => u !== id) : [...foldedUnits, id];
+				}}
 				sections={teacher ? SECTIONS : []}
 				canManage={teacher}
 				basePath={BASE}
