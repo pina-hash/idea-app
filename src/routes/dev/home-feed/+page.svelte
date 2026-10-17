@@ -6,7 +6,6 @@
 	import { isThumbShape, isThumbShapeChoice } from '$lib/classroom/thumbnail';
 	import { buildFeed, type FeedSubmission } from '$lib/classroom/feed';
 	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
-	import { page } from '$app/state';
 	import { toggleLog } from './toggle-log';
 
 	/**
