@@ -905,6 +905,23 @@
 		   and its title at the top, so titles line up across the line. */
 		align-content: start;
 	}
+	/* THE HOVER NUDGE NEVER RESIZES A PICTURE (integration review). app.css's
+	   shared row hover grows the row's left padding, which in a Tile or Off row
+	   slides the mark and the title; a Wide or Banner slot takes its height from
+	   its width, so the same nudge shrank and recropped the picture and moved
+	   every row under a row alone on its line (375: 309x174 to 296x167, the card
+	   below jumping 7.2px). These rows keep their resting padding (app.css's own
+	   two values, 1.5rem and 1rem at 768px and under) and keep the wash. */
+	:global(.legacy-index) .feed-row[data-thumbs='wide']:hover,
+	:global(.legacy-index) .feed-row[data-thumbs='banner']:hover {
+		padding-left: 1.5rem;
+	}
+	@media (max-width: 768px) {
+		:global(.legacy-index) .feed-row[data-thumbs='wide']:hover,
+		:global(.legacy-index) .feed-row[data-thumbs='banner']:hover {
+			padding-left: 1rem;
+		}
+	}
 	.feed-slot {
 		grid-area: thumb;
 		min-width: 0;
