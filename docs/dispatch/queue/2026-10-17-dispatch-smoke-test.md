@@ -11,7 +11,8 @@ owns: docs/dispatch/smoke/**
 after:
 needs_go: no
 go: no
-status: queued
+status: running
+started_at: 2026-10-17T22:30:00-07:00
 queued_at: 2026-10-17T22:31:00-07:00
 ---
 This is a READ-ONLY-except-one-file smoke test of the IDEA session queue (ledger 0399). Do exactly this and nothing else.
