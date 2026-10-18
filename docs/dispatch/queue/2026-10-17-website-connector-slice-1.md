@@ -11,7 +11,8 @@ owns: src/lib/server/connector/**, src/routes/mcp/**, src/routes/connector/**, s
 after:
 needs_go: no
 go: no
-status: queued
+status: running
+started_at: 2026-10-17T23:35:00-07:00
 queued_at: 2026-10-17T23:40:00-07:00
 ---
 Before doing anything else: `git fetch origin main`, check out `origin/main` on a working branch, and confirm the committer identity is `Claude <noreply@anthropic.com>`. This is a solo session: you will rebase on `origin/main` and push `HEAD:main` once at the end, with the ledger entry in the same push.
