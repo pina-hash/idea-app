@@ -2,7 +2,7 @@
 
 - Raised: 2026-09-27  By: the IDEA & FRC chat, scoping the CacheCAD replacement Mr. Pina asked for.
 - Status: answered 2026-10-18 by Mr. Pina, all nine items (item 4 later the same day: scheme A).
-- Build: OPEN in three lanes: ledger 0402 (per-project SolidWorks version, nightly Shared Drive backup), ledger 0403 (the part number registry and COTS library on the server and website), then the SolidWorks add-in, which assigns numbers at creation. The original Build line read: NOT STARTED. Nothing is built until the phase 0 spike in `docs/ARMORY.md` has
+- Build: OPEN in three lanes: ledger 0404 (per-project SolidWorks version, nightly Shared Drive backup), ledger 0405 (the part number registry and COTS library on the server and website), then the SolidWorks add-in, which assigns numbers at creation. The original Build line read: NOT STARTED. Nothing is built until the phase 0 spike in `docs/ARMORY.md` has
   measured the school network, the SolidWorks add-in events and the agent on a real IDEA
   computer.
 - Context: `docs/ARMORY.md` owns the scope and carries the reasoning for every default below.
@@ -29,12 +29,12 @@
 ## Answered 2026-10-18 (Mr. Pina, in chat with the morning ops routine)
 
 1. **Name:** IDEA Armory. Shipped.
-2. **Storage:** R2 plus Supabase, shipped. The nightly readable Google Shared Drive backup is wanted ("finish the Google Shared Drive backup"). Ledger 0402 builds it.
+2. **Storage:** R2 plus Supabase, shipped. The nightly readable Google Shared Drive backup is wanted ("finish the Google Shared Drive backup"). Ledger 0404 builds it.
 3. **Lock authority:** answered earlier (v0.3, 0236). Releasing a part stays mentors and the CAD lead.
 4. **Part numbers:** ANSWERED later on 2026-10-18: scheme A ("we can do a"). He then asked how COTS parts are named; the rule below was proposed to him with it. Originally: In his words: they "have to help organize the system", he would like them "maximally fully professional" if that is possible, and he is unsure what that looks like for high school students. Three candidates were put to him on 2026-10-18; the add-in lane waits on his pick.
 5. **Document Manager API key:** he will request it; the steps were given to him (the key request form at solidworks.com/support/subscription/key-request, which needs an active subscription, so a sponsorship license may be refused).
 6. **School IT:** closed. He is the IT department for the building.
-7. **SolidWorks versions:** back-saving 2026 to 2025 tested and works ("It does save to 2025. That works well."). He also wants an ordinary 2026 project as an option, and could not find a way to make one. Found 2026-10-18: every project is created pinned to 2025 (0231 default) and the only way up is `armory_raise_pinned_release`, a mentor-only RPC with no control on the website. Ledger 0402 adds the control and a version choice at creation.
+7. **SolidWorks versions:** back-saving 2026 to 2025 tested and works ("It does save to 2025. That works well."). He also wants an ordinary 2026 project as an option, and could not find a way to make one. Found 2026-10-18: every project is created pinned to 2025 (0231 default) and the only way up is `armory_raise_pinned_release`, a mentor-only RPC with no control on the website. Ledger 0404 adds the control and a version choice at creation.
 8. **Code signing:** declined. Internal tool; revisit only if Armory is ever released as a real product.
 9. **Migration credential:** closed with no action. `supabase/roles/idea_migrator.sql` records that the role cannot be finished without a Supabase support ticket, which he declined on 2026-09-05, and that it would only change the username, not the privilege.
 

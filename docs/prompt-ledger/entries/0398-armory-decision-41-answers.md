@@ -8,4 +8,4 @@
 - Does not touch: `src/**`, `supabase/**`, `tests/**`, `materials/**`, `CLAUDE.md`, any standards file.
 - Migration permitted: no. Claims: none.
 - Status: pushed
-- Notes: Docs only, no suite. Ledger 0399 was first named here for the build lane by mistake (it is the session queue's); corrected the same day to 0402, with 0403 for the part number registry.
+- Notes: Docs only, no suite. Ledger 0399 was first named here for the build lane by mistake (it is the session queue's); corrected the same day to 0404, with 0405 for the part number registry.
