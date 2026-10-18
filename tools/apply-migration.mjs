@@ -1305,49 +1305,145 @@ export function resolveMigration(arg, dir = MIGRATIONS_DIR) {
 }
 
 /**
- * The ordering rule, read off the probe findings.
+ * @typedef {{ num: string, file: string, object: string, state: string, why: string, kind?: string }} OrderFinding
+ */
+
+/**
+ * The words `tools/idea-status.py` (`first_object`) appends to an existence
+ * probe over an object another migration in range also defines. The probe
+ * itself says that finding is no evidence about WHICH migration's copy is live.
+ */
+export const PROVES_NOTHING = 'existence proves nothing';
+
+/** Probe kinds that ask about a function's BODY rather than its existence. */
+const BODY_KINDS = new Set(['marker', 'superseded', 'marker-missing']);
+
+/**
+ * The object a finding is about, without the probe's annotation:
+ * `function public.f (also defined ...)` and `function public.f carries 0271's
+ * body` are both `function public.f`.
+ *
+ * @param {string} object
+ */
+export function findingObject(object) {
+	return object.split(' carries ')[0].split(' (')[0].trim();
+}
+
+/**
+ * Is this finding the BODY question for its object? Read off the probe's
+ * `kind` when `appliedFindings` attached it, and off the label otherwise, so a
+ * finding built by hand reads the same way a real one does.
+ *
+ * @param {OrderFinding} f
+ */
+export function isBodyFinding(f) {
+	if (f.kind && BODY_KINDS.has(f.kind)) return true;
+	return /\bcarries \d{4}'s body\b|\((?:body not parsed|no distinguishing line)/.test(f.object);
+}
+
+/**
+ * THE ONE ANSWER TO "IS THIS MIGRATION APPLIED", read off all of its findings,
+ * and the only place in this tool that asks it (ledger 0406).
+ *
+ * STRONGEST EVIDENCE WINS. An existence finding the probe itself marks as
+ * proving nothing does not decide when a body finding exists for the same
+ * object: the body is what tells this migration's copy of a shared function
+ * from another migration's. Before ledger 0406 ANY applied finding made the
+ * target "ALREADY applied", so 0271 -- whose body was not in production, and
+ * whose shared function existed because six earlier migrations define it --
+ * was refused for good, and every migration above it with it. Where no body
+ * finding exists for that object, the existence finding still decides, as it
+ * always did.
+ *
+ * Over the DECIDING findings: every one applied is APPLIED, every one not
+ * applied is NOT APPLIED, and anything else -- an unknown among them, or two
+ * that disagree -- is CANNOT SAY, which is never a pass.
+ *
+ * @param {OrderFinding[]} findings one migration's findings
+ * @returns {{ state: 'applied'|'not-applied'|'unknown', deciding: OrderFinding[], outranked: OrderFinding[], why: string }}
+ */
+export function migrationState(findings) {
+	const bodies = new Set(findings.filter(isBodyFinding).map((f) => findingObject(f.object)));
+	const outranked = findings.filter(
+		(f) => !isBodyFinding(f) && f.object.includes(PROVES_NOTHING) && bodies.has(findingObject(f.object))
+	);
+	const deciding = findings.filter((f) => !outranked.includes(f));
+	const states = new Set(deciding.map((f) => f.state));
+	if (deciding.length === 0) {
+		return { state: 'unknown', deciding, outranked, why: 'the probe has no deciding finding for it' };
+	}
+	if (states.size === 1 && (states.has('applied') || states.has('not-applied'))) {
+		return {
+			state: /** @type {'applied'|'not-applied'} */ ([...states][0]),
+			deciding,
+			outranked,
+			why: ''
+		};
+	}
+	const unknown = deciding.find((f) => f.state === 'unknown');
+	return {
+		state: 'unknown',
+		deciding,
+		outranked,
+		why: unknown
+			? unknown.why || `the probe cannot speak for ${unknown.object}`
+			: `its deciding findings disagree (${deciding.map((f) => `${f.object}: ${f.state}`).join('; ')})`
+	};
+}
+
+/**
+ * The ordering rule, read off the probe findings, one migration at a time
+ * through `migrationState`.
  *
  * It is only as strong as the probe FLOOR: nothing below `--since` is asked
  * about at all, so "the lowest unapplied" means the lowest at or above the
  * floor. That is stated rather than smoothed over.
  *
- * @param {{ num: string, file: string, object: string, state: string, why: string }[]} findings
+ * @param {OrderFinding[]} findings
  * @param {string} targetNum
  * @returns {{ ok: true } | { ok: false, why: string }}
  */
 export function orderVerdict(findings, targetNum) {
-	const below = findings.filter((f) => f.num < targetNum);
-	const notApplied = below.filter((f) => f.state === 'not-applied');
+	/** @type {Map<string, OrderFinding[]>} */
+	const byNum = new Map();
+	for (const f of findings) {
+		if (!byNum.has(f.num)) byNum.set(f.num, []);
+		/** @type {OrderFinding[]} */ (byNum.get(f.num)).push(f);
+	}
+	const below = [...byNum.keys()].filter((n) => n < targetNum).sort();
+	const stateOf = (/** @type {string} */ n) => migrationState(/** @type {OrderFinding[]} */ (byNum.get(n))).state;
+	const notApplied = below.filter((n) => stateOf(n) === 'not-applied');
 	if (notApplied.length) {
 		return {
 			ok: false,
-			why: `${notApplied.length} migration(s) below ${targetNum} are NOT applied (${notApplied.map((f) => f.num).join(', ')}). This file is not the lowest unapplied one.`
+			why: `${notApplied.length} migration(s) below ${targetNum} are NOT applied (${notApplied.join(', ')}). This file is not the lowest unapplied one.`
 		};
 	}
-	const unknown = below.filter((f) => f.state === 'unknown');
+	const unknown = below.filter((n) => stateOf(n) === 'unknown');
 	if (unknown.length) {
 		return {
 			ok: false,
-			why: `${unknown.length} migration(s) below ${targetNum} cannot be confirmed applied (${unknown.map((f) => f.num).join(', ')}). Cannot say is never a pass.`
+			why: `${unknown.length} migration(s) below ${targetNum} cannot be confirmed applied (${unknown.join(', ')}). Cannot say is never a pass.`
 		};
 	}
-	const self = findings.filter((f) => f.num === targetNum);
+	const self = byNum.get(targetNum) ?? [];
 	if (self.length === 0) {
 		return {
 			ok: false,
 			why: `the probe has no row for ${targetNum} at all, so it cannot say whether it is already applied.`
 		};
 	}
-	if (self.some((f) => f.state === 'applied')) {
+	const mine = migrationState(self);
+	if (mine.state === 'applied') {
 		return {
 			ok: false,
 			why: `${targetNum} is ALREADY applied to this database. Applying it again is not this tool's job.`
 		};
 	}
-	if (self.some((f) => f.state === 'unknown')) {
+	if (mine.state === 'unknown') {
 		return {
 			ok: false,
-			why: `the probe cannot say whether ${targetNum} is applied (${self[0].why}). Cannot say is never a pass.`
+			why: `the probe cannot say whether ${targetNum} is applied (${mine.why}). Cannot say is never a pass.`
 		};
 	}
 	return { ok: true };
@@ -1428,7 +1524,10 @@ export async function appliedFindings(client, probes, url = '') {
 		url,
 		(sql) => answers.get(sql) ?? { ok: false, why: 'a statement this tool did not ask' }
 	);
-	return { findings: verdicts(probes, rows, history), history };
+	// `verdicts` answers one finding per probe, in probe order, so the probe's
+	// `kind` is carried across by index for `migrationState` to read.
+	const findings = verdicts(probes, rows, history).map((f, i) => ({ ...f, kind: probes[i]?.kind }));
+	return { findings, history };
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1779,9 +1878,14 @@ async function main() {
 			return EXIT.refused;
 		}
 		report.probe = findings;
+		/** @type {Set<unknown>} */
+		const outranked = new Set();
+		for (const num of new Set(findings.map((f) => f.num))) {
+			for (const f of migrationState(findings.filter((x) => x.num === num)).outranked) outranked.add(f);
+		}
 		for (const f of findings) {
 			say(
-				`    ${f.num}  ${STATE_WORD[f.state].padEnd(11)}  ${f.object}${f.why ? `  -- ${f.why}` : ''}`
+				`    ${f.num}  ${STATE_WORD[f.state].padEnd(11)}  ${f.object}${f.why ? `  -- ${f.why}` : ''}${outranked.has(f) ? '  [outranked by the body probe; does not decide]' : ''}`
 			);
 		}
 		const order = orderVerdict(findings, target.num);

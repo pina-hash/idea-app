@@ -42,6 +42,7 @@ import {
 	scanFile,
 	claims,
 	orderVerdict,
+	migrationState,
 	appliedFindings,
 	bypassesProxy,
 	resolveMigration,
@@ -400,6 +401,147 @@ describe('orderVerdict', () => {
 		expect(orderVerdict([f('0179', 'unknown'), f('0180', 'not-applied')], '0180').ok).toBe(false);
 		expect(orderVerdict([f('0180', 'unknown')], '0180').ok).toBe(false);
 		expect(orderVerdict([f('0179', 'applied')], '0180').ok).toBe(false);
+	});
+});
+
+/**
+ * Ledger 0406. A redefined shared function gets TWO findings: an existence
+ * probe the generator labels as proving nothing, and a body probe. The body
+ * decides. Labels are the ones `tools/idea-status.py` produced for 0271 on
+ * 2026-10-18, so a label change there that breaks the reading reddens here.
+ */
+describe('migrationState and the body probe (ledger 0406)', () => {
+	const FN = 'function public._app_short_link_reserved';
+	const exists = (num: string, state: string) => ({
+		num,
+		file: `${num}_x.sql`,
+		kind: 'object',
+		object: `${FN} (also defined by another migration in range; existence proves nothing)`,
+		state,
+		why: ''
+	});
+	const body = (num: string, state: string) => ({
+		num,
+		file: `${num}_x.sql`,
+		kind: 'marker',
+		object: `${FN} carries ${num}'s body`,
+		state,
+		why: ''
+	});
+	const plain = (num: string, object: string, state: string) => ({
+		num,
+		file: `${num}_x.sql`,
+		object,
+		state,
+		why: ''
+	});
+
+	it('the 0271 shape (existence applied, body not applied) is NOT applied, and may be applied', () => {
+		const s = migrationState([exists('0271', 'applied'), body('0271', 'not-applied')]);
+		expect(s.state).toBe('not-applied');
+		expect(s.outranked).toHaveLength(1);
+		expect(s.deciding).toHaveLength(1);
+		expect(orderVerdict([exists('0271', 'applied'), body('0271', 'not-applied')], '0271')).toEqual({
+			ok: true
+		});
+	});
+
+	it('reads the body from the label alone too, when no kind was attached', () => {
+		const noKind = (f: Record<string, unknown>) => {
+			const { kind: _k, ...rest } = f;
+			return rest as { num: string; file: string; object: string; state: string; why: string };
+		};
+		expect(
+			orderVerdict([noKind(exists('0271', 'applied')), noKind(body('0271', 'not-applied'))], '0271')
+		).toEqual({ ok: true });
+	});
+
+	it('the same shape with the body applied is ALREADY applied, and refuses', () => {
+		const v = orderVerdict([exists('0271', 'applied'), body('0271', 'applied')], '0271');
+		expect(migrationState([exists('0271', 'applied'), body('0271', 'applied')]).state).toBe('applied');
+		expect(v.ok).toBe(false);
+		expect(v.ok === false && v.why).toMatch(/ALREADY applied/);
+	});
+
+	it('two deciding findings that disagree are CANNOT SAY, and refuse', () => {
+		const disagree = [plain('0271', 'table public.t', 'applied'), body('0271', 'not-applied')];
+		expect(migrationState(disagree).state).toBe('unknown');
+		const v = orderVerdict(disagree, '0271');
+		expect(v.ok).toBe(false);
+		expect(v.ok === false && v.why).toMatch(/cannot say whether 0271 is applied.*disagree/);
+	});
+
+	it('an existence probe that proves nothing still decides when NO body finding exists for it', () => {
+		const v = orderVerdict([exists('0271', 'applied')], '0271');
+		expect(v.ok === false && v.why).toMatch(/ALREADY applied/);
+		// ... and a body finding for a DIFFERENT object does not outrank it.
+		const other = { ...body('0271', 'not-applied'), object: `function public.other carries 0271's body` };
+		expect(migrationState([exists('0271', 'applied'), other]).state).toBe('unknown');
+	});
+
+	it('an existence probe that does NOT say it proves nothing is never outranked', () => {
+		const own = plain('0271', FN, 'applied');
+		expect(migrationState([own, body('0271', 'not-applied')]).outranked).toHaveLength(0);
+		expect(orderVerdict([own, body('0271', 'not-applied')], '0271').ok).toBe(false);
+	});
+
+	it('the ordering gate counts the 0271 shape below a target as NOT applied', () => {
+		const v = orderVerdict(
+			[exists('0271', 'applied'), body('0271', 'not-applied'), plain('0272', 'table public.t', 'not-applied')],
+			'0272'
+		);
+		expect(v.ok).toBe(false);
+		expect(v.ok === false && v.why).toMatch(/1 migration\(s\) below 0272 are NOT applied \(0271\)/);
+	});
+
+	it('the 0269 shape below a target (existence applied, superseded body applied) is applied', () => {
+		const superseded = {
+			...body('0269', 'applied'),
+			kind: 'superseded',
+			object: `${FN} carries 0269's body or a later one (superseded by 0271)`
+		};
+		expect(
+			orderVerdict([exists('0269', 'applied'), superseded, body('0271', 'not-applied')], '0271')
+		).toEqual({ ok: true });
+	});
+
+	it('a body probe that is out of reach outranks existence and leaves CANNOT SAY', () => {
+		const missing = {
+			...body('0271', 'unknown'),
+			kind: 'marker-missing',
+			object: `${FN} (no distinguishing line; out of reach)`,
+			why: 'no probeable object could be derived from this migration'
+		};
+		const v = orderVerdict([exists('0271', 'applied'), missing], '0271');
+		expect(v.ok === false && v.why).toMatch(/cannot say whether 0271 is applied/);
+	});
+
+	it('appliedFindings carries each probe kind onto its finding', async () => {
+		const probes = [
+			{ num: '0271', file: '0271_x.sql', kind: 'object', object: exists('0271', 'x').object, sql: 'true', translated: false, refused: null },
+			{ num: '0271', file: '0271_x.sql', kind: 'marker', object: body('0271', 'x').object, sql: 'false', translated: false, refused: null }
+		];
+		const client = {
+			async query(sql: string) {
+				if (/^(begin|rollback)/.test(sql)) return { rows: [], fields: [] };
+				if (sql.includes('as applied')) {
+					return {
+						rows: [
+							{ i: 0, applied: true },
+							{ i: 1, applied: false }
+						],
+						fields: [{ name: 'i' }, { name: 'applied' }]
+					};
+				}
+				throw new Error('no history here');
+			}
+		};
+		const { findings } = await appliedFindings(client as never, probes);
+		expect(findings.map((x) => [x.kind, x.state])).toEqual([
+			['object', 'applied'],
+			['marker', 'not-applied']
+		]);
+		expect(orderVerdict(findings, '0271')).toEqual({ ok: true });
 	});
 });
 
