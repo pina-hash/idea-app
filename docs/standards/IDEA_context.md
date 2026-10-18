@@ -1,8 +1,9 @@
 # IDEA Program - Claude Context Document
-**Version 2.1 - 2026-09-27**
+**Version 2.2 - 2026-10-17**
 
 Program-level facts that rarely change: school, pathway, courses, platforms, and
-A-G status. Behavior rules live in `IDEA_instructions.md`. Pacing and calendar live
+A-G status. Behavior rules live in the project instructions field and the IDEA skills
+(`docs/KNOWLEDGE_ARCHITECTURE.md`). Pacing and calendar live
 in `Fall_2026_Calendar_Context.md`. This file holds no student data.
 
 ---
@@ -40,8 +41,8 @@ IDEA sections. Head coach, FRC Team 5669 (Techmen). Oversees the FLL program.
 
 **Colleague:** Mr. Cosso teaches the Block 4 IDEA209H section independently and has no
 Claude access. He receives finished materials and nothing else, which is why materials
-must be self-guided and self-contained. See the identical-pacing hard rule in
-`IDEA_instructions.md`.
+must be self-guided and self-contained. The identical-pacing rule is in the project
+instructions field.
 
 ---
 
@@ -123,9 +124,12 @@ announcements only, if at all.
 - **Tournament brackets:** Challonge
 - **Classroom economy:** IDEA Coin (i¢). Physical 3D-printed tokens with the ledger in
   idea-app (Supabase, migrations 0070 and up). The old Google Sheets/Apps Script
-  spreadsheet is archived and deactivated, not running alongside. Pricing and rules are
-  in `idea_coin_economy_draft_v3.md` and `idea_coin_quick_reference.md`.
-- **Presentations:** Claude Design, governed by `IDEA_CLAUDE_DESIGN_STANDARDS.md`
+  spreadsheet is archived and deactivated, not running alongside. The economy as built is
+  `IDEA_COIN_V2.md` (`docs/coin-economy/` in the repo, and in project knowledge), which
+  wins over the older `idea_coin_economy_draft_v3.md` and `idea_coin_quick_reference.md`.
+- **Presentations and every other visual:** the Slides, Docs and Design artifact types
+  with the IDEA Design System artifact (built from the live site's Plate), per the
+  idea-design skill
 - **FRC team management:** `FRC-Team-5669-Techmen/frc-app` (Vite + React + Supabase +
   Vercel PWA); team website on Hygraph; team Discord
 
@@ -133,20 +137,20 @@ announcements only, if at all.
 
 ## Materials
 
-All course materials follow `IDEA_MATERIALS_PROCESS.md`: authored once as a spec per
-`IDEA_MATERIAL_SPEC_v2.md`, imported into a classroom item, rendered to print only when
-one of the four print triggers applies. Standalone single-file HTML assignments are
-retired; `HTML_ASSIGNMENT_BUILD_STANDARDS.md` is kept only as the build reference if a
-legacy file is ever explicitly requested.
+Every student-facing item is one self-contained HTML assignment posted as one classroom
+item (Mr. Pina, 2026-09-15 and 2026-09-27: no JSON specs). The idea-course-material skill
+is the procedure; `IDEA_HTML_ASSIGNMENT_AUTHORING.md` and `IDEA_MATERIALS_PROCESS.md` in
+`docs/standards/` hold the full rules. Print only when one of the print triggers applies.
 
 ---
 
 ## UC A-G
 
 Mr. Pina writes and submits IDEA course descriptions to UC's CMP portal.
-`IDEA_Course_Description_Standards.md` is the source of truth for writing standards,
-portal field requirements, and rejection triggers. Read it in full before drafting or
-revising any description. Do not substitute general knowledge of A-G requirements.
+The uc-course-description skill is the source of truth for writing standards, portal
+field requirements and rejection triggers (the original standard is archived verbatim at
+`docs/archive/project-knowledge/IDEA_Course_Description_Standards.md`). Load it before
+drafting or revising any description. Do not substitute general knowledge of A-G requirements.
 
 **Approved as of 2026-07-17:** IDEA114, IDEA209, IDEA209H, IDEA210, IDEA210H. IDEA210H
 is approved Area D honors, which is what puts the Q3 FRC build season under full credit.
@@ -184,6 +188,12 @@ portal raises a number conflict.
 ---
 
 ## Changelog
+
+- **2.2 (2026-10-17)** - Pointers moved to where the rules now live after the knowledge
+  restructure (ledger 0397): presentations and visuals to the IDEA Design System and the
+  idea-design skill, materials to one HTML item per thing and the idea-course-material
+  skill, UC descriptions to the uc-course-description skill, and the coin economy to
+  `IDEA_COIN_V2.md`. No fact changed.
 
 - **2.1 (2026-09-27)** - Added "FRC in class time, 2027 season" from Mr. Pina's
   statement of 2026-09-27: Q3 is FRC for every IDEA class, freshman through junior
