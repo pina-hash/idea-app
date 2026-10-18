@@ -62,6 +62,8 @@ The first line INSIDE the block is `Before doing anything else` (or `This is a R
 - Large code or data goes as an attached file, not pasted inline.
 - Website work ships complete and refined, never bare minimum. Visual work names the idea-design skill.
 
-## 6. Delivery
+## 6. Delivery: queue it, never hand it over
 
-Lead the reply with what to run NOW. If more than one prompt, say which is live and which is queued.
+Mr. Pina decided on 2026-10-17 that chats start Claude Code sessions themselves. Once the prompt is written, run the idea-dispatch skill: it queues the prompt in `docs/dispatch/queue/`, checks what else is running or queued on the same files, and starts the session when the usage reserve allows. Tell him in one line what was queued and whether it started.
+
+Hand him a prompt to paste only when he asks for one, when the work must run on his own computer, or when it goes to Codex (GPT-6 Astra), which cannot be started from a chat. Then lead with what to run NOW, and if there is more than one, say which is live and which is queued.
