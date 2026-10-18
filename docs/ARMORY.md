@@ -755,37 +755,17 @@ ladder of one: a database without it answers 42703, which reads as no machine id
 
 ## Decisions owed
 
-Each has the default that will be taken if he does not choose otherwise.
+Answered by Mr. Pina on 2026-10-18 except item 4; `docs/decisions/entries/41-armory-file-vault-scope.md` carries his words.
 
-1. **Name.** Default **IDEA Armory**: in an armory, every piece of equipment is checked out
-   to one person and checked back in, and it sits beside GAUNTLET and VANGUARD. Other
-   candidates: IdeaVault, IDEA Hangar.
-2. **Where file contents live.** Default **Cloudflare R2 plus the existing Supabase, with a
-   nightly mirror to a Google Shared Drive.** The alternative, Drive as the primary store,
-   inherits CacheCAD's speed, advisory locks and the sharing model students do not
-   understand.
-3. **Who can break a lock and release a part.** Answered for breaking a lock by Mr. Pina's
-   v0.3 request: mentors, the CAD lead, and a site admin on any project, from the app or
-   from the website (Force check in). Since 0236 (Armory 0.3.3) an instructor too, and only
-   a mentor may make someone an instructor. Releasing a part keeps the default: mentors and the
-   CAD lead.
-4. **Part number scheme.** Default: `5669-YY-SSNN`, team, season, two-digit subsystem, two-
-   digit part, in the style of 254's system; class projects get a course prefix.
-5. **Request a Document Manager API key** through the SolidWorks key request form under
-   the team's account. It is his, because it is his account; the scope works without it.
-6. **Can the agent be installed on IDEA computers**, and are they reimaged? His to ask of
-   school IT. The design treats the local copy as disposable either way.
-7. **Mixed SolidWorks versions.** Default: **back-save automatically** as described in "Two
-   SolidWorks versions at once", with personal computers installing the vault's release
-   as the fallback if the spike shows back-saving is not licensed. Either way the vault
-   stays at the oldest release in use, 2025 for this season.
-8. **Code signing for the Windows installer.** Not started. Default: **Azure Artifact
-   Signing** (about $9.99 a month), so Windows stops showing "Windows protected your PC"
-   on the downloaded Setup.exe. Until then the USB zip install avoids the warning.
-9. **Migrations apply as `postgres`, not `idea_migrator`.** 0231 onward ran with
-   session_user `postgres`, because the `IDEA_MIGRATION_URL` secret holds the owner's
-   connection string. Default: re-point the secret at the scoped role
-   (`docs/MIGRATIONS.md` has the steps). Not urgent: every apply so far was clean.
+1. **Name.** IDEA Armory. Shipped.
+2. **Where file contents live.** Cloudflare R2 plus Supabase, shipped. The nightly readable mirror to a Google Shared Drive is wanted and is ledger 0399's to build.
+3. **Who can break a lock and release a part.** Breaking a lock: mentors, the CAD lead, instructors (since 0236) and a site admin, from the app or the website (Force check in). Releasing a part: mentors and the CAD lead.
+4. **Part number scheme.** OPEN. He wants numbers that organize the system and are as professional as a high school team can actually run. The add-in assigns them at creation, so the add-in lane waits on this.
+5. **Document Manager API key.** His to request. The scope works without it.
+6. **IDEA computers.** Closed: he administers the building's computers.
+7. **Mixed SolidWorks versions.** Back-saving 2026 to 2025 is tested and works. A project may also be an ordinary 2026 project: every project is created pinned to 2025 today and nothing on the website can raise it, which ledger 0399 fixes. A pin only goes up, because lowering it would strand files already saved in the newer release.
+8. **Code signing.** Declined while Armory is internal. The USB zip install avoids the Windows warning.
+9. **Migration credential.** Closed with no action; see `supabase/roles/idea_migrator.sql`.
 
 ## Sources
 
