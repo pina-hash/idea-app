@@ -1,20 +1,20 @@
 ---
 name: idea-dispatch
-description: Queue a Claude Code session for idea-app, frc-app or fll-app and start it safely - or run the dispatcher, or answer what is queued or running - instead of handing Mr. Pina a prompt to paste.
+description: Queue a Claude Code session for any of Mr. Pina's repos (idea-app, fll-app, frc-app, Armory, robot code, Keystage, Unstuck, new apps) and start it at the right model and effort - or answer what is queued or running.
 ---
 
 # Queue and dispatch Claude Code sessions
 
-Source of truth: `docs/skills/idea-dispatch/SKILL.md` in pina-hash/idea-app. The queue's format and rules are `docs/dispatch/README.md`; the decision logic is `tools/dispatch.py`. Mr. Pina decided on 2026-10-17 that chats start sessions themselves and never hand him prompts, with a usage reserve of 40% of his week (automation stops at 60%).
+Source of truth: `docs/skills/idea-dispatch/SKILL.md` in pina-hash/idea-app. The queue's format and rules are `docs/dispatch/README.md`; the decision logic is `tools/dispatch.py`; the repos are `docs/dispatch/repos.json`; the models are `docs/dispatch/models.json`. Mr. Pina decided on 2026-10-17 that chats start sessions themselves and never hand him prompts, with a usage reserve of 40% of his week (automation stops at 60%), and that every session's model and effort are set automatically, Haiku through Fable.
 
 ## A. Queue a session (after the idea-code-prompt skill has written the prompt)
 
 1. Fetch `main` of pina-hash/idea-app (the queue lives there for every repo). Read `docs/dispatch/queue/` and run `python3 tools/dispatch.py plan` so you know what is running and waiting.
 2. If another queued or running entry touches the same files or the same feature from another chat, say so to Mr. Pina in one line and set `after:` to it unless he says otherwise. If his own words set an order ("coin first"), write it into `after:` on the entries concerned.
 3. Check `docs/dispatch/repos.json` lists the target repo. If not (a new app), read that repo's rules file and add its row (rules file, ledger, migration path, its database token or null) in the same push as the entry.
-4. Write `docs/dispatch/queue/<YYYY-MM-DD>-<slug>.md` per the README, including `migration` (a number or `none`); an entry that changes a database's tables or server code without a migration names that database's token (for example `db:idea-supabase`) in `owns`: the fields, `owns` copied verbatim from the prompt's Owns line, an honest `size`, and the full prompt below the front matter. Fable 5.1, xhigh, max and ultracode get `go: no` unless he said go in this chat. Before choosing Fable, ask whether the gaps can be closed by talking them through with him so Opus 5.5 can run it instead; that is his preferred path.
+4. Write `docs/dispatch/queue/<YYYY-MM-DD>-<slug>.md` per the README, including `migration` (a number or `none`); an entry that changes a database's tables or server code without a migration names that database's token (for example `db:idea-supabase`) in `owns`: the fields, `owns` copied verbatim from the prompt's Owns line, an honest `size`, the `model` and `effort` the idea-code-prompt skill chose, and the full prompt below the front matter. Fable 5.1, xhigh, max and ultracode get `go: no` unless he said go in this chat. Before choosing Fable, ask whether the gaps can be closed by talking them through with him so Opus 5.5 can run it instead; that is his preferred path.
 5. Push to `main` (rebase and retry on rejection). Then run B.
-6. Tell him in one line: queued as `<id>`, and whether it started now or what it waits for.
+6. Tell him in one line: queued as `<id>` with its model and effort, and whether it started now or what it waits for.
 
 ## B. Run the dispatcher
 

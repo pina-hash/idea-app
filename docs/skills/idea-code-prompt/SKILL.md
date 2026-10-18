@@ -1,6 +1,6 @@
 ---
 name: idea-code-prompt
-description: Write a Claude Code or Codex prompt for idea-app, frc-app or fll-app - model and effort header, solo or parallel mode, ledger and migration numbers, audit gate, checks, landing on main.
+description: Write a Claude Code or Codex prompt for any of Mr. Pina's repos - model and effort chosen from Haiku to Fable, solo or parallel mode, ledger and migration numbers, audit gate, checks, landing on main - then queue it.
 ---
 
 # Writing a Claude Code prompt
@@ -11,7 +11,7 @@ Source of truth: `docs/skills/idea-code-prompt/SKILL.md` in pina-hash/idea-app, 
 
 1. Run the idea-state-of-world skill. Take from it: decisions owed (a lane never opens on an open decision), prompts in flight on the same file surface (never issue a second prompt for a surface already in flight), standing or stalled branches (a stalled branch outranks any new lane), and the next free ledger number and migration number.
 2. If the request is large or vague, run deeper-not-bigger first.
-3. Read the target repo's own `CLAUDE.md` for its migration apply path. Never carry one repo's apply path to another: idea-app applies migrations through `migrate.yml` on push to main; fll-app uses `supabase db push` and `scripts/land-migration.sh`; frc-app declares its own.
+3. Read the target repo's own rules file (listed in `docs/dispatch/repos.json`) for its migration apply path. Never carry one repo's apply path to another: idea-app applies migrations through `migrate.yml` on push to main; fll-app uses `supabase db push` and `scripts/land-migration.sh`; frc-app declares its own.
 
 ## 1. Choose model and effort, per prompt, never carried forward
 
@@ -37,7 +37,7 @@ The current models, their exact ids and what each is for are in `docs/dispatch/m
 
 ## 3. The routing header (outside the code block, directly above it)
 
-`MODEL: Opus 5.5 (min: Sonnet 5.5) | EFFORT: high | Mode: solo | Ledger: <nnnn from step 0> | Migration: none - one-line reason naming the table row`
+`MODEL: Sonnet 5.5 | EFFORT: medium | Mode: solo | Ledger: <nnnn from step 0> | Migration: none - one-line reason naming the table row`
 
 The first line INSIDE the block is `Before doing anything else` (or `This is a READ-ONLY audit`). If it starts with `MODEL:`, the header is in the wrong place.
 
@@ -52,7 +52,7 @@ The first line INSIDE the block is `Before doing anything else` (or `This is a R
 7. **Checks, sized to the job.** Targeted test files during the work (name them where knowable), mutants against the targeted file, the browser harness on touched route specs only, `npm run check` (svelte-check catches what vitest cannot), then ONE full `npm test` at the end with its summary line read (it can exit 0 with a failure). Docs-only: only the doc checks for files touched, no suite.
 8. **Landing.** Rebase on origin/main, push HEAD:main once, never force-push, never delete a remote branch. A real content conflict is a stop.
 9. **Report.** Pushed sha, what was found vs built, the live site's version sha if reachable (landed is not deployed), and anything a person must act on, also written into the `docs/history/` entry.
-10. **Ledger entry text** for `docs/prompt-ledger/entries/`, with Owns copied verbatim and `Migration permitted:` set.
+10. **Ledger entry text** for the repo's prompt ledger, with Owns copied verbatim and `Migration permitted:` set.
 
 ## 5. Rules that bite
 
@@ -66,6 +66,6 @@ The first line INSIDE the block is `Before doing anything else` (or `This is a R
 
 ## 6. Delivery: queue it, never hand it over
 
-Mr. Pina decided on 2026-10-17 that chats start Claude Code sessions themselves. Once the prompt is written, run the idea-dispatch skill: it queues the prompt in `docs/dispatch/queue/`, checks what else is running or queued on the same files, and starts the session when the usage reserve allows. Tell him in one line what was queued and whether it started.
+Mr. Pina decided on 2026-10-17 that chats start Claude Code sessions themselves. Once the prompt is written, run the idea-dispatch skill: it queues the prompt with its model and effort, checks what else is running or queued on the same files, and starts the session at that exact model and effort when the usage reserve allows. Tell him in one line what was queued and whether it started.
 
 Hand him a prompt to paste only when he asks for one, when the work must run on his own computer, or when it goes to Codex (GPT-6 Astra), which cannot be started from a chat. Then lead with what to run NOW, and if there is more than one, say which is live and which is queued.
