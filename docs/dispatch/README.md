@@ -63,19 +63,26 @@ The tool that starts a scheduled session takes no model or effort, so the dispat
 
 `ultracode` cannot be turned on for a dispatched session (it is a session setting, not a subagent parameter). An entry marked ultracode runs at xhigh, and the dispatcher says so when it starts it.
 
-## The usage guard (Mr. Pina, 2026-10-17)
+## The usage guard (Mr. Pina, 2026-10-17; reworked 2026-10-18)
 
-- Automation starts nothing once his week is at 60% used. The remaining 40% is his.
-- Before that it keeps an even pace: by a given point in the week it may have reached 10% plus 50% times the share of the week gone (about 35% at midweek).
-- It waits while the current five-hour session is at 80% or more.
-- Usage is read from https://claude.ai/settings/usage through his signed-in Chrome, on whichever computer he is using. Every reading is written to the private **Session Dispatcher** artifact (https://claude.ai/artifact/JwGj561ut4CU1pJq1R8zZQ, database doc `usage/latest`, with `read_at`), so a cloud run can use a reading a chat took on any of his machines. A reading older than 3 hours counts as unreadable.
-- When no fresh reading exists, only size S jobs on Sonnet or Opus (at most high effort) start, one at a time, and everything else waits.
+- Automation never takes his week past 60%, or his weekly Fable limit past 60%. The remaining 40% is his. Below that it runs at any hour with nobody watching.
+- **Projection, not freshness.** On 2026-10-18 nothing big started overnight because a reading over 3 hours old counted as unreadable. Now the dispatcher uses the last reading at any age and adds the estimated cost of every session started since it (`COST` in `tools/dispatch.py`: Opus 5.5 is about 1, 3 and 6% of a week for S, M and L). A job starts only if that projection plus its own cost stays at or under 60%. The estimates are kept high, and each new reading corrects them.
+- A reading under 3 hours old also waits while the current five-hour session is at 80% or more.
+- Usage is read from https://claude.ai/settings/usage through his signed-in Chrome, on whichever computer he is using. Every reading is written to the private **Session Dispatcher** artifact (https://claude.ai/artifact/JwGj561ut4CU1pJq1R8zZQ, database doc `usage/latest`, with `read_at`), so a cloud run can use a reading a chat took on any of his machines.
+- Only if no reading has ever been taken do size S jobs alone start.
 - No setting caps how much one running session can use, so the guard works by choosing what starts, never by stopping a session.
+
+## Self-healing
+
+- An entry left `running` with no `trigger_id` for 20 minutes means the dispatcher that claimed it died before launching (this happened on 2026-10-18 and held a job for about 10 hours). The next run releases it and starts it again.
+- Sessions start the moment they are created (`fire_trigger`), not at a clock time, so a clock mismatch can no longer reject a start.
+- Every launcher's last step runs the dispatcher, so the job queued behind a finished one starts within minutes, not at the next hour.
+- Owns items that begin "its own" (its own `docs/history/` entry) are new files each session creates and never count as a collision.
 
 ## Who runs the dispatcher
 
 - **The chat that queues an entry**, right after pushing it, while Mr. Pina is there and his usage is readable.
-- **The hourly dispatcher**, a scheduled task named "IDEA session dispatcher", every hour at any time of day, in the cloud, so it runs whichever computers are on. It reads usage itself when a browser is reachable, and otherwise uses the latest reading on the Session Dispatcher artifact if it is under 3 hours old. Each run that starts or holds something adds a line to that artifact's `runs`.
+- **The hourly dispatcher**, a scheduled task named "IDEA session dispatcher", every hour at any time of day, in the cloud, so it runs whichever computers are on. It reads usage itself when a browser is reachable, and otherwise uses the latest reading on the Session Dispatcher artifact, projected forward. Each run that starts or holds something adds a line to that artifact's `runs`.
 - **Any chat**, when he says "run the dispatcher" or "what's queued".
 
 A dispatched session ends by setting its own entry to `done` (with the pushed sha) or `failed` (with a one-line note) in the same push as its work, so the next hourly run can start what was waiting behind it.

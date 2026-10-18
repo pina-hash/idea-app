@@ -20,19 +20,21 @@ Source of truth: `docs/skills/idea-dispatch/SKILL.md` in pina-hash/idea-app. The
 
 1. Fetch `main`. Read usage: open https://claude.ai/settings/usage in his Chrome (Claude in Chrome tools; read the chrome-browser skill first) and read Current session %, This week %, Fable this week %, and the weekly reset time. Close the tab. Then write the reading to the Session Dispatcher artifact (https://claude.ai/artifact/JwGj561ut4CU1pJq1R8zZQ) with ArtifactData: `set` on `usage/latest` with `session`, `week`, `fable`, `reset` (ISO), `read_at` (now, ISO) and `read_by` (this chat or "hourly dispatcher"), pinned with `if_version` from a `get`.
    If the browser tools are absent or fail, `get` `usage/latest` from that artifact instead and use it with its `read_at`. Never guess usage.
-2. `python3 tools/dispatch.py plan --usage session=<n>,week=<n>,fable=<n> --reset <ISO reset> [--read-at <read_at when the reading came from the artifact>]` (omit the usage flags when there is no reading at all). The tool treats a reading older than 3 hours as unreadable.
-3. For each entry in `start`, in order:
+2. `python3 tools/dispatch.py plan --usage session=<n>,week=<n>,fable=<n> --reset <ISO reset> [--read-at <read_at when the reading came from the artifact>]` (omit the usage flags only when no reading exists at all). A reading of any age is used; the tool adds the estimated cost of everything started since it.
+3. For each entry in `release`: set it back to `status: queued`, remove `started_at`, add the plan's reason as `note`, and push. It reappears in `start` when it can run.
+4. For each entry in `start`, in order, without pausing between steps:
    1. **Claim it first.** Set `status: running`, `started_at: <now ISO>`, push to `main`. If the push is rejected, rebase and re-read the entry: if someone else already claimed it, skip it.
-   2. **Start the session**: `create_trigger` (load it through ToolSearch if deferred) with `run_once_at` three minutes out, `initiation: human_schedule`, `name: <ledger> <short title> (<model> <effort>)`, and as `prompt` the wrapper below followed by the entry's prompt verbatim.
-   3. **Set the launcher's model at once**: `update_trigger` on that task with `model: claude-haiku-5-5`, before it fires. Mr. Pina asked on 2026-10-17 for every dispatched session's model to be set this way. If the update fails, delete the task and set the entry back to `queued` with a note; never let it run on the default model.
-   4. Write `trigger_id` into the entry and push.
-4. If anything started or waits, add a document to the artifact's `runs` collection: `at`, `by`, `started` (ids), `waiting` (`id` and `reason`).
-5. Report the plan's `wait` and `attention` lists in one short block. Anything waiting for his go goes at the top.
+   2. **Create the session** with `create_trigger` (load `create_trigger`, `update_trigger`, `fire_trigger` and `delete_trigger` through ToolSearch in one call) with no `cron_expression` and no `run_once_at`, `initiation: human_schedule`, `name: <ledger> <short title> (<model> <effort>)`, and as `prompt` the wrapper below followed by the entry's prompt verbatim.
+   3. **Set the launcher's model**: `update_trigger` with `model: claude-haiku-5-5`. Mr. Pina asked on 2026-10-17 for every dispatched session's model to be set this way. If it fails, `delete_trigger` and set the entry back to `queued` with a note; never let it run on the default model.
+   4. **Start it now**: `fire_trigger` on that task. No clock time is involved, so nothing can be rejected as past.
+   5. Write `trigger_id` into the entry and push.
+5. If anything started, was released or waits, add a document to the artifact's `runs` collection: `at`, `by`, `started` (ids), `released`, `waiting` (`id` and `reason`).
+6. Report the plan's `wait` and `attention` lists in one short block. Anything waiting for his go goes at the top.
 
 **The wrapper**, placed above the prompt (fill in the plan's `subagent_model` and `effort`; for an ultracode entry use `xhigh`):
 
 ```
-You are the launcher for IDEA session queue entry <id> (docs/dispatch/queue/<id>.md in pina-hash/idea-app), mode <mode>. Do not do the work yourself. Invoke exactly one general-purpose subagent with model "<subagent_model>" and effort "<effort>", and give it everything below the line "TASK" verbatim, plus this sentence: "In the same push that lands your work, set docs/dispatch/queue/<id>.md in pina-hash/idea-app to status: done with finished_at set to the current time; if you stop without landing, push only that entry with status: failed and a one-line note. Never edit any other queue entry." When the subagent returns, fetch pina-hash/idea-app main and confirm the entry's status changed. If it is still running, push it as failed with the subagent's last line as the note. End with one line: the entry id, done or failed, and the pushed sha.
+You are the launcher for IDEA session queue entry <id> (docs/dispatch/queue/<id>.md in pina-hash/idea-app), mode <mode>. Do not do the work yourself. Invoke exactly one general-purpose subagent with model "<subagent_model>" and effort "<effort>", and give it everything below the line "TASK" verbatim, plus this sentence: "In the same push that lands your work, set docs/dispatch/queue/<id>.md in pina-hash/idea-app to status: done with finished_at set to the current time; if you stop without landing, push only that entry with status: failed and a one-line note. Never edit any other queue entry." When the subagent returns, fetch pina-hash/idea-app main and confirm the entry's status changed. If it is still running, push it as failed with the subagent's last line as the note. Then call fire_trigger on trig_01KfUhW1L9Tbnes5LvspXUev (the IDEA session dispatcher; load fire_trigger through ToolSearch) so whatever waited behind this entry starts now. End with one line: the entry id, done or failed, and the pushed sha.
 
 TASK
 ```

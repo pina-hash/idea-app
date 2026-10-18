@@ -12,13 +12,17 @@ status is the caller's job (the idea-dispatch procedure in `docs/dispatch/README
     python3 tools/dispatch.py --selftest                            # the instrument checks itself
 
 The rules (Mr. Pina, 2026-10-17):
-  * Usage reserve: automation starts nothing once the week is at 60% or more, and keeps to an
-    even pace toward that ceiling (allowed = 10 + 50 x the fraction of the week elapsed, never
-    above 60). It waits while the current session is at 80% or more.
+  * Usage ceiling: automation never takes his week (or his weekly Fable limit) past 60%, at any
+    hour, with nobody watching. Changed 2026-10-18 after a night of nothing starting: the
+    dispatcher PROJECTS usage as the last reading (any age, from any of his machines, shared
+    through the Session Dispatcher artifact) plus the estimated cost (COST) of every session
+    started since, and starts a candidate only if that plus its own cost stays at or under 60%.
+    A reading under 3 hours old also waits while the current session is at 80% or more.
+    No reading has ever been taken: only size S starts.
   * Fable 5.1 and the xhigh, max and ultracode efforts never start on their own: the entry
     needs `go: yes`, which only Mr. Pina gives, in a chat.
-  * Usage unknown (his browser unreachable): only size S on Sonnet or Opus at medium or high,
-    and only when nothing at all is running.
+  * Self-healing: an entry left `running` with no `trigger_id` for 20 minutes (its dispatcher
+    died between claiming and launching) is released and started again.
   * One running session per repo, unless every running session's `owns` is disjoint from the
     candidate's; then at most two per repo, and at most three across every repo.
   * Every repo is listed in `docs/dispatch/repos.json`; an entry for an unlisted repo is flagged
@@ -39,10 +43,20 @@ import re
 import sys
 
 QUEUE_DIR = "docs/dispatch/queue"
-WEEK_CEILING = 60.0
-PACE_FLOOR = 10.0
-SESSION_CEILING = 80.0
-MAX_READING_AGE_MIN = 180  # a usage reading older than this counts as unreadable
+WEEK_CEILING = 60.0      # Mr. Pina, 2026-10-17: automation never takes the week past 60%
+FABLE_CEILING = 60.0     # the same ceiling on the separate weekly Fable limit
+SESSION_CEILING = 80.0   # a fresh reading this high waits for the five-hour window to reset
+FRESH_MIN = 180          # a reading younger than this also gates on the current session
+ORPHAN_MIN = 20          # running with no trigger_id this long: its dispatcher died; release it
+# Estimated share of his WEEK one dispatched session costs, by model and size. Calibrated
+# 2026-10-18 from readings of 27% (01:58 PT) and 33% (15:10 PT) around one Opus 5.5 L run plus
+# his own chats, and kept high so the projection errs toward waiting.
+COST = {
+    "haiku-5.5": {"S": 0.2, "M": 0.5, "L": 1.0},
+    "sonnet-5.5": {"S": 0.5, "M": 1.5, "L": 3.0},
+    "opus-5.5": {"S": 1.0, "M": 3.0, "L": 6.0},
+    "fable-5.1": {"S": 2.0, "M": 6.0, "L": 12.0},
+}
 MAX_PER_REPO = 2
 GLOBAL_MAX = 3  # sessions running at once across every repo
 REGISTRY = "docs/dispatch/repos.json"
@@ -132,9 +146,14 @@ def is_resource(token: str) -> bool:
     return ":" in token and "/" not in token.split(":", 1)[0]
 
 
+def is_own_new_file(item: str) -> bool:
+    """`its own docs/history/ entry` names a new file each session creates; two never collide."""
+    return item.strip().lower().startswith("its own ")
+
+
 def surfaces_overlap(owns_a: list[str], owns_b: list[str]) -> bool:
-    paths_a = [x for x in owns_a if not is_resource(x)]
-    paths_b = [x for x in owns_b if not is_resource(x)]
+    paths_a = [x for x in owns_a if not is_resource(x) and not is_own_new_file(x)]
+    paths_b = [x for x in owns_b if not is_resource(x) and not is_own_new_file(x)]
     if not paths_a or not paths_b:
         return True
     return any(globs_overlap(x, y) for x in paths_a for y in paths_b)
@@ -168,25 +187,33 @@ def parse_usage(s: str | None) -> dict | None:
     return out
 
 
-def fresh_usage(usage: dict | None, read_at: dt.datetime | None, now: dt.datetime) -> dict | None:
-    """A reading with no time, or one older than MAX_READING_AGE_MIN, is treated as unreadable."""
+def iso(s: str | None) -> dt.datetime | None:
+    if not s:
+        return None
+    try:
+        return dt.datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def cost(e: dict) -> float:
+    return COST.get(e.get("model"), {}).get(e.get("size"), 6.0)
+
+
+def projected(usage: dict | None, read_at: dt.datetime | None, entries: list[dict]) -> dict | None:
+    """The last reading (any age) plus the estimated cost of every session started after it.
+    A reading taken this run (read_at None) already includes everything that ran."""
     if usage is None:
         return None
-    if read_at is None:
-        return usage  # read this run
-    if (now - read_at).total_seconds() / 60 > MAX_READING_AGE_MIN:
-        return None
-    return usage
-
-
-def week_allowance(reset: dt.datetime | None, now: dt.datetime) -> float:
-    """How much of the week automation may have reached by now: an even pace to the ceiling."""
-    if reset is None:
-        return WEEK_CEILING
-    start = reset - dt.timedelta(days=7)
-    frac = (now - start).total_seconds() / (7 * 86400)
-    frac = min(max(frac, 0.0), 1.0)
-    return min(WEEK_CEILING, PACE_FLOOR + (WEEK_CEILING - PACE_FLOOR) * frac)
+    week, fable = usage.get("week", 0.0), usage.get("fable", 0.0)
+    if read_at is not None:
+        for e in entries:
+            st = iso(e.get("started_at"))
+            if st and st > read_at and e.get("status") in ("running", "done", "failed"):
+                week += cost(e)
+                if e.get("model") == "fable-5.1":
+                    fable += cost(e)
+    return {"week": round(week, 1), "fable": round(fable, 1), "session": usage.get("session", 0.0)}
 
 
 def needs_go(e: dict) -> bool:
@@ -196,37 +223,33 @@ def needs_go(e: dict) -> bool:
 # ---------------------------------------------------------------- the plan
 
 def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now: dt.datetime,
-         registry: dict | None = None) -> dict:
+         registry: dict | None = None, read_at: dt.datetime | None = None) -> dict:
     by_id = {e["id"]: e for e in entries}
-    start, wait, attention = [], [], []
-    running = [e for e in entries if e.get("status") == "running"]
+    start, wait, attention, release = [], [], [], []
 
     for e in entries:
         errs = validate(e)
         if errs:
             attention.append({"id": e.get("id") or e["path"], "reason": "invalid entry: " + "; ".join(errs)})
         if e.get("status") == "running" and e.get("started_at"):
-            try:
-                started = dt.datetime.fromisoformat(e["started_at"])
-                if (now - started) > dt.timedelta(hours=6):
-                    attention.append({"id": e["id"], "reason": f"running for more than 6 hours (since {e['started_at']}); check the session"})
-            except ValueError:
+            started = iso(e["started_at"])
+            if started is None:
                 attention.append({"id": e["id"], "reason": f"started_at {e['started_at']!r} is not ISO-8601"})
+            elif not e.get("trigger_id") and (now - started) > dt.timedelta(minutes=ORPHAN_MIN):
+                release.append({"id": e["id"], "path": e["path"],
+                                "reason": f"claimed at {e['started_at']} but no session was ever created; back to queued"})
+            elif (now - started) > dt.timedelta(hours=6):
+                attention.append({"id": e["id"], "reason": f"running for more than 6 hours (since {e['started_at']}); check the session"})
 
-    # usage gate, decided once
-    gate = None
-    if usage is not None:
-        allow = week_allowance(reset, now)
-        if usage.get("week", 0) >= WEEK_CEILING:
-            gate = f"week at {usage['week']:.0f}%, at or above the {WEEK_CEILING:.0f}% automation ceiling; his reserve"
-        elif usage.get("week", 0) >= allow:
-            gate = f"week at {usage['week']:.0f}%, ahead of the even pace ({allow:.0f}% allowed by now)"
-        elif usage.get("session", 0) >= SESSION_CEILING:
-            gate = f"current session at {usage['session']:.0f}%, waiting for its reset"
+    released = {r["id"] for r in release}
+    running = [e for e in entries if e.get("status") == "running" and e["id"] not in released]
+    proj = projected(usage, read_at, entries)
+    fresh = usage is not None and (read_at is None or (now - read_at) <= dt.timedelta(minutes=FRESH_MIN))
 
-    queued = [e for e in entries if e.get("status") == "queued" and not validate(e)]
+    queued = [e for e in entries if (e.get("status") == "queued" or e.get("id") in released) and not validate(e)]
     queued.sort(key=lambda e: (e.get("queued_at", ""), e["id"]))
     starting: list[dict] = []
+    spent = spent_fable = 0.0
 
     for e in queued:
         live = running + starting
@@ -253,17 +276,22 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
             wait.append({"id": e["id"], "reason": f"{e['model']} {e['effort']} needs Mr. Pina's go"})
             attention.append({"id": e["id"], "reason": f"waiting for his go ({e['model']} {e['effort']}, size {e['size']})"})
             continue
-        if usage is None:
-            small = e["size"] == "S" and e["model"] in ("haiku-5.5", "sonnet-5.5", "opus-5.5") and e["effort"] in ("low", "medium", "high")
-            if not small:
-                wait.append({"id": e["id"], "reason": "usage unreadable; only size S Sonnet/Opus jobs start blind"})
+        c = cost(e)
+        if proj is None:
+            if e["size"] != "S":
+                wait.append({"id": e["id"], "reason": "no usage reading exists at all; only size S starts until one is taken"})
                 continue
-            if live:
-                wait.append({"id": e["id"], "reason": "usage unreadable; one blind job at a time and one is running"})
+        else:
+            wk = proj["week"] + spent + c
+            if wk > WEEK_CEILING:
+                wait.append({"id": e["id"], "reason": f"would take the week to about {wk:.0f}% (projected {proj['week'] + spent:.0f}% + {c:g}%), past the {WEEK_CEILING:.0f}% ceiling"})
                 continue
-        elif gate:
-            wait.append({"id": e["id"], "reason": gate})
-            continue
+            if e["model"] == "fable-5.1" and proj["fable"] + spent_fable + c > FABLE_CEILING:
+                wait.append({"id": e["id"], "reason": f"would take the Fable week past {FABLE_CEILING:.0f}%"})
+                continue
+            if fresh and proj["session"] >= SESSION_CEILING:
+                wait.append({"id": e["id"], "reason": f"current session at {proj['session']:.0f}%, waiting for its five-hour reset"})
+                continue
         heavy = ("xhigh", "max", "ultracode")
         if e["effort"] in heavy and any(r["effort"] in heavy for r in live):
             wait.append({"id": e["id"], "reason": "one xhigh-or-above session at a time, and one is running"})
@@ -286,18 +314,23 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
             continue
         mode = "parallel" if same_repo else "solo"
         starting.append({**e, "status": "starting", "mode": mode})
+        spent += c
+        if e["model"] == "fable-5.1":
+            spent_fable += c
         start.append({"id": e["id"], "path": e["path"], "repo": e["repo"], "model": e["model"],
                       "model_id": MODEL_IDS[e["model"]], "subagent_model": MODEL_ALIAS[e["model"]],
-                      "effort": e["effort"], "ultracode": e["effort"] == "ultracode",
-                      "mode": mode, "ledger": e["ledger"]})
-        if usage is None:
-            break  # one blind start per run
+                      "effort": "xhigh" if e["effort"] == "ultracode" else e["effort"],
+                      "ultracode": e["effort"] == "ultracode", "est_cost_pct": c,
+                      "mode": mode, "ledger": e["ledger"], "released": e["id"] in released})
 
     return {
         "now": now.isoformat(),
-        "usage": usage if usage is not None else "unreadable",
-        "week_allowance": round(week_allowance(reset, now), 1) if usage is not None else None,
+        "usage": usage if usage is not None else "none",
+        "read_at": read_at.isoformat() if read_at else None,
+        "projected": proj,
+        "projected_after_starts": round(proj["week"] + spent, 1) if proj else None,
         "running": [r["id"] for r in running],
+        "release": release,
         "start": start,
         "wait": wait,
         "attention": attention,
@@ -335,29 +368,47 @@ def selftest() -> int:
     check("disjoint entry starts beside it in parallel mode", "maps" in ids and [s for s in p["start"] if s["id"] == "maps"][0]["mode"] == "parallel", p["start"])
 
     # 2. a running session blocks an overlapping one; after: waits for done
-    q = [_entry(id="run", status="running", started_at="2026-10-17T21:00:00-07:00"),
+    q = [_entry(id="run", status="running", trigger_id="t", started_at="2026-10-17T21:00:00-07:00"),
          _entry(id="next", owns="src/lib/maps/**", after="run")]
     p = plan(q, ok_usage, reset, now)
     check("after: waits until its dependency is done", not p["start"] and "after run" in p["wait"][0]["reason"], p)
 
-    # 3. reserve: 60% week stops everything; ahead-of-pace stops; session 80% stops
-    q = [_entry(id="a")]
-    check("week at 60% starts nothing", not plan(q, {"session": 5, "week": 60}, reset, now)["start"])
-    check("week ahead of even pace starts nothing", not plan(q, {"session": 5, "week": 45}, reset, now)["start"])
-    check("week behind pace starts", plan(q, {"session": 5, "week": 30}, reset, now)["start"])
-    check("session at 80% starts nothing", not plan(q, {"session": 80, "week": 10}, reset, now)["start"])
+    # 3. the 60% ceiling, by projection (no even-pace rule)
+    q = [_entry(id="a")]   # Opus M, about 3%
+    check("projected past 60% waits", not plan(q, {"session": 5, "week": 58}, reset, now)["start"])
+    check("projected at 60% or under starts", plan(q, {"session": 5, "week": 57}, reset, now)["start"])
+    check("week at 45% midweek still starts (no pace rule)", plan(q, {"session": 5, "week": 45}, reset, now)["start"])
+    check("session at 80% on a fresh reading waits", not plan(q, {"session": 80, "week": 10}, reset, now)["start"])
+    q = [_entry(id="ran", status="done", size="L", started_at="2026-10-17T21:30:00-07:00"), _entry(id="b", size="L", owns="z/**")]
+    p = plan(q, {"session": 5, "week": 50}, reset, now, None, now - dt.timedelta(hours=1))
+    check("sessions started after the reading count toward the projection", not p["start"] and p["projected"]["week"] == 56.0, p)
+    q = [_entry(id="c1", size="L", owns="a/**"), _entry(id="c2", repo="pina-hash/fll-app", size="L", owns="b/**", queued_at="2026-10-17T20:05:00-07:00")]
+    check("several starts in one run add up against the ceiling", len(plan(q, {"session": 5, "week": 49}, reset, now)["start"]) == 1)
+    check("the Fable week has its own 60% ceiling", not plan([_entry(id="f", model="fable-5.1", go="yes", size="L")], {"session": 5, "week": 10, "fable": 55}, reset, now)["start"])
 
     # 4. Fable and ultracode wait for go; with go they start
     check("Fable waits for go", not plan([_entry(id="f", model="fable-5.1")], ok_usage, reset, now)["start"])
     check("ultracode waits for go", not plan([_entry(id="u", effort="ultracode")], ok_usage, reset, now)["start"])
     check("Fable with go starts", plan([_entry(id="f", model="fable-5.1", go="yes")], ok_usage, reset, now)["start"])
 
-    # 5. usage unreadable: only S Sonnet/Opus, one at a time
-    check("blind: size M waits", not plan([_entry(id="m")], None, None, now)["start"])
-    check("blind: size S Sonnet starts", plan([_entry(id="s", size="S", model="sonnet-5.5", effort="medium")], None, None, now)["start"])
-    check("blind: S waits while anything runs", not plan([_entry(id="r", status="running", owns="docs/**"), _entry(id="s", size="S", owns="src/x/**")], None, None, now)["start"])
+    # 5. THE 2026-10-18 OVERNIGHT FAILURE: a reading hours old must not stop M and L work,
+    #    and separate repos run at the same time
+    stale = now - dt.timedelta(hours=9)
+    q = [_entry(id="coin", size="L", owns="src/routes/market/**, db:idea-supabase"),
+         _entry(id="fll", repo="pina-hash/fll-app", size="L", owns="src/**", queued_at="2026-10-17T20:01:00-07:00"),
+         _entry(id="frc", repo="FRC-Team-5669-Techmen/frc-app", size="M", owns="src/**", queued_at="2026-10-17T20:02:00-07:00")]
+    ids = [s["id"] for s in plan(q, ok_usage, reset, now, None, stale)["start"]]
+    check("a 9-hour-old reading still starts L and M work", ids == ["coin", "fll", "frc"], ids)
+    check("a stale reading does not gate on its old session number", plan([_entry(id="a")], {"session": 95, "week": 10}, reset, now, None, stale)["start"])
+    check("no reading at all: size M waits", not plan([_entry(id="m")], None, None, now)["start"])
     two = plan([_entry(id="s1", size="S", owns="a/**"), _entry(id="s2", size="S", owns="b/**", queued_at="2026-10-17T20:30:00-07:00")], None, None, now)
-    check("blind: one start per run", len(two["start"]) == 1, two["start"])
+    check("no reading at all: size S jobs start, more than one", len(two["start"]) == 2, two["start"])
+
+    # 5b. self-healing: a claim whose dispatcher died is released and started again
+    p = plan([_entry(id="orphan", status="running", started_at="2026-10-17T12:12:00-07:00")], ok_usage, reset, now)
+    check("a claim with no session after 20 minutes is released and restarted", p["release"] and p["start"] and p["start"][0]["released"], p)
+    p = plan([_entry(id="young", status="running", started_at="2026-10-17T22:00:00-07:00")], ok_usage, reset, now)
+    check("a claim under 20 minutes old is left alone", not p["release"] and not p["start"], p)
 
     # 6. three per repo never; a failed dependency holds and asks for attention
     q = [_entry(id="r1", status="running", owns="a/**"), _entry(id="r2", status="running", owns="b/**"), _entry(id="c", owns="c/**")]
@@ -369,14 +420,8 @@ def selftest() -> int:
     # 7. invalid entries are flagged, never started; a stale run is flagged
     p = plan([_entry(id="bad", model="opus-5")], ok_usage, reset, now)
     check("invalid model is flagged, not started", not p["start"] and p["attention"], p)
-    p = plan([_entry(id="old", status="running", started_at="2026-10-17T10:00:00-07:00")], ok_usage, reset, now)
+    p = plan([_entry(id="old", status="running", trigger_id="t", started_at="2026-10-17T10:00:00-07:00")], ok_usage, reset, now)
     check("run longer than 6 hours is flagged", any("6 hours" in a["reason"] for a in p["attention"]), p)
-
-    # 7b. reading age: 4 hours old counts as unreadable, 1 hour old counts
-    old = now - dt.timedelta(hours=4); recent = now - dt.timedelta(hours=1)
-    check("a 4-hour-old reading is treated as unreadable", fresh_usage(ok_usage, old, now) is None)
-    check("a 1-hour-old reading is used", fresh_usage(ok_usage, recent, now) == ok_usage)
-    check("stale reading means size M waits", not plan([_entry(id="m")], fresh_usage(ok_usage, old, now), reset, now)["start"])
 
     # 7c. many repos: registry, shared database, global cap
     reg = {"pina-hash/idea-app": {"db": "db:idea-supabase"}, "pina-hash/idea-armory": {"db": "db:idea-supabase"},
@@ -404,6 +449,10 @@ def selftest() -> int:
     # 8. NEGATIVE CONTROL: the overlap test must not call two different trees overlapping
     check("control: disjoint globs are disjoint", not globs_overlap("src/lib/coin/**", "src/lib/maps/**"))
     check("control: nested globs overlap", globs_overlap("src/lib/**", "src/lib/coin/a.ts"))
+    check("'its own docs/history/ entry' on both sides is not a collision",
+          not surfaces_overlap(["tools/a.mjs", "its own docs/history/ entry"], ["src/x/**", "its own docs/history/ entry"]))
+    check("control: a real shared file still collides",
+          surfaces_overlap(["docs/ARMORY.md", "its own docs/history/ entry"], ["docs/ARMORY.md"]))
 
     failed = [c for c in cases if not c[1]]
     for name, ok, detail in cases:
@@ -418,7 +467,7 @@ def main() -> int:
     ap.add_argument("--root", default=".", help="repository root")
     ap.add_argument("--usage", help="session=NN,week=NN,fable=NN as read from claude.ai/settings/usage; omit when unreadable")
     ap.add_argument("--reset", help="the weekly reset as ISO-8601, as read from the usage page")
-    ap.add_argument("--read-at", help="when the usage was read, ISO-8601; omit when read this run. Older than 3 hours counts as unreadable")
+    ap.add_argument("--read-at", help="when the usage was read, ISO-8601 (omit when read this run); sessions started after it are added to the projection")
     ap.add_argument("--now", help="ISO-8601; defaults to the current time")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
@@ -429,9 +478,8 @@ def main() -> int:
         return 2
     now = dt.datetime.fromisoformat(a.now) if a.now else dt.datetime.now(dt.timezone.utc).astimezone()
     reset = dt.datetime.fromisoformat(a.reset) if a.reset else None
-    read_at = dt.datetime.fromisoformat(a.read_at) if a.read_at else None
-    usage = fresh_usage(parse_usage(a.usage), read_at, now)
-    print(json.dumps(plan(load_queue(a.root), usage, reset, now, load_registry(a.root)), indent=2))
+    read_at = iso(a.read_at)
+    print(json.dumps(plan(load_queue(a.root), parse_usage(a.usage), reset, now, load_registry(a.root), read_at), indent=2))
     return 0
 
 
