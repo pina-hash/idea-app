@@ -1,0 +1,68 @@
+{
+  "_note": "Every repo the session queue may start work in. Read by tools/dispatch.py: an entry for a repo not listed here is flagged and never started. 'resources' are things outside the repo that two sessions must never change at once; an entry whose migration is not 'none' holds its repo's db resource automatically, and any entry can claim a resource by naming it in owns (for example db:idea-supabase). Rules files, ledgers and apply paths were read from each repo on 2026-10-17; a session still reads the repo's own rules file first, because that file wins.",
+  "repos": [
+    {
+      "repo": "pina-hash/idea-app",
+      "name": "IDEA app (ideabosco.com)",
+      "rules": "CLAUDE.md",
+      "ledger": "docs/prompt-ledger/entries/",
+      "migrations": "supabase/migrations/, applied by migrate.yml on push to main",
+      "db": "db:idea-supabase",
+      "stack": "SvelteKit, Supabase, Vercel"
+    },
+    {
+      "repo": "pina-hash/fll-app",
+      "name": "FLL app (BIOGLOW)",
+      "rules": "CLAUDE.md",
+      "ledger": "docs/prompt-ledger/",
+      "migrations": "supabase/migrations/, applied by supabase db push and scripts/land-migration.sh, never the dashboard editor",
+      "db": "db:fll-supabase",
+      "stack": "SvelteKit, Supabase (secondary account), Vercel"
+    },
+    {
+      "repo": "FRC-Team-5669-Techmen/frc-app",
+      "name": "Techmen team app",
+      "rules": "CLAUDE.md",
+      "ledger": "docs/prompt-ledger/",
+      "migrations": "see CLAUDE.md (supabase/ and sql/ both exist)",
+      "db": "db:frc-supabase",
+      "stack": "Vite, React, Supabase, Vercel PWA"
+    },
+    {
+      "repo": "pina-hash/idea-armory",
+      "name": "IDEA Armory (file vault)",
+      "rules": "AGENTS.md",
+      "ledger": "none in repo; its decisions and migrations live in idea-app",
+      "migrations": "none in this repo; its server tables are idea-app migrations",
+      "db": "db:idea-supabase",
+      "stack": ".NET Windows client and server, talking to ideabosco.com"
+    },
+    {
+      "repo": "FRC-Team-5669-Techmen/2026-5669-Official",
+      "name": "Team 5669 robot code",
+      "rules": "CLAUDE.md",
+      "ledger": "none",
+      "migrations": "none",
+      "db": null,
+      "stack": "Java, WPILib, Gradle"
+    },
+    {
+      "repo": "pina-hash/idea-keystage",
+      "name": "IDEA Keystage (keystroke visualizer)",
+      "rules": "read on first session",
+      "ledger": "unknown",
+      "migrations": "unknown",
+      "db": null,
+      "stack": "private repo, not yet read"
+    },
+    {
+      "repo": "pina-hash/idea-unstuck",
+      "name": "IDEA Unstuck (SolidWorks add-in)",
+      "rules": "read on first session",
+      "ledger": "unknown",
+      "migrations": "unknown",
+      "db": null,
+      "stack": "private repo, not yet read"
+    }
+  ]
+}

@@ -43,6 +43,19 @@ queued_at: 2026-10-18T09:12:00-07:00
 | `status` | `queued`, `running`, `done`, `failed`, `held` or `cancelled` |
 | `started_at`, `finished_at`, `trigger_id`, `sha`, `note` | written by the dispatcher and by the session itself |
 
+## Many repos, one queue
+
+The queue lives in idea-app but serves every repo in `docs/dispatch/repos.json`: idea-app, fll-app, frc-app, idea-armory, the robot code, idea-keystage and idea-unstuck as of 2026-10-17.
+
+- **Per repo:** one session at a time, or two whose files do not overlap.
+- **Across repos:** at most three sessions at once in total, and the same file path in two different repos never collides.
+- **Shared things outside a repo** are resource tokens. Each repo's database is one (`db:idea-supabase`, `db:fll-supabase`, `db:frc-supabase`). An entry with a migration holds its repo's database automatically, and an entry that changes tables or server code for a database can claim it by writing the token in `owns`. idea-armory's server talks to the idea-app database, so its row names `db:idea-supabase`: an Armory change and an idea-app migration wait for each other.
+- **A new app** (the scouting app, the next small one) becomes dispatchable by adding its row to `repos.json` in the same push that queues its first session, after reading its rules file. An entry for an unlisted repo is flagged and never started.
+
+## What the dispatcher cannot set
+
+The tool that starts a session takes no model and no effort, so every dispatched session runs on the scheduled-task default (Opus 5.5 as of 2026-10-17). The entry's `model` and `effort` still decide what may start on its own (Fable and xhigh and above wait for his go), but a Sonnet entry runs on Opus and a Fable entry he approves runs on Opus unless he asks for its model to be changed.
+
 ## The usage guard (Mr. Pina, 2026-10-17)
 
 - Automation starts nothing once his week is at 60% used. The remaining 40% is his.

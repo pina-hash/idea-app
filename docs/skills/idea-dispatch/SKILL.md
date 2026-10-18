@@ -11,9 +11,10 @@ Source of truth: `docs/skills/idea-dispatch/SKILL.md` in pina-hash/idea-app. The
 
 1. Fetch `main` of pina-hash/idea-app (the queue lives there for every repo). Read `docs/dispatch/queue/` and run `python3 tools/dispatch.py plan` so you know what is running and waiting.
 2. If another queued or running entry touches the same files or the same feature from another chat, say so to Mr. Pina in one line and set `after:` to it unless he says otherwise. If his own words set an order ("coin first"), write it into `after:` on the entries concerned.
-3. Write `docs/dispatch/queue/<YYYY-MM-DD>-<slug>.md` per the README: the fields, `owns` copied verbatim from the prompt's Owns line, an honest `size`, and the full prompt below the front matter. Fable 5.1, xhigh, max and ultracode get `go: no` unless he said go in this chat. Before choosing Fable, ask whether the gaps can be closed by talking them through with him so Opus 5.5 can run it instead; that is his preferred path.
-4. Push to `main` (rebase and retry on rejection). Then run B.
-5. Tell him in one line: queued as `<id>`, and whether it started now or what it waits for.
+3. Check `docs/dispatch/repos.json` lists the target repo. If not (a new app), read that repo's rules file and add its row (rules file, ledger, migration path, its database token or null) in the same push as the entry.
+4. Write `docs/dispatch/queue/<YYYY-MM-DD>-<slug>.md` per the README, including `migration` (a number or `none`); an entry that changes a database's tables or server code without a migration names that database's token (for example `db:idea-supabase`) in `owns`: the fields, `owns` copied verbatim from the prompt's Owns line, an honest `size`, and the full prompt below the front matter. Fable 5.1, xhigh, max and ultracode get `go: no` unless he said go in this chat. Before choosing Fable, ask whether the gaps can be closed by talking them through with him so Opus 5.5 can run it instead; that is his preferred path.
+5. Push to `main` (rebase and retry on rejection). Then run B.
+6. Tell him in one line: queued as `<id>`, and whether it started now or what it waits for.
 
 ## B. Run the dispatcher
 

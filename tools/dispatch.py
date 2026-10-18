@@ -20,7 +20,12 @@ The rules (Mr. Pina, 2026-10-17):
   * Usage unknown (his browser unreachable): only size S on Sonnet or Opus at medium or high,
     and only when nothing at all is running.
   * One running session per repo, unless every running session's `owns` is disjoint from the
-    candidate's; then at most two per repo.
+    candidate's; then at most two per repo, and at most three across every repo.
+  * Every repo is listed in `docs/dispatch/repos.json`; an entry for an unlisted repo is flagged
+    and never started. A resource token in `owns` (`db:idea-supabase`) is shared across repos:
+    two entries naming the same token never run at once, whatever their repos. An entry whose
+    `migration` is not `none` holds its repo's `db` token automatically, so an Armory server
+    change and an idea-app migration cannot collide on the one database they share.
   * `after:` entries must be `done` first. A `failed` or `held` dependency holds the entry.
 """
 from __future__ import annotations
@@ -39,6 +44,8 @@ PACE_FLOOR = 10.0
 SESSION_CEILING = 80.0
 MAX_READING_AGE_MIN = 180  # a usage reading older than this counts as unreadable
 MAX_PER_REPO = 2
+GLOBAL_MAX = 3  # sessions running at once across every repo
+REGISTRY = "docs/dispatch/repos.json"
 GATED_MODELS = {"fable-5.1"}
 GATED_EFFORTS = {"xhigh", "max", "ultracode"}
 MODELS = {"sonnet-5.5", "opus-5.5", "fable-5.1"}
@@ -119,10 +126,32 @@ def globs_overlap(a: str, b: str) -> bool:
     return pa.startswith(pb) or pb.startswith(pa)
 
 
+def is_resource(token: str) -> bool:
+    return ":" in token and "/" not in token.split(":", 1)[0]
+
+
 def surfaces_overlap(owns_a: list[str], owns_b: list[str]) -> bool:
-    if not owns_a or not owns_b:
+    paths_a = [x for x in owns_a if not is_resource(x)]
+    paths_b = [x for x in owns_b if not is_resource(x)]
+    if not paths_a or not paths_b:
         return True
-    return any(globs_overlap(x, y) for x in owns_a for y in owns_b)
+    return any(globs_overlap(x, y) for x in paths_a for y in paths_b)
+
+
+def resources(e: dict, registry: dict | None) -> set[str]:
+    out = {x for x in e.get("owns", []) if is_resource(x)}
+    mig = (e.get("migration") or "none").strip().lower()
+    if registry and mig not in ("", "none") and registry.get(e.get("repo"), {}).get("db"):
+        out.add(registry[e["repo"]]["db"])
+    return out
+
+
+def load_registry(root: str) -> dict | None:
+    path = os.path.join(root, REGISTRY)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        return {r["repo"]: r for r in json.load(fh)["repos"]}
 
 
 # ---------------------------------------------------------------- usage
@@ -164,7 +193,8 @@ def needs_go(e: dict) -> bool:
 
 # ---------------------------------------------------------------- the plan
 
-def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now: dt.datetime) -> dict:
+def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now: dt.datetime,
+         registry: dict | None = None) -> dict:
     by_id = {e["id"]: e for e in entries}
     start, wait, attention = [], [], []
     running = [e for e in entries if e.get("status") == "running"]
@@ -213,6 +243,10 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
         if pending:
             wait.append({"id": e["id"], "reason": f"after {pending[0]['id']} ({pending[0]['status']})"})
             continue
+        if registry is not None and e["repo"] not in registry:
+            wait.append({"id": e["id"], "reason": f"{e['repo']} is not in docs/dispatch/repos.json"})
+            attention.append({"id": e["id"], "reason": f"unregistered repo {e['repo']}: add it to docs/dispatch/repos.json"})
+            continue
         if needs_go(e) and not e["go"]:
             wait.append({"id": e["id"], "reason": f"{e['model']} {e['effort']} needs Mr. Pina's go"})
             attention.append({"id": e["id"], "reason": f"waiting for his go ({e['model']} {e['effort']}, size {e['size']})"})
@@ -227,6 +261,14 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
                 continue
         elif gate:
             wait.append({"id": e["id"], "reason": gate})
+            continue
+        if len(live) >= GLOBAL_MAX:
+            wait.append({"id": e["id"], "reason": f"{GLOBAL_MAX} sessions already running across all repos"})
+            continue
+        mine = resources(e, registry)
+        held = [r for r in live if mine & resources(r, registry)]
+        if held:
+            wait.append({"id": e["id"], "reason": f"shares {sorted(mine & resources(held[0], registry))[0]} with {held[0]['id']} ({held[0]['status']})"})
             continue
         same_repo = [r for r in live if r["repo"] == e["repo"]]
         if len(same_repo) >= MAX_PER_REPO:
@@ -328,6 +370,21 @@ def selftest() -> int:
     check("a 1-hour-old reading is used", fresh_usage(ok_usage, recent, now) == ok_usage)
     check("stale reading means size M waits", not plan([_entry(id="m")], fresh_usage(ok_usage, old, now), reset, now)["start"])
 
+    # 7c. many repos: registry, shared database, global cap
+    reg = {"pina-hash/idea-app": {"db": "db:idea-supabase"}, "pina-hash/idea-armory": {"db": "db:idea-supabase"},
+           "pina-hash/fll-app": {"db": "db:fll-supabase"}}
+    q = [_entry(id="mig", migration="0262", owns="supabase/migrations/0262_*.sql"),
+         _entry(id="armory", repo="pina-hash/idea-armory", owns="server/**, db:idea-supabase", queued_at="2026-10-17T20:30:00-07:00")]
+    p = plan(q, ok_usage, reset, now, reg)
+    check("Armory waits while an idea-app migration holds the shared database", [s["id"] for s in p["start"]] == ["mig"], p)
+    q = [_entry(id="ia", owns="src/a/**"), _entry(id="fll", repo="pina-hash/fll-app", owns="src/a/**", queued_at="2026-10-17T20:30:00-07:00")]
+    check("the same path in two different repos does not collide", len(plan(q, ok_usage, reset, now, reg)["start"]) == 2)
+    p = plan([_entry(id="scout", repo="FRC-Team-5669-Techmen/scouting-app")], ok_usage, reset, now, reg)
+    check("an unregistered repo is flagged and never started", not p["start"] and any("unregistered" in a["reason"] for a in p["attention"]), p)
+    q = [_entry(id="r1", status="running", owns="a/**"), _entry(id="r2", status="running", repo="pina-hash/fll-app", owns="a/**"),
+         _entry(id="r3", status="running", repo="pina-hash/idea-armory", owns="a/**"), _entry(id="n", repo="pina-hash/fll-app", owns="z/**")]
+    check("never more than three sessions across all repos", not plan(q, ok_usage, reset, now, reg)["start"])
+
     # 8. NEGATIVE CONTROL: the overlap test must not call two different trees overlapping
     check("control: disjoint globs are disjoint", not globs_overlap("src/lib/coin/**", "src/lib/maps/**"))
     check("control: nested globs overlap", globs_overlap("src/lib/**", "src/lib/coin/a.ts"))
@@ -358,7 +415,7 @@ def main() -> int:
     reset = dt.datetime.fromisoformat(a.reset) if a.reset else None
     read_at = dt.datetime.fromisoformat(a.read_at) if a.read_at else None
     usage = fresh_usage(parse_usage(a.usage), read_at, now)
-    print(json.dumps(plan(load_queue(a.root), usage, reset, now), indent=2))
+    print(json.dumps(plan(load_queue(a.root), usage, reset, now, load_registry(a.root)), indent=2))
     return 0
 
 
