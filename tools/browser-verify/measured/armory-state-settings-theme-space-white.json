@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "armory-state-settings-theme-space-white.mjs",
+	"date": "2026-10-18T22:51:29.220Z",
+	"sha": "7e3a0fb795df6cd697bca93aa912b01f575252cc",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 24,
+	"outsideRows": [],
+	"ms": 15244
+}

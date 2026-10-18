@@ -86,6 +86,8 @@
 	let quiet = $state<ArmoryFile[]>(QUIET_FILES.map((f) => ({ ...f })));
 	let projectName = $state(PROJECT.name);
 	let projectArchived = $state(false);
+	/** The project's SolidWorks version, moved up in memory as `armory_raise_pinned_release` would (ledger 0404). */
+	let projectRelease = $state(2025);
 	let purged = $state<{ name: string; storageProblem: string | null } | null>(null);
 	let hydrated = $state(false);
 	onMount(() => (hydrated = true));
@@ -194,6 +196,13 @@
 		projectName = name;
 		return { ok: true as const };
 	}
+	/** `armory_raise_pinned_release` in memory: up only, as the server refuses anything else. */
+	async function raiseRelease(release: number) {
+		await new Promise((r) => setTimeout(r, 120));
+		if (release <= projectRelease) return { ok: false as const, message: `The pinned release must increase from ${projectRelease}.`, code: '22023' };
+		projectRelease = release;
+		return { ok: true as const };
+	}
 	async function setArchived(archived: boolean) {
 		projectArchived = archived;
 		return { ok: true as const };
@@ -223,6 +232,8 @@
 		pre033?: boolean;
 		filter?: FileFilter;
 		query?: string;
+		/** The project's SolidWorks version when it is not the one moved in memory. */
+		release?: number;
 	}
 	const PROJECT_STATES: ProjectState[] = [
 		{ key: 'empty', label: 'A new project with no files yet', view: 'files', files: () => [] },
@@ -243,7 +254,9 @@
 		{ key: 'people-pre033', label: 'The team on a server before 0.3: addresses only, the paste box', view: 'team', files: () => editing, seen: EDITING_SEEN, pre033: true },
 		{ key: 'people-student-mentor', label: 'A mentor on a student address: no search (0233 refuses it), the paste box and why', view: 'team', files: () => editing, seen: EDITING_SEEN, viewer: 'student-mentor' },
 		{ key: 'activity', label: 'What happened lately', view: 'activity', files: () => editing, seen: EDITING_SEEN },
-		{ key: 'settings', label: 'The Project view, for a mentor', view: 'project', files: () => SYNCED_FILES },
+		{ key: 'settings', label: 'The Project view, for a mentor: the SolidWorks version moves up, in two presses', view: 'project', files: () => SYNCED_FILES },
+		{ key: 'release-newest', label: 'A project already on the newest SolidWorks: nothing to move up to', view: 'project', files: () => SYNCED_FILES, release: 2027 },
+		{ key: 'release-admin', label: 'A site admin who is not a member moves the version up, as a mentor would', view: 'project', files: () => SYNCED_FILES, viewer: 'admin-viewer' },
 		{ key: 'many', label: '240 files in 12 folders, 60 checked out: the Files view arrives folded', view: 'files', files: () => many, seen: MANY_SEEN, many: true, team: 'big' },
 		{ key: 'many-out', label: 'The same 60 checkouts as a table, 25 at a time', view: 'checked-out', files: () => many, seen: MANY_SEEN, many: true, team: 'big' },
 		{ key: 'many-activity', label: 'Forty changes, fifteen at first', view: 'activity', files: () => many, seen: MANY_SEEN, many: true, team: 'big' },
@@ -291,7 +304,7 @@
 			? { ...ARCHIVED_PROJECT, role: roleOf(s) }
 			: s.many
 				? { ...MANY_PROJECT, role: roleOf(s) }
-				: { ...PROJECT, name: projectName, archived: projectArchived, role: roleOf(s) };
+				: { ...PROJECT, name: projectName, archived: projectArchived, pinned_release: s.release ?? projectRelease, role: roleOf(s) };
 	const meOf = (s: ProjectState) =>
 		s.viewer === 'student'
 			? 'ana.reyes@boscotech.net'
@@ -345,6 +358,7 @@
 		takeBackNeedsComputer={mayForce && !!s.pre033}
 		rename={role === 'mentor' ? rename : null}
 		setArchived={role === 'mentor' || admin ? setArchived : null}
+		raiseRelease={role === 'mentor' || admin ? raiseRelease : null}
 		searchPeople={!s.pre033 && peopleSearchOffered({ isAdmin: admin, role, email: meOf(s) }) ? searchIn(team) : null}
 		loadTeam={s.pre033 ? null : async () => listOf(team)}
 		refresh={async () => {}}

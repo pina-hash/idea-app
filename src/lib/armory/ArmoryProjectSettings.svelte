@@ -37,8 +37,16 @@
 		type PurgeAnswer
 	} from './team';
 	import { projectErrorWords, sizeWords, type ArmoryProjectSummary } from './view';
+	import {
+		raiseChoices,
+		releaseErrorWords,
+		releaseName,
+		releaseNowWords,
+		releaseRaiseWords,
+		RELEASE_NO_WAY_DOWN
+	} from './solidworks-version';
 
-	type Outcome = { ok: true } | { ok: false; message: string };
+	type Outcome = { ok: true } | { ok: false; message: string; code?: string };
 
 	let {
 		project,
@@ -48,7 +56,9 @@
 		setArchived = null,
 		purge = null,
 		purgePreview = null,
-		onpurged = null
+		onpurged = null,
+		raiseRelease = null,
+		now = Date.now()
 	}: {
 		project: ArmoryProjectSummary;
 		storage?: { bytes: number; files: number } | null;
@@ -59,6 +69,9 @@
 		purgePreview?: (() => Promise<ArmoryPurgePreview | null>) | null;
 		/** The project is gone: the acknowledgement belongs on the page shown next. */
 		onpurged?: ((name: string, storageProblem: string | null) => void) | null;
+		/** Moves the project up to a newer SolidWorks (a mentor or a site admin, ledger 0404). */
+		raiseRelease?: ((release: number) => Promise<Outcome>) | null;
+		now?: number;
 	} = $props();
 
 	let busy = $state(false);
@@ -118,6 +131,49 @@
 		}
 	}
 
+	// ---- The SolidWorks version (mentors and site admins, ledger 0404) ----
+	/*
+	 * TWO PRESSES, AND THE COST IS SAID BEFORE THE SECOND. The first press
+	 * arms the key and puts `releaseRaiseWords` under it; the second sends.
+	 * Picking another version disarms it, so what is confirmed is always what
+	 * the sentence named. Only up: `raiseChoices` lists the releases above the
+	 * pin, and the database refuses anything else.
+	 */
+	const pinned = $derived(typeof project.pinned_release === 'number' ? project.pinned_release : null);
+	const choices = $derived(raiseChoices(pinned, now));
+	let target = $state<number | null>(null);
+	const chosen = $derived(target !== null && choices.includes(target) ? target : (choices[0] ?? null));
+	let armedRaise = $state(false);
+	let raiseMessage = $state('');
+	let raiseBad = $state(false);
+
+	function pickRelease(r: number) {
+		target = r;
+		armedRaise = false;
+	}
+
+	async function doRaise() {
+		if (!raiseRelease || busy || chosen === null || pinned === null) return;
+		if (!armedRaise) {
+			armedRaise = true;
+			raiseMessage = '';
+			return;
+		}
+		busy = true;
+		const to = chosen;
+		try {
+			const r = await raiseRelease(to);
+			raiseBad = !r.ok;
+			raiseMessage = r.ok
+				? `Moved up to ${releaseName(to)}. Armory now takes files saved in ${to}.`
+				: releaseErrorWords(r.message, r.ok ? null : r.code);
+			armedRaise = false;
+			target = null;
+		} finally {
+			busy = false;
+		}
+	}
+
 	// ---- Delete forever (site admins, archived projects) ----
 	const offered = $derived(!!purge && isAdmin && !!project.archived);
 	let typed = $state('');
@@ -172,6 +228,47 @@
 <section class="ar-view-panel" aria-labelledby="ar-project-h" data-testid="armory-project-settings">
 	<h2 class="ar-visually-hidden" id="ar-project-h">Project</h2>
 	<div class="ar-settings">
+		{#if pinned !== null}
+			<div class="ar-panel ar-setting" data-testid="armory-release">
+				<h3 class="section-label">SolidWorks version</h3>
+				<p class="ar-big" data-testid="armory-release-now">{releaseName(pinned)}</p>
+				<p class="ar-message">{releaseNowWords(pinned)}</p>
+				{#if raiseRelease && chosen !== null}
+					{#if choices.length > 1}
+						<div class="ar-filters ar-release-choices" role="group" aria-label="Move up to" data-testid="armory-release-choices">
+							{#each choices as r (r)}
+								<button class="btn secondary ar-btn ar-filter" type="button" aria-pressed={chosen === r} data-release={r} onclick={() => pickRelease(r)}>
+									{releaseName(r)}
+								</button>
+							{/each}
+						</div>
+					{/if}
+					<div class="ar-row-actions">
+						<button
+							class={`btn ar-btn ${armedRaise ? 'danger' : 'secondary'}`}
+							type="button"
+							aria-disabled={busy}
+							data-testid="armory-release-raise"
+							onclick={doRaise}
+						>
+							{armedRaise ? `Move to ${releaseName(chosen)}? Press again` : `Move up to ${releaseName(chosen)}`}
+						</button>
+						{#if armedRaise}
+							<button class="btn secondary ar-btn" type="button" data-testid="armory-release-cancel" onclick={() => (armedRaise = false)}>Keep {pinned}</button>
+						{/if}
+					</div>
+					<p class={`ar-message ${armedRaise ? 'bad' : ''}`} role={armedRaise ? 'alert' : undefined} data-testid="armory-release-cost">
+						{releaseRaiseWords(pinned, chosen)}
+					</p>
+				{:else if raiseRelease}
+					<p class="ar-message" data-testid="armory-release-newest">This is the newest SolidWorks a project can move to.</p>
+				{:else}
+					<p class="ar-message" data-testid="armory-release-who">A mentor of this project or a site admin can move it up.</p>
+				{/if}
+				<p class="ar-message" data-testid="armory-release-no-down">{RELEASE_NO_WAY_DOWN}</p>
+				{#if raiseMessage}<p class={`ar-message ${raiseBad ? 'bad' : ''}`} role="status" data-testid="armory-release-message">{raiseMessage}</p>{/if}
+			</div>
+		{/if}
 		<div class="ar-panel ar-setting" data-testid="armory-storage">
 			<h3 class="section-label">Storage used</h3>
 			{#if storage}

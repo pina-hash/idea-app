@@ -88,6 +88,7 @@ armory_create_project:
   args:
     p_name: {name: name, describe: "The project's name; it becomes a folder name on every computer."}
     p_season: {name: season, describe: "The season's year, like 2027."}
+    p_release: {name: solidworks, describe: "The SolidWorks version the project is on, 2025 or 2026; leave it out for 2025. It can move up later, never down."}
     p_operation: {name: operation, fill: uuid, describe: "Leave it out; the server fills it."}
 
 armory_file_history:

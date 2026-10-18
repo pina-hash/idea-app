@@ -1,0 +1,71 @@
+name: Armory Drive mirror
+
+# THE NIGHTLY READABLE COPY OF IDEA ARMORY IN A GOOGLE SHARED DRIVE (ledger
+# 0404, decision 41 item 2). If R2, Supabase or Armory itself went away, every
+# project's current files are in the Shared Drive as ordinary SolidWorks files,
+# with a manifest a spreadsheet can open. `tools/armory-drive-mirror.mjs` is
+# the whole of it; this file only hands it the secrets and the hour.
+#
+# WHY HERE AND NOT ON VERCEL. A night's copy can be gigabytes, a Vercel Hobby
+# function stops after its duration limit, and both of the project's cron slots
+# are the coin economy's (`vercel.json`). A GitHub runner has six hours and the
+# disk to stage one file at a time. `cert-jobs.yml` is the same choice.
+#
+# THE HOUR. 11:07 UTC is 4:07 a.m. in Los Angeles in summer and 3:07 a.m. in
+# winter: long after school and robotics, and off the minutes the other
+# schedules use (backup 09:00, deploy 10:00, autopay 10:17, cert jobs 11:47).
+#
+# SAFE TWICE AND SAFE HALFWAY. Every run lists the Shared Drive and copies only
+# what is missing or changed, so a second run copies nothing and a run cut off
+# at the time limit is finished by the next one. `concurrency` keeps two from
+# overlapping. It never deletes: a file Armory no longer has moves to
+# `_removed`.
+#
+# UNSET SECRETS ARE A GREEN "NOT SET UP" RUN, saying which are missing. The
+# names are the job's own (`ARMORY_MIRROR_*`); the ledger 0404 history entry
+# says where each value comes from.
+#
+# The triggers are `schedule` and `workflow_dispatch` and never
+# `pull_request`: this repository is public, and a job holding the service role
+# key never runs on somebody else's branch. `permissions: contents: read`, for
+# checking itself out and nothing else.
+
+on:
+  schedule:
+    - cron: '7 11 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: armory-drive-mirror
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: Copy Armory's current files to the Shared Drive
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Mirror
+        env:
+          ARMORY_MIRROR_SUPABASE_URL: ${{ secrets.ARMORY_MIRROR_SUPABASE_URL }}
+          ARMORY_MIRROR_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.ARMORY_MIRROR_SUPABASE_SERVICE_ROLE_KEY }}
+          ARMORY_MIRROR_R2_ACCOUNT_ID: ${{ secrets.ARMORY_MIRROR_R2_ACCOUNT_ID }}
+          ARMORY_MIRROR_R2_ACCESS_KEY_ID: ${{ secrets.ARMORY_MIRROR_R2_ACCESS_KEY_ID }}
+          ARMORY_MIRROR_R2_SECRET_ACCESS_KEY: ${{ secrets.ARMORY_MIRROR_R2_SECRET_ACCESS_KEY }}
+          ARMORY_MIRROR_R2_BUCKET: ${{ secrets.ARMORY_MIRROR_R2_BUCKET }}
+          ARMORY_MIRROR_GOOGLE_CLIENT_ID: ${{ secrets.ARMORY_MIRROR_GOOGLE_CLIENT_ID }}
+          ARMORY_MIRROR_GOOGLE_CLIENT_SECRET: ${{ secrets.ARMORY_MIRROR_GOOGLE_CLIENT_SECRET }}
+          ARMORY_MIRROR_GOOGLE_REFRESH_TOKEN: ${{ secrets.ARMORY_MIRROR_GOOGLE_REFRESH_TOKEN }}
+          ARMORY_MIRROR_DRIVE_FOLDER_ID: ${{ secrets.ARMORY_MIRROR_DRIVE_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          node tools/armory-drive-mirror.mjs --budget-minutes 330

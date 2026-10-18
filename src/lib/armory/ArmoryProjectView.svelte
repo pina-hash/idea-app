@@ -29,6 +29,7 @@
 	import ArmoryCheckouts from './ArmoryCheckouts.svelte';
 	import ArmoryFiles from './ArmoryFiles.svelte';
 	import ArmoryProjectSettings from './ArmoryProjectSettings.svelte';
+	import { releaseName } from './solidworks-version';
 	import ArmoryTeam from './ArmoryTeam.svelte';
 	import { holderFilterOf, type HolderFilter } from './checkouts';
 	import { BulkForceCheckIn, ForceCheckIn, type BulkForceOutcome, type ForceOutcome } from './force-check-in.svelte';
@@ -56,7 +57,7 @@
 		type FileFilter
 	} from './view';
 
-	type Outcome = { ok: true } | { ok: false; message: string };
+	type Outcome = { ok: true } | { ok: false; message: string; code?: string };
 
 	let {
 		project,
@@ -84,6 +85,7 @@
 		takeBackNeedsComputer = false,
 		rename = null,
 		setArchived = null,
+		raiseRelease = null,
 		searchPeople = null,
 		loadTeam = null,
 		refresh = null,
@@ -130,6 +132,8 @@
 		takeBackNeedsComputer?: boolean;
 		rename?: ((name: string) => Promise<Outcome>) | null;
 		setArchived?: ((archived: boolean) => Promise<Outcome>) | null;
+		/** Moves the project up to a newer SolidWorks (ledger 0404); absent removes the control. */
+		raiseRelease?: ((release: number) => Promise<Outcome>) | null;
 		searchPeople?: ((query: string) => Promise<PeopleSearchAnswer>) | null;
 		loadTeam?: (() => Promise<ArmoryMember[] | null>) | null;
 		refresh?: (() => Promise<void>) | null;
@@ -157,7 +161,7 @@
 	const live_ = $derived(files.filter((f) => !f.deleted));
 	const counts = $derived(checkoutCounts(live_, me));
 
-	const settings = $derived(!!rename || !!setArchived || (isAdmin && !!purge));
+	const settings = $derived(!!rename || !!setArchived || !!raiseRelease || (isAdmin && !!purge));
 	/** The people search's gate, asked once (`peopleSearchOffered`): it also says why the paste box is the way in. */
 	const searchOffered = $derived(peopleSearchOffered({ isAdmin, role: project.role, email: me }));
 	const tabs = $derived(projectViewsFor({ settings }));
@@ -233,6 +237,7 @@
 	<span class="ar-readouts">
 		{#if project.role}<span class="ar-readout" data-testid="armory-role-chip">You are {ROLE_WORDS[project.role]}</span>{/if}
 		{#if project.role}<span class="ar-readout"><span aria-hidden="true">★</span> {counts.mine} yours</span>{/if}
+		{#if typeof project.pinned_release === 'number'}<span class="ar-readout" data-testid="armory-release-chip">{releaseName(project.pinned_release)}</span>{/if}
 		{#if storage}<span class="ar-readout"><span aria-hidden="true">◫</span> {sizeWords(storage.bytes)} stored</span>{/if}
 	</span>
 </div>
@@ -308,6 +313,6 @@
 	{:else if shown === 'activity'}
 		<ArmoryActivity {activity} {fileName} {names} {now} />
 	{:else}
-		<ArmoryProjectSettings {project} {storage} {isAdmin} {rename} {setArchived} {purge} {purgePreview} {onpurged} />
+		<ArmoryProjectSettings {project} {storage} {isAdmin} {rename} {setArchived} {purge} {purgePreview} {onpurged} {raiseRelease} {now} />
 	{/if}
 </div>

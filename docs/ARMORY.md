@@ -134,7 +134,8 @@ Everything else (files, versions, locks, people, projects) lives in the idea-app
 whose realtime feed is what makes a lock appear on every screen at once. The website never
 proxies file bytes: it hands out short-lived signed URLs and the agent talks to R2
 directly. A nightly readable mirror to a Google Shared Drive is the escape hatch, so the
-data never depends on Armory existing (decision 2).
+data never depends on Armory existing (decision 2); it is built (ledger 0404) and
+described under "The SolidWorks version and the nightly Shared Drive mirror" below.
 
 ## How it behaves: the product rules
 
@@ -753,17 +754,53 @@ admin) and offers no Remove. The incident and note consoles read the column on a
 ladder of one: a database without it answers 42703, which reads as no machine ids. Tests:
 `tests/db/armory-v033.test.ts`, `tests/armory-v033-website.test.ts`.
 
+## The SolidWorks version and the nightly Shared Drive mirror (ledger 0404, migration 0285)
+
+**One project, one SolidWorks version.** `armory_projects.pinned_release` (0231, default
+2025) is the release the vault takes: `armory_check_release` refuses a file saved in a
+newer one. Until 0404 every project was created on 2025 and nothing on the website could
+raise it.
+
+| RPC | What it does |
+|---|---|
+| `armory_create_project(p_name text, p_season smallint, p_release smallint, p_operation uuid) returns uuid` | New in 0285. Creates the project on `p_release`, or on the column default (2025) when it is null. 22023 `The SolidWorks version must be a release from 1995 to N.` above the ceiling or below 1995, checked after every older refusal. The change row `project_created` carries `pinned_release`. |
+| `armory_create_project(p_name text, p_season smallint, p_operation uuid) returns uuid` | Unchanged signature and answers; now a thin wrapper over the four-argument form with a null release. The Windows app keeps calling it. Neither form has a default, so no payload binds to both. |
+| `armory_raise_pinned_release(p_project uuid, p_release smallint, p_operation uuid) returns boolean` | Since 0285 a site admin may raise any project (P0002 `project not found` for one that is not there); everyone else still needs the mentor role (42501 `only a mentor may raise the pinned release`). Up only (22023 `The pinned release must increase from N.`). New: 22023 `SolidWorks N is not a release yet; the newest a project can move to is M.` above the ceiling, the Los Angeles year plus one. |
+
+**What the app could use (nothing is required).** `armory_my_projects` already projects
+`pinned_release`; a `pinned_release_raised` change (`{release, previous, by}`) says a
+project moved. Whether the 0.3 app reads either was not checked from this repository: the
+app's own contract was not readable from the session that built 0404.
+
+**The nightly mirror.** `.github/workflows/armory-drive-mirror.yml` runs
+`tools/armory-drive-mirror.mjs` at 11:07 UTC (3:07 or 4:07 a.m. in Los Angeles). It reads
+four tables' named columns with the service role (projects, live files with a first
+version, versions, saved releases), downloads each current file from R2 with a read-only
+key, checks its SHA-256, and puts it in the Shared Drive at
+`<project>/<folder>/<name>`. It keeps `ARMORY-MANIFEST.csv`, `ARMORY-MANIFEST.json` and
+`README.txt` at the root: per file, the project, path, version number, author, saved
+release, hash, date, size, archived, and whether the Drive copy is current. A file whose
+Drive copy carries the same hash is skipped; a changed one is updated in place (Drive keeps
+the older content in its own version history); a file Armory no longer has (removed, or its
+project deleted forever) moves to `_removed/<the path it had>` and is never deleted. Every
+Drive file it made carries `armory_file_id`, `armory_project_id` and `armory_sha256` as app
+properties; a file without them is a person's own and is left alone. It never writes to R2
+or the database. `--dry-run` reads and plans and writes nothing; `--fixture
+tools/armory-drive-mirror.fixture.json` runs the whole thing over memory. With any of its
+ten `ARMORY_MIRROR_*` secrets unset it writes "not set up" in the job summary, names the
+missing ones, and exits green.
+
 ## Decisions owed
 
 Answered by Mr. Pina on 2026-10-18, all nine items; `docs/decisions/entries/41-armory-file-vault-scope.md` carries his words.
 
 1. **Name.** IDEA Armory. Shipped.
-2. **Where file contents live.** Cloudflare R2 plus Supabase, shipped. The nightly readable mirror to a Google Shared Drive is wanted and is ledger 0404's to build.
+2. **Where file contents live.** Cloudflare R2 plus Supabase, shipped. The nightly readable mirror to a Google Shared Drive is built (ledger 0404) and runs once its ten repository secrets are set.
 3. **Who can break a lock and release a part.** Breaking a lock: mentors, the CAD lead, instructors (since 0236) and a site admin, from the app or the website (Force check in). Releasing a part: mentors and the CAD lead.
 4. **Part number scheme.** Scheme A, `5669-YY-SS-AAPP` with a two-letter subsystem code; COTS parts keep vendor prefix plus the vendor's number in a shared library, hardware is named by spec. The full rule is in decision 41. Ledger 0405 builds the registry; the add-in assigns numbers at creation.
 5. **Document Manager API key.** Deferred: the request page requires a Subscription Service contract, which the team's sponsorship license does not include. The add-in uses SolidWorks' ordinary API and needs no key.
 6. **IDEA computers.** Closed: he administers the building's computers.
-7. **Mixed SolidWorks versions.** Back-saving 2026 to 2025 is tested and works. A project may also be an ordinary 2026 project: every project is created pinned to 2025 today and nothing on the website can raise it, which ledger 0404 fixes. A pin only goes up, because lowering it would strand files already saved in the newer release.
+7. **Mixed SolidWorks versions.** Back-saving 2026 to 2025 is tested and works. A project may also be an ordinary 2026 project: since ledger 0404 Create offers 2025 or 2026, and a mentor or a site admin moves a project up from its Project tab. A pin only goes up, because lowering it would strand files already saved in the newer release.
 8. **Code signing.** Declined while Armory is internal. The USB zip install avoids the Windows warning.
 9. **Migration credential.** Closed with no action; see `supabase/roles/idea_migrator.sql`.
 

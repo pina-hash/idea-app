@@ -90,6 +90,12 @@
 	}
 
 	const role = $derived(view?.project.role ?? null);
+	/*
+	 * MOVING THE PROJECT TO A NEWER SOLIDWORKS (ledger 0404) is a mentor's, and
+	 * a site admin's once 0285 is in: the 0233 shape, a site admin acting as a
+	 * mentor. Before 0285 a site admin who is not a mentor here reads the
+	 * refusal in words (`releaseErrorWords`), which says who can.
+	 */
 	const isMentor = $derived(role === 'mentor');
 	const v033 = $derived(view?.v033Ready === true);
 	/*
@@ -251,6 +257,9 @@
 			rename={isMentor ? (name: string) => rpc('armory_rename_project', { p_project: view.project.id, p_name: name }) : null}
 			setArchived={isMentor || (isAdmin && v033)
 				? (archived: boolean) => rpc('armory_set_project_archived', { p_project: view.project.id, p_archived: archived })
+				: null}
+			raiseRelease={isMentor || isAdmin
+				? (release: number) => rpc('armory_raise_pinned_release', { p_project: view.project.id, p_release: release })
 				: null}
 			{searchPeople}
 			{loadTeam}

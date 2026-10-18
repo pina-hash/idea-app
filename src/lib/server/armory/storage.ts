@@ -22,6 +22,7 @@
  * right for an upload and wrong for confirming a removal.
  */
 import { env } from '$env/dynamic/private';
+import { contentObjectKey } from './object-key';
 import { presignUrl } from './sigv4';
 
 export const ARMORY_R2_VARIABLES = [
@@ -59,11 +60,8 @@ export function armoryStorageConfig(source: Record<string, string | undefined> =
 	};
 }
 
-/** `blobs/sha256/<2 hex>/<2 hex>/<full hash>`, the agent's ContentObjectKey. */
-export function contentObjectKey(hash: string): string {
-	if (!/^[0-9a-f]{64}$/.test(hash)) throw new Error('A SHA-256 hash must be 64 lowercase hex characters.');
-	return `blobs/sha256/${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash}`;
-}
+/** `blobs/sha256/<2 hex>/<2 hex>/<full hash>`, the agent's ContentObjectKey (its own module since ledger 0404). */
+export { contentObjectKey };
 
 export function objectUrl(config: ArmoryStorageConfig, key: string): string {
 	return `${config.endpoint}/${encodeURIComponent(config.bucket)}/${key}`;

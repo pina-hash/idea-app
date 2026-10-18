@@ -6,14 +6,14 @@ export const NOW = Date.parse('2026-10-06T17:30:00Z');
 const at = (minutesAgo: number) => new Date(NOW - minutesAgo * 60_000).toISOString();
 const hash = (c: string) => c.repeat(64).slice(0, 64);
 
-export const PROJECT: ArmoryProject = { id: '6b1f6c1e-0000-4000-8000-000000000001', name: 'Robot 2026', season: null, role: 'mentor', archived: false };
+export const PROJECT: ArmoryProject = { id: '6b1f6c1e-0000-4000-8000-000000000001', name: 'Robot 2026', season: null, role: 'mentor', pinned_release: 2025, archived: false };
 export const STUDENT_PROJECT: ArmoryProject = { ...PROJECT, role: 'student' };
 
 export const PROJECTS: ArmoryProject[] = [
 	PROJECT,
-	{ id: '6b1f6c1e-0000-4000-8000-000000000002', name: 'IDEA209H Blade Team 4', season: null, role: 'student' },
-	{ id: '6b1f6c1e-0000-4000-8000-000000000003', name: 'Offseason Swerve', season: 2025, role: 'cad_lead' },
-	{ id: '6b1f6c1e-0000-4000-8000-000000000004', name: 'Robot 2025', season: 2025, role: 'mentor', archived: true, archived_at: '2026-06-01T17:00:00Z' }
+	{ id: '6b1f6c1e-0000-4000-8000-000000000002', name: 'IDEA209H Blade Team 4', season: null, role: 'student', pinned_release: 2025 },
+	{ id: '6b1f6c1e-0000-4000-8000-000000000003', name: 'Offseason Swerve', season: 2025, role: 'cad_lead', pinned_release: 2026 },
+	{ id: '6b1f6c1e-0000-4000-8000-000000000004', name: 'Robot 2025', season: 2025, role: 'mentor', pinned_release: 2025, archived: true, archived_at: '2026-06-01T17:00:00Z' }
 ];
 
 export const ARCHIVED_PROJECT: ArmoryProject = { ...PROJECTS[3] };

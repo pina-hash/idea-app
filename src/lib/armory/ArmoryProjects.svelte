@@ -22,6 +22,7 @@
 	import ArmoryMark from '$lib/marks/ArmoryMark.svelte';
 	import { projectViewHref } from './nav';
 	import { PURGED_COMPUTERS_WORDS } from './team';
+	import { ARMORY_CREATE_RELEASES, ARMORY_DEFAULT_RELEASE, releaseCreateWords, releaseName } from './solidworks-version';
 	import { ROLE_WORDS, whenWords, type ArmoryDevice, type ArmoryProjectSummary } from './view';
 
 	type SweepAnswer = { ok: true; swept: number; left: number | null; problem: string | null } | { ok: false; message: string };
@@ -39,7 +40,8 @@
 		projects: ArmoryProjectSummary[];
 		devices?: ArmoryDevice[];
 		now?: number;
-		create?: ((name: string) => Promise<{ ok: true; id: string } | { ok: false; message: string }>) | null;
+		/** Creates a project on a SolidWorks version (ledger 0404); the version is one of ARMORY_CREATE_RELEASES. */
+		create?: ((name: string, release: number) => Promise<{ ok: true; id: string } | { ok: false; message: string }>) | null;
 		onCreated?: ((id: string) => void) | null;
 		/** Stored files from deleted projects waiting to be removed (site admins only; null otherwise). */
 		orphans?: number | null;
@@ -57,6 +59,8 @@
 	const latest = $derived(devices[0] ?? null);
 
 	let name = $state('');
+	/** The version a new project starts on: the column default until somebody picks another. */
+	let release = $state(ARMORY_DEFAULT_RELEASE);
 	let busy = $state(false);
 	let message = $state('');
 
@@ -71,9 +75,10 @@
 		busy = true;
 		message = '';
 		try {
-			const result = await create(trimmed);
+			const result = await create(trimmed, release);
 			if (result.ok) {
 				name = '';
+				release = ARMORY_DEFAULT_RELEASE;
 				onCreated?.(result.id);
 			} else {
 				message = result.message;
@@ -123,6 +128,7 @@
 			</span>
 			<span class="ar-project-chips">
 				<span class="ar-readout" data-testid="armory-project-role">{project.role ? ROLE_WORDS[project.role] : 'Site admin'}</span>
+				{#if typeof project.pinned_release === 'number'}<span class="ar-readout" data-testid="armory-project-release">{releaseName(project.pinned_release)}</span>{/if}
 				{#if project.archived}<span class="ar-readout">Archived</span>{/if}
 			</span>
 			{#if typeof project.files === 'number'}
@@ -262,6 +268,25 @@
 				<input class="plate-well" bind:value={name} maxlength="100" autocomplete="off" placeholder="Robot, IDEA209H Blade Team 4, Offseason Swerve" />
 			</label>
 			<button class="btn ar-btn" type="submit" aria-disabled={busy}>{busy ? 'Creating…' : 'Create project'}</button>
+		</div>
+		<!-- ONE SOLIDWORKS VERSION PER PROJECT (ledger 0404): two keys, one lit,
+		     and what the lit one means said under them. 2025 is the default. -->
+		<div class="ar-release-pick">
+			<span class="ar-release-label" id="ar-create-release-l">SolidWorks version</span>
+			<div class="ar-filters" role="group" aria-labelledby="ar-create-release-l" data-testid="armory-create-release">
+				{#each ARMORY_CREATE_RELEASES as r (r)}
+					<button
+						class="btn secondary ar-btn ar-filter"
+						type="button"
+						aria-pressed={release === r}
+						data-release={r}
+						onclick={() => (release = r)}
+					>
+						{releaseName(r)}
+					</button>
+				{/each}
+			</div>
+			<p class="ar-message" data-testid="armory-create-release-words">{releaseCreateWords(release)} It can move up later, never down.</p>
 		</div>
 		<p class="ar-message">You become its first mentor. The name is also its folder name on every computer, and a mentor can rename it later.</p>
 		{#if message}<p class="ar-message bad" role="alert">{message}</p>{/if}

@@ -1498,6 +1498,8 @@ describe('the invariants these particular workflows have to hold', () => {
 			pushLinesPerFile,
 			'the per-file push shape moved; a file that gained or lost a push line needs a look'
 		).toEqual({
+			// `armory-drive-mirror.yml` (ledger 0404) writes to Google Drive, never to git.
+			'armory-drive-mirror.yml': 0,
 			'autopay.yml': 0,
 			'backup.yml': 0,
 			// `cert-jobs.yml` (ledger 0391) only curls the site, like autopay.

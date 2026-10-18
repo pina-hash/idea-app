@@ -2978,6 +2978,30 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
   first. The type-the-name key is one predicate (`purgeCanSend`, NFC and
   trimmed, as the RPC compares), `aria-disabled` and never `disabled`, and the
   acknowledgement is shown on `/armory` through `page.state`.
+- **A PROJECT IS ON ONE SOLIDWORKS VERSION, CHOSEN AT CREATION AND ONLY EVER
+  MOVED UP (ledger 0404, 0285, decision 41 item 7).** The pin is what
+  `armory_check_release` refuses a newer save against, so lowering it would
+  strand every file saved in the newer release; there is no way down, and the
+  Project tab says why. Create offers 2025 (the 0231 default) or 2026 and names
+  `p_release` ONLY for a release that is not the default, so a 2025 project
+  goes through the deployed three-argument `armory_create_project`, which the
+  Windows app calls too; the four-argument form is its additive pair (no
+  defaults on either). `armory_raise_pinned_release` admits a mentor or a site
+  admin (the 0233 shape), two presses with the cost said before the second.
+  `_armory_release_ceiling()` (the Los Angeles year plus one) is the one
+  statement of the newest release, and `newestRelease` in
+  `$lib/armory/solidworks-version.ts` mirrors it to choose what is offered.
+- **THE NIGHTLY SHARED DRIVE MIRROR IS A COPY, AND IT NEVER DELETES (ledger
+  0404, decision 41 item 2).** `.github/workflows/armory-drive-mirror.yml` runs
+  `tools/armory-drive-mirror.mjs` at 11:07 UTC; `tools/armory-drive-mirror-plan.mjs`
+  is every decision (copy what is missing, skip a matching hash, update in place,
+  move a file Armory no longer has to `_removed/<its path>`), over injected
+  adapters, so the tests drive it with a fake store and a fake Drive. It reads
+  Drive to know what is there and remembers nothing else, so a second run copies
+  nothing and a run cut off is finished by the next. It reads the bucket by the
+  website's own key rule (`contentObjectKey`, in `object-key.ts` so plain Node
+  can load it) and checks every download against its hash before uploading.
+  Unset secrets are a GREEN "not set up" summary, not a red run.
 
 ---
 
@@ -3851,7 +3875,12 @@ build break):
   Website connector, ledger 0400), for exactly two things, the same two as
   Armory's: the `connector_*` tables, which no client role can touch, and
   minting the connected admin's own session; every tool call runs on that
-  session. This line said FOUR until 2026-09-10, FIVE until 2026-10-06 and SIX
+  session. **The same key's VALUE also sits outside this `$env` census** as the
+  repository secret `ARMORY_MIRROR_SUPABASE_SERVICE_ROLE_KEY`, whose one reader
+  is `tools/armory-drive-mirror.mjs` (ledger 0404): the nightly mirror must read
+  every Armory project, which member-only RLS forbids any other role, and it
+  sends GETs for four tables' named columns and no write (see the census of
+  `process.env` credentials below). This line said FOUR until 2026-09-10, FIVE until 2026-10-06 and SIX
   until 2026-10-18, and the
   count is the kind of figure that goes stale the moment another surface needs a
   credential, so **move it in the same edit that adds one**. Nothing else may read it, and
@@ -3975,9 +4004,19 @@ the single egress point for that service. Do not add a second.
 
 **THE CENSUS ABOVE IS THE `$env` SURFACE ONLY, AND IT IS NO LONGER THE WHOLE
 LIST OF CREDENTIALS THIS REPOSITORY KNOWS ABOUT.** Two POSTGRES connection
-strings sit outside it, read from `process.env` by a tool rather than through
+strings sit outside it, and since ledger 0404 the Armory mirror's set beside
+them, each read from `process.env` by a tool rather than through
 `$env/dynamic/private`, because nothing in `src/` may ever reach them and a
 `$env` import is exactly how something would:
+
+- **`ARMORY_MIRROR_*`** (ten repository secrets, listed in `MIRROR_SECRETS` in
+  `tools/armory-drive-mirror-plan.mjs`) -- the nightly Shared Drive mirror's own
+  names, held by `.github/workflows/armory-drive-mirror.yml` and read by
+  `tools/armory-drive-mirror.mjs` alone. The VALUES may equal the website's (the
+  service role key, the Google OAuth client), the shape `tools/backup/drive-upload.mjs`
+  set with `BACKUP_GOOGLE_*`, so revoking the mirror never touches the site. Its
+  R2 key is a separate "Object Read only" key on the Armory bucket, so the mirror
+  cannot write to storage whatever its code says.
 
 - **`IDEA_MIGRATION_URL`** -- the `idea_migrator` role, which can WRITE.
   `tools/apply-migration.mjs` is its one WRITER and not its one reader

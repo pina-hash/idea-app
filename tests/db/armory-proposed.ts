@@ -71,5 +71,8 @@ export const V032_NAME = '0235_armory_app_feedback_v2.sql';
 /** Armory v0.3.3 (ledger 0377): instructors, empty files, leads over checkouts, machine ids. */
 export const V033_NAME = '0236_armory_v033.sql';
 
+/** Ledger 0404: a project's SolidWorks version chosen at creation, raised by a site admin too. */
+export const RELEASE_CHOICE_NAME = '0285_armory_release_choice.sql';
+
 /** The Armory migrations, in order: the only files that may name armory_. */
-export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME];
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME];

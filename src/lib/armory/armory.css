@@ -1372,6 +1372,29 @@ span.ar-person-out {
 	margin: 0;
 }
 
+/* A project's SolidWorks version (ledger 0404): the keys that pick one at
+   creation, and the version itself, said big on the Project tab. The label
+   is the field label's own mono caps, so the keys read as one field. */
+.ar-release-pick {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	margin-top: 0.75rem;
+}
+.ar-release-label {
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-2);
+}
+.ar-release-pick .ar-message {
+	margin: 0;
+}
+.ar-release-choices {
+	margin: 0.6rem 0 0.4rem;
+}
+
 /* The header's keys sit closer on a phone. This made room for the docked
    feedback control from 2026-10-07; the feedback button is the page's corner
    button since ledger 0396, and the closer keys still leave the profile menu

@@ -194,6 +194,10 @@
 					"name": "season",
 					"describe": "The season's year, like 2027."
 				},
+				"p_release": {
+					"name": "solidworks",
+					"describe": "The SolidWorks version the project is on, 2025 or 2026; leave it out for 2025. It can move up later, never down."
+				},
 				"p_operation": {
 					"name": "operation",
 					"fill": "uuid",

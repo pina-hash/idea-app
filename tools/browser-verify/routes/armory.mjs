@@ -111,6 +111,18 @@ export default {
 		{ selector: '[data-view="download-none"] [data-testid="armory-flash-drive"]', label: 'no release: the flash-drive sentence', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-view="download-none"] [data-testid="armory-download-link"]', label: 'no release: no broken download link', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-view="download"] [data-testid="armory-download-link"]', label: 'two installer links', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+		// Ledger 0404: one SolidWorks version per project, moved up on purpose, never down.
+		{ selector: '[data-view="settings"] [data-testid="armory-release-raise"]', label: 'a mentor gets one Move up key', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="settings"] [data-testid="armory-release-choices"] [data-release]', label: 'on 2025 in October 2026: 2026 and 2027', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+		{ selector: '[data-view="settings"] [data-testid="armory-release-no-down"]', label: 'and why there is no way down', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="synced"] [data-testid="armory-release-chip"]', label: 'a student sees the version in the header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="synced"] [data-testid="armory-release-raise"]', label: 'and no Move up', expectPresent: 0, maxPresent: 0 },
+		{ selector: '[data-view="release-newest"] [data-testid="armory-release-raise"]', label: 'the newest release: no key', expectPresent: 0, maxPresent: 0 },
+		{ selector: '[data-view="release-newest"] [data-testid="armory-release-newest"]', label: 'and says so', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="release-admin"] [data-testid="armory-release-raise"]', label: 'a site admin who is not a member moves it up', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="projects"] [data-testid="armory-create-release"] button', label: 'Create offers 2025 and 2026', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+		{ selector: '[data-view="projects"] [data-testid="armory-create-release"] button[aria-pressed="true"][data-release="2025"]', label: 'with 2025 lit', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-view="projects"] [data-testid="armory-project-release"]', label: 'every card says its SolidWorks version (the archived one folded away)', expectPresent: 4, maxPresent: 4, expectVisible: 3 },
 		{ selector: '.sfb-shell .sfb-trigger', label: 'the feedback button, in the page corner as on every page (ledger 0396)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="armory-header"] .sfb-trigger', label: 'and none docked in the Armory header', expectPresent: 0, maxPresent: 0 }
 	],
@@ -155,6 +167,7 @@ export default {
 		{ selector: '[data-view="people-pre033"] [data-testid="armory-add-member"] :is(textarea, select, button)', label: 'the paste form', min: 44 },
 		{ selector: '[data-view="settings"] [data-testid="armory-project-settings"] :is(input, button)', label: 'rename and archive', min: 44 },
 		{ selector: '[data-view="projects"] a.ar-project', label: 'project cards', min: 44 },
+		{ selector: '[data-view="projects"] [data-testid="armory-create-release"] button', label: 'the version keys on Create', min: 44 },
 		{ selector: '[data-view="projects"] [data-testid="armory-keys"] .btn', label: 'the index keys', min: 44 },
 		{ selector: '[data-view="start"] [data-testid="armory-get-app"]', label: 'Get the Windows app', min: 44 },
 		{ selector: '[data-view="file-side"] [data-testid="armory-version-download"]', label: 'version downloads', min: 44 },
@@ -178,6 +191,8 @@ export default {
 		{ selector: '[data-view="start-connected"] .ar-step-status', label: 'a ticked step status', min: 4.5 },
 		{ selector: '[data-view="start"] .ar-step-status', label: 'an open step status', min: 4.5 },
 		{ selector: '[data-view="file-side"] .ar-entry-why', label: 'why a side version exists', min: 4.5 },
-		{ selector: '[data-view="download"] .ar-hash', label: 'the SHA-256', min: 4.5 }
+		{ selector: '[data-view="download"] .ar-hash', label: 'the SHA-256', min: 4.5 },
+		{ selector: '[data-view="settings"] [data-testid="armory-release"] :is(.ar-big, .ar-message)', label: 'the SolidWorks version and its sentences', min: 4.5 },
+		{ selector: '[data-view="projects"] [data-testid="armory-create-release-words"]', label: 'what the chosen version means', min: 4.5 }
 	]
 };

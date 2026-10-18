@@ -1,0 +1,42 @@
+{
+	"_about": "The dry-run fixture for tools/armory-drive-mirror.mjs (ledger 0404). Two projects, one on SolidWorks 2026; a Drive that already holds an earlier run's copies: one current (skipped), one stale (updated), one moved in Armory (moved), and one whose project was deleted forever (moved to _removed). Versions carry content, not a hash; the loader takes the hash.",
+	"projects": [
+		{ "id": "p-robot", "name": "Robot 2026", "pinned_release": 2025, "archived": false },
+		{ "id": "p-swerve", "name": "Offseason Swerve", "pinned_release": 2026, "archived": false }
+	],
+	"files": [
+		{ "id": "f-gearbox", "project_id": "p-robot", "folder": "Drive", "name": "Gearbox.SLDPRT", "current_version_id": "v-gearbox-2", "deleted_at": null },
+		{ "id": "f-plate", "project_id": "p-robot", "folder": "Drive", "name": "Plate.SLDPRT", "current_version_id": "v-plate-1", "deleted_at": null },
+		{ "id": "f-frame", "project_id": "p-robot", "folder": "", "name": "Frame.SLDASM", "current_version_id": "v-frame-1", "deleted_at": null },
+		{ "id": "f-module", "project_id": "p-swerve", "folder": "Module/Wheel", "name": "Wheel.SLDPRT", "current_version_id": "v-module-1", "deleted_at": null },
+		{ "id": "f-empty", "project_id": "p-swerve", "folder": "", "name": "NotSavedYet.SLDPRT", "current_version_id": null, "deleted_at": null }
+	],
+	"versions": [
+		{ "id": "v-gearbox-1", "file_id": "f-gearbox", "content": "gearbox first", "author_email": "ana.reyes@boscotech.net", "created_at": "2026-10-01T18:00:00Z" },
+		{ "id": "v-gearbox-2", "file_id": "f-gearbox", "content": "gearbox second", "author_email": "ben@boscotech.net", "created_at": "2026-10-02T18:00:00Z" },
+		{ "id": "v-plate-1", "file_id": "f-plate", "content": "plate", "author_email": "ana.reyes@boscotech.net", "created_at": "2026-10-01T19:00:00Z" },
+		{ "id": "v-frame-1", "file_id": "f-frame", "content": "frame assembly", "author_email": "apina@boscotech.edu", "created_at": "2026-10-03T19:00:00Z" },
+		{ "id": "v-module-1", "file_id": "f-module", "content": "swerve wheel", "author_email": "lead@boscotech.net", "created_at": "2026-10-04T19:00:00Z" }
+	],
+	"releases": [
+		{ "version_id": "v-gearbox-2", "saved_release": 2025 },
+		{ "version_id": "v-plate-1", "saved_release": 2025 },
+		{ "version_id": "v-module-1", "saved_release": 2026 }
+	],
+	"drive": {
+		"rootId": "root",
+		"folders": [
+			{ "id": "d-robot", "name": "Robot 2026", "parentId": "root", "projectId": "p-robot" },
+			{ "id": "d-robot-drive", "name": "Drive", "parentId": "d-robot", "projectId": null },
+			{ "id": "d-old", "name": "Robot 2024", "parentId": "root", "projectId": "p-gone" }
+		],
+		"files": [
+			{ "id": "g-plate", "name": "Plate.SLDPRT", "parentId": "d-robot-drive", "fileId": "f-plate", "sha256": "3b56c3520006aaeb038c24862bcde877284bc1654e73bda292d90db943c4573d" },
+			{ "id": "g-gearbox", "name": "Gearbox.SLDPRT", "parentId": "d-robot-drive", "fileId": "f-gearbox", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
+			{ "id": "g-frame", "name": "Frame.SLDASM", "parentId": "d-robot-drive", "fileId": "f-frame", "sha256": "fbffde754236b513c7951299c84fa0c6d88b1688d0af8ca6cc53b53ff5e73b1c" },
+			{ "id": "g-old", "name": "Bumper.SLDPRT", "parentId": "d-old", "fileId": "f-gone", "sha256": "2222222222222222222222222222222222222222222222222222222222222222" },
+			{ "id": "g-mine", "name": "My notes.txt", "parentId": "root", "fileId": null, "sha256": null }
+		],
+		"texts": []
+	}
+}

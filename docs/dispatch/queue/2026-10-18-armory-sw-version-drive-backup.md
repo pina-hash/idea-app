@@ -11,8 +11,9 @@ owns: src/lib/armory/**, src/routes/armory/**, src/routes/api/armory/**, src/lib
 after:
 needs_go: no
 go: no
-status: running
+status: done
 started_at: 2026-10-18T22:17:26Z
+finished_at: 2026-10-18T23:57:51Z
 trigger_id: trig_01B6nwDk8Fn1CcLCvgpJ7iUj
 queued_at: 2026-10-17T23:57:36-07:00
 ---
