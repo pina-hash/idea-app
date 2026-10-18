@@ -761,7 +761,7 @@ Answered by Mr. Pina on 2026-10-18, all nine items; `docs/decisions/entries/41-a
 2. **Where file contents live.** Cloudflare R2 plus Supabase, shipped. The nightly readable mirror to a Google Shared Drive is wanted and is ledger 0404's to build.
 3. **Who can break a lock and release a part.** Breaking a lock: mentors, the CAD lead, instructors (since 0236) and a site admin, from the app or the website (Force check in). Releasing a part: mentors and the CAD lead.
 4. **Part number scheme.** Scheme A, `5669-YY-SS-AAPP` with a two-letter subsystem code; COTS parts keep vendor prefix plus the vendor's number in a shared library, hardware is named by spec. The full rule is in decision 41. Ledger 0405 builds the registry; the add-in assigns numbers at creation.
-5. **Document Manager API key.** His to request. The scope works without it.
+5. **Document Manager API key.** Deferred: the request page requires a Subscription Service contract, which the team's sponsorship license does not include. The add-in uses SolidWorks' ordinary API and needs no key.
 6. **IDEA computers.** Closed: he administers the building's computers.
 7. **Mixed SolidWorks versions.** Back-saving 2026 to 2025 is tested and works. A project may also be an ordinary 2026 project: every project is created pinned to 2025 today and nothing on the website can raise it, which ledger 0404 fixes. A pin only goes up, because lowering it would strand files already saved in the newer release.
 8. **Code signing.** Declined while Armory is internal. The USB zip install avoids the Windows warning.
