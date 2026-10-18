@@ -248,7 +248,9 @@ tool always returns the block diff (kept, added, missing) with the result.
    remaining function and endpoint (tool, call or exclude with reason; levels
    per section 7), the endpoints that are real functions reachable through
    `site_call` (in-process handler calls with the minted session), the
-   `pending` allowance removed from the coverage check, and the eval runner.
+   `pending` allowance removed from the coverage check, `level_when`, the
+   request log, the database eval set, gaps and the Connector feedback
+   section, and the practice endpoint (sections 8 and 9).
 3. **This chat**: he adds the connector in claude.ai, the eval set runs from his
    phone, and the audit rows are read as the record.
 
@@ -258,13 +260,26 @@ The rule: a function that only returns data is `read`; a write with a revision
 table, a reverse function or a value that can be set back is `undo`; a delete,
 purge, remove, reset, bulk operation, signed public record or change to who is
 admin is `confirm`; a browser-session instrument or a cron entry point is
-excluded. Proposed to Mr. Pina on 2026-10-17; his reactions land here.
+excluded.
+
+**Approved by Mr. Pina on 2026-10-17 as proposed, with one change:** a coin
+balance adjustment that ADDS to a student's balance runs at once; one that
+lowers it (setting it to zero included) asks first. `coin_admin_adjust_balance`
+takes a signed `p_amount` (0251), so the overlay states the level by argument:
+
+```yaml
+coin_admin_adjust_balance:
+  level_when: [{if: "amount > 0", level: undo}, {else: confirm}]
+```
+
+`level_when` is evaluated by the server on the resolved arguments, never by the
+model. Any entry may use it; an entry without it has one `level`.
 
 | Family | read | undo (runs, logged) | confirm (asks first) | excluded (reason) |
 |---|---|---|---|---|
 | Classroom posts and units | feed, item, revisions, roster, overview, perfect scores | create post or quick post, publish, pin, order, unit, layout, thumbnail, points, due, spec, rubric, restore revision, replace HTML (with the orphan refusal) | delete item, unit, section or deck; remove posting; remove enrollment; import roster; quick post take-down | presence ping, mark viewed, view-as, worksheet latch (browser instruments) |
 | Grading, answers, feedback | grades, answers, feedback list, instructor responses | grade, regrade, revoke grade, close or reopen, feedback post, reply, state, seen; instructor response; designate key | delete feedback; bulk grade with no per-row preview | export record (a download) |
-| Coins | balance, stats, leaderboard, lookup, export, settings read | award, fine, extra credit, pay raise, 3D print, property damage, reverse, queue, payday, digest | adjust balance, settings, categories, roles, contracts, bulk log | autopay run, digest push (cron) |
+| Coins | balance, stats, leaderboard, lookup, export, settings read | award, fine, extra credit, pay raise, 3D print, property damage, reverse, queue, payday, digest, adjust balance UP | adjust balance DOWN or to zero, settings, categories, roles, contracts, bulk log | autopay run, digest push (cron) |
 | Hall pass | state, events | open, close, limits | | |
 | Tournaments | brackets, standings, matches | create, set up, name, seed, schedule | delete | advance match, enter score (live operation, out of scope) |
 | Foundry | queue, versions, source read | approve, reject, publish, unpublish, gallery | delete, purge | upload bytes (a file, not a function) |
@@ -279,8 +294,72 @@ excluded. Proposed to Mr. Pina on 2026-10-17; his reactions land here.
 | FRC, FSP | rosters, interest, completions | completion overrides, gate reviews | | |
 | Connector | audit log, connections | | disconnect all, switch off | |
 
-## 8. Adding the connector in claude.ai (once per account, any device)
+## 8. Haiku first
+
+Mr. Pina, 2026-10-17: he would rather run phone chats on Haiku 5.5, because it
+answers fast, if Haiku can do the job. The design makes that the target rather
+than a hope:
+
+- **The model decides as little as possible.** Name matching, date parsing,
+  safety levels, confirmation, repeat protection and the HTML orphan check all
+  happen on the server. A weaker model cannot skip a confirmation or double an
+  award, because neither is in its hands.
+- **Few tools, plain words.** About twenty facade tools on the first hop; the
+  long tail behind `site_find_tool` and `site_call`, whose results tell the
+  model exactly what to call next.
+- **Errors that say the next move.** Every refusal names what to ask him or
+  which tool to call ("Two students named Daniel: Daniel Ruiz (209H Block 2),
+  Daniel Ortega (209H Block 4). Ask which.").
+- **The judge runs on Haiku 5.5.** The eval set (section 9) passes on Haiku
+  5.5 or the gap is a defect in a description or a server rule, fixed there.
+  Sonnet 5.5 and Opus 5.5 are the fallback when a request needs judgment, never
+  the target.
+
+## 9. The request log, a growing eval set, and gaps
+
+Mr. Pina, 2026-10-17: the eval list cannot be fixed at fifty. Whatever he asks
+that is not on it gets added; it is done with whatever the site already has;
+and when nothing can do it, that is logged as feedback so it gets built into
+the site later. Built by ledger 0401.
+
+- **Every tool takes `said`**: his request in his own words, verbatim,
+  required. The server writes it to `connector_requests` (request key, said,
+  tools called, arguments, outcome: done, previewed, asked, refused, gap; the
+  audit rows it produced; the model name when the client sends it), as him,
+  through `connector_call`, same gates.
+- **The eval set lives in the database**, `connector_evals`, seeded from the 50
+  lines in `EVALS.md` with each one's expected tool path, level and proof query.
+  A request whose normalized `said` matches no eval is appended as a new eval
+  automatically, with the path that served it as its expected path and its
+  outcome. `EVALS.md` is regenerated from the table by
+  `tools/connector/evals/export.mjs`, so the file stays readable and the table
+  stays the source.
+- **When nothing can do it**, the model calls `report_gap(said, what_is_missing)`
+  (its description says to, and `site_find_tool` says so when it finds no
+  match), and the server also records a gap on its own whenever `site_call`
+  names a function the registry does not have. A gap is a row in
+  `connector_gaps`: what he asked, what was tried, status (`open`, `built`,
+  `declined`), and the ledger that built it.
+- **A new feedback section**, `/admin/feedback/connector`, beside the Armory and
+  incidents tabs: open gaps first, each with his words and what was tried, a
+  status control, and the eval rows it produced. The morning check lists open
+  gaps, so they reach a Claude Code prompt without him re-asking. When a later
+  ledger adds the missing function to the registry, the gap is marked `built`
+  with that ledger number and its eval starts passing.
+- **Replay without touching real data.** `https://ideabosco.com/mcp/practice`
+  is the same server with one difference fixed by the URL, never by an argument:
+  every write runs as a preview and nothing commits. A nightly scheduled task on
+  Haiku 5.5 (created from chat once the practice connector is added) replays
+  every eval through the practice connector and records pass or fail per eval
+  in `connector_eval_runs`; a fail lists on `/admin/connector` and in the
+  morning check. Reads replay for real; they write nothing.
+- **The finish line** is unchanged in kind: every eval in the table passes from
+  a fresh phone chat on Haiku 5.5, judged by rows, and the set keeps growing as
+  he uses it.
+
+## 10. Adding the connector in claude.ai (once per account, any device)
 
 1. Open https://claude.ai/settings/connectors
 2. **Add custom connector**. Name: `IDEA Website`. URL: `https://ideabosco.com/mcp`. Leave the OAuth client fields blank. **Add**.
 3. **Connect**. The site opens; sign in with the admin Google account if asked; **Connect** on the consent card. Expected: the connector shows as connected and `list_classes` works in a new chat.
+4. After ledger 0401, the same three steps once more with Name `IDEA Website (practice)` and URL `https://ideabosco.com/mcp/practice` (section 9).

@@ -8,7 +8,12 @@ line passes from one fresh chat. Student names below are placeholders; the run
 uses real names from his rosters, and lines 41 to 45 need a name that really is
 ambiguous in one of his classes.
 
-Mr. Pina adds his own lines at the end; nothing here is final until he has.
+This list is a seed, not a ceiling (Mr. Pina, 2026-10-17). From ledger 0401 the
+eval set lives in the database (`connector_evals`): every request he makes that
+matches no line here is added automatically with the path that served it, and
+anything the connector cannot do is logged as a gap in the Connector feedback
+section (`/admin/feedback/connector`). This file is then regenerated from the
+table. The target model is Haiku 5.5 (DESIGN.md section 8).
 
 Legend: **R** read, **U** undoable write, **C** asks first, **X** refused or asked.
 
@@ -65,6 +70,5 @@ Legend: **R** read, **U** undoable write, **C** asks first, **X** refused or ask
 | 49 | Turn the connector off | C | Asks, then every later call answers 401 until it is switched on at `/admin/connector` | `connector_settings.enabled` false; next call fails |
 | 50 | Disconnect this phone | C | Asks, revokes this token | `connector_tokens.revoked_at` set |
 
-His additions:
-
-- (none yet)
+| 51 | Add twenty coins to Mateo's balance | U | Runs at once: an increase needs no confirmation (Mr. Pina, 2026-10-17) | `coin_transactions` row of +20 via the balance adjustment; audit row |
+| 52 | Make a seating chart for Block 2 | X | No site function does this: says so plainly, calls `report_gap`, writes nothing else | `connector_gaps` row with his words, status open |
