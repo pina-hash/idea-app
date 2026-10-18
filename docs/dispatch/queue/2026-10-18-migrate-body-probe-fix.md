@@ -12,6 +12,7 @@ after:
 needs_go: no
 go: no
 status: running
+trigger_id: trig_01AqWTp1gu7su3hdErm7e5tm
 started_at: 2026-10-18T12:12:02Z
 queued_at: 2026-10-18T02:52:00-07:00
 ---
