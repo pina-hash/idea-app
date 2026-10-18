@@ -11,7 +11,8 @@ owns: tools/apply-migration.mjs, tests/apply-migration.test.ts, tests/apply-migr
 after:
 needs_go: no
 go: no
-status: queued
+status: running
+started_at: 2026-10-18T12:12:02Z
 queued_at: 2026-10-18T02:52:00-07:00
 ---
 Before doing anything else: `git fetch origin main`, check out `origin/main` on a working branch, and confirm the committer identity is `Claude <noreply@anthropic.com>`. Solo mode: rebase on `origin/main` and push `HEAD:main` once at the end, with the ledger entry in the same push. Another session (ledger 0401) is writing `src/lib/server/connector/**` and migrations 0272 to 0273 at the same time; nothing in your Owns overlaps it.
