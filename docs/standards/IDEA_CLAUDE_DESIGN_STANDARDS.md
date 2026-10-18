@@ -1,5 +1,5 @@
 # IDEA Claude Design Standards
-**Version 2.1 - 2026-08-27**
+**Version 2.2 - 2026-10-17**
 
 The single hand-maintained design standard for the IDEA pathway. It owns two
 things that used to sit in separate documents: the pathway's visual identity
@@ -66,8 +66,16 @@ warns about elsewhere. Two files is the floor, and only one of them is a standar
 
 ## Visual Identity
 
-Absorbed from `IDEA_Design_System.md` 2.0 at retirement. Normative. Everything
-below is a rule, not a description of what a bundle happens to contain.
+> **SUPERSEDED 2026-10-17 (2.2). Do not design from this section.** The IDEA visual
+> identity is now the **IDEA Design System** artifact
+> (https://claude.ai/artifact/Gb9XpTcK43gZMGSkqy22xs), built from the live site's Plate
+> (`src/lib/classroom/plate.css`) and its `space-white` theme at main `4452876b`, and the
+> idea-design skill (`docs/skills/idea-design/SKILL.md`). The section below describes the
+> July and August 2026 machined palette: the `//` motif, blueprint grids and flat green
+> grounds it names are retired. It is kept only as history. The scoping protocol and prompt
+> skeleton later in this file still apply.
+
+Absorbed from `IDEA_Design_System.md` 2.0 at retirement. Historical as of 2.2.
 
 ### Where tokens actually live
 
@@ -790,6 +798,13 @@ For any non-deck artifact, motion runs inside a `.ds-run` container instead of `
 ---
 
 ## Changelog
+
+- **2.2 (2026-10-17)** - The Visual Identity section is marked superseded. The live site
+  had moved to the Plate and the Space White projector theme (classroom decisions 19 to 21,
+  `IDEA_HTML_ASSIGNMENT_AUTHORING.md` section 17) while this section still prescribed the
+  machined palette, the `//` motif and blueprint grids, and chats designing from it were
+  told they were "stuck in the past". The identity now lives in the IDEA Design System
+  artifact and the idea-design skill. Nothing else in this file changed.
 
 - **2.1 (2026-08-27)** - Two insertions, both making the build-state mechanism reach the
   session that needs it. `Reveals and Interaction` gains the rule that the mechanism is

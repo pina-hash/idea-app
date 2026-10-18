@@ -1,5 +1,5 @@
 # IDEA Print Standards
-**Version 1.1 - 2026-09-04**
+**Version 1.2 - 2026-10-17**
 Rendering rules for all print-first materials: interim assignment printouts (specs rendered to paper until the engine is live), lab worksheets, and reference sheets. These are functional documents produced for handwriting, benches, and binders. Ink-friendly and legible beat flashy.
 
 Print renderings are generated from spec files as print-styled HTML delivered as PDF, US Letter.
@@ -17,14 +17,16 @@ Print renderings are generated from spec files as print-styled HTML delivered as
 
 ## Typography
 
-- Headers and module titles: Orbitron, weight 700, black.
+- Use the `space-white` theme of the IDEA Design System artifact for every printed color and type choice.
+- Headers and module titles: Share Tech Mono caps with letter-spacing, or Rajdhani 700. Orbitron appears only in the wordmark.
 - Body, prompts, table content: Rajdhani, 11-12 pt equivalent. Rajdhani prints cleanly and keeps the pathway's visual identity on paper.
 - Metadata, IDs, version tags: Share Tech Mono, small.
+- The logo on paper is the full mark with the gear.
 - No font below 9 pt equivalent anywhere.
 
 ## Color in Print
 
-One accent color per document, used sparingly: header rule, module number chips, section dividers. Accent derives from the spec's theme mapped to a print-safe value (IDEA Green theme → a dark green, not `#00FF41`, which is illegible on white). Semantic screen colors (amber warnings, teal in-progress) have no print role; print state is conveyed by checkboxes and blanks.
+One accent color per document, used sparingly: header rule, module number chips, section dividers. The accent is the design system's `space-white` green, never a neon green. Semantic screen colors (amber warnings, teal in-progress) have no print role; print state is conveyed by checkboxes and blanks.
 
 ## Document Structure (in order)
 
@@ -109,5 +111,6 @@ Print PDFs are carried on a flash drive to the school print room and run on a sh
 
 ## Changelog
 
+- **1.2 (2026-10-17)** - Typography and color follow the IDEA Design System's `space-white` theme: Orbitron is limited to the wordmark, headers use Share Tech Mono caps or Rajdhani 700, and the printed logo is the full mark with the gear (Mr. Pina, 2026-10-05).
 - **1.1 (2026-09-04)** - Added Delivered Filenames for Print Jobs: the `[QQ]x_[N]pg_[SIDED]_[Name].pdf` convention, the `-HOLD` and `-INITIALS` suffixes, the three quantity-derivation rules, and the requirement to state total sheets. Written after a Unit 2 Day 1 print job where the filename had to carry the whole instruction to a shared print room. Added filename and quantity checks to Verification Before Delivery.
 - **1.0 (2026-08-10)** - Created.

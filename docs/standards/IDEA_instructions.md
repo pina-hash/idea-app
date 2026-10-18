@@ -1,5 +1,12 @@
 # IDEA Project - Claude Instructions
-**Version 4.33 - 2026-10-14**
+**Version 4.34 - 2026-10-17**
+
+> **Where the operative rules live, as of 4.34.** A claude.ai chat runs on the project
+> instructions field (source: `docs/project-instructions.md`), the IDEA skills (sources:
+> `docs/skills/*/SKILL.md`) and project knowledge facts. This file is the rationale record
+> and the Claude Code reference behind them; a chat is not told to read it first. Where this
+> file and a skill disagree for chat work, the skill wins and this file is corrected. Map:
+> `docs/KNOWLEDGE_ARCHITECTURE.md`.
 
 ## These Instructions Evolve
 
@@ -242,6 +249,33 @@ silently deletes the first one's work.
 **Do not let a workaround become permanent.** If Claude finds itself compensating for a documented process being wrong, that is a trigger, not a technique.
 
 ---
+
+## Operate as the project lead, not the courier (2026-10-17)
+
+Source: Felix Rieseberg (Anthropic engineering lead for Claude.ai, Cowork and Claude Code
+Desktop), felixrieseberg.com posts of 2026-09-27 and 2026-10-13. Mr. Pina, 2026-10-17:
+"Start full integration immediately."
+
+- **Own outcomes, not tasks.** Before a request becomes a lane, ask what Mr. Pina wants to
+  happen after it. Where the answer is a standing outcome, propose owning it (a scheduled
+  task or a standing lane) instead of producing one artifact.
+- **Instruments before ownership.** An outcome is ownable only when Claude can fetch the
+  data itself, reproduce the problem and verify the fix. Build the missing instrument first.
+  The scheduled task "IDEA ops morning check" (daily, 6:40 AM Pacific) is the first: it owns
+  "production serves main and nothing is stalled".
+- **Run deeper-not-bigger before any build** of a unit, assignment, deck or feature: the
+  expert's method, the rawest owning source, the real instrument, and an outside judge named
+  before work starts.
+- **Build all the candidates** where the choice is taste: two to five in parallel, he picks,
+  then five variations of the winner.
+- **Unreasonable numeric targets** for anything measurable (CI time, page weight, frame
+  rate), stated as reachable and hill-climbed with a check that quality held.
+- **Fields, not personas.** Restate the artifact as verbs, pick the fields those verbs need,
+  and do what each field does. Never role-play a voice.
+- **Repeated procedures become skills**, not paragraphs in this file. A procedure run three
+  times is proposed as a skill, with its source in `docs/skills/`.
+- **When Claude errs, fix the workflow.** Ask where the result diverged and what prevents it
+  next time, then update the owning skill or standard in the same turn.
 
 ## Materials Production (governing process)
 
@@ -845,6 +879,8 @@ header is in the wrong place.
 No CC prompt ships without it. This is the same call as the adaptive-thinking assessment,
 pointed at CC's model instead of this chat. Pick from the rubric; when a prompt sits
 between two rows, round up.
+
+**As of 4.34 every model name below is read as its current successor: Haiku 5.5, Sonnet 5.5, Opus 5.5, Fable 5.1. The idea-claude-code-prompt skill (`docs/skills/idea-claude-code-prompt/SKILL.md`) carries the current names and is the only place they are maintained.**
 
 | Prompt profile | Model | Effort |
 |---|---|---|
@@ -3137,6 +3173,18 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-10-17 (4.34)** - THE KNOWLEDGE RESTRUCTURE. Mr. Pina's brief of 2026-10-17:
+  every chat starts current, applies the right rules, and looks like IDEA today. The
+  project instructions field is cut from 9,894 words to about 700 always-true rules, with
+  its source now versioned at `docs/project-instructions.md`. Procedures move into skills
+  whose sources live at `docs/skills/` (idea-state-of-world, idea-closeout,
+  deeper-not-bigger, idea-claude-code-prompt, idea-design, idea-course-material,
+  my-writing-style, deck-humor, uc-course-description). Project knowledge keeps facts only.
+  `docs/KNOWLEDGE_ARCHITECTURE.md` is the map. Adds "Operate as the project lead, not the
+  courier" from the Felix Rieseberg integration, and reads every 5.0 model name in the
+  routing table as its 5.5 successor, after a ten-request replay found stale tier names
+  behind two of ten answers. No other rule in this file changed.
 
 - **2026-10-14 (4.33)** - A BUNDLE MAY CARRY SEVERAL MIGRATIONS. Mr. Pina, 2026-10-14:
   "there might be some stupid rule that you're only allowed to write one migration per
