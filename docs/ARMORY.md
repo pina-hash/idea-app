@@ -755,15 +755,15 @@ ladder of one: a database without it answers 42703, which reads as no machine id
 
 ## Decisions owed
 
-Answered by Mr. Pina on 2026-10-18 except item 4; `docs/decisions/entries/41-armory-file-vault-scope.md` carries his words.
+Answered by Mr. Pina on 2026-10-18, all nine items; `docs/decisions/entries/41-armory-file-vault-scope.md` carries his words.
 
 1. **Name.** IDEA Armory. Shipped.
-2. **Where file contents live.** Cloudflare R2 plus Supabase, shipped. The nightly readable mirror to a Google Shared Drive is wanted and is ledger 0399's to build.
+2. **Where file contents live.** Cloudflare R2 plus Supabase, shipped. The nightly readable mirror to a Google Shared Drive is wanted and is ledger 0402's to build.
 3. **Who can break a lock and release a part.** Breaking a lock: mentors, the CAD lead, instructors (since 0236) and a site admin, from the app or the website (Force check in). Releasing a part: mentors and the CAD lead.
-4. **Part number scheme.** OPEN. He wants numbers that organize the system and are as professional as a high school team can actually run. The add-in assigns them at creation, so the add-in lane waits on this.
+4. **Part number scheme.** Scheme A, `5669-YY-SS-AAPP` with a two-letter subsystem code; COTS parts keep vendor prefix plus the vendor's number in a shared library, hardware is named by spec. The full rule is in decision 41. Ledger 0403 builds the registry; the add-in assigns numbers at creation.
 5. **Document Manager API key.** His to request. The scope works without it.
 6. **IDEA computers.** Closed: he administers the building's computers.
-7. **Mixed SolidWorks versions.** Back-saving 2026 to 2025 is tested and works. A project may also be an ordinary 2026 project: every project is created pinned to 2025 today and nothing on the website can raise it, which ledger 0399 fixes. A pin only goes up, because lowering it would strand files already saved in the newer release.
+7. **Mixed SolidWorks versions.** Back-saving 2026 to 2025 is tested and works. A project may also be an ordinary 2026 project: every project is created pinned to 2025 today and nothing on the website can raise it, which ledger 0402 fixes. A pin only goes up, because lowering it would strand files already saved in the newer release.
 8. **Code signing.** Declined while Armory is internal. The USB zip install avoids the Windows warning.
 9. **Migration credential.** Closed with no action; see `supabase/roles/idea_migrator.sql`.
 
