@@ -11,7 +11,8 @@ owns: src/lib/armory/**, src/routes/armory/**, src/routes/api/armory/**, src/lib
 after:
 needs_go: no
 go: no
-status: queued
+status: running
+started_at: 2026-10-18T22:17:26Z
 queued_at: 2026-10-17T23:57:36-07:00
 ---
 Before doing anything else: `git fetch origin main`, check out `origin/main` on a working branch, and confirm the committer identity is `Claude <noreply@anthropic.com>` (set it if empty). This is a solo session: rebase on `origin/main` and push `HEAD:main` once at the end, with the ledger entry in the same push.
