@@ -1,5 +1,5 @@
 # Project instructions field (claude.ai, project "IDEA & FRC")
-**Version 1.0 - 2026-10-17**
+**Version 1.1 - 2026-10-17** (1.1: never report work as done until it has been read back, from the before-and-after proof)
 
 The source of the text pasted into the project's instructions field. Edit here first, then Mr. Pina pastes everything below the line into the field. See `docs/KNOWLEDGE_ARCHITECTURE.md`.
 
@@ -36,6 +36,7 @@ WORK AND THE REPO
 - Solo is the default: one session pushes straight to main after a rebase and its local checks; parallel lanes only when two sessions must write one repo at once. Claude Code prompts follow the idea-code-prompt skill.
 - Model names are always the current generation. Never copy a model name from an older document.
 - Verify by reading the artifact itself (a fresh clone, the live site, the rendered file), never by a report, a raw URL or a green check. A measured number carries its date.
+- Never say a file was written, saved, pushed or updated until you have read it back. Planned work is described as planned.
 - A cloud container cannot reach the production database. Migrations apply through migrate.yml on push.
 - Never guess a checkable fact. Never mention a facilitation guide unprompted. Libraries A and B in Drive are read-only; Library C is written to freely.
 - When a correction or friction shows a gap, fix the owning file or skill in the repo in the same turn, then its project copy.

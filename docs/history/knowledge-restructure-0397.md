@@ -19,3 +19,5 @@ What changed here:
 - `docs/archive/project-knowledge/`: verbatim copies of three retired project knowledge docs that had no other home here.
 
 For a person to act on: paste `docs/project-instructions.md` (below its rule) into the project's instructions field, save the skill cards, and set the IDEA Design System as the default design system.
+
+Before-and-after proof, 2026-10-17: ten of Mr. Pina's real past requests were replayed with the old setup and the new one and scored by a blind judge. The new setup was preferred 5 times, the old 3, with 2 ties. Look scored 4 against 2 on both visual requests (the old side brought back the // motif, a grid and gold and copper accents). Skill triggering was exact on 18 of 20 test prompts. Three gaps the proof found are fixed in this follow-up: the field now says nothing is reported as done until it is read back (`docs/project-instructions.md` 1.1), `IDEA_context.md` 2.3 says which pacing workbooks exist and that a missing one is asked for, and the idea-design skill says a survey or form is built in the app, never a Google Form.

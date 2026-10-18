@@ -28,6 +28,7 @@ Source of truth: `docs/skills/idea-design/SKILL.md` in pina-hash/idea-app. The d
 
 - **Deck**: the Slides artifact type with the IDEA Design System (or the FRC one). 16:9. Every slide carries one idea. Run the humor pass (deck-humor skill) for student decks.
 - **Document**: the Docs artifact type.
+- **Survey or form**: an HTML item in IDEA Classroom, or a page in frc-app for FRC families and members. Never a Google Form; when someone else has drafted one, offer to rebuild it in the app. Sliders, everything optional, fewest questions that matter (`IDEA_HTML_DESIGN_DIRECTIONS.md` 2.8).
 - **Visual design, flyer, poster, trifold, screens, icon options**: the Design artifact type.
 - **HTML page or HTML assignment**: a hand-built page using the system's tokens and component CSS (`project/components/bundle.css`), plus the idea-course-material skill for assignments.
 - **Print**: space-white, grayscale-safe, nothing under 9 pt.

@@ -1,5 +1,5 @@
 # IDEA Program - Claude Context Document
-**Version 2.2 - 2026-10-17**
+**Version 2.3 - 2026-10-17**
 
 Program-level facts that rarely change: school, pathway, courses, platforms, and
 A-G status. Behavior rules live in the project instructions field and the IDEA skills
@@ -135,6 +135,16 @@ announcements only, if at all.
 
 ---
 
+## Pacing workbooks
+
+- Each unit's master workbook is that unit's pacing authority. Project knowledge holds
+  `IDEA209H_Unit1_Master.xlsx` and `IDEA100_R1_Schedule_v15.xlsx`. Later masters exist
+  outside it: the IDEA209H Unit 2 Master (v3, built 2026-09-01) and any unit after it.
+- Before any unit work, ask for that unit's current master if it is not in project
+  knowledge. Never build a second workbook beside one that exists.
+
+---
+
 ## Materials
 
 Every student-facing item is one self-contained HTML assignment posted as one classroom
@@ -188,6 +198,9 @@ portal raises a number conflict.
 ---
 
 ## Changelog
+
+- **2.3 (2026-10-17)** - Added "Pacing workbooks": which unit masters exist and that a
+  missing one is asked for, never rebuilt. Found by the before-and-after proof (ledger 0397 follow-up).
 
 - **2.2 (2026-10-17)** - Pointers moved to where the rules now live after the knowledge
   restructure (ledger 0397): presentations and visuals to the IDEA Design System and the
