@@ -45,8 +45,8 @@ queued_at: 2026-10-18T09:12:00-07:00
 
 ## The usage guard (Mr. Pina, 2026-10-17)
 
-- Automation starts nothing once his week is at 70% used. The remaining 30% is his.
-- Before that it keeps an even pace: by a given point in the week it may have reached 10% plus 60% times the share of the week gone (about 40% at midweek).
+- Automation starts nothing once his week is at 60% used. The remaining 40% is his.
+- Before that it keeps an even pace: by a given point in the week it may have reached 10% plus 50% times the share of the week gone (about 35% at midweek).
 - It waits while the current five-hour session is at 80% or more.
 - Usage is read from https://claude.ai/settings/usage through his signed-in Chrome, on whichever computer he is using. Every reading is written to the private **Session Dispatcher** artifact (https://claude.ai/artifact/JwGj561ut4CU1pJq1R8zZQ, database doc `usage/latest`, with `read_at`), so a cloud run can use a reading a chat took on any of his machines. A reading older than 3 hours counts as unreadable.
 - When no fresh reading exists, only size S jobs on Sonnet or Opus (at most high effort) start, one at a time, and everything else waits.

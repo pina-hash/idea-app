@@ -12,9 +12,9 @@ status is the caller's job (the idea-dispatch procedure in `docs/dispatch/README
     python3 tools/dispatch.py --selftest                            # the instrument checks itself
 
 The rules (Mr. Pina, 2026-10-17):
-  * Usage reserve: automation starts nothing once the week is at 70% or more, and keeps to an
-    even pace toward that ceiling (allowed = 10 + 60 x the fraction of the week elapsed, never
-    above 70). It waits while the current session is at 80% or more.
+  * Usage reserve: automation starts nothing once the week is at 60% or more, and keeps to an
+    even pace toward that ceiling (allowed = 10 + 50 x the fraction of the week elapsed, never
+    above 60). It waits while the current session is at 80% or more.
   * Fable 5.1 and the xhigh, max and ultracode efforts never start on their own: the entry
     needs `go: yes`, which only Mr. Pina gives, in a chat.
   * Usage unknown (his browser unreachable): only size S on Sonnet or Opus at medium or high,
@@ -34,7 +34,7 @@ import re
 import sys
 
 QUEUE_DIR = "docs/dispatch/queue"
-WEEK_CEILING = 70.0
+WEEK_CEILING = 60.0
 PACE_FLOOR = 10.0
 SESSION_CEILING = 80.0
 MAX_READING_AGE_MIN = 180  # a usage reading older than this counts as unreadable
@@ -290,9 +290,9 @@ def selftest() -> int:
     p = plan(q, ok_usage, reset, now)
     check("after: waits until its dependency is done", not p["start"] and "after run" in p["wait"][0]["reason"], p)
 
-    # 3. reserve: 70% week stops everything; ahead-of-pace stops; session 80% stops
+    # 3. reserve: 60% week stops everything; ahead-of-pace stops; session 80% stops
     q = [_entry(id="a")]
-    check("week at 70% starts nothing", not plan(q, {"session": 5, "week": 70}, reset, now)["start"])
+    check("week at 60% starts nothing", not plan(q, {"session": 5, "week": 60}, reset, now)["start"])
     check("week ahead of even pace starts nothing", not plan(q, {"session": 5, "week": 45}, reset, now)["start"])
     check("week behind pace starts", plan(q, {"session": 5, "week": 30}, reset, now)["start"])
     check("session at 80% starts nothing", not plan(q, {"session": 80, "week": 10}, reset, now)["start"])

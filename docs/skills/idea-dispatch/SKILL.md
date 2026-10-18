@@ -5,7 +5,7 @@ description: Queue a Claude Code session for idea-app, frc-app or fll-app and st
 
 # Queue and dispatch Claude Code sessions
 
-Source of truth: `docs/skills/idea-dispatch/SKILL.md` in pina-hash/idea-app. The queue's format and rules are `docs/dispatch/README.md`; the decision logic is `tools/dispatch.py`. Mr. Pina decided on 2026-10-17 that chats start sessions themselves and never hand him prompts, with a usage reserve of 30% of his week.
+Source of truth: `docs/skills/idea-dispatch/SKILL.md` in pina-hash/idea-app. The queue's format and rules are `docs/dispatch/README.md`; the decision logic is `tools/dispatch.py`. Mr. Pina decided on 2026-10-17 that chats start sessions themselves and never hand him prompts, with a usage reserve of 40% of his week (automation stops at 60%).
 
 ## A. Queue a session (after the idea-code-prompt skill has written the prompt)
 

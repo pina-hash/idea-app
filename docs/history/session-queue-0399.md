@@ -11,7 +11,7 @@ Mr. Pina had been pasting every Claude Code prompt himself and ordering them by 
 What changed here:
 
 - `tools/dispatch.py`: the decision logic, read-only, with `--selftest` (21 checks including negative controls; four mutants each caught).
-- `docs/dispatch/README.md`: the entry format and the usage guard. Automation stops at 70% of his week, keeps an even pace before that, waits while the current session is at 80%, never starts Fable 5.1 or xhigh, max or ultracode without his go, and runs only size S Sonnet or Opus jobs when his usage cannot be read.
+- `docs/dispatch/README.md`: the entry format and the usage guard. Automation stops at 60% of his week (lowered from 70% the same evening), keeps an even pace before that, waits while the current session is at 80%, never starts Fable 5.1 or xhigh, max or ultracode without his go, and runs only size S Sonnet or Opus jobs when his usage cannot be read.
 - `docs/skills/idea-dispatch/SKILL.md`: queue, dispatch, and "what's queued". A session is claimed by a push before it is started, so two dispatchers cannot start it twice.
 - `docs/skills/idea-code-prompt/SKILL.md` section 6: prompts are queued, never handed over, except on request, for his own computer, or for Codex.
 
