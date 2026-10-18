@@ -1,0 +1,29 @@
+# TOURNAMENTS FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+tournament_add_entry_member: {pending: slice 2}
+tournament_add_host: {pending: slice 2}
+tournament_create: {pending: slice 2}
+tournament_delete: {pending: slice 2}
+tournament_generate_qual_pools: {pending: slice 2}
+tournament_host_add_entry: {pending: slice 2}
+tournament_join_entry: {pending: slice 2}
+tournament_live_config_apply: {pending: slice 2}
+tournament_live_config_preview: {pending: slice 2}
+tournament_ping_entry: {pending: slice 2}
+tournament_register_entry: {pending: slice 2}
+tournament_remove_entry: {pending: slice 2}
+tournament_remove_entry_member: {pending: slice 2}
+tournament_rename_entry_member: {pending: slice 2}
+tournament_reorder_seed: {pending: slice 2}
+tournament_respond_invite: {pending: slice 2}
+tournament_reward_settlement: {pending: slice 2}
+tournament_send_invite: {pending: slice 2}
+tournament_set_entry_style: {pending: slice 2}
+tournament_set_reward_rules: {pending: slice 2}
+tournament_set_status: {pending: slice 2}
+tournament_shuffle_seeds: {pending: slice 2}
+tournament_start_match: {pending: slice 2}
+tournament_submit_qual_result: {pending: slice 2}
+tournament_update: {pending: slice 2}
+tournament_update_entry: {pending: slice 2}

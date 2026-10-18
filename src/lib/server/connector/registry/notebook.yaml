@@ -1,0 +1,36 @@
+# NOTEBOOK FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+notebook_accept_entry: {pending: slice 2}
+notebook_add_note: {pending: slice 2}
+notebook_add_photo: {pending: slice 2}
+notebook_add_session_postings: {pending: slice 2}
+notebook_admin_delete_session: {pending: slice 2}
+notebook_admin_override_entry: {pending: slice 2}
+notebook_admin_set_excusal: {pending: slice 2}
+notebook_admin_upsert_session: {pending: slice 2}
+notebook_create_entry: {pending: slice 2}
+notebook_create_item_check_in: {pending: slice 2}
+notebook_create_note_entry: {pending: slice 2}
+notebook_delete_folder: {pending: slice 2}
+notebook_edit_note: {pending: slice 2}
+notebook_flag_entry: {pending: slice 2}
+notebook_get_section_grid: {pending: slice 2}
+notebook_link_session_item: {pending: slice 2}
+notebook_link_unit_item: {pending: slice 2}
+notebook_move_entries: {pending: slice 2}
+notebook_remove_session_posting: {pending: slice 2}
+notebook_resolve_entry: {pending: slice 2}
+notebook_review_student_notebook: {pending: slice 2}
+notebook_reviewed_sections: {pending: slice 2}
+notebook_seal_notes: {pending: slice 2}
+notebook_set_session_guidance: {pending: slice 2}
+notebook_staff_delete_entry: {pending: slice 2}
+notebook_staff_delete_note: {pending: slice 2}
+notebook_staff_restore_entry: {pending: slice 2}
+notebook_staff_restore_note: {pending: slice 2}
+notebook_unaccept_entry: {pending: slice 2}
+notebook_unlink_session_item: {pending: slice 2}
+notebook_unlink_unit_item: {pending: slice 2}
+notebook_upsert_folder: {pending: slice 2}
+notebook_view_as_notebook: {pending: slice 2}

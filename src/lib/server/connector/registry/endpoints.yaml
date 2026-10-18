@@ -1,0 +1,113 @@
+# SERVER ENDPOINTS, keyed by route (every method of it). Ledger 0401 decides which are real
+# functions reachable through site_call (in-process with the minted session) and which are
+# excluded with a reason. The connector's own routes are excluded here: they are how it signs in.
+
+"/.well-known/oauth-authorization-server": {exclude: "The connector's own sign-in or transport, never a tool."}
+"/.well-known/oauth-protected-resource": {exclude: "The connector's own sign-in or transport, never a tool."}
+"/.well-known/oauth-protected-resource/mcp": {exclude: "The connector's own sign-in or transport, never a tool."}
+"/_platform/[...asset]": {pending: slice 2}
+"/a/[appId]/[...path]": {pending: slice 2}
+"/admin/drive-connect": {pending: slice 2}
+"/admin/drive-connect/callback": {pending: slice 2}
+"/api/armory/blob-url": {pending: slice 2}
+"/api/armory/connect/exchange": {pending: slice 2}
+"/api/armory/connect/start": {pending: slice 2}
+"/api/armory/purge": {pending: slice 2}
+"/api/armory/sweep": {pending: slice 2}
+"/api/avatar/[...path]": {pending: slice 2}
+"/api/certifications/award": {pending: slice 2}
+"/api/certifications/correct": {pending: slice 2}
+"/api/certifications/evidence/[...path]": {pending: slice 2}
+"/api/certifications/evidence/sign": {pending: slice 2}
+"/api/certifications/export": {pending: slice 2}
+"/api/certifications/jobs/[job]": {pending: slice 2}
+"/api/certifications/package/export/[id]": {pending: slice 2}
+"/api/certifications/package/import": {pending: slice 2}
+"/api/classroom/attachment": {pending: slice 2}
+"/api/classroom/attachment/[attachment_id]": {pending: slice 2}
+"/api/classroom/attachment/sign": {pending: slice 2}
+"/api/classroom/deck": {pending: slice 2}
+"/api/classroom/deck/[deck_id]/[...path]": {pending: slice 2}
+"/api/classroom/delete-content": {pending: slice 2}
+"/api/classroom/export": {pending: slice 2}
+"/api/classroom/html-assignment-source/[itemId]": {pending: slice 2}
+"/api/classroom/instructor-attachment": {pending: slice 2}
+"/api/classroom/instructor-attachment/[attachment_id]": {pending: slice 2}
+"/api/classroom/instructor-attachment/sign": {pending: slice 2}
+"/api/classroom/item": {pending: slice 2}
+"/api/classroom/link-preview": {pending: slice 2}
+"/api/classroom/quick-post-file": {pending: slice 2}
+"/api/classroom/quick-post-file/[file_id]": {pending: slice 2}
+"/api/classroom/quick-post-file/sign": {pending: slice 2}
+"/api/classroom/submission-file": {pending: slice 2}
+"/api/classroom/submission-file/[file_id]": {pending: slice 2}
+"/api/classroom/submission-file/sign": {pending: slice 2}
+"/api/classroom/thumbnail": {pending: slice 2}
+"/api/classroom/thumbnail/[itemId]": {pending: slice 2}
+"/api/classroom/thumbnail/sign": {pending: slice 2}
+"/api/coin/autopay": {pending: slice 2}
+"/api/coin/claim": {pending: slice 2}
+"/api/coin/digest-push": {pending: slice 2}
+"/api/coin/me": {pending: slice 2}
+"/api/coin/public": {pending: slice 2}
+"/api/coin/role-apply": {pending: slice 2}
+"/api/coin/signin": {pending: slice 2}
+"/api/feedback": {pending: slice 2}
+"/api/foundry-cover/[...path]": {pending: slice 2}
+"/api/foundry/delete": {pending: slice 2}
+"/api/foundry/source": {pending: slice 2}
+"/api/greenline-track-publish": {pending: slice 2}
+"/api/notebook/add-note": {pending: slice 2}
+"/api/notebook/add-photo": {pending: slice 2}
+"/api/notebook/edit-note": {pending: slice 2}
+"/api/notebook/note": {pending: slice 2}
+"/api/notebook/photo/[photo_id]": {pending: slice 2}
+"/api/notebook/session-guidance": {pending: slice 2}
+"/api/notebook/upload": {pending: slice 2}
+"/api/tournament-push": {pending: slice 2}
+"/api/vanguard-feedback": {pending: slice 2}
+"/api/vanguard-run-state": {pending: slice 2}
+"/api/vanguard-run": {pending: slice 2}
+"/api/vanguard-save": {pending: slice 2}
+"/armory/[project]/file/[file]/version/[version]": {pending: slice 2}
+"/armory/download/[file]": {pending: slice 2}
+"/armory/get": {pending: slice 2}
+"/assignments/[slug]": {pending: slice 2}
+"/auth/callback": {pending: slice 2}
+"/b/[appId]/[versionId]/[...path]": {pending: slice 2}
+"/certifications/lesson/[lessonId]": {pending: slice 2}
+"/certifications/verify/public-key": {pending: slice 2}
+"/classroom/[sectionId]/duplicates/remove": {pending: slice 2}
+"/coins/[...path]": {pending: slice 2}
+"/connector/register": {exclude: "The connector's own sign-in or transport, never a tool."}
+"/connector/revoke": {exclude: "The connector's own sign-in or transport, never a tool."}
+"/connector/token": {exclude: "The connector's own sign-in or transport, never a tool."}
+"/dev/ai-level-badge-reference": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/cert-certification/lesson/[lessonId]": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/classroom-deck/f/[deck_id]/[...path]": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/classroom-deck/fixture": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/classroom-deck/ingest": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/classroom/normalize": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/coins": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/coins/api/claim": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/coins/api/me": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/coins/api/public": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/coins/api/role-apply": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/deploy-safety/slide": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/deploy-safety/upload": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/feedback/assignment": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/foundry-admin/refusal": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/foundry-mosaic/cover/[shape]": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/frc-quiz": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/html-instructor/copy/doc": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/maps-media/o/[...path]": {exclude: "A dev harness route; it answers 404 in production."}
+"/dev/notebook/normalize": {exclude: "A dev harness route; it answers 404 in production."}
+"/foundry/download/[appId]/[versionId]": {pending: slice 2}
+"/foundry/preview/[appId]/[versionId]/[...path]": {pending: slice 2}
+"/foundry/starter": {pending: slice 2}
+"/frc/[domain]/[unit]/quiz": {pending: slice 2}
+"/hx/[docId]": {pending: slice 2}
+"/hx/[docId]/thumbnail": {pending: slice 2}
+"/mcp": {exclude: "The connector's own sign-in or transport, never a tool."}
+"/sitemap.xml": {pending: slice 2}
+"/vanguard": {pending: slice 2}

@@ -1,0 +1,82 @@
+# IDEA COIN FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+coin_log_transaction:
+  surface: call
+  level: undo
+  describe: Log one coin record for a student under a category, with a note; the award coins tool and the fine coins tool are the usual way in.
+  say: ["log a coin record for Mateo", "record a Correct Answer award", "log a shop safety fine"]
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+coin_reverse_transaction:
+  surface: call
+  level: confirm
+  describe: Reverse one coin record with a reversal record beside it, exactly as Undo does on the Coin Desk; it asks first.
+  say: ["reverse Mateo's last fine", "cancel that coin record", "undo the award from this morning"]
+  args:
+    p_transaction_id: {name: record, describe: "The coin record's id, from the student's recent records."}
+    p_note: {name: reason, describe: "Why it is being reversed."}
+
+coin_admin_lookup:
+  surface: call
+  level: read
+  describe: A student's coin balance, wage tier, eating pass and most recent coin records.
+  say: ["how many coins does Mateo have", "look up Leo's coins", "show Ana's coin history"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+
+coin_settings_get:
+  surface: call
+  level: read
+  describe: The coin economy's settings, such as each fine's amount and the payday rules.
+  say: ["what's the fine for a phone", "how much is a shop safety fine", "what are the coin settings"]
+
+coin_fine_sections:
+  surface: call
+  level: read
+  describe: The classes you can log fines in from the fine screen.
+  say: ["which classes can I fine in", "list my fine classes", "where can I log fines"]
+
+coin_staff_scope:
+  surface: call
+  level: read
+  describe: Which coin powers you hold and which classes they cover.
+  say: ["what coin powers do I have", "am I a full coin admin", "which classes are in my coin scope"]
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+coin_admin_adjust_balance: {pending: slice 2}
+coin_admin_create_category: {pending: slice 2}
+coin_admin_set_category_active: {pending: slice 2}
+coin_auditor_queue: {pending: slice 2}
+coin_autopay_run: {pending: slice 2}
+coin_bulk_log_students: {pending: slice 2}
+coin_contract_self_claim: {pending: slice 2}
+coin_digest_push_due: {pending: slice 2}
+coin_donation_items_list: {pending: slice 2}
+coin_export: {pending: slice 2}
+coin_fine_log: {pending: slice 2}
+coin_fine_roster: {pending: slice 2}
+coin_log_extra_credit: {pending: slice 2}
+coin_log_pay_raise: {pending: slice 2}
+coin_log_perfect_score: {pending: slice 2}
+coin_log_property_damage_careless: {pending: slice 2}
+coin_log_three_d_printing: {pending: slice 2}
+coin_me: {pending: slice 2}
+coin_my_contract_claims: {pending: slice 2}
+coin_my_contracts: {pending: slice 2}
+coin_my_page: {pending: slice 2}
+coin_my_role: {pending: slice 2}
+coin_my_stats: {pending: slice 2}
+coin_no_shop_today: {pending: slice 2}
+coin_public_contracts: {pending: slice 2}
+coin_public_leaderboard: {pending: slice 2}
+coin_public_reasons: {pending: slice 2}
+coin_public_reported_coins: {pending: slice 2}
+coin_public_role_badges: {pending: slice 2}
+coin_public_role_questions: {pending: slice 2}
+coin_public_roles: {pending: slice 2}
+coin_public_student: {pending: slice 2}
+coin_public_transactions: {pending: slice 2}
+coin_role_self_apply: {pending: slice 2}
+coin_section_role_badges: {pending: slice 2}

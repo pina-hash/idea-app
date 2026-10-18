@@ -1,0 +1,27 @@
+# GAUNTLET FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+gauntlet_author_delete: {pending: slice 2}
+gauntlet_author_get: {pending: slice 2}
+gauntlet_author_set_status: {pending: slice 2}
+gauntlet_author_upsert: {pending: slice 2}
+gauntlet_can_author: {pending: slice 2}
+gauntlet_class_run_stats: {pending: slice 2}
+gauntlet_knowledge_start: {pending: slice 2}
+gauntlet_leaderboards: {pending: slice 2}
+gauntlet_progression: {pending: slice 2}
+gauntlet_rank_settings_get: {pending: slice 2}
+gauntlet_rank_settings_set: {pending: slice 2}
+gauntlet_room_create: {pending: slice 2}
+gauntlet_room_delete: {pending: slice 2}
+gauntlet_room_join: {pending: slice 2}
+gauntlet_room_manual_submit: {pending: slice 2}
+gauntlet_room_reveal: {pending: slice 2}
+gauntlet_room_set_challenge: {pending: slice 2}
+gauntlet_room_set_state: {pending: slice 2}
+gauntlet_room_start: {pending: slice 2}
+gauntlet_run_review: {pending: slice 2}
+gauntlet_run_targets: {pending: slice 2}
+gauntlet_series_assign: {pending: slice 2}
+gauntlet_speedrun_reveal: {pending: slice 2}
+gauntlet_submit: {pending: slice 2}

@@ -138,7 +138,10 @@ const CHAIN = [
 	'0260_cert_engine.sql',
 	// 0269 (ledger 0396) reserves `feedback`, the top-level directory of the
 	// feedback window's own page at /feedback/embed.
-	'0269_short_link_reserve_feedback.sql'
+	'0269_short_link_reserve_feedback.sql',
+	// 0271 (ledger 0400) reserves `connector` and `mcp`, the IDEA Website
+	// connector's sign-in pages and its MCP endpoint.
+	'0271_short_link_reserve_connector.sql'
 ] as const;
 
 let db: TestDb;

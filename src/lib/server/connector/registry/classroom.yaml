@@ -1,0 +1,312 @@
+# IDEA CLASSROOM FUNCTIONS. One entry per database function the site calls.
+#
+#   surface: call     reached through site_call (site_find_tool lists it)
+#   surface: tool     its own MCP tool (none in this file: the classroom's voice
+#                     tools are the facades in tools.yaml, which write through
+#                     the entries below and take each one's level and undo)
+#   level:            read | undo (runs, logged, reversible) | confirm (asks first)
+#   undo:             the reverse, as a list of alternatives; the first whose
+#                     `when` holds and whose arguments all resolve is used.
+#                     Templates: $args.<name>, $result.<path>, $before.<path>,
+#                     $written.<table>.<column>, and a leading ! negates.
+#   pending: slice 2  not reachable yet; ledger 0401 gives it an entry
+#   exclude: <reason> never reachable, and why
+
+classroom_section_roster:
+  surface: call
+  level: read
+  describe: List the students on a class roster, with whether each is still enrolled.
+  say: ["who's in 209H Block 2", "list the roster for Block 1", "show me everyone in IDEA100"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class, like 209H Block 2."}
+
+classroom_create_item:
+  surface: call
+  level: undo
+  describe: Create a post in one or more classes; the create post tool is the usual way in.
+  say: ["create an assignment in Block 2", "post a material to IDEA100", "add an announcement to Block 4"]
+  undo:
+    - function: classroom_delete_item
+      args: {p_id: $result.item_id}
+
+classroom_update_item:
+  surface: call
+  level: undo
+  describe: Edit a post's title, text, points, due date or category; the set points tool and the set due tool are the usual way in.
+  say: ["rename Tolerance Check", "change the text of the syllabus post", "edit the Shop Fix's category"]
+  undo:
+    - function: classroom_restore_revision
+      args: {p_revision_id: $written.classroom_content_revisions.id}
+
+classroom_delete_item:
+  surface: call
+  level: confirm
+  describe: Delete a post from every class it is in, with its files; it asks first.
+  say: ["delete the duplicate Tolerance Check post", "remove the old syllabus", "get rid of that test post"]
+  args:
+    p_id: {name: post, resolve: post, describe: "The post to delete."}
+
+classroom_set_published:
+  surface: call
+  level: undo
+  describe: Show a post to students or hide it as a draft.
+  say: ["publish Tolerance Check", "unpublish the Shop Fix", "hide the reflection"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_published: {name: published, describe: "True to show it, false to hide it."}
+  undo:
+    - function: classroom_set_published
+      args: {p_item_id: $args.p_item_id, p_published: "!$args.p_published"}
+
+classroom_set_item_pinned:
+  surface: call
+  level: undo
+  describe: Pin a post to the top of its classes, or unpin it.
+  say: ["pin the syllabus post in Block 4", "unpin the safety notice", "keep the rubric post at the top"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_pinned: {name: pinned, describe: "True to pin it, false to unpin it."}
+  undo:
+    - function: classroom_set_item_pinned
+      args: {p_item_id: $args.p_item_id, p_pinned: "!$args.p_pinned"}
+
+classroom_set_rubric:
+  surface: call
+  level: undo
+  describe: Set or clear an assignment's grading rubric; the set rubric tool is the usual way in.
+  say: ["set the rubric on Tolerance Check", "clear the rubric on the Shop Fix", "replace the DFM rubric"]
+  undo:
+    - function: classroom_restore_revision
+      args: {p_revision_id: $written.classroom_content_revisions.id}
+    - function: classroom_set_rubric
+      args: {p_item_id: $args.p_item_id, p_criteria: null}
+
+classroom_set_html_assignment:
+  surface: call
+  level: undo
+  describe: Store an HTML assignment's document; the replace html assignment tool is the way in, because it checks students' answers first.
+  say: ["upload the Shop Fix HTML", "replace the DFM worksheet document", "attach this HTML file to the assignment"]
+  undo:
+    - function: classroom_restore_revision
+      args: {p_revision_id: $written.classroom_content_revisions.id}
+    - function: classroom_set_html_assignment
+      args: {p_item_id: $args.p_item_id, p_document: null, p_manifest: null, p_filename: null}
+
+classroom_item_revisions:
+  surface: call
+  level: read
+  describe: List the earlier versions of a post, its rubric and its document, newest first.
+  say: ["what versions of Tolerance Check are there", "show the Shop Fix's history", "list the rubric's old versions"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+
+classroom_restore_revision:
+  surface: call
+  level: undo
+  describe: Put a post, its rubric or its document back the way an earlier version had it.
+  say: ["restore the previous version of Tolerance Check", "put the old rubric back", "roll the Shop Fix back to yesterday's version"]
+  args:
+    p_revision_id: {name: version, describe: "The version's id, from the list of earlier versions."}
+  undo:
+    - function: classroom_restore_revision
+      args: {p_revision_id: $written.classroom_content_revisions.id}
+
+classroom_grade_direct:
+  surface: call
+  level: undo
+  describe: Record a score out of the assignment's total for one student; the grade tool is the usual way in.
+  say: ["grade Mateo 18 out of 20", "score Leo's Shop Fix", "record Ana's grade"]
+  undo:
+    - when: $before.graded
+      function: classroom_grade_direct
+      args:
+        p_item_id: $args.p_item_id
+        p_student_email: $args.p_student_email
+        p_score: $before.score
+        p_comment: $before.comment
+        p_return: $before.returned
+        p_extra_credit: $before.extra_credit
+    - function: classroom_revoke_grade
+      args: {p_item_id: $args.p_item_id, p_student_email: $args.p_student_email}
+
+classroom_revoke_grade:
+  surface: call
+  level: undo
+  describe: Take a grade off a student's work entirely, keeping a copy that can be put back.
+  say: ["revoke Mateo's grade on the Shop Fix", "take Leo's score off Tolerance Check", "clear Ana's grade"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+  undo:
+    - function: classroom_restore_grade
+      args: {p_item_id: $args.p_item_id, p_student_email: $args.p_student_email}
+
+classroom_restore_grade:
+  surface: call
+  level: undo
+  describe: Put back a grade that was revoked, exactly as it was.
+  say: ["put Mateo's grade back", "restore Leo's score on Tolerance Check", "undo revoking Ana's grade"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+  undo:
+    - function: classroom_revoke_grade
+      args: {p_item_id: $args.p_item_id, p_student_email: $args.p_student_email}
+
+classroom_feedback_post:
+  surface: call
+  level: undo
+  describe: Leave a note on a student's work in progress; the send feedback tool is the usual way in.
+  say: ["leave Mateo a note", "send Leo feedback on the Shop Fix", "comment on Ana's worksheet"]
+  undo:
+    - function: classroom_feedback_remove
+      args: {p_thread_id: $result.thread.id}
+
+classroom_feedback_remove:
+  surface: call
+  level: confirm
+  describe: Remove a feedback note, or one message in it; it asks first.
+  say: ["delete that feedback", "remove my note to Mateo", "take down the comment on Leo's work"]
+  args:
+    p_thread_id: {name: note, describe: "The note's id, from the feedback list."}
+    p_message_id: {name: message, describe: "One message in the note, to remove only that message."}
+
+classroom_feedback_list:
+  surface: call
+  level: read
+  describe: List the feedback notes on an assignment, a student or a class, with every reply.
+  say: ["what feedback have I left on the Shop Fix", "show my notes to Mateo", "which notes are waiting on students"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "Only notes on this assignment."}
+    p_student_email: {name: student, resolve: student, describe: "Only notes to this student."}
+    p_section_id: {name: class, resolve: class, describe: "Only notes in this class."}
+
+classroom_quick_post_create:
+  surface: call
+  level: undo
+  describe: Put a short notice at the top of one or more class pages until a time you choose; the create post tool with kind notice is the usual way in.
+  say: ["put up a notice in Block 1", "post a notice to every 209H class", "notice until 3pm, shop closed"]
+  undo:
+    - function: classroom_quick_post_take_down
+      args: {p_post_id: $result.id}
+
+classroom_quick_post_take_down:
+  surface: call
+  level: confirm
+  describe: Take a notice down before its time; it asks first.
+  say: ["take down the shop closed notice", "remove the notice in Block 1", "end that notice now"]
+  args:
+    p_post_id: {name: notice, describe: "The notice's id, from the list of notices."}
+
+classroom_quick_posts:
+  surface: call
+  level: read
+  describe: List the notices up in a class right now.
+  say: ["what notices are up in Block 1", "show the notices in 209H", "is the safety notice still up"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+
+classroom_student_overview:
+  surface: call
+  level: read
+  describe: One student's page in one class, with their work, grades, notebook and activity.
+  say: ["how is Mateo doing in Block 2", "show me Leo's overview", "what's missing for Ana in IDEA100"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+classroom_add_attachment: {pending: slice 2}
+classroom_add_instructor_attachment: {pending: slice 2}
+classroom_add_postings: {pending: slice 2}
+classroom_add_submission_file: {pending: slice 2}
+classroom_approve_module: {pending: slice 2}
+classroom_archive_team_set: {pending: slice 2}
+classroom_close_assignment: {pending: slice 2}
+classroom_course_categories: {pending: slice 2}
+classroom_deck_ingest_abandon: {pending: slice 2}
+classroom_deck_ingest_begin: {pending: slice 2}
+classroom_deck_ingest_claim_stage: {pending: slice 2}
+classroom_deck_ingest_finish: {pending: slice 2}
+classroom_deck_ingest_record: {pending: slice 2}
+classroom_deck_upload_cancel: {pending: slice 2}
+classroom_deck_upload_claim: {pending: slice 2}
+classroom_deck_upload_start: {pending: slice 2}
+classroom_delete_attachment: {pending: slice 2}
+classroom_delete_deck: {pending: slice 2}
+classroom_delete_instructor_attachment: {pending: slice 2}
+classroom_delete_section: {pending: slice 2}
+classroom_delete_submission_file: {pending: slice 2}
+classroom_delete_unit: {pending: slice 2}
+classroom_designate_instructor_key: {pending: slice 2}
+classroom_duplicate_drafts: {pending: slice 2}
+classroom_duplicate_item: {pending: slice 2}
+classroom_feedback_reply: {pending: slice 2}
+classroom_feedback_seen: {pending: slice 2}
+classroom_feedback_set_state: {pending: slice 2}
+classroom_feedback_update: {pending: slice 2}
+classroom_grade_revocation: {pending: slice 2}
+classroom_grade_submission: {pending: slice 2}
+classroom_grade_submissions: {pending: slice 2}
+classroom_hall_pass_close_by_id: {pending: slice 2}
+classroom_hall_pass_events: {pending: slice 2}
+classroom_hall_pass_open_for: {pending: slice 2}
+classroom_hall_pass_set_limits: {pending: slice 2}
+classroom_hall_pass_state: {pending: slice 2}
+classroom_import_roster: {pending: slice 2}
+classroom_manages_section: {pending: slice 2}
+classroom_mark_item_viewed: {pending: slice 2}
+classroom_move_team_member: {pending: slice 2}
+classroom_open_submission: {pending: slice 2}
+classroom_post_team_set: {pending: slice 2}
+classroom_posting_perfect_scores: {pending: slice 2}
+classroom_presence_ping: {pending: slice 2}
+classroom_presence_state: {pending: slice 2}
+classroom_public_attachment: {pending: slice 2}
+classroom_public_reference: {pending: slice 2}
+classroom_quick_post_add_file: {pending: slice 2}
+classroom_quick_post_file: {pending: slice 2}
+classroom_record_export: {pending: slice 2}
+classroom_remove_enrollment: {pending: slice 2}
+classroom_remove_posting: {pending: slice 2}
+classroom_rename_attachment: {pending: slice 2}
+classroom_rename_instructor_attachment: {pending: slice 2}
+classroom_save_instructor_response: {pending: slice 2}
+classroom_save_response: {pending: slice 2}
+classroom_save_team_set: {pending: slice 2}
+classroom_set_assignment_spec: {pending: slice 2}
+classroom_set_attachment_order: {pending: slice 2}
+classroom_set_enrollment: {pending: slice 2}
+classroom_set_instructor_attachment_order: {pending: slice 2}
+classroom_set_instructor_resources: {pending: slice 2}
+classroom_set_item_layout: {pending: slice 2}
+classroom_set_item_order: {pending: slice 2}
+classroom_set_item_public: {pending: slice 2}
+classroom_set_item_thumbnail: {pending: slice 2}
+classroom_set_item_thumbnail_focus: {pending: slice 2}
+classroom_set_item_unit: {pending: slice 2}
+classroom_set_posting_perfect_score: {pending: slice 2}
+classroom_set_reference_spec: {pending: slice 2}
+classroom_set_section_active: {pending: slice 2}
+classroom_set_section_thumbnail_shape: {pending: slice 2}
+classroom_set_submission_file_caption: {pending: slice 2}
+classroom_set_team_style: {pending: slice 2}
+classroom_set_unit_order: {pending: slice 2}
+classroom_song_approve: {pending: slice 2}
+classroom_song_queue: {pending: slice 2}
+classroom_song_reject: {pending: slice 2}
+classroom_song_request: {pending: slice 2}
+classroom_submit_assignment: {pending: slice 2}
+classroom_team_board: {pending: slice 2}
+classroom_undesignate_instructor_key: {pending: slice 2}
+classroom_unpost_team_set: {pending: slice 2}
+classroom_unsubmit_assignment: {pending: slice 2}
+classroom_update_enrollment: {pending: slice 2}
+classroom_upsert_course: {pending: slice 2}
+classroom_upsert_section: {pending: slice 2}
+classroom_upsert_unit: {pending: slice 2}
+classroom_view_as_students: {pending: slice 2}
+classroom_worksheet_latch: {pending: slice 2}
+classroom_worksheet_latch_for: {pending: slice 2}
+classroom_worksheet_latched: {pending: slice 2}
+classroom_worksheet_past_manifests: {pending: slice 2}

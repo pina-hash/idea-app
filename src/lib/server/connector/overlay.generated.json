@@ -1,0 +1,3137 @@
+{
+	"functions": {
+		"armory_app_feedback_admin_list": {
+			"pending": "slice 2"
+		},
+		"armory_app_feedback_set_status": {
+			"pending": "slice 2"
+		},
+		"armory_app_incident_set_status": {
+			"pending": "slice 2"
+		},
+		"armory_app_incidents_admin_list": {
+			"pending": "slice 2"
+		},
+		"armory_break_lock": {
+			"pending": "slice 2"
+		},
+		"armory_break_locks": {
+			"pending": "slice 2"
+		},
+		"armory_can_take_back": {
+			"pending": "slice 2"
+		},
+		"armory_create_project": {
+			"pending": "slice 2"
+		},
+		"armory_file_history": {
+			"pending": "slice 2"
+		},
+		"armory_is_member": {
+			"pending": "slice 2"
+		},
+		"armory_list_changes": {
+			"pending": "slice 2"
+		},
+		"armory_my_projects": {
+			"pending": "slice 2"
+		},
+		"armory_orphans_count": {
+			"pending": "slice 2"
+		},
+		"armory_orphans_pending": {
+			"pending": "slice 2"
+		},
+		"armory_orphans_swept": {
+			"pending": "slice 2"
+		},
+		"armory_people_search": {
+			"pending": "slice 2"
+		},
+		"armory_project_checkouts": {
+			"pending": "slice 2"
+		},
+		"armory_project_files": {
+			"pending": "slice 2"
+		},
+		"armory_project_summaries": {
+			"pending": "slice 2"
+		},
+		"armory_purge_preview": {
+			"pending": "slice 2"
+		},
+		"armory_purge_project": {
+			"pending": "slice 2"
+		},
+		"armory_register_device": {
+			"pending": "slice 2"
+		},
+		"armory_team_status": {
+			"pending": "slice 2"
+		},
+		"cert_admin_get": {
+			"pending": "slice 2"
+		},
+		"cert_admin_list": {
+			"pending": "slice 2"
+		},
+		"cert_admin_save": {
+			"pending": "slice 2"
+		},
+		"cert_award_commit": {
+			"pending": "slice 2"
+		},
+		"cert_award_correct": {
+			"pending": "slice 2"
+		},
+		"cert_award_get": {
+			"pending": "slice 2"
+		},
+		"cert_award_prepare": {
+			"pending": "slice 2"
+		},
+		"cert_error_log": {
+			"pending": "slice 2"
+		},
+		"cert_exam_live": {
+			"pending": "slice 2"
+		},
+		"cert_exam_pool_get": {
+			"pending": "slice 2"
+		},
+		"cert_exam_pool_replace": {
+			"pending": "slice 2"
+		},
+		"cert_expiry_reminders": {
+			"pending": "slice 2"
+		},
+		"cert_export": {
+			"pending": "slice 2"
+		},
+		"cert_get": {
+			"pending": "slice 2"
+		},
+		"cert_is_certifier": {
+			"pending": "slice 2"
+		},
+		"cert_lesson_document": {
+			"pending": "slice 2"
+		},
+		"cert_lesson_save": {
+			"pending": "slice 2"
+		},
+		"cert_me": {
+			"pending": "slice 2"
+		},
+		"cert_mirror_snapshot": {
+			"pending": "slice 2"
+		},
+		"cert_notifications_mark_sent": {
+			"pending": "slice 2"
+		},
+		"cert_notifications_unread": {
+			"pending": "slice 2"
+		},
+		"cert_notifications_unsent": {
+			"pending": "slice 2"
+		},
+		"cert_sweep_dormant": {
+			"pending": "slice 2"
+		},
+		"cert_sync_log_write": {
+			"pending": "slice 2"
+		},
+		"cert_verify": {
+			"pending": "slice 2"
+		},
+		"classroom_section_roster": {
+			"surface": "call",
+			"level": "read",
+			"describe": "List the students on a class roster, with whether each is still enrolled.",
+			"say": [
+				"who's in 209H Block 2",
+				"list the roster for Block 1",
+				"show me everyone in IDEA100"
+			],
+			"args": {
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"describe": "The class, like 209H Block 2."
+				}
+			}
+		},
+		"classroom_create_item": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Create a post in one or more classes; the create post tool is the usual way in.",
+			"say": [
+				"create an assignment in Block 2",
+				"post a material to IDEA100",
+				"add an announcement to Block 4"
+			],
+			"undo": [
+				{
+					"function": "classroom_delete_item",
+					"args": {
+						"p_id": "$result.item_id"
+					}
+				}
+			]
+		},
+		"classroom_update_item": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Edit a post's title, text, points, due date or category; the set points tool and the set due tool are the usual way in.",
+			"say": [
+				"rename Tolerance Check",
+				"change the text of the syllabus post",
+				"edit the Shop Fix's category"
+			],
+			"undo": [
+				{
+					"function": "classroom_restore_revision",
+					"args": {
+						"p_revision_id": "$written.classroom_content_revisions.id"
+					}
+				}
+			]
+		},
+		"classroom_delete_item": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Delete a post from every class it is in, with its files; it asks first.",
+			"say": [
+				"delete the duplicate Tolerance Check post",
+				"remove the old syllabus",
+				"get rid of that test post"
+			],
+			"args": {
+				"p_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The post to delete."
+				}
+			}
+		},
+		"classroom_set_published": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Show a post to students or hide it as a draft.",
+			"say": [
+				"publish Tolerance Check",
+				"unpublish the Shop Fix",
+				"hide the reflection"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The post."
+				},
+				"p_published": {
+					"name": "published",
+					"describe": "True to show it, false to hide it."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_set_published",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_published": "!$args.p_published"
+					}
+				}
+			]
+		},
+		"classroom_set_item_pinned": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Pin a post to the top of its classes, or unpin it.",
+			"say": [
+				"pin the syllabus post in Block 4",
+				"unpin the safety notice",
+				"keep the rubric post at the top"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The post."
+				},
+				"p_pinned": {
+					"name": "pinned",
+					"describe": "True to pin it, false to unpin it."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_set_item_pinned",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_pinned": "!$args.p_pinned"
+					}
+				}
+			]
+		},
+		"classroom_set_rubric": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Set or clear an assignment's grading rubric; the set rubric tool is the usual way in.",
+			"say": [
+				"set the rubric on Tolerance Check",
+				"clear the rubric on the Shop Fix",
+				"replace the DFM rubric"
+			],
+			"undo": [
+				{
+					"function": "classroom_restore_revision",
+					"args": {
+						"p_revision_id": "$written.classroom_content_revisions.id"
+					}
+				},
+				{
+					"function": "classroom_set_rubric",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_criteria": null
+					}
+				}
+			]
+		},
+		"classroom_set_html_assignment": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Store an HTML assignment's document; the replace html assignment tool is the way in, because it checks students' answers first.",
+			"say": [
+				"upload the Shop Fix HTML",
+				"replace the DFM worksheet document",
+				"attach this HTML file to the assignment"
+			],
+			"undo": [
+				{
+					"function": "classroom_restore_revision",
+					"args": {
+						"p_revision_id": "$written.classroom_content_revisions.id"
+					}
+				},
+				{
+					"function": "classroom_set_html_assignment",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_document": null,
+						"p_manifest": null,
+						"p_filename": null
+					}
+				}
+			]
+		},
+		"classroom_item_revisions": {
+			"surface": "call",
+			"level": "read",
+			"describe": "List the earlier versions of a post, its rubric and its document, newest first.",
+			"say": [
+				"what versions of Tolerance Check are there",
+				"show the Shop Fix's history",
+				"list the rubric's old versions"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The post."
+				}
+			}
+		},
+		"classroom_restore_revision": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Put a post, its rubric or its document back the way an earlier version had it.",
+			"say": [
+				"restore the previous version of Tolerance Check",
+				"put the old rubric back",
+				"roll the Shop Fix back to yesterday's version"
+			],
+			"args": {
+				"p_revision_id": {
+					"name": "version",
+					"describe": "The version's id, from the list of earlier versions."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_restore_revision",
+					"args": {
+						"p_revision_id": "$written.classroom_content_revisions.id"
+					}
+				}
+			]
+		},
+		"classroom_grade_direct": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Record a score out of the assignment's total for one student; the grade tool is the usual way in.",
+			"say": [
+				"grade Mateo 18 out of 20",
+				"score Leo's Shop Fix",
+				"record Ana's grade"
+			],
+			"undo": [
+				{
+					"when": "$before.graded",
+					"function": "classroom_grade_direct",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_student_email": "$args.p_student_email",
+						"p_score": "$before.score",
+						"p_comment": "$before.comment",
+						"p_return": "$before.returned",
+						"p_extra_credit": "$before.extra_credit"
+					}
+				},
+				{
+					"function": "classroom_revoke_grade",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_student_email": "$args.p_student_email"
+					}
+				}
+			]
+		},
+		"classroom_revoke_grade": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Take a grade off a student's work entirely, keeping a copy that can be put back.",
+			"say": [
+				"revoke Mateo's grade on the Shop Fix",
+				"take Leo's score off Tolerance Check",
+				"clear Ana's grade"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The assignment."
+				},
+				"p_student_email": {
+					"name": "student",
+					"resolve": "student",
+					"describe": "The student."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_restore_grade",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_student_email": "$args.p_student_email"
+					}
+				}
+			]
+		},
+		"classroom_restore_grade": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Put back a grade that was revoked, exactly as it was.",
+			"say": [
+				"put Mateo's grade back",
+				"restore Leo's score on Tolerance Check",
+				"undo revoking Ana's grade"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The assignment."
+				},
+				"p_student_email": {
+					"name": "student",
+					"resolve": "student",
+					"describe": "The student."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_revoke_grade",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_student_email": "$args.p_student_email"
+					}
+				}
+			]
+		},
+		"classroom_feedback_post": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Leave a note on a student's work in progress; the send feedback tool is the usual way in.",
+			"say": [
+				"leave Mateo a note",
+				"send Leo feedback on the Shop Fix",
+				"comment on Ana's worksheet"
+			],
+			"undo": [
+				{
+					"function": "classroom_feedback_remove",
+					"args": {
+						"p_thread_id": "$result.thread.id"
+					}
+				}
+			]
+		},
+		"classroom_feedback_remove": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Remove a feedback note, or one message in it; it asks first.",
+			"say": [
+				"delete that feedback",
+				"remove my note to Mateo",
+				"take down the comment on Leo's work"
+			],
+			"args": {
+				"p_thread_id": {
+					"name": "note",
+					"describe": "The note's id, from the feedback list."
+				},
+				"p_message_id": {
+					"name": "message",
+					"describe": "One message in the note, to remove only that message."
+				}
+			}
+		},
+		"classroom_feedback_list": {
+			"surface": "call",
+			"level": "read",
+			"describe": "List the feedback notes on an assignment, a student or a class, with every reply.",
+			"say": [
+				"what feedback have I left on the Shop Fix",
+				"show my notes to Mateo",
+				"which notes are waiting on students"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "Only notes on this assignment."
+				},
+				"p_student_email": {
+					"name": "student",
+					"resolve": "student",
+					"describe": "Only notes to this student."
+				},
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"describe": "Only notes in this class."
+				}
+			}
+		},
+		"classroom_quick_post_create": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Put a short notice at the top of one or more class pages until a time you choose; the create post tool with kind notice is the usual way in.",
+			"say": [
+				"put up a notice in Block 1",
+				"post a notice to every 209H class",
+				"notice until 3pm, shop closed"
+			],
+			"undo": [
+				{
+					"function": "classroom_quick_post_take_down",
+					"args": {
+						"p_post_id": "$result.id"
+					}
+				}
+			]
+		},
+		"classroom_quick_post_take_down": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Take a notice down before its time; it asks first.",
+			"say": [
+				"take down the shop closed notice",
+				"remove the notice in Block 1",
+				"end that notice now"
+			],
+			"args": {
+				"p_post_id": {
+					"name": "notice",
+					"describe": "The notice's id, from the list of notices."
+				}
+			}
+		},
+		"classroom_quick_posts": {
+			"surface": "call",
+			"level": "read",
+			"describe": "List the notices up in a class right now.",
+			"say": [
+				"what notices are up in Block 1",
+				"show the notices in 209H",
+				"is the safety notice still up"
+			],
+			"args": {
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"describe": "The class."
+				}
+			}
+		},
+		"classroom_student_overview": {
+			"surface": "call",
+			"level": "read",
+			"describe": "One student's page in one class, with their work, grades, notebook and activity.",
+			"say": [
+				"how is Mateo doing in Block 2",
+				"show me Leo's overview",
+				"what's missing for Ana in IDEA100"
+			],
+			"args": {
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"describe": "The class."
+				},
+				"p_student_email": {
+					"name": "student",
+					"resolve": "student",
+					"describe": "The student."
+				}
+			}
+		},
+		"classroom_add_attachment": {
+			"pending": "slice 2"
+		},
+		"classroom_add_instructor_attachment": {
+			"pending": "slice 2"
+		},
+		"classroom_add_postings": {
+			"pending": "slice 2"
+		},
+		"classroom_add_submission_file": {
+			"pending": "slice 2"
+		},
+		"classroom_approve_module": {
+			"pending": "slice 2"
+		},
+		"classroom_archive_team_set": {
+			"pending": "slice 2"
+		},
+		"classroom_close_assignment": {
+			"pending": "slice 2"
+		},
+		"classroom_course_categories": {
+			"pending": "slice 2"
+		},
+		"classroom_deck_ingest_abandon": {
+			"pending": "slice 2"
+		},
+		"classroom_deck_ingest_begin": {
+			"pending": "slice 2"
+		},
+		"classroom_deck_ingest_claim_stage": {
+			"pending": "slice 2"
+		},
+		"classroom_deck_ingest_finish": {
+			"pending": "slice 2"
+		},
+		"classroom_deck_ingest_record": {
+			"pending": "slice 2"
+		},
+		"classroom_deck_upload_cancel": {
+			"pending": "slice 2"
+		},
+		"classroom_deck_upload_claim": {
+			"pending": "slice 2"
+		},
+		"classroom_deck_upload_start": {
+			"pending": "slice 2"
+		},
+		"classroom_delete_attachment": {
+			"pending": "slice 2"
+		},
+		"classroom_delete_deck": {
+			"pending": "slice 2"
+		},
+		"classroom_delete_instructor_attachment": {
+			"pending": "slice 2"
+		},
+		"classroom_delete_section": {
+			"pending": "slice 2"
+		},
+		"classroom_delete_submission_file": {
+			"pending": "slice 2"
+		},
+		"classroom_delete_unit": {
+			"pending": "slice 2"
+		},
+		"classroom_designate_instructor_key": {
+			"pending": "slice 2"
+		},
+		"classroom_duplicate_drafts": {
+			"pending": "slice 2"
+		},
+		"classroom_duplicate_item": {
+			"pending": "slice 2"
+		},
+		"classroom_feedback_reply": {
+			"pending": "slice 2"
+		},
+		"classroom_feedback_seen": {
+			"pending": "slice 2"
+		},
+		"classroom_feedback_set_state": {
+			"pending": "slice 2"
+		},
+		"classroom_feedback_update": {
+			"pending": "slice 2"
+		},
+		"classroom_grade_revocation": {
+			"pending": "slice 2"
+		},
+		"classroom_grade_submission": {
+			"pending": "slice 2"
+		},
+		"classroom_grade_submissions": {
+			"pending": "slice 2"
+		},
+		"classroom_hall_pass_close_by_id": {
+			"pending": "slice 2"
+		},
+		"classroom_hall_pass_events": {
+			"pending": "slice 2"
+		},
+		"classroom_hall_pass_open_for": {
+			"pending": "slice 2"
+		},
+		"classroom_hall_pass_set_limits": {
+			"pending": "slice 2"
+		},
+		"classroom_hall_pass_state": {
+			"pending": "slice 2"
+		},
+		"classroom_import_roster": {
+			"pending": "slice 2"
+		},
+		"classroom_manages_section": {
+			"pending": "slice 2"
+		},
+		"classroom_mark_item_viewed": {
+			"pending": "slice 2"
+		},
+		"classroom_move_team_member": {
+			"pending": "slice 2"
+		},
+		"classroom_open_submission": {
+			"pending": "slice 2"
+		},
+		"classroom_post_team_set": {
+			"pending": "slice 2"
+		},
+		"classroom_posting_perfect_scores": {
+			"pending": "slice 2"
+		},
+		"classroom_presence_ping": {
+			"pending": "slice 2"
+		},
+		"classroom_presence_state": {
+			"pending": "slice 2"
+		},
+		"classroom_public_attachment": {
+			"pending": "slice 2"
+		},
+		"classroom_public_reference": {
+			"pending": "slice 2"
+		},
+		"classroom_quick_post_add_file": {
+			"pending": "slice 2"
+		},
+		"classroom_quick_post_file": {
+			"pending": "slice 2"
+		},
+		"classroom_record_export": {
+			"pending": "slice 2"
+		},
+		"classroom_remove_enrollment": {
+			"pending": "slice 2"
+		},
+		"classroom_remove_posting": {
+			"pending": "slice 2"
+		},
+		"classroom_rename_attachment": {
+			"pending": "slice 2"
+		},
+		"classroom_rename_instructor_attachment": {
+			"pending": "slice 2"
+		},
+		"classroom_save_instructor_response": {
+			"pending": "slice 2"
+		},
+		"classroom_save_response": {
+			"pending": "slice 2"
+		},
+		"classroom_save_team_set": {
+			"pending": "slice 2"
+		},
+		"classroom_set_assignment_spec": {
+			"pending": "slice 2"
+		},
+		"classroom_set_attachment_order": {
+			"pending": "slice 2"
+		},
+		"classroom_set_enrollment": {
+			"pending": "slice 2"
+		},
+		"classroom_set_instructor_attachment_order": {
+			"pending": "slice 2"
+		},
+		"classroom_set_instructor_resources": {
+			"pending": "slice 2"
+		},
+		"classroom_set_item_layout": {
+			"pending": "slice 2"
+		},
+		"classroom_set_item_order": {
+			"pending": "slice 2"
+		},
+		"classroom_set_item_public": {
+			"pending": "slice 2"
+		},
+		"classroom_set_item_thumbnail": {
+			"pending": "slice 2"
+		},
+		"classroom_set_item_thumbnail_focus": {
+			"pending": "slice 2"
+		},
+		"classroom_set_item_unit": {
+			"pending": "slice 2"
+		},
+		"classroom_set_posting_perfect_score": {
+			"pending": "slice 2"
+		},
+		"classroom_set_reference_spec": {
+			"pending": "slice 2"
+		},
+		"classroom_set_section_active": {
+			"pending": "slice 2"
+		},
+		"classroom_set_section_thumbnail_shape": {
+			"pending": "slice 2"
+		},
+		"classroom_set_submission_file_caption": {
+			"pending": "slice 2"
+		},
+		"classroom_set_team_style": {
+			"pending": "slice 2"
+		},
+		"classroom_set_unit_order": {
+			"pending": "slice 2"
+		},
+		"classroom_song_approve": {
+			"pending": "slice 2"
+		},
+		"classroom_song_queue": {
+			"pending": "slice 2"
+		},
+		"classroom_song_reject": {
+			"pending": "slice 2"
+		},
+		"classroom_song_request": {
+			"pending": "slice 2"
+		},
+		"classroom_submit_assignment": {
+			"pending": "slice 2"
+		},
+		"classroom_team_board": {
+			"pending": "slice 2"
+		},
+		"classroom_undesignate_instructor_key": {
+			"pending": "slice 2"
+		},
+		"classroom_unpost_team_set": {
+			"pending": "slice 2"
+		},
+		"classroom_unsubmit_assignment": {
+			"pending": "slice 2"
+		},
+		"classroom_update_enrollment": {
+			"pending": "slice 2"
+		},
+		"classroom_upsert_course": {
+			"pending": "slice 2"
+		},
+		"classroom_upsert_section": {
+			"pending": "slice 2"
+		},
+		"classroom_upsert_unit": {
+			"pending": "slice 2"
+		},
+		"classroom_view_as_students": {
+			"pending": "slice 2"
+		},
+		"classroom_worksheet_latch": {
+			"pending": "slice 2"
+		},
+		"classroom_worksheet_latch_for": {
+			"pending": "slice 2"
+		},
+		"classroom_worksheet_latched": {
+			"pending": "slice 2"
+		},
+		"classroom_worksheet_past_manifests": {
+			"pending": "slice 2"
+		},
+		"coin_log_transaction": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Log one coin record for a student under a category, with a note; the award coins tool and the fine coins tool are the usual way in.",
+			"say": [
+				"log a coin record for Mateo",
+				"record a Correct Answer award",
+				"log a shop safety fine"
+			],
+			"undo": [
+				{
+					"function": "coin_reverse_transaction",
+					"args": {
+						"p_transaction_id": "$result.transaction_id",
+						"p_note": "Undone through the IDEA Website connector."
+					}
+				}
+			]
+		},
+		"coin_reverse_transaction": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Reverse one coin record with a reversal record beside it, exactly as Undo does on the Coin Desk; it asks first.",
+			"say": [
+				"reverse Mateo's last fine",
+				"cancel that coin record",
+				"undo the award from this morning"
+			],
+			"args": {
+				"p_transaction_id": {
+					"name": "record",
+					"describe": "The coin record's id, from the student's recent records."
+				},
+				"p_note": {
+					"name": "reason",
+					"describe": "Why it is being reversed."
+				}
+			}
+		},
+		"coin_admin_lookup": {
+			"surface": "call",
+			"level": "read",
+			"describe": "A student's coin balance, wage tier, eating pass and most recent coin records.",
+			"say": [
+				"how many coins does Mateo have",
+				"look up Leo's coins",
+				"show Ana's coin history"
+			],
+			"args": {
+				"p_email": {
+					"name": "student",
+					"resolve": "student",
+					"describe": "The student."
+				}
+			}
+		},
+		"coin_settings_get": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The coin economy's settings, such as each fine's amount and the payday rules.",
+			"say": [
+				"what's the fine for a phone",
+				"how much is a shop safety fine",
+				"what are the coin settings"
+			]
+		},
+		"coin_fine_sections": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The classes you can log fines in from the fine screen.",
+			"say": [
+				"which classes can I fine in",
+				"list my fine classes",
+				"where can I log fines"
+			]
+		},
+		"coin_staff_scope": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Which coin powers you hold and which classes they cover.",
+			"say": [
+				"what coin powers do I have",
+				"am I a full coin admin",
+				"which classes are in my coin scope"
+			]
+		},
+		"coin_admin_adjust_balance": {
+			"pending": "slice 2"
+		},
+		"coin_admin_create_category": {
+			"pending": "slice 2"
+		},
+		"coin_admin_set_category_active": {
+			"pending": "slice 2"
+		},
+		"coin_auditor_queue": {
+			"pending": "slice 2"
+		},
+		"coin_autopay_run": {
+			"pending": "slice 2"
+		},
+		"coin_bulk_log_students": {
+			"pending": "slice 2"
+		},
+		"coin_contract_self_claim": {
+			"pending": "slice 2"
+		},
+		"coin_digest_push_due": {
+			"pending": "slice 2"
+		},
+		"coin_donation_items_list": {
+			"pending": "slice 2"
+		},
+		"coin_export": {
+			"pending": "slice 2"
+		},
+		"coin_fine_log": {
+			"pending": "slice 2"
+		},
+		"coin_fine_roster": {
+			"pending": "slice 2"
+		},
+		"coin_log_extra_credit": {
+			"pending": "slice 2"
+		},
+		"coin_log_pay_raise": {
+			"pending": "slice 2"
+		},
+		"coin_log_perfect_score": {
+			"pending": "slice 2"
+		},
+		"coin_log_property_damage_careless": {
+			"pending": "slice 2"
+		},
+		"coin_log_three_d_printing": {
+			"pending": "slice 2"
+		},
+		"coin_me": {
+			"pending": "slice 2"
+		},
+		"coin_my_contract_claims": {
+			"pending": "slice 2"
+		},
+		"coin_my_contracts": {
+			"pending": "slice 2"
+		},
+		"coin_my_page": {
+			"pending": "slice 2"
+		},
+		"coin_my_role": {
+			"pending": "slice 2"
+		},
+		"coin_my_stats": {
+			"pending": "slice 2"
+		},
+		"coin_no_shop_today": {
+			"pending": "slice 2"
+		},
+		"coin_public_contracts": {
+			"pending": "slice 2"
+		},
+		"coin_public_leaderboard": {
+			"pending": "slice 2"
+		},
+		"coin_public_reasons": {
+			"pending": "slice 2"
+		},
+		"coin_public_reported_coins": {
+			"pending": "slice 2"
+		},
+		"coin_public_role_badges": {
+			"pending": "slice 2"
+		},
+		"coin_public_role_questions": {
+			"pending": "slice 2"
+		},
+		"coin_public_roles": {
+			"pending": "slice 2"
+		},
+		"coin_public_student": {
+			"pending": "slice 2"
+		},
+		"coin_public_transactions": {
+			"pending": "slice 2"
+		},
+		"coin_role_self_apply": {
+			"pending": "slice 2"
+		},
+		"coin_section_role_badges": {
+			"pending": "slice 2"
+		},
+		"connector_call": {
+			"exclude": "The connector's own transport; every connector write goes through it, so it is never a tool of its own."
+		},
+		"connector_audit_failure": {
+			"exclude": "Records a failed connector write on its own statement; the connector calls it, never a person."
+		},
+		"connector_admin_state": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Whether the connector is on, and every connection with when it was made and last used.",
+			"say": [
+				"is the connector on",
+				"what's connected to the site",
+				"list my Claude connections"
+			]
+		},
+		"connector_admin_audit": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The connector's own log of every change made through Claude, newest first.",
+			"say": [
+				"what have you changed today",
+				"show the connector log",
+				"list the changes you made this week"
+			],
+			"args": {
+				"p_tool": {
+					"name": "tool",
+					"describe": "Only changes made by this tool."
+				},
+				"p_day": {
+					"name": "day",
+					"describe": "Only changes on this day, in school time."
+				},
+				"p_limit": {
+					"name": "limit",
+					"describe": "At most this many rows, up to 200."
+				}
+			}
+		},
+		"connector_admin_set_enabled": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Switch the connector off for every connection, or back on from the admin page; it asks first.",
+			"say": [
+				"turn the connector off",
+				"switch off Claude's access",
+				"shut the connector down"
+			],
+			"args": {
+				"p_enabled": {
+					"name": "on",
+					"describe": "False to switch it off. It can only be switched back on from the site."
+				}
+			}
+		},
+		"connector_admin_disconnect": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Disconnect one Claude connection; it asks first.",
+			"say": [
+				"disconnect the laptop connection",
+				"revoke that connection",
+				"sign that Claude out"
+			],
+			"args": {
+				"p_token_id": {
+					"name": "connection",
+					"describe": "The connection's id, from the list of connections."
+				}
+			}
+		},
+		"connector_admin_disconnect_all": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Disconnect every Claude connection at once; it asks first.",
+			"say": [
+				"disconnect everything",
+				"sign every Claude connection out",
+				"revoke all connector access"
+			]
+		},
+		"foundry_app_play_stats": {
+			"pending": "slice 2"
+		},
+		"foundry_author_profile": {
+			"pending": "slice 2"
+		},
+		"foundry_class_schedule_get": {
+			"pending": "slice 2"
+		},
+		"foundry_clear_metadata_flag": {
+			"pending": "slice 2"
+		},
+		"foundry_collections_read": {
+			"pending": "slice 2"
+		},
+		"foundry_create_app": {
+			"pending": "slice 2"
+		},
+		"foundry_create_version": {
+			"pending": "slice 2"
+		},
+		"foundry_delete_app": {
+			"pending": "slice 2"
+		},
+		"foundry_delete_version": {
+			"pending": "slice 2"
+		},
+		"foundry_featured_read": {
+			"pending": "slice 2"
+		},
+		"foundry_gallery_overrides_read": {
+			"pending": "slice 2"
+		},
+		"foundry_game_requests": {
+			"pending": "slice 2"
+		},
+		"foundry_get_app": {
+			"pending": "slice 2"
+		},
+		"foundry_list_apps": {
+			"pending": "slice 2"
+		},
+		"foundry_manageable_sections": {
+			"pending": "slice 2"
+		},
+		"foundry_my_play_stats": {
+			"pending": "slice 2"
+		},
+		"foundry_people_search": {
+			"pending": "slice 2"
+		},
+		"foundry_play_counts": {
+			"pending": "slice 2"
+		},
+		"foundry_play_ping": {
+			"pending": "slice 2"
+		},
+		"foundry_play_start": {
+			"pending": "slice 2"
+		},
+		"foundry_publisher_applications": {
+			"pending": "slice 2"
+		},
+		"foundry_publisher_apply": {
+			"pending": "slice 2"
+		},
+		"foundry_publisher_decide": {
+			"pending": "slice 2"
+		},
+		"foundry_publisher_pending_count": {
+			"pending": "slice 2"
+		},
+		"foundry_publisher_questions_admin": {
+			"pending": "slice 2"
+		},
+		"foundry_publisher_set_questions": {
+			"pending": "slice 2"
+		},
+		"foundry_publisher_status": {
+			"pending": "slice 2"
+		},
+		"foundry_review_version": {
+			"pending": "slice 2"
+		},
+		"foundry_section_access": {
+			"pending": "slice 2"
+		},
+		"foundry_set_app_hidden": {
+			"pending": "slice 2"
+		},
+		"foundry_set_app_major": {
+			"pending": "slice 2"
+		},
+		"foundry_set_section_open": {
+			"pending": "slice 2"
+		},
+		"foundry_set_site_open": {
+			"pending": "slice 2"
+		},
+		"foundry_submit_version": {
+			"pending": "slice 2"
+		},
+		"foundry_trusted_grant": {
+			"pending": "slice 2"
+		},
+		"foundry_trusted_revoke": {
+			"pending": "slice 2"
+		},
+		"foundry_trusted_roster": {
+			"pending": "slice 2"
+		},
+		"foundry_update_app_metadata": {
+			"pending": "slice 2"
+		},
+		"foundry_vote": {
+			"pending": "slice 2"
+		},
+		"foundry_vote_counts": {
+			"pending": "slice 2"
+		},
+		"gauntlet_author_delete": {
+			"pending": "slice 2"
+		},
+		"gauntlet_author_get": {
+			"pending": "slice 2"
+		},
+		"gauntlet_author_set_status": {
+			"pending": "slice 2"
+		},
+		"gauntlet_author_upsert": {
+			"pending": "slice 2"
+		},
+		"gauntlet_can_author": {
+			"pending": "slice 2"
+		},
+		"gauntlet_class_run_stats": {
+			"pending": "slice 2"
+		},
+		"gauntlet_knowledge_start": {
+			"pending": "slice 2"
+		},
+		"gauntlet_leaderboards": {
+			"pending": "slice 2"
+		},
+		"gauntlet_progression": {
+			"pending": "slice 2"
+		},
+		"gauntlet_rank_settings_get": {
+			"pending": "slice 2"
+		},
+		"gauntlet_rank_settings_set": {
+			"pending": "slice 2"
+		},
+		"gauntlet_room_create": {
+			"pending": "slice 2"
+		},
+		"gauntlet_room_delete": {
+			"pending": "slice 2"
+		},
+		"gauntlet_room_join": {
+			"pending": "slice 2"
+		},
+		"gauntlet_room_manual_submit": {
+			"pending": "slice 2"
+		},
+		"gauntlet_room_reveal": {
+			"pending": "slice 2"
+		},
+		"gauntlet_room_set_challenge": {
+			"pending": "slice 2"
+		},
+		"gauntlet_room_set_state": {
+			"pending": "slice 2"
+		},
+		"gauntlet_room_start": {
+			"pending": "slice 2"
+		},
+		"gauntlet_run_review": {
+			"pending": "slice 2"
+		},
+		"gauntlet_run_targets": {
+			"pending": "slice 2"
+		},
+		"gauntlet_series_assign": {
+			"pending": "slice 2"
+		},
+		"gauntlet_speedrun_reveal": {
+			"pending": "slice 2"
+		},
+		"gauntlet_submit": {
+			"pending": "slice 2"
+		},
+		"greenline_decal_review": {
+			"pending": "slice 2"
+		},
+		"greenline_leaderboard": {
+			"pending": "slice 2"
+		},
+		"greenline_purchase_item": {
+			"pending": "slice 2"
+		},
+		"greenline_submit_race_result": {
+			"pending": "slice 2"
+		},
+		"greenline_track_attempt_finish": {
+			"pending": "slice 2"
+		},
+		"greenline_track_attempt_start": {
+			"pending": "slice 2"
+		},
+		"greenline_track_list": {
+			"pending": "slice 2"
+		},
+		"greenline_track_rate": {
+			"pending": "slice 2"
+		},
+		"greenline_track_remove": {
+			"pending": "slice 2"
+		},
+		"greenline_track_report": {
+			"pending": "slice 2"
+		},
+		"greenline_track_review": {
+			"pending": "slice 2"
+		},
+		"greenline_track_set_featured": {
+			"pending": "slice 2"
+		},
+		"ideacad_archive": {
+			"pending": "slice 2"
+		},
+		"ideacad_assembly": {
+			"pending": "slice 2"
+		},
+		"ideacad_direct_documents": {
+			"pending": "slice 2"
+		},
+		"ideacad_direct_folders": {
+			"pending": "slice 2"
+		},
+		"ideacad_material_save_global": {
+			"pending": "slice 2"
+		},
+		"ideacad_material_set_retired": {
+			"pending": "slice 2"
+		},
+		"ideacad_set_direct_document_thumbnail": {
+			"pending": "slice 2"
+		},
+		"ideacad_shared_with_me": {
+			"pending": "slice 2"
+		},
+		"maps_editor_grant": {
+			"pending": "slice 2"
+		},
+		"maps_editor_revoke": {
+			"pending": "slice 2"
+		},
+		"maps_editor_roster": {
+			"pending": "slice 2"
+		},
+		"maps_my_editor_grants": {
+			"pending": "slice 2"
+		},
+		"maps_publish": {
+			"pending": "slice 2"
+		},
+		"maps_search": {
+			"pending": "slice 2"
+		},
+		"notebook_accept_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_add_note": {
+			"pending": "slice 2"
+		},
+		"notebook_add_photo": {
+			"pending": "slice 2"
+		},
+		"notebook_add_session_postings": {
+			"pending": "slice 2"
+		},
+		"notebook_admin_delete_session": {
+			"pending": "slice 2"
+		},
+		"notebook_admin_override_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_admin_set_excusal": {
+			"pending": "slice 2"
+		},
+		"notebook_admin_upsert_session": {
+			"pending": "slice 2"
+		},
+		"notebook_create_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_create_item_check_in": {
+			"pending": "slice 2"
+		},
+		"notebook_create_note_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_delete_folder": {
+			"pending": "slice 2"
+		},
+		"notebook_edit_note": {
+			"pending": "slice 2"
+		},
+		"notebook_flag_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_get_section_grid": {
+			"pending": "slice 2"
+		},
+		"notebook_link_session_item": {
+			"pending": "slice 2"
+		},
+		"notebook_link_unit_item": {
+			"pending": "slice 2"
+		},
+		"notebook_move_entries": {
+			"pending": "slice 2"
+		},
+		"notebook_remove_session_posting": {
+			"pending": "slice 2"
+		},
+		"notebook_resolve_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_review_student_notebook": {
+			"pending": "slice 2"
+		},
+		"notebook_reviewed_sections": {
+			"pending": "slice 2"
+		},
+		"notebook_seal_notes": {
+			"pending": "slice 2"
+		},
+		"notebook_set_session_guidance": {
+			"pending": "slice 2"
+		},
+		"notebook_staff_delete_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_staff_delete_note": {
+			"pending": "slice 2"
+		},
+		"notebook_staff_restore_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_staff_restore_note": {
+			"pending": "slice 2"
+		},
+		"notebook_unaccept_entry": {
+			"pending": "slice 2"
+		},
+		"notebook_unlink_session_item": {
+			"pending": "slice 2"
+		},
+		"notebook_unlink_unit_item": {
+			"pending": "slice 2"
+		},
+		"notebook_upsert_folder": {
+			"pending": "slice 2"
+		},
+		"notebook_view_as_notebook": {
+			"pending": "slice 2"
+		},
+		"admin_grant": {
+			"pending": "slice 2"
+		},
+		"admin_list": {
+			"pending": "slice 2"
+		},
+		"admin_revoke": {
+			"pending": "slice 2"
+		},
+		"app_feedback_admin_list": {
+			"pending": "slice 2"
+		},
+		"app_feedback_edit": {
+			"pending": "slice 2"
+		},
+		"app_feedback_set_horizon": {
+			"pending": "slice 2"
+		},
+		"app_feedback_set_status": {
+			"pending": "slice 2"
+		},
+		"app_feedback_submit": {
+			"pending": "slice 2"
+		},
+		"app_short_link_delete": {
+			"pending": "slice 2"
+		},
+		"app_short_link_list": {
+			"pending": "slice 2"
+		},
+		"app_short_link_target": {
+			"pending": "slice 2"
+		},
+		"app_short_link_upsert": {
+			"pending": "slice 2"
+		},
+		"clear_fsp_session": {
+			"pending": "slice 2"
+		},
+		"frc_can_review": {
+			"pending": "slice 2"
+		},
+		"frc_mark_complete": {
+			"pending": "slice 2"
+		},
+		"frc_quiz_grade": {
+			"pending": "slice 2"
+		},
+		"frc_quiz_start": {
+			"pending": "slice 2"
+		},
+		"frc_review_queue": {
+			"pending": "slice 2"
+		},
+		"frc_unmark_complete": {
+			"pending": "slice 2"
+		},
+		"idea_cert_sync": {
+			"pending": "slice 2"
+		},
+		"is_admin": {
+			"pending": "slice 2"
+		},
+		"is_owner": {
+			"pending": "slice 2"
+		},
+		"profile_avatar_hide": {
+			"pending": "slice 2"
+		},
+		"profile_avatar_hold_status": {
+			"pending": "slice 2"
+		},
+		"profile_avatar_holds": {
+			"pending": "slice 2"
+		},
+		"profile_avatar_my_hold": {
+			"pending": "slice 2"
+		},
+		"profile_avatar_restore": {
+			"pending": "slice 2"
+		},
+		"push_subscribe": {
+			"pending": "slice 2"
+		},
+		"submit_fsp_question": {
+			"pending": "slice 2"
+		},
+		"tournament_add_entry_member": {
+			"pending": "slice 2"
+		},
+		"tournament_add_host": {
+			"pending": "slice 2"
+		},
+		"tournament_create": {
+			"pending": "slice 2"
+		},
+		"tournament_delete": {
+			"pending": "slice 2"
+		},
+		"tournament_generate_qual_pools": {
+			"pending": "slice 2"
+		},
+		"tournament_host_add_entry": {
+			"pending": "slice 2"
+		},
+		"tournament_join_entry": {
+			"pending": "slice 2"
+		},
+		"tournament_live_config_apply": {
+			"pending": "slice 2"
+		},
+		"tournament_live_config_preview": {
+			"pending": "slice 2"
+		},
+		"tournament_ping_entry": {
+			"pending": "slice 2"
+		},
+		"tournament_register_entry": {
+			"pending": "slice 2"
+		},
+		"tournament_remove_entry": {
+			"pending": "slice 2"
+		},
+		"tournament_remove_entry_member": {
+			"pending": "slice 2"
+		},
+		"tournament_rename_entry_member": {
+			"pending": "slice 2"
+		},
+		"tournament_reorder_seed": {
+			"pending": "slice 2"
+		},
+		"tournament_respond_invite": {
+			"pending": "slice 2"
+		},
+		"tournament_reward_settlement": {
+			"pending": "slice 2"
+		},
+		"tournament_send_invite": {
+			"pending": "slice 2"
+		},
+		"tournament_set_entry_style": {
+			"pending": "slice 2"
+		},
+		"tournament_set_reward_rules": {
+			"pending": "slice 2"
+		},
+		"tournament_set_status": {
+			"pending": "slice 2"
+		},
+		"tournament_shuffle_seeds": {
+			"pending": "slice 2"
+		},
+		"tournament_start_match": {
+			"pending": "slice 2"
+		},
+		"tournament_submit_qual_result": {
+			"pending": "slice 2"
+		},
+		"tournament_update": {
+			"pending": "slice 2"
+		},
+		"tournament_update_entry": {
+			"pending": "slice 2"
+		}
+	},
+	"endpoints": {
+		"/.well-known/oauth-authorization-server": {
+			"exclude": "The connector's own sign-in or transport, never a tool."
+		},
+		"/.well-known/oauth-protected-resource": {
+			"exclude": "The connector's own sign-in or transport, never a tool."
+		},
+		"/.well-known/oauth-protected-resource/mcp": {
+			"exclude": "The connector's own sign-in or transport, never a tool."
+		},
+		"/_platform/[...asset]": {
+			"pending": "slice 2"
+		},
+		"/a/[appId]/[...path]": {
+			"pending": "slice 2"
+		},
+		"/admin/drive-connect": {
+			"pending": "slice 2"
+		},
+		"/admin/drive-connect/callback": {
+			"pending": "slice 2"
+		},
+		"/api/armory/blob-url": {
+			"pending": "slice 2"
+		},
+		"/api/armory/connect/exchange": {
+			"pending": "slice 2"
+		},
+		"/api/armory/connect/start": {
+			"pending": "slice 2"
+		},
+		"/api/armory/purge": {
+			"pending": "slice 2"
+		},
+		"/api/armory/sweep": {
+			"pending": "slice 2"
+		},
+		"/api/avatar/[...path]": {
+			"pending": "slice 2"
+		},
+		"/api/certifications/award": {
+			"pending": "slice 2"
+		},
+		"/api/certifications/correct": {
+			"pending": "slice 2"
+		},
+		"/api/certifications/evidence/[...path]": {
+			"pending": "slice 2"
+		},
+		"/api/certifications/evidence/sign": {
+			"pending": "slice 2"
+		},
+		"/api/certifications/export": {
+			"pending": "slice 2"
+		},
+		"/api/certifications/jobs/[job]": {
+			"pending": "slice 2"
+		},
+		"/api/certifications/package/export/[id]": {
+			"pending": "slice 2"
+		},
+		"/api/certifications/package/import": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/attachment": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/attachment/[attachment_id]": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/attachment/sign": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/deck": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/deck/[deck_id]/[...path]": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/delete-content": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/export": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/html-assignment-source/[itemId]": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/instructor-attachment": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/instructor-attachment/[attachment_id]": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/instructor-attachment/sign": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/item": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/link-preview": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/quick-post-file": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/quick-post-file/[file_id]": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/quick-post-file/sign": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/submission-file": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/submission-file/[file_id]": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/submission-file/sign": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/thumbnail": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/thumbnail/[itemId]": {
+			"pending": "slice 2"
+		},
+		"/api/classroom/thumbnail/sign": {
+			"pending": "slice 2"
+		},
+		"/api/coin/autopay": {
+			"pending": "slice 2"
+		},
+		"/api/coin/claim": {
+			"pending": "slice 2"
+		},
+		"/api/coin/digest-push": {
+			"pending": "slice 2"
+		},
+		"/api/coin/me": {
+			"pending": "slice 2"
+		},
+		"/api/coin/public": {
+			"pending": "slice 2"
+		},
+		"/api/coin/role-apply": {
+			"pending": "slice 2"
+		},
+		"/api/coin/signin": {
+			"pending": "slice 2"
+		},
+		"/api/feedback": {
+			"pending": "slice 2"
+		},
+		"/api/foundry-cover/[...path]": {
+			"pending": "slice 2"
+		},
+		"/api/foundry/delete": {
+			"pending": "slice 2"
+		},
+		"/api/foundry/source": {
+			"pending": "slice 2"
+		},
+		"/api/greenline-track-publish": {
+			"pending": "slice 2"
+		},
+		"/api/notebook/add-note": {
+			"pending": "slice 2"
+		},
+		"/api/notebook/add-photo": {
+			"pending": "slice 2"
+		},
+		"/api/notebook/edit-note": {
+			"pending": "slice 2"
+		},
+		"/api/notebook/note": {
+			"pending": "slice 2"
+		},
+		"/api/notebook/photo/[photo_id]": {
+			"pending": "slice 2"
+		},
+		"/api/notebook/session-guidance": {
+			"pending": "slice 2"
+		},
+		"/api/notebook/upload": {
+			"pending": "slice 2"
+		},
+		"/api/tournament-push": {
+			"pending": "slice 2"
+		},
+		"/api/vanguard-feedback": {
+			"pending": "slice 2"
+		},
+		"/api/vanguard-run-state": {
+			"pending": "slice 2"
+		},
+		"/api/vanguard-run": {
+			"pending": "slice 2"
+		},
+		"/api/vanguard-save": {
+			"pending": "slice 2"
+		},
+		"/armory/[project]/file/[file]/version/[version]": {
+			"pending": "slice 2"
+		},
+		"/armory/download/[file]": {
+			"pending": "slice 2"
+		},
+		"/armory/get": {
+			"pending": "slice 2"
+		},
+		"/assignments/[slug]": {
+			"pending": "slice 2"
+		},
+		"/auth/callback": {
+			"pending": "slice 2"
+		},
+		"/b/[appId]/[versionId]/[...path]": {
+			"pending": "slice 2"
+		},
+		"/certifications/lesson/[lessonId]": {
+			"pending": "slice 2"
+		},
+		"/certifications/verify/public-key": {
+			"pending": "slice 2"
+		},
+		"/classroom/[sectionId]/duplicates/remove": {
+			"pending": "slice 2"
+		},
+		"/coins/[...path]": {
+			"pending": "slice 2"
+		},
+		"/connector/register": {
+			"exclude": "The connector's own sign-in or transport, never a tool."
+		},
+		"/connector/revoke": {
+			"exclude": "The connector's own sign-in or transport, never a tool."
+		},
+		"/connector/token": {
+			"exclude": "The connector's own sign-in or transport, never a tool."
+		},
+		"/dev/ai-level-badge-reference": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/cert-certification/lesson/[lessonId]": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/classroom-deck/f/[deck_id]/[...path]": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/classroom-deck/fixture": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/classroom-deck/ingest": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/classroom/normalize": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/coins": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/coins/api/claim": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/coins/api/me": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/coins/api/public": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/coins/api/role-apply": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/deploy-safety/slide": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/deploy-safety/upload": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/feedback/assignment": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/foundry-admin/refusal": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/foundry-mosaic/cover/[shape]": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/frc-quiz": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/html-instructor/copy/doc": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/maps-media/o/[...path]": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/dev/notebook/normalize": {
+			"exclude": "A dev harness route; it answers 404 in production."
+		},
+		"/foundry/download/[appId]/[versionId]": {
+			"pending": "slice 2"
+		},
+		"/foundry/preview/[appId]/[versionId]/[...path]": {
+			"pending": "slice 2"
+		},
+		"/foundry/starter": {
+			"pending": "slice 2"
+		},
+		"/frc/[domain]/[unit]/quiz": {
+			"pending": "slice 2"
+		},
+		"/hx/[docId]": {
+			"pending": "slice 2"
+		},
+		"/hx/[docId]/thumbnail": {
+			"pending": "slice 2"
+		},
+		"/mcp": {
+			"exclude": "The connector's own sign-in or transport, never a tool."
+		},
+		"/sitemap.xml": {
+			"pending": "slice 2"
+		},
+		"/vanguard": {
+			"pending": "slice 2"
+		}
+	},
+	"tools": {
+		"find_student": {
+			"facade": true,
+			"level": "read",
+			"uses": [
+				"classroom_section_roster"
+			],
+			"describe": "Find a student in one of your classes by first name, last name or \"Daniel R\", and say which class they are in.",
+			"say": [
+				"find Mateo",
+				"who is Daniel R",
+				"is there a Leo in Block 2",
+				"which class is Ana Reyes in"
+			],
+			"args": {
+				"name": {
+					"type": "string",
+					"required": true,
+					"describe": "The name as you said it: first name, last name, both, or a first name and a last initial."
+				},
+				"class": {
+					"type": "string",
+					"describe": "Only look in this class, like 209H Block 2. Leave it out to look in every class you teach."
+				}
+			}
+		},
+		"list_classes": {
+			"facade": true,
+			"level": "read",
+			"uses": [],
+			"describe": "List the classes you teach, with the course and block of each.",
+			"say": [
+				"what classes do I have",
+				"list my classes",
+				"which blocks do I teach this term"
+			]
+		},
+		"list_posts": {
+			"facade": true,
+			"level": "read",
+			"uses": [],
+			"describe": "List what is posted in one of your classes, with each post's kind, due date and whether students can see it.",
+			"say": [
+				"what's posted in 209H Block 1",
+				"what's due this week in IDEA100",
+				"show me the assignments in Block 2",
+				"what drafts do I have in Block 4"
+			],
+			"args": {
+				"class": {
+					"type": "string",
+					"required": true,
+					"resolve": "class",
+					"describe": "The class, like 209H Block 1 or IDEA100 Block 3."
+				},
+				"due": {
+					"type": "string",
+					"describe": "Only posts due in this window: this week, next week, today, or overdue."
+				},
+				"kind": {
+					"type": "string",
+					"describe": "Only this kind of post: assignment, material or announcement."
+				}
+			}
+		},
+		"get_post": {
+			"facade": true,
+			"level": "read",
+			"uses": [],
+			"describe": "Show one post in full, with its points, due date, rubric, which classes it is in and whether students can see it.",
+			"say": [
+				"show me Tolerance Check",
+				"what's on the Shop Fix post",
+				"read me the DFM worksheet's rubric"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The post's title as you said it, or part of it."
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one."
+				}
+			}
+		},
+		"create_post": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"classroom_create_item",
+				"classroom_quick_post_create"
+			],
+			"describe": "Post an assignment, material, announcement or a short notice to one or more of your classes.",
+			"say": [
+				"post an announcement to all 209H sections, bring safety glasses tomorrow",
+				"create an assignment in Block 2 called Tolerance Check, 20 points, due Friday at 11:59",
+				"put up a notice in Block 1 until the end of the day, the shop is closed",
+				"add a material called Fillet Reference to IDEA100"
+			],
+			"args": {
+				"classes": {
+					"type": "array",
+					"items": "string",
+					"required": true,
+					"resolve": "class",
+					"describe": "Every class to post to, like 209H Block 2, or all 209H for every section of a course."
+				},
+				"kind": {
+					"type": "string",
+					"required": true,
+					"enum": [
+						"assignment",
+						"material",
+						"announcement",
+						"notice"
+					],
+					"describe": "assignment, material, announcement, or notice for a short message at the top of the class page."
+				},
+				"title": {
+					"type": "string",
+					"describe": "The title. An assignment or material needs one; an announcement or notice does not."
+				},
+				"body": {
+					"type": "string",
+					"describe": "The text of the post, as plain text."
+				},
+				"points": {
+					"type": "integer",
+					"describe": "Points, for an assignment."
+				},
+				"due": {
+					"type": "string",
+					"resolve": "due",
+					"describe": "When an assignment is due: Friday, tomorrow 3pm, Oct 24 11:59pm. A day with no time means 11:59 PM."
+				},
+				"published": {
+					"type": "boolean",
+					"describe": "False to save it as a draft students cannot see yet. Posts are visible by default."
+				},
+				"until": {
+					"type": "string",
+					"resolve": "due",
+					"describe": "For a notice: when it comes down, like end of day or Friday 3pm. Leave it out for the end of the school day."
+				}
+			}
+		},
+		"set_points": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"classroom_update_item"
+			],
+			"describe": "Change how many points an assignment is worth.",
+			"say": [
+				"make it worth 25",
+				"change Tolerance Check to 30 points",
+				"set the Shop Fix to 20 points"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"points": {
+					"type": "integer",
+					"required": true,
+					"describe": "The new number of points."
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one."
+				}
+			}
+		},
+		"set_due": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"classroom_update_item"
+			],
+			"describe": "Change when an assignment is due, in school time.",
+			"say": [
+				"move the due date to Monday",
+				"make Tolerance Check due Friday at 3",
+				"push the Shop Fix to next Wednesday",
+				"take the due date off the reflection"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"due": {
+					"type": "string",
+					"required": true,
+					"resolve": "due",
+					"describe": "The new due time: Monday, Friday 3pm, Oct 24 11:59pm, or none to remove it."
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one."
+				}
+			}
+		},
+		"set_rubric": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"classroom_set_rubric"
+			],
+			"describe": "Set the grading rubric on an assignment, one row per criterion with its points.",
+			"say": [
+				"set the rubric on Tolerance Check, Accuracy 10, Drawing 10, Reflection 5",
+				"give the Shop Fix a rubric with Function 15 and Finish 5",
+				"replace the rubric on the DFM worksheet"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"criteria": {
+					"type": "array",
+					"required": true,
+					"describe": "Each criterion with its points, like Accuracy 10. Optional levels give the score bands from the top level down to zero.",
+					"items": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"describe": "What is being graded, like Accuracy."
+							},
+							"points": {
+								"type": "number",
+								"describe": "The most points this criterion is worth."
+							},
+							"levels": {
+								"type": "array",
+								"describe": "Optional score bands, best first, each with a label, points and what earns it.",
+								"items": {
+									"type": "object",
+									"properties": {
+										"label": {
+											"type": "string",
+											"describe": "The band's name, like Exceeds."
+										},
+										"points": {
+											"type": "number",
+											"describe": "Points for this band."
+										},
+										"descriptor": {
+											"type": "string",
+											"describe": "What earns this band."
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one."
+				}
+			}
+		},
+		"set_published": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"classroom_set_published"
+			],
+			"describe": "Show a post to students or hide it again as a draft.",
+			"say": [
+				"publish it",
+				"unpublish Tolerance Check",
+				"hide the Shop Fix from students",
+				"make the reflection visible"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The post's title as you said it."
+				},
+				"published": {
+					"type": "boolean",
+					"required": true,
+					"describe": "True to show it to students, false to hide it as a draft."
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one."
+				}
+			}
+		},
+		"replace_html_assignment": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"classroom_set_html_assignment",
+				"classroom_set_rubric"
+			],
+			"describe": "Replace an HTML assignment's document with a new file; refuses if any block a student has answered would disappear.",
+			"say": [
+				"replace the Shop Fix HTML in Block 1 with the file I'm sending",
+				"show me the block diff before you replace it",
+				"upload this new version of the DFM worksheet"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"html": {
+					"type": "string",
+					"required": true,
+					"describe": "The whole new HTML document, exactly as the file holds it."
+				},
+				"filename": {
+					"type": "string",
+					"describe": "The file's name, like shop-fix.html."
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one."
+				}
+			}
+		},
+		"read_grades": {
+			"facade": true,
+			"level": "read",
+			"uses": [],
+			"describe": "Show who has turned in an assignment, who has not, and every score, for one class or all of them.",
+			"say": [
+				"who hasn't turned in Shop Fix in Block 2",
+				"show me the grades on Tolerance Check",
+				"who still needs grading on the DFM worksheet"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"class": {
+					"type": "string",
+					"resolve": "class",
+					"describe": "Only this class, like 209H Block 2."
+				}
+			}
+		},
+		"read_answers": {
+			"facade": true,
+			"level": "read",
+			"uses": [],
+			"describe": "Read what a student answered on an assignment, every question or just one.",
+			"say": [
+				"what did Mateo answer on question 3 of the DFM worksheet",
+				"read me Leo's answers on the Shop Fix",
+				"show Ana's reflection on Tolerance Check"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"student": {
+					"type": "string",
+					"required": true,
+					"resolve": "student",
+					"describe": "The student, as you said the name."
+				},
+				"question": {
+					"type": "string",
+					"describe": "One question: its number, its name, or words from its prompt. Leave it out for every answer."
+				}
+			}
+		},
+		"grade": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"classroom_grade_direct"
+			],
+			"describe": "Give a student a score on an assignment, with an optional comment, and return it to them unless you say to hold it.",
+			"say": [
+				"grade Mateo's Shop Fix 18 out of 20, comment fix the fillet callout",
+				"give Leo a perfect score on the trophy reflection",
+				"score Ana's Tolerance Check 15 and hold it"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"student": {
+					"type": "string",
+					"required": true,
+					"resolve": "student",
+					"describe": "The student, as you said the name."
+				},
+				"score": {
+					"type": "number",
+					"describe": "The score. Say perfect, or leave it out with perfect true, for full points."
+				},
+				"perfect": {
+					"type": "boolean",
+					"describe": "True for full points."
+				},
+				"comment": {
+					"type": "string",
+					"describe": "A comment the student reads with the grade."
+				},
+				"hold": {
+					"type": "boolean",
+					"describe": "True to save the grade without returning it to the student yet."
+				}
+			}
+		},
+		"send_feedback": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"classroom_feedback_post"
+			],
+			"describe": "Leave a student a note on their work in progress on an assignment, which they see and can answer.",
+			"say": [
+				"send Mateo feedback on his notebook, cite the datasheet next time",
+				"tell Leo his Shop Fix sketch needs dimensions",
+				"leave Ana a note on question 2 of the DFM worksheet"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"student": {
+					"type": "string",
+					"required": true,
+					"resolve": "student",
+					"describe": "The student, as you said the name."
+				},
+				"message": {
+					"type": "string",
+					"required": true,
+					"describe": "What the note says."
+				},
+				"question": {
+					"type": "string",
+					"describe": "Pin the note to one question: its number, its name, or words from its prompt."
+				}
+			}
+		},
+		"award_coins": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"coin_log_transaction"
+			],
+			"describe": "Give one or more students IDEA Coins under an award category, with the reason you say.",
+			"say": [
+				"give Mateo in Block 2 five coins for helping clean the shop",
+				"award the Shop Fix winners, Mateo and Leo, ten each",
+				"give everyone in Block 1 two coins for the clean benches",
+				"give Leo a Correct Answer award"
+			],
+			"args": {
+				"students": {
+					"type": "array",
+					"items": "string",
+					"resolve": "student",
+					"describe": "Each student, as you said the name. Leave it out and name a class to award the whole class."
+				},
+				"class": {
+					"type": "string",
+					"resolve": "class",
+					"describe": "A class to award every enrolled student in, or the class to look in for the names."
+				},
+				"amount": {
+					"type": "number",
+					"describe": "Coins each, when the award category takes an amount."
+				},
+				"reason": {
+					"type": "string",
+					"required": true,
+					"describe": "The reason, in your words; it is the note on the coin record."
+				},
+				"kind": {
+					"type": "string",
+					"describe": "The award category, like Above and Beyond or Correct Answer in Class. Leave it out to be offered the ones that fit."
+				}
+			}
+		},
+		"fine_coins": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"coin_log_transaction"
+			],
+			"describe": "Fine one or more students IDEA Coins under a fine category, with the reason you say.",
+			"say": [
+				"fine Daniel R three coins, phone out",
+				"fine Leo for leaving without permission",
+				"give Ana a disruptive fine"
+			],
+			"args": {
+				"students": {
+					"type": "array",
+					"items": "string",
+					"required": true,
+					"resolve": "student",
+					"describe": "Each student, as you said the name."
+				},
+				"class": {
+					"type": "string",
+					"resolve": "class",
+					"describe": "The class to look in for the names."
+				},
+				"kind": {
+					"type": "string",
+					"describe": "The fine category, like Off-Task or Disruptive. Leave it out to be offered the ones that fit."
+				},
+				"reason": {
+					"type": "string",
+					"describe": "The reason, in your words; it is the note on the coin record."
+				},
+				"amount": {
+					"type": "number",
+					"describe": "The amount you said, checked against the category's set amount."
+				}
+			}
+		},
+		"coin_balance": {
+			"facade": true,
+			"level": "read",
+			"uses": [
+				"coin_admin_lookup"
+			],
+			"describe": "Say how many IDEA Coins a student has, with their most recent coin records.",
+			"say": [
+				"how many coins does Mateo have",
+				"what's Leo's balance",
+				"check Ana's coins"
+			],
+			"args": {
+				"student": {
+					"type": "string",
+					"required": true,
+					"resolve": "student",
+					"describe": "The student, as you said the name."
+				}
+			}
+		},
+		"undo_last": {
+			"facade": true,
+			"level": "undo",
+			"uses": [],
+			"describe": "Undo the most recent change made through Claude that can be undone, such as an award, a fine or a new post.",
+			"say": [
+				"undo that",
+				"undo that fine",
+				"take that back",
+				"never mind, reverse it"
+			]
+		},
+		"connector_disconnect": {
+			"facade": true,
+			"level": "confirm",
+			"uses": [
+				"connector_admin_disconnect"
+			],
+			"describe": "Disconnect this Claude connection from the site; it asks first, and connecting again means signing in again.",
+			"say": [
+				"disconnect this phone",
+				"sign this connection out",
+				"revoke Claude's access from here"
+			]
+		}
+	},
+	"sources": {
+		"armory_app_feedback_admin_list": "armory.yaml",
+		"armory_app_feedback_set_status": "armory.yaml",
+		"armory_app_incident_set_status": "armory.yaml",
+		"armory_app_incidents_admin_list": "armory.yaml",
+		"armory_break_lock": "armory.yaml",
+		"armory_break_locks": "armory.yaml",
+		"armory_can_take_back": "armory.yaml",
+		"armory_create_project": "armory.yaml",
+		"armory_file_history": "armory.yaml",
+		"armory_is_member": "armory.yaml",
+		"armory_list_changes": "armory.yaml",
+		"armory_my_projects": "armory.yaml",
+		"armory_orphans_count": "armory.yaml",
+		"armory_orphans_pending": "armory.yaml",
+		"armory_orphans_swept": "armory.yaml",
+		"armory_people_search": "armory.yaml",
+		"armory_project_checkouts": "armory.yaml",
+		"armory_project_files": "armory.yaml",
+		"armory_project_summaries": "armory.yaml",
+		"armory_purge_preview": "armory.yaml",
+		"armory_purge_project": "armory.yaml",
+		"armory_register_device": "armory.yaml",
+		"armory_team_status": "armory.yaml",
+		"cert_admin_get": "certifications.yaml",
+		"cert_admin_list": "certifications.yaml",
+		"cert_admin_save": "certifications.yaml",
+		"cert_award_commit": "certifications.yaml",
+		"cert_award_correct": "certifications.yaml",
+		"cert_award_get": "certifications.yaml",
+		"cert_award_prepare": "certifications.yaml",
+		"cert_error_log": "certifications.yaml",
+		"cert_exam_live": "certifications.yaml",
+		"cert_exam_pool_get": "certifications.yaml",
+		"cert_exam_pool_replace": "certifications.yaml",
+		"cert_expiry_reminders": "certifications.yaml",
+		"cert_export": "certifications.yaml",
+		"cert_get": "certifications.yaml",
+		"cert_is_certifier": "certifications.yaml",
+		"cert_lesson_document": "certifications.yaml",
+		"cert_lesson_save": "certifications.yaml",
+		"cert_me": "certifications.yaml",
+		"cert_mirror_snapshot": "certifications.yaml",
+		"cert_notifications_mark_sent": "certifications.yaml",
+		"cert_notifications_unread": "certifications.yaml",
+		"cert_notifications_unsent": "certifications.yaml",
+		"cert_sweep_dormant": "certifications.yaml",
+		"cert_sync_log_write": "certifications.yaml",
+		"cert_verify": "certifications.yaml",
+		"classroom_section_roster": "classroom.yaml",
+		"classroom_create_item": "classroom.yaml",
+		"classroom_update_item": "classroom.yaml",
+		"classroom_delete_item": "classroom.yaml",
+		"classroom_set_published": "classroom.yaml",
+		"classroom_set_item_pinned": "classroom.yaml",
+		"classroom_set_rubric": "classroom.yaml",
+		"classroom_set_html_assignment": "classroom.yaml",
+		"classroom_item_revisions": "classroom.yaml",
+		"classroom_restore_revision": "classroom.yaml",
+		"classroom_grade_direct": "classroom.yaml",
+		"classroom_revoke_grade": "classroom.yaml",
+		"classroom_restore_grade": "classroom.yaml",
+		"classroom_feedback_post": "classroom.yaml",
+		"classroom_feedback_remove": "classroom.yaml",
+		"classroom_feedback_list": "classroom.yaml",
+		"classroom_quick_post_create": "classroom.yaml",
+		"classroom_quick_post_take_down": "classroom.yaml",
+		"classroom_quick_posts": "classroom.yaml",
+		"classroom_student_overview": "classroom.yaml",
+		"classroom_add_attachment": "classroom.yaml",
+		"classroom_add_instructor_attachment": "classroom.yaml",
+		"classroom_add_postings": "classroom.yaml",
+		"classroom_add_submission_file": "classroom.yaml",
+		"classroom_approve_module": "classroom.yaml",
+		"classroom_archive_team_set": "classroom.yaml",
+		"classroom_close_assignment": "classroom.yaml",
+		"classroom_course_categories": "classroom.yaml",
+		"classroom_deck_ingest_abandon": "classroom.yaml",
+		"classroom_deck_ingest_begin": "classroom.yaml",
+		"classroom_deck_ingest_claim_stage": "classroom.yaml",
+		"classroom_deck_ingest_finish": "classroom.yaml",
+		"classroom_deck_ingest_record": "classroom.yaml",
+		"classroom_deck_upload_cancel": "classroom.yaml",
+		"classroom_deck_upload_claim": "classroom.yaml",
+		"classroom_deck_upload_start": "classroom.yaml",
+		"classroom_delete_attachment": "classroom.yaml",
+		"classroom_delete_deck": "classroom.yaml",
+		"classroom_delete_instructor_attachment": "classroom.yaml",
+		"classroom_delete_section": "classroom.yaml",
+		"classroom_delete_submission_file": "classroom.yaml",
+		"classroom_delete_unit": "classroom.yaml",
+		"classroom_designate_instructor_key": "classroom.yaml",
+		"classroom_duplicate_drafts": "classroom.yaml",
+		"classroom_duplicate_item": "classroom.yaml",
+		"classroom_feedback_reply": "classroom.yaml",
+		"classroom_feedback_seen": "classroom.yaml",
+		"classroom_feedback_set_state": "classroom.yaml",
+		"classroom_feedback_update": "classroom.yaml",
+		"classroom_grade_revocation": "classroom.yaml",
+		"classroom_grade_submission": "classroom.yaml",
+		"classroom_grade_submissions": "classroom.yaml",
+		"classroom_hall_pass_close_by_id": "classroom.yaml",
+		"classroom_hall_pass_events": "classroom.yaml",
+		"classroom_hall_pass_open_for": "classroom.yaml",
+		"classroom_hall_pass_set_limits": "classroom.yaml",
+		"classroom_hall_pass_state": "classroom.yaml",
+		"classroom_import_roster": "classroom.yaml",
+		"classroom_manages_section": "classroom.yaml",
+		"classroom_mark_item_viewed": "classroom.yaml",
+		"classroom_move_team_member": "classroom.yaml",
+		"classroom_open_submission": "classroom.yaml",
+		"classroom_post_team_set": "classroom.yaml",
+		"classroom_posting_perfect_scores": "classroom.yaml",
+		"classroom_presence_ping": "classroom.yaml",
+		"classroom_presence_state": "classroom.yaml",
+		"classroom_public_attachment": "classroom.yaml",
+		"classroom_public_reference": "classroom.yaml",
+		"classroom_quick_post_add_file": "classroom.yaml",
+		"classroom_quick_post_file": "classroom.yaml",
+		"classroom_record_export": "classroom.yaml",
+		"classroom_remove_enrollment": "classroom.yaml",
+		"classroom_remove_posting": "classroom.yaml",
+		"classroom_rename_attachment": "classroom.yaml",
+		"classroom_rename_instructor_attachment": "classroom.yaml",
+		"classroom_save_instructor_response": "classroom.yaml",
+		"classroom_save_response": "classroom.yaml",
+		"classroom_save_team_set": "classroom.yaml",
+		"classroom_set_assignment_spec": "classroom.yaml",
+		"classroom_set_attachment_order": "classroom.yaml",
+		"classroom_set_enrollment": "classroom.yaml",
+		"classroom_set_instructor_attachment_order": "classroom.yaml",
+		"classroom_set_instructor_resources": "classroom.yaml",
+		"classroom_set_item_layout": "classroom.yaml",
+		"classroom_set_item_order": "classroom.yaml",
+		"classroom_set_item_public": "classroom.yaml",
+		"classroom_set_item_thumbnail": "classroom.yaml",
+		"classroom_set_item_thumbnail_focus": "classroom.yaml",
+		"classroom_set_item_unit": "classroom.yaml",
+		"classroom_set_posting_perfect_score": "classroom.yaml",
+		"classroom_set_reference_spec": "classroom.yaml",
+		"classroom_set_section_active": "classroom.yaml",
+		"classroom_set_section_thumbnail_shape": "classroom.yaml",
+		"classroom_set_submission_file_caption": "classroom.yaml",
+		"classroom_set_team_style": "classroom.yaml",
+		"classroom_set_unit_order": "classroom.yaml",
+		"classroom_song_approve": "classroom.yaml",
+		"classroom_song_queue": "classroom.yaml",
+		"classroom_song_reject": "classroom.yaml",
+		"classroom_song_request": "classroom.yaml",
+		"classroom_submit_assignment": "classroom.yaml",
+		"classroom_team_board": "classroom.yaml",
+		"classroom_undesignate_instructor_key": "classroom.yaml",
+		"classroom_unpost_team_set": "classroom.yaml",
+		"classroom_unsubmit_assignment": "classroom.yaml",
+		"classroom_update_enrollment": "classroom.yaml",
+		"classroom_upsert_course": "classroom.yaml",
+		"classroom_upsert_section": "classroom.yaml",
+		"classroom_upsert_unit": "classroom.yaml",
+		"classroom_view_as_students": "classroom.yaml",
+		"classroom_worksheet_latch": "classroom.yaml",
+		"classroom_worksheet_latch_for": "classroom.yaml",
+		"classroom_worksheet_latched": "classroom.yaml",
+		"classroom_worksheet_past_manifests": "classroom.yaml",
+		"coin_log_transaction": "coin.yaml",
+		"coin_reverse_transaction": "coin.yaml",
+		"coin_admin_lookup": "coin.yaml",
+		"coin_settings_get": "coin.yaml",
+		"coin_fine_sections": "coin.yaml",
+		"coin_staff_scope": "coin.yaml",
+		"coin_admin_adjust_balance": "coin.yaml",
+		"coin_admin_create_category": "coin.yaml",
+		"coin_admin_set_category_active": "coin.yaml",
+		"coin_auditor_queue": "coin.yaml",
+		"coin_autopay_run": "coin.yaml",
+		"coin_bulk_log_students": "coin.yaml",
+		"coin_contract_self_claim": "coin.yaml",
+		"coin_digest_push_due": "coin.yaml",
+		"coin_donation_items_list": "coin.yaml",
+		"coin_export": "coin.yaml",
+		"coin_fine_log": "coin.yaml",
+		"coin_fine_roster": "coin.yaml",
+		"coin_log_extra_credit": "coin.yaml",
+		"coin_log_pay_raise": "coin.yaml",
+		"coin_log_perfect_score": "coin.yaml",
+		"coin_log_property_damage_careless": "coin.yaml",
+		"coin_log_three_d_printing": "coin.yaml",
+		"coin_me": "coin.yaml",
+		"coin_my_contract_claims": "coin.yaml",
+		"coin_my_contracts": "coin.yaml",
+		"coin_my_page": "coin.yaml",
+		"coin_my_role": "coin.yaml",
+		"coin_my_stats": "coin.yaml",
+		"coin_no_shop_today": "coin.yaml",
+		"coin_public_contracts": "coin.yaml",
+		"coin_public_leaderboard": "coin.yaml",
+		"coin_public_reasons": "coin.yaml",
+		"coin_public_reported_coins": "coin.yaml",
+		"coin_public_role_badges": "coin.yaml",
+		"coin_public_role_questions": "coin.yaml",
+		"coin_public_roles": "coin.yaml",
+		"coin_public_student": "coin.yaml",
+		"coin_public_transactions": "coin.yaml",
+		"coin_role_self_apply": "coin.yaml",
+		"coin_section_role_badges": "coin.yaml",
+		"connector_call": "connector.yaml",
+		"connector_audit_failure": "connector.yaml",
+		"connector_admin_state": "connector.yaml",
+		"connector_admin_audit": "connector.yaml",
+		"connector_admin_set_enabled": "connector.yaml",
+		"connector_admin_disconnect": "connector.yaml",
+		"connector_admin_disconnect_all": "connector.yaml",
+		"/.well-known/oauth-authorization-server": "endpoints.yaml",
+		"/.well-known/oauth-protected-resource": "endpoints.yaml",
+		"/.well-known/oauth-protected-resource/mcp": "endpoints.yaml",
+		"/_platform/[...asset]": "endpoints.yaml",
+		"/a/[appId]/[...path]": "endpoints.yaml",
+		"/admin/drive-connect": "endpoints.yaml",
+		"/admin/drive-connect/callback": "endpoints.yaml",
+		"/api/armory/blob-url": "endpoints.yaml",
+		"/api/armory/connect/exchange": "endpoints.yaml",
+		"/api/armory/connect/start": "endpoints.yaml",
+		"/api/armory/purge": "endpoints.yaml",
+		"/api/armory/sweep": "endpoints.yaml",
+		"/api/avatar/[...path]": "endpoints.yaml",
+		"/api/certifications/award": "endpoints.yaml",
+		"/api/certifications/correct": "endpoints.yaml",
+		"/api/certifications/evidence/[...path]": "endpoints.yaml",
+		"/api/certifications/evidence/sign": "endpoints.yaml",
+		"/api/certifications/export": "endpoints.yaml",
+		"/api/certifications/jobs/[job]": "endpoints.yaml",
+		"/api/certifications/package/export/[id]": "endpoints.yaml",
+		"/api/certifications/package/import": "endpoints.yaml",
+		"/api/classroom/attachment": "endpoints.yaml",
+		"/api/classroom/attachment/[attachment_id]": "endpoints.yaml",
+		"/api/classroom/attachment/sign": "endpoints.yaml",
+		"/api/classroom/deck": "endpoints.yaml",
+		"/api/classroom/deck/[deck_id]/[...path]": "endpoints.yaml",
+		"/api/classroom/delete-content": "endpoints.yaml",
+		"/api/classroom/export": "endpoints.yaml",
+		"/api/classroom/html-assignment-source/[itemId]": "endpoints.yaml",
+		"/api/classroom/instructor-attachment": "endpoints.yaml",
+		"/api/classroom/instructor-attachment/[attachment_id]": "endpoints.yaml",
+		"/api/classroom/instructor-attachment/sign": "endpoints.yaml",
+		"/api/classroom/item": "endpoints.yaml",
+		"/api/classroom/link-preview": "endpoints.yaml",
+		"/api/classroom/quick-post-file": "endpoints.yaml",
+		"/api/classroom/quick-post-file/[file_id]": "endpoints.yaml",
+		"/api/classroom/quick-post-file/sign": "endpoints.yaml",
+		"/api/classroom/submission-file": "endpoints.yaml",
+		"/api/classroom/submission-file/[file_id]": "endpoints.yaml",
+		"/api/classroom/submission-file/sign": "endpoints.yaml",
+		"/api/classroom/thumbnail": "endpoints.yaml",
+		"/api/classroom/thumbnail/[itemId]": "endpoints.yaml",
+		"/api/classroom/thumbnail/sign": "endpoints.yaml",
+		"/api/coin/autopay": "endpoints.yaml",
+		"/api/coin/claim": "endpoints.yaml",
+		"/api/coin/digest-push": "endpoints.yaml",
+		"/api/coin/me": "endpoints.yaml",
+		"/api/coin/public": "endpoints.yaml",
+		"/api/coin/role-apply": "endpoints.yaml",
+		"/api/coin/signin": "endpoints.yaml",
+		"/api/feedback": "endpoints.yaml",
+		"/api/foundry-cover/[...path]": "endpoints.yaml",
+		"/api/foundry/delete": "endpoints.yaml",
+		"/api/foundry/source": "endpoints.yaml",
+		"/api/greenline-track-publish": "endpoints.yaml",
+		"/api/notebook/add-note": "endpoints.yaml",
+		"/api/notebook/add-photo": "endpoints.yaml",
+		"/api/notebook/edit-note": "endpoints.yaml",
+		"/api/notebook/note": "endpoints.yaml",
+		"/api/notebook/photo/[photo_id]": "endpoints.yaml",
+		"/api/notebook/session-guidance": "endpoints.yaml",
+		"/api/notebook/upload": "endpoints.yaml",
+		"/api/tournament-push": "endpoints.yaml",
+		"/api/vanguard-feedback": "endpoints.yaml",
+		"/api/vanguard-run-state": "endpoints.yaml",
+		"/api/vanguard-run": "endpoints.yaml",
+		"/api/vanguard-save": "endpoints.yaml",
+		"/armory/[project]/file/[file]/version/[version]": "endpoints.yaml",
+		"/armory/download/[file]": "endpoints.yaml",
+		"/armory/get": "endpoints.yaml",
+		"/assignments/[slug]": "endpoints.yaml",
+		"/auth/callback": "endpoints.yaml",
+		"/b/[appId]/[versionId]/[...path]": "endpoints.yaml",
+		"/certifications/lesson/[lessonId]": "endpoints.yaml",
+		"/certifications/verify/public-key": "endpoints.yaml",
+		"/classroom/[sectionId]/duplicates/remove": "endpoints.yaml",
+		"/coins/[...path]": "endpoints.yaml",
+		"/connector/register": "endpoints.yaml",
+		"/connector/revoke": "endpoints.yaml",
+		"/connector/token": "endpoints.yaml",
+		"/dev/ai-level-badge-reference": "endpoints.yaml",
+		"/dev/cert-certification/lesson/[lessonId]": "endpoints.yaml",
+		"/dev/classroom-deck/f/[deck_id]/[...path]": "endpoints.yaml",
+		"/dev/classroom-deck/fixture": "endpoints.yaml",
+		"/dev/classroom-deck/ingest": "endpoints.yaml",
+		"/dev/classroom/normalize": "endpoints.yaml",
+		"/dev/coins": "endpoints.yaml",
+		"/dev/coins/api/claim": "endpoints.yaml",
+		"/dev/coins/api/me": "endpoints.yaml",
+		"/dev/coins/api/public": "endpoints.yaml",
+		"/dev/coins/api/role-apply": "endpoints.yaml",
+		"/dev/deploy-safety/slide": "endpoints.yaml",
+		"/dev/deploy-safety/upload": "endpoints.yaml",
+		"/dev/feedback/assignment": "endpoints.yaml",
+		"/dev/foundry-admin/refusal": "endpoints.yaml",
+		"/dev/foundry-mosaic/cover/[shape]": "endpoints.yaml",
+		"/dev/frc-quiz": "endpoints.yaml",
+		"/dev/html-instructor/copy/doc": "endpoints.yaml",
+		"/dev/maps-media/o/[...path]": "endpoints.yaml",
+		"/dev/notebook/normalize": "endpoints.yaml",
+		"/foundry/download/[appId]/[versionId]": "endpoints.yaml",
+		"/foundry/preview/[appId]/[versionId]/[...path]": "endpoints.yaml",
+		"/foundry/starter": "endpoints.yaml",
+		"/frc/[domain]/[unit]/quiz": "endpoints.yaml",
+		"/hx/[docId]": "endpoints.yaml",
+		"/hx/[docId]/thumbnail": "endpoints.yaml",
+		"/mcp": "endpoints.yaml",
+		"/sitemap.xml": "endpoints.yaml",
+		"/vanguard": "endpoints.yaml",
+		"foundry_app_play_stats": "foundry.yaml",
+		"foundry_author_profile": "foundry.yaml",
+		"foundry_class_schedule_get": "foundry.yaml",
+		"foundry_clear_metadata_flag": "foundry.yaml",
+		"foundry_collections_read": "foundry.yaml",
+		"foundry_create_app": "foundry.yaml",
+		"foundry_create_version": "foundry.yaml",
+		"foundry_delete_app": "foundry.yaml",
+		"foundry_delete_version": "foundry.yaml",
+		"foundry_featured_read": "foundry.yaml",
+		"foundry_gallery_overrides_read": "foundry.yaml",
+		"foundry_game_requests": "foundry.yaml",
+		"foundry_get_app": "foundry.yaml",
+		"foundry_list_apps": "foundry.yaml",
+		"foundry_manageable_sections": "foundry.yaml",
+		"foundry_my_play_stats": "foundry.yaml",
+		"foundry_people_search": "foundry.yaml",
+		"foundry_play_counts": "foundry.yaml",
+		"foundry_play_ping": "foundry.yaml",
+		"foundry_play_start": "foundry.yaml",
+		"foundry_publisher_applications": "foundry.yaml",
+		"foundry_publisher_apply": "foundry.yaml",
+		"foundry_publisher_decide": "foundry.yaml",
+		"foundry_publisher_pending_count": "foundry.yaml",
+		"foundry_publisher_questions_admin": "foundry.yaml",
+		"foundry_publisher_set_questions": "foundry.yaml",
+		"foundry_publisher_status": "foundry.yaml",
+		"foundry_review_version": "foundry.yaml",
+		"foundry_section_access": "foundry.yaml",
+		"foundry_set_app_hidden": "foundry.yaml",
+		"foundry_set_app_major": "foundry.yaml",
+		"foundry_set_section_open": "foundry.yaml",
+		"foundry_set_site_open": "foundry.yaml",
+		"foundry_submit_version": "foundry.yaml",
+		"foundry_trusted_grant": "foundry.yaml",
+		"foundry_trusted_revoke": "foundry.yaml",
+		"foundry_trusted_roster": "foundry.yaml",
+		"foundry_update_app_metadata": "foundry.yaml",
+		"foundry_vote": "foundry.yaml",
+		"foundry_vote_counts": "foundry.yaml",
+		"gauntlet_author_delete": "gauntlet.yaml",
+		"gauntlet_author_get": "gauntlet.yaml",
+		"gauntlet_author_set_status": "gauntlet.yaml",
+		"gauntlet_author_upsert": "gauntlet.yaml",
+		"gauntlet_can_author": "gauntlet.yaml",
+		"gauntlet_class_run_stats": "gauntlet.yaml",
+		"gauntlet_knowledge_start": "gauntlet.yaml",
+		"gauntlet_leaderboards": "gauntlet.yaml",
+		"gauntlet_progression": "gauntlet.yaml",
+		"gauntlet_rank_settings_get": "gauntlet.yaml",
+		"gauntlet_rank_settings_set": "gauntlet.yaml",
+		"gauntlet_room_create": "gauntlet.yaml",
+		"gauntlet_room_delete": "gauntlet.yaml",
+		"gauntlet_room_join": "gauntlet.yaml",
+		"gauntlet_room_manual_submit": "gauntlet.yaml",
+		"gauntlet_room_reveal": "gauntlet.yaml",
+		"gauntlet_room_set_challenge": "gauntlet.yaml",
+		"gauntlet_room_set_state": "gauntlet.yaml",
+		"gauntlet_room_start": "gauntlet.yaml",
+		"gauntlet_run_review": "gauntlet.yaml",
+		"gauntlet_run_targets": "gauntlet.yaml",
+		"gauntlet_series_assign": "gauntlet.yaml",
+		"gauntlet_speedrun_reveal": "gauntlet.yaml",
+		"gauntlet_submit": "gauntlet.yaml",
+		"greenline_decal_review": "greenline.yaml",
+		"greenline_leaderboard": "greenline.yaml",
+		"greenline_purchase_item": "greenline.yaml",
+		"greenline_submit_race_result": "greenline.yaml",
+		"greenline_track_attempt_finish": "greenline.yaml",
+		"greenline_track_attempt_start": "greenline.yaml",
+		"greenline_track_list": "greenline.yaml",
+		"greenline_track_rate": "greenline.yaml",
+		"greenline_track_remove": "greenline.yaml",
+		"greenline_track_report": "greenline.yaml",
+		"greenline_track_review": "greenline.yaml",
+		"greenline_track_set_featured": "greenline.yaml",
+		"ideacad_archive": "ideacad.yaml",
+		"ideacad_assembly": "ideacad.yaml",
+		"ideacad_direct_documents": "ideacad.yaml",
+		"ideacad_direct_folders": "ideacad.yaml",
+		"ideacad_material_save_global": "ideacad.yaml",
+		"ideacad_material_set_retired": "ideacad.yaml",
+		"ideacad_set_direct_document_thumbnail": "ideacad.yaml",
+		"ideacad_shared_with_me": "ideacad.yaml",
+		"maps_editor_grant": "maps.yaml",
+		"maps_editor_revoke": "maps.yaml",
+		"maps_editor_roster": "maps.yaml",
+		"maps_my_editor_grants": "maps.yaml",
+		"maps_publish": "maps.yaml",
+		"maps_search": "maps.yaml",
+		"notebook_accept_entry": "notebook.yaml",
+		"notebook_add_note": "notebook.yaml",
+		"notebook_add_photo": "notebook.yaml",
+		"notebook_add_session_postings": "notebook.yaml",
+		"notebook_admin_delete_session": "notebook.yaml",
+		"notebook_admin_override_entry": "notebook.yaml",
+		"notebook_admin_set_excusal": "notebook.yaml",
+		"notebook_admin_upsert_session": "notebook.yaml",
+		"notebook_create_entry": "notebook.yaml",
+		"notebook_create_item_check_in": "notebook.yaml",
+		"notebook_create_note_entry": "notebook.yaml",
+		"notebook_delete_folder": "notebook.yaml",
+		"notebook_edit_note": "notebook.yaml",
+		"notebook_flag_entry": "notebook.yaml",
+		"notebook_get_section_grid": "notebook.yaml",
+		"notebook_link_session_item": "notebook.yaml",
+		"notebook_link_unit_item": "notebook.yaml",
+		"notebook_move_entries": "notebook.yaml",
+		"notebook_remove_session_posting": "notebook.yaml",
+		"notebook_resolve_entry": "notebook.yaml",
+		"notebook_review_student_notebook": "notebook.yaml",
+		"notebook_reviewed_sections": "notebook.yaml",
+		"notebook_seal_notes": "notebook.yaml",
+		"notebook_set_session_guidance": "notebook.yaml",
+		"notebook_staff_delete_entry": "notebook.yaml",
+		"notebook_staff_delete_note": "notebook.yaml",
+		"notebook_staff_restore_entry": "notebook.yaml",
+		"notebook_staff_restore_note": "notebook.yaml",
+		"notebook_unaccept_entry": "notebook.yaml",
+		"notebook_unlink_session_item": "notebook.yaml",
+		"notebook_unlink_unit_item": "notebook.yaml",
+		"notebook_upsert_folder": "notebook.yaml",
+		"notebook_view_as_notebook": "notebook.yaml",
+		"admin_grant": "site.yaml",
+		"admin_list": "site.yaml",
+		"admin_revoke": "site.yaml",
+		"app_feedback_admin_list": "site.yaml",
+		"app_feedback_edit": "site.yaml",
+		"app_feedback_set_horizon": "site.yaml",
+		"app_feedback_set_status": "site.yaml",
+		"app_feedback_submit": "site.yaml",
+		"app_short_link_delete": "site.yaml",
+		"app_short_link_list": "site.yaml",
+		"app_short_link_target": "site.yaml",
+		"app_short_link_upsert": "site.yaml",
+		"clear_fsp_session": "site.yaml",
+		"frc_can_review": "site.yaml",
+		"frc_mark_complete": "site.yaml",
+		"frc_quiz_grade": "site.yaml",
+		"frc_quiz_start": "site.yaml",
+		"frc_review_queue": "site.yaml",
+		"frc_unmark_complete": "site.yaml",
+		"idea_cert_sync": "site.yaml",
+		"is_admin": "site.yaml",
+		"is_owner": "site.yaml",
+		"profile_avatar_hide": "site.yaml",
+		"profile_avatar_hold_status": "site.yaml",
+		"profile_avatar_holds": "site.yaml",
+		"profile_avatar_my_hold": "site.yaml",
+		"profile_avatar_restore": "site.yaml",
+		"push_subscribe": "site.yaml",
+		"submit_fsp_question": "site.yaml",
+		"find_student": "tools.yaml",
+		"list_classes": "tools.yaml",
+		"list_posts": "tools.yaml",
+		"get_post": "tools.yaml",
+		"create_post": "tools.yaml",
+		"set_points": "tools.yaml",
+		"set_due": "tools.yaml",
+		"set_rubric": "tools.yaml",
+		"set_published": "tools.yaml",
+		"replace_html_assignment": "tools.yaml",
+		"read_grades": "tools.yaml",
+		"read_answers": "tools.yaml",
+		"grade": "tools.yaml",
+		"send_feedback": "tools.yaml",
+		"award_coins": "tools.yaml",
+		"fine_coins": "tools.yaml",
+		"coin_balance": "tools.yaml",
+		"undo_last": "tools.yaml",
+		"connector_disconnect": "tools.yaml",
+		"tournament_add_entry_member": "tournaments.yaml",
+		"tournament_add_host": "tournaments.yaml",
+		"tournament_create": "tournaments.yaml",
+		"tournament_delete": "tournaments.yaml",
+		"tournament_generate_qual_pools": "tournaments.yaml",
+		"tournament_host_add_entry": "tournaments.yaml",
+		"tournament_join_entry": "tournaments.yaml",
+		"tournament_live_config_apply": "tournaments.yaml",
+		"tournament_live_config_preview": "tournaments.yaml",
+		"tournament_ping_entry": "tournaments.yaml",
+		"tournament_register_entry": "tournaments.yaml",
+		"tournament_remove_entry": "tournaments.yaml",
+		"tournament_remove_entry_member": "tournaments.yaml",
+		"tournament_rename_entry_member": "tournaments.yaml",
+		"tournament_reorder_seed": "tournaments.yaml",
+		"tournament_respond_invite": "tournaments.yaml",
+		"tournament_reward_settlement": "tournaments.yaml",
+		"tournament_send_invite": "tournaments.yaml",
+		"tournament_set_entry_style": "tournaments.yaml",
+		"tournament_set_reward_rules": "tournaments.yaml",
+		"tournament_set_status": "tournaments.yaml",
+		"tournament_shuffle_seeds": "tournaments.yaml",
+		"tournament_start_match": "tournaments.yaml",
+		"tournament_submit_qual_result": "tournaments.yaml",
+		"tournament_update": "tournaments.yaml",
+		"tournament_update_entry": "tournaments.yaml"
+	}
+}

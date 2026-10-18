@@ -1,0 +1,11 @@
+# IDEACAD FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+ideacad_archive: {pending: slice 2}
+ideacad_assembly: {pending: slice 2}
+ideacad_direct_documents: {pending: slice 2}
+ideacad_direct_folders: {pending: slice 2}
+ideacad_material_save_global: {pending: slice 2}
+ideacad_material_set_retired: {pending: slice 2}
+ideacad_set_direct_document_thumbnail: {pending: slice 2}
+ideacad_shared_with_me: {pending: slice 2}

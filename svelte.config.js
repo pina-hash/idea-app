@@ -6,6 +6,16 @@ const config = {
 	preprocess: vitePreprocess(),
 	kit: {
 		adapter: adapter(),
+		/**
+		 * THE BUILT-IN CROSS-SITE FORM CHECK IS OFF ONLY BECAUSE A HOOK RESTATES
+		 * IT. The IDEA Website connector's OAuth token and revocation endpoints
+		 * take form-urlencoded POSTs from Claude's servers with no Origin header,
+		 * which the built-in check refuses in production with no per-route
+		 * switch. `connectorCsrfGuard` (src/lib/server/connector/csrf.ts) runs
+		 * first in hooks.server.ts and is the same rule with those two paths
+		 * exempt; tests/connector-csrf.test.ts fails if either half moves.
+		 */
+		csrf: { trustedOrigins: ['*'] },
 		version: {
 			/**
 			 * HOW OFTEN AN OPEN TAB ASKS WHETHER A NEWER VERSION IS LIVE: two minutes.

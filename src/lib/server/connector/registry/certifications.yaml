@@ -1,0 +1,28 @@
+# CERTIFICATIONS FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+cert_admin_get: {pending: slice 2}
+cert_admin_list: {pending: slice 2}
+cert_admin_save: {pending: slice 2}
+cert_award_commit: {pending: slice 2}
+cert_award_correct: {pending: slice 2}
+cert_award_get: {pending: slice 2}
+cert_award_prepare: {pending: slice 2}
+cert_error_log: {pending: slice 2}
+cert_exam_live: {pending: slice 2}
+cert_exam_pool_get: {pending: slice 2}
+cert_exam_pool_replace: {pending: slice 2}
+cert_expiry_reminders: {pending: slice 2}
+cert_export: {pending: slice 2}
+cert_get: {pending: slice 2}
+cert_is_certifier: {pending: slice 2}
+cert_lesson_document: {pending: slice 2}
+cert_lesson_save: {pending: slice 2}
+cert_me: {pending: slice 2}
+cert_mirror_snapshot: {pending: slice 2}
+cert_notifications_mark_sent: {pending: slice 2}
+cert_notifications_unread: {pending: slice 2}
+cert_notifications_unsent: {pending: slice 2}
+cert_sweep_dormant: {pending: slice 2}
+cert_sync_log_write: {pending: slice 2}
+cert_verify: {pending: slice 2}

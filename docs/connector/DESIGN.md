@@ -363,3 +363,76 @@ the site later. Built by ledger 0401.
 2. **Add custom connector**. Name: `IDEA Website`. URL: `https://ideabosco.com/mcp`. Leave the OAuth client fields blank. **Add**.
 3. **Connect**. The site opens; sign in with the admin Google account if asked; **Connect** on the consent card. Expected: the connector shows as connected and `list_classes` works in a new chat.
 4. After ledger 0401, the same three steps once more with Name `IDEA Website (practice)` and URL `https://ideabosco.com/mcp/practice` (section 9).
+
+## What 0400 built (2026-10-18)
+
+Everything in sections 1 to 5 except the full overlay, which is 0401's. Where
+the build differs from the text above, this is the record and the reason.
+
+- **Transport.** `@modelcontextprotocol/sdk` 1.32.1 ships
+  `WebStandardStreamableHTTPServerTransport`; `/mcp` uses it stateless
+  (`sessionIdGenerator: undefined`, `enableJsonResponse: true`) with the SDK's
+  low-level `Server`, whose tool handlers take raw JSON Schema (the registry's
+  schemas are generated, not zod). No hand-written JSON-RPC handler was needed.
+- **Overlay is compiled.** `vite build` has no YAML loader, so
+  `tools/connector/overlay.mjs` compiles `registry/*.yaml` to
+  `overlay.generated.json`; the YAML stays the only thing edited, `yaml` is a
+  devDependency, and the coverage test fails on a stale JSON.
+- **Facades are registry entries in `registry/tools.yaml`.** Most first-slice
+  voice tools resolve names and read before they write, so they are facades
+  with a `uses` list; each write takes its function entry's level, preview and
+  undo. Function entries are `surface: call`, reached through `site_call`.
+- **Confirm tokens are stored, not hashed from the preview.** A preview carries
+  fresh ids and timestamps, so a hash over it could never be recomputed at
+  commit. A random token whose sha256 sits in `connector_confirmations` beside
+  the user, the tool and a hash of the exact arguments is single use and ten
+  minutes long.
+- **Rows written: in-progress xmin, not "xmin = the transaction id".** A write
+  inside an exception block (every bulk coin function) lands in a
+  subtransaction with its own id. The exact test is "visible and still in
+  progress", with each 32-bit xmin widened around the call's own id;
+  `tests/db/connector-xmin.test.ts` proves it, the naive equality missing the
+  subtransaction row as its positive control. Deletions are not captured as
+  rows written (a deleted row is gone from the transaction's view); the audit
+  row still records the call and its result.
+- **Five definer helpers are executable by `authenticated`.** `connector_call`
+  is invoker, and an invoker cannot write a table no client role may touch, yet
+  the audit row must be in the same transaction. The helpers refuse unless the
+  caller is an admin AND `connector_call` stamped a transaction-local marker in
+  the same transaction; a direct PostgREST call is its own transaction and is
+  refused. `connector_call` is granted to `anon` too, so a signed-out call reads
+  the inner function's own refusal text for text.
+- **A non-admin through `connector_call`** gets the inner refusal when the
+  inner call refuses, and "The IDEA Website connector is for site admins." when
+  it would have worked; nothing lands either way.
+- **`connector_registry` is synced by the server** from the compiled overlay
+  (upsert, every ten minutes per instance), so 0401 needs no migration to add
+  entries.
+- **The admin page's switch and disconnects are definer functions** gated on
+  `is_admin()` (`connector_admin_*`), called on the admin's own session, and
+  reachable through `site_call` at the confirm level (evals 49 and 50).
+- **Awards need a category.** The coin economy has no general "any amount,
+  any reason" award (categories are data, `IDEA_COIN_V2.md`). `award_coins` and
+  `fine_coins` ask for the category when it is not said and check a stated
+  amount against the category's pricing; eval line 4 ("five coins for helping
+  clean the shop") gets a question, not a write, until a fitting award category
+  exists on `/coin-desk/settings`. That is Mr. Pina's call, not a code change.
+- **A rubric said as "Accuracy 10" gets three plain bands** (full, half, none):
+  the database requires three or four levels. The result says so.
+- **`grade` returns the grade unless told to hold it,** and its undo puts back
+  a previous direct score, or revokes a first grade; a grade that replaced a
+  rubric-scored one has no automatic undo, and the result says so.
+- **Two unowned files had to move with the routes.** `/mcp` and `/connector`
+  are top-level route names, so 0271 reserves them as short links and
+  `src/lib/short-links.ts` (and the two short-link tests' chains) name them; and
+  the token endpoint's origin-less form POST is refused by SvelteKit's built-in
+  CSRF check in production, so `svelte.config.js` turns that off and
+  `hooks.server.ts` runs `connectorCsrfGuard`, the same rule with the two OAuth
+  paths exempt.
+- **Inventory, measured 2026-10-17 on `40e50d6`:** 377 distinct literal
+  `.rpc('name')` names under `src/` (374 by a single-line grep, which misses
+  three calls split across lines: `notebook_remove_session_posting`,
+  `foundry_publisher_pending_count`, `tournament_create`), 102 `+server.ts`
+  files, 337 pages, and 35 `.rpc(` call sites whose name is a variable and
+  which no scanner can see. With 0400 in the tree: 382 functions, 109
+  endpoints, 339 pages (`inventory.generated.json`).

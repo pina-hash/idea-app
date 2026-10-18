@@ -1,0 +1,32 @@
+# EVERYTHING ELSE THE SITE CALLS: admin, profiles, short links, feedback, FRC, FSP, push and the rest. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+admin_grant: {pending: slice 2}
+admin_list: {pending: slice 2}
+admin_revoke: {pending: slice 2}
+app_feedback_admin_list: {pending: slice 2}
+app_feedback_edit: {pending: slice 2}
+app_feedback_set_horizon: {pending: slice 2}
+app_feedback_set_status: {pending: slice 2}
+app_feedback_submit: {pending: slice 2}
+app_short_link_delete: {pending: slice 2}
+app_short_link_list: {pending: slice 2}
+app_short_link_target: {pending: slice 2}
+app_short_link_upsert: {pending: slice 2}
+clear_fsp_session: {pending: slice 2}
+frc_can_review: {pending: slice 2}
+frc_mark_complete: {pending: slice 2}
+frc_quiz_grade: {pending: slice 2}
+frc_quiz_start: {pending: slice 2}
+frc_review_queue: {pending: slice 2}
+frc_unmark_complete: {pending: slice 2}
+idea_cert_sync: {pending: slice 2}
+is_admin: {pending: slice 2}
+is_owner: {pending: slice 2}
+profile_avatar_hide: {pending: slice 2}
+profile_avatar_hold_status: {pending: slice 2}
+profile_avatar_holds: {pending: slice 2}
+profile_avatar_my_hold: {pending: slice 2}
+profile_avatar_restore: {pending: slice 2}
+push_subscribe: {pending: slice 2}
+submit_fsp_question: {pending: slice 2}

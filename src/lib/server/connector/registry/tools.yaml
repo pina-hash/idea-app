@@ -1,0 +1,304 @@
+# THE CONNECTOR'S OWN TOOLS, keyed by the tool name Claude sees.
+#
+# Every tool the connector lists comes from the registry: these facade tools,
+# plus every function entry marked `surface: tool` in the other files, plus
+# `site_find_tool` and `site_call`, which reach every `surface: call` entry.
+# A facade is a voice-shaped tool over one or more registry functions; the
+# functions it writes through are named in `uses`, and each write takes that
+# function's own level, preview and undo from its entry. A facade's level is
+# the highest level of anything it writes.
+#
+# Wording rules (tests/connector-registry.test.ts holds them): `describe` is
+# one sentence in Mr. Pina's words, under 200 characters; `say` carries three
+# to six ways he would phrase it; every argument has a description; no table
+# name, column name or internal identifier appears anywhere here. Every
+# argument named `student`, `class`, `post` or `due` is resolved the same way
+# everywhere (find_student, his own classes, his own posts, school-day dates in
+# Los Angeles time).
+
+find_student:
+  facade: true
+  level: read
+  uses: [classroom_section_roster]
+  describe: Find a student in one of your classes by first name, last name or "Daniel R", and say which class they are in.
+  say:
+    - find Mateo
+    - who is Daniel R
+    - is there a Leo in Block 2
+    - which class is Ana Reyes in
+  args:
+    name: {type: string, required: true, describe: "The name as you said it: first name, last name, both, or a first name and a last initial."}
+    class: {type: string, describe: "Only look in this class, like 209H Block 2. Leave it out to look in every class you teach."}
+
+list_classes:
+  facade: true
+  level: read
+  uses: []
+  describe: List the classes you teach, with the course and block of each.
+  say:
+    - what classes do I have
+    - list my classes
+    - which blocks do I teach this term
+
+list_posts:
+  facade: true
+  level: read
+  uses: []
+  describe: List what is posted in one of your classes, with each post's kind, due date and whether students can see it.
+  say:
+    - what's posted in 209H Block 1
+    - what's due this week in IDEA100
+    - show me the assignments in Block 2
+    - what drafts do I have in Block 4
+  args:
+    class: {type: string, required: true, resolve: class, describe: "The class, like 209H Block 1 or IDEA100 Block 3."}
+    due: {type: string, describe: "Only posts due in this window: this week, next week, today, or overdue."}
+    kind: {type: string, describe: "Only this kind of post: assignment, material or announcement."}
+
+get_post:
+  facade: true
+  level: read
+  uses: []
+  describe: Show one post in full, with its points, due date, rubric, which classes it is in and whether students can see it.
+  say:
+    - show me Tolerance Check
+    - what's on the Shop Fix post
+    - read me the DFM worksheet's rubric
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The post's title as you said it, or part of it."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one."}
+
+create_post:
+  facade: true
+  level: undo
+  uses: [classroom_create_item, classroom_quick_post_create]
+  describe: Post an assignment, material, announcement or a short notice to one or more of your classes.
+  say:
+    - post an announcement to all 209H sections, bring safety glasses tomorrow
+    - create an assignment in Block 2 called Tolerance Check, 20 points, due Friday at 11:59
+    - put up a notice in Block 1 until the end of the day, the shop is closed
+    - add a material called Fillet Reference to IDEA100
+  args:
+    classes: {type: array, items: string, required: true, resolve: class, describe: "Every class to post to, like 209H Block 2, or all 209H for every section of a course."}
+    kind: {type: string, required: true, enum: [assignment, material, announcement, notice], describe: "assignment, material, announcement, or notice for a short message at the top of the class page."}
+    title: {type: string, describe: "The title. An assignment or material needs one; an announcement or notice does not."}
+    body: {type: string, describe: "The text of the post, as plain text."}
+    points: {type: integer, describe: "Points, for an assignment."}
+    due: {type: string, resolve: due, describe: "When an assignment is due: Friday, tomorrow 3pm, Oct 24 11:59pm. A day with no time means 11:59 PM."}
+    published: {type: boolean, describe: "False to save it as a draft students cannot see yet. Posts are visible by default."}
+    until: {type: string, resolve: due, describe: "For a notice: when it comes down, like end of day or Friday 3pm. Leave it out for the end of the school day."}
+
+set_points:
+  facade: true
+  level: undo
+  uses: [classroom_update_item]
+  describe: Change how many points an assignment is worth.
+  say:
+    - make it worth 25
+    - change Tolerance Check to 30 points
+    - set the Shop Fix to 20 points
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    points: {type: integer, required: true, describe: "The new number of points."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one."}
+
+set_due:
+  facade: true
+  level: undo
+  uses: [classroom_update_item]
+  describe: Change when an assignment is due, in school time.
+  say:
+    - move the due date to Monday
+    - make Tolerance Check due Friday at 3
+    - push the Shop Fix to next Wednesday
+    - take the due date off the reflection
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    due: {type: string, required: true, resolve: due, describe: "The new due time: Monday, Friday 3pm, Oct 24 11:59pm, or none to remove it."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one."}
+
+set_rubric:
+  facade: true
+  level: undo
+  uses: [classroom_set_rubric]
+  describe: Set the grading rubric on an assignment, one row per criterion with its points.
+  say:
+    - set the rubric on Tolerance Check, Accuracy 10, Drawing 10, Reflection 5
+    - give the Shop Fix a rubric with Function 15 and Finish 5
+    - replace the rubric on the DFM worksheet
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    criteria:
+      type: array
+      required: true
+      describe: "Each criterion with its points, like Accuracy 10. Optional levels give the score bands from the top level down to zero."
+      items:
+        type: object
+        properties:
+          name: {type: string, describe: "What is being graded, like Accuracy."}
+          points: {type: number, describe: "The most points this criterion is worth."}
+          levels:
+            type: array
+            describe: "Optional score bands, best first, each with a label, points and what earns it."
+            items:
+              type: object
+              properties:
+                label: {type: string, describe: "The band's name, like Exceeds."}
+                points: {type: number, describe: "Points for this band."}
+                descriptor: {type: string, describe: "What earns this band."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one."}
+
+set_published:
+  facade: true
+  level: undo
+  uses: [classroom_set_published]
+  describe: Show a post to students or hide it again as a draft.
+  say:
+    - publish it
+    - unpublish Tolerance Check
+    - hide the Shop Fix from students
+    - make the reflection visible
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The post's title as you said it."}
+    published: {type: boolean, required: true, describe: "True to show it to students, false to hide it as a draft."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one."}
+
+replace_html_assignment:
+  facade: true
+  level: undo
+  uses: [classroom_set_html_assignment, classroom_set_rubric]
+  describe: Replace an HTML assignment's document with a new file; refuses if any block a student has answered would disappear.
+  say:
+    - replace the Shop Fix HTML in Block 1 with the file I'm sending
+    - show me the block diff before you replace it
+    - upload this new version of the DFM worksheet
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    html: {type: string, required: true, describe: "The whole new HTML document, exactly as the file holds it."}
+    filename: {type: string, describe: "The file's name, like shop-fix.html."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one."}
+
+read_grades:
+  facade: true
+  level: read
+  uses: []
+  describe: Show who has turned in an assignment, who has not, and every score, for one class or all of them.
+  say:
+    - who hasn't turned in Shop Fix in Block 2
+    - show me the grades on Tolerance Check
+    - who still needs grading on the DFM worksheet
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    class: {type: string, resolve: class, describe: "Only this class, like 209H Block 2."}
+
+read_answers:
+  facade: true
+  level: read
+  uses: []
+  describe: Read what a student answered on an assignment, every question or just one.
+  say:
+    - what did Mateo answer on question 3 of the DFM worksheet
+    - read me Leo's answers on the Shop Fix
+    - show Ana's reflection on Tolerance Check
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    student: {type: string, required: true, resolve: student, describe: "The student, as you said the name."}
+    question: {type: string, describe: "One question: its number, its name, or words from its prompt. Leave it out for every answer."}
+
+grade:
+  facade: true
+  level: undo
+  uses: [classroom_grade_direct]
+  describe: Give a student a score on an assignment, with an optional comment, and return it to them unless you say to hold it.
+  say:
+    - grade Mateo's Shop Fix 18 out of 20, comment fix the fillet callout
+    - give Leo a perfect score on the trophy reflection
+    - score Ana's Tolerance Check 15 and hold it
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    student: {type: string, required: true, resolve: student, describe: "The student, as you said the name."}
+    score: {type: number, describe: "The score. Say perfect, or leave it out with perfect true, for full points."}
+    perfect: {type: boolean, describe: "True for full points."}
+    comment: {type: string, describe: "A comment the student reads with the grade."}
+    hold: {type: boolean, describe: "True to save the grade without returning it to the student yet."}
+
+send_feedback:
+  facade: true
+  level: undo
+  uses: [classroom_feedback_post]
+  describe: Leave a student a note on their work in progress on an assignment, which they see and can answer.
+  say:
+    - send Mateo feedback on his notebook, cite the datasheet next time
+    - tell Leo his Shop Fix sketch needs dimensions
+    - leave Ana a note on question 2 of the DFM worksheet
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    student: {type: string, required: true, resolve: student, describe: "The student, as you said the name."}
+    message: {type: string, required: true, describe: "What the note says."}
+    question: {type: string, describe: "Pin the note to one question: its number, its name, or words from its prompt."}
+
+award_coins:
+  facade: true
+  level: undo
+  uses: [coin_log_transaction]
+  describe: Give one or more students IDEA Coins under an award category, with the reason you say.
+  say:
+    - give Mateo in Block 2 five coins for helping clean the shop
+    - award the Shop Fix winners, Mateo and Leo, ten each
+    - give everyone in Block 1 two coins for the clean benches
+    - give Leo a Correct Answer award
+  args:
+    students: {type: array, items: string, resolve: student, describe: "Each student, as you said the name. Leave it out and name a class to award the whole class."}
+    class: {type: string, resolve: class, describe: "A class to award every enrolled student in, or the class to look in for the names."}
+    amount: {type: number, describe: "Coins each, when the award category takes an amount."}
+    reason: {type: string, required: true, describe: "The reason, in your words; it is the note on the coin record."}
+    kind: {type: string, describe: "The award category, like Above and Beyond or Correct Answer in Class. Leave it out to be offered the ones that fit."}
+
+fine_coins:
+  facade: true
+  level: undo
+  uses: [coin_log_transaction]
+  describe: Fine one or more students IDEA Coins under a fine category, with the reason you say.
+  say:
+    - fine Daniel R three coins, phone out
+    - fine Leo for leaving without permission
+    - give Ana a disruptive fine
+  args:
+    students: {type: array, items: string, required: true, resolve: student, describe: "Each student, as you said the name."}
+    class: {type: string, resolve: class, describe: "The class to look in for the names."}
+    kind: {type: string, describe: "The fine category, like Off-Task or Disruptive. Leave it out to be offered the ones that fit."}
+    reason: {type: string, describe: "The reason, in your words; it is the note on the coin record."}
+    amount: {type: number, describe: "The amount you said, checked against the category's set amount."}
+
+coin_balance:
+  facade: true
+  level: read
+  uses: [coin_admin_lookup]
+  describe: Say how many IDEA Coins a student has, with their most recent coin records.
+  say:
+    - how many coins does Mateo have
+    - what's Leo's balance
+    - check Ana's coins
+  args:
+    student: {type: string, required: true, resolve: student, describe: "The student, as you said the name."}
+
+undo_last:
+  facade: true
+  level: undo
+  uses: []
+  describe: Undo the most recent change made through Claude that can be undone, such as an award, a fine or a new post.
+  say:
+    - undo that
+    - undo that fine
+    - take that back
+    - never mind, reverse it
+
+connector_disconnect:
+  facade: true
+  level: confirm
+  uses: [connector_admin_disconnect]
+  describe: Disconnect this Claude connection from the site; it asks first, and connecting again means signing in again.
+  say:
+    - disconnect this phone
+    - sign this connection out
+    - revoke Claude's access from here

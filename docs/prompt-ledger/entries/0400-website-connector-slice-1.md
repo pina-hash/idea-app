@@ -1,0 +1,10 @@
+# 0400 IDEA Website Connector, slice 1: sign-in, registry, safety levels, the phone tools.
+
+- Issued: 2026-10-17
+- By: the claude.ai chat "IDEA Website Connector", through the session queue (`docs/dispatch/queue/2026-10-17-website-connector-slice-1.md`). Mode: solo.
+- Repo: `pina-hash/idea-app`
+- Owns: `src/lib/server/connector/**`, `src/routes/mcp/**`, `src/routes/connector/**`, `src/routes/.well-known/**`, `src/routes/admin/connector/**`, `tools/connector/**`, `supabase/migrations/0270_*.sql` (and `0271_*.sql`, `0272_*.sql` if needed), `tests/connector-*`, `tests/db/connector-*`, `docs/connector/**`, the dependency lines for the MCP SDK and a YAML parser in `package.json` and `package-lock.json`, a new "THE IDEA WEBSITE CONNECTOR" section in `CLAUDE.md`, `docs/prompt-ledger/entries/0400-*`, and your own `docs/history/` entry. Nothing else.
+- Migration permitted: yes. Claims: 0270, 0271, 0272. Highest on origin/main at issue: 0269
+- Status: pushed
+- Branch: `claude/website-connector-slice-1`, rebased onto `origin/main` and pushed straight to `main`.
+- Notes: Migrations used: 0270 (the connector tables, `connector_call`, the audit trail and the admin functions) and 0271 (reserve the `connector` and `mcp` short links). 0272 not used. Outside the Owns list, forced by the design and named in the history entry: `svelte.config.js` and `src/hooks.server.ts` (SvelteKit's built-in cross-site form check refuses the token endpoint's origin-less POST in production, so it is restated as `connectorCsrfGuard` with the two OAuth paths exempt), `src/lib/short-links.ts` plus the chains of `tests/short-link-reserved-names.test.ts` and `tests/short-link-redirect.test.ts` (new top-level routes must be reserved), `tests/db/ideacad-grants-anon-execute-surface.test.ts` (one allowlist entry with its reason: `connector_call` is granted to anon so a signed-out call reads the inner refusal text for text), the `npm run connector:build` script line in `package.json`, and the `SUPABASE_SERVICE_ROLE_KEY` census line in `CLAUDE.md` (six readers to seven). Mutation proof: 9 of 9 mutants killed.

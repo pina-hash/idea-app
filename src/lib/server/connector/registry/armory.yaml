@@ -1,0 +1,26 @@
+# ARMORY FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+armory_app_feedback_admin_list: {pending: slice 2}
+armory_app_feedback_set_status: {pending: slice 2}
+armory_app_incident_set_status: {pending: slice 2}
+armory_app_incidents_admin_list: {pending: slice 2}
+armory_break_lock: {pending: slice 2}
+armory_break_locks: {pending: slice 2}
+armory_can_take_back: {pending: slice 2}
+armory_create_project: {pending: slice 2}
+armory_file_history: {pending: slice 2}
+armory_is_member: {pending: slice 2}
+armory_list_changes: {pending: slice 2}
+armory_my_projects: {pending: slice 2}
+armory_orphans_count: {pending: slice 2}
+armory_orphans_pending: {pending: slice 2}
+armory_orphans_swept: {pending: slice 2}
+armory_people_search: {pending: slice 2}
+armory_project_checkouts: {pending: slice 2}
+armory_project_files: {pending: slice 2}
+armory_project_summaries: {pending: slice 2}
+armory_purge_preview: {pending: slice 2}
+armory_purge_project: {pending: slice 2}
+armory_register_device: {pending: slice 2}
+armory_team_status: {pending: slice 2}

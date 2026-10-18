@@ -1,0 +1,46 @@
+# THE CONNECTOR'S OWN FUNCTIONS. The shape is described at the top of
+# classroom.yaml.
+
+connector_call:
+  exclude: The connector's own transport; every connector write goes through it, so it is never a tool of its own.
+
+connector_audit_failure:
+  exclude: Records a failed connector write on its own statement; the connector calls it, never a person.
+
+connector_admin_state:
+  surface: call
+  level: read
+  describe: Whether the connector is on, and every connection with when it was made and last used.
+  say: ["is the connector on", "what's connected to the site", "list my Claude connections"]
+
+connector_admin_audit:
+  surface: call
+  level: read
+  describe: The connector's own log of every change made through Claude, newest first.
+  say: ["what have you changed today", "show the connector log", "list the changes you made this week"]
+  args:
+    p_tool: {name: tool, describe: "Only changes made by this tool."}
+    p_day: {name: day, describe: "Only changes on this day, in school time."}
+    p_limit: {name: limit, describe: "At most this many rows, up to 200."}
+
+connector_admin_set_enabled:
+  surface: call
+  level: confirm
+  describe: Switch the connector off for every connection, or back on from the admin page; it asks first.
+  say: ["turn the connector off", "switch off Claude's access", "shut the connector down"]
+  args:
+    p_enabled: {name: on, describe: "False to switch it off. It can only be switched back on from the site."}
+
+connector_admin_disconnect:
+  surface: call
+  level: confirm
+  describe: Disconnect one Claude connection; it asks first.
+  say: ["disconnect the laptop connection", "revoke that connection", "sign that Claude out"]
+  args:
+    p_token_id: {name: connection, describe: "The connection's id, from the list of connections."}
+
+connector_admin_disconnect_all:
+  surface: call
+  level: confirm
+  describe: Disconnect every Claude connection at once; it asks first.
+  say: ["disconnect everything", "sign every Claude connection out", "revoke all connector access"]

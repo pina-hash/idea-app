@@ -1,0 +1,9 @@
+# MAPS FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+maps_editor_grant: {pending: slice 2}
+maps_editor_revoke: {pending: slice 2}
+maps_editor_roster: {pending: slice 2}
+maps_my_editor_grants: {pending: slice 2}
+maps_publish: {pending: slice 2}
+maps_search: {pending: slice 2}

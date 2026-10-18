@@ -3062,6 +3062,90 @@ for a signed-out visitor on every other path.
   each mounting the real components over in-memory transports and 404 in
   production.
 
+### THE IDEA WEBSITE CONNECTOR -- Claude acting as an admin, through the site's own functions
+
+**`https://ideabosco.com/mcp` IS A REMOTE MCP SERVER THAT LETS A SITE ADMIN DO
+FROM ANY CLAUDE CHAT WHAT THEY DO ON THE SITE BY HAND, AS THEMSELVES (ledger
+0400, migrations 0270 and 0271).** `docs/connector/DESIGN.md` is the spec,
+decided by Mr. Pina on 2026-10-17, with a "What 0400 built" note at its end;
+`docs/connector/EVALS.md` is the finish line. The site is its own OAuth server
+(`src/lib/server/connector/oauth.ts`): the two `.well-known` documents,
+`/connector/authorize` (the consent card, the site's own Google session being
+the sign-in), `/connector/token`, `/connector/register` and `/connector/revoke`.
+None is under `authedPrefixes`; the MCP route answers its own 401 with the
+`resource_metadata` pointer.
+
+- **IT ACTS AS THE TOKEN'S USER AND NOBODY ELSE.** `handleMcp` turns the bearer
+  into a connection row, mints a Supabase session for that user (the Armory
+  pattern, cached in memory, never stored) and runs every tool through a client
+  carrying it, so `auth.uid()`, `is_admin()` and every policy see that user. The
+  service role is in one file, `src/lib/server/connector/backend.ts`, for the
+  `connector_*` tables and minting only; `tests/connector-service-role.test.ts`
+  holds it there. No identity constant exists: any admin may connect.
+- **TWO GATES STOP A STUDENT ACCOUNT, AND THE SWITCH IS A THIRD.** Consent
+  answers 404 to a non-admin, and every MCP request asks `is_admin()` AS THE
+  MINTED USER before any tool runs; an address taken off `app_admins` has its
+  connection revoked on its next call. `/admin/connector` holds the switch
+  (`connector_settings.enabled`, off answers 401 on every request), the
+  connections with Disconnect and Disconnect all, and the audit log.
+- **EVERY WRITE GOES THROUGH `connector_call`, WHICH IS SECURITY INVOKER.** It
+  builds the call from `pg_proc` (named arguments, each cast to its declared
+  type), so the inner function is gated exactly as from the browser; a caller
+  who is not an admin reads the inner function's own refusal, text for text, and
+  one whose call would have worked reads "The IDEA Website connector is for
+  site admins." and nothing lands. `tests/db/connector-permissions.test.ts`
+  holds that for every write entry, and that the admin's connector call writes
+  the same rows as the direct call.
+- **THREE LEVELS, ENFORCED BY THE SERVER FROM THE REGISTRY, NEVER BY A PROMPT.**
+  `read` runs at once with no audit row; `undo` runs, is logged, previews on
+  `dry_run`, and names its reverse (`undo_last` runs it); `confirm` always
+  previews first and writes only on a second call carrying the stored,
+  single-use `confirm_token` within ten minutes with identical arguments
+  (`src/lib/server/connector/engine.ts`). A preview is the write rolled back by
+  a `CONNECTOR_PREVIEW:` raise. Repeats never double: Claude's `request_id`, or
+  a derived key matched within 120 seconds, answers the stored result with
+  `repeated: true`; `again: true` is the deliberate second.
+- **ONE AUDIT ROW PER WRITE, IN THE SAME TRANSACTION, "VIA CLAUDE".** The
+  site's own logs are written by the inner function, unchanged (a coin award is
+  the Coin Desk's row, logged by the admin, with the reason they said);
+  `connector_audit` adds who, tool, function, arguments, result, the rows
+  written (read from `connector_log_tables` by an exact in-progress-xmin test
+  that catches subtransaction writes, `tests/db/connector-xmin.test.ts`) and the
+  computed undo. A failure is recorded on its own statement
+  (`connector_audit_failure`). The `connector_*` tables carry no policy and no
+  client grant; the private helpers refuse outside a `connector_call` of the
+  same transaction.
+- **THE REGISTRY IS THE ONLY SOURCE OF TOOLS.** Three layers, one builder
+  (`src/lib/server/connector/registry.ts`): the inventory of every `.rpc('name')`
+  under `src/` and every `+server.ts`, the schema read from `pg_proc` on the
+  whole migration chain, and the hand-written YAML overlay in
+  `src/lib/server/connector/registry/` (the only layer anybody edits; `tools.yaml`
+  holds the voice-shaped facades). `npm run connector:build` regenerates the
+  three generated JSON files, and `tests/connector-coverage.test.ts` fails on a
+  stale one and on any function or endpoint with no tool, call entry,
+  exclusion reason or (until ledger 0401) `pending: slice 2`. **A NEW
+  `.rpc('name')` OR A NEW `+server.ts` ANYWHERE IN THE SITE REDDENS THAT TEST
+  UNTIL THE OVERLAY ANSWERS FOR IT AND THE BUILD IS RE-RUN.**
+- **NAMES ARE RESOLVED AGAINST THE CLASSES THE ADMIN TEACHES, NEVER GUESSED.**
+  `src/lib/server/connector/resolve.ts` looks at sections where the admin is
+  teacher of record (an admin manages every section, so "manages" would be the
+  whole school); an ambiguous or unknown name writes nothing and says so. Dates
+  are school time through `$lib/classroom/school-calendar`.
+- **`replace_html_assignment` REFUSES WHEN AN ANSWERED BLOCK WOULD DISAPPEAR**,
+  naming the ids, using the importer's own `stageHtmlDocument`; 0195's setter
+  does not check this itself.
+- **THE TOKEN AND REVOCATION ENDPOINTS TAKE CROSS-SITE FORM POSTS WITH NO
+  ORIGIN, SO SVELTEKIT'S BUILT-IN CHECK IS OFF AND `connectorCsrfGuard`
+  RESTATES IT.** `svelte.config.js` sets `csrf.trustedOrigins` to `['*']` only
+  because the guard runs first in `hooks.server.ts` with exactly those two paths
+  exempt; every other route keeps the check, which matters because a student
+  bundle on the apps origin is same-site. `tests/connector-csrf.test.ts` holds
+  both halves.
+- **`/mcp` AND `/connector` ARE RESERVED SHORT LINKS (0271).** The local
+  backend (`src/lib/server/connector/backend-local.ts`, dev only, over an
+  embedded cluster booted by `tools/connector/local-backend.mjs`) is how the MCP
+  Inspector run is done with no Supabase project.
+
 ## Commands
 
 ```bash
@@ -3702,7 +3786,7 @@ build and the page degrades gracefully): `PUBLIC_FSP_APPS_SCRIPT_URL`,
 bundle; a missing value degrades to a clear "not configured" response, never a
 build break):
 
-- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly SIX places: the GREENLINE
+- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly SEVEN places: the GREENLINE
   community-track publish endpoint (which must run the game's real track
   validation in Node before any row is written), the push sender
   (`src/lib/server/push.ts`, whose `serviceClient()` the tournament alerts and
@@ -3731,7 +3815,12 @@ build break):
   3), for exactly two things: `armory_connect_codes`, which no client role can
   touch, and minting the Windows agent's own session (`generateLink` then
   `verifyOtp`); membership and device registration run on the caller's own
-  token. This line said FOUR until 2026-09-10 and FIVE until 2026-10-06, and the
+  token. **The SEVENTH is `src/lib/server/connector/backend.ts`** (the IDEA
+  Website connector, ledger 0400), for exactly two things, the same two as
+  Armory's: the `connector_*` tables, which no client role can touch, and
+  minting the connected admin's own session; every tool call runs on that
+  session. This line said FOUR until 2026-09-10, FIVE until 2026-10-06 and SIX
+  until 2026-10-18, and the
   count is the kind of figure that goes stale the moment another surface needs a
   credential, so **move it in the same edit that adds one**. Nothing else may read it, and
   **it must never gain a `PUBLIC_` prefix**. Unset, the feedback

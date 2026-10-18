@@ -1,0 +1,15 @@
+# GREENLINE FUNCTIONS. The shape is described at the top of classroom.yaml.
+
+# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
+greenline_decal_review: {pending: slice 2}
+greenline_leaderboard: {pending: slice 2}
+greenline_purchase_item: {pending: slice 2}
+greenline_submit_race_result: {pending: slice 2}
+greenline_track_attempt_finish: {pending: slice 2}
+greenline_track_attempt_start: {pending: slice 2}
+greenline_track_list: {pending: slice 2}
+greenline_track_rate: {pending: slice 2}
+greenline_track_remove: {pending: slice 2}
+greenline_track_report: {pending: slice 2}
+greenline_track_review: {pending: slice 2}
+greenline_track_set_featured: {pending: slice 2}

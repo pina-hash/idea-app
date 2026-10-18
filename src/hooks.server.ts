@@ -5,6 +5,7 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { dev } from '$app/environment';
 import { THEME_BOOT_MARKER, themeBootHarnessSession, themeBootScript } from '$lib/theme';
+import { connectorCsrfGuard } from '$lib/server/connector/csrf';
 
 /**
  * Redirects old GitHub Pages base-path links to their new homes. Scoped to the
@@ -180,7 +181,9 @@ const themeBoot: Handle = async ({ event, resolve }) => {
 	});
 };
 
-export const handle: Handle = sequence(legacyRedirects, supabase, authGuard, themeBoot);
+// The connector's cross-site form check runs before anything else, because it
+// stands in for SvelteKit's built-in one (svelte.config.js, csrf.ts).
+export const handle: Handle = sequence(connectorCsrfGuard, sequence(legacyRedirects, supabase, authGuard, themeBoot));
 
 /**
  * THE MINIMUM THAT MAKES A SERVER ERROR AND A REPORT ABOUT IT THE SAME EVENT.

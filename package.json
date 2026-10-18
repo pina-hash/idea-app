@@ -17,7 +17,8 @@
 		"history:index": "node docs/history/_tools/index.mjs",
 		"history:verify": "node docs/history/_tools/verify-split.mjs",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"connector:build": "node tools/connector/build.mjs"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-vercel": "^6.3.4",
@@ -35,7 +36,8 @@
 		"svelte-check": "^4.6.0",
 		"typescript": "^6.0.3",
 		"vite": "^8.0.16",
-		"vitest": "^4.1.10"
+		"vitest": "^4.1.10",
+		"yaml": "^2.9.1"
 	},
 	"dependencies": {
 		"@fontsource/archivo-black": "^5.2.8",
@@ -44,6 +46,7 @@
 		"@fontsource/roboto": "^5.2.10",
 		"@fontsource/saira-condensed": "^5.2.8",
 		"@fontsource/share-tech-mono": "^5.2.7",
+		"@modelcontextprotocol/sdk": "^1.32.1",
 		"@supabase/ssr": "^0.12.0",
 		"@supabase/supabase-js": "^2.108.2",
 		"@tiptap/core": "^3.29.2",

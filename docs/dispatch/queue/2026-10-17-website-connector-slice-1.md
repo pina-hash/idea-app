@@ -11,8 +11,9 @@ owns: src/lib/server/connector/**, src/routes/mcp/**, src/routes/connector/**, s
 after:
 needs_go: no
 go: no
-status: running
+status: done
 started_at: 2026-10-17T23:35:00-07:00
+finished_at: 2026-10-18T08:34:05Z
 trigger_id: trig_01SuLKvoJobosth25qVDQPbS
 queued_at: 2026-10-17T23:40:00-07:00
 ---
