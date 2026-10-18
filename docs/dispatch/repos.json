@@ -49,20 +49,20 @@
     {
       "repo": "pina-hash/idea-keystage",
       "name": "IDEA Keystage (keystroke visualizer)",
-      "rules": "read on first session",
-      "ledger": "unknown",
-      "migrations": "unknown",
+      "rules": "CLAUDE.md",
+      "ledger": "none; decisions in docs/DECISIONS.md",
+      "migrations": "none",
       "db": null,
-      "stack": "private repo, not yet read"
+      "stack": "Rust, Tauri, Svelte (Windows desktop app)"
     },
     {
       "repo": "pina-hash/idea-unstuck",
       "name": "IDEA Unstuck (SolidWorks add-in)",
-      "rules": "read on first session",
-      "ledger": "unknown",
-      "migrations": "unknown",
+      "rules": "README.md and HANDOFF.md (no CLAUDE.md yet)",
+      "ledger": "none",
+      "migrations": "none",
       "db": null,
-      "stack": "private repo, not yet read"
+      "stack": "C#/.NET SolidWorks add-in, needs Windows and SolidWorks to run"
     }
   ]
 }

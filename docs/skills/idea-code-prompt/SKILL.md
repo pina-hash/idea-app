@@ -15,18 +15,20 @@ Source of truth: `docs/skills/idea-code-prompt/SKILL.md` in pina-hash/idea-app, 
 
 ## 1. Choose model and effort, per prompt, never carried forward
 
-Use the current generation only. As of 2026-10: Sonnet 5.5, Opus 5.5, Fable 5.1. Never write a 5.0 name.
+The current models, their exact ids and what each is for are in `docs/dispatch/models.json` in pina-hash/idea-app; read it rather than trusting memory or an older document. As of 2026-10-17: Haiku 5.5, Sonnet 5.5, Opus 5.5, Fable 5.1. Never write a 5.0 name. Pick the cheapest model that will do the job well, and Opus 5.5 only where it is the best fit.
 
 | The session must... | Model | Effort |
 |---|---|---|
-| Make a fully specified docs-only or copy change | Sonnet 5.5 | medium |
-| Build anything in `src/`, any migration, any verification that will be relied on, with every unknown answerable from the tree | Opus 5.5 | high |
-| Decide what the prompt could not specify: an undocumented subsystem, a port between repos, a repo-wide sweep, first-draft architecture, an irreversible operation | Fable 5.1 | high (xhigh only if irreversible or repo-wide) |
-| Grind high-volume work stated completely as data and tests (migrations, RPCs, validators, pure logic) with nothing to look at | GPT-6 Astra as a Codex cloud task | high |
+| Make a mechanical, fully specified change: a rename, a status flip, a copy edit, one docs file | Haiku 5.5 | low or medium |
+| Make a fully specified docs-only bundle, specified UI copy, or a small fix with a named file and test | Sonnet 5.5 | medium |
+| Build in `src/` with judgment, any migration, verification that will be relied on, every unknown answerable from the tree | Opus 5.5 | high (xhigh if hard to reverse) |
+| Decide what the prompt could not specify: undocumented subsystem, port between repos, repo-wide sweep, first-draft architecture, irreversible operation | Fable 5.1 | high (xhigh only if irreversible or repo-wide); needs his go |
+| Grind high-volume work stated completely as data and tests with nothing to look at | GPT-6 Astra as a Codex cloud task | high |
 
+- Before choosing Fable, ask whether talking the gaps through with Mr. Pina (by voice) would let Opus 5.5 run it instead; that is his preferred path.
 - Anything that asks what something looks like stays with Claude; Codex has no browser.
-- `ultracode` is an effort setting on its own (it is xhigh plus orchestration), used for multi-part work inside ONE lane. Only one xhigh, max or ultracode bundle runs at a time.
-- Hard-to-reverse work: one tier up and xhigh.
+- `max` effort is for a single hard verification, never a whole build. xhigh, max and ultracode need his go. A dispatched session cannot run ultracode; it runs at xhigh.
+- Effort serializes: only one xhigh or max session runs at a time.
 
 ## 2. Mode
 

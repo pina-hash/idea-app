@@ -48,7 +48,9 @@ GLOBAL_MAX = 3  # sessions running at once across every repo
 REGISTRY = "docs/dispatch/repos.json"
 GATED_MODELS = {"fable-5.1"}
 GATED_EFFORTS = {"xhigh", "max", "ultracode"}
-MODELS = {"sonnet-5.5", "opus-5.5", "fable-5.1"}
+MODELS = {"haiku-5.5", "sonnet-5.5", "opus-5.5", "fable-5.1"}
+MODEL_IDS = {"haiku-5.5": "claude-haiku-5-5", "sonnet-5.5": "claude-sonnet-5-5", "opus-5.5": "claude-opus-5-5", "fable-5.1": "claude-fable-5-1"}
+MODEL_ALIAS = {"haiku-5.5": "haiku", "sonnet-5.5": "sonnet", "opus-5.5": "opus", "fable-5.1": "fable"}
 EFFORTS = {"low", "medium", "high", "xhigh", "max", "ultracode"}
 SIZES = {"S", "M", "L"}
 STATUSES = {"queued", "running", "done", "failed", "held", "cancelled"}
@@ -252,7 +254,7 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
             attention.append({"id": e["id"], "reason": f"waiting for his go ({e['model']} {e['effort']}, size {e['size']})"})
             continue
         if usage is None:
-            small = e["size"] == "S" and e["model"] in ("sonnet-5.5", "opus-5.5") and e["effort"] in ("low", "medium", "high")
+            small = e["size"] == "S" and e["model"] in ("haiku-5.5", "sonnet-5.5", "opus-5.5") and e["effort"] in ("low", "medium", "high")
             if not small:
                 wait.append({"id": e["id"], "reason": "usage unreadable; only size S Sonnet/Opus jobs start blind"})
                 continue
@@ -261,6 +263,10 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
                 continue
         elif gate:
             wait.append({"id": e["id"], "reason": gate})
+            continue
+        heavy = ("xhigh", "max", "ultracode")
+        if e["effort"] in heavy and any(r["effort"] in heavy for r in live):
+            wait.append({"id": e["id"], "reason": "one xhigh-or-above session at a time, and one is running"})
             continue
         if len(live) >= GLOBAL_MAX:
             wait.append({"id": e["id"], "reason": f"{GLOBAL_MAX} sessions already running across all repos"})
@@ -281,7 +287,9 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
         mode = "parallel" if same_repo else "solo"
         starting.append({**e, "status": "starting", "mode": mode})
         start.append({"id": e["id"], "path": e["path"], "repo": e["repo"], "model": e["model"],
-                      "effort": e["effort"], "mode": mode, "ledger": e["ledger"]})
+                      "model_id": MODEL_IDS[e["model"]], "subagent_model": MODEL_ALIAS[e["model"]],
+                      "effort": e["effort"], "ultracode": e["effort"] == "ultracode",
+                      "mode": mode, "ledger": e["ledger"]})
         if usage is None:
             break  # one blind start per run
 
@@ -384,6 +392,14 @@ def selftest() -> int:
     q = [_entry(id="r1", status="running", owns="a/**"), _entry(id="r2", status="running", repo="pina-hash/fll-app", owns="a/**"),
          _entry(id="r3", status="running", repo="pina-hash/idea-armory", owns="a/**"), _entry(id="n", repo="pina-hash/fll-app", owns="z/**")]
     check("never more than three sessions across all repos", not plan(q, ok_usage, reset, now, reg)["start"])
+
+    # 7d. models: Haiku is routable; the plan names the exact model id and effort to set
+    p = plan([_entry(id="h", model="haiku-5.5", effort="low", size="S")], ok_usage, reset, now)
+    check("Haiku 5.5 entries start with their exact model id and effort", p["start"] and p["start"][0]["model_id"] == "claude-haiku-5-5" and p["start"][0]["effort"] == "low", p)
+    check("a 5.0 model name is refused", plan([_entry(id="old", model="opus-5")], ok_usage, reset, now)["attention"])
+
+    q = [_entry(id="x1", status="running", effort="xhigh", go="yes", owns="a/**"), _entry(id="x2", repo="pina-hash/fll-app", effort="max", go="yes", owns="b/**")]
+    check("only one xhigh-or-above session at a time", not plan(q, ok_usage, reset, now)["start"])
 
     # 8. NEGATIVE CONTROL: the overlap test must not call two different trees overlapping
     check("control: disjoint globs are disjoint", not globs_overlap("src/lib/coin/**", "src/lib/maps/**"))

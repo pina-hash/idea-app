@@ -52,9 +52,16 @@ The queue lives in idea-app but serves every repo in `docs/dispatch/repos.json`:
 - **Shared things outside a repo** are resource tokens. Each repo's database is one (`db:idea-supabase`, `db:fll-supabase`, `db:frc-supabase`). An entry with a migration holds its repo's database automatically, and an entry that changes tables or server code for a database can claim it by writing the token in `owns`. idea-armory's server talks to the idea-app database, so its row names `db:idea-supabase`: an Armory change and an idea-app migration wait for each other.
 - **A new app** (the scouting app, the next small one) becomes dispatchable by adding its row to `repos.json` in the same push that queues its first session, after reading its rules file. An entry for an unlisted repo is flagged and never started.
 
-## What the dispatcher cannot set
+## How each session gets the right model and effort
 
-The tool that starts a session takes no model and no effort, so every dispatched session runs on the scheduled-task default (Opus 5.5 as of 2026-10-17). The entry's `model` and `effort` still decide what may start on its own (Fable and xhigh and above wait for his go), but a Sonnet entry runs on Opus and a Fable entry he approves runs on Opus unless he asks for its model to be changed.
+Mr. Pina, 2026-10-17: model and effort are chosen per session, automatically and on purpose, from Haiku 5.5 up to Fable 5.1; Opus 5.5 is used only where it is the best fit. The models, their exact ids and what each is for are in `docs/dispatch/models.json`, compared with Anthropic's own pages on the date it states; the morning check re-reads those pages when that date is more than 7 days old.
+
+The tool that starts a scheduled session takes no model or effort, so the dispatcher does it in two moves:
+
+1. **The launcher runs on Haiku 5.5.** Right after creating the one-time scheduled task, the dispatcher sets that task's model to `claude-haiku-5-5`. The launcher only hands the work over and checks it landed, so it costs almost nothing.
+2. **The work runs in one subagent at the entry's exact model and effort.** The launcher passes the whole prompt to a single general-purpose subagent invoked with `model` (haiku, sonnet, opus or fable) and `effort` (low to max) from the entry. Claude Code honors a per-invocation model and effort from v2.1.292; this container ran v2.1.302 on 2026-10-17.
+
+`ultracode` cannot be turned on for a dispatched session (it is a session setting, not a subagent parameter). An entry marked ultracode runs at xhigh, and the dispatcher says so when it starts it.
 
 ## The usage guard (Mr. Pina, 2026-10-17)
 

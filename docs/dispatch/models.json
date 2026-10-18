@@ -1,0 +1,75 @@
+{
+  "_note": "The models the session queue may route to. checked_at is when this file was last compared with the source pages; the morning check re-reads them when it is more than 7 days old and reports any difference. Never route to a model that is not listed here.",
+  "checked_at": "2026-10-17",
+  "sources": [
+    "https://platform.claude.com/docs/en/models/overview",
+    "https://code.claude.com/docs/en/model-config.md"
+  ],
+  "models": [
+    {
+      "key": "haiku-5.5",
+      "id": "claude-haiku-5-5",
+      "alias": "haiku",
+      "default_effort": "medium",
+      "efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "price_per_mtok": "from $0.10 in / from $0.50 out",
+      "use_for": "mechanical, fully specified changes: a rename, a status flip, a copy edit, a one-file docs change, a queue entry update"
+    },
+    {
+      "key": "sonnet-5.5",
+      "id": "claude-sonnet-5-5",
+      "alias": "sonnet",
+      "default_effort": "high",
+      "efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "price_per_mtok": "$2 in / $10 out",
+      "use_for": "docs-only bundles, specified UI copy, small fixes with a named file and test, feedback items with clear answers"
+    },
+    {
+      "key": "opus-5.5",
+      "id": "claude-opus-5-5",
+      "alias": "opus",
+      "default_effort": "medium",
+      "efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "price_per_mtok": "$4 in / $20 out",
+      "use_for": "anything in src/ that needs judgment, any migration, verification that will be relied on, multi-file features with every unknown answerable from the tree"
+    },
+    {
+      "key": "fable-5.1",
+      "id": "claude-fable-5-1",
+      "alias": "fable",
+      "default_effort": "high",
+      "efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "price_per_mtok": "$10 in / $50 out (separate weekly Fable limit on his plan)",
+      "use_for": "only where the session must decide what the prompt could not specify: undocumented subsystem, port between repos, repo-wide sweep, first-draft architecture, irreversible operation. Always needs his go"
+    }
+  ],
+  "notes": [
+    "Opus 5.5, Sonnet 5.5 and Haiku 5.5 default to medium effort in Claude Code (model-config page); Sonnet 5.5 defaults to high on the API page. A queue entry always states its effort, so defaults never decide.",
+    "ultracode is a Claude Code setting, not an effort level: xhigh plus orchestrated workflows. It needs his go.",
+    "max is accepted per session but not in settings files."
+  ]
+}
