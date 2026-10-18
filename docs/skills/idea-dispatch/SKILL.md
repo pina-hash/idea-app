@@ -17,13 +17,15 @@ Source of truth: `docs/skills/idea-dispatch/SKILL.md` in pina-hash/idea-app. The
 
 ## B. Run the dispatcher
 
-1. Fetch `main`. Read usage: open https://claude.ai/settings/usage in his Chrome (Claude in Chrome tools; read the chrome-browser skill first) and read Current session %, This week %, and the weekly reset time. Close the tab. If the browser tools are absent or fail, usage is unreadable; never guess it.
-2. `python3 tools/dispatch.py plan --usage session=<n>,week=<n>,fable=<n> --reset <ISO reset>` (omit both flags when unreadable).
+1. Fetch `main`. Read usage: open https://claude.ai/settings/usage in his Chrome (Claude in Chrome tools; read the chrome-browser skill first) and read Current session %, This week %, Fable this week %, and the weekly reset time. Close the tab. Then write the reading to the Session Dispatcher artifact (https://claude.ai/artifact/JwGj561ut4CU1pJq1R8zZQ) with ArtifactData: `set` on `usage/latest` with `session`, `week`, `fable`, `reset` (ISO), `read_at` (now, ISO) and `read_by` (this chat or "hourly dispatcher"), pinned with `if_version` from a `get`.
+   If the browser tools are absent or fail, `get` `usage/latest` from that artifact instead and use it with its `read_at`. Never guess usage.
+2. `python3 tools/dispatch.py plan --usage session=<n>,week=<n>,fable=<n> --reset <ISO reset> [--read-at <read_at when the reading came from the artifact>]` (omit the usage flags when there is no reading at all). The tool treats a reading older than 3 hours as unreadable.
 3. For each entry in `start`, in order:
    1. **Claim it first.** Set `status: running`, `started_at: <now ISO>`, push to `main`. If the push is rejected, rebase and re-read the entry: if someone else already claimed it, skip it.
    2. **Start the session**: `create_trigger` (load it through ToolSearch if deferred) with `run_once_at` one minute out, `initiation: human_schedule`, `name: <ledger> <short title>`, and as `prompt` the wrapper below followed by the entry's prompt verbatim.
    3. Write `trigger_id` into the entry and push.
-4. Report the plan's `wait` and `attention` lists in one short block. Anything waiting for his go goes at the top.
+4. If anything started or waits, add a document to the artifact's `runs` collection: `at`, `by`, `started` (ids), `waiting` (`id` and `reason`).
+5. Report the plan's `wait` and `attention` lists in one short block. Anything waiting for his go goes at the top.
 
 **The wrapper**, placed above the prompt:
 

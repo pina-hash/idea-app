@@ -37,6 +37,7 @@ QUEUE_DIR = "docs/dispatch/queue"
 WEEK_CEILING = 70.0
 PACE_FLOOR = 10.0
 SESSION_CEILING = 80.0
+MAX_READING_AGE_MIN = 180  # a usage reading older than this counts as unreadable
 MAX_PER_REPO = 2
 GATED_MODELS = {"fable-5.1"}
 GATED_EFFORTS = {"xhigh", "max", "ultracode"}
@@ -134,6 +135,17 @@ def parse_usage(s: str | None) -> dict | None:
         k, v = part.split("=")
         out[k.strip()] = float(v)
     return out
+
+
+def fresh_usage(usage: dict | None, read_at: dt.datetime | None, now: dt.datetime) -> dict | None:
+    """A reading with no time, or one older than MAX_READING_AGE_MIN, is treated as unreadable."""
+    if usage is None:
+        return None
+    if read_at is None:
+        return usage  # read this run
+    if (now - read_at).total_seconds() / 60 > MAX_READING_AGE_MIN:
+        return None
+    return usage
 
 
 def week_allowance(reset: dt.datetime | None, now: dt.datetime) -> float:
@@ -310,6 +322,12 @@ def selftest() -> int:
     p = plan([_entry(id="old", status="running", started_at="2026-10-17T10:00:00-07:00")], ok_usage, reset, now)
     check("run longer than 6 hours is flagged", any("6 hours" in a["reason"] for a in p["attention"]), p)
 
+    # 7b. reading age: 4 hours old counts as unreadable, 1 hour old counts
+    old = now - dt.timedelta(hours=4); recent = now - dt.timedelta(hours=1)
+    check("a 4-hour-old reading is treated as unreadable", fresh_usage(ok_usage, old, now) is None)
+    check("a 1-hour-old reading is used", fresh_usage(ok_usage, recent, now) == ok_usage)
+    check("stale reading means size M waits", not plan([_entry(id="m")], fresh_usage(ok_usage, old, now), reset, now)["start"])
+
     # 8. NEGATIVE CONTROL: the overlap test must not call two different trees overlapping
     check("control: disjoint globs are disjoint", not globs_overlap("src/lib/coin/**", "src/lib/maps/**"))
     check("control: nested globs overlap", globs_overlap("src/lib/**", "src/lib/coin/a.ts"))
@@ -327,6 +345,7 @@ def main() -> int:
     ap.add_argument("--root", default=".", help="repository root")
     ap.add_argument("--usage", help="session=NN,week=NN,fable=NN as read from claude.ai/settings/usage; omit when unreadable")
     ap.add_argument("--reset", help="the weekly reset as ISO-8601, as read from the usage page")
+    ap.add_argument("--read-at", help="when the usage was read, ISO-8601; omit when read this run. Older than 3 hours counts as unreadable")
     ap.add_argument("--now", help="ISO-8601; defaults to the current time")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
@@ -337,7 +356,9 @@ def main() -> int:
         return 2
     now = dt.datetime.fromisoformat(a.now) if a.now else dt.datetime.now(dt.timezone.utc).astimezone()
     reset = dt.datetime.fromisoformat(a.reset) if a.reset else None
-    print(json.dumps(plan(load_queue(a.root), parse_usage(a.usage), reset, now), indent=2))
+    read_at = dt.datetime.fromisoformat(a.read_at) if a.read_at else None
+    usage = fresh_usage(parse_usage(a.usage), read_at, now)
+    print(json.dumps(plan(load_queue(a.root), usage, reset, now), indent=2))
     return 0
 
 
