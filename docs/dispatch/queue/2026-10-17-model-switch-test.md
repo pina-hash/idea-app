@@ -11,8 +11,9 @@ owns: docs/dispatch/smoke/**
 after: 2026-10-17-dispatch-smoke-test
 needs_go: no
 go: no
-status: running
+status: done
 started_at: 2026-10-17T22:44:00-07:00
+finished_at: 2026-10-18T05:48:49+00:00
 trigger_id: trig_01WBUmAYeUbMNyy6g5WK338z
 queued_at: 2026-10-17T22:58:00-07:00
 ---
