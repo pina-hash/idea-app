@@ -2427,6 +2427,42 @@
 			"title": "Profile pictures: when one is turned off",
 			"body": "A site admin can now turn off a profile picture that should not be on the site. If that happens to yours, you will show as your initials everywhere and Change picture will say so instead of offering choices; nothing is deleted, and when it is turned back on your picture returns exactly as it was. Ask a teacher if you think it was a mistake.",
 			"tags": ["classroom"]
+		},
+		{
+			"date": "2026-10-18",
+			"title": "Every post has a thumbnail now",
+			"body": "Each post on your class page now has a small picture beside it, so you can spot an assignment at a glance instead of reading every line. It is a picture your teacher chose, a live preview some HTML assignments come with, or a tile showing what kind of post it is in its unit's colour. You choose how they look in Display settings, under Post thumbnails: Off, Tile, Wide or Banner. Your choice is kept on that device, so a phone and a laptop can differ. The same thumbnails show on your class cards on the home page and on your to-do list.",
+			"tags": ["Classes", "new"]
+		},
+		{
+			"date": "2026-10-18",
+			"title": "The class page starts sooner",
+			"body": "Under the class banner, search, the kind filter and a Videos key with its count now share one row, so the class's posts start right under the banner instead of three rows down. Press Videos to open the class's videos under the row, and press it again to close them.",
+			"tags": ["Classes"]
+		},
+		{
+			"date": "2026-10-18",
+			"title": "Send feedback is in the same corner on every page",
+			"body": "The Send feedback button now sits in the bottom-right corner on every page, your classes included (it used to be a key in the class header), and it opens the same box everywhere: on the IDEA Coin Ledger, on assignment handouts and in GAUNTLET too. You can still talk instead of typing, paste a picture, and say what you tried. VANGUARD and GREENLINE keep their own feedback buttons.",
+			"tags": ["Everywhere", "Reporting a problem"]
+		},
+		{
+			"date": "2026-10-18",
+			"title": "Open a class from the home page in one click",
+			"body": "On the home page, click a class's name to go straight into the class; you no longer have to open the card first. The Show and Hide key at the card's right edge still opens the card's list of posts when you want to jump to one assignment.",
+			"tags": ["Home"]
+		},
+		{
+			"date": "2026-10-18",
+			"title": "Install IDEA as an app",
+			"body": "The home page header has an Install app key. In Chrome or Edge, on a laptop or an Android phone, it asks the browser to install IDEA, so it opens in its own window like an app. On an iPhone or iPad it shows the steps: tap the Share icon in Safari, then Add to Home Screen. Safari on a Mac shows the same steps for Add to Dock. The key is hidden once IDEA is installed, and in a browser that cannot install it.",
+			"tags": ["Home", "new"]
+		},
+		{
+			"date": "2026-10-18",
+			"title": "A new tab icon that shows what is happening",
+			"body": "The site's browser tab icon is a new IDEA key. Its picture shows which part of the site you are in (Classroom, Notebook, GAUNTLET and so on), and a small light and the key's edge show what is happening: saving, an upload in progress, something new to read, a problem, or being offline. The icon on your phone's home screen is the same key.",
+			"tags": ["Everywhere", "Appearance"]
 		}
 	]
 }

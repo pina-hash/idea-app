@@ -5209,7 +5209,8 @@ inside the function fails closed rather than falling through to a weaker path.
   disable.
 - **EVERY SURFACE REPORTS ITS OWN DEFECTS, AND THE AFFORDANCE IS MOUNTED ONCE IN
   THE ROOT LAYOUT.** `SiteFeedback.svelte` sits in `src/routes/+layout.svelte`;
-  the one layout reset in `src/routes` is the classroom projector (below), so that mount is what makes
+  the two layout resets in `src/routes` (the classroom projector, below, and one
+  student's work page) both reset to the ROOT layout, so that mount is what makes
   coverage something a new route INHERITS rather than has to remember. **Do not
   mount it per page** -- that is the rejected alternative, and
   `tests/feedback-coverage.test.ts` sweeps every `+page.svelte` and reddens if it
@@ -5669,10 +5670,32 @@ inside the function fails closed rather than falling through to a weaker path.
       not acknowledged, plus any boundary the click still owes. The button and
       the handler read the SAME derived predicate; two spellings of it is the
       thing that stops matching.
+- **THE TAB ICON HAS ONE PAINTER, AND A SURFACE ONLY RAISES A STATUS (ledger
+  0396).** `TabIcon.svelte`, mounted once in the root layout, paints through
+  `$lib/tab-icon/live.ts`, which rewrites the SVG icon link's `href` and nothing
+  else; a surface calls `raise(kind, opts)` and `clear(handle)` and never writes
+  an icon link or `document.title` itself (the unread count's `(n) ` title
+  prefix is the painter's). **Raise the next status BEFORE clearing the last**,
+  or the resting icon paints for a frame between them. `$lib/tab-icon/geometry.ts`
+  is Mr. Pina's design module byte for byte, held by
+  `tests/fixtures/tab-icon-golden.json`, and `npm run tab-icon:build` is the
+  only writer of the static icons in `static/IDEA/`: changing a drawing is a
+  design decision, then a new board, then a new golden. A product that sets its
+  own icon is left alone (the painter stands down when a third icon link
+  appears). `docs/design/tab-icon/README.md` holds the states, the sections and
+  the signals deliberately not wired.
+- **`beforeinstallprompt` HAS ONE LISTENER, IN `src/app.html`, AND EVERY READER
+  GOES THROUGH `$lib/install-app` (ledger 0396).** The browser fires it once,
+  often before hydration, so a listener in a component either misses it or
+  races the first one. The inline head script keeps the event in
+  `window.__ideaInstall`; the phone pop-up (`InstallPrompt.svelte`) and the
+  home header's key (`InstallAppKey.svelte`) both read it through that module,
+  and `installKeyMode` is the one decision of what the key does.
 - **A NAVIGATION IS THE ONE PENDING STATE THAT IS GLOBAL, AND IT IS MOUNTED
   ONCE.** `NavigationProgress.svelte` reads `navigating` from `$app/state` and
   sits in `src/routes/+layout.svelte` beside `SiteFeedback`, for the same
-  reason: apart from the classroom projector's one reset, nothing in `src/routes` escapes the root layout, so every page route
+  reason: both layout resets in `src/routes` (the classroom projector and one
+  student's work page) reset to the root layout, so nothing escapes it and every page route
   INHERITS the indicator instead of having to remember one. This is the
   deliberate opposite of the save state's per-instance rule -- a save state is
   per-surface because a global one would speak for work it cannot see, and a
