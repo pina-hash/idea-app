@@ -33,7 +33,7 @@ THE LOOK
 - When the choice is taste, build two to five real candidates and let him pick.
 
 WORK AND THE REPO
-- Solo is the default: one session pushes straight to main after a rebase and its local checks; parallel lanes only when two sessions must write one repo at once. Claude Code prompts follow the idea-claude-code-prompt skill.
+- Solo is the default: one session pushes straight to main after a rebase and its local checks; parallel lanes only when two sessions must write one repo at once. Claude Code prompts follow the idea-code-prompt skill.
 - Model names are always the current generation. Never copy a model name from an older document.
 - Verify by reading the artifact itself (a fresh clone, the live site, the rendered file), never by a report, a raw URL or a green check. A measured number carries its date.
 - A cloud container cannot reach the production database. Migrations apply through migrate.yml on push.

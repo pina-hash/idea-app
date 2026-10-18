@@ -28,7 +28,7 @@ Two more sources sit outside this table and are read as data: the design systems
 | Skill | Loads when |
 |---|---|
 | idea-state-of-world | before any prompt, lane, or answer about what is on main, deployed, standing or owed |
-| idea-claude-code-prompt | writing any Claude Code or Codex prompt |
+| idea-code-prompt | writing any Claude Code or Codex prompt |
 | idea-closeout | closing a chat or reconciling delivered standards files |
 | deeper-not-bigger | before building a unit, assignment, deck or app feature; or `/deeper-not-bigger` |
 | idea-design | anything visual, IDEA or FRC |
@@ -43,7 +43,7 @@ A skill source changed in the repo is not live until Mr. Pina saves its card. Th
 ## Staying current
 
 - The field and every skill say: check current state before stating it (the site's build, main, the look, model names). A file's date is never evidence.
-- Model names are written in exactly one place, the idea-claude-code-prompt skill, and are updated there when a generation ships.
+- Model names are written in exactly one place, the idea-code-prompt skill, and are updated there when a generation ships.
 - Project knowledge copies of repo files are rewritten from main whenever the repo file changes, in the same turn.
 - The scheduled task "IDEA ops morning check" (daily, 6:40 AM Pacific) reports stalled branches, deploy gaps and new decisions.
 

@@ -1,11 +1,11 @@
 ---
-name: idea-claude-code-prompt
+name: idea-code-prompt
 description: Write a Claude Code or Codex prompt for idea-app, frc-app or fll-app - model and effort header, solo or parallel mode, ledger and migration numbers, audit gate, checks, landing on main.
 ---
 
 # Writing a Claude Code prompt
 
-Source of truth: `docs/skills/idea-claude-code-prompt/SKILL.md` in pina-hash/idea-app, with the full rationale in `docs/standards/IDEA_instructions.md` ("Claude Code Prompting"). This file is the procedure.
+Source of truth: `docs/skills/idea-code-prompt/SKILL.md` in pina-hash/idea-app, with the full rationale in `docs/standards/IDEA_instructions.md` ("Claude Code Prompting"). This file is the procedure.
 
 ## 0. Before writing anything
 

@@ -11,7 +11,7 @@ Mr. Pina's brief: every chat starts current, applies the right rules, and produc
 What changed here:
 
 - `docs/project-instructions.md`: the source of the instructions field, about 700 words of always-true rules.
-- `docs/skills/`: the source of every IDEA skill. Three were already saved (idea-state-of-world, idea-closeout, deeper-not-bigger); six are new (idea-claude-code-prompt, idea-design, idea-course-material, my-writing-style, deck-humor, uc-course-description). A skill is live only once Mr. Pina saves its card.
+- `docs/skills/`: the source of every IDEA skill. Three were already saved (idea-state-of-world, idea-closeout, deeper-not-bigger); six are new (idea-code-prompt, idea-design, idea-course-material, my-writing-style, deck-humor, uc-course-description). A skill is live only once Mr. Pina saves its card.
 - `docs/KNOWLEDGE_ARCHITECTURE.md`: the map of which layer holds what.
 - `IDEA_instructions.md` 4.34: the rationale record behind the field and skills, plus "Operate as the project lead, not the courier", and 5.0 model names read as their 5.5 successors.
 - `IDEA_CLAUDE_DESIGN_STANDARDS.md` 2.2: its visual identity section is marked superseded by the IDEA Design System artifact (https://claude.ai/artifact/Gb9XpTcK43gZMGSkqy22xs).

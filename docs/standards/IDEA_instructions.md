@@ -880,7 +880,7 @@ No CC prompt ships without it. This is the same call as the adaptive-thinking as
 pointed at CC's model instead of this chat. Pick from the rubric; when a prompt sits
 between two rows, round up.
 
-**As of 4.34 every model name below is read as its current successor: Haiku 5.5, Sonnet 5.5, Opus 5.5, Fable 5.1. The idea-claude-code-prompt skill (`docs/skills/idea-claude-code-prompt/SKILL.md`) carries the current names and is the only place they are maintained.**
+**As of 4.34 every model name below is read as its current successor: Haiku 5.5, Sonnet 5.5, Opus 5.5, Fable 5.1. The idea-code-prompt skill (`docs/skills/idea-code-prompt/SKILL.md`) carries the current names and is the only place they are maintained.**
 
 | Prompt profile | Model | Effort |
 |---|---|---|
@@ -3179,7 +3179,7 @@ component or token exists, the digest governs and the standard is corrected.
   project instructions field is cut from 9,894 words to about 700 always-true rules, with
   its source now versioned at `docs/project-instructions.md`. Procedures move into skills
   whose sources live at `docs/skills/` (idea-state-of-world, idea-closeout,
-  deeper-not-bigger, idea-claude-code-prompt, idea-design, idea-course-material,
+  deeper-not-bigger, idea-code-prompt, idea-design, idea-course-material,
   my-writing-style, deck-humor, uc-course-description). Project knowledge keeps facts only.
   `docs/KNOWLEDGE_ARCHITECTURE.md` is the map. Adds "Operate as the project lead, not the
   courier" from the Felix Rieseberg integration, and reads every 5.0 model name in the
