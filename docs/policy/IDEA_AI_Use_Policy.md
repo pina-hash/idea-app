@@ -2,7 +2,7 @@
 
 **Established:** 2026-08-06 (v2, revised same day: Calculation & Analysis moved to ASSIST, Design & CAD moved to OPEN)
 **Applies to:** IDEA100, all IDEA209H sections (including Mr. Cosso's independently-taught Senior section), and any course added to the pathway after this one.
-**Referenced by:** `HTML_ASSIGNMENT_BUILD_STANDARDS.md` (AI-Level Badge), `IDEA_instructions.md` (HTML Assignment Workflow), `IDEA209H_AI_Policy_Quick_Reference.md` (standalone instructor copy).
+**Referenced by:** the idea-course-material skill (`docs/skills/idea-course-material/SKILL.md`, AI level per module), `IDEA_instructions.md` (HTML Assignment Workflow), `IDEA209H_AI_Policy_Quick_Reference.md` (standalone instructor copy).
 
 This policy doesn't name a tool. Gemini, ChatGPT, Claude, whatever a student or teacher has access to, the rules are the same.
 
@@ -83,7 +83,7 @@ Multi-module assignments (209H's staged checkpoints are the clearest example) ca
 
 ### AI-Level Badge
 
-Each module header shows the level as a badge (`AI · COACH`, etc.), next to the points badge, color-coded, with a hover tooltip carrying the full rule for that level. Full technical spec (colors, tooltip mechanism, build-time behavior) is in `HTML_ASSIGNMENT_BUILD_STANDARDS.md`. A module with no student-submitted content, a live or in-person component graded outside the page, like an oral defense, skips the badge rather than forcing a value that doesn't apply.
+Each module header shows the level as a badge (`AI · COACH`, etc.), next to the points badge, color-coded, with a hover tooltip carrying the full rule for that level. The badge is built into IDEA Classroom (`src/lib/classroom/AiLevelLookup.svelte`); an HTML assignment sets each module's level in its manifest. A module with no student-submitted content, a live or in-person component graded outside the page, like an oral defense, skips the badge rather than forcing a value that doesn't apply.
 
 ---
 
@@ -141,4 +141,4 @@ Reserve an actual academic-integrity conversation for the case that's genuinely 
 
 ## Updating This Document
 
-Say "update AI policy: [change]" and Claude edits this file and returns it for re-upload. Same mechanism as the other standards documents.
+Say "update AI policy: [change]" and Claude edits this file in the repo and writes the same text to project knowledge. The 209H quick reference changes in the same push whenever a level or category moves.

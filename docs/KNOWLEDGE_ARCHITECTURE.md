@@ -18,7 +18,7 @@ Two more sources sit outside this table and are read as data: the design systems
 
 ## The design systems
 
-- **IDEA Design System** (https://claude.ai/artifact/Gb9XpTcK43gZMGSkqy22xs, the default): built 2026-10-17 from the live site's Plate (`src/lib/classroom/plate.css`) and the `space-white` theme, at main `4452876b`. Every IDEA deck, doc, design and page uses it.
+- **IDEA Design System** (https://claude.ai/artifact/Gb9XpTcK43gZMGSkqy22xs; claude.ai has no default-design-system setting, so the instructions field names it by link): built 2026-10-17 from the live site's Plate (`src/lib/classroom/plate.css`) and the `space-white` theme, at main `4452876b`. Every IDEA deck, doc, design and page uses it.
 - **FRC 5669 Techmen Design System**: FRC Team 5669 work.
 - Retired: the July 2026 machined-palette system (the old "IDEA Design System" artifact, retitled), `IDEA_DS_DIGEST.md`, the identity half of `IDEA_CLAUDE_DESIGN_STANDARDS.md`, `HTML_ASSIGNMENT_BUILD_STANDARDS.md`.
 - When the site's look changes, the IDEA Design System is re-synced from code in the same bundle (from-code re-sync, never a rebuild).

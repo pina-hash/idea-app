@@ -1,0 +1,7 @@
+# 69 Remove the `//` motif from the live site's titles and eyebrows
+
+- Raised: 2026-10-17  By: the knowledge-restructure chat (ledger 0397), after the IDEA Design System retired the `//` motif and the live site was found still using it.
+- Status: DECIDED 2026-10-17 by Mr. Pina: "definitely log the slash stuff. It's certainly something that I would want to do, but not right now." Fold it into the next IDEA site update rather than giving it a session of its own.
+- Build: OPEN. Not started. On 2026-10-17 `git grep` found 93 files under `src/` with "IDEA //" or "// IDEA" (page titles read "Name // IDEA", eyebrows read "IDEA // X"). Replace with the design system's breadcrumb form, a middle dot ("IDEA · Certifications"), per the IDEA Design System README ("Plain caps labels").
+- Default if asked: one sweep in the next site bundle, titles and eyebrows together, with a test that fails on any "//" used as a separator in rendered page titles.
+- Context: IDEA Design System https://claude.ai/artifact/Gb9XpTcK43gZMGSkqy22xs; `docs/skills/idea-design/SKILL.md` ("Never" list).

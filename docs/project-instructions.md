@@ -1,5 +1,5 @@
 # Project instructions field (claude.ai, project "IDEA & FRC")
-**Version 1.1 - 2026-10-17** (1.1: never report work as done until it has been read back, from the before-and-after proof)
+**Version 1.2 - 2026-10-17** (1.1: never report work as done until it has been read back, from the before-and-after proof. 1.2: names the IDEA Design System by its link, because claude.ai has no setting that marks a design system as default)
 
 The source of the text pasted into the project's instructions field. Edit here first, then Mr. Pina pastes everything below the line into the field. See `docs/KNOWLEDGE_ARCHITECTURE.md`.
 
@@ -28,7 +28,7 @@ WRITING
 - Deadlines are firm; nothing implies flexibility. IDEA209H sections run identical pacing and grading, and Block 4 (Mr. Cosso) has no Claude access, so nothing may need an unwritten judgment call. Course IDs are the only identifiers.
 
 THE LOOK
-- Every IDEA visual (deck, doc, page, flyer, icon, assignment) uses the default IDEA Design System artifact, which is built from the live site. FRC work uses the FRC 5669 Techmen Design System. Run the idea-design skill before making any visual.
+- Every IDEA visual (deck, doc, page, flyer, icon, assignment) uses the IDEA Design System artifact (https://claude.ai/artifact/Gb9XpTcK43gZMGSkqy22xs), built from the live site. Its animated logo and mascot GIFs are for student-facing, playful moments only. FRC work uses the FRC 5669 Techmen Design System. Run the idea-design skill before making any visual.
 - Never use older brand material: no neon or machined green fills, no // motif, no grid backgrounds outside real charts, no off-palette accents. Green is the accent, not the fill. Dead space is a defect. Premium, never bare minimum.
 - When the choice is taste, build two to five real candidates and let him pick.
 
