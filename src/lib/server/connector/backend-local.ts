@@ -330,16 +330,27 @@ export function localPgBackend(pool: PgPool): ConnectorBackend {
 				};
 			});
 		},
-		async syncRegistry(rows) {
-			if (rows.length === 0) return;
-			await service((c) =>
-				c.query(
-					`insert into public.connector_registry (function_name, tool, level)
-					 select x->>'function_name', x->>'tool', x->>'level' from jsonb_array_elements($1::jsonb) x
-					 on conflict (function_name) do update set tool = excluded.tool, level = excluded.level, updated_at = now()`,
-					[JSON.stringify(rows)]
-				)
-			);
+		async syncRegistry(rows, logTables = []) {
+			if (rows.length > 0) {
+				await service((c) =>
+					c.query(
+						`insert into public.connector_registry (function_name, tool, level)
+						 select x->>'function_name', x->>'tool', x->>'level' from jsonb_array_elements($1::jsonb) x
+						 on conflict (function_name) do update set tool = excluded.tool, level = excluded.level, updated_at = now()`,
+						[JSON.stringify(rows)]
+					)
+				);
+			}
+			if (logTables.length > 0) {
+				await service((c) =>
+					c.query(
+						`insert into public.connector_log_tables (table_name, note)
+						 select t, 'registry' from unnest($1::text[]) t
+						 on conflict (table_name) do nothing`,
+						[[...logTables]]
+					)
+				);
+			}
 		},
 		async setAuditUndo(auditId, undo) {
 			await service((c) =>
@@ -361,6 +372,17 @@ export function localPgBackend(pool: PgPool): ConnectorBackend {
 			return { accessToken: `local:${user.id}`, expiresAt: Date.now() + 3600_000, user };
 		},
 
+		routeClient(session: UserSession) {
+			// What a route handler reaches through `locals.supabase`: rpc, as this
+			// user. There is no storage here, so a handler's storage step finds
+			// nothing to call and says so.
+			return {
+				rpc: async (fn: string, args: Record<string, unknown> = {}) => {
+					const r = await this.rpc(session, fn, args);
+					return r.error ? { data: null, error: r.error } : { data: r.data, error: null };
+				}
+			};
+		},
 		async rpc<T>(session: UserSession, fn: string, args: Record<string, unknown>): Promise<DbResult<T>> {
 			try {
 				const sql = await callSql(fn, args);

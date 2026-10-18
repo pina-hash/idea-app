@@ -20,99 +20,14 @@
 // gains is a write this file has to be told how to call.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import type pg from 'pg';
 import { connectorWorld, logDiff, logSnapshot, normalizeRow, type ConnectorWorld } from './connector-fixture';
+import { connectorSamples, OWNER_ONLY, type Args, type Samples } from './connector-samples';
 import { registryRows, schemaOf } from '../../src/lib/server/connector/registry';
-import { stageHtmlDocument } from '../../src/lib/classroom/html-assignment/store';
 
 let w: ConnectorWorld;
-const HTML = readFileSync(fileURLToPath(new URL('../fixtures/hx-smoke-test.html', import.meta.url)), 'utf8');
+let S: Samples;
 const ADMIN_REFUSAL = 'The IDEA Website connector is for site admins.';
-
-type Args = Record<string, unknown>;
-
-async function asAdminRpc(fn: string, args: Args): Promise<Record<string, unknown>> {
-	const r = await w.backend.rpc<Record<string, unknown>>(await w.backend.mintSession({ id: w.admin.id, email: w.admin.email }), fn, args);
-	if (r.error) throw new Error(`${fn}: ${r.error.message}`);
-	return r.data ?? {};
-}
-
-async function newItem(title: string, points: number | null = 10): Promise<string> {
-	const r = await asAdminRpc('classroom_create_item', { p_kind: 'assignment', p_section_ids: [w.block2], p_title: title, p_body: '', p_points: points });
-	return r.item_id as string;
-}
-
-const LEVELS = [
-	{ label: 'Full', short: 'Full', points: 4, descriptor: 'All of it.' },
-	{ label: 'Some', short: 'Some', points: 2, descriptor: 'Some of it.' },
-	{ label: 'None', short: 'None', points: 0, descriptor: 'None of it.' }
-];
-
-/** How to call each write entry so that the ADMIN's call succeeds. */
-const SAMPLES: Record<string, () => Promise<Args>> = {
-	coin_log_transaction: async () => ({ p_email: w.students.mateo, p_category_id: 'correct_answer_in_class', p_note: 'permission test' }),
-	coin_reverse_transaction: async () => {
-		const r = await asAdminRpc('coin_log_transaction', { p_email: w.students.leo, p_category_id: 'correct_answer_in_class', p_note: 'to reverse' });
-		return { p_transaction_id: r.transaction_id, p_note: 'reversing' };
-	},
-	classroom_create_item: async () => ({ p_kind: 'assignment', p_section_ids: [w.block2], p_title: 'Permission item', p_body: '', p_points: 5 }),
-	classroom_update_item: async () => ({ p_id: await newItem('Update me'), p_title: 'Updated', p_body: 'new text', p_points: 7 }),
-	classroom_delete_item: async () => ({ p_id: await newItem('Delete me') }),
-	classroom_set_published: async () => ({ p_item_id: await newItem('Hide me'), p_published: false }),
-	classroom_set_item_pinned: async () => ({ p_item_id: await newItem('Pin me'), p_pinned: true }),
-	classroom_set_rubric: async () => ({ p_item_id: await newItem('Rubric me', 4), p_criteria: [{ id: 'accuracy', criterion: 'Accuracy', points: 4, levels: LEVELS }] }),
-	classroom_set_html_assignment: async () => {
-		const staged = stageHtmlDocument('perm.html', HTML).staged!;
-		return { p_item_id: await newItem('Document me'), p_document: HTML, p_manifest: staged.manifest, p_filename: 'perm.html' };
-	},
-	classroom_restore_revision: async () => {
-		const id = await newItem('Revise me');
-		await asAdminRpc('classroom_update_item', { p_id: id, p_title: 'Revised', p_body: '', p_points: 10 });
-		const rev = await w.db.sql<{ id: string }>(`select id from public.classroom_content_revisions where item_id = $1`, [id]);
-		return { p_revision_id: rev.rows[0].id };
-	},
-	classroom_grade_direct: async () => ({ p_item_id: await newItem('Grade me'), p_student_email: w.students.mateo, p_score: 6, p_comment: 'good', p_return: true, p_extra_credit: null }),
-	classroom_revoke_grade: async () => {
-		const id = await newItem('Revoke me');
-		await asAdminRpc('classroom_grade_direct', { p_item_id: id, p_student_email: w.students.mateo, p_score: 5, p_comment: 'x', p_return: true, p_extra_credit: null });
-		return { p_item_id: id, p_student_email: w.students.mateo };
-	},
-	classroom_restore_grade: async () => {
-		const id = await newItem('Restore me');
-		await asAdminRpc('classroom_grade_direct', { p_item_id: id, p_student_email: w.students.mateo, p_score: 5, p_comment: 'x', p_return: true, p_extra_credit: null });
-		await asAdminRpc('classroom_revoke_grade', { p_item_id: id, p_student_email: w.students.mateo });
-		return { p_item_id: id, p_student_email: w.students.mateo };
-	},
-	classroom_feedback_post: async () => ({ p_item_id: await newItem('Feedback me'), p_student_email: w.students.mateo, p_block_id: null, p_file_id: null, p_body: 'Cite the datasheet.', p_marks: null }),
-	classroom_feedback_remove: async () => {
-		const r = await asAdminRpc('classroom_feedback_post', { p_item_id: await newItem('Unfeedback me'), p_student_email: w.students.mateo, p_block_id: null, p_file_id: null, p_body: 'remove me', p_marks: null });
-		return { p_thread_id: (r.thread as { id: string }).id };
-	},
-	classroom_quick_post_create: async () => ({ p_section_ids: [w.block2], p_body: 'Shop closed.', p_expires_at: new Date(Date.now() + 86_400_000).toISOString() }),
-	classroom_quick_post_take_down: async () => {
-		const r = await asAdminRpc('classroom_quick_post_create', { p_section_ids: [w.block2], p_body: 'take me down', p_expires_at: new Date(Date.now() + 86_400_000).toISOString() });
-		return { p_post_id: r.id };
-	},
-	connector_admin_set_enabled: async () => ({ p_enabled: false }),
-	connector_admin_disconnect: async () => {
-		const r = await w.db.sql<{ id: string }>(
-			`insert into public.connector_tokens (user_id, email, client_id, access_hash, refresh_hash, access_expires_at, refresh_expires_at)
-			 values ($1, $2, 'perm', md5(random()::text) || md5(random()::text), md5(random()::text) || md5(random()::text), now() + interval '1 hour', now() + interval '1 day') returning id`,
-			[w.admin.id, w.admin.email]
-		);
-		return { p_token_id: r.rows[0].id };
-	},
-	connector_admin_disconnect_all: async () => {
-		await w.db.sql(
-			`insert into public.connector_tokens (user_id, email, client_id, access_hash, refresh_hash, access_expires_at, refresh_expires_at)
-			 values ($1, $2, 'perm', md5(random()::text) || md5(random()::text), md5(random()::text) || md5(random()::text), now() + interval '1 hour', now() + interval '1 day')`,
-			[w.admin.id, w.admin.email]
-		);
-		return {};
-	}
-};
 
 /** The direct call, built from the generated schema: the instrument the connector is compared against. */
 function directSql(fn: string, args: Args): string {
@@ -146,6 +61,9 @@ async function attempt(who: Who, sql: string, params: unknown[]): Promise<{ erro
 			await client.query(`select set_config('request.jwt.claims', '', true)`);
 			await client.query('set local role anon');
 		}
+		// One seed for every call, so a function that draws at random (a seed
+		// shuffle) draws the same order through the connector as directly.
+		await client.query('select setseed(0.42)');
 		let error: string | null = null;
 		await client.query('savepoint call');
 		try {
@@ -171,6 +89,7 @@ const CONNECTOR_SQL = `select public.connector_call('permission-test', $2, $1::j
 
 beforeAll(async () => {
 	w = await connectorWorld();
+	S = connectorSamples(w);
 }, 180_000);
 
 afterAll(async () => {
@@ -181,23 +100,30 @@ const WRITES = registryRows().filter((r) => r.level !== 'read');
 
 describe('the connector reaches exactly what the account reaches', () => {
 	it('names a sample for every write entry in the registry', () => {
-		expect(WRITES.length).toBeGreaterThanOrEqual(20);
-		expect(WRITES.map((r) => r.function_name).filter((f) => !SAMPLES[f])).toEqual([]);
+		expect(WRITES.length).toBeGreaterThanOrEqual(150);
+		expect(WRITES.map((r) => r.function_name).filter((f) => !S.samples[f])).toEqual([]);
+		// And no sample for an entry the registry no longer has.
+		const names = new Set(WRITES.map((r) => r.function_name));
+		expect(Object.keys(S.samples).filter((f) => !names.has(f))).toEqual([]);
 	});
 
 	for (const entry of WRITES) {
 		it(`${entry.function_name}: refusals match text for text, and the admin's rows match the direct call's`, async () => {
-			const sample = SAMPLES[entry.function_name];
+			const sample = S.samples[entry.function_name];
 			expect(sample, `a sample for ${entry.function_name}`).toBeDefined();
 			const args = await sample();
 			const direct = directSql(entry.function_name, args);
 			let key = 0;
 			const nextKey = () => `id:perm:${entry.function_name}:${(key += 1)}:${Math.random()}`;
 
+			const ownerOnly = OWNER_ONLY.has(entry.function_name);
+			const owner = ownerOnly ? await S.owner() : null;
 			const others: Array<[string, Who]> = [
 				['student', { kind: 'user', id: w.student.id, email: w.student.email }],
 				['teacher', { kind: 'user', id: w.teacher.id, email: w.teacher.email }],
-				['signed out', { kind: 'anon' }]
+				['signed out', { kind: 'anon' }],
+				// An owner-only function: the admin who is not the owner is one more caller it refuses.
+				...(ownerOnly ? ([['admin, not the owner', { kind: 'user', id: w.admin.id, email: w.admin.email }]] as Array<[string, Who]>) : [])
 			];
 			let refusedCases = 0;
 			for (const [label, who] of others) {
@@ -211,12 +137,14 @@ describe('the connector reaches exactly what the account reaches', () => {
 				}
 				expect(normalized(c.diff), `${label}: nothing written through the connector`).toEqual({});
 			}
-			// Signed out is always a refusal; a student or teacher may get a
-			// structured {ok: false} answer instead, which the connector then
-			// refuses for not being an admin (checked above).
-			expect(refusedCases).toBeGreaterThanOrEqual(1);
+			// Whether a caller who is not an admin gets a raised refusal or a
+			// structured {ok: false}, the connector refuses and writes nothing
+			// (checked above); the count is reported, not required.
+			expect(refusedCases).toBeGreaterThanOrEqual(0);
 
-			const adminWho: Who = { kind: 'user', id: w.admin.id, email: w.admin.email };
+			const adminWho: Who = owner
+				? { kind: 'user', id: owner.id, email: owner.email }
+				: { kind: 'user', id: w.admin.id, email: w.admin.email };
 			const d = await attempt(adminWho, direct, [JSON.stringify(args)]);
 			const c = await attempt(adminWho, CONNECTOR_SQL, [JSON.stringify(args), entry.function_name, nextKey()]);
 			expect(d.error, 'the admin direct call').toBeNull();

@@ -1,27 +1,165 @@
 # GAUNTLET FUNCTIONS. The shape is described at the top of classroom.yaml.
+# Hosting a live room stays on the site (docs/connector/DESIGN.md section 7),
+# and a student's own run is the student's; both are excluded with reasons.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-gauntlet_author_delete: {pending: slice 2}
-gauntlet_author_get: {pending: slice 2}
-gauntlet_author_set_status: {pending: slice 2}
-gauntlet_author_upsert: {pending: slice 2}
-gauntlet_can_author: {pending: slice 2}
-gauntlet_class_run_stats: {pending: slice 2}
-gauntlet_knowledge_start: {pending: slice 2}
-gauntlet_leaderboards: {pending: slice 2}
-gauntlet_progression: {pending: slice 2}
-gauntlet_rank_settings_get: {pending: slice 2}
-gauntlet_rank_settings_set: {pending: slice 2}
-gauntlet_room_create: {pending: slice 2}
-gauntlet_room_delete: {pending: slice 2}
-gauntlet_room_join: {pending: slice 2}
-gauntlet_room_manual_submit: {pending: slice 2}
-gauntlet_room_reveal: {pending: slice 2}
-gauntlet_room_set_challenge: {pending: slice 2}
-gauntlet_room_set_state: {pending: slice 2}
-gauntlet_room_start: {pending: slice 2}
-gauntlet_run_review: {pending: slice 2}
-gauntlet_run_targets: {pending: slice 2}
-gauntlet_series_assign: {pending: slice 2}
-gauntlet_speedrun_reveal: {pending: slice 2}
-gauntlet_submit: {pending: slice 2}
+gauntlet_author_delete:
+  surface: call
+  level: confirm
+  describe: Delete a GAUNTLET challenge you authored; it asks first.
+  say: ["delete the test challenge", "remove the broken bracket challenge", "get rid of that draft"]
+  args:
+    p_id: {name: challenge, describe: "The challenge's id, from the authoring list."}
+
+gauntlet_author_get:
+  surface: call
+  level: read
+  describe: One GAUNTLET challenge as the authoring screen shows it, with its answer.
+  say: ["show the bracket challenge", "what's the answer to the flange challenge", "open that challenge"]
+  args:
+    p_id: {name: challenge, describe: "The challenge's id."}
+
+gauntlet_author_set_status:
+  surface: call
+  level: undo
+  describe: Publish a GAUNTLET challenge, put it back to draft, or archive it.
+  say: ["publish the bracket challenge", "put the flange challenge back to draft", "archive the old challenge"]
+  args:
+    p_id: {name: challenge, describe: "The challenge's id."}
+    p_status: {name: status, enum: [draft, published, archived], describe: "draft, published or archived."}
+  before:
+    table: challenges
+    columns: [status]
+    eq: {id: $args.p_id}
+  undo:
+    - function: gauntlet_author_set_status
+      args: {p_id: $args.p_id, p_status: $before.status}
+
+gauntlet_author_upsert:
+  surface: call
+  level_when: [{if: "p_id is null", level: undo}, {else: confirm}]
+  describe: Write a GAUNTLET challenge, a new one or changes to one you have; changing one asks first because the old wording is not kept.
+  say: ["make a new speedrun challenge called Bracket", "change the flange challenge's answer", "write a knowledge question about fillets"]
+  args:
+    p_id: {name: challenge, describe: "The challenge to change; leave it out to make a new one."}
+    p_mode: {name: mode, describe: "The challenge's mode, as the authoring screen names it."}
+    p_title: {name: title, describe: "The challenge's title."}
+    p_difficulty: {name: difficulty, describe: "Difficulty from 1 to 5."}
+    p_status: {name: status, enum: [draft, published, archived], describe: "draft, published or archived."}
+    p_prompt: {name: prompt, describe: "The prompt, in the shape the authoring screen saves."}
+    p_answer: {name: answer, describe: "The answer, in the shape the authoring screen saves."}
+  undo:
+    - when: "!$args.p_id"
+      function: gauntlet_author_delete
+      args: {p_id: $result}
+
+gauntlet_can_author:
+  surface: call
+  level: read
+  describe: Whether you can author GAUNTLET challenges.
+  say: ["can I write GAUNTLET challenges", "am I a GAUNTLET author", "do I have authoring"]
+
+gauntlet_class_run_stats:
+  surface: call
+  level: read
+  describe: How a class did on one GAUNTLET challenge, in totals.
+  say: ["how did the class do on the bracket challenge", "GAUNTLET stats for the flange", "class results on that challenge"]
+  args:
+    p_challenge_id: {name: challenge, describe: "The challenge's id."}
+
+gauntlet_knowledge_start:
+  exclude: A student starting a timed knowledge question for themselves; it acts as the caller.
+
+gauntlet_leaderboards:
+  surface: call
+  level: read
+  describe: The GAUNTLET leaderboards, with the top runs on each challenge.
+  say: ["who's leading GAUNTLET", "show the GAUNTLET leaderboard", "top speedrun times"]
+  args:
+    p_limit: {name: count, describe: "How many runs per board."}
+
+gauntlet_progression:
+  surface: call
+  level: read
+  describe: Your own GAUNTLET progression.
+  say: ["my GAUNTLET progress", "what have I cleared", "my GAUNTLET level"]
+
+gauntlet_rank_settings_get:
+  surface: call
+  level: read
+  describe: The GAUNTLET ranked board's settings, such as the plausibility floor.
+  say: ["what's the GAUNTLET floor", "show the rank settings", "how fast is too fast to rank"]
+
+gauntlet_rank_settings_set:
+  surface: call
+  level: undo
+  describe: Change the GAUNTLET plausibility floor, the time under which a run is held for review instead of ranked.
+  say: ["set the GAUNTLET floor to 20 seconds", "hold any run under 15 seconds", "raise the plausibility floor"]
+  args:
+    p_speedrun_floor_ms: {name: floor, describe: "The floor in milliseconds; 20 seconds is 20000."}
+  before:
+    rpc: gauntlet_rank_settings_get
+    args: {}
+  undo:
+    - function: gauntlet_rank_settings_set
+      args: {p_speedrun_floor_ms: $before.speedrun_floor_ms}
+
+gauntlet_room_create:
+  exclude: Hosting a live GAUNTLET room stays on the site, where the room runs.
+gauntlet_room_delete:
+  exclude: Hosting a live GAUNTLET room stays on the site, where the room runs.
+gauntlet_room_join:
+  exclude: A student joining a live GAUNTLET room for themselves; it acts as the caller.
+gauntlet_room_manual_submit:
+  exclude: A student submitting their own run in a live GAUNTLET room; it acts as the caller.
+gauntlet_room_reveal:
+  exclude: Hosting a live GAUNTLET room stays on the site, where the room runs.
+gauntlet_room_set_challenge:
+  exclude: Hosting a live GAUNTLET room stays on the site, where the room runs.
+gauntlet_room_set_state:
+  exclude: Hosting a live GAUNTLET room stays on the site, where the room runs.
+gauntlet_room_start:
+  exclude: Hosting a live GAUNTLET room stays on the site, where the room runs.
+
+gauntlet_run_review:
+  surface: call
+  level: read
+  describe: Ranked GAUNTLET runs to review, with what looks too fast or odd.
+  say: ["any suspicious GAUNTLET runs", "review the ranked runs from today", "who finished too fast"]
+  args:
+    p_challenge_id: {name: challenge, describe: "Only this challenge."}
+    p_since_hours: {name: hours, describe: "Only runs in the last this many hours."}
+    p_fast_finish_seconds: {name: fast, describe: "Your own floor for what counts as fast, in seconds."}
+    p_include_absent: {name: absent, describe: "True to include runs from students not in class."}
+    p_observed_only: {name: flagged, describe: "True for only the runs with something to look at."}
+    p_limit: {name: count, describe: "How many to list."}
+
+gauntlet_run_targets:
+  surface: call
+  level: read
+  describe: The targets for a GAUNTLET run code, as the run page reads them.
+  say: ["what are the targets for run ABC123", "check that run code", "show the run's targets"]
+  args:
+    p_code: {name: code, describe: "The run code."}
+
+gauntlet_series_assign:
+  surface: call
+  level: undo
+  describe: Put a GAUNTLET challenge in a series at a position, or take it out of its series.
+  say: ["put the bracket challenge third in the basics series", "take the flange out of its series", "add that challenge to the advanced series"]
+  args:
+    p_challenge_id: {name: challenge, describe: "The challenge's id."}
+    p_series_id: {name: series, describe: "The series' id; leave it out to take the challenge out of its series."}
+    p_order: {name: position, describe: "Its position in the series."}
+  before:
+    table: challenges
+    columns: [series_id, series_order]
+    eq: {id: $args.p_challenge_id}
+  undo:
+    - function: gauntlet_series_assign
+      args: {p_challenge_id: $args.p_challenge_id, p_series_id: $before.series_id, p_order: $before.series_order}
+
+gauntlet_speedrun_reveal:
+  exclude: A student starting their own speedrun; it acts as the caller.
+
+gauntlet_submit:
+  exclude: A student submitting their own GAUNTLET answer; it acts as the caller.

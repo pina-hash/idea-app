@@ -20,8 +20,8 @@
  */
 import { canonical, opaqueToken, sha256Hex } from './crypto';
 import type { ToolContext } from './context';
-import { liveFunction, type FunctionEntry, type UndoAlternative } from './registry';
-import type { DbError, Level, UndoCall } from './types';
+import { levelFor, liveFunction, type BeforeSpec, type FunctionEntry, type UndoAlternative } from './registry';
+import type { DbError, Level, Scalar, UndoCall } from './types';
 
 export const CONFIRM_WINDOW_MS = 10 * 60_000;
 export const PREVIEW_PREFIX = 'CONNECTOR_PREVIEW:';
@@ -48,6 +48,10 @@ export interface WritePlan {
 	asUndo?: boolean;
 }
 
+/** PRACTICE: the /mcp/practice endpoint, fixed by the URL. Every write previews and nothing commits. */
+export const PRACTICE_NOTE =
+	'This is the practice connector: nothing was written, and nothing ever is here. The real connector would do what this preview shows.';
+
 export interface RowWritten {
 	table: string;
 	id: string | null;
@@ -55,7 +59,7 @@ export interface RowWritten {
 }
 
 export type WriteOutcome =
-	| { status: 'preview'; level: Level; result: unknown; rows: RowWritten[]; confirm_token?: string; expires_at?: string; message: string }
+	| { status: 'preview'; level: Level; result: unknown; rows: RowWritten[]; confirm_token?: string; expires_at?: string; message: string; practice?: true }
 	| { status: 'done' | 'repeated'; level: Level; result: unknown; rows: RowWritten[]; audit_id: string; undo_available: boolean; message: string }
 	| { status: 'refused'; level: Level; message: string; code?: string }
 	| { status: 'needs_confirmation'; level: Level; message: string };
@@ -98,54 +102,185 @@ export interface UndoScope {
 	result: unknown;
 	rows: RowWritten[];
 	before?: Record<string, unknown>;
+	user?: { id: string; email: string };
+	each?: unknown;
 }
 
+/** A path walk; `*` maps over a list, so `$before.rows.*.id` is every row's id. */
 function walk(value: unknown, path: string[]): unknown {
 	let cur: unknown = value;
-	for (const p of path) {
+	for (let i = 0; i < path.length; i += 1) {
+		const p = path[i];
+		if (p === '*') {
+			if (!Array.isArray(cur)) return undefined;
+			const rest = path.slice(i + 1);
+			return cur.map((x) => walk(x, rest));
+		}
 		if (cur === null || typeof cur !== 'object') return undefined;
 		cur = (cur as Record<string, unknown>)[p];
 	}
 	return cur;
 }
 
-/** `$args.x`, `$result.a.b`, `$before.x`, `$written.<table>.<column>`, with a leading `!` negating. */
-export function resolveTemplate(value: unknown, scope: UndoScope): unknown {
-	if (typeof value !== 'string' || !/^!?\$/.test(value)) return value;
-	const negate = value.startsWith('!');
-	const [root, ...path] = value.replace(/^!?\$/, '').split('.');
-	let out: unknown;
-	if (root === 'args') out = walk(scope.args, path);
-	else if (root === 'result') out = walk(scope.result, path);
-	else if (root === 'before') out = scope.before ? walk(scope.before, path) : undefined;
-	else if (root === 'written') {
+function lookup(ref: string, scope: UndoScope): unknown {
+	const [root, ...path] = ref.split('.');
+	if (root === 'args') return walk(scope.args, path);
+	if (root === 'result') return path.length ? walk(scope.result, path) : scope.result;
+	if (root === 'before') return scope.before ? walk(scope.before, path) : undefined;
+	if (root === 'user') return scope.user ? walk(scope.user, path) : undefined;
+	if (root === 'each') return path.length ? walk(scope.each, path) : scope.each;
+	if (root === 'written') {
 		const [table, column] = path;
 		const hit = scope.rows.find((r) => r.table === table);
-		out = hit ? (column === 'id' ? (hit.id ?? hit.row?.id) : hit.row?.[column]) : undefined;
+		return hit ? (column === 'id' ? (hit.id ?? hit.row?.id) : hit.row?.[column]) : undefined;
 	}
-	if (negate) return out === undefined || out === null ? undefined : !out;
+	return undefined;
+}
+
+/**
+ * The undo template language, resolved against what a write was given, what
+ * it answered, what it wrote and what was read before it:
+ *
+ *   $args.x  $result.a.b  $before.x  $written.<table>.<column>  $user.email  $each
+ *   !$x      negates;  !!$x  is a plain true or false
+ *   {map: $x, values: {a: b}}   a value looked up in a table
+ *
+ * A reference that resolves to nothing leaves the alternative incomplete, so
+ * no reverse is offered rather than a wrong one.
+ */
+export function resolveTemplate(value: unknown, scope: UndoScope): unknown {
+	if (value && typeof value === 'object' && !Array.isArray(value) && 'map' in (value as Record<string, unknown>)) {
+		const spec = value as { map: unknown; values?: Record<string, unknown> };
+		const key = resolveTemplate(spec.map, scope);
+		if (key === undefined || key === null) return undefined;
+		const hit = spec.values?.[String(key)];
+		return hit === undefined ? undefined : hit;
+	}
+	if (typeof value !== 'string' || !/^!{0,2}\$/.test(value)) return value;
+	const bang = /^!+/.exec(value)?.[0].length ?? 0;
+	const out = lookup(value.slice(bang + 1), scope);
+	if (bang === 2) return out === undefined ? undefined : !!out && !(Array.isArray(out) && out.length === 0);
+	if (bang === 1) return out === undefined || out === null ? undefined : !out;
 	return out;
 }
 
-export function computeUndo(alternatives: UndoAlternative[] | undefined, scope: UndoScope): UndoCall | null {
+/** A `when`: a template that must be truthy, or `<template> = <literal>`. */
+export function whenHolds(when: string, scope: UndoScope): boolean {
+	const eq = /^\s*(!{0,2}\$[A-Za-z0-9_.*]+)\s*(=|!=)\s*(.+?)\s*$/.exec(when);
+	if (eq) {
+		const left = resolveTemplate(eq[1], scope);
+		const same = String(left ?? 'null') === eq[3].replace(/^['"]|['"]$/g, '');
+		return eq[2] === '=' ? same : !same;
+	}
+	// A single `!` in a condition holds when the value is falsy OR absent: "no
+	// prior row" and "no id given" are what such a condition asks. (As an
+	// argument, an absent value stays unresolved, so the alternative is skipped.)
+	if (/^![^!]/.test(when.trim())) {
+		const v = lookup(when.trim().slice(2), scope);
+		return !v || (Array.isArray(v) && v.length === 0);
+	}
+	const v = resolveTemplate(when, scope);
+	return !!v && !(Array.isArray(v) && v.length === 0);
+}
+
+function resolveArgs(args: Record<string, unknown> | undefined, scope: UndoScope): Record<string, unknown> | null {
+	const out: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(args ?? {})) {
+		const resolved = resolveTemplate(v, scope);
+		if (resolved === undefined) return null;
+		out[k] = resolved;
+	}
+	return out;
+}
+
+/** The reverse of a write: the first alternative whose `when` holds and whose arguments all resolve; `each` gives one call per value. */
+export function computeUndos(alternatives: UndoAlternative[] | undefined, scope: UndoScope): UndoCall[] | null {
 	for (const alt of alternatives ?? []) {
-		if (alt.when !== undefined) {
-			const cond = resolveTemplate(alt.when, scope);
-			if (!cond) continue;
-		}
-		const args: Record<string, unknown> = {};
-		let complete = true;
-		for (const [k, v] of Object.entries(alt.args ?? {})) {
-			const resolved = resolveTemplate(v, scope);
-			if (resolved === undefined) {
-				complete = false;
-				break;
+		if (alt.when !== undefined && !whenHolds(alt.when, scope)) continue;
+		if (alt.each !== undefined) {
+			const list = resolveTemplate(alt.each, scope);
+			if (!Array.isArray(list) || list.length === 0) continue;
+			const calls: UndoCall[] = [];
+			for (const item of list) {
+				const args = resolveArgs(alt.args, { ...scope, each: item });
+				if (!args) {
+					calls.length = 0;
+					break;
+				}
+				calls.push({ function: alt.function, args });
 			}
-			args[k] = resolved;
+			if (calls.length) return calls;
+			continue;
 		}
-		if (complete) return { function: alt.function, args };
+		const args = resolveArgs(alt.args, scope);
+		if (args) return [{ function: alt.function, args }];
 	}
 	return null;
+}
+
+/** The first reverse alone (the shape 0400's audit rows store). */
+export function computeUndo(alternatives: UndoAlternative[] | undefined, scope: UndoScope): UndoCall | null {
+	return computeUndos(alternatives, scope)?.[0] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Before a write: what its undo needs to set back
+// ---------------------------------------------------------------------------
+
+function scalarOf(v: unknown): Scalar | undefined {
+	if (v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return v;
+	return undefined;
+}
+
+/**
+ * Reads what `before` names, AS HIM, before the write runs. A read that fails
+ * or is refused leaves `before` empty, so an undo that needs it is simply not
+ * offered; it never stops the write.
+ */
+export async function readBefore(ctx: ToolContext, spec: BeforeSpec | undefined, args: Record<string, unknown>): Promise<Record<string, unknown> | undefined> {
+	if (!spec) return undefined;
+	const scope: UndoScope = { args, result: null, rows: [], user: ctx.session.user };
+	try {
+		if (spec.rpc) {
+			const callArgs = resolveArgs(spec.args, scope) ?? {};
+			const r = await ctx.backend.rpc<unknown>(ctx.session, spec.rpc, callArgs);
+			if (r.error) return undefined;
+			let value: unknown = r.data;
+			if (spec.find) {
+				const want = resolveArgs(spec.find, scope);
+				if (!want || !Array.isArray(value)) return { found: false };
+				value = value.find((x) => x && typeof x === 'object' && Object.entries(want).every(([k, v]) => String((x as Record<string, unknown>)[k]) === String(v)));
+			}
+			if (value && typeof value === 'object' && !Array.isArray(value)) return { ...(value as Record<string, unknown>), found: true };
+			return { value, found: value !== undefined && value !== null };
+		}
+		if (!spec.table || !spec.columns?.length) return undefined;
+		const eq: Record<string, Scalar> = {};
+		for (const [k, v] of Object.entries(spec.eq ?? {})) {
+			const resolved = scalarOf(resolveTemplate(v, scope));
+			if (resolved === undefined || resolved === null) return { found: false, rows: [] };
+			eq[k] = resolved;
+		}
+		const inn: Record<string, Scalar[]> = {};
+		for (const [k, v] of Object.entries(spec.in ?? {})) {
+			const resolved = resolveTemplate(v, scope);
+			if (!Array.isArray(resolved) || resolved.length === 0) return { found: false, rows: [] };
+			inn[k] = resolved.map((x) => scalarOf(x) ?? String(x));
+		}
+		const r = await ctx.backend.select<Record<string, unknown>>(ctx.session, {
+			table: spec.table,
+			columns: spec.columns,
+			eq,
+			...(Object.keys(inn).length ? { in: inn } : {}),
+			...(spec.order ? { order: spec.order } : {}),
+			limit: 1000
+		});
+		if (r.error) return undefined;
+		const rows = r.data;
+		return { ...(rows[0] ?? {}), rows, found: rows.length > 0 };
+	} catch {
+		return undefined;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -187,9 +322,19 @@ function refusal(level: Level, error: DbError): WriteOutcome {
 	return { status: 'refused', level, message: error.message, code: error.code };
 }
 
+/** A function's own `{ok: false, reason}` answer: nothing it was asked for happened. */
+function softRefusal(result: unknown): { reason: string; message: string } | null {
+	if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
+	const r = result as Record<string, unknown>;
+	if (r.ok !== false) return null;
+	const reason = typeof r.reason === 'string' ? r.reason : 'refused';
+	const message = typeof r.message === 'string' ? r.message : `The site said no (${reason.replace(/_/g, ' ')}).`;
+	return { reason, message };
+}
+
 export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOptions = {}): Promise<WriteOutcome> {
 	const entry = entryFor(plan.fn);
-	const level: Level = plan.asUndo ? 'undo' : (entry.level as Level);
+	const level: Level = plan.asUndo ? 'undo' : levelFor(entry, plan.args, plan.before);
 
 	if (level === 'read') {
 		const r = await ctx.backend.rpc(ctx.session, plan.fn, plan.args);
@@ -199,12 +344,23 @@ export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOption
 
 	const key = requestKey(ctx, plan, opts);
 	const confirmFirst = level === 'confirm' && !opts.confirmToken;
-	if (opts.dryRun || confirmFirst) {
+	// PRACTICE: the URL decides, never an argument. Every write previews.
+	if (opts.dryRun || confirmFirst || ctx.practice) {
 		const r = await connectorCall(ctx, plan, key, 'preview');
 		const payload = previewPayload(r.error);
 		if (!payload) {
 			if (r.error) return refusal(level, r.error);
 			return { status: 'refused', level, message: 'The preview did not come back.' };
+		}
+		if (ctx.practice) {
+			return {
+				status: 'preview',
+				level,
+				...payload,
+				...(level === 'confirm' ? { confirm_token: 'practice' } : {}),
+				practice: true,
+				message: level === 'confirm' && !opts.confirmToken ? `${PRACTICE_NOTE} The real connector would ask him first.` : PRACTICE_NOTE
+			};
 		}
 		if (confirmFirst && !opts.dryRun) {
 			const token = opaqueToken(ctx.random);
@@ -263,11 +419,26 @@ export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOption
 		return refusal(level, error);
 	}
 	const data = r.data;
+	const soft = softRefusal(data.result);
 	let undoAvailable = false;
-	if (!data.repeated) {
-		const undo = computeUndo(entry.undo, { args: plan.args, result: data.result, rows: data.rows ?? [], before: plan.before });
-		undoAvailable = undo !== null && !plan.undoOf;
-		if (undo && !plan.undoOf) await ctx.backend.setAuditUndo(data.audit_id, undo).catch(() => (undoAvailable = false));
+	if (!data.repeated && !soft) {
+		const undo = computeUndos(entry.undo, {
+			args: plan.args,
+			result: data.result,
+			rows: data.rows ?? [],
+			before: plan.before,
+			user: ctx.session.user
+		});
+		undoAvailable = undo !== null && !plan.undoOf && !plan.asUndo;
+		if (undo && undoAvailable) {
+			await ctx.backend.setAuditUndo(data.audit_id, undo.length === 1 ? undo[0] : undo).catch(() => (undoAvailable = false));
+		}
+		if (entry.cleanup && ctx.cleanup && !plan.asUndo) {
+			await ctx.cleanup(entry.cleanup, data.result).catch(() => undefined);
+		}
+	}
+	if (soft) {
+		return { status: 'refused', level, code: soft.reason, message: `${soft.message} Nothing it was asked for happened.` };
 	}
 	return {
 		status: data.repeated ? 'repeated' : 'done',
@@ -290,13 +461,23 @@ export async function undoLast(ctx: ToolContext, opts: WriteOptions = {}): Promi
 	const group = newest.groupKey ? candidates.filter((c) => c.undo && c.groupKey === newest.groupKey) : [newest];
 	const outcomes = [];
 	for (const row of group) {
-		const undo = row.undo as UndoCall;
-		const outcome = await write(
-			ctx,
-			{ tool: 'undo_last', fn: undo.function, args: undo.args, undoOf: row.id, groupKey: `undo:${row.groupKey ?? row.id}`, asUndo: true },
-			{ ...opts, requestId: opts.requestId ? `${opts.requestId}:${row.id}` : undefined }
-		);
-		outcomes.push({ undid: row.tool, made: new Date(row.startedAt).toISOString(), args: row.args, outcome });
+		const calls = Array.isArray(row.undo) ? row.undo : [row.undo as UndoCall];
+		// One audit row can be undone only once: the first reverse carries undo_of, the rest ride its group.
+		for (const [i, undo] of calls.entries()) {
+			const outcome = await write(
+				ctx,
+				{
+					tool: 'undo_last',
+					fn: undo.function,
+					args: undo.args,
+					undoOf: i === 0 ? row.id : undefined,
+					groupKey: `undo:${row.groupKey ?? row.id}`,
+					asUndo: true
+				},
+				{ ...opts, requestId: opts.requestId ? `${opts.requestId}:${row.id}:${i}` : undefined }
+			);
+			outcomes.push({ undid: row.tool, made: new Date(row.startedAt).toISOString(), args: row.args, outcome });
+		}
 	}
 	const failed = outcomes.filter((o) => o.outcome.status === 'refused' || o.outcome.status === 'needs_confirmation');
 	return {

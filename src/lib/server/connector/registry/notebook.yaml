@@ -1,36 +1,321 @@
 # NOTEBOOK FUNCTIONS. The shape is described at the top of classroom.yaml.
+# A student's own notebook writing (entries, notes, photos, folders) is the
+# student's; every staff review and check-in action is reachable.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-notebook_accept_entry: {pending: slice 2}
-notebook_add_note: {pending: slice 2}
-notebook_add_photo: {pending: slice 2}
-notebook_add_session_postings: {pending: slice 2}
-notebook_admin_delete_session: {pending: slice 2}
-notebook_admin_override_entry: {pending: slice 2}
-notebook_admin_set_excusal: {pending: slice 2}
-notebook_admin_upsert_session: {pending: slice 2}
-notebook_create_entry: {pending: slice 2}
-notebook_create_item_check_in: {pending: slice 2}
-notebook_create_note_entry: {pending: slice 2}
-notebook_delete_folder: {pending: slice 2}
-notebook_edit_note: {pending: slice 2}
-notebook_flag_entry: {pending: slice 2}
-notebook_get_section_grid: {pending: slice 2}
-notebook_link_session_item: {pending: slice 2}
-notebook_link_unit_item: {pending: slice 2}
-notebook_move_entries: {pending: slice 2}
-notebook_remove_session_posting: {pending: slice 2}
-notebook_resolve_entry: {pending: slice 2}
-notebook_review_student_notebook: {pending: slice 2}
-notebook_reviewed_sections: {pending: slice 2}
-notebook_seal_notes: {pending: slice 2}
-notebook_set_session_guidance: {pending: slice 2}
-notebook_staff_delete_entry: {pending: slice 2}
-notebook_staff_delete_note: {pending: slice 2}
-notebook_staff_restore_entry: {pending: slice 2}
-notebook_staff_restore_note: {pending: slice 2}
-notebook_unaccept_entry: {pending: slice 2}
-notebook_unlink_session_item: {pending: slice 2}
-notebook_unlink_unit_item: {pending: slice 2}
-notebook_upsert_folder: {pending: slice 2}
-notebook_view_as_notebook: {pending: slice 2}
+notebook_accept_entry:
+  surface: call
+  level: undo
+  describe: Accept a student's notebook entry as reviewed and fine.
+  say: ["accept Mateo's notebook entry", "Leo's check in is fine", "approve Ana's notebook page"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id, from the student's notebook."}
+  undo:
+    - function: notebook_unaccept_entry
+      args: {p_entry_id: $args.p_entry_id}
+
+notebook_add_note:
+  exclude: A student writing in their own notebook; it acts as the caller.
+notebook_add_photo:
+  exclude: A student adding a photographed page to their own notebook; the picture comes from their device.
+
+notebook_add_session_postings:
+  surface: call
+  level: undo
+  describe: Add a notebook check-in to more of your classes.
+  say: ["add the Unit 2 check in to Block 4", "post that check in to every 209H class", "share the check in with IDEA100"]
+  args:
+    p_session_id: {name: checkin, describe: "The check-in's id, from the notebook grid."}
+    p_section_ids: {name: classes, describe: "The classes to add it to, by their ids."}
+  undo:
+    - each: $args.p_section_ids
+      function: notebook_remove_session_posting
+      args: {p_session_id: $args.p_session_id, p_section_id: $each}
+
+notebook_admin_delete_session:
+  surface: call
+  level: confirm
+  describe: Delete a notebook check-in from every class; entries filed to it are kept but unfiled; it asks first.
+  say: ["delete the duplicate check in", "remove Tuesday's check in", "get rid of the test check in"]
+  args:
+    p_session_id: {name: checkin, describe: "The check-in's id, from the notebook grid."}
+
+notebook_admin_override_entry:
+  surface: call
+  level: confirm
+  describe: Override a notebook entry's filing, status or comment by hand; it asks first because the old values are not kept.
+  say: ["refile Mateo's entry to Tuesday's check in", "set Leo's entry to accepted with a comment", "move that entry to Block 4"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id."}
+    p_set_session: {name: refile, describe: "True to change which check-in it is filed to."}
+    p_session_id: {name: checkin, describe: "The check-in to file it to."}
+    p_set_section: {name: reclass, describe: "True to change which class it is filed to."}
+    p_section_id: {name: class, resolve: class, describe: "The class to file it to."}
+    p_custom_label: {name: label, describe: "A label for an entry filed to no check-in."}
+    p_status: {name: status, describe: "The entry's new status, as the review console names it."}
+    p_flag_reason: {name: flag, describe: "Why it is flagged."}
+    p_instructor_comment: {name: comment, describe: "Your comment the student reads."}
+
+notebook_admin_set_excusal:
+  surface: call
+  level: undo
+  describe: Excuse a student from one notebook check-in, or take the excusal back.
+  say: ["excuse Mateo from Tuesday's check in", "Leo was absent, excuse him", "take back Ana's excusal"]
+  args:
+    p_session_id: {name: checkin, describe: "The check-in's id."}
+    p_student_id: {name: account, describe: "The student's account id, from the notebook grid."}
+    p_excused: {name: excused, describe: "True to excuse, false to take it back."}
+    p_note: {name: note, describe: "Why."}
+  undo:
+    - function: notebook_admin_set_excusal
+      args: {p_session_id: $args.p_session_id, p_student_id: $args.p_student_id, p_excused: "!$args.p_excused"}
+
+notebook_admin_upsert_session:
+  surface: call
+  level_when: [{if: "p_id is null", level: undo}, {else: confirm}]
+  describe: Make a notebook check-in for your classes, or change one; changing one asks first because the old date and label are not kept.
+  say: ["make a check in for Unit 2 on Friday called Bearing Sketch", "move Tuesday's check in to Wednesday", "rename the check in"]
+  args:
+    p_section_ids: {name: classes, describe: "The classes it is for, by their ids."}
+    p_unit_number: {name: unit, describe: "The unit number."}
+    p_session_date: {name: date, describe: "The class day, as a date."}
+    p_session_label: {name: label, describe: "What students see it called."}
+    p_id: {name: checkin, describe: "The check-in to change; leave it out to make one."}
+  undo:
+    - when: "!$args.p_id"
+      function: notebook_admin_delete_session
+      args: {p_session_id: $result.session_id}
+
+notebook_create_entry:
+  exclude: A student filing a photographed page in their own notebook; the picture comes from their device and it acts as the caller.
+
+notebook_create_item_check_in:
+  surface: call
+  level: undo
+  describe: Make a notebook check-in attached to a post, so students file their notebook page from the post itself.
+  say: ["add a notebook check in to Tolerance Check", "students should file notebook pages on the Shop Fix", "attach a check in to that post"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_unit_number: {name: unit, describe: "The unit number."}
+    p_session_date: {name: date, describe: "The class day, as a date."}
+    p_session_label: {name: label, describe: "What students see it called."}
+  undo:
+    - function: notebook_admin_delete_session
+      args: {p_session_id: $result.session_id}
+
+notebook_create_note_entry:
+  exclude: A student writing a new entry in their own notebook; it acts as the caller.
+notebook_delete_folder:
+  exclude: A student removing a folder from their own notebook; it acts as the caller.
+notebook_edit_note:
+  exclude: A student editing a note in their own notebook; it acts as the caller.
+
+notebook_flag_entry:
+  surface: call
+  level: undo
+  describe: Flag a student's notebook entry with what needs fixing.
+  say: ["flag Mateo's entry, no dimensions", "Leo's page is blurry, flag it", "flag Ana's check in for missing units"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id."}
+    p_flag_reason: {name: reason, describe: "What needs fixing, in your words."}
+    p_instructor_comment: {name: comment, describe: "A comment the student reads."}
+  undo:
+    - function: notebook_resolve_entry
+      args: {p_entry_id: $args.p_entry_id}
+
+notebook_get_section_grid:
+  surface: call
+  level: read
+  describe: A class's notebook grid, with every student's check-ins and their state.
+  say: ["show Block 2's notebook grid", "who's missing notebook check ins", "notebook status for Unit 2"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_unit_number: {name: unit, describe: "Only this unit."}
+
+notebook_link_session_item:
+  surface: call
+  level: undo
+  describe: Attach a notebook check-in to a post in one class.
+  say: ["attach Tuesday's check in to Tolerance Check", "link the check in to the Shop Fix", "put the check in on that post"]
+  args:
+    p_session_id: {name: checkin, describe: "The check-in's id."}
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+  undo:
+    - function: notebook_unlink_session_item
+      args: {p_session_id: $args.p_session_id, p_section_id: $args.p_section_id}
+
+notebook_link_unit_item:
+  surface: call
+  level: undo
+  describe: Make a post the graded notebook assignment for one unit in a class.
+  say: ["grade Unit 2's notebook on the Notebook Check post", "link Unit 3's notebook to that assignment", "set the notebook grade post for Unit 1"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_unit_number: {name: unit, describe: "The unit number."}
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+  before:
+    table: notebook_unit_items
+    columns: [item_id]
+    eq: {section_id: $args.p_section_id, unit_number: $args.p_unit_number}
+  undo:
+    - when: $before.found
+      function: notebook_link_unit_item
+      args: {p_section_id: $args.p_section_id, p_unit_number: $args.p_unit_number, p_item_id: $before.item_id}
+    - function: notebook_unlink_unit_item
+      args: {p_section_id: $args.p_section_id, p_unit_number: $args.p_unit_number}
+
+notebook_move_entries:
+  exclude: A student moving entries between folders in their own notebook; it acts as the caller.
+
+notebook_remove_session_posting:
+  surface: call
+  level: confirm
+  describe: Take a notebook check-in out of one class; entries filed to it there are unfiled; it asks first.
+  say: ["take the check in out of Block 4", "remove Tuesday's check in from IDEA100", "unpost the check in from Block 1"]
+  args:
+    p_session_id: {name: checkin, describe: "The check-in's id."}
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+
+notebook_resolve_entry:
+  surface: call
+  level: undo
+  describe: Mark a flagged notebook entry fixed, with an optional comment.
+  say: ["Mateo fixed his entry", "resolve Leo's flag", "clear the flag on Ana's page"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id."}
+    p_instructor_comment: {name: comment, describe: "A comment the student reads."}
+  before:
+    table: notebook_entries
+    columns: [status, flag_reason, instructor_comment]
+    eq: {id: $args.p_entry_id}
+  undo:
+    - when: "$before.status = flagged"
+      function: notebook_flag_entry
+      args: {p_entry_id: $args.p_entry_id, p_flag_reason: $before.flag_reason, p_instructor_comment: $before.instructor_comment}
+
+notebook_review_student_notebook:
+  surface: call
+  level: read
+  describe: One student's whole notebook, as the review console shows it.
+  say: ["show Mateo's notebook", "open Leo's notebook", "what's in Ana's notebook"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+
+notebook_reviewed_sections:
+  surface: call
+  level: read
+  describe: The classes whose notebooks you review.
+  say: ["whose notebooks do I review", "my notebook classes", "which classes have notebooks"]
+
+notebook_seal_notes:
+  exclude: A student's own explicit save in their notebook, which marks a revision boundary; it acts as the caller.
+
+notebook_set_session_guidance:
+  surface: call
+  level: undo
+  describe: Set the instructions students read on a notebook check-in.
+  say: ["set the check in's instructions to sketch the bearing", "change the guidance on Tuesday's check in", "clear the check in instructions"]
+  args:
+    p_session_id: {name: checkin, describe: "The check-in's id."}
+    p_guidance_doc: {name: instructions, describe: "The instructions as a document, in the site's document shape; leave it out to clear them."}
+  before:
+    table: notebook_sessions
+    columns: [guidance_doc]
+    eq: {id: $args.p_session_id}
+  undo:
+    - function: notebook_set_session_guidance
+      args: {p_session_id: $args.p_session_id, p_guidance_doc: $before.guidance_doc}
+
+notebook_staff_delete_entry:
+  surface: call
+  level: confirm
+  describe: Delete a student's notebook entry into the bin, where it can be restored; it asks first.
+  say: ["delete Mateo's duplicate entry", "bin Leo's blank page", "remove that entry"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id."}
+
+notebook_staff_delete_note:
+  surface: call
+  level: confirm
+  describe: Delete one note from a student's notebook entry into the bin; it asks first.
+  say: ["delete that note from Mateo's entry", "remove the inappropriate note", "bin Leo's note"]
+  args:
+    p_note_id: {name: note, describe: "The note's id."}
+
+notebook_staff_restore_entry:
+  surface: call
+  level: undo
+  describe: Bring back a student's notebook entry from the bin.
+  say: ["restore Mateo's entry", "bring back Leo's deleted page", "undelete that entry"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id."}
+  undo:
+    - function: notebook_staff_delete_entry
+      args: {p_entry_id: $args.p_entry_id}
+
+notebook_staff_restore_note:
+  surface: call
+  level: undo
+  describe: Bring back a note from the bin in a student's notebook entry.
+  say: ["restore that note", "bring back Mateo's note", "undelete Leo's note"]
+  args:
+    p_note_id: {name: note, describe: "The note's id."}
+  undo:
+    - function: notebook_staff_delete_note
+      args: {p_note_id: $args.p_note_id}
+
+notebook_unaccept_entry:
+  surface: call
+  level: undo
+  describe: Take back an accepted notebook entry so it is waiting for review again.
+  say: ["unaccept Mateo's entry", "I accepted Leo's page by mistake", "put Ana's entry back in review"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id."}
+  undo:
+    - function: notebook_accept_entry
+      args: {p_entry_id: $args.p_entry_id}
+
+notebook_unlink_session_item:
+  surface: call
+  level: undo
+  describe: Detach a notebook check-in from the post it is on, in one class.
+  say: ["detach the check in from Tolerance Check", "unlink Tuesday's check in", "take the check in off the post"]
+  args:
+    p_session_id: {name: checkin, describe: "The check-in's id."}
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+  before:
+    table: notebook_session_postings
+    columns: [item_id]
+    eq: {session_id: $args.p_session_id, section_id: $args.p_section_id}
+  undo:
+    - when: $before.item_id
+      function: notebook_link_session_item
+      args: {p_session_id: $args.p_session_id, p_section_id: $args.p_section_id, p_item_id: $before.item_id}
+
+notebook_unlink_unit_item:
+  surface: call
+  level: undo
+  describe: Stop grading a unit's notebook through a post in one class.
+  say: ["unlink Unit 2's notebook grade", "remove the notebook assignment for Unit 3", "Unit 1's notebook has no grade post"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_unit_number: {name: unit, describe: "The unit number."}
+  before:
+    table: notebook_unit_items
+    columns: [item_id]
+    eq: {section_id: $args.p_section_id, unit_number: $args.p_unit_number}
+  undo:
+    - when: $before.found
+      function: notebook_link_unit_item
+      args: {p_section_id: $args.p_section_id, p_unit_number: $args.p_unit_number, p_item_id: $before.item_id}
+
+notebook_upsert_folder:
+  exclude: A student making or renaming a folder in their own notebook; it acts as the caller.
+
+notebook_view_as_notebook:
+  surface: call
+  level: read
+  describe: One student's notebook exactly as they see it themselves.
+  say: ["show me Mateo's notebook as he sees it", "preview Leo's notebook", "what does Ana see in her notebook"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}

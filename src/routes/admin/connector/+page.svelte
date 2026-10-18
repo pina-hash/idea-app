@@ -30,6 +30,29 @@
 				})
 			: 'never';
 
+	let requestView = $state<'all' | 'failed' | 'new'>('all');
+	const requests = $derived(data.evals ?? []);
+	const failedCount = $derived(requests.filter((r) => r.last_run && !r.last_run.passed).length);
+	const newCount = $derived(requests.filter((r) => r.source === 'request').length);
+	const shownRequests = $derived(
+		requestView === 'failed'
+			? requests.filter((r) => r.last_run && !r.last_run.passed)
+			: requestView === 'new'
+				? requests.filter((r) => r.source === 'request')
+				: requests
+	);
+	const LEVEL_WORDS: Record<string, string> = { read: 'Read', undo: 'Runs', confirm: 'Asks first', refuse: 'Refuses or asks' };
+
+	/** The whole list as JSON, for tools/connector/evals/export.mjs --json to rewrite EVALS.md from. */
+	function downloadRequests() {
+		const blob = new Blob([JSON.stringify(requests, null, 2)], { type: 'application/json' });
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(blob);
+		a.download = `connector-requests-${new Date().toISOString().slice(0, 10)}.json`;
+		a.click();
+		setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+	}
+
 	function argsLine(args: Record<string, unknown>): string {
 		return Object.entries(args)
 			.filter(([k]) => !['p_document', 'p_manifest', 'p_body_doc'].includes(k))
@@ -98,6 +121,7 @@
 					<li>Open claude.ai, Settings, Connectors.</li>
 					<li>Add custom connector. Name it IDEA Website; the address is <code>https://ideabosco.com/mcp</code>. Leave the other fields blank.</li>
 					<li>Press Connect, sign in here if asked, then Connect on the card.</li>
+					<li>For the nightly replay, do the same once more: name it IDEA Website (practice), address <code>https://ideabosco.com/mcp/practice</code>. Nothing is ever written through it.</li>
 				</ol>
 			</section>
 		</div>
@@ -136,6 +160,66 @@
 			{/if}
 			{#if past.length > 0}
 				<p class="cx-small">{past.length} earlier {past.length === 1 ? 'connection was' : 'connections were'} disconnected.</p>
+			{/if}
+		</section>
+
+		<section class="card cx-card" aria-labelledby="cx-requests" data-testid="connector-requests">
+			<div class="cx-head">
+				<h2 id="cx-requests" class="section-label">Requests <span class="cx-count">{requests.length}</span></h2>
+				{#if data.evals}
+					<div class="cx-row" role="group" aria-label="Which requests">
+						<button type="button" class="btn secondary" class:on={requestView === 'all'} aria-pressed={requestView === 'all'} onclick={() => (requestView = 'all')}>All</button>
+						<button type="button" class="btn secondary" class:on={requestView === 'failed'} aria-pressed={requestView === 'failed'} onclick={() => (requestView = 'failed')}>
+							Failed last replay <span class="cx-count">{failedCount}</span>
+						</button>
+						<button type="button" class="btn secondary" class:on={requestView === 'new'} aria-pressed={requestView === 'new'} onclick={() => (requestView = 'new')}>
+							Added from your requests <span class="cx-count">{newCount}</span>
+						</button>
+						<button type="button" class="btn secondary" onclick={downloadRequests} data-testid="connector-requests-download">Download the list</button>
+					</div>
+				{/if}
+			</div>
+			{#if !data.evals}
+				<p class="cx-small">The saved requests arrive with the next database update.</p>
+			{:else}
+				<p class="cx-small">
+					Everything you have asked Claude here, saved so the practice connector can replay it each night. Each shows its last
+					replay: whether it did what the list says must happen.
+				</p>
+				{#if shownRequests.length === 0}
+					<p class="cx-small">None {requestView === 'failed' ? 'failed' : 'here'}.</p>
+				{:else}
+					<ul class="cx-list cx-log" data-testid="connector-request-list">
+						{#each shownRequests as r (r.seq)}
+							<li class="cx-entry">
+								<Disclosure label={`#${r.seq} ${r.said}`} collapseWhen={true} showWord="Details" hideWord="Hide">
+									{#snippet meta()}
+										<span class="cx-tag">{LEVEL_WORDS[r.level] ?? r.level}</span>
+										<span class="cx-tag" class:bad={r.last_run !== null && !r.last_run.passed} class:good={r.last_run?.passed === true}>
+											{r.last_run === null ? 'Not replayed' : r.last_run.passed ? 'Passed' : 'Failed'}
+										</span>
+									{/snippet}
+									<div class="cx-detail">
+										{#if r.must_happen}<p><span class="section-label">Must happen</span> {r.must_happen}</p>{/if}
+										<p class="cx-small">
+											Expected: {r.expected_path.length ? r.expected_path.map((t) => t.replace(/^site_call:/, '').replace(/_/g, ' ')).join(', then ') : 'no tool'}
+											· asked {r.requests} {r.requests === 1 ? 'time' : 'times'}{r.last_request_at ? `, last ${when(r.last_request_at)}` : ''}
+											{#if r.last_run}· last replay {when(r.last_run.run_at)}{r.last_run.model ? ` on ${r.last_run.model}` : ''}{/if}
+											{#if r.open_gaps}· {r.open_gaps} open {r.open_gaps === 1 ? 'gap' : 'gaps'}{/if}
+										</p>
+										{#if r.last_run && !r.last_run.passed && r.last_run.detail?.note}
+											<p class="cx-err">{String(r.last_run.detail.note)}</p>
+										{/if}
+										{#if r.proof_query}
+											<p class="section-label">Proof, read-only, in the SQL editor</p>
+											<pre class="cx-pre">{r.proof_query}</pre>
+										{/if}
+									</div>
+								</Disclosure>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			{/if}
 		</section>
 
@@ -329,6 +413,9 @@
 	}
 	.cx-tag.bad {
 		color: var(--amber);
+	}
+	.cx-tag.good {
+		color: var(--green);
 	}
 	.cx-detail {
 		padding: 0.3rem 0 0.6rem;

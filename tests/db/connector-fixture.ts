@@ -18,6 +18,7 @@ import { inject } from 'vitest';
 import { createClassroomSection, createUser, enrollStudent, startTestDb, type SeededUser, type TestDb } from './harness';
 import { localPgBackend } from '../../src/lib/server/connector/backend-local';
 import { registryRows } from '../../src/lib/server/connector/registry';
+import { SYNCED_LOG_TABLES } from '../../src/lib/server/connector/log-tables';
 import type { ConnectorBackend } from '../../src/lib/server/connector/types';
 import type { ToolContext } from '../../src/lib/server/connector/context';
 
@@ -79,7 +80,7 @@ export async function connectorWorld(): Promise<ConnectorWorld> {
 	await enrollStudent(db, { as: admin, sectionId: teacherSection, email: 'ana.reyes@boscotech.net', displayName: 'Reyes, Ana' });
 
 	const backend = localPgBackend(pool);
-	await backend.syncRegistry(registryRows());
+	await backend.syncRegistry(registryRows(), SYNCED_LOG_TABLES);
 
 	return {
 		db,
@@ -141,6 +142,9 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const TS = /\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:?\d{2})?|Z)?/g;
 
 /** A row with its ids and timestamps blanked: what "identical apart from ids and timestamps" compares. */
+/** Counters a sequence hands out (a change feed's cursor, an event's bigint id): a rolled-back call still spends one. */
+const SEQUENCED = /"(id|cursor|seq|sequence|event_id)": \d+/g;
+
 export function normalizeRow(json: string): string {
-	return json.replace(UUID, '<id>').replace(TS, '<ts>');
+	return json.replace(UUID, '<id>').replace(TS, '<ts>').replace(SEQUENCED, '"$1": <n>');
 }

@@ -1,28 +1,155 @@
 # CERTIFICATIONS FUNCTIONS. The shape is described at the top of classroom.yaml.
+# Issuing and correcting a certification are endpoint entries (endpoints.yaml),
+# because the site's award route signs the serial; the functions it calls are
+# excluded here with that reason.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-cert_admin_get: {pending: slice 2}
-cert_admin_list: {pending: slice 2}
-cert_admin_save: {pending: slice 2}
-cert_award_commit: {pending: slice 2}
-cert_award_correct: {pending: slice 2}
-cert_award_get: {pending: slice 2}
-cert_award_prepare: {pending: slice 2}
-cert_error_log: {pending: slice 2}
-cert_exam_live: {pending: slice 2}
-cert_exam_pool_get: {pending: slice 2}
-cert_exam_pool_replace: {pending: slice 2}
-cert_expiry_reminders: {pending: slice 2}
-cert_export: {pending: slice 2}
-cert_get: {pending: slice 2}
-cert_is_certifier: {pending: slice 2}
-cert_lesson_document: {pending: slice 2}
-cert_lesson_save: {pending: slice 2}
-cert_me: {pending: slice 2}
-cert_mirror_snapshot: {pending: slice 2}
-cert_notifications_mark_sent: {pending: slice 2}
-cert_notifications_unread: {pending: slice 2}
-cert_notifications_unsent: {pending: slice 2}
-cert_sweep_dormant: {pending: slice 2}
-cert_sync_log_write: {pending: slice 2}
-cert_verify: {pending: slice 2}
+cert_admin_get:
+  surface: call
+  level: read
+  describe: One certification as the admin editor shows it, with its kit, lessons and whether it can be published.
+  say: ["show the SolidWorks Level 1 certification", "what's in the CNC cert", "open the 3D printing certification"]
+  args:
+    p_id: {name: certification, describe: "The certification's id, from the list of certifications."}
+
+cert_admin_list:
+  surface: call
+  level: read
+  describe: Every certification in the portal, with its state.
+  say: ["list the certifications", "which certifications are published", "what certs do we have"]
+
+cert_admin_save:
+  surface: call
+  level: confirm
+  describe: Save a certification's whole kit from the editor; it asks first because no action puts the earlier version back.
+  say: ["save the CNC cert's kit", "update the SolidWorks certification", "create a new certification draft"]
+  args:
+    p_id: {name: certification, describe: "The certification's id; leave it out to create one."}
+    p_package: {name: kit, describe: "The whole certification package, as the editor exports it."}
+    p_note: {name: note, describe: "What changed, in your words."}
+
+cert_award_commit:
+  exclude: A step inside the certification award route, which signs the serial; issuing is the issue certification action.
+
+cert_award_correct:
+  exclude: A step inside the certification correction route, which signs the corrected record; correcting is the correct certification action.
+
+cert_award_get:
+  surface: call
+  level: read
+  describe: One awarded certification's record.
+  say: ["show Leo's SolidWorks award", "look up that certificate", "what does the award record say"]
+  args:
+    p_id: {name: award, describe: "The award's id."}
+
+cert_award_prepare:
+  exclude: A step inside the certification award route; issue certification previews the award with it before asking.
+
+cert_error_log:
+  exclude: The certification portal's own error log, written when something fails; never a person's action.
+
+cert_exam_live:
+  surface: call
+  level: read
+  describe: Who is taking a certification exam right now, with their progress and any flags.
+  say: ["who's taking the SolidWorks exam", "any exam flags right now", "watch the live exam"]
+  args:
+    p_cert: {name: certification, describe: "The certification's id."}
+
+cert_exam_pool_get:
+  surface: call
+  level: read
+  describe: A certification's exam question pool, with the answers, as the admin editor shows it.
+  say: ["show the CNC exam questions", "how many questions does the SolidWorks pool have", "read the exam pool"]
+  args:
+    p_cert: {name: certification, describe: "The certification's id."}
+
+cert_exam_pool_replace:
+  surface: call
+  level: confirm
+  describe: Replace a certification's whole exam question pool; it asks first because the old pool is not put back by any action.
+  say: ["replace the CNC exam questions", "load this question pool", "swap in the new SolidWorks questions"]
+  args:
+    p_cert: {name: certification, describe: "The certification's id."}
+    p_questions: {name: questions, describe: "Every question, in the shape the editor exports."}
+
+cert_expiry_reminders:
+  exclude: The daily certification job that sends expiry reminders; it runs on its own schedule.
+
+cert_export:
+  surface: call
+  level: read
+  describe: The certification records of one kind between two dates, as a list you can read or save.
+  say: ["export this semester's awards", "list certification events since August", "export all attempts this month"]
+  args:
+    p_kind: {name: kind, describe: "What to export, as the export screen names it."}
+    p_from: {name: from, describe: "The first day."}
+    p_to: {name: to, describe: "The last day."}
+
+cert_get:
+  surface: call
+  level: read
+  describe: One certification as a student sees it, by its code.
+  say: ["what does a student see for SW1", "show the cert page for CNC", "open certification code PRINT1"]
+  args:
+    p_code: {name: code, describe: "The certification's code."}
+
+cert_is_certifier:
+  surface: call
+  level: read
+  describe: Whether you are a certifier for any certification.
+  say: ["am I a certifier", "can I award certifications", "do I have certifier access"]
+
+cert_lesson_document:
+  surface: call
+  level: read
+  describe: One certification lesson's document.
+  say: ["show the first SolidWorks lesson", "read the safety lesson", "open that lesson"]
+  args:
+    p_id: {name: lesson, describe: "The lesson's id."}
+
+cert_lesson_save:
+  surface: call
+  level: confirm
+  describe: Save a certification lesson's document; it asks first because no action puts the earlier version back.
+  say: ["save the new safety lesson", "update the SolidWorks lesson", "add a lesson to the CNC cert"]
+  args:
+    p_cert: {name: certification, describe: "The certification's id."}
+    p_slug: {name: code, describe: "The lesson's short code, lowercase with hyphens."}
+    p_title: {name: title, describe: "The lesson's title."}
+    p_document: {name: document, describe: "The whole lesson document."}
+    p_manifest: {name: manifest, describe: "The lesson's manifest, as the editor exports it."}
+
+cert_me:
+  surface: call
+  level: read
+  describe: Your own certifications and attempts as a student sees theirs.
+  say: ["what certifications do I hold", "my certification attempts", "my certs"]
+
+cert_mirror_snapshot:
+  exclude: The snapshot the scheduled sync sends to the FRC app; it runs on its own after awards and daily.
+
+cert_notifications_mark_sent:
+  exclude: Bookkeeping the site writes after it sends a certification email or push; never a person's action.
+
+cert_notifications_unread:
+  surface: call
+  level: read
+  describe: How many certification notifications you have not read.
+  say: ["any certification notifications", "how many unread cert messages", "do I have cert alerts"]
+
+cert_notifications_unsent:
+  exclude: The scheduled sender's list of certification notifications still to send; never a person's action.
+
+cert_sweep_dormant:
+  exclude: The daily certification job that closes attempts nobody touched; it runs on its own schedule.
+
+cert_sync_log_write:
+  exclude: The scheduled sync's own log of what it sent the FRC app; never a person's action.
+
+cert_verify:
+  surface: call
+  level: read
+  describe: Check a certificate serial the way the public verify page does, and say whether it is valid.
+  say: ["verify certificate IDEA-ABCD-EFGH-JKMN-PQRS", "is that serial valid", "check this certificate"]
+  args:
+    p_serial: {name: serial, describe: "The serial, like IDEA followed by four groups of four."}

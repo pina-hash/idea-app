@@ -195,8 +195,9 @@ class or several, with kind, points and due), `set_points`, `set_due`,
 `read_answers`, `grade`, `send_feedback`, `award_coins`, `fine_coins`,
 `coin_balance`, `undo_last`, `connector_disconnect`, plus `site_find_tool` and
 `site_call` with the registry carrying first-slice entries and every other
-function listed under `pending: slice 2` (a reason the coverage check accepts
-until 0401 lands and removes the allowance).
+function listed under `pending: slice 2` (a reason the coverage check accepted
+until 0401 removed the allowance; every function now has a tool, a `call`
+entry or a written exclusion).
 
 `replace_html_assignment` refuses when any `block_id` that has a stored answer
 in `classroom_responses` for the item (any posting) is absent from the new
@@ -218,8 +219,21 @@ tool always returns the block diff (kept, added, missing) with the result.
 - `tests/db/connector-repeat.test.ts`: the same request twice writes once;
   `again: true` writes twice.
 - `tests/connector-coverage.test.ts`: every inventoried function and endpoint
-  has a tool, a `call` entry, an `exclude` reason or (until 0401) `pending`;
-  every overlay entry names something that exists. Counts carry their date.
+  has a tool, a `call` entry or an `exclude` reason (the `pending` allowance is
+  gone since 0401); every overlay entry names something that exists; section 7
+  below and `EVALS.md` are what their generators write. Counts carry their date.
+- `tests/db/connector-levels.test.ts` (0401): every read entry writes no log
+  row and no audit row; every confirm entry writes nothing without the token it
+  was handed, with a made-up one, or with its token carried to other arguments;
+  every undo entry's write lands and `undo_last` reverses it, judged on the log
+  tables (a reversal that leaves a record on purpose, such as a revoked grade,
+  is named in the file with its reason and its own check); `level_when` both
+  ways.
+- `tests/db/connector-requests.test.ts` (0401): a request is logged with his
+  words; words that match no saved request become one; an unknown `site_call`
+  name and `report_gap` become an open gap; the practice endpoint, called with
+  every write entry in the registry, leaves every log table and every connector
+  table unchanged; a site route asks first, runs once as him and is audited.
 - `tests/connector-oauth.test.ts`: both metadata documents, the `401` shape,
   PKCE failure, code reuse, refresh rotation, `invalid_grant`, a revoked token
   and the kill switch each answer as the spec says; consent answers 404 to a
@@ -269,30 +283,173 @@ takes a signed `p_amount` (0251), so the overlay states the level by argument:
 
 ```yaml
 coin_admin_adjust_balance:
-  level_when: [{if: "amount > 0", level: undo}, {else: confirm}]
+  level_when: [{if: "p_amount > 0", level: undo}, {else: confirm}]
 ```
 
 `level_when` is evaluated by the server on the resolved arguments, never by the
-model. Any entry may use it; an entry without it has one `level`.
+model. Any entry may use it; an entry without it has one `level`. Since ledger
+0401 a condition may also name what the site holds before the write, read by
+the entry's own `before` (as him): `$before.found` ("an answer is already
+there, so this one can be put back") or `$before.status = draft`. Five more
+entries use it, each because one branch has a reverse and the other has none
+(a first spec, a first instructor answer, opening a draft tournament, editing
+an existing check-in or challenge).
 
-| Family | read | undo (runs, logged) | confirm (asks first) | excluded (reason) |
-|---|---|---|---|---|
-| Classroom posts and units | feed, item, revisions, roster, overview, perfect scores | create post or quick post, publish, pin, order, unit, layout, thumbnail, points, due, spec, rubric, restore revision, replace HTML (with the orphan refusal) | delete item, unit, section or deck; remove posting; remove enrollment; import roster; quick post take-down | presence ping, mark viewed, view-as, worksheet latch (browser instruments) |
-| Grading, answers, feedback | grades, answers, feedback list, instructor responses | grade, regrade, revoke grade, close or reopen, feedback post, reply, state, seen; instructor response; designate key | delete feedback; bulk grade with no per-row preview | export record (a download) |
-| Coins | balance, stats, leaderboard, lookup, export, settings read | award, fine, extra credit, pay raise, 3D print, property damage, reverse, queue, payday, digest, adjust balance UP | adjust balance DOWN or to zero, settings, categories, roles, contracts, bulk log | autopay run, digest push (cron) |
-| Hall pass | state, events | open, close, limits | | |
-| Tournaments | brackets, standings, matches | create, set up, name, seed, schedule | delete | advance match, enter score (live operation, out of scope) |
-| Foundry | queue, versions, source read | approve, reject, publish, unpublish, gallery | delete, purge | upload bytes (a file, not a function) |
-| Maps | map, revisions, search log | edit, publish, grants | delete | |
-| Armory | projects, files, versions, members, incidents | membership, roles, project settings | purge, sweep, break locks, delete forever | connect flow (another device's sign-in) |
-| Certifications | certs, events, verify | record event, revise | issue, revoke (signed public record) | sync jobs (cron) |
-| Notebook | entries, sessions, check-ins, admin log | review, grade, check-in edits | delete | Drive connect (interactive) |
-| IdeaCAD | documents, rules | rule revisions, document settings | delete document | |
-| GAUNTLET | challenges, runs, reviews | author, publish, review, plausibility floor | delete challenge | room hosting (live) |
-| GREENLINE | posts, queue | moderation decisions | delete | |
-| People, admin | profiles, admins, feedback (all users) | avatar moderation, feedback state and reply, display settings, hall pass limits | add or remove an admin, delete feedback | push subscriptions (a device's) |
-| FRC, FSP | rosters, interest, completions | completion overrides, gate reviews | | |
-| Connector | audit log, connections | | disconnect all, switch off | |
+The family table Mr. Pina approved is in git history at ledger 0400. From
+ledger 0401 the table is GENERATED from the overlay the server enforces, so it
+cannot say one thing while the server does another; where an entry departs
+from the family rule above, the reason is in its YAML and in the 0401 history
+entry.
+
+<!-- levels:start (generated by tools/connector/levels-table.mjs from the overlay; edit the YAML, not this table) -->
+Generated from the overlay on 2026-10-18.
+
+| Family | read | undo (runs, logged) | confirm (asks first) | by argument | excluded |
+|---|---|---|---|---|---|
+| Certifications | 12 | 0 | 3 | 0 | 10 |
+| Foundry | 20 | 6 | 5 | 0 | 9 |
+| GAUNTLET | 8 | 3 | 1 | 1 | 11 |
+| GREENLINE | 2 | 3 | 1 | 0 | 6 |
+| IDEA Armory | 14 | 2 | 3 | 0 | 4 |
+| IDEA Classroom | 21 | 43 | 23 | 3 | 24 |
+| IDEA Coin | 27 | 6 | 7 | 1 | 4 |
+| IDEA Maps | 3 | 2 | 1 | 0 | 0 |
+| IdeaCAD | 5 | 2 | 0 | 0 | 1 |
+| Notebook | 4 | 14 | 5 | 1 | 9 |
+| People, feedback and the rest of the site | 11 | 7 | 5 | 0 | 6 |
+| Site routes (run in-process as him) | 1 | 0 | 5 | 0 | 105 |
+| The connector itself | 4 | 1 | 3 | 0 | 7 |
+| Tournaments | 1 | 7 | 9 | 1 | 8 |
+| **All** | **133** | **96** | **71** | **7** | **204** |
+
+<details><summary>Certifications</summary>
+
+- **Read:** `cert_admin_get`, `cert_admin_list`, `cert_award_get`, `cert_exam_live`, `cert_exam_pool_get`, `cert_export`, `cert_get`, `cert_is_certifier`, `cert_lesson_document`, `cert_me`, `cert_notifications_unread`, `cert_verify`
+- **Asks first:** `cert_admin_save`, `cert_exam_pool_replace`, `cert_lesson_save`
+- **Excluded (the reason is in the YAML):** `cert_award_commit`, `cert_award_correct`, `cert_award_prepare`, `cert_error_log`, `cert_expiry_reminders`, `cert_mirror_snapshot`, `cert_notifications_mark_sent`, `cert_notifications_unsent`, `cert_sweep_dormant`, `cert_sync_log_write`
+
+</details>
+
+<details><summary>Foundry</summary>
+
+- **Read:** `foundry_app_play_stats`, `foundry_author_profile`, `foundry_class_schedule_get`, `foundry_collections_read`, `foundry_featured_read`, `foundry_gallery_overrides_read`, `foundry_game_requests`, `foundry_get_app`, `foundry_list_apps`, `foundry_manageable_sections`, `foundry_my_play_stats`, `foundry_people_search`, `foundry_play_counts`, `foundry_publisher_applications`, `foundry_publisher_pending_count`, `foundry_publisher_questions_admin`, `foundry_publisher_status`, `foundry_section_access`, `foundry_trusted_roster`, `foundry_vote_counts`
+- **Undo:** `foundry_set_app_hidden`, `foundry_set_app_major`, `foundry_set_section_open`, `foundry_set_site_open`, `foundry_trusted_grant`, `foundry_trusted_revoke`
+- **Asks first:** `foundry_clear_metadata_flag`, `foundry_publisher_decide`, `foundry_publisher_set_questions`, `foundry_review_version` (review_foundry_app), `foundry_update_app_metadata`
+- **Excluded (the reason is in the YAML):** `foundry_create_app`, `foundry_create_version`, `foundry_delete_app`, `foundry_delete_version`, `foundry_play_ping`, `foundry_play_start`, `foundry_publisher_apply`, `foundry_submit_version`, `foundry_vote`
+
+</details>
+
+<details><summary>GAUNTLET</summary>
+
+- **Read:** `gauntlet_author_get`, `gauntlet_can_author`, `gauntlet_class_run_stats`, `gauntlet_leaderboards`, `gauntlet_progression`, `gauntlet_rank_settings_get`, `gauntlet_run_review`, `gauntlet_run_targets`
+- **Undo:** `gauntlet_author_set_status`, `gauntlet_rank_settings_set`, `gauntlet_series_assign`
+- **Asks first:** `gauntlet_author_delete`
+- **By argument:** `gauntlet_author_upsert`: undo when p_id is null, otherwise confirm
+- **Excluded (the reason is in the YAML):** `gauntlet_knowledge_start`, `gauntlet_room_create`, `gauntlet_room_delete`, `gauntlet_room_join`, `gauntlet_room_manual_submit`, `gauntlet_room_reveal`, `gauntlet_room_set_challenge`, `gauntlet_room_set_state`, `gauntlet_room_start`, `gauntlet_speedrun_reveal`, `gauntlet_submit`
+
+</details>
+
+<details><summary>GREENLINE</summary>
+
+- **Read:** `greenline_leaderboard`, `greenline_track_list`
+- **Undo:** `greenline_decal_review`, `greenline_track_review`, `greenline_track_set_featured`
+- **Asks first:** `greenline_track_remove`
+- **Excluded (the reason is in the YAML):** `greenline_purchase_item`, `greenline_submit_race_result`, `greenline_track_attempt_finish`, `greenline_track_attempt_start`, `greenline_track_rate`, `greenline_track_report`
+
+</details>
+
+<details><summary>IDEA Armory</summary>
+
+- **Read:** `armory_app_feedback_admin_list`, `armory_app_incidents_admin_list`, `armory_can_take_back`, `armory_file_history`, `armory_is_member`, `armory_list_changes`, `armory_my_projects`, `armory_orphans_count`, `armory_people_search`, `armory_project_checkouts`, `armory_project_files`, `armory_project_summaries`, `armory_purge_preview`, `armory_team_status`
+- **Undo:** `armory_app_feedback_set_status`, `armory_app_incident_set_status`
+- **Asks first:** `armory_break_lock`, `armory_break_locks`, `armory_create_project`
+- **Excluded (the reason is in the YAML):** `armory_orphans_pending`, `armory_orphans_swept`, `armory_purge_project`, `armory_register_device`
+
+</details>
+
+<details><summary>IDEA Classroom</summary>
+
+- **Read:** `classroom_course_categories`, `classroom_duplicate_drafts`, `classroom_feedback_list`, `classroom_grade_revocation`, `classroom_hall_pass_events`, `classroom_hall_pass_state`, `classroom_item_revisions`, `classroom_manages_section`, `classroom_posting_perfect_scores`, `classroom_presence_state`, `classroom_public_attachment`, `classroom_public_reference`, `classroom_quick_post_file`, `classroom_quick_posts`, `classroom_section_roster`, `classroom_song_queue`, `classroom_student_overview`, `classroom_team_board`, `classroom_view_as_students`, `classroom_worksheet_latched`, `classroom_worksheet_past_manifests`
+- **Undo:** `classroom_add_postings`, `classroom_approve_module`, `classroom_close_assignment` (close_assignment), `classroom_create_item`, `classroom_designate_instructor_key`, `classroom_duplicate_item` (duplicate_post), `classroom_feedback_post`, `classroom_feedback_reply`, `classroom_feedback_set_state`, `classroom_grade_direct`, `classroom_grade_submission`, `classroom_hall_pass_open_for` (open_hall_pass), `classroom_hall_pass_set_limits`, `classroom_post_team_set`, `classroom_quick_post_create`, `classroom_rename_attachment`, `classroom_rename_instructor_attachment`, `classroom_restore_grade`, `classroom_restore_revision`, `classroom_revoke_grade` (revoke_grade), `classroom_save_team_set`, `classroom_set_attachment_order`, `classroom_set_enrollment` (add_student), `classroom_set_html_assignment`, `classroom_set_instructor_attachment_order`, `classroom_set_instructor_resources`, `classroom_set_item_layout`, `classroom_set_item_order`, `classroom_set_item_pinned` (pin_post), `classroom_set_item_public`, `classroom_set_item_thumbnail_focus`, `classroom_set_item_unit`, `classroom_set_posting_perfect_score`, `classroom_set_published`, `classroom_set_rubric`, `classroom_set_section_active`, `classroom_set_section_thumbnail_shape`, `classroom_set_unit_order`, `classroom_undesignate_instructor_key`, `classroom_update_enrollment`, `classroom_update_item`, `classroom_upsert_section`, `classroom_upsert_unit`
+- **Asks first:** `classroom_archive_team_set`, `classroom_delete_attachment`, `classroom_delete_deck`, `classroom_delete_instructor_attachment`, `classroom_delete_item` (delete_post), `classroom_delete_section`, `classroom_delete_unit`, `classroom_feedback_remove`, `classroom_feedback_seen`, `classroom_feedback_update`, `classroom_grade_submissions`, `classroom_hall_pass_close_by_id`, `classroom_import_roster`, `classroom_move_team_member`, `classroom_quick_post_take_down`, `classroom_remove_enrollment` (remove_student), `classroom_remove_posting`, `classroom_set_item_thumbnail`, `classroom_set_team_style`, `classroom_song_approve`, `classroom_song_reject`, `classroom_unpost_team_set`, `classroom_upsert_course`
+- **By argument:** `classroom_save_instructor_response`: undo when $before.found, otherwise confirm, `classroom_set_assignment_spec`: undo when $before.found, otherwise confirm, `classroom_set_reference_spec`: undo when $before.found, otherwise confirm
+- **Excluded (the reason is in the YAML):** `classroom_add_attachment`, `classroom_add_instructor_attachment`, `classroom_add_submission_file`, `classroom_deck_ingest_abandon`, `classroom_deck_ingest_begin`, `classroom_deck_ingest_claim_stage`, `classroom_deck_ingest_finish`, `classroom_deck_ingest_record`, `classroom_deck_upload_cancel`, `classroom_deck_upload_claim`, `classroom_deck_upload_start`, `classroom_delete_submission_file`, `classroom_mark_item_viewed`, `classroom_open_submission`, `classroom_presence_ping`, `classroom_quick_post_add_file`, `classroom_record_export`, `classroom_save_response`, `classroom_set_submission_file_caption`, `classroom_song_request`, `classroom_submit_assignment`, `classroom_unsubmit_assignment`, `classroom_worksheet_latch_for`, `classroom_worksheet_latch`
+
+</details>
+
+<details><summary>IDEA Coin</summary>
+
+- **Read:** `coin_admin_lookup`, `coin_auditor_queue`, `coin_donation_items_list`, `coin_export`, `coin_fine_roster`, `coin_fine_sections`, `coin_me`, `coin_my_contract_claims`, `coin_my_contracts`, `coin_my_page`, `coin_my_role`, `coin_my_stats`, `coin_no_shop_today`, `coin_public_contracts`, `coin_public_leaderboard`, `coin_public_reasons`, `coin_public_reported_coins`, `coin_public_role_badges`, `coin_public_role_questions`, `coin_public_roles`, `coin_public_student`, `coin_public_transactions`, `coin_queue`, `coin_section_role_badges`, `coin_settings_get`, `coin_staff_scope`, `coin_student_stats`
+- **Undo:** `coin_log_extra_credit` (extra_credit_coins), `coin_log_pay_raise`, `coin_log_perfect_score`, `coin_log_property_damage_careless`, `coin_log_three_d_printing`, `coin_log_transaction`
+- **Asks first:** `coin_admin_create_category`, `coin_admin_set_category_active`, `coin_bulk_log_students`, `coin_fine_log`, `coin_reverse_transaction`, `coin_settings_set_category`, `coin_settings_set`
+- **By argument:** `coin_admin_adjust_balance` (adjust_balance): undo when p_amount > 0, otherwise confirm
+- **Excluded (the reason is in the YAML):** `coin_autopay_run`, `coin_contract_self_claim`, `coin_digest_push_due`, `coin_role_self_apply`
+
+</details>
+
+<details><summary>IDEA Maps</summary>
+
+- **Read:** `maps_editor_roster`, `maps_my_editor_grants`, `maps_search`
+- **Undo:** `maps_editor_grant`, `maps_editor_revoke`
+- **Asks first:** `maps_publish`
+
+</details>
+
+<details><summary>IdeaCAD</summary>
+
+- **Read:** `ideacad_archive`, `ideacad_assembly`, `ideacad_direct_documents`, `ideacad_direct_folders`, `ideacad_shared_with_me`
+- **Undo:** `ideacad_material_save_global`, `ideacad_material_set_retired`
+- **Excluded (the reason is in the YAML):** `ideacad_set_direct_document_thumbnail`
+
+</details>
+
+<details><summary>Notebook</summary>
+
+- **Read:** `notebook_get_section_grid`, `notebook_review_student_notebook`, `notebook_reviewed_sections`, `notebook_view_as_notebook`
+- **Undo:** `notebook_accept_entry`, `notebook_add_session_postings`, `notebook_admin_set_excusal`, `notebook_create_item_check_in`, `notebook_flag_entry`, `notebook_link_session_item`, `notebook_link_unit_item`, `notebook_resolve_entry`, `notebook_set_session_guidance`, `notebook_staff_restore_entry`, `notebook_staff_restore_note`, `notebook_unaccept_entry`, `notebook_unlink_session_item`, `notebook_unlink_unit_item`
+- **Asks first:** `notebook_admin_delete_session`, `notebook_admin_override_entry`, `notebook_remove_session_posting`, `notebook_staff_delete_entry`, `notebook_staff_delete_note`
+- **By argument:** `notebook_admin_upsert_session`: undo when p_id is null, otherwise confirm
+- **Excluded (the reason is in the YAML):** `notebook_add_note`, `notebook_add_photo`, `notebook_create_entry`, `notebook_create_note_entry`, `notebook_delete_folder`, `notebook_edit_note`, `notebook_move_entries`, `notebook_seal_notes`, `notebook_upsert_folder`
+
+</details>
+
+<details><summary>People, feedback and the rest of the site</summary>
+
+- **Read:** `admin_list`, `app_feedback_admin_list`, `app_short_link_list`, `app_short_link_target`, `frc_can_review`, `frc_review_queue`, `is_admin`, `is_owner`, `profile_avatar_hold_status`, `profile_avatar_holds`, `profile_avatar_my_hold`
+- **Undo:** `app_feedback_set_horizon`, `app_feedback_set_status`, `app_short_link_upsert`, `frc_mark_complete`, `frc_unmark_complete`, `profile_avatar_hide`, `profile_avatar_restore`
+- **Asks first:** `admin_grant`, `admin_revoke`, `app_feedback_edit`, `app_short_link_delete`, `clear_fsp_session`
+- **Excluded (the reason is in the YAML):** `app_feedback_submit`, `frc_quiz_grade`, `frc_quiz_start`, `idea_cert_sync`, `push_subscribe`, `submit_fsp_question`
+
+</details>
+
+<details><summary>Site routes (run in-process as him)</summary>
+
+- **Read:** `/api/foundry/source` (read_foundry_source)
+- **Asks first:** `/api/armory/purge` (delete_project_forever), `/api/armory/sweep` (armory_storage_cleanup), `/api/certifications/award` (issue_certification), `/api/certifications/correct` (correct_certification), `/api/foundry/delete` (delete_foundry_app)
+- **Excluded (the reason is in the YAML):** `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource/mcp`, `/.well-known/oauth-protected-resource`, `/_platform/[...asset]`, `/a/[appId]/[...path]`, `/admin/drive-connect/callback`, `/admin/drive-connect`, `/api/armory/blob-url`, `/api/armory/connect/exchange`, `/api/armory/connect/start`, `/api/avatar/[...path]`, `/api/certifications/evidence/[...path]`, `/api/certifications/evidence/sign`, `/api/certifications/export`, `/api/certifications/jobs/[job]`, `/api/certifications/package/export/[id]`, `/api/certifications/package/import`, `/api/classroom/attachment/[attachment_id]`, `/api/classroom/attachment/sign`, `/api/classroom/attachment`, `/api/classroom/deck/[deck_id]/[...path]`, `/api/classroom/deck`, `/api/classroom/delete-content`, `/api/classroom/export`, `/api/classroom/html-assignment-source/[itemId]`, `/api/classroom/instructor-attachment/[attachment_id]`, `/api/classroom/instructor-attachment/sign`, `/api/classroom/instructor-attachment`, `/api/classroom/item`, `/api/classroom/link-preview`, `/api/classroom/quick-post-file/[file_id]`, `/api/classroom/quick-post-file/sign`, `/api/classroom/quick-post-file`, `/api/classroom/submission-file/[file_id]`, `/api/classroom/submission-file/sign`, `/api/classroom/submission-file`, `/api/classroom/thumbnail/[itemId]`, `/api/classroom/thumbnail/sign`, `/api/classroom/thumbnail`, `/api/coin/autopay`, `/api/coin/claim`, `/api/coin/digest-push`, `/api/coin/me`, `/api/coin/public`, `/api/coin/role-apply`, `/api/coin/signin`, `/api/feedback`, `/api/foundry-cover/[...path]`, `/api/greenline-track-publish`, `/api/notebook/add-note`, `/api/notebook/add-photo`, `/api/notebook/edit-note`, `/api/notebook/note`, `/api/notebook/photo/[photo_id]`, `/api/notebook/session-guidance`, `/api/notebook/upload`, `/api/tournament-push`, `/api/vanguard-feedback`, `/api/vanguard-run-state`, `/api/vanguard-run`, `/api/vanguard-save`, `/armory/[project]/file/[file]/version/[version]`, `/armory/download/[file]`, `/armory/get`, `/assignments/[slug]`, `/auth/callback`, `/b/[appId]/[versionId]/[...path]`, `/certifications/lesson/[lessonId]`, `/certifications/verify/public-key`, `/classroom/[sectionId]/duplicates/remove`, `/coins/[...path]`, `/connector/register`, `/connector/revoke`, `/connector/token`, `/dev/ai-level-badge-reference`, `/dev/cert-certification/lesson/[lessonId]`, `/dev/classroom-deck/f/[deck_id]/[...path]`, `/dev/classroom-deck/fixture`, `/dev/classroom-deck/ingest`, `/dev/classroom/normalize`, `/dev/coins/api/claim`, `/dev/coins/api/me`, `/dev/coins/api/public`, `/dev/coins/api/role-apply`, `/dev/coins`, `/dev/deploy-safety/slide`, `/dev/deploy-safety/upload`, `/dev/feedback/assignment`, `/dev/foundry-admin/refusal`, `/dev/foundry-mosaic/cover/[shape]`, `/dev/frc-quiz`, `/dev/html-instructor/copy/doc`, `/dev/maps-media/o/[...path]`, `/dev/notebook/normalize`, `/foundry/download/[appId]/[versionId]`, `/foundry/preview/[appId]/[versionId]/[...path]`, `/foundry/starter`, `/frc/[domain]/[unit]/quiz`, `/hx/[docId]/thumbnail`, `/hx/[docId]`, `/mcp/practice/oauth-protected-resource`, `/mcp/practice`, `/mcp`, `/sitemap.xml`, `/vanguard`
+
+</details>
+
+<details><summary>The connector itself</summary>
+
+- **Read:** `connector_admin_audit`, `connector_admin_evals`, `connector_admin_gaps`, `connector_admin_state`
+- **Undo:** `connector_admin_set_gap`
+- **Asks first:** `connector_admin_disconnect_all`, `connector_admin_disconnect`, `connector_admin_set_enabled`
+- **Excluded (the reason is in the YAML):** `connector_audit_failure`, `connector_call`, `connector_endpoint_begin`, `connector_endpoint_finish`, `connector_eval_record`, `connector_report_gap`, `connector_request_log`
+
+</details>
+
+<details><summary>Tournaments</summary>
+
+- **Read:** `tournament_reward_settlement`
+- **Undo:** `tournament_add_entry_member`, `tournament_create` (create_tournament), `tournament_host_add_entry` (add_tournament_entry), `tournament_rename_entry_member`, `tournament_reorder_seed`, `tournament_update_entry`, `tournament_update`
+- **Asks first:** `tournament_add_host`, `tournament_delete`, `tournament_generate_qual_pools`, `tournament_remove_entry_member`, `tournament_remove_entry`, `tournament_send_invite`, `tournament_set_entry_style`, `tournament_set_reward_rules`, `tournament_shuffle_seeds`
+- **By argument:** `tournament_set_status`: confirm when $before.status = draft, otherwise undo
+- **Excluded (the reason is in the YAML):** `tournament_join_entry`, `tournament_live_config_apply`, `tournament_live_config_preview`, `tournament_ping_entry`, `tournament_register_entry`, `tournament_respond_invite`, `tournament_start_match`, `tournament_submit_qual_result`
+
+</details>
+
+<!-- levels:end -->
 
 ## 8. Haiku first
 
@@ -436,3 +593,78 @@ the build differs from the text above, this is the record and the reason.
   files, 337 pages, and 35 `.rpc(` call sites whose name is a variable and
   which no scanner can see. With 0400 in the tree: 382 functions, 109
   endpoints, 339 pages (`inventory.generated.json`).
+
+## What 0401 built (2026-10-18)
+
+Sections 7, 8 and 9 and the rest of section 2's overlay. Where the build
+differs from the text above, this is the record and the reason.
+
+- **Every function and route is answered for.** Measured 2026-10-18: the
+  inventory holds 385 literal `.rpc('name')` names, 110 `+server.ts` files and
+  340 pages. The overlay holds 400 function entries (the extra fifteen are
+  functions a facade, an undo or a preview calls by name): 301 reachable, 288
+  through `site_call` and 13 promoted to tools of their own, and 99 excluded
+  with a written reason. Of the 110 routes, 6 are `call` entries and 104 are
+  excluded by category (a file served, a sign-in step, a scheduled job, a
+  student's own action, a game, or the same work as a function entry). The
+  tool list is 36: 21 facades, 13 promoted entries, `site_find_tool` and
+  `site_call`. The `pending` allowance is gone from the coverage check.
+- **Routes run in-process as him.** `endpoints.ts` imports the six route
+  modules by literal path and calls the handler with `locals.supabase` a client
+  carrying the minted session and `locals.claims` naming him, so every gate in
+  the route decides as on the site. No route gained a caller; the Foundry
+  delete's storage sweep is still that route's own service-role read. A route
+  change is audited by `connector_endpoint_begin` and `_finish` (0272) with the
+  same repeat protection a function write has.
+- **`level_when` can read the site before the write.** A condition names an
+  argument (`p_amount > 0`) or a `$before` value the entry's own `before` read
+  found, as him. Seven entries use it: the balance adjustment by amount;
+  editing an existing challenge or check-in asks (the old wording is not kept)
+  while a new one is undone by deleting it; and a first spec, a first
+  instructor answer and opening a draft tournament ask, because nothing puts
+  "never had one" or "draft" back, while replacing or moving one is undone.
+- **Undo is computed from what was there.** An entry may read `before` (a
+  table select or a read function) and its undo templates name `$before`,
+  `$args`, `$result`, `$written` and `$user`; an undo may be several calls
+  (`each`). A delete whose bytes live in Drive or Storage clears them only
+  after the database half commits (`cleanup.ts`), the site's own order.
+- **The extra log tables are synced, not migrated.** The tables a write
+  entry's rows land in beyond 0270's 33 are listed in `log-tables.ts` and
+  inserted by `syncRegistry` with the registry rows, insert only, so a later
+  write entry needs no migration. 0272 names no subsystem's tables.
+- **The request log, the saved requests and the gaps are written by definer
+  functions that re-check `is_admin()`, not through `connector_call`** (0272).
+  Section 9 said "through `connector_call`"; that path exists to give a write
+  entry its audit row and its preview, and logging his words is neither: it
+  runs once per tool call, outside the write's own transaction, so a refused
+  write is still a logged request. The tables carry no client grant and no
+  policy, exactly like the rest of `connector_*`.
+- **`said` is required on every tool**, and the server logs it after the call
+  with the outcome (`done`, `previewed`, `asked`, `refused`, `gap`) and the
+  audit ids. Words are matched after lowercasing and stripping punctuation and
+  apostrophes; a new wording becomes saved request 53, 54 and so on, with the
+  tool that served it as its expected path.
+- **The seed is 52 lines**: the fifty, plus 51 (adding to a balance runs at
+  once) and 52 (a seating chart is a gap), as `EVALS.md` already listed. Lines
+  31 and 39 are seeded as asks-first, not undo: marking feedback seen is a bulk
+  stamp with no reverse, and a Foundry review is given once and cannot be
+  re-reviewed.
+- **Practice is fixed by the URL.** `/mcp/practice` is the same handler with
+  `practice: true`; every write returns its preview, a confirm returns the
+  token `practice` and pressing it previews again, reads are real, and nothing
+  is logged (not the request, not a gap). Both URLs are listed as protected
+  resources, so one sign-in covers either. The nightly replay is a scheduled
+  task created from chat once the practice connector is added; it records each
+  result through `record_eval_result` (`connector_eval_runs`), the one write
+  practice makes on purpose.
+- **`site_find_tool` answers at most five**, ranked, each with the exact
+  `site_call` to make (the name and every argument as a placeholder), and when
+  nothing matches it says to call `report_gap`.
+- **The Connector tab** is `/admin/feedback/connector` (open gaps first, his
+  words, what was tried, Built with a ledger number, Declined, and the saved
+  requests each produced with their last replay), and `/admin/connector`
+  gained a Requests section with a download that `export.mjs --json` turns
+  into `EVALS.md`. The feedback area's layout puts the Connector key beside
+  `FeedbackSourcesNav` (which, with the `/dev/feedback` harness, is outside
+  this ledger and still lists three) and draws all four on the connector's
+  own page.

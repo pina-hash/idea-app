@@ -1,43 +1,307 @@
 # FOUNDRY FUNCTIONS. The shape is described at the top of classroom.yaml.
+# Deleting an app or a version is the endpoint entry delete_foundry_app
+# (endpoints.yaml), because the site's delete route also removes the stored
+# files; the two functions it calls are excluded here with that reason.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-foundry_app_play_stats: {pending: slice 2}
-foundry_author_profile: {pending: slice 2}
-foundry_class_schedule_get: {pending: slice 2}
-foundry_clear_metadata_flag: {pending: slice 2}
-foundry_collections_read: {pending: slice 2}
-foundry_create_app: {pending: slice 2}
-foundry_create_version: {pending: slice 2}
-foundry_delete_app: {pending: slice 2}
-foundry_delete_version: {pending: slice 2}
-foundry_featured_read: {pending: slice 2}
-foundry_gallery_overrides_read: {pending: slice 2}
-foundry_game_requests: {pending: slice 2}
-foundry_get_app: {pending: slice 2}
-foundry_list_apps: {pending: slice 2}
-foundry_manageable_sections: {pending: slice 2}
-foundry_my_play_stats: {pending: slice 2}
-foundry_people_search: {pending: slice 2}
-foundry_play_counts: {pending: slice 2}
-foundry_play_ping: {pending: slice 2}
-foundry_play_start: {pending: slice 2}
-foundry_publisher_applications: {pending: slice 2}
-foundry_publisher_apply: {pending: slice 2}
-foundry_publisher_decide: {pending: slice 2}
-foundry_publisher_pending_count: {pending: slice 2}
-foundry_publisher_questions_admin: {pending: slice 2}
-foundry_publisher_set_questions: {pending: slice 2}
-foundry_publisher_status: {pending: slice 2}
-foundry_review_version: {pending: slice 2}
-foundry_section_access: {pending: slice 2}
-foundry_set_app_hidden: {pending: slice 2}
-foundry_set_app_major: {pending: slice 2}
-foundry_set_section_open: {pending: slice 2}
-foundry_set_site_open: {pending: slice 2}
-foundry_submit_version: {pending: slice 2}
-foundry_trusted_grant: {pending: slice 2}
-foundry_trusted_revoke: {pending: slice 2}
-foundry_trusted_roster: {pending: slice 2}
-foundry_update_app_metadata: {pending: slice 2}
-foundry_vote: {pending: slice 2}
-foundry_vote_counts: {pending: slice 2}
+foundry_app_play_stats:
+  surface: call
+  level: read
+  describe: How many times a Foundry app was played, by how many players, for how long and when last.
+  say: ["how many people played Cookie Press", "Foundry stats for the racing game", "when was that app last played"]
+  args:
+    p_app_id: {name: app, describe: "The app's id, from the Foundry gallery."}
+
+foundry_author_profile:
+  surface: call
+  level: read
+  describe: A Foundry publisher's page, with their apps.
+  say: ["show Mateo's Foundry page", "what apps has Leo published", "open that author's profile"]
+  args:
+    p_owner: {name: author, describe: "The author's account id, from an app."}
+
+foundry_class_schedule_get:
+  surface: call
+  level: read
+  describe: When a class's Foundry opens and closes on its weekly schedule, and whether it is closed now.
+  say: ["when is Block 2's Foundry open", "is the Foundry closed for Block 4", "show the Foundry schedule"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+
+foundry_clear_metadata_flag:
+  surface: call
+  level: confirm
+  describe: Clear the flag that says a Foundry app's title or description changed after review; it asks first because nothing puts the flag back.
+  say: ["clear the changed details flag on Cookie Press", "I checked the new description, clear it", "unflag that app"]
+  args:
+    p_app_id: {name: app, describe: "The app's id."}
+
+foundry_collections_read:
+  surface: call
+  level: read
+  describe: The Foundry gallery's curated collections, with their apps.
+  say: ["what collections are in the Foundry", "show the gallery collections", "list Foundry collections"]
+  args:
+    p_everything: {name: all, describe: "True to include unpublished collections."}
+
+foundry_create_app:
+  exclude: A student creating their own Foundry app, which starts with uploading one; it acts as the caller.
+
+foundry_create_version:
+  exclude: Records a Foundry upload the browser has just stored; a file's bytes cannot come through a chat.
+
+foundry_delete_app:
+  exclude: Runs inside the Foundry delete action, which also removes the app's stored files; the connector reaches it through that action.
+
+foundry_delete_version:
+  exclude: Runs inside the Foundry delete action, which also removes the version's stored files; the connector reaches it through that action.
+
+foundry_featured_read:
+  surface: call
+  level: read
+  describe: The Foundry gallery's featured row, as you picked it.
+  say: ["what's featured in the Foundry", "show the featured apps", "list the Foundry picks"]
+  args:
+    p_everything: {name: all, describe: "True to include apps that are not live."}
+
+foundry_gallery_overrides_read:
+  surface: call
+  level: read
+  describe: The card details you changed on Foundry gallery cards, such as a title or picture.
+  say: ["which Foundry cards did I change", "show the gallery overrides", "what card titles are custom"]
+
+foundry_game_requests:
+  surface: call
+  level: read
+  describe: The Foundry game request board, with what students asked for.
+  say: ["what games are students asking for", "show the request board", "any new game requests"]
+  args:
+    p_include_closed: {name: closed, describe: "True to include closed requests."}
+
+foundry_get_app:
+  surface: call
+  level: read
+  describe: One Foundry app with its versions, by its short name.
+  say: ["show Cookie Press", "open the racing game's page", "what versions does that app have"]
+  args:
+    p_slug: {name: app, describe: "The app's short name, as in its gallery link."}
+    p_include_hidden: {name: hidden, describe: "True to find a hidden app."}
+    p_include_unpublished: {name: unpublished, describe: "True to find an app not yet published."}
+
+foundry_list_apps:
+  surface: call
+  level: read
+  describe: Every Foundry app, or one author's, with its state; this is also how to see what is waiting for review.
+  say: ["what's in the Foundry review queue", "list every Foundry app", "show Mateo's apps"]
+  args:
+    p_owner: {name: author, describe: "Only this author's apps, by account id."}
+    p_include_hidden: {name: hidden, describe: "True to include hidden apps."}
+    p_include_unpublished: {name: unpublished, describe: "True to include apps not yet published, which is what review needs."}
+
+foundry_manageable_sections:
+  surface: call
+  level: read
+  describe: The classes whose Foundry you can open and close.
+  say: ["which classes' Foundry can I control", "list my Foundry classes", "where can I close the Foundry"]
+
+foundry_my_play_stats:
+  surface: call
+  level: read
+  describe: Your own play time on one Foundry app.
+  say: ["how long have I played Cookie Press", "my play stats on that app", "did I play the racing game"]
+  args:
+    p_app_id: {name: app, describe: "The app's id."}
+
+foundry_people_search:
+  surface: call
+  level: read
+  describe: Search school accounts by name, for Foundry trusted publishers.
+  say: ["find Mateo for the Foundry", "search for Leo's account", "who is Ana in the Foundry"]
+  args:
+    p_query: {name: name, describe: "The name to look for."}
+    p_limit: {name: count, describe: "How many to list."}
+
+foundry_play_counts:
+  surface: call
+  level: read
+  describe: Play counts for every Foundry app, as the gallery's sort uses them.
+  say: ["which Foundry apps get played most", "play counts for the gallery", "what's trending in the Foundry"]
+  args:
+    p_include_hidden: {name: hidden, describe: "True to include hidden apps."}
+    p_include_unpublished: {name: unpublished, describe: "True to include apps not yet published."}
+
+foundry_play_ping:
+  exclude: The heartbeat a running Foundry app's page sends while someone plays; an instrument, never an action.
+
+foundry_play_start:
+  exclude: The browser records that someone started playing a Foundry app; an instrument, never an action.
+
+foundry_publisher_applications:
+  surface: call
+  level: read
+  describe: Students' applications to become trusted Foundry publishers, with their answers.
+  say: ["any trusted publisher applications", "show the publisher applications", "who applied to publish"]
+  args:
+    p_status: {name: status, describe: "Only applications in this state, such as pending."}
+
+foundry_publisher_apply:
+  exclude: A student applying to be a trusted publisher for themselves; it acts as the caller.
+
+foundry_publisher_decide:
+  surface: call
+  level: confirm
+  describe: Approve or decline a student's trusted publisher application; it asks first because a decision is final.
+  say: ["approve Mateo's publisher application", "decline Leo's application, not yet", "make Ana a trusted publisher"]
+  args:
+    p_application_id: {name: application, describe: "The application's id."}
+    p_decision: {name: decision, enum: [approve, decline], describe: "approve or decline."}
+    p_note: {name: note, describe: "A note to the student."}
+
+foundry_publisher_pending_count:
+  surface: call
+  level: read
+  describe: How many trusted publisher applications are waiting.
+  say: ["how many publisher applications are waiting", "any applications pending", "count publisher requests"]
+
+foundry_publisher_questions_admin:
+  surface: call
+  level: read
+  describe: The questions a trusted publisher application asks, with the reviewer notes.
+  say: ["what does the publisher application ask", "show the application questions", "list publisher questions"]
+
+foundry_publisher_set_questions:
+  surface: call
+  level: confirm
+  describe: Replace the questions a trusted publisher application asks; it asks first because retired questions are not brought back.
+  say: ["change the publisher application questions", "add a question to the application", "update the application"]
+  args:
+    p_questions: {name: questions, describe: "Every question, in the shape the review page edits."}
+
+foundry_publisher_status:
+  surface: call
+  level: read
+  describe: Your own trusted publisher status.
+  say: ["am I a trusted publisher", "my publisher status", "can I publish without review"]
+
+foundry_review_version:
+  surface: tool
+  tool: review_foundry_app
+  level: confirm
+  describe: Approve or reject a Foundry app version waiting in review; it asks first because a review is given once and cannot be taken back.
+  say: ["approve the first one in the Foundry queue", "reject Cookie Press, the restart button is broken", "publish Leo's racing game"]
+  args:
+    p_version_id: {name: version, describe: "The version's id, from the review queue."}
+    p_decision: {name: decision, enum: [approve, reject], describe: "approve or reject."}
+    p_review_note: {name: note, describe: "What to change; a rejection needs one."}
+    p_reject_reason: {name: reason, describe: "For a rejection, the reason category the review console offers."}
+
+foundry_section_access:
+  surface: call
+  level: read
+  describe: Whether the Foundry is open for you and your classes right now, and why.
+  say: ["is the Foundry open", "is the Foundry switched off", "can students use the Foundry right now"]
+
+foundry_set_app_hidden:
+  surface: call
+  level: undo
+  describe: Hide a Foundry app from the gallery and its link, or show it again; its files stay.
+  say: ["hide Cookie Press", "take the racing game off the gallery", "unhide Leo's app"]
+  args:
+    p_app_id: {name: app, describe: "The app's id."}
+    p_hidden: {name: hidden, describe: "True to hide it, false to show it again."}
+    p_reason: {name: reason, describe: "Why, in your words."}
+  undo:
+    - function: foundry_set_app_hidden
+      args: {p_app_id: $args.p_app_id, p_hidden: "!$args.p_hidden"}
+
+foundry_set_app_major:
+  surface: call
+  level: undo
+  describe: Mark a Foundry app as a major release so it shows in that section of the gallery, or unmark it.
+  say: ["make Cookie Press a major release", "unmark the racing game", "feature that app as major"]
+  args:
+    p_app_id: {name: app, describe: "The app's id."}
+    p_major: {name: major, describe: "True to mark it, false to unmark it."}
+  undo:
+    - function: foundry_set_app_major
+      args: {p_app_id: $args.p_app_id, p_major: "!$args.p_major"}
+
+foundry_set_section_open:
+  surface: call
+  level: undo
+  describe: Open or close one class's Foundry by hand, with an optional note students see.
+  say: ["close the Foundry for Block 2", "open Block 4's Foundry", "shut the Foundry for the test"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_open: {name: open, describe: "True to open it, false to close it."}
+    p_note: {name: note, describe: "A note students read while it is closed."}
+  undo:
+    - function: foundry_set_section_open
+      args: {p_section_id: $args.p_section_id, p_open: "!$args.p_open"}
+
+foundry_set_site_open:
+  surface: call
+  level: undo
+  describe: Switch the whole Foundry off for every student, or back on.
+  say: ["switch the Foundry off", "turn the Foundry back on", "close the Foundry for everyone"]
+  args:
+    p_open: {name: open, describe: "True for on, false for off."}
+    p_note: {name: note, describe: "A note students read while it is off."}
+  undo:
+    - function: foundry_set_site_open
+      args: {p_open: "!$args.p_open"}
+
+foundry_submit_version:
+  exclude: A student submitting their own Foundry version for review; it acts as the caller.
+
+foundry_trusted_grant:
+  surface: call
+  level: undo
+  describe: Make a student a trusted Foundry publisher, whose versions publish without waiting for review.
+  say: ["make Mateo a trusted publisher", "trust Leo to publish", "let Ana publish without review"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+    p_note: {name: note, describe: "Why, in your words."}
+  undo:
+    - function: foundry_trusted_revoke
+      args: {p_email: $args.p_email}
+
+foundry_trusted_revoke:
+  surface: call
+  level: undo
+  describe: Take a student off the trusted Foundry publishers.
+  say: ["stop trusting Mateo's publishing", "remove Leo from trusted publishers", "Ana needs review again"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+  before:
+    # The list is read through the roster function: the table has no client read.
+    rpc: foundry_trusted_roster
+    find: {email: $args.p_email}
+  undo:
+    - when: $before.found
+      function: foundry_trusted_grant
+      args: {p_email: $args.p_email, p_note: $before.note}
+
+foundry_trusted_roster:
+  surface: call
+  level: read
+  describe: Every trusted Foundry publisher.
+  say: ["who are the trusted publishers", "list trusted Foundry students", "who can publish without review"]
+
+foundry_update_app_metadata:
+  surface: call
+  level: confirm
+  describe: Change one detail of a Foundry app, such as its title, tagline or description; it asks first.
+  say: ["change Cookie Press's tagline", "fix the racing game's title", "rewrite that app's description"]
+  args:
+    p_app_id: {name: app, describe: "The app's id."}
+    p_field: {name: detail, enum: [title, tagline, description, build_notes, cover_path], describe: "Which detail: title, tagline, description, build notes or cover."}
+    p_value: {name: value, describe: "The new text."}
+
+foundry_vote:
+  exclude: A student voting on an app for themselves; it acts as the caller.
+
+foundry_vote_counts:
+  surface: call
+  level: read
+  describe: The net votes on every Foundry app.
+  say: ["which Foundry apps are most liked", "show the vote counts", "how many likes does Cookie Press have"]

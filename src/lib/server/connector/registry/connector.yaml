@@ -44,3 +44,55 @@ connector_admin_disconnect_all:
   level: confirm
   describe: Disconnect every Claude connection at once; it asks first.
   say: ["disconnect everything", "sign every Claude connection out", "revoke all connector access"]
+
+# ---------------------------------------------------------------------------
+# Ledger 0401: the request log, saved requests and gaps (DESIGN.md section 9).
+# ---------------------------------------------------------------------------
+
+connector_request_log:
+  exclude: The connector's own record of each request, written by the server after every tool call; never a tool of its own.
+
+connector_report_gap:
+  exclude: Written by the report gap tool and by the server when site_call names an action the site does not have; never called on its own.
+
+connector_eval_record:
+  exclude: Written by the record eval result tool during a replay of the saved requests; never called on its own.
+
+connector_endpoint_begin:
+  exclude: The audit row the server writes before it runs a site route as him; never a tool of its own.
+
+connector_endpoint_finish:
+  exclude: The audit row the server completes after it runs a site route as him; never a tool of its own.
+
+connector_admin_gaps:
+  surface: call
+  level: read
+  describe: The things he asked for that the site cannot do yet, open ones first, with what was tried.
+  say: ["what can't the connector do yet", "show the open gaps", "what have I asked for that isn't built"]
+  args:
+    p_status: {name: status, enum: [open, built, declined], describe: "Only gaps in this state: open, built or declined."}
+
+connector_admin_set_gap:
+  surface: call
+  level: undo
+  describe: Mark a gap as built, with the ledger number that built it, or as declined, or open again.
+  say: ["mark the seating chart gap built in 0402", "decline the parent email gap", "reopen that gap"]
+  args:
+    p_id: {name: gap, describe: "The gap's id, from the list of gaps."}
+    p_status: {name: status, enum: [open, built, declined], describe: "open, built or declined."}
+    p_ledger: {name: ledger, describe: "For built: the four digit ledger number that built it."}
+    p_note: {name: note, describe: "A note about it."}
+  before:
+    rpc: connector_admin_gaps
+    args: {}
+    find: {id: $args.p_id}
+  undo:
+    - when: $before.found
+      function: connector_admin_set_gap
+      args: {p_id: $args.p_id, p_status: $before.status, p_ledger: $before.built_ledger, p_note: null}
+
+connector_admin_evals:
+  surface: call
+  level: read
+  describe: Every saved request with what must happen, its expected path and its last practice result; the replay starts here.
+  say: ["list the saved requests", "which requests failed last night", "show the request list"]

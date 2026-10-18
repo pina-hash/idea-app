@@ -5,6 +5,12 @@ coin_log_transaction:
   level: undo
   describe: Log one coin record for a student under a category, with a note; the award coins tool and the fine coins tool are the usual way in.
   say: ["log a coin record for Mateo", "record a Correct Answer award", "log a shop safety fine"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+    p_category_id: {name: category, describe: "The category's short name, from the coin settings."}
+    p_amount: {name: amount, describe: "Coins, when the category takes an amount."}
+    p_quantity: {name: quantity, describe: "How many units, for a per unit category."}
+    p_note: {name: reason, describe: "The reason, in your words."}
   undo:
     - function: coin_reverse_transaction
       args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
@@ -44,39 +50,332 @@ coin_staff_scope:
   describe: Which coin powers you hold and which classes they cover.
   say: ["what coin powers do I have", "am I a full coin admin", "which classes are in my coin scope"]
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-coin_admin_adjust_balance: {pending: slice 2}
-coin_admin_create_category: {pending: slice 2}
-coin_admin_set_category_active: {pending: slice 2}
-coin_auditor_queue: {pending: slice 2}
-coin_autopay_run: {pending: slice 2}
-coin_bulk_log_students: {pending: slice 2}
-coin_contract_self_claim: {pending: slice 2}
-coin_digest_push_due: {pending: slice 2}
-coin_donation_items_list: {pending: slice 2}
-coin_export: {pending: slice 2}
-coin_fine_log: {pending: slice 2}
-coin_fine_roster: {pending: slice 2}
-coin_log_extra_credit: {pending: slice 2}
-coin_log_pay_raise: {pending: slice 2}
-coin_log_perfect_score: {pending: slice 2}
-coin_log_property_damage_careless: {pending: slice 2}
-coin_log_three_d_printing: {pending: slice 2}
-coin_me: {pending: slice 2}
-coin_my_contract_claims: {pending: slice 2}
-coin_my_contracts: {pending: slice 2}
-coin_my_page: {pending: slice 2}
-coin_my_role: {pending: slice 2}
-coin_my_stats: {pending: slice 2}
-coin_no_shop_today: {pending: slice 2}
-coin_public_contracts: {pending: slice 2}
-coin_public_leaderboard: {pending: slice 2}
-coin_public_reasons: {pending: slice 2}
-coin_public_reported_coins: {pending: slice 2}
-coin_public_role_badges: {pending: slice 2}
-coin_public_role_questions: {pending: slice 2}
-coin_public_roles: {pending: slice 2}
-coin_public_student: {pending: slice 2}
-coin_public_transactions: {pending: slice 2}
-coin_role_self_apply: {pending: slice 2}
-coin_section_role_badges: {pending: slice 2}
+# ---------------------------------------------------------------------------
+# Ledger 0401: every other coin function the site calls.
+# ---------------------------------------------------------------------------
+
+coin_admin_adjust_balance:
+  surface: tool
+  tool: adjust_balance
+  level_when: [{if: "p_amount > 0", level: undo}, {else: confirm}]
+  describe: Add coins to a student's balance, or take some away; taking away, or setting to zero, asks first.
+  say: ["add twenty coins to Mateo's balance", "set Mateo's balance to zero", "take five coins off Leo's balance", "refund Ana three coins"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student, as you said the name."}
+    p_amount: {name: amount, describe: "Coins to add, or a negative number to take away. To set a balance to zero, take away the whole balance."}
+    p_note: {name: reason, describe: "Why, in your words; it is the note on the coin record."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+coin_admin_create_category:
+  surface: call
+  level: confirm
+  describe: Add a new award, fine or purchase category to the coin economy; it asks first.
+  say: ["add a fine called Tool Left Out for three coins", "create an award category for helping a classmate", "make a new purchase for a sticker"]
+  args:
+    p_id: {name: code, describe: "A short lowercase code for it, letters and underscores, like the name with spaces as underscores."}
+    p_name: {name: name, describe: "The category's name as people see it."}
+    p_kind: {name: kind, enum: [award, fine, purchase, adjustment], describe: "award, fine, purchase or adjustment."}
+    p_scope: {name: courses, enum: [core, 209h], describe: "core for every course, or 209h for Engineering I Honors only."}
+    p_pricing_model: {name: pricing, enum: [flat, range, per_unit, variable], describe: "flat for a set amount, range for a low and high amount, per unit, or variable for any amount."}
+    p_amount: {name: amount, describe: "The set amount, for flat or per unit pricing."}
+    p_min_amount: {name: lowest, describe: "The lowest amount, for range pricing."}
+    p_max_amount: {name: highest, describe: "The highest amount, for range pricing."}
+    p_unit_label: {name: unit, describe: "What one unit is, for per unit pricing, like page."}
+    p_notes: {name: notes, describe: "A note about when to use it."}
+
+coin_admin_set_category_active:
+  surface: call
+  level: confirm
+  describe: Turn a coin category on or off so it can or cannot be logged; it asks first.
+  say: ["turn off the donation award", "switch the eating fine back on", "retire the old printing category"]
+  args:
+    p_id: {name: category, describe: "The category's short name, from the coin settings."}
+    p_active: {name: on, describe: "True to turn it on, false to turn it off."}
+
+coin_settings_set:
+  surface: call
+  level: confirm
+  describe: Change one coin economy setting, such as the payday rules or the long hall pass limits; it asks first.
+  say: ["change the pay raise cost to 120", "set the long hall pass fine to start at 20 minutes", "change the weekly wage rules"]
+  args:
+    p_key: {name: setting, describe: "The setting's name, exactly as the coin settings list it."}
+    p_value: {name: value, describe: "The new value, in the shape the coin settings show for it."}
+
+coin_settings_set_category:
+  surface: call
+  level: confirm
+  describe: Change one coin category's name, amount, limits or on and off state, such as the phone fine's amount; it asks first.
+  say: ["change the phone fine to four", "make Correct Answer worth two coins", "set the Above and Beyond range to 2 to 8"]
+  args:
+    p_id: {name: category, describe: "The category's short name, from the coin settings; the phone fine is the Off-Task fine."}
+    p_name: {name: name, default: null, describe: "A new name, or leave it out to keep the name."}
+    p_amount: {name: amount, default: null, describe: "The new set amount, for a flat or per unit category."}
+    p_min_amount: {name: lowest, default: null, describe: "The new lowest amount, for a range category."}
+    p_max_amount: {name: highest, default: null, describe: "The new highest amount, for a range category."}
+    p_cap_period: {name: period, default: null, describe: "How often the limit resets: day, week, quarter, or none for no limit."}
+    p_cap_count: {name: limit, default: null, describe: "How many times it can be logged in that period."}
+    p_active: {name: on, default: null, describe: "True or false to turn it on or off; leave it out to keep it as it is."}
+    p_explanation: {name: explanation, default: null, describe: "The explanation students read for it."}
+
+coin_queue:
+  surface: call
+  level: read
+  describe: The coin requests waiting for a decision, such as purchases and payouts students asked for.
+  say: ["what's in the coin queue", "any coin requests waiting", "show the payout requests"]
+  args:
+    p_kind: {name: kind, describe: "Only this kind of request; leave it out for all of them."}
+
+coin_student_stats:
+  surface: call
+  level: read
+  describe: One student's coin statistics, such as what they earned and spent and how they compare to the class.
+  say: ["how is Mateo doing with coins", "show Leo's coin stats", "what has Ana earned this quarter"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+
+coin_auditor_queue:
+  surface: call
+  level: read
+  describe: What the coin auditors have to check, as the coin desk's auditor list shows it.
+  say: ["what do the auditors need to check", "show the auditor list", "any coin audits waiting"]
+
+coin_autopay_run:
+  exclude: The automatic payday that runs on its own schedule; a person never runs it from a chat.
+
+coin_bulk_log_students:
+  surface: call
+  level: confirm
+  describe: Log the same coin record for many students at once under one category; it asks first because it is a bulk change.
+  say: ["log a Correct Answer for the whole group", "give these six students a donation award", "bulk log the shop clean up fine"]
+  args:
+    p_emails: {name: students, describe: "Every student's school address."}
+    p_category_id: {name: category, describe: "The category's short name, from the coin settings."}
+    p_amount: {name: amount, describe: "Coins each, when the category takes an amount."}
+    p_note: {name: reason, describe: "The reason, in your words."}
+
+coin_contract_self_claim:
+  exclude: A student claiming a coin contract for themselves; it acts as the caller, so through an admin's account it would claim for him.
+
+coin_digest_push_due:
+  exclude: The weekly coin digest's scheduled sender; it runs on its own time, never from a chat.
+
+coin_donation_items_list:
+  surface: call
+  level: read
+  describe: The list of supplies students can donate for coins, with what each is worth.
+  say: ["what supplies can students donate", "show the donation list", "how much is a donated glue stick worth"]
+
+coin_export:
+  surface: call
+  level: read
+  describe: Every coin record for one student, one class or the whole economy, as a list you can read or save.
+  say: ["export Mateo's coin history", "export Block 2's coins", "give me every coin record this year"]
+  args:
+    p_scope: {name: scope, describe: "student, class or economy."}
+    p_email: {name: student, resolve: student, describe: "The student, for a student export."}
+    p_section_id: {name: class, resolve: class, describe: "The class, for a class export."}
+
+coin_fine_log:
+  surface: call
+  level: confirm
+  describe: Log the same fine for several students at once, the way the fine screen does; it asks first because it is a bulk change.
+  say: ["fine the whole back table for disruption", "log a shop not cleaned up fine for these four", "fine everyone at bench 3"]
+  args:
+    p_emails: {name: students, describe: "Every student's school address."}
+    p_category_id: {name: category, describe: "The fine category's short name, from the coin settings."}
+    p_amount: {name: amount, describe: "Coins each, when the fine takes an amount."}
+    p_careless_cost: {name: dollars, describe: "For careless property damage: what it cost, in dollars."}
+    p_note: {name: reason, describe: "The reason, in your words."}
+
+coin_fine_roster:
+  surface: call
+  level: read
+  describe: A class's roster as the fine screen shows it, with each student's balance and eating pass.
+  say: ["show Block 2's fine screen", "who has an eating pass in Block 4", "balances for everyone in Block 1"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+
+coin_log_extra_credit:
+  surface: tool
+  tool: extra_credit_coins
+  level: undo
+  describe: Spend a student's coins on extra credit points for a grading category, the way the coin desk logs it.
+  say: ["Mateo is buying 3 points of extra credit on labs", "log 2 extra credit points for Leo on quizzes", "Ana wants extra credit on her project grade"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student, as you said the name."}
+    p_points: {name: points, describe: "How many extra credit points."}
+    p_grading_category: {name: toward, describe: "Where the points go, like labs, quizzes or projects."}
+    p_note: {name: reason, describe: "A note for the record."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+coin_log_pay_raise:
+  surface: call
+  level: undo
+  describe: Log a pay raise a student is buying, which charges them and moves their weekly wage up one tier.
+  say: ["Mateo is buying a pay raise", "log a pay raise for Leo", "give Ana the next wage tier"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+    p_note: {name: reason, describe: "A note for the record."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+coin_log_perfect_score:
+  surface: call
+  level: undo
+  describe: Log a Perfect Score award by hand for work worth the points you say.
+  say: ["log a perfect score award for Mateo on a 20 point lab", "Leo got a perfect score on the 50 point test", "award Ana her perfect score coins"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+    p_points: {name: points, describe: "What the graded work was worth, in points."}
+    p_note: {name: reason, describe: "A note for the record."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+coin_log_property_damage_careless:
+  surface: call
+  level: undo
+  describe: Fine a student for careless property damage, priced from what the damage cost in dollars.
+  say: ["Mateo broke a caliper carelessly, it cost 25 dollars", "log careless damage for Leo, 12 dollars", "fine Ana for the snapped drill bit"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+    p_cost_dollars: {name: dollars, describe: "What the damage cost, in dollars."}
+    p_note: {name: reason, describe: "What happened, in your words."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+coin_log_three_d_printing:
+  surface: call
+  level: undo
+  describe: Charge a student for a 3D print by its grams and hours, the way the coin desk prices it.
+  say: ["charge Mateo for a 40 gram print that took 3 hours", "log Leo's overnight print, 120 grams, 9 hours", "Ana printed a bracket, 15 grams, 1 hour"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+    p_grams: {name: grams, describe: "How much filament the print used, in grams."}
+    p_hours: {name: hours, describe: "How long the print took, in hours."}
+    p_overnight: {name: overnight, describe: "True if it printed overnight."}
+    p_note: {name: reason, describe: "A note for the record."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+coin_me:
+  surface: call
+  level: read
+  describe: Your own coin record as the site shows it to you, which is empty for staff with no coins.
+  say: ["what's my own coin record", "do I have a coin balance", "show my coin page"]
+
+coin_my_contract_claims:
+  surface: call
+  level: read
+  describe: The coin contracts you have claimed yourself, which for staff is usually none.
+  say: ["which contracts have I claimed", "my claimed contracts", "did I claim any contracts"]
+
+coin_my_contracts:
+  surface: call
+  level: read
+  describe: The coin contracts open to you as a student would see them.
+  say: ["which contracts can I see", "show the contracts as a student sees them", "my open contracts"]
+
+coin_my_page:
+  surface: call
+  level: read
+  describe: Your own coin page as a student sees theirs.
+  say: ["show my coin page", "what would my coin page say", "my own coins"]
+
+coin_my_role:
+  surface: call
+  level: read
+  describe: Your own classroom coin role, if you hold one.
+  say: ["do I hold a coin role", "what's my coin role", "my role in the coin economy"]
+
+coin_my_stats:
+  surface: call
+  level: read
+  describe: Your own coin statistics as a student sees theirs.
+  say: ["my coin stats", "what have I earned", "show my own coin numbers"]
+
+coin_no_shop_today:
+  surface: call
+  level: read
+  describe: Which students in a class are not allowed in the shop today because of a shop safety fine.
+  say: ["who's out of the shop today in Block 2", "any shop bans today in Block 4", "who can't use the shop today"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+
+coin_public_contracts:
+  surface: call
+  level: read
+  describe: The coin contracts as the public coin ledger lists them.
+  say: ["what contracts are posted", "show the public contracts", "which contracts are open on the ledger"]
+
+coin_public_leaderboard:
+  surface: call
+  level: read
+  describe: The coin leaderboard as the public coin ledger shows it.
+  say: ["who's leading in coins", "show the coin leaderboard", "top coin earners"]
+
+coin_public_reasons:
+  surface: call
+  level: read
+  describe: The reasons coins are given and taken, as the public coin ledger lists them.
+  say: ["what can students earn coins for", "list the coin reasons", "what are the fines on the ledger"]
+
+coin_public_reported_coins:
+  surface: call
+  level: read
+  describe: The coins on hand students have reported, as the public coin ledger shows them.
+  say: ["what coins on hand have students reported", "show reported coins", "who reported coins this week"]
+
+coin_public_role_badges:
+  surface: call
+  level: read
+  describe: Who holds which coin role, as the public coin ledger shows the badges.
+  say: ["who holds coin roles", "show the role badges", "which students are auditors"]
+
+coin_public_role_questions:
+  surface: call
+  level: read
+  describe: The questions a student answers to apply for one coin role.
+  say: ["what does the auditor application ask", "show the questions for the banker role", "what's on the role application"]
+  args:
+    p_role_id: {name: role, describe: "The role's short name, from the list of roles."}
+
+coin_public_roles:
+  surface: call
+  level: read
+  describe: The coin roles students can hold, with how many seats each class has.
+  say: ["what coin roles are there", "list the roles", "how many auditors can a class have"]
+
+coin_public_student:
+  surface: call
+  level: read
+  describe: One student's public coin ledger card, by the ledger's own student number.
+  say: ["show ledger card 1234", "open that student's ledger card", "what does the ledger show for that number"]
+  args:
+    p_student_id: {name: number, describe: "The student's number on the public ledger."}
+
+coin_public_transactions:
+  surface: call
+  level: read
+  describe: The most recent coin records as the public coin ledger lists them.
+  say: ["what are the latest coin records", "show recent coin activity", "last 50 coin transactions"]
+  args:
+    p_limit: {name: count, describe: "How many to list."}
+
+coin_role_self_apply:
+  exclude: A student applying for a coin role for themselves; it acts as the caller, so through an admin's account it would apply for him.
+
+coin_section_role_badges:
+  surface: call
+  level: read
+  describe: Who holds which coin role in one class.
+  say: ["who holds roles in Block 2", "show Block 4's role badges", "who's the banker in Block 1"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}

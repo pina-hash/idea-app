@@ -83,7 +83,8 @@ export interface AuditRow {
 	args: Record<string, unknown>;
 	result: unknown;
 	rowsWritten: unknown[];
-	undo: UndoCall | null;
+	/** One reverse call, or several (an `each` undo). */
+	undo: UndoCall | UndoCall[] | null;
 	undoOf: string | null;
 	undoneBy: string | null;
 	groupKey: string | null;
@@ -146,8 +147,9 @@ export interface ConnectorBackend {
 	storeConfirmation(confirmation: Confirmation): Promise<void>;
 	/** Marks the confirmation used in one statement; null when missing, used or expired. */
 	takeConfirmation(tokenHash: string, now: number): Promise<Confirmation | null>;
-	syncRegistry(rows: Array<{ function_name: string; tool: string; level: Level }>): Promise<void>;
-	setAuditUndo(auditId: string, undo: UndoCall | null): Promise<void>;
+	/** Upserts the registry rows, and inserts any log table not listed yet (never removes one). */
+	syncRegistry(rows: Array<{ function_name: string; tool: string; level: Level }>, logTables?: readonly string[]): Promise<void>;
+	setAuditUndo(auditId: string, undo: UndoCall | UndoCall[] | null): Promise<void>;
 	/** The caller's newest finished connector writes that are not undone, newest first. */
 	undoCandidates(userId: string, limit: number): Promise<AuditRow[]>;
 	mintSession(user: ConnectorUser): Promise<UserSession>;
@@ -155,5 +157,12 @@ export interface ConnectorBackend {
 	// THE USER HALF: everything else, as the minted user, so every gate and
 	// policy sees that user and nobody else.
 	rpc<T = unknown>(session: UserSession, fn: string, args: Record<string, unknown>): Promise<DbResult<T>>;
+	/**
+	 * A client a site route's handler can be handed as `locals.supabase`, carrying
+	 * THIS user's session (src/lib/server/connector/endpoints.ts). On Supabase it
+	 * is a real client; on the local backend it answers `rpc` only, which is all
+	 * the endpoint entries' handlers call before their storage step.
+	 */
+	routeClient(session: UserSession): unknown;
 	select<T = Record<string, unknown>>(session: UserSession, spec: SelectSpec): Promise<DbResult<T[]>>;
 }

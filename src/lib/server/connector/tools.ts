@@ -15,12 +15,16 @@ import { htmlManifestDiff, stageHtmlDocument } from '$lib/classroom/html-assignm
 import type { RubricCriterion } from '$lib/classroom/assignment-spec';
 import type { ToolContext } from './context';
 import { resolveDue, resolveNoticeEnd } from './dates';
-import { undoLast, write, NotRegistered, type WriteOptions, type WriteOutcome } from './engine';
+import { readBefore, undoLast, write, NotRegistered, type WriteOptions, type WriteOutcome } from './engine';
+import { runEndpoint } from './endpoints';
 import {
 	callArgs,
+	directEntries,
+	ENDPOINTS,
 	FACADES,
 	findTools,
 	FUNCTIONS,
+	liveEndpoint,
 	liveFunction,
 	type FunctionEntry
 } from './registry';
@@ -798,7 +802,7 @@ async function coins(ctx: ToolContext, args: ToolArgs, kind: 'award' | 'fine'): 
 	}
 	const done = results.filter((r) => r.status === 'done' || r.status === 'repeated').length;
 	return {
-		status: opts.dryRun ? 'preview' : done === results.length ? 'done' : done === 0 ? 'refused' : 'partial',
+		status: opts.dryRun || ctx.practice ? 'preview' : done === results.length ? 'done' : done === 0 ? 'refused' : 'partial',
 		kind: cat.name,
 		each: cat.pricing_model === 'flat' ? cat.amount : amount,
 		reason: reason ?? null,
@@ -837,21 +841,56 @@ async function resolveArg(ctx: ToolContext, kind: string | undefined, value: unk
 	return { ok: true, value };
 }
 
+/** The words site_find_tool uses when it finds nothing: say so, and record what he wanted. */
+const NOTHING_FOUND =
+	'Nothing the site can do matches. Tell him plainly that the site cannot do this yet, then call report_gap with what he asked for and what is missing, so it gets built. Do not try other actions to fake it.';
+
+async function siteFindTool(_ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const matches = findTools(str(args.query) ?? '');
+	if (matches.length === 0) return { status: 'none', matches: [], message: NOTHING_FOUND };
+	return {
+		status: 'ok',
+		matches,
+		message:
+			'Pick the one match that does what he asked, then call site_call with its call exactly, filling in the angle-bracketed values from what he said. If none of them does it, tell him so and call report_gap.'
+	};
+}
+
 async function siteCall(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	const name = str(args.name) ?? '';
+	const endpoint = liveEndpoint(name);
+	if (endpoint) {
+		const given = (args.args && typeof args.args === 'object' ? args.args : {}) as Record<string, unknown>;
+		return runEndpoint(ctx, endpoint, given, writeOptions(args));
+	}
 	const entry: FunctionEntry | null = liveFunction(name);
 	if (!entry || (entry.surface ?? 'call') !== 'call') {
 		const e = FUNCTIONS[name];
+		const excludedRoute = Object.values(ENDPOINTS).find((x) => x.tool === name || x.route === name);
+		if (e?.surface === 'tool' && liveFunction(name)) {
+			return { status: 'not_available', message: `"${name}" has its own tool, ${e.tool}. Call that tool instead. Nothing was changed.` };
+		}
+		if (e?.exclude || excludedRoute?.exclude) {
+			return { status: 'not_available', message: `"${name}" is never reachable through Claude: ${e?.exclude ?? excludedRoute?.exclude} Nothing was changed.` };
+		}
+		// A NAME THE REGISTRY DOES NOT HAVE IS A GAP, recorded by the server
+		// whether or not the model remembers to (DESIGN.md section 9).
+		const gap = ctx.practice ? null : await recordGap(ctx, `The site has no action called "${name}".`, [`site_call:${name}`]);
 		return {
 			status: 'not_available',
-			message: e?.pending
-				? `"${name}" is not reachable through Claude yet (${e.pending}).`
-				: e?.exclude
-					? `"${name}" is never reachable through Claude: ${e.exclude}`
-					: `There is no site action called "${name}". Use site_find_tool to look.`
+			message: `There is no site action called "${name}". Nothing was changed. Use site_find_tool to look; if it finds nothing, tell him the site cannot do it yet.`,
+			...(gap ? { gap_recorded: true } : {})
 		};
 	}
 	return siteCallEntry(ctx, entry, args);
+}
+
+function freshUuid(ctx: ToolContext): string {
+	const b = ctx.random(16);
+	b[6] = (b[6] & 0x0f) | 0x40;
+	b[8] = (b[8] & 0x3f) | 0x80;
+	const h = b.toString('hex');
+	return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
 async function siteCallEntry(ctx: ToolContext, entry: FunctionEntry, args: ToolArgs): Promise<ToolOutput> {
@@ -861,20 +900,107 @@ async function siteCallEntry(ctx: ToolContext, entry: FunctionEntry, args: ToolA
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(given)) {
 		const param = params.find((p) => p.name === k || p.param === k);
-		if (!param) return { status: 'invalid', message: `"${name}" takes no argument called "${k}". It takes: ${params.map((p) => p.name).join(', ') || 'nothing'}.` };
+		if (!param) return { status: 'invalid', message: `"${name}" takes no argument called "${k}". It takes: ${params.map((p) => p.name).join(', ') || 'nothing'}. Nothing was changed.` };
 		const r = await resolveArg(ctx, param.resolve, v);
 		if (!r.ok) return r.out;
 		out[param.param] = r.value;
 	}
+	for (const p of params) {
+		if (p.param in out) continue;
+		if (p.fill === 'uuid') out[p.param] = freshUuid(ctx);
+		else if (p.hasDefault) out[p.param] = p.default ?? null;
+	}
 	const missing = params.filter((p) => p.required && !(p.param in out)).map((p) => p.name);
-	if (missing.length) return { status: 'invalid', message: `"${name}" also needs: ${missing.join(', ')}.` };
-	if (entry.level === 'read') {
+	if (missing.length) return { status: 'invalid', message: `"${name}" also needs: ${missing.join(', ')}. Ask him for it. Nothing was changed.` };
+	if (entry.level === 'read' && !entry.level_when?.length) {
 		const r = await ctx.backend.rpc(ctx.session, entry.name, out);
 		if (r.error) return { status: 'refused', message: r.error.message };
 		return { status: 'ok', result: r.data };
 	}
-	const o = await write(ctx, { tool: entry.surface === 'tool' ? (entry.tool ?? entry.name) : `site_call:${entry.name}`, fn: entry.name, args: out }, writeOptions(args));
+	const before = await readBefore(ctx, entry.before, out);
+	const o = await write(
+		ctx,
+		{ tool: entry.surface === 'tool' ? (entry.tool ?? entry.name) : `site_call:${entry.name}`, fn: entry.name, args: out, before },
+		writeOptions(args)
+	);
 	return outcomeWords(o);
+}
+
+// ---------------------------------------------------------------------------
+// Requests, gaps and the replay of saved requests (DESIGN.md section 9)
+// ---------------------------------------------------------------------------
+
+async function recordGap(ctx: ToolContext, missing: string, tried: string[]): Promise<string | null> {
+	const said = ctx.said ?? '';
+	if (!said.trim()) return null;
+	const r = await ctx.backend
+		.rpc<{ gap_id: string }>(ctx.session, 'connector_report_gap', { p_said: said, p_missing: missing, p_tried: tried, p_model: ctx.model ?? null })
+		.catch(() => null);
+	return r && !r.error ? (r.data?.gap_id ?? null) : null;
+}
+
+async function reportGap(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const missing = str(args.missing);
+	if (!missing) return { status: 'invalid', message: 'Say what the site would need to be able to do.' };
+	const tried = list(args.tried);
+	if (ctx.practice || bool(args.dry_run)) {
+		return { status: 'preview', message: ctx.practice ? 'This is the practice connector: no gap was recorded.' : 'Preview only: no gap was recorded.', missing, tried };
+	}
+	const id = await recordGap(ctx, missing, tried);
+	if (!id) return { status: 'refused', message: 'The gap could not be recorded. Nothing else was changed.' };
+	return {
+		status: 'done',
+		gap_id: id,
+		message: 'Recorded. Tell him the site cannot do this yet, and that it is now on the list of things to build.'
+	};
+}
+
+async function recordEvalResult(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const n = num(args.request);
+	const passed = bool(args.passed);
+	if (n === undefined || passed === undefined) return { status: 'invalid', message: 'Say which saved request, by number, and whether it passed.' };
+	if (bool(args.dry_run)) return { status: 'preview', message: 'Preview only: nothing was recorded.' };
+	const r = await ctx.backend.rpc<{ run_id: string }>(ctx.session, 'connector_eval_record', {
+		p_eval: n,
+		p_passed: passed,
+		p_path: list(args.path),
+		p_detail: { note: str(args.note) ?? null, practice: !!ctx.practice },
+		p_model: ctx.model ?? null
+	});
+	if (r.error) return { status: 'refused', message: r.error.message };
+	return { status: 'done', run_id: r.data?.run_id ?? null, message: 'Recorded.' };
+}
+
+/** What a request came to, in the five words the request log keeps. */
+export function requestOutcome(tool: string, out: ToolOutput): 'done' | 'previewed' | 'asked' | 'refused' | 'gap' {
+	const status = String(out.status ?? '');
+	if (tool === 'report_gap' || out.gap_recorded === true) return 'gap';
+	if (status === 'preview') return out.confirm_token ? 'asked' : 'previewed';
+	if (['ambiguous', 'needs_category', 'needs_confirmation', 'not_found', 'none'].includes(status)) return 'asked';
+	if (['refused', 'invalid', 'not_available'].includes(status)) return 'refused';
+	if (status === 'partial') return 'done';
+	return 'done';
+}
+
+function auditIdsOf(out: unknown, into: Set<string> = new Set()): Set<string> {
+	if (Array.isArray(out)) for (const x of out) auditIdsOf(x, into);
+	else if (out && typeof out === 'object') {
+		for (const [k, v] of Object.entries(out as Record<string, unknown>)) {
+			if (k === 'audit_id' && typeof v === 'string' && /^[0-9a-f-]{36}$/.test(v)) into.add(v);
+			else if (v && typeof v === 'object') auditIdsOf(v, into);
+		}
+	}
+	return into;
+}
+
+/** Arguments as the request log keeps them: no write switches, and no whole documents. */
+function loggedArgs(args: ToolArgs): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(args)) {
+		if (['said', 'confirm_token'].includes(k)) continue;
+		out[k] = typeof v === 'string' && v.length > 500 ? `${v.slice(0, 500)}... (${v.length} characters)` : v;
+	}
+	return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -901,8 +1027,10 @@ const HANDLERS: Record<string, (ctx: ToolContext, args: ToolArgs) => Promise<Too
 	coin_balance: coinBalance,
 	undo_last: (ctx, a) => undoLast(ctx, writeOptions(a)),
 	connector_disconnect: disconnect,
-	site_find_tool: async (_ctx, a) => ({ status: 'ok', matches: findTools(str(a.query) ?? '') }),
-	site_call: siteCall
+	site_find_tool: siteFindTool,
+	site_call: siteCall,
+	report_gap: reportGap,
+	record_eval_result: recordEvalResult
 };
 
 /** The names `runTool` will answer: exactly the registry's tools. */
@@ -914,23 +1042,47 @@ export class UnknownTool extends Error {}
 
 /** A function entry marked `surface: tool` is its own tool, run the way site_call runs it. */
 function directEntry(name: string): FunctionEntry | null {
-	return Object.values(FUNCTIONS).find((e) => liveFunction(e.name) && e.surface === 'tool' && (e.tool ?? e.name) === name) ?? null;
+	return directEntries().find((e) => (e.tool ?? e.name) === name) ?? null;
 }
 
+/**
+ * Runs one tool call, and records it in the request log as him (DESIGN.md
+ * section 9): his words (`said`), the tool, the arguments, what it came to and
+ * the audit rows it produced. A request whose words match no saved request
+ * becomes one, automatically. The practice endpoint records nothing.
+ */
 export async function runTool(ctx: ToolContext, name: string, args: ToolArgs): Promise<ToolOutput> {
 	const direct = directEntry(name);
 	const known = name in FACADES || name === 'site_find_tool' || name === 'site_call' || direct !== null;
 	const handler: ((ctx: ToolContext, args: ToolArgs) => Promise<ToolOutput>) | undefined = direct
 		? (c, a) => {
-				const { dry_run, request_id, confirm_token, again, ...rest } = a;
+				const { dry_run, request_id, confirm_token, again, said: _said, ...rest } = a;
 				return siteCallEntry(c, direct, { args: rest, dry_run, request_id, confirm_token, again });
 			}
 		: HANDLERS[name];
 	if (!known || !handler) throw new UnknownTool(`There is no tool called "${name}".`);
+	const input = args ?? {};
+	const said = str(input.said);
+	ctx.said = said ?? null;
+	let out: ToolOutput;
 	try {
-		return await handler(ctx, args ?? {});
+		out = await handler(ctx, input);
 	} catch (e) {
-		if (e instanceof ResolveFailure || e instanceof NotRegistered) return { status: 'refused', message: e.message };
-		throw e;
+		if (e instanceof ResolveFailure || e instanceof NotRegistered) out = { status: 'refused', message: e.message };
+		else throw e;
 	}
+	if (!ctx.practice && said && name !== 'record_eval_result') {
+		await ctx.backend
+			.rpc(ctx.session, 'connector_request_log', {
+				p_request_key: str(input.request_id) ?? null,
+				p_said: said,
+				p_tool: name === 'site_call' ? `site_call:${str(input.name) ?? ''}` : name,
+				p_args: loggedArgs(input),
+				p_outcome: requestOutcome(name, out),
+				p_audit_ids: [...auditIdsOf(out)],
+				p_model: ctx.model ?? null
+			})
+			.catch(() => undefined);
+	}
+	return out;
 }

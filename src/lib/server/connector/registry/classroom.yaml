@@ -9,7 +9,6 @@
 #                     `when` holds and whose arguments all resolve is used.
 #                     Templates: $args.<name>, $result.<path>, $before.<path>,
 #                     $written.<table>.<column>, and a leading ! negates.
-#   pending: slice 2  not reachable yet; ledger 0401 gives it an entry
 #   exclude: <reason> never reachable, and why
 
 classroom_section_roster:
@@ -25,6 +24,20 @@ classroom_create_item:
   level: undo
   describe: Create a post in one or more classes; the create post tool is the usual way in.
   say: ["create an assignment in Block 2", "post a material to IDEA100", "add an announcement to Block 4"]
+  args:
+    p_kind: {name: kind, enum: [assignment, material, post], describe: "assignment, material, or post for an announcement."}
+    p_section_ids: {name: classes, describe: "The classes it goes to, by their ids from your list of classes."}
+    p_title: {name: title, describe: "The title."}
+    p_body: {name: text, describe: "The text, as plain text."}
+    p_points: {name: points, describe: "Points, for an assignment."}
+    p_due_at: {name: due, resolve: due, describe: "When an assignment is due, like Friday 11:59pm."}
+    p_category: {name: category, describe: "The grading category, like labs."}
+    p_published: {name: published, describe: "False to save it as a draft."}
+    p_resources: {name: links, describe: "Links on the post, each with a url and a label."}
+    p_pinned: {name: pinned, describe: "True to pin it to the top."}
+    p_body_doc: {name: document, describe: "The text as a document in the site's document shape, instead of plain text."}
+    p_publish_at: {name: showing, resolve: due, describe: "When it shows to students, for a scheduled post."}
+    p_unit_id: {name: unit, describe: "The unit to file it under, by its id."}
   undo:
     - function: classroom_delete_item
       args: {p_id: $result.item_id}
@@ -34,13 +47,26 @@ classroom_update_item:
   level: undo
   describe: Edit a post's title, text, points, due date or category; the set points tool and the set due tool are the usual way in.
   say: ["rename Tolerance Check", "change the text of the syllabus post", "edit the Shop Fix's category"]
+  args:
+    p_id: {name: post, resolve: post, describe: "The post."}
+    p_title: {name: title, describe: "The new title."}
+    p_body: {name: text, describe: "The new text, as plain text."}
+    p_points: {name: points, describe: "The new points."}
+    p_due_at: {name: due, resolve: due, describe: "The new due time."}
+    p_category: {name: category, describe: "The new grading category."}
+    p_published: {name: published, describe: "True to show it, false to hide it."}
+    p_resources: {name: links, describe: "The post's links, each with a url and a label."}
+    p_body_doc: {name: document, describe: "The text as a document in the site's document shape."}
+    p_publish_at: {name: showing, resolve: due, describe: "When it shows to students."}
   undo:
     - function: classroom_restore_revision
       args: {p_revision_id: $written.classroom_content_revisions.id}
 
 classroom_delete_item:
-  surface: call
+  surface: tool
+  tool: delete_post
   level: confirm
+  cleanup: drive_orphans
   describe: Delete a post from every class it is in, with its files; it asks first.
   say: ["delete the duplicate Tolerance Check post", "remove the old syllabus", "get rid of that test post"]
   args:
@@ -59,7 +85,8 @@ classroom_set_published:
       args: {p_item_id: $args.p_item_id, p_published: "!$args.p_published"}
 
 classroom_set_item_pinned:
-  surface: call
+  surface: tool
+  tool: pin_post
   level: undo
   describe: Pin a post to the top of its classes, or unpin it.
   say: ["pin the syllabus post in Block 4", "unpin the safety notice", "keep the rubric post at the top"]
@@ -75,6 +102,9 @@ classroom_set_rubric:
   level: undo
   describe: Set or clear an assignment's grading rubric; the set rubric tool is the usual way in.
   say: ["set the rubric on Tolerance Check", "clear the rubric on the Shop Fix", "replace the DFM rubric"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_criteria: {name: criteria, describe: "Every criterion with its id, name, points and score bands, or nothing to clear it."}
   undo:
     - function: classroom_restore_revision
       args: {p_revision_id: $written.classroom_content_revisions.id}
@@ -86,6 +116,11 @@ classroom_set_html_assignment:
   level: undo
   describe: Store an HTML assignment's document; the replace html assignment tool is the way in, because it checks students' answers first.
   say: ["upload the Shop Fix HTML", "replace the DFM worksheet document", "attach this HTML file to the assignment"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_document: {name: document, describe: "The whole HTML document."}
+    p_manifest: {name: manifest, describe: "The document's question list, as the importer reads it."}
+    p_filename: {name: filename, describe: "The file's name."}
   undo:
     - function: classroom_restore_revision
       args: {p_revision_id: $written.classroom_content_revisions.id}
@@ -116,6 +151,13 @@ classroom_grade_direct:
   level: undo
   describe: Record a score out of the assignment's total for one student; the grade tool is the usual way in.
   say: ["grade Mateo 18 out of 20", "score Leo's Shop Fix", "record Ana's grade"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+    p_score: {name: score, describe: "The score."}
+    p_comment: {name: comment, describe: "A comment the student reads."}
+    p_return: {name: return, describe: "True to return it now, false to hold it."}
+    p_extra_credit: {name: extra, describe: "Extra credit points, if any."}
   undo:
     - when: $before.graded
       function: classroom_grade_direct
@@ -130,7 +172,8 @@ classroom_grade_direct:
       args: {p_item_id: $args.p_item_id, p_student_email: $args.p_student_email}
 
 classroom_revoke_grade:
-  surface: call
+  surface: tool
+  tool: revoke_grade
   level: undo
   describe: Take a grade off a student's work entirely, keeping a copy that can be put back.
   say: ["revoke Mateo's grade on the Shop Fix", "take Leo's score off Tolerance Check", "clear Ana's grade"]
@@ -158,6 +201,13 @@ classroom_feedback_post:
   level: undo
   describe: Leave a note on a student's work in progress; the send feedback tool is the usual way in.
   say: ["leave Mateo a note", "send Leo feedback on the Shop Fix", "comment on Ana's worksheet"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+    p_block_id: {name: question, describe: "One question's block id, to pin the note to it."}
+    p_file_id: {name: picture, describe: "One handed-in picture's id, to draw on it."}
+    p_body: {name: message, describe: "What the note says."}
+    p_marks: {name: drawing, describe: "A drawing on the picture, in the site's drawing shape."}
   undo:
     - function: classroom_feedback_remove
       args: {p_thread_id: $result.thread.id}
@@ -186,6 +236,10 @@ classroom_quick_post_create:
   level: undo
   describe: Put a short notice at the top of one or more class pages until a time you choose; the create post tool with kind notice is the usual way in.
   say: ["put up a notice in Block 1", "post a notice to every 209H class", "notice until 3pm, shop closed"]
+  args:
+    p_section_ids: {name: classes, describe: "The classes it goes to, by their ids from your list of classes."}
+    p_body: {name: text, describe: "What the notice says."}
+    p_expires_at: {name: until, resolve: due, describe: "When it comes down, like end of day or Friday 3pm."}
   undo:
     - function: classroom_quick_post_take_down
       args: {p_post_id: $result.id}
@@ -215,98 +269,963 @@ classroom_student_overview:
     p_section_id: {name: class, resolve: class, describe: "The class."}
     p_student_email: {name: student, resolve: student, describe: "The student."}
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-classroom_add_attachment: {pending: slice 2}
-classroom_add_instructor_attachment: {pending: slice 2}
-classroom_add_postings: {pending: slice 2}
-classroom_add_submission_file: {pending: slice 2}
-classroom_approve_module: {pending: slice 2}
-classroom_archive_team_set: {pending: slice 2}
-classroom_close_assignment: {pending: slice 2}
-classroom_course_categories: {pending: slice 2}
-classroom_deck_ingest_abandon: {pending: slice 2}
-classroom_deck_ingest_begin: {pending: slice 2}
-classroom_deck_ingest_claim_stage: {pending: slice 2}
-classroom_deck_ingest_finish: {pending: slice 2}
-classroom_deck_ingest_record: {pending: slice 2}
-classroom_deck_upload_cancel: {pending: slice 2}
-classroom_deck_upload_claim: {pending: slice 2}
-classroom_deck_upload_start: {pending: slice 2}
-classroom_delete_attachment: {pending: slice 2}
-classroom_delete_deck: {pending: slice 2}
-classroom_delete_instructor_attachment: {pending: slice 2}
-classroom_delete_section: {pending: slice 2}
-classroom_delete_submission_file: {pending: slice 2}
-classroom_delete_unit: {pending: slice 2}
-classroom_designate_instructor_key: {pending: slice 2}
-classroom_duplicate_drafts: {pending: slice 2}
-classroom_duplicate_item: {pending: slice 2}
-classroom_feedback_reply: {pending: slice 2}
-classroom_feedback_seen: {pending: slice 2}
-classroom_feedback_set_state: {pending: slice 2}
-classroom_feedback_update: {pending: slice 2}
-classroom_grade_revocation: {pending: slice 2}
-classroom_grade_submission: {pending: slice 2}
-classroom_grade_submissions: {pending: slice 2}
-classroom_hall_pass_close_by_id: {pending: slice 2}
-classroom_hall_pass_events: {pending: slice 2}
-classroom_hall_pass_open_for: {pending: slice 2}
-classroom_hall_pass_set_limits: {pending: slice 2}
-classroom_hall_pass_state: {pending: slice 2}
-classroom_import_roster: {pending: slice 2}
-classroom_manages_section: {pending: slice 2}
-classroom_mark_item_viewed: {pending: slice 2}
-classroom_move_team_member: {pending: slice 2}
-classroom_open_submission: {pending: slice 2}
-classroom_post_team_set: {pending: slice 2}
-classroom_posting_perfect_scores: {pending: slice 2}
-classroom_presence_ping: {pending: slice 2}
-classroom_presence_state: {pending: slice 2}
-classroom_public_attachment: {pending: slice 2}
-classroom_public_reference: {pending: slice 2}
-classroom_quick_post_add_file: {pending: slice 2}
-classroom_quick_post_file: {pending: slice 2}
-classroom_record_export: {pending: slice 2}
-classroom_remove_enrollment: {pending: slice 2}
-classroom_remove_posting: {pending: slice 2}
-classroom_rename_attachment: {pending: slice 2}
-classroom_rename_instructor_attachment: {pending: slice 2}
-classroom_save_instructor_response: {pending: slice 2}
-classroom_save_response: {pending: slice 2}
-classroom_save_team_set: {pending: slice 2}
-classroom_set_assignment_spec: {pending: slice 2}
-classroom_set_attachment_order: {pending: slice 2}
-classroom_set_enrollment: {pending: slice 2}
-classroom_set_instructor_attachment_order: {pending: slice 2}
-classroom_set_instructor_resources: {pending: slice 2}
-classroom_set_item_layout: {pending: slice 2}
-classroom_set_item_order: {pending: slice 2}
-classroom_set_item_public: {pending: slice 2}
-classroom_set_item_thumbnail: {pending: slice 2}
-classroom_set_item_thumbnail_focus: {pending: slice 2}
-classroom_set_item_unit: {pending: slice 2}
-classroom_set_posting_perfect_score: {pending: slice 2}
-classroom_set_reference_spec: {pending: slice 2}
-classroom_set_section_active: {pending: slice 2}
-classroom_set_section_thumbnail_shape: {pending: slice 2}
-classroom_set_submission_file_caption: {pending: slice 2}
-classroom_set_team_style: {pending: slice 2}
-classroom_set_unit_order: {pending: slice 2}
-classroom_song_approve: {pending: slice 2}
-classroom_song_queue: {pending: slice 2}
-classroom_song_reject: {pending: slice 2}
-classroom_song_request: {pending: slice 2}
-classroom_submit_assignment: {pending: slice 2}
-classroom_team_board: {pending: slice 2}
-classroom_undesignate_instructor_key: {pending: slice 2}
-classroom_unpost_team_set: {pending: slice 2}
-classroom_unsubmit_assignment: {pending: slice 2}
-classroom_update_enrollment: {pending: slice 2}
-classroom_upsert_course: {pending: slice 2}
-classroom_upsert_section: {pending: slice 2}
-classroom_upsert_unit: {pending: slice 2}
-classroom_view_as_students: {pending: slice 2}
-classroom_worksheet_latch: {pending: slice 2}
-classroom_worksheet_latch_for: {pending: slice 2}
-classroom_worksheet_latched: {pending: slice 2}
-classroom_worksheet_past_manifests: {pending: slice 2}
+# ---------------------------------------------------------------------------
+# Ledger 0401: every other classroom function the site calls. A file's bytes,
+# a browser's own instruments and a student's own actions are excluded with
+# their reasons; everything else is a call entry, a few promoted to tools.
+#
+#   before:   what to read, as him, before a write, so its undo can set a
+#             value back: {table, columns, eq, in, order}. $before.<column> is
+#             the first row's value, $before.rows every row, $before.found
+#             whether a row was there.
+#   cleanup:  what to remove after a delete commits, exactly as the site's own
+#             delete route does (rows first, then files; a failed sweep is not
+#             a failed delete).
+#   each:     an undo that is one call per value of a list.
+# ---------------------------------------------------------------------------
+
+classroom_add_attachment:
+  exclude: Records a file the browser has just uploaded to storage; a file's bytes cannot come through a chat.
+
+classroom_add_instructor_attachment:
+  exclude: Records an instructor-only file the browser has just uploaded to storage; a file's bytes cannot come through a chat.
+
+classroom_add_postings:
+  surface: call
+  level: undo
+  describe: Post an existing post to more of your classes, so the same post shows in each.
+  say: ["post Tolerance Check to Block 4 too", "add the syllabus to every 209H class", "share the Shop Fix with IDEA100"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_section_ids: {name: classes, describe: "The classes to add it to, by their ids from your list of classes."}
+  undo:
+    - each: $args.p_section_ids
+      function: classroom_remove_posting
+      args: {p_item_id: $args.p_item_id, p_section_id: $each}
+
+classroom_add_submission_file:
+  exclude: A student handing in a file on their own assignment; the bytes come from their browser and it acts as the caller.
+
+classroom_approve_module:
+  surface: call
+  level: undo
+  describe: Approve, or take back approval of, one module of a student's interactive assignment so they can move on.
+  say: ["approve Mateo's first module on the DFM worksheet", "sign off Leo's sketch module", "unapprove Ana's module two"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+    p_module_id: {name: module, describe: "The module's id, from the assignment."}
+    p_approved: {name: approved, describe: "True to approve, false to take approval back."}
+  undo:
+    - function: classroom_approve_module
+      args: {p_item_id: $args.p_item_id, p_student_email: $args.p_student_email, p_module_id: $args.p_module_id, p_approved: "!$args.p_approved"}
+
+classroom_archive_team_set:
+  surface: call
+  level: confirm
+  describe: Retire a saved team draw so it no longer shows anywhere; it asks first because nothing brings it back.
+  say: ["retire the old Block 2 teams", "archive last month's teams", "get rid of the test team draw"]
+  args:
+    p_team_set_id: {name: teams, describe: "The team draw's id, from the class's team board."}
+
+classroom_close_assignment:
+  surface: tool
+  tool: close_assignment
+  level: undo
+  describe: Close an assignment so students can no longer change their work, or reopen it, for one student or the whole class.
+  say: ["close the Shop Fix assignment in Block 4", "reopen Mateo's Shop Fix so he can resubmit", "open Tolerance Check back up for everyone", "close Leo's reflection"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment's title as you said it."}
+    p_student_email: {name: student, resolve: student, describe: "One student. Leave it out for everyone the assignment is posted to."}
+    p_closed: {name: closed, required: true, describe: "True to close it, false to reopen it."}
+  undo:
+    - function: classroom_close_assignment
+      args: {p_item_id: $args.p_item_id, p_student_email: $args.p_student_email, p_closed: "!$args.p_closed"}
+
+classroom_course_categories:
+  surface: call
+  level: read
+  describe: The grading categories used in your courses, such as labs, quizzes and projects.
+  say: ["what grading categories do I use", "list the categories in 209H", "which categories does IDEA100 have"]
+  args:
+    p_course_ids: {name: courses, describe: "The courses, by their ids from your list of classes."}
+
+classroom_deck_ingest_abandon:
+  exclude: A step of the staged slide deck upload, which the browser drives with the zip file's bytes.
+classroom_deck_ingest_begin:
+  exclude: A step of the staged slide deck upload, which the browser drives with the zip file's bytes.
+classroom_deck_ingest_claim_stage:
+  exclude: A step of the staged slide deck upload, which the browser drives with the zip file's bytes.
+classroom_deck_ingest_finish:
+  exclude: A step of the staged slide deck upload, which the browser drives with the zip file's bytes.
+classroom_deck_ingest_record:
+  exclude: A step of the staged slide deck upload, which the browser drives with the zip file's bytes.
+classroom_deck_upload_cancel:
+  exclude: A step of the staged slide deck upload, which the browser drives with the zip file's bytes.
+classroom_deck_upload_claim:
+  exclude: A step of the staged slide deck upload, which the browser drives with the zip file's bytes.
+classroom_deck_upload_start:
+  exclude: A step of the staged slide deck upload, which the browser drives with the zip file's bytes.
+
+classroom_delete_attachment:
+  surface: call
+  level: confirm
+  cleanup: classroom_attachment
+  describe: Delete one file from a post, and the stored file with it when nothing else uses it; it asks first.
+  say: ["delete the old handout from Tolerance Check", "remove that PDF from the Shop Fix", "take the wrong file off the post"]
+  args:
+    p_id: {name: file, describe: "The file's id, from the post's files."}
+
+classroom_delete_deck:
+  surface: call
+  level: confirm
+  cleanup: drive_orphans
+  describe: Delete the slide deck attached to a post; it asks first.
+  say: ["delete the deck from the Unit 2 post", "remove the slides from Tolerance Check", "take the old deck off"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post whose deck to delete."}
+
+classroom_delete_instructor_attachment:
+  surface: call
+  level: confirm
+  cleanup: classroom_instructor_attachment
+  describe: Delete one instructor-only file from a post; it asks first.
+  say: ["delete the answer key file from the Shop Fix", "remove my teacher notes file", "take the old key off Tolerance Check"]
+  args:
+    p_id: {name: file, describe: "The file's id, from the post's instructor-only files."}
+
+classroom_delete_section:
+  surface: call
+  level: confirm
+  describe: Delete a class entirely, with its roster and postings; it asks first and needs the class's label typed exactly.
+  say: ["delete the test class", "remove the empty Block 9 section", "delete last year's IDEA100 Block 3"]
+  args:
+    p_id: {name: class, resolve: class, describe: "The class to delete."}
+    p_confirm_label: {name: label, describe: "The class's label, exactly as the site shows it, to confirm."}
+
+classroom_delete_submission_file:
+  exclude: A student removing a file from their own hand-in; it acts as the caller.
+
+classroom_delete_unit:
+  surface: call
+  level: confirm
+  describe: Delete a unit from a course; its posts stay but become unfiled; it asks first.
+  say: ["delete the empty Unit 7", "remove the test unit from 209H", "get rid of the Spring unit"]
+  args:
+    p_id: {name: unit, describe: "The unit's id, from the course's units."}
+
+classroom_designate_instructor_key:
+  surface: call
+  level: undo
+  describe: Make your own filled-in copy of an assignment its answer key.
+  say: ["make my copy the answer key for the DFM worksheet", "use my answers as the key", "set my working copy as the key"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+  undo:
+    - function: classroom_undesignate_instructor_key
+      args: {p_item_id: $args.p_item_id}
+
+classroom_duplicate_drafts:
+  surface: call
+  level: read
+  describe: Find posts that were accidentally made twice in a class, with which copy to keep.
+  say: ["are there duplicate posts in Block 2", "find double posts", "which posts did I make twice"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "Only this class; leave it out for all of them."}
+
+classroom_duplicate_item:
+  surface: tool
+  tool: duplicate_post
+  level: undo
+  describe: Make a copy of a post, with its files, rubric and settings, in the classes you choose.
+  say: ["copy Tolerance Check to Block 4", "duplicate the Shop Fix", "make a copy of the syllabus post for IDEA100"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post to copy."}
+    p_section_ids: {name: classes, describe: "The classes the copy goes to, by their ids; leave it out for the same classes."}
+  undo:
+    - function: classroom_delete_item
+      args: {p_id: $result.item_id}
+
+classroom_feedback_reply:
+  surface: call
+  level: undo
+  describe: Answer a student's reply on a feedback note, in the same conversation.
+  say: ["reply to Mateo's note, yes that works", "answer Leo on the Shop Fix note", "tell Ana that fixed it"]
+  args:
+    p_thread_id: {name: note, describe: "The note's id, from the feedback list."}
+    p_body: {name: message, describe: "What your reply says."}
+  undo:
+    - function: classroom_feedback_remove
+      args: {p_thread_id: $args.p_thread_id, p_message_id: $written.classroom_feedback_messages.id}
+
+classroom_feedback_seen:
+  surface: call
+  level: confirm
+  describe: Mark every feedback note on an assignment as seen, for one student or all of them; it asks first because it is a bulk change nothing can clear.
+  say: ["mark all of Block 1's Shop Fix feedback as seen", "mark Mateo's notes as read", "clear the unread feedback on Tolerance Check"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "One student; leave it out for every student."}
+
+classroom_feedback_set_state:
+  surface: call
+  level: undo
+  describe: Resolve a feedback note, or reopen one that was resolved.
+  say: ["resolve the note on Mateo's sketch", "reopen Leo's feedback", "mark Ana's note done"]
+  args:
+    p_thread_id: {name: note, describe: "The note's id, from the feedback list."}
+    p_state: {name: state, enum: [resolved, open], describe: "resolved, or open to reopen it."}
+  undo:
+    - function: classroom_feedback_set_state
+      args: {p_thread_id: $args.p_thread_id, p_state: {map: $args.p_state, values: {resolved: open, open: resolved}}}
+
+classroom_feedback_update:
+  surface: call
+  level: confirm
+  describe: Rewrite the words of a feedback note you left; it asks first because the old words are not kept.
+  say: ["change my note to Mateo to say cite page 4", "edit the feedback on Leo's sketch", "reword Ana's note"]
+  args:
+    p_thread_id: {name: note, describe: "The note's id, from the feedback list."}
+    p_body: {name: message, describe: "The note's new words."}
+    p_marks: {name: drawing, default: null, describe: "A drawing on the picture; leave it out to keep the drawing as it is."}
+
+classroom_grade_revocation:
+  surface: call
+  level: read
+  describe: Whether a student's revoked grade can be put back, and what it was.
+  say: ["can I put Mateo's grade back", "what was Leo's revoked score", "is there a saved grade for Ana"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+
+classroom_grade_submission:
+  surface: call
+  level: undo
+  describe: Grade a student's work criterion by criterion on the assignment's rubric, with an optional comment.
+  say: ["grade Mateo's Tolerance Check, accuracy 8, drawing 9", "score Leo on the rubric", "give Ana full marks on each criterion"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+    p_scores: {name: scores, describe: "The points for each criterion, keyed by the criterion's id from the rubric."}
+    p_comment: {name: comment, default: null, describe: "A comment the student reads with the grade."}
+    p_return: {name: return, default: true, describe: "True to return it to the student now, false to hold it."}
+    p_criterion_comments: {name: notes, default: null, describe: "A comment on each criterion, keyed by its id."}
+    p_extra_credit: {name: extra, default: null, describe: "Extra credit points, if any."}
+  before:
+    table: classroom_submissions
+    columns: [rubric_scores, teacher_comment, returned_at, graded_at, criterion_comments, extra_credit]
+    eq: {item_id: $args.p_item_id, student_email: $args.p_student_email}
+  undo:
+    - when: $before.rubric_scores
+      function: classroom_grade_submission
+      args:
+        p_item_id: $args.p_item_id
+        p_student_email: $args.p_student_email
+        p_scores: $before.rubric_scores
+        p_comment: $before.teacher_comment
+        p_return: "!!$before.returned_at"
+        p_criterion_comments: $before.criterion_comments
+        p_extra_credit: $before.extra_credit
+    - when: "!$before.graded_at"
+      function: classroom_revoke_grade
+      args: {p_item_id: $args.p_item_id, p_student_email: $args.p_student_email}
+
+classroom_grade_submissions:
+  surface: call
+  level: confirm
+  describe: Grade many students' work on one assignment at once; it asks first because it is a bulk change with no preview per student.
+  say: ["grade the whole class on the Shop Fix", "give everyone in Block 2 a 10 on the check in", "batch grade Tolerance Check"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_grades: {name: grades, describe: "Each student's address with their scores, comment and extra credit."}
+    p_return: {name: return, describe: "True to return the grades now, false to hold them."}
+
+classroom_hall_pass_close_by_id:
+  surface: call
+  level: confirm
+  describe: Check a student back in from a hall pass; it asks first because a closed pass cannot be reopened and a long one may fine them.
+  say: ["check Mateo back in", "close Leo's hall pass", "end the pass Ana is on"]
+  args:
+    p_pass_id: {name: pass, describe: "The pass's id, from the class's hall pass state."}
+
+classroom_hall_pass_events:
+  surface: call
+  level: read
+  describe: Today's hall pass record for a class, with who went, when and for how long.
+  say: ["how did the hall pass go in Block 2 today", "who used the hall pass in Block 4", "show today's passes"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_limit: {name: count, describe: "How many passes to list."}
+
+classroom_hall_pass_open_for:
+  surface: tool
+  tool: open_hall_pass
+  level: undo
+  describe: Send a student out on the hall pass from your class.
+  say: ["open a hall pass for Mateo", "Leo is going to the bathroom", "give Ana the hall pass"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class, like 209H Block 2."}
+    p_student_email: {name: student, resolve: student, describe: "The student, as you said the name."}
+  undo:
+    - function: classroom_hall_pass_close_by_id
+      args: {p_pass_id: $result.pass_id}
+
+classroom_hall_pass_set_limits:
+  surface: call
+  level: undo
+  describe: Set a class's hall pass minutes per day and when a pass checks itself back in.
+  say: ["give Block 2 fifteen hall pass minutes a day", "set the auto check in to 12 minutes", "put Block 4 back on the default hall pass limits"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_daily_minutes: {name: daily, describe: "Minutes each student gets a day; leave it out for the default."}
+    p_auto_minutes: {name: auto, describe: "Minutes after which a pass checks itself back in; leave it out for the default."}
+  before:
+    table: classroom_sections
+    columns: [hall_pass_daily_minutes, hall_pass_auto_minutes]
+    eq: {id: $args.p_section_id}
+  undo:
+    - function: classroom_hall_pass_set_limits
+      args: {p_section_id: $args.p_section_id, p_daily_minutes: $before.hall_pass_daily_minutes, p_auto_minutes: $before.hall_pass_auto_minutes}
+
+classroom_hall_pass_state:
+  surface: call
+  level: read
+  describe: Who is out on the hall pass in a class right now, and each student's minutes left today.
+  say: ["who's out of Block 2 right now", "is anyone on the hall pass", "how many minutes does Mateo have left"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_history_limit: {name: count, describe: "How many recent passes to include."}
+
+classroom_import_roster:
+  surface: call
+  level: confirm
+  describe: Import a roster of students into classes at once; it asks first because it is a bulk change.
+  say: ["import this roster", "add these thirty students to their classes", "load the new term's roster"]
+  args:
+    p_rows: {name: rows, describe: "One row per student, each with the class, the student's address and their name."}
+
+classroom_manages_section:
+  surface: call
+  level: read
+  describe: Whether you can manage a class, as the site decides it.
+  say: ["can I manage Block 2", "am I a teacher of Block 4", "do I run IDEA100 Block 1"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+
+classroom_mark_item_viewed:
+  exclude: The browser records that a reader opened a post; an instrument, never an action a person asks for.
+
+classroom_move_team_member:
+  surface: call
+  level: confirm
+  describe: Move a student from one team to another in a saved team draw; it asks first because the team they left is not kept.
+  say: ["move Mateo to team 3", "put Leo on Ana's team", "swap Daniel into team 2"]
+  args:
+    p_team_set_id: {name: teams, describe: "The team draw's id, from the class's team board."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+    p_to_team_id: {name: team, describe: "The team to move them to, by its id from the team board."}
+
+classroom_open_submission:
+  exclude: A student starting their own hand-in; it acts as the caller. Reopening a student's work is close assignment with closed false.
+
+classroom_post_team_set:
+  surface: call
+  level: undo
+  describe: Show a saved team draw on the class page until a time you choose.
+  say: ["post the Block 2 teams until Friday", "show the teams to the class", "put the team list up"]
+  args:
+    p_team_set_id: {name: teams, describe: "The team draw's id, from the class's team board."}
+    p_visible_until: {name: until, resolve: due, describe: "When it comes down, like Friday 3pm; leave it out to keep it up."}
+  undo:
+    - function: classroom_unpost_team_set
+      args: {p_team_set_id: $args.p_team_set_id}
+
+classroom_posting_perfect_scores:
+  surface: call
+  level: read
+  describe: Which classes of a post pay the Perfect Score coin award, and who has earned it.
+  say: ["does the Shop Fix pay perfect score coins", "who got perfect scores on Tolerance Check", "which classes have perfect score on"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+
+classroom_presence_ping:
+  exclude: The heartbeat a student's open assignment page sends; an instrument, never an action.
+
+classroom_presence_state:
+  surface: call
+  level: read
+  describe: Who is working on an assignment right now, and for how long, as the live tab shows it.
+  say: ["who's working on the Shop Fix right now", "is Mateo on Tolerance Check", "who's idle in Block 2"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_section_id: {name: class, resolve: class, describe: "Only this class."}
+
+classroom_public_attachment:
+  surface: call
+  level: read
+  describe: A file on a public post, as a visitor with no account would reach it.
+  say: ["can visitors open that file", "check the public link for the handout", "is the syllabus file public"]
+  args:
+    p_attachment_id: {name: file, describe: "The file's id."}
+
+classroom_public_reference:
+  surface: call
+  level: read
+  describe: A post a teacher made public, as a visitor with no account sees it.
+  say: ["what does the public reference page show", "is the safety reference public", "show the public version of the syllabus"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+
+classroom_quick_post_add_file:
+  exclude: Records a file the browser has just uploaded for a notice; a file's bytes cannot come through a chat.
+
+classroom_quick_post_file:
+  surface: call
+  level: read
+  describe: One file on a class notice, with how to download it.
+  say: ["get the file on the safety notice", "where's the attachment on that notice", "download the notice's file"]
+  args:
+    p_file_id: {name: file, describe: "The file's id, from the notice."}
+
+classroom_record_export:
+  exclude: Bookkeeping the site writes after its automatic export of a post to the repository; never a person's action.
+
+classroom_remove_enrollment:
+  surface: tool
+  tool: remove_student
+  level: confirm
+  describe: Take a student off a class roster; it asks first, and refuses if they have work in the class.
+  say: ["remove Daniel from Block 2", "take Leo off the Block 4 roster", "drop Ana from IDEA100"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class, like 209H Block 2."}
+    p_student_email: {name: student, resolve: student, describe: "The student, as you said the name."}
+
+classroom_remove_posting:
+  surface: call
+  level: confirm
+  describe: Take a post out of one class while it stays in the others; it asks first.
+  say: ["take Tolerance Check out of Block 4", "remove the syllabus from IDEA100", "unpost the Shop Fix from Block 1"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_section_id: {name: class, resolve: class, describe: "The class to take it out of."}
+
+classroom_rename_attachment:
+  surface: call
+  level: undo
+  describe: Rename a file on a post.
+  say: ["rename the handout to Tolerance Chart", "change that file's name", "call the PDF Shop Rules"]
+  args:
+    p_attachment_id: {name: file, describe: "The file's id, from the post's files."}
+    p_filename: {name: filename, describe: "The new file name."}
+  before:
+    table: classroom_attachments
+    columns: [filename]
+    eq: {id: $args.p_attachment_id}
+  undo:
+    - function: classroom_rename_attachment
+      args: {p_attachment_id: $args.p_attachment_id, p_filename: $before.filename}
+
+classroom_rename_instructor_attachment:
+  surface: call
+  level: undo
+  describe: Rename an instructor-only file on a post.
+  say: ["rename the key file", "change my notes file's name", "call the key Shop Fix Answers"]
+  args:
+    p_attachment_id: {name: file, describe: "The file's id, from the post's instructor-only files."}
+    p_filename: {name: filename, describe: "The new file name."}
+  before:
+    table: classroom_instructor_attachments
+    columns: [filename]
+    eq: {id: $args.p_attachment_id}
+  undo:
+    - function: classroom_rename_instructor_attachment
+      args: {p_attachment_id: $args.p_attachment_id, p_filename: $before.filename}
+
+classroom_save_instructor_response:
+  surface: call
+  # Changing an answer puts the old one back; the first answer to a question
+  # has no reverse (an answer cannot be cleared), so that one asks first.
+  level_when:
+    - {if: "$before.found", level: undo}
+    - {else: confirm}
+  describe: Write one answer in your own working copy of an assignment; the first answer to a question asks first, a change can be undone.
+  say: ["put 12.5 millimeters as question 3 on my DFM key", "fill in my answer for the first block", "change my key's answer to question 2"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_block_id: {name: question, describe: "The question's block id, from the assignment's question list."}
+    p_value: {name: answer, describe: "The answer, in the shape the question takes."}
+  before:
+    table: classroom_instructor_responses
+    columns: [value]
+    eq: {item_id: $args.p_item_id, block_id: $args.p_block_id, instructor_email: $user.email}
+  undo:
+    - when: $before.found
+      function: classroom_save_instructor_response
+      args: {p_item_id: $args.p_item_id, p_block_id: $args.p_block_id, p_value: $before.value}
+
+classroom_save_response:
+  exclude: A student saving their own answer; it acts as the caller, so through an admin's account it would answer as him.
+
+classroom_save_team_set:
+  surface: call
+  level: undo
+  describe: Save a team draw for a class so it lasts, with its teams and the seed that made it.
+  say: ["save these teams for Block 2", "keep this draw", "store the Block 4 teams"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_label: {name: label, describe: "A name for the draw, like Blade Night."}
+    p_seed: {name: seed, describe: "The draw's seed number."}
+    p_mode: {name: mode, enum: [size, count], describe: "size for teams of a size, count for a number of teams."}
+    p_mode_value: {name: value, describe: "The team size or the number of teams."}
+    p_teams: {name: groups, describe: "Each team with its number and its members' addresses."}
+  undo:
+    - function: classroom_archive_team_set
+      args: {p_team_set_id: $result}
+
+classroom_set_assignment_spec:
+  surface: call
+  # Replacing a spec puts the old one back; the first spec on a post has no
+  # reverse (nothing clears to "never had one"), so that one asks first.
+  level_when:
+    - {if: "$before.found", level: undo}
+    - {else: confirm}
+  describe: Set or clear an assignment's interactive spec; replacing one can be undone, the first one asks first.
+  say: ["put this spec on Tolerance Check", "clear the spec from the Shop Fix", "replace the DFM worksheet's spec"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_spec: {name: spec, describe: "The whole spec, or nothing to clear it."}
+  before:
+    table: classroom_assignment_specs
+    columns: [spec]
+    eq: {item_id: $args.p_item_id}
+  undo:
+    - when: $before.found
+      function: classroom_set_assignment_spec
+      args: {p_item_id: $args.p_item_id, p_spec: $before.spec}
+
+classroom_set_attachment_order:
+  surface: call
+  level: undo
+  describe: Put a post's files in the order you say.
+  say: ["put the chart first on Tolerance Check", "reorder the Shop Fix files", "move the rubric file to the end"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_attachment_ids: {name: files, describe: "Every file's id, in the new order."}
+  before:
+    table: classroom_attachments
+    columns: [id]
+    eq: {item_id: $args.p_item_id}
+    order: [[sort_order, asc], [created_at, asc]]
+  undo:
+    - function: classroom_set_attachment_order
+      args: {p_item_id: $args.p_item_id, p_attachment_ids: $before.rows.*.id}
+
+classroom_set_enrollment:
+  surface: tool
+  tool: add_student
+  level: undo
+  describe: Add a student to one of your classes by their school address, or mark one as no longer in it.
+  say: ["add mateo.reyes@boscotech.net to Block 2", "put the new student in Block 4", "mark Leo as gone from Block 1"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class, like 209H Block 2."}
+    p_student_email: {name: email, describe: "The student's school address."}
+    p_display_name: {name: name, describe: "Their name as Last, First."}
+    p_active: {name: active, describe: "True for in the class, false for no longer in it."}
+  before:
+    table: classroom_enrollments
+    columns: [display_name, active]
+    eq: {section_id: $args.p_section_id, student_email: $args.p_student_email}
+  undo:
+    - when: $before.found
+      function: classroom_set_enrollment
+      args: {p_section_id: $args.p_section_id, p_student_email: $args.p_student_email, p_display_name: $before.display_name, p_active: $before.active}
+    - function: classroom_remove_enrollment
+      args: {p_section_id: $args.p_section_id, p_student_email: $args.p_student_email}
+
+classroom_set_instructor_attachment_order:
+  surface: call
+  level: undo
+  describe: Put a post's instructor-only files in the order you say.
+  say: ["put the key first", "reorder my instructor files", "move the notes to the end"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_attachment_ids: {name: files, describe: "Every instructor-only file's id, in the new order."}
+  before:
+    table: classroom_instructor_attachments
+    columns: [id]
+    eq: {item_id: $args.p_item_id}
+    order: [[sort_order, asc], [created_at, asc]]
+  undo:
+    - function: classroom_set_instructor_attachment_order
+      args: {p_item_id: $args.p_item_id, p_attachment_ids: $before.rows.*.id}
+
+classroom_set_instructor_resources:
+  surface: call
+  level: undo
+  describe: Set the instructor-only links on a post, which students never see.
+  say: ["add the answer key link to the Shop Fix", "put my teaching notes link on Tolerance Check", "clear the instructor links"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_resources: {name: links, describe: "Every link, each with a url and a label; an empty list clears them."}
+  before:
+    table: classroom_instructor_resources
+    columns: [url, label]
+    eq: {item_id: $args.p_item_id}
+    order: [[sort_order, asc]]
+  undo:
+    - function: classroom_set_instructor_resources
+      args: {p_item_id: $args.p_item_id, p_resources: $before.rows}
+
+classroom_set_item_layout:
+  surface: call
+  level: undo
+  describe: Choose where a post's files and links show, above or below its text.
+  say: ["put the files above the text on the syllabus", "show Tolerance Check's links at the bottom", "move the files below"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_files_placement: {name: files, describe: "Where the files go, as the site's layout choices name it."}
+    p_links_placement: {name: links, describe: "Where the links go, as the site's layout choices name it."}
+  before:
+    table: classroom_items
+    columns: [files_placement, links_placement]
+    eq: {id: $args.p_item_id}
+  undo:
+    - function: classroom_set_item_layout
+      args: {p_item_id: $args.p_item_id, p_files_placement: $before.files_placement, p_links_placement: $before.links_placement}
+
+classroom_set_item_order:
+  surface: call
+  level: undo
+  describe: Put posts in the order you say on the class page.
+  say: ["put the syllabus first", "reorder the Unit 2 posts", "move Tolerance Check above the Shop Fix"]
+  args:
+    p_item_ids: {name: posts, describe: "The posts' ids, in the new order."}
+  before:
+    table: classroom_items
+    columns: [id]
+    in: {id: $args.p_item_ids}
+    order: [[sort_order, asc], [created_at, asc]]
+  undo:
+    - function: classroom_set_item_order
+      args: {p_item_ids: $before.rows.*.id}
+
+classroom_set_item_public:
+  surface: call
+  level: undo
+  describe: Make a post readable by anyone with its link, signed in or not, or make it class only again.
+  say: ["make the safety reference public", "make the syllabus private again", "let parents see the Shop Rules"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_public: {name: public, describe: "True for anyone with the link, false for the class only."}
+  undo:
+    - function: classroom_set_item_public
+      args: {p_item_id: $args.p_item_id, p_public: "!$args.p_public"}
+
+classroom_set_item_thumbnail:
+  surface: call
+  level: confirm
+  describe: Set the picture a post shows in lists, or put it back to the generated look; it asks first.
+  say: ["use the bracket photo as Tolerance Check's picture", "put the Shop Fix back to the generated look", "set the post's thumbnail to automatic"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_source: {name: source, describe: "picture, generated or automatic, as the site's thumbnail choices name them."}
+    p_image_key: {name: upload, default: null, describe: "An uploaded picture's stored name, for an uploaded picture."}
+    p_attachment_id: {name: file, default: null, describe: "One of the post's own picture files, by its id."}
+    p_width: {name: width, default: null, describe: "The picture's width in pixels."}
+    p_height: {name: height, default: null, describe: "The picture's height in pixels."}
+    p_focal_x: {name: across, default: null, describe: "Where the picture's focus sits across it, from 0 to 1."}
+    p_focal_y: {name: down, default: null, describe: "Where the picture's focus sits down it, from 0 to 1."}
+
+classroom_set_item_thumbnail_focus:
+  surface: call
+  level: undo
+  describe: Move where a post's picture is centered when it is cropped in lists.
+  say: ["center the thumbnail on the part", "move the picture's focus to the left", "frame the photo higher"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_focal_x: {name: across, describe: "Across the picture, from 0 at the left to 1 at the right."}
+    p_focal_y: {name: down, describe: "Down the picture, from 0 at the top to 1 at the bottom."}
+  before:
+    table: classroom_item_thumbnails
+    columns: [focal_x, focal_y]
+    eq: {item_id: $args.p_item_id}
+  undo:
+    - function: classroom_set_item_thumbnail_focus
+      args: {p_item_id: $args.p_item_id, p_focal_x: $before.focal_x, p_focal_y: $before.focal_y}
+
+classroom_set_item_unit:
+  surface: call
+  level: undo
+  describe: File a post under one of the course's units, or take it out of every unit.
+  say: ["put Tolerance Check in Unit 2", "file the Shop Fix under Manufacturing", "unfile the syllabus"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The post."}
+    p_unit_id: {name: unit, describe: "The unit's id, from the course's units; leave it out to unfile it."}
+  before:
+    table: classroom_items
+    columns: [unit_id]
+    eq: {id: $args.p_item_id}
+  undo:
+    - function: classroom_set_item_unit
+      args: {p_item_id: $args.p_item_id, p_unit_id: $before.unit_id}
+
+classroom_set_posting_perfect_score:
+  surface: call
+  level: undo
+  describe: Turn the Perfect Score coin award on or off for a post in one class.
+  say: ["turn on perfect score coins for the Shop Fix in Block 2", "no perfect score coins on the quiz", "pay perfect score on Tolerance Check"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_on: {name: on, describe: "True to pay it, false not to."}
+  undo:
+    - function: classroom_set_posting_perfect_score
+      args: {p_item_id: $args.p_item_id, p_section_id: $args.p_section_id, p_on: "!$args.p_on"}
+
+classroom_set_reference_spec:
+  surface: call
+  # Replacing a spec puts the old one back; the first spec on a post has no
+  # reverse (nothing clears to "never had one"), so that one asks first.
+  level_when:
+    - {if: "$before.found", level: undo}
+    - {else: confirm}
+  describe: Set or clear the reference document on a material post; replacing one can be undone, the first one asks first.
+  say: ["put this reference spec on the Safety Reference", "clear the reference document", "replace the Fillet Reference spec"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The material."}
+    p_spec: {name: spec, describe: "The whole reference spec, or nothing to clear it."}
+  before:
+    table: classroom_reference_specs
+    columns: [spec]
+    eq: {item_id: $args.p_item_id}
+  undo:
+    - when: $before.found
+      function: classroom_set_reference_spec
+      args: {p_item_id: $args.p_item_id, p_spec: $before.spec}
+
+classroom_set_section_active:
+  surface: call
+  level: undo
+  describe: Archive a class so it moves under Archived, or bring it back.
+  say: ["archive last year's Block 3", "unarchive IDEA100 Block 1", "move the old class to archived"]
+  args:
+    p_id: {name: class, resolve: class, describe: "The class."}
+    p_active: {name: active, describe: "False to archive it, true to bring it back."}
+  undo:
+    - function: classroom_set_section_active
+      args: {p_id: $args.p_id, p_active: "!$args.p_active"}
+
+classroom_set_section_thumbnail_shape:
+  surface: call
+  level: undo
+  describe: Set the default shape of post pictures in a class.
+  say: ["make Block 2's thumbnails tiles", "turn off post pictures in Block 4", "use wide thumbnails in IDEA100"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_shape: {name: shape, describe: "The shape, as the site's display settings name it, or off."}
+  before:
+    table: classroom_sections
+    columns: [thumbnail_shape]
+    eq: {id: $args.p_section_id}
+  undo:
+    - function: classroom_set_section_thumbnail_shape
+      args: {p_section_id: $args.p_section_id, p_shape: $before.thumbnail_shape}
+
+classroom_set_submission_file_caption:
+  exclude: A student captioning a file in their own hand-in; it acts as the caller.
+
+classroom_set_team_style:
+  surface: call
+  level: confirm
+  describe: Set a team's name, motto, color, background or badge; it asks first because the old look is not kept.
+  say: ["name team 3 the Gearheads", "make team 2's color blue", "give the first team a lightning badge"]
+  args:
+    p_team_id: {name: team, describe: "The team's id, from the team board."}
+    p_name: {name: name, describe: "The team's name."}
+    p_accent_color: {name: color, describe: "A color as a hex value like #2a9d8f."}
+    p_background_type: {name: background, describe: "solid or gradient."}
+    p_background_value: {name: colors, describe: "The background's colors."}
+    p_badge: {name: badge, describe: "A badge name from the site's badge list."}
+    p_flourish: {name: flourish, describe: "A flourish name from the site's list."}
+    p_tagline: {name: motto, describe: "The team's motto."}
+
+classroom_set_unit_order:
+  surface: call
+  level: undo
+  describe: Put a course's units in the order you say.
+  say: ["put Unit 3 before Unit 2", "reorder the 209H units", "move Manufacturing to the end"]
+  args:
+    p_course_id: {name: course, describe: "The course's id, from your list of classes."}
+    p_unit_ids: {name: units, describe: "Every unit's id, in the new order."}
+  before:
+    table: classroom_units
+    columns: [id]
+    eq: {course_id: $args.p_course_id}
+    order: [[sort_order, asc], [created_at, asc]]
+  undo:
+    - function: classroom_set_unit_order
+      args: {p_course_id: $args.p_course_id, p_unit_ids: $before.rows.*.id}
+
+classroom_song_approve:
+  surface: call
+  level: confirm
+  describe: Approve a student's song request, which charges their coins and plays it; it asks first because the charge is not undone.
+  say: ["approve Mateo's song", "play Leo's request", "say yes to the first song in the queue"]
+  args:
+    p_request_id: {name: request, describe: "The request's id, from the class's song queue."}
+
+classroom_song_queue:
+  surface: call
+  level: read
+  describe: The song requests waiting in a class.
+  say: ["what songs are requested in Block 2", "show the song queue", "any song requests"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_limit: {name: count, describe: "How many to list."}
+
+classroom_song_reject:
+  surface: call
+  level: confirm
+  describe: Turn down a student's song request with a reason; it asks first because it cannot be taken back.
+  say: ["reject Mateo's song, not school appropriate", "say no to Leo's request", "turn down the first song"]
+  args:
+    p_request_id: {name: request, describe: "The request's id, from the class's song queue."}
+    p_reason: {name: reason, describe: "Why, in your words."}
+
+classroom_song_request:
+  exclude: A student requesting a song for themselves; it acts as the caller and charges their coins.
+
+classroom_submit_assignment:
+  exclude: A student turning in their own work; it acts as the caller.
+
+classroom_team_board:
+  surface: call
+  level: read
+  describe: A class's saved team draws, with every team and who is on it.
+  say: ["show Block 2's teams", "who's on which team", "list the team draws"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+
+classroom_undesignate_instructor_key:
+  surface: call
+  level: undo
+  describe: Stop using your working copy as an assignment's answer key.
+  say: ["take my copy off as the key", "undesignate the answer key", "the key isn't ready, take it down"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+  undo:
+    - function: classroom_designate_instructor_key
+      args: {p_item_id: $args.p_item_id}
+
+classroom_unpost_team_set:
+  surface: call
+  level: confirm
+  describe: Take a team draw off the class page; it asks first because when it was meant to come down is not kept.
+  say: ["take the teams down", "unpost the Block 2 teams", "hide the team list"]
+  args:
+    p_team_set_id: {name: teams, describe: "The team draw's id, from the class's team board."}
+
+classroom_unsubmit_assignment:
+  exclude: A student taking back their own turned-in work; it acts as the caller.
+
+classroom_update_enrollment:
+  surface: call
+  level: undo
+  describe: Fix a student's name or school address on a class roster.
+  say: ["fix Mateo's name to Reyes, Mateo J", "change Leo's address", "correct Ana's name on the roster"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+    p_new_email: {name: address, describe: "Their corrected school address, if it changes."}
+    p_display_name: {name: name, describe: "Their corrected name as Last, First."}
+  before:
+    table: classroom_enrollments
+    columns: [display_name]
+    eq: {section_id: $args.p_section_id, student_email: $args.p_student_email}
+  undo:
+    - function: classroom_update_enrollment
+      args: {p_section_id: $args.p_section_id, p_student_email: $result.student_email, p_new_email: $args.p_student_email, p_display_name: $before.display_name}
+
+classroom_upsert_course:
+  surface: call
+  level: confirm
+  describe: Add a course, or change an existing course's title or code; it asks first because a course cannot be deleted.
+  say: ["add a course IDEA300 Capstone", "rename IDEA100 to Engineering Foundations", "retire the old course"]
+  args:
+    p_code: {name: code, describe: "The course code, like IDEA209H."}
+    p_title: {name: title, describe: "The course's title."}
+    p_active: {name: active, describe: "False to mark the course retired."}
+    p_id: {name: course, describe: "The course's id, to change one that exists; leave it out to add one."}
+
+classroom_upsert_section:
+  surface: call
+  level: undo
+  describe: Add a class to a course, or change a class's label, block or teacher.
+  say: ["add a Block 6 to 209H", "rename Block 2 to Period 2", "make Mr. Cosso the teacher of Block 4"]
+  args:
+    p_course_id: {name: course, describe: "The course's id, from your list of classes."}
+    p_label: {name: label, describe: "The class's label, like Block 6."}
+    p_block: {name: block, describe: "The block or period."}
+    p_teacher_email: {name: teacher, describe: "The teacher of record's school address."}
+    p_id: {name: class, resolve: class, describe: "The class to change; leave it out to add one."}
+  before:
+    table: classroom_sections
+    columns: [label, block, teacher_email, course_id]
+    eq: {id: $args.p_id}
+  undo:
+    - when: "!$args.p_id"
+      function: classroom_delete_section
+      args: {p_id: $result.section_id, p_confirm_label: $args.p_label}
+    - when: $before.found
+      function: classroom_upsert_section
+      args: {p_course_id: $before.course_id, p_label: $before.label, p_block: $before.block, p_teacher_email: $before.teacher_email, p_id: $args.p_id}
+
+classroom_upsert_unit:
+  surface: call
+  level: undo
+  describe: Add a unit to a course, or rename one.
+  say: ["add a unit called Manufacturing to 209H", "rename Unit 2 to Tolerancing", "make a new unit for the spring project"]
+  args:
+    p_course_id: {name: course, describe: "The course's id, from your list of classes."}
+    p_name: {name: name, describe: "The unit's name."}
+    p_id: {name: unit, describe: "The unit to rename; leave it out to add one."}
+  before:
+    table: classroom_units
+    columns: [name]
+    eq: {id: $args.p_id}
+  undo:
+    - when: $result.created
+      function: classroom_delete_unit
+      args: {p_id: $result.unit_id}
+    - when: $before.found
+      function: classroom_upsert_unit
+      args: {p_course_id: $args.p_course_id, p_name: $before.name, p_id: $args.p_id}
+
+classroom_view_as_students:
+  surface: call
+  level: read
+  describe: The students you can preview the notebook as, from the view as picker.
+  say: ["whose notebook can I preview", "list students for view as", "who can I view as"]
+
+classroom_worksheet_latch:
+  exclude: The browser records that a student's own worksheet reached complete; an instrument, never an action.
+
+classroom_worksheet_latch_for:
+  exclude: The grading console records a finished worksheet it found; an instrument, never an action a person asks for.
+
+classroom_worksheet_latched:
+  surface: call
+  level: read
+  describe: Which students' worksheets are recorded as finished, for some posts in a class.
+  say: ["who finished the DFM worksheet", "which worksheets are marked complete", "has Mateo finished the Shop Fix"]
+  args:
+    p_item_ids: {name: posts, describe: "The worksheets' ids."}
+    p_section_id: {name: class, resolve: class, describe: "Only this class."}
+
+classroom_worksheet_past_manifests:
+  surface: call
+  level: read
+  describe: The earlier question lists of HTML worksheets, from before they were edited.
+  say: ["what questions did the DFM worksheet have before", "show the old version's questions", "list past question sets"]
+  args:
+    p_item_ids: {name: posts, describe: "The worksheets' ids."}

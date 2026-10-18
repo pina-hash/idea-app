@@ -1,0 +1,94 @@
+/**
+ * THE TABLES A WRITE ENTRY'S ROWS ARE READ FROM, beyond the 33 that 0270
+ * lists. `connector_call` records "rows written" from every table named in
+ * `connector_log_tables`, and the permission and level suites judge every
+ * write entry by a before/after read of the same list, so a write entry whose
+ * rows land in a table missing here reads as writing nothing.
+ *
+ * WHY HERE AND NOT IN A MIGRATION: the list is the connector's own metadata,
+ * exactly like `connector_registry`, so the server syncs it on its first
+ * request (`syncRegistry`, upsert, nothing ever removed) and adding a write
+ * entry later needs no migration. It also keeps every migration outside a
+ * subsystem's own series from naming that subsystem's tables
+ * (tests/db/armory-proposed.test.ts holds the Armory series to that).
+ *
+ * Append-only in spirit: a name removed here stays in the table, because the
+ * sync only inserts.
+ */
+export const SYNCED_LOG_TABLES: readonly string[] = [
+	'app_admins',
+	'app_feedback',
+	'app_short_links',
+	'armory_app_feedback',
+	'armory_app_incidents',
+	'armory_change_feed',
+	'armory_locks',
+	'armory_members',
+	'armory_operation_receipts',
+	'armory_projects',
+	'cert_certifications',
+	'cert_exam_questions',
+	'cert_lessons',
+	'cert_prerequisites',
+	'challenges',
+	'classroom_assignment_specs',
+	'classroom_attachments',
+	'classroom_courses',
+	'classroom_deck_files',
+	'classroom_decks',
+	'classroom_enrollments',
+	'classroom_hall_passes',
+	'classroom_instructor_attachments',
+	'classroom_instructor_keys',
+	'classroom_instructor_resources',
+	'classroom_instructor_responses',
+	'classroom_module_approvals',
+	'classroom_reference_specs',
+	'classroom_sections',
+	'classroom_song_requests',
+	'classroom_team_members',
+	'classroom_team_sets',
+	'classroom_teams',
+	'classroom_units',
+	'coin_categories',
+	'coin_perfect_scores',
+	'coin_settings',
+	'coin_wage_tiers',
+	'connector_gaps',
+	'foundry_publisher_applications',
+	'foundry_publisher_questions',
+	'foundry_site_settings',
+	'foundry_trusted_publishers',
+	'frc_user_progress',
+	'fsp_questions',
+	'gauntlet_rank_settings',
+	'greenline_decals',
+	'greenline_tracks',
+	'ideacad_materials',
+	'maps_editor_grants',
+	'maps_item_types',
+	'maps_items',
+	'maps_nodes',
+	'maps_stock',
+	'notebook_entries',
+	'notebook_entry_notes',
+	'notebook_session_excusals',
+	'notebook_session_postings',
+	'notebook_sessions',
+	'notebook_unit_items',
+	'profiles',
+	'student_app_versions',
+	'student_apps',
+	'tournament_bracket_matches',
+	'tournament_entries',
+	'tournament_entry_members',
+	'tournament_entry_styles',
+	'tournament_hosts',
+	'tournament_invites',
+	'tournament_match_games',
+	'tournament_qual_matches',
+	'tournament_qual_pools',
+	'tournament_reward_ledger',
+	'tournament_reward_rules',
+	'tournaments',
+];

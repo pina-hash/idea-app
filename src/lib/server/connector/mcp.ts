@@ -18,20 +18,37 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js';
+import { cleanupFor } from './cleanup';
 import { sha256Hex } from './crypto';
 import type { ConnectorDeps } from './deps';
 import { json, wwwAuthenticate } from './oauth';
+import { SYNCED_LOG_TABLES } from './log-tables';
 import { registryRows, toolList } from './registry';
 import { runTool, UnknownTool } from './tools';
 import { ConnectorUnavailable, type ConnectorBackend, type TokenRow, type UserSession } from './types';
 
 export const MCP_INSTRUCTIONS = [
 	'This is the IDEA Website (ideabosco.com). Every call acts as the signed-in site admin, with exactly their permissions, and every change lands in the site\'s own records as theirs.',
+	'Every tool takes said: his request in his own words, exactly as he said it, the same words for every call made for that one request.',
+	'Use a tool named for what he asked when there is one; otherwise call site_find_tool with his words and then site_call exactly as it says.',
 	'Send a fresh random request_id with every change he asks for, and reuse it unchanged only when retrying that same change; pass again: true only when he asks for the same thing twice on purpose.',
 	'When a tool answers ambiguous, not_found or needs_category, nothing was changed: ask him the one question it names.',
-	'A change that asks first returns a preview and a confirm_token: read the preview to him and send the confirm_token only after he says yes.',
+	'A change that asks first returns a preview and a confirm_token: read the preview to him and send the confirm_token only after he says yes. Whether a change asks first is the server\'s decision, never yours.',
+	'When the site cannot do what he asked, say so plainly and call report_gap; never stitch other actions together to fake it.',
 	'Running a live tournament (advancing matches, entering scores) is not available here; it stays on the site.'
 ].join(' ');
+
+/** The practice endpoint's instructions: the same server, where nothing is ever written. */
+export const PRACTICE_INSTRUCTIONS = [
+	'This is the IDEA Website PRACTICE connector: the same tools as the real one, but every change only previews and nothing is ever written. Reads are real.',
+	'It exists to replay his saved requests: list them with site_call connector_admin_evals, run each one exactly as he would ask it, then record_eval_result with whether it did what its line says must happen.',
+	MCP_INSTRUCTIONS
+].join(' ');
+
+export interface McpOptions {
+	/** /mcp/practice: fixed by the URL. Every write previews and nothing commits. */
+	practice?: boolean;
+}
 
 const CORS = {
 	'access-control-allow-origin': '*',
@@ -46,10 +63,10 @@ function withCors(res: Response): Response {
 	return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
-function unauthorized(origin: string, error?: { code: string; description: string }): Response {
+function unauthorized(origin: string, error?: { code: string; description: string }, practice = false): Response {
 	return withCors(
 		json(401, error ? { error: error.code, error_description: error.description } : { error: 'unauthorized', error_description: 'Sign in to use the IDEA Website connector.' }, {
-			'www-authenticate': wwwAuthenticate(origin, error)
+			'www-authenticate': wwwAuthenticate(origin, error, practice)
 		})
 	);
 }
@@ -78,7 +95,7 @@ async function sessionFor(backend: ConnectorBackend, token: TokenRow, now: numbe
 async function syncRegistry(backend: ConnectorBackend, now: number): Promise<void> {
 	const last = synced.get(backend.kind) ?? 0;
 	if (now - last < SYNC_EVERY_MS) return;
-	await backend.syncRegistry(registryRows());
+	await backend.syncRegistry(registryRows(), SYNCED_LOG_TABLES);
 	synced.set(backend.kind, now);
 }
 
@@ -89,27 +106,28 @@ function bearerOf(request: Request): string | null {
 
 const ERROR_STATUSES = new Set(['refused', 'invalid', 'needs_confirmation', 'not_available']);
 
-export async function handleMcp(request: Request, origin: string, deps: ConnectorDeps): Promise<Response> {
+export async function handleMcp(request: Request, origin: string, deps: ConnectorDeps, options: McpOptions = {}): Promise<Response> {
+	const practice = options.practice === true;
 	if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 	if (request.method !== 'POST') {
 		return withCors(json(405, { error: 'method_not_allowed', error_description: 'This MCP endpoint takes POST only.' }, { allow: 'POST, OPTIONS' }));
 	}
 	const now = deps.now();
 	const bearer = bearerOf(request);
-	if (!bearer) return unauthorized(origin);
+	if (!bearer) return unauthorized(origin, undefined, practice);
 
 	let token: TokenRow | null;
 	let session: UserSession;
 	try {
 		token = await deps.backend.tokenByAccess(sha256Hex(bearer));
 		if (!token || token.revokedAt !== null || token.accessExpiresAt <= now) {
-			return unauthorized(origin, { code: 'invalid_token', description: 'This connection is signed out or expired.' });
+			return unauthorized(origin, { code: 'invalid_token', description: 'This connection is signed out or expired.' }, practice);
 		}
 		if (!(await deps.backend.enabled())) {
 			return unauthorized(origin, {
 				code: 'invalid_token',
 				description: 'The IDEA Website connector is switched off. Switch it on at ideabosco.com/admin/connector.'
-			});
+			}, practice);
 		}
 		session = await sessionFor(deps.backend, token, now);
 		const admin = await deps.backend.rpc<boolean>(session, 'is_admin', {});
@@ -117,7 +135,7 @@ export async function handleMcp(request: Request, origin: string, deps: Connecto
 		if (admin.data !== true) {
 			sessions.delete(token.id);
 			await deps.backend.revokeToken(token.id, 'no longer a site admin');
-			return unauthorized(origin, { code: 'invalid_token', description: 'This account is not a site admin.' });
+			return unauthorized(origin, { code: 'invalid_token', description: 'This account is not a site admin.' }, practice);
 		}
 		if (!token.lastUsedAt || now - token.lastUsedAt > TOUCH_EVERY_MS) await deps.backend.touchToken(token.id, now);
 		await syncRegistry(deps.backend, now);
@@ -129,10 +147,25 @@ export async function handleMcp(request: Request, origin: string, deps: Connecto
 	}
 
 	const liveToken = token;
-	const server = new Server({ name: 'IDEA Website', version: '1.0.0' }, { capabilities: { tools: { listChanged: false } }, instructions: MCP_INSTRUCTIONS });
+	const server = new Server(
+		{ name: practice ? 'IDEA Website (practice)' : 'IDEA Website', version: '1.1.0' },
+		{ capabilities: { tools: { listChanged: false } }, instructions: practice ? PRACTICE_INSTRUCTIONS : MCP_INSTRUCTIONS }
+	);
 	server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolList() }));
 	server.setRequestHandler(CallToolRequestSchema, async (req) => {
-		const ctx = { backend: deps.backend, session, token: liveToken, now: deps.now, random: deps.random, cache: new Map() };
+		const meta = (req.params as { _meta?: Record<string, unknown> })._meta ?? {};
+		const model = typeof meta.model === 'string' ? meta.model.slice(0, 100) : null;
+		const ctx = {
+			backend: deps.backend,
+			session,
+			token: liveToken,
+			now: deps.now,
+			random: deps.random,
+			cache: new Map(),
+			practice,
+			model,
+			cleanup: practice ? undefined : cleanupFor(deps.backend, session)
+		};
 		try {
 			const out = await runTool(ctx, req.params.name, (req.params.arguments ?? {}) as Record<string, unknown>);
 			return {

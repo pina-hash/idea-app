@@ -10,4 +10,16 @@ export interface ToolContext {
 	random(n: number): Buffer;
 	/** Per-request memo of reads (his classes, rosters, posts). */
 	cache: Map<string, unknown>;
+	/**
+	 * PRACTICE (/mcp/practice): fixed by the URL, never by an argument. Every
+	 * write previews, nothing commits, and no request, gap or confirmation is
+	 * stored; reads run for real.
+	 */
+	practice?: boolean;
+	/** After a delete commits: remove the files it orphaned, as the site's own route does (cleanup.ts). */
+	cleanup?: (kind: string, result: unknown) => Promise<void>;
+	/** The model name, when the client sends one. */
+	model?: string | null;
+	/** His request in his own words, for this tool call (set by runTool). */
+	said?: string | null;
 }

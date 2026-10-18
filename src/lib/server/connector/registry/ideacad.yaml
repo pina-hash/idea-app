@@ -1,11 +1,78 @@
 # IDEACAD FUNCTIONS. The shape is described at the top of classroom.yaml.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-ideacad_archive: {pending: slice 2}
-ideacad_assembly: {pending: slice 2}
-ideacad_direct_documents: {pending: slice 2}
-ideacad_direct_folders: {pending: slice 2}
-ideacad_material_save_global: {pending: slice 2}
-ideacad_material_set_retired: {pending: slice 2}
-ideacad_set_direct_document_thumbnail: {pending: slice 2}
-ideacad_shared_with_me: {pending: slice 2}
+ideacad_archive:
+  surface: call
+  level: read
+  describe: The archived IdeaCAD documents on an assignment, including work from students who have left.
+  say: ["show the archived blade designs", "what old IdeaCAD work is on the Blade assignment", "list archived documents"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+
+ideacad_assembly:
+  surface: call
+  level: read
+  describe: An IdeaCAD assembly with its parts and who holds each one.
+  say: ["show the robot assembly", "who's editing which part", "list the assembly's parts"]
+  args:
+    p_document_id: {name: document, describe: "The document's id."}
+
+ideacad_direct_documents:
+  surface: call
+  level: read
+  describe: The IdeaCAD documents you can open in the modeler.
+  say: ["what IdeaCAD documents do I have", "list my models", "show the modeler documents"]
+
+ideacad_direct_folders:
+  surface: call
+  level: read
+  describe: Your IdeaCAD folders.
+  say: ["list my IdeaCAD folders", "what folders do I have", "show my model folders"]
+
+ideacad_material_save_global:
+  surface: call
+  level: undo
+  describe: Add a material to the IdeaCAD library everyone uses, or change one, with its density and the stock thicknesses you have.
+  say: ["add 6061 aluminum at 2.70 with eighth and quarter inch stock", "change the steel density", "add a quarter inch to acrylic's thicknesses"]
+  args:
+    p_id: {name: material, describe: "The material to change; leave it out to add one."}
+    p_slug: {name: code, describe: "A short lowercase code for it, like aluminum."}
+    p_name: {name: name, describe: "The material's name."}
+    p_density_g_cm3: {name: density, describe: "Density in grams per cubic centimeter."}
+    p_thicknesses_in: {name: thicknesses, describe: "The stock thicknesses you have, in inches."}
+    p_note: {name: note, describe: "A note about it."}
+    p_source: {name: source, describe: "The published source of the density."}
+    p_source_verified: {name: verified, describe: "True only if you checked the source yourself."}
+  before:
+    table: ideacad_materials
+    columns: [slug, name, density_g_cm3, thicknesses_in, note, source, source_verified]
+    eq: {id: $args.p_id}
+  undo:
+    - when: "!$args.p_id"
+      function: ideacad_material_set_retired
+      args: {p_id: $result.id, p_retired: true}
+    - when: $before.found
+      function: ideacad_material_save_global
+      args: {p_id: $args.p_id, p_slug: $before.slug, p_name: $before.name, p_density_g_cm3: $before.density_g_cm3, p_thicknesses_in: $before.thicknesses_in, p_note: $before.note, p_source: $before.source, p_source_verified: $before.source_verified}
+
+ideacad_material_set_retired:
+  surface: call
+  level: undo
+  describe: Retire an IdeaCAD library material so nobody picks it, or bring it back; parts already using it keep working.
+  say: ["retire PLA from the library", "bring back the steel material", "shelve the old acrylic"]
+  args:
+    p_id: {name: material, describe: "The material's id."}
+    p_retired: {name: retired, describe: "True to retire it, false to bring it back."}
+  undo:
+    - function: ideacad_material_set_retired
+      args: {p_id: $args.p_id, p_retired: "!$args.p_retired"}
+
+ideacad_set_direct_document_thumbnail:
+  exclude: The modeler saves its own picture of a part when it saves; never a person's action.
+
+ideacad_shared_with_me:
+  surface: call
+  level: read
+  describe: The IdeaCAD documents shared with you on an assignment.
+  say: ["what IdeaCAD work is shared with me", "show shared documents on the Blade post", "list what students shared"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}

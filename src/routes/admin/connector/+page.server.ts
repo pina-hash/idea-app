@@ -17,16 +17,38 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	const tool = url.searchParams.get('tool')?.trim() || null;
 	const dayRaw = url.searchParams.get('day')?.trim() || '';
 	const day = DAY.test(dayRaw) ? dayRaw : null;
-	const [state, audit] = await Promise.all([
+	const [state, audit, evals] = await Promise.all([
 		supabase.rpc('connector_admin_state'),
-		supabase.rpc('connector_admin_audit', { p_tool: tool, p_day: day, p_limit: 200 })
+		supabase.rpc('connector_admin_audit', { p_tool: tool, p_day: day, p_limit: 200 }),
+		supabase.rpc('connector_admin_evals')
 	]);
 	if (state.error?.code === 'PGRST202' || audit.error?.code === 'PGRST202') {
-		return { ready: false as const, tool, day, state: null, audit: [] };
+		return { ready: false as const, tool, day, state: null, audit: [], evals: null };
 	}
 	if (state.error || audit.error) error(500, 'The connector could not be read.');
-	return { ready: true as const, tool, day, state: state.data as ConnectorState, audit: (audit.data ?? []) as AuditEntry[] };
+	// The saved requests arrive with 0272; before it, the section says so rather than failing the page.
+	const savedRequests = evals.error ? null : ((evals.data ?? []) as SavedRequest[]);
+	return { ready: true as const, tool, day, state: state.data as ConnectorState, audit: (audit.data ?? []) as AuditEntry[], evals: savedRequests };
 };
+
+/** One saved request (connector_evals, 0272) with its last practice replay. */
+export interface SavedRequest {
+	seq: number;
+	said: string;
+	level: 'read' | 'undo' | 'confirm' | 'refuse';
+	must_happen: string | null;
+	proof: string | null;
+	proof_query: string | null;
+	expected_path: string[];
+	source: 'seed' | 'request';
+	first_outcome: string | null;
+	created_at: string;
+	requests: number;
+	last_request_at: string | null;
+	runs: number;
+	last_run: { passed: boolean; run_at: string; path: string[]; model: string | null; detail: Record<string, unknown> } | null;
+	open_gaps: number;
+}
 
 export interface ConnectorState {
 	enabled: boolean;

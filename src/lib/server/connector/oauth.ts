@@ -73,15 +73,26 @@ export async function withBudget(work: () => Promise<Response>, budgetMs = OAUTH
 // ---------------------------------------------------------------------------
 
 export const resourceUrl = (origin: string) => `${origin}/mcp`;
+/**
+ * The resources a token may be asked for: the connector, and its practice
+ * twin (/mcp/practice), the same server under the same sign-in and the same
+ * authorization server. Each has its OWN metadata naming itself as the
+ * resource (RFC 9728 3.3: a client checks the metadata's resource against the
+ * URL it called), and the practice one is served under /mcp/practice, where
+ * its 401 points.
+ */
+export const practiceResourceUrl = (origin: string) => `${origin}/mcp/practice`;
+export const resourceUrls = (origin: string) => [resourceUrl(origin), practiceResourceUrl(origin)];
 export const resourceMetadataUrl = (origin: string) => `${origin}/.well-known/oauth-protected-resource/mcp`;
+export const practiceResourceMetadataUrl = (origin: string) => `${origin}/mcp/practice/oauth-protected-resource`;
 
-export function protectedResourceMetadata(origin: string) {
+export function protectedResourceMetadata(origin: string, practice = false) {
 	return {
-		resource: resourceUrl(origin),
+		resource: practice ? practiceResourceUrl(origin) : resourceUrl(origin),
 		authorization_servers: [origin],
 		scopes_supported: [...SCOPES],
 		bearer_methods_supported: ['header'],
-		resource_name: 'IDEA Website'
+		resource_name: practice ? 'IDEA Website (practice)' : 'IDEA Website'
 	};
 }
 
@@ -102,8 +113,8 @@ export function authorizationServerMetadata(origin: string) {
 	};
 }
 
-export function wwwAuthenticate(origin: string, error?: { code: string; description: string }): string {
-	const base = `Bearer resource_metadata="${resourceMetadataUrl(origin)}", scope="site"`;
+export function wwwAuthenticate(origin: string, error?: { code: string; description: string }, practice = false): string {
+	const base = `Bearer resource_metadata="${practice ? practiceResourceMetadataUrl(origin) : resourceMetadataUrl(origin)}", scope="site"`;
 	return error ? `${base}, error="${error.code}", error_description="${error.description.replace(/"/g, "'")}"` : base;
 }
 
@@ -248,7 +259,7 @@ export async function validateAuthorize(q: URLSearchParams, origin: string, deps
 		return back('invalid_request', 'PKCE with S256 is required.');
 	}
 	const resource = q.get('resource');
-	if (resource && resource.replace(/\/+$/, '') !== resourceUrl(origin)) return back('invalid_target', 'That resource is not served here.');
+	if (resource && !resourceUrls(origin).includes(resource.replace(/\/+$/, ''))) return back('invalid_target', 'That resource is not served here.');
 	const asked = (q.get('scope') ?? 'site').split(/\s+/).filter(Boolean);
 	if (asked.some((s) => !(SCOPES as readonly string[]).includes(s))) return back('invalid_scope', 'Only the site scope is offered.');
 	const scope = [...new Set(['site', ...asked])].join(' ');

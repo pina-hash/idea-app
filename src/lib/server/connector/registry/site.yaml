@@ -1,32 +1,238 @@
-# EVERYTHING ELSE THE SITE CALLS: admin, profiles, short links, feedback, FRC, FSP, push and the rest. The shape is described at the top of classroom.yaml.
+# SITE-WIDE FUNCTIONS: admins, feedback, short links, profiles, FRC and FSP.
+# The shape is described at the top of classroom.yaml.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-admin_grant: {pending: slice 2}
-admin_list: {pending: slice 2}
-admin_revoke: {pending: slice 2}
-app_feedback_admin_list: {pending: slice 2}
-app_feedback_edit: {pending: slice 2}
-app_feedback_set_horizon: {pending: slice 2}
-app_feedback_set_status: {pending: slice 2}
-app_feedback_submit: {pending: slice 2}
-app_short_link_delete: {pending: slice 2}
-app_short_link_list: {pending: slice 2}
-app_short_link_target: {pending: slice 2}
-app_short_link_upsert: {pending: slice 2}
-clear_fsp_session: {pending: slice 2}
-frc_can_review: {pending: slice 2}
-frc_mark_complete: {pending: slice 2}
-frc_quiz_grade: {pending: slice 2}
-frc_quiz_start: {pending: slice 2}
-frc_review_queue: {pending: slice 2}
-frc_unmark_complete: {pending: slice 2}
-idea_cert_sync: {pending: slice 2}
-is_admin: {pending: slice 2}
-is_owner: {pending: slice 2}
-profile_avatar_hide: {pending: slice 2}
-profile_avatar_hold_status: {pending: slice 2}
-profile_avatar_holds: {pending: slice 2}
-profile_avatar_my_hold: {pending: slice 2}
-profile_avatar_restore: {pending: slice 2}
-push_subscribe: {pending: slice 2}
-submit_fsp_question: {pending: slice 2}
+admin_grant:
+  surface: call
+  level: confirm
+  describe: Make a school staff account a site admin; only the owner can, and it asks first.
+  say: ["make Mr. Cosso a site admin", "give Ms. Lopez admin", "add an admin"]
+  args:
+    p_email: {name: person, describe: "Their school staff address."}
+    p_note: {name: note, describe: "Why, in your words."}
+
+admin_list:
+  surface: call
+  level: read
+  describe: Every site admin, with who granted it and when.
+  say: ["who are the site admins", "list the admins", "who has admin"]
+
+admin_revoke:
+  surface: call
+  level: confirm
+  describe: Take site admin away from an account; only the owner can, and it asks first.
+  say: ["remove Mr. Cosso's admin", "take admin away from that account", "revoke an admin"]
+  args:
+    p_email: {name: person, describe: "Their school address."}
+
+app_feedback_admin_list:
+  surface: call
+  level: read
+  describe: The reports people sent from the site's feedback button, newest first.
+  say: ["what feedback came in today", "show the feedback reports", "any new bug reports"]
+  args:
+    p_app: {name: app, describe: "Only reports about this app."}
+    p_limit: {name: count, describe: "How many to list."}
+    p_horizon: {name: horizon, enum: [now, long_term], describe: "Only fix-soon reports, or only long term ideas."}
+
+app_feedback_edit:
+  surface: call
+  level: confirm
+  describe: Correct the words of a feedback report, keeping the reporter's own words beside it; it asks first.
+  say: ["fix the typo in that report", "reword the feedback about the hall pass", "correct report 12's message"]
+  args:
+    p_id: {name: report, describe: "The report's id."}
+    p_kind: {name: kind, describe: "The report's kind, as the console names it."}
+    p_message: {name: message, describe: "The corrected words."}
+    p_tried: {name: tried, describe: "The corrected what they tried."}
+    p_base_revision: {name: revision, describe: "The revision number the correction starts from, from the report."}
+
+app_feedback_set_horizon:
+  surface: call
+  level: undo
+  describe: File a feedback report as fix soon or as a long term idea.
+  say: ["file that report as long term", "move the seating idea to long term", "make that one fix soon"]
+  args:
+    p_id: {name: report, describe: "The report's id."}
+    p_horizon: {name: horizon, enum: [now, long_term], describe: "now for fix soon, or long term."}
+  before:
+    table: app_feedback
+    columns: [horizon]
+    eq: {id: $args.p_id}
+  undo:
+    - function: app_feedback_set_horizon
+      args: {p_id: $args.p_id, p_horizon: $before.horizon}
+
+app_feedback_set_status:
+  surface: call
+  level: undo
+  describe: Move a feedback report to a new status, such as reviewing, planned or done.
+  say: ["mark that report done", "set the hall pass report to planned", "close report 12"]
+  args:
+    p_id: {name: report, describe: "The report's id."}
+    p_status: {name: status, describe: "The new status, as the feedback console names it."}
+  before:
+    table: app_feedback
+    columns: [status]
+    eq: {id: $args.p_id}
+  undo:
+    - function: app_feedback_set_status
+      args: {p_id: $args.p_id, p_status: $before.status}
+
+app_feedback_submit:
+  exclude: The anonymous report path, which only the site's own feedback route may call with the request's address; an admin's report goes in signed in.
+
+app_short_link_delete:
+  surface: call
+  level: confirm
+  describe: Delete a short link like ideabosco.com/209h; it asks first because printed links stop working.
+  say: ["delete the 209h short link", "remove the old flyer link", "kill that short link"]
+  args:
+    p_slug: {name: link, describe: "The short link's name, the part after the slash."}
+
+app_short_link_list:
+  surface: call
+  level: read
+  describe: Every short link and where it goes.
+  say: ["what short links are there", "where does ideabosco.com slash 209h go", "list the short links"]
+
+app_short_link_target:
+  surface: call
+  level: read
+  describe: Where one short link goes.
+  say: ["where does 209h point", "what's the target of the flyer link", "check the short link"]
+  args:
+    p_slug: {name: link, describe: "The short link's name, the part after the slash."}
+
+app_short_link_upsert:
+  surface: call
+  level: undo
+  describe: Make a short link like ideabosco.com/blade that goes to a page on the site, or point one somewhere new.
+  say: ["make ideabosco.com/blade go to the Blade assignment", "point the 209h link at the new syllabus", "add a short link for the flyer"]
+  args:
+    p_slug: {name: link, describe: "The short link's name, the part after the slash."}
+    p_target: {name: target, describe: "Where it goes: a path on the site, like /classroom."}
+    p_label: {name: label, describe: "A label for the list."}
+    p_active: {name: active, describe: "False to switch it off without deleting it."}
+  before:
+    rpc: app_short_link_list
+    args: {}
+    find: {slug: $args.p_slug}
+  undo:
+    - when: $before.found
+      function: app_short_link_upsert
+      args: {p_slug: $args.p_slug, p_target: $before.target, p_label: $before.label, p_active: $before.active}
+    - function: app_short_link_delete
+      args: {p_slug: $args.p_slug}
+
+clear_fsp_session:
+  surface: call
+  level: confirm
+  describe: Clear the questions from one Family Science session's live board; it asks first.
+  say: ["clear the FSP questions for tonight", "reset the live question board", "clear session 3's questions"]
+  args:
+    p_session_id: {name: session, describe: "The session's code."}
+
+frc_can_review:
+  surface: call
+  level: read
+  describe: Whether you can review FRC training completions.
+  say: ["can I review FRC training", "am I an FRC reviewer", "do I have FRC review"]
+
+frc_mark_complete:
+  surface: call
+  level: undo
+  describe: Mark an FRC training unit complete for a student by hand.
+  say: ["mark Mateo's FRC safety unit complete", "sign off Leo on the drivetrain unit", "give Ana credit for the CAD unit"]
+  args:
+    p_user_id: {name: account, describe: "The student's account id, from the FRC review queue."}
+    p_unit_id: {name: unit, describe: "The unit's id, as the FRC training names it."}
+  undo:
+    - function: frc_unmark_complete
+      args: {p_user_id: $args.p_user_id, p_unit_id: $args.p_unit_id}
+
+frc_quiz_grade:
+  exclude: A student's own FRC quiz being scored; it acts as the caller.
+frc_quiz_start:
+  exclude: A student starting their own FRC quiz; it acts as the caller.
+
+frc_review_queue:
+  surface: call
+  level: read
+  describe: The FRC training completions waiting for review.
+  say: ["what FRC training needs review", "show the FRC queue", "who finished FRC units"]
+
+frc_unmark_complete:
+  surface: call
+  level: undo
+  describe: Take back an FRC training completion you marked by hand.
+  say: ["unmark Mateo's FRC safety unit", "take back Leo's drivetrain completion", "Ana's CAD unit isn't done"]
+  args:
+    p_user_id: {name: account, describe: "The student's account id."}
+    p_unit_id: {name: unit, describe: "The unit's id."}
+  undo:
+    - function: frc_mark_complete
+      args: {p_user_id: $args.p_user_id, p_unit_id: $args.p_unit_id}
+
+idea_cert_sync:
+  exclude: The FRC app's own function on the Techmen project, which the certification mirror calls; it is not in this site's database.
+
+is_admin:
+  surface: call
+  level: read
+  describe: Whether you are a site admin.
+  say: ["am I an admin", "do I have admin", "check my admin access"]
+
+is_owner:
+  surface: call
+  level: read
+  describe: Whether you are the site's owner.
+  say: ["am I the owner", "do I own the site", "check owner access"]
+
+profile_avatar_hide:
+  surface: call
+  level: undo
+  describe: Turn off a student's profile picture everywhere on the site, keeping it to put back; they cannot change it while it is off.
+  say: ["hide Mateo's profile picture", "turn off Leo's avatar, it's inappropriate", "take down Ana's picture"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+    p_reason: {name: reason, describe: "Why, in your words."}
+  undo:
+    - function: profile_avatar_restore
+      args: {p_email: $args.p_email}
+
+profile_avatar_hold_status:
+  surface: call
+  level: read
+  describe: Whether a student's profile picture is turned off, and why.
+  say: ["is Mateo's picture hidden", "why is Leo's avatar off", "check Ana's picture"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+
+profile_avatar_holds:
+  surface: call
+  level: read
+  describe: Every profile picture that is turned off.
+  say: ["whose pictures are hidden", "list hidden avatars", "show picture holds"]
+
+profile_avatar_my_hold:
+  surface: call
+  level: read
+  describe: Whether your own profile picture is turned off.
+  say: ["is my picture hidden", "my avatar hold", "can I change my picture"]
+
+profile_avatar_restore:
+  surface: call
+  level: undo
+  describe: Put a student's profile picture back exactly as it was before it was turned off.
+  say: ["restore Mateo's picture", "turn Leo's avatar back on", "give Ana her picture back"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+  undo:
+    - function: profile_avatar_hide
+      args: {p_email: $args.p_email, p_reason: "Turned off again through the IDEA Website connector."}
+
+push_subscribe:
+  exclude: A device subscribing itself to push notifications; it belongs to that browser, never to a chat.
+
+submit_fsp_question:
+  exclude: A visitor asking their own question on the Family Science live board; it acts as the caller.

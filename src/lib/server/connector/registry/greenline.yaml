@@ -1,15 +1,78 @@
 # GREENLINE FUNCTIONS. The shape is described at the top of classroom.yaml.
+# Playing the game is the player's own; only moderation is an admin's action.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-greenline_decal_review: {pending: slice 2}
-greenline_leaderboard: {pending: slice 2}
-greenline_purchase_item: {pending: slice 2}
-greenline_submit_race_result: {pending: slice 2}
-greenline_track_attempt_finish: {pending: slice 2}
-greenline_track_attempt_start: {pending: slice 2}
-greenline_track_list: {pending: slice 2}
-greenline_track_rate: {pending: slice 2}
-greenline_track_remove: {pending: slice 2}
-greenline_track_report: {pending: slice 2}
-greenline_track_review: {pending: slice 2}
-greenline_track_set_featured: {pending: slice 2}
+greenline_decal_review:
+  surface: call
+  level: undo
+  describe: Approve a student's GREENLINE decal, or send it back for a change with a note.
+  say: ["approve Mateo's decal", "send Leo's decal back, too much text", "the decal queue's first one is fine"]
+  args:
+    p_user_id: {name: player, describe: "The player's account id, from the decal queue."}
+    p_action: {name: decision, enum: [approve, needs_revision], describe: "approve, or needs revision to send it back."}
+    p_feedback: {name: note, describe: "What to change; sending one back needs a note."}
+  undo:
+    - function: greenline_decal_review
+      args: {p_user_id: $args.p_user_id, p_action: {map: $args.p_action, values: {approve: needs_revision, needs_revision: approve}}, p_feedback: "Undone through the IDEA Website connector."}
+
+greenline_leaderboard:
+  surface: call
+  level: read
+  describe: A GREENLINE track's leaderboard.
+  say: ["who's fastest on the first GREENLINE track", "show the GREENLINE leaderboard", "top times on that track"]
+  args:
+    p_track_id: {name: track, describe: "The track's id."}
+    p_mode: {name: mode, describe: "The race mode."}
+    p_limit: {name: count, describe: "How many to list."}
+
+greenline_purchase_item:
+  exclude: A player buying a GREENLINE item with their own game credits; it acts as the caller.
+greenline_submit_race_result:
+  exclude: The game recording a player's own race result; it acts as the caller.
+greenline_track_attempt_finish:
+  exclude: The game recording a player's own attempt on a community track; it acts as the caller.
+greenline_track_attempt_start:
+  exclude: The game recording a player's own attempt on a community track; it acts as the caller.
+
+greenline_track_list:
+  surface: call
+  level: read
+  describe: The GREENLINE community tracks, with their review state.
+  say: ["what community tracks are there", "any tracks waiting for review", "list GREENLINE tracks"]
+
+greenline_track_rate:
+  exclude: A player rating a community track for themselves; it acts as the caller.
+greenline_track_report:
+  exclude: A player reporting a community track for themselves; it acts as the caller.
+
+greenline_track_remove:
+  surface: call
+  level: confirm
+  describe: Remove a GREENLINE community track; it asks first.
+  say: ["remove that track", "take down the offensive track", "delete Leo's community track"]
+  args:
+    p_track_id: {name: track, describe: "The track's id."}
+
+greenline_track_review:
+  surface: call
+  level: undo
+  describe: Approve a GREENLINE community track, or send it back for a change with a note.
+  say: ["approve Mateo's track", "send Leo's track back, the jump is impossible", "approve the first track in review"]
+  args:
+    p_track_id: {name: track, describe: "The track's id."}
+    p_action: {name: decision, enum: [approve, needs_revision], describe: "approve, or needs revision to send it back."}
+    p_feedback: {name: note, describe: "What to change; sending one back needs a note."}
+  undo:
+    - function: greenline_track_review
+      args: {p_track_id: $args.p_track_id, p_action: {map: $args.p_action, values: {approve: needs_revision, needs_revision: approve}}, p_feedback: "Undone through the IDEA Website connector."}
+
+greenline_track_set_featured:
+  surface: call
+  level: undo
+  describe: Feature a GREENLINE community track, or stop featuring it.
+  say: ["feature Mateo's track", "unfeature that track", "put Leo's track on the featured list"]
+  args:
+    p_track_id: {name: track, describe: "The track's id."}
+    p_featured: {name: featured, describe: "True to feature it, false to stop."}
+  undo:
+    - function: greenline_track_set_featured
+      args: {p_track_id: $args.p_track_id, p_featured: "!$args.p_featured"}

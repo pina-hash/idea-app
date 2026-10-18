@@ -1,29 +1,255 @@
-# TOURNAMENTS FUNCTIONS. The shape is described at the top of classroom.yaml.
+# TOURNAMENT FUNCTIONS. The shape is described at the top of classroom.yaml.
+# Creating and setting up a tournament is in scope; running a live one
+# (starting matches, entering scores, changing a live format) stays manual
+# (Mr. Pina, 2026-10-17), and a player's own registration is the player's.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-tournament_add_entry_member: {pending: slice 2}
-tournament_add_host: {pending: slice 2}
-tournament_create: {pending: slice 2}
-tournament_delete: {pending: slice 2}
-tournament_generate_qual_pools: {pending: slice 2}
-tournament_host_add_entry: {pending: slice 2}
-tournament_join_entry: {pending: slice 2}
-tournament_live_config_apply: {pending: slice 2}
-tournament_live_config_preview: {pending: slice 2}
-tournament_ping_entry: {pending: slice 2}
-tournament_register_entry: {pending: slice 2}
-tournament_remove_entry: {pending: slice 2}
-tournament_remove_entry_member: {pending: slice 2}
-tournament_rename_entry_member: {pending: slice 2}
-tournament_reorder_seed: {pending: slice 2}
-tournament_respond_invite: {pending: slice 2}
-tournament_reward_settlement: {pending: slice 2}
-tournament_send_invite: {pending: slice 2}
-tournament_set_entry_style: {pending: slice 2}
-tournament_set_reward_rules: {pending: slice 2}
-tournament_set_status: {pending: slice 2}
-tournament_shuffle_seeds: {pending: slice 2}
-tournament_start_match: {pending: slice 2}
-tournament_submit_qual_result: {pending: slice 2}
-tournament_update: {pending: slice 2}
-tournament_update_entry: {pending: slice 2}
+tournament_add_entry_member:
+  surface: call
+  level: undo
+  describe: Add a player to a tournament team.
+  say: ["add Mateo to the Gearheads", "put Leo on team 2", "add Ana to that entry"]
+  args:
+    p_entry_id: {name: team, describe: "The team's id, from the tournament's entries."}
+    p_name: {name: name, describe: "The player's name as shown."}
+    p_email: {name: email, describe: "The player's school address, to link their account."}
+  undo:
+    - function: tournament_remove_entry_member
+      args: {p_member_id: $result}
+
+tournament_add_host:
+  surface: call
+  level: confirm
+  describe: Make someone a co-host of a tournament; it asks first because there is no way to remove a host.
+  say: ["make Mr. Cosso a host of Blade Night", "add a co-host", "let Leo help host"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_user_id: {name: account, describe: "Their account id."}
+    p_email: {name: email, describe: "Their school address."}
+
+tournament_create:
+  surface: tool
+  tool: create_tournament
+  level: undo
+  describe: Create a new tournament in draft, ready to set up and seed; running it stays on the site.
+  say: ["set up a tournament called Blade Night", "create a tournament for the trophy race", "make a new bracket called Shop Fix Showdown"]
+  args:
+    p_name: {name: name, describe: "The tournament's name."}
+    p_description: {name: description, describe: "What it is, in a sentence."}
+    p_config: {name: format, describe: "The format settings, as the tournament setup page saves them; leave it out for the defaults."}
+  undo:
+    - function: tournament_delete
+      args: {p_tournament_id: $result, p_confirm_name: $args.p_name, p_acknowledge_payout_loss: false}
+
+tournament_delete:
+  surface: call
+  level: confirm
+  describe: Delete a tournament with its entries, bracket and history; it asks first and needs the name typed exactly.
+  say: ["delete the test tournament", "remove Blade Night", "get rid of last year's bracket"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_confirm_name: {name: confirm, describe: "The tournament's name, exactly, to confirm."}
+    p_acknowledge_payout_loss: {name: payouts, describe: "True only if he agreed that its coin payout record goes with it."}
+
+tournament_generate_qual_pools:
+  surface: call
+  level: confirm
+  describe: Draw a tournament's qualifying pools and their matches; it asks first because a new draw replaces the old one.
+  say: ["make four qualifying pools for Blade Night", "draw the pools", "set up qualifying with three pools"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_pool_count: {name: pools, describe: "How many pools."}
+
+tournament_host_add_entry:
+  surface: tool
+  tool: add_tournament_entry
+  level: undo
+  describe: Add a team or player to a tournament you are setting up.
+  say: ["add the Block 2 Gearheads to Blade Night", "enter Mateo in the tournament", "add a team called Torque"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id, from creating it or from the tournaments list."}
+    p_display_name: {name: name, describe: "The team or player name as shown."}
+    p_description: {name: description, describe: "A line about them."}
+    p_thumbnail_url: {name: picture, describe: "A picture's address, if any."}
+    p_linked_user_id: {name: account, describe: "A player's account id, to link a one-person entry."}
+  undo:
+    - function: tournament_remove_entry
+      args: {p_entry_id: $result}
+
+tournament_join_entry:
+  exclude: A player joining a team for themselves; it acts as the caller.
+
+tournament_live_config_apply:
+  exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); changing a running tournament's format is done on the site.
+tournament_live_config_preview:
+  exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); changing a running tournament's format is done on the site.
+tournament_ping_entry:
+  exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); calling a team to its match is done on the site.
+
+tournament_register_entry:
+  exclude: A player registering their own entry; it acts as the caller.
+
+tournament_remove_entry:
+  surface: call
+  level: confirm
+  describe: Remove a team or player from a tournament being set up; it asks first.
+  say: ["remove Torque from Blade Night", "take the duplicate entry out", "drop Mateo's entry"]
+  args:
+    p_entry_id: {name: team, describe: "The entry's id."}
+
+tournament_remove_entry_member:
+  surface: call
+  level: confirm
+  describe: Take a player off a tournament team; it asks first.
+  say: ["take Leo off the Gearheads", "remove that player from team 2", "Ana isn't on Torque"]
+  args:
+    p_member_id: {name: player, describe: "The player's id on the team, from the entries."}
+
+tournament_rename_entry_member:
+  surface: call
+  level: undo
+  describe: Change how a player's name shows on a tournament team.
+  say: ["show Mateo as Mateo R", "rename that player", "fix Leo's name on the team"]
+  args:
+    p_member_id: {name: player, describe: "The player's id on the team."}
+    p_name: {name: name, describe: "The name to show."}
+  before:
+    table: tournament_entry_members
+    columns: [name]
+    eq: {id: $args.p_member_id}
+  undo:
+    - function: tournament_rename_entry_member
+      args: {p_member_id: $args.p_member_id, p_name: $before.name}
+
+tournament_reorder_seed:
+  surface: call
+  level: undo
+  describe: Move a team to a different seed in a tournament being set up.
+  say: ["make the Gearheads the first seed", "move Torque to seed 4", "swap the top seed"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_entry_id: {name: team, describe: "The entry's id."}
+    p_new_position: {name: seed, describe: "The new seed number."}
+  before:
+    table: tournament_entries
+    columns: [seed]
+    eq: {id: $args.p_entry_id}
+  undo:
+    - function: tournament_reorder_seed
+      args: {p_tournament_id: $args.p_tournament_id, p_entry_id: $args.p_entry_id, p_new_position: $before.seed}
+
+tournament_respond_invite:
+  exclude: A player answering their own invitation; it acts as the caller.
+
+tournament_reward_settlement:
+  surface: call
+  level: read
+  describe: What a tournament has paid out in coins, and what it would pay.
+  say: ["what did Blade Night pay out", "show the tournament's coin rewards", "who got coins from the bracket"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+
+tournament_send_invite:
+  surface: call
+  level: confirm
+  describe: Invite a player to enter a tournament; it asks first because an invitation cannot be withdrawn.
+  say: ["invite Mateo to Blade Night", "send Leo an invite", "invite Ana to enter"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_invited_user_id: {name: account, describe: "Their account id."}
+    p_email: {name: email, describe: "Their school address."}
+
+tournament_set_entry_style:
+  surface: call
+  level: confirm
+  describe: Set a tournament team's banner look; it asks first because the old look is not kept.
+  say: ["give the Gearheads a blue banner", "set Torque's badge to a lightning bolt", "change team 2's motto"]
+  args:
+    p_entry_id: {name: team, describe: "The entry's id."}
+    p_background_type: {name: background, describe: "solid, gradient or image."}
+    p_background_value: {name: colors, describe: "The background's colors, or the image."}
+    p_accent_color: {name: color, describe: "A color as a hex value like #2a9d8f."}
+    p_badge: {name: badge, describe: "A badge name from the site's badge list."}
+    p_flourish: {name: flourish, describe: "A flourish name from the site's list."}
+    p_tagline: {name: motto, describe: "The team's motto."}
+
+tournament_set_reward_rules:
+  surface: call
+  level: confirm
+  describe: Set how many coins a tournament pays for each place; it asks first because the old rules are not kept.
+  say: ["pay 10 coins to the winner of Blade Night", "set the tournament rewards", "second place gets 5"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_rules: {name: rules, describe: "The reward for each place, as the tournament setup page saves them."}
+
+tournament_set_status:
+  surface: call
+  # Registration and seeding move back and forth; opening a draft for
+  # registration cannot be taken back (the site has no way back to draft).
+  level_when:
+    - {if: "$before.status = draft", level: confirm}
+    - {else: undo}
+  describe: Open a tournament for registration (asks first, it cannot go back to a draft), or move it between registration and seeding.
+  say: ["open registration for Blade Night", "close registration and start seeding", "reopen registration"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_status: {name: status, enum: [registration_open, seeding], describe: "registration open, or seeding."}
+  before:
+    table: tournaments
+    columns: [status]
+    eq: {id: $args.p_tournament_id}
+  undo:
+    - when: "$before.status = registration_open"
+      function: tournament_set_status
+      args: {p_tournament_id: $args.p_tournament_id, p_status: registration_open}
+    - when: "$before.status = seeding"
+      function: tournament_set_status
+      args: {p_tournament_id: $args.p_tournament_id, p_status: seeding}
+
+tournament_shuffle_seeds:
+  surface: call
+  level: confirm
+  describe: Shuffle a tournament's seeds at random; it asks first because the old order is not kept.
+  say: ["shuffle the seeds for Blade Night", "randomize the bracket", "mix up the seeds"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+
+tournament_start_match:
+  exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); starting a match is done on the site.
+tournament_submit_qual_result:
+  exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); entering a score is done on the site.
+
+tournament_update:
+  surface: call
+  level: undo
+  describe: Change a tournament's name, description or format while you set it up.
+  say: ["rename Blade Night to Blade Bash", "change the tournament's description", "make the matches best of three"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_name: {name: name, describe: "The new name."}
+    p_description: {name: description, describe: "The new description."}
+    p_config: {name: format, describe: "The new format settings, as the setup page saves them."}
+  before:
+    table: tournaments
+    columns: [name, description, config]
+    eq: {id: $args.p_tournament_id}
+  undo:
+    - function: tournament_update
+      args: {p_tournament_id: $args.p_tournament_id, p_name: $before.name, p_description: $before.description, p_config: $before.config}
+
+tournament_update_entry:
+  surface: call
+  level: undo
+  describe: Change a tournament team's name, description or picture.
+  say: ["rename the Gearheads to Gear Grinders", "change Torque's description", "fix team 2's name"]
+  args:
+    p_entry_id: {name: team, describe: "The entry's id."}
+    p_display_name: {name: name, describe: "The new name."}
+    p_description: {name: description, describe: "The new description."}
+    p_thumbnail_url: {name: picture, describe: "A picture's address."}
+  before:
+    table: tournament_entries
+    columns: [display_name, description, thumbnail_url]
+    eq: {id: $args.p_entry_id}
+  undo:
+    - function: tournament_update_entry
+      args: {p_entry_id: $args.p_entry_id, p_display_name: $before.display_name, p_description: $before.description, p_thumbnail_url: $before.thumbnail_url}

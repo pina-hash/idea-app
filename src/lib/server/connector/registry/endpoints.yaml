@@ -1,84 +1,149 @@
-# SERVER ENDPOINTS, keyed by route (every method of it). Ledger 0401 decides which are real
-# functions reachable through site_call (in-process with the minted session) and which are
-# excluded with a reason. The connector's own routes are excluded here: they are how it signs in.
+# SERVER ENDPOINTS, keyed by route (every method of it). An entry with
+# `surface: call` is a real action a person takes by hand; site_call runs its
+# handler in-process with his own session (src/lib/server/connector/endpoints.ts),
+# exactly as the browser does, audited, and, for a change, asked first. Every
+# other route is excluded with its reason: a file's bytes, a page served to a
+# browser, someone signing in, a scheduled job, or a student's own action.
 
 "/.well-known/oauth-authorization-server": {exclude: "The connector's own sign-in or transport, never a tool."}
 "/.well-known/oauth-protected-resource": {exclude: "The connector's own sign-in or transport, never a tool."}
 "/.well-known/oauth-protected-resource/mcp": {exclude: "The connector's own sign-in or transport, never a tool."}
-"/_platform/[...asset]": {pending: slice 2}
-"/a/[appId]/[...path]": {pending: slice 2}
-"/admin/drive-connect": {pending: slice 2}
-"/admin/drive-connect/callback": {pending: slice 2}
-"/api/armory/blob-url": {pending: slice 2}
-"/api/armory/connect/exchange": {pending: slice 2}
-"/api/armory/connect/start": {pending: slice 2}
-"/api/armory/purge": {pending: slice 2}
-"/api/armory/sweep": {pending: slice 2}
-"/api/avatar/[...path]": {pending: slice 2}
-"/api/certifications/award": {pending: slice 2}
-"/api/certifications/correct": {pending: slice 2}
-"/api/certifications/evidence/[...path]": {pending: slice 2}
-"/api/certifications/evidence/sign": {pending: slice 2}
-"/api/certifications/export": {pending: slice 2}
-"/api/certifications/jobs/[job]": {pending: slice 2}
-"/api/certifications/package/export/[id]": {pending: slice 2}
-"/api/certifications/package/import": {pending: slice 2}
-"/api/classroom/attachment": {pending: slice 2}
-"/api/classroom/attachment/[attachment_id]": {pending: slice 2}
-"/api/classroom/attachment/sign": {pending: slice 2}
-"/api/classroom/deck": {pending: slice 2}
-"/api/classroom/deck/[deck_id]/[...path]": {pending: slice 2}
-"/api/classroom/delete-content": {pending: slice 2}
-"/api/classroom/export": {pending: slice 2}
-"/api/classroom/html-assignment-source/[itemId]": {pending: slice 2}
-"/api/classroom/instructor-attachment": {pending: slice 2}
-"/api/classroom/instructor-attachment/[attachment_id]": {pending: slice 2}
-"/api/classroom/instructor-attachment/sign": {pending: slice 2}
-"/api/classroom/item": {pending: slice 2}
-"/api/classroom/link-preview": {pending: slice 2}
-"/api/classroom/quick-post-file": {pending: slice 2}
-"/api/classroom/quick-post-file/[file_id]": {pending: slice 2}
-"/api/classroom/quick-post-file/sign": {pending: slice 2}
-"/api/classroom/submission-file": {pending: slice 2}
-"/api/classroom/submission-file/[file_id]": {pending: slice 2}
-"/api/classroom/submission-file/sign": {pending: slice 2}
-"/api/classroom/thumbnail": {pending: slice 2}
-"/api/classroom/thumbnail/[itemId]": {pending: slice 2}
-"/api/classroom/thumbnail/sign": {pending: slice 2}
-"/api/coin/autopay": {pending: slice 2}
-"/api/coin/claim": {pending: slice 2}
-"/api/coin/digest-push": {pending: slice 2}
-"/api/coin/me": {pending: slice 2}
-"/api/coin/public": {pending: slice 2}
-"/api/coin/role-apply": {pending: slice 2}
-"/api/coin/signin": {pending: slice 2}
-"/api/feedback": {pending: slice 2}
-"/api/foundry-cover/[...path]": {pending: slice 2}
-"/api/foundry/delete": {pending: slice 2}
-"/api/foundry/source": {pending: slice 2}
-"/api/greenline-track-publish": {pending: slice 2}
-"/api/notebook/add-note": {pending: slice 2}
-"/api/notebook/add-photo": {pending: slice 2}
-"/api/notebook/edit-note": {pending: slice 2}
-"/api/notebook/note": {pending: slice 2}
-"/api/notebook/photo/[photo_id]": {pending: slice 2}
-"/api/notebook/session-guidance": {pending: slice 2}
-"/api/notebook/upload": {pending: slice 2}
-"/api/tournament-push": {pending: slice 2}
-"/api/vanguard-feedback": {pending: slice 2}
-"/api/vanguard-run-state": {pending: slice 2}
-"/api/vanguard-run": {pending: slice 2}
-"/api/vanguard-save": {pending: slice 2}
-"/armory/[project]/file/[file]/version/[version]": {pending: slice 2}
-"/armory/download/[file]": {pending: slice 2}
-"/armory/get": {pending: slice 2}
-"/assignments/[slug]": {pending: slice 2}
-"/auth/callback": {pending: slice 2}
-"/b/[appId]/[versionId]/[...path]": {pending: slice 2}
-"/certifications/lesson/[lessonId]": {pending: slice 2}
-"/certifications/verify/public-key": {pending: slice 2}
-"/classroom/[sectionId]/duplicates/remove": {pending: slice 2}
-"/coins/[...path]": {pending: slice 2}
+"/_platform/[...asset]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/a/[appId]/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/admin/drive-connect": {exclude: "Part of someone signing in to the site or connecting a device; never a tool."}
+"/admin/drive-connect/callback": {exclude: "Part of someone signing in to the site or connecting a device; never a tool."}
+"/api/armory/blob-url": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/armory/connect/exchange": {exclude: "Part of someone signing in to the site or connecting a device; never a tool."}
+"/api/armory/connect/start": {exclude: "Part of someone signing in to the site or connecting a device; never a tool."}
+"/api/armory/purge":
+  surface: call
+  tool: delete_project_forever
+  level: confirm
+  method: POST
+  describe: Delete an archived Armory project forever, with every version and stored file only it uses; it asks first and needs the name typed exactly.
+  say: ["delete the old robot project forever", "purge last season's Armory project", "permanently remove the trophy project"]
+  args:
+    project: {type: string, required: true, describe: "The archived project's id, from your Armory projects."}
+    name: {type: string, required: true, describe: "The project's name, typed exactly, to confirm."}
+  body: {projectId: $args.project, confirmName: $args.name, operation: $uuid}
+  preview: {function: armory_purge_preview, args: {p_project: $args.project}}
+"/api/armory/sweep":
+  surface: call
+  tool: armory_storage_cleanup
+  level: confirm
+  method: POST
+  describe: Remove from storage the Armory files no project uses any more; it asks first.
+  say: ["clean up Armory storage", "finish the Armory cleanup", "delete the orphaned Armory files"]
+  preview: {function: armory_orphans_count, args: {}}
+"/api/avatar/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/api/certifications/award":
+  surface: call
+  tool: issue_certification
+  level: confirm
+  method: POST
+  describe: Issue a certification a student has earned, with its signed serial; it asks first because it is a signed public record.
+  say: ["issue the SolidWorks Level 1 certification to Leo", "award Mateo his CNC cert", "give Ana her 3D printing certification"]
+  args:
+    attempt: {type: string, required: true, describe: "The student's passed attempt, by its id from the certifier desk."}
+  body: {attempt_id: $args.attempt}
+  preview: {function: cert_award_prepare, args: {p_attempt: $args.attempt}}
+"/api/certifications/correct":
+  surface: call
+  tool: correct_certification
+  level: confirm
+  method: POST
+  describe: Correct the name or address on an issued certification and re-sign it, with the reason; it asks first because it is a signed public record.
+  say: ["fix the name on Leo's certificate", "correct Mateo's certification email", "Ana's certificate has a typo"]
+  args:
+    award: {type: string, required: true, describe: "The award's id."}
+    holder: {type: string, required: true, describe: "The name exactly as it should read."}
+    email: {type: string, required: true, describe: "The holder's school address."}
+    reason: {type: string, required: true, describe: "Why it is being corrected."}
+  body: {award_id: $args.award, holder_name: $args.holder, email: $args.email, reason: $args.reason}
+  preview: {function: cert_award_get, args: {p_id: $args.award}}
+"/api/certifications/evidence/[...path]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/certifications/evidence/sign": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/certifications/export": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/certifications/jobs/[job]": {exclude: "A scheduled job; it runs on its own time, never from a chat."}
+"/api/certifications/package/export/[id]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/certifications/package/import": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/attachment": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/attachment/[attachment_id]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/attachment/sign": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/deck": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/deck/[deck_id]/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/api/classroom/delete-content": {exclude: "The site's delete route; the connector's delete post deletes through the same function, audited and asked first, and sweeps the same Drive files afterward."}
+"/api/classroom/export": {exclude: "Runs on its own after every save to copy a post to the repository; never a person's action."}
+"/api/classroom/html-assignment-source/[itemId]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/instructor-attachment": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/instructor-attachment/[attachment_id]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/instructor-attachment/sign": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/item": {exclude: "The site's editor route in front of a function the connector calls directly, audited and previewed."}
+"/api/classroom/link-preview": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/api/classroom/quick-post-file": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/quick-post-file/[file_id]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/quick-post-file/sign": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/submission-file": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/submission-file/[file_id]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/submission-file/sign": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/thumbnail": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/classroom/thumbnail/[itemId]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/api/classroom/thumbnail/sign": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/api/coin/autopay": {exclude: "A scheduled job; it runs on its own time, never from a chat."}
+"/api/coin/claim": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/coin/digest-push": {exclude: "A scheduled job; it runs on its own time, never from a chat."}
+"/api/coin/me": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/coin/public": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/api/coin/role-apply": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/coin/signin": {exclude: "Part of someone signing in to the site or connecting a device; never a tool."}
+"/api/feedback": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/foundry-cover/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/api/foundry/delete":
+  surface: call
+  tool: delete_foundry_app
+  level: confirm
+  method: POST
+  describe: Delete a Foundry app, or one version of it, with its stored files, for good; it asks first.
+  say: ["delete the test app from the Foundry", "remove that old version of Cookie Press", "delete Leo's broken upload"]
+  args:
+    app: {type: string, describe: "The app's id, to delete the whole app."}
+    version: {type: string, describe: "One version's id, to delete only that version."}
+  body: {appId: $args.app, versionId: $args.version}
+"/api/foundry/source":
+  surface: call
+  tool: read_foundry_source
+  level: read
+  method: POST
+  describe: Read the source files of a Foundry app version, as the review queue shows them.
+  say: ["show me Cookie Press's code", "read the version's index file", "what files are in that upload"]
+  args:
+    app: {type: string, required: true, describe: "The app's id."}
+    version: {type: string, required: true, describe: "The version's id."}
+    path: {type: string, describe: "One file's path in the version; leave it out to list the files."}
+  body: {appId: $args.app, versionId: $args.version, path: $args.path}
+"/api/greenline-track-publish": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/notebook/add-note": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/notebook/add-photo": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/notebook/edit-note": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/notebook/note": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/notebook/photo/[photo_id]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/api/notebook/session-guidance": {exclude: "The site's editor route in front of a function the connector calls directly, audited and previewed."}
+"/api/notebook/upload": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/tournament-push": {exclude: "Live tournament operation stays manual (Mr. Pina, 2026-10-17); this calls a team to its match."}
+"/api/vanguard-feedback": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/api/vanguard-run-state": {exclude: "A game's own save and run data, written by the game as the player plays."}
+"/api/vanguard-run": {exclude: "A game's own save and run data, written by the game as the player plays."}
+"/api/vanguard-save": {exclude: "A game's own save and run data, written by the game as the player plays."}
+"/armory/[project]/file/[file]/version/[version]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/armory/download/[file]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/armory/get": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/assignments/[slug]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/auth/callback": {exclude: "Part of someone signing in to the site or connecting a device; never a tool."}
+"/b/[appId]/[versionId]/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/certifications/lesson/[lessonId]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/certifications/verify/public-key": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/classroom/[sectionId]/duplicates/remove": {exclude: "A gate in front of the delete route for the duplicates page; delete post asks first and covers one copy at a time."}
+"/coins/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
 "/connector/register": {exclude: "The connector's own sign-in or transport, never a tool."}
 "/connector/revoke": {exclude: "The connector's own sign-in or transport, never a tool."}
 "/connector/token": {exclude: "The connector's own sign-in or transport, never a tool."}
@@ -102,12 +167,14 @@
 "/dev/html-instructor/copy/doc": {exclude: "A dev harness route; it answers 404 in production."}
 "/dev/maps-media/o/[...path]": {exclude: "A dev harness route; it answers 404 in production."}
 "/dev/notebook/normalize": {exclude: "A dev harness route; it answers 404 in production."}
-"/foundry/download/[appId]/[versionId]": {pending: slice 2}
-"/foundry/preview/[appId]/[versionId]/[...path]": {pending: slice 2}
-"/foundry/starter": {pending: slice 2}
-"/frc/[domain]/[unit]/quiz": {pending: slice 2}
-"/hx/[docId]": {pending: slice 2}
-"/hx/[docId]/thumbnail": {pending: slice 2}
+"/foundry/download/[appId]/[versionId]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/foundry/preview/[appId]/[versionId]/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/foundry/starter": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
+"/frc/[domain]/[unit]/quiz": {exclude: "A student's or visitor's own action on their own record; it acts as the caller."}
+"/hx/[docId]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/hx/[docId]/thumbnail": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
 "/mcp": {exclude: "The connector's own sign-in or transport, never a tool."}
-"/sitemap.xml": {pending: slice 2}
-"/vanguard": {pending: slice 2}
+"/mcp/practice": {exclude: "The connector's own practice endpoint, where nothing is written; never a tool."}
+"/mcp/practice/oauth-protected-resource": {exclude: "The connector's own sign-in metadata for the practice endpoint; never a tool."}
+"/sitemap.xml": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
+"/vanguard": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}

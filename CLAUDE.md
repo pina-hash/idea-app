@@ -3065,10 +3065,10 @@ for a signed-out visitor on every other path.
 ### THE IDEA WEBSITE CONNECTOR -- Claude acting as an admin, through the site's own functions
 
 **`https://ideabosco.com/mcp` IS A REMOTE MCP SERVER THAT LETS A SITE ADMIN DO
-FROM ANY CLAUDE CHAT WHAT THEY DO ON THE SITE BY HAND, AS THEMSELVES (ledger
-0400, migrations 0270 and 0271).** `docs/connector/DESIGN.md` is the spec,
-decided by Mr. Pina on 2026-10-17, with a "What 0400 built" note at its end;
-`docs/connector/EVALS.md` is the finish line. The site is its own OAuth server
+FROM ANY CLAUDE CHAT WHAT THEY DO ON THE SITE BY HAND, AS THEMSELVES (ledgers
+0400 and 0401, migrations 0270 through 0272).** `docs/connector/DESIGN.md` is
+the spec, decided by Mr. Pina on 2026-10-17, with "What 0400 built" and "What
+0401 built" notes at its end; `docs/connector/EVALS.md` is the finish line. The site is its own OAuth server
 (`src/lib/server/connector/oauth.ts`): the two `.well-known` documents,
 `/connector/authorize` (the consent card, the site's own Google session being
 the sign-in), `/connector/token`, `/connector/register` and `/connector/revoke`.
@@ -3121,11 +3121,43 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
   whole migration chain, and the hand-written YAML overlay in
   `src/lib/server/connector/registry/` (the only layer anybody edits; `tools.yaml`
   holds the voice-shaped facades). `npm run connector:build` regenerates the
-  three generated JSON files, and `tests/connector-coverage.test.ts` fails on a
-  stale one and on any function or endpoint with no tool, call entry,
-  exclusion reason or (until ledger 0401) `pending: slice 2`. **A NEW
-  `.rpc('name')` OR A NEW `+server.ts` ANYWHERE IN THE SITE REDDENS THAT TEST
-  UNTIL THE OVERLAY ANSWERS FOR IT AND THE BUILD IS RE-RUN.**
+  three generated JSON files and the safety-level table in
+  `docs/connector/DESIGN.md` section 7, and `tests/connector-coverage.test.ts`
+  fails on a stale one and on any function or endpoint with no tool, call
+  entry or exclusion reason (the `pending: slice 2` allowance went with ledger
+  0401). **A NEW `.rpc('name')` OR A NEW `+server.ts` ANYWHERE IN THE SITE
+  REDDENS THAT TEST UNTIL THE OVERLAY ANSWERS FOR IT AND THE BUILD IS RE-RUN**,
+  and a new write entry also needs a sample in `tests/db/connector-samples.ts`,
+  which the permission and level suites both refuse to run without, and every
+  table its rows land in named in `src/lib/server/connector/log-tables.ts`
+  (synced into `connector_log_tables` by the server, never by a migration).
+- **A LEVEL MAY DEPEND ON THE ARGUMENTS OR ON WHAT IS THERE BEFORE, AND THE
+  SERVER DECIDES IT (`level_when`, `levelFor`).** A condition names an argument
+  (`p_amount > 0`) or a value the entry's own `before` read found as him
+  (`$before.found`, `$before.status = draft`); the branch with no reverse asks
+  first. An undo entry names its reverse from `$before`, `$args`, `$result`,
+  `$written` or `$user`, and `tests/db/connector-levels.test.ts` runs every one
+  and judges the reversal on the log tables; a reversal that leaves a record on
+  purpose (a revoked grade, a removed note) is named there with its reason.
+- **A SITE ROUTE IS RUN IN-PROCESS AS HIM, NEVER FETCHED.** An endpoint `call`
+  entry is one of the literal imports in `src/lib/server/connector/endpoints.ts`,
+  handed `locals.supabase` on the minted session, so every gate in the route
+  decides as on the site; it is audited by `connector_endpoint_begin`/`_finish`
+  (0272). A route added there gains no caller it did not have.
+- **EVERY TOOL TAKES `said`, HIS WORDS, AND THE SERVER KEEPS THEM (0272).**
+  `connector_request_log` writes the request and appends a saved request
+  (`connector_evals`) for words it has not seen; `site_call` on a name the
+  registry lacks, and `report_gap`, write an open gap (`connector_gaps`), shown
+  on `/admin/feedback/connector`, where Built takes the ledger that built it.
+  These are definer functions re-checking `is_admin()`, with no client grant
+  and no policy on the tables. `docs/connector/EVALS.md` is GENERATED from the
+  table by `tools/connector/evals/export.mjs` (`--json` takes the download on
+  `/admin/connector`); never edit it by hand.
+- **`/mcp/practice` IS THE SAME SERVER WITH EVERY WRITE A PREVIEW, FIXED BY THE
+  URL, NEVER BY AN ARGUMENT.** Nothing commits and nothing is logged there
+  except a replay result (`record_eval_result`), and
+  `tests/db/connector-requests.test.ts` drives every write entry through it and
+  holds every log table and connector table unchanged.
 - **NAMES ARE RESOLVED AGAINST THE CLASSES THE ADMIN TEACHES, NEVER GUESSED.**
   `src/lib/server/connector/resolve.ts` looks at sections where the admin is
   teacher of record (an admin manages every section, so "manages" would be the

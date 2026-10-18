@@ -263,12 +263,19 @@ export function supabaseConnectorBackend(): ConnectorBackend {
 				expiresAt: Date.parse(r.expires_at)
 			};
 		},
-		async syncRegistry(rows) {
-			if (rows.length === 0) return;
-			const { error } = await serviceClient()
-				.from('connector_registry')
-				.upsert(rows.map((r) => ({ ...r, updated_at: new Date().toISOString() })), { onConflict: 'function_name' });
-			if (error) unavailable(error);
+		async syncRegistry(rows, logTables = []) {
+			if (rows.length > 0) {
+				const { error } = await serviceClient()
+					.from('connector_registry')
+					.upsert(rows.map((r) => ({ ...r, updated_at: new Date().toISOString() })), { onConflict: 'function_name' });
+				if (error) unavailable(error);
+			}
+			if (logTables.length > 0) {
+				const { error } = await serviceClient()
+					.from('connector_log_tables')
+					.upsert(logTables.map((t) => ({ table_name: t, note: 'registry' })), { onConflict: 'table_name', ignoreDuplicates: true });
+				if (error) unavailable(error);
+			}
 		},
 		async setAuditUndo(auditId, undo) {
 			const { error } = await serviceClient().from('connector_audit').update({ undo }).eq('id', auditId);
@@ -307,6 +314,9 @@ export function supabaseConnectorBackend(): ConnectorBackend {
 
 		// ---- The user half: as the minted user. ----
 
+		routeClient(session: UserSession) {
+			return userClient(session.accessToken);
+		},
 		async rpc<T>(session: UserSession, fn: string, args: Record<string, unknown>): Promise<DbResult<T>> {
 			const { data, error } = await userClient(session.accessToken).rpc(fn, args);
 			if (error) return { data: null, error: dbError(error) };

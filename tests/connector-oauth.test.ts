@@ -123,6 +123,20 @@ describe('metadata and the 401', () => {
 		expect(res.headers.get('www-authenticate')).toContain(`resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp"`);
 	});
 
+	it('the practice endpoint answers 401 with its OWN metadata, which names /mcp/practice as the resource under the same sign-in', async () => {
+		const route = await import('../src/routes/mcp/practice/+server');
+		const res = await route.POST({ request: rpc(null, { jsonrpc: '2.0', id: 1, method: 'tools/list' }), url: new URL(`${ORIGIN}/mcp/practice`) } as never);
+		expect(res.status).toBe(401);
+		const pointer = /resource_metadata="([^"]+)"/.exec(res.headers.get('www-authenticate') ?? '')?.[1];
+		expect(pointer).toBe(`${ORIGIN}/mcp/practice/oauth-protected-resource`);
+		const meta = await import('../src/routes/mcp/practice/oauth-protected-resource/+server');
+		const body = await (await meta.GET({ url: new URL(pointer!) } as never)).json();
+		expect(body).toMatchObject({ resource: `${ORIGIN}/mcp/practice`, authorization_servers: [ORIGIN] });
+		// The real connector's metadata still names /mcp.
+		const real = await import('../src/routes/.well-known/oauth-protected-resource/mcp/+server');
+		expect((await (await real.GET({ url: new URL(`${ORIGIN}/.well-known/oauth-protected-resource/mcp`) } as never)).json()).resource).toBe(`${ORIGIN}/mcp`);
+	});
+
 	it('refuses a registration that would send codes anywhere but Claude or this computer', async () => {
 		const res = await handleRegister(
 			new Request(`${ORIGIN}/connector/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ redirect_uris: ['https://evil.example/cb'] }) }),

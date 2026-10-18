@@ -302,3 +302,31 @@ connector_disconnect:
     - disconnect this phone
     - sign this connection out
     - revoke Claude's access from here
+
+report_gap:
+  facade: true
+  level: undo
+  uses: []
+  describe: Record something he asked for that the site cannot do yet, so it reaches the feedback list and gets built; nothing else changes.
+  say:
+    - make a seating chart for Block 2
+    - email every parent in Block 4
+    - print the roster with photos
+  args:
+    missing: {type: string, required: true, describe: "What the site would need to be able to do, in plain words."}
+    tried: {type: array, items: string, describe: "The tools or actions you tried, in order."}
+
+record_eval_result:
+  facade: true
+  level: undo
+  uses: []
+  describe: Record whether one practice run of a saved request passed, for the nightly check of the request list; it writes nothing on the site.
+  say:
+    - record that request 12 passed
+    - mark the coin award check as failed
+    - log tonight's result for the roster check
+  args:
+    request: {type: integer, required: true, describe: "The saved request's number, from the request list."}
+    passed: {type: boolean, required: true, describe: "True if it did what the request list says it must."}
+    path: {type: array, items: string, describe: "The tools you called for it, in order."}
+    note: {type: string, describe: "What went wrong, when it failed."}

@@ -1,26 +1,191 @@
 # ARMORY FUNCTIONS. The shape is described at the top of classroom.yaml.
+#
+# An argument with `fill: uuid` is filled by the server with a fresh id when it
+# is left out: the Armory takes an operation id on every write so the Windows
+# app can retry without doubling, and a person never says one.
 
-# Not reachable yet: ledger 0401 gives each of these a tool, a call entry or an exclusion with its reason.
-armory_app_feedback_admin_list: {pending: slice 2}
-armory_app_feedback_set_status: {pending: slice 2}
-armory_app_incident_set_status: {pending: slice 2}
-armory_app_incidents_admin_list: {pending: slice 2}
-armory_break_lock: {pending: slice 2}
-armory_break_locks: {pending: slice 2}
-armory_can_take_back: {pending: slice 2}
-armory_create_project: {pending: slice 2}
-armory_file_history: {pending: slice 2}
-armory_is_member: {pending: slice 2}
-armory_list_changes: {pending: slice 2}
-armory_my_projects: {pending: slice 2}
-armory_orphans_count: {pending: slice 2}
-armory_orphans_pending: {pending: slice 2}
-armory_orphans_swept: {pending: slice 2}
-armory_people_search: {pending: slice 2}
-armory_project_checkouts: {pending: slice 2}
-armory_project_files: {pending: slice 2}
-armory_project_summaries: {pending: slice 2}
-armory_purge_preview: {pending: slice 2}
-armory_purge_project: {pending: slice 2}
-armory_register_device: {pending: slice 2}
-armory_team_status: {pending: slice 2}
+armory_app_feedback_admin_list:
+  surface: call
+  level: read
+  describe: The notes people sent from the IDEA Armory Windows app, newest first.
+  say: ["what feedback came in from the Armory app", "show Armory app notes", "any new Armory complaints"]
+  args:
+    p_limit: {name: count, describe: "How many to list."}
+
+armory_app_feedback_set_status:
+  surface: call
+  level: undo
+  describe: Move a note from the Armory app to a new status, such as reviewed or done.
+  say: ["mark that Armory note done", "set the Armory feedback to reviewing", "close the Armory app note"]
+  args:
+    p_id: {name: note, describe: "The note's id, from the Armory app notes."}
+    p_status: {name: status, describe: "The new status, as the feedback console names it."}
+  before:
+    table: armory_app_feedback
+    columns: [status]
+    eq: {id: $args.p_id}
+  undo:
+    - function: armory_app_feedback_set_status
+      args: {p_id: $args.p_id, p_status: $before.status}
+
+armory_app_incident_set_status:
+  surface: call
+  level: undo
+  describe: Move an incident report from the Armory app to a new status, such as reviewed or done.
+  say: ["mark that Armory incident done", "set the crash report to reviewing", "close the Armory incident"]
+  args:
+    p_id: {name: incident, describe: "The incident's id, from the Armory incidents."}
+    p_status: {name: status, describe: "The new status, as the feedback console names it."}
+  before:
+    table: armory_app_incidents
+    columns: [status]
+    eq: {id: $args.p_id}
+  undo:
+    - function: armory_app_incident_set_status
+      args: {p_id: $args.p_id, p_status: $before.status}
+
+armory_app_incidents_admin_list:
+  surface: call
+  level: read
+  describe: The incident reports the IDEA Armory Windows app sent, newest first.
+  say: ["any Armory crash reports", "show Armory incidents", "what went wrong in the Armory app"]
+  args:
+    p_limit: {name: count, describe: "How many to list."}
+
+armory_break_lock:
+  surface: call
+  level: confirm
+  describe: Force check in one file a student has checked out in the Armory, so others can edit it; it asks first.
+  say: ["force check in the gearbox part", "take back Mateo's checkout on the frame", "unlock that file"]
+  args:
+    p_file: {name: file, describe: "The file's id, from the project's checkouts."}
+    p_device: {name: computer, default: null, describe: "Leave it out; the site sends none."}
+    p_operation: {name: operation, fill: uuid, describe: "Leave it out; the server fills it."}
+
+armory_break_locks:
+  surface: call
+  level: confirm
+  describe: Force check in several Armory files at once; it asks first because it is a bulk change.
+  say: ["force check in everything Mateo has", "take back all checkouts on the robot project", "unlock every file in the drivetrain folder"]
+  args:
+    p_files: {name: files, describe: "Every file's id, from the project's checkouts."}
+    p_device: {name: computer, default: null, describe: "Leave it out; the site sends none."}
+    p_operation: {name: operation, fill: uuid, describe: "Leave it out; the server fills it."}
+
+armory_can_take_back:
+  surface: call
+  level: read
+  describe: Whether you can force check in files on an Armory project.
+  say: ["can I take back files on the robot project", "am I allowed to force check in here", "do I have take back on that project"]
+  args:
+    p_project: {name: project, describe: "The project's id, from your Armory projects."}
+
+armory_create_project:
+  surface: call
+  level: confirm
+  describe: Create a new Armory project for CAD files; it asks first because a project is only removed by Delete forever.
+  say: ["create an Armory project called Robot 2027", "make a new CAD project for the season", "start an Armory project for the trophy"]
+  args:
+    p_name: {name: name, describe: "The project's name; it becomes a folder name on every computer."}
+    p_season: {name: season, describe: "The season's year, like 2027."}
+    p_operation: {name: operation, fill: uuid, describe: "Leave it out; the server fills it."}
+
+armory_file_history:
+  surface: call
+  level: read
+  describe: Every saved version of one Armory file, with who saved it and when.
+  say: ["show the history of the gearbox part", "who changed the frame last", "list versions of that file"]
+  args:
+    p_file: {name: file, describe: "The file's id, from the project's files."}
+
+armory_is_member:
+  surface: call
+  level: read
+  describe: Whether you are on an Armory project's team.
+  say: ["am I on the robot project", "am I a member of that project", "do I belong to the trophy project"]
+  args:
+    p_project: {name: project, describe: "The project's id."}
+
+armory_list_changes:
+  surface: call
+  level: read
+  describe: The recent changes on an Armory project, such as check ins, check outs and new files.
+  say: ["what changed on the robot project", "show Armory activity", "who checked in files today"]
+  args:
+    p_project: {name: project, describe: "The project's id."}
+    p_after: {name: after, describe: "Only changes after this change number."}
+
+armory_my_projects:
+  surface: call
+  level: read
+  describe: The Armory projects you are a member of.
+  say: ["what Armory projects am I on", "list my CAD projects", "my Armory projects"]
+
+armory_orphans_count:
+  surface: call
+  level: read
+  describe: How many stored Armory files no project uses any more, waiting for storage cleanup.
+  say: ["how much Armory storage can be cleaned up", "any orphaned Armory files", "count files waiting for cleanup"]
+
+armory_orphans_pending:
+  exclude: A step inside the Armory storage cleanup, which the cleanup action runs; never called on its own.
+
+armory_orphans_swept:
+  exclude: A step inside the Armory storage cleanup, which the cleanup action runs; never called on its own.
+
+armory_people_search:
+  surface: call
+  level: read
+  describe: Search school accounts by name to add someone to an Armory project.
+  say: ["find Mateo to add to the robot project", "search for Leo in the Armory", "who is Ana Reyes"]
+  args:
+    p_project: {name: project, describe: "The project's id."}
+    p_query: {name: name, describe: "The name to look for."}
+    p_limit: {name: count, describe: "How many to list."}
+
+armory_project_checkouts:
+  surface: call
+  level: read
+  describe: Every file checked out on an Armory project, and who has it.
+  say: ["who has files checked out on the robot project", "show Armory checkouts", "what is Mateo editing"]
+  args:
+    p_project: {name: project, describe: "The project's id."}
+
+armory_project_files:
+  surface: call
+  level: read
+  describe: Every file in an Armory project.
+  say: ["list the robot project's files", "what's in the trophy project", "show the CAD files"]
+  args:
+    p_project: {name: project, describe: "The project's id."}
+
+armory_project_summaries:
+  surface: call
+  level: read
+  describe: A summary of each Armory project, or one, with its size, team and recent activity.
+  say: ["summarize the Armory projects", "how big is the robot project", "Armory overview"]
+  args:
+    p_project: {name: project, describe: "One project's id; leave it out for all of them."}
+
+armory_purge_preview:
+  surface: call
+  level: read
+  describe: What Delete forever would remove from an archived Armory project or folder, before anything is deleted.
+  say: ["what would deleting the old project remove", "preview the purge of last season", "how many files would delete forever take"]
+  args:
+    p_project: {name: project, describe: "The project's id."}
+    p_folder: {name: folder, describe: "Only this folder's removed files."}
+
+armory_purge_project:
+  exclude: Runs inside Delete forever, which also removes the project's stored files from storage; the connector reaches it through that action, never on its own.
+
+armory_register_device:
+  exclude: Registers a computer running the IDEA Armory Windows app; the app does this itself when it signs in.
+
+armory_team_status:
+  surface: call
+  level: read
+  describe: Who is on an Armory project's team, with whether their computer has Armory open.
+  say: ["who's on the robot team", "is Mateo's Armory open", "show the Armory team"]
+  args:
+    p_project: {name: project, describe: "The project's id."}
