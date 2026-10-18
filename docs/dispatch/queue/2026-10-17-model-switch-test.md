@@ -13,6 +13,7 @@ needs_go: no
 go: no
 status: running
 started_at: 2026-10-17T22:44:00-07:00
+trigger_id: trig_01WBUmAYeUbMNyy6g5WK338z
 queued_at: 2026-10-17T22:58:00-07:00
 ---
 This is the second smoke test of the IDEA session queue (ledger 0399): it proves a dispatched session runs at the model and effort its entry names. Do exactly this and nothing else.
