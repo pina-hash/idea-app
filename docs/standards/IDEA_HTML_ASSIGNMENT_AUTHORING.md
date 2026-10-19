@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.29 - 2026-10-19**
+**Version 1.30 - 2026-10-19**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1220,9 +1220,22 @@ rotation, where the class must execute a seven-class timeline on command.
 - **A live thumbnail carries no wrapped title.** The thumbnail shell has no fonts and no
   container, so size its words with `vh` and set `white-space: nowrap`; render it in all three
   shapes and both schemes before delivery.
+- **Design on paper before CAD.** A design unit opens with a team concept sketch, never with
+  a file: top view and side view in pencil, every part labeled with how it is made, the
+  hitting or working edge circled, sizes written beside it, one photo handed in by every
+  teammate. Show an annotated example sketch, the rules it must fit beside it (sizes
+  current on the page, the official rulebook linked for everything else), and say what is
+  scarce (one new steel blade per team; printing is open). Size targets are read off the
+  sketch, and the Armory and SolidWorks setup move to the next class.
+- **A thumbnail is a picture of the real thing.** Use the render of the part the unit makes,
+  never an abstract glyph built from primitives; an abstract shape at 48px reads as
+  something else entirely (an ice cream cone windmill). In the wide shape give the image a
+  set width and let the words wrap in their own column, with a non-breaking hyphen
+  (`&#8209;`) inside a compound title.
 
 ## Changelog
 
+- **1.30 (2026-10-19).** Ledger 0412. Section 21: design on paper before CAD (a team concept sketch on Day 1) and thumbnails that show the real part.
 - **1.29 (2026-10-19).** Ledger 0411. Section 21: never ask for a number a student cannot know yet, weights in pounds and grams, and renders of the real part in place of icons.
 - **1.28 (2026-10-19).** Ledger 0410. Section 21: build on the design system's tokens and components (the IDEA-Blade 01 restyle).
 - **1.27 (2026-10-19).** Ledger 0409. Section 21: the green ration that passed on IDEA-Blade 01, and teams of two and three in one class.
