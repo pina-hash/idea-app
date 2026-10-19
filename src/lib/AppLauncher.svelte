@@ -9,6 +9,7 @@
 	import VanguardMark from '$lib/marks/VanguardMark.svelte';
 	import GreenlineMark from '$lib/marks/GreenlineMark.svelte';
 	import CoinMark from '$lib/marks/CoinMark.svelte';
+	import MarketMark from '$lib/marks/MarketMark.svelte';
 	import ClassroomMark from '$lib/marks/ClassroomMark.svelte';
 	import NotebookMark from '$lib/marks/NotebookMark.svelte';
 	import TournamentMark from '$lib/marks/TournamentMark.svelte';
@@ -311,6 +312,8 @@
 		<GreenlineMark once />
 	{:else if id === 'coins'}
 		<CoinMark once />
+	{:else if id === 'market'}
+		<MarketMark once />
 	{:else if id === 'classroom'}
 		<ClassroomMark once />
 	{:else if id === 'notebook'}
@@ -1499,7 +1502,7 @@
 	:global(:root[data-theme='space-white']) a.app-card:hover .app-cta {
 		box-shadow: none;
 	}
-	/* THE FOURTEEN INKS, one rule per card, each a single colour that paints
+	/* THE FIFTEEN INKS, one rule per card, each a single colour that paints
 	   the card's word, glyph, call to action and strip. The figures are
 	   WCAG ratios on the card / on the CTA hover fill. */
 	:global(:root[data-theme='space-white']) .app-card[data-app='classroom'] {
@@ -1530,6 +1533,12 @@
 		/* KEPT: the Coin Ledger's teal, its second identity colour (cyan
 		   #00f0ff) at a lightness that carries text: 5.30 / 4.92. */
 		--acc-ink: hsl(183.5 100% 24%);
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='market'] {
+		/* Fuchsia, the one magenta on the board, picked as the ink farthest
+		   from every other card (CIEDE2000 13.5 from the nearest, VANGUARD's
+		   violet and the desk's raspberry) that clears as words: 5.20 / 4.82. */
+		--acc-ink: #c20a9d;
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'] {
 		/* Lime, the colour the GAUNTLET room re-points --gold to, taken dark

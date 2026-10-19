@@ -198,6 +198,8 @@ export const APP_TOUR_WORDS: Readonly<Record<string, HomeTourWords>> = {
 		teacher:
 			'Every coin balance, the leaderboard, every transaction, open contracts and role applications. Nothing here changes a balance.'
 	},
+	market:
+		'Spend your coins: the shop, classmates\' listings, jobs that pay, sending coins to a friend, and the stock market.',
 	gauntlet:
 		'The CAD skills dojo: read drawings, model against the clock, and climb the leaderboard on every challenge.',
 	frc: "Team 5669's training track: CAD, mechanisms, controls, strategy and drive team.",

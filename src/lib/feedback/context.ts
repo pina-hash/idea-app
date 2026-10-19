@@ -331,6 +331,7 @@ export function appForRouteId(routeId: string | null | undefined, pathname = '')
 		case 'coin-desk':
 		case 'coin-balance':
 		case 'coins':
+		case 'market':
 			return 'coins';
 		case 'fsp':
 		case 'fsp-pulse':

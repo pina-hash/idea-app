@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-19",
+			"title": "The IDEA Market is on the home page",
+			"body": "You no longer need the link to find the IDEA Market. It has its own card on the home page, next to the IDEA Coin Ledger, and an IDEA Market link in your profile menu, under My coins.",
+			"tags": ["Coins"]
+		},
+		{
+			"date": "2026-10-19",
 			"title": "IDEA Coins: a market, sending coins, hall pass time and stocks",
 			"body": "The IDEA Market is open at ideabosco.com/market. Post an offer or a request (up to 5 at a time, each lasts 14 days), or claim a classmate's. Every trade is held safe: when you claim, your coins are held, the seller marks it done, and you press I got it to pay them. If you never press it, it pays on its own after 5 class days. If something is wrong, press Something is wrong and a teacher decides. After a trade, you can leave a review of at least 20 characters. Send coins to a classmate with a PIN you set (4 to 6 digits). Up to 20 coins a day; sends show on the Ledger unless you pay 10% to keep one private. Need more hall pass time today? Buy 5 minutes for 1 coin, up to 15 extra minutes a day, from the hall pass card or your coin page. The new IDEA Stocks page (ideabosco.com/market/stocks) has prices made from real class activity: your class's grades, the Foundry and GAUNTLET. Buying and selling costs 2% each way, you can put at most 50 coins in one stock, and stocks are never part of your balance until you sell. Each stock's page shows exactly how its price was made.",
 			"tags": ["Coins"]

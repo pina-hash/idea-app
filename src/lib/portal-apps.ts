@@ -190,6 +190,22 @@ export const PORTAL_APPS: PortalApp[] = [
 		cta: 'View live'
 	},
 	{
+		// THE MARKET'S FRONT DOOR (ledger 0414). Mr. Pina, the day after it
+		// shipped: "Why isn't there an obvious way to get to the marketplace? Is
+		// the only way to get there to type the link in manually?" Until this
+		// card the only doors were a button on My coins and a sentence inside
+		// the Ledger's Transfers tab. It sits beside the Ledger because that is
+		// where a reader already looks for coins, and it needs a session because
+		// buying, posting and sending all do.
+		id: 'market',
+		title: 'IDEA Market',
+		sub: 'Spend your coins: the shop, listings from classmates, jobs that pay, sending coins to a friend, and the stock market.',
+		icon: 'market',
+		href: '/market',
+		cta: 'Shop',
+		requiresAuth: true
+	},
+	{
 		id: 'gauntlet',
 		title: 'IDEA // GAUNTLET',
 		sub: 'CAD skills dojo. Read drawings, model against the clock, and climb the boards.',

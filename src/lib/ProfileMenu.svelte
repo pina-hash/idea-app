@@ -1134,6 +1134,7 @@
 
 				<div class="pm-actions">
 					<a class="pm-link" href="/coin-balance" onclick={close}>My coins</a>
+					<a class="pm-link" href="/market" onclick={close} data-testid="pm-market-link">IDEA Market</a>
 					<a
 						class="pm-link pm-cert"
 						href={certUnread > 0 ? '/certifications/notifications' : '/certifications/me'}
