@@ -17,12 +17,15 @@
 // instrument that shares nothing with 0270's own rows-written read.
 //
 // A write entry with no SAMPLE below fails the suite: a new write the registry
-// gains is a write this file has to be told how to call.
+// gains is a write this file has to be told how to call. A GENERIC-proof entry
+// (every generated one, ledger 0416) gets placeholder arguments of the right
+// types from connector-samples.ts and is held to the first half only: nobody
+// but an admin gets anything through it, and nothing is written.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { connectorWorld, logDiff, logSnapshot, normalizeRow, type ConnectorWorld } from './connector-fixture';
-import { connectorSamples, OWNER_ONLY, type Args, type Samples } from './connector-samples';
+import { connectorSamples, isGeneric, OWNER_ONLY, type Args, type Samples } from './connector-samples';
 import { registryRows, schemaOf } from '../../src/lib/server/connector/registry';
 
 let w: ConnectorWorld;
@@ -141,6 +144,10 @@ describe('the connector reaches exactly what the account reaches', () => {
 			// structured {ok: false}, the connector refuses and writes nothing
 			// (checked above); the count is reported, not required.
 			expect(refusedCases).toBeGreaterThanOrEqual(0);
+			// A generic-proof entry (ledger 0416) was called with placeholder
+			// arguments: the half above is its proof; what the admin's real call
+			// writes has no sample to say.
+			if (isGeneric(entry.function_name)) return;
 
 			const adminWho: Who = owner
 				? { kind: 'user', id: owner.id, email: owner.email }

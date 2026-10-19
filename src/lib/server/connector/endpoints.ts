@@ -24,12 +24,17 @@ import { canonical, opaqueToken, sha256Hex } from './crypto';
 import type { ToolContext } from './context';
 import { CONFIRM_WINDOW_MS, PRACTICE_NOTE, resolveTemplate, type WriteOptions } from './engine';
 import { endpointArgs, type EndpointEntry } from './registry';
+import { AUTO_ROUTES } from './endpoints.generated';
 
 type Handler = (event: unknown) => Promise<Response> | Response;
 type RouteModule = Record<string, unknown>;
 
-/** The handler modules, one literal import each, so a typo is a build error. */
-const ROUTES: Record<string, () => Promise<RouteModule>> = {
+/**
+ * The handler modules, one literal import each, so a typo is a build error.
+ * The hand-written ones are here; a route the generated layer made a tool for
+ * (tools/connector/auto.mjs) is in endpoints.generated.ts, merged below.
+ */
+const HAND_ROUTES: Record<string, () => Promise<RouteModule>> = {
 	'/api/armory/purge': () => import('../../../routes/api/armory/purge/+server'),
 	'/api/armory/sweep': () => import('../../../routes/api/armory/sweep/+server'),
 	'/api/certifications/award': () => import('../../../routes/api/certifications/award/+server'),
@@ -37,6 +42,7 @@ const ROUTES: Record<string, () => Promise<RouteModule>> = {
 	'/api/foundry/delete': () => import('../../../routes/api/foundry/delete/+server'),
 	'/api/foundry/source': () => import('../../../routes/api/foundry/source/+server')
 };
+const ROUTES: Record<string, () => Promise<RouteModule>> = { ...AUTO_ROUTES, ...HAND_ROUTES };
 
 /** For tests: hand a route a stand-in module. */
 const overrides = new Map<string, RouteModule>();
@@ -50,6 +56,11 @@ export function routedEndpoints(): string[] {
 }
 
 function bodyOf(entry: EndpointEntry, args: Record<string, unknown>, random: ToolContext['random']): Record<string, unknown> {
+	// A whole-body template (`$args.body`, a generated route): the object he gave, as it is.
+	if (typeof entry.body === 'string') {
+		const whole = resolveTemplate(entry.body, { args, result: null, rows: [] });
+		return whole && typeof whole === 'object' && !Array.isArray(whole) ? (whole as Record<string, unknown>) : {};
+	}
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(entry.body ?? {})) {
 		if (v === '$uuid') {

@@ -1,10 +1,15 @@
 /**
  * THE REGISTRY BUILDER: the one place the connector's tool list comes from.
  *
- * Three layers (docs/connector/DESIGN.md section 2), one builder:
+ * Four layers (docs/connector/DESIGN.md section 2), one builder:
  *   1. inventory.generated.json  every function the site calls, every endpoint
  *   2. schema.generated.json     what pg_proc says about each function
  *   3. overlay.generated.json    the hand-written YAML in ./registry, compiled
+ *   4. auto.generated.json       a generated entry for every function and route
+ *                                the overlay does not name (ledger 0416,
+ *                                tools/connector/auto.mjs): an admin action is
+ *                                a tool, anything else an exclusion with its
+ *                                reason. A hand entry always replaces it.
  *
  * The MCP tool list is: every facade in tools.yaml, every function entry marked
  * `surface: tool`, and two built-ins, `site_find_tool` and `site_call`, which
@@ -14,6 +19,7 @@
  */
 import inventoryJson from './inventory.generated.json';
 import overlayJson from './overlay.generated.json';
+import autoJson from './auto.generated.json';
 import schemaJson from './schema.generated.json';
 import type { Level } from './types';
 
@@ -82,6 +88,16 @@ export interface FunctionEntry {
 	idempotent?: string[];
 	pending?: string;
 	exclude?: string;
+	/** Made by tools/connector/auto.mjs, not written by hand. */
+	auto?: boolean;
+	/**
+	 * `generic`: proven by tests/db/connector-generic.test.ts (no one but an admin
+	 * gets anything through it, and asking first holds) instead of a sample in
+	 * tests/db/connector-samples.ts. Every generated entry carries it; a hand
+	 * entry may, only at level read or confirm (an undo needs a sample to prove
+	 * its reverse).
+	 */
+	proof?: 'generic';
 }
 
 export interface FacadeEntry {
@@ -110,10 +126,14 @@ export interface EndpointEntry {
 	say?: string[];
 	/** Keyed by spoken name; there is no database schema to read them from. */
 	args?: Record<string, ArgSpec>;
-	/** The JSON body, templated from `$args.<name>` and `$uuid`. */
-	body?: Record<string, unknown>;
+	/** The JSON body, templated from `$args.<name>` and `$uuid`; a string template (`$args.body`) is the whole body. */
+	body?: Record<string, unknown> | string;
 	/** A read function that shows what a change would do before he says yes. */
 	preview?: { function: string; args: Record<string, unknown> };
+	auto?: boolean;
+	proof?: 'generic';
+	/** A generated entry's handler file. */
+	file?: string;
 }
 
 export interface SchemaArg {
@@ -144,6 +164,11 @@ type OverlayJson = {
 };
 
 const overlay = overlayJson as unknown as OverlayJson;
+const auto = autoJson as unknown as {
+	functions: Record<string, Omit<FunctionEntry, 'name' | 'source'>>;
+	endpoints: Record<string, Omit<EndpointEntry, 'route' | 'source'>>;
+};
+const AUTO_SOURCE = 'auto.generated.json';
 const schema = (schemaJson as unknown as { functions: Record<string, SchemaOverload[]> }).functions;
 export const inventory = inventoryJson as unknown as {
 	measured: string;
@@ -152,15 +177,22 @@ export const inventory = inventoryJson as unknown as {
 	endpoints: Array<{ route: string; file: string; methods: string[] }>;
 };
 
-export const FUNCTIONS: Record<string, FunctionEntry> = Object.fromEntries(
-	Object.entries(overlay.functions).map(([name, e]) => [name, { ...e, name, source: overlay.sources[name] }])
-);
+/** A hand entry replaces a generated one; the build never writes a generated entry for a name the overlay has. */
+export const FUNCTIONS: Record<string, FunctionEntry> = Object.fromEntries([
+	...Object.entries(auto.functions)
+		.filter(([name]) => !overlay.functions[name])
+		.map(([name, e]) => [name, { ...e, name, source: AUTO_SOURCE }]),
+	...Object.entries(overlay.functions).map(([name, e]) => [name, { ...e, name, source: overlay.sources[name] }])
+]);
 export const FACADES: Record<string, FacadeEntry> = Object.fromEntries(
 	Object.entries(overlay.tools).map(([name, e]) => [name, { ...e, name, source: overlay.sources[name], facade: true }])
 );
-export const ENDPOINTS: Record<string, EndpointEntry> = Object.fromEntries(
-	Object.entries(overlay.endpoints).map(([route, e]) => [route, { ...e, route, source: overlay.sources[route] }])
-);
+export const ENDPOINTS: Record<string, EndpointEntry> = Object.fromEntries([
+	...Object.entries(auto.endpoints)
+		.filter(([route]) => !overlay.endpoints[route])
+		.map(([route, e]) => [route, { ...e, route, source: AUTO_SOURCE }]),
+	...Object.entries(overlay.endpoints).map(([route, e]) => [route, { ...e, route, source: overlay.sources[route] }])
+]);
 
 export function schemaOf(fn: string): SchemaOverload[] {
 	return schema[fn] ?? [];
@@ -438,6 +470,27 @@ export function callArgs(e: FunctionEntry): CallArg[] {
 		}
 	}
 	return [...seen.values()];
+}
+
+/**
+ * WHETHER EXACTLY ONE FORM OF A FUNCTION TAKES THESE ARGUMENTS, the rule
+ * PostgREST and connector_call (0270) both apply: every key is one of the
+ * form's inputs and every input with no default is given. When none does, the
+ * form that takes every key with the fewest inputs left over says what is
+ * missing; `missing` is empty when no form takes the keys together at all.
+ */
+export function fitOverload(fn: string, args: Record<string, unknown>): { ok: true } | { ok: false; missing: string[] } {
+	const overloads = schemaOf(fn);
+	if (overloads.length === 0) return { ok: true };
+	const keys = Object.keys(args);
+	const covering = overloads.filter((o) => keys.every((k) => o.args.some((a) => a.name === k)));
+	const fits = covering.filter((o) => o.args.every((a) => a.has_default || keys.includes(a.name)));
+	if (fits.length >= 1) return { ok: true };
+	if (covering.length === 0) return { ok: false, missing: [] };
+	const short = covering
+		.map((o) => o.args.filter((a) => !a.has_default && !keys.includes(a.name)).map((a) => a.name))
+		.sort((a, b) => a.length - b.length)[0];
+	return { ok: false, missing: short };
 }
 
 /** An endpoint entry's arguments, which the overlay states by spoken name. */

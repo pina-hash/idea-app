@@ -807,6 +807,7 @@ describe('bookkeeping subjects', () => {
 		'Armory series test: 0236 joins the files allowed to name armory_',
 		'Remove a stray Python cache file',
 		'Browser checks: the round\'s 43 new pages measured at 375 and 1440',
+		"Connector tools regenerated for the site's newest actions",
 		"Merge branch 'main' into lane/home",
 		'Merge pull request #12 from pina-hash/lane/x',
 		'Merge round/feedback-console',

@@ -119,6 +119,39 @@ export function mySections(ctx: ToolContext): Promise<MySection[]> {
 	});
 }
 
+/** Class titles by id, for classes he may not teach (a shared post's other classes). */
+async function sectionTitles(ctx: ToolContext, ids: string[]): Promise<Map<string, string>> {
+	const out = new Map<string, string>();
+	if (ids.length === 0) return out;
+	const sections = await ctx.backend.select<{ id: string; course_id: string; label: string; block: string | null; teacher_email: string }>(ctx.session, {
+		table: 'classroom_sections',
+		columns: ['id', 'course_id', 'label', 'block', 'teacher_email'],
+		in: { id: ids }
+	});
+	if (sections.error) failed('The other classes', sections.error.message);
+	const courseIds = [...new Set(sections.data.map((s) => s.course_id))];
+	const courses = courseIds.length
+		? await ctx.backend.select<{ id: string; code: string; title: string }>(ctx.session, { table: 'classroom_courses', columns: ['id', 'code', 'title'], in: { id: courseIds } })
+		: { data: [], error: null };
+	if (courses.error) failed('The other courses', courses.error.message);
+	const byId = new Map(courses.data.map((c) => [c.id, c]));
+	for (const s of sections.data) {
+		const course = byId.get(s.course_id) ?? null;
+		out.set(
+			s.id,
+			sectionTitle({
+				id: s.id,
+				course_id: s.course_id,
+				label: s.label,
+				block: s.block,
+				teacher_email: s.teacher_email,
+				course: course ? { id: course.id, code: course.code, title: course.title } : null
+			} as unknown as ClassroomSection)
+		);
+	}
+	return out;
+}
+
 function numbersIn(s: string): string[] {
 	return [...s.matchAll(/(\d+)/g)].map((m) => String(Number(m[1])));
 }
@@ -309,12 +342,35 @@ export async function myPosts(ctx: ToolContext, only?: MySection[]): Promise<Pos
 			postings.push(...page.data);
 			if (page.data.length < 1000) break;
 		}
+		// EVERY CLASS A POST IS IN, NOT ONLY THE ONES ASKED ABOUT (gap ae4a495d):
+		// one shared copy posted to Blocks 2, 3 and 4 read as Block 4's alone when
+		// the list was asked for Block 4, so nothing said an edit changes all
+		// three. The posts are picked by the classes asked about; the classes
+		// each one is in are read across the school.
+		const picked = [...new Set(postings.map((p) => p.item_id))];
+		if (only) {
+			const seen = new Set(postings.map((p) => `${p.item_id}|${p.section_id}`));
+			for (let i = 0; i < picked.length; i += 200) {
+				const page = await ctx.backend.select<{ item_id: string; section_id: string }>(ctx.session, {
+					table: 'classroom_postings',
+					columns: ['item_id', 'section_id'],
+					in: { item_id: picked.slice(i, i + 200) },
+					order: [['item_id', 'asc'], ['section_id', 'asc']],
+					limit: 1000
+				});
+				if (page.error) failed('Your posts', page.error.message);
+				for (const p of page.data) if (!seen.has(`${p.item_id}|${p.section_id}`)) postings.push(p);
+			}
+			const unknown = [...new Set(postings.map((p) => p.section_id).filter((id) => !titleOf.has(id)))];
+			for (const [id, title] of await sectionTitles(ctx, unknown)) titleOf.set(id, title);
+		}
 		const sectionsOf = new Map<string, Array<{ id: string; title: string }>>();
 		for (const p of postings) {
 			const list = sectionsOf.get(p.item_id) ?? [];
 			list.push({ id: p.section_id, title: titleOf.get(p.section_id) ?? '' });
 			sectionsOf.set(p.item_id, list);
 		}
+		for (const list of sectionsOf.values()) list.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
 		const ids = [...sectionsOf.keys()];
 		const out: PostRow[] = [];
 		for (let i = 0; i < ids.length; i += 200) {

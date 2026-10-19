@@ -1505,6 +1505,9 @@ describe('the invariants these particular workflows have to hold', () => {
 			// `cert-jobs.yml` (ledger 0391) only curls the site, like autopay.
 			'cert-jobs.yml': 0,
 			'ci.yml': 0,
+			// `connector.yml` (ledger 0416) pushes its regenerated registry, and
+			// once more after one rebase when main moved; never a force.
+			'connector.yml': 2,
 			'deploy.yml': 1,
 			// `migrate.yml`'s ONE push is the record `apply-migration.mjs` wrote
 			// under `docs/migrations-applied/`, and that step checks the staged
@@ -3188,5 +3191,26 @@ describe('migrate.yml: the chain to the next migration stops when nothing was ap
 	it('NEGATIVE CONTROL: the condition as first shipped chains a skipped run', () => {
 		const shipped = "success() && steps.apply.outputs.code == '0'";
 		expect(chains(shipped, 'skipped', null)).toBe(true);
+	});
+});
+
+describe('connector.yml: the connector picks up every new admin action on a push to main (ledger 0416)', () => {
+	it('runs on a push to main, builds the registry, and commits only the generated files', () => {
+		expect(triggersOf('connector.yml')).toEqual(expect.arrayContaining(['push']));
+		const text = src('connector.yml');
+		expect(text).toMatch(/branches: \[main\]/);
+		const body = runBlocks('connector.yml').map((b) => b.body).join('\n');
+		expect(body).toContain('npm run connector:build');
+		expect(body).toContain('auto.generated.json');
+		expect(body).toContain('endpoints.generated.ts');
+		// It stages a named list, never the whole tree.
+		expect(body).not.toMatch(/git add (-A|\.|--all)\b/);
+		expect(body).toMatch(/git add -- \$FILES/);
+	});
+	it('its commit subject is bookkeeping, so it never shows in the update list', async () => {
+		const { isBookkeepingNote } = await import('../src/lib/site-manifest');
+		const subject = /git commit -q -m "([^"]+)"/.exec(src('connector.yml'))?.[1];
+		expect(subject).toBeTruthy();
+		expect(isBookkeepingNote(subject!)).toBe(true);
 	});
 });

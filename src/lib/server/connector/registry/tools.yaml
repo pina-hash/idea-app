@@ -330,3 +330,35 @@ record_eval_result:
     passed: {type: boolean, required: true, describe: "True if it did what the request list says it must."}
     path: {type: array, items: string, describe: "The tools you called for it, in order."}
     note: {type: string, describe: "What went wrong, when it failed."}
+
+# THE SITE'S OWN FEEDBACK LIST (ledger 0416, gaps 3157f5d8, ae4a495d and the
+# 2026-10-19 screenshot gap). Filing is file_site_feedback and a status is
+# set_feedback_status, both function tools in site.yaml.
+list_site_feedback:
+  facade: true
+  level: read
+  uses: [app_feedback_admin_list]
+  describe: List the reports people sent from the site's Send feedback button, newest first, filtered by status, fix soon or long term, app, and date.
+  say:
+    - what feedback came in today
+    - list the open fix soon reports
+    - show the classroom bug reports from this week
+    - any new long term ideas
+  args:
+    status: {type: string, enum: [open, new, seen, resolved, spam, all], describe: "open (new or seen, the usual), one status, or all."}
+    horizon: {type: string, enum: [fix soon, long term, both], describe: "fix soon (the usual), long term ideas, or both."}
+    app: {type: string, describe: "Only reports about this part of the site, like classroom or portal."}
+    since: {type: string, describe: "Only reports filed on or after this date, like 2026-10-16."}
+    count: {type: integer, describe: "How many to list, newest first; leave it out for 25."}
+
+feedback_screenshot:
+  facade: true
+  level: read
+  uses: []
+  describe: Get a link to the screenshot attached to one site feedback report, good for five minutes.
+  say:
+    - show me the screenshot on that report
+    - open the picture from the matrix theme report
+    - get report 551c11e3's screenshot
+  args:
+    report: {type: string, required: true, describe: "The report's id, or the first eight characters of it, from the feedback list."}

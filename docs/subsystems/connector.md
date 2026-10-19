@@ -55,22 +55,65 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
   (`connector_audit_failure`). The `connector_*` tables carry no policy and no
   client grant; the private helpers refuse outside a `connector_call` of the
   same transaction.
-- **THE REGISTRY IS THE ONLY SOURCE OF TOOLS.** Three layers, one builder
-  (`src/lib/server/connector/registry.ts`): the inventory of every `.rpc('name')`
-  under `src/` and every `+server.ts`, the schema read from `pg_proc` on the
-  whole migration chain, and the hand-written YAML overlay in
-  `src/lib/server/connector/registry/` (the only layer anybody edits; `tools.yaml`
-  holds the voice-shaped facades). `npm run connector:build` regenerates the
-  three generated JSON files and the safety-level table in
-  `docs/connector/DESIGN.md` section 7, and `tests/connector-coverage.test.ts`
-  fails on a stale one and on any function or endpoint with no tool, call
-  entry or exclusion reason (the `pending: slice 2` allowance went with ledger
-  0401). **A NEW `.rpc('name')` OR A NEW `+server.ts` ANYWHERE IN THE SITE
-  REDDENS THAT TEST UNTIL THE OVERLAY ANSWERS FOR IT AND THE BUILD IS RE-RUN**,
-  and a new write entry also needs a sample in `tests/db/connector-samples.ts`,
-  which the permission and level suites both refuse to run without, and every
-  table its rows land in named in `src/lib/server/connector/log-tables.ts`
-  (synced into `connector_log_tables` by the server, never by a migration).
+- **THE REGISTRY IS THE ONLY SOURCE OF TOOLS, AND IT WRITES ITSELF (ledger
+  0416).** Four layers, one builder (`src/lib/server/connector/registry.ts`):
+  the inventory of every function the site calls under `src/` and every
+  `+server.ts`, the schema read from `pg_proc` on the whole migration chain,
+  the hand-written YAML overlay in `src/lib/server/connector/registry/` (the
+  only layer anybody edits; `tools.yaml` holds the voice-shaped facades), and
+  the GENERATED layer `src/lib/server/connector/auto.generated.json` (with
+  `endpoints.generated.ts` for its route imports), which
+  `tools/connector/auto.mjs` writes for every function and route the overlay
+  does not name. `npm run connector:build` regenerates all of them and the
+  safety-level table in `docs/connector/DESIGN.md` section 7, and
+  `.github/workflows/connector.yml` runs that build on every push to `main` and
+  commits what changed, so **a new admin action ships its tool on the push that
+  adds it, with nobody asked** (Mr. Pina, 2026-10-19).
+  - **WHAT THE INVENTORY SEES.** A literal `.rpc('name')`, AND any quoted string
+    in the site's code (comments stripped, the connector's own files and
+    `/dev` aside) that names a public function some migration creates: most of
+    the Coin Desk, the IDEA Market, the certifications desk and the Armory call
+    through a helper that passes the name along, and on 2026-10-19 that hid 253
+    functions, the market banner among them.
+  - **WHAT IS AN ADMIN ACTION** is read off the function body, never its name:
+    it reaches a staff gate in `tools/connector/gates.mjs` (`STAFF_GATES`),
+    directly or through a private `_helper`, never through a public read check
+    like `classroom_can_read_item` that a student passes too. A route is one
+    when its handler calls `isAdmin(` or `isOwner(`.
+  - **WHAT A GENERATED TOOL IS.** A `site_call` entry at `read` when the body
+    writes nothing (transitively, `bodyWrites` and `writers`), otherwise
+    `confirm`, which always previews and hands back a `confirm_token`. It never
+    claims `undo` (a reverse is a judgement), its arguments are `pg_proc`'s with
+    spoken names, and an Armory `p_operation uuid` is filled by the server. A
+    function with no staff gate is a generated exclusion ("acts as whoever
+    calls it"). A hand entry always replaces a generated one: that is where a
+    tool gets its words, its undo and its sample.
+  - **THE PROOF.** `tests/connector-coverage.test.ts` fails on a stale
+    generated file and on any admin action with neither a tool nor a
+    hand-written exclusion of at least twenty characters. A hand entry's write
+    needs a sample in `tests/db/connector-samples.ts`; an entry marked
+    `proof: generic` (every generated one, and a hand entry at `read` or
+    `confirm` only) is called there with placeholder arguments of the right
+    types and held to the first half of `tests/db/connector-permissions.test.ts`
+    (nobody but an admin gets anything through it, nothing is written) and to
+    asking first. Every table a hand entry's rows land in is named in
+    `src/lib/server/connector/log-tables.ts` (synced into `connector_log_tables`
+    by the server, never by a migration).
+  - **WHAT IT STILL CANNOT REACH: a write a page makes straight into a table**
+    under its RLS policy (the IDEA Maps editor, GAUNTLET series, a role edit on
+    `/dashboard`). The connector calls functions; a new admin write belongs in a
+    definer function (`docs/subsystems/database.md`), which it then picks up.
+- **A VALUE THE SERVER FILLS IS NOT PART OF WHAT HE CONFIRMS (ledger 0416).** A
+  `fill: uuid` argument is drawn fresh per call, so the confirmation hash and
+  the repeat key are taken over the arguments he gave (`givenArgs` in
+  `engine.ts`) and the commit reuses the values stored with the preview; before
+  this every Armory confirm was refused as "for different arguments".
+- **ONE FORM OF A FUNCTION MUST TAKE THE ARGUMENTS SENT (`fitOverload`).** With
+  two forms, a subset can fit neither and PostgREST answers "could not find the
+  function"; `site_call` now says what is missing instead, and an entry over
+  several forms gives its optional arguments a `default` so one form always
+  fits (`app_feedback_admin_list`). The coverage test holds every live entry to
+  this for any one optional argument.
 - **A LEVEL MAY DEPEND ON THE ARGUMENTS OR ON WHAT IS THERE BEFORE, AND THE
   SERVER DECIDES IT (`level_when`, `levelFor`).** A condition names an argument
   (`p_amount > 0`) or a value the entry's own `before` read found as him

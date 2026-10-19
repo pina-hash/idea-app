@@ -17,6 +17,58 @@ import { createUser, type SeededUser } from './harness';
 import type { ConnectorWorld } from './connector-fixture';
 import { samplePackage, samplePool } from './cert-chain';
 import { stageHtmlDocument } from '../../src/lib/classroom/html-assignment/store';
+import { FUNCTIONS, liveFunction, schemaOf } from '../../src/lib/server/connector/registry';
+
+/** Whether an entry is proven by placeholder arguments rather than a real sample (ledger 0416). */
+export function isGeneric(fn: string): boolean {
+	return FUNCTIONS[fn]?.proof === 'generic';
+}
+
+/**
+ * Placeholder arguments of the right types for a function's narrowest form:
+ * its required inputs only, less any the overlay fills when left out, with
+ * `known` for the ones a placeholder cannot stand in for (a class he teaches).
+ */
+export function genericArgs(fn: string, known: Args = {}): Args {
+	const forms = [...schemaOf(fn)].sort((a, b) => a.args.filter((x) => !x.has_default).length - b.args.filter((x) => !x.has_default).length);
+	const spec = FUNCTIONS[fn]?.args ?? {};
+	const out: Args = {};
+	for (const a of forms[0]?.args ?? []) {
+		if (a.has_default) continue;
+		if (a.name in known) {
+			out[a.name] = known[a.name];
+			continue;
+		}
+		// What the connector itself sends for an argument left out.
+		if (spec[a.name]?.fill === 'uuid') {
+			out[a.name] = randomUUID();
+			continue;
+		}
+		if (spec[a.name] && 'default' in spec[a.name]) {
+			out[a.name] = spec[a.name].default ?? null;
+			continue;
+		}
+		const t = a.type;
+		out[a.name] = t.endsWith('[]')
+			? []
+			: t === 'uuid'
+				? randomUUID()
+				: ['integer', 'smallint', 'bigint', 'numeric', 'real', 'double precision'].includes(t)
+					? 1
+					: t === 'boolean'
+						? false
+						: t === 'jsonb' || t === 'json'
+							? {}
+							: t === 'date'
+								? '2026-10-19'
+								: t.startsWith('timestamp')
+									? '2026-10-19T12:00:00Z'
+									: t === 'text'
+										? 'connector check'
+										: null;
+	}
+	return out;
+}
 
 export type Args = Record<string, unknown>;
 
@@ -703,6 +755,20 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 		},
 		maps_publish: async () => ({ p_object_table: 'maps_nodes', p_object_id: await mapsNode() }),
 
+		// ---- the IDEA Market banner, stocks, and the site's feedback list (ledger 0416) ----
+		coin_banner_save: async () => ({
+			p_id: null, p_kind: 'link', p_listing_id: null, p_title: `Tissue boxes ${letters(4)}`, p_subtitle: 'Both sizes',
+			p_href: '/coins', p_starts_on: null, p_ends_on: null, p_section_id: null, p_sort_order: 0
+		}),
+		coin_banner_remove: async () => {
+			const r = await asAdminRpc('coin_banner_save', {
+				p_id: null, p_kind: 'link', p_listing_id: null, p_title: `Supplies ${letters(4)}`, p_subtitle: null,
+				p_href: '/coins', p_starts_on: null, p_ends_on: null, p_section_id: null, p_sort_order: 0
+			});
+			return { p_id: r.pin_id };
+		},
+		coin_stock_admin_set: async () => ({ p_stock_id: 'gauntlet', p_active: false }),
+		app_feedback_file: async () => ({ p_app: 'portal', p_kind: 'bug', p_message: `The matrix theme is still ${letters(5)}.` }),
 		// ---- armory ----
 		armory_app_feedback_set_status: async () => {
 			const [r] = await sql<{ id: string }>(
@@ -719,6 +785,9 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			return { p_id: r.id, p_status: 'seen' };
 		},
 		armory_create_project: async () => ({ p_name: `Robot ${randomUUID().slice(0, 6)}`, p_season: 2027, p_operation: randomUUID() }),
+		// ledger 0416: team membership by email, with a role.
+		armory_add_member: async () => ({ p_project: (await armoryFile()).project, p_email: `new.${letters()}@boscotech.net`, p_role: 'cad_lead', p_operation: randomUUID() }),
+		armory_remove_member: async () => ({ p_project: (await armoryFile()).project, p_email: w.student.email, p_operation: randomUUID() }),
 		armory_break_lock: async () => ({ p_file: (await armoryFile()).file, p_device: null, p_operation: randomUUID() }),
 		armory_break_locks: async () => ({ p_files: [(await armoryFile()).file], p_device: null, p_operation: randomUUID() }),
 
@@ -841,6 +910,15 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			return { p_id: g.id, p_status: 'declined', p_ledger: null, p_note: null };
 		}
 	};
+	// A GENERIC-PROOF ENTRY (every generated one, and a hand entry marked
+	// `proof: generic`) is called with placeholder arguments of the right
+	// types: enough to reach its gate as a student, a teacher or nobody, and to
+	// show that asking first holds for the admin. What it does for the admin
+	// with real arguments is not judged here (no sample says what real is).
+	for (const e of Object.values(FUNCTIONS)) {
+		if (e.proof !== 'generic' || !liveFunction(e.name) || e.level === 'read' || raw[e.name]) continue;
+		raw[e.name] = async () => genericArgs(e.name, { p_section_id: w.block2 });
+	}
 	const samples: Record<string, () => Promise<Args>> = Object.fromEntries(
 		Object.entries(raw).map(([name, make]) => [name, async () => (await init(), make())])
 	);

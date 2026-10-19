@@ -12,14 +12,21 @@
 //     `+server.ts` reddens this file until the overlay answers for it.
 //   - Every entry names something that exists, and every reverse an undo entry
 //     names is itself a live entry.
+//   - THE GENERATED LAYER (ledger 0416). Every admin action -- a function whose
+//     body reaches a staff gate, a route whose handler asks for admin -- has a
+//     tool (hand-written or generated) or a hand-written exclusion with its
+//     reason. tools/connector/auto.mjs writes a tool for every one the overlay
+//     does not name, so this fails only on a stale generated file, which
+//     .github/workflows/connector.yml regenerates on every push to main.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { startTestDb, type TestDb } from './db/harness';
 import { WITH_CONNECTOR } from './db/connector-fixture';
-import { ceilingLevel, endpointEntries, ENDPOINTS, FACADES, FUNCTIONS, inventory, levelsOf, liveFunction, maxLevel, schemaOf } from '../src/lib/server/connector/registry';
+import { callArgs, ceilingLevel, endpointEntries, ENDPOINTS, FACADES, fitOverload, FUNCTIONS, inventory, levelsOf, liveFunction, maxLevel, schemaOf } from '../src/lib/server/connector/registry';
 import { routedEndpoints } from '../src/lib/server/connector/endpoints';
+import overlayJson from '../src/lib/server/connector/overlay.generated.json';
 import { handledToolNames } from '../src/lib/server/connector/tools';
 import type { Level } from '../src/lib/server/connector/types';
 
@@ -64,6 +71,113 @@ describe('the generated files are current', () => {
 		const fresh = await readSchema((t: string, p?: unknown[]) => db.sql(t, p), names);
 		expect(stored.functions, 'run npm run connector:build').toEqual(fresh);
 		expect(stored.migrations).toBe(WITH_CONNECTOR.length - 1);
+	});
+});
+
+describe('the generated tools (ledger 0416)', () => {
+	it('auto.generated.json and endpoints.generated.ts are what the build writes from the other three layers', async () => {
+		const { buildAuto, renderRoutes } = await tool('auto.mjs');
+		const fresh = buildAuto(read('inventory.generated.json'), read('overlay.generated.json'), read('schema.generated.json'));
+		expect(read('auto.generated.json'), 'run npm run connector:build').toEqual(JSON.parse(JSON.stringify(fresh)));
+		const routes = readFileSync(fileURLToPath(new URL('../src/lib/server/connector/endpoints.generated.ts', import.meta.url)), 'utf8');
+		expect(routes, 'run npm run connector:build').toBe(renderRoutes(fresh));
+	});
+
+	it('every admin action has a tool or a hand-written exclusion with its reason', async () => {
+		const { routeIsAdmin } = await tool('auto.mjs');
+		const handExcluded = (name: string) => {
+			const e = (overlayJson as { functions: Record<string, { exclude?: string }> }).functions[name];
+			return !!e?.exclude && e.exclude.length >= 20;
+		};
+		const adminFunctions = inventory.functions.filter((f) => schemaOf(f).some((o) => ((o as { gates?: string[] }).gates ?? []).length > 0));
+		// Measured 2026-10-19 on this tree: well over a hundred, so a gate reader that found none would say so here.
+		expect(adminFunctions.length).toBeGreaterThan(250);
+		const unanswered = adminFunctions.filter((f) => !liveFunction(f) && !handExcluded(f));
+		expect(unanswered, 'an admin action with no tool: run npm run connector:build').toEqual([]);
+		// A generated exclusion is only ever for something that is NOT an admin action.
+		const wronglyExcluded = adminFunctions.filter((f) => FUNCTIONS[f]?.auto && FUNCTIONS[f]?.exclude);
+		expect(wronglyExcluded).toEqual([]);
+
+		const adminRoutes = inventory.endpoints.filter((e) => routeIsAdmin(readFileSync(fileURLToPath(new URL(`../${e.file}`, import.meta.url)), 'utf8')));
+		expect(adminRoutes.length).toBeGreaterThan(5);
+		const handRouteExcluded = (route: string) => {
+			const e = (overlayJson as { endpoints: Record<string, { exclude?: string }> }).endpoints[route];
+			return !!e?.exclude && e.exclude.length >= 20;
+		};
+		const callRoutes = new Set(endpointEntries().map((e) => e.route));
+		const unansweredRoutes = adminRoutes
+			.map((e) => e.route)
+			.filter((r) => !callRoutes.has(r) && !handRouteExcluded(r) && !(ENDPOINTS[r]?.auto && ENDPOINTS[r]?.exclude && /parameter|no GET or POST/.test(ENDPOINTS[r].exclude!)));
+		expect(unansweredRoutes).toEqual([]);
+	});
+
+	it('a generated tool keeps the contract: a read writes nothing, anything else asks first, and none claims an undo', () => {
+		const generated = Object.values(FUNCTIONS).filter((e) => e.auto && liveFunction(e.name));
+		expect(generated.length).toBeGreaterThan(50);
+		for (const e of generated) {
+			const writes = schemaOf(e.name).some((o) => (o as { writes?: boolean }).writes);
+			expect(e.level, e.name).toBe(writes ? 'confirm' : 'read');
+			expect(e.undo, e.name).toBeUndefined();
+			expect(e.level_when, e.name).toBeUndefined();
+			expect(e.proof, e.name).toBe('generic');
+			// The Armory's repeat key is filled by the server, never asked of him.
+			for (const a of callArgs(e)) if (a.param === 'p_operation' && a.type === 'uuid') expect(a.fill, `${e.name}.p_operation`).toBe('uuid');
+		}
+		// A hand entry may lean on the generic proof only where there is no reverse to prove.
+		const leaning = Object.values(FUNCTIONS).filter((e) => !e.auto && e.proof === 'generic' && levelsOf(e).includes('undo'));
+		expect(leaning.map((e) => e.name)).toEqual([]);
+	});
+
+	it('every staff gate the generator reads is a real function, and the gate reader sees one through a private helper', async () => {
+		const { STAFF_GATES, reachedGates, bodyWrites } = await tool('gates.mjs');
+		const { rows } = await db.sql<{ proname: string }>(
+			`select distinct p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = any($1::text[])`,
+			[STAFF_GATES]
+		);
+		expect(rows.map((r) => r.proname).sort()).toEqual([...STAFF_GATES].sort());
+		const bodies = new Map<string, string[]>([
+			['outer', ['begin perform public._guard(); return 1; end']],
+			['_guard', ['begin if not public.is_admin() then raise exception \'no\'; end if; end']],
+			['student', ['begin if not public.classroom_can_read_item(x) then return; end if; end']],
+			['classroom_can_read_item', ['select public.classroom_manages_section(s)']]
+		]);
+		const reached = reachedGates(bodies);
+		expect(reached.get('outer')).toEqual(['is_admin']);
+		expect(reached.get('student'), 'a public read check is not followed').toEqual([]);
+		expect(bodyWrites('update public.coin_stocks s set active = true')).toBe(true);
+		expect(bodyWrites('select count(*) from public.coin_stocks')).toBe(false);
+	});
+
+	it('the market, its banner, stocks, transfers, hall pass time, Armory teams and the feedback list are reachable (gaps 499d58e1, 75287d20, 8d500e31, ae4a495d)', () => {
+		for (const fn of [
+			'coin_banner_save', 'coin_banner_remove', 'coin_banner_admin', 'coin_market_moderation', 'coin_market_listing_staff',
+			'coin_market_resolve', 'coin_market_official_save', 'coin_market_review_remove', 'coin_transfer_moderation',
+			'coin_transfer_remove_message', 'coin_stock_admin_list', 'coin_stock_admin_set', 'coin_settings_set',
+			'armory_add_member', 'armory_remove_member', 'app_feedback_file', 'app_feedback_set_status', 'app_feedback_admin_list'
+		]) {
+			expect(liveFunction(fn), fn).not.toBeNull();
+			expect(FUNCTIONS[fn].auto, `${fn} has hand-written words`).toBeUndefined();
+		}
+		expect(FUNCTIONS.coin_banner_save.tool).toBe('post_market_banner');
+		expect(FUNCTIONS.app_feedback_file.tool).toBe('file_site_feedback');
+		expect(FACADES.list_site_feedback).toBeDefined();
+		expect(FACADES.feedback_screenshot).toBeDefined();
+	});
+
+	it('one form of every function takes any one optional argument he gives (gap 3157f5d8)', () => {
+		const stuck: string[] = [];
+		for (const e of Object.values(FUNCTIONS).filter((x) => liveFunction(x.name))) {
+			if (schemaOf(e.name).length < 2) continue;
+			const args = callArgs(e);
+			const base: Record<string, unknown> = {};
+			for (const a of args) if (a.required || a.hasDefault || a.fill) base[a.param] = null;
+			for (const a of args.filter((x) => !(x.param in base))) {
+				const fit = fitOverload(e.name, { ...base, [a.param]: null });
+				if (!fit.ok) stuck.push(`${e.name}.${a.name}`);
+			}
+			if (!fitOverload(e.name, base).ok) stuck.push(`${e.name} as given`);
+		}
+		expect(stuck).toEqual([]);
 	});
 });
 

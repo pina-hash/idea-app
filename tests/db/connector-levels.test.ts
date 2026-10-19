@@ -19,7 +19,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { connectorWorld, logDiff, logSnapshot, normalizeRow, type ConnectorWorld } from './connector-fixture';
-import { connectorSamples, OWNER_ONLY, type Samples } from './connector-samples';
+import { connectorSamples, isGeneric, OWNER_ONLY, type Samples } from './connector-samples';
 import { runTool } from '../../src/lib/server/connector/tools';
 import { callArgs, callEntries, directEntries, levelFor, levelsOf, type FunctionEntry } from '../../src/lib/server/connector/registry';
 import type { ToolContext } from '../../src/lib/server/connector/context';
@@ -141,6 +141,10 @@ const REVERSED_BY_MEANING: Record<string, { why: string; check: (args: Record<st
 		why: 'A note is removed by a stamp, never deleted; its messages stay under the removed thread.',
 		check: async (a) => (await w.db.sql(`select 1 from public.classroom_feedback_threads where item_id = $1 and removed_at is not null`, [a.p_item_id])).rows.length >= 1
 	},
+	coin_banner_save: {
+		why: 'A banner pin is taken down by a stamp (0280), never deleted, so the banner keeps its record of what ran (ledger 0416).',
+		check: async (a) => (await w.db.sql(`select 1 from public.coin_banner_pins where title = $1 and removed_at is not null`, [a.p_title])).rows.length === 1
+	},
 	classroom_quick_post_create: {
 		why: 'A notice is taken down by a stamp, never deleted.',
 		check: async (a) => (await w.db.sql(`select 1 from public.classroom_quick_posts where body = $1 and taken_down_at is not null`, [a.p_body])).rows.length >= 1
@@ -219,7 +223,9 @@ describe('confirm entries never write without the token they were handed', () =>
 			const second = await callThrough(ctx, e, args, { confirm_token: 'not-a-token-it-was-handed' });
 			expect(logDiff(before, await snapshot()), `${e.name} wrote without a token`).toEqual(new Map());
 			if (first.status === 'preview') expect(typeof first.confirm_token, `${e.name} handed back a token`).toBe('string');
-			else notPreviewed.push(`${e.name}: ${first.status} ${String(first.message ?? '')}`);
+			// A generic-proof entry (ledger 0416) runs on placeholder arguments, which
+			// its own checks may refuse: refused-and-nothing-written is its proof.
+			else if (!(isGeneric(e.name) && first.status === 'refused')) notPreviewed.push(`${e.name}: ${first.status} ${String(first.message ?? '')}`);
 			expect(second.status, `${e.name} with a made-up token`).not.toBe('done');
 		}
 		expect(notPreviewed).toEqual([]);

@@ -21,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { connectorWorld, logDiff, logSnapshot, type ConnectorWorld } from './connector-fixture';
-import { connectorSamples, OWNER_ONLY, type Samples } from './connector-samples';
+import { connectorSamples, isGeneric, OWNER_ONLY, type Samples } from './connector-samples';
 import { runTool } from '../../src/lib/server/connector/tools';
 import { callEntries, directEntries, endpointEntries, levelsOf, type FunctionEntry } from '../../src/lib/server/connector/registry';
 import { overrideRouteModule } from '../../src/lib/server/connector/endpoints';
@@ -227,7 +227,9 @@ describe('the practice endpoint writes nothing', () => {
 			const ctx = await adminCtx({ practice: true });
 			const said = `practice ${e.name}`;
 			const first = await callThrough(ctx, e, args, { said });
-			if (first.status !== 'preview' || first.practice !== true) notPreviewed.push(`${e.name}: ${first.status} ${String(first.message ?? '')}`);
+			// A generic-proof entry (ledger 0416) runs on placeholder arguments, which its own checks may refuse.
+			const refusedGeneric = isGeneric(e.name) && first.status === 'refused';
+			if ((first.status !== 'preview' || first.practice !== true) && !refusedGeneric) notPreviewed.push(`${e.name}: ${first.status} ${String(first.message ?? '')}`);
 			if (first.confirm_token) {
 				expect(first.confirm_token).toBe('practice');
 				const pressed = await callThrough(ctx, e, args, { said, confirm_token: first.confirm_token });

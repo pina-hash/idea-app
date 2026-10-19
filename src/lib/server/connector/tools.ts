@@ -8,6 +8,7 @@
  * function tool, or one of the two built-ins.
  */
 import { formatDue } from '$lib/classroom/classroom';
+import { FEEDBACK_MEDIA_BUCKET } from '$lib/feedback/screenshot';
 import { laCalendarDay, schoolDayOf, weekOffset } from '$lib/classroom/school-calendar';
 import { hxBlockPrompt, manifestBlocks, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 import { manifestRubricIsDerived, stagedRubricAfterManifest } from '$lib/classroom/html-assignment/rubric';
@@ -23,6 +24,7 @@ import {
 	ENDPOINTS,
 	FACADES,
 	findTools,
+	fitOverload,
 	FUNCTIONS,
 	liveEndpoint,
 	liveFunction,
@@ -103,7 +105,10 @@ function postSummary(p: PostRow, today: string) {
 		scheduled_for: scheduled ? p.publish_at : null,
 		pinned: p.pinned,
 		html_assignment: p.assignment_schema_version === 3,
-		classes: p.sections.map((s) => s.title)
+		classes: p.sections.map((s) => s.title),
+		...(p.sections.length > 1
+			? { shared: `One copy posted to ${p.sections.length} classes: any change to it changes it in every one of them.` }
+			: {})
 	};
 }
 
@@ -334,6 +339,95 @@ async function coinBalance(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		student: s.value.name,
 		balance: Number(r.data?.balance ?? 0),
 		recent: (r.data?.recent_transactions ?? []).slice(0, 5)
+	};
+}
+
+// ---------------------------------------------------------------------------
+// The site's own feedback list (ledger 0416)
+// ---------------------------------------------------------------------------
+
+interface FeedbackRow {
+	id: string;
+	app: string;
+	context: string | null;
+	kind: string;
+	message: string;
+	status: string;
+	horizon?: string | null;
+	created_at: string;
+	anonymous?: boolean;
+	tried?: string | null;
+	screenshot_path?: string | null;
+	submitter_name?: string | null;
+}
+
+/** Every report, both horizons, newest first: the console's own read, as him. */
+async function feedbackRows(ctx: ToolContext, app: string | null, horizon: string | null): Promise<FeedbackRow[] | { refused: string }> {
+	const r = await ctx.backend.rpc<FeedbackRow[]>(ctx.session, 'app_feedback_admin_list', { p_app: app, p_limit: 500, p_horizon: horizon });
+	if (r.error) return { refused: r.error.message };
+	return Array.isArray(r.data) ? r.data : [];
+}
+
+/**
+ * list_site_feedback: the console's list, filtered and cut down to what a
+ * person reads (gap 3157f5d8: the unfiltered read returned about 300,000
+ * characters and was cut off). Status and the date are filtered here, after
+ * the read, because the database function takes neither.
+ */
+async function listSiteFeedback(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const status = (str(args.status) ?? 'open').toLowerCase();
+	const horizonSaid = (str(args.horizon) ?? 'fix_soon').toLowerCase().replace(/[\s-]+/g, '_');
+	const horizon = /^(fix_soon|now|soon)$/.test(horizonSaid) ? 'now' : /^long/.test(horizonSaid) ? 'long_term' : null;
+	const since = str(args.since);
+	const sinceMs = since ? Date.parse(since) : NaN;
+	if (since && !Number.isFinite(sinceMs)) return { status: 'invalid', message: `"${since}" is not a date. Say it like 2026-10-16.` };
+	const count = Math.min(Math.max(num(args.count) ?? 25, 1), 200);
+	const rows = await feedbackRows(ctx, str(args.app) ?? null, horizon);
+	if (!Array.isArray(rows)) return { status: 'refused', message: rows.refused };
+	const wanted = rows
+		.filter((r) => (status === 'all' ? true : status === 'open' ? r.status === 'new' || r.status === 'seen' : r.status === status))
+		.filter((r) => !Number.isFinite(sinceMs) || Date.parse(r.created_at) >= sinceMs);
+	return {
+		status: 'ok',
+		count: wanted.length,
+		shown: Math.min(count, wanted.length),
+		reports: wanted.slice(0, count).map((r) => ({
+			report: r.id,
+			short: r.id.slice(0, 8),
+			filed: r.created_at,
+			app: r.app,
+			page: r.context,
+			kind: r.kind,
+			status: r.status,
+			horizon: r.horizon === 'long_term' ? 'long term' : 'fix soon',
+			from: r.anonymous ? 'anonymous' : (r.submitter_name ?? null),
+			message: r.message.length > 1200 ? `${r.message.slice(0, 1200)}... (${r.message.length} characters)` : r.message,
+			tried: r.tried ?? null,
+			screenshot: !!r.screenshot_path
+		})),
+		message: wanted.length > count ? `Showing the newest ${count} of ${wanted.length}. Ask for a higher count, a narrower filter, or a date to see more.` : undefined
+	};
+}
+
+/** feedback_screenshot: a five-minute link to one report's screenshot, signed as him, as the console signs it. */
+async function feedbackScreenshot(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const said = (str(args.report) ?? '').trim().toLowerCase();
+	if (said.length < 6) return { status: 'invalid', message: 'Say which report: its id, or at least its first eight characters.' };
+	const rows = await feedbackRows(ctx, null, null);
+	if (!Array.isArray(rows)) return { status: 'refused', message: rows.refused };
+	const hits = rows.filter((r) => r.id.toLowerCase().startsWith(said));
+	if (hits.length === 0) return { status: 'not_found', message: `No report starts with "${said}". Nothing was changed.` };
+	if (hits.length > 1) return { status: 'ambiguous', candidates: hits.map((r) => ({ report: r.id, message: r.message.slice(0, 80) })), message: 'More than one report starts with that. Ask him which.' };
+	const row = hits[0];
+	if (!row.screenshot_path) return { status: 'none', report: row.id, message: 'That report has no screenshot.' };
+	const signed = await ctx.backend.signStorage(ctx.session, FEEDBACK_MEDIA_BUCKET, row.screenshot_path, 300);
+	if (signed.error) return { status: 'refused', message: signed.error.message };
+	return {
+		status: 'ok',
+		report: row.id,
+		url: signed.data,
+		expires_at: new Date(ctx.now() + 300_000).toISOString(),
+		message: 'A link to the screenshot, good for five minutes. Open it to look; do not share it.'
 	};
 }
 
@@ -905,13 +999,29 @@ async function siteCallEntry(ctx: ToolContext, entry: FunctionEntry, args: ToolA
 		if (!r.ok) return r.out;
 		out[param.param] = r.value;
 	}
+	const filled: string[] = [];
 	for (const p of params) {
 		if (p.param in out) continue;
-		if (p.fill === 'uuid') out[p.param] = freshUuid(ctx);
-		else if (p.hasDefault) out[p.param] = p.default ?? null;
+		if (p.fill === 'uuid') {
+			out[p.param] = freshUuid(ctx);
+			filled.push(p.param);
+		} else if (p.hasDefault) out[p.param] = p.default ?? null;
 	}
 	const missing = params.filter((p) => p.required && !(p.param in out)).map((p) => p.name);
 	if (missing.length) return { status: 'invalid', message: `"${name}" also needs: ${missing.join(', ')}. Ask him for it. Nothing was changed.` };
+	// ONE FORM OF THE FUNCTION MUST TAKE EXACTLY THESE ARGUMENTS (gap 3157f5d8):
+	// with two forms, a subset can fit neither, and the database's own "could
+	// not find the function" is no answer to give him.
+	const fit = fitOverload(entry.name, out);
+	if (!fit.ok) {
+		const spoken = (ps: string[]) => ps.map((x) => params.find((p) => p.param === x)?.name ?? x).join(', ');
+		return {
+			status: 'invalid',
+			message: fit.missing.length
+				? `"${name}" given those also needs: ${spoken(fit.missing)}. Ask him for it. Nothing was changed.`
+				: `"${name}" takes ${spoken(Object.keys(out))} in no single form. Leave one out. Nothing was changed.`
+		};
+	}
 	if (entry.level === 'read' && !entry.level_when?.length) {
 		const r = await ctx.backend.rpc(ctx.session, entry.name, out);
 		if (r.error) return { status: 'refused', message: r.error.message };
@@ -920,7 +1030,7 @@ async function siteCallEntry(ctx: ToolContext, entry: FunctionEntry, args: ToolA
 	const before = await readBefore(ctx, entry.before, out);
 	const o = await write(
 		ctx,
-		{ tool: entry.surface === 'tool' ? (entry.tool ?? entry.name) : `site_call:${entry.name}`, fn: entry.name, args: out, before },
+		{ tool: entry.surface === 'tool' ? (entry.tool ?? entry.name) : `site_call:${entry.name}`, fn: entry.name, args: out, before, filled },
 		writeOptions(args)
 	);
 	return outcomeWords(o);
@@ -1025,6 +1135,8 @@ const HANDLERS: Record<string, (ctx: ToolContext, args: ToolArgs) => Promise<Too
 	award_coins: (ctx, a) => coins(ctx, a, 'award'),
 	fine_coins: (ctx, a) => coins(ctx, a, 'fine'),
 	coin_balance: coinBalance,
+	list_site_feedback: listSiteFeedback,
+	feedback_screenshot: feedbackScreenshot,
 	undo_last: (ctx, a) => undoLast(ctx, writeOptions(a)),
 	connector_disconnect: disconnect,
 	site_find_tool: siteFindTool,

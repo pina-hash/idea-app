@@ -317,6 +317,11 @@ export function supabaseConnectorBackend(): ConnectorBackend {
 		routeClient(session: UserSession) {
 			return userClient(session.accessToken);
 		},
+		async signStorage(session: UserSession, bucket: string, path: string, seconds: number): Promise<DbResult<string>> {
+			const { data, error } = await userClient(session.accessToken).storage.from(bucket).createSignedUrl(path, seconds);
+			if (error || !data?.signedUrl) return { data: null, error: { message: error?.message ?? 'The file could not be signed.' } };
+			return { data: data.signedUrl, error: null };
+		},
 		async rpc<T>(session: UserSession, fn: string, args: Record<string, unknown>): Promise<DbResult<T>> {
 			const { data, error } = await userClient(session.accessToken).rpc(fn, args);
 			if (error) return { data: null, error: dbError(error) };

@@ -225,3 +225,30 @@ armory_team_status:
   say: ["who's on the robot team", "is Mateo's Armory open", "show the Armory team"]
   args:
     p_project: {name: project, describe: "The project's id."}
+
+# TEAM MEMBERSHIP BY EMAIL (ledger 0416, gap 8d500e31). A site admin acts as a
+# mentor of every project (0233), so he can add anyone with any role. Asks
+# first: there is no reverse that puts a changed role back as it was.
+armory_add_member:
+  surface: call
+  level: confirm
+  describe: Add someone to an IDEA Armory project's team by their school email, or change their role on it; it asks first.
+  say:
+    - add mateo.r@boscotech.net to the robot project as a student
+    - make Leo a CAD lead on the trophy project
+    - put Mr. Cosso on the 2027 robot as a mentor
+  args:
+    p_project: {name: project, describe: "The project's id, from your Armory projects."}
+    p_email: {name: email, describe: "Their school email address."}
+    p_role: {name: role, enum: [student, cad_lead, instructor, mentor], describe: "student, CAD lead, instructor, or mentor."}
+    p_operation: {name: operation, fill: uuid, describe: "Leave it out; the server fills it."}
+
+armory_remove_member:
+  surface: call
+  level: confirm
+  describe: Take someone off an IDEA Armory project's team by their email; it asks first, and a project always keeps one mentor.
+  say: ["take Leo off the robot project", "remove mateo.r@boscotech.net from the trophy team", "drop Ana from the Armory project"]
+  args:
+    p_project: {name: project, describe: "The project's id, from your Armory projects."}
+    p_email: {name: email, describe: "Their school email address."}
+    p_operation: {name: operation, fill: uuid, describe: "Leave it out; the server fills it."}

@@ -39,7 +39,9 @@ describe('every facade tool reads well aloud', () => {
 			[
 				'award_coins', 'coin_balance', 'connector_disconnect', 'create_post', 'find_student', 'fine_coins', 'get_post', 'grade',
 				'list_classes', 'list_posts', 'read_answers', 'read_grades', 'replace_html_assignment', 'send_feedback', 'set_due',
-				'set_points', 'set_published', 'set_rubric', 'undo_last', 'report_gap', 'record_eval_result'
+				'set_points', 'set_published', 'set_rubric', 'undo_last', 'report_gap', 'record_eval_result',
+				// ledger 0416: the site's own feedback list
+				'list_site_feedback', 'feedback_screenshot'
 			].sort()
 		);
 	});

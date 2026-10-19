@@ -651,6 +651,7 @@ The ones that bite a task nobody thought was about them. Each has its full rule 
 - A mutation script restores from a copy it made, never from git, and reads both output streams (`docs/subsystems/verification.md`).
 - Anything that serves a person's bytes keeps them off the origin that holds a session (`docs/subsystems/origin-split.md`).
 - Widening a public payload is a disclosure decision, not a field addition (see Probing must reveal nothing, above).
+- Every admin action reaches the IDEA Website connector by itself: `npm run connector:build`, which `.github/workflows/connector.yml` runs on every push to `main`, generates a tool for any function or route with a staff gate and no hand entry, so a new admin action needs only its RPC, and keeping one off the connector is a hand-written `exclude:` with its reason (`docs/subsystems/connector.md`).
 
 ## Working conventions
 

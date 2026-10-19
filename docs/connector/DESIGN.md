@@ -310,17 +310,18 @@ Generated from the overlay on 2026-10-19.
 | Foundry | 20 | 6 | 5 | 0 | 9 |
 | GAUNTLET | 8 | 3 | 1 | 1 | 11 |
 | GREENLINE | 2 | 3 | 1 | 0 | 6 |
-| IDEA Armory | 16 | 2 | 3 | 0 | 11 |
+| IDEA Armory | 16 | 2 | 5 | 0 | 11 |
 | IDEA Classroom | 21 | 43 | 23 | 3 | 24 |
 | IDEA Coin | 28 | 6 | 7 | 1 | 14 |
 | IDEA Maps | 3 | 2 | 1 | 0 | 0 |
 | IdeaCAD | 5 | 2 | 0 | 0 | 1 |
+| market.yaml | 4 | 0 | 7 | 1 | 0 |
 | Notebook | 4 | 14 | 5 | 1 | 9 |
-| People, feedback and the rest of the site | 11 | 7 | 5 | 0 | 6 |
+| People, feedback and the rest of the site | 11 | 7 | 6 | 0 | 6 |
 | Site routes (run in-process as him) | 1 | 0 | 5 | 0 | 105 |
 | The connector itself | 4 | 1 | 3 | 0 | 7 |
 | Tournaments | 1 | 7 | 9 | 1 | 8 |
-| **All** | **136** | **96** | **71** | **7** | **221** |
+| **All** | **140** | **96** | **81** | **8** | **221** |
 
 <details><summary>Certifications</summary>
 
@@ -362,7 +363,7 @@ Generated from the overlay on 2026-10-19.
 
 - **Read:** `armory_app_feedback_admin_list`, `armory_app_incidents_admin_list`, `armory_can_take_back`, `armory_cots_list`, `armory_file_history`, `armory_is_member`, `armory_list_changes`, `armory_my_projects`, `armory_orphans_count`, `armory_people_search`, `armory_project_checkouts`, `armory_project_files`, `armory_project_part_numbers`, `armory_project_summaries`, `armory_purge_preview`, `armory_team_status`
 - **Undo:** `armory_app_feedback_set_status`, `armory_app_incident_set_status`
-- **Asks first:** `armory_break_lock`, `armory_break_locks`, `armory_create_project`
+- **Asks first:** `armory_add_member`, `armory_break_lock`, `armory_break_locks`, `armory_create_project`, `armory_remove_member`
 - **Excluded (the reason is in the YAML):** `armory_cots_add`, `armory_cots_correct`, `armory_cots_retire`, `armory_orphans_pending`, `armory_orphans_swept`, `armory_part_number_take`, `armory_part_subsystem_retire`, `armory_part_subsystem_save`, `armory_purge_project`, `armory_register_device`, `armory_set_part_prefix`
 
 </details>
@@ -403,6 +404,14 @@ Generated from the overlay on 2026-10-19.
 
 </details>
 
+<details><summary>market.yaml</summary>
+
+- **Read:** `coin_banner_admin`, `coin_market_moderation`, `coin_stock_admin_list`, `coin_transfer_moderation`
+- **Asks first:** `coin_banner_remove`, `coin_market_listing_staff`, `coin_market_official_save`, `coin_market_resolve`, `coin_market_review_remove`, `coin_stock_admin_set`, `coin_transfer_remove_message`
+- **By argument:** `coin_banner_save` (post_market_banner): undo when p_id is null, otherwise confirm
+
+</details>
+
 <details><summary>Notebook</summary>
 
 - **Read:** `notebook_get_section_grid`, `notebook_review_student_notebook`, `notebook_reviewed_sections`, `notebook_view_as_notebook`
@@ -417,7 +426,7 @@ Generated from the overlay on 2026-10-19.
 
 - **Read:** `admin_list`, `app_feedback_admin_list`, `app_short_link_list`, `app_short_link_target`, `frc_can_review`, `frc_review_queue`, `is_admin`, `is_owner`, `profile_avatar_hold_status`, `profile_avatar_holds`, `profile_avatar_my_hold`
 - **Undo:** `app_feedback_set_horizon`, `app_feedback_set_status`, `app_short_link_upsert`, `frc_mark_complete`, `frc_unmark_complete`, `profile_avatar_hide`, `profile_avatar_restore`
-- **Asks first:** `admin_grant`, `admin_revoke`, `app_feedback_edit`, `app_short_link_delete`, `clear_fsp_session`
+- **Asks first:** `admin_grant`, `admin_revoke`, `app_feedback_edit`, `app_feedback_file` (file_site_feedback), `app_short_link_delete`, `clear_fsp_session`
 - **Excluded (the reason is in the YAML):** `app_feedback_submit`, `frc_quiz_grade`, `frc_quiz_start`, `idea_cert_sync`, `push_subscribe`, `submit_fsp_question`
 
 </details>
@@ -668,3 +677,39 @@ differs from the text above, this is the record and the reason.
   `FeedbackSourcesNav` (which, with the `/dev/feedback` harness, is outside
   this ledger and still lists three) and draws all four on the connector's
   own page.
+
+## What 0416 built (2026-10-19)
+
+Mr. Pina, 2026-10-19: the connector does everything he can do on the site by
+hand, and it updates itself on every push, generated rather than guarded.
+
+- **A fourth layer, generated.** `tools/connector/auto.mjs` writes
+  `src/lib/server/connector/auto.generated.json` (and
+  `endpoints.generated.ts` for route imports) for every function and route the
+  hand overlay does not name: an admin action (its body reaches a staff gate,
+  `tools/connector/gates.mjs`) becomes a `site_call` entry, `read` when it
+  writes nothing and `confirm` otherwise, never `undo`; anything else is an
+  exclusion with its reason. A hand entry always replaces a generated one.
+  `.github/workflows/connector.yml` runs `npm run connector:build` on every
+  push to `main` and commits what changed.
+- **The inventory sees names passed through helpers.** A quoted string naming
+  a public function a migration creates counts as a call; 253 functions were
+  invisible to the `.rpc('name')` scan on 2026-10-19, the IDEA Market banner
+  among them. On this tree: 623 functions called, 136 generated tools (29
+  reads, 107 that ask first), 60 generated exclusions.
+- **Hand entries for what he named.** The market banner (`post_market_banner`
+  and its removal, with an undo for a new pin), the market's moderation,
+  official cards and reviews, coin transfer messages, coin stocks, hall pass
+  time (the coin settings), Armory team membership by email with a role, and
+  the site's own feedback list: `list_site_feedback` (filters by status, fix
+  soon or long term, app and date, and keeps each report short),
+  `file_site_feedback` (0282's `app_feedback_file`, as him, asks first),
+  status, and `feedback_screenshot` (a five-minute link signed as him).
+- **Two root fixes.** A confirm whose arguments the server fills (an Armory
+  `p_operation`) hashed a fresh uuid each call and was refused every time; the
+  hash is now over what he gave and the commit reuses the preview's values. A
+  function with two forms took no subset of its optional arguments; `site_call`
+  now fits one form or says what is missing, and `app_feedback_admin_list`
+  always sends all three.
+- **`list_posts` names every class a shared post is in**, with a `shared` line
+  saying an edit changes all of them.

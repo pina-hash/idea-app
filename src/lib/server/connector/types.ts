@@ -164,5 +164,11 @@ export interface ConnectorBackend {
 	 * the endpoint entries' handlers call before their storage step.
 	 */
 	routeClient(session: UserSession): unknown;
+	/**
+	 * A short-lived signed link to one stored file, signed AS THIS USER, so the
+	 * bucket's own read policy decides (the feedback console's screenshot link,
+	 * ledger 0416). The local backend has no storage and says so.
+	 */
+	signStorage(session: UserSession, bucket: string, path: string, seconds: number): Promise<DbResult<string>>;
 	select<T = Record<string, unknown>>(session: UserSession, spec: SelectSpec): Promise<DbResult<T[]>>;
 }

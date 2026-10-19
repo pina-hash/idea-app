@@ -383,6 +383,9 @@ export function localPgBackend(pool: PgPool): ConnectorBackend {
 				}
 			};
 		},
+		async signStorage(): Promise<DbResult<string>> {
+			return { data: null, error: { message: 'There is no file storage on the local backend.' } };
+		},
 		async rpc<T>(session: UserSession, fn: string, args: Record<string, unknown>): Promise<DbResult<T>> {
 			try {
 				const sql = await callSql(fn, args);

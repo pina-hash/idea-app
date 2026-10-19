@@ -6,6 +6,13 @@
 // chain) and tests/connector-coverage.test.ts (which reads the same answer off
 // the test cluster and fails when the checked-in file differs). One query, so
 // the file and the check cannot disagree about what a signature is.
+//
+// 0416 ADDED THREE FACTS PER OVERLOAD, read off the body pg_proc holds, which
+// the generated layer (tools/connector/auto.mjs) decides with: `volatility`,
+// `gates` (the staff checks the body calls, tools/connector/gates.mjs) and
+// `writes` (the body, or anything it calls, writes).
+
+import { reachedGates, writers } from './gates.mjs';
 
 /**
  * @param {(text: string, params?: unknown[]) => Promise<{ rows: any[] }>} query
@@ -20,6 +27,8 @@ export async function readSchema(query, names) {
 		        p.proretset as retset,
 		        pg_catalog.format_type(p.prorettype, null) as returns,
 		        p.prosecdef as definer,
+		        p.provolatile as volatility,
+		        p.prosrc as body,
 		        coalesce(pg_catalog.obj_description(p.oid, 'pg_proc'), '') as comment,
 		        coalesce((
 		          select json_agg(json_build_object('name', a.nm, 'type', pg_catalog.format_type(a.t, null)) order by a.ord)
@@ -39,6 +48,18 @@ export async function readSchema(query, names) {
 		  order by p.proname, p.oid::regprocedure::text`,
 		[names]
 	);
+	const all = await query(
+		`select p.proname as name, p.prosrc as body
+		   from pg_catalog.pg_proc p
+		   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+		  where n.nspname = 'public' and p.prokind = 'f'`
+	);
+	/** @type {Map<string, string[]>} */
+	const bodies = new Map();
+	for (const r of all.rows) bodies.set(r.name, [...(bodies.get(r.name) ?? []), r.body ?? '']);
+	const writing = writers(bodies);
+	const gated = reachedGates(bodies);
+	const VOLATILITY = { i: 'immutable', s: 'stable', v: 'volatile' };
 	/** @type {Record<string, any[]>} */
 	const out = {};
 	for (const name of [...names].sort()) out[name] = [];
@@ -53,7 +74,14 @@ export async function readSchema(query, names) {
 			args,
 			returns: r.retset ? `setof ${r.returns}` : r.returns,
 			definer: r.definer,
-			comment: r.comment
+			comment: r.comment,
+			volatility: VOLATILITY[r.volatility] ?? 'volatile',
+			// Per NAME, like `writes`: what any form of it reaches.
+			gates: gated.get(r.name) ?? [],
+			// A function that writes nothing itself and calls nothing that does.
+			// Per NAME, not per overload: the fixpoint is over names, so one
+			// overload that writes makes every form of it a write.
+			writes: writing.has(r.name)
 		});
 	}
 	return out;

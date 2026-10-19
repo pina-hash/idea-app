@@ -97,10 +97,16 @@ coin_admin_set_category_active:
 coin_settings_set:
   surface: call
   level: confirm
-  describe: Change one coin economy setting, such as the payday rules or the long hall pass limits; it asks first.
-  say: ["change the pay raise cost to 120", "set the long hall pass fine to start at 20 minutes", "change the weekly wage rules"]
+  describe: Change one coin economy setting, such as the payday rules, the long hall pass limits, the hall pass time students can buy, coin transfers or the stock market; it asks first.
+  say:
+    - change the pay raise cost to 120
+    - set the long hall pass fine to start at 20 minutes
+    - let students buy up to 30 extra hall pass minutes a day
+    - make a hall pass time block 5 minutes
+    - stop hall pass time sales
+    - raise the stock trading fee to 3 percent
   args:
-    p_key: {name: setting, describe: "The setting's name, exactly as the coin settings list it."}
+    p_key: {name: setting, describe: "The setting's name, exactly as the coin settings list it; hall pass time is the minutes in a block and the most extra minutes a day, and zero extra minutes stops sales."}
     p_value: {name: value, describe: "The new value, in the shape the coin settings show for it."}
 
 coin_settings_set_category:

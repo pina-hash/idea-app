@@ -46,6 +46,14 @@ export interface WritePlan {
 	undoOf?: string;
 	/** An undo runs the reverse directly, whatever the reverse's own level. */
 	asUndo?: boolean;
+	/** Arguments the server filled itself (a fresh uuid): never part of what he confirms or repeats. */
+	filled?: string[];
+}
+
+/** The arguments he gave: the plan's, without the ones the server filled. */
+export function givenArgs(plan: Pick<WritePlan, 'args' | 'filled'>): Record<string, unknown> {
+	if (!plan.filled?.length) return plan.args;
+	return Object.fromEntries(Object.entries(plan.args).filter(([k]) => !plan.filled!.includes(k)));
 }
 
 /** PRACTICE: the /mcp/practice endpoint, fixed by the URL. Every write previews and nothing commits. */
@@ -72,7 +80,7 @@ export function argsHash(tool: string, fn: string, args: Record<string, unknown>
 
 /** The repeat key (see 0270's header): Claude's request id when sent, otherwise the server's own hash. */
 export function requestKey(ctx: ToolContext, plan: WritePlan, opts: WriteOptions): string {
-	const callHash = sha256Hex(canonical({ fn: plan.fn, args: plan.args, undoOf: plan.undoOf ?? null }));
+	const callHash = sha256Hex(canonical({ fn: plan.fn, args: givenArgs(plan), undoOf: plan.undoOf ?? null }));
 	const salt = opts.again ? `:again:${opaqueToken(ctx.random)}` : '';
 	if (opts.requestId && opts.requestId.trim()) {
 		return `id:${ctx.session.user.id}:${opts.requestId.trim().slice(0, 120)}:${callHash.slice(0, 24)}${salt}`;
@@ -333,6 +341,7 @@ function softRefusal(result: unknown): { reason: string; message: string } | nul
 }
 
 export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOptions = {}): Promise<WriteOutcome> {
+	// `plan` is reassigned once, when a confirmation hands back the values filled for its preview.
 	const entry = entryFor(plan.fn);
 	const level: Level = plan.asUndo ? 'undo' : levelFor(entry, plan.args, plan.before);
 
@@ -365,12 +374,13 @@ export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOption
 		if (confirmFirst && !opts.dryRun) {
 			const token = opaqueToken(ctx.random);
 			const expiresAt = ctx.now() + CONFIRM_WINDOW_MS;
+			const filled = Object.fromEntries((plan.filled ?? []).map((k) => [k, plan.args[k]]));
 			await ctx.backend.storeConfirmation({
 				tokenHash: sha256Hex(token),
 				userId: ctx.session.user.id,
 				tool: plan.tool,
-				argsHash: argsHash(plan.tool, plan.fn, plan.args),
-				preview: payload,
+				argsHash: argsHash(plan.tool, plan.fn, givenArgs(plan)),
+				preview: Object.keys(filled).length ? { ...payload, filled } : payload,
 				expiresAt
 			});
 			return {
@@ -392,7 +402,7 @@ export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOption
 			!confirmation ||
 			confirmation.userId !== ctx.session.user.id ||
 			confirmation.tool !== plan.tool ||
-			confirmation.argsHash !== argsHash(plan.tool, plan.fn, plan.args)
+			confirmation.argsHash !== argsHash(plan.tool, plan.fn, givenArgs(plan))
 		) {
 			return {
 				status: 'needs_confirmation',
@@ -400,6 +410,11 @@ export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOption
 				message:
 					'That confirmation is missing, already used, more than ten minutes old, or was for different arguments. Nothing was written. Preview it again and ask him.'
 			};
+		}
+		// The values the server filled for the preview he said yes to.
+		const shown = (confirmation.preview as { filled?: Record<string, unknown> } | null)?.filled;
+		if (shown && plan.filled?.length) {
+			plan = { ...plan, args: { ...plan.args, ...Object.fromEntries(plan.filled.filter((k) => k in shown).map((k) => [k, shown[k]])) } };
 		}
 	}
 

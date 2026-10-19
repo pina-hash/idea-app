@@ -444,6 +444,66 @@
 				}
 			}
 		},
+		"armory_add_member": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Add someone to an IDEA Armory project's team by their school email, or change their role on it; it asks first.",
+			"say": [
+				"add mateo.r@boscotech.net to the robot project as a student",
+				"make Leo a CAD lead on the trophy project",
+				"put Mr. Cosso on the 2027 robot as a mentor"
+			],
+			"args": {
+				"p_project": {
+					"name": "project",
+					"describe": "The project's id, from your Armory projects."
+				},
+				"p_email": {
+					"name": "email",
+					"describe": "Their school email address."
+				},
+				"p_role": {
+					"name": "role",
+					"enum": [
+						"student",
+						"cad_lead",
+						"instructor",
+						"mentor"
+					],
+					"describe": "student, CAD lead, instructor, or mentor."
+				},
+				"p_operation": {
+					"name": "operation",
+					"fill": "uuid",
+					"describe": "Leave it out; the server fills it."
+				}
+			}
+		},
+		"armory_remove_member": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Take someone off an IDEA Armory project's team by their email; it asks first, and a project always keeps one mentor.",
+			"say": [
+				"take Leo off the robot project",
+				"remove mateo.r@boscotech.net from the trophy team",
+				"drop Ana from the Armory project"
+			],
+			"args": {
+				"p_project": {
+					"name": "project",
+					"describe": "The project's id, from your Armory projects."
+				},
+				"p_email": {
+					"name": "email",
+					"describe": "Their school email address."
+				},
+				"p_operation": {
+					"name": "operation",
+					"fill": "uuid",
+					"describe": "Leave it out; the server fills it."
+				}
+			}
+		},
 		"cert_admin_get": {
 			"surface": "call",
 			"level": "read",
@@ -3899,16 +3959,19 @@
 		"coin_settings_set": {
 			"surface": "call",
 			"level": "confirm",
-			"describe": "Change one coin economy setting, such as the payday rules or the long hall pass limits; it asks first.",
+			"describe": "Change one coin economy setting, such as the payday rules, the long hall pass limits, the hall pass time students can buy, coin transfers or the stock market; it asks first.",
 			"say": [
 				"change the pay raise cost to 120",
 				"set the long hall pass fine to start at 20 minutes",
-				"change the weekly wage rules"
+				"let students buy up to 30 extra hall pass minutes a day",
+				"make a hall pass time block 5 minutes",
+				"stop hall pass time sales",
+				"raise the stock trading fee to 3 percent"
 			],
 			"args": {
 				"p_key": {
 					"name": "setting",
-					"describe": "The setting's name, exactly as the coin settings list it."
+					"describe": "The setting's name, exactly as the coin settings list it; hall pass time is the minutes in a block and the most extra minutes a day, and zero extra minutes stops sales."
 				},
 				"p_value": {
 					"name": "value",
@@ -6247,6 +6310,327 @@
 				}
 			}
 		},
+		"coin_banner_admin": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Every pin on the IDEA Market banner under the classroom header, with its class, dates and order.",
+			"say": [
+				"what's on the classroom banner",
+				"show the market banner pins",
+				"list the banner ads"
+			]
+		},
+		"coin_banner_save": {
+			"surface": "tool",
+			"tool": "post_market_banner",
+			"level_when": [
+				{
+					"if": "p_id is null",
+					"level": "undo"
+				},
+				{
+					"else": "confirm"
+				}
+			],
+			"describe": "Put an ad on the IDEA Market banner under every classroom's header, or change one, like a tissue box drive or a class supply ask.",
+			"say": [
+				"put a banner up asking for tissue boxes, both sizes",
+				"post a market ad for class supplies on the classroom banner",
+				"add a banner for the donation drive in Block 2 until Friday",
+				"change the tissue box banner's title"
+			],
+			"args": {
+				"p_id": {
+					"name": "banner",
+					"default": null,
+					"describe": "To change a pin already up, its id from the banner list; leave it out to post a new one."
+				},
+				"p_kind": {
+					"name": "kind",
+					"enum": [
+						"link",
+						"official",
+						"listing",
+						"contract",
+						"shop"
+					],
+					"describe": "link for any page on the site (the usual one), official for an official market card, listing for a student listing, contract for a posted contract, shop for the coin shop."
+				},
+				"p_listing_id": {
+					"name": "listing",
+					"default": null,
+					"describe": "For a listing or official card, its id from the market; leave it out otherwise."
+				},
+				"p_title": {
+					"name": "title",
+					"describe": "The banner's title, 2 to 80 characters, like Tissue boxes wanted."
+				},
+				"p_subtitle": {
+					"name": "subtitle",
+					"default": null,
+					"describe": "A short line under the title, up to 140 characters, like Both sizes, 5 coins each."
+				},
+				"p_href": {
+					"name": "link",
+					"describe": "Where a click goes: a page on this site starting with /, like /coins or /market."
+				},
+				"p_starts_on": {
+					"name": "starts",
+					"default": null,
+					"describe": "The first day it shows, as a date; leave it out to start now."
+				},
+				"p_ends_on": {
+					"name": "ends",
+					"default": null,
+					"describe": "The last day it shows, as a date; leave it out to keep it up until it is taken down."
+				},
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"default": null,
+					"describe": "Only this class, like 209H Block 2; leave it out for every class."
+				},
+				"p_sort_order": {
+					"name": "order",
+					"default": 0,
+					"describe": "Where it falls in the rotation, lowest first; leave it out for 0."
+				}
+			},
+			"undo": [
+				{
+					"when": "$result.created",
+					"function": "coin_banner_remove",
+					"args": {
+						"p_id": "$result.pin_id"
+					}
+				}
+			]
+		},
+		"coin_banner_remove": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Take an ad down from the IDEA Market banner under the classroom header; it asks first.",
+			"say": [
+				"take the tissue box banner down",
+				"remove that banner ad",
+				"pull the donation drive banner"
+			],
+			"args": {
+				"p_id": {
+					"name": "banner",
+					"describe": "The pin's id, from the banner list."
+				}
+			}
+		},
+		"coin_market_moderation": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The IDEA Market as coin staff see it, with every open trade, held order, report and review to look at.",
+			"say": [
+				"what's going on in the market",
+				"any market trades to settle",
+				"show the market moderation queue"
+			]
+		},
+		"coin_market_listing_staff": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Feature, unfeature, hide, unhide or remove a listing in the IDEA Market; it asks first, and a hidden or removed one tells the student why.",
+			"say": [
+				"hide Mateo's listing, it's selling homework",
+				"feature the 3D print listing",
+				"remove that market listing"
+			],
+			"args": {
+				"p_listing_id": {
+					"name": "listing",
+					"describe": "The listing's id, from the market."
+				},
+				"p_action": {
+					"name": "action",
+					"enum": [
+						"feature",
+						"unfeature",
+						"hide",
+						"unhide",
+						"remove"
+					],
+					"describe": "What to do with it."
+				},
+				"p_reason": {
+					"name": "reason",
+					"describe": "Why, 3 to 300 characters; the student sees it when a listing is hidden or removed."
+				}
+			}
+		},
+		"coin_market_resolve": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Settle a held IDEA Market order by paying the seller, refunding the buyer, or splitting it; it asks first.",
+			"say": [
+				"refund Leo's market order",
+				"pay the seller for that order",
+				"split the disputed order"
+			],
+			"args": {
+				"p_order_id": {
+					"name": "order",
+					"describe": "The order's id, from the market queue."
+				},
+				"p_outcome": {
+					"name": "outcome",
+					"enum": [
+						"release",
+						"refund",
+						"split"
+					],
+					"describe": "release pays the seller, refund pays the buyer back, split pays the seller part."
+				},
+				"p_to_payee": {
+					"name": "toSeller",
+					"describe": "For a split, how many coins the seller gets."
+				},
+				"p_note": {
+					"name": "note",
+					"describe": "A note both students see."
+				}
+			}
+		},
+		"coin_market_official_save": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Post an official IDEA Market card, like a want-ad for tissue boxes or Extra Credit, or change one; it asks first.",
+			"say": [
+				"post an official ad for tissue boxes at 5 coins",
+				"add an official market card for class supplies",
+				"change the extra credit card's price"
+			],
+			"args": {
+				"p_id": {
+					"name": "card",
+					"default": null,
+					"describe": "To change a card already up, its id; leave it out for a new one."
+				},
+				"p_title": {
+					"name": "title",
+					"describe": "The card's title."
+				},
+				"p_description": {
+					"name": "text",
+					"default": null,
+					"describe": "What it says."
+				},
+				"p_link": {
+					"name": "link",
+					"default": null,
+					"describe": "A page on this site starting with /, if it links somewhere."
+				},
+				"p_price": {
+					"name": "price",
+					"default": null,
+					"describe": "Its price in coins, 0.1 to 1000."
+				},
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"default": null,
+					"describe": "Only this class; leave it out for every class."
+				},
+				"p_days": {
+					"name": "days",
+					"describe": "How many days it stays up, 1 to 365."
+				}
+			}
+		},
+		"coin_market_review_remove": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Remove a review a student left on another student's IDEA Market listing; it asks first.",
+			"say": [
+				"remove that rude market review",
+				"take down Leo's review",
+				"delete the review on Ana's listing"
+			],
+			"args": {
+				"p_review_id": {
+					"name": "review",
+					"describe": "The review's id, from the market queue."
+				},
+				"p_reason": {
+					"name": "reason",
+					"describe": "Why, 3 to 300 characters."
+				}
+			}
+		},
+		"coin_transfer_moderation": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Recent coin transfers between students, with their messages, for coin staff to look over.",
+			"say": [
+				"show recent coin transfers",
+				"who's been sending coins",
+				"any rude transfer messages"
+			]
+		},
+		"coin_transfer_remove_message": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Remove the message on a coin transfer between students, keeping the coins where they went; it asks first.",
+			"say": [
+				"remove the message on that transfer",
+				"take down Mateo's transfer note",
+				"clear that rude transfer message"
+			],
+			"args": {
+				"p_transfer_id": {
+					"name": "transfer",
+					"describe": "The transfer's id, from the transfer list."
+				},
+				"p_reason": {
+					"name": "reason",
+					"describe": "Why, 3 to 300 characters."
+				}
+			}
+		},
+		"coin_stock_admin_list": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Every IDEA Coin stock with its price, whether it is trading, and its settings, as a full coin admin sees them.",
+			"say": [
+				"show the coin stocks",
+				"how are the stocks doing",
+				"list the stock market"
+			]
+		},
+		"coin_stock_admin_set": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Open or close trading on one IDEA Coin stock, or change its settings; it asks first.",
+			"say": [
+				"stop trading on the shop stock",
+				"turn the attendance stock back on",
+				"change a stock's base price"
+			],
+			"args": {
+				"p_stock_id": {
+					"name": "stock",
+					"describe": "The stock's short name, from the stock list."
+				},
+				"p_active": {
+					"name": "trading",
+					"describe": "True to let students trade it, false to stop."
+				},
+				"p_params": {
+					"name": "settings",
+					"describe": "Only to change its numbers: the base price, the most it moves in a day as a percent, or the weeks its middle value is taken over."
+				}
+			}
+		},
 		"notebook_accept_entry": {
 			"surface": "call",
 			"level": "undo",
@@ -7050,19 +7434,22 @@
 			"args": {
 				"p_app": {
 					"name": "app",
+					"default": null,
 					"describe": "Only reports about this app."
 				},
 				"p_limit": {
 					"name": "count",
-					"describe": "How many to list."
+					"default": null,
+					"describe": "How many to list, newest first; leave it out for 200."
 				},
 				"p_horizon": {
 					"name": "horizon",
+					"default": null,
 					"enum": [
 						"now",
 						"long_term"
 					],
-					"describe": "Only fix-soon reports, or only long term ideas."
+					"describe": "now for the fix-soon reports, or long term for the big ideas; leave it out for both."
 				}
 			}
 		},
@@ -7143,20 +7530,26 @@
 		"app_feedback_set_status": {
 			"surface": "call",
 			"level": "undo",
-			"describe": "Move a feedback report to a new status, such as reviewing, planned or done.",
+			"describe": "Move a site feedback report to new, seen, resolved or spam, as the feedback console does.",
 			"say": [
-				"mark that report done",
-				"set the hall pass report to planned",
-				"close report 12"
+				"mark that report resolved",
+				"set the matrix theme report to seen",
+				"that feedback was spam"
 			],
 			"args": {
 				"p_id": {
 					"name": "report",
-					"describe": "The report's id."
+					"describe": "The report's id, from the feedback list."
 				},
 				"p_status": {
 					"name": "status",
-					"describe": "The new status, as the feedback console names it."
+					"enum": [
+						"new",
+						"seen",
+						"resolved",
+						"spam"
+					],
+					"describe": "new, seen, resolved, or spam."
 				}
 			},
 			"before": {
@@ -7177,6 +7570,62 @@
 					}
 				}
 			]
+		},
+		"app_feedback_file": {
+			"surface": "tool",
+			"tool": "file_site_feedback",
+			"level": "confirm",
+			"describe": "File a report in the site's own feedback list, the same one the Send feedback button fills, as you.",
+			"say": [
+				"file a bug that the matrix theme isn't moving",
+				"send site feedback that the 404 page looks old",
+				"log an idea for the feedback list"
+			],
+			"args": {
+				"p_app": {
+					"name": "app",
+					"default": null,
+					"describe": "Which part of the site, like classroom, portal or coins; leave it out for the portal."
+				},
+				"p_kind": {
+					"name": "kind",
+					"enum": [
+						"bug",
+						"idea",
+						"praise",
+						"other"
+					],
+					"describe": "bug, idea, praise, or other."
+				},
+				"p_message": {
+					"name": "message",
+					"describe": "What happened, in his words."
+				},
+				"p_tried": {
+					"name": "tried",
+					"default": null,
+					"describe": "What he tried first, if he said."
+				},
+				"p_horizon": {
+					"name": "horizon",
+					"default": null,
+					"enum": [
+						"now",
+						"long_term"
+					],
+					"describe": "now to fix soon (the usual), long_term for a big idea."
+				},
+				"p_context": {
+					"name": "page",
+					"default": null,
+					"describe": "The page it is about, like /classroom, if he named one."
+				},
+				"p_meta": {
+					"name": "details",
+					"default": null,
+					"describe": "Leave it out."
+				}
+			}
 		},
 		"app_feedback_submit": {
 			"exclude": "The anonymous report path, which only the site's own feedback route may call with the request's address; an admin's report goes in signed in."
@@ -9239,6 +9688,73 @@
 					"describe": "What went wrong, when it failed."
 				}
 			}
+		},
+		"list_site_feedback": {
+			"facade": true,
+			"level": "read",
+			"uses": [
+				"app_feedback_admin_list"
+			],
+			"describe": "List the reports people sent from the site's Send feedback button, newest first, filtered by status, fix soon or long term, app, and date.",
+			"say": [
+				"what feedback came in today",
+				"list the open fix soon reports",
+				"show the classroom bug reports from this week",
+				"any new long term ideas"
+			],
+			"args": {
+				"status": {
+					"type": "string",
+					"enum": [
+						"open",
+						"new",
+						"seen",
+						"resolved",
+						"spam",
+						"all"
+					],
+					"describe": "open (new or seen, the usual), one status, or all."
+				},
+				"horizon": {
+					"type": "string",
+					"enum": [
+						"fix soon",
+						"long term",
+						"both"
+					],
+					"describe": "fix soon (the usual), long term ideas, or both."
+				},
+				"app": {
+					"type": "string",
+					"describe": "Only reports about this part of the site, like classroom or portal."
+				},
+				"since": {
+					"type": "string",
+					"describe": "Only reports filed on or after this date, like 2026-10-16."
+				},
+				"count": {
+					"type": "integer",
+					"describe": "How many to list, newest first; leave it out for 25."
+				}
+			}
+		},
+		"feedback_screenshot": {
+			"facade": true,
+			"level": "read",
+			"uses": [],
+			"describe": "Get a link to the screenshot attached to one site feedback report, good for five minutes.",
+			"say": [
+				"show me the screenshot on that report",
+				"open the picture from the matrix theme report",
+				"get report 551c11e3's screenshot"
+			],
+			"args": {
+				"report": {
+					"type": "string",
+					"required": true,
+					"describe": "The report's id, or the first eight characters of it, from the feedback list."
+				}
+			}
 		}
 	},
 	"sources": {
@@ -9274,6 +9790,8 @@
 		"armory_register_device": "armory.yaml",
 		"armory_set_part_prefix": "armory.yaml",
 		"armory_team_status": "armory.yaml",
+		"armory_add_member": "armory.yaml",
+		"armory_remove_member": "armory.yaml",
 		"cert_admin_get": "certifications.yaml",
 		"cert_admin_list": "certifications.yaml",
 		"cert_admin_save": "certifications.yaml",
@@ -9685,6 +10203,18 @@
 		"maps_my_editor_grants": "maps.yaml",
 		"maps_publish": "maps.yaml",
 		"maps_search": "maps.yaml",
+		"coin_banner_admin": "market.yaml",
+		"coin_banner_save": "market.yaml",
+		"coin_banner_remove": "market.yaml",
+		"coin_market_moderation": "market.yaml",
+		"coin_market_listing_staff": "market.yaml",
+		"coin_market_resolve": "market.yaml",
+		"coin_market_official_save": "market.yaml",
+		"coin_market_review_remove": "market.yaml",
+		"coin_transfer_moderation": "market.yaml",
+		"coin_transfer_remove_message": "market.yaml",
+		"coin_stock_admin_list": "market.yaml",
+		"coin_stock_admin_set": "market.yaml",
 		"notebook_accept_entry": "notebook.yaml",
 		"notebook_add_note": "notebook.yaml",
 		"notebook_add_photo": "notebook.yaml",
@@ -9725,6 +10255,7 @@
 		"app_feedback_edit": "site.yaml",
 		"app_feedback_set_horizon": "site.yaml",
 		"app_feedback_set_status": "site.yaml",
+		"app_feedback_file": "site.yaml",
 		"app_feedback_submit": "site.yaml",
 		"app_short_link_delete": "site.yaml",
 		"app_short_link_list": "site.yaml",
@@ -9768,6 +10299,8 @@
 		"connector_disconnect": "tools.yaml",
 		"report_gap": "tools.yaml",
 		"record_eval_result": "tools.yaml",
+		"list_site_feedback": "tools.yaml",
+		"feedback_screenshot": "tools.yaml",
 		"tournament_add_entry_member": "tournaments.yaml",
 		"tournament_add_host": "tournaments.yaml",
 		"tournament_create": "tournaments.yaml",

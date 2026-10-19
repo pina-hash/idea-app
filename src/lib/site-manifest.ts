@@ -289,7 +289,9 @@ export const BOOKKEEPING_SUBJECTS: readonly RegExp[] = [
 	// Housekeeping of the tree itself.
 	/^remove a stray\b/i,
 	// A round's measurements from the browser harness.
-	/^browser checks:/i
+	/^browser checks:/i,
+	// The Connector tools workflow's regenerated registry (ledger 0416).
+	/^connector tools regenerated\b/i
 ];
 
 /** Whether a commit subject is repository bookkeeping (see BOOKKEEPING_SUBJECTS). */

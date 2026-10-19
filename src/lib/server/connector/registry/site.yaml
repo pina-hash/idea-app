@@ -29,10 +29,14 @@ app_feedback_admin_list:
   level: read
   describe: The reports people sent from the site's feedback button, newest first.
   say: ["what feedback came in today", "show the feedback reports", "any new bug reports"]
+  # All three are always sent (null when left out), so only the three-argument
+  # form of the function fits: with two forms, "horizon" alone or with "count"
+  # fit neither and PostgREST answered that the function could not be found
+  # (gap 3157f5d8). The function reads a null as "every app", "200" and "both".
   args:
-    p_app: {name: app, describe: "Only reports about this app."}
-    p_limit: {name: count, describe: "How many to list."}
-    p_horizon: {name: horizon, enum: [now, long_term], describe: "Only fix-soon reports, or only long term ideas."}
+    p_app: {name: app, default: null, describe: "Only reports about this app."}
+    p_limit: {name: count, default: null, describe: "How many to list, newest first; leave it out for 200."}
+    p_horizon: {name: horizon, default: null, enum: [now, long_term], describe: "now for the fix-soon reports, or long term for the big ideas; leave it out for both."}
 
 app_feedback_edit:
   surface: call
@@ -65,11 +69,11 @@ app_feedback_set_horizon:
 app_feedback_set_status:
   surface: call
   level: undo
-  describe: Move a feedback report to a new status, such as reviewing, planned or done.
-  say: ["mark that report done", "set the hall pass report to planned", "close report 12"]
+  describe: Move a site feedback report to new, seen, resolved or spam, as the feedback console does.
+  say: ["mark that report resolved", "set the matrix theme report to seen", "that feedback was spam"]
   args:
-    p_id: {name: report, describe: "The report's id."}
-    p_status: {name: status, describe: "The new status, as the feedback console names it."}
+    p_id: {name: report, describe: "The report's id, from the feedback list."}
+    p_status: {name: status, enum: [new, seen, resolved, spam], describe: "new, seen, resolved, or spam."}
   before:
     table: app_feedback
     columns: [status]
@@ -77,6 +81,27 @@ app_feedback_set_status:
   undo:
     - function: app_feedback_set_status
       args: {p_id: $args.p_id, p_status: $before.status}
+
+# A SIGNED-IN REPORT, AS HIM (ledger 0416, gap ae4a495d): the same row the
+# site's Send feedback box writes, through 0282's invoker function. Asks first
+# so he hears the report before it lands in the one list.
+app_feedback_file:
+  surface: tool
+  tool: file_site_feedback
+  level: confirm
+  describe: File a report in the site's own feedback list, the same one the Send feedback button fills, as you.
+  say:
+    - file a bug that the matrix theme isn't moving
+    - send site feedback that the 404 page looks old
+    - log an idea for the feedback list
+  args:
+    p_app: {name: app, default: null, describe: "Which part of the site, like classroom, portal or coins; leave it out for the portal."}
+    p_kind: {name: kind, enum: [bug, idea, praise, other], describe: "bug, idea, praise, or other."}
+    p_message: {name: message, describe: "What happened, in his words."}
+    p_tried: {name: tried, default: null, describe: "What he tried first, if he said."}
+    p_horizon: {name: horizon, default: null, enum: [now, long_term], describe: "now to fix soon (the usual), long_term for a big idea."}
+    p_context: {name: page, default: null, describe: "The page it is about, like /classroom, if he named one."}
+    p_meta: {name: details, default: null, describe: "Leave it out."}
 
 app_feedback_submit:
   exclude: The anonymous report path, which only the site's own feedback route may call with the request's address; an admin's report goes in signed in.

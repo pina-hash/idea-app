@@ -1,0 +1,88 @@
+name: Connector tools
+
+# THE IDEA WEBSITE CONNECTOR PICKS UP EVERY NEW ADMIN ACTION BY ITSELF
+# (ledger 0416). Mr. Pina, 2026-10-19: "Every time an update is pushed, the
+# connector picks up every new admin action without him asking."
+#
+# On every push to `main` this runs `npm run connector:build`, which rescans
+# the site for every database function and route it calls, reads pg_proc on
+# the whole migration chain, and writes a generated tool for every admin action
+# no hand-written registry entry names (tools/connector/auto.mjs). When that
+# changes any generated file it commits the result to `main`, and that commit
+# is the deploy that ships the new tools. A push that already carried a current
+# build changes nothing and commits nothing.
+#
+# THE COMMIT IS BOOKKEEPING ("Connector tools regenerated", matched by
+# BOOKKEEPING_SUBJECTS in src/lib/site-manifest.ts), so it never shows in the
+# site's update list.
+#
+# IT NEVER FORCES. A push rejected because `main` moved is rebased once and
+# pushed again; if the rebase conflicts, nothing is pushed and the next push to
+# `main` runs this again over the newer tree, which is the same answer.
+#
+# A push made with the workflow's own token does not start workflows, so this
+# commit cannot start another run of this file.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: connector-tools
+  cancel-in-progress: false
+
+# contents: write -- commit the regenerated files to main. Nothing else.
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the connector registry
+        run: npm run connector:build
+
+      - name: Commit what changed
+        run: |
+          set -euo pipefail
+          FILES="src/lib/server/connector/inventory.generated.json src/lib/server/connector/overlay.generated.json src/lib/server/connector/schema.generated.json src/lib/server/connector/auto.generated.json src/lib/server/connector/endpoints.generated.ts docs/connector/DESIGN.md"
+          if git diff --quiet -- $FILES; then
+            echo "The connector's generated files are current. Nothing to commit."
+            echo "The connector's generated files were already current." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          TOOLS="$(node -e "const a=require('./src/lib/server/connector/auto.generated.json');console.log(a.counts.tools)")"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- $FILES
+          git commit -q -m "Connector tools regenerated for the site's newest actions" \
+            -m "Written by .github/workflows/connector.yml from npm run connector:build on $(git rev-parse --short HEAD~0). ${TOOLS} generated tools."
+          if ! git push origin HEAD:refs/heads/main; then
+            git fetch origin main
+            if git rebase origin/main; then
+              git push origin HEAD:refs/heads/main
+            else
+              git rebase --abort || true
+              echo "::warning::main moved and the regenerated files conflicted; nothing was pushed. The next push to main regenerates them."
+              exit 0
+            fi
+          fi
+          {
+            echo "## Connector tools regenerated"
+            echo
+            echo "${TOOLS} generated tools are now reachable through the IDEA Website connector."
+          } >> "$GITHUB_STEP_SUMMARY"

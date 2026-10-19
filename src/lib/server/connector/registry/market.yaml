@@ -1,0 +1,142 @@
+# THE IDEA MARKET, ITS CLASSROOM BANNER, COIN STOCKS AND COIN TRANSFERS, AS
+# COIN STAFF RUN THEM FROM THE COIN DESK'S MARKET PAGE (ledger 0416, gaps
+# 499d58e1 and 75287d20). The shape is described at the top of classroom.yaml.
+#
+# These were built after the connector (ledger 0402) and the page reaches them
+# through a helper that passes the name along, so a `.rpc('name')` scan never
+# saw them; the generated layer (tools/connector/auto.mjs) now does, and these
+# hand entries replace the generated ones with spoken names and the words a
+# person would use.
+#
+# `proof: generic`: tests/db/connector-generic.test.ts proves the entry (nobody
+# but staff gets anything through it, and asking first holds) instead of a
+# sample in tests/db/connector-samples.ts. Seeding a listing, an order and a
+# review to call the moderation actions is the Coin Desk suite's work.
+
+coin_banner_admin:
+  surface: call
+  level: read
+  describe: Every pin on the IDEA Market banner under the classroom header, with its class, dates and order.
+  say: ["what's on the classroom banner", "show the market banner pins", "list the banner ads"]
+
+coin_banner_save:
+  surface: tool
+  tool: post_market_banner
+  level_when:
+    - {if: "p_id is null", level: undo}
+    - {else: confirm}
+  describe: Put an ad on the IDEA Market banner under every classroom's header, or change one, like a tissue box drive or a class supply ask.
+  say:
+    - put a banner up asking for tissue boxes, both sizes
+    - post a market ad for class supplies on the classroom banner
+    - add a banner for the donation drive in Block 2 until Friday
+    - change the tissue box banner's title
+  args:
+    p_id: {name: banner, default: null, describe: "To change a pin already up, its id from the banner list; leave it out to post a new one."}
+    p_kind: {name: kind, enum: [link, official, listing, contract, shop], describe: "link for any page on the site (the usual one), official for an official market card, listing for a student listing, contract for a posted contract, shop for the coin shop."}
+    p_listing_id: {name: listing, default: null, describe: "For a listing or official card, its id from the market; leave it out otherwise."}
+    p_title: {name: title, describe: "The banner's title, 2 to 80 characters, like Tissue boxes wanted."}
+    p_subtitle: {name: subtitle, default: null, describe: "A short line under the title, up to 140 characters, like Both sizes, 5 coins each."}
+    p_href: {name: link, describe: "Where a click goes: a page on this site starting with /, like /coins or /market."}
+    p_starts_on: {name: starts, default: null, describe: "The first day it shows, as a date; leave it out to start now."}
+    p_ends_on: {name: ends, default: null, describe: "The last day it shows, as a date; leave it out to keep it up until it is taken down."}
+    p_section_id: {name: class, resolve: class, default: null, describe: "Only this class, like 209H Block 2; leave it out for every class."}
+    p_sort_order: {name: order, default: 0, describe: "Where it falls in the rotation, lowest first; leave it out for 0."}
+  undo:
+    - when: $result.created
+      function: coin_banner_remove
+      args: {p_id: $result.pin_id}
+
+coin_banner_remove:
+  surface: call
+  level: confirm
+  describe: Take an ad down from the IDEA Market banner under the classroom header; it asks first.
+  say: ["take the tissue box banner down", "remove that banner ad", "pull the donation drive banner"]
+  args:
+    p_id: {name: banner, describe: "The pin's id, from the banner list."}
+
+coin_market_moderation:
+  surface: call
+  level: read
+  describe: The IDEA Market as coin staff see it, with every open trade, held order, report and review to look at.
+  say: ["what's going on in the market", "any market trades to settle", "show the market moderation queue"]
+
+coin_market_listing_staff:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Feature, unfeature, hide, unhide or remove a listing in the IDEA Market; it asks first, and a hidden or removed one tells the student why.
+  say: ["hide Mateo's listing, it's selling homework", "feature the 3D print listing", "remove that market listing"]
+  args:
+    p_listing_id: {name: listing, describe: "The listing's id, from the market."}
+    p_action: {name: action, enum: [feature, unfeature, hide, unhide, remove], describe: "What to do with it."}
+    p_reason: {name: reason, describe: "Why, 3 to 300 characters; the student sees it when a listing is hidden or removed."}
+
+coin_market_resolve:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Settle a held IDEA Market order by paying the seller, refunding the buyer, or splitting it; it asks first.
+  say: ["refund Leo's market order", "pay the seller for that order", "split the disputed order"]
+  args:
+    p_order_id: {name: order, describe: "The order's id, from the market queue."}
+    p_outcome: {name: outcome, enum: [release, refund, split], describe: "release pays the seller, refund pays the buyer back, split pays the seller part."}
+    p_to_payee: {name: toSeller, describe: "For a split, how many coins the seller gets."}
+    p_note: {name: note, describe: "A note both students see."}
+
+coin_market_official_save:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Post an official IDEA Market card, like a want-ad for tissue boxes or Extra Credit, or change one; it asks first.
+  say: ["post an official ad for tissue boxes at 5 coins", "add an official market card for class supplies", "change the extra credit card's price"]
+  args:
+    p_id: {name: card, default: null, describe: "To change a card already up, its id; leave it out for a new one."}
+    p_title: {name: title, describe: "The card's title."}
+    p_description: {name: text, default: null, describe: "What it says."}
+    p_link: {name: link, default: null, describe: "A page on this site starting with /, if it links somewhere."}
+    p_price: {name: price, default: null, describe: "Its price in coins, 0.1 to 1000."}
+    p_section_id: {name: class, resolve: class, default: null, describe: "Only this class; leave it out for every class."}
+    p_days: {name: days, describe: "How many days it stays up, 1 to 365."}
+
+coin_market_review_remove:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Remove a review a student left on another student's IDEA Market listing; it asks first.
+  say: ["remove that rude market review", "take down Leo's review", "delete the review on Ana's listing"]
+  args:
+    p_review_id: {name: review, describe: "The review's id, from the market queue."}
+    p_reason: {name: reason, describe: "Why, 3 to 300 characters."}
+
+coin_transfer_moderation:
+  surface: call
+  level: read
+  describe: Recent coin transfers between students, with their messages, for coin staff to look over.
+  say: ["show recent coin transfers", "who's been sending coins", "any rude transfer messages"]
+
+coin_transfer_remove_message:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Remove the message on a coin transfer between students, keeping the coins where they went; it asks first.
+  say: ["remove the message on that transfer", "take down Mateo's transfer note", "clear that rude transfer message"]
+  args:
+    p_transfer_id: {name: transfer, describe: "The transfer's id, from the transfer list."}
+    p_reason: {name: reason, describe: "Why, 3 to 300 characters."}
+
+coin_stock_admin_list:
+  surface: call
+  level: read
+  describe: Every IDEA Coin stock with its price, whether it is trading, and its settings, as a full coin admin sees them.
+  say: ["show the coin stocks", "how are the stocks doing", "list the stock market"]
+
+coin_stock_admin_set:
+  surface: call
+  level: confirm
+  describe: Open or close trading on one IDEA Coin stock, or change its settings; it asks first.
+  say: ["stop trading on the shop stock", "turn the attendance stock back on", "change a stock's base price"]
+  args:
+    p_stock_id: {name: stock, describe: "The stock's short name, from the stock list."}
+    p_active: {name: trading, describe: "True to let students trade it, false to stop."}
+    p_params: {name: settings, describe: "Only to change its numbers: the base price, the most it moves in a day as a percent, or the weeks its middle value is taken over."}
