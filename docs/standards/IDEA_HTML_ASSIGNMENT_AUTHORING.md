@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.25 - 2026-10-16**
+**Version 1.26 - 2026-10-18**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1129,7 +1129,68 @@ right or wrong with one change, a slide in the class deck) and adds four rules.
 
 ---
 
+## 21. Rules paid for by IDEA-Blade (2026-10-14 to 2026-10-18)
+
+Built on IDEA100 IDEA-Blade 01 (Design) and 02 (Build and Fight), the last unit of a
+rotation, where the class must execute a seven-class timeline on command.
+
+- **A landing aims below the following bar and checks itself.** Next to do, a stage key and
+  every Go key call one helper (`hxLand`): it aims a 1px anchor at the target's top minus the
+  bar's height minus 12px, scrolls instantly, then re-reads the bar's real position after the
+  portal resizes the frame and corrects up to twice. A scroll aimed once, before the frame
+  grows, lands the target under the bar (Mr. Pina's screenshot, 2026-10-14). Test it on a
+  harness host that resizes the frame a beat late.
+- **Color by meaning, never green everywhere.** Green is act and done. Amber is a limit, a
+  warning or a deadline (every "due" chip, the rule drawing's limits). Red is only a number
+  that must change. Blue is help ("That is not what I see"). A role or a product may carry
+  its own hue (Blade orange, Body blue, Assembly violet; SolidWorks red, xTool teal) only
+  beside its word. Every ink measured at 4.5:1 or better on its ground in both themes.
+  Greenwashing a page, every heading and fill in the accent, is a defect (Mr. Pina, 2026-10-14).
+- **A template file is a download, through the attachment proxy.** Attach it to the post and
+  link `https://ideabosco.com/api/classroom/attachment/<id>` as a 44px key with the saved file
+  name beside it and what to do next (open it, Save As where). Show only the student's
+  role's file once a role is picked.
+- **A multi-day unit opens with a Today plan.** Under the hero: a strip of every class in the
+  unit (later classes in the next post drawn dashed, a no-class day as a flat chip), the day
+  on screen lit, a dot on today, and a press on any day shows that day's plan for this visit.
+  The plan is that day's tasks for the student's role only (everyone's tasks plus their
+  role's, each with its role word), each a numbered row with its state read from the move it
+  points at and a Go key that opens that move alone and lands it under the bar. It ends with
+  one "Done when" line that names the finish line for that class. Before the first class it
+  says "Next class"; on a no-class day it says so and shows the next class.
+- **Right-size the challenge with levels, never bonus points.** Per role: Ready (every rule
+  met, full points), Strong (one measurable improvement that makes it perform better) and
+  Stretch (only once Ready and Strong are saved by a named class). Say "Aim for Strong; get
+  Ready saved first", and a dated stop rule in amber ("End of class Oct 20: Ready not saved?
+  Stop adding. Finish Ready first."). The pick is an optional radio block, so the teacher sees
+  ambition without it counting.
+- **A video library is slots first, cards when recorded.** Each move names the videos that
+  teach it (`data-vids`), and one table holds every video with its role, title, YouTube id,
+  start second and inlined thumbnail. A slot with no id renders nothing and the library hides,
+  so a post can go live before the videos exist and gain them by a re-upload that changes only
+  the table. A card says "Mr. Pina video, n of N" counted over the student's role. Playing
+  one opens a full-width 16:9 box at the top of its move with a Stop video key, sends
+  `idea:video` (id, rect, start, clipTop under the bar), and falls back to a YouTube link
+  after 1.5 s with no `idea:video-state`.
+- **Team CAD lives in IDEA Armory, one project per team.** Armory names a file once per
+  project, so a class-wide project collides on every template part; each team gets its own
+  project and folder (`C:\IDEA\Armory\<project>`). The Day 1 move walks setup from
+  ideabosco.com/armory/start, Save As into the team folder with the team name in the file
+  name, closing the file to send it, and a screenshot of the folder as optional evidence.
+  Every later move opens files by right-click, Show more options, IDEA Armory, Check out and
+  open. The fix list carries the installer warning, the shared-computer PIN prompt, a
+  read-only file and a name already used.
+- **A live thumbnail carries no wrapped title.** The thumbnail shell has no fonts and no
+  container, so size its words with `vh` and set `white-space: nowrap`; render it in all three
+  shapes and both schemes before delivery.
+
 ## Changelog
+
+- **1.26 (2026-10-18).** Ledger 0408. New section 21 from IDEA-Blade 01 and 02: landings aimed below
+  the following bar that re-check themselves, color by meaning, template downloads through the
+  attachment proxy, a Today plan for a multi-day unit, Ready/Strong/Stretch levels with a dated
+  stop rule, a video library that renders only recorded videos, team CAD in one IDEA Armory
+  project per team, and an unwrapped live thumbnail title.
 
 - **1.25 (2026-10-16).** Ledger 0396, migration 0268 (post thumbnails, report a6a037f3).
   New section 10d: a document may declare how its post looks in a class list with a
