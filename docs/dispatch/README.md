@@ -76,7 +76,6 @@ The tool that starts a scheduled session takes no model or effort, so the dispat
 
 - An entry left `running` with no `trigger_id` for 20 minutes means the dispatcher that claimed it died before launching (this happened on 2026-10-18 and held a job for about 10 hours). The next run releases it and starts it again.
 - Sessions start the moment they are created (`fire_trigger`), not at a clock time, so a clock mismatch can no longer reject a start.
-- Every launcher's last step runs the dispatcher, so the job queued behind a finished one starts within minutes, not at the next hour.
 - Owns items that begin "its own" (its own `docs/history/` entry) are new files each session creates and never count as a collision.
 
 ## Who runs the dispatcher
@@ -88,5 +87,10 @@ The tool that starts a scheduled session takes no model or effort, so the dispat
 A dispatched session ends by setting its own entry to `done` (with the pushed sha) or `failed` (with a one-line note) in the same push as its work, so the next hourly run can start what was waiting behind it.
 
 ## What reaches Mr. Pina
+
+The **job board** (the pinned Session Dispatcher page, https://claude.ai/artifact/JwGj561ut4CU1pJq1R8zZQ) is where he watches the work, decided 2026-10-18 after the scheduled-task view proved unreadable. It shows what needs him, each running job's current step updated live by the job itself, what is next and why it waits, and what landed with its sha and report. A running job with no update for 30 minutes turns amber. The dispatcher and every launcher write to it (section B of the idea-dispatch skill). Finished jobs' scheduled tasks are never deleted: deleting a task deletes its sessions.
+
+Starting a session from a run nobody is watching needs his tap on the Schedule card (Claude's safety rules require a person to approve one session starting another); a chat he is in starts sessions with no card. The board's Needs you lane shows any job waiting for that tap.
+
 
 The morning check lists what is running, what waits and why, anything waiting for his go, failed or held entries, and any run past six hours. A chat asked "what's queued" prints the same from `python3 tools/dispatch.py plan`.
