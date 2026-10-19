@@ -306,3 +306,133 @@ The section RPCs, the legacy import functions, the old payout, contract and
 role-list functions and the medium arguments are dropped. Tables cannot be
 dropped by the apply tool, so the five dead tables are revoked by name and
 listed with their drop statements in the session-two history entry.
+
+## 12. Later features (ledger 0402, migrations 0275 to 0281)
+
+Mr. Pina chose six features on 2026-10-17 (decision 70): the student
+marketplace, marketplace reviews, student to student transfers, the classroom
+header banner, buying hall pass time, and the stock market. Every number below
+is a default on `/coin-desk/settings` (audited in `coin_settings_audit`); every
+fee and limit has its sentence in the rules list (`coin_public_reasons`).
+
+### 12.1 Defaults
+
+| Setting | Default | What it does |
+|---|---|---|
+| `market_sale_fee_percent` | 0 | Sink taken from the seller when a sale pays out |
+| `market_open_listings_max` | 5 | Open listings one student may have |
+| `market_listing_days` | 14 | Days a listing stays open (renewable) |
+| `market_auto_release_school_days` | 5 | Class days after "done" before an unconfirmed sale pays itself |
+| `market_review_min_chars` | 20 | Shortest review |
+| `market_review_edit_hours` | 24 | Hours a review can still be changed |
+| `transfer_daily_cap` | 20 | Most coins one student sends in a school day |
+| `transfer_private_fee_percent` | 10 | Fee for a private transfer (a sink); to be tuned from use |
+| `transfer_private_fee_min` | 0.1 | Smallest private fee |
+| `transfer_pin_tries` | 5 | Wrong PINs before sending locks |
+| `transfer_lock_minutes` | 15 | Length of that lock |
+| `hall_pass_block_minutes` | 5 | Minutes in one bought block (price: the Extra Hall Pass Time category, 1 coin) |
+| `hall_pass_extra_cap_minutes` | 15 | Most extra minutes a student buys in a day |
+| `stock_fee_percent` | 2 | Fee on every buy and sale (a sink) |
+| `stock_position_cap` | 50 | Most coins of cost basis in one stock |
+| `stock_base` | 10 | The price when today's signal equals its median |
+| `stock_clamp_percent` | 10 | Most a price moves in a day |
+| `stock_floor` / `stock_ceiling` | 1 / 100 | Bounds on every close |
+| `stock_median_weeks` | 8 | Window of the median |
+| `stock_class_window_weeks` | 4 | A class stock's trailing grade window |
+| `stock_min_class_students` | 3 | Fewest students with returned work for a class price |
+| `banner_style` | `spotlight` | The classroom banner's look (`spotlight`, `ticker`, `cards`) |
+
+### 12.2 The marketplace (`/market`, 0276)
+
+- **Official zone** (staff only): the shop's items, the donation want-ads, the
+  desktop background, staff cards (`coin_market_official_save`) and contracts,
+  restitution jobs shown only to a student in debt. A tile opens the flow that
+  already exists; nothing is bought from a tile.
+- **Student zone**: offers and requests with a title, a description, a price
+  (two decimals), an optional photo (the private `coin-uploads` bucket, read
+  only through a signed URL), a category, and a quantity or one time. At most
+  five open listings; each lasts 14 days and can be renewed.
+- **Escrow**: a claim moves the payer's coins to a hold at once
+  (`market_escrow_hold`). The seller marks it done; the payer confirms and the
+  coins go to the seller less the sale fee (`market_escrow_release`,
+  `market_fee`). Unconfirmed and undisputed for five class days after "done",
+  it pays itself in `coin_autopay_run`. The seller may cancel before delivery
+  (full refund). Either side may dispute; staff release, refund or split on
+  `/coin-desk/market`. A dispute is in a section staff member's scope only when
+  both people are; otherwise it is a full coin admin's.
+- A student in debt can sell and be paid, but cannot claim an offer, post a paid
+  request or send coins.
+- Staff feature, hide (with a reason the poster sees) or remove a listing.
+
+### 12.3 Reviews (0276)
+
+One per side after a trade that paid out in full (a refunded or split trade
+takes none), 1 to 5 stars, at least 20 characters, editable for 24 hours. A
+profile shows the average, the count and the ten newest. Staff remove one with
+a reason.
+
+### 12.4 Transfers (0277)
+
+A 4 to 6 digit PIN, stored as a bcrypt hash (`extensions.crypt`), checked before
+any money moves; five wrong tries lock sending for 15 minutes. Any student in the
+economy sends to any other, with an optional message up to 200 characters, up to
+20 coins a school day, never while in debt. Public by default: the Ledger's
+Transfers tab and the market's feed show both names, the amount and the
+message. Private costs 10% (at least 0.1), a sink, and appears nowhere public,
+including the public Ledger. Staff can remove a message (`coin_transfer_remove_message`);
+the ledger rows themselves are never edited.
+
+### 12.5 The classroom header banner (0280)
+
+Staff pin a featured listing, an official card, a contract, a shop item or any
+page on the site, with optional dates and an optional class. Pins rotate under
+the classroom header, a click opens one, Hide for today puts it away in that
+browser until tomorrow. Three looks, picked on `/coin-desk/settings`:
+**Spotlight** (the default: one pin at a time on a raised plate), **Ticker** (a
+scrolling strip) and **Cards** (three small cards). Every look has a Pause key,
+stops under the pointer or keyboard focus, and does not move under
+`prefers-reduced-motion: reduce`.
+
+### 12.6 Hall pass time (0278)
+
+A student buys 5-minute blocks at 1 coin each, at most 15 minutes a day, from
+the hall pass card or `/coin-balance`. Bought time adds to today's budget and
+moves today's warning and fine later by the same amount, for passes opened
+after the purchase, never past the auto check-in cap; a fine already given is
+never removed. Stored in `coin_hall_pass_minutes`; `_classroom_hall_pass_budget`
+and `_classroom_hall_pass_check` read it.
+
+### 12.7 The stock market (`/market/stocks`, 0279)
+
+Every price traces to recorded site data. A close stores its raw inputs, its
+signal, the median, the formula's target and `formula_version` (`v1`), and each
+stock's page shows them as "How this price is made". A day with no data keeps
+the previous close and says why.
+
+- **Formula v1**: price = base x (today's signal / median of the signal over the
+  last 8 weeks), moved at most 10% from the previous close, kept between 1 and
+  100. Closes are made nightly in `coin_autopay_run`, for class days only; the
+  first run backfills eight weeks.
+- **Stocks**: one per class in the economy (returned points earned over points
+  possible, trailing 4 weeks, at least 3 students), FNDRY (distinct people
+  playing or uploading in the Foundry per day, 7-day average), GNTLT (distinct
+  people submitting a GAUNTLET answer per day, 7-day average), and the IDEA
+  index (equal-weighted mean of the day's member closes).
+- **Rejected**: an on-time rate (a ported worksheet has no turn-in, so the
+  input would be missing for most work) and tournament matches (they come in
+  bursts and the median is zero most weeks, so the price would sit at a bound).
+- **Trading**: with the house at the last close, fractional shares, a 2% fee
+  each way, at most 50 coins of cost basis per stock, on class days only, no
+  shorting (a short can lose more coins than anyone holds, and the economy has
+  no one to collect that debt from). Selling is always allowed, in debt too. A
+  portfolio's value is shown on `/coin-balance` and never counted in the
+  balance; the leaderboard ranks portfolio value.
+- **Backtest**: `node tools/coin-stock-backtest.mjs` replays the formula over a
+  seeded eight weeks with the real nightly run and writes the CSV and chart under
+  `docs/coin-economy/backtests/`; the run asserts no close touches a bound.
+
+### 12.8 Economy health (0281)
+
+The digest (`/coin-desk/digest`) shows coins in circulation, students in debt,
+the week's faucets against its sinks (fees, purchases, fines), what sits in
+escrow, and the cost basis and value held in stocks (`coin_economy_health`).

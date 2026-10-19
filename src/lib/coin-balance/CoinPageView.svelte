@@ -20,7 +20,8 @@
 		extras = {},
 		now,
 		onsignin = null,
-		onchanged = null
+		onchanged = null,
+		market = null
 	}: {
 		state: 'ready' | 'signed_out' | 'updating' | 'error';
 		page?: CoinMyPage | null;
@@ -29,6 +30,8 @@
 		now: number;
 		onsignin?: (() => void) | null;
 		onchanged?: (() => void) | null;
+		/** Ledger 0402: the market, stocks, transfers and hall pass time, drawn under the hero by the route. */
+		market?: import('svelte').Snippet | null;
 	} = $props();
 </script>
 
@@ -53,6 +56,8 @@
 			<a href="/coins/index.html">See the class leaderboard</a>.
 		</p>
 	</section>
+
+	{#if market}{@render market()}{/if}
 
 	<CoinPageBody state={pageState} {page} {transports} {extras} {now} {onsignin} {onchanged} />
 

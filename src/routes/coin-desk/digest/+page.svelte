@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import DigestView from '$lib/coin-desk/DigestView.svelte';
+	import EconomyHealth from '$lib/coin-market/EconomyHealth.svelte';
 	import { createDigestTransports, type PushTransport } from '$lib/coin-desk/digest';
 	import { enablePush, hasLocalSubscription, pushAvailability } from '$lib/tournaments/push-client';
 	import type { PageData } from './$types';
@@ -20,10 +21,21 @@
 		enable: () => enablePush(supabase)
 	};
 	const transports = createDigestTransports(supabase, push);
+
+	/** Ledger 0402: the economy's health (0281), best effort. */
+	async function loadHealth(): Promise<unknown> {
+		try {
+			const { data: raw, error } = await supabase.rpc('coin_economy_health', { p_days: 7 });
+			return error ? null : raw;
+		} catch {
+			return null;
+		}
+	}
 </script>
 
 <svelte:head>
 	<title>Digest // IDEA Coin Desk</title>
 </svelte:head>
 
+<EconomyHealth load={loadHealth} />
 <DigestView {transports} />

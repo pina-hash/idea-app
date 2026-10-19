@@ -231,9 +231,12 @@ describe('the Ledger page reads the one balance', () => {
 		expect(LEDGER).not.toContain('<th>Count</th><th>Total</th>');
 	});
 
-	test('the stats bar is exactly the two V2 tiles', () => {
+	test('the stats bar is the two V2 tiles plus the stock index (ledger 0402), and the index tile starts hidden', () => {
 		const tiles = [...LEDGER.matchAll(/<div class="stat-label">([^<]*)<\/div>/g)].map((m) => m[1]);
-		expect(tiles).toEqual(['Coins in Circulation', 'Students in Debt']);
+		expect(tiles).toEqual(['Coins in Circulation', 'Students in Debt', 'IDEA Stock Index']);
+		// Hidden until the public stocks read answers, so a database without
+		// 0279 shows the two V2 tiles exactly as before.
+		expect(LEDGER).toMatch(/<a class="stat-tile stock-tile" id="stat-stock-tile" href="\/market\/stocks" hidden>/);
 	});
 });
 

@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "coins-signedin-1-space-white.mjs",
-	"date": "2026-10-17T10:19:20.859Z",
-	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
-	"dirty": false,
+	"date": "2026-10-19T09:33:58.449Z",
+	"sha": "e2268bd1f539015d6200513f089ebd96ee8e076a",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 24,
 	"outsideRows": [],
-	"ms": 11730
+	"ms": 10492
 }

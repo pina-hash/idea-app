@@ -1,0 +1,216 @@
+<script lang="ts">
+	import '$lib/coin-market/market.css';
+	import './stocks.css';
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
+	import VersionBadge from '$lib/VersionBadge.svelte';
+	import { coins } from '$lib/coin-format';
+	import StockChart from './StockChart.svelte';
+	import TradeDialog from './TradeDialog.svelte';
+	import { changeWords, KIND_WORDS, price, priceFormulaWords, tradeRulesWords, type Stock, type StocksBoard } from './stocks';
+	import type { StockTransports } from './transports';
+
+	/**
+	 * THE IDEA STOCK MARKET (ledger 0402). The IDEA index on top, every stock
+	 * with its price, its move and its history, your holdings, and a separate
+	 * leaderboard by portfolio value. Every price traces to recorded site data:
+	 * each stock's page says how its price is made, day by day. The route
+	 * mounts this over the database; `/dev/coin-stocks` over an in-memory board.
+	 */
+	let {
+		state: pageState,
+		board = null,
+		transports = null,
+		onchanged = null
+	}: {
+		state: 'ready' | 'signed_out' | 'updating' | 'error';
+		board?: StocksBoard | null;
+		transports?: StockTransports | null;
+		onchanged?: (() => void) | null;
+	} = $props();
+
+	let trading = $state<{ stock: Stock; side: 'buy' | 'sell' } | null>(null);
+	let flash = $state<string | null>(null);
+
+	const index = $derived(board?.stocks.find((s) => s.kind === 'index') ?? null);
+	const others = $derived(board?.stocks.filter((s) => s.kind !== 'index') ?? []);
+	const canTrade = $derived(!!transports && !!board?.in_economy);
+	const gain = $derived(board ? Math.round((board.portfolio.value - board.portfolio.cost_basis) * 100) / 100 : 0);
+
+	function held(id: string): { shares: number; basis: number } {
+		const p = board?.portfolio.positions.find((x) => x.stock_id === id);
+		return { shares: p?.shares ?? 0, basis: p?.cost_basis ?? 0 };
+	}
+</script>
+
+<svelte:head>
+	<title>IDEA Stocks // IDEA</title>
+</svelte:head>
+
+<div class="app-header">
+	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
+	<div class="header-right">
+		<a class="btn secondary" href="/market">Market</a>
+		<ProfileMenu />
+	</div>
+</div>
+
+<main class="mk-page" data-testid="sk-page" data-state={pageState}>
+	<section class="mk-hero">
+		<div>
+			<div class="mk-eyebrow">IDEA Coins</div>
+			<h1>IDEA Stocks</h1>
+			<p class="lead">Prices made from what really happens on the site: grades, the Foundry, GAUNTLET. They change once a class day.</p>
+		</div>
+		{#if board}
+			<div class="mk-hero-keys">
+				<span class="mk-balance">
+					<span class="mk-balance-label">Balance</span>
+					<span class="mk-balance-figure" class:neg={board.balance < 0}>{coins(board.balance)}</span>
+				</span>
+				<span class="mk-balance" data-testid="sk-portfolio-value">
+					<span class="mk-balance-label">In stocks</span>
+					<span class="mk-balance-figure">{coins(board.portfolio.value)}</span>
+				</span>
+			</div>
+		{/if}
+	</section>
+
+	{#if pageState === 'signed_out'}
+		<section class="card mk-panel"><p class="mk-body">Sign in to see the stock market.</p></section>
+	{:else if pageState === 'updating'}
+		<section class="card mk-panel" data-testid="sk-updating"><h2>The stock market is being set up</h2><p class="mk-body">Check back soon.</p></section>
+	{:else if pageState === 'error' || !board}
+		<section class="card mk-panel"><h2>The stock market could not be read</h2><p class="mk-body">Try again in a minute.</p></section>
+	{:else}
+		{#if flash}<p class="mk-ok" role="status" data-testid="sk-flash">{flash}</p>{/if}
+		{#if !board.open_today}<p class="mk-note" data-testid="sk-closed">The market is closed today. Trades happen on class days; selling and buying open again then.</p>{/if}
+		<div class="mk-layout">
+			<div class="mk-col">
+				{#if index}
+					{@const mv = changeWords(index.last?.change_percent ?? null)}
+					<section class="card mk-panel" aria-labelledby="sk-h-index" data-testid="sk-index">
+						<header>
+							<h2 id="sk-h-index">IDEA index</h2>
+							<a class="btn secondary mk-key" href="/market/stocks/{index.id}">How it is made</a>
+						</header>
+						<div class="sk-hero">
+							<div class="sk-hero-figure">
+								<span class="sk-big" data-testid="sk-index-price">{index.last ? price(index.last.close) : 'No price yet'}</span>
+								<span class="sk-move {mv.tone}">{mv.text}</span>
+								<span class="mk-note">{KIND_WORDS.index}</span>
+							</div>
+							<StockChart series={index.series} label="IDEA index" height={160} />
+						</div>
+						{#if canTrade}
+							<div class="mk-row">
+								<button type="button" class="btn mk-key" disabled={!board.open_today} onclick={() => (trading = { stock: index, side: 'buy' })}>Buy IDEA</button>
+								{#if held(index.id).shares > 0}
+									<button type="button" class="btn secondary mk-key" disabled={!board.open_today} onclick={() => (trading = { stock: index, side: 'sell' })}>Sell IDEA</button>
+								{/if}
+							</div>
+						{/if}
+					</section>
+				{/if}
+
+				<section class="card mk-panel" aria-labelledby="sk-h-stocks" data-testid="sk-stocks">
+					<header>
+						<h2 id="sk-h-stocks">Stocks</h2>
+						<span class="mk-sub">{others.length} trading</span>
+					</header>
+					<ul class="sk-rows">
+						{#each others as s (s.id)}
+							{@const mv = changeWords(s.last?.change_percent ?? null)}
+							{@const h = held(s.id)}
+							<li class="mk-tile sk-row" data-testid="sk-stock" data-stock-id={s.id}>
+								<div class="sk-row-head">
+									<span class="sk-ticker">{s.ticker}</span>
+									<span class="mk-price">{s.last ? price(s.last.close) : 'No price yet'}</span>
+								</div>
+								<div class="sk-row-head">
+									<span class="sk-name">{s.name}</span>
+									<span class="sk-move {mv.tone}">{mv.text}</span>
+								</div>
+								<StockChart series={s.series} label={s.ticker} height={56} axis={false} />
+								<span class="mk-note">{KIND_WORDS[s.kind]}{s.last?.carried ? ' Last close carried: no data that day.' : ''}</span>
+								{#if h.shares > 0}<span class="mk-note">You own {h.shares.toFixed(4)} shares.</span>{/if}
+								<div class="mk-row">
+									<a class="btn secondary mk-key" href="/market/stocks/{encodeURIComponent(s.id)}" data-testid="sk-details">How it is made</a>
+									{#if canTrade && s.last}
+										<button type="button" class="btn mk-key" disabled={!board.open_today} onclick={() => (trading = { stock: s, side: 'buy' })} data-testid="sk-buy">Buy</button>
+										{#if h.shares > 0}
+											<button type="button" class="btn secondary mk-key" disabled={!board.open_today} onclick={() => (trading = { stock: s, side: 'sell' })} data-testid="sk-sell">Sell</button>
+										{/if}
+									{/if}
+								</div>
+							</li>
+						{:else}
+							<li><p class="mk-empty">No stocks are trading yet.</p></li>
+						{/each}
+					</ul>
+				</section>
+			</div>
+
+			<aside class="mk-col" aria-label="Your stocks">
+				<section class="card mk-panel" aria-labelledby="sk-h-mine" data-testid="sk-portfolio">
+					<header>
+						<h2 id="sk-h-mine">Your portfolio</h2>
+						<span class="sk-move {gain > 0 ? 'up' : gain < 0 ? 'down' : 'flat'}">{gain > 0 ? '+' : ''}{coins(gain)}</span>
+					</header>
+					{#if board.portfolio.positions.length}
+						<table class="sk-table">
+							<thead><tr><th>Stock</th><th>Shares</th><th>Paid</th><th>Worth</th></tr></thead>
+							<tbody>
+								{#each board.portfolio.positions as p (p.stock_id)}
+									<tr><td>{p.ticker}</td><td class="num">{p.shares.toFixed(4)}</td><td class="num">{coins(p.cost_basis)}</td><td class="num">{coins(p.value)}</td></tr>
+								{/each}
+							</tbody>
+						</table>
+						<p class="mk-note">Worth {coins(board.portfolio.value)} at the last closes. Not part of your balance until you sell.</p>
+					{:else}
+						<p class="mk-note">You own no shares.</p>
+					{/if}
+				</section>
+
+				<section class="card mk-panel" aria-labelledby="sk-h-board" data-testid="sk-leaderboard">
+					<header><h2 id="sk-h-board">Top portfolios</h2></header>
+					{#if board.leaderboard.length}
+						<ol class="mk-feed">
+							{#each board.leaderboard as row, i (i)}
+								<li><span class="mk-feed-who">{i + 1}. {row.me ? `${row.name} (you)` : row.name}</span><span class="mk-feed-amt">{coins(row.value)}</span></li>
+							{/each}
+						</ol>
+					{:else}
+						<p class="mk-note">Nobody owns shares yet.</p>
+					{/if}
+				</section>
+
+				<section class="card mk-panel" aria-labelledby="sk-h-rules" data-testid="sk-rules">
+					<header><h2 id="sk-h-rules">The rules</h2></header>
+					<p class="mk-body">{priceFormulaWords(board.rules)}</p>
+					<p class="mk-body">{tradeRulesWords(board.rules)}</p>
+					<p class="mk-note">Why no shorting: a short can lose more coins than anyone holds, and the economy has no one to collect that debt from.</p>
+				</section>
+			</aside>
+		</div>
+	{/if}
+	<footer class="mk-foot"><VersionBadge app="coins" /></footer>
+</main>
+
+{#if trading && board && transports}
+	{@const h = held(trading.stock.id)}
+	<TradeDialog
+		stock={trading.stock}
+		side={trading.side}
+		rules={board.rules}
+		balance={board.balance}
+		held={h.shares}
+		basis={h.basis}
+		{transports}
+		onclose={() => (trading = null)}
+		ondone={(m) => {
+			flash = m;
+			onchanged?.();
+		}}
+	/>
+{/if}

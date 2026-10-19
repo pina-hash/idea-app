@@ -133,7 +133,7 @@ export default {
 	presence: [
 		/* THE POSITIVE CONTROL: the Ledger's own tab bar. Without it, every row
 		   below could pass on a page that failed to render at all. */
-		{ selector: '.tab-bar .tab-btn', label: 'the Ledger rendered (its own tabs)', expectPresent: 4 },
+		{ selector: '.tab-bar .tab-btn', label: 'the Ledger rendered (its own tabs, Transfers the fifth since ledger 0402)', expectPresent: 5 },
 		{ selector: '#idea-feedback-launch .sfb-trigger', label: 'the official feedback button, server-rendered', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '#idea-feedback-launch .sfb-glyph svg', label: 'the button carries the site control\'s glyph', expectPresent: 1, maxPresent: 1 },
 		{ selector: '#idea-feedback-frame.is-open', label: 'the window, open in its frame', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -247,13 +247,13 @@ export default {
 			   closes the window through its own Escape, hit-tests each tab with
 			   the page given back (a launcher that left the page inert fails it
 			   by name), and opens the window again for any read after this one. */
-			label: 'the page is inert behind the open window, and once it closes all four tabs are inside the viewport and hit-testable',
+			label: 'the page is inert behind the open window, and once it closes all five tabs are inside the viewport and hit-testable',
 			evaluate: `async () => {
 				const d = document.documentElement;
 				const f = document.getElementById('idea-feedback-frame');
 				const t = document.querySelector('#idea-feedback-launch .sfb-trigger');
 				const btns = [...document.querySelectorAll('.tab-bar .tab-btn')];
-				if (btns.length !== 4) return ['EXPECTED 4 TABS, FOUND ' + btns.length, ''];
+				if (btns.length !== 5) return ['EXPECTED 5 TABS, FOUND ' + btns.length, ''];
 				if (!f || !t || !f.classList.contains('is-open')) return ['NO OPEN WINDOW', ''];
 				const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 				const inertOpen = btns.every((b) => !!b.closest('[inert]'));
@@ -271,10 +271,10 @@ export default {
 				for (let i = 0; i < 30 && !(f.classList.contains('is-open') && f.contentDocument.querySelector('#fb-msg')); i++) await wait(100);
 				return [
 					inertOpen ? 'the page behind the open window is inert' : 'THE PAGE BEHIND THE OPEN WINDOW IS NOT INERT',
-					bad.length === 0 ? '4/4 reachable once it closes' : 'UNREACHABLE: ' + bad.map((b) => b.textContent.trim()).join(', ')
+					bad.length === 0 ? '5/5 reachable once it closes' : 'UNREACHABLE: ' + bad.map((b) => b.textContent.trim()).join(', ')
 				];
 			}`,
-			expected: ['the page behind the open window is inert', '4/4 reachable once it closes']
+			expected: ['the page behind the open window is inert', '5/5 reachable once it closes']
 		}
 	]
 };

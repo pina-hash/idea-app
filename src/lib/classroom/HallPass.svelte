@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
+	import HallPassMinutes from '$lib/coin-market/HallPassMinutes.svelte';
 	import {
 		CLASSROOM_LIVE_DEBOUNCE_MS,
 		HALL_PASS_POLL_MS,
@@ -714,6 +715,11 @@
 
 		{#if notice}
 			<p class="hp-notice" role="status" data-testid="hall-pass-notice">{notice}</p>
+		{/if}
+
+		{#if view.scope === 'student' && transports?.minutesQuote && transports?.buyMinutes}
+			<!-- Ledger 0402: more pass time for today, bought with coins (0278). -->
+			<HallPassMinutes {sectionId} quote={transports.minutesQuote} buy={transports.buyMinutes} onbought={() => refresh()} />
 		{/if}
 
 		{#if view.scope === 'student' && eventList && eventList.events.length > 0}

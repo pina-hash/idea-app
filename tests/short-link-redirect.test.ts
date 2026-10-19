@@ -87,7 +87,9 @@ const CHAIN = [
 	'0269_short_link_reserve_feedback.sql',
 	// 0271 (ledger 0400) reserves `connector` and `mcp`, the IDEA Website
 	// connector's sign-in pages and its MCP endpoint.
-	'0271_short_link_reserve_connector.sql'
+	'0271_short_link_reserve_connector.sql',
+	// 0275 (ledger 0402) reserves `market`, the IDEA Market's top-level route.
+	'0275_short_link_reserve_market.sql'
 ] as const;
 
 /**

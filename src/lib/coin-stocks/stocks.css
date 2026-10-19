@@ -1,0 +1,142 @@
+/* The stock market's own pieces (ledger 0402). Panels, keys and fields are
+   the market's (`mk-`); these are the chart and the ticker rows. */
+.sk-chart {
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-width: 0;
+}
+.sk-chart svg {
+	width: 100%;
+	display: block;
+}
+.sk-line {
+	fill: none;
+	stroke: var(--green);
+	stroke-width: 2;
+}
+.sk-area {
+	fill: var(--green);
+	opacity: 0.12;
+}
+.sk-chart.down .sk-line {
+	stroke: var(--amber);
+}
+.sk-chart.down .sk-area {
+	fill: var(--amber);
+}
+.sk-carried {
+	stroke: var(--text-2);
+	stroke-width: 1.5;
+}
+.sk-axis {
+	display: flex;
+	justify-content: space-between;
+	font-family: var(--font-mono);
+	font-size: 0.68rem;
+	letter-spacing: 0.05em;
+	color: var(--text-2);
+}
+.sk-hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0.6rem;
+}
+.sk-hero-figure {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.4rem 1rem;
+}
+.sk-big {
+	font-family: var(--font-mono);
+	font-size: 2.4rem;
+	line-height: 1;
+	color: var(--text-1);
+}
+.sk-move {
+	font-family: var(--font-mono);
+	font-size: 0.95rem;
+}
+/* The move is a sentence ("Up 2.40%") in the text ink, which clears every
+   plate; the hue rides a small marker beside it. Measured: the green as the
+   word itself was 3.29:1 on Space White's tile foot. */
+.sk-move {
+	color: var(--text-1);
+}
+.sk-move.up::before {
+	content: '\25B2\00A0' / '';
+	color: var(--green);
+}
+.sk-move.down::before {
+	content: '\25BC\00A0' / '';
+	color: var(--amber);
+}
+.sk-move.flat {
+	color: var(--text-2);
+}
+.sk-rows {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr));
+	gap: 0.75rem;
+}
+.sk-row {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+.sk-row-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.5rem;
+	min-width: 0;
+}
+.sk-ticker {
+	font-family: var(--font-mono);
+	font-size: 1rem;
+	letter-spacing: 0.08em;
+	color: var(--text-1);
+}
+.sk-name {
+	color: var(--text-2);
+	font-size: 0.9rem;
+	overflow-wrap: anywhere;
+}
+.sk-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.93rem;
+}
+.sk-table th,
+.sk-table td {
+	text-align: left;
+	padding: 0.4rem 0.5rem;
+	border-bottom: 1px solid var(--hairline);
+	vertical-align: top;
+}
+.sk-table th {
+	font-family: var(--font-mono);
+	font-size: 0.68rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	font-weight: 400;
+}
+.sk-table td.num {
+	font-family: var(--font-mono);
+	white-space: nowrap;
+}
+.sk-scroll {
+	overflow-x: auto;
+	min-width: 0;
+}
+.sk-inputs {
+	font-size: 0.85rem;
+	color: var(--text-2);
+	overflow-wrap: anywhere;
+}

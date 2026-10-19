@@ -40,6 +40,7 @@ export const SITE_PLATE_PREFIXES: readonly string[] = [
 	'/coin-desk',
 	'/foundry',
 	'/maps',
+	'/market',
 	'/tournaments'
 ];
 
@@ -67,6 +68,8 @@ export const SITE_PLATE_DEV_PREFIXES: readonly string[] = [
 	'/dev/short-links',
 	'/dev/coin-desk',
 	'/dev/coin-balance',
+	'/dev/coin-market',
+	'/dev/coin-stocks',
 	'/dev/foundry-',
 	'/dev/tournaments',
 	'/dev/tournament-',

@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "coin-market-theme-space-white.mjs",
+	"date": "2026-10-19T09:20:25.400Z",
+	"sha": "e2268bd1f539015d6200513f089ebd96ee8e076a",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 36,
+	"outsideRows": [],
+	"ms": 9724
+}

@@ -379,3 +379,37 @@ coin_section_role_badges:
   say: ["who holds roles in Block 2", "show Block 4's role badges", "who's the banker in Block 1"]
   args:
     p_section_id: {name: class, resolve: class, describe: "The class."}
+
+# LEDGER 0402: the market, transfers, hall pass time, the stocks and the
+# classroom banner. The student functions act as the caller, so through an
+# admin's account they would trade, send or buy as him; the staff writes come
+# to the connector once each has a sample and its log tables.
+
+coin_economy_health:
+  surface: call
+  level: read
+  describe: The coin economy's health for the last week or more, coins in circulation, students in debt, what came in against what went out, and what sits in escrow and stocks.
+  say: ["how healthy is the coin economy", "how many coins are in circulation", "what came in and went out of the economy this week"]
+  args:
+    p_days: {name: days, describe: "How many days back; leave it out for the last seven."}
+
+coin_banner:
+  exclude: The classroom header banner's read for one class page; the page loads it for whoever is looking.
+coin_buy_hall_pass_minutes:
+  exclude: A student buying hall pass time for themselves; it acts as the caller, so through an admin's account it would buy for him.
+coin_hall_pass_minutes_mine:
+  exclude: A student's own hall pass time on their coin page; it acts as the caller.
+coin_hall_pass_minutes_quote:
+  exclude: A student's own price for more hall pass time; it acts as the caller.
+coin_market_board:
+  exclude: The IDEA Market as the signed-in student sees it, with their own trades; it acts as the caller.
+coin_my_portfolio:
+  exclude: A student's own stock holdings; it acts as the caller.
+coin_public_stocks:
+  exclude: The public Ledger's stock tile, readable without signing in; it names no person.
+coin_public_transfers:
+  exclude: The public Ledger's transfer feed, readable without signing in.
+coin_stock_detail:
+  exclude: One stock's page as the signed-in student sees it, with their own holding; it acts as the caller.
+coin_stocks_board:
+  exclude: The stock market as the signed-in student sees it, with their own portfolio; it acts as the caller.

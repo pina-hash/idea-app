@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "coin-market-banner.mjs",
+	"date": "2026-10-19T09:25:03.550Z",
+	"sha": "e2268bd1f539015d6200513f089ebd96ee8e076a",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 28,
+	"outsideRows": [],
+	"ms": 12220
+}

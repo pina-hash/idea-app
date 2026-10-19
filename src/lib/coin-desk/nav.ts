@@ -36,6 +36,7 @@ export type CoinDeskAreaId =
 	| 'queue'
 	| 'payday'
 	| 'digest'
+	| 'market'
 	| 'tournaments'
 	| 'settings';
 
@@ -104,6 +105,13 @@ export const COIN_DESK_AREAS: CoinDeskArea[] = [
 		href: '/coin-desk/digest',
 		tier: 'section',
 		blurb: 'The week: what autopay paid, who gained most, chronic debt, the queue, and money in against money out.'
+	},
+	{
+		id: 'market',
+		label: 'Market',
+		href: '/coin-desk/market',
+		tier: 'section',
+		blurb: 'The IDEA Market: disputes, featuring and hiding listings, reviews, official cards, the classroom banner, transfers and the stocks.'
 	},
 	{
 		id: 'tournaments',

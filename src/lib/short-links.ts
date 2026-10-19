@@ -84,6 +84,7 @@ export const RESERVED_SLUGS = [
 	'ideacad',
 	'manifest.webmanifest',
 	'maps',
+	'market',
 	'mcp',
 	'notebook',
 	'push-sw.js',

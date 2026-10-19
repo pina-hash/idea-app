@@ -617,6 +617,24 @@ body::after {
   font-size: 1.3rem; line-height: 1;
   color: var(--gold); text-shadow: var(--glow-gold);
 }
+/* Ledger 0402: the IDEA stock index tile and the transfer feed. */
+@media (min-width: 769px) {
+  .stats-bar.has-stocks { grid-template-columns: repeat(3, 1fr); }
+}
+a.stat-tile.stock-tile { display: block; text-decoration: none; color: inherit; min-height: 44px; }
+a.stat-tile.stock-tile:hover, a.stat-tile.stock-tile:focus-visible { border-color: var(--green); }
+.stat-move { font-size: 0.78rem; margin-top: 0.35rem; color: var(--dim); }
+.stat-move.up { color: var(--green); }
+.stat-move.down { color: var(--amber); }
+.xfer-intro { color: var(--dim); font-size: 0.85rem; margin: 0 0 1rem; }
+.xfer-intro a { color: var(--cyan); }
+.xfer-list { list-style: none; margin: 0; padding: 0; }
+.xfer-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.2rem 0.8rem; padding: 0.7rem 0; border-bottom: 1px solid rgba(0,255,65,0.1); }
+.xfer-who { color: var(--white); overflow-wrap: anywhere; }
+.xfer-amt { font-family: 'Share Tech Mono', monospace; color: var(--gold); white-space: nowrap; }
+.xfer-msg { grid-column: 1 / -1; color: var(--dim); font-size: 0.88rem; overflow-wrap: anywhere; }
+.xfer-when { grid-column: 1 / -1; color: var(--dim); font-size: 0.7rem; letter-spacing: 0.05em; }
+
 
 /* ── Analytics Tab ───────────────────────────────────── */
 .analytics-divider {
@@ -2049,7 +2067,7 @@ body::after {
     <input type="text" class="global-search" id="global-search" placeholder="Search students&hellip;">
   </div>
 
-  <div class="stats-bar">
+  <div class="stats-bar" id="stats-bar">
     <div class="stat-tile">
       <div class="stat-label">Coins in Circulation</div>
       <div class="stat-value" id="stat-circulation">—</div>
@@ -2058,6 +2076,11 @@ body::after {
       <div class="stat-label">Students in Debt</div>
       <div class="stat-value" id="stat-debt" style="color:var(--red);text-shadow:0 0 10px rgba(255,68,68,0.8),0 0 28px rgba(255,68,68,0.3)">—</div>
     </div>
+    <a class="stat-tile stock-tile" id="stat-stock-tile" href="/market/stocks" hidden>
+      <div class="stat-label">IDEA Stock Index</div>
+      <div class="stat-value" id="stat-index"></div>
+      <div class="stat-move" id="stat-index-move"></div>
+    </a>
   </div>
 
   <div class="guide-callout" id="guide-callout-btn" role="button" tabindex="0" aria-label="Open i¢ Guide">
@@ -2074,6 +2097,7 @@ body::after {
     <button class="tab-btn" data-tab="transactions">Transaction Log</button>
     <button class="tab-btn" data-tab="analytics">Analytics</button>
     <button class="tab-btn" data-tab="contracts">Contracts</button>
+    <button class="tab-btn" data-tab="transfers">Transfers</button>
   </div>
 
   <!-- ── Leaderboard Tab ─────────────────────────── -->
@@ -2115,6 +2139,12 @@ body::after {
       <span>Loading leaderboard&hellip;</span>
     </div>
     <div class="leaderboard-grid" id="leaderboard-grid" style="display:none"></div>
+  </div>
+
+  <!-- ── Transfers Tab (ledger 0402) ────────────── -->
+  <div class="tab-panel" id="tab-transfers">
+    <p class="xfer-intro">Coins students sent each other. A private transfer is never shown here. <a href="/market">Send coins on the IDEA Market</a>.</p>
+    <ul class="xfer-list" id="transfer-feed"><li class="xfer-row"><span class="xfer-who">Loading&hellip;</span></li></ul>
   </div>
 
   <!-- ── Transaction Log Tab ────────────────────── -->
@@ -3743,6 +3773,85 @@ document.getElementById('print-header').textContent =
     sel.value = savedSort;
   }
 })();
+
+// ── Ledger 0402: transfers and the stock index ──────
+// Every string a student wrote goes in through textContent, never as HTML.
+function fmtCoins(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  return (Number.isInteger(n) ? String(n) : n.toFixed(2)) + ' i\u00a2';
+}
+async function fetchTransfers() {
+  const list = document.getElementById('transfer-feed');
+  if (!list) return;
+  try {
+    const res = await fetch(COIN_API + '?action=transfers&_=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error(String(res.status));
+    const rows = await res.json();
+    list.replaceChildren();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'xfer-row';
+      const s = document.createElement('span');
+      s.className = 'xfer-who';
+      s.textContent = 'No public transfers yet.';
+      li.appendChild(s);
+      list.appendChild(li);
+      return;
+    }
+    for (const r of rows) {
+      const li = document.createElement('li');
+      li.className = 'xfer-row';
+      const who = document.createElement('span');
+      who.className = 'xfer-who';
+      who.textContent = (r.from || 'A student') + ' \u2192 ' + (r.to || 'A student');
+      const amt = document.createElement('span');
+      amt.className = 'xfer-amt';
+      amt.textContent = fmtCoins(r.amount);
+      li.append(who, amt);
+      if (r.message) {
+        const m = document.createElement('span');
+        m.className = 'xfer-msg';
+        m.textContent = '\u201c' + r.message + '\u201d';
+        li.appendChild(m);
+      }
+      const w = document.createElement('span');
+      w.className = 'xfer-when';
+      w.textContent = r.at || '';
+      li.appendChild(w);
+      list.appendChild(li);
+    }
+  } catch (e) {
+    list.replaceChildren();
+    const li = document.createElement('li');
+    li.className = 'xfer-row';
+    li.textContent = 'Transfers could not be read right now.';
+    list.appendChild(li);
+  }
+}
+async function fetchStocks() {
+  const tile = document.getElementById('stat-stock-tile');
+  if (!tile) return;
+  try {
+    const res = await fetch(COIN_API + '?action=stocks&_=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error(String(res.status));
+    const data = await res.json();
+    const idx = data && data.index && data.index.last ? data.index : null;
+    if (!idx) return;
+    document.getElementById('stat-index').textContent = Number(idx.last.close).toFixed(2);
+    const move = document.getElementById('stat-index-move');
+    const pct = idx.last.change_percent === null || idx.last.change_percent === undefined ? null : Number(idx.last.change_percent);
+    move.className = 'stat-move' + (pct > 0 ? ' up' : pct < 0 ? ' down' : '');
+    move.textContent = pct === null || Math.abs(pct) < 0.005 ? 'Unchanged' : (pct > 0 ? 'Up ' : 'Down ') + Math.abs(pct).toFixed(2) + '%';
+    tile.hidden = false;
+    document.getElementById('stats-bar').classList.add('has-stocks');
+  } catch (e) {
+    // No index yet (or the feature is not switched on): the tile stays hidden.
+  }
+}
+fetchTransfers();
+fetchStocks();
+setInterval(() => { fetchTransfers(); fetchStocks(); }, 60000);
 
 // ── Fetch on load + auto-refresh ──────────────────────
 fetchData();

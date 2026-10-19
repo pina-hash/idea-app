@@ -482,6 +482,12 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
 		'A tournament\'s own public page says whether its rewards were transferred or paid in coins (0248). It answers an outcome and a time for one tournament, names nobody, and moves nothing.',
 	coin_public_student: COIN_PUBLIC_REASON,
 	coin_public_transactions: COIN_PUBLIC_REASON,
+	// Ledger 0402 (0276, 0278): the Ledger's transfer feed (never a private
+	// transfer, never a removed message, names by the roster rule and the
+	// opaque id, no email) and its stock tile (prices only, no person).
+	coin_public_transfers: COIN_PUBLIC_REASON,
+	coin_public_stocks:
+		'The Ledger\'s stock tile (0278): every active stock\'s last close and the IDEA index series. Prices made from aggregate site data; it names no person and carries no address.',
 
 	// --- IDEA Coin autopay (1). 0242, ledger 0384. ---
 	coin_autopay_run:
@@ -547,7 +553,7 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
  * moving it without reading the reason beside the new entry is what the pin
  * refuses.
  */
-const ANON_EXECUTE_SURFACE_SIZE = 28;
+const ANON_EXECUTE_SURFACE_SIZE = 30;
 
 // ---------------------------------------------------------------------------
 // Plumbing

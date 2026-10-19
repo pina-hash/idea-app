@@ -1,0 +1,685 @@
+/*
+ * THE IDEA MARKET (ledger 0402): one stylesheet for /market, /market/stocks
+ * and the market panels on the coin page and the Coin Desk. Every class is
+ * `mk-` prefixed so nothing here reaches another surface. Colours only
+ * through the site's tokens (and the site plate's, with a fallback), so the
+ * IDEA, Matrix and Space White themes each paint it with their own measured
+ * values. Green is rationed: the primary action, a paid trade, a rise.
+ */
+
+.mk-page {
+	max-width: 92rem;
+	margin: 0 auto;
+	padding: 0 1rem 3rem;
+	min-width: 0;
+}
+.mk-hero {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 1rem 2rem;
+	margin: 0.5rem 0 1.25rem;
+}
+.mk-hero h1 {
+	margin: 0.15rem 0 0.35rem;
+}
+.mk-hero .lead {
+	margin: 0;
+	max-width: 46rem;
+	color: var(--text-2);
+}
+.mk-eyebrow {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--text-2);
+}
+.mk-hero-keys {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+}
+.mk-balance {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.1rem;
+	padding: 0.35rem 0.8rem;
+	border-radius: var(--plate-r-small, 6px);
+	border: 1px solid var(--plate-hair, var(--boundary));
+	background: var(--plate-inset-top, var(--bg0));
+	min-height: 44px;
+	justify-content: center;
+}
+.mk-balance-label {
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--text-2);
+}
+.mk-balance-figure {
+	font-family: var(--font-mono);
+	font-size: 1.2rem;
+	color: var(--text-1);
+}
+.mk-balance-figure.neg {
+	color: var(--amber);
+}
+
+.mk-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1.25rem;
+	align-items: start;
+}
+@media (min-width: 1100px) {
+	.mk-layout {
+		grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+	}
+}
+.mk-col {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+	min-width: 0;
+}
+
+.mk-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 0.8rem;
+	min-width: 0;
+	margin: 0;
+}
+.mk-panel > header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.4rem 1rem;
+}
+.mk-panel h2 {
+	margin: 0;
+}
+.mk-panel h3 {
+	margin: 0;
+	font-size: 1.05rem;
+	color: var(--text-1);
+}
+.mk-panel h2::before,
+.mk-panel h3::before {
+	content: none;
+}
+.mk-sub {
+	margin: 0;
+	color: var(--text-2);
+	font-size: 0.95rem;
+}
+.mk-note {
+	margin: 0;
+	color: var(--text-2);
+	font-size: 0.92rem;
+}
+.mk-why {
+	margin: 0;
+	color: var(--amber);
+	font-size: 0.95rem;
+}
+.mk-ok {
+	margin: 0;
+	color: var(--green);
+	font-size: 0.95rem;
+}
+
+/* ---- Tiles (the official zone) and listing cards ---- */
+.mk-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+	gap: 0.75rem;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.mk-tile {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	min-height: 7.5rem;
+	padding: 0.85rem 0.95rem 0.8rem;
+	border-radius: var(--plate-r-panel, 10px);
+	border: 1px solid var(--plate-hair, var(--boundary));
+	background-color: var(--plate-face-ground, var(--bg2));
+	background-image: linear-gradient(to bottom, var(--plate-face-top, var(--bg2)), var(--plate-face-bot, var(--bg1)));
+	box-shadow:
+		inset 0 1px 0 0 var(--plate-bezel-hi, transparent),
+		0 4px 12px -6px var(--plate-drop, rgba(0, 0, 0, 0.35));
+	color: var(--text-1);
+	text-decoration: none;
+	min-width: 0;
+	transition:
+		border-color 0.15s ease,
+		box-shadow 0.15s ease,
+		transform 0.15s ease;
+}
+a.mk-tile:hover,
+button.mk-tile:hover,
+a.mk-tile:focus-visible,
+button.mk-tile:focus-visible {
+	border-color: var(--green);
+	box-shadow:
+		inset 0 1px 0 0 var(--plate-bezel-hi, transparent),
+		0 0 0 1px var(--green),
+		0 8px 18px -8px var(--plate-drop, rgba(0, 0, 0, 0.45));
+}
+@media (prefers-reduced-motion: no-preference) {
+	a.mk-tile:hover,
+	button.mk-tile:hover {
+		transform: translateY(-1px);
+	}
+}
+button.mk-tile {
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	width: 100%;
+}
+.mk-tile.featured {
+	border-color: var(--gold);
+}
+.mk-tile-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	min-width: 0;
+}
+.mk-tile-title {
+	font-weight: 700;
+	font-size: 1.05rem;
+	line-height: 1.25;
+	overflow-wrap: anywhere;
+	color: var(--text-1);
+}
+.mk-tile-line {
+	color: var(--text-2);
+	font-size: 0.93rem;
+	line-height: 1.35;
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+.mk-tile-foot {
+	margin-top: auto;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.3rem 0.6rem;
+}
+.mk-price {
+	font-family: var(--font-mono);
+	font-size: 1.05rem;
+	color: var(--text-1);
+	white-space: nowrap;
+}
+.mk-who {
+	font-size: 0.88rem;
+	color: var(--text-2);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.mk-photo {
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+	border-radius: var(--plate-r-small, 6px);
+	background: var(--bg0);
+}
+.mk-glyph {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: 50%;
+	border: 1px solid var(--plate-hair, var(--boundary));
+	background: var(--plate-inset-top, var(--bg0));
+	color: var(--text-2);
+}
+.mk-glyph svg {
+	width: 1.1rem;
+	height: 1.1rem;
+}
+
+/* ---- Chips ---- */
+.mk-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	border: 1px solid var(--plate-chip-edge, var(--boundary));
+	background: var(--plate-chip-ground, transparent);
+	border-radius: 4px;
+	padding: 0.12rem 0.45rem;
+	color: var(--text-2);
+}
+.mk-chip::before {
+	content: '';
+	width: 0.42rem;
+	height: 0.42rem;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.85;
+}
+.mk-chip.good {
+	color: var(--green);
+}
+.mk-chip.bad {
+	color: var(--amber);
+}
+.mk-chip.wait {
+	color: var(--cyan);
+}
+.mk-chip.gold {
+	color: var(--gold);
+}
+.mk-chip.plain::before {
+	content: none;
+}
+
+/* ---- Toolbar ---- */
+.mk-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	align-items: flex-end;
+}
+.mk-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	min-width: 0;
+}
+.mk-field.grow {
+	flex: 1 1 14rem;
+}
+.mk-field input,
+.mk-field select,
+.mk-field textarea,
+.mk-input {
+	min-height: 44px;
+	font-family: var(--font-display);
+	font-size: 1rem;
+	letter-spacing: 0;
+	text-transform: none;
+	color: var(--text-1);
+	background: var(--plate-inset-top, var(--bg0));
+	border: 1px solid var(--boundary);
+	border-radius: var(--plate-r-small, 6px);
+	padding: 0.4rem 0.6rem;
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+}
+.mk-field textarea {
+	min-height: 5.5rem;
+	resize: vertical;
+}
+.mk-seg {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+.mk-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+}
+.mk-key {
+	min-height: 44px;
+}
+.mk-form {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+	gap: 0.7rem;
+}
+.mk-form .wide {
+	grid-column: 1 / -1;
+}
+
+/* ---- Trades ---- */
+.mk-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+.mk-trade {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding: 0.75rem 0.85rem;
+	border-radius: var(--plate-r-panel, 10px);
+	border: 1px solid var(--plate-hair, var(--boundary));
+	background: var(--plate-inset-top, var(--bg1));
+	min-width: 0;
+}
+.mk-trade-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.3rem 0.8rem;
+}
+.mk-trade-title {
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+.mk-steps {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.35rem;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.mk-step {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-family: var(--font-mono);
+	font-size: 0.68rem;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	padding-top: 0.35rem;
+	border-top: 3px solid var(--plate-hair, var(--hairline));
+	min-width: 0;
+}
+.mk-step.done {
+	color: var(--text-1);
+	border-top-color: var(--green);
+}
+.mk-step.now {
+	color: var(--text-1);
+	border-top-color: var(--cyan);
+}
+.mk-step.stop {
+	color: var(--amber);
+	border-top-color: var(--amber);
+}
+
+/* ---- Stars ---- */
+.mk-stars {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.1rem;
+	color: var(--gold);
+}
+.mk-stars svg {
+	width: 0.95rem;
+	height: 0.95rem;
+}
+.mk-stars .off {
+	color: var(--text-3, var(--text-2));
+	opacity: 0.55;
+}
+.mk-star-pick {
+	display: inline-flex;
+	gap: 0.15rem;
+}
+.mk-star-pick button {
+	min-width: 44px;
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: none;
+	border: 1px solid transparent;
+	border-radius: var(--plate-r-small, 6px);
+	color: var(--text-2);
+	cursor: pointer;
+}
+.mk-star-pick button.on {
+	color: var(--gold);
+}
+.mk-star-pick button:focus-visible {
+	border-color: var(--green);
+}
+.mk-star-pick svg {
+	width: 1.4rem;
+	height: 1.4rem;
+}
+
+/* ---- Feed ---- */
+.mk-feed {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.mk-feed > li {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.15rem 0.6rem;
+	padding: 0.55rem 0;
+	border-bottom: 1px solid var(--hairline);
+}
+.mk-feed > li:last-child {
+	border-bottom: none;
+}
+.mk-feed-who {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	color: var(--text-1);
+}
+.mk-feed-amt {
+	font-family: var(--font-mono);
+	color: var(--text-1);
+	white-space: nowrap;
+}
+.mk-feed-msg {
+	grid-column: 1 / -1;
+	color: var(--text-2);
+	font-size: 0.92rem;
+	overflow-wrap: anywhere;
+}
+.mk-feed-when {
+	grid-column: 1 / -1;
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	letter-spacing: 0.05em;
+	color: var(--text-2);
+}
+
+/* ---- Dialog (a floating panel in the plate's housing) ---- */
+.mk-dialog {
+	width: min(40rem, calc(100vw - 2rem));
+	max-height: min(90vh, 52rem);
+	padding: 0;
+	margin: auto;
+	border: 1px solid var(--plate-hair, var(--boundary));
+	border-radius: var(--plate-r-panel, 12px);
+	background-color: var(--plate-panel-ground, var(--bg1));
+	background-image: linear-gradient(to bottom, var(--plate-panel-top, var(--bg1)), var(--plate-panel-bot, var(--bg1)));
+	color: var(--text-1);
+	box-shadow:
+		0 0 0 1px var(--plate-rim-out, transparent),
+		0 22px 40px -18px var(--plate-drop-far, rgba(0, 0, 0, 0.6));
+}
+.mk-dialog::backdrop {
+	background: rgba(0, 0, 0, 0.55);
+}
+.mk-dialog-body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.8rem;
+	padding: 1.1rem 1.2rem 1.2rem;
+	overflow: auto;
+	max-height: min(90vh, 52rem);
+	box-sizing: border-box;
+}
+.mk-dialog-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.8rem;
+}
+.mk-dialog-head h2 {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+.mk-dialog-head h2::before {
+	content: none;
+}
+.mk-dl {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: 0.3rem 0.9rem;
+	margin: 0;
+}
+.mk-dl dt {
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	padding-top: 0.2rem;
+}
+.mk-dl dd {
+	margin: 0;
+	color: var(--text-1);
+	overflow-wrap: anywhere;
+}
+.mk-review {
+	border-left: 3px solid var(--plate-hair, var(--hairline));
+	padding-left: 0.7rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+.mk-review p {
+	margin: 0;
+	color: var(--text-1);
+	overflow-wrap: anywhere;
+}
+.mk-empty {
+	margin: 0;
+	padding: 1rem;
+	border: 1px dashed var(--plate-hair, var(--boundary));
+	border-radius: var(--plate-r-panel, 10px);
+	color: var(--text-2);
+	text-align: center;
+}
+.mk-visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+.mk-confirm {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	border-left: 3px solid var(--green);
+	padding-left: 0.75rem;
+}
+.mk-body {
+	margin: 0;
+	color: var(--text-1);
+	overflow-wrap: anywhere;
+}
+.mk-check {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 44px;
+	font-family: var(--font-display);
+	font-size: 1rem;
+	color: var(--text-1);
+	cursor: pointer;
+}
+.mk-check input {
+	width: 1.25rem;
+	height: 1.25rem;
+	accent-color: var(--green);
+}
+.mk-qty {
+	width: 5rem;
+}
+.mk-input:not(.mk-qty) {
+	flex: 1 1 12rem;
+	max-width: 22rem;
+}
+.mk-foot {
+	display: flex;
+	justify-content: center;
+	margin-top: 2rem;
+}
+.mk-help {
+	font-family: var(--font-display);
+	font-size: 0.85rem;
+	letter-spacing: 0;
+	text-transform: none;
+	color: var(--text-2);
+}
+
+/* A phone: the official zone's tiles go two to a row, because one tile a row
+   was 160px of height each and put the student zone eleven screens down. The
+   whole tile is the link, so its "Open" word is not drawn there. */
+@media (max-width: 40rem) {
+	.mk-official-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.5rem;
+	}
+	.mk-official-grid .mk-tile {
+		min-height: 0;
+		padding: 0.65rem 0.7rem;
+	}
+	.mk-official-grid .mk-tile-title {
+		font-size: 0.98rem;
+	}
+	.mk-official-grid .mk-tile-line {
+		font-size: 0.88rem;
+	}
+	.mk-official-grid .mk-open-word {
+		display: none;
+	}
+}
+
+/* The desk's market page: its panels are of very different heights, so they
+   go in columns, never a grid (a grid row is as tall as its tallest panel). */
+.mk-desk {
+	columns: 34rem 2;
+	column-gap: 1rem;
+}
+.mk-desk > * {
+	break-inside: avoid;
+	margin: 0 0 1rem;
+}

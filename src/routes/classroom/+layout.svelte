@@ -26,6 +26,8 @@
 	import { namespaceOf, profileNamespaceWriter, supabaseProfileIo } from '$lib/preferences/profile-io';
 	import type { PaletteNotebookEntry, PaletteSources, PaletteStudent } from '$lib/shell/palette';
 	import type { Crumb } from '$lib/classroom/nav';
+	import CoinHeaderBanner from '$lib/coin-market/CoinHeaderBanner.svelte';
+	import { laCalendarDay } from '$lib/classroom/school-calendar';
 
 	/**
 	 * The classroom's own room.
@@ -50,6 +52,20 @@
 	 * route tree serving the same documents to people with no account.
 	 */
 	let { data, children } = $props();
+
+	/* Ledger 0402: the IDEA Market header banner (0280). It reads its pins on
+	   the caller's own client and draws nothing until it has some, so a class
+	   with no pins renders exactly as before. Not on the student picker. */
+	const bannerDay = laCalendarDay(new Date());
+	async function loadBanner(sectionId: string | null): Promise<unknown> {
+		if (!data.supabase) return null;
+		try {
+			const { data: raw, error } = await data.supabase.rpc('coin_banner', { p_section_id: sectionId });
+			return error ? null : raw;
+		} catch {
+			return null;
+		}
+	}
 
 	const loc = $derived(locateClassroom(page.url.pathname));
 	const section = $derived((page.data.section as ClassroomSection | undefined) ?? null);
@@ -233,6 +249,9 @@
 		loadStudents={page.data.canManage === true ? loadStudents : null}
 		todoHref={data.navIsStaff === true ? null : '/classroom/todo'}
 	>
+		{#if loc.place !== 'view-as' && !isConsole}
+			<CoinHeaderBanner sectionId={loc.sectionId ?? null} load={loadBanner} day={bannerDay} />
+		{/if}
 		{@render children()}
 	</ClassroomShell>
 </div>

@@ -349,3 +349,15 @@ export const roleBadges = [{ student_id: ID_ADA, role_id: 'shop_steward', role: 
 
 /** Session two (0245): a validated count of coins on hand. */
 export const reportedCoins = [{ student_id: ID_WALKUP, coins: 12, reported_on: '2026-10-13' }];
+
+/** Ledger 0402 (0277): the public transfer feed, names only, no private one. */
+export const publicTransfers = [
+	{ id: 't-1', at: '2026-10-15T20:10:00Z', amount: 2, from: { id: 'a', name: 'Ada Ruiz' }, to: { id: 'b', name: 'Ben Ortiz' }, message: 'For the sanding, thanks!', message_removed: false },
+	{ id: 't-2', at: '2026-10-14T18:00:00Z', amount: 0.5, from: { id: 'c', name: 'Cal Ng' }, to: { id: 'a', name: 'Ada Ruiz' }, message: null, message_removed: true }
+];
+
+/** Ledger 0402 (0279): the public stock read: prices only. */
+export const publicStocks = {
+	stocks: [],
+	index: { id: 'idea', kind: 'index', ticker: 'IDEA', name: 'IDEA index', active: true, last: { day: '2026-10-16', close: 10.42, prev: 10.31, carried: false, change_percent: 1.07 } }
+};

@@ -58,6 +58,8 @@ import {
 } from './class-check-ins';
 import {
 	hallPassLimitsRefusal,
+	hallPassMinutesRefusal,
+	parseMinutesQuote,
 	type HallPassClosed,
 	type HallPassOpened,
 	type HallPassOpenedFor,
@@ -2462,6 +2464,19 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 		 * THIS CLASS'S TWO NUMBERS (`0237`), an instructor's. Whole minutes; the
 		 * database holds the ranges and answers a considered refusal in words.
 		 */
+		/** Buying hall pass time with coins (ledger 0402, 0278): a student's, no identifier sent. */
+		async minutesQuote(sectionId) {
+			const { data, error } = await supabase.rpc('coin_hall_pass_minutes_quote', { p_section_id: sectionId });
+			if (error) return null;
+			return parseMinutesQuote(data);
+		},
+		async buyMinutes(sectionId, blocks) {
+			const { data, error } = await supabase.rpc('coin_buy_hall_pass_minutes', { p_section_id: sectionId, p_blocks: blocks });
+			if (error) return { ok: false, message: 'Could not buy pass time. Try again.' };
+			const row = (data ?? {}) as Record<string, unknown>;
+			if (row.ok === true) return { ok: true, minutes: Number(row.minutes ?? 0), cost: Number(row.cost ?? 0) };
+			return { ok: false, message: hallPassMinutesRefusal(row.reason, row) };
+		},
 		async setLimits(sectionId, budgetMinutes, autoCheckinMinutes) {
 			const { data, error } = await supabase.rpc('classroom_hall_pass_set_limits', {
 				p_section_id: sectionId,

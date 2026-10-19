@@ -665,8 +665,11 @@ describe('grants', () => {
 			'coin_public_role_badges',
 			'coin_public_role_questions',
 			'coin_public_roles',
+			// Ledger 0402: the Ledger's stock tile and its transfer feed.
+			'coin_public_stocks',
 			'coin_public_student',
-			'coin_public_transactions'
+			'coin_public_transactions',
+			'coin_public_transfers'
 		]);
 	});
 });

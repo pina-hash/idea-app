@@ -7,6 +7,7 @@ import {
 	type CoinPageExtras
 } from '$lib/coin-balance/extras';
 import { COIN_UPLOAD_BUCKET } from '$lib/coin-balance/uploads';
+import { parsePortfolio } from '$lib/coin-stocks/stocks';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -63,7 +64,7 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 	}
 
 	const sb = locals.supabase;
-	const [answer, contractsRaw, roleRaw, statsRaw, itemsRaw, auditRaw] = await Promise.all([
+	const [answer, contractsRaw, roleRaw, statsRaw, itemsRaw, auditRaw, portfolioRaw, minutesRaw] = await Promise.all([
 		(async (): Promise<Rpc | null> => {
 			try {
 				return (await sb.rpc('coin_my_page')) as Rpc;
@@ -75,7 +76,10 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 		soft(sb.rpc('coin_my_role') as PromiseLike<Rpc>),
 		soft(sb.rpc('coin_my_stats') as PromiseLike<Rpc>),
 		soft(sb.rpc('coin_donation_items_list') as PromiseLike<Rpc>),
-		soft(sb.rpc('coin_auditor_queue') as PromiseLike<Rpc>)
+		soft(sb.rpc('coin_auditor_queue') as PromiseLike<Rpc>),
+		// Ledger 0402 (0278, 0279): the portfolio and the classes to buy pass time in.
+		soft(sb.rpc('coin_my_portfolio') as PromiseLike<Rpc>),
+		soft(sb.rpc('coin_hall_pass_minutes_mine') as PromiseLike<Rpc>)
 	]);
 
 	if (!answer) return { state: 'error' as const, ...empty };
@@ -119,5 +123,15 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 		}
 	}
 
-	return { state: 'ready' as const, page, extras, now, email, userId };
+	const pf = parsePortfolio(portfolioRaw);
+	const market = {
+		portfolio: portfolioRaw ? { value: pf.value, cost_basis: pf.cost_basis, count: pf.positions.length } : null,
+		minuteClasses: Array.isArray(minutesRaw)
+			? (minutesRaw as { section_id?: unknown; label?: unknown }[])
+					.filter((c) => typeof c.section_id === 'string')
+					.map((c) => ({ section_id: String(c.section_id), label: String(c.label ?? '') }))
+			: null
+	};
+
+	return { state: 'ready' as const, page, extras, now, email, userId, market };
 };

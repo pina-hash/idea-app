@@ -48,7 +48,10 @@ export const PUBLIC_COIN_ACTIONS = new Set([
 	'contracts',
 	'reasons',
 	'roles',
-	'roleQuestions'
+	'roleQuestions',
+	// Ledger 0402 (0277, 0279): the public transfer feed and the stock tile.
+	'transfers',
+	'stocks'
 ]);
 
 interface RoleBadgeRow {
@@ -295,6 +298,40 @@ export async function readCoinPublic(
 						cancelReason: r.cancel_reason ?? ''
 					}))
 				)
+			};
+		}
+
+		case 'transfers': {
+			// Never a private transfer and never a removed message: 0277's
+			// coin_public_transfers leaves both out inside the database. Names
+			// by the roster rule and the opaque id; no address.
+			const { data, error } = await client.rpc('coin_public_transfers', { p_limit: 30 });
+			// A database without 0277 answers an empty feed, never an error:
+			// the Ledger shows "No public transfers yet" and nothing breaks.
+			if (error) return { contentType: 'application/json; charset=utf-8', body: '[]' };
+			const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+			return {
+				contentType: 'application/json; charset=utf-8',
+				body: JSON.stringify(
+					rows.map((r) => ({
+						at: ledgerDate(typeof r.at === 'string' ? r.at : null),
+						from: (r.from as { name?: string } | null)?.name ?? '',
+						to: (r.to as { name?: string } | null)?.name ?? '',
+						amount: r.amount,
+						message: typeof r.message === 'string' ? r.message : ''
+					}))
+				)
+			};
+		}
+
+		case 'stocks': {
+			// Prices only (0279's coin_public_stocks): no person, no address.
+			const { data, error } = await client.rpc('coin_public_stocks');
+			// Without 0279 there is no index, and the Ledger keeps its tile hidden.
+			if (error) return { contentType: 'application/json; charset=utf-8', body: JSON.stringify({ stocks: [], index: null }) };
+			return {
+				contentType: 'application/json; charset=utf-8',
+				body: JSON.stringify(data ?? { stocks: [], index: null })
 			};
 		}
 

@@ -42,6 +42,10 @@ const fakeClient = {
 				return { data: fixture.roleBadges, error: null };
 			case 'coin_public_reported_coins':
 				return { data: fixture.reportedCoins, error: null };
+			case 'coin_public_transfers':
+				return { data: fixture.publicTransfers, error: null };
+			case 'coin_public_stocks':
+				return { data: fixture.publicStocks, error: null };
 			default:
 				return { data: null, error: { message: `unexpected rpc: ${name}` } };
 		}

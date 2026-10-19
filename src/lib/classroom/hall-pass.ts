@@ -74,6 +74,8 @@ export interface HallPassBudget {
 	used_seconds: number;
 	remaining_seconds: number;
 	debt_seconds: number;
+	/** Minutes bought for today with coins (ledger 0402, 0278), in seconds. Absent before 0278. */
+	bought_seconds?: number;
 	blocked: boolean;
 	/** The first moment the allowance is above zero again (the reset if nothing sooner). Null while they may go. */
 	available_at: string | null;
@@ -282,6 +284,69 @@ export interface HallPassTransports {
 		budgetMinutes: number | null,
 		autoCheckinMinutes: number | null
 	): Promise<{ ok: true } | { ok: false; message: string }>;
+	/**
+	 * BUYING HALL PASS TIME WITH COINS (ledger 0402, 0278): today's quote for
+	 * this class, and a purchase of whole blocks. A student's. OPTIONAL like the
+	 * rest: absent removes the control, which is also the honest state of a
+	 * deployment before 0278 (the quote then answers null).
+	 */
+	minutesQuote?(sectionId: string): Promise<HallPassMinutesQuote | null>;
+	buyMinutes?(sectionId: string, blocks: number): Promise<{ ok: true; minutes: number; cost: number } | { ok: false; message: string }>;
+}
+
+/** What the buy control shows (0278's `coin_hall_pass_minutes_quote`). */
+export interface HallPassMinutesQuote {
+	available: boolean;
+	block_minutes: number;
+	price_per_block: number | null;
+	cap_minutes: number;
+	bought_today_minutes: number;
+	bought_here_minutes: number;
+	room_minutes: number;
+	room_blocks: number;
+	balance: number;
+}
+
+/** A quote answer, or null when it is not one (signed out, or before 0278). */
+export function parseMinutesQuote(raw: unknown): HallPassMinutesQuote | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const o = raw as Record<string, unknown>;
+	if (typeof o.block_minutes !== 'number' && typeof o.block_minutes !== 'string') return null;
+	const n = (v: unknown, d = 0) => {
+		const x = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
+		return Number.isFinite(x) ? x : d;
+	};
+	return {
+		available: o.available === true,
+		block_minutes: n(o.block_minutes, 5),
+		price_per_block: o.price_per_block === null || o.price_per_block === undefined ? null : n(o.price_per_block),
+		cap_minutes: n(o.cap_minutes, 15),
+		bought_today_minutes: n(o.bought_today_minutes),
+		bought_here_minutes: n(o.bought_here_minutes),
+		room_minutes: n(o.room_minutes),
+		room_blocks: n(o.room_blocks),
+		balance: n(o.balance)
+	};
+}
+
+/** A refused purchase, in words. */
+export function hallPassMinutesRefusal(reason: unknown, extra: Record<string, unknown> = {}): string {
+	switch (reason) {
+		case 'cap':
+			return `That is over today's limit for extra time. You can buy ${Number(extra.room_minutes ?? 0)} more minutes today.`;
+		case 'insufficient':
+			return 'Your balance does not cover that. A purchase has to leave you at zero or more.';
+		case 'not_your_class':
+			return 'This class is not using IDEA Coins.';
+		case 'not_available':
+			return 'Extra pass time is not for sale right now.';
+		case 'not_in_economy':
+			return 'None of your classes is using IDEA Coins right now.';
+		case 'rate_limited':
+			return 'That is a lot in one minute. Wait a minute, then try again.';
+		default:
+			return 'That did not go through. Try again.';
+	}
 }
 
 /** The sentence for a refused limits save: the ranges are the database's, said back in words. */
@@ -590,7 +655,9 @@ export function hallPassUsageLine(state: HallPassState | null): string | null {
 	const base = b.blocked
 		? `No pass time left today (${minutesUsed(b.used_seconds)} of ${day} minutes used).`
 		: `${minWord(left)} of pass time left today.`;
-	return owed > 0 ? `${base} ${minWord(owed)} carried over from earlier this week.` : base;
+	const bought = minutesLeft(b.bought_seconds ?? 0);
+	const withBought = bought > 0 ? `${base} Includes ${minWord(bought)} you bought today.` : base;
+	return owed > 0 ? `${withBought} ${minWord(owed)} carried over from earlier this week.` : withBought;
 }
 
 /**

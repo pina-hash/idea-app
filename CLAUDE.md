@@ -4427,6 +4427,37 @@ with its own answer for the rows already stored.
     `tests/db/coin-v2.test.ts` asserts it on the catalog with the admin logger
     as its positive control. **A new student coin action is a caller of the
     seam, never a second gate.**
+  - **AN AMOUNT A STUDENT CHOOSES IS AN ARGUMENT; A PRICE THE ECONOMY SETS IS
+    NEVER ONE (ledger 0402, decision 70).** A listing's price
+    (`coin_market_post`), a transfer (`coin_transfer_send`) and a stock trade
+    (`coin_stock_buy`, `coin_stock_sell`) take the amount the student typed,
+    because the student is the one choosing it; the database checks its shape,
+    its bounds and the balance before any row moves, and every FEE on them is
+    read from `coin_settings`. Hall pass time (`coin_buy_hall_pass_minutes`)
+    takes a block COUNT, never a price. A claim takes only a listing id: what
+    it costs comes from the listing row. Still no identity parameter anywhere:
+    a counterparty is an opaque market id (`_coin_market_pid`), never an
+    address.
+  - **COINS IN ESCROW ARE ROWS, NOT A STATE ON A BALANCE (0276).** A claim
+    writes a `market_escrow_hold` row out of the payer; `_coin_market_settle`
+    is the one writer of what happens next (release less `market_fee`,
+    refund, or a staff split). `tests/db/coin-market-conservation.test.ts`
+    walks a seeded random sequence of every market, transfer, hall pass and
+    stock action and holds every balance plus escrow plus stock cost basis
+    moving by exactly the logged fees, purchases and house gains, with a
+    planted unbalanced release as its control. A new market path writes
+    through `_coin_market_settle` or that test is the one that reddens.
+  - **A STOCK PRICE IS A STORED CLOSE WITH ITS INPUTS, NEVER COMPUTED ON READ
+    (0279).** `_coin_stock_close` writes the raw inputs, the signal, the median,
+    the target and `formula_version` beside every close, a missing day carries
+    the previous close with a note, and `_coin_stocks_nightly` (inside
+    `coin_autopay_run`) is the only writer. A formula change is a new version
+    string, never an edit that rewrites what earlier closes said; and
+    `node tools/coin-stock-backtest.mjs` replays it before it ships.
+  - **A PRIVATE TRANSFER IS PRIVATE ON EVERY PUBLIC READ.** Its rows carry
+    `meta.private_transfer`, and `coin_public_transactions`,
+    `coin_public_student` and `coin_public_transfers` all exclude it; a new
+    anon read over `coin_transactions` excludes it too.
   - **AUTOMATIC ROWS ARE `system`'S, through `_coin_insert`'s `p_actor`**:
     autopay (0242), the hall pass fine (0243) and the Perfect Score hook in
     `classroom_grade_submission`. `coin_autopay_run` is granted to `anon` on
