@@ -55,31 +55,28 @@ def long_date(d):
     return d.strftime("%A, %B ") + str(d.day)
 
 
+MEET = ("The Techmen robotics team meets today right after school in the IDEA Classroom. "
+        "This meeting is mandatory for every team member, and attendance is taken. ")
+
+
 def content(air):
-    k = {0: "MON", 1: "TUE", 4: "FRI"}.get(air.weekday())
-    if k == "MON":
-        return dict(kind="MON",
-            title="TODAY! Robotics Team Meeting, MANDATORY",
-            body=("The Techmen robotics team meets today at the start of lunch in the IDEA Classroom. "
-                  "Come straight to the meeting, then get your food. This meeting is mandatory for every team member. "
-                  "Attendance is taken, and members must make 80 percent of Monday meetings to stay on the team. "
-                  "Want to join the robotics team? Come today at the start of lunch."),
-            file="Flyer_Techmen Robotics Team Meeting.pdf")
+    # 2026-10-19: required meetings are Tuesday and Friday right after school; the Monday
+    # lunch meeting ended 10/19, so Monday no longer gets an announcement.
+    k = {1: "TUE", 4: "FRI"}.get(air.weekday())
     if k == "TUE":
         return dict(kind="TUE",
-            title="Robotics Team: We Need You",
-            body=("The Techmen robotics team is looking for new members. We need students for mechanical, "
-                  "electrical, programming, design, media, and management. No experience needed. Training is today "
-                  "after school in the IDEA building. Come find your place on the team. Team members, bring a friend."),
-            file="Flyer_Techmen Robotics Recruiting.pdf")
+            title="TODAY! Robotics Team Meeting, MANDATORY",
+            body=(MEET + "Members must make 80 percent of team meetings to stay on the team. "
+                  "New students, you are welcome too. Come see what the robotics team is all about. "
+                  "Team members, bring a friend."),
+            file="Flyer_Techmen Robotics Team Meeting.pdf")
     if k == "FRI":
         days = (BEACH_BLITZ[0] - air).days
         if days > 0:
             return dict(kind="FRI_BB", days=days,
-                title=f"Robotics: Beach Blitz in {span(days).title()}",
-                body=(f"The Techmen robotics team competes at Beach Blitz, a major robotics competition, in {span(days)}. Today after school, "
-                      "the team works on the robot in the IDEA building. Then we coach kids' robotics teams from "
-                      "4:30 to 6:00 PM, and tomorrow from 9:00 to 11:00 AM. Every hour before Beach Blitz counts."),
+                title=f"TODAY! Robotics Team Meeting, MANDATORY",
+                body=(MEET + f"Beach Blitz, a major robotics competition, is in {span(days)}. "
+                      "After the meeting, we work on the robot. Every hour before Beach Blitz counts."),
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
         if days == 0:
             return dict(kind="FRI_BB0", days=0,
@@ -88,11 +85,10 @@ def content(air):
                       "High School, through Sunday. Wish the team luck, and follow along this weekend."),
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
         return dict(kind="FRI",
-            title="Robotics: Build and Training Today",
-            body=("The Techmen robotics team works on the robot today after school in the IDEA building. Then we "
-                  "coach kids' robotics teams from 4:30 to 6:00 PM, and tomorrow from 9:00 to 11:00 AM. "
-                  "New students welcome. Come find your place on the team."),
-            file="Flyer_Techmen Robotics Build Day.pdf")
+            title="TODAY! Robotics Team Meeting, MANDATORY",
+            body=(MEET + "We recap the week and set weekend plans. Then we coach kids' robotics teams from 4:30 to 6:00 PM. "
+                  "New students, come see what the robotics team is all about."),
+            file="Flyer_Techmen Robotics Team Meeting.pdf")
     return None
 
 
@@ -227,35 +223,28 @@ ROLES = [
 ]
 
 WEEK = '''<div class=grid style="grid-template-columns:repeat(4,1fr)">
-<div class="cell hot"><div class=d>MON · LUNCH</div><div class=t>Team meeting</div><div class=s>IDEA Classroom. Mandatory.</div></div>
-<div class=cell><div class=d>TUE · AFTER SCHOOL</div><div class=t>Build the robot</div><div class=s>IDEA building, until 5:00 PM.</div></div>
-<div class=cell><div class=d>FRI · AFTER SCHOOL</div><div class=t>Build the robot</div><div class=s>Then coach kids' robotics, 4:30 to 6:00 PM.</div></div>
-<div class=cell><div class=d>SAT · MORNING</div><div class=t>Coach kids' robotics</div><div class=s>9:00 to 11:00 AM.</div></div></div>'''
+<div class="cell hot"><div class=d>TUESDAY</div><div class=t>Team meeting</div><div class=s>After school. Mandatory.</div></div>
+<div class="cell hot"><div class=d>FRIDAY</div><div class=t>Team meeting</div><div class=s>After school. Mandatory.</div></div>
+<div class=cell><div class=d>MON · WED · THU</div><div class=t>Open shop</div><div class=s>Build time, until 5:00 PM.</div></div>
+<div class=cell><div class=d>SATURDAY</div><div class=t>Coach kids</div><div class=s>Robotics, 9:00 to 11:00 AM.</div></div></div>'''
 
 FRI_CELLS = '''<div class=grid style="grid-template-columns:repeat(3,1fr)">
-<div class="cell hot"><div class=d>TODAY · AFTER SCHOOL</div><div class=t>Build the robot</div><div class=s>Throughout the IDEA building.</div></div>
-<div class=cell><div class=d>TODAY · 4:30 - 6:00 PM</div><div class=t>Coach kids' robotics</div><div class=s>Kids' LEGO robotics teams.</div></div>
+<div class="cell hot"><div class=d>TODAY · AFTER SCHOOL</div><div class=t>Team meeting</div><div class=s>IDEA Classroom. Mandatory. Then build.</div></div>
+<div class=cell><div class=d>TODAY · 4:30-6 PM</div><div class=t>Coach kids' robotics</div><div class=s>Kids' LEGO robotics teams.</div></div>
 <div class=cell><div class=d>{sat} · 9 - 11 AM</div><div class=t>Coach kids' robotics</div><div class=s>Kids' LEGO robotics teams.</div></div></div>'''
 
 
 def flyer_html(air, c):
     D = long_date(air).upper()
     sat = (air + dt.timedelta(days=1)).strftime("SAT %-m/%-d")
-    if c["kind"] == "MON":
-        lunch = LUNCH.get(air, "11:05 AM")
+    if c["kind"] == "TUE":
         body = (f'<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>{robot(4.2, 1.6, 3.95)}' + CTX.format(top=3.42, w=3.3)
-                + when([("d", "DATE", long_date(air)), ("", "TIME", f"Start of lunch, {lunch}"), ("", "PLACE", "IDEA Classroom")], 4.5)
-                + '<div class=body style="top:5.25in"><div class=lede>Every member, every Monday. <b>Come straight to the meeting, then get your food.</b> '
-                  '<b>Attendance is taken:</b> 80% of Monday meetings to stay on the team. New students welcome.</div>'
+                + when([("d", "DATE", long_date(air)), ("", "TIME", "Right after school"), ("", "PLACE", "IDEA Classroom")], 4.5)
+                + '<div class=body style="top:5.25in"><div class=lede>Every member, every Tuesday and Friday. '
+                  '<b>Attendance is taken:</b> 80% of team meetings to stay on the team. '
+                  '<b>New students welcome.</b> Come see what we build. Members, bring a friend.</div>'
                 + f'<div class=k>EVERY WEEK</div>{WEEK}</div>' + STAMP.format(top=8.08))
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
-    if c["kind"] == "TUE":
-        cells = "".join(f'<div class="cell role"><div class=ic>{i}</div><div><div class=t>{n}</div><div class=s>{d}</div></div></div>' for n, d, i in ROLES)
-        body = (f'<div class=hero>WE<br>NEED<br><span>YOU.</span></div>{robot(3.35, 1.45, 4.8, callouts=False)}' + CTX.format(top=3.95, w=7.2)
-                + when([("d", "DATE", long_date(air)), ("", "TIME", "After school, until 5:00 PM"), ("", "PLACE", "IDEA building")], 4.58)
-                + '<div class=body style="top:5.12in">'
-                + f'<div class=k>NO EXPERIENCE REQUIRED · BRING A FRIEND</div><div class=grid style="grid-template-columns:repeat(2,1fr)">{cells}</div></div>')
-        return page(f'ROBOTICS TEAM <b>5669</b> · <b>NOW RECRUITING</b>', body)
     if c["kind"] in ("FRI_BB", "FRI_BB0"):
         if c["kind"] == "FRI_BB":
             hero = f'<div class=hero>BEACH<br>BLITZ<br><span style="font-size:22pt;letter-spacing:.02em">IN {span(c["days"]).upper()}</span></div>'
@@ -264,17 +253,17 @@ def flyer_html(air, c):
             hero = '<div class=hero>BEACH<br>BLITZ<br><span>TODAY.</span></div>'
             third = ("", "THROUGH", "Sunday, Nov 1")
         body = (hero + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
-                + when([("d", "DATE", long_date(air)), ("", "WHERE" if c["kind"] == "FRI_BB0" else "TODAY", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else "After school, IDEA building"), third], 4.5)
+                + when([("d", "DATE", long_date(air)), ("", "WHERE" if c["kind"] == "FRI_BB0" else "MEETING", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else "After school, IDEA Classroom"), third], 4.5)
                 + '<div class=body style="top:5.25in"><div class=lede>Our next robotics competition. <b>Every hour before it counts.</b></div>'
                 + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat)
                 + '<div class=k>GOING TO BEACH BLITZ?</div><div class=cell><div class=t>Family sign-up is required to attend.</div>'
                   '<div class=s>No school transportation. Families carpool from the Bosco Tech front lot. See Mr. Pina.</div></div></div>')
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>BEACH BLITZ</b>', body)
-    body = ('<div class=hero>BUILD<br>DAY.<br><span style="font-size:22pt;letter-spacing:.02em">TODAY AFTER SCHOOL</span></div>' + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
-            + when([("d", "DATE", long_date(air)), ("", "TIME", "After school"), ("", "PLACE", "IDEA building")], 4.5)
-            + '<div class=body style="top:5.25in"><div class=lede>Build and test the robot. <b>New students welcome.</b></div>'
+    body = ('<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>' + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
+            + when([("d", "DATE", long_date(air)), ("", "MEETING", "Right after school"), ("", "PLACE", "IDEA Classroom")], 4.5)
+            + '<div class=body style="top:5.25in"><div class=lede>Mandatory for every member. Recap the week, set weekend plans, then build. <b>New students welcome.</b></div>'
             + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat) + '</div>' + STAMP.format(top=7.6))
-    return page(f'ROBOTICS TEAM <b>5669</b> · <b>BUILD DAY</b>', body)
+    return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
 
 
 def render_pdf(html, out_pdf):

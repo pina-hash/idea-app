@@ -1,5 +1,5 @@
 # IDEA Morning Announcements Standard
-**Version 1.4 - 2026-10-14**
+**Version 1.5 - 2026-10-19**
 
 How FRC Team 5669 and the IDEA pathway get an item into Bosco Tech's morning
 announcements: where the request goes, when it is due, what the email looks like, how the
@@ -151,12 +151,14 @@ Recorded types, each from a real accepted request, plus the new one coming:
 
 Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
 
-- **Three days a week: Monday, Tuesday, Friday.** Monday is the mandatory team
-  meeting at the start of lunch in the IDEA Classroom (stern with members,
-  welcoming to new students; the stated consequence is being out of the loop and
-  losing team responsibility). Tuesday recruits across every technology
-  (mechanical, electrical, programming, design, media, management). Friday is the
-  build and training day, with a countdown while an event is coming.
+- **Two days a week: Tuesday and Friday (from 2026-10-19).** Both are mandatory team
+  meetings right after school in the IDEA Classroom: Tuesday plans the week, Friday
+  recaps it and sets weekend plans, then the team builds until 5:00 PM (Friday also
+  coaches kids' robotics teams 4:30 to 6:00 PM). Each announcement is stern with members
+  and invites new students to come see what the team is about. Monday gets no
+  announcement: the Mon 10/19 lunch meeting was the last one. Mon, Wed and Thu are open
+  shop days, never called optional. Friday carries the Beach Blitz countdown while it is
+  coming.
 - **Every announcement serves a purpose and has one same-day action.**
 - **The bulletin is also read over the PA.** Wording is optimized for being heard
   first and read second: team name first, short sentences, nothing hard to say
@@ -171,18 +173,16 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
   as "a robotics competition" the first time. What students made is described by
   what it took (designed, machined, wired, coded), never a word that undersells it
   such as "cut". Short beats complete: when a line needs explaining, cut the line.
-- **Monday attendance is a written rule (from 2026-10-19).** Members sign the Team
-  5669 Member Commitment: 80% of Monday meetings each semester or removal, tracked by
-  app check-in, modeled on Team 1678. The Monday announcement and flyer say
-  "Attendance is taken" and the 80% rule; the old "out of the loop" line is retired.
+- **Attendance is a written rule.** Members sign the Team 5669 handbook: 80% of
+  required team meetings or removal, tracked by app check-in, modeled on Team 1678.
+  The Tuesday announcement and every meeting flyer say "Attendance is taken" and the
+  80% rule.
 - **Recruiting leans on peers.** Research (2026-10-14, "How Elite FRC Teams
   Recruit") found peer invitation the strongest recruiter, so Tuesday says "Team
   members, bring a friend."
-- **The meeting stays at the start of lunch.** "Come straight to the meeting, then
-  get your food" is part of the Monday text.
 - **Drafts, never sends.** A scheduled task at 7:50 AM each weekday runs
   `tools/frc-announcements/announce.py --auto`, leaves a Gmail draft for the next
-  school day when it is a Monday, Tuesday or Friday, and notifies Mr. Pina with the
+  school day when it is a Tuesday or Friday, and notifies Mr. Pina with the
   flyer to attach. To change one day, he edits the draft before sending.
 
 ## What Claude does when asked for an announcement
@@ -206,6 +206,7 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
 
 ## Changelog
 
+- **1.5 (2026-10-19)** - Rotation is now Tuesday and Friday, both mandatory after-school meetings in the IDEA Classroom that also welcome new students; Monday lunch meeting and its announcement retired; 80% rule applies to required team meetings.
 - **1.4 (2026-10-14)** - Monday attendance rule (80% per semester, signed commitment) and bring-a-friend recruiting added to the FRC rotation.
 - **1.3 (2026-10-14)** - Added the plain-language rule (no FRC, FIRST, FLL or CAD; describe student work by what it took) after Mr. Pina's audit request; flyer filenames are `Flyer_Techmen Robotics <Name>.pdf`.
 - **1.2 (2026-10-14)** - Added "FRC weekly rotation and automation": the Monday, Tuesday, Friday rotation, PA-first wording, dated flyers, and the scheduled draft task built on `tools/frc-announcements/announce.py`.
