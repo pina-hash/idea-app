@@ -8,7 +8,7 @@ model: opus-5.5
 effort: high
 size: L
 owns: supabase/migrations/0275_*.sql, supabase/migrations/0276_*.sql, supabase/migrations/0277_*.sql, supabase/migrations/0278_*.sql, supabase/migrations/0279_*.sql, supabase/migrations/0280_*.sql, supabase/migrations/0281_*.sql, supabase/migrations/0282_*.sql, supabase/migrations/0283_*.sql, supabase/migrations/0284_*.sql, src/routes/market/**, src/routes/coin-balance/**, src/routes/coin-desk/**, src/lib/coin-market/**, src/lib/coin-stocks/**, the IDEA Classroom header banner component and its mount in the classroom layout, src/lib/classroom/HallPass.svelte, src/lib/classroom/hall-pass.ts, src/lib/legacy/coins/index.html, src/lib/server/coin-public.ts, tests/coin-market-*, tests/coin-stocks-*, tests/db/coin-market-*, tests/db/coin-stocks-*, tests/db/coin-transfer-*, tests/db/coin-hallpass-minutes-*, tools/browser-verify/routes/coin-market-*.mjs, tools/browser-verify/routes/coin-stocks-*.mjs, the generated counts block in tools/browser-verify/README.md, tools/coin-stock-backtest.mjs, docs/coin-economy/**, docs/decisions/entries/70-*, classroom-updates.json, the CLAUDE.md coin rules, docs/prompt-ledger/entries/0402-*, its own docs/history/ entry, db:idea-supabase
-after:
+after: 2026-10-18-migration-chain-repair
 needs_go: no
 go: no
 status: queued

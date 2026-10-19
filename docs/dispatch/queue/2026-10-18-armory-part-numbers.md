@@ -8,11 +8,11 @@ model: opus-5.5
 effort: high
 size: M
 owns: src/lib/armory/part-numbers*, src/lib/armory/Armory*Part*.svelte, src/lib/armory/ArmoryCots*.svelte, src/routes/armory/**, src/routes/dev/armory-parts*/**, tests/armory-part-numbers*.test.ts, tests/db/armory-part-numbers*.test.ts, supabase/migrations/0286_*.sql, docs/ARMORY.md, docs/prompt-ledger/entries/0405-*, its own docs/history/ entry, db:idea-supabase
-after: 2026-10-18-armory-sw-version-drive-backup
+after: 2026-10-18-armory-sw-version-drive-backup, 2026-10-18-migration-chain-repair
 needs_go: no
 go: no
-status: running
-started_at: 2026-10-19T00:11:02Z
+status: queued
+note: held behind the migration chain repair (Mr. Pina, 2026-10-18)
 queued_at: 2026-10-17T23:57:36-07:00
 ---
 Before doing anything else: `git fetch origin main`, check out `origin/main` on a working branch, and confirm the committer identity is `Claude <noreply@anthropic.com>` (set it if empty). This is a solo session: rebase on `origin/main` and push `HEAD:main` once at the end, with the ledger entry in the same push.
