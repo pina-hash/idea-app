@@ -11,8 +11,9 @@ owns: supabase/migrations/0275_*.sql, supabase/migrations/0276_*.sql, supabase/m
 after: 2026-10-18-migration-chain-repair
 needs_go: no
 go: no
-status: queued
+status: ready
 queued_at: 2026-10-17T23:59:00-07:00
+started_at: 2026-10-19T03:10:49Z
 ---
 MODEL: Opus 5.5 | EFFORT: high | Mode: solo | Ledger: 0402 | Migration: 0275-0284 - new tables and RPCs for marketplace, transfers, banner, hall pass minutes and stock market
 
