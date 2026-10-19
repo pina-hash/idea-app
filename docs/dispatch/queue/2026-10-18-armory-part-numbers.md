@@ -11,7 +11,8 @@ owns: src/lib/armory/part-numbers*, src/lib/armory/Armory*Part*.svelte, src/lib/
 after: 2026-10-18-armory-sw-version-drive-backup, 2026-10-18-migration-chain-repair
 needs_go: no
 go: no
-status: running
+status: done
+finished_at: 2026-10-19T03:36:45Z
 started_at: 2026-10-19T02:25:01Z
 trigger_id: trig_018WcT4rSB8egnATPATeT7LH
 queued_at: 2026-10-17T23:57:36-07:00
