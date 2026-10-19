@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.26 - 2026-10-18**
+**Version 1.27 - 2026-10-19**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1146,6 +1146,17 @@ rotation, where the class must execute a seven-class timeline on command.
   its own hue (Blade orange, Body blue, Assembly violet; SolidWorks red, xTool teal) only
   beside its word. Every ink measured at 4.5:1 or better on its ground in both themes.
   Greenwashing a page, every heading and fill in the accent, is a defect (Mr. Pina, 2026-10-14).
+  The ration that passed (Mr. Pina, 2026-10-19, "too greenwashed" on IDEA-Blade 01): green
+  lights only the one next Go in the Today plan, the active day and stage keys, a picked card,
+  done chips and done numbers, links, focus rings and a hover. Eyebrows and stage labels take
+  the muted ink, icons the text ink, the graded panel's frame and label the neutral line,
+  every other key and callout graphite. Count the green elements on the first screen: more
+  than three is the defect.
+- **Teams of two and three in one class.** When students pick teams and the count does not
+  divide by three, a team of two folds one role into another rather than leaving it empty: a
+  fourth role card ("Blade and Assembly, team of two only") whose value shows both roles'
+  steps through space-separated `data-role` tokens and a Today task tagged with both. Pick the
+  pairing by load: the role whose own file is due first takes the role due last.
 - **A template file is a download, through the attachment proxy.** Attach it to the post and
   link `https://ideabosco.com/api/classroom/attachment/<id>` as a 44px key with the saved file
   name beside it and what to do next (open it, Save As where). Show only the student's
@@ -1186,6 +1197,7 @@ rotation, where the class must execute a seven-class timeline on command.
 
 ## Changelog
 
+- **1.27 (2026-10-19).** Ledger 0409. Section 21: the green ration that passed on IDEA-Blade 01, and teams of two and three in one class.
 - **1.26 (2026-10-18).** Ledger 0408. New section 21 from IDEA-Blade 01 and 02: landings aimed below
   the following bar that re-check themselves, color by meaning, template downloads through the
   attachment proxy, a Today plan for a multi-day unit, Ready/Strong/Stretch levels with a dated
