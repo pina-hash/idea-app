@@ -224,7 +224,9 @@ def needs_go(e: dict) -> bool:
 # ---------------------------------------------------------------- the plan
 
 def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now: dt.datetime,
-         registry: dict | None = None, read_at: dt.datetime | None = None) -> dict:
+         registry: dict | None = None, read_at: dt.datetime | None = None, offer: bool = False) -> dict:
+    """offer=True (Mr. Pina, 2026-10-18, approve ahead): list every entry he may approve now, ignoring
+    slots, files and databases. An approved job waits for its own turn at start (see may_start())."""
     by_id = {e["id"]: e for e in entries}
     start, wait, attention, release = [], [], [], []
 
@@ -248,7 +250,7 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
 
     released = {r["id"] for r in release}
     # `ready` = claimed and waiting for his Approve on the job board: it holds its slot, files and database
-    running = [e for e in entries if e.get("status") in ("running", "ready", "needs_go") and e["id"] not in released]
+    running = [e for e in entries if e.get("status") in (("running",) if offer else ("running", "ready", "needs_go")) and e["id"] not in released]
     proj = projected(usage, read_at, entries)
     fresh = usage is not None and (read_at is None or (now - read_at) <= dt.timedelta(minutes=FRESH_MIN))
 
@@ -299,6 +301,17 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
                 wait.append({"id": e["id"], "reason": f"current session at {proj['session']:.0f}%, waiting for its five-hour reset"})
                 continue
         heavy = ("xhigh", "max", "ultracode")
+        if offer:
+            starting.append({**e, "status": "offered"})
+            spent += c
+            if e["model"] == "fable-5.1":
+                spent_fable += c
+            start.append({"id": e["id"], "path": e["path"], "repo": e["repo"], "model": e["model"],
+                          "model_id": MODEL_IDS[e["model"]], "subagent_model": MODEL_ALIAS[e["model"]],
+                          "effort": "xhigh" if e["effort"] == "ultracode" else e["effort"],
+                          "ultracode": e["effort"] == "ultracode", "est_cost_pct": c,
+                          "mode": "decided when it starts", "ledger": e["ledger"], "released": e["id"] in released})
+            continue
         if e["effort"] in heavy and any(r["effort"] in heavy for r in live):
             wait.append({"id": e["id"], "reason": "one xhigh-or-above session at a time, and one is running"})
             continue
@@ -341,6 +354,28 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
         "wait": wait,
         "attention": attention,
     }
+
+
+def may_start(entries: list[dict], target: str, now: dt.datetime, registry: dict | None = None) -> dict:
+    """May the approved entry `target` start this minute? Only jobs actually running hold files,
+    databases and slots; other approved jobs race for the claim, and git's one-push-at-a-time
+    decides. Usage is not re-checked: he approved this job knowing its cost."""
+    copy = []
+    for e in entries:
+        x = dict(e)
+        if x["id"] == target:
+            x["status"], x["go"], x["needs_go"] = "queued", True, False
+        elif x.get("status") in ("ready", "needs_go", "queued"):
+            x["status"] = "cancelled"
+        copy.append(x)
+    if not any(x["id"] == target for x in copy):
+        return {"id": target, "ok": False, "reason": "not in the queue"}
+    p = plan(copy, {"session": 0.0, "week": 0.0, "fable": 0.0}, None, now, registry)
+    hit = [s for s in p["start"] if s["id"] == target]
+    if hit:
+        return {"id": target, "ok": True, "mode": hit[0]["mode"]}
+    why = [w["reason"] for w in p["wait"] if w["id"] == target]
+    return {"id": target, "ok": False, "reason": why[0] if why else "not startable"}
 
 
 # ---------------------------------------------------------------- self-test
@@ -457,6 +492,24 @@ def selftest() -> int:
     q = [_entry(id="x1", status="running", effort="xhigh", go="yes", owns="a/**"), _entry(id="x2", repo="pina-hash/fll-app", effort="max", go="yes", owns="b/**")]
     check("only one xhigh-or-above session at a time", not plan(q, ok_usage, reset, now)["start"])
 
+    # 7e. approve ahead: offer ignores slots and files; may_start gives each approved job its turn
+    q = [_entry(id="run", status="running", trigger_id="t", started_at="2026-10-17T21:00:00-07:00", owns="src/lib/coin/**"),
+         _entry(id="a1", owns="src/lib/coin/a.ts", queued_at="2026-10-17T20:01:00-07:00"),
+         _entry(id="a2", owns="src/lib/coin/b.ts", queued_at="2026-10-17T20:02:00-07:00")]
+    p = plan(q, ok_usage, reset, now, None, None, offer=True)
+    check("approve ahead: both overlapping jobs are offered while another runs", [s["id"] for s in p["start"]] == ["a1", "a2"], p["start"])
+    check("approve ahead: offered jobs still count against the usage ceiling", len(plan([_entry(id="b1", size="L", owns="a/**"), _entry(id="b2", size="L", owns="b/**", queued_at="2026-10-17T20:05:00-07:00")], {"session": 5, "week": 49}, reset, now, None, None, offer=True)["start"]) == 1)
+    q2 = [dict(x) for x in q]; q2[1]["status"] = "ready"; q2[2]["status"] = "ready"
+    r = may_start(q2, "a1", now)
+    check("an approved job waits while a running job holds its files", not r["ok"] and "overlap" in r["reason"], r)
+    q3 = [dict(x) for x in q2]; q3[0]["status"] = "done"
+    check("an approved job starts once the files are free", may_start(q3, "a1", now)["ok"])
+    check("another approved-but-waiting job does not block it", may_start(q3, "a2", now)["ok"])
+    q4 = [dict(x) for x in q3]; q4[1]["status"] = "running"; q4[1]["trigger_id"] = "t"; q4[1]["started_at"] = "2026-10-17T22:00:00-07:00"; q4[1]["owns"] = ["src/lib/coin/**"]
+    check("once one claims, the overlapping one waits again", not may_start(q4, "a2", now)["ok"])
+    q5 = [dict(x) for x in q3]; q5[1]["status"] = "needs_go"; q5[1]["model"] = "fable-5.1"
+    check("a job approved with his go starts without a second go", may_start(q5, "a1", now)["ok"])
+
     # 8. NEGATIVE CONTROL: the overlap test must not call two different trees overlapping
     check("control: disjoint globs are disjoint", not globs_overlap("src/lib/coin/**", "src/lib/maps/**"))
     check("control: nested globs overlap", globs_overlap("src/lib/**", "src/lib/coin/a.ts"))
@@ -474,7 +527,8 @@ def selftest() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", nargs="?", choices=["plan"], help="print the dispatch plan")
+    ap.add_argument("cmd", nargs="?", choices=["plan", "offer", "check"], help="plan: what may start; offer: what he may approve now (approve ahead); check: may the approved --id start this minute")
+    ap.add_argument("--id", help="the entry id, for check")
     ap.add_argument("--root", default=".", help="repository root")
     ap.add_argument("--usage", help="session=NN,week=NN,fable=NN as read from claude.ai/settings/usage; omit when unreadable")
     ap.add_argument("--reset", help="the weekly reset as ISO-8601, as read from the usage page")
@@ -484,13 +538,17 @@ def main() -> int:
     a = ap.parse_args()
     if a.selftest:
         return selftest()
-    if a.cmd != "plan":
+    if a.cmd == "check":
+        now = dt.datetime.fromisoformat(a.now) if a.now else dt.datetime.now(dt.timezone.utc).astimezone()
+        print(json.dumps(may_start(load_queue(a.root), a.id or "", now, load_registry(a.root)), indent=2))
+        return 0
+    if a.cmd not in ("plan", "offer"):
         ap.print_help()
         return 2
     now = dt.datetime.fromisoformat(a.now) if a.now else dt.datetime.now(dt.timezone.utc).astimezone()
     reset = dt.datetime.fromisoformat(a.reset) if a.reset else None
     read_at = iso(a.read_at)
-    print(json.dumps(plan(load_queue(a.root), parse_usage(a.usage), reset, now, load_registry(a.root), read_at), indent=2))
+    print(json.dumps(plan(load_queue(a.root), parse_usage(a.usage), reset, now, load_registry(a.root), read_at, offer=(a.cmd == "offer")), indent=2))
     return 0
 
 
