@@ -9,7 +9,7 @@ Source of truth: `docs/skills/idea-code-prompt/SKILL.md` in pina-hash/idea-app, 
 
 ## 0. Before writing anything
 
-1. Run the idea-state-of-world skill. Take from it: decisions owed (a lane never opens on an open decision), prompts in flight on the same file surface (never issue a second prompt for a surface already in flight), standing or stalled branches (a stalled branch outranks any new lane), and the next free ledger number and migration number.
+1. Run the idea-state-of-world skill. Take from it: decisions owed (a lane never opens on an open decision), prompts in flight on the same file surface (never issue a second prompt for a surface already in flight), standing or stalled branches (a stalled branch outranks any new lane), and the next free ledger number. Never a migration number: see section 4, item 4.
 2. If the request is large or vague, run deeper-not-bigger first.
 3. Read the target repo's own rules file (listed in `docs/dispatch/repos.json`) for its migration apply path. Never carry one repo's apply path to another: idea-app applies migrations through `migrate.yml` on push to main; fll-app uses `supabase db push` and `scripts/land-migration.sh`; frc-app declares its own.
 
@@ -33,7 +33,7 @@ The current models, their exact ids and what each is for are in `docs/dispatch/m
 ## 2. Mode
 
 - **Solo** (default): no other writing session is open on that repo. The session fetches main, works, rebases, runs its local gate, and pushes ONCE to main with the ledger entry inside the same push. It reports the sha and does not wait on CI.
-- **Parallel**: two or more sessions writing one repo at once. Each pushes a branch; the ledger entry is its first commit and claims the numbers. Prefer one solo lane over two parallel lanes unless the second saves more than the integration overhead.
+- **Parallel**: two or more sessions writing one repo at once. Each pushes a branch; the ledger entry is its first commit and claims its ledger number. Migration numbers are still taken at landing (section 4, item 4). Prefer one solo lane over two parallel lanes unless the second saves more than the integration overhead.
 
 ## 3. The routing header (outside the code block, directly above it)
 
@@ -46,7 +46,7 @@ The first line INSIDE the block is `Before doing anything else` (or `This is a R
 1. **Opening.** `git fetch origin main` and the committer-identity check. Add `git fetch --unshallow origin` and `git fetch origin integration` only in parallel mode or when a history-reading tool runs.
 2. **Claims sentence.** Every statement about the repo is a claim the session checks before relying on it.
 3. **Owns.** The exact file paths and globs this prompt may write. Nothing outside them.
-4. **Numbers.** The ledger number, and the migration number(s) if permitted, stated outright. Never "take the next free number".
+4. **Numbers.** The ledger number, stated outright. For migrations, only whether they are permitted and how many, written as "the next free migration number at landing": never a fixed migration number and never a reserved range (ledger 0407, idea-app `CLAUDE.md`, "A MIGRATION NUMBER IS TAKEN AT LANDING"). The session writes its file under the next free number, takes the next free number again when it rebases to land, renames its file if someone landed first, and states the final numbers on its ledger entry's `Claims:` line. A reserved number nobody wrote stops `migrate.yml` (two entries claimed 0271 on 2026-10-18) and leaves a hole in the series.
 5. **Audit phase.** Questions the session answers from the tree first, gating the build. Expect about half of "open" items to have shipped already.
 6. **The build**, described as outcome and constraints, not line edits, unless code drafted in chat must land verbatim.
 7. **Checks, sized to the job.** Targeted test files during the work (name them where knowable), mutants against the targeted file, the browser harness on touched route specs only, `npm run check` (svelte-check catches what vitest cannot), then ONE full `npm test` at the end with its summary line read (it can exit 0 with a failure). Docs-only: only the doc checks for files touched, no suite.

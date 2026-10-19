@@ -284,31 +284,16 @@ jobs:
             exit 0
           fi
 
-          # `parsePermitted` IS THE ONE PARSER OF THAT LINE and this is a caller
-          # of it, never a second reading. A `grep` for the number matches
-          # "Highest on origin/main at issue: 0211" on a REFUSING entry, and
-          # "exactly one, the file 0072 wrote" as migration 0072 -- both
-          # measured, both in that function's own header, and both are how an
-          # entry that permitted nothing comes to authorise an apply.
-          cat > ledger-match.mjs <<'EOF'
-          import { readdirSync, readFileSync } from 'node:fs';
-          import { join } from 'node:path';
-          import { parseEntry, parsePermitted } from './tools/migration-claims.mjs';
-
-          const dir = 'docs/prompt-ledger/entries';
-          const want = Number(process.env.TARGET);
-          const out = [];
-          for (const f of readdirSync(dir)) {
-          	if (!/^\d{4}-.*\.md$/.test(f)) continue;
-          	const entry = parseEntry(readFileSync(join(dir, f), 'utf8'));
-          	const permitted = parsePermitted(entry.fields['Migration permitted']);
-          	if (permitted.permits && permitted.numbers.includes(want)) out.push(f);
-          }
-          process.stdout.write(out.join(' '));
-          EOF
-
-          MATCHES="$(node ledger-match.mjs)"
-          rm -f ledger-match.mjs
+          # `ledgerClaimants` in `tools/migration-claims.mjs` IS THE ONE READING
+          # of which entries claim a number, and this is a caller of it, never a
+          # second one (it was an inline script here until ledger 0407). A
+          # `grep` for the number matches "Highest on origin/main at issue: 0211"
+          # on a REFUSING entry, and "exactly one, the file 0072 wrote" as
+          # migration 0072 -- both measured, both in `parsePermitted`'s header.
+          # `tests/apply-migration-claimants.test.ts` holds every migration
+          # still waiting here to exactly one claimant, so a second claim on a
+          # number reddens the suite before it can stop this run.
+          MATCHES="$(node tools/migration-claims.mjs --claimants "$TARGET")"
 
           COUNT=0
           for m in $MATCHES; do COUNT=$((COUNT + 1)); done

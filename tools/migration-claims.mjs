@@ -287,6 +287,70 @@ export function parseEntry(text) {
 }
 
 /**
+ * THE LEDGER ENTRIES THAT CLAIM ONE MIGRATION NUMBER, read the one way
+ * `.github/workflows/migrate.yml` reads them before it applies anything.
+ *
+ * `entries` is `[{ file, text }]`; the answer is the claiming files, sorted.
+ * The workflow refuses unless the answer has EXACTLY ONE file in it, so this
+ * function is the whole of "which bundle authorised this migration". It used to
+ * be a script written inline in the workflow, which read the bare
+ * `Migration permitted` field and missed a `Claims:` written as its own bullet
+ * (entry 0138's shape) -- a second reading of the line `classify` reads.
+ *
+ * ONLY THE PERMISSION LINE IS READ. An entry's own number -- the `0271` in
+ * `0271-viewport-feature-edges.md` and in its `# 0271` heading -- is never a
+ * migration claim, however it collides with a migration's number; the file
+ * name is used only to keep the entries `--ledger` can name (four digits, then
+ * a dash). Ledger 0407 measured the 2026-10-18 refusal on 0271 and it was NOT
+ * that entry: it was 0396 still claiming the 0270-0272 range it had reserved
+ * ahead of time and released in prose, beside 0400, which wrote 0271. The fix
+ * for that is the rule ledger 0407 wrote into `CLAUDE.md` (no reserved ranges;
+ * the `Claims:` line states the numbers used), and `pendingClaimProblems`
+ * below is the check that catches the next one before a merge does.
+ *
+ * @param {number | string} number
+ * @param {{ file: string, text: string }[] | null | undefined} entries
+ * @returns {string[]}
+ */
+export function ledgerClaimants(number, entries) {
+	const want = Number(number);
+	/** @type {string[]} */
+	const out = [];
+	for (const e of entries ?? []) {
+		const base = String(e?.file ?? '').split('/').pop() ?? '';
+		if (!/^\d{4}-.*\.md$/.test(base)) continue;
+		const permitted = parsePermitted(permittedText(parseEntry(e.text).fields));
+		if (permitted.permits && permitted.numbers.includes(want)) out.push(base);
+	}
+	return out.sort();
+}
+
+/**
+ * EVERY MIGRATION STILL WAITING TO BE APPLIED MUST HAVE EXACTLY ONE CLAIMANT,
+ * or `migrate.yml` stops at it and every migration above it waits too.
+ *
+ * "Waiting" is a migration file numbered above the highest record in
+ * `docs/migrations-applied/` -- the records are a gap-free prefix of the files
+ * (`tests/db/migrations-applied-record.test.ts`), so this is the set the
+ * workflow has yet to reach. Returns `[{ number, claimants }]` for each one
+ * with zero or several claimants; an EMPTY array is the passing answer.
+ *
+ * @param {{ migrations: number[], recorded: number[], entries: { file: string, text: string }[] }} input
+ * @returns {{ number: number, claimants: string[] }[]}
+ */
+export function pendingClaimProblems({ migrations, recorded, entries }) {
+	const highest = Math.max(0, ...(recorded ?? []).map(Number));
+	/** @type {{ number: number, claimants: string[] }[]} */
+	const problems = [];
+	const pending = [...new Set((migrations ?? []).map(Number))].filter((n) => n > highest).sort((a, b) => a - b);
+	for (const n of pending) {
+		const claimants = ledgerClaimants(n, entries);
+		if (claimants.length !== 1) problems.push({ number: n, claimants });
+	}
+	return problems;
+}
+
+/**
  * PURE. Takes an inventory and answers who holds what.
  *
  * inventory = {
@@ -811,6 +875,20 @@ export function formatReport(result) {
  * @returns {number}
  */
 export function main(argv = process.argv.slice(2)) {
+	// `--claimants <nnnn>`: the ledger entries in THIS working tree that claim
+	// one migration, space-separated on one line, for `migrate.yml`. It reads
+	// the working tree and no other ref, because the workflow asks about the
+	// commit it checked out. No claimant is EMPTY output and exit 0; the
+	// workflow decides what a count other than one means.
+	const at = argv.indexOf('--claimants');
+	if (at !== -1) {
+		const dir = join(REPO_ROOT, LEDGER_DIR);
+		const entries = readdirSync(dir)
+			.filter((f) => f.endsWith('.md'))
+			.map((f) => ({ file: f, text: readFileSync(join(dir, f), 'utf8') }));
+		console.log(ledgerClaimants(argv[at + 1] ?? '', entries).join(' '));
+		return 0;
+	}
 	const result = classify(collect(REPO_ROOT));
 	if (argv.includes('--next')) {
 		console.log(String(result.next).padStart(4, '0'));

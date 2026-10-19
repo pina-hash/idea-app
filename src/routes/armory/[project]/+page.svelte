@@ -92,8 +92,8 @@
 	const role = $derived(view?.project.role ?? null);
 	/*
 	 * MOVING THE PROJECT TO A NEWER SOLIDWORKS (ledger 0404) is a mentor's, and
-	 * a site admin's once 0285 is in: the 0233 shape, a site admin acting as a
-	 * mentor. Before 0285 a site admin who is not a mentor here reads the
+	 * a site admin's once 0273 is in: the 0233 shape, a site admin acting as a
+	 * mentor. Before 0273 a site admin who is not a mentor here reads the
 	 * refusal in words (`releaseErrorWords`), which says who can.
 	 */
 	const isMentor = $derived(role === 'mentor');

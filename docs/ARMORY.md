@@ -754,7 +754,7 @@ admin) and offers no Remove. The incident and note consoles read the column on a
 ladder of one: a database without it answers 42703, which reads as no machine ids. Tests:
 `tests/db/armory-v033.test.ts`, `tests/armory-v033-website.test.ts`.
 
-## The SolidWorks version and the nightly Shared Drive mirror (ledger 0404, migration 0285)
+## The SolidWorks version and the nightly Shared Drive mirror (ledger 0404, migration 0273)
 
 **One project, one SolidWorks version.** `armory_projects.pinned_release` (0231, default
 2025) is the release the vault takes: `armory_check_release` refuses a file saved in a
@@ -763,9 +763,9 @@ raise it.
 
 | RPC | What it does |
 |---|---|
-| `armory_create_project(p_name text, p_season smallint, p_release smallint, p_operation uuid) returns uuid` | New in 0285. Creates the project on `p_release`, or on the column default (2025) when it is null. 22023 `The SolidWorks version must be a release from 1995 to N.` above the ceiling or below 1995, checked after every older refusal. The change row `project_created` carries `pinned_release`. |
+| `armory_create_project(p_name text, p_season smallint, p_release smallint, p_operation uuid) returns uuid` | New in 0273. Creates the project on `p_release`, or on the column default (2025) when it is null. 22023 `The SolidWorks version must be a release from 1995 to N.` above the ceiling or below 1995, checked after every older refusal. The change row `project_created` carries `pinned_release`. |
 | `armory_create_project(p_name text, p_season smallint, p_operation uuid) returns uuid` | Unchanged signature and answers; now a thin wrapper over the four-argument form with a null release. The Windows app keeps calling it. Neither form has a default, so no payload binds to both. |
-| `armory_raise_pinned_release(p_project uuid, p_release smallint, p_operation uuid) returns boolean` | Since 0285 a site admin may raise any project (P0002 `project not found` for one that is not there); everyone else still needs the mentor role (42501 `only a mentor may raise the pinned release`). Up only (22023 `The pinned release must increase from N.`). New: 22023 `SolidWorks N is not a release yet; the newest a project can move to is M.` above the ceiling, the Los Angeles year plus one. |
+| `armory_raise_pinned_release(p_project uuid, p_release smallint, p_operation uuid) returns boolean` | Since 0273 a site admin may raise any project (P0002 `project not found` for one that is not there); everyone else still needs the mentor role (42501 `only a mentor may raise the pinned release`). Up only (22023 `The pinned release must increase from N.`). New: 22023 `SolidWorks N is not a release yet; the newest a project can move to is M.` above the ceiling, the Los Angeles year plus one. |
 
 **What the app could use (nothing is required).** `armory_my_projects` already projects
 `pinned_release`; a `pinned_release_raised` change (`{release, previous, by}`) says a

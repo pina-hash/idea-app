@@ -18,12 +18,12 @@
 	// C1 (0232): a project is created with a name and nothing else. The season
 	// argument is sent as null, which 0232 accepts on the unchanged signature.
 	//
-	// THE SOLIDWORKS VERSION (ledger 0404, 0285) IS NAMED ONLY WHEN IT IS NOT
-	// THE DEFAULT. The four-argument form exists only once 0285 is applied, so a
+	// THE SOLIDWORKS VERSION (ledger 0404, 0273) IS NAMED ONLY WHEN IT IS NOT
+	// THE DEFAULT. The four-argument form exists only once 0273 is applied, so a
 	// project on 2025 goes through the deployed three-argument form, which works
 	// on every database, and only a 2026 project names `p_release` (CLAUDE.md,
 	// DEPLOY ORDERING: name the new parameter only when the feature is used). A
-	// database without 0285 answers PGRST202, said in words with the way round.
+	// database without 0273 answers PGRST202, said in words with the way round.
 	const create = $derived(
 		page.data.isAdmin && data.supabase
 			? async (name: string, release: number) => {

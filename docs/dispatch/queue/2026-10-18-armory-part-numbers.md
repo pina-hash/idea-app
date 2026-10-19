@@ -23,7 +23,7 @@ You are building ledger 0405 in pina-hash/idea-app: IDEA Armory's part number re
 
 OWNS: src/lib/armory/part-numbers*, src/lib/armory/Armory*Part*.svelte, src/lib/armory/ArmoryCots*.svelte, src/routes/armory/**, src/routes/dev/armory-parts*/**, tests/armory-part-numbers*.test.ts, tests/db/armory-part-numbers*.test.ts, supabase/migrations/0286_*.sql, docs/ARMORY.md, docs/prompt-ledger/entries/0405-*, its own docs/history/ entry. Nothing else.
 
-NUMBERS: ledger 0405, migration 0286. Never 0270 to 0285.
+NUMBERS: ledger 0405. Migration: one, under the next free migration number at landing (never a fixed or reserved number): write the file under the next free number, take the next free number again when you rebase to land, rename it (and every test and doc naming it) if someone landed first, and state the final number on the ledger entry's Claims: line (CLAUDE.md, "A MIGRATION NUMBER IS TAKEN AT LANDING"). Wherever this prompt says 0286, read your final number.
 
 THE RULE (Mr. Pina chose scheme A on 2026-10-18; the full text is in docs/decisions/entries/41-armory-file-vault-scope.md under "Part numbers, as answered"):
 - Made part or assembly: 5669-YY-SS-AAPP. Team, two-digit season, two-letter subsystem code (DT, SH, IN, EL, AR, CL, FR, EE, MS), two-digit assembly, two-digit part; an assembly ends 00. Class projects use the course (IDEA100-27-...).

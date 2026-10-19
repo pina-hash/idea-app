@@ -1,4 +1,4 @@
--- 0285_armory_release_choice.sql
+-- 0273_armory_release_choice.sql
 --
 -- IDEA ARMORY: ONE PROJECT, ONE SOLIDWORKS VERSION, CHOSEN ON PURPOSE (ledger
 -- 0404, decision 41 item 7, Mr. Pina 2026-10-18: "an ordinary 2026 project as
@@ -71,7 +71,7 @@ begin
 	n := normalize(coalesce(p_name, ''), NFC);
 	if not public.armory_valid_segment(n) then raise exception 'The project name "%" cannot be a Windows folder name.', n using errcode = '22023'; end if;
 	if p_season is not null and p_season not between 2000 and 2100 then raise exception 'season must be a year from 2000 to 2100' using errcode = '22023'; end if;
-	-- 0285: the release, checked after every refusal the 0232 body gave, so a null release answers exactly as before.
+	-- 0273: the release, checked after every refusal the 0232 body gave, so a null release answers exactly as before.
 	if p_release is not null then
 		newest := public._armory_release_ceiling();
 		if p_release < 1995 or p_release > newest then
@@ -103,7 +103,7 @@ end $at$;
 create or replace function public.armory_create_project(p_name text, p_season smallint, p_operation uuid) returns uuid
 language plpgsql security definer set search_path = '' as $at$
 begin
-	-- 0285: the three-argument form the Windows app calls; a null release is the column default.
+	-- 0273: the three-argument form the Windows app calls; a null release is the column default.
 	return public.armory_create_project(p_name, p_season, null::smallint, p_operation);
 end $at$;
 
@@ -117,7 +117,7 @@ declare e text := public.armory_current_email(); r jsonb; old smallint; newest s
 begin
 	r := public.armory_replay(p_operation, 'armory_raise_pinned_release');
 	if r is not null then return (r->>'result')::boolean; end if;
-	-- 0285: a site admin acts as a mentor of any project (the 0233 armory_add_member shape).
+	-- 0273: a site admin acts as a mentor of any project (the 0233 armory_add_member shape).
 	if coalesce(public.is_admin(), false) then
 		if not exists (select 1 from public.armory_projects where id = p_project) then
 			raise exception 'project not found' using errcode = 'P0002';
@@ -128,7 +128,7 @@ begin
 	select pinned_release into old from public.armory_projects where id = p_project for update;
 	-- SolidWorksVersionGate.TryRaise: the pin must strictly increase from a valid release.
 	if p_release is null or p_release <= old then raise exception 'The pinned release must increase from %.', old using errcode = '22023'; end if;
-	-- 0285: never past the newest release there is, because a pin never comes back down.
+	-- 0273: never past the newest release there is, because a pin never comes back down.
 	newest := public._armory_release_ceiling();
 	if p_release > newest then
 		raise exception 'SolidWorks % is not a release yet; the newest a project can move to is %.', p_release, newest using errcode = '22023';
@@ -165,17 +165,17 @@ begin
 	select count(*) into v_n from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
 	where n.nspname = 'public' and p.proname = 'armory_create_project';
 	if v_n <> 2 then
-		raise exception '0285: expected exactly two public.armory_create_project (the deployed form and the wide one), found %', v_n;
+		raise exception '0273: expected exactly two public.armory_create_project (the deployed form and the wide one), found %', v_n;
 	end if;
 	-- The pair is unambiguous only while neither form carries a default.
 	if exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
 		where n.nspname = 'public' and p.proname = 'armory_create_project' and p.pronargdefaults <> 0) then
-		raise exception '0285: an armory_create_project form carries a default, so a call could bind to both';
+		raise exception '0273: an armory_create_project form carries a default, so a call could bind to both';
 	end if;
 	select count(*) into v_n from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
 	where n.nspname = 'public' and p.proname = 'armory_raise_pinned_release';
 	if v_n <> 1 then
-		raise exception '0285: expected exactly one public.armory_raise_pinned_release, found %', v_n;
+		raise exception '0273: expected exactly one public.armory_raise_pinned_release, found %', v_n;
 	end if;
 	foreach v_f in array array[
 		'armory_create_project(text, smallint, smallint, uuid)',
@@ -183,19 +183,19 @@ begin
 		'armory_raise_pinned_release(uuid, smallint, uuid)'] loop
 		if not (select p.prosecdef and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=%'
 			from pg_catalog.pg_proc p where p.oid = ('public.' || v_f)::regprocedure) then
-			raise exception '0285: public.% must be security definer with search_path pinned', v_f;
+			raise exception '0273: public.% must be security definer with search_path pinned', v_f;
 		end if;
 		if pg_catalog.has_function_privilege('anon', 'public.' || v_f, 'execute') then
-			raise exception '0285: anon can execute public.%', v_f;
+			raise exception '0273: anon can execute public.%', v_f;
 		end if;
 		if not pg_catalog.has_function_privilege('authenticated', 'public.' || v_f, 'execute') then
-			raise exception '0285: authenticated cannot execute public.%', v_f;
+			raise exception '0273: authenticated cannot execute public.%', v_f;
 		end if;
 	end loop;
 	if pg_catalog.has_function_privilege('anon', 'public._armory_release_ceiling()', 'execute')
 		or pg_catalog.has_function_privilege('authenticated', 'public._armory_release_ceiling()', 'execute') then
-		raise exception '0285: a client role can execute public._armory_release_ceiling()';
+		raise exception '0273: a client role can execute public._armory_release_ceiling()';
 	end if;
-	raise notice '0285 armory-release-choice: armory_create_project has 2 forms with no defaults, raise admits a site admin, ceiling is %; 0 executable by anon',
+	raise notice '0273 armory-release-choice: armory_create_project has 2 forms with no defaults, raise admits a site admin, ceiling is %; 0 executable by anon',
 		public._armory_release_ceiling();
 end $at$;

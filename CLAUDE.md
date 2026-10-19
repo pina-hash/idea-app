@@ -2979,7 +2979,7 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
   trimmed, as the RPC compares), `aria-disabled` and never `disabled`, and the
   acknowledgement is shown on `/armory` through `page.state`.
 - **A PROJECT IS ON ONE SOLIDWORKS VERSION, CHOSEN AT CREATION AND ONLY EVER
-  MOVED UP (ledger 0404, 0285, decision 41 item 7).** The pin is what
+  MOVED UP (ledger 0404, 0273, decision 41 item 7).** The pin is what
   `armory_check_release` refuses a newer save against, so lowering it would
   strand every file saved in the newer release; there is no way down, and the
   Project tab says why. Create offers 2025 (the 0231 default) or 2026 and names
@@ -4092,6 +4092,25 @@ something this environment cannot do.**
     record landed, starts itself again (`gh workflow run`, the job's
     `actions: write`), so a bundle's files land in order on one merge; it never
     chains after a refusal, a raise or an unverified apply.
+  - **A MIGRATION NUMBER IS TAKEN AT LANDING, NEVER RESERVED AHEAD (ledger
+    0407).** A session writes its file under the next free number, and when it
+    rebases to land it takes the next free number AGAIN: if somebody landed
+    first, it renames its file (and every test and doc naming it) to the number
+    after theirs. The ledger entry's `Claims:` line then states the FINAL
+    numbers, exactly the ones its files carry, and nothing else; a prompt names
+    "the next free migration number at landing", never a fixed number or a
+    range. **A claimed number nobody wrote is not harmless**: `migrate.yml`
+    authorises an apply only when exactly one entry's `Claims:` names the
+    target (`ledgerClaimants` in `tools/migration-claims.mjs`), so on
+    2026-10-18 ledger 0396's reserved 0268-0272, released only in its Notes,
+    stood beside 0400's real 0271 and stopped every migration above it, and a
+    reserved 0274-0284 left the files running 0272 then 0285, a hole the
+    tombstone test's contiguity check refuses. An entry's OWN number is never
+    a claim; only its `Migration permitted` line is read.
+    `tests/apply-migration-claimants.test.ts` holds every migration still
+    waiting (numbered above the newest `docs/migrations-applied/` record) to
+    exactly one claimant, so a second claim reddens the landing session's suite
+    rather than the next Migrate run.
   - **IT CONNECTS AS A SCOPED ROLE AND THE ROLE IS THE POINT.** `idea_migrator`
     (`supabase/roles/idea_migrator.sql`, pasted once BY HAND because it carries a
     password and this repository is public) is a member of `postgres` for ownership,

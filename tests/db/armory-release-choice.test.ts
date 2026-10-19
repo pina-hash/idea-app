@@ -1,11 +1,11 @@
 // tests/db/armory-release-choice.test.ts
 //
-// MIGRATION 0285: a project's SolidWorks version, chosen at creation and moved
+// MIGRATION 0273: a project's SolidWorks version, chosen at creation and moved
 // up on purpose (ledger 0404, decision 41 item 7). The chain is every migration
-// before 0285, read off disk behind the fixture completion (the database
+// before 0273, read off disk behind the fixture completion (the database
 // production holds before the apply); projects, members and files are written
 // through the REAL 0231 to 0236 RPCs; a corpus of calls the deployed Windows
-// app and website make is put to the DEPLOYED bodies; then 0285 goes on top
+// app and website make is put to the DEPLOYED bodies; then 0273 goes on top
 // and the same corpus runs again.
 //
 // What a wrong answer here would look like, and why each is silent:
@@ -33,11 +33,11 @@ const FIXTURE_COMPLETION = '../../tests/db/full-chain-fixture-completion.sql';
 const ALL = readdirSync(MIGRATIONS_DIR)
 	.filter((f) => /^\d{4}_.*\.sql$/.test(f))
 	.sort();
-const FILES_0285 = ALL.filter((f) => f.startsWith('0285_'));
-if (FILES_0285.length !== 1) throw new Error(`expected exactly one 0285 migration, found ${FILES_0285.length}`);
-const PRE_0285 = [FIXTURE_COMPLETION, ...ALL.filter((f) => f < '0285')];
+const FILES_0273 = ALL.filter((f) => f.startsWith('0273_'));
+if (FILES_0273.length !== 1) throw new Error(`expected exactly one 0273 migration, found ${FILES_0273.length}`);
+const PRE_0273 = [FIXTURE_COMPLETION, ...ALL.filter((f) => f < '0273')];
 /** Read once when the suite loads, so a mutation run reads the mutant. */
-const SQL_0285 = readFileSync(join(MIGRATIONS_DIR, FILES_0285[0]), 'utf8');
+const SQL_0273 = readFileSync(join(MIGRATIONS_DIR, FILES_0273[0]), 'utf8');
 
 /** The refusal texts, written out: a test whose expected value comes from the function cannot fail. */
 const NOT_A_MENTOR = 'only a mentor may raise the pinned release';
@@ -60,8 +60,8 @@ let lead: SeededUser;
 let ana: SeededUser;
 let outsider: SeededUser;
 
-let A: string; // created before 0285, still at 2025
-let B: string; // raised by its mentor before 0285
+let A: string; // created before 0273, still at 2025
+let B: string; // raised by its mentor before 0273
 let corpusBefore: Outcome[];
 const year = (): number => Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }).slice(0, 4));
 
@@ -109,7 +109,7 @@ async function runCorpus(): Promise<Outcome[]> {
 }
 
 beforeAll(async () => {
-	db = await startTestDb(PRE_0285);
+	db = await startTestDb(PRE_0273);
 	api = armoryRpc(db);
 	admin = await person(db, 'apina@boscotech.edu', 'Mr. Pina');
 	admin2 = await person(db, 'tech@boscotech.edu', 'Tess Tech');
@@ -133,7 +133,7 @@ beforeAll(async () => {
 
 	corpusBefore = await runCorpus();
 	preFingerprint = await catalogFingerprint(db);
-	await db.sql(SQL_0285);
+	await db.sql(SQL_0273);
 }, 900_000);
 
 afterAll(async () => {
@@ -141,20 +141,20 @@ afterAll(async () => {
 });
 
 // ===========================================================================
-describe('0285 as a file', () => {
+describe('0273 as a file', () => {
 	test('it passes the apply tool scan and the paste trap; the planted controls do not', () => {
-		const scan = scanFile(SQL_0285);
+		const scan = scanFile(SQL_0273);
 		expect(scan.findings).toEqual([]);
 		expect(scan.selfManagedTransaction).toBe(false);
 		expect(scanFile("insert into public.armory_projects (name) values ('x');").findings).toHaveLength(1);
-		expect(pasteTrap(SQL_0285)).toEqual([]);
+		expect(pasteTrap(SQL_0273)).toEqual([]);
 		expect(pasteTrap('select 1; -- a $ here')).toHaveLength(1);
 	});
 
 	test('the first object it creates is new in this file, so the deploy probe can see it applied', () => {
-		const first = /\bcreate\s+(?:or\s+replace\s+)?(?:function|table|policy|index)\s+([\w.]+)/i.exec(SQL_0285);
+		const first = /\bcreate\s+(?:or\s+replace\s+)?(?:function|table|policy|index)\s+([\w.]+)/i.exec(SQL_0273);
 		expect(first?.[1]).toBe('public._armory_release_ceiling');
-		const earlier = ALL.filter((x) => x < '0285').map((x) => readFileSync(join(MIGRATIONS_DIR, x), 'utf8'));
+		const earlier = ALL.filter((x) => x < '0273').map((x) => readFileSync(join(MIGRATIONS_DIR, x), 'utf8'));
 		expect(earlier.some((t) => t.includes('_armory_release_ceiling'))).toBe(false);
 		// Positive control: the same scan finds a name an earlier file does carry.
 		expect(earlier.some((t) => t.includes('armory_raise_pinned_release'))).toBe(true);
@@ -163,7 +163,7 @@ describe('0285 as a file', () => {
 	test('a second paste changes no catalog object, and the first changed something', async () => {
 		const after = await catalogFingerprint(db);
 		expect(after).not.toEqual(preFingerprint);
-		await db.sql(SQL_0285);
+		await db.sql(SQL_0273);
 		expect(await catalogFingerprint(db)).toEqual(after);
 	});
 });

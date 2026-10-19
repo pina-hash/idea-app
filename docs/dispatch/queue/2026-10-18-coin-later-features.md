@@ -30,7 +30,7 @@ Mr. Pina is not watching. The work goes live for students the moment you push. D
 0. NUMBERS AND OWNERSHIP
 ==================================================================
 
-Ledger 0402. Migrations 0275 through 0284: use the lowest first, with no gaps, and list exactly the numbers you used on the ledger entry's Claims: line. Decision 70.
+Ledger 0402. Migrations: as many as the work needs, each under the next free migration number at landing (never a fixed or reserved number): write each file under the next free number, take the next free numbers again when you rebase to land, rename your files (and every test and doc naming them) if someone landed first, keep them contiguous, and list exactly the final numbers on the ledger entry's Claims: line (CLAUDE.md, "A MIGRATION NUMBER IS TAKEN AT LANDING"). Wherever this prompt says 0275 to 0284, read your final numbers. Decision 70.
 
 If 0402 or any of those migration numbers already exists on origin/main when you rebase, renumber yours to the next free number, update every reference, and say so. Never edit another session's file.
 

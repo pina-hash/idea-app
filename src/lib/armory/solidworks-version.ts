@@ -6,7 +6,7 @@
  * pin is chosen when the project is created and only ever moves up.
  *
  * THE DATABASE IS THE BOUNDARY AND THIS FILE ONLY CHOOSES WHAT TO OFFER.
- * `newestRelease` mirrors 0285's `_armory_release_ceiling()` (the Los Angeles
+ * `newestRelease` mirrors 0273's `_armory_release_ceiling()` (the Los Angeles
  * calendar year plus one, because SolidWorks names a release for the year
  * after it ships); a choice this file offers that the server would refuse is a
  * key whose only answer is a refusal, which is why the two agree.

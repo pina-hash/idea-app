@@ -11,8 +11,9 @@ owns: supabase/migrations/0273_*.sql, supabase/migrations/0285_*.sql, tools/appl
 after:
 needs_go: no
 go: no
-status: running
+status: done
 started_at: 2026-10-19T00:52:07Z
+finished_at: 2026-10-19T01:43:52Z
 trigger_id: trig_018JrtZp8z7YZvNyx7okacYM
 queued_at: 2026-10-18T17:50:00-07:00
 ---
