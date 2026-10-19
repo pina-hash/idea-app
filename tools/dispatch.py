@@ -67,7 +67,8 @@ MODEL_IDS = {"haiku-5.5": "claude-haiku-5-5", "sonnet-5.5": "claude-sonnet-5-5",
 MODEL_ALIAS = {"haiku-5.5": "haiku", "sonnet-5.5": "sonnet", "opus-5.5": "opus", "fable-5.1": "fable"}
 EFFORTS = {"low", "medium", "high", "xhigh", "max", "ultracode"}
 SIZES = {"S", "M", "L"}
-STATUSES = {"queued", "running", "done", "failed", "held", "cancelled"}
+STATUSES = {"queued", "ready", "needs_go", "running", "done", "failed", "held", "cancelled"}
+READY_FLAG_H = 12  # a job waiting this long for his Approve on the job board is flagged
 REQUIRED = ["id", "repo", "chat", "ledger", "model", "effort", "size", "owns", "status", "queued_at"]
 
 
@@ -231,6 +232,10 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
         errs = validate(e)
         if errs:
             attention.append({"id": e.get("id") or e["path"], "reason": "invalid entry: " + "; ".join(errs)})
+        if e.get("status") in ("ready", "needs_go"):
+            since = iso(e.get("started_at"))
+            if since and (now - since) > dt.timedelta(hours=READY_FLAG_H):
+                attention.append({"id": e["id"], "reason": f"waiting for his Approve on the job board since {e['started_at']}"})
         if e.get("status") == "running" and e.get("started_at"):
             started = iso(e["started_at"])
             if started is None:
@@ -242,7 +247,8 @@ def plan(entries: list[dict], usage: dict | None, reset: dt.datetime | None, now
                 attention.append({"id": e["id"], "reason": f"running for more than 6 hours (since {e['started_at']}); check the session"})
 
     released = {r["id"] for r in release}
-    running = [e for e in entries if e.get("status") == "running" and e["id"] not in released]
+    # `ready` = claimed and waiting for his Approve on the job board: it holds its slot, files and database
+    running = [e for e in entries if e.get("status") in ("running", "ready", "needs_go") and e["id"] not in released]
     proj = projected(usage, read_at, entries)
     fresh = usage is not None and (read_at is None or (now - read_at) <= dt.timedelta(minutes=FRESH_MIN))
 
@@ -409,6 +415,11 @@ def selftest() -> int:
     check("a claim with no session after 20 minutes is released and restarted", p["release"] and p["start"] and p["start"][0]["released"], p)
     p = plan([_entry(id="young", status="running", started_at="2026-10-17T22:00:00-07:00")], ok_usage, reset, now)
     check("a claim under 20 minutes old is left alone", not p["release"] and not p["start"], p)
+    q = [_entry(id="rdy", status="ready", started_at="2026-10-17T08:00:00-07:00", owns="src/lib/coin/**"),
+         _entry(id="same", owns="src/lib/coin/fines.ts", queued_at="2026-10-17T20:05:00-07:00")]
+    p = plan(q, ok_usage, reset, now)
+    check("a job waiting for approval holds its files and is never released", not p["start"] and not p["release"], p)
+    check("a job waiting 14 hours for approval is flagged", any("Approve" in a["reason"] for a in p["attention"]), p["attention"])
 
     # 6. three per repo never; a failed dependency holds and asks for attention
     q = [_entry(id="r1", status="running", owns="a/**"), _entry(id="r2", status="running", owns="b/**"), _entry(id="c", owns="c/**")]
