@@ -13,6 +13,7 @@ needs_go: no
 go: no
 status: running
 started_at: 2026-10-19T00:52:07Z
+trigger_id: trig_018JrtZp8z7YZvNyx7okacYM
 queued_at: 2026-10-18T17:50:00-07:00
 ---
 Before doing anything else: `git fetch origin main`, check out `origin/main` on a working branch, and confirm the committer identity is `Claude <noreply@anthropic.com>` (set it if empty). Solo mode: rebase on `origin/main` and push `HEAD:main` once at the end, with the ledger entry in the same push.
