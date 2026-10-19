@@ -1,0 +1,119 @@
+# The IDEA Website connector
+
+_Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The remote MCP server that lets a site admin act through the site's own functions. The entry point and the table of every subsystem file is [`CLAUDE.md`](../../CLAUDE.md)._
+
+### THE IDEA WEBSITE CONNECTOR -- Claude acting as an admin, through the site's own functions
+
+**`https://ideabosco.com/mcp` IS A REMOTE MCP SERVER THAT LETS A SITE ADMIN DO
+FROM ANY CLAUDE CHAT WHAT THEY DO ON THE SITE BY HAND, AS THEMSELVES (ledgers
+0400 and 0401, migrations 0270 through 0272).** `docs/connector/DESIGN.md` is
+the spec, decided by Mr. Pina on 2026-10-17, with "What 0400 built" and "What
+0401 built" notes at its end; `docs/connector/EVALS.md` is the finish line. The site is its own OAuth server
+(`src/lib/server/connector/oauth.ts`): the two `.well-known` documents,
+`/connector/authorize` (the consent card, the site's own Google session being
+the sign-in), `/connector/token`, `/connector/register` and `/connector/revoke`.
+None is under `authedPrefixes`; the MCP route answers its own 401 with the
+`resource_metadata` pointer.
+
+- **IT ACTS AS THE TOKEN'S USER AND NOBODY ELSE.** `handleMcp` turns the bearer
+  into a connection row, mints a Supabase session for that user (the Armory
+  pattern, cached in memory, never stored) and runs every tool through a client
+  carrying it, so `auth.uid()`, `is_admin()` and every policy see that user. The
+  service role is in one file, `src/lib/server/connector/backend.ts`, for the
+  `connector_*` tables and minting only; `tests/connector-service-role.test.ts`
+  holds it there. No identity constant exists: any admin may connect.
+- **TWO GATES STOP A STUDENT ACCOUNT, AND THE SWITCH IS A THIRD.** Consent
+  answers 404 to a non-admin, and every MCP request asks `is_admin()` AS THE
+  MINTED USER before any tool runs; an address taken off `app_admins` has its
+  connection revoked on its next call. `/admin/connector` holds the switch
+  (`connector_settings.enabled`, off answers 401 on every request), the
+  connections with Disconnect and Disconnect all, and the audit log.
+- **EVERY WRITE GOES THROUGH `connector_call`, WHICH IS SECURITY INVOKER.** It
+  builds the call from `pg_proc` (named arguments, each cast to its declared
+  type), so the inner function is gated exactly as from the browser; a caller
+  who is not an admin reads the inner function's own refusal, text for text, and
+  one whose call would have worked reads "The IDEA Website connector is for
+  site admins." and nothing lands. `tests/db/connector-permissions.test.ts`
+  holds that for every write entry, and that the admin's connector call writes
+  the same rows as the direct call.
+- **THREE LEVELS, ENFORCED BY THE SERVER FROM THE REGISTRY, NEVER BY A PROMPT.**
+  `read` runs at once with no audit row; `undo` runs, is logged, previews on
+  `dry_run`, and names its reverse (`undo_last` runs it); `confirm` always
+  previews first and writes only on a second call carrying the stored,
+  single-use `confirm_token` within ten minutes with identical arguments
+  (`src/lib/server/connector/engine.ts`). A preview is the write rolled back by
+  a `CONNECTOR_PREVIEW:` raise. Repeats never double: Claude's `request_id`, or
+  a derived key matched within 120 seconds, answers the stored result with
+  `repeated: true`; `again: true` is the deliberate second.
+- **ONE AUDIT ROW PER WRITE, IN THE SAME TRANSACTION, "VIA CLAUDE".** The
+  site's own logs are written by the inner function, unchanged (a coin award is
+  the Coin Desk's row, logged by the admin, with the reason they said);
+  `connector_audit` adds who, tool, function, arguments, result, the rows
+  written (read from `connector_log_tables` by an exact in-progress-xmin test
+  that catches subtransaction writes, `tests/db/connector-xmin.test.ts`) and the
+  computed undo. A failure is recorded on its own statement
+  (`connector_audit_failure`). The `connector_*` tables carry no policy and no
+  client grant; the private helpers refuse outside a `connector_call` of the
+  same transaction.
+- **THE REGISTRY IS THE ONLY SOURCE OF TOOLS.** Three layers, one builder
+  (`src/lib/server/connector/registry.ts`): the inventory of every `.rpc('name')`
+  under `src/` and every `+server.ts`, the schema read from `pg_proc` on the
+  whole migration chain, and the hand-written YAML overlay in
+  `src/lib/server/connector/registry/` (the only layer anybody edits; `tools.yaml`
+  holds the voice-shaped facades). `npm run connector:build` regenerates the
+  three generated JSON files and the safety-level table in
+  `docs/connector/DESIGN.md` section 7, and `tests/connector-coverage.test.ts`
+  fails on a stale one and on any function or endpoint with no tool, call
+  entry or exclusion reason (the `pending: slice 2` allowance went with ledger
+  0401). **A NEW `.rpc('name')` OR A NEW `+server.ts` ANYWHERE IN THE SITE
+  REDDENS THAT TEST UNTIL THE OVERLAY ANSWERS FOR IT AND THE BUILD IS RE-RUN**,
+  and a new write entry also needs a sample in `tests/db/connector-samples.ts`,
+  which the permission and level suites both refuse to run without, and every
+  table its rows land in named in `src/lib/server/connector/log-tables.ts`
+  (synced into `connector_log_tables` by the server, never by a migration).
+- **A LEVEL MAY DEPEND ON THE ARGUMENTS OR ON WHAT IS THERE BEFORE, AND THE
+  SERVER DECIDES IT (`level_when`, `levelFor`).** A condition names an argument
+  (`p_amount > 0`) or a value the entry's own `before` read found as him
+  (`$before.found`, `$before.status = draft`); the branch with no reverse asks
+  first. An undo entry names its reverse from `$before`, `$args`, `$result`,
+  `$written` or `$user`, and `tests/db/connector-levels.test.ts` runs every one
+  and judges the reversal on the log tables; a reversal that leaves a record on
+  purpose (a revoked grade, a removed note) is named there with its reason.
+- **A SITE ROUTE IS RUN IN-PROCESS AS HIM, NEVER FETCHED.** An endpoint `call`
+  entry is one of the literal imports in `src/lib/server/connector/endpoints.ts`,
+  handed `locals.supabase` on the minted session, so every gate in the route
+  decides as on the site; it is audited by `connector_endpoint_begin`/`_finish`
+  (0272). A route added there gains no caller it did not have.
+- **EVERY TOOL TAKES `said`, HIS WORDS, AND THE SERVER KEEPS THEM (0272).**
+  `connector_request_log` writes the request and appends a saved request
+  (`connector_evals`) for words it has not seen; `site_call` on a name the
+  registry lacks, and `report_gap`, write an open gap (`connector_gaps`), shown
+  on `/admin/feedback/connector`, where Built takes the ledger that built it.
+  These are definer functions re-checking `is_admin()`, with no client grant
+  and no policy on the tables. `docs/connector/EVALS.md` is GENERATED from the
+  table by `tools/connector/evals/export.mjs` (`--json` takes the download on
+  `/admin/connector`); never edit it by hand.
+- **`/mcp/practice` IS THE SAME SERVER WITH EVERY WRITE A PREVIEW, FIXED BY THE
+  URL, NEVER BY AN ARGUMENT.** Nothing commits and nothing is logged there
+  except a replay result (`record_eval_result`), and
+  `tests/db/connector-requests.test.ts` drives every write entry through it and
+  holds every log table and connector table unchanged.
+- **NAMES ARE RESOLVED AGAINST THE CLASSES THE ADMIN TEACHES, NEVER GUESSED.**
+  `src/lib/server/connector/resolve.ts` looks at sections where the admin is
+  teacher of record (an admin manages every section, so "manages" would be the
+  whole school); an ambiguous or unknown name writes nothing and says so. Dates
+  are school time through `$lib/classroom/school-calendar`.
+- **`replace_html_assignment` REFUSES WHEN AN ANSWERED BLOCK WOULD DISAPPEAR**,
+  naming the ids, using the importer's own `stageHtmlDocument`; 0195's setter
+  does not check this itself.
+- **THE TOKEN AND REVOCATION ENDPOINTS TAKE CROSS-SITE FORM POSTS WITH NO
+  ORIGIN, SO SVELTEKIT'S BUILT-IN CHECK IS OFF AND `connectorCsrfGuard`
+  RESTATES IT.** `svelte.config.js` sets `csrf.trustedOrigins` to `['*']` only
+  because the guard runs first in `hooks.server.ts` with exactly those two paths
+  exempt; every other route keeps the check, which matters because a student
+  bundle on the apps origin is same-site. `tests/connector-csrf.test.ts` holds
+  both halves.
+- **`/mcp` AND `/connector` ARE RESERVED SHORT LINKS (0271).** The local
+  backend (`src/lib/server/connector/backend-local.ts`, dev only, over an
+  embedded cluster booted by `tools/connector/local-backend.mjs`) is how the MCP
+  Inspector run is done with no Supabase project.

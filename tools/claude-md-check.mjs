@@ -43,11 +43,41 @@ export const REPO_ROOT = path.resolve(__dirname, '..');
 export const DOC = 'CLAUDE.md';
 
 /**
+ * The folder the subsystem rules moved to (ledger 0415). `CLAUDE.md` was 88,000
+ * words and every session read all of it; the rules specific to one subsystem
+ * now live one file per subsystem under this folder, word for word, and
+ * `CLAUDE.md` keeps only the standing rules and the table that links them. The
+ * document this checker guards is therefore the SET: `CLAUDE.md` plus every
+ * `.md` file directly in this folder. A name written in any of them is checked
+ * the same way, so moving a paragraph never takes its names out of the check.
+ */
+export const SUBSYSTEM_DIR = 'docs/subsystems';
+
+/**
+ * The files that make up the guarded document, `CLAUDE.md` first, the rest in
+ * name order so a finding's file is stable from run to run.
+ *
+ * @param {string} [root]
+ * @returns {string[]}
+ */
+export function docFiles(root = REPO_ROOT) {
+	const dir = path.join(root, SUBSYSTEM_DIR);
+	const rest = fs.existsSync(dir)
+		? fs
+				.readdirSync(dir)
+				.filter((f) => f.endsWith('.md'))
+				.sort()
+				.map((f) => `${SUBSYSTEM_DIR}/${f}`)
+		: [];
+	return [DOC, ...rest];
+}
+
+/**
  * One disagreement between the document and the tree. `claim` is what
  * `CLAUDE.md` says; `tree` is what the tree says instead. Both are rendered into
  * the failure message.
  *
- * @typedef {{ check: string, claim: string, tree: string, line: number }} Finding
+ * @typedef {{ check: string, claim: string, tree: string, line: number, file?: string }} Finding
  */
 
 /**
@@ -613,10 +643,22 @@ export function absenceCorpus(root = REPO_ROOT) {
 export function checkClaudeMd(root = REPO_ROOT) {
 	/** @type {Finding[]} */
 	const findings = [];
-	const doc = read(DOC, root);
+	const files = docFiles(root);
+	const texts = files.map((f) => read(f, root));
+	// Every parser below reads the whole set as one string; `say` then finds the
+	// file and the line the name was first written on.
+	const doc = texts.join('\n');
 	/** @param {string} check @param {string} token @param {string} claim @param {string} tree */
-	const say = (check, token, claim, tree) =>
-		findings.push({ check, claim, tree, line: lineOf(doc, token) });
+	const say = (check, token, claim, tree) => {
+		for (let i = 0; i < files.length; i++) {
+			const line = lineOf(texts[i], token);
+			if (line > 0) {
+				findings.push({ check, claim, tree, line, file: files[i] });
+				return;
+			}
+		}
+		findings.push({ check, claim, tree, line: 0, file: DOC });
+	};
 	const notOurs = new Set(NOT_OURS.map((n) => n.token));
 
 	// 1. Every path named exists.
@@ -747,7 +789,7 @@ export function checkClaudeMd(root = REPO_ROOT) {
 /** @param {Finding[]} findings @returns {string} */
 export function formatFindings(findings) {
 	return findings
-		.map((f) => `  [${f.check}] ${DOC}:${f.line} -- ${f.claim}\n      tree: ${f.tree}`)
+		.map((f) => `  [${f.check}] ${f.file ?? DOC}:${f.line} -- ${f.claim}\n      tree: ${f.tree}`)
 		.join('\n');
 }
 
@@ -755,7 +797,9 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
 	const { ok, findings } = checkClaudeMd();
 	if (ok) {
-		console.log('claude-md-check: CLAUDE.md agrees with the tree.');
+		console.log(
+			`claude-md-check: CLAUDE.md and ${docFiles().length - 1} subsystem files agree with the tree.`
+		);
 		process.exit(0);
 	}
 	console.error(`claude-md-check: ${findings.length} finding(s).\n${formatFindings(findings)}`);

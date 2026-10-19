@@ -37,6 +37,7 @@ import {
 	ELIDED_SQL,
 	NOT_OURS,
 	REPO_ROOT,
+	SUBSYSTEM_DIR,
 	backticked,
 	checkClaudeMd,
 	citedCssTokens,
@@ -45,6 +46,7 @@ import {
 	citedRoutes,
 	citedSqlObjects,
 	citedSymbols,
+	docFiles,
 	formatFindings,
 	lineOf,
 	realCssTokens,
@@ -56,7 +58,14 @@ import {
 	treeRoutes
 } from '../tools/claude-md-check.mjs';
 
-const doc = () => fs.readFileSync(path.join(REPO_ROOT, DOC), 'utf8');
+// The guarded document is the SET: CLAUDE.md plus every file under
+// docs/subsystems (ledger 0415), so the floors and the named-in-the-document
+// assertions below read all of it. CLAUDE.md alone is `claudeMd()`.
+const doc = () =>
+	docFiles(REPO_ROOT)
+		.map((f) => fs.readFileSync(path.join(REPO_ROOT, f), 'utf8'))
+		.join('\n');
+const claudeMd = () => fs.readFileSync(path.join(REPO_ROOT, DOC), 'utf8');
 
 describe('the real tree', () => {
 	it('agrees with CLAUDE.md', () => {
@@ -65,6 +74,42 @@ describe('the real tree', () => {
 		// `expect(ok).toBe(true)` sends a person to read four thousand lines,
 		// which is the failure mode this whole bundle exists to end.
 		expect(ok, `\n${formatFindings(findings)}\n`).toBe(true);
+	});
+});
+
+describe('the document set (ledger 0415)', () => {
+	// CLAUDE.md was 88,000 words and every session read all of it. The standing
+	// rules stay in it; the subsystem rules moved word for word to
+	// docs/subsystems, one file each, and the table in CLAUDE.md links them.
+	const WORD_CEILING = 10000;
+	const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
+
+	it('CLAUDE.md stays under the word ceiling', () => {
+		expect(words(claudeMd())).toBeLessThan(WORD_CEILING);
+	});
+
+	it('every subsystem file is linked from the table in CLAUDE.md, and every link resolves', () => {
+		const files = docFiles(REPO_ROOT).filter((f) => f !== DOC);
+		expect(files.length).toBeGreaterThan(20);
+		const md = claudeMd();
+		for (const f of files) {
+			expect(md.includes('(' + f + ')'), `${f} is not linked from ${DOC}`).toBe(true);
+		}
+		const linked = [...md.matchAll(/\((docs\/subsystems\/[a-z0-9-]+\.md)\)/g)].map((m) => m[1]);
+		expect(linked.length).toBe(files.length);
+		for (const l of linked) {
+			expect(fs.existsSync(path.join(REPO_ROOT, l)), `${l} is linked but missing`).toBe(true);
+		}
+	});
+
+	it('the subsystem files hold the bulk of the rules, not a stub', () => {
+		// A moved paragraph that was quietly emptied would still leave the
+		// table's links resolving. The set must still carry the document.
+		const total = docFiles(REPO_ROOT)
+			.filter((f) => f !== DOC)
+			.map((f) => words(fs.readFileSync(path.join(REPO_ROOT, f), 'utf8')))
+			.reduce((a, b) => a + b, 0);
+		expect(total).toBeGreaterThan(60000);
 	});
 });
 
@@ -193,6 +238,11 @@ function scaffold(): void {
 	writeDoc();
 }
 
+function writeSubsystem(name: string, body: string): void {
+	fs.mkdirSync(path.join(dir, SUBSYSTEM_DIR), { recursive: true });
+	fs.writeFileSync(path.join(dir, SUBSYSTEM_DIR, name), body);
+}
+
 function writeDoc(extra = ''): void {
 	fs.writeFileSync(
 		path.join(dir, DOC),
@@ -239,6 +289,27 @@ describe('every check bites', () => {
 		const lines = fs.readFileSync(path.join(dir, DOC), 'utf8').split('\n');
 		expect(f[0].line).toBeGreaterThan(0);
 		expect(lines[f[0].line - 1]).toContain('nowhere.ts');
+	});
+
+	it('a name written in a subsystem file is checked, and the finding names that file', () => {
+		// THE REASON THE CHECKER READS A SET. A rule moved out of CLAUDE.md must
+		// not leave the check's reach: the same bad path, written in a file under
+		// docs/subsystems, is found there, with that file and that line.
+		scaffold();
+		writeSubsystem('widgets.md', '# Widgets\n\nfirst line\nThe helper is `$lib/notebook/nowhere.ts`.\n');
+		const f = findings();
+		expect(f.map((x) => x.check)).toEqual(['path-missing']);
+		expect(f[0].file).toBe(`${SUBSYSTEM_DIR}/widgets.md`);
+		expect(f[0].line).toBe(4);
+		expect(formatFindings(f)).toContain(`${SUBSYSTEM_DIR}/widgets.md:4`);
+	});
+
+	it('a good name written in a subsystem file passes, and a file outside the folder is not read', () => {
+		scaffold();
+		writeSubsystem('widgets.md', 'The class is `EditBaseline` at `/classroom`.\n');
+		fs.mkdirSync(path.join(dir, 'docs/other'), { recursive: true });
+		fs.writeFileSync(path.join(dir, 'docs/other/notes.md'), 'A bad path `$lib/notebook/nowhere.ts`.\n');
+		expect(findings()).toEqual([]);
 	});
 
 	it('lineOf finds a name written with an argument list', () => {
