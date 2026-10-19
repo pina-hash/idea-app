@@ -11,7 +11,8 @@ owns: supabase/migrations/0275_*.sql, supabase/migrations/0276_*.sql, supabase/m
 after: 2026-10-18-migration-chain-repair
 needs_go: no
 go: no
-status: ready
+status: running
+started_at: 2026-10-19T07:40:46Z
 queued_at: 2026-10-17T23:59:00-07:00
 started_at: 2026-10-19T03:10:49Z
 ---
