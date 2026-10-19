@@ -34,7 +34,7 @@ Every job shows on Mr. Pina's **job board**, the pinned Session Dispatcher page 
 
 Never delete a finished job's scheduled task: deleting a task deletes the sessions it started, and with them the record of the work.
 
-**From a chat Mr. Pina is in**, a chat may still start an entry directly (claim it as `running`, `create_trigger`, `update_trigger` model `claude-haiku-5-5`, `fire_trigger`, record `trigger_id`), because he is present; the job then shows on the board the same way.
+**From a chat Mr. Pina is in**, a chat may still start an entry directly (claim it as `running`, `create_trigger`, `update_trigger` model `claude-haiku-5-5`, `fire_trigger`, record `trigger_id`), because he is present; the job then shows on the board the same way. Write `session_url` on `jobs/<id>` from the `session_id` `fire_trigger` returns: `cse_<x>` is the session at `https://claude.ai/code/session_<x>` (checked 2026-10-18 against this chat's own session id and address). The board's Approve button does the same, and passes `create_new_session_on_fire: true` to `create_trigger`, which a call from a page needs.
 
 **A Needs you item** (a job's `needs`) is an object: `text` (one line), `steps` (the exact numbered steps, each one sentence with exact names and values to type), `links` (`label`, `url`: every page he must open, exact URLs). Never a bare file path to go read.
 
