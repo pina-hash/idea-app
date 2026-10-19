@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.30 - 2026-10-19**
+**Version 1.31 - 2026-10-19**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1232,8 +1232,48 @@ rotation, where the class must execute a seven-class timeline on command.
   something else entirely (an ice cream cone windmill). In the wide shape give the image a
   set width and let the words wrap in their own column, with a non-breaking hyphen
   (`&#8209;`) inside a compound title.
+- **Audit against this file, rule by rule, before delivery.** Mr. Pina, 2026-10-19: "this
+  document is being evolved, but not used". A build that grew this file all week still
+  shipped with no tap tips, no writing budget, a "You should see" on two moves of eleven and
+  a deadline that contradicted itself. Before delivering, hand the built file and this file
+  to a fresh agent that has seen neither the build nor the chat, and have it report PASS or
+  FAIL with the line for every rule that applies. Fix every FAIL or say why not.
+- **Tap tips are a component, not a promise.** Wrap the first use of each term in a move:
+  `<span class="it" tabindex="0" data-tip="...">term<span class="vh"> (definition)</span></span>`.
+  The `::after` is `display:none` until `:hover`, `:focus` or `.open` (a tap toggles it), so a
+  closed tip adds no width; give it `box-sizing: border-box` and a width set by script to fit
+  inside the stage, because the stage clips (`overflow: hidden`) and a tip measured against
+  the window is cut off at 375. Do not tip a button or menu name (`Export plate sliced file`)
+  or anything inside a label, link, summary or the drawing. Generate them from one glossary
+  list so every move defines the same term the same way. Use a class other than `.tip` if
+  `.tip` is already a paragraph style.
+- **A limit and a design are two numbers, and the drawing says which is which.** An example
+  that showed a 5.00 circle in one view and 4.80 across in the other read as a contradiction.
+  Draw the limit dashed and label it as the limit ("5.00 dashed circle = the rule limit"),
+  give the design its own labeled number ("tips on a 4.80 circle"), and print both together
+  where the size is dimensioned ("4.80 across (5.00 max)").
+- **Draw the real part from the instructor's template, not an invention.** A blade drawn
+  from imagination was "absolutely horrendous". Take the shape from the template slide or
+  part the class actually starts from (IDEA-Blade: a five-tooth star with obround slots and a
+  0.50 in hex bore, 0.100 steel, inside a 5.00 circle), and make the render, the example
+  sketch and the thumbnail from that one geometry.
+- **Lab fact: the IDEA-Blade launcher spins left, counterclockwise seen from above.** Every
+  spin arrow, "which edge hits first" and leading-face callout follows that direction.
+- **Every procedural move ends with "You should see" and "That is not what I see".** One
+  sentence of what the screen or the paper shows when the move worked, then a fix list in
+  the student's own words. The sketch's list: we cannot agree, nothing to draw the circle
+  with, a blurry or sideways photo, paste does nothing, a teammate absent.
+- **A printer setting is a lookup table keyed on what the Print Tech says**, never "set the
+  nozzle to match": one row per printer and nozzle, with the exact printer preset name to
+  pick and the nozzle type. The Print Tech is the student in charge of that printer.
+- **A drawing that needs a minimum width sits in a grid child with `min-width: 0`.** The
+  example sketch scrolls sideways at 375 inside its own box; without `min-width: 0` on the
+  grid child the drawing's 600px minimum widened the whole column and the stage scrolled
+  its text out of view.
 
 ## Changelog
+
+- **1.31 (2026-10-19).** Ledger 0413. Section 21: a rule-by-rule audit by a fresh agent before delivery, tap tips as a component, a limit and a design labeled as two numbers, the real part drawn from the template, the launcher spins left, "You should see" on every procedural move, a printer lookup table, and `min-width: 0` around a wide drawing.
 
 - **1.30 (2026-10-19).** Ledger 0412. Section 21: design on paper before CAD (a team concept sketch on Day 1) and thumbnails that show the real part.
 - **1.29 (2026-10-19).** Ledger 0411. Section 21: never ask for a number a student cannot know yet, weights in pounds and grams, and renders of the real part in place of icons.
