@@ -11,7 +11,8 @@ owns: docs/dispatch/smoke/2026-10-19-*
 after:
 needs_go: no
 go: no
-status: ready
+status: done
+finished_at: 2026-10-19T04:39:36Z
 started_at: 2026-10-19T02:43:37Z
 queued_at: 2026-10-19T02:43:37Z
 ---
