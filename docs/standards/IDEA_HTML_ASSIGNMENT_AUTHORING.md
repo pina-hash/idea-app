@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.27 - 2026-10-19**
+**Version 1.28 - 2026-10-19**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1152,6 +1152,18 @@ rotation, where the class must execute a seven-class timeline on command.
   the muted ink, icons the text ink, the graded panel's frame and label the neutral line,
   every other key and callout graphite. Count the green elements on the first screen: more
   than three is the defect.
+- **Build on the design system's tokens and components, never a hand-rolled palette.** An
+  assignment that writes its own colors, key shadows and chips reads as "not quite the site"
+  even when every rule above is met, and he cannot name why (Mr. Pina, 2026-10-19, IDEA-Blade
+  01). Generate the custom properties from the IDEA Design System's `tokens.json` (both
+  themes, shadows included) and style every part on them: the page is the plate gradient,
+  the title is the title bar between hazard ends with a mono breadcrumb above it, sections
+  are panels (moves are nested panels), everything pressable is a key, the one next action
+  is the primary key, an ON key is lit with the broken accent ring, status is a 22px chip
+  with a 4px lamp, and inputs, slots and read-only facts are wells. Role and product hues
+  are retired: a role is its icon and its word. A deadline is an amber lamp beside plain
+  text. A rule drawing is line work in the plate's inks. A list of rows is one well split
+  by dividers, never a stack of outlined boxes with colored stripes.
 - **Teams of two and three in one class.** When students pick teams and the count does not
   divide by three, a team of two folds one role into another rather than leaving it empty: a
   fourth role card ("Blade and Assembly, team of two only") whose value shows both roles'
@@ -1197,6 +1209,7 @@ rotation, where the class must execute a seven-class timeline on command.
 
 ## Changelog
 
+- **1.28 (2026-10-19).** Ledger 0410. Section 21: build on the design system's tokens and components (the IDEA-Blade 01 restyle).
 - **1.27 (2026-10-19).** Ledger 0409. Section 21: the green ration that passed on IDEA-Blade 01, and teams of two and three in one class.
 - **1.26 (2026-10-18).** Ledger 0408. New section 21 from IDEA-Blade 01 and 02: landings aimed below
   the following bar that re-check themselves, color by meaning, template downloads through the
