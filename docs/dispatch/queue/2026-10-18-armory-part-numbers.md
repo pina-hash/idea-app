@@ -11,8 +11,8 @@ owns: src/lib/armory/part-numbers*, src/lib/armory/Armory*Part*.svelte, src/lib/
 after: 2026-10-18-armory-sw-version-drive-backup, 2026-10-18-migration-chain-repair
 needs_go: no
 go: no
-status: queued
-note: held behind the migration chain repair (Mr. Pina, 2026-10-18)
+status: running
+started_at: 2026-10-19T02:25:01Z
 queued_at: 2026-10-17T23:57:36-07:00
 ---
 Before doing anything else: `git fetch origin main`, check out `origin/main` on a working branch, and confirm the committer identity is `Claude <noreply@anthropic.com>` (set it if empty). This is a solo session: rebase on `origin/main` and push `HEAD:main` once at the end, with the ledger entry in the same push.
