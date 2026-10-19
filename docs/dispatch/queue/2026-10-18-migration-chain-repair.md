@@ -11,7 +11,8 @@ owns: supabase/migrations/0273_*.sql, supabase/migrations/0285_*.sql, tools/appl
 after:
 needs_go: no
 go: no
-status: queued
+status: running
+started_at: 2026-10-19T00:52:07Z
 queued_at: 2026-10-18T17:50:00-07:00
 ---
 Before doing anything else: `git fetch origin main`, check out `origin/main` on a working branch, and confirm the committer identity is `Claude <noreply@anthropic.com>` (set it if empty). Solo mode: rebase on `origin/main` and push `HEAD:main` once at the end, with the ledger entry in the same push.
