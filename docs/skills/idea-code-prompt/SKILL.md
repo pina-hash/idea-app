@@ -1,6 +1,6 @@
 ---
 name: idea-code-prompt
-description: Write a Claude Code or Codex prompt for any of Mr. Pina's repos - model and effort chosen from Haiku to Fable, solo or parallel mode, ledger and migration numbers, audit gate, checks, landing on main - then queue it.
+description: Write a Claude Code or Codex prompt for any of Mr. Pina's repos - model and effort chosen from Haiku to Fable, solo or parallel mode, ledger and migration numbers, audit gate, checks, landing on main - handed to Mr. Pina to paste.
 ---
 
 # Writing a Claude Code prompt
@@ -64,8 +64,10 @@ The first line INSIDE the block is `Before doing anything else` (or `This is a R
 - Large code or data goes as an attached file, not pasted inline.
 - Website work ships complete and refined, never bare minimum. Visual work names the idea-design skill.
 
-## 6. Delivery: queue it, never hand it over
+## 6. Delivery: hand him the prompt to paste
 
-Mr. Pina decided on 2026-10-17 that chats start Claude Code sessions themselves. Once the prompt is written, run the idea-dispatch skill: it queues the prompt with its model and effort, checks what else is running or queued on the same files, and starts the session at that exact model and effort when the usage reserve allows. Tell him in one line what was queued and whether it started.
+Mr. Pina decided on 2026-10-19: he pastes every Claude Code prompt into Claude Code himself. Chats never start sessions, never queue them for a dispatcher, and never schedule them. (The 2026-10-17 to 2026-10-19 experiment with chat-started sessions, a dispatcher and a job board was retired.)
 
-Hand him a prompt to paste only when he asks for one, when the work must run on his own computer, or when it goes to Codex (GPT-6 Astra), which cannot be started from a chat. Then lead with what to run NOW, and if there is more than one, say which is live and which is queued.
+- Give the routing header (model, effort, mode) and then the prompt in one code block, ready to paste.
+- Lead with what to run NOW. When there is more than one prompt, number them in the order to run, and say which can run at the same time (different files and no shared database) and which must wait for another to land.
+- Before writing, check `main` for anything already running or landed on the same files (open history entries, recent commits), and name any overlap in one line.
