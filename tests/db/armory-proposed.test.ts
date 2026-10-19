@@ -95,16 +95,17 @@ afterAll(async () => {
 	await db?.stop();
 });
 
-describe('the Armory schema is the Armory series (0231 to 0236, and 0273) and nothing else names it', () => {
+describe('the Armory schema is the Armory series (0231 to 0236, 0273 and 0274) and nothing else names it', () => {
 	test('0231_armory.sql exists in supabase/migrations', () => {
 		expect(PROPOSED_NAME).toBe('0231_armory.sql');
 		expect(PROPOSED_ENTRY).toBe('0231_armory.sql');
 		expect(ALL_MIGRATIONS).toContain('0231_armory.sql');
 	});
 	test('no migration but the Armory series names armory_ in its filename or body', () => {
-		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql', V3_NAME, '0234_armory_break_locks.sql', '0235_armory_app_feedback_v2.sql', '0236_armory_v033.sql', '0273_armory_release_choice.sql']);
+		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql', V3_NAME, '0234_armory_break_locks.sql', '0235_armory_app_feedback_v2.sql', '0236_armory_v033.sql', '0273_armory_release_choice.sql', '0274_armory_part_numbers.sql']);
 		expect(ALL_MIGRATIONS).toContain('0234_armory_break_locks.sql');
 		expect(ALL_MIGRATIONS).toContain('0273_armory_release_choice.sql');
+		expect(ALL_MIGRATIONS).toContain('0274_armory_part_numbers.sql');
 		expect(V3_NAME).toMatch(/^0233_/);
 		const others = ALL_MIGRATIONS.filter((f) => !ARMORY_MIGRATIONS.includes(f));
 		const named = others.filter((f) => /armory/i.test(f));

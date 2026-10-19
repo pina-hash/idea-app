@@ -790,6 +790,98 @@ tools/armory-drive-mirror.fixture.json` runs the whole thing over memory. With a
 ten `ARMORY_MIRROR_*` secrets unset it writes "not set up" in the job summary, names the
 missing ones, and exits green.
 
+## Part numbers and the COTS library (ledger 0405, migration 0274)
+
+Scheme A, as Mr. Pina chose it on 2026-10-18 (decision 41, "Part numbers, as answered").
+A made part or assembly is `PREFIX-YY-SS-AAPP`: the team (`5669`) or, on a class project,
+the course (`IDEA100`); the two-digit season; a two-letter subsystem code; a two-digit
+assembly and a two-digit part. An assembly ends `00`. A revision is a letter BESIDE the
+number (`Rev B`), never in it. A number is assigned once and never reused, even after its
+file is removed or its project is deleted forever. Bought parts get no team number: they
+are `VENDOR-the vendor's own number` plus a few words, in one shared COTS library.
+
+**Where the pieces come from.** The prefix is `armory_projects.part_prefix` (new in 0274,
+`5669` unless a mentor sets it). The season is `armory_projects.season` modulo 100, or the
+Los Angeles year when a project has none (0232's rule). The subsystem codes are rows in
+`armory_part_subsystems`, seeded with DT, SH, IN, EL, AR, CL, FR, EE and MS and extended
+by a mentor of any project or a site admin; a code is retired, never removed. Every number
+ever handed out is a row in `armory_part_numbers`, unique on the number itself across every
+project, so two projects that share a prefix and a season continue one sequence and never
+hand out a number twice. The next assembly is the highest assembly ever taken in that
+subsystem plus one, and the next part the highest part ever taken in that assembly plus
+one, never the first gap. Nothing deletes a row; a removed file leaves its number, and a
+project deleted forever leaves its numbers taken with the person and the file name cleared.
+
+The website's view is `/armory/<project>/parts` (by subsystem, then assembly, with a Take a
+number form) and the library is `/armory/cots` (searchable by vendor and number, with the
+subsystem codes beneath it). `src/lib/armory/part-numbers.ts` is the one spelling of the
+format on the website and `armory_part_number_problem` the one in SQL; one corpus holds
+them to the same sentences (`tests/armory-part-numbers-parity.test.ts`).
+
+The 0231 allocator, `armory_allocate_part_number` (the numeric `5669-YY-SSNN` pattern), is
+left exactly as it was and is not this scheme. **The add-in calls the functions below,
+never that one.**
+
+### What the SolidWorks add-in calls
+
+Every write takes `p_operation uuid` and replays through the same receipts as every other
+Armory write: the same operation id answers the same result and writes nothing twice, so a
+retry after a dropped connection gets the number it was already given. Every refusal is a
+raise with a SQLSTATE and a JSON `detail` whose `reason` is listed below; read the reason,
+never the HTTP status (PostgREST answers 23505 as 409 and P0002 or 55000 as 500). The
+message text is a sentence meant for a person and may be shown as it is.
+
+| RPC | What it does |
+|---|---|
+| `armory_part_number_take(p_project uuid, p_subsystem text, p_assembly int, p_file uuid, p_file_name text, p_description text, p_operation uuid) returns jsonb` | Hands out the next number. `p_assembly` null takes a NEW ASSEMBLY (`AA00`); a number from 1 to 99 takes the next PART in that assembly, which must already have its own `00` number on this project. `p_subsystem` is the two-letter code, any case. `p_file` (an Armory file in this project, or null) and `p_file_name` (or null, the file's own name when a file is given) record which file took it; `p_description` up to 200 characters. Any member of the project may take one (a student included), and a site admin. Answers the number's row (below). |
+| `armory_part_number_describe(p_part_number text, p_file uuid, p_file_name text, p_description text, p_revision text, p_made_from text, p_operation uuid) returns jsonb` | Changes what is said about a number, never the number. Null leaves a field as it is. `p_file` links the file (one number per file); `p_revision` is one or two capital letters (`B`, or `Rev B`) and only moves forward (A to Z, then AA); `p_made_from` names a part in the COTS library (`WCP-0388`, any case) and `''` clears it; `p_description` `''` clears it. Answers the row. |
+| `armory_project_part_numbers(p_project uuid) returns jsonb` | Read. `{project: {id, name, season, season_yy, prefix, archived, role}, can_take, can_set_prefix, can_curate, subsystems: [{code, name, retired}], numbers: [row...]}`. A member or a site admin; 42501 `not a project member` otherwise. |
+| `armory_part_number_problem(p_number text) returns text` | Null for a well-formed number, otherwise the sentence (it judges the shape; whether the code exists is the registry's question). Any signed-in caller. |
+| `armory_cots_list() returns jsonb` | Read. `{can_curate, parts: [{id, vendor, vendor_part, cots_number, description, link, retired, file, added_at, corrected_at}]}`; `file` only where the reader can see its project. Anybody on an Armory project, or a site admin. |
+| `armory_set_part_prefix(p_project uuid, p_prefix text, p_operation uuid) returns boolean` | A mentor of the project or a site admin. Two to ten letters or digits. Numbers already taken keep theirs. |
+| `armory_part_subsystem_save(p_code text, p_name text, p_operation uuid) returns boolean`, `armory_part_subsystem_retire(p_code text, p_retired boolean, p_operation uuid) returns boolean` | A mentor of any project or a site admin. Adds or renames a code; retires or brings one back. |
+| `armory_cots_add(p_vendor text, p_vendor_part text, p_description text, p_link text, p_file uuid, p_operation uuid) returns uuid`, `armory_cots_correct(p_id uuid, p_description text, p_link text, p_file uuid, p_operation uuid) returns boolean`, `armory_cots_retire(p_id uuid, p_retired boolean, p_operation uuid) returns boolean` | A mentor of any project or a site admin. The vendor and the vendor's number never change; a wrong one is retired and the right one added. |
+
+A number's row: `{id, part_number, prefix, season_yy, subsystem, assembly, part, kind
+('assembly' or 'part'), revision, description, made_from, project_id, file_id, file_name,
+file_folder, file_deleted, assigned_name, assigned_at}`. `assigned_name` is the person's
+chosen display name, else their full name, never an address; the project read adds
+`assigned_by` (the address) only for a mentor or a site admin, the Team view's rule.
+
+**Refusals.**
+
+| SQLSTATE | `reason` | When |
+|---|---|---|
+| 42501 | `not_member` | Not on the project (answered identically for a project that does not exist). |
+| 42501 | `not_curator` | A library or subsystem write by somebody who is neither a mentor of any project nor a site admin. |
+| 42501 | (none) | `armory_set_part_prefix` by a non-mentor: `only a mentor may set the part number prefix`. |
+| 55000 | `archived` | The project is archived: it takes no new numbers and its numbers do not change. |
+| 22023 | `unknown_subsystem` | `There is no subsystem code ZZ. The codes are DT, SH, ...` |
+| 22023 | `retired_subsystem` | The code is retired. |
+| 22023 | `bad_assembly` | `p_assembly` outside 1 to 99. |
+| 22023 | `no_assembly` | A part asked for in an assembly that has no `00` number on this project yet: take the assembly's number first. |
+| 22023 | `full` | 99 assemblies in a subsystem this season, or 99 parts in an assembly. |
+| 22023 | `file_not_in_project` | `p_file` is not a file in this project. |
+| 23505 | `file_numbered` | The file already has a number; `detail.part_number` names it. |
+| 22023 | `too_long` | A description over 200 characters or a file name over 260. |
+| 22023 | `malformed` | `armory_part_number_describe` was handed a malformed number; the message is `armory_part_number_problem`'s sentence. Also a malformed COTS number on `armory_cots_add`. |
+| P0002 | `not_found` | No such number on a project the caller is on (answered identically for one that exists elsewhere). |
+| 22023 | `bad_revision`, `revision_back` | A revision that is not one or two letters, or one that goes backwards. |
+| 22023 | `unknown_cots` | `p_made_from` names no part in the library. |
+| 22023 | `bad_prefix`, `bad_code`, `bad_name`, `bad_description`, `bad_link`, `file_not_visible` | The library and settings writes' own field refusals. |
+| 23505 | `duplicate` | The library already has that vendor and number; `detail.id` names it. |
+
+**What the add-in should do.** On saving a new part or assembly, ask
+`armory_part_number_take` with the file id once the file exists in Armory (or with
+`p_file_name` and no file, then `armory_part_number_describe` with `p_file` once it does),
+and write the answer's `part_number` into the SolidWorks custom property it uses. Keep the
+revision in its own property and move it with `armory_part_number_describe`. For a
+modified bought part, take a made number and set `p_made_from` to the COTS number. Raw
+stock is a material property on a made part, never a number of its own. No change-feed row
+is written for a number yet, so the app learns of numbers others took by reading
+`armory_project_part_numbers`; a `part_number_assigned` change kind is the add-in lane's
+to propose.
+
 ## Decisions owed
 
 Answered by Mr. Pina on 2026-10-18, all nine items; `docs/decisions/entries/41-armory-file-vault-scope.md` carries his words.
@@ -797,7 +889,7 @@ Answered by Mr. Pina on 2026-10-18, all nine items; `docs/decisions/entries/41-a
 1. **Name.** IDEA Armory. Shipped.
 2. **Where file contents live.** Cloudflare R2 plus Supabase, shipped. The nightly readable mirror to a Google Shared Drive is built (ledger 0404) and runs once its ten repository secrets are set.
 3. **Who can break a lock and release a part.** Breaking a lock: mentors, the CAD lead, instructors (since 0236) and a site admin, from the app or the website (Force check in). Releasing a part: mentors and the CAD lead.
-4. **Part number scheme.** Scheme A, `5669-YY-SS-AAPP` with a two-letter subsystem code; COTS parts keep vendor prefix plus the vendor's number in a shared library, hardware is named by spec. The full rule is in decision 41. Ledger 0405 builds the registry; the add-in assigns numbers at creation.
+4. **Part number scheme.** Scheme A, `5669-YY-SS-AAPP` with a two-letter subsystem code; COTS parts keep vendor prefix plus the vendor's number in a shared library, hardware is named by spec. The full rule is in decision 41. Ledger 0405 built the registry and the COTS library (migration 0274, "Part numbers and the COTS library" above); the add-in assigns numbers at creation.
 5. **Document Manager API key.** Deferred: the request page requires a Subscription Service contract, which the team's sponsorship license does not include. The add-in uses SolidWorks' ordinary API and needs no key.
 6. **IDEA computers.** Closed: he administers the building's computers.
 7. **Mixed SolidWorks versions.** Back-saving 2026 to 2025 is tested and works. A project may also be an ordinary 2026 project: since ledger 0404 Create offers 2025 or 2026, and a mentor or a site admin moves a project up from its Project tab. A pin only goes up, because lowering it would strand files already saved in the newer release.

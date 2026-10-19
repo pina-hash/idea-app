@@ -74,5 +74,8 @@ export const V033_NAME = '0236_armory_v033.sql';
 /** Ledger 0404: a project's SolidWorks version chosen at creation, raised by a site admin too. */
 export const RELEASE_CHOICE_NAME = '0273_armory_release_choice.sql';
 
+/** Ledger 0405: the part number registry and the COTS library. */
+export const PART_NUMBERS_NAME = '0274_armory_part_numbers.sql';
+
 /** The Armory migrations, in order: the only files that may name armory_. */
-export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME];
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME];

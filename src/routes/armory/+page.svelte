@@ -73,6 +73,12 @@
 <svelte:head><title>Armory // IDEA</title></svelte:head>
 
 <ArmoryFrame title="IDEA Armory" lead="Your team's CAD files on every computer, checked out and checked in, with every version kept.">
+	{#snippet actions()}
+		{#if data.email && !data.notReady}
+			<!-- Ledger 0405: the bought parts every project names. -->
+			<a class="btn secondary ar-btn" href="/armory/cots" data-testid="armory-cots-link">COTS library</a>
+		{/if}
+	{/snippet}
 	{#if !data.email}
 		<ArmorySignIn reason="Sign in to see your Armory projects." onSignIn={() => armorySignIn(data.supabase)} />
 		<ArmoryHowItWorks />

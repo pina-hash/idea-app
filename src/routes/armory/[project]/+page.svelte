@@ -222,6 +222,10 @@
 	</ArmoryFrame>
 {:else}
 	<ArmoryFrame title={view.project.name} crumbs={[{ href: '/armory', label: 'Armory' }]}>
+		{#snippet actions()}
+			<!-- Ledger 0405: the project's part numbers, a page of its own beside the five views. -->
+			<a class="btn secondary ar-btn" href={`/armory/${view.project.id}/parts`} data-testid="armory-parts-link">Part numbers</a>
+		{/snippet}
 		{#if !view.storageReady}
 			<ArmoryNotice title="File storage is not switched on yet." testid="armory-storage-off">
 				Computers can connect and you can see who has what checked out, but saved files will not upload

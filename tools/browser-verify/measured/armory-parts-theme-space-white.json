@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "armory-parts-theme-space-white.mjs",
+	"date": "2026-10-19T03:01:50.794Z",
+	"sha": "14dbdfd57c0664c3d1acb80646979e25c6c36bba",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 72,
+	"outsideRows": [],
+	"ms": 16189
+}

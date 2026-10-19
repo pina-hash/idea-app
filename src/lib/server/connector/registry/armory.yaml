@@ -80,6 +80,21 @@ armory_can_take_back:
   args:
     p_project: {name: project, describe: "The project's id, from your Armory projects."}
 
+armory_cots_add:
+  exclude: Ledger 0405 ships it for the website and the SolidWorks add-in; a connector write for it needs a sample and its log tables first.
+
+armory_cots_correct:
+  exclude: Ledger 0405 ships it for the website and the SolidWorks add-in; a connector write for it needs a sample and its log tables first.
+
+armory_cots_list:
+  surface: call
+  level: read
+  describe: The Armory's shared library of bought parts, named by vendor and the vendor's own number.
+  say: ["what's in the COTS library", "do we have a REV NEO in the parts library", "list the bought parts"]
+
+armory_cots_retire:
+  exclude: Ledger 0405 ships it for the website and the SolidWorks add-in; a connector write for it needs a sample and its log tables first.
+
 armory_create_project:
   surface: call
   level: confirm
@@ -134,6 +149,15 @@ armory_orphans_pending:
 armory_orphans_swept:
   exclude: A step inside the Armory storage cleanup, which the cleanup action runs; never called on its own.
 
+armory_part_number_take:
+  exclude: Ledger 0405 ships it for the website and the SolidWorks add-in; a connector write for it needs a sample and its log tables first.
+
+armory_part_subsystem_retire:
+  exclude: Ledger 0405 ships it for the website and the SolidWorks add-in; a connector write for it needs a sample and its log tables first.
+
+armory_part_subsystem_save:
+  exclude: Ledger 0405 ships it for the website and the SolidWorks add-in; a connector write for it needs a sample and its log tables first.
+
 armory_people_search:
   surface: call
   level: read
@@ -160,6 +184,14 @@ armory_project_files:
   args:
     p_project: {name: project, describe: "The project's id."}
 
+armory_project_part_numbers:
+  surface: call
+  level: read
+  describe: Every part number an Armory project has taken, by subsystem and assembly.
+  say: ["what part numbers has the robot taken", "list the drivetrain part numbers", "what's the next shooter assembly"]
+  args:
+    p_project: {name: project, describe: "The project's id."}
+
 armory_project_summaries:
   surface: call
   level: read
@@ -182,6 +214,9 @@ armory_purge_project:
 
 armory_register_device:
   exclude: Registers a computer running the IDEA Armory Windows app; the app does this itself when it signs in.
+
+armory_set_part_prefix:
+  exclude: Ledger 0405 ships it for the website and the SolidWorks add-in; a connector write for it needs a sample and its log tables first.
 
 armory_team_status:
   surface: call

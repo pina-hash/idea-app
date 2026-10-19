@@ -1,0 +1,10 @@
+# 0405 IDEA Armory: the part number registry and the COTS library, on the server and the website.
+
+- Issued: 2026-10-18
+- By: the morning ops routine, from Mr. Pina's decision 41 answers, through the session queue (`docs/dispatch/queue/2026-10-18-armory-part-numbers.md`). Mode: solo.
+- Repo: `pina-hash/idea-app`
+- Owns: `src/lib/armory/part-numbers*`, `src/lib/armory/Armory*Part*.svelte`, `src/lib/armory/ArmoryCots*.svelte`, `src/routes/armory/**`, `src/routes/dev/armory-parts*/**`, `tests/armory-part-numbers*.test.ts`, `tests/db/armory-part-numbers*.test.ts`, `supabase/migrations/0274_*.sql` (the prompt said 0286; the next free number at landing was 0274), `docs/ARMORY.md`, `docs/prompt-ledger/entries/0405-*`, its own `docs/history/` entry. Nothing else.
+- Migration permitted: yes, one. Claims: 0274. Highest on origin/main at issue: 0273.
+- Status: pushed
+- Branch: `lane-armory-part-numbers` (local), rebased onto `origin/main` and pushed straight to `main`.
+- Notes: Migration used: 0274 (`armory_part_number_problem` and `armory_cots_problem`, the tables `armory_part_subsystems`, `armory_part_numbers` and `armory_cots_parts`, the column `armory_projects.part_prefix`, and the take, describe, prefix, subsystem and library functions with their two reads). The 0231 allocator is left as it was. Outside the Owns list, each forced and named in the history entry: `src/lib/server/connector/registry/armory.yaml` and the three generated connector files plus `docs/connector/DESIGN.md` section 7 (`npm run connector:build`, required by `tests/connector-coverage.test.ts`), `tests/db/armory-proposed.ts` and its test (the migrations allowed to name `armory_`), and `tools/browser-verify/routes/armory-parts*.mjs` with their `measured/` files and the README counts (a new `/dev` route moves them). Mutation proof: 5 of 5 killed. Browser pass: 142 measurements, 0 outside, at 375 and 1440 in both themes. Full suite: 15,984 passed, 1 failed (the armory-proposed list, fixed), plus three files that need the integration ref and passed once it was fetched. History: `docs/history/armory-part-numbers.md`.

@@ -310,7 +310,7 @@ Generated from the overlay on 2026-10-18.
 | Foundry | 20 | 6 | 5 | 0 | 9 |
 | GAUNTLET | 8 | 3 | 1 | 1 | 11 |
 | GREENLINE | 2 | 3 | 1 | 0 | 6 |
-| IDEA Armory | 14 | 2 | 3 | 0 | 4 |
+| IDEA Armory | 16 | 2 | 3 | 0 | 11 |
 | IDEA Classroom | 21 | 43 | 23 | 3 | 24 |
 | IDEA Coin | 27 | 6 | 7 | 1 | 4 |
 | IDEA Maps | 3 | 2 | 1 | 0 | 0 |
@@ -320,7 +320,7 @@ Generated from the overlay on 2026-10-18.
 | Site routes (run in-process as him) | 1 | 0 | 5 | 0 | 105 |
 | The connector itself | 4 | 1 | 3 | 0 | 7 |
 | Tournaments | 1 | 7 | 9 | 1 | 8 |
-| **All** | **133** | **96** | **71** | **7** | **204** |
+| **All** | **135** | **96** | **71** | **7** | **211** |
 
 <details><summary>Certifications</summary>
 
@@ -360,10 +360,10 @@ Generated from the overlay on 2026-10-18.
 
 <details><summary>IDEA Armory</summary>
 
-- **Read:** `armory_app_feedback_admin_list`, `armory_app_incidents_admin_list`, `armory_can_take_back`, `armory_file_history`, `armory_is_member`, `armory_list_changes`, `armory_my_projects`, `armory_orphans_count`, `armory_people_search`, `armory_project_checkouts`, `armory_project_files`, `armory_project_summaries`, `armory_purge_preview`, `armory_team_status`
+- **Read:** `armory_app_feedback_admin_list`, `armory_app_incidents_admin_list`, `armory_can_take_back`, `armory_cots_list`, `armory_file_history`, `armory_is_member`, `armory_list_changes`, `armory_my_projects`, `armory_orphans_count`, `armory_people_search`, `armory_project_checkouts`, `armory_project_files`, `armory_project_part_numbers`, `armory_project_summaries`, `armory_purge_preview`, `armory_team_status`
 - **Undo:** `armory_app_feedback_set_status`, `armory_app_incident_set_status`
 - **Asks first:** `armory_break_lock`, `armory_break_locks`, `armory_create_project`
-- **Excluded (the reason is in the YAML):** `armory_orphans_pending`, `armory_orphans_swept`, `armory_purge_project`, `armory_register_device`
+- **Excluded (the reason is in the YAML):** `armory_cots_add`, `armory_cots_correct`, `armory_cots_retire`, `armory_orphans_pending`, `armory_orphans_swept`, `armory_part_number_take`, `armory_part_subsystem_retire`, `armory_part_subsystem_save`, `armory_purge_project`, `armory_register_device`, `armory_set_part_prefix`
 
 </details>
 
