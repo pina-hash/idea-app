@@ -11,7 +11,7 @@ import { certSiteOrigin } from '$lib/server/certifications/gate';
 
 const shellFor = (code: string | null): CertShellData => ({
 	title: 'Certificate',
-	eyebrow: code ? `${CERT_EYEBROW} // ${code}` : CERT_EYEBROW,
+	eyebrow: code ? `${CERT_EYEBROW} · ${code}` : CERT_EYEBROW,
 	lead: null,
 	crumbs: [
 		{ href: CERT_PATHS.catalog, label: 'Certifications' },

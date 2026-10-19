@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>My IDEA Coins // IDEA</title>
+	<title>My IDEA Coins · IDEA</title>
 </svelte:head>
 
 <div class="app-header">
@@ -49,7 +49,7 @@
 
 <main class="cp-page">
 	<section class="hero cp-hero">
-		<div class="eyebrow">IDEA // Coins</div>
+		<div class="eyebrow">IDEA · Coins</div>
 		<h1>My IDEA Coins</h1>
 		<p class="lead">
 			Your balance, your history, what you can buy, and every rule for earning and losing coins.

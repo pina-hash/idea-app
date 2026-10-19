@@ -511,7 +511,7 @@
 
 <div class="pb-root">
 	<header class="pb-head">
-		<span class="pb-title">GREENLINE // PIECE CHAIN BUILDER</span>
+		<span class="pb-title">GREENLINE · PIECE CHAIN BUILDER</span>
 		<span class="pb-sub">schema v3 · numeric + live 3D</span>
 		<!-- Three states, not two: an unclosed chain mid-build is OPEN (steel, a
 		     normal working state), never a scary issue count. Only genuine

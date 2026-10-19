@@ -37,7 +37,7 @@
 </script>
 
 <svelte:head>
-	<title>FSP // IDEA</title>
+	<title>FSP · IDEA</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 

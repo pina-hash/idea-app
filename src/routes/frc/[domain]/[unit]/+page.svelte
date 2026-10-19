@@ -25,7 +25,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.unit.title} // {data.domain.title} // FRC Training</title>
+	<title>{data.unit.title} · {data.domain.title} · FRC Training</title>
 </svelte:head>
 
 <UnitPage

@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>Spot the Error // GAUNTLET</title>
+	<title>Spot the Error · GAUNTLET</title>
 </svelte:head>
 
 <Header {supabase} {userName} {userRole} crumbs={[{ label: 'Spot the Error' }]} />

@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>Fine // IDEA Coin Desk</title>
+	<title>Fine · IDEA Coin Desk</title>
 </svelte:head>
 
 <div class="fp-main" data-testid="coin-desk-fine">

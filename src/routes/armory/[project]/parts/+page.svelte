@@ -52,7 +52,7 @@
 	);
 </script>
 
-<svelte:head><title>{parts ? `Part numbers, ${parts.project.name} // Armory` : 'Part numbers // Armory'}</title></svelte:head>
+<svelte:head><title>{parts ? `Part numbers, ${parts.project.name} · Armory` : 'Part numbers · Armory'}</title></svelte:head>
 
 {#if !data.email}
 	<ArmoryFrame title="Part numbers" crumbs={[{ href: '/armory', label: 'Armory' }]}>

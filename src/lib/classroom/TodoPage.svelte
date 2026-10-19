@@ -123,7 +123,7 @@
 </script>
 
 <svelte:head>
-	<title>To-do // Classroom // IDEA</title>
+	<title>To-do · Classroom · IDEA</title>
 </svelte:head>
 
 <main class="classroom-page todo-page" data-testid="todo-page">

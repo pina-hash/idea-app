@@ -32,7 +32,7 @@
 </script>
 
 <svelte:head>
-	<title>Armory app feedback // IDEA</title>
+	<title>Armory app feedback · IDEA</title>
 </svelte:head>
 
 <ArmoryFeedbackConsole

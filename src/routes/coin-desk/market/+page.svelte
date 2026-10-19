@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>Market // IDEA Coin Desk</title>
+	<title>Market · IDEA Coin Desk</title>
 </svelte:head>
 
 <MarketDesk {transports} />

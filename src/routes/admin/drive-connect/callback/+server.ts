@@ -30,7 +30,7 @@ function page(status: number, title: string, bodyHtml: string): Response {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>${esc(title)} // IDEA</title>
+<title>${esc(title)} · IDEA</title>
 <style>
 	body { margin: 0; padding: 40px 20px; background: #0a0a0a; color: #e8ffe8;
 		font: 16px/1.6 'Share Tech Mono', ui-monospace, monospace; }

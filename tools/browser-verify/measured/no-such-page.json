@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "no-such-page.mjs",
+	"date": "2026-10-19T21:20:37.945Z",
+	"sha": "a56124a7a56308b468466de074c3c9878f21af39",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 26,
+	"outsideRows": [],
+	"ms": 9772
+}

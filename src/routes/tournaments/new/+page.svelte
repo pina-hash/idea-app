@@ -32,7 +32,7 @@
 </script>
 
 <svelte:head>
-	<title>New Tournament // IDEA</title>
+	<title>New Tournament · IDEA</title>
 </svelte:head>
 
 <div class="app-header">
@@ -45,7 +45,7 @@
 
 <main class="new-page tnm-page">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Tournaments</div>
+		<div class="eyebrow">IDEA · Tournaments</div>
 		<h1>New tournament</h1>
 		<p class="lead">
 			You become the first host and can add co-hosts later from the host console. You can change

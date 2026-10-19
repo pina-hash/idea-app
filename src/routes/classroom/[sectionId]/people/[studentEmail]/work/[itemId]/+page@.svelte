@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.student.displayName} · {title} · {sectionTitle(data.section)} // IDEA Classroom</title>
+	<title>{data.student.displayName} · {title} · {sectionTitle(data.section)} · IDEA Classroom</title>
 </svelte:head>
 
 <div class="cr-root {CLASSROOM_PLATE} cr-instructor-surface sw-root" style="--cr-measure-route: var(--measure-console)" data-testid="student-work-page">

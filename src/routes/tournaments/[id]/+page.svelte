@@ -432,7 +432,7 @@
 </script>
 
 <svelte:head>
-	<title>{t.name} // Tournaments // IDEA</title>
+	<title>{t.name} · Tournaments · IDEA</title>
 </svelte:head>
 
 <div class="app-header">
@@ -448,7 +448,7 @@
      880px column; prose inside it stays a reading measure via .tnm-prose. -->
 <main class="tnm-page console">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Tournaments</div>
+		<div class="eyebrow">IDEA · Tournaments</div>
 		<div class="title-row">
 			<h1>{t.name}</h1>
 			{#if t.status === 'live'}

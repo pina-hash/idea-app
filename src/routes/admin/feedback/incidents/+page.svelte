@@ -45,7 +45,7 @@
 </script>
 
 <svelte:head>
-	<title>Armory incidents // IDEA</title>
+	<title>Armory incidents · IDEA</title>
 </svelte:head>
 
 <ArmoryIncidentConsole

@@ -83,6 +83,7 @@
 			myEmail: (claims?.email as string | undefined) ?? '',
 			isAdmin,
 			managerEmails: (data.feedManagerEmails ?? {}) as Record<string, string[]>,
+			rosterEmails: (data.feedRosterEmails ?? {}) as Record<string, string[]>,
 			now
 		})
 	);

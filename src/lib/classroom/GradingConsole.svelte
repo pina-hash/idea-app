@@ -2819,7 +2819,7 @@
 <svelte:window onkeydown={onWindowKey} />
 
 <svelte:head>
-	<title>Grading // {itemTitle(item)}</title>
+	<title>Grading · {itemTitle(item)}</title>
 </svelte:head>
 
 <!--

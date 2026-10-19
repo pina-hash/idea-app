@@ -10,7 +10,7 @@
 	const view = $derived(data.view);
 </script>
 
-<svelte:head><title>{view ? `${view.file.name} // Armory` : 'Armory // IDEA'}</title></svelte:head>
+<svelte:head><title>{view ? `${view.file.name} · Armory` : 'Armory · IDEA'}</title></svelte:head>
 
 {#if !data.email}
 	<ArmoryFrame title="IDEA Armory" crumbs={[{ href: '/armory', label: 'Armory' }]}>

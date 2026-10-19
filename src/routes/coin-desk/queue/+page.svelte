@@ -15,7 +15,7 @@
 </script>
 
 <svelte:head>
-	<title>Queue // IDEA Coin Desk</title>
+	<title>Queue · IDEA Coin Desk</title>
 </svelte:head>
 
 <QueueView {transports} />

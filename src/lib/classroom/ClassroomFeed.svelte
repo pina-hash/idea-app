@@ -2,7 +2,9 @@
 	import { itemTitle, sectionTitle, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
 	import {
 		actionSummary,
+		attentionWords,
 		dueUrgency,
+		entryHref,
 		emptyMessage,
 		feedCover,
 		feedIndicator,
@@ -117,8 +119,23 @@
 	const tintOf = (feed: SectionFeed, entry: FeedEntry): number | null =>
 		unitTint(entry.item.unit_id, unitOrder[feed.section.course_id] ?? []);
 
-	const itemHref = (section: ClassroomSection, entry: FeedEntry) =>
-		`${basePath}/${section.id}/item/${entry.item.id}`;
+	/**
+	 * WHERE A ROW GOES (report e4bc53e5, ledger 0416): a hand-in to grade
+	 * opens that post's grading page for this class, which is where the work
+	 * is; anything else opens the post.
+	 */
+	const itemHref = (section: ClassroomSection, entry: FeedEntry, manages = false) => entryHref(basePath, section.id, entry, manages);
+
+	/*
+	 * THE OWED-THINGS LIST a teacher's header chip opens, one card at a time.
+	 * One thing owed: the chip is a link straight to its fix. Several: it opens
+	 * a short list here, each line saying what is owed and going to where it is
+	 * done. Escape or a second press closes it.
+	 */
+	let openAttention = $state<string | null>(null);
+	function toggleAttention(sectionId: string) {
+		openAttention = openAttention === sectionId ? null : sectionId;
+	}
 
 	/*
 	 * THE SHAPE A CARD'S ROWS DRAW POST THUMBNAILS IN (ledger 0396): the
@@ -255,9 +272,10 @@
 	<a
 		class="assignment-item linked feed-row"
 		class:feed-row-under={own}
-		href={itemHref(feed.section, entry)}
+		href={itemHref(feed.section, entry, feed.manages)}
 		data-urgency={dueUrgency(entry, now) ?? undefined}
 		data-thumbs={shape}
+		title={feed.manages && entry.reason === 'ungraded' ? `${attentionWords(entry)}: opens grading for this class` : undefined}
 	>
 		{#if own}
 			<!-- The slot is above this link, keeping its own clicks. -->
@@ -289,7 +307,7 @@
 				<span class="feed-mark" aria-hidden="true"></span>
 			{/if}
 			<div class="feed-slot" data-testid="feed-post-thumb">
-				<PostThumbnail item={entry.item} {shape} glyph={entry.item.kind} tint={tintOf(feed, entry)} label={itemTitle(entry.item)} href={itemHref(feed.section, entry)} />
+				<PostThumbnail item={entry.item} {shape} glyph={entry.item.kind} tint={tintOf(feed, entry)} label={itemTitle(entry.item)} href={itemHref(feed.section, entry, feed.manages)} />
 			</div>
 			{@render rowText(feed, entry, shape, true)}
 		</div>
@@ -336,7 +354,7 @@
 						<div class="feed-ident">
 							<span class="course-id">{code}</span>
 							<span class="course-badge badge-block">{label}</span>
-							{#if summary}
+							{#if summary && !feed.manages}
 								<span class="feed-flag tone-attention feed-attn" data-testid="feed-attention"
 									><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
 										><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
@@ -358,6 +376,46 @@
 						</div>
 					</div>
 				</a>
+				{#if summary && feed.manages}
+					<!--
+						WHAT THIS CLASS NEEDS FROM ITS TEACHER, AS A CONTROL (report
+						e4bc53e5, ledger 0416). It said "7 need attention" inside the
+						class's link, so a press opened the class and nothing said what
+						to do there. Now it names what is owed ("3 to grade · 1 draft")
+						and goes to the fix: one owed thing is a link straight to it,
+						several open the short list under this header.
+					-->
+					{#if feed.attention.length === 1}
+						<a
+							class="feed-flag tone-attention feed-attn feed-attn-key"
+							href={itemHref(feed.section, feed.attention[0], true)}
+							data-testid="feed-attention"
+							title="{attentionWords(feed.attention[0])}: {itemTitle(feed.attention[0].item)}"
+							><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
+								><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
+							>{summary}<span class="feed-sr">: {attentionWords(feed.attention[0])}, {itemTitle(feed.attention[0].item)}</span></a
+						>
+					{:else}
+						<button
+							type="button"
+							class="feed-flag tone-attention feed-attn feed-attn-key"
+							class:on={openAttention === feed.section.id}
+							aria-expanded={openAttention === feed.section.id}
+							aria-controls="feed-needs-{feed.section.id}"
+							data-testid="feed-attention"
+							onclick={() => toggleAttention(feed.section.id)}
+							onkeydown={(e) => {
+								if (e.key === 'Escape' && openAttention === feed.section.id) {
+									e.preventDefault();
+									openAttention = null;
+								}
+							}}
+							><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
+								><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
+							>{summary}<span class="feed-sr">&nbsp;in {code} {label}: show what</span></button
+						>
+					{/if}
+				{/if}
 				<!--
 					THE FOLD, AND ITS WORD. Wears `.changelog-toggle` because that is the
 					home page's own key (Clear and Show more wear it for the same reason),
@@ -383,6 +441,19 @@
 				</button>
 			</div>
 
+			{#if feed.manages && openAttention === feed.section.id && feed.attention.length > 1}
+				<ul class="feed-needs" id="feed-needs-{feed.section.id}" data-testid="feed-needs" aria-label="What {code} {label} needs from you">
+					{#each feed.attention as entry (entry.item.id)}
+						<li>
+							<a class="feed-need" href={itemHref(feed.section, entry, true)} data-reason={entry.reason}>
+								<span class="feed-need-what tone-{reasonTone(entry.reason)}">{attentionWords(entry)}</span>
+								<span class="feed-need-title">{itemTitle(entry.item)}</span>
+								<span class="feed-need-go" aria-hidden="true">&rsaquo;</span>
+							</a>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 			<div class="assignment-list" id={listId} inert={!open}>
 				{#if feed.urgent.length}
 					{#each feed.urgent as entry (entry.item.id)}
@@ -790,6 +861,148 @@
 		align-items: center;
 		gap: 0.3rem;
 		font-weight: 700;
+	}
+	/* THE TEACHER'S KEY: the same warm flag, pressable, at least 44px tall,
+	   between the class's identity and its fold. */
+	.feed-head .feed-attn-key {
+		flex: none;
+		position: relative;
+		z-index: 1;
+		min-height: 44px;
+		box-sizing: border-box;
+		margin: 0 0.6rem 0 0;
+		padding: 0 0.8rem;
+		border-radius: var(--plate-r-control, 8px);
+		cursor: pointer;
+		text-decoration: none;
+		white-space: nowrap;
+		font: inherit;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.feed-head .feed-attn-key:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	.feed-head .feed-attn-key.on {
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 60%, transparent);
+	}
+	/* THE KEY ANSWERS ITS WHOLE COLUMN, as the fold does: the header around it
+	   (above it, below it, and the gap to the fold) is the key, never the bare
+	   header (tools/browser-verify's header grid holds every point to a control).
+	   The header clips it, under the same `@supports` as the fold's reach. */
+	@supports (overflow: clip) {
+		.feed-head .feed-attn-key::before {
+			content: '';
+			position: absolute;
+			top: -20rem;
+			bottom: -20rem;
+			left: 0;
+			right: -0.6rem;
+		}
+	}
+	/* The short list: one line per owed thing, what is owed first, then the
+	   post, then where the press goes. Recessed under the header, so it reads as
+	   the header's own detail and not as more of the class's posts. */
+	.feed-needs {
+		list-style: none;
+		margin: 0;
+		padding: 0.35rem 1.5rem 0.6rem;
+		display: grid;
+		gap: 0.15rem;
+		border-bottom: 1px solid var(--plate-groove-dk, color-mix(in srgb, var(--white) 10%, transparent));
+		background: var(--plate-well-face, color-mix(in srgb, var(--bg0) 70%, transparent));
+	}
+	.feed-need {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 0.75rem;
+		min-height: 44px;
+		padding: 0 0.4rem;
+		border-radius: var(--plate-r-small, 6px);
+		color: inherit;
+		text-decoration: none;
+		text-shadow: none;
+		background: none;
+	}
+	.feed-need:hover,
+	.feed-need:focus-visible {
+		background: color-mix(in srgb, var(--green) 6%, transparent);
+	}
+	.feed-need:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: -2px;
+	}
+	.feed-need-what {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--amber);
+		white-space: nowrap;
+	}
+	.feed-need-what.tone-muted {
+		color: var(--dim);
+	}
+	.feed-need-title {
+		min-width: 0;
+		overflow-wrap: anywhere;
+		font-size: 0.98rem;
+		color: var(--white);
+	}
+	.feed-need-go {
+		color: var(--dim);
+		font-size: 1.1rem;
+	}
+	@media (max-width: 768px) {
+		.feed-needs {
+			padding: 0.35rem 1rem 0.6rem;
+		}
+	}
+	/* On a phone the key takes its own line under the class's identity. */
+	@media (max-width: 480px) {
+		.course-card .feed-head:has(.feed-attn-key) {
+			flex-wrap: wrap;
+		}
+		.course-card .feed-head:has(.feed-attn-key) .feed-open {
+			flex: 1 1 calc(100% - 64px);
+		}
+		/* Its own line under the identity, stopping short of the fold's column
+		   (the fold key, its 0.625rem margin and a 0.6rem gap), so a press
+		   under the fold is still the fold's. Its reach runs down to the
+		   header's foot and out to the card's left edge, never up into the
+		   class's link. */
+		.feed-head .feed-attn-key {
+			order: 3;
+			flex: 1 1 0;
+			margin: 0 calc(44px + 0.625rem + 0.6rem) 0.75rem 1rem;
+			justify-content: center;
+		}
+		@supports (overflow: clip) {
+			.feed-head .feed-attn-key::before {
+				top: 0;
+				bottom: -0.75rem;
+				left: -1rem;
+			}
+		}
+		.feed-need {
+			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-areas: 'what go' 'title go';
+			gap: 0.1rem 0.6rem;
+			padding: 0.35rem 0.4rem;
+		}
+		.feed-need-what {
+			grid-area: what;
+		}
+		.feed-need-title {
+			grid-area: title;
+		}
+		.feed-need-go {
+			grid-area: go;
+		}
 	}
 	.feed-attn-mark {
 		width: 0.85rem;

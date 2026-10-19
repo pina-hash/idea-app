@@ -207,7 +207,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'gauntlet',
-		title: 'IDEA // GAUNTLET',
+		title: 'IDEA · GAUNTLET',
 		sub: 'CAD skills dojo. Read drawings, model against the clock, and climb the boards.',
 		icon: 'gauntlet',
 		href: '/gauntlet',
@@ -225,7 +225,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'greenline',
-		title: 'IDEA // GREENLINE',
+		title: 'IDEA · GREENLINE',
 		sub: 'Combat racing under the floodlights. Build your machine, run Proving Ground 07, and hold the line.',
 		icon: 'greenline',
 		href: '/greenline',
@@ -234,7 +234,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'vanguard',
-		title: 'IDEA // VANGUARD',
+		title: 'IDEA · VANGUARD',
 		sub: 'Top-down arcade shooter. Clear the sectors, chain your combos, and chase the high score.',
 		icon: 'vanguard',
 		href: '/vanguard/',
@@ -242,7 +242,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'foundry',
-		title: 'IDEA // FOUNDRY',
+		title: 'IDEA · FOUNDRY',
 		sub: 'Web apps built and published by students. Open one, or publish your own.',
 		icon: 'foundry',
 		href: '/foundry',

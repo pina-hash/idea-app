@@ -144,7 +144,7 @@
 </script>
 
 <svelte:head>
-	<title>FSP // Day {day}</title>
+	<title>FSP · Day {day}</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 

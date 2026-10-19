@@ -110,6 +110,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 			feedSubmissions: [] as FeedSubmission[],
 			feedCheckIns: [] as ClassCheckIn[],
 			feedManagerEmails: {} as Record<string, string[]>,
+			feedRosterEmails: {} as Record<string, string[]>,
 			feedUnitOrder: {} as Record<string, string[]>,
 			feedClock: work.clock as ClassroomClock | null,
 			foundryReviewPending: await pending
@@ -138,10 +139,19 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	const admin = await layout.then((d) => d.isAdmin === true);
 	const me = ((claims.email as string | undefined) ?? '').trim().toLowerCase();
 	const feedManagerEmails: Record<string, string[]> = {};
+	// THE SAME READ'S ACTIVE ROSTER (reports c2446a58 and e4bc53e5, ledger
+	// 0416), so each class card counts its own students' hand-ins and nobody
+	// who has left the class: no second round trip. Only sections that answered
+	// get an entry; a section absent here counts as it always did.
+	const feedRosterEmails: Record<string, string[]> = {};
 	if (work.sections.some((s) => sectionManagedBy(s, me, admin))) {
 		const managed = await loadSectionRoster(supabase, null);
-		if (managed.ok) {
+		if (managed.ok && managed.data.managesReady) {
+			// A class he manages with nobody enrolled has nothing to grade.
+			for (const s of work.sections) if (sectionManagedBy(s, me, admin)) feedRosterEmails[s.id] = [];
 			for (const row of managed.data.rows) {
+				feedRosterEmails[row.section_id] ??= [];
+				if (row.active !== false) feedRosterEmails[row.section_id].push(row.student_email);
 				if (row.manages !== true) continue;
 				(feedManagerEmails[row.section_id] ??= []).push(row.student_email);
 			}
@@ -160,6 +170,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 		feedSubmissions: work.submissions,
 		feedCheckIns: work.checkIns,
 		feedManagerEmails,
+		feedRosterEmails,
 		/** Each course's unit ids in the class page's order, for the rows' generated thumbnails. */
 		feedUnitOrder: work.unitOrder,
 		/**

@@ -2892,7 +2892,7 @@
 </script>
 
 <svelte:head>
-	<title>My Notebook // IDEA</title>
+	<title>My Notebook · IDEA</title>
 </svelte:head>
 
 <!-- Coming back to a page that is still alive proves nothing was lost to the

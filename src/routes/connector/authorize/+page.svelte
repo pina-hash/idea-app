@@ -15,7 +15,7 @@
 	const problem = $derived(form?.problem ?? data.problem);
 </script>
 
-<svelte:head><title>Connect Claude // IDEA</title></svelte:head>
+<svelte:head><title>Connect Claude · IDEA</title></svelte:head>
 
 <div class="cn-root {SITE_PLATE}">
 	<div class="app-header">

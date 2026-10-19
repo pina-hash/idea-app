@@ -291,7 +291,7 @@ describe('the classroom schema validates on read', () => {
 			// Absent too, so both pages read as they ship (ledger 0360, R23).
 			panels: { classPage: null, itemPage: null },
 			// Absent, so every section of a student's page shows (ledger 0396).
-			studentPage: { hidden: [] }
+			studentPage: { hidden: [], scope: 'everywhere', byClass: {} }
 		});
 	});
 

@@ -306,7 +306,7 @@
 				{/if}
 				{#if hasDrawing}
 					<div class="sheet-titleblock" aria-hidden="true">
-						<span class="tb-brand">IDEA // GAUNTLET</span>
+						<span class="tb-brand">IDEA · GAUNTLET</span>
 						<span class="tb-meta">Room {room.join_code}</span>
 					</div>
 				{/if}
@@ -396,7 +396,7 @@
 {/snippet}
 
 <svelte:head>
-	<title>Room {room.join_code} // GAUNTLET</title>
+	<title>Room {room.join_code} · GAUNTLET</title>
 </svelte:head>
 
 <Header
@@ -517,7 +517,7 @@
 								</div>
 							</div>
 							<div class="sheet-titleblock" aria-hidden="true">
-								<span class="tb-brand">IDEA // GAUNTLET</span>
+								<span class="tb-brand">IDEA · GAUNTLET</span>
 								<span class="tb-meta">Room {room.join_code}</span>
 							</div>
 						</div>

@@ -45,7 +45,7 @@
 </script>
 
 <svelte:head>
-	<title>Live · {sectionTitle(data.section)} // IDEA Classroom</title>
+	<title>Live · {sectionTitle(data.section)} · IDEA Classroom</title>
 </svelte:head>
 
 <LiveControl

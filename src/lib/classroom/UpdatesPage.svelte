@@ -42,7 +42,7 @@
 {/snippet}
 
 <svelte:head>
-	<title>What's new // IDEA Classroom</title>
+	<title>What's new · IDEA Classroom</title>
 </svelte:head>
 
 <!--
@@ -52,7 +52,7 @@
 -->
 <main class="classroom-page">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Classroom</div>
+		<div class="eyebrow">IDEA · Classroom</div>
 		<h1>What's new</h1>
 		<p class="lead" data-testid="updates-lead">
 			Everything that has changed in IDEA Classroom, newest first. If something here does not match

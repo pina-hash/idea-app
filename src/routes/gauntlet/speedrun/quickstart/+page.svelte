@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-	<title>Add-in quick-start // GAUNTLET</title>
+	<title>Add-in quick-start · GAUNTLET</title>
 </svelte:head>
 
 <Header

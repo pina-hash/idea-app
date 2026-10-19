@@ -96,7 +96,7 @@
 </script>
 
 <svelte:head>
-	<title>Tournaments // IDEA</title>
+	<title>Tournaments · IDEA</title>
 </svelte:head>
 
 <div class="app-header">
@@ -111,7 +111,7 @@
      the room's own class, no width of this route's own. -->
 <main class="tnm-page wide">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Tournaments</div>
+		<div class="eyebrow">IDEA · Tournaments</div>
 		<h1>Tournaments</h1>
 		<p class="lead tnm-prose">
 			Live double-elimination brackets, open to watch by anyone. Sign in to enter or to host.

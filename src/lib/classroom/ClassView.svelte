@@ -2349,7 +2349,7 @@
 {/snippet}
 
 <svelte:head>
-	<title>{sectionTitle(section)} // IDEA Classroom</title>
+	<title>{sectionTitle(section)} · IDEA Classroom</title>
 </svelte:head>
 
 <!--
@@ -3216,6 +3216,19 @@
 	   and is load-bearing: a lone unbreakable card in a multi-column container
 	   sits in the FIRST column at one column's width, so without this the
 	   single-group case would have gone from the 46rem measure to 356px. */
+	/* A TEACHER'S ROWS CARRY FOUR CONTROLS (ledger 0416, report 7d456cf9): the
+	   select box, the grip, the expand arrow and the row menu, about 218px of a
+	   row, so at the 356px column the words had 120px at 1278 and the meta line
+	   took four lines ("IDEA-Blade 01 - Design" over "Assignment / Due Oct 22, /
+	   11:59 PM / 100 pts"). A managed stream's columns are wide enough for the
+	   words to keep one line for the title and one or two for the meta: fewer
+	   columns, each one readable. A student's rows carry none of those controls
+	   and keep the 356px column. Keyed on the row menu rather than an
+	   attribute of its own, so the markup stays what the null-layout golden
+	   (tests/classroom-panel-layout-render.test.ts) recorded. */
+	.stream:has(.row-menu) {
+		--cr-stream-col: 28rem;
+	}
 	.stream {
 		column-width: var(--cr-stream-col);
 		column-gap: var(--space-5);

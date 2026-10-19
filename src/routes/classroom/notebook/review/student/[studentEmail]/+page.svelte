@@ -49,7 +49,7 @@
 	reading; the way back is the banner's own link to the grid this arrived from.
 -->
 <svelte:head>
-	<title>{data.student.display_name ?? data.student.email} · Notebook // IDEA Classroom</title>
+	<title>{data.student.display_name ?? data.student.email} · Notebook · IDEA Classroom</title>
 </svelte:head>
 
 <!--

@@ -1659,3 +1659,73 @@ describe('an authorless row is an ordinary row everywhere except where it says s
 		expect(src).toContain('Include submitter names and contacts');
 	});
 });
+
+// ---------------------------------------------------------------------------
+// ONE FEEDBACK WINDOW ACROSS THE SITE, GAMES EXCEPTED (reports 0fe82a80 and
+// 80bb4d23, Mr. Pina 2026-10-19: "Games keep their own feedback systems.
+// Everything else shares one feedback window." Ledger 0416.)
+// ---------------------------------------------------------------------------
+
+/** The games, which keep their own feedback systems by Mr. Pina's decision. */
+const GAME_PATHS = ['src/routes/greenline/', 'src/lib/greenline/', 'src/routes/vanguard/', 'src/lib/legacy/vanguard/', 'src/routes/api/vanguard-feedback/'];
+const isGame = (f: string) => GAME_PATHS.some((p) => f.startsWith(p));
+
+/**
+ * What a SECOND feedback system looks like in a file: a mount of a feedback
+ * component, a post to a feedback endpoint, a write to the feedback table, or
+ * (in a legacy HTML page) a form that sends feedback. `src/lib/feedback/` is
+ * the one system, and its two mounts are the root layout and the window page.
+ */
+export function secondFeedbackSystem(file: string, text: string): string[] {
+	const code = file.endsWith('.html') ? text : codeOnly(text);
+	const hits: string[] = [];
+	for (const tag of ['<SiteFeedback', '<FeedbackBox', '<FeedbackTrigger', '<FeedbackConsole']) if (code.includes(tag)) hits.push(tag);
+	for (const m of code.matchAll(/['"`]\/api\/([a-z0-9-]*feedback[a-z0-9-]*)['"`/?]/gi)) hits.push(`/api/${m[1]}`);
+	if (/\.from\(\s*['"`]app_feedback['"`]\s*\)|from\(\s*APP_FEEDBACK_TABLE\s*\)/.test(code)) hits.push('a write to the feedback table');
+	if (file.endsWith('.html') && /<textarea/i.test(code) && /feedback/i.test(code)) hits.push('a feedback form in a legacy page');
+	return hits;
+}
+
+describe('one feedback window across the site, games excepted (ledger 0416)', () => {
+	const ALLOWED: Record<string, string> = {
+		'src/routes/+layout.svelte': 'The one mount, in the root layout.',
+		'src/routes/feedback/embed/+page.svelte': 'The window itself, drawn in a frame over a page that renders no layout.',
+		'src/routes/admin/feedback/+page.svelte': 'The console that READS the reports, not a way to file one.',
+		'src/routes/api/feedback/+server.ts': 'The anonymous report path the one window posts to.'
+	};
+	const files = [...walk('src'), ...walk('static')]
+		.filter((f) => /\.(svelte|ts|html)$/.test(f))
+		.filter((f) => !f.startsWith('src/routes/dev/') && !f.startsWith('src/lib/feedback/') && !f.includes('.generated.'));
+
+	it('sweeps the site, its legacy pages and its static files', () => {
+		expect(files.length).toBeGreaterThan(1500);
+		expect(files.some((f) => f.startsWith('src/lib/legacy/coins/'))).toBe(true);
+	});
+
+	it('no page that is not a game ships a second feedback component', () => {
+		const second = files
+			.filter((f) => !isGame(f) && !(f in ALLOWED))
+			.map((f) => [f, secondFeedbackSystem(f, read(f))] as const)
+			.filter(([, hits]) => hits.length > 0)
+			.map(([f, hits]) => `${f}: ${hits.join(', ')}`);
+		expect(second).toEqual([]);
+	});
+
+	it('the Coin Ledger carries the real button (served), never a dialog of its own', () => {
+		expect(secondFeedbackSystem('src/lib/legacy/coins/index.html', read('src/lib/legacy/coins/index.html'))).toEqual([]);
+	});
+
+	it('the games are the only places a feedback system of their own exists, and they do', () => {
+		const games = files.filter(isGame).filter((f) => secondFeedbackSystem(f, read(f)).length > 0);
+		expect(games.some((f) => f.startsWith('src/routes/greenline/'))).toBe(true);
+		expect(games.some((f) => f.includes('vanguard'))).toBe(true);
+	});
+
+	it('POSITIVE CONTROLS: each kind of second system is found, and a comment naming one is not', () => {
+		expect(secondFeedbackSystem('x.svelte', '<script>import F from "x";</script><FeedbackBox />')).toEqual(['<FeedbackBox']);
+		expect(secondFeedbackSystem('x.ts', "await fetch('/api/coin-feedback', { method: 'POST' })")).toEqual(['/api/coin-feedback']);
+		expect(secondFeedbackSystem('x.ts', "await supabase.from('app_feedback').insert(row)")).toEqual(['a write to the feedback table']);
+		expect(secondFeedbackSystem('x.html', '<dialog><h2>Send feedback</h2><textarea></textarea></dialog>')).toEqual(['a feedback form in a legacy page']);
+		expect(secondFeedbackSystem('x.ts', "// the old '/api/coin-feedback' route is gone")).toEqual([]);
+	});
+});

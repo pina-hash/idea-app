@@ -60,7 +60,7 @@
 	<header class="mp-bar app-header">
 		<a class="wordmark logo-mark mp-logo" href="/" aria-label="IDEA home"><AnimatedLogo width={64} /></a>
 		<div class="mp-title">
-			<span class="eyebrow">IDEA // Maps</span>
+			<span class="eyebrow">IDEA · Maps</span>
 			<h1>Editor</h1>
 		</div>
 		<nav class="mp-links" aria-label="Editor pages">

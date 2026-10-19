@@ -28,7 +28,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.domain.title} // FRC Training</title>
+	<title>{data.domain.title} · FRC Training</title>
 </svelte:head>
 
 <DomainLanding

@@ -48,7 +48,7 @@
 </script>
 
 <svelte:head>
-	<title>IDEA // GAUNTLET</title>
+	<title>IDEA · GAUNTLET</title>
 </svelte:head>
 
 <Header {supabase} {userName} {userRole} />

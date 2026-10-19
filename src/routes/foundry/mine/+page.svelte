@@ -171,7 +171,7 @@
 </script>
 
 <svelte:head>
-	<title>My apps // IDEA Foundry</title>
+	<title>My apps · IDEA Foundry</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 

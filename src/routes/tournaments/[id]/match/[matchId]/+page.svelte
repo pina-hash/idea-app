@@ -47,7 +47,7 @@
 </script>
 
 <svelte:head>
-	<title>Match · {t.name} // Tournaments // IDEA</title>
+	<title>Match · {t.name} · Tournaments · IDEA</title>
 </svelte:head>
 
 <div class="app-header">

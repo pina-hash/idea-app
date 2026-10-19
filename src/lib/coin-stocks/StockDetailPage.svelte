@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>{detail ? `${detail.stock.ticker} // IDEA Stocks` : 'IDEA Stocks'}</title>
+	<title>{detail ? `${detail.stock.ticker} · IDEA Stocks` : 'IDEA Stocks'}</title>
 </svelte:head>
 
 <div class="app-header">

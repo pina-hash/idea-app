@@ -25,6 +25,7 @@
 		setSiteTheme,
 		siteTheme
 	} from '$lib/theme.svelte';
+	import { readRainMotion, writeRainMotion, rainStateWords, type RainMotion } from '$lib/design-system/themes/rain-motion';
 	import {
 		AVATAR_PRESETS,
 		AVATAR_TIERS,
@@ -71,6 +72,33 @@
 	});
 
 	let open = $state(false);
+	/*
+	 * THE MATRIX RAIN'S MOTION (report 551c11e3, ledger 0416). Read when the
+	 * panel opens: the choice from this browser, and what the canvas is doing
+	 * right now, so the picker can say why the code is still and offer to let
+	 * it move.
+	 */
+	let rainMotion = $state<RainMotion>('system');
+	let rainState = $state<string | null>(null);
+	function readRainNow() {
+		rainMotion = readRainMotion();
+		const canvas = typeof document === 'undefined' ? null : document.querySelector<HTMLCanvasElement>('canvas.matrix-rain');
+		rainState = rainStateWords(canvas?.dataset.motion);
+	}
+	function chooseRain(next: RainMotion) {
+		writeRainMotion(next);
+		// The painter answers the event in the same task; read back what it did.
+		requestAnimationFrame(() => requestAnimationFrame(readRainNow));
+		rainMotion = next;
+	}
+	$effect(() => {
+		// Re-read while the panel is open on the Matrix theme: the rain's canvas
+		// arrives a moment after the theme is chosen, and can park itself later.
+		if (!open || siteTheme() !== 'matrix') return;
+		untrack(readRainNow);
+		const t = setInterval(readRainNow, 1200);
+		return () => clearInterval(t);
+	});
 	let root: HTMLDivElement | undefined = $state();
 	let panel: HTMLDivElement | undefined = $state();
 	/**
@@ -858,6 +886,20 @@
 							</button>
 						{/each}
 					</div>
+					{#if siteTheme() === 'matrix'}
+						<!-- WHETHER THE CODE FALLS (report 551c11e3): the computer's own
+						     request for less motion is the default, and "Always move" is
+						     the reader's explicit choice over it. The line under the keys
+						     says what the rain is doing now and why. -->
+						<div class="pm-rain" role="group" aria-labelledby="pm-rain-label-{uid}">
+							<span class="pm-rain-label" id="pm-rain-label-{uid}">Falling code</span>
+							<div class="pm-rain-keys">
+								<button type="button" class="pm-rain-key" class:on={rainMotion === 'system'} aria-pressed={rainMotion === 'system'} onclick={() => chooseRain('system')} data-testid="rain-motion-system">Follow this computer</button>
+								<button type="button" class="pm-rain-key" class:on={rainMotion === 'always'} aria-pressed={rainMotion === 'always'} onclick={() => chooseRain('always')} data-testid="rain-motion-always">Always move</button>
+							</div>
+							{#if rainState}<p class="pm-rain-state" data-testid="rain-state">{rainState}</p>{/if}
+						</div>
+					{/if}
 				</div>
 
 				<!-- ====================================================================
@@ -1936,6 +1978,59 @@
 	.pm-theme-note {
 		font-size: 0.74rem;
 		line-height: 1.25;
+		color: var(--text-2);
+	}
+	/* The Matrix rain's motion: two keys and a line saying what it is doing. */
+	.pm-rain {
+		display: grid;
+		gap: 0.4rem;
+		margin-top: var(--space-2);
+		padding: 0.55rem 0.6rem 0.6rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		background: var(--bg1);
+	}
+	.pm-rain-label {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.pm-rain-keys {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--space-2);
+	}
+	.pm-rain-key {
+		min-height: 44px;
+		padding: 0.3rem 0.5rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		background: var(--bg2);
+		color: inherit;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		cursor: pointer;
+	}
+	.pm-rain-key:hover,
+	.pm-rain-key:focus-visible {
+		border-color: var(--green);
+	}
+	.pm-rain-key:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 1px;
+	}
+	.pm-rain-key.on {
+		border-color: var(--green);
+		background: var(--green-tint, var(--bg2));
+		color: var(--green);
+	}
+	.pm-rain-state {
+		margin: 0;
+		font-size: 0.76rem;
+		line-height: 1.3;
 		color: var(--text-2);
 	}
 </style>

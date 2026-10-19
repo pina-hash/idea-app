@@ -26,7 +26,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.studentPage.student.display_name} · Student · {sectionTitle(data.section)} // IDEA Classroom</title>
+	<title>{data.studentPage.student.display_name} · Student · {sectionTitle(data.section)} · IDEA Classroom</title>
 </svelte:head>
 
 <StudentOverview

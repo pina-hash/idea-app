@@ -198,7 +198,7 @@
 
 <main class="ai-page cr-instructor-surface" data-testid="armory-incident-console">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Admin</div>
+		<div class="eyebrow">IDEA · Admin</div>
 		<h1>Armory incidents</h1>
 		<p class="lead">
 			What the IDEA Armory app reported about itself when something went wrong, grouped by kind and

@@ -185,7 +185,7 @@
 </script>
 
 <svelte:head>
-	<title>Authoring // GAUNTLET</title>
+	<title>Authoring · GAUNTLET</title>
 </svelte:head>
 
 <Header {supabase} {userName} {userRole} crumbs={[{ label: 'Authoring' }]} />

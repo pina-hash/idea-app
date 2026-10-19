@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>Reverse Engineer // GAUNTLET</title>
+	<title>Reverse Engineer · GAUNTLET</title>
 </svelte:head>
 
 <Header {supabase} {userName} {userRole} crumbs={[{ label: 'Reverse Engineer' }]} />

@@ -483,7 +483,7 @@
 </script>
 
 <svelte:head>
-	<title>Host · {t.name} // Tournaments // IDEA</title>
+	<title>Host · {t.name} · Tournaments · IDEA</title>
 </svelte:head>
 
 <div class="app-header">

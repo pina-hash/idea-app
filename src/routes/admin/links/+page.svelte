@@ -36,7 +36,7 @@
 	};
 </script>
 
-<svelte:head><title>Short links // IDEA</title></svelte:head>
+<svelte:head><title>Short links · IDEA</title></svelte:head>
 
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>

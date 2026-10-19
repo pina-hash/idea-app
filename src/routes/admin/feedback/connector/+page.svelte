@@ -40,7 +40,7 @@
 	const statusWord = (g: Gap) => (g.status === 'built' ? `Built in ${g.built_ledger}` : g.status === 'declined' ? 'Declined' : 'Open');
 </script>
 
-<svelte:head><title>Connector feedback // IDEA</title></svelte:head>
+<svelte:head><title>Connector feedback · IDEA</title></svelte:head>
 
 <main class="cg-page" data-testid="connector-gaps">
 	<section class="hero">

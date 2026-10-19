@@ -39,7 +39,7 @@
 </script>
 
 <svelte:head>
-	<title>My notebook // IDEA Classroom</title>
+	<title>My notebook · IDEA Classroom</title>
 </svelte:head>
 
 <NotebookView

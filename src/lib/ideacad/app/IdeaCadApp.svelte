@@ -327,7 +327,7 @@
 		<section class="start" aria-label="IdeaCAD documents">
 			<div class="start-card">
 				<header class="start-heading">
-					<p class="eyebrow">IDEACAD // DOCUMENT CONTROL</p>
+					<p class="eyebrow">IDEACAD · DOCUMENT CONTROL</p>
 					<h1>{view.total+directRows.length === 0 ? 'Start your first document' : 'Your documents'}</h1>
 					<p>
 						Create a model, continue your work, or open a shared document.

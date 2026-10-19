@@ -43,7 +43,8 @@ export default {
 		{ selector: '[data-testid="feed-attention"]', label: 'two classes need attention', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="feed-attention"] .feed-attn-mark', label: 'each with its mark beside the words', expectPresent: 2, maxPresent: 2, expectVisible: 2 }
 	],
-	textContains: [{ selector: '[data-testid="feed-attention"]', label: 'the words say what it is', must: ['need attention'] }],
+	// Ledger 0416 (report e4bc53e5): the count says WHAT is owed, never "need attention".
+	textContains: [{ selector: '[data-testid="feed-attention"]', label: 'the words say what it is', must: ['to grade'], mustNot: ['need attention'] }],
 	contrast: [{ selector: '[data-testid="feed-attention"]', label: 'the attention count on its wash', min: 4.5 }],
 	orderResult: [NO_BAND],
 	tapTargets: []

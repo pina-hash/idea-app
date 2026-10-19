@@ -46,8 +46,11 @@
  *   studentPage ACCOUNT. Which sections one student's page shows (ledger 0396,
  *                      report bd38fa25): a teacher who does not use the notebook
  *                      hides it once and every student page they open, on any
- *                      computer, leaves it off. Section ids only
- *                      (`$lib/classroom/student-sections`), never a student.
+ *                      computer, leaves it off. Ledger 0416 added the switch
+ *                      between one list for every class and a list per class
+ *                      (`scope`, `byClass`, keyed by class id). Section ids and
+ *                      class ids only (`$lib/classroom/student-sections`),
+ *                      never a student.
  *
  * A COMMENT BANK HAS ROOM HERE WITHOUT A MIGRATION: it would be one more
  * ACCOUNT group. Every store writes only the groups that changed, merged into
@@ -78,9 +81,9 @@ import {
 	type ProfileNamespaceWriter
 } from './store';
 import {
-	readStudentPageHidden,
-	studentHiddenSummary,
-	type StudentPageSectionId
+	readStudentPagePrefs,
+	studentPagePrefsSummary,
+	type StudentPagePrefs
 } from '$lib/classroom/student-sections';
 
 export const CLASSROOM_PREFERENCES_NAMESPACE = 'classroom';
@@ -251,7 +254,7 @@ export interface ClassroomPreferences {
 	 * `readStudentPageHidden`, which keeps known ids only, once each, in page
 	 * order.
 	 */
-	studentPage: { hidden: StudentPageSectionId[] };
+	studentPage: StudentPagePrefs;
 }
 export type ClassroomPreferenceGroup = keyof ClassroomPreferences;
 
@@ -275,7 +278,7 @@ export function defaultClassroomPreferences(): ClassroomPreferences {
 		search: { recent: [] },
 		notebookReview: { lastLooked: {}, comments: [...NOTEBOOK_COMMENT_SEEDS] },
 		panels: { classPage: null, itemPage: null },
-		studentPage: { hidden: [] }
+		studentPage: { hidden: [], scope: 'everywhere', byClass: {} }
 	};
 }
 
@@ -342,7 +345,7 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 			classPage: readPanelLayout(panels.classPage, 'class'),
 			itemPage: readPanelLayout(panels.itemPage, 'item')
 		},
-		studentPage: { hidden: readStudentPageHidden(studentPage.hidden) }
+		studentPage: readStudentPagePrefs(studentPage)
 	};
 }
 
@@ -622,7 +625,7 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 		help:
 			"The page you open for one student from People, for a conference. Hide or show its sections with the Sections key at the top of that page; Reset puts every section back.",
 		roles: ['manager'],
-		summary: (p) => studentHiddenSummary(p.studentPage.hidden)
+		summary: (p) => studentPagePrefsSummary(p.studentPage)
 	},
 	{
 		group: 'grading',

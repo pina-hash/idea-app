@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>Maps Editor // IDEA</title>
+	<title>Maps Editor · IDEA</title>
 </svelte:head>
 
 {#snippet editors()}

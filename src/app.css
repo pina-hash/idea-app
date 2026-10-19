@@ -117,13 +117,8 @@ h2 {
 	margin: 2.25rem 0 1rem;
 	color: var(--white);
 }
-h2::before {
-	content: '// ';
-	color: var(--green);
-	font-family: var(--font-mono);
-	font-size: 0.8em;
-	text-shadow: var(--glow-green);
-}
+/* No `//` before a heading (decision 69, ledger 0416): the IDEA Design System
+   retired the motif; a heading is its words. tests/slash-motif.test.ts holds it. */
 
 a {
 	color: var(--green);
@@ -2712,13 +2707,7 @@ a:hover {
 	text-transform: uppercase;
 	white-space: nowrap;
 }
-/* House `//` motif: section dividers read as labeled `// SECTION` rules. */
-.legacy-index .divider-label::before {
-	content: '// ';
-	color: var(--green);
-	font-family: var(--font-mono);
-	text-shadow: var(--glow-green);
-}
+/* The section divider is its label alone (decision 69 retired the `//` before it). */
 
 /* Courses */
 .legacy-index .courses {

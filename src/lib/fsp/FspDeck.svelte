@@ -171,7 +171,7 @@
 
 				<div style="position:absolute;top:230px;left:90px;right:90px;bottom:100px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:4px;background:rgba(16,22,16,0.85);overflow:hidden">
 					<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--line);background:var(--bg2)">
-						<span style="font-family:'Share Tech Mono',monospace;font-size:24px;letter-spacing:0.14em;color:var(--cyan)">IDEA-APP // LIVE FEED</span>
+						<span style="font-family:'Share Tech Mono',monospace;font-size:24px;letter-spacing:0.14em;color:var(--cyan)">IDEA-APP · LIVE FEED</span>
 						<span style="font-family:'Share Tech Mono',monospace;font-size:24px;letter-spacing:0.12em;color:var(--dim)">ANONYMOUS SUBMISSIONS · 1 COIN EACH</span>
 					</div>
 					<div
@@ -182,7 +182,7 @@
 				</div>
 
 				<div style="position:absolute;left:90px;right:90px;bottom:38px;display:flex;align-items:center;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:24px;letter-spacing:0.12em;color:var(--dim)">
-					<span>IDEA // FSP · SUMMER 2026</span>
+					<span>IDEA · FSP · SUMMER 2026</span>
 					<span class="idea-wordmark" style="font-size:47px;line-height:0.8">IDEA</span>
 					<span>DWG 013 / 013 · REV A</span>
 				</div>

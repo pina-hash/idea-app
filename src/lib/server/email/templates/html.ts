@@ -156,7 +156,7 @@ export function renderEmailLayout(tone: EmailTone, parts: EmailLayoutParts): str
 		`<tr><td class="cert-card cert-pad" style="background-color:${EMAIL_CARD};border:1px solid ${EMAIL_HAIRLINE};border-top:0;padding:28px 36px 32px;">` +
 		`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">` +
 		`<tr><td align="center" style="padding:0 0 10px;"><img src="${escapeHtml(EMAIL_MARK_URL)}" width="${EMAIL_MARK_WIDTH}" height="${EMAIL_MARK_HEIGHT}" alt="IDEA" style="display:block;width:${EMAIL_MARK_WIDTH}px;height:${EMAIL_MARK_HEIGHT}px;border:0;outline:none;text-decoration:none;"></td></tr>` +
-		`<tr><td align="center" style="${mono(11, 'letter-spacing:3px;')}color:${EMAIL_GREEN};padding:0 0 18px;">IDEA // Certifications</td></tr>` +
+		`<tr><td align="center" style="${mono(11, 'letter-spacing:3px;')}color:${EMAIL_GREEN};padding:0 0 18px;">IDEA · Certifications</td></tr>` +
 		`<tr><td style="border-top:1px solid ${EMAIL_HAIRLINE};font-size:0;line-height:0;">&nbsp;</td></tr>` +
 		`<tr><td style="${mono(12)}color:${toneInk};padding:20px 0 6px;">${escapeHtml(glyph + parts.eyebrow)}</td></tr>` +
 		`<tr><td class="cert-ink" style="${display(26, 32)}font-weight:700;color:${EMAIL_INK};padding:0 0 12px;">${escapeHtml(parts.title)}</td></tr>` +

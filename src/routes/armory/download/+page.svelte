@@ -8,7 +8,7 @@
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head><title>Get the Windows app // Armory</title></svelte:head>
+<svelte:head><title>Get the Windows app · Armory</title></svelte:head>
 
 <ArmoryFrame
 	title="Get the Armory app"

@@ -6,8 +6,8 @@
  *
  * Four readings, each a property the polish round fixed:
  *  - EVERY POINT OF EVERY HEADER IS A CONTROL. A 40 x 7 grid over each header
- *    (its bottom rule excluded) lands on the class link or the fold key and on
- *    nothing else. The fold's reach covers the column it sits in: a point just
+ *    (its bottom rule excluded) lands on the class link, the key to what the
+ *    class needs (ledger 0416) or the fold key, and on nothing else. The fold's reach covers the column it sits in: a point just
  *    under the header's top edge above the key, just over its bottom edge
  *    below it, and in the margin to the card's right edge all answer the fold.
  *    Before the round 19 of 280 points a header landed on the bare header at
@@ -29,7 +29,8 @@ const THIRD_TOGGLE = '.legacy-index .feed-card ~ .feed-card ~ .feed-card [data-t
 
 const kindAt = `(x, y) => {
 	const el = document.elementFromPoint(x, y);
-	return el?.closest('[data-testid="feed-open"]') ? 'link' : el?.closest('[data-testid="feed-toggle"]') ? 'fold' : 'nothing';
+	// Ledger 0416: a teacher's card also carries the key to what the class needs.
+	return el?.closest('[data-testid="feed-open"]') ? 'link' : el?.closest('[data-testid="feed-toggle"]') ? 'fold' : el?.closest('[data-testid="feed-attention"]') ? 'needs' : 'nothing';
 }`;
 
 export default {

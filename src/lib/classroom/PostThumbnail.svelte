@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { env as publicEnv } from '$env/dynamic/public';
 	import HtmlThumbnailFrame from '$lib/classroom/html-assignment/HtmlThumbnailFrame.svelte';
@@ -90,6 +90,14 @@
 		onlivefail?: (() => void) | null;
 	} = $props();
 
+	/** The kind's word on a generated banner. */
+	const GLYPH_WORDS: Record<ThumbGlyph, string> = {
+		assignment: 'Assignment',
+		material: 'Material',
+		post: 'Announcement',
+		checkin: 'Notebook check-in'
+	} as Record<ThumbGlyph, string>;
+
 	const plan: ThumbPlan = $derived(
 		thumbnailPlan(item, { sandboxOrigin: publicEnv.PUBLIC_HX_SANDBOX_ORIGIN ?? '', imageSrc, now })
 	);
@@ -108,6 +116,33 @@
 	const ownClicks = $derived(plan.kind === 'html' && plan.interactive && !passive);
 
 	let frameRef = $state<HtmlThumbnailFrame | null>(null);
+
+	/* The reader's request for less motion, and the still frame drawn for it. */
+	let reduceMotion = $state(false);
+	let still = $state<HTMLCanvasElement | null>(null);
+	let stillFor = $state<string | null>(null);
+	onMount(() => {
+		const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+		if (!mq) return;
+		reduceMotion = mq.matches;
+		const on = () => (reduceMotion = mq.matches);
+		mq.addEventListener('change', on);
+		return () => mq.removeEventListener('change', on);
+	});
+	/** At most this many px on the still frame's long side: enough for a banner across a wide window. */
+	const STILL_EDGE = 960;
+	function freeze(img: HTMLImageElement): void {
+		if (!reduceMotion || !still || !img.naturalWidth || !img.naturalHeight || plan.kind !== 'image') return;
+		const scale = Math.min(1, STILL_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+		still.width = Math.max(1, Math.round(img.naturalWidth * scale));
+		still.height = Math.max(1, Math.round(img.naturalHeight * scale));
+		try {
+			still.getContext('2d')?.drawImage(img, 0, 0, still.width, still.height);
+			stillFor = plan.src;
+		} catch {
+			stillFor = null;
+		}
+	}
 
 	/*
 	 * THE POINTER, FORWARDED AT MOST ONCE A FRAME. A pointer over a slot fires
@@ -182,6 +217,18 @@
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
 			{#each KIND_GLYPHS[glyph] as d (d)}<path {d} />{/each}
 		</svg>
+		{#if shape === 'banner' && label}
+			<!-- A BANNER IS NEVER A STRIP WITH ONE ICON IN IT (report a6a037f3,
+			     ledger 0416: banner mode is the way to find a post at a glance).
+			     With no picture and no live thumbnail, the generated banner sets
+			     the post's kind and title in its own tint, the way a designed HTML
+			     banner does, so every banner in a unit reads as a different post.
+			     Decoration: the row's own title is the accessible name. -->
+			<span class="pt-gen-words">
+				<span class="pt-gen-kind">{GLYPH_WORDS[glyph]}</span>
+				<span class="pt-gen-title">{label}</span>
+			</span>
+		{/if}
 	</span>
 	{#if mediaKey}
 		<span class="pt-media">
@@ -195,9 +242,27 @@
 					loading="lazy"
 					decoding="async"
 					style:object-position={focalObjectPosition(plan.focalX, plan.focalY, plan.width, plan.height)}
-					onload={() => (loadedFor = plan.kind === 'image' ? plan.src : null)}
+					class:frozen={stillFor === plan.src}
+					onload={(e) => {
+						loadedFor = plan.kind === 'image' ? plan.src : null;
+						freeze(e.currentTarget as HTMLImageElement);
+					}}
 					onerror={() => (failedFor = plan.kind === 'image' ? plan.src : null)}
 				/>
+				{#if reduceMotion}
+					<!-- UNDER REDUCED MOTION A PICTURE IS ITS FIRST FRAME (ledger 0416:
+					     banners may now be animated, and everything animated is gated
+					     behind prefers-reduced-motion). A picture cannot be paused, so
+					     its first frame is drawn here, no larger than the slot needs,
+					     and shown in its place, cropped around the same focal point. -->
+					<canvas
+						class="pt-still"
+						class:on={stillFor === plan.src}
+						bind:this={still}
+						aria-hidden="true"
+						style:object-position={focalObjectPosition(plan.focalX, plan.focalY, plan.width, plan.height)}
+					></canvas>
+				{/if}
 			{:else if plan.kind === 'html'}
 				<HtmlThumbnailFrame
 					bind:this={frameRef}
@@ -345,8 +410,51 @@
 		place-items: center;
 	}
 	.pt[data-shape='banner'] .pt-gen {
-		justify-items: start;
-		padding-inline: 0.9rem;
+		display: flex;
+		align-items: center;
+		justify-content: flex-start;
+		gap: clamp(0.6rem, 2.5cqi, 1.2rem);
+		padding-inline: clamp(0.75rem, 3cqi, 1.4rem);
+	}
+	.pt[data-shape='banner'] .pt-gen svg {
+		flex: none;
+		width: clamp(1.1rem, 46cqh, 2.6rem);
+		height: clamp(1.1rem, 46cqh, 2.6rem);
+	}
+	.pt-gen-words {
+		display: flex;
+		align-items: baseline;
+		gap: 0.2rem 0.85rem;
+		flex-wrap: wrap;
+		min-width: 0;
+		overflow: hidden;
+		max-height: 100%;
+	}
+	.pt-gen-kind {
+		flex: none;
+		font-family: var(--font-mono);
+		font-size: clamp(0.6rem, 16cqh, 0.78rem);
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		opacity: 0.85;
+	}
+	.pt-gen-title {
+		min-width: 0;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: clamp(0.95rem, 30cqh, 1.7rem);
+		line-height: 1.1;
+		color: color-mix(in srgb, var(--pt-ink) 70%, var(--plate-ink, var(--white)));
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 100%;
+	}
+	/* A banner too short for two words' height drops the kind and keeps the name. */
+	@container (max-height: 2.6rem) {
+		.pt-gen-kind {
+			display: none;
+		}
 	}
 	.pt-gen svg {
 		width: clamp(0.9rem, 50cqmin, 3rem);
@@ -361,11 +469,23 @@
 		inset: 0;
 		display: block;
 	}
-	.pt-media img {
+	.pt-media img,
+	.pt-still {
 		display: block;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+	}
+	.pt-still {
+		position: absolute;
+		inset: 0;
+		visibility: hidden;
+	}
+	.pt-still.on {
+		visibility: visible;
+	}
+	.pt-media img.frozen {
+		visibility: hidden;
 	}
 
 	.pt-link {

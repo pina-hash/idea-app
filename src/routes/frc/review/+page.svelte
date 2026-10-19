@@ -50,7 +50,7 @@
 </script>
 
 <svelte:head>
-	<title>Gate review // FRC Training</title>
+	<title>Gate review · FRC Training</title>
 </svelte:head>
 
 <FrcReviewConsole

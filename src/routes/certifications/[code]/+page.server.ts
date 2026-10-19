@@ -11,7 +11,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const shellFor = (code: string, cert: CertGetJson | null): CertShellData => ({
 	title: cert?.name ?? code,
-	eyebrow: `${CERT_EYEBROW} // ${code}`,
+	eyebrow: `${CERT_EYEBROW} · ${code}`,
 	lead: cert ? cert.definition : null,
 	crumbs: [{ href: CERT_PATHS.catalog, label: 'Certifications' }]
 });

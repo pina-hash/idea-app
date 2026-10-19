@@ -78,25 +78,53 @@
 	}
 
 	/*
-	 * ONE MESSAGE LISTENER FOR THE PAGE, routing by the frame's own window. A
+	 * ONE MESSAGE LISTENER FOR THE PAGE, routing by the frame that sent it. A
 	 * listener per thumbnail ran every thumbnail's handler for every message any
 	 * of them sent, thirty handlers a message on a class of thirty; this looks
-	 * the sender up once. A frame's `contentWindow` is the same object across
-	 * its navigations, so the entry is keyed on the frame, not on a document.
+	 * the sender up once.
+	 *
+	 * KEYED ON THE FRAME ELEMENT, WITH ITS WINDOW AS A CACHE (report 7dfde5e5,
+	 * ledger 0416). A frame's `contentWindow` is the same object across its
+	 * navigations, but NOT when the element is taken out of the page and put
+	 * back: dragging a post to a new place moves its row, the frame loads again
+	 * under a NEW window, and a route keyed on the old one sent the reloaded
+	 * thumbnail's "ready" nowhere, so the dragged post's banner never got its
+	 * state and showed as a bare glyph while every post it passed kept its
+	 * banner. The new document says "ready" before its frame's load event, so
+	 * the route cannot wait for that either: a message from a window the cache
+	 * does not know is matched against each routed frame's window as it is now.
 	 */
-	const byWindow = new Map<MessageEventSource, (e: MessageEvent) => void>();
+	const byFrame = new Map<HTMLIFrameElement, (e: MessageEvent) => void>();
+	const frameOf = new Map<MessageEventSource, HTMLIFrameElement>();
 	let routing = false;
 
-	function route(win: Window, handler: (e: MessageEvent) => void): () => void {
+	function senderFrame(source: MessageEventSource): HTMLIFrameElement | null {
+		const cached = frameOf.get(source);
+		if (cached && cached.contentWindow === source && byFrame.has(cached)) return cached;
+		frameOf.delete(source);
+		for (const el of byFrame.keys()) {
+			if (el.contentWindow === source) {
+				frameOf.set(source, el);
+				return el;
+			}
+		}
+		return null;
+	}
+
+	function route(el: HTMLIFrameElement, handler: (e: MessageEvent) => void): () => void {
 		if (!routing) {
 			routing = true;
 			window.addEventListener('message', (e) => {
-				if (e.source) byWindow.get(e.source)?.(e);
+				if (!e.source) return;
+				const el = senderFrame(e.source);
+				if (el) byFrame.get(el)?.(e);
 			});
 		}
-		byWindow.set(win, handler);
+		byFrame.set(el, handler);
 		return () => {
-			if (byWindow.get(win) === handler) byWindow.delete(win);
+			if (byFrame.get(el) !== handler) return;
+			byFrame.delete(el);
+			for (const [w, f] of frameOf) if (f === el) frameOf.delete(w);
 		};
 	}
 
@@ -402,11 +430,11 @@
 		}, 2500);
 	}
 
-	/* The frame's messages, through the page's one listener. */
+	/* The frame's messages, through the page's one listener, by the frame itself. */
 	$effect(() => {
-		const win = frame?.contentWindow;
-		if (!win) return;
-		return route(win, onMessage);
+		const el = frame;
+		if (!el) return;
+		return route(el, onMessage);
 	});
 
 	/* A shape change the slot's size did not move (a later stylesheet's shape

@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>References // FRC Training</title>
+	<title>References · FRC Training</title>
 </svelte:head>
 
 <ReferenceShelf />

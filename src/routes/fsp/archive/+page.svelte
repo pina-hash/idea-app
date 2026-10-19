@@ -38,7 +38,7 @@
 </script>
 
 <svelte:head>
-	<title>FSP Archive // IDEA</title>
+	<title>FSP Archive · IDEA</title>
 	<meta name="description" content="Archived materials from the IDEA Freshman Summer Program." />
 </svelte:head>
 

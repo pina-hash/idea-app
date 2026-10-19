@@ -156,7 +156,7 @@
 </script>
 
 <svelte:head>
-	<title>Publish an app // IDEA Foundry</title>
+	<title>Publish an app · IDEA Foundry</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 

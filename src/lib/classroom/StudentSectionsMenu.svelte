@@ -57,18 +57,30 @@
 	import { anchored, anchorPosition, anchorRooms, cornerReserve, type AnchoredParams } from '$lib/shell/anchored';
 	import {
 		STUDENT_PAGE_SECTIONS,
+		STUDENT_PAGE_SCOPES,
+		STUDENT_PAGE_SCOPE_WORDS,
 		setStudentSectionShown,
 		studentHiddenCountWords,
 		studentSectionsMenuFit,
+		type StudentPageScope,
 		type StudentPageSectionId
 	} from './student-sections';
 
 	let {
 		hidden,
-		onchange
+		onchange,
+		scope = 'everywhere',
+		onscope = null,
+		className = ''
 	}: {
 		hidden: readonly StudentPageSectionId[];
 		onchange: (next: StudentPageSectionId[]) => void;
+		/** Whether these choices are this class's or every class's (ledger 0416). */
+		scope?: StudentPageScope;
+		/** The switch between the two; absent draws no switch. */
+		onscope?: ((next: StudentPageScope) => void) | null;
+		/** This class's name, for the heading when the choice is this class's. */
+		className?: string;
 	} = $props();
 
 	let open = $state(false);
@@ -294,10 +306,35 @@
 		use:anchored={placement}
 		data-testid="so-sections-panel"
 	>
-		<p class="ssm-head" id="{uid}-head">Show on every student page</p>
+		<p class="ssm-head" id="{uid}-head">{scope === 'class' ? `Show on ${className || 'this class'}'s student pages` : 'Show on every student page'}</p>
+		{#if onscope}
+			<!-- THE SWITCH (report bd38fa25, ledger 0416): these choices for this
+			     class alone, or one set for every class. Each side keeps its own
+			     list, so flipping back and forth loses nothing. -->
+			<div class="ssm-scope" role="radiogroup" aria-label="Where these choices apply" data-testid="so-sections-scope">
+				{#each STUDENT_PAGE_SCOPES as s (s)}
+					<button
+						type="button"
+						class="btn secondary tiny ssm-scope-key"
+						class:on={scope === s}
+						role="radio"
+						aria-checked={scope === s}
+						onclick={() => onscope?.(s)}
+						data-scope={s}
+					>
+						{STUDENT_PAGE_SCOPE_WORDS[s]}
+					</button>
+				{/each}
+			</div>
+		{/if}
 		<p class="ssm-note" bind:this={note}>
-			Saved to your account, for every student you open. A hidden section is left off the page and off the
-			printout.
+			{#if scope === 'class'}
+				Saved to your account, for every student you open in this class. A hidden section is left off the page and
+				off the printout.
+			{:else}
+				Saved to your account, for every student you open in every class. A hidden section is left off the page and
+				off the printout.
+			{/if}
 		</p>
 		<ul
 			class="ssm-list"
@@ -403,6 +440,15 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-1);
+	}
+	.ssm-scope {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.4rem;
+	}
+	.ssm-scope-key {
+		min-height: 44px;
+		justify-content: center;
 	}
 	.ssm-note {
 		margin: 0 0 0.25rem;

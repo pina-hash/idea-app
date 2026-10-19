@@ -95,6 +95,72 @@ export function readStudentPageHidden(raw: unknown): StudentPageSectionId[] {
 	return [...keep].sort((a, b) => (ORDER.get(a) ?? 0) - (ORDER.get(b) ?? 0));
 }
 
+/**
+ * WHERE A TEACHER'S CHOICE APPLIES (report bd38fa25, Mr. Pina 2026-10-19:
+ * "offer both scopes, per class and everywhere, with a switch to flip between
+ * them. He wants to try both"). `everywhere` is one list for every student page
+ * (the shape this group always had); `class` keeps a list per class, and a
+ * class with none of its own starts from the everywhere list, so flipping the
+ * switch never makes a page jump. Both lists are kept, so flipping back and
+ * forth loses nothing.
+ */
+export type StudentPageScope = 'everywhere' | 'class';
+export const STUDENT_PAGE_SCOPES: readonly StudentPageScope[] = ['class', 'everywhere'];
+export const STUDENT_PAGE_SCOPE_WORDS: Readonly<Record<StudentPageScope, string>> = {
+	class: 'This class',
+	everywhere: 'Every class'
+};
+
+export interface StudentPagePrefs {
+	hidden: StudentPageSectionId[];
+	scope: StudentPageScope;
+	byClass: Record<string, StudentPageSectionId[]>;
+}
+
+/** At most this many classes keep a list of their own; the oldest-keyed beyond it are dropped on read. */
+export const STUDENT_PAGE_CLASS_CAP = 60;
+
+/** A stored `studentPage` group to one the page can render. Unknown keys and ids are dropped. */
+export function readStudentPagePrefs(raw: unknown): StudentPagePrefs {
+	const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+	const byClass: Record<string, StudentPageSectionId[]> = {};
+	const stored = r.byClass && typeof r.byClass === 'object' && !Array.isArray(r.byClass) ? (r.byClass as Record<string, unknown>) : {};
+	for (const [id, list] of Object.entries(stored).slice(0, STUDENT_PAGE_CLASS_CAP)) {
+		if (/^[0-9a-z-]{1,64}$/i.test(id) && Array.isArray(list)) byClass[id] = readStudentPageHidden(list);
+	}
+	return {
+		hidden: readStudentPageHidden(r.hidden),
+		scope: r.scope === 'class' ? 'class' : 'everywhere',
+		byClass
+	};
+}
+
+/** The hidden list this class's student pages use. */
+export function studentHiddenFor(prefs: StudentPagePrefs, sectionId: string): StudentPageSectionId[] {
+	if (prefs.scope === 'class') return prefs.byClass[sectionId] ?? prefs.hidden;
+	return prefs.hidden;
+}
+
+/** The group after a change to the list in force for this class. */
+export function withStudentHidden(prefs: StudentPagePrefs, sectionId: string, next: readonly StudentPageSectionId[]): StudentPagePrefs {
+	const list = readStudentPageHidden(next);
+	if (prefs.scope === 'class') return { ...prefs, byClass: { ...prefs.byClass, [sectionId]: list } };
+	return { ...prefs, hidden: list };
+}
+
+/**
+ * The group after flipping the switch. Into `class`, this class starts from
+ * what it showed a moment ago, so the page does not change under the flip.
+ */
+export function withStudentScope(prefs: StudentPagePrefs, scope: StudentPageScope, sectionId: string): StudentPagePrefs {
+	if (scope === prefs.scope) return prefs;
+	if (scope === 'class') {
+		const byClass = sectionId in prefs.byClass ? prefs.byClass : { ...prefs.byClass, [sectionId]: [...prefs.hidden] };
+		return { ...prefs, scope, byClass };
+	}
+	return { ...prefs, scope };
+}
+
 /** The hidden list after showing or hiding one section. */
 export function setStudentSectionShown(
 	hidden: readonly StudentPageSectionId[],
@@ -139,6 +205,15 @@ export function studentTileColumns(tiles: number, width: number, minTile: number
 	const perRow = Math.min(Math.floor(tiles), fit);
 	const rows = Math.ceil(tiles / perRow);
 	return Math.ceil(tiles / rows);
+}
+
+/** The Settings read-out for the whole group: which scope, and what it hides. */
+export function studentPagePrefsSummary(prefs: StudentPagePrefs): string {
+	if (prefs.scope === 'class') {
+		const n = Object.keys(prefs.byClass).length;
+		return `Chosen class by class (${n} ${n === 1 ? 'class' : 'classes'} set); every other class: ${studentHiddenSummary(prefs.hidden).toLowerCase()}`;
+	}
+	return studentHiddenSummary(prefs.hidden);
 }
 
 /** The Settings read-out: every section, or which are hidden, by name. */

@@ -5,7 +5,7 @@
 
 <main>
 	<section class="hero">
-		<span class="eyebrow warn">Authentication // Error</span>
+		<span class="eyebrow warn">Authentication · Error</span>
 		<a class="wordmark logo-mark" href="/" aria-label="IDEA home">
 			<AnimatedLogo width="clamp(220px, 60vw, 420px)" />
 		</a>

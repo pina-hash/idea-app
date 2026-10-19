@@ -15,13 +15,13 @@
 </script>
 
 <svelte:head>
-	<title>Student notebooks // IDEA Classroom</title>
+	<title>Student notebooks · IDEA Classroom</title>
 </svelte:head>
 
 <!-- The shell owns the masthead; under view-as it renders in minimal mode. -->
 <main class="viewas-page">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Classroom &middot; admin</div>
+		<div class="eyebrow">IDEA · Classroom &middot; admin</div>
 		<h1>View a student's notebook</h1>
 		<p class="lead">
 			Open a student's digital notebook exactly as they see it. Strictly read-only: nothing you

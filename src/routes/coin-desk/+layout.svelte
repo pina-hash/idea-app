@@ -64,7 +64,7 @@
 
 	<main class="coin-desk-page">
 		<section class="hero">
-			<div class="eyebrow">IDEA // Coin Desk</div>
+			<div class="eyebrow">IDEA · Coin Desk</div>
 			<h1>Coin desk</h1>
 		</section>
 

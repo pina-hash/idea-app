@@ -44,7 +44,7 @@
 </script>
 
 <svelte:head>
-	<title>IDEA Stocks // IDEA</title>
+	<title>IDEA Stocks · IDEA</title>
 </svelte:head>
 
 <div class="app-header">

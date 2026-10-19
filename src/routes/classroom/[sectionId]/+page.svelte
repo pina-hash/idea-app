@@ -28,5 +28,5 @@
 </script>
 
 <svelte:head>
-	<title>{sectionTitle(data.section)} // IDEA Classroom</title>
+	<title>{sectionTitle(data.section)} · IDEA Classroom</title>
 </svelte:head>

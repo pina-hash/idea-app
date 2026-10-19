@@ -90,12 +90,12 @@
 </script>
 
 <svelte:head>
-	<title>Grades &middot; {sectionTitle(section)} // IDEA Classroom</title>
+	<title>Grades &middot; {sectionTitle(section)} · IDEA Classroom</title>
 </svelte:head>
 
 <main class="classroom-page cr-instructor-surface">
 	<section class="hero">
-		<div class="eyebrow">{section.course?.code ?? 'IDEA // Classroom'}</div>
+		<div class="eyebrow">{section.course?.code ?? 'IDEA · Classroom'}</div>
 		<h1>Grades</h1>
 		<p class="section-line">
 			{formatSectionLabel(section.label, section.block)}

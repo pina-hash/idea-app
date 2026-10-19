@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "post-thumbnails-shape-banner-state-moved.mjs",
+	"date": "2026-10-19T21:21:09.145Z",
+	"sha": "3a477f5f1b775a1523450b4267b4bf5ea42370d7",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 18,
+	"outsideRows": [],
+	"ms": 24733
+}

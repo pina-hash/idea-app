@@ -15,7 +15,12 @@ import {
 	studentHiddenSummary,
 	studentPageLayout,
 	studentTileColumns,
-	type StudentPrintableSection
+	type StudentPrintableSection,
+	readStudentPagePrefs,
+	studentHiddenFor,
+	studentPagePrefsSummary,
+	withStudentHidden,
+	withStudentScope
 } from '../src/lib/classroom/student-sections';
 import {
 	CLASSROOM_PREFERENCE_HOMES,
@@ -285,13 +290,37 @@ describe('the choice lives in the classroom store, on the account', () => {
 	it('is an account group, stored sparse, and read back validated', () => {
 		expect(CLASSROOM_PREFERENCE_HOMES.studentPage).toBe('account');
 		expect(CLASSROOM_PREFERENCE_SCHEMA.groups).toContain('studentPage');
-		expect(defaultClassroomPreferences().studentPage).toEqual({ hidden: [] });
+		expect(defaultClassroomPreferences().studentPage).toEqual({ hidden: [], scope: 'everywhere', byClass: {} });
 		const p = defaultClassroomPreferences();
 		expect(compactPreferences(CLASSROOM_PREFERENCE_SCHEMA, p)).toEqual({});
 		p.studentPage.hidden = ['notebook', 'coins'];
 		expect(compactPreferences(CLASSROOM_PREFERENCE_SCHEMA, p)).toEqual({ studentPage: { hidden: ['notebook', 'coins'] } });
-		expect(readClassroomPreferences({ studentPage: { hidden: ['coins', 'bogus', 'notebook'] } }).studentPage).toEqual({ hidden: ['notebook', 'coins'] });
-		expect(readClassroomPreferences({ studentPage: 'all' }).studentPage).toEqual({ hidden: [] });
+		expect(readClassroomPreferences({ studentPage: { hidden: ['coins', 'bogus', 'notebook'] } }).studentPage).toEqual({ hidden: ['notebook', 'coins'], scope: 'everywhere', byClass: {} });
+		expect(readClassroomPreferences({ studentPage: 'all' }).studentPage).toEqual({ hidden: [], scope: 'everywhere', byClass: {} });
+	});
+
+	it('per class or everywhere, with a switch that loses nothing (ledger 0416, Mr. Pina 2026-10-19)', () => {
+		const everywhere = readStudentPagePrefs({ hidden: ['notebook'] });
+		expect(studentHiddenFor(everywhere, 'sec-a')).toEqual(['notebook']);
+		// Into "this class": the class starts from what it showed, so nothing jumps.
+		const perClass = withStudentScope(everywhere, 'class', 'sec-a');
+		expect(perClass.scope).toBe('class');
+		expect(studentHiddenFor(perClass, 'sec-a')).toEqual(['notebook']);
+		// A change in Block A stays in Block A; Block B still reads the every-class list.
+		const changed = withStudentHidden(perClass, 'sec-a', ['notebook', 'coins']);
+		expect(studentHiddenFor(changed, 'sec-a')).toEqual(['notebook', 'coins']);
+		expect(studentHiddenFor(changed, 'sec-b')).toEqual(['notebook']);
+		expect(changed.hidden).toEqual(['notebook']);
+		// Back to every class: the every-class list is in force, and Block A's is kept for next time.
+		const back = withStudentScope(changed, 'everywhere', 'sec-a');
+		expect(studentHiddenFor(back, 'sec-a')).toEqual(['notebook']);
+		expect(back.byClass['sec-a']).toEqual(['notebook', 'coins']);
+		expect(studentHiddenFor(withStudentScope(back, 'class', 'sec-a'), 'sec-a')).toEqual(['notebook', 'coins']);
+		// Read back validated: unknown ids and malformed class keys are dropped.
+		const read = readStudentPagePrefs({ scope: 'class', hidden: [], byClass: { 'sec-a': ['coins', 'bogus'], 'bad key!': ['coins'], 'sec-c': 'nope' } });
+		expect(read).toEqual({ hidden: [], scope: 'class', byClass: { 'sec-a': ['coins'] } });
+		expect(readStudentPagePrefs({ scope: 'sideways' }).scope).toBe('everywhere');
+		expect(studentPagePrefsSummary(changed)).toMatch(/^Chosen class by class \(1 class set\)/);
 	});
 
 	it('Settings reads it out to a teacher and never to a student', () => {

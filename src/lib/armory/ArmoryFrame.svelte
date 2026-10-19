@@ -34,7 +34,7 @@
 		title,
 		crumbs = [],
 		lead = null,
-		eyebrow = 'IDEA // Armory',
+		eyebrow = 'IDEA · Armory',
 		actions = null,
 		children
 	}: {

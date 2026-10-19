@@ -25,7 +25,7 @@
 	const pathname = $derived(page.url.pathname);
 	const isVerify = $derived(pathname === CERT_PATHS.verify || pathname.startsWith(`${CERT_PATHS.verify}/`));
 	const needsSignIn = $derived(!data.signedIn && !isVerify);
-	const docTitle = $derived(shell.title === PORTAL_NAME ? PORTAL_NAME : `${shell.title} // ${PORTAL_NAME}`);
+	const docTitle = $derived(shell.title === PORTAL_NAME ? PORTAL_NAME : `${shell.title} · ${PORTAL_NAME}`);
 
 	/** The site's normal Google sign-in, coming back to this page, query string included. */
 	async function signIn() {

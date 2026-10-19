@@ -316,7 +316,7 @@
 </script>
 
 <svelte:head>
-	<title>{classLabel} // Projector</title>
+	<title>{classLabel} · Projector</title>
 </svelte:head>
 
 <svelte:window bind:innerWidth={viewW} bind:innerHeight={viewH} />

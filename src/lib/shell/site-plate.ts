@@ -97,7 +97,16 @@ export function sitePlateInScope(pathname: string): boolean {
 	return SITE_PLATE_PREFIXES.some((x) => p === x || p.startsWith(x + '/'));
 }
 
-/** The class the root layout's wrapper carries on this path, or '' for none. */
-export function sitePlateClass(pathname: string): string {
-	return SITE_PLATE && sitePlateInScope(pathname) ? SITE_PLATE : '';
+/**
+ * The class the root layout's wrapper carries on this path, or '' for none.
+ *
+ * AN ERROR PAGE ALWAYS WEARS IT (report 6f1c0a3d, ledger 0416). The root
+ * `+error.svelte` is the site's own page whatever address failed, and the room
+ * that address belongs to may never have rendered (a classroom 404 renders no
+ * classroom layout), so the boundary drew the retired green-frame card. It is
+ * the site's page, so it takes the site's look.
+ */
+export function sitePlateClass(pathname: string, error = false): string {
+	if (!SITE_PLATE) return '';
+	return error || sitePlateInScope(pathname) ? SITE_PLATE : '';
 }

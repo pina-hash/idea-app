@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-	<title>Notebook · {sectionTitle(data.section)} // IDEA Classroom</title>
+	<title>Notebook · {sectionTitle(data.section)} · IDEA Classroom</title>
 </svelte:head>
 
 {#if data.notebookRole === 'manager'}

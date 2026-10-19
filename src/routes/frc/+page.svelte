@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>FRC Training // Team 5669</title>
+	<title>FRC Training · Team 5669</title>
 </svelte:head>
 
 <TrackHome />

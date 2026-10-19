@@ -95,7 +95,7 @@
 </script>
 
 <svelte:head>
-	<title>{challenge.title} // GAUNTLET</title>
+	<title>{challenge.title} · GAUNTLET</title>
 </svelte:head>
 
 <Header

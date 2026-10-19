@@ -18,7 +18,7 @@
 	}
 </script>
 
-<svelte:head><title>Connect a computer // Armory</title></svelte:head>
+<svelte:head><title>Connect a computer · Armory</title></svelte:head>
 
 <ArmoryFrame title="Connect a computer" crumbs={[{ href: '/armory', label: 'Armory' }]}>
 	{#if !data.email}

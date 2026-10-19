@@ -1360,7 +1360,7 @@
 </script>
 
 <svelte:head>
-	<title>{itemTitle(item)} // {sectionTitle(section)}</title>
+	<title>{itemTitle(item)} · {sectionTitle(section)}</title>
 </svelte:head>
 
 {#snippet linksCard()}

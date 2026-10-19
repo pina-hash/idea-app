@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head>
-	<title>Edit challenge // GAUNTLET</title>
+	<title>Edit challenge · GAUNTLET</title>
 </svelte:head>
 
 <Header

@@ -54,7 +54,7 @@
 </script>
 
 <svelte:head>
-	<title>{t.name} · TV // Tournaments // IDEA</title>
+	<title>{t.name} · TV · Tournaments · IDEA</title>
 </svelte:head>
 
 <TvStage

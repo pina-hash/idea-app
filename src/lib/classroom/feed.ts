@@ -106,6 +106,17 @@ export interface BuildFeedInput {
 	 * migration tallies exactly what it has always tallied.
 	 */
 	managerEmails?: Record<string, readonly string[]>;
+	/**
+	 * Per section, the students ACTIVELY ENROLLED in it, from the same
+	 * `classroom_section_roster` read (reports c2446a58 and e4bc53e5, ledger
+	 * 0416). With it, a class card counts only ITS OWN students' hand-ins: an
+	 * assignment shared to three classes used to show the whole school's count
+	 * on every one of the three cards, and a hand-in from a student who has
+	 * since left the class counted forever while the class's grading page,
+	 * which lists the roster, had nobody to grade. A section with no entry
+	 * (a student's own load, or a database without 0138) counts as before.
+	 */
+	rosterEmails?: Record<string, readonly string[]>;
 	now?: Date;
 	urgentLimit?: number;
 	standingLimit?: number;
@@ -178,8 +189,16 @@ const ACTIONABLE = new Set<FeedReasonId>([
 	'draft'
 ]);
 
-export function isActionable(reason: FeedReasonId): boolean {
-	return ACTIONABLE.has(reason);
+/**
+ * A TEACHER'S TASKS ARE NARROWER (report e4bc53e5, ledger 0416): a hand-in to
+ * grade and a draft to finish. "Due soon" is the class's deadline, and
+ * counting it made "7 need attention" on a card where five things were owed
+ * and nothing said which.
+ */
+const TEACHER_ACTIONABLE = new Set<FeedReasonId>(['ungraded', 'draft']);
+
+export function isActionable(reason: FeedReasonId, manages = false): boolean {
+	return (manages ? TEACHER_ACTIONABLE : ACTIONABLE).has(reason);
 }
 
 /**
@@ -394,6 +413,13 @@ export interface SectionFeed {
 	hiddenCount: number;
 	/** Entries that are a call to action, for the header chip. */
 	actionCount: number;
+	/**
+	 * Every one of those entries, uncapped, each saying what is owed: what the
+	 * header chip opens (report e4bc53e5). For a manager these are hand-ins to
+	 * grade and drafts to finish, never "due soon", which is the class's
+	 * deadline and not the teacher's task.
+	 */
+	attention: FeedEntry[];
 	/** Everything posted here that the caller may read, capped or not. */
 	totalItems: number;
 }
@@ -416,6 +442,7 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 		myEmail,
 		isAdmin = false,
 		managerEmails = {},
+		rosterEmails = {},
 		now = new Date(),
 		urgentLimit = URGENT_LIMIT,
 		standingLimit = STANDING_LIMIT
@@ -468,6 +495,20 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 		}
 		if (n > 0) ungraded.set(item.id, n);
 	}
+	/** One class's own count: its active students' hand-ins waiting, or the item's count where the roster is unknown. */
+	const rosterSets = new Map(Object.entries(rosterEmails).map(([id, list]) => [id, new Set(list.map((e) => e.toLowerCase()))]));
+	const ungradedIn = (item: ClassroomItem, sectionId: string): number => {
+		const roster = rosterSets.get(sectionId);
+		if (!roster) return ungraded.get(item.id) ?? 0;
+		const skip = managersFor(item);
+		let n = 0;
+		for (const sub of subsByItem.get(item.id) ?? []) {
+			const email = (sub.student_email ?? '').toLowerCase();
+			if (!roster.has(email) || skip.has(email)) continue;
+			if (isAwaitingGrade(sub)) n += 1;
+		}
+		return n;
+	};
 
 	return sections.map((section) => {
 		const manages = sectionManagedBy(section, me, isAdmin);
@@ -477,7 +518,7 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 		const standing: FeedEntry[] = [];
 
 		for (const item of sectionItems) {
-			const count = ungraded.get(item.id) ?? 0;
+			const count = manages ? ungradedIn(item, section.id) : 0;
 			const reason = manages
 				? teacherReason(item, count, now)
 				: studentReason(item, mine.get(item.id), now);
@@ -492,7 +533,8 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 		urgent.sort(compare(manages ? TEACHER_RANK : STUDENT_RANK));
 		standing.sort(standingOrder);
 
-		const actionCount = urgent.filter((e) => isActionable(e.reason)).length;
+		const attention = urgent.filter((e) => isActionable(e.reason, manages));
+		const actionCount = attention.length;
 		const shown = urgent.slice(0, urgentLimit);
 
 		return {
@@ -502,6 +544,7 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 			standing: standing.slice(0, standingLimit),
 			hiddenCount: urgent.length - shown.length,
 			actionCount,
+			attention,
 			totalItems: sectionItems.length
 		};
 	});
@@ -643,13 +686,43 @@ export function feedIndicator(entry: FeedEntry, now: Date = new Date()): string 
 	}
 }
 
-/** The header chip: how much this class is asking of you. */
+/**
+ * The header chip: how much this class is asking of you, IN WHAT IT IS
+ * (report e4bc53e5). A teacher reads "3 to grade" or "3 to grade · 1 draft",
+ * never "needs attention", which said nothing about what to do.
+ */
 export function actionSummary(feed: SectionFeed): string | null {
 	if (!feed.actionCount) return null;
 	const n = feed.actionCount;
-	return feed.manages
-		? `${n} need${n === 1 ? 's' : ''} attention`
-		: `${n} to do`;
+	if (!feed.manages) return `${n} to do`;
+	const grade = feed.attention.filter((e) => e.reason === 'ungraded').reduce((sum, e) => sum + (e.count ?? 0), 0);
+	const drafts = feed.attention.filter((e) => e.reason === 'draft').length;
+	const parts = [grade ? `${grade} to grade` : '', drafts ? `${drafts} draft${drafts === 1 ? '' : 's'}` : ''].filter(Boolean);
+	return parts.join(' · ') || `${n} to do`;
+}
+
+/**
+ * WHAT ONE OWED THING IS, IN WORDS, and where it is fixed: the chip's list
+ * says "Grade 2 hand-ins" beside the post's title and goes straight to that
+ * post's grading page for this class; a draft goes to the post, where it is
+ * finished and posted.
+ */
+export function attentionWords(entry: FeedEntry): string {
+	if (entry.reason === 'ungraded') {
+		const n = entry.count ?? 0;
+		return n === 1 ? 'Grade 1 hand-in' : `Grade ${n} hand-ins`;
+	}
+	if (entry.reason === 'draft') return 'Finish and post this draft';
+	if (entry.reason === 'overdue') return 'Overdue';
+	if (entry.reason === 'returned') return 'Read the feedback';
+	if (entry.reason === 'due-soon') return 'Due soon';
+	return 'Open it';
+}
+
+/** Where a row or an owed thing goes: a hand-in to grade opens grading for this class. */
+export function entryHref(basePath: string, sectionId: string, entry: FeedEntry, manages: boolean): string {
+	const item = `${basePath}/${sectionId}/item/${entry.item.id}`;
+	return manages && entry.reason === 'ungraded' ? `${item}/grade` : item;
 }
 
 /**

@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>Drawing Reading // GAUNTLET</title>
+	<title>Drawing Reading · GAUNTLET</title>
 </svelte:head>
 
 <Header {supabase} {userName} {userRole} crumbs={[{ label: 'Drawing Reading' }]} />

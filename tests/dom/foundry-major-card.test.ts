@@ -136,8 +136,8 @@ describe('the gallery section', () => {
 		const cards = [...c.querySelectorAll('[data-testid="fdy-house-card"]')];
 		expect(cards.map((a) => a.getAttribute('href'))).toEqual(['/greenline', '/vanguard/']);
 		expect(cards.map((a) => a.getAttribute('aria-label'))).toEqual([
-			'IDEA // GREENLINE, an IDEA original game',
-			'IDEA // VANGUARD, an IDEA original game'
+			'IDEA · GREENLINE, an IDEA original game',
+			'IDEA · VANGUARD, an IDEA original game'
 		]);
 		// Each card draws ITS OWN game's mark, read off the mark's own viewBox
 		// (GREENLINE's is 32 units square, VANGUARD's 40): one mark on both cards

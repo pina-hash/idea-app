@@ -220,7 +220,7 @@
 <svelte:document onfullscreenchange={onFullscreenChange} />
 
 <svelte:head>
-	<title>{deck.title} // deck</title>
+	<title>{deck.title} · deck</title>
 </svelte:head>
 
 <!--

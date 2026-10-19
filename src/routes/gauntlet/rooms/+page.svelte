@@ -64,7 +64,7 @@
 </script>
 
 <svelte:head>
-	<title>Live Rooms // GAUNTLET</title>
+	<title>Live Rooms · GAUNTLET</title>
 </svelte:head>
 
 <Header {supabase} {userName} {userRole} crumbs={[{ label: 'Live Rooms' }]} />

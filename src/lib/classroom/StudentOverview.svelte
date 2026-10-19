@@ -35,6 +35,11 @@
 		studentEverySectionHidden,
 		studentGalleryFor,
 		studentPageLayout,
+		studentHiddenFor,
+		withStudentHidden,
+		withStudentScope,
+		type StudentPagePrefs,
+		type StudentPageScope,
 		studentTileColumns,
 		type StudentPageSectionId,
 		type StudentPrintableSection
@@ -231,9 +236,15 @@
 	 */
 	const prefStore = classroomPreferences();
 	const prefs = prefStore ? reactivePreferences(prefStore) : null;
-	const hidden = $derived<readonly StudentPageSectionId[]>(prefs ? prefs.current.studentPage.hidden : []);
+	/* THIS CLASS'S LIST OR EVERY CLASS'S (ledger 0416): the switch in the
+	   Sections menu decides which list this page reads and writes. */
+	const pagePrefs = $derived<StudentPagePrefs>(prefs ? prefs.current.studentPage : { hidden: [], scope: 'everywhere', byClass: {} });
+	const hidden = $derived<readonly StudentPageSectionId[]>(studentHiddenFor(pagePrefs, section.id));
 	function setHidden(next: StudentPageSectionId[]) {
-		prefStore?.set('studentPage', { hidden: next });
+		prefStore?.set('studentPage', withStudentHidden(pagePrefs, section.id, next));
+	}
+	function setScope(next: StudentPageScope) {
+		prefStore?.set('studentPage', withStudentScope(pagePrefs, next, section.id));
 	}
 	const layout = $derived(studentPageLayout(hidden, printing));
 	/** The models card is drawn only with something to say (unchanged from 0392). */
@@ -487,7 +498,7 @@
 				<div class="so-actions">
 					<button type="button" class="btn tiny" data-testid="so-print" onclick={() => window.print()}>Print</button>
 					{#if prefStore}
-						<StudentSectionsMenu {hidden} onchange={setHidden} />
+						<StudentSectionsMenu {hidden} onchange={setHidden} scope={pagePrefs.scope} onscope={setScope} className={sectionTitle(section)} />
 					{/if}
 					<a class="btn secondary tiny" href={peopleHref}>Back to People</a>
 					{#if notebookHref && layout.notebookExtras}

@@ -81,7 +81,7 @@ const SECTION_TESTIDS: Record<StudentPageSectionId, string> = {
 
 function store(hidden: StudentPageSectionId[] = []) {
 	const s = createClassroomPreferences({ viewer: 'dom-test', account: null, storage: null });
-	if (hidden.length) s.set('studentPage', { hidden });
+	if (hidden.length) s.set('studentPage', { hidden, scope: 'everywhere', byClass: {} });
 	return s;
 }
 

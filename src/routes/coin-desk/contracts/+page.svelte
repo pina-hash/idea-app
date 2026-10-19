@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-	<title>Contracts // Coin Desk</title>
+	<title>Contracts · Coin Desk</title>
 </svelte:head>
 
 <ContractsManager supabase={data.supabase} classes={data.coinStaff.sections} />

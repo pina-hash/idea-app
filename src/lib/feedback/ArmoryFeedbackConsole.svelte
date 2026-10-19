@@ -144,7 +144,7 @@
 
 <main class="af-page cr-instructor-surface" data-testid="armory-feedback-console">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Admin</div>
+		<div class="eyebrow">IDEA · Admin</div>
 		<h1>Armory app feedback</h1>
 		<p class="lead">
 			Notes sent from inside the IDEA Armory app, newest first, with the app version and the

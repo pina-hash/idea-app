@@ -30,7 +30,7 @@
 </script>
 
 <svelte:head>
-	<title>Student feedback // Classroom // IDEA</title>
+	<title>Student feedback · Classroom · IDEA</title>
 </svelte:head>
 
 <FeedbackInbox

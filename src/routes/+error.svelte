@@ -44,6 +44,22 @@
 	const heading = $derived(
 		page.status === 404 ? 'That page is not here' : 'Something went wrong'
 	);
+	/** The status in words, for the chip beside the number. */
+	const statusWord = $derived(
+		page.status === 404 ? 'Not found' : page.status === 403 ? 'Not allowed' : page.status >= 500 ? 'Server error' : 'Error'
+	);
+	/**
+	 * THE SENTENCE A PERSON READS. A thrown 404's message is the framework's
+	 * bare "Not found", which the chip already says; the sentence then says what
+	 * to do about it instead of repeating it.
+	 */
+	const lead = $derived.by(() => {
+		const said = (page.error?.message ?? '').trim();
+		if (page.status === 404 && (!said || /^not found\.?$/i.test(said))) {
+			return 'It may have moved, or the link is from an older version of the site. Head back and find it from there.';
+		}
+		return said || 'The page could not be loaded.';
+	});
 	const errorId = $derived(page.error?.id ?? null);
 
 	/**
@@ -69,39 +85,50 @@
 </script>
 
 <svelte:head>
-	<title>{page.status} // IDEA</title>
+	<title>{page.status} · IDEA</title>
 </svelte:head>
 
 <main class="err-page">
-	<section class="hero">
-		<span class="eyebrow warn">Error // {page.status}</span>
-		<a class="wordmark logo-mark" href="/" aria-label="IDEA home">
-			<AnimatedLogo width="clamp(200px, 52vw, 380px)" />
-		</a>
-	</section>
+	<!--
+		THE SITE'S OWN LOOK (report 6f1c0a3d, ledger 0416). The root layout puts
+		this page on the site plate whatever the address (`sitePlateClass` with
+		the error flag), because the page that failed may be one whose room never
+		rendered. So the logo, the title bar between its hazard ends, the panel,
+		the recessed facts and the raised keys are the home page's own, in every
+		theme, and nothing here is the retired green-frame card or the `//` motif.
+	-->
+	<a class="err-logo" href="/" aria-label="IDEA home">
+		<AnimatedLogo width="clamp(170px, 34vw, 280px)" />
+	</a>
 
-	<div class="card">
-		<h2>{heading}</h2>
-		<p class="lead">{page.error?.message ?? 'The page could not be loaded.'}</p>
+	<h1 class="plate-title err-title">{heading}</h1>
+
+	<section class="card err-card" aria-labelledby="err-what">
+		<div class="err-lead-row">
+			<span class="err-code" aria-hidden="true">{page.status}</span>
+			<div class="err-words">
+				<span class="err-chip" data-tone={page.status === 404 ? 'amber' : 'crimson'}>{statusWord}</span>
+				<p id="err-what" class="err-lead">{lead}</p>
+			</div>
+		</div>
 		<dl class="err-facts">
-			<div><dt>Status</dt><dd>{page.status}</dd></div>
 			<div><dt>Page</dt><dd>{page.url.pathname}</dd></div>
 			{#if errorId}
 				<div><dt>Reference</dt><dd>{errorId}</dd></div>
 			{/if}
 		</dl>
-		<div class="btn-row">
+		<div class="btn-row err-keys">
 			{#if chunkFailure}
 				<button type="button" class="btn" onclick={() => location.reload()}>Try again</button>
 			{/if}
 			{#if classHref}
 				<a class="btn" href={classHref}>Back to the class</a>
 			{/if}
-			<a class="btn" href="/">Back to the portal</a>
+			<a class="btn{classHref || chunkFailure ? ' secondary' : ''}" href="/">Back to the portal</a>
 			{#if submit}
 				<button
 					type="button"
-					class="btn"
+					class="btn secondary"
 					data-testid="error-report"
 					onclick={() => (noWindow = !openSiteFeedback())}
 				>
@@ -122,32 +149,118 @@
 				server log if you can pass it on another way.
 			</p>
 		{/if}
-	</div>
+	</section>
 
 	<p class="page-version"><VersionBadge app="portal" /></p>
 </main>
 
 <style>
 	.err-page {
-		max-width: var(--measure-form, 46rem);
+		box-sizing: border-box;
+		width: min(100%, 46rem);
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
-	}
-	.err-facts {
+		padding: clamp(1.5rem, 5vh, 3.5rem) 16px 3rem;
 		display: grid;
-		gap: 0.35rem;
-		margin: 0 0 1rem;
+		justify-items: stretch;
+		gap: 1.25rem;
+	}
+	.err-logo {
+		justify-self: center;
+		display: block;
+		line-height: 0;
+		background: none;
+	}
+	.err-title {
+		margin: 0;
+	}
+	.err-card {
+		display: grid;
+		gap: 1.1rem;
+		margin: 0;
+		padding: clamp(1rem, 3vw, 1.6rem);
+	}
+	/* The status reads at a glance, as a number in the plate's mono, with the
+	   word for it on a recessed chip and the sentence under that. */
+	.err-lead-row {
+		display: flex;
+		align-items: center;
+		gap: clamp(0.9rem, 3vw, 1.6rem);
+	}
+	.err-code {
+		flex: none;
+		font-family: var(--font-mono);
+		font-size: clamp(2.6rem, 9vw, 4.2rem);
+		line-height: 1;
+		letter-spacing: 0.04em;
+		color: var(--plate-ink-2, var(--dim));
+	}
+	.err-words {
+		display: grid;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+	.err-chip {
+		justify-self: start;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		min-height: 1.6rem;
+		padding: 0 0.7rem 0 0.55rem;
+		border-radius: var(--plate-r-small, 7px);
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--plate-ink, var(--white));
+		background: var(--plate-well-face, var(--bg0));
+		box-shadow:
+			inset 0 1px 2px 0 var(--plate-well-shade, rgba(0, 0, 0, 0.5)),
+			inset 0 -1px 0 0 var(--plate-well-lip, rgba(255, 255, 255, 0.12));
+	}
+	.err-chip::before {
+		content: '';
+		flex: none;
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--amber);
+		box-shadow: 0 0 4px 1px color-mix(in srgb, var(--amber) 70%, transparent);
+	}
+	.err-chip[data-tone='crimson']::before {
+		background: var(--crimson);
+		box-shadow: 0 0 4px 1px color-mix(in srgb, var(--crimson) 70%, transparent);
+	}
+	.err-lead {
+		margin: 0;
+		font-size: 1.05rem;
+		line-height: 1.45;
+		color: var(--plate-ink, var(--white));
+		overflow-wrap: anywhere;
+	}
+	/* The facts are read-only, so they are set INTO the panel: a well. */
+	.err-facts {
+		display: grid;
+		gap: 0.4rem;
+		margin: 0;
+		padding: 0.7rem 0.85rem;
+		border-radius: var(--plate-r-control, 11px);
+		background: var(--plate-well-face, var(--bg0));
+		box-shadow:
+			inset 0 1px 3px 0 var(--plate-well-shade, rgba(0, 0, 0, 0.5)),
+			inset 0 -1px 0 0 var(--plate-well-lip, rgba(255, 255, 255, 0.12));
+		font-family: var(--font-mono);
+		font-size: 0.76rem;
 	}
 	.err-facts div {
 		display: flex;
-		gap: 0.6rem;
+		gap: 0.75rem;
+		min-width: 0;
 	}
 	.err-facts dt {
+		flex: none;
 		min-width: 5.5rem;
-		color: var(--dim);
-		letter-spacing: 0.08em;
+		color: var(--plate-ink-2, var(--dim));
+		letter-spacing: 0.1em;
 		text-transform: uppercase;
 	}
 	.err-facts dd {
@@ -158,14 +271,29 @@
 		   otherwise push the card past the viewport. */
 		min-width: 0;
 	}
+	.err-keys {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		margin: 0;
+	}
 	.err-note {
-		margin: 0.8rem 0 0;
+		margin: 0;
 		color: var(--dim);
 		font-size: 0.82rem;
 	}
 	.page-version {
 		display: flex;
 		justify-content: center;
-		margin-top: 1.4rem;
+		margin: 0.4rem 0 0;
+	}
+	@media (max-width: 30rem) {
+		.err-lead-row {
+			align-items: flex-start;
+		}
+		.err-keys :global(.btn) {
+			flex: 1 1 100%;
+			justify-content: center;
+		}
 	}
 </style>

@@ -21,6 +21,7 @@
 		type Column,
 		type RainConfig
 	} from '$lib/design-system/themes/matrix-rain';
+	import { readRainMotion, RAIN_MOTION_EVENT } from '$lib/design-system/themes/rain-motion';
 
 	/**
 	 * THE RAIN, THE HALF THAT PAINTS. A `<canvas>` inside the shell's own
@@ -116,6 +117,10 @@
 		}
 
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+		/* "Always move", chosen in the theme picker (report 551c11e3): the one
+		   explicit choice that outranks the computer's request for less motion,
+		   and a fresh start for a rain that parked itself as too slow. */
+		let forced = readRainMotion() === 'always';
 		const rng: () => number = Math.random;
 		const events: CellEvent[] = [];
 		let alive = true;
@@ -216,7 +221,8 @@
 			/* The judge ignores a hidden tab's gap and the start-up grace itself;
 			   a true answer is a device whose median frame is too slow. */
 			if (judgeFrame(judge, dt)) {
-				level += 1;
+				// Chosen motion slows to half rate on a slow machine, and never parks.
+				level = Math.min(level + 1, forced ? 1 : 2);
 				if (level >= 2) {
 					cancelAnimationFrame(raf);
 					raf = 0;
@@ -268,7 +274,7 @@
 			raf = requestAnimationFrame(frame);
 		}
 		function apply() {
-			if (mq.matches) {
+			if (mq.matches && !forced) {
 				stop();
 				canvas.dataset.motion = 'reduced';
 				drawStill();
@@ -312,6 +318,13 @@
 			else apply();
 		};
 		document.addEventListener('visibilitychange', onVisibility);
+		const onMotionChoice = () => {
+			forced = readRainMotion() === 'always';
+			// A park is permanent for the page; a person choosing motion lifts it once.
+			if (forced) level = 0;
+			apply();
+		};
+		window.addEventListener(RAIN_MOTION_EVENT, onMotionChoice);
 		/* The atlas is drawn with whatever face is loaded at mount; once the
 		   platform's mono arrives, draw it again in that face. */
 		const fonts = document.fonts;
@@ -329,6 +342,7 @@
 			ro.disconnect();
 			mq.removeEventListener('change', apply);
 			document.removeEventListener('visibilitychange', onVisibility);
+			window.removeEventListener(RAIN_MOTION_EVENT, onMotionChoice);
 			canvas.remove();
 		};
 	}

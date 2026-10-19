@@ -23,7 +23,7 @@
 </script>
 
 <svelte:head>
-	<title>Notebook review // IDEA Classroom</title>
+	<title>Notebook review · IDEA Classroom</title>
 </svelte:head>
 
 <ReviewConsole

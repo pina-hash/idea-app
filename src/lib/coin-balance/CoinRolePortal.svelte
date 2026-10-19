@@ -82,7 +82,7 @@
 </script>
 
 <svelte:head>
-	<title>My class role // IDEA</title>
+	<title>My class role · IDEA</title>
 </svelte:head>
 
 <div class="app-header">
@@ -95,7 +95,7 @@
 
 <main class="rp-page" data-testid="role-portal" data-state={pageState}>
 	<section class="hero">
-		<div class="eyebrow">IDEA // Coins // Role</div>
+		<div class="eyebrow">IDEA · Coins · Role</div>
 		<h1>My class role</h1>
 		<p class="lead">Prove each class day with a start photo and an end photo, and your role pays for the days you prove.</p>
 	</section>

@@ -90,7 +90,7 @@
 	 * stylesheet is imported here because the site's pages do not load the
 	 * classroom's room; nothing in it matches without one of its two classes.
 	 */
-	const plate = $derived(sitePlateClass(page.url.pathname));
+	const plate = $derived(sitePlateClass(page.url.pathname, !!page.error));
 	/**
 	 * A WINDOW INSIDE ANOTHER PAGE (ledger 0396). `/feedback/embed` is the
 	 * official feedback window drawn in a transparent frame over a legacy page

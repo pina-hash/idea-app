@@ -746,7 +746,7 @@
 </script>
 
 <svelte:head>
-	<title>Feedback // IDEA</title>
+	<title>Feedback · IDEA</title>
 </svelte:head>
 
 <!--
@@ -759,7 +759,7 @@
 -->
 <main class="fb-page cr-instructor-surface">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Admin</div>
+		<div class="eyebrow">IDEA · Admin</div>
 		<h1>Feedback</h1>
 		<p class="lead">
 			Everything sent from the {REPORT_LABEL} control, anywhere in the portal, with the route,

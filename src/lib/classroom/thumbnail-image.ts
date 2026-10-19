@@ -65,6 +65,40 @@ function baseName(name: string): string {
 	return (name.replace(/\.[^.]+$/, '') || 'thumbnail').slice(0, 80);
 }
 
+/**
+ * WHETHER A PICTURE MOVES (report a6a037f3, ledger 0416: banners may be
+ * animated). Read off the bytes, never the name: an animated GIF carries more
+ * than one graphic control block (or the looping NETSCAPE2.0 block), an
+ * animated WebP an `ANIM` chunk, an animated PNG an `acTL` chunk before its
+ * first image data. A redraw on a canvas keeps only the first frame, so a
+ * picture that moves is sent exactly as picked, whatever its size, up to the
+ * upload cap.
+ */
+export function isAnimatedImage(bytes: Uint8Array): boolean {
+	const ascii = (at: number, len: number) => String.fromCharCode(...bytes.subarray(at, at + len));
+	if (ascii(0, 3) === 'GIF') {
+		let controls = 0;
+		for (let i = 6; i < bytes.length - 1; i++) {
+			if (bytes[i] === 0x21 && bytes[i + 1] === 0xf9 && ++controls > 1) return true;
+		}
+		// The looping block sits right after the header and its colour table.
+		return ascii(0, Math.min(bytes.length, 2048)).includes('NETSCAPE2.0');
+	}
+	if (ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WEBP') {
+		// VP8X's header chunks come first; ANIM is among them when the picture moves.
+		for (let i = 12; i + 4 <= Math.min(bytes.length, 4096); i++) if (ascii(i, 4) === 'ANIM') return true;
+		return false;
+	}
+	if (bytes[0] === 0x89 && ascii(1, 3) === 'PNG') {
+		for (let i = 8; i + 4 <= bytes.length; i++) {
+			const tag = ascii(i, 4);
+			if (tag === 'acTL') return true;
+			if (tag === 'IDAT') return false;
+		}
+	}
+	return false;
+}
+
 export async function prepareThumbnailFile(file: File): Promise<PreparedThumbnail> {
 	const decoded = await decode(file);
 	if (!decoded) return { ok: false, message: UNREADABLE };
@@ -74,6 +108,11 @@ export async function prepareThumbnailFile(file: File): Promise<PreparedThumbnai
 		const drawable = THUMBNAIL_RASTER_RE.test(file.name);
 		if (drawable && long <= THUMBNAIL_MAX_EDGE && file.size <= KEEP_AS_IS_BYTES) {
 			return { ok: true, file, width, height };
+		}
+		// A picture that moves keeps moving: sent as picked, up to the upload cap.
+		if (drawable && /\.(gif|webp|png|apng)$/i.test(file.name) && file.size <= THUMBNAIL_UPLOAD_MAX_BYTES) {
+			const head = new Uint8Array(await file.slice(0, Math.min(file.size, 4 * 1024 * 1024)).arrayBuffer());
+			if (isAnimatedImage(head)) return { ok: true, file, width, height };
 		}
 		const scale = long > THUMBNAIL_MAX_EDGE ? THUMBNAIL_MAX_EDGE / long : 1;
 		const w = Math.max(1, Math.round(width * scale));

@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-	<title>Students // Coin Desk</title>
+	<title>Students · Coin Desk</title>
 </svelte:head>
 
 <StudentView

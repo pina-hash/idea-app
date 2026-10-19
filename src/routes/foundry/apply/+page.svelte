@@ -34,7 +34,7 @@
 </script>
 
 <svelte:head>
-	<title>Apply to be a trusted publisher // IDEA Foundry</title>
+	<title>Apply to be a trusted publisher · IDEA Foundry</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 

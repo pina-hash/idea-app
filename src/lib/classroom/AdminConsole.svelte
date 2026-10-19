@@ -138,12 +138,12 @@
 </script>
 
 <svelte:head>
-	<title>Courses &amp; setup // IDEA Classroom</title>
+	<title>Courses &amp; setup · IDEA Classroom</title>
 </svelte:head>
 
 <main class="classroom-page cr-instructor-surface">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Classroom</div>
+		<div class="eyebrow">IDEA · Classroom</div>
 		<h1>Courses &amp; setup</h1>
 		<p class="lead">
 			Courses and the classes that run them. Signed in as <strong>{emailLocal(email)}</strong>.

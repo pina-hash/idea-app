@@ -66,7 +66,7 @@
 </script>
 
 <svelte:head>
-	<title>Game requests // IDEA Foundry</title>
+	<title>Game requests · IDEA Foundry</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 

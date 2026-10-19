@@ -47,7 +47,7 @@
 	);
 </script>
 
-<svelte:head><title>COTS library // Armory</title></svelte:head>
+<svelte:head><title>COTS library · Armory</title></svelte:head>
 
 <ArmoryFrame
 	title="COTS library"

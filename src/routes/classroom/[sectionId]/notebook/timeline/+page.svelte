@@ -19,7 +19,7 @@
 </script>
 
 <svelte:head>
-	<title>Timeline · {sectionTitle(data.section)} // IDEA Classroom</title>
+	<title>Timeline · {sectionTitle(data.section)} · IDEA Classroom</title>
 </svelte:head>
 
 <!-- The classroom frame's body, the way the Notebook tab's own page claims it,

@@ -124,7 +124,7 @@
 {/snippet}
 
 <svelte:head>
-	<title>Classroom // IDEA</title>
+	<title>Classroom · IDEA</title>
 </svelte:head>
 
 <!--
@@ -135,7 +135,7 @@
 -->
 <main class="classroom-page">
 	<section class="hero">
-		<div class="eyebrow">IDEA // Classroom</div>
+		<div class="eyebrow">IDEA · Classroom</div>
 		<h1>My Classes</h1>
 		<p class="lead">
 			Announcements and classwork for every class you are enrolled in, in one place.

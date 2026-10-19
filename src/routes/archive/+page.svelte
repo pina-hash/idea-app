@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-	<title>Course Archive (2025-26) // IDEA</title>
+	<title>Course Archive (2025-26) · IDEA</title>
 </svelte:head>
 
 <div class="legacy-index">

@@ -45,7 +45,7 @@
 	});
 </script>
 
-<svelte:head><title>Set up Armory // IDEA</title></svelte:head>
+<svelte:head><title>Set up Armory · IDEA</title></svelte:head>
 
 <ArmoryFrame
 	title="Set up Armory"

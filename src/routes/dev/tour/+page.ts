@@ -102,6 +102,7 @@ export const load: PageLoad = async ({ url }) => {
 		feedItems: [] as ClassroomItem[],
 		feedSubmissions: [] as FeedSubmission[],
 		feedManagerEmails: {} as Record<string, string[]>,
+		feedRosterEmails: {} as Record<string, string[]>,
 		feedUnitOrder: {} as Record<string, string[]>,
 		// The shared owed-work read's check-ins and its one clock read (ledger
 		// 0297). A signed-in load carries the clock, as the real one does, which

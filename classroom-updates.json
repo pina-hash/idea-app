@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-19",
+			"title": "Clearer banners, a friendlier missing page, and falling code you control",
+			"body": "A post with no picture now shows its kind and title on its banner, and an animated GIF you upload as a banner keeps moving instead of turning into a still picture. If your computer is set to reduce motion, animated banners show their first frame. A page that does not exist now looks like the rest of the site and gives you a way back to your class. On the Matrix theme, your profile menu has a Falling code switch: follow your computer's motion setting, or always move.",
+			"tags": ["Classroom"]
+		},
+		{
+			"date": "2026-10-19",
 			"title": "The IDEA Market is on the home page",
 			"body": "You no longer need the link to find the IDEA Market. It has its own card on the home page, next to the IDEA Coin Ledger, and an IDEA Market link in your profile menu, under My coins.",
 			"tags": ["Coins"]

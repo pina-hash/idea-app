@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<title>Build contract // IDEA Foundry</title>
+	<title>Build contract · IDEA Foundry</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 

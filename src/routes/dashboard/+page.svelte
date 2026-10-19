@@ -305,7 +305,7 @@
 </script>
 
 <svelte:head>
-	<title>Admin console // IDEA</title>
+	<title>Admin console · IDEA</title>
 </svelte:head>
 
 <div class="legacy-index admin-console" data-testid="admin-console">
@@ -320,7 +320,7 @@
 	</header>
 
 	<section class="hero console-hero">
-		<div class="hero-eyebrow">IDEA // Administration</div>
+		<div class="hero-eyebrow">IDEA · Administration</div>
 		<h1>Admin console<span class="accent">{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}</span>.</h1>
 		<p class="hero-sub">
 			Every review queue, the rosters and the portal settings, on one screen. Panels sit in
@@ -760,11 +760,6 @@
 		font-weight: 700;
 		color: var(--white);
 		letter-spacing: 0.01em;
-	}
-	.panel-title::before {
-		content: '// ';
-		color: var(--green);
-		font-family: var(--font-mono);
 	}
 	.panel-blurb,
 	.panel-note {

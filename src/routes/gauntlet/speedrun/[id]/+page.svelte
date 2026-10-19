@@ -605,7 +605,7 @@
 </script>
 
 <svelte:head>
-	<title>{challenge.title} // GAUNTLET</title>
+	<title>{challenge.title} · GAUNTLET</title>
 </svelte:head>
 
 <svelte:window onkeydown={onKeydown} />
@@ -684,7 +684,7 @@
 
 				{#if phase === 'running' && (drawingUrl || drawing)}
 					<div class="sheet-titleblock" aria-hidden="true">
-						<span class="tb-brand">IDEA // GAUNTLET</span>
+						<span class="tb-brand">IDEA · GAUNTLET</span>
 						<span class="tb-meta">Speedrun</span>
 					</div>
 				{/if}

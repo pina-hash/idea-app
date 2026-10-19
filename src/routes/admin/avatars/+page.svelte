@@ -12,7 +12,7 @@
 	const transports = $derived(createAvatarModerationTransports(data.supabase));
 </script>
 
-<svelte:head><title>Profile pictures // IDEA</title></svelte:head>
+<svelte:head><title>Profile pictures · IDEA</title></svelte:head>
 
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>

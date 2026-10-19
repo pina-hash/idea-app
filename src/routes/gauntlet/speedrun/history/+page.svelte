@@ -25,7 +25,7 @@
 </script>
 
 <svelte:head>
-	<title>My Speedrun attempts // GAUNTLET</title>
+	<title>My Speedrun attempts · GAUNTLET</title>
 </svelte:head>
 
 <Header

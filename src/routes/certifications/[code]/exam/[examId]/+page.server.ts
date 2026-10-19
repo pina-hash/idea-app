@@ -46,7 +46,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		topicNames,
 		shell: {
 			title: `Exam: ${certLabel}`,
-			eyebrow: `${CERT_EYEBROW} // ${params.code}`,
+			eyebrow: `${CERT_EYEBROW} · ${params.code}`,
 			lead: null,
 			crumbs: [
 				{ href: CERT_PATHS.catalog, label: 'Certifications' },

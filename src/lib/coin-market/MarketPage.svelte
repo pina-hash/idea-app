@@ -76,7 +76,7 @@
 </script>
 
 <svelte:head>
-	<title>IDEA Market // IDEA</title>
+	<title>IDEA Market · IDEA</title>
 </svelte:head>
 
 <div class="app-header">

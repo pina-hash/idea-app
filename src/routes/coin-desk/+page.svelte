@@ -39,7 +39,7 @@
 </script>
 
 <svelte:head>
-	<title>Coin Desk // IDEA</title>
+	<title>Coin Desk · IDEA</title>
 </svelte:head>
 
 <LogView

@@ -23,12 +23,12 @@ export interface CertShellData {
 	crumbs?: CertCrumb[];
 }
 
-export const CERT_EYEBROW = 'IDEA // Certifications';
+export const CERT_EYEBROW = 'IDEA · Certifications';
 
 export const DEFAULT_SHELL: CertShellData = { title: PORTAL_NAME, eyebrow: CERT_EYEBROW };
 
 /** The eyebrow over every desk page: the desk is the portal's console. */
-export const DESK_EYEBROW = 'IDEA // Certifications // Desk';
+export const DESK_EYEBROW = 'IDEA · Certifications · Desk';
 
 /**
  * What every DESK page returns as `shell`: the desk eyebrow, the page's own
