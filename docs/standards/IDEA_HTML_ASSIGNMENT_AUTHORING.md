@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.28 - 2026-10-19**
+**Version 1.29 - 2026-10-19**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1164,6 +1164,20 @@ rotation, where the class must execute a seven-class timeline on command.
   are retired: a role is its icon and its word. A deadline is an amber lamp beside plain
   text. A rule drawing is line work in the plate's inks. A list of rows is one well split
   by dividers, never a stack of outlined boxes with colored stripes.
+- **Never ask for a number a student cannot know yet.** A Day 1 mass budget asked ninth
+  graders to guess grams for parts nobody had modeled (Mr. Pina, 2026-10-19: "how in God's
+  name is a student gonna know how many grams each part is"). Ask for a number only on the
+  day its real instrument exists, and name the instrument beside the box: SolidWorks Mass
+  Properties for a steel part (material set first), the slicer's filament weight for a
+  printed part (never SolidWorks, which assumes a solid part), the scale for hardware.
+- **A weight is written in pounds and grams, every time**: "1.5 lb (680 g)". Inputs stay in
+  grams, because every instrument above reads grams, and every total the page computes
+  shows both.
+- **Show the real thing, not an icon.** Line icons for the parts read as clip art. Render the
+  actual object (three.js in headless Chromium: the part's real proportions, its real
+  material, studio light, no ground plane, a CSS drop shadow) and embed it as a small WebP:
+  the whole build in the hero, and each role's own part on its role card. Five renders cost
+  about 45 KB.
 - **Teams of two and three in one class.** When students pick teams and the count does not
   divide by three, a team of two folds one role into another rather than leaving it empty: a
   fourth role card ("Blade and Assembly, team of two only") whose value shows both roles'
@@ -1209,6 +1223,7 @@ rotation, where the class must execute a seven-class timeline on command.
 
 ## Changelog
 
+- **1.29 (2026-10-19).** Ledger 0411. Section 21: never ask for a number a student cannot know yet, weights in pounds and grams, and renders of the real part in place of icons.
 - **1.28 (2026-10-19).** Ledger 0410. Section 21: build on the design system's tokens and components (the IDEA-Blade 01 restyle).
 - **1.27 (2026-10-19).** Ledger 0409. Section 21: the green ration that passed on IDEA-Blade 01, and teams of two and three in one class.
 - **1.26 (2026-10-18).** Ledger 0408. New section 21 from IDEA-Blade 01 and 02: landings aimed below
