@@ -1,8 +1,8 @@
 {
 	"_about": "The dry-run fixture for tools/armory-drive-mirror.mjs (ledger 0404). Two projects, one on SolidWorks 2026; a Drive that already holds an earlier run's copies: one current (skipped), one stale (updated), one moved in Armory (moved), and one whose project was deleted forever (moved to _removed). Versions carry content, not a hash; the loader takes the hash.",
 	"projects": [
-		{ "id": "p-robot", "name": "Robot 2026", "pinned_release": 2025, "archived": false },
-		{ "id": "p-swerve", "name": "Offseason Swerve", "pinned_release": 2026, "archived": false }
+		{ "id": "p-robot", "name": "Robot 2026", "pinned_release": 2025, "archived_at": null },
+		{ "id": "p-swerve", "name": "Offseason Swerve", "pinned_release": 2026, "archived_at": null }
 	],
 	"files": [
 		{ "id": "f-gearbox", "project_id": "p-robot", "folder": "Drive", "name": "Gearbox.SLDPRT", "current_version_id": "v-gearbox-2", "deleted_at": null },

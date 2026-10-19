@@ -23,7 +23,7 @@
 //   * Supabase: the SERVICE ROLE key, because the job must read every project
 //     and the Armory tables carry RLS with member-only read policies. It is
 //     used for GET requests to four tables and four columns sets, nothing else:
-//     armory_projects (id, name, pinned_release, archived), armory_files (id,
+//     armory_projects (id, name, pinned_release, archived_at), armory_files (id,
 //     project_id, folder, name, current_version_id, deleted_at),
 //     armory_versions (id, file_id, content_sha256, byte_length, author_email,
 //     created_at) and armory_version_releases (version_id, saved_release). No
@@ -100,7 +100,7 @@ export function supabaseSource(env, fetcher = fetch) {
 	}
 
 	return {
-		projects: () => rows('armory_projects', 'id,name,pinned_release,archived', 'id'),
+		projects: () => rows('armory_projects', 'id,name,pinned_release,archived_at', 'id'),
 		files: () => rows('armory_files', 'id,project_id,folder,name,current_version_id,deleted_at', 'id', '&deleted_at=is.null&current_version_id=not.is.null'),
 		versions: () => rows('armory_versions', 'id,file_id,content_sha256,byte_length,author_email,created_at', 'id'),
 		releases: () => rows('armory_version_releases', 'version_id,saved_release', 'version_id', '&side=is.false'),

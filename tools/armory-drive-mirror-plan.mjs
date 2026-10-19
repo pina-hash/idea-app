@@ -100,7 +100,7 @@ export function buildSnapshot({ projects, files, versions, releases }) {
 			fileId: f.id,
 			projectId: project.id,
 			projectName: project.name,
-			archived: project.archived === true,
+			archived: project.archived_at != null,
 			pinnedRelease: project.pinned_release ?? null,
 			folder,
 			name: f.name,

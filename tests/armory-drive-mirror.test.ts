@@ -239,7 +239,7 @@ describe('the store adapter reads, narrowly, and never writes', () => {
 		const selects = seen.filter((r) => r.url.includes('/rest/v1/')).map((r) => new URL(r.url).searchParams.get('select'));
 		expect(selects.sort()).toEqual([
 			'id,file_id,content_sha256,byte_length,author_email,created_at',
-			'id,name,pinned_release,archived',
+			'id,name,pinned_release,archived_at',
 			'id,project_id,folder,name,current_version_id,deleted_at',
 			'version_id,saved_release'
 		]);
@@ -305,7 +305,7 @@ describe('the secrets and the workflow', () => {
 describe('the manifest', () => {
 	test('one header and one row per file, a comma or quote in a name kept intact', () => {
 		const snap = plan.buildSnapshot({
-			projects: [{ id: 'p', name: 'Robot, "B"', pinned_release: 2025, archived: true }],
+			projects: [{ id: 'p', name: 'Robot, "B"', pinned_release: 2025, archived_at: '2026-10-01T00:00:00Z' }],
 			files: [{ id: 'f', project_id: 'p', folder: '', name: 'a.SLDPRT', current_version_id: 'v', deleted_at: null }],
 			versions: [{ id: 'v', file_id: 'f', content_sha256: 'e'.repeat(64), byte_length: 5, author_email: 'a@b', created_at: '2026-10-01T00:00:00Z' }],
 			releases: []
