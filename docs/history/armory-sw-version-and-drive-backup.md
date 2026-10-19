@@ -146,10 +146,21 @@ Every secret goes in at **https://github.com/pina-hash/idea-app/settings/secrets
 **Add secret**. Nothing else needs a click: the schedule makes the first run at 4:07 a.m.
 and every night after.
 
-1. **Make the Shared Drive.** In Google Drive (drive.google.com), signed in as your
-   Bosco Tech account: **Shared drives** -> **New** -> name it `IDEA Armory backup` ->
-   **Create**. Open it; the address ends in `/drive/folders/<id>`. Copy the `<id>`.
+1. **Choose the folder.** Bosco Tech's Workspace admin has turned off shared-drive creation
+   for staff accounts, so do NOT try **New** -> **Shared drive**; it is greyed out. Use the
+   shared drive the notebook already lives on instead:
+   - Open the notebook's Drive folder. Its id is `GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID` in Vercel
+     (or the folder the notebook photos are in), at **https://drive.google.com/drive/folders/<that id>**,
+     signed in as the Bosco Tech account.
+   - Inside it press **New** -> **Folder** -> name it `Armory backup` -> **Create**. Open it;
+     the address ends in `/drive/folders/<id>`. Copy that `<id>`. It must sit under the
+     school shared drive, not under a personal My Drive folder; the breadcrumb at the top
+     shows the drive's name.
    - Secret **`ARMORY_MIRROR_DRIVE_FOLDER_ID`** = that id.
+   - Fallback if that folder is not writable for your account: ask the Workspace admin to
+     add your account as a manager of a shared drive named `IDEA Armory backup`, then use
+     that drive's id instead. A plain My Drive folder also works mechanically, but it
+     stops the backup if that one account is ever disabled, so it is the last resort.
    - Share it with nobody else, or with named accounts only, never "anyone with the link":
      it is every team's CAD work and the manifest names who saved each file.
 2. **The Google sign-in, three secrets.**
