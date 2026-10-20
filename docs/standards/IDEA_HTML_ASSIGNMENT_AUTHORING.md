@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.31 - 2026-10-19**
+**Version 1.32 - 2026-10-20**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1271,8 +1271,27 @@ rotation, where the class must execute a seven-class timeline on command.
   grid child the drawing's 600px minimum widened the whole column and the stage scrolled
   its text out of view.
 
+- **A whole-workflow video gets a chapter key on every step it shows (IDEA-Blade 01, 2026-10-20).**
+  When Mr. Pina records one video through a role's whole job, each numbered step that the
+  video shows carries a small key at its top right (44px, the play glyph and the time) that
+  plays that same video inside the assignment from the second the step starts. The steps are
+  rewritten from the transcript in the video's order and button names (section 18), so the
+  text and the key say the same thing. One video record per recording; a later move that
+  reuses its tail (the DXF at the end of the blade video) points at the same id with its own
+  `start`, never a second upload.
+- **Chapter times come from YouTube's own transcript, never from a generated breakdown.**
+  Open the video's watch page, Show transcript, and read each step's first line off its
+  timestamp. A second-by-second "breakdown" written from a transcript is a paraphrase with
+  invented precision; on 2026-10-20 its chapter list matched the real transcript within a
+  few seconds, and that was checked, not assumed.
+- **Where the files live is what the video shows.** When templates already sit in each
+  team's IDEA Armory project, the steps open them from Armory (Open, not Check out, so the
+  save becomes a copy) and the template downloads come out of the assignment. A second way
+  to the same file is a second thing to go wrong.
+
 ## Changelog
 
+- **1.32 (2026-10-20).** Ledger 0418. Section 21: chapter keys on every step of a whole-workflow video, chapter times read from YouTube's own transcript, and templates opened from the team's Armory project when that is where the video opens them.
 - **1.31 (2026-10-19).** Ledger 0413. Section 21: a rule-by-rule audit by a fresh agent before delivery, tap tips as a component, a limit and a design labeled as two numbers, the real part drawn from the template, the launcher spins left, "You should see" on every procedural move, a printer lookup table, and `min-width: 0` around a wide drawing.
 
 - **1.30 (2026-10-19).** Ledger 0412. Section 21: design on paper before CAD (a team concept sketch on Day 1) and thumbnails that show the real part.
