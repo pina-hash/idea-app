@@ -1287,6 +1287,12 @@ rotation, where the class must execute a seven-class timeline on command.
   timestamp. A second-by-second "breakdown" written from a transcript is a paraphrase with
   invented precision; on 2026-10-20 its chapter list matched the real transcript within a
   few seconds, and that was checked, not assumed.
+- **Taking out a question students already answered: keep its block, hide its field.** On
+  IDEA-Blade 01 (2026-10-20) the level pick was cut mid-class after 16 students had answered
+  it. Dropping its block makes the replace screen ask to orphan those answers; instead the
+  manifest keeps the block (marked retired in its prompt, `optional: true`) and the document
+  keeps its input inside a `hidden` wrapper, so the replace reports no block dropped and
+  every stored answer stays attached to the assignment.
 - **Where the files live is what the video shows.** When templates already sit in each
   team's IDEA Armory project, the steps open them from Armory (Open, not Check out, so the
   save becomes a copy) and the template downloads come out of the assignment. A second way
@@ -1294,7 +1300,7 @@ rotation, where the class must execute a seven-class timeline on command.
 
 ## Changelog
 
-- **1.32 (2026-10-20).** Ledger 0418. Section 21: chapter keys on the hard steps of a whole-workflow video, chapter times read from YouTube's own transcript, and templates opened from the team's Armory project when that is where the video opens them.
+- **1.32 (2026-10-20).** Ledger 0418. Section 21: chapter keys on the hard steps of a whole-workflow video, chapter times read from YouTube's own transcript, templates opened from the team's Armory project when that is where the video opens them, and a question already answered is retired by hiding its field, never by dropping its block.
 - **1.31 (2026-10-19).** Ledger 0413. Section 21: a rule-by-rule audit by a fresh agent before delivery, tap tips as a component, a limit and a design labeled as two numbers, the real part drawn from the template, the launcher spins left, "You should see" on every procedural move, a printer lookup table, and `min-width: 0` around a wide drawing.
 
 - **1.30 (2026-10-19).** Ledger 0412. Section 21: design on paper before CAD (a team concept sketch on Day 1) and thumbnails that show the real part.
