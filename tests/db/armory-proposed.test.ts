@@ -107,7 +107,8 @@ describe('the Armory schema is the Armory series (0231 to 0236, 0273 and 0274) a
 		expect(ALL_MIGRATIONS).toContain('0273_armory_release_choice.sql');
 		expect(ALL_MIGRATIONS).toContain('0274_armory_part_numbers.sql');
 		expect(V3_NAME).toMatch(/^0233_/);
-		const others = ALL_MIGRATIONS.filter((f) => !ARMORY_MIGRATIONS.includes(f));
+		// 0287 is the one other reader: it counts rows in two Armory tables to price the Armory stock.
+		const others = ALL_MIGRATIONS.filter((f) => !ARMORY_MIGRATIONS.includes(f) && f !== '0287_coin_stock_areas.sql');
 		const named = others.filter((f) => /armory/i.test(f));
 		const mentioning = others.filter((f) => /armory_/i.test(readFileSync(join(MIGRATIONS_DIR, f), 'utf8')));
 		expect(named).toEqual([]);
