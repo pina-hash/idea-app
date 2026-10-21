@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": ["Bash","Read","Edit","Write","NotebookEdit","Glob","Grep","WebFetch","WebSearch","Agent","Skill","Artifact","Workflow",
+      "mcp__IDEA_Website","mcp__github","mcp__Techmen","mcp__Claude_Docs","mcp__Gmail","mcp__Google_Calendar",
+      "mcp__Google_Docs","mcp__Google_Drive","mcp__Google_Sheets","mcp__Google_Slides","mcp__claude-code-remote"],
+    "defaultMode": "bypassPermissions"
+  },
+  "skipDangerousModePermissionPrompt": true
+}
