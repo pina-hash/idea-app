@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "coin-stocks-theme-space-white.mjs",
-	"date": "2026-10-21T03:08:09.661Z",
-	"sha": "a2b13e0e55c1695cf3e307d383618b4bef9c285e",
+	"date": "2026-10-21T19:19:30.256Z",
+	"sha": "29afe410133e1f1b2bc492ba99b84bd218be250f",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 20,
 	"outsideRows": [],
-	"ms": 10095
+	"ms": 12262
 }

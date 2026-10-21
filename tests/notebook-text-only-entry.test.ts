@@ -63,6 +63,31 @@ async function photoCount(entryId: string): Promise<number> {
 	return Number(rows[0].n);
 }
 
+/**
+ * THE CHECK-IN'S DAY AND THE CLOCK ITS ENTRIES ARE FILED ON ARE BOTH FIXED
+ * (ledger 0425). The check-in is dated 2026-10-20 and the database stamps an
+ * entry with the real `now()`, so `on_time` was true only while the suite ran
+ * on or before that date: from 2026-10-21 on it read false on every run, which
+ * looked like a time-of-day dependence and was a calendar one. Postgres cannot
+ * be handed a fake `now()`, so the entries are moved onto a fixed clock
+ * instead: every upload time of this check-in shifts by ONE offset, so the
+ * newest lands exactly at `at` and the order and gaps between entries are
+ * kept (which entry wins the cell is unchanged).
+ */
+const CHECK_IN_DAY = '2026-10-20';
+const IN_CLASS_ON_THE_DAY = '2026-10-20T09:30:00-07:00';
+const NEXT_MORNING = '2026-10-21T08:00:00-07:00';
+async function fileEntriesAt(at: string): Promise<void> {
+	await db.sql(
+		`update public.notebook_entries e
+		 set upload_timestamp = e.upload_timestamp - (
+			(select max(x.upload_timestamp) from public.notebook_entries x where x.session_id = $1) - $2::timestamptz
+		 )
+		 where e.session_id = $1`,
+		[sessionId, at]
+	);
+}
+
 async function noteCount(entryId: string): Promise<number> {
 	const { rows } = await db.sql<{ n: string }>(
 		`select count(*)::text as n from public.notebook_entry_notes where entry_id = $1`,
@@ -102,7 +127,7 @@ beforeAll(async () => {
 	const session = await db.asUser(teacher.id, (q) =>
 		q<{ result: { session_id: string } }>(
 			'select public.notebook_admin_upsert_session($1::uuid[], $2, $3, $4) as result',
-			[[sectionId], 4, '2026-10-20', 'Gearbox build']
+			[[sectionId], 4, CHECK_IN_DAY, 'Gearbox build']
 		)
 	);
 	sessionId = session.rows[0].result.session_id;
@@ -208,22 +233,27 @@ describe('a text-only check-in is counted like any other', () => {
 			p_session_id: sessionId
 		});
 
-		const grid = await db.asUser(teacher.id, (q) =>
-			q<{ result: { students: { student_key: string }[]; cells: Record<string, unknown>[] } }>(
-				'select public.notebook_get_section_grid($1, null) as result',
-				[sectionId]
-			)
-		);
-		const cells = grid.rows[0].result.cells.filter(
-			(c) => c.session_id === sessionId && c.student_key === student.email
-		);
-		expect(cells).toHaveLength(1);
-		const cell = cells[0] as {
-			status: string;
-			entry_id: string | null;
-			entry_count: number;
-			on_time: boolean | null;
+		type Cell = { status: string; entry_id: string | null; entry_count: number; on_time: boolean | null };
+		const readCell = async (): Promise<Cell> => {
+			const grid = await db.asUser(teacher.id, (q) =>
+				q<{ result: { students: { student_key: string }[]; cells: Record<string, unknown>[] } }>(
+					'select public.notebook_get_section_grid($1, null) as result',
+					[sectionId]
+				)
+			);
+			const cells = grid.rows[0].result.cells.filter(
+				(c) => c.session_id === sessionId && c.student_key === student.email
+			);
+			expect(cells).toHaveLength(1);
+			return cells[0] as Cell;
 		};
+
+		// Filed the morning after, it is late: the other direction, on the same clock.
+		await fileEntriesAt(NEXT_MORNING);
+		expect((await readCell()).on_time).toBe(false);
+
+		await fileEntriesAt(IN_CLASS_ON_THE_DAY);
+		const cell = await readCell();
 		expect(cell.status).toBe('compliant');
 		expect(cell.on_time).toBe(true);
 		// The latest of everything filed against this check-in, including the

@@ -5,6 +5,7 @@
 	import StockDetailPage from '$lib/coin-stocks/StockDetailPage.svelte';
 	import { parseStockDetail, parseStocksBoard } from '$lib/coin-stocks/stocks';
 	import type { StockTransports } from '$lib/coin-stocks/transports';
+	import { STOCK_ROSTER } from './stock-roster.js';
 
 	/**
 	 * Dev harness for /market/stocks and one stock's page (ledger 0402). The
@@ -79,31 +80,21 @@
 			series
 		};
 	}
-	const S = {
-		a: walk(7, 10.4),
-		b: walk(19, 9.4, 9),
-		f: walk(31, 10.6),
-		g: walk(43, 11, 6)
-	};
-	const index = S.a.map((p, i) => ({
+	// The stocks come from ./stock-roster.js, which the browser spec counts too (ledger 0425).
+	const walks = new Map(STOCK_ROSTER.flatMap((r) => (r.walk ? [[r.id, walk(r.walk[0], r.walk[1], r.walk[2] ?? 0)] as const] : [])));
+	const seriesOf = (id: string) => walks.get(id)!;
+	const inIndex = STOCK_ROSTER.filter((r) => r.inIndex).map((r) => seriesOf(r.id));
+	const index = inIndex[0].map((p, i) => ({
 		at: p.at,
-		close: Math.round((10 * (S.a[i].close / S.a[0].close + S.b[i].close / S.b[0].close + S.f[i].close / S.f[0].close + S.g[i].close / S.g[0].close)) / 4 * 100) / 100
+		close: Math.round((10 * inIndex.reduce((sum, w) => sum + w[i].close / w[0].close, 0)) / inIndex.length * 100) / 100
 	}));
 	const gHalt = halted
 		? { level: 1, move_percent: -11.4, started_at: '2026-10-21T17:02:00Z', until: '2026-10-21T17:17:00Z', rest_of_day: false }
 		: null;
-	const stocks = [
-		stock('idea', 'index', 'IDEA', 'IDEA index', index),
-		stock('class:s-a', 'class', 'IDEA100B1', 'IDEA100 Block 1', S.a),
-		stock('class:s-b', 'class', 'IDEA209HB4', 'IDEA209H Block 4', S.b),
-		stock('foundry', 'foundry', 'FNDRY', 'IDEA Foundry', S.f),
-		stock('gauntlet', 'gauntlet', 'GNTLT', 'GAUNTLET', S.g, gHalt),
-		stock('area:classroom', 'area', 'CLASS', 'IDEA Classroom', walk(55, 10.2)),
-		stock('area:market', 'area', 'MARKT', 'IDEA Market', walk(67, 9.8, 7)),
-		stock('area:feedback', 'area', 'FEED', 'Feedback', walk(79, 10))
-	];
-	const fLast = stocks[3].last.close;
-	const aLast = stocks[1].last.close;
+	const stocks = STOCK_ROSTER.map((r) => stock(r.id, r.kind, r.ticker, r.name, r.walk ? seriesOf(r.id) : index, r.id === 'gauntlet' ? gHalt : null));
+	const byId = (id: string) => stocks.find((x) => x.id === id)!;
+	const fLast = byId('foundry').last.close;
+	const aLast = byId('class:s-a').last.close;
 	let raw = $state({
 		signed_in: true,
 		in_economy: true,
@@ -163,14 +154,14 @@
 		}
 	};
 
-	const fs = S.f;
+	const fs = seriesOf('foundry');
 	const days = [...new Set(fs.map((p) => p.at.slice(0, 10)))].map((day) => {
 		const c = fs.filter((p) => p.at.startsWith(day)).map((p) => p.close);
 		return { day, open: c[0], high: Math.max(...c), low: Math.min(...c), close: c[c.length - 1], prev: null, changes: c.length, volume: (c.length * 7) % 23 === 0 ? 0 : Math.round(c[0] * c.length * 3), trades: c.length % 5 };
 	});
 	const detail = parseStockDetail({
 		ok: true,
-		stock: stocks[3],
+		stock: byId('foundry'),
 		launch: { at: LAUNCH, price: fs[0].close, anchor_price: fs[0].close, anchor_signal: 4.571429 },
 		days: days.reverse(),
 		ticks: fs

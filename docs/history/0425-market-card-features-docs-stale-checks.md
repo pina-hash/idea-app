@@ -109,3 +109,30 @@ was not in this ledger's tasks and is still as 0422 left it.
 
 `node tools/claude-md-check.mjs` agrees with the tree after the edits
 (2026-10-21).
+
+## 3. Two stale checks
+
+- **`tests/notebook-text-only-entry.test.ts` was a calendar dependence, not a
+  time-of-day one.** Its check-in is dated 2026-10-20 and the database stamps
+  an entry with the real `now()`, and `notebook_get_section_grid` reads
+  `on_time` as "filed on or before the check-in's day" in school time. So it
+  passed while the suite ran on or before 2026-10-20 and failed on every run
+  from 2026-10-21 on (confirmed: the old file, run alone today, fails exactly
+  that assertion, 1 of 11). Postgres cannot be handed a fake `now()`, so the
+  entries are moved onto a fixed clock: `fileEntriesAt` shifts every upload
+  time of the check-in by one offset so the newest lands at a fixed instant,
+  keeping the order and the gaps (the entry that wins the cell is the same).
+  The assertion is not loosened; it now runs both ways on the same clock:
+  filed the next morning reads late (`on_time` false), filed in class on the
+  day reads on time. 11 of 11 pass.
+- **The coin-stocks browser specs counted from the fixture now.** 0421 added
+  three area stocks to `/dev/coin-stocks` and left `coin-stocks.mjs` at "four
+  stocks" and "a chart each, the index too" (5), so 7 cards and 8 charts read
+  as 6 failures on every tree. The harness's stocks moved into
+  `src/routes/dev/coin-stocks/stock-roster.js` (`STOCK_ROSTER`,
+  `ROSTER_COUNTS`), the page builds its board from it, and `coin-stocks.mjs`
+  and `coin-stocks-theme-space-white.mjs` import the counts, the shape
+  `src/routes/dev/marks/mark-roster.js` set. The index is still the mean of
+  the same four stocks, in the same order, so every price is unchanged.
+  Measured 2026-10-21: the four `/dev/coin-stocks` specs, 375 and 1440, 98
+  measurements, 0 outside threshold; their measurement files were rewritten.
