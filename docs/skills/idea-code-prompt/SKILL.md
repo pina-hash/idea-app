@@ -76,5 +76,7 @@ To start a session from the chat:
 4. `fire_trigger` with `text`: "Do the work yourself in this session, in the open; do not hand the whole job to one subagent." then the full prompt.
 5. Give him the session link: `session_id` `cse_<x>` is `https://claude.ai/code/session_<x>`. Never delete a session's scheduled task: that deletes the session.
 6. Run at most three at once, never two whose files or database overlap. Sessions in other repos may run alongside.
+7. **A scheduled session can push only to a repository in its sources, and `create_trigger` cannot add one** (ledgers 0422 and 0423, 2026-10-21: both built everything and pushed nothing). Before starting one, check that every repository it must push to is a source. If not, run the work from the chat instead: `add_repo` with `access: push`, then a background subagent in the chat's own container, which can push.
+8. **A session that cannot push leaves its work as `git format-patch` output in project knowledge.** The chat that lands it deletes that project doc in the same turn, and says so. A patch doc left behind gets applied twice by the next chat that finds it.
 
 If a chat cannot start a session (no scheduled-task tools there), say so in one line and give him the routing header and the prompt in one code block, ready to paste. Before writing, check `main` for anything already running or landed on the same files, and name any overlap in one line.
