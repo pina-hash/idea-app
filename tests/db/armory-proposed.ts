@@ -78,4 +78,6 @@ export const RELEASE_CHOICE_NAME = '0273_armory_release_choice.sql';
 export const PART_NUMBERS_NAME = '0274_armory_part_numbers.sql';
 
 /** The Armory migrations, in order: the only files that may name armory_. */
-export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME];
+// 0288 (ledger 0423): a SolidWorks release newer than the pin is recorded, never refused.
+export const NEWER_RELEASE_NAME = '0288_armory_newer_release_uploads.sql';
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME, NEWER_RELEASE_NAME];

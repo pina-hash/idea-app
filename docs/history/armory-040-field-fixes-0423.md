@@ -45,6 +45,11 @@ idempotent, grants; a mutant that still refuses a newer year fails 3 of them). U
 
 ## Verified, and not
 
+idea-app full suite on 2026-10-21, rebased on aaa90564: 16,446 of 16,447 pass; the one failure,
+`tests/notebook-text-only-entry.test.ts` (a section grid cell), fails the same on untouched
+origin/main. 0288 joined the Armory series list (`tests/db/armory-proposed.ts`) and
+`npm run connector:build` regenerated `schema.generated.json`.
+
 Measured here (Linux, .NET 10.0.402, PostgreSQL 16): the whole idea-armory suite green, 1,345 passing
 tests across 12 projects, with one load-only flake (ProfilesHostTests' add-a-student test timed
 out at 1 min under the whole suite and passes alone and with its project); check-ui PASS (312
