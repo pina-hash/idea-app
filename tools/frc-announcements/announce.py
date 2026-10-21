@@ -71,12 +71,18 @@ def content(air):
                   "Team members, bring a friend."),
             file="Flyer_Techmen Robotics Team Meeting.pdf")
     if k == "FRI":
+        # 2026-10-21: spoken-first rewrite approved by Mr. Pina. One start time, length stated,
+        # no internal detail, the key facts repeated at the end.
+        meet = ("Robotics team members, our team meeting is today at 3:10, right after school, in the IDEA Classroom. "
+                "It takes 15 minutes, and attendance is taken. ")
+        again = "Again: robotics, 3:10, IDEA Classroom."
         days = (BEACH_BLITZ[0] - air).days
         if days > 0:
             return dict(kind="FRI_BB", days=days,
-                title=f"TODAY! Robotics Team Meeting, MANDATORY",
-                body=(MEET + f"Beach Blitz, a major robotics competition, is in {span(days)}. "
-                      "After the meeting, we work on the robot. Every hour before Beach Blitz counts."),
+                title="TODAY! Robotics Team Meeting at 3:10, MANDATORY",
+                body=(meet + f"Beach Blitz, our next robotics competition, is {span(days)} away. "
+                      "Every member goes, and your family's sign-up is required. "
+                      "New students are welcome to come see what the team does. " + again),
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
         if days == 0:
             return dict(kind="FRI_BB0", days=0,
@@ -85,9 +91,9 @@ def content(air):
                       "High School, through Sunday. Wish the team luck, and follow along this weekend."),
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
         return dict(kind="FRI",
-            title="TODAY! Robotics Team Meeting, MANDATORY",
-            body=(MEET + "We recap the week and set weekend plans. Then we coach kids' robotics teams from 4:30 to 6:00 PM. "
-                  "New students, come see what the robotics team is all about."),
+            title="TODAY! Robotics Team Meeting at 3:10, MANDATORY",
+            body=(meet + "From 4:30 to 6:00, the team coaches kids' robotics teams. "
+                  "New students are welcome to come see what the team does. " + again),
             file="Flyer_Techmen Robotics Team Meeting.pdf")
     return None
 

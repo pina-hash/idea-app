@@ -177,6 +177,7 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
   required team meetings or removal, tracked by app check-in, modeled on Team 1678.
   The Tuesday announcement and every meeting flyer say "Attendance is taken" and the
   80% rule.
+- **Spoken checks, every announcement (2026-10-21).** The title is read aloud too, so the body never repeats it word for word. One time per event: the start time, plus how long it takes when that helps ("It takes 15 minutes"), never a stacked range like "right after school, 3:10 to 3:25". Cut anything a listener cannot act on ("we recap the week"). End by repeating the three facts: "Again: robotics, 3:10, IDEA Classroom." Other student entries in the bulletin run 10 to 60 words; stay near 40 unless Mr. Pina adds a line. Any line whose content is his call (Beach Blitz, inviting new students) is asked, not assumed.
 - **Flyers keep the poster grammar (2026-10-21).** All-caps hero, the ghost 5669 behind the robot, leader-line callouts, the gold join band and the hazard stripe are the look. Rounded gray cards and sentence-case headings read as cheap; Mr. Pina rejected a redesign built that way. Fix defects inside the existing look. Nothing on a flyer is under 9 pt, and Beach Blitz and every competition read "every member, every day" (handbook), never as optional.
 - **Recruiting leans on peers.** Research (2026-10-14, "How Elite FRC Teams
   Recruit") found peer invitation the strongest recruiter, so Tuesday says "Team
@@ -207,7 +208,7 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
 
 ## Changelog
 
-- **1.6 (2026-10-21)** - Flyer poster grammar kept; 9 pt minimum; competitions are every member, every day; Friday flyer shows the 3:10 to 3:25 meeting.
+- **1.6 (2026-10-21)** - Spoken checks added (title not repeated, one time per event, repeat the three facts at the end). Flyer poster grammar kept; 9 pt minimum; competitions are every member, every day; Friday flyer shows the 3:10 to 3:25 meeting.
 - **1.5 (2026-10-19)** - Rotation is now Tuesday and Friday, both mandatory after-school meetings in the IDEA Classroom that also welcome new students; Monday lunch meeting and its announcement retired; 80% rule applies to required team meetings.
 - **1.4 (2026-10-14)** - Monday attendance rule (80% per semester, signed commitment) and bring-a-friend recruiting added to the FRC rotation.
 - **1.3 (2026-10-14)** - Added the plain-language rule (no FRC, FIRST, FLL or CAD; describe student work by what it took) after Mr. Pina's audit request; flyer filenames are `Flyer_Techmen Robotics <Name>.pdf`.
