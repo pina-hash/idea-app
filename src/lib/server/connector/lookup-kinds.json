@@ -1,0 +1,65 @@
+{
+	"_note": "Which argument of a site action names which kind of record, so site_call can take its name as he says it and look the id up (connector_lookup, migration 0290, ledger 0422). Read by src/lib/server/connector/lookup.ts at run time and by tools/connector/auto.mjs when it words a generated argument. A param listed under `byPrefix` for a function name prefix wins over `byParam`.",
+	"words": {
+		"section": "class",
+		"course": "course",
+		"post": "post",
+		"quick_post": "class notice",
+		"student": "person (by school address)",
+		"user": "person",
+		"tournament": "tournament",
+		"app": "Foundry app",
+		"listing": "IDEA Market card",
+		"contract": "contract",
+		"track": "GREENLINE track",
+		"challenge": "GAUNTLET challenge",
+		"team_set": "team draw",
+		"stock": "stock",
+		"project": "Armory project",
+		"cert": "certification",
+		"role_holder": "class job holder"
+	},
+	"byParam": {
+		"p_section_id": "section",
+		"p_class_section_id": "section",
+		"p_course_id": "course",
+		"p_item_id": "post",
+		"p_item": "post",
+		"p_post_id": "post",
+		"p_email": "student",
+		"p_student_email": "student",
+		"p_user_id": "user",
+		"p_student_id": "user",
+		"p_linked_user_id": "user",
+		"p_invited_user_id": "user",
+		"p_owner": "user",
+		"p_tournament_id": "tournament",
+		"p_app_id": "app",
+		"p_listing_id": "listing",
+		"p_contract_id": "contract",
+		"p_track_id": "track",
+		"p_challenge_id": "challenge",
+		"p_team_set_id": "team_set",
+		"p_stock_id": "stock",
+		"p_project": "project",
+		"p_cert": "cert",
+		"p_holder_id": "role_holder"
+	},
+	"byPrefix": [
+		{
+			"prefix": "classroom_quick_post",
+			"param": "p_post_id",
+			"kind": "quick_post"
+		},
+		{
+			"prefix": "cert_admin_",
+			"param": "p_id",
+			"kind": "cert"
+		},
+		{
+			"prefix": "coin_market_official_save",
+			"param": "p_id",
+			"kind": "listing"
+		}
+	]
+}

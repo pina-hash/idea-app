@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { HxTeamProgress } from '$lib/classroom/html-assignment/team';
 	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
 	import {
 		ideacadMount,
@@ -302,6 +303,7 @@
 		thumbnailTransports = null,
 		htmlAssignment = null,
 		htmlAnswers = null,
+		htmlTeam = null,
 		feedback = null,
 		htmlInstructorAnswers = null,
 		htmlAssignmentTransports = null,
@@ -411,6 +413,8 @@
 		 * typing and saves nothing is the outcome this must never produce.
 		 */
 		htmlAnswers?: HtmlAssignmentAnswers | null;
+		/** The student's own team's progress (ledger 0422), handed to the document; null sends nothing. */
+		htmlTeam?: HxTeamProgress | null;
 		/**
 		 * THE STUDENT'S FEEDBACK ON THIS WORKSHEET (0238, decision 60): the list
 		 * above the frame and the pins and drawings inside it, all read off one
@@ -2874,6 +2878,7 @@
 						onimagecaption={htmlWrites?.onimagecaption}
 						notes={studentNotes}
 						marks={studentMarks}
+						team={htmlTeam}
 						onnote={feedback ? (_field, threadId) => feedback?.show(threadId) : null}
 					/>
 				{/if}

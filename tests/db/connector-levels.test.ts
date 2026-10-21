@@ -224,8 +224,10 @@ describe('confirm entries never write without the token they were handed', () =>
 			expect(logDiff(before, await snapshot()), `${e.name} wrote without a token`).toEqual(new Map());
 			if (first.status === 'preview') expect(typeof first.confirm_token, `${e.name} handed back a token`).toBe('string');
 			// A generic-proof entry (ledger 0416) runs on placeholder arguments, which
-			// its own checks may refuse: refused-and-nothing-written is its proof.
-			else if (!(isGeneric(e.name) && first.status === 'refused')) notPreviewed.push(`${e.name}: ${first.status} ${String(first.message ?? '')}`);
+			// its own checks may refuse: refused-and-nothing-written is its proof. A
+			// placeholder name no record carries (ledger 0422's lookups) is refused
+			// the same way, before anything is asked of the database.
+			else if (!(isGeneric(e.name) && ['refused', 'not_found', 'ambiguous'].includes(String(first.status)))) notPreviewed.push(`${e.name}: ${first.status} ${String(first.message ?? '')}`);
 			expect(second.status, `${e.name} with a made-up token`).not.toBe('done');
 		}
 		expect(notPreviewed).toEqual([]);

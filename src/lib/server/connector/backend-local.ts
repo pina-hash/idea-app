@@ -29,8 +29,10 @@ import type {
 	SelectSpec,
 	StoredCode,
 	TokenRow,
+	UploadSlot,
 	UserSession
 } from './types';
+import { randomUUID } from 'node:crypto';
 import { auditRowFromDb } from './audit-row';
 
 interface PgClient {
@@ -79,6 +81,7 @@ interface ProcShape {
 
 export function localPgBackend(pool: PgPool): ConnectorBackend {
 	const procCache = new Map<string, ProcShape[]>();
+	const uploads = new Map<string, { slot: UploadSlot; tokenHash: string; bytes: Uint8Array | null }>();
 
 	async function as<T>(
 		claims: Record<string, unknown> | null,
@@ -370,6 +373,42 @@ export function localPgBackend(pool: PgPool): ConnectorBackend {
 		},
 		async mintSession(user) {
 			return { accessToken: `local:${user.id}`, expiresAt: Date.now() + 3600_000, user };
+		},
+		// The local backend has no storage: a chat's file is kept in memory for
+		// the life of the inspector run (ledger 0422).
+		async createUpload(slot) {
+			const id = randomUUID();
+			uploads.set(id, { slot: { id, userId: slot.userId, filename: slot.filename, contentType: slot.contentType, maxBytes: slot.maxBytes, sizeBytes: null, expiresAt: slot.expiresAt, uploadedAt: null }, tokenHash: slot.tokenHash, bytes: null });
+			return { id, uploadUrl: `local-upload:${id}` };
+		},
+		async storeUploadPart(userId, id, index, bytes) {
+			const u = uploads.get(id);
+			if (!u || u.slot.userId !== userId || u.slot.expiresAt <= Date.now()) return { ok: false, message: 'That upload is not open; start a new one.' };
+			const parts = (u as { parts?: Map<number, Uint8Array> }).parts ?? new Map<number, Uint8Array>();
+			parts.set(index, bytes);
+			(u as { parts?: Map<number, Uint8Array> }).parts = parts;
+			const ordered = [...parts.entries()].sort((a, b) => a[0] - b[0]).map((e) => e[1]);
+			const total = ordered.reduce((a, b) => a + b.byteLength, 0);
+			if (total > u.slot.maxBytes) return { ok: false, message: `That would pass the upload's ${u.slot.maxBytes} bytes.` };
+			const joined = new Uint8Array(total);
+			let at = 0;
+			for (const p of ordered) {
+				joined.set(p, at);
+				at += p.byteLength;
+			}
+			u.bytes = joined;
+			u.slot = { ...u.slot, uploadedAt: Date.now(), sizeBytes: total };
+			return { ok: true, received: total };
+		},
+		async replayState() {
+			return { evals: [], lastReplayAt: null, recordAs: null };
+		},
+		async recordReplay() {
+			/* the inspector run keeps no replay record */
+		},
+		async readUpload(userId, id) {
+			const u = uploads.get(id);
+			return u && u.bytes && u.slot.userId === userId ? { slot: u.slot, bytes: u.bytes } : null;
 		},
 
 		routeClient(session: UserSession) {

@@ -80,6 +80,7 @@
 		HTML_REUPLOAD_HELD,
 		applyStagedHtmlAssignment,
 		assessHtmlReupload,
+		htmlBlocksToRetire,
 		readStagedHtml,
 		stagedHtmlSummary,
 		type HtmlAssignmentTransports,
@@ -559,6 +560,13 @@
 	    can never stand for a document other than the one on screen. */
 	let htmlOrphansConfirmed = $state(false);
 	/**
+	 * THE OTHER ANSWER TO A DROPPED QUESTION (ledger 0422, gap 03246300): retire
+	 * it. It leaves the worksheet, and the answers already stored stay with the
+	 * assignment, shown in grading under the question they answered. Choosing
+	 * it is the confirmation; it is offered only where the transport is.
+	 */
+	let htmlRetireDropped = $state(false);
+	/**
 	 * WHY POST IS HELD, OR NULL. One derived predicate read by the gate in
 	 * `submit` AND by the control's own disabled state -- two spellings of "is
 	 * this ready" is what produces a click that does nothing.
@@ -567,7 +575,7 @@
 		if (!canReplaceHtml || !stagedHtml) return null;
 		if (htmlRiskPending) return 'Still checking what this document would do to the stored answers.';
 		if (!htmlRisk) return HTML_REUPLOAD_HELD;
-		if (htmlRisk.needsConfirmation && !htmlOrphansConfirmed) return HTML_REUPLOAD_HELD;
+		if (htmlRisk.needsConfirmation && !htmlOrphansConfirmed && !htmlRetireDropped) return HTML_REUPLOAD_HELD;
 		return null;
 	});
 
@@ -838,6 +846,7 @@
 			// the first one's consent.
 			htmlRisk = null;
 			htmlOrphansConfirmed = false;
+			htmlRetireDropped = false;
 			if (result.staged && canReplaceHtml && htmlAssignment) {
 				await assessStagedReupload(result.staged, htmlAssignment.manifest);
 			}
@@ -2292,7 +2301,18 @@
 		 * that folds the two together should keep them.
 		 */
 		let htmlRubricWritten = false;
-		if (stagedHtml && htmlAssignmentTransports) {
+		// RETIRED FIRST, so a document that drops an answered question never
+		// lands while its answers sit unclaimed (ledger 0422).
+		let retireRefused = false;
+		if (stagedHtml && htmlAssignmentTransports?.retireBlocks && htmlRetireDropped && htmlRisk?.diff?.removed.length) {
+			const retiring = htmlBlocksToRetire(htmlStoredManifest, htmlRisk.diff.removed);
+			const retired = retiring.length ? await htmlAssignmentTransports.retireBlocks(itemId, retiring) : { ok: true };
+			if (!retired.ok) {
+				retireRefused = true;
+				failures.push(`the questions could not be retired, so the document was not replaced (${retired.message ?? 'try again'})`);
+			}
+		}
+		if (stagedHtml && htmlAssignmentTransports && !retireRefused) {
 			const applied = await applyStagedHtmlAssignment(
 				itemId,
 				stagedHtml,
@@ -3198,11 +3218,27 @@
 									this repository refuses to ship; `confirmLabel` carries
 									the figure the database actually returned.
 								-->
+								{#if htmlAssignmentTransports?.retireBlocks && htmlRisk.diff?.removed.length && htmlRisk.counts && htmlRisk.counts.responses + htmlRisk.counts.files > 0}
+									<label class="reupload-confirm tap-44">
+										<input
+											type="checkbox"
+											data-testid="staged-html-retire"
+											bind:checked={htmlRetireDropped}
+											onchange={() => {
+												if (htmlRetireDropped) htmlOrphansConfirmed = false;
+											}}
+										/>
+										<span>Retire {htmlRisk.diff.removed.length === 1 ? 'that question' : 'those questions'} instead: out of the worksheet, the answers kept for grading</span>
+									</label>
+								{/if}
 								<label class="reupload-confirm tap-44">
 									<input
 										type="checkbox"
 										data-testid="staged-html-confirm"
 										bind:checked={htmlOrphansConfirmed}
+										onchange={() => {
+											if (htmlOrphansConfirmed) htmlRetireDropped = false;
+										}}
 									/>
 									<span>{htmlRisk.confirmLabel}</span>
 								</label>

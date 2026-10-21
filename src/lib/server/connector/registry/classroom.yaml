@@ -250,7 +250,19 @@ classroom_quick_post_take_down:
   describe: Take a notice down before its time; it asks first.
   say: ["take down the shop closed notice", "remove the notice in Block 1", "end that notice now"]
   args:
-    p_post_id: {name: notice, describe: "The notice's id, from the list of notices."}
+    p_post_id: {name: notice, describe: "The notice: words from it as he says them, or its id."}
+
+classroom_quick_post_set_important:
+  surface: call
+  level: undo
+  describe: Mark a notice important so it stands out at the top of the class page, or not important again.
+  say: ["make the shop notice important", "mark that notice important", "it doesn't need to be important anymore"]
+  args:
+    p_post_id: {name: notice, describe: "The notice: words from it as he says them, or its id."}
+    p_important: {name: important, describe: "True for important, false for ordinary."}
+  undo:
+    - function: classroom_quick_post_set_important
+      args: {p_post_id: $args.p_post_id, p_important: "!$args.p_important"}
 
 classroom_quick_posts:
   surface: call
@@ -1229,3 +1241,35 @@ classroom_worksheet_past_manifests:
   say: ["what questions did the DFM worksheet have before", "show the old version's questions", "list past question sets"]
   args:
     p_item_ids: {name: posts, describe: "The worksheets' ids."}
+
+classroom_team_progress: {exclude: "A student reading their own team's progress inside their own assignment; it acts as the caller."}
+
+classroom_html_retire_blocks:
+  surface: call
+  level: undo
+  describe: Retire questions an HTML assignment's next document drops, keeping their answers for grading; replace html assignment with retire set is the usual way in.
+  say: ["retire question 4 of the Blade worksheet", "keep the answers to the question I'm removing", "retire the old reflection question"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment's title as he said it."}
+    p_blocks: {name: questions, describe: "Each question to retire, with its entry from the old document."}
+  undo:
+    - function: classroom_html_unretire_blocks
+      args: {p_item_id: $args.p_item_id, p_block_ids: $result.block_ids}
+
+classroom_html_unretire_blocks:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Stop keeping a retired question's answers for grading; it asks first.
+  say: ["un-retire question 4", "stop keeping the old question's answers", "undo retiring that question"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment's title as he said it."}
+    p_block_ids: {name: questions, describe: "The retired questions' ids."}
+
+classroom_html_retired_blocks:
+  surface: call
+  level: read
+  describe: The questions an HTML assignment's document no longer has, kept with their answers for grading.
+  say: ["which questions did I retire from the Blade worksheet", "show the retired questions", "what was taken out of the DFM worksheet"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment's title as he said it."}

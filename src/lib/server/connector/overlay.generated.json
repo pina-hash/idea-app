@@ -1408,9 +1408,38 @@
 			"args": {
 				"p_post_id": {
 					"name": "notice",
-					"describe": "The notice's id, from the list of notices."
+					"describe": "The notice: words from it as he says them, or its id."
 				}
 			}
+		},
+		"classroom_quick_post_set_important": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Mark a notice important so it stands out at the top of the class page, or not important again.",
+			"say": [
+				"make the shop notice important",
+				"mark that notice important",
+				"it doesn't need to be important anymore"
+			],
+			"args": {
+				"p_post_id": {
+					"name": "notice",
+					"describe": "The notice: words from it as he says them, or its id."
+				},
+				"p_important": {
+					"name": "important",
+					"describe": "True for important, false for ordinary."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_quick_post_set_important",
+					"args": {
+						"p_post_id": "$args.p_post_id",
+						"p_important": "!$args.p_important"
+					}
+				}
+			]
 		},
 		"classroom_quick_posts": {
 			"surface": "call",
@@ -3715,6 +3744,78 @@
 				}
 			}
 		},
+		"classroom_team_progress": {
+			"exclude": "A student reading their own team's progress inside their own assignment; it acts as the caller."
+		},
+		"classroom_html_retire_blocks": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Retire questions an HTML assignment's next document drops, keeping their answers for grading; replace html assignment with retire set is the usual way in.",
+			"say": [
+				"retire question 4 of the Blade worksheet",
+				"keep the answers to the question I'm removing",
+				"retire the old reflection question"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The assignment's title as he said it."
+				},
+				"p_blocks": {
+					"name": "questions",
+					"describe": "Each question to retire, with its entry from the old document."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_html_unretire_blocks",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_block_ids": "$result.block_ids"
+					}
+				}
+			]
+		},
+		"classroom_html_unretire_blocks": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Stop keeping a retired question's answers for grading; it asks first.",
+			"say": [
+				"un-retire question 4",
+				"stop keeping the old question's answers",
+				"undo retiring that question"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The assignment's title as he said it."
+				},
+				"p_block_ids": {
+					"name": "questions",
+					"describe": "The retired questions' ids."
+				}
+			}
+		},
+		"classroom_html_retired_blocks": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The questions an HTML assignment's document no longer has, kept with their answers for grading.",
+			"say": [
+				"which questions did I retire from the Blade worksheet",
+				"show the retired questions",
+				"what was taken out of the DFM worksheet"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The assignment's title as he said it."
+				}
+			}
+		},
 		"coin_log_transaction": {
 			"surface": "call",
 			"level": "undo",
@@ -4633,6 +4734,244 @@
 		"coin_stocks_tick": {
 			"exclude": "Asks for the minute price update the stocks page makes on load; it throttles itself and answers counts only, so there is nothing for an admin to do with it."
 		},
+		"coin_contracts_admin": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Every Coin Desk contract (the jobs students take), open, full, done or cancelled, with who is on each.",
+			"say": [
+				"list the contracts",
+				"what jobs are open",
+				"who is on the go cart job"
+			]
+		},
+		"coin_contract_post": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Post a new Coin Desk contract, a job students take for coins; it asks first.",
+			"say": [
+				"post a job to sweep the shop for 2 coins",
+				"add a contract to fix the printer",
+				"create a new job for two students"
+			],
+			"args": {
+				"p_title": {
+					"name": "title",
+					"describe": "What the job is called."
+				},
+				"p_description": {
+					"name": "text",
+					"describe": "What has to be done."
+				},
+				"p_pay_type": {
+					"name": "pay",
+					"enum": [
+						"flat",
+						"hourly",
+						"quality"
+					],
+					"describe": "flat for a set amount, hourly by the hour, quality judged on the result."
+				},
+				"p_payout_amount": {
+					"name": "coins",
+					"default": null,
+					"describe": "The coins it pays, for flat or quality pay."
+				},
+				"p_hourly_rate": {
+					"name": "rate",
+					"default": null,
+					"describe": "Coins per hour, for hourly pay."
+				},
+				"p_max_contractors": {
+					"name": "students",
+					"describe": "How many students can take it, 1 to 50."
+				},
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"default": null,
+					"describe": "Only this class; leave it out for every class."
+				},
+				"p_debt_only": {
+					"name": "debtOnly",
+					"default": null,
+					"describe": "True to offer it only to students in debt."
+				}
+			}
+		},
+		"coin_admin_edit_contract": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Change any part of an existing contract (title, text, pay, coins, rate, how many students, class, debt only); anything left out stays as it is. It asks first.",
+			"say": [
+				"change the go cart job to 40 coins",
+				"let three students take the printer job",
+				"make the sweep job only for Block 2"
+			],
+			"args": {
+				"p_contract_id": {
+					"name": "contract",
+					"describe": "The contract: its title as he says it, or its id."
+				},
+				"p_title": {
+					"name": "title",
+					"default": null,
+					"describe": "A new title."
+				},
+				"p_description": {
+					"name": "text",
+					"default": null,
+					"describe": "New text for what has to be done."
+				},
+				"p_pay_type": {
+					"name": "pay",
+					"default": null,
+					"enum": [
+						"flat",
+						"hourly",
+						"quality"
+					],
+					"describe": "flat, hourly or quality."
+				},
+				"p_payout_amount": {
+					"name": "coins",
+					"default": null,
+					"describe": "The coins it pays."
+				},
+				"p_hourly_rate": {
+					"name": "rate",
+					"default": null,
+					"describe": "Coins per hour, for hourly pay."
+				},
+				"p_max_contractors": {
+					"name": "students",
+					"default": null,
+					"describe": "How many students can take it, never fewer than already have."
+				},
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"default": null,
+					"describe": "Only this class."
+				},
+				"p_debt_only": {
+					"name": "debtOnly",
+					"default": null,
+					"describe": "True to offer it only to students in debt, false for everyone."
+				},
+				"p_clear_class": {
+					"name": "everyClass",
+					"default": null,
+					"describe": "True to open it to every class again."
+				}
+			}
+		},
+		"coin_admin_assign_contract": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Put a student on a contract as if they had taken it, like awarding the IDEA Coin Launcher job to Azad; it asks first.",
+			"say": [
+				"give the coin launcher job to Azad",
+				"assign the printer job to Timothy",
+				"put Ana on the sweep contract"
+			],
+			"args": {
+				"p_contract_id": {
+					"name": "contract",
+					"describe": "The contract: its title as he says it, or its id."
+				},
+				"p_student_email": {
+					"name": "student",
+					"resolve": "student",
+					"describe": "The student, as he said the name."
+				}
+			}
+		},
+		"coin_admin_cancel_contract": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Take a contract down (cancel it), with a reason; restore puts it back. It asks first.",
+			"say": [
+				"remove the rearrange the shop job",
+				"take down the sweep contract",
+				"cancel the go cart job"
+			],
+			"args": {
+				"p_contract_id": {
+					"name": "contract",
+					"describe": "The contract: its title as he says it, or its id."
+				},
+				"p_reason": {
+					"name": "reason",
+					"default": null,
+					"describe": "Why, in his words."
+				}
+			}
+		},
+		"coin_admin_restore_contract": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Bring back a contract that was taken down; it asks first.",
+			"say": [
+				"restore the FRC field setup job",
+				"bring back the sweep contract",
+				"put the go cart job back up"
+			],
+			"args": {
+				"p_contract_id": {
+					"name": "contract",
+					"describe": "The contract: its title as he says it, or its id."
+				}
+			}
+		},
+		"coin_admin_reset_contract": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Reset a contract, clearing who took it so it is open again; it asks first.",
+			"say": [
+				"reset the printer job",
+				"clear who has the sweep contract",
+				"open the go cart job again"
+			],
+			"args": {
+				"p_contract_id": {
+					"name": "contract",
+					"describe": "The contract: its title as he says it, or its id."
+				}
+			}
+		},
+		"coin_contract_mark_done": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Mark a contract done so its students are paid, with the hours for an hourly one; it asks first.",
+			"say": [
+				"mark the printer job done",
+				"the go cart is fixed, pay them",
+				"finish the sweep contract, 2 hours"
+			],
+			"args": {
+				"p_contract_id": {
+					"name": "contract",
+					"describe": "The contract: its title as he says it, or its id."
+				},
+				"p_hours": {
+					"name": "hours",
+					"default": null,
+					"describe": "Hours worked, for an hourly contract."
+				},
+				"p_note": {
+					"name": "note",
+					"default": null,
+					"describe": "A note, in his words."
+				}
+			}
+		},
 		"connector_call": {
 			"exclude": "The connector's own transport; every connector write goes through it, so it is never a tool of its own."
 		},
@@ -4812,6 +5151,45 @@
 				"which requests failed last night",
 				"show the request list"
 			]
+		},
+		"connector_lookup": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Find a record's id by its name, for any action that needs one, like a class, post, notice, person, tournament, Foundry app, market card, contract or certification.",
+			"say": [
+				"what's the id of the tissue box card",
+				"find the Blade Night tournament",
+				"look up the go cart contract"
+			],
+			"args": {
+				"p_kind": {
+					"name": "kind",
+					"enum": [
+						"section",
+						"course",
+						"post",
+						"quick_post",
+						"student",
+						"user",
+						"tournament",
+						"app",
+						"listing",
+						"contract",
+						"track",
+						"challenge",
+						"team_set",
+						"stock",
+						"project",
+						"cert",
+						"role_holder"
+					],
+					"describe": "What kind of record."
+				},
+				"p_said": {
+					"name": "name",
+					"describe": "Its name, as he said it."
+				}
+			}
 		},
 		"foundry_app_play_stats": {
 			"surface": "call",
@@ -6439,16 +6817,17 @@
 			"surface": "call",
 			"level": "confirm",
 			"proof": "generic",
-			"describe": "Feature, unfeature, hide, unhide or remove a listing in the IDEA Market; it asks first, and a hidden or removed one tells the student why.",
+			"describe": "Feature, unfeature, hide, unhide, remove or restore a card in the IDEA Market; it asks first, and a hidden or removed one tells the student why.",
 			"say": [
 				"hide Mateo's listing, it's selling homework",
-				"feature the 3D print listing",
-				"remove that market listing"
+				"feature the tissue box card",
+				"remove that market listing",
+				"bring back the card I removed"
 			],
 			"args": {
 				"p_listing_id": {
 					"name": "listing",
-					"describe": "The listing's id, from the market."
+					"describe": "The card: its title as he says it, or its id from the market list."
 				},
 				"p_action": {
 					"name": "action",
@@ -6457,9 +6836,10 @@
 						"unfeature",
 						"hide",
 						"unhide",
-						"remove"
+						"remove",
+						"restore"
 					],
-					"describe": "What to do with it."
+					"describe": "What to do with it; restore brings back a card that was removed."
 				},
 				"p_reason": {
 					"name": "reason",
@@ -6515,7 +6895,7 @@
 				"p_id": {
 					"name": "card",
 					"default": null,
-					"describe": "To change a card already up, its id; leave it out for a new one."
+					"describe": "To change a card already up, its title as he says it or its id; leave it out for a new one."
 				},
 				"p_title": {
 					"name": "title",
@@ -6631,6 +7011,23 @@
 				"p_params": {
 					"name": "settings",
 					"describe": "Only to change its numbers: the base price, the most it moves in a day as a percent, or the weeks its middle value is taken over."
+				}
+			}
+		},
+		"coin_market_admin_listings": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Every IDEA Market card, official and student, with whether each is featured, hidden or closed, newest first.",
+			"say": [
+				"list every market card",
+				"which market cards are featured",
+				"show me the IDEA Market listings"
+			],
+			"args": {
+				"p_include_closed": {
+					"name": "closed",
+					"default": null,
+					"describe": "True to include cards that are closed or removed."
 				}
 			}
 		},
@@ -8537,6 +8934,36 @@
 				}
 			]
 		},
+		"tournament_host_add_team": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Add a team to a tournament with its real players by school address, in one step, with no placeholder player; it asks first.",
+			"say": [
+				"add team Torque with Ana, Ben and Cal",
+				"enter the Gearheads: mchen and twong",
+				"register a team of three for Blade Night"
+			],
+			"args": {
+				"p_tournament_id": {
+					"name": "tournament",
+					"describe": "The tournament: its name as he says it, or its id."
+				},
+				"p_display_name": {
+					"name": "team",
+					"describe": "The team's name as shown, 1 to 40 characters."
+				},
+				"p_emails": {
+					"name": "players",
+					"describe": "Each player's school address; every one needs to have signed in to the site once."
+				},
+				"p_description": {
+					"name": "description",
+					"default": null,
+					"describe": "A line about the team."
+				}
+			}
+		},
 		"view_as_history": {
 			"surface": "call",
 			"level": "read",
@@ -8688,6 +9115,167 @@
 			"body": {
 				"label": "$args.name",
 				"class": "$args.class"
+			}
+		},
+		"/api/admin/files/attach": {
+			"surface": "call",
+			"tool": "attach_file",
+			"level": "confirm",
+			"method": "POST",
+			"describe": "Put a file from a chat upload on a post, as a handout for students, an instructor-only file or the post's thumbnail picture, or on a class notice; the site's own upload steps decide. It asks first.",
+			"say": [
+				"attach this PDF to the Blade assignment",
+				"make this picture the thumbnail for Shop Fix",
+				"put the answer key on the DFM worksheet for instructors only"
+			],
+			"args": {
+				"upload": {
+					"type": "string",
+					"required": true,
+					"describe": "The upload holding the file, from start upload."
+				},
+				"post": {
+					"type": "string",
+					"required": true,
+					"describe": "The post's title as he says it, or words from the notice, or its id."
+				},
+				"as": {
+					"type": "string",
+					"enum": [
+						"students",
+						"instructors",
+						"thumbnail",
+						"notice"
+					],
+					"describe": "students for a handout (the usual), instructors for instructor only, thumbnail for its picture, notice for a file on a class notice."
+				},
+				"filename": {
+					"type": "string",
+					"describe": "The name to show, if not the upload's own."
+				}
+			},
+			"body": {
+				"upload": "$args.upload",
+				"post": "$args.post",
+				"as": "$args.as",
+				"filename": "$args.filename"
+			}
+		},
+		"/api/admin/files/foundry": {
+			"surface": "call",
+			"tool": "publish_foundry_app",
+			"level": "confirm",
+			"method": "POST",
+			"describe": "Publish a game or app from a chat upload (a zip, or one HTML file) to the Foundry, start to finish, on an app of yours or a new one; it asks first.",
+			"say": [
+				"publish this game zip to the Foundry",
+				"put the new GREENLINE build up",
+				"add this HTML game to the gallery as a new app"
+			],
+			"args": {
+				"upload": {
+					"type": "string",
+					"required": true,
+					"describe": "The upload holding the zip or HTML file, from start upload."
+				},
+				"app": {
+					"type": "string",
+					"describe": "The app to add this version to, by its title; leave it out for a new app."
+				},
+				"title": {
+					"type": "string",
+					"describe": "For a new app: its title."
+				},
+				"slug": {
+					"type": "string",
+					"describe": "For a new app: its short address name, if not made from the title."
+				},
+				"notes": {
+					"type": "string",
+					"describe": "For a new app: build notes, in his words."
+				},
+				"publish": {
+					"type": "boolean",
+					"describe": "False to leave it waiting in review instead of publishing it."
+				}
+			},
+			"body": {
+				"upload": "$args.upload",
+				"app": "$args.app",
+				"title": "$args.title",
+				"slug": "$args.slug",
+				"notes": "$args.notes",
+				"publish": "$args.publish"
+			}
+		},
+		"/api/admin/files/upload": {
+			"surface": "call",
+			"tool": "start_upload",
+			"level": "read",
+			"method": "POST",
+			"describe": "Open a one-time upload for a file too big to send as text, like a worksheet with pictures, a game, a cover or a handout; it answers where to send the bytes.",
+			"say": [
+				"here is the worksheet file, put it on the assignment",
+				"publish this game zip to the Foundry",
+				"attach this PDF to the assignment"
+			],
+			"args": {
+				"filename": {
+					"type": "string",
+					"required": true,
+					"describe": "The file's name, like blade-worksheet.html."
+				},
+				"type": {
+					"type": "string",
+					"describe": "Its kind, like text/html, application/zip, image/png or application/pdf."
+				},
+				"megabytes": {
+					"type": "number",
+					"describe": "About how big it is, in megabytes, up to 100."
+				}
+			},
+			"body": {
+				"filename": "$args.filename",
+				"type": "$args.type",
+				"megabytes": "$args.megabytes"
+			}
+		},
+		"/api/admin/files/upload-part": {
+			"surface": "call",
+			"tool": "upload_part",
+			"level": "read",
+			"method": "POST",
+			"describe": "Send one numbered piece of an upload, for a chat that cannot send a file any other way; the pieces are joined in order.",
+			"say": [
+				"send the next piece of the worksheet",
+				"keep uploading the file",
+				"here is part 3"
+			],
+			"args": {
+				"upload": {
+					"type": "string",
+					"required": true,
+					"describe": "The upload, from start upload."
+				},
+				"part": {
+					"type": "integer",
+					"required": true,
+					"describe": "This piece's number, from 1."
+				},
+				"text": {
+					"type": "string",
+					"describe": "The piece, for a text file like HTML, up to 200,000 characters."
+				},
+				"base64": {
+					"type": "string",
+					"describe": "The piece as base64, for anything else."
+				}
+			},
+			"body": {
+				"upload": "$args.upload",
+				"part": "$args.part",
+				"text": "$args.text",
+				"base64": "$args.base64"
 			}
 		},
 		"/api/armory/blob-url": {
@@ -9262,9 +9850,10 @@
 			"level": "undo",
 			"uses": [
 				"classroom_create_item",
-				"classroom_quick_post_create"
+				"classroom_quick_post_create",
+				"classroom_quick_post_set_important"
 			],
-			"describe": "Post an assignment, material, announcement or a short notice to one or more of your classes.",
+			"describe": "Post an assignment, material, announcement or a short notice to one or more of your classes; a notice can be important and can carry a named link.",
 			"say": [
 				"post an announcement to all 209H sections, bring safety glasses tomorrow",
 				"create an assignment in Block 2 called Tolerance Check, 20 points, due Friday at 11:59",
@@ -9315,6 +9904,18 @@
 					"type": "string",
 					"resolve": "due",
 					"describe": "For a notice: when it comes down, like end of day or Friday 3pm. Leave it out for the end of the school day."
+				},
+				"important": {
+					"type": "boolean",
+					"describe": "For a notice: true to mark it important so it stands out at the top."
+				},
+				"link": {
+					"type": "string",
+					"describe": "For a notice: a web address to put on it as a key."
+				},
+				"linkName": {
+					"type": "string",
+					"describe": "For a notice: what the link key says after Open, like Tournament bracket."
 				}
 			}
 		},
@@ -9480,12 +10081,13 @@
 			"level": "undo",
 			"uses": [
 				"classroom_set_html_assignment",
-				"classroom_set_rubric"
+				"classroom_set_rubric",
+				"classroom_html_retire_blocks"
 			],
-			"describe": "Replace an HTML assignment's document with a new file; refuses if any block a student has answered would disappear.",
+			"describe": "Replace an HTML assignment's document with a new file, sent whole or as an upload; an answered question it drops is refused, or retired with retire set.",
 			"say": [
 				"replace the Shop Fix HTML in Block 1 with the file I'm sending",
-				"show me the block diff before you replace it",
+				"take that question out, some students already answered it, deal with that",
 				"upload this new version of the DFM worksheet"
 			],
 			"args": {
@@ -9497,8 +10099,15 @@
 				},
 				"html": {
 					"type": "string",
-					"required": true,
-					"describe": "The whole new HTML document, exactly as the file holds it."
+					"describe": "The whole new HTML document, exactly as the file holds it. For a big file, use upload instead."
+				},
+				"upload": {
+					"type": "string",
+					"describe": "An upload holding the file, from start upload, for a file too big to send whole."
+				},
+				"retire": {
+					"type": "boolean",
+					"describe": "True to retire any answered question the new file drops, instead of refusing."
 				},
 				"filename": {
 					"type": "string",
@@ -9538,11 +10147,11 @@
 			"facade": true,
 			"level": "read",
 			"uses": [],
-			"describe": "Read what a student answered on an assignment, every question or just one.",
+			"describe": "Read what a student answered on an assignment, or every student's answers at once; every question or just one.",
 			"say": [
 				"what did Mateo answer on question 3 of the DFM worksheet",
 				"read me Leo's answers on the Shop Fix",
-				"show Ana's reflection on Tolerance Check"
+				"show everyone's answers to question 2 of the Blade worksheet"
 			],
 			"args": {
 				"post": {
@@ -9553,9 +10162,8 @@
 				},
 				"student": {
 					"type": "string",
-					"required": true,
 					"resolve": "student",
-					"describe": "The student, as you said the name."
+					"describe": "The student, as you said the name. Leave it out for every student's answers."
 				},
 				"question": {
 					"type": "string",
@@ -9968,6 +10576,7 @@
 		"classroom_feedback_list": "classroom.yaml",
 		"classroom_quick_post_create": "classroom.yaml",
 		"classroom_quick_post_take_down": "classroom.yaml",
+		"classroom_quick_post_set_important": "classroom.yaml",
 		"classroom_quick_posts": "classroom.yaml",
 		"classroom_student_overview": "classroom.yaml",
 		"classroom_add_attachment": "classroom.yaml",
@@ -10064,6 +10673,10 @@
 		"classroom_worksheet_latch_for": "classroom.yaml",
 		"classroom_worksheet_latched": "classroom.yaml",
 		"classroom_worksheet_past_manifests": "classroom.yaml",
+		"classroom_team_progress": "classroom.yaml",
+		"classroom_html_retire_blocks": "classroom.yaml",
+		"classroom_html_unretire_blocks": "classroom.yaml",
+		"classroom_html_retired_blocks": "classroom.yaml",
 		"coin_log_transaction": "coin.yaml",
 		"coin_reverse_transaction": "coin.yaml",
 		"coin_admin_lookup": "coin.yaml",
@@ -10121,6 +10734,14 @@
 		"coin_stock_detail": "coin.yaml",
 		"coin_stocks_board": "coin.yaml",
 		"coin_stocks_tick": "coin.yaml",
+		"coin_contracts_admin": "coin.yaml",
+		"coin_contract_post": "coin.yaml",
+		"coin_admin_edit_contract": "coin.yaml",
+		"coin_admin_assign_contract": "coin.yaml",
+		"coin_admin_cancel_contract": "coin.yaml",
+		"coin_admin_restore_contract": "coin.yaml",
+		"coin_admin_reset_contract": "coin.yaml",
+		"coin_contract_mark_done": "coin.yaml",
 		"connector_call": "connector.yaml",
 		"connector_audit_failure": "connector.yaml",
 		"connector_admin_state": "connector.yaml",
@@ -10136,6 +10757,7 @@
 		"connector_admin_gaps": "connector.yaml",
 		"connector_admin_set_gap": "connector.yaml",
 		"connector_admin_evals": "connector.yaml",
+		"connector_lookup": "connector.yaml",
 		"/.well-known/oauth-authorization-server": "endpoints.yaml",
 		"/.well-known/oauth-protected-resource": "endpoints.yaml",
 		"/.well-known/oauth-protected-resource/mcp": "endpoints.yaml",
@@ -10146,6 +10768,10 @@
 		"/api/admin/test-accounts": "endpoints.yaml",
 		"/api/admin/test-accounts/act": "endpoints.yaml",
 		"/api/admin/test-accounts/create": "endpoints.yaml",
+		"/api/admin/files/attach": "endpoints.yaml",
+		"/api/admin/files/foundry": "endpoints.yaml",
+		"/api/admin/files/upload": "endpoints.yaml",
+		"/api/admin/files/upload-part": "endpoints.yaml",
 		"/api/armory/blob-url": "endpoints.yaml",
 		"/api/armory/connect/exchange": "endpoints.yaml",
 		"/api/armory/connect/start": "endpoints.yaml",
@@ -10352,6 +10978,7 @@
 		"coin_transfer_remove_message": "market.yaml",
 		"coin_stock_admin_list": "market.yaml",
 		"coin_stock_admin_set": "market.yaml",
+		"coin_market_admin_listings": "market.yaml",
 		"notebook_accept_entry": "notebook.yaml",
 		"notebook_add_note": "notebook.yaml",
 		"notebook_add_photo": "notebook.yaml",
@@ -10464,6 +11091,7 @@
 		"tournament_submit_qual_result": "tournaments.yaml",
 		"tournament_update": "tournaments.yaml",
 		"tournament_update_entry": "tournaments.yaml",
+		"tournament_host_add_team": "tournaments.yaml",
 		"view_as_history": "view-as.yaml",
 		"test_account_retire": "view-as.yaml",
 		"view_as_grant": "view-as.yaml",

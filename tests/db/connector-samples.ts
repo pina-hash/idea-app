@@ -547,6 +547,14 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 
 		// ---- quick posts ----
 		classroom_quick_post_create: async () => ({ p_section_ids: [w.block2], p_body: 'Shop closed.', p_expires_at: new Date(Date.now() + 86_400_000).toISOString() }),
+		classroom_html_retire_blocks: async () => {
+			const h = await htmlItem('Retire from me');
+			return { p_item_id: h.id, p_blocks: [{ block_id: h.block, block: { id: h.block, field: 'old', type: 'text' }, module_title: 'Day 1' }] };
+		},
+		classroom_quick_post_set_important: async () => {
+			const r = await asAdminRpc('classroom_quick_post_create', { p_section_ids: [w.block2], p_body: 'mark me', p_expires_at: new Date(Date.now() + 86_400_000).toISOString() });
+			return { p_post_id: r.id, p_important: true };
+		},
 		classroom_quick_post_take_down: async () => {
 			const r = await asAdminRpc('classroom_quick_post_create', { p_section_ids: [w.block2], p_body: 'take me down', p_expires_at: new Date(Date.now() + 86_400_000).toISOString() });
 			return { p_post_id: r.id };

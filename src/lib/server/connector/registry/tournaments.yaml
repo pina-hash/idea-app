@@ -253,3 +253,15 @@ tournament_update_entry:
   undo:
     - function: tournament_update_entry
       args: {p_entry_id: $args.p_entry_id, p_display_name: $before.display_name, p_description: $before.description, p_thumbnail_url: $before.thumbnail_url}
+
+tournament_host_add_team:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Add a team to a tournament with its real players by school address, in one step, with no placeholder player; it asks first.
+  say: ["add team Torque with Ana, Ben and Cal", "enter the Gearheads: mchen and twong", "register a team of three for Blade Night"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament: its name as he says it, or its id."}
+    p_display_name: {name: team, describe: "The team's name as shown, 1 to 40 characters."}
+    p_emails: {name: players, describe: "Each player's school address; every one needs to have signed in to the site once."}
+    p_description: {name: description, default: null, describe: "A line about the team."}

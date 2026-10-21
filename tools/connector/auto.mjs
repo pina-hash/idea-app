@@ -46,6 +46,31 @@ export const AUTO_ROUTES_PATH = join(ROOT, 'src/lib/server/connector/endpoints.g
 const INVENTORY = join(ROOT, 'src/lib/server/connector/inventory.generated.json');
 const OVERLAY = join(ROOT, 'src/lib/server/connector/overlay.generated.json');
 const SCHEMA = join(ROOT, 'src/lib/server/connector/schema.generated.json');
+/** Which argument names which kind of record (ledger 0422); src/lib/server/connector/lookup.ts reads the same file. */
+const LOOKUP_KINDS = JSON.parse(readFileSync(join(ROOT, 'src/lib/server/connector/lookup-kinds.json'), 'utf8'));
+
+/** The kind of record a function's argument names, or null: lookup.ts's `lookupKindFor`, over the same data. */
+export function lookupKindFor(fn, param) {
+	for (const p of LOOKUP_KINDS.byPrefix) if (fn.startsWith(p.prefix) && p.param === param) return p.kind;
+	return LOOKUP_KINDS.byParam[param] ?? null;
+}
+
+/**
+ * HOW A GENERATED ARGUMENT IS WORDED (ledger 0422). An argument that names a
+ * kind of record takes its name, which site_call looks up; any other id says
+ * where its list is; everything else is just its name. Never "as the site's
+ * own page sends it": that sent Claude looking for ids nothing would show it.
+ */
+export function argWords(fn, param, type) {
+	const plain = param.replace(/^p_/, '').replace(/_/g, ' ');
+	const kind = lookupKindFor(fn, param);
+	if (kind) return `The ${LOOKUP_KINDS.words[kind]}: its name as he says it, or its id; the site looks it up.`;
+	if (type === 'uuid' || /(^| )id$/.test(plain)) {
+		const thing = plain.replace(/ id$/, '');
+		return `The ${thing}'s id, from the list the site shows it in; site find tool finds that list by its words (for example, "list ${thing}s").`;
+	}
+	return `The ${plain}.`;
+}
 
 /** What part of the site a function belongs to, read off its name. Longest prefix first. */
 const AREAS = [
@@ -133,8 +158,7 @@ export function autoFunction(name, overloads) {
 			let spoken = spokenName(a.name);
 			while (taken.has(spoken)) spoken = `${spoken}2`;
 			taken.add(spoken);
-			const plain = a.name.replace(/^p_/, '').replace(/_/g, ' ');
-			const spec = { name: spoken, describe: `The ${plain}, as the site's own page sends it.` };
+			const spec = { name: spoken, describe: argWords(name, a.name, a.type) };
 			if (a.name === 'p_operation' && a.type === 'uuid') {
 				spec.fill = 'uuid';
 				spec.describe = 'Leave it out; the server fills it.';

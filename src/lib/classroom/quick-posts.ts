@@ -562,9 +562,17 @@ export interface QuickPostRun {
 	text: string;
 	/** Set only on a run that is a link `safeHref` accepted. */
 	href?: string;
+	/**
+	 * THE LINK'S OWN NAME, when the notice wrote it as `[Tournament bracket](https://...)`
+	 * (ledger 0422, gap f386c075): the run's text is the name and the key reads
+	 * "Open Tournament bracket" rather than the host.
+	 */
+	name?: string;
 }
 
 const URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`]+/gi;
+/** `[name](https://address)`, a named link. The name is plain text, 1 to 60 characters. */
+const NAMED_LINK = /\[([^\]\n]{1,60})\]\((https?:\/\/[^\s<>"'`)]+)\)/g;
 const TRAILING = /[.,;:!?'"]+$/;
 
 /** Trim what a sentence put after a link: a full stop, a comma, an unbalanced bracket. */
@@ -591,6 +599,24 @@ function trimTrailing(url: string): string {
  */
 export function quickPostRuns(body: string): QuickPostRun[] {
 	const runs: QuickPostRun[] = [];
+	// Named links first; the text between them is searched for bare addresses.
+	let last = 0;
+	for (const m of body.matchAll(NAMED_LINK)) {
+		const start = m.index ?? 0;
+		const href = safeHref(m[2]);
+		if (!href) continue;
+		if (start > last) runs.push(...bareRuns(body.slice(last, start)));
+		const name = m[1].trim();
+		runs.push({ text: name || m[2], href, ...(name ? { name } : {}) });
+		last = start + m[0].length;
+	}
+	if (last < body.length) runs.push(...bareRuns(body.slice(last)));
+	return runs.length ? runs : [{ text: body }];
+}
+
+/** A stretch with no named link in it, as runs of text and bare addresses. */
+function bareRuns(body: string): QuickPostRun[] {
+	const runs: QuickPostRun[] = [];
 	let last = 0;
 	for (const m of body.matchAll(URL_PATTERN)) {
 		const start = m.index ?? 0;
@@ -602,7 +628,7 @@ export function quickPostRuns(body: string): QuickPostRun[] {
 		last = start + url.length;
 	}
 	if (last < body.length) runs.push({ text: body.slice(last) });
-	return runs.length ? runs : [{ text: body }];
+	return runs;
 }
 
 export interface QuickPostLink {
@@ -683,7 +709,7 @@ export function quickPostLinks(body: string, max = 3): QuickPostLink[] {
 		} catch {
 			continue;
 		}
-		out.push({ href: run.href, host, name: quickPostLinkName(run.href) });
+		out.push({ href: run.href, host, name: run.name ?? quickPostLinkName(run.href) });
 	}
 	return out.length > max ? [] : out;
 }

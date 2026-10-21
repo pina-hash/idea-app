@@ -65,11 +65,11 @@ coin_market_listing_staff:
   surface: call
   level: confirm
   proof: generic
-  describe: Feature, unfeature, hide, unhide or remove a listing in the IDEA Market; it asks first, and a hidden or removed one tells the student why.
-  say: ["hide Mateo's listing, it's selling homework", "feature the 3D print listing", "remove that market listing"]
+  describe: Feature, unfeature, hide, unhide, remove or restore a card in the IDEA Market; it asks first, and a hidden or removed one tells the student why.
+  say: ["hide Mateo's listing, it's selling homework", "feature the tissue box card", "remove that market listing", "bring back the card I removed"]
   args:
-    p_listing_id: {name: listing, describe: "The listing's id, from the market."}
-    p_action: {name: action, enum: [feature, unfeature, hide, unhide, remove], describe: "What to do with it."}
+    p_listing_id: {name: listing, describe: "The card: its title as he says it, or its id from the market list."}
+    p_action: {name: action, enum: [feature, unfeature, hide, unhide, remove, restore], describe: "What to do with it; restore brings back a card that was removed."}
     p_reason: {name: reason, describe: "Why, 3 to 300 characters; the student sees it when a listing is hidden or removed."}
 
 coin_market_resolve:
@@ -91,7 +91,7 @@ coin_market_official_save:
   describe: Post an official IDEA Market card, like a want-ad for tissue boxes or Extra Credit, or change one; it asks first.
   say: ["post an official ad for tissue boxes at 5 coins", "add an official market card for class supplies", "change the extra credit card's price"]
   args:
-    p_id: {name: card, default: null, describe: "To change a card already up, its id; leave it out for a new one."}
+    p_id: {name: card, default: null, describe: "To change a card already up, its title as he says it or its id; leave it out for a new one."}
     p_title: {name: title, describe: "The card's title."}
     p_description: {name: text, default: null, describe: "What it says."}
     p_link: {name: link, default: null, describe: "A page on this site starting with /, if it links somewhere."}
@@ -140,3 +140,11 @@ coin_stock_admin_set:
     p_stock_id: {name: stock, describe: "The stock's short name, from the stock list."}
     p_active: {name: trading, describe: "True to let students trade it, false to stop."}
     p_params: {name: settings, describe: "Only to change its numbers: the base price, the most it moves in a day as a percent, or the weeks its middle value is taken over."}
+
+coin_market_admin_listings:
+  surface: call
+  level: read
+  describe: Every IDEA Market card, official and student, with whether each is featured, hidden or closed, newest first.
+  say: ["list every market card", "which market cards are featured", "show me the IDEA Market listings"]
+  args:
+    p_include_closed: {name: closed, default: null, describe: "True to include cards that are closed or removed."}

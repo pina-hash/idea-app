@@ -71,8 +71,8 @@ get_post:
 create_post:
   facade: true
   level: undo
-  uses: [classroom_create_item, classroom_quick_post_create]
-  describe: Post an assignment, material, announcement or a short notice to one or more of your classes.
+  uses: [classroom_create_item, classroom_quick_post_create, classroom_quick_post_set_important]
+  describe: Post an assignment, material, announcement or a short notice to one or more of your classes; a notice can be important and can carry a named link.
   say:
     - post an announcement to all 209H sections, bring safety glasses tomorrow
     - create an assignment in Block 2 called Tolerance Check, 20 points, due Friday at 11:59
@@ -87,6 +87,9 @@ create_post:
     due: {type: string, resolve: due, describe: "When an assignment is due: Friday, tomorrow 3pm, Oct 24 11:59pm. A day with no time means 11:59 PM."}
     published: {type: boolean, describe: "False to save it as a draft students cannot see yet. Posts are visible by default."}
     until: {type: string, resolve: due, describe: "For a notice: when it comes down, like end of day or Friday 3pm. Leave it out for the end of the school day."}
+    important: {type: boolean, describe: "For a notice: true to mark it important so it stands out at the top."}
+    link: {type: string, describe: "For a notice: a web address to put on it as a key."}
+    linkName: {type: string, describe: "For a notice: what the link key says after Open, like Tournament bracket."}
 
 set_points:
   facade: true
@@ -166,15 +169,17 @@ set_published:
 replace_html_assignment:
   facade: true
   level: undo
-  uses: [classroom_set_html_assignment, classroom_set_rubric]
-  describe: Replace an HTML assignment's document with a new file; refuses if any block a student has answered would disappear.
+  uses: [classroom_set_html_assignment, classroom_set_rubric, classroom_html_retire_blocks]
+  describe: Replace an HTML assignment's document with a new file, sent whole or as an upload; an answered question it drops is refused, or retired with retire set.
   say:
     - replace the Shop Fix HTML in Block 1 with the file I'm sending
-    - show me the block diff before you replace it
+    - take that question out, some students already answered it, deal with that
     - upload this new version of the DFM worksheet
   args:
     post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
-    html: {type: string, required: true, describe: "The whole new HTML document, exactly as the file holds it."}
+    html: {type: string, describe: "The whole new HTML document, exactly as the file holds it. For a big file, use upload instead."}
+    upload: {type: string, describe: "An upload holding the file, from start upload, for a file too big to send whole."}
+    retire: {type: boolean, describe: "True to retire any answered question the new file drops, instead of refusing."}
     filename: {type: string, describe: "The file's name, like shop-fix.html."}
     class: {type: string, describe: "The class it is in, when the same title is in more than one."}
 
@@ -195,14 +200,14 @@ read_answers:
   facade: true
   level: read
   uses: []
-  describe: Read what a student answered on an assignment, every question or just one.
+  describe: Read what a student answered on an assignment, or every student's answers at once; every question or just one.
   say:
     - what did Mateo answer on question 3 of the DFM worksheet
     - read me Leo's answers on the Shop Fix
-    - show Ana's reflection on Tolerance Check
+    - show everyone's answers to question 2 of the Blade worksheet
   args:
     post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
-    student: {type: string, required: true, resolve: student, describe: "The student, as you said the name."}
+    student: {type: string, resolve: student, describe: "The student, as you said the name. Leave it out for every student's answers."}
     question: {type: string, describe: "One question: its number, its name, or words from its prompt. Leave it out for every answer."}
 
 grade:
@@ -362,3 +367,4 @@ feedback_screenshot:
     - get report 551c11e3's screenshot
   args:
     report: {type: string, required: true, describe: "The report's id, or the first eight characters of it, from the feedback list."}
+

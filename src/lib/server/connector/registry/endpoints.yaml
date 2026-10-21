@@ -45,6 +45,59 @@
     name: {type: string, required: true, describe: "What to call it, e.g. Test Student Block 2."}
     class: {type: string, describe: "A class by name as he says it (IDEA100 Block 2) or its id; leave it out for none."}
   body: {label: $args.name, class: $args.class}
+"/api/admin/files/attach":
+  surface: call
+  tool: attach_file
+  level: confirm
+  method: POST
+  describe: Put a file from a chat upload on a post, as a handout for students, an instructor-only file or the post's thumbnail picture, or on a class notice; the site's own upload steps decide. It asks first.
+  say: ["attach this PDF to the Blade assignment", "make this picture the thumbnail for Shop Fix", "put the answer key on the DFM worksheet for instructors only"]
+  args:
+    upload: {type: string, required: true, describe: "The upload holding the file, from start upload."}
+    post: {type: string, required: true, describe: "The post's title as he says it, or words from the notice, or its id."}
+    as: {type: string, enum: [students, instructors, thumbnail, notice], describe: "students for a handout (the usual), instructors for instructor only, thumbnail for its picture, notice for a file on a class notice."}
+    filename: {type: string, describe: "The name to show, if not the upload's own."}
+  body: {upload: $args.upload, post: $args.post, as: $args.as, filename: $args.filename}
+"/api/admin/files/foundry":
+  surface: call
+  tool: publish_foundry_app
+  level: confirm
+  method: POST
+  describe: Publish a game or app from a chat upload (a zip, or one HTML file) to the Foundry, start to finish, on an app of yours or a new one; it asks first.
+  say: ["publish this game zip to the Foundry", "put the new GREENLINE build up", "add this HTML game to the gallery as a new app"]
+  args:
+    upload: {type: string, required: true, describe: "The upload holding the zip or HTML file, from start upload."}
+    app: {type: string, describe: "The app to add this version to, by its title; leave it out for a new app."}
+    title: {type: string, describe: "For a new app: its title."}
+    slug: {type: string, describe: "For a new app: its short address name, if not made from the title."}
+    notes: {type: string, describe: "For a new app: build notes, in his words."}
+    publish: {type: boolean, describe: "False to leave it waiting in review instead of publishing it."}
+  body: {upload: $args.upload, app: $args.app, title: $args.title, slug: $args.slug, notes: $args.notes, publish: $args.publish}
+"/api/admin/files/upload":
+  surface: call
+  tool: start_upload
+  level: read
+  method: POST
+  describe: Open a one-time upload for a file too big to send as text, like a worksheet with pictures, a game, a cover or a handout; it answers where to send the bytes.
+  say: ["here is the worksheet file, put it on the assignment", "publish this game zip to the Foundry", "attach this PDF to the assignment"]
+  args:
+    filename: {type: string, required: true, describe: "The file's name, like blade-worksheet.html."}
+    type: {type: string, describe: "Its kind, like text/html, application/zip, image/png or application/pdf."}
+    megabytes: {type: number, describe: "About how big it is, in megabytes, up to 100."}
+  body: {filename: $args.filename, type: $args.type, megabytes: $args.megabytes}
+"/api/admin/files/upload-part":
+  surface: call
+  tool: upload_part
+  level: read
+  method: POST
+  describe: Send one numbered piece of an upload, for a chat that cannot send a file any other way; the pieces are joined in order.
+  say: ["send the next piece of the worksheet", "keep uploading the file", "here is part 3"]
+  args:
+    upload: {type: string, required: true, describe: "The upload, from start upload."}
+    part: {type: integer, required: true, describe: "This piece's number, from 1."}
+    text: {type: string, describe: "The piece, for a text file like HTML, up to 200,000 characters."}
+    base64: {type: string, describe: "The piece as base64, for anything else."}
+  body: {upload: $args.upload, part: $args.part, text: $args.text, base64: $args.base64}
 "/api/armory/blob-url": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
 "/api/armory/connect/exchange": {exclude: "Part of someone signing in to the site or connecting a device; never a tool."}
 "/api/armory/connect/start": {exclude: "Part of someone signing in to the site or connecting a device; never a tool."}

@@ -122,6 +122,22 @@ export interface SelectSpec {
 	offset?: number;
 }
 
+/**
+ * ONE FILE SENT FROM A CHAT (ledger 0422, gap d782fd4e): a one-time slot the
+ * connector hands out with a signed address, the bytes PUT straight to the
+ * private bucket there, then read by the tool that uses them.
+ */
+export interface UploadSlot {
+	id: string;
+	userId: string;
+	filename: string;
+	contentType: string | null;
+	maxBytes: number;
+	sizeBytes: number | null;
+	expiresAt: number;
+	uploadedAt: number | null;
+}
+
 /** A refusal the backend could not even ask (unset key, unreachable), never a database refusal. */
 export class ConnectorUnavailable extends Error {}
 
@@ -153,6 +169,27 @@ export interface ConnectorBackend {
 	/** The caller's newest finished connector writes that are not undone, newest first. */
 	undoCandidates(userId: string, limit: number): Promise<AuditRow[]>;
 	mintSession(user: ConnectorUser): Promise<UserSession>;
+	/**
+	 * A one-time upload slot for this user (connector_uploads, 0290), and a
+	 * signed address the bytes are PUT to, straight into the private bucket, so
+	 * a file far larger than a request body reaches the site.
+	 */
+	createUpload(slot: { userId: string; tokenHash: string; filename: string; contentType: string | null; maxBytes: number; expiresAt: number }): Promise<{ id: string; uploadUrl: string }>;
+	/**
+	 * One numbered piece of a slot's bytes, for a chat that cannot PUT a file:
+	 * the pieces are joined in order when the bytes are read. Refuses (false) a
+	 * slot that is not this user's, has expired, or would pass its size.
+	 */
+	storeUploadPart(userId: string, id: string, index: number, bytes: Uint8Array): Promise<{ ok: boolean; message?: string; received?: number }>;
+	/**
+	 * THE NIGHTLY REPLAY'S HALF (ledger 0422): every live saved request, when
+	 * the replay last ran, and whose account a run is recorded under (the
+	 * admin who connected most recently); and the rows a replay writes.
+	 */
+	replayState(): Promise<{ evals: Array<{ id: string; seq: number; said: string; level: string; expected_path: string[] }>; lastReplayAt: number | null; recordAs: string | null }>;
+	recordReplay(rows: Array<{ evalId: string; userId: string; passed: boolean; path: string[]; detail: Record<string, unknown> }>): Promise<void>;
+	/** A slot's bytes, for its own user only, once they have arrived; null when there are none yet. */
+	readUpload(userId: string, id: string): Promise<{ slot: UploadSlot; bytes: Uint8Array } | null>;
 
 	// THE USER HALF: everything else, as the minted user, so every gate and
 	// policy sees that user and nobody else.

@@ -38,6 +38,7 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'classroom_decks',
 	'classroom_enrollments',
 	'classroom_hall_passes',
+	'classroom_html_retired_blocks',
 	'classroom_instructor_attachments',
 	'classroom_instructor_keys',
 	'classroom_instructor_resources',
@@ -52,6 +53,9 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'classroom_units',
 	'coin_banner_pins',
 	'coin_categories',
+	'coin_contract_claims',
+	'coin_contracts',
+	'coin_market_listings',
 	'coin_perfect_scores',
 	'coin_settings',
 	'coin_stocks',
@@ -92,5 +96,5 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'tournament_qual_pools',
 	'tournament_reward_ledger',
 	'tournament_reward_rules',
-	'tournaments',
+	'tournaments'
 ];

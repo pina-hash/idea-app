@@ -27,7 +27,7 @@ import { endpointArgs, type EndpointEntry } from './registry';
 import { AUTO_ROUTES } from './endpoints.generated';
 
 type Handler = (event: unknown) => Promise<Response> | Response;
-type RouteModule = Record<string, unknown>;
+export type RouteModule = Record<string, unknown>;
 
 /**
  * The handler modules, one literal import each, so a typo is a build error.
@@ -38,6 +38,10 @@ const HAND_ROUTES: Record<string, () => Promise<RouteModule>> = {
 	'/api/admin/test-accounts': () => import('../../../routes/api/admin/test-accounts/+server'),
 	'/api/admin/test-accounts/act': () => import('../../../routes/api/admin/test-accounts/act/+server'),
 	'/api/admin/test-accounts/create': () => import('../../../routes/api/admin/test-accounts/create/+server'),
+	'/api/admin/files/attach': () => import('../../../routes/api/admin/files/attach/+server'),
+	'/api/admin/files/foundry': () => import('../../../routes/api/admin/files/foundry/+server'),
+	'/api/admin/files/upload': () => import('../../../routes/api/admin/files/upload/+server'),
+	'/api/admin/files/upload-part': () => import('../../../routes/api/admin/files/upload-part/+server'),
 	'/api/armory/purge': () => import('../../../routes/api/armory/purge/+server'),
 	'/api/armory/sweep': () => import('../../../routes/api/armory/sweep/+server'),
 	'/api/certifications/award': () => import('../../../routes/api/certifications/award/+server'),
@@ -84,11 +88,39 @@ function bodyOf(entry: EndpointEntry, args: Record<string, unknown>, random: Too
 async function invoke(ctx: ToolContext, entry: EndpointEntry, body: Record<string, unknown>): Promise<{ status: number; data: unknown }> {
 	const load = ROUTES[entry.route];
 	const mod = overrides.get(entry.route) ?? (load ? await load() : null);
-	const method = entry.method ?? 'POST';
+	return runRouteAs(routeLocals(ctx), entry.route, mod, entry.method ?? 'POST', body);
+}
+
+/** What a route handler run for him finds in `locals`: his minted session, and his claims. */
+export function routeLocals(ctx: ToolContext): RouteLocals {
+	return {
+		supabase: ctx.backend.routeClient(ctx.session),
+		claims: { sub: ctx.session.user.id, email: ctx.session.user.email, role: 'authenticated' }
+	};
+}
+
+export interface RouteLocals {
+	supabase: unknown;
+	claims: { sub: string; email?: string; role?: string } | null;
+}
+
+/**
+ * ONE SITE ROUTE'S HANDLER, RUN IN-PROCESS AS HIM (exported for ledger 0422's
+ * file routes, which run the site's own sign and record routes around the
+ * bytes a chat sent). `locals` is the caller's own (his minted session, or the
+ * route's own request), so every gate in the route decides as on the site.
+ */
+export async function runRouteAs(
+	locals: RouteLocals,
+	route: string,
+	mod: RouteModule | null,
+	method: 'POST' | 'GET',
+	body: Record<string, unknown>
+): Promise<{ status: number; data: unknown }> {
 	const handler = mod?.[method] as Handler | undefined;
 	if (!handler) return { status: 404, data: { message: 'That action is not available here.' } };
 	const origin = 'https://ideabosco.com';
-	const url = new URL(entry.route, origin);
+	const url = new URL(route, origin);
 	const request = new Request(url, {
 		method,
 		headers: { 'content-type': 'application/json', origin },
@@ -98,11 +130,8 @@ async function invoke(ctx: ToolContext, entry: EndpointEntry, body: Record<strin
 		request,
 		url,
 		params: {},
-		route: { id: entry.route },
-		locals: {
-			supabase: ctx.backend.routeClient(ctx.session),
-			claims: { sub: ctx.session.user.id, email: ctx.session.user.email, role: 'authenticated' }
-		},
+		route: { id: route },
+		locals,
 		fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
 		getClientAddress: () => '127.0.0.1',
 		cookies: { get: () => undefined, getAll: () => [], set: () => {}, delete: () => {}, serialize: () => '' },

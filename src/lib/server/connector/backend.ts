@@ -27,6 +27,7 @@ import {
 	type SelectSpec,
 	type StoredCode,
 	type TokenRow,
+	type UploadSlot,
 	type UserSession
 } from './types';
 
@@ -51,6 +52,25 @@ function unavailable(error: { message?: string } | null | undefined): never {
 
 const ms = (iso: string | null | undefined): number | null => (iso ? Date.parse(iso) : null);
 const iso = (t: number): string => new Date(t).toISOString();
+
+/** What a nightly replay's runs are recorded as, in place of a model's name. */
+export const REPLAY_MODEL = 'nightly replay';
+
+/** The private bucket a chat's file waits in (0290); no client role reaches it. */
+export const CONNECTOR_UPLOAD_BUCKET = 'connector-uploads';
+
+function uploadSlot(r: Record<string, unknown>): UploadSlot {
+	return {
+		id: String(r.id),
+		userId: String(r.user_id),
+		filename: String(r.filename),
+		contentType: (r.content_type as string | null) ?? null,
+		maxBytes: Number(r.max_bytes),
+		sizeBytes: r.size_bytes === null || r.size_bytes === undefined ? null : Number(r.size_bytes),
+		expiresAt: ms(r.expires_at as string) ?? 0,
+		uploadedAt: ms(r.uploaded_at as string | null)
+	};
+}
 
 const TOKEN_COLUMNS =
 	'id, user_id, email, client_id, label, scope, access_expires_at, refresh_expires_at, revoked_at, last_used_at';
@@ -310,6 +330,125 @@ export function supabaseConnectorBackend(): ConnectorBackend {
 				expiresAt: (session.expires_at ?? Math.floor(Date.now() / 1000) + session.expires_in) * 1000,
 				user
 			};
+		},
+
+		// ---- One file from a chat (0290): the connector_uploads row and the
+		// private connector-uploads bucket, which carry no client grant at all. ----
+
+		async createUpload(slot) {
+			const { data, error } = await serviceClient()
+				.from('connector_uploads')
+				.insert({
+					user_id: slot.userId,
+					token_hash: slot.tokenHash,
+					filename: slot.filename,
+					content_type: slot.contentType,
+					max_bytes: slot.maxBytes,
+					expires_at: iso(slot.expiresAt)
+				})
+				.select('id')
+				.single();
+			if (error || !data) unavailable(error);
+			const id = data.id as string;
+			const signed = await serviceClient().storage.from(CONNECTOR_UPLOAD_BUCKET).createSignedUploadUrl(`${slot.userId}/${id}`);
+			if (signed.error || !signed.data?.signedUrl) unavailable(signed.error);
+			return { id, uploadUrl: signed.data.signedUrl };
+		},
+		async storeUploadPart(userId, id, index, bytes) {
+			const { data, error } = await serviceClient()
+				.from('connector_uploads')
+				.select('id, max_bytes, expires_at, size_bytes')
+				.eq('id', id)
+				.eq('user_id', userId)
+				.maybeSingle();
+			if (error) unavailable(error);
+			if (!data || Date.parse(data.expires_at as string) <= Date.now()) return { ok: false, message: 'That upload is not open; start a new one.' };
+			const received = Number(data.size_bytes ?? 0) + bytes.byteLength;
+			if (received > Number(data.max_bytes)) return { ok: false, message: `That would pass the upload's ${data.max_bytes} bytes.` };
+			const part = `${userId}/${id}.part${String(index).padStart(5, '0')}`;
+			const up = await serviceClient()
+				.storage.from(CONNECTOR_UPLOAD_BUCKET)
+				.upload(part, bytes, { contentType: 'application/octet-stream', upsert: true });
+			if (up.error) unavailable(up.error);
+			await serviceClient().from('connector_uploads').update({ size_bytes: received }).eq('id', id);
+			return { ok: true, received };
+		},
+		async replayState() {
+			const evals = await serviceClient()
+				.from('connector_evals')
+				.select('id, seq, said, level, expected_path')
+				.is('retired_at', null)
+				.order('seq', { ascending: true });
+			if (evals.error) unavailable(evals.error);
+			const last = await serviceClient()
+				.from('connector_eval_runs')
+				.select('run_at')
+				.eq('model', REPLAY_MODEL)
+				.order('run_at', { ascending: false })
+				.limit(1);
+			if (last.error) unavailable(last.error);
+			const who = await serviceClient()
+				.from('connector_tokens')
+				.select('user_id, last_used_at')
+				.is('revoked_at', null)
+				.order('last_used_at', { ascending: false, nullsFirst: false })
+				.limit(1);
+			if (who.error) unavailable(who.error);
+			return {
+				evals: (evals.data ?? []) as Array<{ id: string; seq: number; said: string; level: string; expected_path: string[] }>,
+				lastReplayAt: last.data?.[0]?.run_at ? Date.parse(last.data[0].run_at as string) : null,
+				recordAs: (who.data?.[0]?.user_id as string | undefined) ?? null
+			};
+		},
+		async recordReplay(rows) {
+			if (!rows.length) return;
+			const { error } = await serviceClient()
+				.from('connector_eval_runs')
+				.insert(rows.map((r) => ({ eval_id: r.evalId, user_id: r.userId, passed: r.passed, path: r.path, detail: r.detail, model: REPLAY_MODEL })));
+			if (error) unavailable(error);
+		},
+		async readUpload(userId, id) {
+			const { data, error } = await serviceClient()
+				.from('connector_uploads')
+				.select('id, user_id, filename, content_type, max_bytes, size_bytes, expires_at, uploaded_at')
+				.eq('id', id)
+				.eq('user_id', userId)
+				.maybeSingle();
+			if (error) unavailable(error);
+			if (!data) return null;
+			const path = `${userId}/${id}`;
+			const bucket = serviceClient().storage.from(CONNECTOR_UPLOAD_BUCKET);
+			let bytes: Uint8Array | null = null;
+			const file = await bucket.download(path);
+			if (!file.error && file.data) {
+				bytes = new Uint8Array(await file.data.arrayBuffer());
+			} else {
+				// Sent in numbered pieces from a chat: join them in order.
+				const listed = await bucket.list(userId, { search: `${id}.part`, limit: 1000 });
+				const names = (listed.data ?? []).map((f) => f.name).filter((n) => n.startsWith(`${id}.part`)).sort();
+				if (!names.length) return null;
+				const pieces: Uint8Array[] = [];
+				for (const n of names) {
+					const got = await bucket.download(`${userId}/${n}`);
+					if (got.error || !got.data) return null;
+					pieces.push(new Uint8Array(await got.data.arrayBuffer()));
+				}
+				const total = pieces.reduce((a, b) => a + b.byteLength, 0);
+				bytes = new Uint8Array(total);
+				let at = 0;
+				for (const p of pieces) {
+					bytes.set(p, at);
+					at += p.byteLength;
+				}
+			}
+			if (bytes.byteLength > Number(data.max_bytes)) return null;
+			if (!data.uploaded_at) {
+				await serviceClient()
+					.from('connector_uploads')
+					.update({ uploaded_at: new Date().toISOString(), size_bytes: bytes.byteLength, storage_path: path })
+					.eq('id', id);
+			}
+			return { slot: uploadSlot({ ...data, size_bytes: bytes.byteLength }), bytes };
 		},
 
 		// ---- The user half: as the minted user. ----

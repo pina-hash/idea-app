@@ -45,6 +45,7 @@ import {
 	type RosterStudent
 } from './resolve';
 import { opaqueToken } from './crypto';
+import { lookupId, lookupKindFor, looksLikeId, lookupWords } from './lookup';
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolOutput = Record<string, unknown>;
@@ -304,7 +305,48 @@ function pickQuestion(manifest: HtmlAssignmentManifest | null, said: string | un
 async function readAnswers(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	const p = await postFrom(ctx, { post: args.post });
 	if (p.status !== 'found') return unresolved('post', p);
-	const s = await resolveStudent(ctx, str(args.student) ?? '');
+	const manifest = p.value.assignment_schema_version === 3 ? await storedManifest(ctx, p.value.id) : null;
+	const order = manifest ? manifestBlocks(manifest) : null;
+	const promptOf = new Map((order ?? []).map((b, i) => [b.id, { number: i + 1, prompt: hxBlockPrompt(b) ?? b.field }]));
+	const studentSaid = str(args.student);
+
+	// EVERY STUDENT AT ONCE (gap e40c6d2d): with no student named, one read of
+	// every answer stored for the post, grouped by student, named from the
+	// rosters of the classes it is posted to.
+	if (!studentSaid) {
+		const rows = await pageAll<{ student_email: string; block_id: string; value: unknown; updated_at: string }>(ctx, {
+			table: 'classroom_responses',
+			columns: ['student_email', 'block_id', 'value', 'updated_at'],
+			eq: { item_id: p.value.id },
+			order: [['student_email', 'asc'], ['block_id', 'asc']]
+		});
+		const want = pickQuestion(manifest, str(args.question), rows.map((r) => r.block_id));
+		const roster = await myStudents(ctx, p.value.sections.map((s) => ({ id: s.id, title: s.title }) as MySection)).catch(() => [] as RosterStudent[]);
+		const nameOf = new Map(roster.map((r) => [r.email, r.name]));
+		const by = new Map<string, Array<{ question: number | null; prompt: string; answer: unknown; saved: string }>>();
+		for (const r of rows) {
+			if (want && !want.includes(r.block_id)) continue;
+			const list = by.get(r.student_email) ?? [];
+			list.push({ question: promptOf.get(r.block_id)?.number ?? null, prompt: promptOf.get(r.block_id)?.prompt ?? r.block_id, answer: r.value, saved: r.updated_at });
+			by.set(r.student_email, list);
+		}
+		const students = [...by.entries()]
+			.map(([email, answers]) => ({
+				student: nameOf.get(email) ?? email.split('@')[0],
+				email,
+				answers: answers.sort((a, b) => (a.question ?? 999) - (b.question ?? 999))
+			}))
+			.sort((a, b) => a.student.localeCompare(b.student));
+		return {
+			status: 'ok',
+			post: p.value.title,
+			students,
+			count: students.length,
+			message: students.length ? undefined : want ? 'No student has an answer stored for that question.' : 'No answers are stored yet.'
+		};
+	}
+
+	const s = await resolveStudent(ctx, studentSaid);
 	if (s.status !== 'found') return unresolved('student', s);
 	const rows = await pageAll<{ block_id: string; value: unknown; updated_at: string }>(ctx, {
 		table: 'classroom_responses',
@@ -312,10 +354,7 @@ async function readAnswers(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		eq: { item_id: p.value.id, student_email: s.value.email },
 		order: [['block_id', 'asc']]
 	});
-	const manifest = p.value.assignment_schema_version === 3 ? await storedManifest(ctx, p.value.id) : null;
 	const want = pickQuestion(manifest, str(args.question), rows.map((r) => r.block_id));
-	const order = manifest ? manifestBlocks(manifest) : null;
-	const promptOf = new Map((order ?? []).map((b, i) => [b.id, { number: i + 1, prompt: hxBlockPrompt(b) ?? b.field }]));
 	const answers = rows
 		.filter((r) => !want || want.includes(r.block_id))
 		.map((r) => ({ question: promptOf.get(r.block_id)?.number ?? null, prompt: promptOf.get(r.block_id)?.prompt ?? r.block_id, answer: r.value, saved: r.updated_at }))
@@ -447,8 +486,17 @@ async function createPost(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput>
 		for (const s of r.value) ids.set(s.id, s);
 	}
 	const sections = [...ids.values()];
-	const body = str(args.body) ?? '';
+	let body = str(args.body) ?? '';
 	if (kindSaid === 'notice') {
+		// A NAMED LINK KEY (gap f386c075): the link goes on its own line as
+		// [name](address), which the class page shows as a key reading
+		// "Open <name>" rather than the bare host.
+		const link = str(args.link);
+		if (link) {
+			if (!/^https?:\/\/\S+$/i.test(link)) return { status: 'invalid', message: 'The link must be a whole web address starting with https://.' };
+			const linkName = str(args.linkName)?.replace(/[[\]()\n]/g, ' ').trim().slice(0, 60);
+			body = `${body}${body ? '\n' : ''}${linkName ? `[${linkName}](${link})` : link}`;
+		}
 		if (!body) return { status: 'invalid', message: 'A notice needs its text.' };
 		const end = resolveNoticeEnd(str(args.until), new Date(ctx.now()));
 		if (!end.ok) return { status: 'invalid', message: end.refusal };
@@ -457,7 +505,24 @@ async function createPost(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput>
 			{ tool: 'create_post', fn: 'classroom_quick_post_create', args: { p_section_ids: sections.map((s) => s.id), p_body: body, p_expires_at: end.iso } },
 			opts
 		);
-		return { ...outcomeWords(o), classes: sections.map((s) => s.title), until: end.words };
+		// IMPORTANT (gap f386c075): marked in the same request, on the notice
+		// just made, through the site's own switch.
+		let important: ToolOutput | undefined;
+		const postId = (o as { result?: { id?: string } }).result?.id;
+		if (bool(args.important) && o.status === 'done' && typeof postId === 'string') {
+			const m = await write(
+				ctx,
+				{ tool: 'create_post', fn: 'classroom_quick_post_set_important', args: { p_post_id: postId, p_important: true } },
+				{ ...opts, requestId: opts.requestId ? `${opts.requestId}:important` : undefined, confirmToken: undefined }
+			);
+			important = outcomeWords(m);
+		}
+		return {
+			...outcomeWords(o),
+			classes: sections.map((s) => s.title),
+			until: end.words,
+			...(bool(args.important) ? { important: important ?? 'marked important once he confirms the notice' } : {})
+		};
 	}
 	const kind = kindSaid.startsWith('announ') ? 'post' : kindSaid;
 	if (!['assignment', 'material', 'post'].includes(kind)) {
@@ -608,8 +673,16 @@ async function setPublished(ctx: ToolContext, args: ToolArgs): Promise<ToolOutpu
 
 async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	const opts = writeOptions(args);
-	const html = typeof args.html === 'string' ? args.html : '';
-	if (!html.trim()) return { status: 'invalid', message: 'Send the whole HTML document.' };
+	let html = typeof args.html === 'string' ? args.html : '';
+	// A DOCUMENT TOO BIG TO SEND AS AN ARGUMENT COMES AS AN UPLOAD (gap d782fd4e).
+	const uploadId = str(args.upload);
+	if (!html.trim() && uploadId) {
+		const got = await ctx.backend.readUpload(ctx.session.user.id, uploadId);
+		if (!got) return { status: 'invalid', message: 'That upload has no file yet. Send the bytes first (start upload says how), then call again.' };
+		html = new TextDecoder('utf-8').decode(got.bytes);
+		if (!args.filename) args = { ...args, filename: got.slot.filename };
+	}
+	if (!html.trim()) return { status: 'invalid', message: 'Send the whole HTML document, or name an upload that holds it.' };
 	const p = await postFrom(ctx, args);
 	if (p.status !== 'found') return unresolved('post', p);
 	if (p.value.kind !== 'assignment') return { status: 'invalid', message: `${p.value.title} is not an assignment.` };
@@ -640,6 +713,40 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		set.add(a.student_email);
 		missing.set(a.block_id, set);
 	}
+	// RETIRE INSTEAD OF ORPHAN (gap 03246300): with retire set, the dropped
+	// questions that hold answers are kept beside the assignment for grading,
+	// out of the worksheet, and the document is replaced. Asked first.
+	let retired: ToolOutput | undefined;
+	if (missing.size > 0 && bool(args.retire)) {
+		const ids = [...missing.keys()].sort();
+		const old = previous ? manifestBlocks(previous as HtmlAssignmentManifest) : [];
+		const modules = ((previous as HtmlAssignmentManifest | null)?.modules ?? []) as Array<{ title?: string; blocks?: Array<{ id: string }> }>;
+		const moduleOf = new Map<string, string>();
+		for (const m of modules) for (const b of m.blocks ?? []) if (m.title) moduleOf.set(b.id, m.title);
+		const blocks = ids.map((id) => ({
+			block_id: id,
+			block: old.find((b) => b.id === id) ?? { id },
+			module_title: moduleOf.get(id) ?? null
+		}));
+		const r = await write(
+			ctx,
+			{ tool: 'replace_html_assignment', fn: 'classroom_html_retire_blocks', args: { p_item_id: p.value.id, p_blocks: blocks } },
+			opts
+		);
+		if (r.status !== 'done' && r.status !== 'repeated') {
+			return {
+				...outcomeWords(r),
+				post: p.value.title,
+				retiring: ids.map((id) => ({ block: id, students_with_answers: missing.get(id)?.size ?? 0 })),
+				message:
+					r.status === 'preview'
+						? `Nothing has changed yet. Replacing it retires ${ids.length === 1 ? 'question' : 'questions'} ${ids.join(', ')}: ${ids.length === 1 ? 'it leaves' : 'they leave'} the worksheet, and the answers students gave stay with the assignment for grading. Read this to him; if he says yes, call again with the same arguments and this confirm_token.`
+						: r.message
+			};
+		}
+		retired = { questions: ids, ...outcomeWords(r) };
+		missing.clear();
+	}
 	if (missing.size > 0) {
 		const ids = [...missing.keys()].sort();
 		return {
@@ -648,7 +755,7 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 			post: p.value.title,
 			missing_blocks: ids.map((id) => ({ block: id, students_with_answers: missing.get(id)?.size ?? 0 })),
 			diff,
-			message: `Not replaced. ${ids.length === 1 ? 'Block' : 'Blocks'} ${ids.join(', ')} ${ids.length === 1 ? 'has' : 'have'} student answers stored and ${ids.length === 1 ? 'is' : 'are'} not in the new document; those answers would stop showing. Give the new document the same block ids and send it again.`
+			message: `Not replaced. ${ids.length === 1 ? 'Block' : 'Blocks'} ${ids.join(', ')} ${ids.length === 1 ? 'has' : 'have'} student answers stored and ${ids.length === 1 ? 'is' : 'are'} not in the new document; those answers would stop showing. Either give the new document the same block ids, or call again with retire set to retire ${ids.length === 1 ? 'that question' : 'those questions'}: out of the worksheet, answers kept for grading.`
 		};
 	}
 
@@ -682,6 +789,7 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		diff,
 		document: outcomeWords(document),
 		rubric: rubric ? outcomeWords(rubric) : 'left as it is',
+		...(retired ? { retired } : {}),
 		warnings: staged.warnings
 	};
 }
@@ -995,6 +1103,27 @@ async function siteCallEntry(ctx: ToolContext, entry: FunctionEntry, args: ToolA
 	for (const [k, v] of Object.entries(given)) {
 		const param = params.find((p) => p.name === k || p.param === k);
 		if (!param) return { status: 'invalid', message: `"${name}" takes no argument called "${k}". It takes: ${params.map((p) => p.name).join(', ') || 'nothing'}. Nothing was changed.` };
+		// AN ID MAY ALWAYS BE GIVEN AS A NAME (ledger 0422): an argument that
+		// names a kind of record (lookup-kinds.json) is looked up as him when
+		// what was given is not already the id.
+		const kind = param.resolve ? null : lookupKindFor(name, param.param);
+		if (kind && typeof v === 'string' && v.trim() !== '' && !looksLikeId(kind, v)) {
+			const l = await lookupId(ctx, kind, v.trim());
+			if (l.status === 'found') {
+				out[param.param] = l.id;
+				continue;
+			}
+			if (l.status === 'ambiguous') {
+				return {
+					status: 'ambiguous',
+					what: lookupWords(kind),
+					said: l.said,
+					candidates: l.candidates,
+					message: `More than one ${lookupWords(kind)} matches "${l.said}". Nothing was changed. Ask him which one, then call again with its exact name or its id.`
+				};
+			}
+			return { status: 'not_found', what: lookupWords(kind), said: l.said, message: `${l.message} Nothing was changed.` };
+		}
 		const r = await resolveArg(ctx, param.resolve, v);
 		if (!r.ok) return r.out;
 		out[param.param] = r.value;

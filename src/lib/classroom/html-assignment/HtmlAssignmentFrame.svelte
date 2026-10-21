@@ -50,9 +50,11 @@
 	import type { LightboxImage } from '$lib/media/lightbox';
 	import MarkLayer from '$lib/classroom/feedback/MarkLayer.svelte';
 	import { noteFields, type FieldNote, type Marks } from '$lib/classroom/feedback/notes';
+	import type { HxTeamProgress } from './team';
 	import {
 		HX_SANDBOX_FLAGS,
 		hxFeedbackMessage,
+		hxTeamProgressMessage,
 		hxImageBoxStateMessage,
 		hxImagePlacement,
 		hxPostTarget,
@@ -145,6 +147,8 @@
 		marks = null,
 		onnote = null,
 		onannotate = null,
+		/** The student's own team's progress (ledger 0422), sent down as `idea:team-progress`; null sends nothing. */
+		team = null,
 		/**
 		 * EVERY DROPPED MESSAGE IS REPORTED. Silence would make a renamed field
 		 * indistinguishable from a working one -- which is precisely the failure
@@ -173,6 +177,7 @@
 		marks?: Readonly<Record<string, Marks>> | null;
 		onnote?: ((field: string, threadId: string) => void) | null;
 		onannotate?: ((field: string) => void) | null;
+		team?: HxTeamProgress | null;
 		ondropped?: (drop: { reason: HxDropReason; detail: string }) => void;
 	} = $props();
 
@@ -586,6 +591,23 @@
 		toldNotes = key;
 		post(hxFeedbackMessage(fields));
 	}
+
+	/**
+	 * THE TEAM'S PROGRESS GOES DOWN AS `idea:team-progress` (ledger 0422), only
+	 * once the document is listening and only when it changed, untracked for
+	 * the reason `tellNotes` is.
+	 */
+	let toldTeam: string | null = null;
+	$effect(() => {
+		const t = team;
+		if (!ready || !t) return;
+		untrack(() => {
+			const key = JSON.stringify(t);
+			if (key === toldTeam) return;
+			toldTeam = key;
+			post(hxTeamProgressMessage(t));
+		});
+	});
 
 	/** Each over-box picture's own size, which a drawing needs to land on it. */
 	let naturals = $state<Record<string, { w: number; h: number }>>({});

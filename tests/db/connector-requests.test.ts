@@ -228,7 +228,8 @@ describe('the practice endpoint writes nothing', () => {
 			const said = `practice ${e.name}`;
 			const first = await callThrough(ctx, e, args, { said });
 			// A generic-proof entry (ledger 0416) runs on placeholder arguments, which its own checks may refuse.
-			const refusedGeneric = isGeneric(e.name) && first.status === 'refused';
+			// A placeholder name no record carries (ledger 0422's lookups) is a refusal too.
+			const refusedGeneric = isGeneric(e.name) && ['refused', 'not_found', 'ambiguous'].includes(String(first.status));
 			if ((first.status !== 'preview' || first.practice !== true) && !refusedGeneric) notPreviewed.push(`${e.name}: ${first.status} ${String(first.message ?? '')}`);
 			if (first.confirm_token) {
 				expect(first.confirm_token).toBe('practice');

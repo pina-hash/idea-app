@@ -228,6 +228,23 @@ describe('links are http(s) only, through safeHref, and never the whole notice',
 	});
 });
 
+describe('a notice can name its link (ledger 0422, gap f386c075)', () => {
+	it('[name](address) shows the name and keys "Open <name>"; a bare address beside it still works', () => {
+		const body = 'Brackets are up.\n[Tournament bracket](https://ideabosco.com/tournaments/abc) and https://docs.google.com/d/x';
+		const runs = quickPostRuns(body);
+		expect(runs.filter((r) => r.href).map((r) => [r.text, r.href])).toEqual([
+			['Tournament bracket', 'https://ideabosco.com/tournaments/abc'],
+			['https://docs.google.com/d/x', 'https://docs.google.com/d/x']
+		]);
+		expect(quickPostLinks(body).map((l) => l.name)).toEqual(['Tournament bracket', 'Google Doc']);
+	});
+	it('a named link to another scheme stays text (the negative half)', () => {
+		const runs = quickPostRuns('[click me](javascript:alert(1))');
+		expect(runs.filter((r) => r.href)).toEqual([]);
+		expect(runs.map((r) => r.text).join('')).toBe('[click me](javascript:alert(1))');
+	});
+});
+
 describe('a link key is named for the link, not the bare host (report 7ec59920)', () => {
 	it('names this site by its page, a few services by host, and falls back to the host', () => {
 		expect(quickPostLinkName('https://ideabosco.com/market')).toBe('IDEA Market');

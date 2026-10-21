@@ -42,6 +42,8 @@
 		hxValuesFromResponses
 	} from '$lib/classroom/html-assignment/answers';
 	import { HxAnswersStore } from '$lib/classroom/html-assignment/answers-store.svelte';
+	import { teamProgressFor, type HxTeamProgress, type TeamProgressRaw } from '$lib/classroom/html-assignment/team';
+	import type { HtmlRetiredBlock } from '$lib/classroom/html-assignment/store';
 	import { hxInstructorAnswerTransports } from '$lib/classroom/html-assignment/instructor';
 	import { HX_UNSAVED_WARNING } from '$lib/classroom/html-assignment/answers';
 	import { guardSaveNavigation } from '$lib/save-guard.svelte';
@@ -195,6 +197,13 @@
 	// svelte-ignore state_referenced_locally
 	const htmlAssignmentTransports = {
 		...createHtmlAssignmentTransports(data.supabase),
+		// RETIRING A DROPPED QUESTION (ledger 0422): admin-only in the database,
+		// as the document setter is; a database without 0290 says so.
+		async retireBlocks(itemId: string, blocks: HtmlRetiredBlock[]) {
+			const { data: r, error } = await data.supabase.rpc('classroom_html_retire_blocks', { p_item_id: itemId, p_blocks: blocks });
+			if (error) return { ok: false, message: error.message };
+			return { ok: (r as { ok?: boolean } | null)?.ok === true };
+		},
 		async countOrphanedAnswers(itemId: string, blockIds: string[]) {
 			if (!blockIds.length) return { ok: true as const, responses: 0, files: 0 };
 			const [responses, files] = await Promise.all([
@@ -378,6 +387,44 @@
 			})
 		};
 		return heldHtmlAnswers.store;
+	});
+
+	/**
+	 * HOW FAR EACH TEAMMATE IS (ledger 0422, gap 673cbfa2), for a student's own
+	 * ported worksheet when the class has a posted team draw they are on. Read
+	 * once when the worksheet opens and again when the tab comes back after two
+	 * minutes or more, never on an interval: the item page's call budget is
+	 * spent (see the feedback session below). A database without 0290 answers
+	 * an error and nothing is sent to the document.
+	 */
+	let htmlTeam = $state<HxTeamProgress | null>(null);
+	$effect(() => {
+		const answers = htmlAnswers;
+		const doc = data.htmlAssignment;
+		const manifest = doc && htmlManifestShaped(doc.manifest) ? doc.manifest : null;
+		if (!answers || !manifest || data.canManage) {
+			htmlTeam = null;
+			return;
+		}
+		const itemId = data.item.id;
+		const supabase = data.supabase;
+		let gone = false;
+		let readAt = 0;
+		const read = () => {
+			readAt = Date.now();
+			supabase.rpc('classroom_team_progress', { p_item_id: itemId }).then(({ data: raw, error }) => {
+				if (!gone) htmlTeam = error ? null : teamProgressFor(manifest, raw as TeamProgressRaw);
+			});
+		};
+		untrack(read);
+		const again = () => {
+			if (document.visibilityState === 'visible' && Date.now() - readAt > 120_000) read();
+		};
+		document.addEventListener('visibilitychange', again);
+		return () => {
+			gone = true;
+			document.removeEventListener('visibilitychange', again);
+		};
 	});
 
 	/**
@@ -1177,6 +1224,7 @@
 	{ideacadViewerEmail}
 	{ideacadOpenRefusal}
 	{htmlAnswers}
+	{htmlTeam}
 	feedback={feedbackSession}
 	{htmlInstructorAnswers}
 	htmlAssignmentTransports={data.canManage && data.navIsAdmin === true

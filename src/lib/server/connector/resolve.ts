@@ -25,6 +25,13 @@ export interface RosterStudent {
 	name: string;
 	first: string;
 	last: string;
+	/**
+	 * THE OTHER NAMES THE SAME PERSON GOES BY (ledger 0422, gap e40c6d2d): the
+	 * name on their account when the roster spells it differently. The roster
+	 * read "Maximum Chen" while grades showed the account's "Maximus Chen", so
+	 * the name he read off the grades found nobody.
+	 */
+	aliases?: string[];
 	classes: Array<{ id: string; title: string }>;
 }
 
@@ -241,10 +248,63 @@ export async function myStudents(ctx: ToolContext, only?: MySection[]): Promise<
 			else byEmail.set(email, { email, ...split, classes: [{ id: s.id, title: s.title }] });
 		}
 	}
-	return [...byEmail.values()];
+	const students = [...byEmail.values()];
+	await addAccountNames(ctx, students);
+	return students;
+}
+
+/** Each student's account names, as aliases beside the roster's. Best effort: a failed read adds none. */
+async function addAccountNames(ctx: ToolContext, students: RosterStudent[]): Promise<void> {
+	if (students.length === 0) return;
+	const key = `aliases:${students.map((s) => s.email).sort().join(',')}`;
+	const rows = await memo(ctx, key, async () => {
+		const r = await ctx.backend.select<{ email: string | null; full_name: string | null; display_name: string | null }>(ctx.session, {
+			table: 'profiles',
+			columns: ['email', 'full_name', 'display_name'],
+			in: { email: students.map((s) => s.email) },
+			limit: 2000
+		});
+		return r.error ? [] : (r.data ?? []);
+	});
+	const byEmail = new Map(students.map((s) => [s.email, s]));
+	for (const row of rows) {
+		const st = byEmail.get((row.email ?? '').toLowerCase());
+		if (!st) continue;
+		const names = [row.full_name, row.display_name].map((n) => (n ?? '').trim()).filter((n) => n && norm(n) !== norm(st.name));
+		if (names.length) st.aliases = [...new Set([...(st.aliases ?? []), ...names])];
+	}
+}
+
+/** One letter apart (a typo in a roster, a misheard name), for words of five letters or more. */
+function oneEditApart(a: string, b: string): boolean {
+	if (a.length < 5 || b.length < 5 || Math.abs(a.length - b.length) > 1) return false;
+	let i = 0;
+	let j = 0;
+	let edits = 0;
+	while (i < a.length && j < b.length) {
+		if (a[i] === b[j]) {
+			i++;
+			j++;
+			continue;
+		}
+		if (++edits > 1) return false;
+		if (a.length > b.length) i++;
+		else if (b.length > a.length) j++;
+		else {
+			i++;
+			j++;
+		}
+	}
+	return edits + (a.length - i) + (b.length - j) <= 1;
 }
 
 function scoreStudent(st: RosterStudent, tokens: string[]): number {
+	let best = scoreOneName(st, tokens);
+	for (const alias of st.aliases ?? []) best = Math.max(best, scoreOneName({ ...st, ...splitName(alias), aliases: [] }, tokens));
+	return best;
+}
+
+function scoreOneName(st: RosterStudent, tokens: string[]): number {
 	const first = norm(st.first);
 	const last = norm(st.last);
 	const full = norm(st.name);
@@ -258,6 +318,7 @@ function scoreStudent(st: RosterStudent, tokens: string[]): number {
 		else if (tk.length === 1 && last.startsWith(tk)) score += 6;
 		else if (tk.length >= 2 && (first.startsWith(tk) || last.startsWith(tk))) score += 4;
 		else if (tk.length >= 3 && local.includes(tk)) score += 3;
+		else if (oneEditApart(tk, first) || oneEditApart(tk, last)) score += 2;
 		else return 0;
 	}
 	return score;

@@ -421,3 +421,96 @@ coin_stocks_board:
   exclude: The stock market as the signed-in student sees it, with their own portfolio; it acts as the caller.
 coin_stocks_tick:
   exclude: Asks for the minute price update the stocks page makes on load; it throttles itself and answers counts only, so there is nothing for an admin to do with it.
+
+# CONTRACTS, every field from the connector (ledger 0422, gaps a9d4bab4 and
+# ab5610b6). A contract is the Coin Desk's job card: Sweep IDEA Shop, Fix
+# Go-Cart, IDEA Coin Launcher. Each one is named by its title.
+
+coin_contracts_admin:
+  surface: call
+  level: read
+  describe: Every Coin Desk contract (the jobs students take), open, full, done or cancelled, with who is on each.
+  say: ["list the contracts", "what jobs are open", "who is on the go cart job"]
+
+coin_contract_post:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Post a new Coin Desk contract, a job students take for coins; it asks first.
+  say: ["post a job to sweep the shop for 2 coins", "add a contract to fix the printer", "create a new job for two students"]
+  args:
+    p_title: {name: title, describe: "What the job is called."}
+    p_description: {name: text, describe: "What has to be done."}
+    p_pay_type: {name: pay, enum: [flat, hourly, quality], describe: "flat for a set amount, hourly by the hour, quality judged on the result."}
+    p_payout_amount: {name: coins, default: null, describe: "The coins it pays, for flat or quality pay."}
+    p_hourly_rate: {name: rate, default: null, describe: "Coins per hour, for hourly pay."}
+    p_max_contractors: {name: students, describe: "How many students can take it, 1 to 50."}
+    p_section_id: {name: class, resolve: class, default: null, describe: "Only this class; leave it out for every class."}
+    p_debt_only: {name: debtOnly, default: null, describe: "True to offer it only to students in debt."}
+
+coin_admin_edit_contract:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Change any part of an existing contract (title, text, pay, coins, rate, how many students, class, debt only); anything left out stays as it is. It asks first.
+  say: ["change the go cart job to 40 coins", "let three students take the printer job", "make the sweep job only for Block 2"]
+  args:
+    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
+    p_title: {name: title, default: null, describe: "A new title."}
+    p_description: {name: text, default: null, describe: "New text for what has to be done."}
+    p_pay_type: {name: pay, default: null, enum: [flat, hourly, quality], describe: "flat, hourly or quality."}
+    p_payout_amount: {name: coins, default: null, describe: "The coins it pays."}
+    p_hourly_rate: {name: rate, default: null, describe: "Coins per hour, for hourly pay."}
+    p_max_contractors: {name: students, default: null, describe: "How many students can take it, never fewer than already have."}
+    p_section_id: {name: class, resolve: class, default: null, describe: "Only this class."}
+    p_debt_only: {name: debtOnly, default: null, describe: "True to offer it only to students in debt, false for everyone."}
+    p_clear_class: {name: everyClass, default: null, describe: "True to open it to every class again."}
+
+coin_admin_assign_contract:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Put a student on a contract as if they had taken it, like awarding the IDEA Coin Launcher job to Azad; it asks first.
+  say: ["give the coin launcher job to Azad", "assign the printer job to Timothy", "put Ana on the sweep contract"]
+  args:
+    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
+    p_student_email: {name: student, resolve: student, describe: "The student, as he said the name."}
+
+coin_admin_cancel_contract:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Take a contract down (cancel it), with a reason; restore puts it back. It asks first.
+  say: ["remove the rearrange the shop job", "take down the sweep contract", "cancel the go cart job"]
+  args:
+    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
+    p_reason: {name: reason, default: null, describe: "Why, in his words."}
+
+coin_admin_restore_contract:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Bring back a contract that was taken down; it asks first.
+  say: ["restore the FRC field setup job", "bring back the sweep contract", "put the go cart job back up"]
+  args:
+    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
+
+coin_admin_reset_contract:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Reset a contract, clearing who took it so it is open again; it asks first.
+  say: ["reset the printer job", "clear who has the sweep contract", "open the go cart job again"]
+  args:
+    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
+
+coin_contract_mark_done:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Mark a contract done so its students are paid, with the hours for an hourly one; it asks first.
+  say: ["mark the printer job done", "the go cart is fixed, pay them", "finish the sweep contract, 2 hours"]
+  args:
+    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
+    p_hours: {name: hours, default: null, describe: "Hours worked, for an hourly contract."}
+    p_note: {name: note, default: null, describe: "A note, in his words."}

@@ -258,6 +258,37 @@ export interface HtmlAssignmentTransports {
 	 * It is read-only. Nothing about a re-upload writes through it.
 	 */
 	countOrphanedAnswers?: CountHtmlOrphans | null;
+	/**
+	 * RETIRE THE QUESTIONS A NEW DOCUMENT DROPS (ledger 0422, gap 03246300):
+	 * out of the worksheet, their stored answers kept and shown in grading
+	 * under the question they were. Absent removes the choice.
+	 */
+	retireBlocks?: ((itemId: string, blocks: HtmlRetiredBlock[]) => Promise<{ ok: boolean; message?: string }>) | null;
+}
+
+/** One question being retired: its id and its entry from the document it leaves. */
+export interface HtmlRetiredBlock {
+	block_id: string;
+	block: Record<string, unknown>;
+	module_title: string | null;
+}
+
+/**
+ * THE QUESTIONS THE NEW DOCUMENT DROPS, READY TO RETIRE: each with the stored
+ * manifest's own entry and its module's title, so grading can show the answer
+ * under the question it answered. Empty when the stored manifest cannot be read.
+ */
+export function htmlBlocksToRetire(previous: unknown, removed: readonly string[]): HtmlRetiredBlock[] {
+	const prev = previous as HtmlAssignmentManifest | null;
+	if (!prev || !Array.isArray(prev.modules)) return [];
+	const out: HtmlRetiredBlock[] = [];
+	const want = new Set(removed);
+	for (const m of [{ title: null as string | null, blocks: prev.header ?? [] }, ...prev.modules.map((x) => ({ title: x.title ?? null, blocks: x.blocks ?? [] }))]) {
+		for (const b of m.blocks) {
+			if (want.has(b.id)) out.push({ block_id: b.id, block: { ...b } as Record<string, unknown>, module_title: m.title });
+		}
+	}
+	return out;
 }
 
 export interface HtmlApplyResult {
@@ -712,3 +743,33 @@ export async function assessHtmlReupload(
 /** The one sentence a surface renders while a re-upload is held. */
 export const HTML_REUPLOAD_HELD =
 	'This document is not posted yet. Read what it costs, then confirm below.';
+
+/**
+ * THE GRADING VIEW OF A DOCUMENT WITH RETIRED QUESTIONS (ledger 0422): the
+ * stored manifest plus one last module, "Retired questions", holding each
+ * retired block as it was, so a student's stored answer to it shows in the
+ * answers view under the question it answered. Every retired block is
+ * optional (it never counts toward completion) and takes a field name of its
+ * own, so it can never collide with a live block that reuses the old name.
+ * A manifest with nothing retired comes back as it was.
+ */
+export function withRetiredBlocks<T>(manifest: T, retired: ReadonlyArray<{ block_id: string; block: Record<string, unknown>; module_title?: string | null }>): T {
+	const m = manifest as unknown as HtmlAssignmentManifest | null;
+	if (!m || !Array.isArray(m.modules) || retired.length === 0) return manifest;
+	const live = new Set(manifestBlocks(m).map((b) => b.id));
+	const blocks = retired
+		.filter((r) => !live.has(r.block_id))
+		.map((r) => ({
+			...(r.block as object),
+			id: r.block_id,
+			field: `retired-${r.block_id}`,
+			type: typeof r.block.type === 'string' ? r.block.type : 'text',
+			optional: true,
+			...(r.module_title ? { prompt: `${typeof r.block.prompt === 'string' ? r.block.prompt : r.block_id} (was in ${r.module_title})` } : {})
+		}));
+	if (!blocks.length) return manifest;
+	return {
+		...m,
+		modules: [...m.modules, { id: 'retired-questions', title: 'Retired questions', points: 0, blocks, criteria: [] }]
+	} as unknown as T;
+}

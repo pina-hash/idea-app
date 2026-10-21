@@ -47,7 +47,7 @@ describe('the connector\'s service role', () => {
 		const allowed = [
 			'enabled', 'findClient', 'registerClient', 'storeCode', 'takeCode', 'createToken', 'tokenByAccess', 'rotate',
 			'revokeByHash', 'revokeToken', 'touchToken', 'storeConfirmation', 'takeConfirmation', 'syncRegistry',
-			'setAuditUndo', 'undoCandidates', 'mintSession'
+			'setAuditUndo', 'undoCandidates', 'mintSession', 'createUpload', 'storeUploadPart', 'readUpload', 'replayState', 'recordReplay'
 		];
 		expect(using.filter((m) => !allowed.includes(m))).toEqual([]);
 		expect(using.length).toBeGreaterThanOrEqual(10);
@@ -61,6 +61,10 @@ describe('the connector\'s service role', () => {
 		const tables = [...src.matchAll(/serviceClient\(\)[\s\n]*\.from\('([a-z_]+)'\)/g)].map((m) => m[1]);
 		expect(tables.length).toBeGreaterThan(10);
 		expect(tables.filter((t) => !t.startsWith('connector_'))).toEqual([]);
+		// The one bucket it touches is the chat-upload bucket (0290, ledger 0422).
+		const buckets = [...src.matchAll(/serviceClient\(\)\s*\.storage\.from\(([A-Za-z_']+)\)/g)].map((m) => m[1]);
+		expect(buckets.length).toBeGreaterThanOrEqual(2);
+		expect(new Set(buckets)).toEqual(new Set(['CONNECTOR_UPLOAD_BUCKET']));
 	});
 
 	it('is never read by a connector route', () => {

@@ -303,6 +303,17 @@ export const HX_FIELD_BOX_TYPE = 'idea:field-box';
 export const HX_FEEDBACK_TYPE = 'idea:feedback';
 
 /**
+ * HOW FAR EACH TEAMMATE IS (ledger 0422, gap 673cbfa2), sent to a student's
+ * document when the class has a posted team draw that student is on: per
+ * teammate a name, a percent, the FIELDS that hold an answer, and each
+ * module's met count, never an answer's words. Advisory and optional: a
+ * document that does not know it ignores it, and a portal that predates it
+ * never sends it, so a document must never wait on it. Sent after the state
+ * message and again whenever it changes.
+ */
+export const HX_TEAM_PROGRESS_TYPE = 'idea:team-progress';
+
+/**
  * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
  *
  * BYTES GO FRAME-TO-PARENT ONLY, NEVER BACK. An `idea:image` carries a
@@ -393,6 +404,19 @@ export type HxParentMessage =
 			/** The fields that have a note on them (0238). See `HX_FEEDBACK_TYPE`. */
 			type: typeof HX_FEEDBACK_TYPE;
 			fields: string[];
+	  }
+	| {
+			/** The student's own team, teammate by teammate. See `HX_TEAM_PROGRESS_TYPE`. */
+			type: typeof HX_TEAM_PROGRESS_TYPE;
+			team: string;
+			members: Array<{
+				name: string;
+				me: boolean;
+				handedIn: boolean;
+				percent: number;
+				done: string[];
+				modules: Array<{ id: string; title: string; met: number; of: number }>;
+			}>;
 	  };
 
 /**
@@ -853,6 +877,25 @@ export function hxImagePlacement(
  */
 export function hxFeedbackMessage(fields: readonly string[]): HxParentMessage {
 	return { type: HX_FEEDBACK_TYPE, fields: [...new Set(fields)].sort((a, b) => a.localeCompare(b)) };
+}
+
+/** A copy that structured clone accepts (plain arrays and objects only). */
+export function hxTeamProgressMessage(team: {
+	team: string;
+	members: Array<{ name: string; me: boolean; handedIn: boolean; percent: number; done: string[]; modules: Array<{ id: string; title: string; met: number; of: number }> }>;
+}): HxParentMessage {
+	return {
+		type: HX_TEAM_PROGRESS_TYPE,
+		team: team.team,
+		members: team.members.map((m) => ({
+			name: m.name,
+			me: m.me,
+			handedIn: m.handedIn,
+			percent: m.percent,
+			done: [...m.done],
+			modules: m.modules.map((x) => ({ id: x.id, title: x.title, met: x.met, of: x.of }))
+		}))
+	};
 }
 
 /** The parent's answer to `idea:image-box`. */
