@@ -1340,6 +1340,11 @@ timing, retiring an answered question, the three views).
 - **Step titles never carry a second numbering.** "Armory folder · Class 2" beside a Day 2
   map is a third answer to "where am I"; the title is the action ("Connect Armory").
 
+- **A resource students must open is a card, never a plain key.** On IDEA-Blade 01 almost no
+  student opened the rulebook or the template slides from ordinary keys. Each became a gold
+  card (icon, a "Read before you sketch / model" label, a title, one line of what is inside, an
+  Open key), shown in the hero and again at the step that needs it.
+
 **Videos.**
 - **Merge slots to match what was recorded.** When Mr. Pina records sketch and extrude as one
   clip, the two slots become one video record and one card per role; never two cards on one
