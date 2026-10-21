@@ -292,7 +292,10 @@ describe('the rubric sits AFTER the work, closed, on every engine (report R20)',
 		expect(bodyAt, `${kind}: the instructions landmark`).toBeGreaterThanOrEqual(0);
 		expect(work.length, `${kind}: the work landmark`).toBeGreaterThan(0);
 		expect(footerAt, `${kind}: the footer landmark`).toBeGreaterThan(0);
-		expect(bodyAt).toBeLessThan(Math.min(...work));
+		// A PORTED HTML ASSIGNMENT (v3) OPENS WITH ITS DOCUMENT, so its instructions come
+		// after the work (report 8812b4ba); every other engine reads the instructions first.
+		if (kind === 'v3') expect(bodyAt, 'v3: the document first').toBeGreaterThan(Math.max(...work));
+		else expect(bodyAt).toBeLessThan(Math.min(...work));
 		expect(rubricAt).toBeGreaterThan(Math.max(...work));
 		expect(rubricAt).toBeLessThan(footerAt);
 		// Closed on arrival, for a student who has started nothing.

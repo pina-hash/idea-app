@@ -264,10 +264,14 @@ describe('a student function takes no email and no amount', () => {
 		expect(String(anon)).toMatch(/permission denied/);
 	});
 
-	test('a signed-in caller who is not in an economy-on class is refused by the seam', async () => {
+	test('a student with no class is let through the seam (0286); staff are still refused', async () => {
 		const outsider = await createUser(db, 'outside@boscotech.net', 'Out Sider');
 		const r = await rpc<Json>(outsider, `public.coin_buy_print(10)`);
-		expect(r).toMatchObject({ ok: false, reason: 'not_in_economy' });
+		// Through the seam: the answer is about the balance, not about the economy.
+		expect(r).toMatchObject({ ok: false });
+		expect(r.reason).not.toBe('not_in_economy');
+		const staff = await createUser(db, 'outside.staff@boscotech.edu', 'Out Staff');
+		expect(await rpc<Json>(staff, `public.coin_buy_print(10)`)).toMatchObject({ ok: false, reason: 'not_in_economy' });
 	});
 });
 
