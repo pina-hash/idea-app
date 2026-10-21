@@ -14,7 +14,7 @@ build and the page degrades gracefully): `PUBLIC_FSP_APPS_SCRIPT_URL`,
 bundle; a missing value degrades to a clear "not configured" response, never a
 build break):
 
-- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly SEVEN places: the GREENLINE
+- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly EIGHT places: the GREENLINE
   community-track publish endpoint (which must run the game's real track
   validation in Node before any row is written), the push sender
   (`src/lib/server/push.ts`, whose `serviceClient()` the tournament alerts and
@@ -47,13 +47,23 @@ build break):
   Website connector, ledger 0400), for exactly two things, the same two as
   Armory's: the `connector_*` tables, which no client role can touch, and
   minting the connected admin's own session; every tool call runs on that
-  session. **The same key's VALUE also sits outside this `$env` census** as the
+  session. **The EIGHTH is `src/lib/server/view-as/service.ts`** (view as,
+  act as and test student accounts, ledger 0422), for exactly three things:
+  minting a real session for the account being viewed or acted as
+  (`mintSessionFor`, which the target's own token then claims through
+  `view_as_claim`, so this module never names a session to the database),
+  signing that session out (`revokeSession`), and creating the auth user
+  behind a test account (`createTestUser`, always at `test.ideabosco.com`,
+  never an email sent). Every read and write of site data runs on a user's own
+  token; `tests/view-as-service-role.test.ts` holds the file to that, as
+  `tests/connector-service-role.test.ts` holds the connector's. **The same key's VALUE also sits outside this `$env` census** as the
   repository secret `ARMORY_MIRROR_SUPABASE_SERVICE_ROLE_KEY`, whose one reader
   is `tools/armory-drive-mirror.mjs` (ledger 0404): the nightly mirror must read
   every Armory project, which member-only RLS forbids any other role, and it
   sends GETs for four tables' named columns and no write (see the census of
-  `process.env` credentials below). This line said FOUR until 2026-09-10, FIVE until 2026-10-06 and SIX
-  until 2026-10-18, and the
+  `process.env` credentials below). This line said FOUR until 2026-09-10, FIVE until 2026-10-06, SIX
+  until 2026-10-18 and SEVEN until 2026-10-21 (ledger 0422 added the eighth
+  and did not own this file; 0425 wrote it down), and the
   count is the kind of figure that goes stale the moment another surface needs a
   credential, so **move it in the same edit that adds one**. Nothing else may read it, and
   **it must never gain a `PUBLIC_` prefix**. Unset, the feedback

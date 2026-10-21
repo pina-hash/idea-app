@@ -159,7 +159,10 @@ it is not required to browse.
 
 - **Public tier (no login):** the landing page `/`, every assignment and
   reference doc (`/assignments/<slug>`), VANGUARD, the coin leaderboard
-  (`/coins/`), the tournament section, the reference-document viewer
+  (`/coins/`), the coin home `/coin` (ledger 0422: one preview card per coin
+  page; signed out, the Ledger's card is drawn from the same public board and
+  every other card asks the visitor to sign in, so it is not in
+  `authedPrefixes`), the tournament section, the reference-document viewer
   `/reference/<itemId>` (only for a MATERIAL a teacher flagged public), the
   IDEA Maps viewer (`/maps`, which reads no session and is deliberately not
   under the `/maps/edit` gate), and the short-link redirects `/<slug>` such as
@@ -180,7 +183,10 @@ it is not required to browse.
   `/classroom`, `/foundry` (the SURFACES; the bundle BYTES are a separate
   question -- they are served from the apps origin, which holds no session at
   all, so the publication gate there is the version's own status and the two
-  uuids in the URL. See the origin split).
+  uuids in the URL. A game's HTML cover, `/c/<app id>` (ledger 0422), is an
+  apps-origin route too: it answers only where bundles answer, from
+  `foundry_cover_html` read anonymously, under `sandbox allow-scripts` and a
+  policy with no network. See the origin split).
   `hooks.server.ts` redirects anonymous users off a LIST of authed prefixes.
 - **Admin tier:** `/dashboard`, `/coin-desk`, `/admin`, `/greenline/moderation`,
   the notebook Drive connect flow, FRC completion overrides and gate reviews,

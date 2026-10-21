@@ -209,6 +209,21 @@ below; a third mount is a caller of it, never a third handler.
 - **EVERY REFUSAL IS THE SAME BODYLESS 404.** A malformed URL, an unknown app,
   an unpublished version, another app's file, a missing row and a hidden app
   are indistinguishable from outside.
+- **A GAME'S HTML COVER IS THE THIRD APPS-ORIGIN ROUTE, AND IT IS STRICTER
+  THAN A BUNDLE (ledger 0422, migration 0291).** `/c/<app id>`
+  (`src/routes/c/[appId]/+server.ts`) answers only where bundles answer
+  (`foundryOnServingHost`), reads `foundry_cover_html` through the request's
+  own client, which on the apps origin is anonymous and so answers only for an
+  app the gallery shows, and sends the bundle routes' one bodyless 404 for
+  everything else. It is served under `foundryCoverCsp`: `sandbox
+  allow-scripts` (no `allow-same-origin`, ever, not even conditionally as a
+  bundle's is), `default-src 'none'`, `connect-src 'none'`, `form-action
+  'none'`, `base-uri 'none'`, with images, media and fonts only from `data:`
+  and `blob:`. A cover is an admin's HTML, not a student's, and it still gets
+  no network at all: it can animate and react to the pointer, and it can read
+  no cookie, store nothing and send nothing anywhere. `c` is a reserved
+  short-link name (0292), and `/c/` is exempt from the report control, with
+  its reason, like the bundle routes.
 - **THE FRAME GRANTS `allow="fullscreen"` AND NOTHING ELSE, AND THE SANDBOX IS
   A SEPARATE LEVER FROM THE PERMISSIONS POLICY.** The default allowlist for
   `fullscreen` is `self`, no response in this repository sends a

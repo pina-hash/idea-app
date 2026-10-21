@@ -636,6 +636,23 @@ show.
       call that fails to `null` on a database without 0237, and a null layer
       draws nothing**; an EMPTY layer also draws nothing, and the admin page
       says "not available yet" only for null.
+      - **A COVER IS AN OVERRIDE TOO: A PICTURE, AN HTML COVER, OR NEITHER
+        (ledger 0422, migration 0291, feedback 1cc58a6e).** `foundry_cover_set`
+        builds on the same layer and never touches the student's record. The
+        editor (`FoundryCoverEditor`) opens from the card inside the gallery's
+        staff wrapper; `FoundryDetail` keeps no staff branch. An HTML cover is
+        never served from the portal: it is the apps-origin route
+        `/c/<app id>` (`FOUNDRY_COVER_HTML_PREFIX`, `foundryCoverHtmlUrl`),
+        read through `foundry_cover_html` as an anonymous caller, which answers
+        only for an app the gallery shows. The card frames it with the same
+        `FOUNDRY_COVER_SANDBOX` (`allow-scripts`, never `allow-same-origin`),
+        out of the tab order, and a click inside it still opens the card
+        because the window's focus moves to the frame. **A cover that never
+        takes focus (its own CSS sets `pointer-events: none`) opens nothing
+        when its picture is clicked**; the name plate and keyboard focus still
+        do. The connector sets covers through `set_foundry_cover`
+        (`/api/admin/files/foundry-cover`) or `foundry_cover_set`. The CSP and
+        the serving gate are the origin split's (`docs/subsystems/origin-split.md`).
     - **VOTES ARE ONE PER PERSON PER GAME, AND NO READ NAMES A VOTER (ledger
       0380, report 8274b260).** `foundry_vote` takes no identity parameter, takes
       1, -1 or 0 (take it back), refuses your own game and any game the gallery

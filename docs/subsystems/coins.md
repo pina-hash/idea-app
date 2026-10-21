@@ -116,3 +116,48 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
     0386) retired that table, because a frozen count of the old ledger was
     ranking a category list it no longer described. A live per-category tally
     is still a query the desk does not make.
+- **EVERY COIN PAGE CARRIES ONE IDEA COIN BAR, AND `COIN_PAGES` IS ITS ONE
+  LIST (ledger 0422).** `src/lib/coin-bar/CoinBar.svelte` sits under the header
+  of My coins, the role page, the Market, Stocks, a stock's page and the Coin
+  Desk; `src/lib/coin-bar/pages.ts` holds the tabs (`COIN_PAGES`,
+  `coinPagesFor`) and `coinPageFor` names the current one. A new coin page
+  joins that list, never a second bar. The tabs wrap and never scroll, the
+  lesson the Ledger's own spec recorded.
+  - **THE COIN DESK TAB IS THE DESK'S OWN GATE.** `coinBarDesk` in
+    `src/lib/server/coin-bar.ts` asks `coinStaff`, so the tab is offered
+    exactly to the people `/coin-desk` opens for; signed out is false with no
+    call, and any error is false (it fails closed).
+  - **THE FROZEN LEDGER GETS THE REAL COMPONENT AT SERVE TIME.**
+    `injectCoinBar` server-renders the bar under the Ledger's header and adds
+    its stylesheet, so the Ledger file stays byte-identical (the freeze in
+    `docs/subsystems/legacy-content.md`). The bar's site tokens
+    (`COIN_BAR_TOKENS`) are re-declared INSIDE `.coin-bar`, read out of the
+    design system's own stylesheets by `coinBarTokenCss`, because the Ledger
+    defines `--green` and `--white` as its old neon set and a bare
+    `var(--green)` would resolve to that. A page with no header or head comes
+    back unchanged, so the bar is never half-added.
+  - **`/coin` IS THE COIN HOME AND IT IS PUBLIC.** One preview card per coin
+    page, each card a single link, each preview its page's own read run best
+    effort (`src/routes/coin/+page.server.ts`, `coinHomeFrom`). Signed out,
+    the Ledger's card comes from the public board and every other card asks
+    the visitor to sign in. `coin` is a reserved short-link name (0292).
+- **EVERY IDEA MARKET CARD HAS ONE FEATURED STATE, AND THE TILE KEY NAMES IT
+  (ledger 0425, migration 0294).** The Official zone draws cards that are not
+  listings (the shop's tiles, want-ads, contracts, the background card) next
+  to official listings, and `officialTiles` in `src/lib/coin-market/official.ts`
+  keys each one (`shop:eating_pass`, `donation:<id>`, `contract:<id>`,
+  `background`). A switch staff set is a row of `coin_market_card_features`
+  under that key; no row is the default (contracts featured, the rest not). A
+  listing, official or student, keeps its own `featured_at`, and
+  `coin_market_card_set_featured` sends it through `coin_market_listing_staff`
+  rather than restating that function's scope rule. Switching a card that is
+  not a listing is a full coin admin's, because it shows in every class.
+  - **A NEW KIND OF OFFICIAL TILE NEEDS ITS KEY IN TWO PLACES:**
+    `FIXED_CARD_KEYS` (or a prefix) in `official.ts` and 0294's check
+    constraint and `_coin_market_card_exists`, in a new migration.
+    `tests/db/coin-market-cards-0294.test.ts` holds the fixed list equal to
+    the file's.
+  - **"FEATURE ONLY THESE" IS ONE CALL.** `coin_market_cards_feature_only`
+    checks every card named before it writes, so an unknown card refuses the
+    whole call; staff list every card, with its id, through
+    `coin_market_cards_admin`.

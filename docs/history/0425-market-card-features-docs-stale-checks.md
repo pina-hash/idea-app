@@ -80,3 +80,32 @@ is a generated exclusion (no staff gate). `npm run connector:build` was run.
 
 **Not verified.** The live Coin Desk page signed in, and a switch on the live
 market; both wait for the deploy.
+
+## 2. The docs 0422 did not own
+
+0422's "Not done" list named five files its ledger did not own. Four are
+written here; the fifth (`vercel.json`, the replay riding the autopay route)
+was not in this ledger's tasks and is still as 0422 left it.
+
+- **The student changelog.** The prompt named `static/classroom-updates.json`;
+  the file is `classroom-updates.json` at the repo root (`src/lib/classroom/updates.ts`
+  imports it from there), so the entries went there, in its existing shape.
+  Four entries dated 2026-10-21: the coin bar and coin home, what a student
+  sees when Mr. Pina views or acts on their account (and that test accounts
+  never show in their lists), Foundry covers, and this ledger's featured
+  market cards.
+- **`CLAUDE.md`.** The public tier names `/coin`; the `/foundry` line names
+  `/c/<app id>` as an apps-origin route.
+- **`docs/subsystems/coins.md`**: the coin bar (`COIN_PAGES`, `coinBarDesk`,
+  `injectCoinBar` and the re-declared tokens), `/coin`, and the market's one
+  featured state per card from task 1.
+- **`docs/subsystems/foundry.md`**: covers as an override layer, the editor's
+  place, the frame, and the click-through limit 0422 recorded.
+- **`docs/subsystems/origin-split.md`**: `/c/<app id>` as the third
+  apps-origin route and its stricter policy.
+- **`docs/subsystems/environment.md`**: the service-role census is EIGHT, the
+  eighth `src/lib/server/view-as/service.ts`, with what it does and the test
+  that holds it.
+
+`node tools/claude-md-check.mjs` agrees with the tree after the edits
+(2026-10-21).

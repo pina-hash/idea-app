@@ -14,6 +14,30 @@
 	"entries": [
 		{
 			"date": "2026-10-21",
+			"title": "Featured cards on the IDEA Market",
+			"body": "Any card in the IDEA Market's Official zone can now be featured, the wanted items like tissue boxes included. Featured cards come first and carry a gold Featured chip, so the top of the Official zone is what Mr. Pina most wants you to see.",
+			"tags": ["Coins"]
+		},
+		{
+			"date": "2026-10-21",
+			"title": "One bar across every coin page, and a coin home",
+			"body": "My coins, the Ledger, the IDEA Market and Stocks now share the same bar of tabs at the top, so you can jump between them from any of them. ideabosco.com/coin is the new coin home: one card for each coin page, with what you need from it at a glance.",
+			"tags": ["Coins"]
+		},
+		{
+			"date": "2026-10-21",
+			"title": "When Mr. Pina helps with your account",
+			"body": "To help with a problem, Mr. Pina can look at the site exactly the way you see it. While he only looks, nothing on your account can change. If he makes a change for you, like handing in work you could not hand in yourself, you get a notice on your account saying so, and the work shows that he handed it in for you. Practice accounts staff use for testing never appear in your class, on leaderboards or in stock rankings.",
+			"tags": ["Classroom"]
+		},
+		{
+			"date": "2026-10-21",
+			"title": "New covers in the Foundry gallery",
+			"body": "A game in the IDEA Foundry gallery can now get a new cover from Mr. Pina, a picture or a short animated cover. Clicking the card still opens the game, and the game you published is not changed.",
+			"tags": ["Foundry"]
+		},
+		{
+			"date": "2026-10-21",
 			"title": "IDEA Stocks has relaunched",
 			"body": "IDEA Stocks (ideabosco.com/market/stocks) started over today. Each stock's price today is its new launch price, and every chart starts from here: the old history is gone. If you own shares, you still own exactly the same shares, worth the same as before; nothing was refunded. From now on prices come only from what really happens on the site and update about every minute on class days. For the first four weeks a price can only move so far in a day: 5% in week 1, 10% in week 2, 15% in week 3 and 25% in week 4. After that there is no daily limit, but a big move pauses trading in that stock, like a real stock exchange: a move of 10% from the day's starting price pauses buying and selling for 15 minutes, 20% for another 15 minutes, and 30% for the rest of the day. The stock's card tells you when trading opens again.",
 			"tags": ["Coins"]
