@@ -97,7 +97,10 @@
 		stock('class:s-a', 'class', 'IDEA100B1', 'IDEA100 Block 1', S.a),
 		stock('class:s-b', 'class', 'IDEA209HB4', 'IDEA209H Block 4', S.b),
 		stock('foundry', 'foundry', 'FNDRY', 'IDEA Foundry', S.f),
-		stock('gauntlet', 'gauntlet', 'GNTLT', 'GAUNTLET', S.g, gHalt)
+		stock('gauntlet', 'gauntlet', 'GNTLT', 'GAUNTLET', S.g, gHalt),
+		stock('area:classroom', 'area', 'CLASS', 'IDEA Classroom', walk(55, 10.2)),
+		stock('area:market', 'area', 'MARKT', 'IDEA Market', walk(67, 9.8, 7)),
+		stock('area:feedback', 'area', 'FEED', 'Feedback', walk(79, 10))
 	];
 	const fLast = stocks[3].last.close;
 	const aLast = stocks[1].last.close;
@@ -163,7 +166,7 @@
 	const fs = S.f;
 	const days = [...new Set(fs.map((p) => p.at.slice(0, 10)))].map((day) => {
 		const c = fs.filter((p) => p.at.startsWith(day)).map((p) => p.close);
-		return { day, open: c[0], high: Math.max(...c), low: Math.min(...c), close: c[c.length - 1], prev: null, changes: c.length };
+		return { day, open: c[0], high: Math.max(...c), low: Math.min(...c), close: c[c.length - 1], prev: null, changes: c.length, volume: (c.length * 7) % 23 === 0 ? 0 : Math.round(c[0] * c.length * 3), trades: c.length % 5 };
 	});
 	const detail = parseStockDetail({
 		ok: true,

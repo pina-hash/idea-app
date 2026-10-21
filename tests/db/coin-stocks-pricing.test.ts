@@ -57,7 +57,7 @@ describe('the launch the chain applied', () => {
 		const { rows } = await w.db.sql<Json>(
 			`select s.id, s.launched_at, s.launch_price::text lp,
 				(select count(*) from public.coin_stock_closes c where c.stock_id = s.id)::int closes
-			 from public.coin_stocks s where s.kind <> 'class' order by s.id`
+			 from public.coin_stocks s where s.kind not in ('class', 'area') order by s.id`
 		);
 		expect(rows.map((r) => r.id)).toEqual(['foundry', 'gauntlet', 'idea']);
 		for (const r of rows) {
@@ -252,7 +252,7 @@ describe('the tick', () => {
 			 join lateral (select close from public.coin_stock_closes c where c.stock_id = s.id order by day desc limit 1) c on true
 			 where s.active and s.kind <> 'index'`
 		)).rows;
-		expect(members.length).toBe(4);
+		expect(members.length).toBe(14); // two classes, Foundry, GAUNTLET and the ten area stocks (0287)
 		const mean = members.reduce((a, m) => a + Number(m.close) / Number(m.lp), 0) / members.length;
 		const idx = await today('idea');
 		const launch = Number(await w.scalar(`select anchor_price::text v from public.coin_stocks where id = 'idea'`));
@@ -263,7 +263,7 @@ describe('the tick', () => {
 		const want = Math.min(Math.max(launch * mean, ref * (1 - cap)), ref * (1 + cap));
 		expect(Number(idx.target)).toBeCloseTo(launch * mean, 3);
 		expect(Number(idx.close)).toBeCloseTo(want, 3);
-		expect(((idx.inputs as Json).members as Json[]).length).toBe(4);
+		expect(((idx.inputs as Json).members as Json[]).length).toBe(14);
 	});
 
 	test('the throttled tick runs once in thirty seconds, and never on a day with no class', async () => {

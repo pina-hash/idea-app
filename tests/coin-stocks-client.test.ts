@@ -117,3 +117,34 @@ describe('words', () => {
 		expect(sharesFor(0, 2, 2)).toBe(0);
 	});
 });
+
+describe('the market screen helpers (0287, reports 616b93c3 and f2aa1311)', () => {
+	const st = (id: string, ticker: string, pct: number | null, kind: 'class' | 'index' | 'area' = 'area') =>
+		({ id, ticker, name: ticker, kind, active: true, last: pct === null ? null : { day: '2026-10-21', close: 10, prev: 10, carried: false, change_percent: pct, at: null, high: 11, low: 9 }, launch: null, phase: null, halt: null, series: [] }) as never;
+
+	test('topMovers lists the biggest risers and fallers, never the index, never an unchanged stock', async () => {
+		const { topMovers } = await import('$lib/coin-stocks/stocks');
+		const r = topMovers([st('i', 'IDEA', 9, 'index'), st('a', 'A', 4), st('b', 'B', -3), st('c', 'C', 0), st('d', 'D', 7), st('e', 'E', -9), st('f', 'F', null)], 2);
+		expect(r.gainers.map((x) => x.ticker)).toEqual(['D', 'A']);
+		expect(r.losers.map((x) => x.ticker)).toEqual(['E', 'B']);
+	});
+
+	test('candlesOf puts the days oldest first and keeps the wick around the body', async () => {
+		const { candlesOf } = await import('$lib/coin-stocks/stocks');
+		const c = candlesOf([
+			{ day: '2026-10-21', open: 10, high: 10.2, low: 9.9, close: 9.95, prev: 10, changes: 3, volume: 5, trades: 1 },
+			{ day: '2026-10-20', open: 9.5, high: 9.4, low: 9.6, close: 10, prev: null, changes: 2, volume: 0, trades: 0 }
+		]);
+		expect(c.map((x) => x.day)).toEqual(['2026-10-20', '2026-10-21']);
+		expect(c[0]).toMatchObject({ up: true, high: 10, low: 9.5 }); // a recorded high or low inside the body is stretched to cover it
+		expect(c[1]).toMatchObject({ up: false, volume: 5 });
+	});
+
+	test('areaMetrics reads the recorded measures of an area price change', async () => {
+		const { areaMetrics } = await import('$lib/coin-stocks/stocks');
+		expect(areaMetrics({ metrics: [{ key: 'sent', label: 'Reports sent', this_week: 5, average_week: 2, ratio: 1.75 }] })).toEqual([
+			{ key: 'sent', label: 'Reports sent', this_week: 5, average_week: 2, ratio: 1.75 }
+		]);
+		expect(areaMetrics({})).toEqual([]);
+	});
+});

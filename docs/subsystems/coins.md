@@ -48,6 +48,13 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
     moving by exactly the logged fees, purchases and house gains, with a
     planted unbalanced release as its control. A new market path writes
     through `_coin_market_settle` or that test is the one that reddens.
+  - **AN AREA STOCK IS PRICED FROM THREE OR FOUR REAL COUNTS AND NOTHING ELSE
+    (0287).** `_coin_area_metrics` is the one list of what each area's stock
+    reads; `_coin_stock_area_signal` turns it into a reading (this week over its
+    own four-week average, each softened by 2) and records every count on the
+    price change. A new area is a new branch in the first, a new `area:<name>`
+    row in `coin_stocks`, and a test that works its signal by hand. An area that
+    cannot be read answers "no reading", never an error that stops the tick.
   - **A STOCK PRICE IS A STORED TICK WITH ITS INPUTS, NEVER COMPUTED ON READ
     (0279, relaunched as formula v2 in 0283).** `_coin_stock_price` is the only
     writer: it stores the raw inputs, the signal, what the data said, the day's

@@ -147,7 +147,7 @@ test('every stock has a price every class day; the ramp caps hold; every breaker
 		)
 	).rows;
 	const stocks = [...new Set(rows.map((r) => String(r.ticker)))];
-	expect(stocks.length).toBe(5); // the index, two classes, Foundry, GAUNTLET
+	expect(stocks.length).toBe(15); // the index, two classes, Foundry, GAUNTLET and the ten area stocks
 	expect(days.length).toBeGreaterThanOrEqual(35);
 	for (const t of stocks) expect(rows.filter((r) => r.ticker === t).length).toBe(days.length);
 
@@ -182,7 +182,11 @@ test('every stock has a price every class day; the ramp caps hold; every breaker
 	expect(ramp.every((t) => !halts.some((h) => h.stock_id === t.stock_id && h.day === t.day))).toBe(true);
 
 	// Positive control: the run is not flat.
-	for (const t of stocks) {
+	// The ten area stocks (0287) are priced from rows this synthetic run never writes, so each
+	// holds its price: a flat line is their correct answer (tests/db/coin-stock-areas.test.ts
+	// proves they move on real rows).
+	const AREA = ['CLASS', 'DESK', 'MARKT', 'TOURN', 'ARMRY', 'CERTS', 'MAPS', 'IDCAD', 'NOTE', 'FEED'];
+	for (const t of stocks.filter((x) => !AREA.includes(x))) {
 		const closes = rows.filter((r) => r.ticker === t).map((r) => Number(r.close));
 		expect(Math.max(...closes) - Math.min(...closes), t).toBeGreaterThan(0.05);
 	}

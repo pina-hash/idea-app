@@ -2511,6 +2511,12 @@
 			"title": "IDEA Coins for everyone",
 			"body": "The IDEA Coin pages, the market and the stock market now work for any student or visitor who signs in, whether or not they are in a class right now. Things that belong to a class, like hall pass time and class jobs, still need a class.",
 			"tags": ["Coins"]
+		},
+		{
+			"date": "2026-10-21",
+			"title": "More stocks, and charts like a real market",
+			"body": "Every active part of the site now has its own stock: Classroom, Coin Desk, the Market, Tournaments, the Armory, Certifications, Maps, IdeaCAD, the Notebook and Feedback join Foundry and GAUNTLET. Each price follows a few real counts for that area, such as work handed in or reports sent, and the stock page shows exactly which counts moved it. The stocks page has a live price strip, the day's top gainers and losers, and each stock's day high and low. A stock's page now draws one candle per day with bars for the coins traded.",
+			"tags": ["Coins"]
 		}
 	]
 }

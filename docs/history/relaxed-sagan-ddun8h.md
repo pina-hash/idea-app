@@ -2,7 +2,7 @@
 title: "Feedback round 2026-10-21: stocks relaunch, HTML assignments, small fixes, coins for everyone, live view"
 date: 2026-10-21
 branches: [claude/relaxed-sagan-ddun8h]
-migrations: ["0283", "0284", "0285", "0286"]
+migrations: ["0283", "0284", "0285", "0286", "0287"]
 subsystems: [Classroom home feed, Class page, Quick posts, Post thumbnails, Tournaments, Feedback console, Profiles, Portal launcher]
 ---
 
@@ -102,3 +102,34 @@ focus path in a real worksheet, are unchecked.
   directory and reddened that test; the file was restored by md5. Known limits:
   a member can send but is not listed for others to send to, and nobody is
   given coins by it.
+
+## Task 6, one stock per area and market-style charts (0287)
+
+- **The list, from the repo.** `src/lib/site-manifest.ts` lists the apps; Mr. Pina's
+  list is the one used: Classroom, Coin Desk, IDEA Market, Tournaments, Armory,
+  Certifications, Maps, IdeaCAD, Notebook and Feedback as new stocks beside the
+  existing Foundry and GAUNTLET. GREENLINE, VANGUARD and the archived areas are
+  not stocks, and FRC Training is hidden from students, so it has none.
+- **Price.** Each area has three or four counts (`_coin_area_metrics`): for
+  example Classroom is work handed in, work returned, posts published and people
+  who handed in. The signal is each count this week over its own average week of
+  the four before, softened by adding 2 to both so a handful of events cannot
+  swing it, averaged. Under 8 events in five weeks it has no reading and the price
+  holds. Price is then the agent's v2 rule (launch price times signal over the
+  first reading) under the same launch ramp and circuit breakers; the IDEA index
+  averages the new stocks in. An area whose table cannot be read answers "no
+  reading" instead of stopping the tick for every stock.
+- **Charts.** `CandleChart.svelte` draws a candle a day with volume bars (coins
+  traded, from `coin_stock_trades` per day, now in `coin_stock_detail`); the
+  stocks page has a price strip, a top gainers and losers panel and each stock's
+  day high and low. Measured in Chromium at 1440 and 375: no horizontal overflow,
+  no page errors, 4 candles on the fixture detail, 8 strip entries, 2 gainers and
+  3 losers on the fixture board.
+- **Tests.** `tests/db/coin-stock-areas.test.ts` works the feedback signal by
+  hand (1.25), shows a quiet area holds, and that the detail carries volume.
+  Three existing stock tests changed their stock counts (4 to 14 members, 5 to 15
+  stocks) and the backtest exempts the ten area stocks from its "the run is not
+  flat" check, because the synthetic run writes none of their rows.
+- **Not verified.** Prices of areas against production data (the signals read ten
+  areas' tables that this container has only seeded by hand for one area); the
+  tick cost of ten more stocks on production.

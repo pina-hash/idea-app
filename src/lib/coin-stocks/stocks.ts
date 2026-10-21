@@ -11,7 +11,7 @@
 import { personName } from '$lib/person-name';
 import { coins, coinNumber } from '$lib/coin-format';
 
-export type StockKind = 'class' | 'foundry' | 'gauntlet' | 'index';
+export type StockKind = 'class' | 'foundry' | 'gauntlet' | 'index' | 'area';
 
 /** One price change: the series is every change since the launch. */
 export interface StockPoint {
@@ -120,6 +120,9 @@ export interface StockDay {
 	close: number;
 	prev: number | null;
 	changes: number;
+	/** Coins traded in this stock on the day, and how many trades (0287). */
+	volume: number;
+	trades: number;
 }
 
 export interface StockDetail {
@@ -177,7 +180,7 @@ export function parseStock(v: unknown): Stock | null {
 	if (!o || typeof o.id !== 'string') return null;
 	const last = obj(o.last);
 	const launch = obj(o.launch);
-	const kind = (['class', 'foundry', 'gauntlet', 'index'].includes(String(o.kind)) ? o.kind : 'class') as StockKind;
+	const kind = (['class', 'foundry', 'gauntlet', 'index', 'area'].includes(String(o.kind)) ? o.kind : 'class') as StockKind;
 	return {
 		id: o.id,
 		kind,
@@ -269,7 +272,9 @@ export function parseStockDetail(v: unknown): StockDetail | null {
 			low: n(d.low),
 			close: n(d.close),
 			prev: nn(d.prev),
-			changes: n(d.changes)
+			changes: n(d.changes),
+			volume: n(d.volume),
+			trades: n(d.trades)
 		})),
 		ticks: objs(o.ticks).map((t) => ({
 			at: s(t.at),
@@ -366,8 +371,65 @@ export const KIND_WORDS: Record<StockKind, string> = {
 	index: 'The whole platform: it moves with the average move of every stock below.',
 	class: "This class's grade ratio on work returned in the last 4 weeks.",
 	foundry: 'People active in the IDEA Foundry each day, over the last 7 days.',
-	gauntlet: 'People who submitted a GAUNTLET answer each day, over the last 7 days.'
+	gauntlet: 'People who submitted a GAUNTLET answer each day, over the last 7 days.',
+	area: "This part of the site's activity this week against its own recent weeks: a few real counts, such as work handed in or reports sent."
 };
+
+/** One metric of an area stock's index, as the database recorded it on a price change. */
+export interface AreaMetric {
+	key: string;
+	label: string;
+	this_week: number;
+	average_week: number;
+	ratio: number;
+}
+
+/** The recorded metrics of an area price change, or none. */
+export function areaMetrics(inputs: Record<string, unknown>): AreaMetric[] {
+	return objs(inputs.metrics).map((m) => ({
+		key: s(m.key),
+		label: s(m.label, s(m.key)),
+		this_week: n(m.this_week),
+		average_week: n(m.average_week),
+		ratio: n(m.ratio, 1)
+	}));
+}
+
+/** The biggest risers and fallers by today's move, for the movers panel. Stocks with no move are left out of both lists. */
+export function topMovers(stocks: Stock[], count = 3): { gainers: Stock[]; losers: Stock[] } {
+	const moved = stocks.filter((x) => x.kind !== 'index' && x.last && x.last.change_percent !== null && Math.abs(x.last.change_percent) >= 0.005);
+	const pct = (x: Stock) => x.last?.change_percent ?? 0;
+	return {
+		gainers: moved.filter((x) => pct(x) > 0).sort((a, b) => pct(b) - pct(a)).slice(0, count),
+		losers: moved.filter((x) => pct(x) < 0).sort((a, b) => pct(a) - pct(b)).slice(0, count)
+	};
+}
+
+/** A candle for one day: where the body and the wick sit, as numbers the chart scales. */
+export interface Candle {
+	day: string;
+	open: number;
+	high: number;
+	low: number;
+	close: number;
+	volume: number;
+	up: boolean;
+}
+
+/** The days oldest first, as candles. A day with no recorded open falls back to its close. */
+export function candlesOf(days: StockDay[]): Candle[] {
+	return [...days]
+		.sort((a, b) => a.day.localeCompare(b.day))
+		.map((d) => ({
+			day: d.day,
+			open: d.open || d.close,
+			high: Math.max(d.high || d.close, d.open || d.close, d.close),
+			low: Math.min(d.low || d.close, d.open || d.close, d.close),
+			close: d.close,
+			volume: d.volume,
+			up: d.close >= (d.open || d.close)
+		}));
+}
 
 function list(xs: string[]): string {
 	if (xs.length <= 1) return xs.join('');

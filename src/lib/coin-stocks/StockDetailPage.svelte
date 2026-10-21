@@ -5,7 +5,8 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import { coins, coinNumber } from '$lib/coin-format';
 	import StockChart from './StockChart.svelte';
-	import { changeWords, clock, haltWords, KIND_WORDS, percent, phaseWords, price, shortDay, type StockDetail, type StockTick } from './stocks';
+	import CandleChart from './CandleChart.svelte';
+	import { areaMetrics, changeWords, clock, haltWords, KIND_WORDS, percent, phaseWords, price, shortDay, type StockDetail, type StockTick } from './stocks';
 
 	/**
 	 * ONE STOCK, AND HOW ITS PRICE IS MADE (formula v2, 0283): the launch and
@@ -28,6 +29,12 @@
 			return m.length
 				? `Average move of ${m.length} stocks: ${m.map((x) => `${x.ticker ?? x.id} ${((Number(x.ratio) - 1) * 100).toFixed(1)}%`).join(', ')}.`
 				: 'No member had a price.';
+		}
+		if (kind === 'area') {
+			const m = areaMetrics(i);
+			return m.length
+				? m.map((x) => `${x.label}: ${x.this_week} this week against ${x.average_week} a week before`).join('; ') + '.'
+				: '';
 		}
 		if (kind === 'class') {
 			if (i.out_of === undefined) return '';
@@ -75,12 +82,21 @@
 			<div class="mk-col">
 				<section class="card mk-panel">
 					<StockChart series={s.series} label={s.ticker} height={180} />
+					{#if s.last && s.last.high !== null && s.last.low !== null}
+						<p class="sk-range" data-testid="sk-range">Today: high {price(s.last.high)}, low {price(s.last.low)}.</p>
+					{/if}
+				</section>
+				<section class="card mk-panel" aria-labelledby="sk-h-candles">
+					<header><h2 id="sk-h-candles">Day by day</h2></header>
+					<CandleChart days={detail.days} label={s.ticker} height={240} />
 				</section>
 				<section class="card mk-panel" aria-labelledby="sk-h-made" data-testid="sk-made">
 					<header><h2 id="sk-h-made">How this price is made</h2></header>
 					<p class="mk-body">
 						{#if s.kind === 'index'}
 							The IDEA index is its launch price times the average move of every other stock since its own launch.
+						{:else if s.kind === 'area'}
+							This stock follows a few real counts for this part of the site. Each count this week is divided by its own average week over the four weeks before (each softened by adding 2, so a handful of events cannot swing it), and the results are averaged. A quiet week reads about 1.00 and a busier one reads higher. With under 8 events in five weeks there is no reading yet and the price holds. The price is then the launch price times that reading over the first reading, kept inside the launch weeks' daily limit.
 						{:else}
 							The price is the launch price times the signal now over the signal it is measured against. "Data says" is that number; the price is the same unless the launch weeks' daily limit or the floor and ceiling held it back. When there is no new data, the price holds.
 						{/if}
@@ -122,10 +138,10 @@
 					<h3 class="mk-sub">Each day since the launch</h3>
 					<div class="sk-scroll">
 						<table class="sk-table" data-testid="sk-days">
-							<thead><tr><th>Day</th><th>Open</th><th>High</th><th>Low</th><th>Close</th></tr></thead>
+							<thead><tr><th>Day</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead>
 							<tbody>
 								{#each detail.days as d (d.day)}
-									<tr><td class="num">{shortDay(d.day)}</td><td class="num">{price(d.open)}</td><td class="num">{price(d.high)}</td><td class="num">{price(d.low)}</td><td class="num">{price(d.close)}</td></tr>
+									<tr><td class="num">{shortDay(d.day)}</td><td class="num">{price(d.open)}</td><td class="num">{price(d.high)}</td><td class="num">{price(d.low)}</td><td class="num">{price(d.close)}</td><td class="num">{coins(d.volume)}</td></tr>
 								{/each}
 							</tbody>
 						</table>

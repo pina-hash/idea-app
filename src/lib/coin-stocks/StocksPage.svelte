@@ -19,6 +19,7 @@
 		rampWords,
 		shortDay,
 		tradeRulesWords,
+		topMovers,
 		type Stock,
 		type StocksBoard
 	} from './stocks';
@@ -50,6 +51,7 @@
 
 	const index = $derived(board?.stocks.find((s) => s.kind === 'index') ?? null);
 	const others = $derived(board?.stocks.filter((s) => s.kind !== 'index') ?? []);
+	const movers = $derived(topMovers(board?.stocks ?? []));
 	const canTrade = $derived(!!transports && !!board?.in_economy);
 	const gain = $derived(board ? Math.round((board.portfolio.value - board.portfolio.cost_basis) * 100) / 100 : 0);
 
@@ -76,7 +78,7 @@
 		<div>
 			<div class="mk-eyebrow">IDEA Coins</div>
 			<h1>IDEA Stocks</h1>
-			<p class="lead">Prices made from what really happens on the site: grades, the Foundry, GAUNTLET. They update about every minute on class days.</p>
+			<p class="lead">Prices made from what really happens on the site: grades, the Foundry, GAUNTLET, the Market, Tournaments and every other part of it. They update about every minute on class days.</p>
 		</div>
 		{#if board}
 			<div class="mk-hero-keys">
@@ -107,6 +109,18 @@
 				{#if board.last_tick_at}Prices checked at {clock(board.last_tick_at)}.{/if}
 			</p>
 		{/if}
+		<ul class="sk-strip" aria-label="Live prices" data-testid="sk-strip">
+			{#each board.stocks as t (t.id)}
+				{@const m = changeWords(t.last?.change_percent ?? null)}
+				<li>
+					<a href="/market/stocks/{encodeURIComponent(t.id)}">
+						<strong>{t.ticker}</strong>
+						<span>{t.last ? price(t.last.close) : 'No price'}</span>
+						<span class="sk-move {m.tone}">{m.text}</span>
+					</a>
+				</li>
+			{/each}
+		</ul>
 		<div class="mk-layout">
 			<div class="mk-col">
 				{#if index}
@@ -136,6 +150,32 @@
 					</section>
 				{/if}
 
+				<section class="card mk-panel" aria-labelledby="sk-h-movers" data-testid="sk-movers">
+					<header><h2 id="sk-h-movers">Top movers today</h2></header>
+					<div class="sk-movers">
+						<div>
+							<h3 class="mk-sub">Gainers</h3>
+							<ol>
+								{#each movers.gainers as g (g.id)}
+									<li data-testid="sk-gainer"><a href="/market/stocks/{encodeURIComponent(g.id)}">{g.ticker}</a><span class="sk-move up">{changeWords(g.last?.change_percent ?? null).text}</span></li>
+								{:else}
+									<li class="mk-note">No stock is up today.</li>
+								{/each}
+							</ol>
+						</div>
+						<div>
+							<h3 class="mk-sub">Losers</h3>
+							<ol>
+								{#each movers.losers as l (l.id)}
+									<li data-testid="sk-loser"><a href="/market/stocks/{encodeURIComponent(l.id)}">{l.ticker}</a><span class="sk-move down">{changeWords(l.last?.change_percent ?? null).text}</span></li>
+								{:else}
+									<li class="mk-note">No stock is down today.</li>
+								{/each}
+							</ol>
+						</div>
+					</div>
+				</section>
+
 				<section class="card mk-panel" aria-labelledby="sk-h-stocks" data-testid="sk-stocks">
 					<header>
 						<h2 id="sk-h-stocks">Stocks</h2>
@@ -155,6 +195,9 @@
 									<span class="sk-move {mv.tone}">{mv.text}</span>
 								</div>
 								<StockChart series={s.series} label={s.ticker} height={56} axis={false} />
+								{#if s.last && s.last.high !== null && s.last.low !== null}
+									<span class="sk-range" data-testid="sk-range">Day high {price(s.last.high)} · low {price(s.last.low)}</span>
+								{/if}
 								<span class="mk-note">{KIND_WORDS[s.kind]}{s.last?.carried ? ' No new data: the price holds.' : ''}</span>
 								{#if s.halt}<span class="sk-halt" data-testid="sk-halt">{haltWords(s.halt)}</span>{:else if s.phase}<span class="mk-note">{phaseWords(s.phase)}</span>{/if}
 								{#if h.shares > 0}<span class="mk-note">You own {h.shares.toFixed(4)} shares.</span>{/if}
