@@ -20,6 +20,9 @@
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { scanFile } from '../../tools/apply-migration.mjs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './harness';
 import {
 	CERT_FILES, WITH_CERT, certSql, pasteTrap, catalogFingerprint, procCount, tableSurface,
@@ -168,6 +171,18 @@ describe('the file', () => {
 		}
 		const before = await catalogFingerprint(db);
 		await db.sql(SQL);
+		// A later file that redefines one of this file's functions (0289 gives
+		// cert_holders its test-account filter, ledger 0422) is re-applied after
+		// it, in order, as a re-paste of this file is followed in production by
+		// the chain above it. Anything else this file left different is a finding.
+		const mine = [...SQL.matchAll(/create or replace function public\.(\w+)\s*\(/gi)].map((m) => m[1]);
+		const dir = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
+		const later = readdirSync(dir)
+			.filter((f) => /^\d{4}_.*\.sql$/.test(f) && f > FILE)
+			.sort()
+			.filter((f) => mine.some((n) => new RegExp(`function public\\.${n}\\s*\\(`, 'i').test(readFileSync(join(dir, f), 'utf8'))));
+		expect(later).toContain('0289_test_accounts_hidden_from_every_list.sql');
+		for (const f of later) await db.sql(readFileSync(join(dir, f), 'utf8'));
 		expect(await catalogFingerprint(db)).toEqual(before);
 	});
 });

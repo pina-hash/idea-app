@@ -540,7 +540,10 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
 	cert_verify: 'THE PUBLIC CERTIFICATE VERIFY PAGE (ledger 0391, decision D10). /certifications/verify reads no session: anyone handed a serial, an employer included, checks it with no account. 0263 grants cert_verify to anon in 0166\'s shape (revoke from public, anon, authenticated, service_role by name, then grant to anon and authenticated), it normalizes the typed serial and answers found with the certificate\'s own fields or found false, never an address and never a reason, and the route rate limits it per client address.',
 
 	// --- The IDEA Website connector's one transport (1). 0270, ledger 0400. ---
-	connector_call: 'THE CONNECTOR\'S TRANSPORT, PASSED THROUGH FOR A SIGNED-OUT CALLER (ledger 0400, docs/connector/DESIGN.md section 5). connector_call is SECURITY INVOKER: for anyone who is not a site admin it runs the named function exactly as a direct call would and then refuses, so a signed-out call reads the inner function\'s own "permission denied" text for text and nothing lands. Granting it to anon is what makes that comparison exact; it grants no reach, because the inner function still runs as anon. tests/db/connector-permissions.test.ts holds both halves.'
+	connector_call: 'THE CONNECTOR\'S TRANSPORT, PASSED THROUGH FOR A SIGNED-OUT CALLER (ledger 0400, docs/connector/DESIGN.md section 5). connector_call is SECURITY INVOKER: for anyone who is not a site admin it runs the named function exactly as a direct call would and then refuses, so a signed-out call reads the inner function\'s own "permission denied" text for text and nothing lands. Granting it to anon is what makes that comparison exact; it grants no reach, because the inner function still runs as anon. tests/db/connector-permissions.test.ts holds both halves.',
+
+	// --- A Foundry game's HTML cover (1). 0291, ledger 0422. ---
+	foundry_cover_html: 'THE APPS ORIGIN HOLDS NO SESSION (ledger 0422, 0291, docs/subsystems/origin-split.md). /c/<app id> serves an admin\'s HTML cover there under sandbox allow-scripts with no network, and reads it through the request\'s own client, which on that origin is anon. It answers the document only for an app the gallery shows and nothing while the Foundry is off, the same publication gate the bundle routes keep; tests/db/foundry-covers-0291.test.ts holds both directions.'
 };
 
 /**
@@ -553,7 +556,7 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
  * moving it without reading the reason beside the new entry is what the pin
  * refuses.
  */
-const ANON_EXECUTE_SURFACE_SIZE = 30;
+const ANON_EXECUTE_SURFACE_SIZE = 31;
 
 // ---------------------------------------------------------------------------
 // Plumbing

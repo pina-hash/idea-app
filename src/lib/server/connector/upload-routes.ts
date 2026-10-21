@@ -5,6 +5,7 @@
  * connector reaches them as endpoint entries, asked first and audited.
  */
 import { randomBytes } from 'node:crypto';
+import { SUPABASE_PROJECT_FILE_SIZE_LIMIT_BYTES } from '$lib/upload-limits';
 import { connectorDeps } from './deps';
 import { sha256Hex } from './crypto';
 
@@ -35,7 +36,8 @@ export async function idByName(supabase: Rpc, kind: string, said: string): Promi
 	return { ok: false, message: `More than one matches "${raw}": ${matches.slice(0, 6).map((m) => m.name).join('; ')}. Say which.` };
 }
 
-const UPLOAD_MAX_BYTES = 100 * 1024 * 1024;
+/** The project's global storage upload limit (0185), which the bucket states too. */
+const UPLOAD_MAX_BYTES = SUPABASE_PROJECT_FILE_SIZE_LIMIT_BYTES;
 const UPLOAD_WINDOW_MS = 30 * 60_000;
 
 /**
@@ -46,7 +48,7 @@ const UPLOAD_WINDOW_MS = 30 * 60_000;
  */
 export async function openChatUpload(userId: string, filename: string, type: string | null, megabytes: number | null) {
 	const deps = await connectorDeps();
-	const maxBytes = Math.min(UPLOAD_MAX_BYTES, Math.max(1, Math.ceil((megabytes ?? 100) * 1024 * 1024)));
+	const maxBytes = Math.min(UPLOAD_MAX_BYTES, Math.max(1, Math.ceil((megabytes ?? 50) * 1_000_000)));
 	const clean = filename.replace(/[\\/]+/g, '_').trim().slice(0, 200) || 'file';
 	const slot = await deps.backend.createUpload({
 		userId,

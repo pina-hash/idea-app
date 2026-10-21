@@ -101,6 +101,7 @@ create table if not exists public.act_as_log (
 create index if not exists act_as_log_session_idx on public.act_as_log (session_id, at);
 alter table public.act_as_log enable row level security;
 revoke all on table public.act_as_log from public, anon, authenticated;
+revoke all on sequence public.act_as_log_id_seq from public, anon, authenticated, service_role;
 
 create table if not exists public.account_notices (
 	id uuid primary key default gen_random_uuid(),
@@ -221,7 +222,7 @@ begin
 end;
 $$;
 revoke all on function public.view_as_write_allowed() from public, anon, authenticated;
-grant execute on function public.view_as_write_allowed() to anon, authenticated;
+grant execute on function public.view_as_write_allowed() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- The guard

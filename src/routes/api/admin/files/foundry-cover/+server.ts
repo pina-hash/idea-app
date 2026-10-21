@@ -24,7 +24,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = (await request.json().catch(() => ({}))) as { upload?: unknown; app?: unknown; clear?: unknown };
 
 	const app = await idByName(supabase, 'app', String(body.app ?? ''));
-	if (!app.ok) return json({ error: app.message }, { status: 400 });
+	// Not found or more than one: the lookup's own words, naming what he said.
+	if (!app.ok) {
+		const which = app.message;
+		return json({ error: which }, { status: 400 });
+	}
 
 	let kind: 'image' | 'html' | 'clear';
 	let value: string | null = null;
@@ -60,6 +64,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	});
 	const out = data as { ok?: boolean; message?: string } | null;
 	if (error || !out) return json({ error: 'Covers are not available yet. They arrive with the next database update.' }, { status: 400 });
-	if (!out.ok) return json({ error: out.message ?? 'That cover could not be saved.' }, { status: 400 });
+	// The refusal's words are `foundry_cover_set`'s own, written for him, never
+	// a storage or network sentence passed through.
+	const refusal = out.message ?? 'That cover could not be saved.';
+	if (!out.ok) return json({ error: refusal }, { status: 400 });
 	return json({ ok: true, app: app.name, cover: kind === 'clear' ? 'the student’s own' : kind });
 };

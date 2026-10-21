@@ -95,7 +95,7 @@
   args:
     filename: {type: string, required: true, describe: "The file's name, like blade-worksheet.html."}
     type: {type: string, describe: "Its kind, like text/html, application/zip, image/png or application/pdf."}
-    megabytes: {type: number, describe: "About how big it is, in megabytes, up to 100."}
+    megabytes: {type: number, describe: "About how big it is, in megabytes, up to 50."}
   body: {filename: $args.filename, type: $args.type, megabytes: $args.megabytes}
 "/api/admin/files/upload-part":
   surface: call

@@ -6,8 +6,8 @@
 		"functions_single_line_grep": 416,
 		"functions_through_wrappers": 223,
 		"dynamic_rpc_call_sites": 45,
-		"endpoints": 121,
-		"pages": 357
+		"endpoints": 122,
+		"pages": 358
 	},
 	"functions": [
 		"account_notice_dismiss",
@@ -1398,6 +1398,13 @@
 		{
 			"route": "/dev/foundry-admin/refusal",
 			"file": "src/routes/dev/foundry-admin/refusal/+server.ts",
+			"methods": [
+				"GET"
+			]
+		},
+		{
+			"route": "/dev/foundry-cover-editor/sample",
+			"file": "src/routes/dev/foundry-cover-editor/sample/+server.ts",
 			"methods": [
 				"GET"
 			]

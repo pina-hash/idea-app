@@ -567,7 +567,7 @@ create table if not exists public.connector_uploads (
 	token_hash text not null unique,
 	filename text not null check (char_length(filename) between 1 and 200),
 	content_type text,
-	max_bytes bigint not null check (max_bytes between 1 and 104857600),
+	max_bytes bigint not null check (max_bytes between 1 and 50000000),
 	size_bytes bigint,
 	storage_path text,
 	created_at timestamptz not null default now(),
@@ -582,8 +582,8 @@ grant select, insert, update, delete on table public.connector_uploads to servic
 do $$
 begin
 	insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-	values ('connector-uploads', 'connector-uploads', false, 104857600, null)
-	on conflict (id) do update set public = false, file_size_limit = 104857600, allowed_mime_types = null;
+	values ('connector-uploads', 'connector-uploads', false, 50000000, null)
+	on conflict (id) do update set public = false, file_size_limit = 50000000, allowed_mime_types = null;
 end;
 $$;
 

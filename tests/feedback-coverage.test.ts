@@ -297,6 +297,8 @@ const HTML_EXEMPT: Record<string, string> = {
 		"a student's own app, served byte for byte on the apps origin: injecting anything breaks the byte rule and the origin split, and the gallery around it carries the control",
 	'src/routes/b/[appId]/[versionId]/[...path]/+server.ts':
 		"a student's own build, the frame src on the apps origin: the byte rule and the origin split again, and the page framing it carries the control",
+	'src/routes/c/[appId]/+server.ts':
+		"an admin's HTML cover for a Foundry game (ledger 0422), framed on its gallery card on the apps origin under sandbox allow-scripts with no network: the gallery around it carries the control",
 	'src/routes/hx/[docId]/+server.ts':
 		'a ported HTML assignment document, framed by the item page whose chrome already carries the control; its bytes are the author\'s and its CSP sandboxes it',
 	'src/routes/hx/[docId]/thumbnail/+server.ts':

@@ -61,8 +61,10 @@ export const RESERVED_SLUGS = [
 	'assignments',
 	'auth',
 	'b',
+	'c',
 	'certifications',
 	'classroom',
+	'coin',
 	'coin-balance',
 	'coin-desk',
 	'coin-entry',
@@ -93,7 +95,8 @@ export const RESERVED_SLUGS = [
 	'sitemap.xml',
 	'tools',
 	'tournaments',
-	'vanguard'
+	'vanguard',
+	'view-as'
 ];
 
 /** The one problem with this slug/target pair, or null. */
