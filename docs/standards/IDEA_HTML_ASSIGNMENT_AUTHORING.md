@@ -1350,6 +1350,11 @@ timing, retiring an answered question, the three views).
   clip, the two slots become one video record and one card per role; never two cards on one
   upload. A later step that reuses the tail of a clip points at the same id with its own
   `start`.
+- **One video library inside the assignment, every video, every part.** A Videos key in the
+  following bar opens it; it groups the videos under Everyone, Blade, Body and Assembly, the
+  student's own part first, so an absent or curious student finds any video without changing
+  role. It lives in the HTML, not a separate page, so videos play in place and nothing has to
+  be kept in step with a second list.
 - **A video that is not Mr. Pina's says so.** The card's maker line comes from the record
   (`by: 'Practice video'`) instead of "Mr. Pina video", and its aria label says practice video.
 - **A role with no recording today gets a practice box, not nothing.** Assembly discovery: one
