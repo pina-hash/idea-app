@@ -212,7 +212,15 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 		})
 	);
 
-	return { student: studentPage.student, studentPage, gradeTokens };
+	// Ledger 0422: an admin gets View as / Act as for a student who has signed in.
+	let viewAsUser: { id: string; name: string } | null = null;
+	const { isAdmin: admin } = await parent();
+	if (admin === true) {
+		const { data: p } = await supabase.from('profiles').select('id').eq('email', email).maybeSingle();
+		if (p?.id) viewAsUser = { id: p.id as string, name: studentPage.student.display_name };
+	}
+
+	return { student: studentPage.student, studentPage, gradeTokens, viewAsUser };
 };
 
 type EntryRow = { id: string; session_id: string | null; upload_timestamp: string; submitted_at: string | null };

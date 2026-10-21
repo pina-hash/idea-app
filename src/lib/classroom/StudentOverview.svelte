@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ViewAsButtons from '$lib/shell/ViewAsButtons.svelte';
 	import { onMount } from 'svelte';
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
@@ -103,7 +104,8 @@
 		gradeHref = null,
 		workHref = null,
 		notebookHref = null,
-		avatarModeration = null
+		avatarModeration = null,
+		viewAsUser = null
 	}: {
 		section: ClassroomSection;
 		data: StudentPageData;
@@ -130,6 +132,8 @@
 		 * because the notebook's own reviewer gate asks for an active enrollment.
 		 */
 		notebookHref?: string | null;
+		/** An admin's View as / Act as keys for this student (ledger 0422); absent removes them. */
+		viewAsUser?: { id: string; name: string } | null;
 	} = $props();
 
 	type SectionId = StudentPrintableSection;
@@ -501,6 +505,9 @@
 						<StudentSectionsMenu {hidden} onchange={setHidden} scope={pagePrefs.scope} onscope={setScope} className={sectionTitle(section)} />
 					{/if}
 					<a class="btn secondary tiny" href={peopleHref}>Back to People</a>
+					{#if viewAsUser}
+						<ViewAsButtons userId={viewAsUser.id} name={viewAsUser.name} next={`/classroom/${section.id}`} tiny />
+					{/if}
 					{#if notebookHref && layout.notebookExtras}
 						<a class="btn secondary tiny" href={notebookHref} data-testid="so-notebook-link">Open full notebook</a>
 					{/if}

@@ -1,0 +1,26 @@
+# VIEW AS, ACT AS AND TEST STUDENTS (ledger 0422, migrations 0288 and 0289).
+# The shape is described at the top of classroom.yaml. Starting a view needs a
+# browser to carry the session, so it stays on the site; the connector reads
+# the record, and makes and uses test students through the routes in
+# endpoints.yaml.
+
+view_as_history:
+  surface: call
+  level: read
+  describe: Every time a site admin viewed or acted as someone, newest first, with what each act-as session changed.
+  say: ["who has been viewed as", "what did I change acting as Ana", "show the view-as record"]
+  args:
+    p_limit: {name: count, default: null, describe: "How many sessions, newest first; leave it out for 50."}
+
+test_account_retire:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Retire a test student, taking it out of every class; it stays hidden from every list. It asks first.
+  say: ["retire the test student", "get rid of Test Student One", "remove the test account from my classes"]
+  args:
+    p_email: {name: student, describe: "The test student's address, as list test students shows it."}
+
+view_as_grant: {exclude: "The first half of starting a view on the site; on its own it opens nothing, and a view needs a browser to carry the session."}
+test_account_register: {exclude: "The second half of making a test student, after the server makes its account; create_test_student does both."}
+test_accounts_list: {exclude: "list_test_students reads it, through /api/admin/test-accounts."}

@@ -62,6 +62,11 @@ export const CONSOLE_PANELS: ConsolePanel[] = [
 		blurb: "Every Bosco Tech student's pathway, and their FRC completion. Identity only, it never gates access."
 	},
 	{
+		id: 'view-as',
+		title: 'View as and test accounts',
+		blurb: 'See the site exactly as any person does, or act on their account, and make test students nobody else ever sees.'
+	},
+	{
 		id: 'admins',
 		title: 'Site admins',
 		blurb: 'Who can administer the portal. Every admin can read this list; only the owner can change it.'

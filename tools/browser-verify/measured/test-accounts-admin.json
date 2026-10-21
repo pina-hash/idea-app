@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "test-accounts-admin.mjs",
+	"date": "2026-10-21T07:01:57.484Z",
+	"sha": "d7c5fb43c8ca7825c90bd50d8c7eec326801dafd",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 24,
+	"outsideRows": [],
+	"ms": 11736
+}

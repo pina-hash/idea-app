@@ -1244,6 +1244,13 @@ const SUBMISSION_SELECT_EXTRA_CREDIT = `${SUBMISSION_SELECT}, extra_credit`;
  */
 const SUBMISSION_SELECT_DIRECT = `${SUBMISSION_SELECT_EXTRA_CREDIT}, direct_score`;
 
+/**
+ * + 0288's `acted_by` / `acted_at` (ledger 0422): a hand-in an admin made while
+ * acting as the student. ITS OWN RUNG, so a deployment before 0288 loses only
+ * the mark, never the direct score below it.
+ */
+const SUBMISSION_SELECT_ACTED = `${SUBMISSION_SELECT_DIRECT}, acted_by, acted_at`;
+
 export interface SubmissionsResult {
 	data: unknown;
 	error: unknown;
@@ -1281,6 +1288,8 @@ async function selectSubmissions(
 		if (email) q = q.eq('student_email', email);
 		return one ? q.maybeSingle() : q;
 	};
+	const acted = await run(SUBMISSION_SELECT_ACTED);
+	if (!acted.error) return { data: acted.data, error: null, extraCreditReady: true, directScoreReady: true };
 	const direct = await run(SUBMISSION_SELECT_DIRECT);
 	if (!direct.error) return { data: direct.data, error: null, extraCreditReady: true, directScoreReady: true };
 	const widest = await run(SUBMISSION_SELECT_EXTRA_CREDIT);

@@ -32,6 +32,8 @@ declare global {
 		interface Locals {
 			supabase: SupabaseClient;
 			claims: Claims | null;
+			/** Set when an admin is viewing or acting as this session's account (ledger 0422). */
+			viewAs?: import('$lib/view-as').ViewAsState | null;
 		}
 		interface PageData {
 			claims?: Claims | null;

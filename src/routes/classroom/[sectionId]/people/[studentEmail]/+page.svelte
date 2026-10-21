@@ -42,4 +42,5 @@
 	workHref={(itemId) => studentWorkHref(data.section.id, data.studentPage.student.email, itemId)}
 	{notebookHref}
 	{avatarModeration}
+	viewAsUser={data.viewAsUser ?? null}
 />

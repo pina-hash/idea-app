@@ -254,6 +254,13 @@ export interface SubmissionRow {
 	 * work was scored.
 	 */
 	extra_credit?: number | null;
+	/**
+	 * The admin who handed this in while acting as the student (0288, ledger
+	 * 0422), or null; `undefined` off a payload that predates the column. It
+	 * clears when the student hands in again themselves.
+	 */
+	acted_by?: string | null;
+	acted_at?: string | null;
 	updated_at?: string;
 }
 

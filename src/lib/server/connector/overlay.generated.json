@@ -8536,6 +8536,49 @@
 					}
 				}
 			]
+		},
+		"view_as_history": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Every time a site admin viewed or acted as someone, newest first, with what each act-as session changed.",
+			"say": [
+				"who has been viewed as",
+				"what did I change acting as Ana",
+				"show the view-as record"
+			],
+			"args": {
+				"p_limit": {
+					"name": "count",
+					"default": null,
+					"describe": "How many sessions, newest first; leave it out for 50."
+				}
+			}
+		},
+		"test_account_retire": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Retire a test student, taking it out of every class; it stays hidden from every list. It asks first.",
+			"say": [
+				"retire the test student",
+				"get rid of Test Student One",
+				"remove the test account from my classes"
+			],
+			"args": {
+				"p_email": {
+					"name": "student",
+					"describe": "The test student's address, as list test students shows it."
+				}
+			}
+		},
+		"view_as_grant": {
+			"exclude": "The first half of starting a view on the site; on its own it opens nothing, and a view needs a browser to carry the session."
+		},
+		"test_account_register": {
+			"exclude": "The second half of making a test student, after the server makes its account; create_test_student does both."
+		},
+		"test_accounts_list": {
+			"exclude": "list_test_students reads it, through /api/admin/test-accounts."
 		}
 	},
 	"endpoints": {
@@ -8559,6 +8602,93 @@
 		},
 		"/admin/drive-connect/callback": {
 			"exclude": "Part of someone signing in to the site or connecting a device; never a tool."
+		},
+		"/api/admin/test-accounts": {
+			"surface": "call",
+			"tool": "list_test_students",
+			"level": "read",
+			"method": "GET",
+			"describe": "List the test student accounts, each with its classes and when it was last used. Test students appear in no roster, grade, count, leaderboard or badge.",
+			"say": [
+				"list the test students",
+				"what test accounts do I have",
+				"which class is the test student in"
+			]
+		},
+		"/api/admin/test-accounts/act": {
+			"surface": "call",
+			"tool": "act_as_test_student",
+			"level": "confirm",
+			"method": "POST",
+			"describe": "Do something as a test student, logged under your name in the view-as record. Only test students; a real student is acted as on the site. It asks first.",
+			"say": [
+				"as the test student, hand in the Bridge assignment",
+				"answer question 2 as Test Student One",
+				"take back the test student's hand-in"
+			],
+			"args": {
+				"student": {
+					"type": "string",
+					"required": true,
+					"describe": "The test student's name or address, as list test students shows it."
+				},
+				"action": {
+					"type": "string",
+					"required": true,
+					"describe": "hand in, take back, or answer; or a site function's exact name for anything else."
+				},
+				"post": {
+					"type": "string",
+					"describe": "For hand in, take back and answer: the post's id, from get post."
+				},
+				"question": {
+					"type": "string",
+					"describe": "For answer: the question's id in the assignment."
+				},
+				"answer": {
+					"type": "string",
+					"describe": "For answer: the answer, as the student would type it."
+				},
+				"args": {
+					"type": "object",
+					"describe": "For a function named exactly: its arguments by their own names."
+				}
+			},
+			"body": {
+				"student": "$args.student",
+				"action": "$args.action",
+				"post": "$args.post",
+				"question": "$args.question",
+				"answer": "$args.answer",
+				"args": "$args.args"
+			}
+		},
+		"/api/admin/test-accounts/create": {
+			"surface": "call",
+			"tool": "create_test_student",
+			"level": "confirm",
+			"method": "POST",
+			"describe": "Make a test student account, optionally in a class. It behaves as a student and appears in no roster, grade, count, leaderboard or badge. It asks first.",
+			"say": [
+				"make a test student in IDEA100 Block 2",
+				"create a test account",
+				"add a fake student to 209H section 3 so I can try it"
+			],
+			"args": {
+				"name": {
+					"type": "string",
+					"required": true,
+					"describe": "What to call it, e.g. Test Student Block 2."
+				},
+				"class": {
+					"type": "string",
+					"describe": "A class by name as he says it (IDEA100 Block 2) or its id; leave it out for none."
+				}
+			},
+			"body": {
+				"label": "$args.name",
+				"class": "$args.class"
+			}
 		},
 		"/api/armory/blob-url": {
 			"exclude": "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."
@@ -10013,6 +10143,9 @@
 		"/a/[appId]/[...path]": "endpoints.yaml",
 		"/admin/drive-connect": "endpoints.yaml",
 		"/admin/drive-connect/callback": "endpoints.yaml",
+		"/api/admin/test-accounts": "endpoints.yaml",
+		"/api/admin/test-accounts/act": "endpoints.yaml",
+		"/api/admin/test-accounts/create": "endpoints.yaml",
 		"/api/armory/blob-url": "endpoints.yaml",
 		"/api/armory/connect/exchange": "endpoints.yaml",
 		"/api/armory/connect/start": "endpoints.yaml",
@@ -10330,6 +10463,11 @@
 		"tournament_start_match": "tournaments.yaml",
 		"tournament_submit_qual_result": "tournaments.yaml",
 		"tournament_update": "tournaments.yaml",
-		"tournament_update_entry": "tournaments.yaml"
+		"tournament_update_entry": "tournaments.yaml",
+		"view_as_history": "view-as.yaml",
+		"test_account_retire": "view-as.yaml",
+		"view_as_grant": "view-as.yaml",
+		"test_account_register": "view-as.yaml",
+		"test_accounts_list": "view-as.yaml"
 	}
 }

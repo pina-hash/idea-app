@@ -6,6 +6,8 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import { dev } from '$app/environment';
 import { THEME_BOOT_MARKER, themeBootHarnessSession, themeBootScript } from '$lib/theme';
 import { connectorCsrfGuard } from '$lib/server/connector/csrf';
+import { currentViewAs, exitViewAs, VIEW_AS_RETURN_COOKIE } from '$lib/server/view-as/flow';
+import { viewAsRefusesRequest } from '$lib/view-as';
 
 /**
  * Redirects old GitHub Pages base-path links to their new homes. Scoped to the
@@ -142,6 +144,36 @@ const authGuard: Handle = async ({ event, resolve }) => {
 };
 
 /**
+ * VIEW AS AND ACT AS (ledger 0422). Only a browser holding the admin's return
+ * cookie pays anything here: one `view_as_current()` call, as the session the
+ * cookies now carry. When that session is no longer a view-as one (it ended,
+ * expired, or was signed out), the admin's own session is put back and the
+ * request starts again, so nobody is left as somebody else. In a read-only
+ * view the few routes that write with the service role are refused here,
+ * because the database guard cannot see those writes; every other write is
+ * refused by the database itself.
+ */
+const viewAs: Handle = async ({ event, resolve }) => {
+	event.locals.viewAs = null;
+	if (!event.cookies.get(VIEW_AS_RETURN_COOKIE) || event.url.pathname === '/view-as/exit') {
+		return resolve(event);
+	}
+	const state = event.locals.claims ? await currentViewAs(event.locals.supabase) : null;
+	if (!state || state.expired) {
+		await exitViewAs(event.locals.supabase, event.cookies);
+		redirect(303, event.request.method === 'GET' ? event.url.pathname + event.url.search : '/');
+	}
+	event.locals.viewAs = state;
+	if (viewAsRefusesRequest(state, event.request.method, event.url.pathname)) {
+		return new Response(
+			JSON.stringify({ error: `You are viewing the site as ${state.target_name}. This view is read-only, so nothing was changed.` }),
+			{ status: 403, headers: { 'content-type': 'application/json' } }
+		);
+	}
+	return resolve(event);
+};
+
+/**
  * THE SITE THEME, APPLIED BEFORE FIRST PAINT (ledger 0297, package F1a).
  *
  * `src/app.html` carries `THEME_BOOT_MARKER` right after its theme-color meta,
@@ -183,7 +215,7 @@ const themeBoot: Handle = async ({ event, resolve }) => {
 
 // The connector's cross-site form check runs before anything else, because it
 // stands in for SvelteKit's built-in one (svelte.config.js, csrf.ts).
-export const handle: Handle = sequence(connectorCsrfGuard, sequence(legacyRedirects, supabase, authGuard, themeBoot));
+export const handle: Handle = sequence(connectorCsrfGuard, sequence(legacyRedirects, supabase, authGuard, viewAs, themeBoot));
 
 /**
  * THE MINIMUM THAT MAKES A SERVER ERROR AND A REPORT ABOUT IT THE SAME EVENT.

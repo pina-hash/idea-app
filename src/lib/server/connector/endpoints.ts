@@ -35,6 +35,9 @@ type RouteModule = Record<string, unknown>;
  * (tools/connector/auto.mjs) is in endpoints.generated.ts, merged below.
  */
 const HAND_ROUTES: Record<string, () => Promise<RouteModule>> = {
+	'/api/admin/test-accounts': () => import('../../../routes/api/admin/test-accounts/+server'),
+	'/api/admin/test-accounts/act': () => import('../../../routes/api/admin/test-accounts/act/+server'),
+	'/api/admin/test-accounts/create': () => import('../../../routes/api/admin/test-accounts/create/+server'),
 	'/api/armory/purge': () => import('../../../routes/api/armory/purge/+server'),
 	'/api/armory/sweep': () => import('../../../routes/api/armory/sweep/+server'),
 	'/api/certifications/award': () => import('../../../routes/api/certifications/award/+server'),

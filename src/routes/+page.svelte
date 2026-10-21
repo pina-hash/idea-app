@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AccountNotices from '$lib/shell/AccountNotices.svelte';
 	import { onMount } from 'svelte';
 	import { total as changelogTotal } from 'virtual:site-versions';
 	import { census as codeCensus } from 'virtual:site-code';
@@ -695,6 +696,7 @@
 		classes read the semantic tokens and the page's glow tokens, which Space
 		White flattens.
 	-->
+	{#if signedIn && data.supabase}<AccountNotices supabase={data.supabase} />{/if}
 	<section class="hero" class:compact={signedIn} data-tour="hero">
 		{#if !signedIn}
 			<div class="hero-eyebrow">Don Bosco Technical Institute - Technology Pathway</div>

@@ -79,5 +79,8 @@ export const load: LayoutLoad = async ({ fetch, data, depends }) => {
 	// draws no badge. Never re-fetched here; the notifications page invalidates.
 	const certUnread = typeof data?.certUnread === 'number' ? data.certUnread : null;
 
-	return { supabase, claims, userProfile, isAdmin, certUnread };
+	// Ledger 0422: forwarded as is, like the count above.
+	const viewAs = data?.viewAs ?? null;
+
+	return { supabase, claims, userProfile, isAdmin, certUnread, viewAs };
 };

@@ -12,7 +12,7 @@
  *     2844px is 39% of the screen -- and the number that would show up here
  *     as `grid 1100 of 2844`.
  *  2. EVERY PANEL IS THERE, ONCE, AND THE NAV INDEXES THEM IN THE SAME ORDER.
- *     Nine sections, nine chips; the review queues first in the curated
+ *     Eleven sections (ledger 0422 added View as), eleven chips; the review queues first in the curated
  *     order, which is what "most used" means before anything has been used.
  *  3. THE CONTROLS ARE CONTROLS. Chips, the order select, the roster filter,
  *     the pathway selects, the FRC disclosure and every `.btn` clear 44px at
@@ -22,7 +22,7 @@
  */
 import { SETTLE_ENTRANCE } from './_shared.mjs';
 
-export const PANEL_COUNT = 9;
+export const PANEL_COUNT = 11;
 
 export default {
 	path: '/dev/portal-admin',

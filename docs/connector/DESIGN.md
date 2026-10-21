@@ -318,10 +318,11 @@ Generated from the overlay on 2026-10-20.
 | market.yaml | 4 | 0 | 7 | 1 | 0 |
 | Notebook | 4 | 14 | 5 | 1 | 9 |
 | People, feedback and the rest of the site | 11 | 7 | 6 | 0 | 6 |
-| Site routes (run in-process as him) | 1 | 0 | 5 | 0 | 105 |
+| Site routes (run in-process as him) | 2 | 0 | 7 | 0 | 105 |
 | The connector itself | 4 | 1 | 3 | 0 | 7 |
 | Tournaments | 1 | 7 | 9 | 1 | 8 |
-| **All** | **140** | **96** | **81** | **8** | **222** |
+| view-as.yaml | 1 | 0 | 1 | 0 | 3 |
+| **All** | **142** | **96** | **84** | **8** | **225** |
 
 <details><summary>Certifications</summary>
 
@@ -433,8 +434,8 @@ Generated from the overlay on 2026-10-20.
 
 <details><summary>Site routes (run in-process as him)</summary>
 
-- **Read:** `/api/foundry/source` (read_foundry_source)
-- **Asks first:** `/api/armory/purge` (delete_project_forever), `/api/armory/sweep` (armory_storage_cleanup), `/api/certifications/award` (issue_certification), `/api/certifications/correct` (correct_certification), `/api/foundry/delete` (delete_foundry_app)
+- **Read:** `/api/admin/test-accounts` (list_test_students), `/api/foundry/source` (read_foundry_source)
+- **Asks first:** `/api/admin/test-accounts/act` (act_as_test_student), `/api/admin/test-accounts/create` (create_test_student), `/api/armory/purge` (delete_project_forever), `/api/armory/sweep` (armory_storage_cleanup), `/api/certifications/award` (issue_certification), `/api/certifications/correct` (correct_certification), `/api/foundry/delete` (delete_foundry_app)
 - **Excluded (the reason is in the YAML):** `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource/mcp`, `/.well-known/oauth-protected-resource`, `/_platform/[...asset]`, `/a/[appId]/[...path]`, `/admin/drive-connect/callback`, `/admin/drive-connect`, `/api/armory/blob-url`, `/api/armory/connect/exchange`, `/api/armory/connect/start`, `/api/avatar/[...path]`, `/api/certifications/evidence/[...path]`, `/api/certifications/evidence/sign`, `/api/certifications/export`, `/api/certifications/jobs/[job]`, `/api/certifications/package/export/[id]`, `/api/certifications/package/import`, `/api/classroom/attachment/[attachment_id]`, `/api/classroom/attachment/sign`, `/api/classroom/attachment`, `/api/classroom/deck/[deck_id]/[...path]`, `/api/classroom/deck`, `/api/classroom/delete-content`, `/api/classroom/export`, `/api/classroom/html-assignment-source/[itemId]`, `/api/classroom/instructor-attachment/[attachment_id]`, `/api/classroom/instructor-attachment/sign`, `/api/classroom/instructor-attachment`, `/api/classroom/item`, `/api/classroom/link-preview`, `/api/classroom/quick-post-file/[file_id]`, `/api/classroom/quick-post-file/sign`, `/api/classroom/quick-post-file`, `/api/classroom/submission-file/[file_id]`, `/api/classroom/submission-file/sign`, `/api/classroom/submission-file`, `/api/classroom/thumbnail/[itemId]`, `/api/classroom/thumbnail/sign`, `/api/classroom/thumbnail`, `/api/coin/autopay`, `/api/coin/claim`, `/api/coin/digest-push`, `/api/coin/me`, `/api/coin/public`, `/api/coin/role-apply`, `/api/coin/signin`, `/api/feedback`, `/api/foundry-cover/[...path]`, `/api/greenline-track-publish`, `/api/notebook/add-note`, `/api/notebook/add-photo`, `/api/notebook/edit-note`, `/api/notebook/note`, `/api/notebook/photo/[photo_id]`, `/api/notebook/session-guidance`, `/api/notebook/upload`, `/api/tournament-push`, `/api/vanguard-feedback`, `/api/vanguard-run-state`, `/api/vanguard-run`, `/api/vanguard-save`, `/armory/[project]/file/[file]/version/[version]`, `/armory/download/[file]`, `/armory/get`, `/assignments/[slug]`, `/auth/callback`, `/b/[appId]/[versionId]/[...path]`, `/certifications/lesson/[lessonId]`, `/certifications/verify/public-key`, `/classroom/[sectionId]/duplicates/remove`, `/coins/[...path]`, `/connector/register`, `/connector/revoke`, `/connector/token`, `/dev/ai-level-badge-reference`, `/dev/cert-certification/lesson/[lessonId]`, `/dev/classroom-deck/f/[deck_id]/[...path]`, `/dev/classroom-deck/fixture`, `/dev/classroom-deck/ingest`, `/dev/classroom/normalize`, `/dev/coins/api/claim`, `/dev/coins/api/me`, `/dev/coins/api/public`, `/dev/coins/api/role-apply`, `/dev/coins`, `/dev/deploy-safety/slide`, `/dev/deploy-safety/upload`, `/dev/feedback/assignment`, `/dev/foundry-admin/refusal`, `/dev/foundry-mosaic/cover/[shape]`, `/dev/frc-quiz`, `/dev/html-instructor/copy/doc`, `/dev/maps-media/o/[...path]`, `/dev/notebook/normalize`, `/foundry/download/[appId]/[versionId]`, `/foundry/preview/[appId]/[versionId]/[...path]`, `/foundry/starter`, `/frc/[domain]/[unit]/quiz`, `/hx/[docId]/thumbnail`, `/hx/[docId]`, `/mcp/practice/oauth-protected-resource`, `/mcp/practice`, `/mcp`, `/sitemap.xml`, `/vanguard`
 
 </details>
@@ -455,6 +456,14 @@ Generated from the overlay on 2026-10-20.
 - **Asks first:** `tournament_add_host`, `tournament_delete`, `tournament_generate_qual_pools`, `tournament_remove_entry_member`, `tournament_remove_entry`, `tournament_send_invite`, `tournament_set_entry_style`, `tournament_set_reward_rules`, `tournament_shuffle_seeds`
 - **By argument:** `tournament_set_status`: confirm when $before.status = draft, otherwise undo
 - **Excluded (the reason is in the YAML):** `tournament_join_entry`, `tournament_live_config_apply`, `tournament_live_config_preview`, `tournament_ping_entry`, `tournament_register_entry`, `tournament_respond_invite`, `tournament_start_match`, `tournament_submit_qual_result`
+
+</details>
+
+<details><summary>view-as.yaml</summary>
+
+- **Read:** `view_as_history`
+- **Asks first:** `test_account_retire`
+- **Excluded (the reason is in the YAML):** `test_account_register`, `test_accounts_list`, `view_as_grant`
 
 </details>
 

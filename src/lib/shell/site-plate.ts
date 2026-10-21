@@ -78,7 +78,9 @@ export const SITE_PLATE_DEV_PREFIXES: readonly string[] = [
 	'/dev/pathways',
 	'/dev/code-census',
 	'/dev/armory',
-	'/dev/cert-'
+	'/dev/cert-',
+	'/dev/view-as',
+	'/dev/test-accounts-admin'
 ];
 
 /**

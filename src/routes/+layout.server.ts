@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchUserProfile } from '$lib/profile';
 import { isAdmin } from '$lib/server/admin';
+import { VIEW_AS_RETURN_COOKIE } from '$lib/server/view-as/flow';
 import type { LayoutServerLoad } from './$types';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,7 +53,7 @@ async function loadProfile(supabase: SupabaseClient, userId: string) {
  * FRC teacher tools) keys off admin rather than `role === 'teacher'`, and
  * resolving it once here keeps every component from asking separately.
  */
-export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, cookies }) => {
+export const load: LayoutServerLoad = async ({ locals: { supabase, claims, viewAs }, cookies }) => {
 	/*
 	 * THE TWO READS ARE INDEPENDENT, SO THEY GO TOGETHER. This ran as two
 	 * sequential awaits, which made every authenticated page load in the site
@@ -78,6 +79,10 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, coo
 		userProfile,
 		isAdmin: admin,
 		certUnread,
-		cookies: cookies.getAll()
+		// Ledger 0422: set only while an admin is viewing or acting as this
+		// account; the floating exit panel is drawn from it and nothing else.
+		viewAs: viewAs ?? null,
+		// The admin's waiting refresh token is httpOnly and stays that way.
+		cookies: cookies.getAll().filter((c) => c.name !== VIEW_AS_RETURN_COOKIE)
 	};
 };

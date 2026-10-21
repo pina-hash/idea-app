@@ -108,7 +108,7 @@ export interface TestDb {
 	/** Runs as the connection owner: bypasses RLS. Seeding and raw assertions. */
 	readonly sql: QueryFn;
 	/** Runs as `authenticated` with auth.uid() = userId, the way a client does. */
-	asUser<T>(userId: string, fn: (q: QueryFn) => Promise<T>): Promise<T>;
+	asUser<T>(userId: string, fn: (q: QueryFn) => Promise<T>, extraClaims?: Record<string, unknown>): Promise<T>;
 	/**
 	 * Runs as `anon` with NO jwt claims — a signed-out request through
 	 * PostgREST. What a public surface must actually be tested against, since
@@ -245,11 +245,17 @@ export async function startTestDb(migrationFiles: readonly string[] = MIGRATIONS
 	 * statement is REJECTED, and inside a transaction the first rejection would
 	 * poison every statement after it.
 	 */
-	const asUser = async <T>(userId: string, fn: (q: QueryFn) => Promise<T>): Promise<T> => {
+	const asUser = async <T>(
+		userId: string,
+		fn: (q: QueryFn) => Promise<T>,
+		extraClaims?: Record<string, unknown>
+	): Promise<T> => {
 		const client = await pool.connect();
 		try {
+			// `extraClaims` adds to what PostgREST would set, e.g. the
+			// `session_id` a minted session carries (0288's view-as tests).
 			await client.query(`select set_config('request.jwt.claims', $1, false)`, [
-				JSON.stringify({ sub: userId, role: 'authenticated' })
+				JSON.stringify({ ...(extraClaims ?? {}), sub: userId, role: 'authenticated' })
 			]);
 			await client.query('set role authenticated');
 			const q: QueryFn = (text, params) => client.query(text, params as unknown[]);

@@ -25,6 +25,7 @@
 	import DeployWatch from '$lib/shell/DeployWatch.svelte';
 	import ThemeRoot from '$lib/design-system/themes/ThemeRoot.svelte';
 	import TabIcon from '$lib/tab-icon/TabIcon.svelte';
+	import ViewAsPanel from '$lib/shell/ViewAsPanel.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild, feedbackWearsClassroomPlate, isFeedbackEmbedRoute } from '$lib/feedback/context';
 	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
@@ -173,6 +174,9 @@
      every page route inherits it. It renders nothing; see the component. -->
 <ThemeRoot />
 <TabIcon />
+<!-- VIEW AS / ACT AS (ledger 0422): the one control laid over a page an admin is
+     seeing as someone else. Nothing else on the page changes. -->
+{#if data.viewAs}<ViewAsPanel viewAs={data.viewAs} />{/if}
 {#snippet site()}
 	{@render children()}
 	{#if !bare}

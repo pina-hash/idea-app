@@ -3937,6 +3937,12 @@
 								{/if}
 								· {submissionStateLabel(selected.submission?.state)}
 							</p>
+							{#if selected.submission?.acted_by}
+								<p class="acted-line" data-testid="acted-by-admin">
+									<span class="acted-lamp" aria-hidden="true"></span>
+									Handed in by {selected.submission.acted_by} acting for this student{selected.submission.acted_at ? `, ${stamp(selected.submission.acted_at)}` : ''}.
+								</p>
+							{/if}
 							<!--
 								IT NAMES WHEN, NOT JUST THAT. A bare flag sends the instructor
 								hunting through a submission for what moved; the instant is the
@@ -6782,5 +6788,22 @@
 	.ec-part {
 		font-size: 0.72rem;
 		color: var(--text-2);
+	}
+	/* Ledger 0422: a hand-in made by an admin acting as the student. */
+	.acted-line {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 0.25rem 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		color: var(--text-2);
+	}
+	.acted-lamp {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--crimson);
+		flex: none;
 	}
 </style>

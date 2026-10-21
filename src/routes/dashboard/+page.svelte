@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ViewAsButtons from '$lib/shell/ViewAsButtons.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
@@ -494,6 +495,7 @@
 												{#if s.email}<span class="roster-email">{s.email}</span>{/if}
 											</div>
 										</div>
+										<ViewAsButtons userId={s.id} name={displayName(toProfile(s))} />
 										<label class="roster-set">
 											<span class="roster-set-label">Pathway</span>
 											<select
@@ -542,6 +544,11 @@
 						myEmail={data.myEmail ?? null}
 						supabase={data.supabase}
 					/>
+				{:else if panel.id === 'view-as'}
+					<div class="panel-meta">
+						<a class="btn" href="/admin/view-as">View as someone</a>
+						<a class="btn secondary" href="/admin/test-accounts">Test accounts</a>
+					</div>
 				{:else if panel.id === 'pictures'}
 					<div class="panel-meta">
 						<a class="btn secondary" href="/admin/avatars">Manage profile pictures</a>

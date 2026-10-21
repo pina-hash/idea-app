@@ -42,11 +42,16 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	// resolves to the admin check); pathway edits go through "teachers update
 	// any profile" the same way. Fails soft to an empty roster until migration
 	// 0038 adds the pathway column.
-	const { data: students, error: rosterError } = await supabase
+	const { data: allStudents, error: rosterError } = await supabase
 		.from('profiles')
 		.select('id, email, full_name, display_name, avatar, avatar_url, pathway')
 		.eq('role', 'student')
 		.order('full_name', { ascending: true });
+	// Ledger 0422: a test student is in no roster, this one included. Before
+	// 0288 the list call refuses and nothing is filtered, which is correct.
+	const { data: testRows } = await supabase.rpc('test_accounts_list');
+	const testEmails = new Set(((testRows ?? []) as { email: string }[]).map((t) => t.email));
+	const students = (allStudents ?? []).filter((s) => !testEmails.has((s.email ?? '').toLowerCase()));
 
 	// FRC unit completions for the roster (teacher override). Fails soft to an
 	// empty map with frcProgressReady=false until migration 0039 is applied.
