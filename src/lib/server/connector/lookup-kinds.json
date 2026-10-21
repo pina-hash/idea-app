@@ -60,6 +60,11 @@
 			"prefix": "coin_market_official_save",
 			"param": "p_id",
 			"kind": "listing"
+		},
+		{
+			"prefix": "foundry_cover_",
+			"param": "p_app",
+			"kind": "app"
 		}
 	]
 }

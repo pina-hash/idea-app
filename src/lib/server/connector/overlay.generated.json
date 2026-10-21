@@ -5825,6 +5825,42 @@
 				"how many likes does Cookie Press have"
 			]
 		},
+		"foundry_cover_set": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Replace a game's cover on its gallery card with a picture already in the covers store or an HTML cover written in his words, or put the student's own back; it asks first.",
+			"say": [
+				"make this animated HTML the cover for Blade Run",
+				"replace the racing game's cover",
+				"put the student's own cover back on Blade Run"
+			],
+			"args": {
+				"p_app": {
+					"name": "app",
+					"describe": "The game, by its title as he says it, or its id."
+				},
+				"p_kind": {
+					"name": "kind",
+					"enum": [
+						"image",
+						"html",
+						"clear"
+					],
+					"describe": "image for a picture, html for an HTML cover, clear for the student's own."
+				},
+				"p_image_path": {
+					"name": "imagePath",
+					"describe": "For image: where the picture is stored; set covers from a chat upload with set foundry cover instead."
+				},
+				"p_html": {
+					"name": "html",
+					"describe": "For html: the whole HTML document, up to 200,000 characters."
+				}
+			}
+		},
+		"foundry_cover_html": {
+			"exclude": "Serves an HTML cover to the frame on the apps origin; nothing a person asks for."
+		},
 		"gauntlet_author_delete": {
 			"surface": "call",
 			"level": "confirm",
@@ -9208,6 +9244,38 @@
 				"publish": "$args.publish"
 			}
 		},
+		"/api/admin/files/foundry-cover": {
+			"surface": "call",
+			"tool": "set_foundry_cover",
+			"level": "confirm",
+			"method": "POST",
+			"describe": "Make a picture or an HTML file from a chat upload a game's cover on its gallery card, or put the student's own cover back; it asks first.",
+			"say": [
+				"make this picture the cover for Blade Run",
+				"use this animated HTML as the cover for the racing game",
+				"put the student's own cover back on Blade Run"
+			],
+			"args": {
+				"app": {
+					"type": "string",
+					"required": true,
+					"describe": "The game, by its title as he says it, or its id."
+				},
+				"upload": {
+					"type": "string",
+					"describe": "The upload holding the picture or HTML file, from start upload. Leave it out with clear."
+				},
+				"clear": {
+					"type": "boolean",
+					"describe": "True to put the student's own cover back instead."
+				}
+			},
+			"body": {
+				"app": "$args.app",
+				"upload": "$args.upload",
+				"clear": "$args.clear"
+			}
+		},
 		"/api/admin/files/upload": {
 			"surface": "call",
 			"tool": "start_upload",
@@ -9650,6 +9718,9 @@
 		},
 		"/classroom/[sectionId]/duplicates/remove": {
 			"exclude": "A gate in front of the delete route for the duplicates page; delete post asks first and covers one copy at a time."
+		},
+		"/c/[appId]": {
+			"exclude": "Serves a page or a file to a browser; nothing a person asks for."
 		},
 		"/coins/[...path]": {
 			"exclude": "Serves a page or a file to a browser; nothing a person asks for."
@@ -10770,6 +10841,7 @@
 		"/api/admin/test-accounts/create": "endpoints.yaml",
 		"/api/admin/files/attach": "endpoints.yaml",
 		"/api/admin/files/foundry": "endpoints.yaml",
+		"/api/admin/files/foundry-cover": "endpoints.yaml",
 		"/api/admin/files/upload": "endpoints.yaml",
 		"/api/admin/files/upload-part": "endpoints.yaml",
 		"/api/armory/blob-url": "endpoints.yaml",
@@ -10841,6 +10913,7 @@
 		"/certifications/lesson/[lessonId]": "endpoints.yaml",
 		"/certifications/verify/public-key": "endpoints.yaml",
 		"/classroom/[sectionId]/duplicates/remove": "endpoints.yaml",
+		"/c/[appId]": "endpoints.yaml",
 		"/coins/[...path]": "endpoints.yaml",
 		"/connector/register": "endpoints.yaml",
 		"/connector/revoke": "endpoints.yaml",
@@ -10916,6 +10989,8 @@
 		"foundry_update_app_metadata": "foundry.yaml",
 		"foundry_vote": "foundry.yaml",
 		"foundry_vote_counts": "foundry.yaml",
+		"foundry_cover_set": "foundry.yaml",
+		"foundry_cover_html": "foundry.yaml",
 		"gauntlet_author_delete": "gauntlet.yaml",
 		"gauntlet_author_get": "gauntlet.yaml",
 		"gauntlet_author_set_status": "gauntlet.yaml",

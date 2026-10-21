@@ -35,7 +35,9 @@
 	 * public in the database and reachable through the ADMIN controls alone,
 	 * which is the opposite of what "public" was answered to mean.
 	 */
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { FOUNDRY_COVER_BUCKET } from '$lib/foundry/bundle-url';
+	import type { FoundryCoverTransports } from '$lib/foundry/FoundryCoverEditor.svelte';
 
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
 	import FoundryPage from '$lib/foundry/FoundryPage.svelte';
@@ -48,6 +50,37 @@
 	import { foundryHouseReleases } from '$lib/foundry/major';
 
 	let { data } = $props();
+
+	/**
+	 * LEDGER 0422: REPLACE A GAME'S COVER FROM ITS CARD. Admin only, and only
+	 * an offer: `foundry_cover_set` re-checks `is_admin()`, and the picture goes
+	 * into the admin's own folder, the only place the bucket's policy allows.
+	 */
+	const coverTransports = $derived<FoundryCoverTransports | null>(
+		data.isAdmin && data.supabase && typeof data.claims?.sub === 'string'
+			? {
+					async uploadImage(file) {
+						const ext = (file.name.slice(file.name.lastIndexOf('.') + 1) || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+						const path = `${data.claims!.sub}/${crypto.randomUUID()}.${ext}`;
+						const { error } = await data.supabase!.storage
+							.from(FOUNDRY_COVER_BUCKET)
+							.upload(path, file, { contentType: file.type || undefined, upsert: false });
+						return error ? { ok: false, message: 'The picture could not be uploaded. Try again.' } : { ok: true, path };
+					},
+					async setCover(appId, kind, value) {
+						const { data: r, error } = await data.supabase!.rpc('foundry_cover_set', {
+							p_app: appId,
+							p_kind: kind,
+							p_image_path: kind === 'image' ? (value ?? null) : null,
+							p_html: kind === 'html' ? (value ?? null) : null
+						});
+						const out = r as { ok?: boolean; message?: string } | null;
+						if (error || !out) return { ok: false, message: 'Covers are not available yet. They arrive with the next database update.' };
+						return out.ok ? { ok: true } : { ok: false, message: out.message ?? 'That cover could not be saved.' };
+					}
+				}
+			: null
+	);
 
 	const transports: FoundryGalleryTransports = {
 		async recordPlay(appId, versionId) {
@@ -245,6 +278,8 @@
 		{transports}
 		coverUrl={foundryCoverUrl}
 		{staffHref}
+		{coverTransports}
+		onCoverChanged={() => invalidateAll()}
 		{playStats}
 		{myPlayStats}
 		{houseReleases}

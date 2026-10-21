@@ -40,6 +40,7 @@ const HAND_ROUTES: Record<string, () => Promise<RouteModule>> = {
 	'/api/admin/test-accounts/create': () => import('../../../routes/api/admin/test-accounts/create/+server'),
 	'/api/admin/files/attach': () => import('../../../routes/api/admin/files/attach/+server'),
 	'/api/admin/files/foundry': () => import('../../../routes/api/admin/files/foundry/+server'),
+	'/api/admin/files/foundry-cover': () => import('../../../routes/api/admin/files/foundry-cover/+server'),
 	'/api/admin/files/upload': () => import('../../../routes/api/admin/files/upload/+server'),
 	'/api/admin/files/upload-part': () => import('../../../routes/api/admin/files/upload-part/+server'),
 	'/api/armory/purge': () => import('../../../routes/api/armory/purge/+server'),

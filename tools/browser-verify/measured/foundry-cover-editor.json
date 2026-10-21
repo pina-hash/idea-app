@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "foundry-cover-editor.mjs",
+	"date": "2026-10-21T15:04:22.352Z",
+	"sha": "ea2555c052d7ae5a70b800797c78c3808c406544",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 34,
+	"outsideRows": [],
+	"ms": 14789
+}

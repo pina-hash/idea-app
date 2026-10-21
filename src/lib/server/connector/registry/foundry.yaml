@@ -305,3 +305,17 @@ foundry_vote_counts:
   level: read
   describe: The net votes on every Foundry app.
   say: ["which Foundry apps are most liked", "show the vote counts", "how many likes does Cookie Press have"]
+
+foundry_cover_set:
+  surface: call
+  level: confirm
+  describe: Replace a game's cover on its gallery card with a picture already in the covers store or an HTML cover written in his words, or put the student's own back; it asks first.
+  say: ["make this animated HTML the cover for Blade Run", "replace the racing game's cover", "put the student's own cover back on Blade Run"]
+  args:
+    p_app: {name: app, describe: "The game, by its title as he says it, or its id."}
+    p_kind: {name: kind, enum: [image, html, clear], describe: "image for a picture, html for an HTML cover, clear for the student's own."}
+    p_image_path: {name: imagePath, describe: "For image: where the picture is stored; set covers from a chat upload with set foundry cover instead."}
+    p_html: {name: html, describe: "For html: the whole HTML document, up to 200,000 characters."}
+
+foundry_cover_html:
+  exclude: Serves an HTML cover to the frame on the apps origin; nothing a person asks for.

@@ -661,6 +661,7 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			await sql(`update public.student_apps set metadata_flagged_at = now() where id = $1`, [a.app]);
 			return { p_app_id: a.app };
 		},
+		foundry_cover_set: async () => ({ p_app: (await app('approved')).app, p_kind: 'html', p_image_path: null, p_html: '<!doctype html><p>cover</p>' }),
 		foundry_update_app_metadata: async () => ({ p_app_id: (await app('approved')).app, p_field: 'tagline', p_value: 'A better tagline.' }),
 		foundry_set_section_open: async () => ({ p_section_id: w.block2, p_open: false, p_note: 'Test day.' }),
 		foundry_set_site_open: async () => ({ p_open: false, p_note: 'Testing.' }),

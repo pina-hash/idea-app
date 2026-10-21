@@ -39,6 +39,7 @@
 	 *      name never depends on a visual state.
 	 */
 	import { foundryCoverFailed, foundryCoverMeasured } from './covers.ts';
+	import { FOUNDRY_COVER_SANDBOX } from './html-cover.ts';
 	import FoundryMajorMark from './FoundryMajorMark.svelte';
 	import { foundryGeneratedHue } from './mosaic.ts';
 	import { foundryAuthorName } from './surface.ts';
@@ -69,6 +70,7 @@
 		plays = '',
 		major = false,
 		blurb = '',
+		htmlCover = null,
 		onselect
 	}: {
 		app: FoundryCardApp;
@@ -99,9 +101,39 @@
 		 * (`aria-describedby`) carries it, since the label overrides the contents.
 		 */
 		blurb?: string;
+		/**
+		 * AN ADMIN'S HTML COVER (ledger 0422, 0291): its frame address on the
+		 * apps origin, or null. It is drawn OVER the picture, so the picture is
+		 * the still fallback while it loads and wherever frames are refused.
+		 */
+		htmlCover?: string | null;
 		/** Absent means the link simply navigates, which is what a preview wants. */
 		onselect?: (slug: string) => void;
 	} = $props();
+
+	let anchor: HTMLAnchorElement | undefined = $state();
+
+	/**
+	 * A CLICK INSIDE THE COVER STILL OPENS THE CARD. The cover is another
+	 * origin's document, so its clicks never reach this link; what the page
+	 * CAN see is that focus left it for the frame. On that blur, if the frame is
+	 * what took focus, the card opens exactly as a click on it would, and focus
+	 * comes back to the link so the keyboard is where it was.
+	 */
+	$effect(() => {
+		if (!htmlCover) return;
+		const onBlur = () => {
+			setTimeout(() => {
+				const frame = anchor?.querySelector('iframe');
+				if (!frame || document.activeElement !== frame) return;
+				anchor?.focus();
+				if (onselect) onselect(app.slug);
+				else if (anchor) anchor.click();
+			}, 0);
+		};
+		window.addEventListener('blur', onBlur);
+		return () => window.removeEventListener('blur', onBlur);
+	});
 
 	const src = $derived(app.cover_path ? coverUrl(app.cover_path) : null);
 	const uid = $props.id();
@@ -144,9 +176,11 @@
 	plate is never announced twice.
 -->
 <a
+	bind:this={anchor}
 	class="fdy-card"
 	class:selected
 	class:made
+	class:html-cover={!!htmlCover}
 	{href}
 	data-app-slug={app.slug}
 	data-fdy-card
@@ -193,6 +227,26 @@
 		<span class="fdy-card-shot fdy-card-made" aria-hidden="true">
 			<span class="fdy-card-made-name">{app.title}</span>
 		</span>
+	{/if}
+
+	{#if htmlCover}
+		<!--
+			THE HTML COVER, over the picture. Sandboxed to scripts alone (an
+			opaque origin: no cookies, no storage, no reach into this page) and
+			served on the apps origin with no network. `tabindex="-1"` keeps the
+			keyboard on the link; the title names it for a screen reader that
+			does reach it.
+		-->
+		<iframe
+			class="fdy-card-html"
+			src={htmlCover}
+			title="{app.title} cover"
+			sandbox={FOUNDRY_COVER_SANDBOX}
+			referrerpolicy="no-referrer"
+			loading="lazy"
+			tabindex="-1"
+			data-testid="fdy-card-html"
+		></iframe>
 	{/if}
 
 	{#if major}
@@ -329,6 +383,18 @@
 	*/
 	img.fdy-card-shot {
 		object-fit: cover;
+	}
+
+	/* The HTML cover fills the card over the picture. A card with no picture
+	   of its own keeps the fallback shape (`--fdy-ar`'s default). */
+	.fdy-card-html {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		border: 0;
+		display: block;
+		background: transparent;
 	}
 
 	/* ======================================================================

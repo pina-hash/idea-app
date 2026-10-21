@@ -58,6 +58,10 @@
 	 */
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import '$lib/shell/split.css';
+	import { env } from '$env/dynamic/public';
+	import { foundryCoverHtmlUrl } from './html-cover.ts';
+	import FoundryCoverEditor from './FoundryCoverEditor.svelte';
+	import type { FoundryCoverTransports } from './FoundryCoverEditor.svelte';
 
 	import FoundryCard from './FoundryCard.svelte';
 	import FoundryCollectionCard from './FoundryCollectionCard.svelte';
@@ -69,6 +73,7 @@
 		FOUNDRY_COLLECTIONS_NOTE,
 		FOUNDRY_COLLECTIONS_TITLE,
 		FOUNDRY_FEATURED_TITLE,
+		appSubject,
 		applyAppOverride,
 		applyHouseOverride,
 		foundryFeaturedNote,
@@ -168,6 +173,13 @@
 		 */
 		staffHref = null,
 		/**
+		 * LEDGER 0422: REPLACE THE OPEN GAME'S COVER. Handed in by the route for an
+		 * admin only; absent, nothing is drawn (absence is the mechanism, as with
+		 * `staffHref`). `foundry_cover_set` re-checks `is_admin()` itself.
+		 */
+		coverTransports = null,
+		onCoverChanged = undefined,
+		/**
 		 * THE APP'S PUBLIC TOTALS, FOR THE APP THAT IS OPEN.
 		 * `foundry_app_play_stats`, which since 0204 (decision 07, answered
 		 * public) answers any signed-in caller who can see the app rather than
@@ -227,6 +239,8 @@
 		playCounts?: FoundryPlayCounts;
 		playCountsKnown?: boolean;
 		staffHref?: string | null;
+		coverTransports?: FoundryCoverTransports | null;
+		onCoverChanged?: () => void;
 		playStats?: FoundryPlayStatsTransport | undefined;
 		myPlayStats?: FoundryMyPlayStatsTransport | undefined;
 		houseReleases?: FoundryHouseRelease[];
@@ -350,6 +364,9 @@
 		app: T
 	): T => applyAppOverride(app, overrides);
 	const thumbOf = (path: string | null | undefined) => (path ? coverUrl(path) : null);
+	/** Ledger 0422: an admin's HTML cover for a card, on the apps origin, or null. */
+	const coverOrigin = $derived(appsOrigin ?? env.PUBLIC_FOUNDRY_APPS_ORIGIN ?? '');
+	const htmlCoverOf = (id: string) => foundryCoverHtmlUrl(coverOrigin, id, overrides[appSubject(id)]?.cover_html_rev ?? null);
 
 	/**
 	 * THE MAJOR RELEASES SECTION: the marked apps IN THE ORDER IN FORCE, then
@@ -552,6 +569,7 @@
 									href="/foundry?app={app.slug}"
 									selected={selected?.slug === app.slug}
 									{coverUrl}
+									htmlCover={htmlCoverOf(card.id)}
 									plays={foundrySortFigure(sort, app, playCounts[app.id])}
 									blurb={card.tagline ?? ''}
 									onselect={onSelect}
@@ -586,6 +604,7 @@
 										href="/foundry?app={item.app.slug}"
 										selected={selected?.slug === item.app.slug}
 										{coverUrl}
+										htmlCover={htmlCoverOf(shown(item.app).id)}
 										plays={foundrySortFigure(sort, item.app, playCounts[item.app.id])}
 										onselect={onSelect}
 									/>
@@ -631,6 +650,7 @@
 														href="/foundry?app={item.app.slug}"
 														selected={selected?.slug === item.app.slug}
 														{coverUrl}
+														htmlCover={htmlCoverOf(shown(item.app).id)}
 														plays={foundrySortFigure(sort, item.app, playCounts[item.app.id])}
 														onselect={onSelect}
 													/>
@@ -703,6 +723,7 @@
 								href="/foundry?app={app.slug}"
 								selected={selected?.slug === app.slug}
 								{coverUrl}
+								htmlCover={htmlCoverOf(shown(app).id)}
 								plays={playsLabel}
 								major={isMajorRelease(app)}
 								onselect={onSelect}
@@ -739,6 +760,18 @@
 							Open review controls
 						</a>
 					</p>
+				{/if}
+				{#if coverTransports}
+					{@const o = overrides[appSubject(selected.id)]}
+					{@const pic = o?.thumbnail_path ?? selected.cover_path}
+					<FoundryCoverEditor
+						app={selected}
+						imageUrl={pic ? coverUrl(pic) : null}
+						htmlUrl={htmlCoverOf(selected.id)}
+						overridden={!!(o?.thumbnail_path || o?.cover_html_rev)}
+						transports={coverTransports}
+						onchanged={onCoverChanged}
+					/>
 				{/if}
 				<FoundryDetail
 					app={selected}

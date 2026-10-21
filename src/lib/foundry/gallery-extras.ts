@@ -55,6 +55,8 @@ export interface FoundryGalleryOverride {
 	title: string | null;
 	description: string | null;
 	thumbnail_path: string | null;
+	/** Ledger 0422 (0291): the HTML cover's revision, or null when it has none. Never the document. */
+	cover_html_rev?: number | null;
 }
 
 export type FoundryOverrideMap = Record<string, FoundryGalleryOverride>;
@@ -72,7 +74,11 @@ export function foundryOverrideMap(rows: unknown): FoundryOverrideMap {
 			title: typeof row.title === 'string' && row.title !== '' ? row.title : null,
 			description: typeof row.description === 'string' && row.description !== '' ? row.description : null,
 			thumbnail_path:
-				typeof row.thumbnail_path === 'string' && row.thumbnail_path !== '' ? row.thumbnail_path : null
+				typeof row.thumbnail_path === 'string' && row.thumbnail_path !== '' ? row.thumbnail_path : null,
+			cover_html_rev:
+				typeof row.cover_html_rev === 'number' && Number.isFinite(row.cover_html_rev) && row.cover_html_rev > 0
+					? row.cover_html_rev
+					: null
 		};
 	}
 	return out;

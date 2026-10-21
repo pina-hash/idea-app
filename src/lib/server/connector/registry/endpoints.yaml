@@ -73,6 +73,18 @@
     notes: {type: string, describe: "For a new app: build notes, in his words."}
     publish: {type: boolean, describe: "False to leave it waiting in review instead of publishing it."}
   body: {upload: $args.upload, app: $args.app, title: $args.title, slug: $args.slug, notes: $args.notes, publish: $args.publish}
+"/api/admin/files/foundry-cover":
+  surface: call
+  tool: set_foundry_cover
+  level: confirm
+  method: POST
+  describe: Make a picture or an HTML file from a chat upload a game's cover on its gallery card, or put the student's own cover back; it asks first.
+  say: ["make this picture the cover for Blade Run", "use this animated HTML as the cover for the racing game", "put the student's own cover back on Blade Run"]
+  args:
+    app: {type: string, required: true, describe: "The game, by its title as he says it, or its id."}
+    upload: {type: string, describe: "The upload holding the picture or HTML file, from start upload. Leave it out with clear."}
+    clear: {type: boolean, describe: "True to put the student's own cover back instead."}
+  body: {app: $args.app, upload: $args.upload, clear: $args.clear}
 "/api/admin/files/upload":
   surface: call
   tool: start_upload
@@ -229,6 +241,7 @@
 "/certifications/lesson/[lessonId]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
 "/certifications/verify/public-key": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
 "/classroom/[sectionId]/duplicates/remove": {exclude: "A gate in front of the delete route for the duplicates page; delete post asks first and covers one copy at a time."}
+"/c/[appId]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
 "/coins/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
 "/connector/register": {exclude: "The connector's own sign-in or transport, never a tool."}
 "/connector/revoke": {exclude: "The connector's own sign-in or transport, never a tool."}

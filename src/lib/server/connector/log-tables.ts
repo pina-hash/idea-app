@@ -61,6 +61,8 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'coin_stocks',
 	'coin_wage_tiers',
 	'connector_gaps',
+	// Ledger 0422 (0291): a game's cover on its gallery card.
+	'foundry_gallery_overrides',
 	'foundry_publisher_applications',
 	'foundry_publisher_questions',
 	'foundry_site_settings',
