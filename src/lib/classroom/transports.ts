@@ -3017,6 +3017,13 @@ export function createHtmlAssignmentTransports(supabase: SupabaseClient): HtmlAs
 		async setRubric(itemId, criteria) {
 			const res = await teacher.setRubric(itemId, criteria);
 			return res.ok ? { ok: true } : { ok: false, message: res.message };
+		},
+		async setShowTitle(itemId, show) {
+			const { error } = await supabase.rpc('classroom_html_set_show_title', {
+				p_item_id: itemId,
+				p_show: show
+			});
+			return error ? { ok: false, message: 'Could not change the title setting. Try again.' } : { ok: true };
 		}
 	};
 }

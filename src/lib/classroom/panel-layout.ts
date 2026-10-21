@@ -176,7 +176,14 @@ export function classPanelDefaults(): string[] {
  * work, and that is report R20 (a2fe2f8f): "the rubric should be at the
  * bottom". A person's own order still moves it anywhere.
  */
-export function itemPanelDefaults(layout: Pick<ItemLayout, 'links' | 'files'> = { links: 'bottom', files: 'bottom' }): string[] {
+export function itemPanelDefaults(
+	layout: Pick<ItemLayout, 'links' | 'files'> = { links: 'bottom', files: 'bottom' },
+	workFirst = false
+): string[] {
+	if (workFirst) {
+		// A ported HTML assignment IS the assignment, so it opens the page (report 8812b4ba).
+		return ['work', ...itemPanelDefaults(layout).filter((id) => id !== 'work')];
+	}
 	const out = ['deck', 'notebook'];
 	if (layout.links === 'top') out.push('links');
 	if (layout.files === 'top') out.push('files');

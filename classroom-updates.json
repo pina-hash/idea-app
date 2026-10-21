@@ -2499,6 +2499,12 @@
 			"title": "Live view counts any activity, and the projector is readable",
 			"body": "On the Live tab, a student counts as working when they do anything in front of the work, such as scrolling, pointing, typing or filling in a worksheet, not only typing. They show as idle after about two and a half minutes without any activity, and as away as soon as their tab is in the background. The projector's full screen view now keeps its colors and layout in every theme, with the clock and cards easy to read from the back of the room, and a due time sits under its title instead of wrapping onto its own row.",
 			"tags": ["Classroom", "Live"]
+		},
+		{
+			"date": "2026-10-21",
+			"title": "HTML assignments open on the assignment",
+			"body": "When a teacher posts an HTML assignment, the assignment itself is now the first thing you see. The post title above it is hidden by default because the document already has its own title, and the date, points and posted-by details sit on one line instead of three. Posts with no instructions no longer show an empty box.",
+			"tags": ["Classroom", "Assignments"]
 		}
 	]
 }

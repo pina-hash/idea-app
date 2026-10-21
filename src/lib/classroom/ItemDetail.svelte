@@ -798,6 +798,32 @@
 
 	const editable = $derived(canManage && !!transports);
 	const showUpdated = $derived(!seen && isUpdatedForViewer(item));
+
+	/**
+	 * THE POST TITLE ABOVE A PORTED HTML ASSIGNMENT (0283). Hidden unless the
+	 * author switched it on; every other kind of item always shows its title.
+	 * `titleOverride` is the switch's own answer until the page reloads.
+	 */
+	let titleOverride = $state<boolean | null>(null);
+	let titleBusy = $state(false);
+	let titleError = $state('');
+	const titleShown = $derived(
+		htmlMount !== 'html' || (titleOverride ?? htmlAssignment?.showTitle ?? false)
+	);
+	const canSwitchTitle = $derived(
+		htmlMount === 'html' && canManage && !!htmlAssignmentTransports?.setShowTitle
+	);
+	async function toggleTitle() {
+		const send = htmlAssignmentTransports?.setShowTitle;
+		if (!send || titleBusy) return;
+		const next = !titleShown;
+		titleBusy = true;
+		titleError = '';
+		const res = await send(item.id, next);
+		titleBusy = false;
+		if (res.ok) titleOverride = next;
+		else titleError = res.message ?? 'Could not change the title setting. Try again.';
+	}
 	// instructorAttachments/instructorLinks are only ever loaded (non-undefined)
 	// for a manager's own read (see transports.ts's mergeInstructorMaterials),
 	// but this section ALSO gates on canManage directly -- a belt-and-braces
@@ -908,20 +934,26 @@
 	 * `layout` decides the default places of the links and the files (0193);
 	 * `panelLayout` is this person's own order and hidden set on top of it.
 	 */
+	/**
+	 * A DESCRIPTION BOX EXISTS ONLY WHEN SOMETHING VISIBLE IS IN IT (report
+	 * 8812b4ba). Whitespace, non-breaking spaces and zero-width characters are
+	 * not content, so a body made only of them gets no empty card.
+	 */
+	const hasBody = $derived(/[^\s\u00a0\u200b-\u200d\ufeff]/.test(item.body ?? '') || (item.body_doc?.length ?? 0) > 0);
 	const itemPanelsPresent = $derived(
 		new Set([
 			...(deck ? ['deck'] : []),
 			...(checkIns.length || (!canManage && notebookCapture) ? ['notebook'] : []),
 			...(item.links.length ? ['links'] : []),
 			...(listedAttachments.length ? ['files'] : []),
-			...(item.body.trim() ? ['body'] : []),
+			...(hasBody ? ['body'] : []),
 			...(referenceSpec ? ['reference'] : []),
 			...(gradingRubric?.length && !returnedSubmission ? ['rubric'] : []),
 			...(item.kind === 'assignment' ? ['work'] : [])
 		])
 	);
 	const itemPanels = $derived(
-		resolvePanels('item', itemPanelDefaults(layout), panelLayout, itemPanelsPresent)
+		resolvePanels('item', itemPanelDefaults(layout, htmlMount === 'html'), panelLayout, itemPanelsPresent)
 	);
 
 	// --- The inspector ----------------------------------------------------
@@ -2110,8 +2142,33 @@
 	{/if}
 
 	<section class="hero">
-		<div class="eyebrow">{itemKindLabel(item.kind)}</div>
-		<h1>{itemTitle(item)}</h1>
+		<!--
+			ONE LINE FOR THE KIND, THE CHIPS AND THE TITLE SWITCH. The kind label, the
+			Pinned and Updated chips and the manager's switch each used to take a row
+			of their own (report 8812b4ba, "short single-line items taking a full
+			row"). They share this line and it wraps on a phone.
+		-->
+		<div class="hero-top">
+			<span class="eyebrow">{itemKindLabel(item.kind)}</span>
+			{#if item.pinned}<span class="chip pin-chip">Pinned</span>{/if}
+			{#if showUpdated}<span class="chip updated-chip">Updated</span>{/if}
+			{#if canSwitchTitle}
+				<button
+					type="button"
+					class="title-switch"
+					aria-pressed={titleShown}
+					disabled={titleBusy}
+					onclick={toggleTitle}
+					data-testid="item-title-switch"
+				>{titleShown ? 'Hide title' : 'Show title'}</button>
+				{#if titleError}<span class="title-error" role="alert">{titleError}</span>{/if}
+			{/if}
+		</div>
+		<!-- A PORTED HTML ASSIGNMENT CARRIES ITS OWN TITLE INSIDE THE DOCUMENT, so the
+		     post title is hidden by default and a per-post switch brings it back
+		     (0283). The heading stays in the page for screen readers and for the
+		     document outline either way. -->
+		<h1 class:sr-title={!titleShown}>{itemTitle(item)}</h1>
 		<p class="meta-line">
 			{#if item.kind === 'assignment'}
 				<!-- NO DUE SEGMENT WHEN THERE IS NO DUE DATE. `formatDue(null)` is
@@ -2124,16 +2181,8 @@
 				{#if item.category}{item.category}&nbsp;&middot;{/if}
 			{/if}
 			Posted {shortWhen(item.created_at)} by {authorLabel(item.author_name, item.author_email)}
+			{#if item.edited_at}&nbsp;&middot; Last updated {editedWhen(item.edited_at)}{/if}
 		</p>
-		{#if item.pinned || showUpdated}
-			<p class="chip-line">
-				{#if item.pinned}<span class="chip pin-chip">Pinned</span>{/if}
-				{#if showUpdated}<span class="chip updated-chip">Updated</span>{/if}
-			</p>
-		{/if}
-		{#if item.edited_at}
-			<p class="edited-line">Last updated {editedWhen(item.edited_at)}</p>
-		{/if}
 	</section>
 
 	<!--
@@ -2294,7 +2343,7 @@
 				their own, so the panel simply stays open for them -- which is the rule
 				playing out, not a second rule written for them.
 			-->
-			{#if item.body.trim()}
+			{#if hasBody}
 				<section class="card">
 					<Disclosure
 						label={item.kind === 'assignment' ? 'Instructions' : 'Details'}
@@ -3180,18 +3229,42 @@
 		margin-top: 0;
 	}
 
-	.meta-line,
-	.edited-line {
+	.meta-line {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
 		margin: 0.2rem 0 0;
 	}
-	.chip-line {
+	.hero-top {
 		display: flex;
-		gap: 0.4rem;
+		align-items: center;
 		flex-wrap: wrap;
-		margin: 0.4rem 0 0;
+		gap: 0.3rem 0.5rem;
+	}
+	.title-switch {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		min-height: 2rem;
+		padding: 0 0.7rem;
+		border: 1px dashed var(--gold);
+		border-radius: var(--radius-card);
+		background: none;
+		color: var(--text-2);
+		cursor: pointer;
+	}
+	.title-error {
+		font-size: 0.72rem;
+		color: var(--amber);
+	}
+	/* Kept in the outline for assistive technology, out of the layout. */
+	.sr-title {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
 	/* --- The notebook check-in block (0120) --------------------------------
 	   `ci-` prefixed like every other component class here: app.css owns a

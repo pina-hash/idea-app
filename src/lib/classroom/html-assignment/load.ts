@@ -109,16 +109,28 @@ export async function loadHtmlAssignment<T extends object>(
 		return { htmlAssignment: null, htmlAssignmentReady: true, item: next };
 	}
 
-	const docRes = await supabase
+	// 0283's show_title is its own rung: PostgREST refuses the whole select over
+	// one unknown column, so a deployment without it retries without it and the
+	// title simply stays hidden.
+	const itemId = (next as Record<string, unknown>).id as string;
+	let docRes = await supabase
 		.from('classroom_html_assignments')
-		.select('document_id, manifest, filename, updated_at')
-		.eq('item_id', (next as Record<string, unknown>).id as string)
+		.select('document_id, manifest, filename, updated_at, show_title')
+		.eq('item_id', itemId)
 		.maybeSingle();
+	if (docRes.error) {
+		docRes = await supabase
+			.from('classroom_html_assignments')
+			.select('document_id, manifest, filename, updated_at')
+			.eq('item_id', itemId)
+			.maybeSingle();
+	}
 	const row = docRes.data as {
 		document_id?: unknown;
 		manifest?: unknown;
 		filename?: unknown;
 		updated_at?: unknown;
+		show_title?: unknown;
 	} | null;
 	if (docRes.error || !row || typeof row.document_id !== 'string') {
 		return { htmlAssignment: null, htmlAssignmentReady: false, item: next };
@@ -128,7 +140,8 @@ export async function loadHtmlAssignment<T extends object>(
 			documentId: row.document_id,
 			manifest: row.manifest ?? null,
 			filename: typeof row.filename === 'string' ? row.filename : '',
-			updatedAt: typeof row.updated_at === 'string' ? row.updated_at : null
+			updatedAt: typeof row.updated_at === 'string' ? row.updated_at : null,
+			showTitle: row.show_title === true
 		},
 		htmlAssignmentReady: true,
 		item: next

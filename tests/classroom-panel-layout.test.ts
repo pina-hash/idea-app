@@ -340,3 +340,14 @@ describe('the hidden-panels note', () => {
 		expect(none).not.toMatch(/—/);
 	});
 });
+
+describe('itemPanelDefaults, a ported HTML assignment opens with its document (report 8812b4ba)', () => {
+	it('puts work first when asked and leaves the others in their order', () => {
+		const normal = itemPanelDefaults({ links: 'bottom', files: 'bottom' });
+		const first = itemPanelDefaults({ links: 'bottom', files: 'bottom' }, true);
+		expect(first[0]).toBe('work');
+		expect(first.slice(1)).toEqual(normal.filter((id) => id !== 'work'));
+		expect(first).toHaveLength(normal.length);
+		expect(normal.indexOf('work')).toBeGreaterThan(0);
+	});
+});
