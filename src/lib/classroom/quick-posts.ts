@@ -134,6 +134,8 @@ export interface QuickPost {
 	section_ids: string[] | null;
 	/** May this caller take it down (the author, or a teacher of every target). */
 	can_take_down: boolean;
+	/** Marked important by its author (0285). Absent before that migration, which reads as not important. */
+	important?: boolean;
 	/**
 	 * The notice's files, in the order they were attached (0233). Absent on a
 	 * database without 0233, which is the same as none.
@@ -216,6 +218,7 @@ export function parseQuickPostBoard(raw: unknown): QuickPostBoard | null {
 			section_ids: ids,
 			can_take_down: row.can_take_down === true
 		};
+		if (typeof row.important === 'boolean') post.important = row.important;
 		if (Array.isArray(row.files)) post.files = parseQuickPostFiles(row.files);
 		posts.push(post);
 	}
@@ -857,6 +860,11 @@ export interface QuickPostTransports {
 	/** Take a notice down. A stamp, never a delete. */
 	takeDown(postId: string): Promise<QuickPostTakeDownResult>;
 	/**
+	 * Mark a notice important, or not (0285). ABSENT REMOVES THE SWITCH, so a
+	 * database without the migration shows no control that would be refused.
+	 */
+	setImportant?(postId: string, important: boolean): Promise<{ ok: boolean; message?: string }>;
+	/**
 	 * Attach one file to a notice this caller just posted (0233): sign, PUT,
 	 * record, through the classroom's ONE upload path (`uploadClassroomFile`,
 	 * role `quick-post`). ABSENT REMOVES THE PICKER: a surface with no way to
@@ -905,6 +913,16 @@ function raised(e: RpcError, fallback: string): string {
 export function createQuickPostTransports(supabase: SupabaseClient): QuickPostTransports {
 	return {
 		uploadFile: uploadQuickPostFile,
+		async setImportant(postId, important) {
+			const { error } = await supabase.rpc('classroom_quick_post_set_important', {
+				p_post_id: postId,
+				p_important: important
+			});
+			if (error) {
+				return { ok: false, message: missing(error) ? quickPostRefusalWords('unavailable') : raised(error, UNREACHABLE) };
+			}
+			return { ok: true };
+		},
 		async read(sectionId) {
 			const { data, error, status } = await supabase.rpc('classroom_quick_posts', { p_section_id: sectionId });
 			if (error) {

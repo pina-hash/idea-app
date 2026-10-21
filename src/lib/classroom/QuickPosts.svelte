@@ -273,6 +273,31 @@
 		oncomposerclose?.();
 	}
 
+	/** Mark a notice important or not (0285); the card flips and moves up at once, the next read confirms it. */
+	async function toggleImportant(post: QuickPost) {
+		const send = transports?.setImportant;
+		if (!send || busy) return;
+		busy = post.id;
+		problem = null;
+		try {
+			const next = post.important !== true;
+			const res = await send(post.id, next);
+			if (!res.ok) {
+				problem = res.message ?? 'Could not change that notice. Try again.';
+				return;
+			}
+			if (shown) {
+				const posts = shown.posts.map((p) => (p.id === post.id ? { ...p, important: next } : p));
+				posts.sort((a, b) => Number(b.important === true) - Number(a.important === true));
+				local = { over: board, board: { ...shown, posts } };
+			}
+		} catch {
+			problem = 'Could not reach the class. Check your connection and try again.';
+		} finally {
+			busy = null;
+		}
+	}
+
 	/** TWO PRESSES, AND THE SECOND NAMES WHAT IT COSTS: how many classes it leaves. */
 	async function takeDown(post: QuickPost) {
 		if (!transports || busy) return;
@@ -371,7 +396,7 @@
 	{@const files = (post.files ?? []).map(
 		(f): ClassroomAttachment => ({ id: f.id, filename: f.filename, mime_type: 'application/octet-stream', size_bytes: f.size_bytes })
 	)}
-	<article class="card qp-card" data-testid="quick-post" data-post={post.id}>
+	<article class="card qp-card" class:qp-important={post.important === true} data-testid="quick-post" data-post={post.id}>
 		<span class="qp-stripe" aria-hidden="true"></span>
 		<!--
 			ONE HEADER LINE (report 7ec59920): the word, its end, the link keys and
@@ -381,6 +406,7 @@
 		<div class="qp-head">
 			<svg class="qp-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={QUICK_POST_GLYPH} /></svg>
 			<span class="qp-word">Notice</span>
+			{#if post.important}<span class="chip qp-flag" data-testid="quick-post-important">Important</span>{/if}
 			<span class="chip qp-until" data-testid="quick-post-until">{quickPostUntilWords(post.expires_at, at)}</span>
 			{#if links.length}
 				<span class="qp-links">
@@ -399,6 +425,16 @@
 			{#if manages}
 				<span class="qp-manage" data-testid="quick-post-manage">
 					<span class="qp-reach">Posted to {quickPostClassWords(classCount(post))}</span>
+					{#if transports?.setImportant && post.important !== undefined && post.can_take_down}
+						<button
+							type="button"
+							class="btn secondary tiny"
+							aria-pressed={post.important === true}
+							disabled={busy === post.id}
+							data-testid="quick-post-important-toggle"
+							onclick={() => void toggleImportant(post)}>{post.important ? 'Not important' : 'Mark important'}</button
+						>
+					{/if}
 					{#if transports && post.can_take_down}
 						{#if armed === post.id}
 							<button
@@ -578,6 +614,19 @@
 	/* The links and the teacher's controls follow the title on its line; the manage group takes the far side once there is room. */
 	.qp-manage {
 		margin-left: auto;
+	}
+	.qp-flag {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--amber);
+		border-color: var(--amber);
+	}
+	.qp-important .qp-stripe {
+		width: 10px;
+		background: var(--amber);
 	}
 	.qp :global(.btn.tiny) {
 		font-size: 0.6875rem;
