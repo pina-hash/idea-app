@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.32 - 2026-10-20**
+**Version 1.33 - 2026-10-20**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1306,8 +1306,74 @@ rotation, where the class must execute a seven-class timeline on command.
   save becomes a copy) and the template downloads come out of the assignment. A second way
   to the same file is a second thing to go wrong.
 
+## 22. Rules paid for by IDEA-Blade 01's second class (2026-10-20)
+
+Everything below was fixed live on IDEA-Blade 01 during one class day, each from something
+Mr. Pina or a student hit. Section 21 holds the rest of that day (chapter keys, transcript
+timing, retiring an answered question, the three views).
+
+**Judge it where students see it.**
+- **The target is IDEA Classroom at 1920x1080 with default settings, not the file opened
+  alone.** Measured 2026-10-20: with the class list open, the assignment frame is about 1450px
+  wide and the visible pane about 830px tall, below the post header and files. Measure in the
+  live portal (resize the browser to 1920x1080, read the frame's width and the pane's height),
+  then lay out for that box.
+- **Keep the top short.** At 1100px and up the hero is one band (render capped near 190px tall,
+  the long intro line hidden) and Today is one row, so the following bar and the first step
+  sit inside the first 830px of the frame (694px measured on IDEA-Blade 01).
+- **The replace screen is the outside judge for every re-upload.** Read its report before Save
+  and publish: blocks kept, blocks new, blocks dropped and how many stored answers each
+  carries. A new optional block is reported with generic "have it to do" wording; optional
+  blocks never count toward completion. Then open the live `/hx/` document and confirm the new
+  text is in it.
+
+**Navigation.**
+- **Any student can see any role's steps.** A "Steps for: Blade · Body · Assembly" control in
+  the bar shows another role's steps for an absent teammate, a curious student or a second
+  try, with the student's own role marked "yours". While looking, a banner says the role and
+  the hand-ins stay theirs, offers Back to my part, and every hand-in box is hidden so nothing
+  lands under the wrong role. The saved role never changes.
+- **A control that changes nothing is bloat.** A "pick your level" radio that only highlighted
+  a card was cut (Mr. Pina: "its bloat"). Upgrade targets (Strong, Stretch) sit at the end of
+  the step as "Saved and checked in? Make it fight better", shown, not chosen, and never graded.
+- **Step titles never carry a second numbering.** "Armory folder · Class 2" beside a Day 2
+  map is a third answer to "where am I"; the title is the action ("Connect Armory").
+
+**Videos.**
+- **Merge slots to match what was recorded.** When Mr. Pina records sketch and extrude as one
+  clip, the two slots become one video record and one card per role; never two cards on one
+  upload. A later step that reuses the tail of a clip points at the same id with its own
+  `start`.
+- **A video that is not Mr. Pina's says so.** The card's maker line comes from the record
+  (`by: 'Practice video'`) instead of "Mr. Pina video", and its aria label says practice video.
+- **A role with no recording today gets a practice box, not nothing.** Assembly discovery: one
+  outside tutorial picked from a reseller's channel (named, and flagged as not yet watched),
+  plus steps that practice the real mates on the team's own template parts in a throwaway
+  assembly saved outside the team folder.
+- **Thumbnails come from the title card.** A frame of the clip's own intro card, inlined as a
+  `data:` JPEG at 352x198, so the card matches the video before YouTube's thumbnail exists.
+- **Right after upload, YouTube may refuse to play inside the page while it processes.** The
+  fallback ("Open the video on YouTube") shows; that is not a bug in the document. Check the
+  watch page's `playableInEmbed` before calling it broken, and wait for processing before
+  announcing a video.
+- **Title cards and outro for recordings come from a pack, not by hand.** `card.py` renders one
+  intro per clip code (codes follow `VIDEO_ORDER`) and one outro; a PowerShell script adds them
+  to every file in `raw` by its code. A combined clip uses the first step's code and a
+  re-rendered card titled for the whole clip.
+
+**Content.**
+- **The steps describe the tool as it really works, from the video.** For IDEA Armory that is
+  the app, not File Explorer: Open looks only, Check out and open edits, Ctrl+S, close with the
+  inner X (not SolidWorks' outer one), then Check in. Template downloads are removed once the
+  templates live in each team's project.
+- **Say the collaboration shape outright.** Every teammate sketches their own idea, the team
+  picks one, and every part is modeled from that one sketch; the modeling step opens with
+  "Build your team's chosen sketch… check your part against it before you hand in." Left
+  implicit on Day 1, teams split up and modeled without the sketch.
+
 ## Changelog
 
+- **1.33 (2026-10-20).** Ledger 0419. New section 22 from IDEA-Blade 01's second class: judge layout in IDEA Classroom at 1920x1080 (a 1450x830 frame) and keep the top short, read the replace screen before every publish, any student can see any role's steps with hand-ins hidden, cut controls that change nothing, merge video slots to match recordings, label outside videos, a practice box for an unrecorded role, title-card thumbnails, YouTube processing versus a real embed fault, the card pack, steps that match the real Armory flow, and the sketch-per-person, team-picks-one collaboration said outright.
 - **1.32 (2026-10-20).** Ledger 0418. Section 21: chapter keys on the hard steps of a whole-workflow video, chapter times read from YouTube's own transcript, templates opened from the team's Armory project when that is where the video opens them, a question already answered is retired by hiding its field, never by dropping its block, and a multi-day assignment offers Day, Step and List views over one map of the classes.
 - **1.31 (2026-10-19).** Ledger 0413. Section 21: a rule-by-rule audit by a fresh agent before delivery, tap tips as a component, a limit and a design labeled as two numbers, the real part drawn from the template, the launcher spins left, "You should see" on every procedural move, a printer lookup table, and `min-width: 0` around a wide drawing.
 
