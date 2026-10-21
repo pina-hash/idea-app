@@ -41,6 +41,25 @@ export interface OfficialInputs {
 	}[];
 	staffCards: Listing[];
 	inDebt: boolean;
+	/**
+	 * Ledger 0425, migration 0294: the cards staff switched on or off, keyed
+	 * by tile key (`coin_market_card_features()`). A key not here keeps its
+	 * default: contracts featured, everything else not. An official staff
+	 * card is a listing and carries its own featured state, so it is never
+	 * read from here.
+	 */
+	features?: Record<string, boolean>;
+}
+
+/** Card keys a switch may name (0294's own check), besides `donation:<id>` and `contract:<id>`. */
+export const FIXED_CARD_KEYS = ['shop:eating_pass', 'shop:extra_credit', 'shop:pay_raise', 'shop:print', 'background'] as const;
+
+/** `coin_market_card_features()`: `{ card: featured }`, anything else dropped. */
+export function parseCardFeatures(raw: unknown): Record<string, boolean> {
+	const out: Record<string, boolean> = {};
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+	for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === 'boolean') out[k] = v;
+	return out;
 }
 
 /** The coin page's own anchors, so a tile lands on the panel it names. */
@@ -57,6 +76,14 @@ function contractPay(c: OfficialInputs['contracts'][number]): string {
 }
 
 export function officialTiles(i: OfficialInputs): OfficialTile[] {
+	const tiles = buildTiles(i);
+	const features = i.features ?? {};
+	const switched = tiles.map((t) => (t.kind !== 'official' && typeof features[t.key] === 'boolean' ? { ...t, featured: features[t.key] } : t));
+	// Featured cards lead; otherwise the order below is kept (a stable sort).
+	return switched.map((t, n) => ({ t, n })).sort((a, b) => Number(b.t.featured) - Number(a.t.featured) || a.n - b.n).map((x) => x.t);
+}
+
+function buildTiles(i: OfficialInputs): OfficialTile[] {
 	const out: OfficialTile[] = [];
 	for (const c of i.staffCards) {
 		out.push({

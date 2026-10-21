@@ -315,14 +315,14 @@ Generated from the overlay on 2026-10-21.
 | IDEA Coin | 29 | 6 | 14 | 1 | 15 |
 | IDEA Maps | 3 | 2 | 1 | 0 | 0 |
 | IdeaCAD | 5 | 2 | 0 | 0 | 1 |
-| market.yaml | 5 | 0 | 7 | 1 | 0 |
+| market.yaml | 6 | 0 | 9 | 1 | 0 |
 | Notebook | 4 | 14 | 5 | 1 | 9 |
 | People, feedback and the rest of the site | 11 | 7 | 6 | 0 | 6 |
 | Site routes (run in-process as him) | 4 | 0 | 10 | 0 | 106 |
 | The connector itself | 5 | 1 | 3 | 0 | 7 |
 | Tournaments | 1 | 7 | 10 | 1 | 8 |
 | view-as.yaml | 1 | 0 | 1 | 0 | 3 |
-| **All** | **148** | **98** | **97** | **8** | **228** |
+| **All** | **149** | **98** | **99** | **8** | **228** |
 
 <details><summary>Certifications</summary>
 
@@ -407,8 +407,8 @@ Generated from the overlay on 2026-10-21.
 
 <details><summary>market.yaml</summary>
 
-- **Read:** `coin_banner_admin`, `coin_market_admin_listings`, `coin_market_moderation`, `coin_stock_admin_list`, `coin_transfer_moderation`
-- **Asks first:** `coin_banner_remove`, `coin_market_listing_staff`, `coin_market_official_save`, `coin_market_resolve`, `coin_market_review_remove`, `coin_stock_admin_set`, `coin_transfer_remove_message`
+- **Read:** `coin_banner_admin`, `coin_market_admin_listings`, `coin_market_cards_admin`, `coin_market_moderation`, `coin_stock_admin_list`, `coin_transfer_moderation`
+- **Asks first:** `coin_banner_remove`, `coin_market_card_set_featured`, `coin_market_cards_feature_only`, `coin_market_listing_staff`, `coin_market_official_save`, `coin_market_resolve`, `coin_market_review_remove`, `coin_stock_admin_set`, `coin_transfer_remove_message`
 - **By argument:** `coin_banner_save` (post_market_banner): undo when p_id is null, otherwise confirm
 
 </details>

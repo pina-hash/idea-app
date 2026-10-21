@@ -144,7 +144,36 @@ coin_stock_admin_set:
 coin_market_admin_listings:
   surface: call
   level: read
-  describe: Every IDEA Market card, official and student, with whether each is featured, hidden or closed, newest first.
-  say: ["list every market card", "which market cards are featured", "show me the IDEA Market listings"]
+  describe: Every IDEA Market listing, official and student, with whether each is featured, hidden or closed, newest first; want-ads, contracts and shop tiles are in the list of every market card.
+  say: ["list the market listings", "which listings are closed", "show me the IDEA Market listings"]
   args:
     p_include_closed: {name: closed, default: null, describe: "True to include cards that are closed or removed."}
+
+# Ledger 0425, migration 0294 (gap 8020d662): the want-ads (the tissue box
+# cards), the shop's tiles, the contracts and the background card are not
+# listings, so the listing tools above never reached them. These list and
+# switch EVERY card on the market by its card id.
+coin_market_cards_admin:
+  surface: call
+  level: read
+  describe: Every IDEA Market card (official cards, want-ads like the tissue boxes, contracts, shop tiles, the background card, listings) with its card id and whether it is featured.
+  say: ["list every card on the market", "which market cards are featured", "show me the tissue box cards on the market"]
+
+coin_market_card_set_featured:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Feature or unfeature one IDEA Market card of any kind (a want-ad, shop tile, contract, official card or listing); it asks first.
+  say: ["feature the tissue box card", "unfeature the eating pass", "stop featuring the sweep contract"]
+  args:
+    p_card: {name: card, describe: "The card's id, exactly as the list of every market card gives it."}
+    p_featured: {name: featured, describe: "True to feature it, false to unfeature it."}
+
+coin_market_cards_feature_only:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Feature exactly the IDEA Market cards named and unfeature every other card on the market, in one step; it asks first, and an unknown card changes nothing.
+  say: ["feature the tissue box stuff and unfeature everything else", "only feature the want-ads", "unfeature every market card"]
+  args:
+    p_cards: {name: cards, describe: "The card ids to feature, from the list of every market card; an empty list unfeatures every card."}

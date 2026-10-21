@@ -10,7 +10,7 @@ import type { BannerKind } from './banner';
 import { marketRefusalWords } from './market';
 
 export interface MarketDeskTransports {
-	load: () => Promise<{ moderation: unknown; banner: unknown; transfers: unknown; stocks: unknown; sections: unknown }>;
+	load: () => Promise<{ moderation: unknown; banner: unknown; transfers: unknown; stocks: unknown; sections: unknown; cards?: unknown }>;
 	resolve: (orderId: string, outcome: 'release' | 'refund' | 'split', toPayee: number | null, note: string | null) => Promise<DeskResult>;
 	listing: (listingId: string, action: 'feature' | 'unfeature' | 'hide' | 'unhide' | 'remove', reason: string | null) => Promise<DeskResult>;
 	reviewRemove: (reviewId: string, reason: string) => Promise<DeskResult>;
@@ -19,8 +19,48 @@ export interface MarketDeskTransports {
 	bannerRemove: (pinId: string) => Promise<DeskResult>;
 	transferRemove: (transferId: string, reason: string) => Promise<DeskResult>;
 	stockSet?: (stockId: string, active: boolean) => Promise<DeskResult>;
+	/** Ledger 0425 (0294): feature or unfeature any market card by its card id. */
+	cardFeature?: (card: string, featured: boolean) => Promise<DeskResult>;
 }
 export type DeskResult = { ok: true } | { ok: false; words: string };
+
+/** One card on the market, as `coin_market_cards_admin()` lists it (0294). */
+export interface MarketCard {
+	card: string;
+	kind: 'official' | 'listing' | 'donation' | 'contract' | 'shop' | 'background';
+	title: string;
+	detail: string;
+	featured: boolean;
+	hidden: boolean;
+	canSet: boolean;
+}
+const CARD_KINDS = new Set<MarketCard['kind']>(['official', 'listing', 'donation', 'contract', 'shop', 'background']);
+
+export function parseMarketCards(raw: unknown): MarketCard[] {
+	if (!Array.isArray(raw)) return [];
+	return raw.flatMap((x) => {
+		const o = (x ?? {}) as Record<string, unknown>;
+		const kind = String(o.kind ?? '') as MarketCard['kind'];
+		const card = typeof o.card === 'string' ? o.card : '';
+		if (!card || !CARD_KINDS.has(kind)) return [];
+		return [{ card, kind, title: String(o.title ?? ''), detail: String(o.detail ?? ''), featured: o.featured === true, hidden: o.hidden === true, canSet: o.can_set === true }];
+	});
+}
+
+/** The kind of card in words, for the desk's list. */
+export const CARD_KIND_WORDS: Record<MarketCard['kind'], string> = {
+	official: 'Official card',
+	listing: 'Student listing',
+	donation: 'Want-ad',
+	contract: 'Contract',
+	shop: 'Shop',
+	background: 'Background'
+};
+
+const CARD_WORDS: Record<string, string> = {
+	not_found: 'That card is not on the market any more. Reload.',
+	full_admin_only: 'Only a full coin admin can feature a card every class sees.'
+};
 
 const STAFF_WORDS: Record<string, string> = {
 	outcome: 'Pick pay, refund or split.',
@@ -40,13 +80,13 @@ const STAFF_WORDS: Record<string, string> = {
 	params: 'Those numbers were not accepted.'
 };
 
-async function staffCall(supabase: SupabaseClient, fn: string, params: Record<string, unknown>): Promise<DeskResult> {
+async function staffCall(supabase: SupabaseClient, fn: string, params: Record<string, unknown>, words: Record<string, string> = STAFF_WORDS): Promise<DeskResult> {
 	const r = await callV2<Record<string, unknown>>(supabase, fn, params);
 	if (r.kind === 'missing') return { ok: false, words: V2_UNAVAILABLE };
 	if (r.kind === 'error') return { ok: false, words: r.message || 'That did not go through.' };
 	if (!r.data || r.data.ok !== true) {
 		const reason = String(r.data?.reason ?? '');
-		return { ok: false, words: STAFF_WORDS[reason] ?? marketRefusalWords(r.data) };
+		return { ok: false, words: words[reason] ?? STAFF_WORDS[reason] ?? marketRefusalWords(r.data) };
 	}
 	return { ok: true };
 }
@@ -59,14 +99,15 @@ async function soft(supabase: SupabaseClient, fn: string, params: Record<string,
 export function createMarketDeskTransports(supabase: SupabaseClient, full: boolean): MarketDeskTransports {
 	return {
 		load: async () => {
-			const [moderation, banner, transfers, stocks, sections] = await Promise.all([
+			const [moderation, banner, transfers, stocks, sections, cards] = await Promise.all([
 				soft(supabase, 'coin_market_moderation'),
 				soft(supabase, 'coin_banner_admin'),
 				soft(supabase, 'coin_transfer_moderation'),
 				full ? soft(supabase, 'coin_stock_admin_list') : Promise.resolve(null),
-				soft(supabase, 'coin_fine_sections')
+				soft(supabase, 'coin_fine_sections'),
+				soft(supabase, 'coin_market_cards_admin')
 			]);
-			return { moderation, banner, transfers, stocks, sections };
+			return { moderation, banner, transfers, stocks, sections, cards };
 		},
 		resolve: (id, outcome, toPayee, note) =>
 			staffCall(supabase, 'coin_market_resolve', { p_order_id: id, p_outcome: outcome, p_to_payee: toPayee, p_note: note }),
@@ -97,6 +138,7 @@ export function createMarketDeskTransports(supabase: SupabaseClient, full: boole
 			}),
 		bannerRemove: (id) => staffCall(supabase, 'coin_banner_remove', { p_id: id }),
 		transferRemove: (id, reason) => staffCall(supabase, 'coin_transfer_remove_message', { p_transfer_id: id, p_reason: reason }),
+		cardFeature: (card, featured) => staffCall(supabase, 'coin_market_card_set_featured', { p_card: card, p_featured: featured }, CARD_WORDS),
 		stockSet: full ? (id, active) => staffCall(supabase, 'coin_stock_admin_set', { p_stock_id: id, p_active: active, p_params: null }) : undefined
 	};
 }

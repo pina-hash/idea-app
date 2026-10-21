@@ -172,6 +172,14 @@
 	};
 
 	const deskBoard = fixtureBoard();
+	// Ledger 0425 (0294): every market card with its featured switch, held in memory.
+	let deskCards = $state([
+		{ card: 'donation:d1', kind: 'donation', title: 'Wanted: Small square tissue box', detail: 'Earn 1 i¢', featured: true, hidden: false, can_set: true },
+		{ card: 'donation:d2', kind: 'donation', title: 'Wanted: Large tissue box', detail: 'Earn 2 i¢', featured: true, hidden: false, can_set: true },
+		{ card: 'contract:c1', kind: 'contract', title: 'Organize the filament shelf', detail: 'Every class', featured: false, hidden: false, can_set: true },
+		{ card: 'shop:eating_pass', kind: 'shop', title: 'Eating Pass', detail: 'Coin shop', featured: false, hidden: false, can_set: true },
+		{ card: 'background', kind: 'background', title: 'Desktop background', detail: 'Make one for the class computers', featured: false, hidden: false, can_set: true }
+	]);
 	const desk: MarketDeskTransports = {
 		load: async () => ({
 			moderation: {
@@ -191,8 +199,13 @@
 			sections: [
 				{ id: 's-a', label: 'IDEA100 Block 1' },
 				{ id: 's-b', label: 'IDEA209H Block 4' }
-			]
+			],
+			cards: deskCards.map((c) => ({ ...c }))
 		}),
+		cardFeature: async (card, featured) => {
+			deskCards = deskCards.map((c) => (c.card === card ? { ...c, featured } : c));
+			return { ok: true };
+		},
 		resolve: async () => ({ ok: true }),
 		listing: async () => ({ ok: true }),
 		reviewRemove: async () => ({ ok: true }),

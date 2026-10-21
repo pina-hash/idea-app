@@ -3,7 +3,7 @@ import { coinBarDesk } from '$lib/server/coin-bar';
 import { parseDonationItems, parseMyContracts } from '$lib/coin-balance/extras';
 import { COIN_UPLOAD_BUCKET } from '$lib/coin-balance/uploads';
 import { parseBoard, parseTransfer, type MarketBoard, type TransferRow } from '$lib/coin-market/market';
-import { officialTiles, type OfficialTile } from '$lib/coin-market/official';
+import { officialTiles, parseCardFeatures, type OfficialTile } from '$lib/coin-market/official';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -47,7 +47,7 @@ const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 		// Best effort, always.
 	}
 
-	const [answer, pageRaw, itemsRaw, contractsRaw, feedRaw] = await Promise.all([
+	const [answer, pageRaw, itemsRaw, contractsRaw, feedRaw, featuresRaw] = await Promise.all([
 		(async (): Promise<Rpc | null> => {
 			try {
 				return (await sb.rpc('coin_market_board')) as Rpc;
@@ -58,7 +58,9 @@ const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 		soft(sb.rpc('coin_my_page') as PromiseLike<Rpc>),
 		soft(sb.rpc('coin_donation_items_list') as PromiseLike<Rpc>),
 		soft(sb.rpc('coin_my_contracts') as PromiseLike<Rpc>),
-		soft(sb.rpc('coin_public_transfers', { p_limit: 40 }) as PromiseLike<Rpc>)
+		soft(sb.rpc('coin_public_transfers', { p_limit: 40 }) as PromiseLike<Rpc>),
+		// Ledger 0425 (0294): which cards staff featured or unfeatured; missing, the old defaults.
+		soft(sb.rpc('coin_market_card_features') as PromiseLike<Rpc>)
 	]);
 	if (!answer) return { state: 'error' as const, ...empty };
 	if (answer.error) {
@@ -82,7 +84,8 @@ const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 		donations: Array.isArray(itemsRaw) ? parseDonationItems(itemsRaw) : [],
 		contracts: Array.isArray(contractsRaw) ? parseMyContracts(contractsRaw).filter((c) => !c.done_at) : [],
 		staffCards: board.official,
-		inDebt: board.me.balance < 0
+		inDebt: board.me.balance < 0,
+		features: parseCardFeatures(featuresRaw)
 	});
 	const feed = Array.isArray(feedRaw) ? feedRaw.map(parseTransfer).filter((t): t is TransferRow => !!t) : [];
 

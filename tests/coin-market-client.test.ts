@@ -9,7 +9,8 @@
 import { describe, expect, test } from 'vitest';
 import { bannerSteps, cardsWindow, DEFAULT_BANNER_STYLE, parseBanner } from '$lib/coin-market/banner';
 import { filterListings, parseBoard, parseCoinsTyped, parsePrice, privateFee, transferRefusalWords, type Listing } from '$lib/coin-market/market';
-import { officialTiles } from '$lib/coin-market/official';
+import { officialTiles, parseCardFeatures } from '$lib/coin-market/official';
+import { parseMarketCards } from '$lib/coin-market/desk';
 import { fixtureBoard } from '../src/routes/dev/coin-market/fixture';
 
 describe('the banner payload', () => {
@@ -81,6 +82,32 @@ describe('the official zone', () => {
 		const tiles = officialTiles({ ...base, inDebt: true });
 		expect(tiles.length).toBe(8); // two contracts, four shop items, one want-ad, the background
 		for (const t of tiles) expect(t.href.startsWith('/')).toBe(true);
+	});
+	test('with no switches, contracts are featured and nothing else is (the old page, unchanged)', () => {
+		const tiles = officialTiles(base);
+		expect(tiles.filter((t) => t.featured).map((t) => t.key)).toEqual(['contract:c1']);
+	});
+	test('a switch features a want-ad and unfeatures a contract, and featured cards lead in their old order', () => {
+		const tiles = officialTiles({ ...base, inDebt: true, features: { 'donation:d1': true, 'contract:c1': false, 'shop:print': true } });
+		expect(tiles.filter((t) => t.featured).map((t) => t.key)).toEqual(['contract:c2', 'shop:print', 'donation:d1']);
+		expect(tiles.slice(0, 3).every((t) => t.featured)).toBe(true);
+		expect(tiles.slice(3).map((t) => t.key)).toEqual(['contract:c1', 'shop:eating_pass', 'shop:extra_credit', 'shop:pay_raise', 'background']);
+	});
+	test('an official staff card keeps its own featured state; a switch never reaches it', () => {
+		const card = { id: 'o1', title: 'Supplies', description: '', section: null, price: null, link: '/market', featured: false } as never;
+		const tiles = officialTiles({ ...base, staffCards: [card], features: { 'official:o1': true } });
+		expect(tiles.find((t) => t.key === 'official:o1')?.featured).toBe(false);
+	});
+	test('the switch payloads drop anything malformed', () => {
+		expect(parseCardFeatures({ 'donation:d1': true, 'shop:print': 'yes', background: false })).toEqual({ 'donation:d1': true, background: false });
+		expect(parseCardFeatures([true])).toEqual({});
+		expect(parseCardFeatures(null)).toEqual({});
+		const cards = parseMarketCards([
+			{ card: 'donation:d1', kind: 'donation', title: 'Wanted: Tissue box', detail: 'Earn 1 i¢', featured: true, can_set: true },
+			{ card: 'x', kind: 'spaceship', title: 'Nope' },
+			{ kind: 'shop', title: 'No id' }
+		]);
+		expect(cards).toEqual([{ card: 'donation:d1', kind: 'donation', title: 'Wanted: Tissue box', detail: 'Earn 1 i¢', featured: true, hidden: false, canSet: true }]);
 	});
 });
 

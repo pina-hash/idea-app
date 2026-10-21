@@ -1,15 +1,15 @@
 {
 	"schema": 1,
 	"spec": "coin-market-view-desk.mjs",
-	"date": "2026-10-19T09:20:25.400Z",
-	"sha": "e2268bd1f539015d6200513f089ebd96ee8e076a",
+	"date": "2026-10-21T19:01:26.241Z",
+	"sha": "f2d0b49eb1cca348096e5bd3e1bd0c3fdac85b2a",
 	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 30,
+	"measurements": 36,
 	"outsideRows": [],
-	"ms": 9724
+	"ms": 18958
 }

@@ -7,7 +7,7 @@
 	import { parseListing, parseTransfer, type Listing, type TransferRow } from './market';
 	import { parseBanner, type BannerKind, type BannerPin } from './banner';
 	import { parseStock, type Stock } from '$lib/coin-stocks/stocks';
-	import type { MarketDeskTransports, DeskResult as Res } from './desk';
+	import { CARD_KIND_WORDS, parseMarketCards, type MarketCard, type MarketDeskTransports, type DeskResult as Res } from './desk';
 
 	/**
 	 * THE MARKET ON THE COIN DESK (ledger 0402): disputes, featuring and hiding
@@ -48,6 +48,7 @@
 	let transfers = $state<(TransferRow & { raw_message?: string | null })[]>([]);
 	let stocks = $state<Stock[]>([]);
 	let sections = $state<{ id: string; label: string }[]>([]);
+	let cards = $state<MarketCard[]>([]);
 	let loaded = $state(false);
 	let said = $state<{ ok: boolean; text: string } | null>(null);
 	let busy = $state(false);
@@ -91,6 +92,7 @@
 		});
 		stocks = arr(r.stocks).map(parseStock).filter((s): s is Stock => !!s);
 		sections = arr(r.sections).map((s) => ({ id: String((s as Record<string, unknown>).id), label: String((s as Record<string, unknown>).label ?? '') }));
+		cards = parseMarketCards(r.cards);
 		loaded = true;
 	}
 	$effect(() => {
@@ -192,6 +194,41 @@
 				<p class="mk-note">No disputes.</p>
 			{/if}
 		</section>
+
+		{#if transports.cardFeature && cards.length}
+			<section class="card mk-panel" aria-labelledby="md-h-cards" data-testid="md-cards">
+				<header>
+					<h2 id="md-h-cards">Every market card</h2>
+					<span class="mk-sub">{cards.filter((c) => c.featured).length} of {cards.length} featured. A featured card leads the Official zone with a Featured chip.</span>
+				</header>
+				<ul class="mk-list">
+					{#each cards as c (c.card)}
+						<li class="mk-trade" data-testid="md-card" data-card={c.card} data-featured={c.featured}>
+							<div class="mk-trade-head">
+								<span class="mk-trade-title">{c.title}</span>
+								<span class="mk-row">
+									{#if c.featured}<span class="mk-chip gold">Featured</span>{/if}
+									{#if c.hidden}<span class="mk-chip bad">Hidden</span>{/if}
+								</span>
+							</div>
+							<span class="mk-note">{CARD_KIND_WORDS[c.kind]}{c.detail ? `. ${c.detail}` : ''}</span>
+							{#if c.canSet}
+								<button
+									type="button"
+									class="btn secondary mk-key"
+									disabled={busy}
+									aria-pressed={c.featured}
+									onclick={() => run(transports.cardFeature!(c.card, !c.featured), c.featured ? `${c.title}: unfeatured.` : `${c.title}: featured.`)}
+									data-testid="md-card-feature">{c.featured ? 'Unfeature' : 'Feature'}</button
+								>
+							{:else}
+								<span class="mk-note">A full coin admin features this one.</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
 
 		<section class="card mk-panel" aria-labelledby="md-h-listings" data-testid="md-listings">
 			<header><h2 id="md-h-listings">Student listings</h2><span class="mk-sub">Feature one to pin it near the top. Hide one with a reason the student sees.</span></header>
