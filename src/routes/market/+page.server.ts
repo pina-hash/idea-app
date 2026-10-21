@@ -1,4 +1,5 @@
 import { parseCoinMyPage } from '$lib/coin-balance';
+import { coinBarDesk } from '$lib/server/coin-bar';
 import { parseDonationItems, parseMyContracts } from '$lib/coin-balance/extras';
 import { COIN_UPLOAD_BUCKET } from '$lib/coin-balance/uploads';
 import { parseBoard, parseTransfer, type MarketBoard, type TransferRow } from '$lib/coin-market/market';
@@ -33,7 +34,7 @@ async function soft(p: PromiseLike<Rpc>): Promise<unknown> {
 	}
 }
 
-export const load: PageServerLoad = async ({ locals, depends }) => {
+const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 	depends('coin:market');
 	const userId = typeof locals.claims?.sub === 'string' ? locals.claims.sub : '';
 	const empty = { board: null as MarketBoard | null, tiles: [] as OfficialTile[], feed: [] as TransferRow[], userId: '' };
@@ -98,4 +99,10 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 	}
 
 	return { state: 'ready' as const, board, tiles, feed, userId };
+};
+
+/** Ledger 0422: every coin page carries the IDEA Coin bar; the Coin Desk tab is coin staff's alone. */
+export const load: PageServerLoad = async (event) => {
+	const [page, coinDesk] = await Promise.all([loadPage(event), coinBarDesk(event.locals)]);
+	return { ...page, coinDesk };
 };

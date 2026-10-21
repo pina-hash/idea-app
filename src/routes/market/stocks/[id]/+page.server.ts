@@ -1,8 +1,9 @@
 import { parseStockDetail, type StockDetail } from '$lib/coin-stocks/stocks';
+import { coinBarDesk } from '$lib/server/coin-bar';
 import type { PageServerLoad } from './$types';
 
 /** One stock and every close's inputs (0279). "Not trading" and "not there" answer alike. */
-export const load: PageServerLoad = async ({ locals, params }) => {
+const loadPage = async ({ locals, params }: Parameters<PageServerLoad>[0]) => {
 	const empty = { detail: null as StockDetail | null };
 	if (!locals.claims?.sub) return { state: 'signed_out' as const, ...empty };
 	try {
@@ -16,4 +17,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	} catch {
 		return { state: 'missing' as const, ...empty };
 	}
+};
+
+/** Ledger 0422: every coin page carries the IDEA Coin bar; the Coin Desk tab is coin staff's alone. */
+export const load: PageServerLoad = async (event) => {
+	const [page, coinDesk] = await Promise.all([loadPage(event), coinBarDesk(event.locals)]);
+	return { ...page, coinDesk };
 };

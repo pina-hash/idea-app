@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './coin-page.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import CoinRoleCamera from './CoinRoleCamera.svelte';
@@ -37,13 +38,16 @@
 		roles = null,
 		transports = {},
 		onsignin = null,
-		onchanged = null
+		onchanged = null,
+		coinDesk = false
 	}: {
 		state: 'ready' | 'signed_out' | 'updating' | 'error';
 		roles?: CoinRole[] | null;
 		transports?: CoinRoleTransports;
 		onsignin?: (() => void) | null;
 		onchanged?: (() => void) | null;
+		/** Ledger 0422: whether the IDEA Coin bar offers the Coin Desk (coin staff only). */
+		coinDesk?: boolean;
 	} = $props();
 
 	let askFor = $state<string | null>(null);
@@ -92,6 +96,7 @@
 		<ProfileMenu />
 	</div>
 </div>
+<CoinBar current="mine" desk={coinDesk} />
 
 <main class="rp-page" data-testid="role-portal" data-state={pageState}>
 	<section class="hero">

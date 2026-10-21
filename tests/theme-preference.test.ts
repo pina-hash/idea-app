@@ -295,7 +295,7 @@ describe('the pre-paint writer agrees with ThemeRoot, case for case', () => {
 
 	it('hooks.server.ts injects it after the session is known, with a function replacer', () => {
 		const hooks = src('../src/hooks.server.ts');
-		expect(hooks).toMatch(/sequence\(legacyRedirects,\s*supabase,\s*authGuard,\s*themeBoot\)/);
+		expect(hooks).toMatch(/sequence\(legacyRedirects,\s*supabase,\s*authGuard,\s*viewAs,\s*themeBoot\)/);
 		expect(hooks).toMatch(/themeBootScript\(pathname,\s*!!event\.locals\.claims/);
 		expect(hooks).toMatch(/html\.replace\(THEME_BOOT_MARKER,\s*\(\)\s*=>\s*script\)/);
 		// The dev-harness session is dev-only, and it is the named list, not every /dev route.

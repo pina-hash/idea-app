@@ -13,7 +13,12 @@ export const MARKET_GLYPHS = {
 	official: 'M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3zM9 12l2 2 4-4',
 	transfer: 'M4 8h13l-3-3M20 16H7l3 3',
 	stocks: 'M3 20h18M5 16l5-6 4 3 6-8',
-	star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9L12 3.5z'
+	star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9L12 3.5z',
+	// Ledger 0422: the IDEA Coin bar's pages.
+	coin: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM10 8v8M14 9.5a3 3 0 1 0 0 5',
+	wallet: 'M4 7h15a1 1 0 0 1 1 1v11H5a1 1 0 0 1-1-1V7zM4 7l11-3v3M16 13h2',
+	ledger: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',
+	desk: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4'
 } as const;
 
 export type MarketGlyphName = keyof typeof MARKET_GLYPHS;

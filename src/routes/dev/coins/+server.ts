@@ -6,6 +6,7 @@ import { injectFeedbackLaunch } from '$lib/server/feedback-launch';
 import ledgerHtml from '$lib/legacy/coins/index.html?raw';
 import { injectLedgerTheme } from '$lib/server/coin-public';
 import { injectLedgerLogo } from '$lib/server/ledger-logo';
+import { injectCoinBar } from '$lib/server/coin-bar';
 import type { RequestHandler } from './$types';
 
 /**
@@ -71,7 +72,7 @@ export const GET: RequestHandler = async ({ url, cookies, setHeaders }) => {
 			? `<script>document.documentElement.setAttribute('data-theme', ${JSON.stringify(forced)});try{localStorage.setItem(${JSON.stringify(SITE_THEME_KEY)}, ${JSON.stringify(forced)});}catch(e){}</script>`
 			: '';
 	const html = injectFeedbackLaunch(
-		injectLedgerLogo(injectLedgerTheme(ledgerHtml, signedIn))
+		injectCoinBar(injectLedgerLogo(injectLedgerTheme(ledgerHtml, signedIn)), url.searchParams.get('desk') === '1')
 			.replace('</title>', `</title>\n${pin}`)
 			.replace(/\/api\/coin\//g, '/dev/coins/api/'),
 		{

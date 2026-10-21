@@ -1,4 +1,5 @@
 import { parseMyRole, type CoinRole } from '$lib/coin-balance/role';
+import { coinBarDesk } from '$lib/server/coin-bar';
 import { COIN_UPLOAD_BUCKET } from '$lib/coin-balance/uploads';
 import type { PageServerLoad } from './$types';
 
@@ -14,7 +15,7 @@ import type { PageServerLoad } from './$types';
  * down as a five-minute signed URL minted on the caller's own client, so the
  * bucket's own policy decides what can be signed.
  */
-export const load: PageServerLoad = async ({ locals, depends }) => {
+const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 	depends('coin:role');
 	const userId = typeof locals.claims?.sub === 'string' ? locals.claims.sub : '';
 	if (!locals.claims || !userId) {
@@ -46,4 +47,10 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 		}
 	}
 	return { state: 'ready' as const, roles, userId };
+};
+
+/** Ledger 0422: every coin page carries the IDEA Coin bar; the Coin Desk tab is coin staff's alone. */
+export const load: PageServerLoad = async (event) => {
+	const [page, coinDesk] = await Promise.all([loadPage(event), coinBarDesk(event.locals)]);
+	return { ...page, coinDesk };
 };

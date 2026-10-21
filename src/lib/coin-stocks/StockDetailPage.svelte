@@ -2,6 +2,7 @@
 	import '$lib/coin-market/market.css';
 	import './stocks.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import { coins, coinNumber } from '$lib/coin-format';
 	import StockChart from './StockChart.svelte';
@@ -15,7 +16,16 @@
 	 * low, close) and any trading pause. A held price says why it held.
 	 * Nothing on this page is computed in the browser.
 	 */
-	let { detail = null, state: pageState }: { detail?: StockDetail | null; state: 'ready' | 'missing' | 'updating' | 'signed_out' } = $props();
+	let {
+		detail = null,
+		state: pageState,
+		coinDesk = false
+	}: {
+		detail?: StockDetail | null;
+		state: 'ready' | 'missing' | 'updating' | 'signed_out';
+		/** Ledger 0422: whether the IDEA Coin bar offers the Coin Desk (coin staff only). */
+		coinDesk?: boolean;
+	} = $props();
 
 	function when(iso: string): string {
 		return `${shortDay(iso)}, ${clock(iso)}`;
@@ -56,6 +66,7 @@
 		<ProfileMenu />
 	</div>
 </div>
+<CoinBar current="stocks" desk={coinDesk} />
 
 <main class="mk-page" data-testid="sk-detail" data-state={pageState}>
 	{#if pageState !== 'ready' || !detail}

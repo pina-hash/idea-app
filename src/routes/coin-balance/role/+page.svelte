@@ -20,4 +20,5 @@
 	{transports}
 	onsignin={data.supabase ? () => armorySignIn(data.supabase) : null}
 	onchanged={() => invalidate('coin:role')}
+	coinDesk={data.coinDesk}
 />

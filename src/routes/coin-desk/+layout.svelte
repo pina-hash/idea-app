@@ -4,6 +4,7 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import CoinDeskNav from '$lib/coin-desk/CoinDeskNav.svelte';
+	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
 	import { areaForPath } from '$lib/coin-desk/nav';
 	/**
 	 * THE SHARED TWO-PANE SHELL'S GEOMETRY, imported directly rather than
@@ -61,6 +62,8 @@
 			<ProfileMenu />
 		</div>
 	</div>
+	<!-- Ledger 0422: the IDEA Coin bar. Anyone this layout lets in is coin staff. -->
+	<CoinBar current="desk" desk />
 
 	<main class="coin-desk-page">
 		<section class="hero">

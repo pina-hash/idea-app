@@ -5,4 +5,4 @@
 	let { data }: { data: PageData } = $props();
 </script>
 
-<StockDetailPage state={data.state} detail={data.detail} />
+<StockDetailPage state={data.state} detail={data.detail} coinDesk={data.coinDesk} />

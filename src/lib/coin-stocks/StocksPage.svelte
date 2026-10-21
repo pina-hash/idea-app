@@ -2,6 +2,7 @@
 	import '$lib/coin-market/market.css';
 	import './stocks.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { coins } from '$lib/coin-format';
@@ -38,12 +39,15 @@
 		state: pageState,
 		board = null,
 		transports = null,
-		onchanged = null
+		onchanged = null,
+		coinDesk = false
 	}: {
 		state: 'ready' | 'signed_out' | 'updating' | 'error';
 		board?: StocksBoard | null;
 		transports?: StockTransports | null;
 		onchanged?: (() => void) | null;
+		/** Ledger 0422: whether the IDEA Coin bar offers the Coin Desk (coin staff only). */
+		coinDesk?: boolean;
 	} = $props();
 
 	let trading = $state<{ stock: Stock; side: 'buy' | 'sell' } | null>(null);
@@ -72,6 +76,7 @@
 		<ProfileMenu />
 	</div>
 </div>
+<CoinBar current="stocks" desk={coinDesk} />
 
 <main class="mk-page" data-testid="sk-page" data-state={pageState}>
 	<section class="mk-hero">

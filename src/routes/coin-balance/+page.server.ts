@@ -1,4 +1,5 @@
 import { parseCoinMyPage, type CoinMyPage } from '$lib/coin-balance';
+import { coinBarDesk } from '$lib/server/coin-bar';
 import {
 	parseAuditorQueue,
 	parseDonationItems,
@@ -47,7 +48,7 @@ async function soft(p: PromiseLike<Rpc>): Promise<unknown> {
 	}
 }
 
-export const load: PageServerLoad = async ({ locals, depends }) => {
+const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 	depends('coin:page');
 	const now = Date.now();
 	const email = typeof locals.claims?.email === 'string' ? locals.claims.email.trim() : '';
@@ -134,4 +135,10 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 	};
 
 	return { state: 'ready' as const, page, extras, now, email, userId, market };
+};
+
+/** Ledger 0422: every coin page carries the IDEA Coin bar; the Coin Desk tab is coin staff's alone. */
+export const load: PageServerLoad = async (event) => {
+	const [page, coinDesk] = await Promise.all([loadPage(event), coinBarDesk(event.locals)]);
+	return { ...page, coinDesk };
 };

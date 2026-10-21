@@ -36,6 +36,8 @@ export const SITE_PLATE_PREFIXES: readonly string[] = [
 	'/armory',
 	'/auth',
 	'/certifications',
+	// Ledger 0422: the coin home.
+	'/coin',
 	'/coin-balance',
 	'/coin-desk',
 	'/foundry',
@@ -70,6 +72,7 @@ export const SITE_PLATE_DEV_PREFIXES: readonly string[] = [
 	'/dev/coin-balance',
 	'/dev/coin-market',
 	'/dev/coin-stocks',
+	'/dev/coin-home',
 	'/dev/foundry-',
 	'/dev/tournaments',
 	'/dev/tournament-',

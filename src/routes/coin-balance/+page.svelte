@@ -33,6 +33,7 @@
 	now={data.now}
 	onsignin={data.supabase ? () => armorySignIn(data.supabase) : null}
 	onchanged={() => invalidate('coin:page')}
+	coinDesk={data.coinDesk}
 >
 	{#snippet market()}
 		{#if data.state === 'ready'}

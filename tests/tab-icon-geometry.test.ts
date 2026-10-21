@@ -186,6 +186,7 @@ describe('sectionForPath: every real route resolves by longest prefix', () => {
 			['/coin-desk/fine', 'coins'],
 			['/coin-balance', 'coins'],
 			['/coins/index.html', 'coins'],
+			['/coin', 'coins'],
 			['/dashboard', 'admin'],
 			['/admin/feedback', 'admin'],
 			['/reference/abc', 'classroom'],

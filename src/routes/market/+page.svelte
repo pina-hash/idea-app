@@ -28,4 +28,5 @@
 	{transfers}
 	onsignin={data.supabase ? () => armorySignIn(data.supabase) : null}
 	onchanged={() => invalidate('coin:market')}
+	coinDesk={data.coinDesk}
 />

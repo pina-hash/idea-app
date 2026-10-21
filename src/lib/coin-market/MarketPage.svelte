@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './market.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { coins } from '$lib/coin-format';
@@ -33,7 +34,8 @@
 		transports = {},
 		transfers = null,
 		onsignin = null,
-		onchanged = null
+		onchanged = null,
+		coinDesk = false
 	}: {
 		state: 'ready' | 'signed_out' | 'updating' | 'error';
 		board?: MarketBoard | null;
@@ -43,6 +45,8 @@
 		transfers?: TransferTransports | null;
 		onsignin?: (() => void) | null;
 		onchanged?: (() => void) | null;
+		/** Ledger 0422: whether the IDEA Coin bar offers the Coin Desk (coin staff only). */
+		coinDesk?: boolean;
 	} = $props();
 
 	let query = $state('');
@@ -86,6 +90,7 @@
 		<ProfileMenu />
 	</div>
 </div>
+<CoinBar current="market" desk={coinDesk} />
 
 <main class="mk-page" data-testid="mk-page" data-state={pageState}>
 	<section class="mk-hero">

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import CoinPageBody from './CoinPageBody.svelte';
@@ -21,7 +22,8 @@
 		now,
 		onsignin = null,
 		onchanged = null,
-		market = null
+		market = null,
+		coinDesk = false
 	}: {
 		state: 'ready' | 'signed_out' | 'updating' | 'error';
 		page?: CoinMyPage | null;
@@ -32,6 +34,8 @@
 		onchanged?: (() => void) | null;
 		/** Ledger 0402: the market, stocks, transfers and hall pass time, drawn under the hero by the route. */
 		market?: import('svelte').Snippet | null;
+		/** Ledger 0422: whether the IDEA Coin bar offers the Coin Desk (coin staff only). */
+		coinDesk?: boolean;
 	} = $props();
 </script>
 
@@ -46,6 +50,7 @@
 		<ProfileMenu />
 	</div>
 </div>
+<CoinBar current="mine" desk={coinDesk} />
 
 <main class="cp-page">
 	<section class="hero cp-hero">

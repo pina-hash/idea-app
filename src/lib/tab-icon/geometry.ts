@@ -218,7 +218,7 @@ export const G: Record<TabSection, TabSectionDef> = {
 		label: 'Coins',
 		col: '#C8FF00',
 		route: '/coin-desk',
-		also: ['/coin-balance', '/coins'],
+		also: ['/coin-balance', '/coins', '/coin'],
 		d: (c) =>
 			`<ellipse cx="16" cy="9.5" rx="9.5" ry="3.6" fill="${c}"/><path d="M6.5,12.6C6.5,14.6 10.8,16.2 16,16.2S25.5,14.6 25.5,12.6V15.4C25.5,17.4 21.2,19 16,19S6.5,17.4 6.5,15.4Z M6.5,18.6C6.5,20.6 10.8,22.2 16,22.2S25.5,20.6 25.5,18.6V21.4C25.5,23.4 21.2,25 16,25S6.5,23.4 6.5,21.4Z" fill="${c}"/>`
 	},

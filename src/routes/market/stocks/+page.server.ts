@@ -1,4 +1,5 @@
 import { parseStocksBoard, type StocksBoard } from '$lib/coin-stocks/stocks';
+import { coinBarDesk } from '$lib/server/coin-bar';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -9,7 +10,7 @@ import type { PageServerLoad } from './$types';
  * with 0279 but not yet 0283 has no tick to call, which is the same best
  * effort, and the board it answers is the old one.
  */
-export const load: PageServerLoad = async ({ locals, depends }) => {
+const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 	depends('coin:stocks');
 	const empty = { board: null as StocksBoard | null };
 	if (!locals.claims?.sub) return { state: 'signed_out' as const, ...empty };
@@ -30,4 +31,10 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 	} catch {
 		return { state: 'error' as const, ...empty };
 	}
+};
+
+/** Ledger 0422: every coin page carries the IDEA Coin bar; the Coin Desk tab is coin staff's alone. */
+export const load: PageServerLoad = async (event) => {
+	const [page, coinDesk] = await Promise.all([loadPage(event), coinBarDesk(event.locals)]);
+	return { ...page, coinDesk };
 };

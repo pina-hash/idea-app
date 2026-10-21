@@ -16,4 +16,4 @@
 	});
 </script>
 
-<StocksPage state={data.state} board={data.board} {transports} onchanged={() => invalidate('coin:stocks')} />
+<StocksPage state={data.state} board={data.board} {transports} coinDesk={data.coinDesk} onchanged={() => invalidate('coin:stocks')} />

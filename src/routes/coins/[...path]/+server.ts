@@ -7,6 +7,7 @@ import { injectVersionBadge } from '$lib/version-badge';
 import { injectFeedbackLaunch } from '$lib/server/feedback-launch';
 import { injectLedgerTheme } from '$lib/server/coin-public';
 import { injectLedgerLogo } from '$lib/server/ledger-logo';
+import { coinBarDesk, injectCoinBar } from '$lib/server/coin-bar';
 import type { RequestHandler } from './$types';
 
 /**
@@ -56,7 +57,8 @@ import type { RequestHandler } from './$types';
 /** The one path this route serves, plus the two bare forms of it. */
 const LEDGER_PATHS = new Set(['', 'index.html']);
 
-export const GET: RequestHandler = async ({ params, locals: { claims } }) => {
+export const GET: RequestHandler = async ({ params, locals }) => {
+	const { claims } = locals;
 	// A rest parameter is '' for `/coins` and `/coins/`, so both land here
 	// without a redirect. Anything deeper never existed.
 	if (!LEDGER_PATHS.has(params.path ?? '')) error(404, 'Not found');
@@ -64,8 +66,11 @@ export const GET: RequestHandler = async ({ params, locals: { claims } }) => {
 	// The site theme, decided by the site's own `themeAttrFor` for `/coins`
 	// and this visitor's session (see `ledgerThemeScript`). Signed out, the
 	// marker is simply removed and the Ledger paints its default.
+	// Ledger 0422: the IDEA Coin bar under the header, the Coin Desk tab only
+	// for coin staff (`coinBarDesk` is the desk's own gate, failing closed).
+	const desk = await coinBarDesk(locals);
 	const html = injectVersionBadge(
-		injectFeedbackLaunch(injectLedgerLogo(injectLedgerTheme(rewriteLegacyLinks(ledgerHtmlRaw), !!claims)), {
+		injectFeedbackLaunch(injectCoinBar(injectLedgerLogo(injectLedgerTheme(rewriteLegacyLinks(ledgerHtmlRaw), !!claims)), desk), {
 			route: '/coins',
 			room: 'ledger',
 			deploy,
