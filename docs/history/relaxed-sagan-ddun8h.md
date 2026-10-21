@@ -2,7 +2,7 @@
 title: "Feedback round 2026-10-21: stocks relaunch, HTML assignments, small fixes, coins for everyone, live view"
 date: 2026-10-21
 branches: [claude/relaxed-sagan-ddun8h]
-migrations: []
+migrations: ["0283", "0284", "0285", "0286"]
 subsystems: [Classroom home feed, Class page, Quick posts, Post thumbnails, Tournaments, Feedback console, Profiles, Portal launcher]
 ---
 
@@ -74,3 +74,31 @@ files.
 
 No signed-in live session: the live grid against real students, and the frame
 focus path in a real worksheet, are unchecked.
+
+## Held for hand-applied migrations (branch `claude/relaxed-sagan-ddun8h`)
+
+- **0283, stocks relaunch (79e16faa, fbe274c3).** Written and tested by a
+  separate worktree session; its own record is `worktree-agent-a99d257ab862b767a.md`.
+- **0284, HTML assignment title (8812b4ba).** `classroom_html_assignments.show_title`
+  and `classroom_html_set_show_title`. An HTML assignment opens with its document
+  first (`itemPanelDefaults(layout, workFirst)`), its post title hidden by default
+  with a per-post switch for a manager who is an admin (the transport is handed
+  only to admins, like uploads), the kind, chips and last-updated on one wrapping
+  line, and no description card when the body has no visible character. The
+  column is read on its own rung and falls back to "hidden, no switch". A
+  duplicated post does not copy the flag, so it starts hidden.
+- **0285, important notices (7ec59920).** `classroom_quick_posts.important`, a
+  set RPC with take-down's own permission rule, and `classroom_quick_posts(uuid)`
+  restated with the key and an important-first order. Switch shown only when the
+  read carries the key. Tested against a notice made before the file.
+- **0286, coins without a class (18451adf).** One function changes:
+  `_coin_economy_enrollments()` adds the CALLER's own row, with no section, when
+  the caller is a student or visitor profile, not an admin, with no enrollment.
+  Class-scoped uses join on section so a null never matches, and nobody else
+  sees the member because the row exists only in their own session. Probed: a
+  member could file a class job application with no class, so
+  `coin_role_self_apply` is restated asking for a class too. Mutation: dropping
+  the own-session filter put members in an enrolled student's send-to
+  directory and reddened that test; the file was restored by md5. Known limits:
+  a member can send but is not listed for others to send to, and nobody is
+  given coins by it.
