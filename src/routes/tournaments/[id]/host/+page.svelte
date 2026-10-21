@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { cleanName, hasVisibleText } from '$lib/tournaments/names';
 	import { onMount } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
@@ -186,7 +187,7 @@
 		renameName = current;
 	}
 	async function saveRename(entryId: string) {
-		const name = renameName.trim();
+		const name = cleanName(renameName);
 		if (!name) return;
 		const okDone = await run(
 			() =>
@@ -648,13 +649,13 @@
 				/>
 				<button
 					class="btn"
-					disabled={busy || !walkName.trim()}
+					disabled={busy || !hasVisibleText(walkName)}
 					onclick={async () => {
 						const okDone = await run(
 							() =>
 								data.supabase.rpc('tournament_host_add_entry', {
 									p_tournament_id: t.id,
-									p_display_name: walkName.trim(),
+									p_display_name: cleanName(walkName),
 									p_description: walkDescription.trim()
 								}),
 							'Entry added'
@@ -795,7 +796,7 @@
 							aria-label="Entry name"
 							bind:value={renameName}
 						/>
-						<button type="submit" class="btn" disabled={busy || !renameName.trim()}>Save name</button>
+						<button type="submit" class="btn" disabled={busy || !hasVisibleText(renameName)}>Save name</button>
 						<button type="button" class="btn secondary" onclick={() => (renameId = null)}>Cancel</button>
 					</form>
 				{/if}

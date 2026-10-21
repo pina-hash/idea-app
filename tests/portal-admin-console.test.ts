@@ -34,7 +34,10 @@ describe('one admin card in the launcher', () => {
 		expect(admin.filter((a) => a.href === '/dashboard')).toHaveLength(1);
 		expect(PORTAL_APPS.some((a) => a.id === 'admin' || a.href === '/admin')).toBe(false);
 		// Coin Desk keeps its own card: it is a tool with a room of its own.
-		expect(admin.map((a) => a.id).sort()).toEqual(['coin-desk', 'dashboard']);
+		// FRC Training is admin-only while it is hidden from everyone else (report d3348bf9).
+		expect(admin.map((a) => a.id).sort()).toEqual(['coin-desk', 'dashboard', 'frc']);
+		expect(visibleApps(false).some((a) => a.id === 'frc')).toBe(false);
+		expect(visibleApps(true).some((a) => a.id === 'frc')).toBe(true);
 	});
 
 	it('an admin sees the console card once and a student never sees it (positive and negative)', () => {

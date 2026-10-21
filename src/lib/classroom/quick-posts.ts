@@ -606,6 +606,61 @@ export interface QuickPostLink {
 	href: string;
 	/** The host a student recognizes: "docs.google.com", never the whole URL. */
 	host: string;
+	/** What the link is, for its key: "IDEA Market", "Google Doc"; the host when nothing better is known. */
+	name: string;
+}
+
+const LINK_SITE_NAMES: Record<string, string> = {
+	'docs.google.com': 'Google Doc',
+	'drive.google.com': 'Google Drive',
+	'slides.google.com': 'Google Slides',
+	'sheets.google.com': 'Google Sheet',
+	'forms.gle': 'Google Form',
+	'forms.google.com': 'Google Form',
+	'classroom.google.com': 'Google Classroom',
+	'youtube.com': 'YouTube video',
+	'm.youtube.com': 'YouTube video',
+	'youtu.be': 'YouTube video',
+	'github.com': 'GitHub'
+};
+
+/** The pages of ideabosco.com a student knows by name, keyed by their first path segment. */
+const IDEA_PAGE_NAMES: Record<string, string> = {
+	market: 'IDEA Market',
+	coins: 'IDEA Coins',
+	'coin-desk': 'Coin Desk',
+	classroom: 'IDEA Classroom',
+	notebook: 'Notebook',
+	foundry: 'IDEA Foundry',
+	armory: 'IDEA Armory',
+	gauntlet: 'GAUNTLET',
+	greenline: 'GREENLINE',
+	tournaments: 'Tournaments',
+	certifications: 'IDEA Certifications',
+	maps: 'IDEA Maps',
+	ideacad: 'IdeaCAD',
+	frc: 'FRC Training'
+};
+
+/**
+ * THE NAME A LINK'S KEY WEARS instead of a bare host (report 7ec59920): a
+ * student reads "Open IDEA Market", not "Open ideabosco.com". A page of this
+ * site is named from its first path segment, a few well-known services by host,
+ * and anything else keeps its host, which is the honest fallback.
+ */
+export function quickPostLinkName(href: string): string {
+	let url: URL;
+	try {
+		url = new URL(href);
+	} catch {
+		return href;
+	}
+	const host = url.hostname.replace(/^www\./, '');
+	if (host === 'ideabosco.com') {
+		const first = url.pathname.split('/').filter(Boolean)[0]?.toLowerCase() ?? '';
+		return IDEA_PAGE_NAMES[first] ?? 'the IDEA site';
+	}
+	return LINK_SITE_NAMES[host] ?? host;
 }
 
 /**
@@ -625,7 +680,7 @@ export function quickPostLinks(body: string, max = 3): QuickPostLink[] {
 		} catch {
 			continue;
 		}
-		out.push({ href: run.href, host });
+		out.push({ href: run.href, host, name: quickPostLinkName(run.href) });
 	}
 	return out.length > max ? [] : out;
 }

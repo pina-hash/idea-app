@@ -4,6 +4,7 @@
  * (client-safe, like curriculum.ts); the ProfileMenu / Avatar components
  * consume this.
  */
+import { personName } from '$lib/person-name';
 import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { feedbackColumnMissing as columnMissing } from '$lib/feedback/feedback';
@@ -141,7 +142,7 @@ export async function fetchUserProfile(
 
 /** The name to show for a user anywhere in the portal. */
 export function displayName(profile: UserProfile | null | undefined): string {
-	return profile?.display_name?.trim() || profile?.full_name?.trim() || profile?.email || 'Signed in';
+	return personName(profile?.display_name) || personName(profile?.full_name) || profile?.email || 'Signed in';
 }
 
 /** Uppercase initials (max 2) for the fallback avatar tile. */

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { cleanName } from '$lib/tournaments/names';
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
@@ -335,7 +336,7 @@
 
 	async function join(e: SubmitEvent, entryId: string) {
 		e.preventDefault();
-		const name = joinName.trim();
+		const name = cleanName(joinName);
 		if (!name || joinBusy) return;
 		joinError = '';
 		joinBusy = true;

@@ -373,11 +373,63 @@
 	)}
 	<article class="card qp-card" data-testid="quick-post" data-post={post.id}>
 		<span class="qp-stripe" aria-hidden="true"></span>
-		<p class="qp-head">
+		<!--
+			ONE HEADER LINE (report 7ec59920): the word, its end, the link keys and
+			the teacher's Posted / Take down all share it and wrap on a phone. They
+			were four rows of their own, 275px for a two-line notice.
+		-->
+		<div class="qp-head">
 			<svg class="qp-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={QUICK_POST_GLYPH} /></svg>
 			<span class="qp-word">Notice</span>
 			<span class="chip qp-until" data-testid="quick-post-until">{quickPostUntilWords(post.expires_at, at)}</span>
-		</p>
+			{#if links.length}
+				<span class="qp-links">
+					{#each links as l (l.href)}
+						<a
+							class="btn secondary tiny qp-open"
+							href={l.href}
+							target="_blank"
+							rel="noopener noreferrer"
+							title={l.host}
+							data-testid="quick-post-open-link">Open {l.name}</a
+						>
+					{/each}
+				</span>
+			{/if}
+			{#if manages}
+				<span class="qp-manage" data-testid="quick-post-manage">
+					<span class="qp-reach">Posted to {quickPostClassWords(classCount(post))}</span>
+					{#if transports && post.can_take_down}
+						{#if armed === post.id}
+							<button
+								type="button"
+								class="btn secondary tiny danger"
+								disabled={busy === post.id}
+								data-testid="quick-post-take-down-confirm"
+								onclick={() => void takeDown(post)}
+							>
+								Take it down from {quickPostClassWords(classCount(post))}
+							</button>
+							<button
+								type="button"
+								class="btn secondary tiny"
+								data-testid="quick-post-take-down-keep"
+								onclick={() => (armed = null)}>Keep it</button
+							>
+						{:else}
+							<button
+								type="button"
+								class="btn secondary tiny"
+								data-testid="quick-post-take-down"
+								onclick={() => void takeDown(post)}>Take down</button
+							>
+						{/if}
+					{:else if transports}
+						<span class="qp-reach">Only the teacher who posted it, or a teacher of every class it went to, can take it down.</span>
+					{/if}
+				</span>
+			{/if}
+		</div>
 		<p class="qp-body" data-testid="quick-post-body">{@render runs(split.lead)}</p>
 		{#if split.rest !== null}
 			<!-- The rest of a long notice: in the DOM either way, closed on arrival. -->
@@ -393,52 +445,6 @@
 		{#if files.length}
 			<div class="qp-files" data-testid="quick-post-files">
 				<AttachmentList attachments={files} compact resolveSrc={(a) => fileSrc(a.id)} />
-			</div>
-		{/if}
-		{#if links.length}
-			<div class="qp-links">
-				{#each links as l (l.href)}
-					<a
-						class="btn secondary tiny qp-open"
-						href={l.href}
-						target="_blank"
-						rel="noopener noreferrer"
-						data-testid="quick-post-open-link">Open {l.host}</a
-					>
-				{/each}
-			</div>
-		{/if}
-		{#if manages}
-			<div class="qp-manage" data-testid="quick-post-manage">
-				<span class="qp-reach">Posted to {quickPostClassWords(classCount(post))}</span>
-				{#if transports && post.can_take_down}
-					{#if armed === post.id}
-						<button
-							type="button"
-							class="btn secondary tiny danger"
-							disabled={busy === post.id}
-							data-testid="quick-post-take-down-confirm"
-							onclick={() => void takeDown(post)}
-						>
-							Take it down from {quickPostClassWords(classCount(post))}
-						</button>
-						<button
-							type="button"
-							class="btn secondary tiny"
-							data-testid="quick-post-take-down-keep"
-							onclick={() => (armed = null)}>Keep it</button
-						>
-					{:else}
-						<button
-							type="button"
-							class="btn secondary tiny"
-							data-testid="quick-post-take-down"
-							onclick={() => void takeDown(post)}>Take down</button
-						>
-					{/if}
-				{:else if transports}
-					<span class="qp-reach">Only the teacher who posted it, or a teacher of every class it went to, can take it down.</span>
-				{/if}
 			</div>
 		{/if}
 	</article>
@@ -564,11 +570,14 @@
 	}
 	.qp-links,
 	.qp-manage {
-		display: flex;
+		display: inline-flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-2);
-		margin-top: var(--space-2);
+	}
+	/* The links and the teacher's controls follow the title on its line; the manage group takes the far side once there is room. */
+	.qp-manage {
+		margin-left: auto;
 	}
 	.qp :global(.btn.tiny) {
 		font-size: 0.6875rem;

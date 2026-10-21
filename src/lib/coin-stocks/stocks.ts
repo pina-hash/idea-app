@@ -6,6 +6,7 @@
  * board's own rules, so the sentence cannot drift from the settings.
  */
 
+import { personName } from '$lib/person-name';
 import { coins, coinNumber } from '$lib/coin-format';
 
 export type StockKind = 'class' | 'foundry' | 'gauntlet' | 'index';
@@ -170,7 +171,7 @@ export function parseStocksBoard(v: unknown): StocksBoard | null {
 		leaderboard: arr(o.leaderboard)
 			.map(obj)
 			.filter((x): x is Record<string, unknown> => !!x)
-			.map((x) => ({ name: s(x.name, 'A student'), value: n(x.value), me: x.me === true }))
+			.map((x) => ({ name: personName(s(x.name, 'A student')), value: n(x.value), me: x.me === true }))
 	};
 }
 

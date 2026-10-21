@@ -47,6 +47,7 @@
 	 * gets on instead. The prop is a fact about WHO MOUNTED the panel, not a
 	 * grant: the RPC re-checks the caller.
 	 */
+	import { cleanName, hasVisibleText } from '$lib/tournaments/names';
 	import {
 		entriesLocked,
 		entryIsFull,
@@ -133,7 +134,7 @@
 	}
 	function submitRename(e: SubmitEvent) {
 		e.preventDefault();
-		const n = entryName.trim();
+		const n = cleanName(entryName);
 		if (!n || busy) return;
 		onrename?.(n);
 		renaming = false;
@@ -145,7 +146,7 @@
 	}
 	function submitRenameMember(e: SubmitEvent, id: string) {
 		e.preventDefault();
-		const n = memberName.trim();
+		const n = cleanName(memberName);
 		if (!n || busy) return;
 		onrenamemember?.(id, n);
 		renamingMember = null;
@@ -161,7 +162,7 @@
 	}
 	function submitAdd(e: SubmitEvent) {
 		e.preventDefault();
-		const n = addName.trim();
+		const n = cleanName(addName);
 		if (!n || busy) return;
 		// A non-manager has no email field, so nothing typed can reach the
 		// server's refusal; the null is the name-only shape the RPC accepts.
@@ -183,7 +184,7 @@
 					<input type="text" maxlength="40" required bind:value={entryName} />
 				</label>
 				<div class="tnm-actions">
-					<button type="submit" class="btn" disabled={busy || !entryName.trim()}>Save name</button>
+					<button type="submit" class="btn" disabled={busy || !hasVisibleText(entryName)}>Save name</button>
 					<button type="button" class="btn secondary" onclick={closeAll}>Cancel</button>
 				</div>
 			</form>
@@ -216,7 +217,7 @@
 							<input type="text" maxlength="40" required bind:value={memberName} />
 						</label>
 						<div class="tnm-actions">
-							<button type="submit" class="btn" disabled={busy || !memberName.trim()}>Save</button>
+							<button type="submit" class="btn" disabled={busy || !hasVisibleText(memberName)}>Save</button>
 							<button type="button" class="btn secondary" onclick={closeAll}>Cancel</button>
 						</div>
 					</form>
@@ -301,7 +302,7 @@
 					</p>
 				{/if}
 				<div class="tnm-actions">
-					<button type="submit" class="btn" disabled={busy || !addName.trim()} data-action="add-member">
+					<button type="submit" class="btn" disabled={busy || !hasVisibleText(addName)} data-action="add-member">
 						Add teammate
 					</button>
 				</div>

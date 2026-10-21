@@ -34,6 +34,7 @@
  * shipped none) and the RPC is unchanged.
  */
 
+import { cleanName } from '$lib/tournaments/names';
 import { parseConfig, TEAM_SIZE_MAX, type TournamentStatus } from './tournaments';
 import { LIVE_QUALS_LOCK } from './live-settings';
 
@@ -216,7 +217,7 @@ export function hiddenRoundOverrides(stored: unknown): string[] {
 
 /** The form's own refusals, in the words `tournament_create` uses. */
 export function validateSettings(d: SettingsDraft): string | null {
-	const name = d.name.trim();
+	const name = cleanName(d.name);
 	if (!name) return 'Give the tournament a name.';
 	if (name.length > 80) return 'Tournament name is limited to 80 characters.';
 	return null;
@@ -229,7 +230,7 @@ export function tournamentCreateArgs(d: SettingsDraft): {
 	p_config: Record<string, unknown>;
 } {
 	return {
-		p_name: d.name.trim(),
+		p_name: cleanName(d.name),
 		p_description: d.description.trim(),
 		p_config: buildConfig({}, d)
 	};
@@ -258,7 +259,7 @@ export function tournamentUpdateArgs(
 	const changed = settingsChanges(storedDraft, draft, locks);
 	return {
 		p_tournament_id: tournamentId,
-		p_name: changed.name ? d.name.trim() : null,
+		p_name: changed.name ? cleanName(d.name) : null,
 		p_description: changed.description ? d.description.trim() : null,
 		p_config: changed.format ? buildConfig(stored.config, d) : null
 	};

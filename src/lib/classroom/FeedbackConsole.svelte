@@ -8,6 +8,8 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { runBulk } from '$lib/classroom/classroom';
 	import Disclosure from '$lib/Disclosure.svelte';
+	import Lightbox from '$lib/media/Lightbox.svelte';
+	import type { LightboxImage } from '$lib/media/lightbox';
 	import FeedbackEditForm from '$lib/feedback/FeedbackEditForm.svelte';
 	import { saveBytes, saveText } from '$lib/feedback/download';
 	import { REPORT_LABEL } from '$lib/feedback/context';
@@ -329,6 +331,38 @@
 	// New first is the working order: the queue exists to be worked through,
 	// and a resolved note is history.
 	const visible = $derived(filterFeedback(liveRows, filter, statusOf, horizonOf));
+
+	/**
+	 * A CLICKED SCREENSHOT OPENS IN THE CLASSROOM'S OWN IMAGE VIEWER (report
+	 * d204cb36), paging through every screenshot in the list as it stands. The
+	 * link keeps its address for a picture that will not decode, so the old way
+	 * of opening one is still there when the viewer cannot help.
+	 */
+	const shotRows = $derived(
+		visible.flatMap((row) => {
+			const key = rowScreenshotPath(row);
+			const url = key ? screenshotUrls[key] : undefined;
+			return url ? [{ id: row.id, url }] : [];
+		})
+	);
+	const shotImages = $derived<LightboxImage[]>(
+		shotRows.map((r) => ({
+			key: `fb-shot-${r.id}`,
+			src: r.url,
+			alt: 'Screenshot attached to this report',
+			caption: 'Report screenshot',
+			downloadHref: r.url,
+			downloadName: null
+		}))
+	);
+	let shotOpen = $state<number | null>(null);
+	function openShot(e: MouseEvent, rowId: string) {
+		if (brokenShots[rowId]) return;
+		const at = shotRows.findIndex((r) => r.id === rowId);
+		if (at < 0) return;
+		e.preventDefault();
+		shotOpen = at;
+	}
 	/** The report being edited when the filters hide it, or null. */
 	const editingHiddenRow = $derived(
 		editingRow && !visible.some((r) => r.id === editingRow.id) ? editingRow : null
@@ -1118,6 +1152,7 @@
 								href={screenshotUrls[rowScreenshotPath(row) ?? '']}
 								target="_blank"
 								rel="noopener"
+								onclick={(e) => openShot(e, row.id)}
 							>
 								{#if !brokenShots[row.id]}
 									<img
@@ -1296,6 +1331,17 @@
 		<VersionBadge app="classroom" />
 	</footer>
 </main>
+
+{#if shotImages.length}
+	<Lightbox
+		images={shotImages}
+		index={shotOpen}
+		label="Report screenshots"
+		onIndex={(n) => (shotOpen = n)}
+		onClose={() => (shotOpen = null)}
+		testId="fbc-shot-lightbox"
+	/>
+{/if}
 
 <style>
 	/*

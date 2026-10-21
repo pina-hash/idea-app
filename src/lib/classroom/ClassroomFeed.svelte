@@ -3,6 +3,7 @@
 	import {
 		actionSummary,
 		attentionWords,
+		dueSoonSummary,
 		dueUrgency,
 		entryHref,
 		emptyMessage,
@@ -344,6 +345,7 @@
 	{#each feeds as feed (feed.section.id)}
 		{@const open = !collapsedSet.has(feed.section.id)}
 		{@const summary = actionSummary(feed)}
+		{@const soonSummary = dueSoonSummary(feed)}
 		{@const listId = `feed-list-${feed.section.id}`}
 		{@const code = feed.section.course?.code ?? 'CLASS'}
 		{@const label = sectionLabelText(feed.section.label)}
@@ -360,6 +362,9 @@
 										><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
 									>{summary}</span
 								>
+							{/if}
+							{#if soonSummary}
+								<span class="feed-flag tone-info feed-attn" data-testid="feed-due-soon">{soonSummary}</span>
 							{/if}
 						</div>
 						<div class="feed-subline">

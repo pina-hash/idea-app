@@ -2481,6 +2481,12 @@
 			"title": "A new tab icon that shows what is happening",
 			"body": "The site's browser tab icon is a new IDEA key. Its picture shows which part of the site you are in (Classroom, Notebook, GAUNTLET and so on), and a small light and the key's edge show what is happening: saving, an upload in progress, something new to read, a problem, or being offline. The icon on your phone's home screen is the same key.",
 			"tags": ["Everywhere", "Appearance"]
+		},
+		{
+			"date": "2026-10-21",
+			"title": "Notices are shorter, and banners look finished",
+			"body": "A class notice now fits on a couple of lines: the title, when it ends, its link and the teacher's Take down sit on one row, and a link's key is named for where it goes (Open IDEA Market) instead of a web address. Posts shown as banners with no picture now get a designed default banner with the post's type and title. Names on the Top portfolios list and the market now read First Last for everyone, you included.",
+			"tags": ["Classroom", "Appearance"]
 		}
 	]
 }

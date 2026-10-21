@@ -221,7 +221,10 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'frc',
 		href: '/frc',
 		cta: 'Enter',
-		requiresAuth: true
+		requiresAuth: true,
+		// HIDDEN FOR NOW (report d3348bf9): the track is not useful to anybody yet,
+		// so only admins see its card. Remove this line to bring it back.
+		adminOnly: true
 	},
 	{
 		id: 'greenline',

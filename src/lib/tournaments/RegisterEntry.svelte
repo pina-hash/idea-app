@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { cleanName, hasVisibleText } from '$lib/tournaments/names';
 	/**
 	 * THE REGISTRATION FORM (prompt 0110, item 7), presentation only. It used
 	 * to be inline in `/tournaments/[id]/+page.svelte` where no harness could
@@ -62,16 +63,16 @@
 
 	const team = $derived(teamSize > 1);
 	const slots = $derived(Array.from({ length: Math.max(0, teamSize - 1) }, (_, i) => i));
-	const canSubmit = $derived(!busy && name.trim().length > 0);
+	const canSubmit = $derived(!busy && hasVisibleText(name));
 
 	function submit(e: SubmitEvent) {
 		e.preventDefault();
 		if (!canSubmit) return;
 		onregister({
-			display_name: name.trim(),
+			display_name: cleanName(name),
 			description: description.trim(),
-			member_name: memberName.trim(),
-			teammates: slots.map((i) => (teammates[i] ?? '').trim()).filter((s) => s.length > 0),
+			member_name: cleanName(memberName),
+			teammates: slots.map((i) => cleanName(teammates[i])).filter((s) => s.length > 0),
 			file: files?.[0] ?? null
 		});
 	}

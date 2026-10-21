@@ -409,6 +409,16 @@
 		display: grid;
 		place-items: center;
 	}
+	/* THE DEFAULT BANNER LOOKS DESIGNED, NOT EMPTY (report 0fc73fdd): a stronger
+	   wash of the unit's tint and a fine grid in the same tint, the way a post
+	   with its own banner reads. Still the generated layer, so a picture or a
+	   live thumbnail covers it and a theme's tint tokens recolour it. */
+	.pt[data-shape='banner'] .pt-gen {
+		background:
+			repeating-linear-gradient(0deg, transparent 0 11px, color-mix(in srgb, var(--pt-tint) 9%, transparent) 11px 12px),
+			repeating-linear-gradient(90deg, transparent 0 11px, color-mix(in srgb, var(--pt-tint) 9%, transparent) 11px 12px),
+			linear-gradient(90deg, color-mix(in srgb, var(--pt-tint) 30%, transparent), color-mix(in srgb, var(--pt-tint) 8%, transparent));
+	}
 	.pt[data-shape='banner'] .pt-gen {
 		display: flex;
 		align-items: center;

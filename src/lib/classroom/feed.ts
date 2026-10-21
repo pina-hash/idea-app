@@ -420,6 +420,12 @@ export interface SectionFeed {
 	 * deadline and not the teacher's task.
 	 */
 	attention: FeedEntry[];
+	/**
+	 * A manager's deadlines coming up, uncapped, for their own badge beside the
+	 * to-grade chip (report d76087b2). They are the class's due dates, not owed
+	 * work, so they never join `attention` or `actionCount`. Empty for a student.
+	 */
+	dueSoon: FeedEntry[];
 	/** Everything posted here that the caller may read, capped or not. */
 	totalItems: number;
 }
@@ -535,6 +541,7 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 
 		const attention = urgent.filter((e) => isActionable(e.reason, manages));
 		const actionCount = attention.length;
+		const dueSoon = manages ? urgent.filter((e) => e.reason === 'due-soon') : [];
 		const shown = urgent.slice(0, urgentLimit);
 
 		return {
@@ -545,6 +552,7 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 			hiddenCount: urgent.length - shown.length,
 			actionCount,
 			attention,
+			dueSoon,
 			totalItems: sectionItems.length
 		};
 	});
@@ -699,6 +707,12 @@ export function actionSummary(feed: SectionFeed): string | null {
 	const drafts = feed.attention.filter((e) => e.reason === 'draft').length;
 	const parts = [grade ? `${grade} to grade` : '', drafts ? `${drafts} draft${drafts === 1 ? '' : 's'}` : ''].filter(Boolean);
 	return parts.join(' · ') || `${n} to do`;
+}
+
+/** A manager's separate badge for deadlines coming up: "1 due soon", or null when none. */
+export function dueSoonSummary(feed: SectionFeed): string | null {
+	if (!feed.manages || !feed.dueSoon.length) return null;
+	return `${feed.dueSoon.length} due soon`;
 }
 
 /**

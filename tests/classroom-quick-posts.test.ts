@@ -38,6 +38,7 @@ import {
 	quickPostSplit,
 	quickPostCustomInstant,
 	quickPostExpiry,
+	quickPostLinkName,
 	quickPostLinks,
 	quickPostNextChange,
 	quickPostPostedWords,
@@ -218,12 +219,22 @@ describe('links are http(s) only, through safeHref, and never the whole notice',
 
 	it('one Open key per link up to three, and none past three', () => {
 		expect(quickPostLinks('a https://www.canva.com/x b https://canva.com/x c https://docs.google.com/y')).toEqual([
-			{ href: 'https://www.canva.com/x', host: 'canva.com' },
-			{ href: 'https://canva.com/x', host: 'canva.com' },
-			{ href: 'https://docs.google.com/y', host: 'docs.google.com' }
+			{ href: 'https://www.canva.com/x', host: 'canva.com', name: 'canva.com' },
+			{ href: 'https://canva.com/x', host: 'canva.com', name: 'canva.com' },
+			{ href: 'https://docs.google.com/y', host: 'docs.google.com', name: 'Google Doc' }
 		]);
 		expect(quickPostLinks('https://a.com https://b.com https://c.com https://d.com')).toEqual([]);
 		expect(quickPostLinks('no links here')).toEqual([]);
+	});
+});
+
+describe('a link key is named for the link, not the bare host (report 7ec59920)', () => {
+	it('names this site by its page, a few services by host, and falls back to the host', () => {
+		expect(quickPostLinkName('https://ideabosco.com/market')).toBe('IDEA Market');
+		expect(quickPostLinkName('https://www.ideabosco.com/classroom/abc')).toBe('IDEA Classroom');
+		expect(quickPostLinkName('https://ideabosco.com/')).toBe('the IDEA site');
+		expect(quickPostLinkName('https://forms.gle/zzz')).toBe('Google Form');
+		expect(quickPostLinkName('https://example.org/a')).toBe('example.org');
 	});
 });
 

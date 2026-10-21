@@ -10,6 +10,7 @@
  * Ledger's opaque public id and the roster name.
  */
 
+import { personName } from '$lib/person-name';
 import { coinNumber, coins } from '$lib/coin-format';
 
 export type ListingKind = 'offer' | 'request' | 'official';
@@ -201,7 +202,7 @@ export function parseListing(v: unknown): Listing | null {
 		mine: o.mine === true,
 		owner: {
 			id: sn(owner.id) ?? undefined,
-			name: s(owner.name, 'A student'),
+			name: personName(s(owner.name, 'A student')),
 			classes: parseClasses(owner.classes),
 			rating: owner.rating ? parseRating(owner.rating) : undefined
 		}
@@ -224,7 +225,7 @@ export function parseOrder(v: unknown): Order | null {
 		amount: n(o.amount),
 		status,
 		side: o.side === 'payer' || o.side === 'payee' ? o.side : null,
-		other: { id: s(other.id), name: s(other.name, 'A student') },
+		other: { id: s(other.id), name: personName(s(other.name, 'A student')) },
 		created_at: s(o.created_at),
 		delivered_at: sn(o.delivered_at),
 		disputed_at: sn(o.disputed_at),
@@ -254,7 +255,7 @@ export function parseBoard(v: unknown): MarketBoard | null {
 	return {
 		in_economy: o.in_economy === true,
 		staff: o.staff === true,
-		me: { id: s(me.id), name: s(me.name), balance: n(me.balance), open_listings: n(me.open_listings) },
+		me: { id: s(me.id), name: personName(s(me.name)), balance: n(me.balance), open_listings: n(me.open_listings) },
 		rules: {
 			fee_percent: n(rules.fee_percent, 0),
 			max_open: n(rules.max_open, 5),
@@ -274,7 +275,7 @@ export function parseProfile(v: unknown): MarketProfile | null {
 	if (!o || o.ok !== true) return null;
 	return {
 		id: s(o.id),
-		name: s(o.name, 'A student'),
+		name: personName(s(o.name, 'A student')),
 		classes: parseClasses(o.classes),
 		rating: parseRating(o.rating),
 		reviews: arr(o.reviews)
@@ -510,8 +511,8 @@ export function parseTransfer(v: unknown): TransferRow | null {
 		id: o.id,
 		at: s(o.at),
 		amount: n(o.amount),
-		from: { id: s(f.id), name: s(f.name, 'A student') },
-		to: { id: s(t.id), name: s(t.name, 'A student') },
+		from: { id: s(f.id), name: personName(s(f.name, 'A student')) },
+		to: { id: s(t.id), name: personName(s(t.name, 'A student')) },
 		message: sn(o.message),
 		message_removed: o.message_removed === true,
 		private: o.private === true,
@@ -561,7 +562,7 @@ export function parseDirectory(v: unknown): DirectoryEntry[] {
 	return arr(v)
 		.map(obj)
 		.filter((x): x is Record<string, unknown> => !!x && typeof x.id === 'string')
-		.map((x) => ({ id: String(x.id), name: s(x.name, 'A student'), classes: parseClasses(x.classes) }));
+		.map((x) => ({ id: String(x.id), name: personName(s(x.name, 'A student')), classes: parseClasses(x.classes) }));
 }
 
 /** A coin amount typed by a person: two decimals at most, at least 0.1. */

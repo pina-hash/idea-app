@@ -12,6 +12,7 @@
  * server-side transaction, per-student results.
  */
 
+import { personName } from '$lib/person-name';
 import type { CoinCategory, CoinPricingModel } from '$lib/coin-desk';
 
 /** One class the caller may log against: `coinStaff.sections`'s shape. */
@@ -59,7 +60,7 @@ export interface ClassRoster {
 
 /** The name a roster row shows: the class roster's name, else the address. */
 export function rosterStudentLabel(s: Pick<ClassRosterStudent, 'email' | 'display_name'>): string {
-	return s.display_name?.trim() || s.email;
+	return personName(s.display_name) || s.email;
 }
 
 /** One row of `coin_bulk_log_students(...).results`. */
