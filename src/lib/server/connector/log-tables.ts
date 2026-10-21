@@ -55,6 +55,8 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'coin_categories',
 	'coin_contract_claims',
 	'coin_contracts',
+	// Ledger 0425 (0294): a market card's featured switch.
+	'coin_market_card_features',
 	'coin_market_listings',
 	'coin_perfect_scores',
 	'coin_settings',

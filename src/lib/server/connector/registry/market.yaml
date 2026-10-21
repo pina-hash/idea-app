@@ -66,7 +66,7 @@ coin_market_listing_staff:
   level: confirm
   proof: generic
   describe: Feature, unfeature, hide, unhide, remove or restore a card in the IDEA Market; it asks first, and a hidden or removed one tells the student why.
-  say: ["hide Mateo's listing, it's selling homework", "feature the tissue box card", "remove that market listing", "bring back the card I removed"]
+  say: ["hide Mateo's listing, it's selling homework", "feature Ana's tutoring listing", "remove that market listing", "bring back the card I removed"]
   args:
     p_listing_id: {name: listing, describe: "The card: its title as he says it, or its id from the market list."}
     p_action: {name: action, enum: [feature, unfeature, hide, unhide, remove, restore], describe: "What to do with it; restore brings back a card that was removed."}

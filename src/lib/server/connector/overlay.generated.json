@@ -6856,7 +6856,7 @@
 			"describe": "Feature, unfeature, hide, unhide, remove or restore a card in the IDEA Market; it asks first, and a hidden or removed one tells the student why.",
 			"say": [
 				"hide Mateo's listing, it's selling homework",
-				"feature the tissue box card",
+				"feature Ana's tutoring listing",
 				"remove that market listing",
 				"bring back the card I removed"
 			],
