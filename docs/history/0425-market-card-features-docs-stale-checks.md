@@ -136,3 +136,30 @@ was not in this ledger's tasks and is still as 0422 left it.
   the same four stocks, in the same order, so every price is unchanged.
   Measured 2026-10-21: the four `/dev/coin-stocks` specs, 375 and 1440, 98
   measurements, 0 outside threshold; their measurement files were rewritten.
+
+## The full suite, and what landed
+
+| Task | Commit on `main` | Migration |
+| --- | --- | --- |
+| 1. Every market card has a featured switch | `7fe15485`, then `29afe410` (log table, a say phrase) | 0294, applied by Migrate (`cbf2ba57` records it) |
+| 2. The docs 0422 did not own | `48761c81` | none |
+| 3. Two stale checks | `7da408ac` | none |
+
+Gap 8020d662 was marked built with ledger 0425 through the connector after
+the deploy, once `coin_market_cards_admin` answered live with the two tissue
+box want-ads, eight contracts, four shop tiles and the background card, and a
+dry-run of `coin_market_cards_feature_only` on the two tissue boxes previewed
+2 featured and 8 unfeatured with nothing written. The switch itself was not
+made: that is Mr. Pina's call.
+
+**The one full `npm test`**, run on the task 3 tree before it was pushed
+(2026-10-21): `Test Files 4 failed | 879 passed (883)`, `Tests 13 failed |
+16563 passed (16576)`. None of the 13 is this work's, and none is a defect:
+the four files (`tests/classroom-panel-layout-render.test.ts`,
+`tests/db/cert-0262-exam.test.ts`, `tests/db/feedback-round-0380-foundry.test.ts`,
+`tests/db/ideacad-feature-graph-storage.test.ts`) fail the same 13 on the tree
+before this ledger (`ebfb31ee`), and pass, 88 of 88 with the notebook file,
+under `TZ=UTC`. This container's clock is `America/Los_Angeles`; CI runs in
+UTC, and CI on `29afe410` failed only the notebook test this ledger fixes.
+Those four files read the machine's own time zone somewhere; that is worth a
+session of its own, and was not in this one's tasks.
