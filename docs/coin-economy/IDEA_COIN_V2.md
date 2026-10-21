@@ -334,10 +334,8 @@ fee and limit has its sentence in the rules list (`coin_public_reasons`).
 | `hall_pass_extra_cap_minutes` | 15 | Most extra minutes a student buys in a day |
 | `stock_fee_percent` | 2 | Fee on every buy and sale (a sink) |
 | `stock_position_cap` | 50 | Most coins of cost basis in one stock |
-| `stock_base` | 10 | The price when today's signal equals its median |
-| `stock_clamp_percent` | 10 | Most a price moves in a day |
-| `stock_floor` / `stock_ceiling` | 1 / 100 | Bounds on every close |
-| `stock_median_weeks` | 8 | Window of the median |
+| `stock_base` | 10 | The launch price of a new stock (a new class stock) |
+| `stock_floor` / `stock_ceiling` | 1 / 100 | Bounds on every price |
 | `stock_class_window_weeks` | 4 | A class stock's trailing grade window |
 | `stock_min_class_students` | 3 | Fewest students with returned work for a class price |
 | `banner_style` | `spotlight` | The classroom banner's look (`spotlight`, `ticker`, `cards`) |
@@ -402,34 +400,51 @@ after the purchase, never past the auto check-in cap; a fine already given is
 never removed. Stored in `coin_hall_pass_minutes`; `_classroom_hall_pass_budget`
 and `_classroom_hall_pass_check` read it.
 
-### 12.7 The stock market (`/market/stocks`, 0279)
+### 12.7 The stock market (`/market/stocks`, 0279; relaunched in 0283)
 
-Every price traces to recorded site data. A close stores its raw inputs, its
-signal, the median, the formula's target and `formula_version` (`v1`), and each
-stock's page shows them as "How this price is made". A day with no data keeps
-the previous close and says why.
+Every price traces to recorded site data. Every price change stores its raw
+inputs, its signal, what the data said, the day's reference, the launch phase
+and `formula_version` (`v2`), and each stock's page shows them as "How this
+price is made". A moment with no data keeps the price and says why.
 
-- **Formula v1**: price = base x (today's signal / median of the signal over the
-  last 8 weeks), moved at most 10% from the previous close, kept between 1 and
-  100. Closes are made nightly in `coin_autopay_run`, for class days only; the
-  first run backfills eight weeks.
+- **The relaunch (0283, feedback 79e16faa and fbe274c3)**: each stock's price
+  on the day 0283 was applied became its launch price, holdings carried over at
+  their value (no refunds), and every v1 close, the eight backfilled weeks
+  included, was deleted. Every chart starts at the launch.
+- **Formula v2**: price = anchor price x (signal now / anchor signal), where the
+  anchor is the launch price and the signal at the launch (or, for a stock with
+  no reading then, its first real reading). The index is its launch price times
+  the mean of every active member's price over its launch price. A tick prices
+  every stock about once a minute on class days (pg_cron, the stocks page, every
+  trade, autopay); signals are measured over a window ending at the tick.
+- **Launch ramp** (`_coin_stock_rules`, the one statement of it): a day's move
+  from its reference (the previous class day's last price) is capped at 5% in
+  week 1 after the launch, 10% in week 2, 15% in week 3, 25% in week 4, then not
+  at all.
+- **Circuit breakers**, after the ramp only: a move of 10% from the reference
+  halts trading in that stock for 15 minutes, 20% for another 15, 30% for the
+  rest of the day; each level once a stock a day, both directions. Buys and
+  sales are refused in words during a halt; the price keeps following the data.
+  Prices stay between 1 and 100.
 - **Stocks**: one per class in the economy (returned points earned over points
   possible, trailing 4 weeks, at least 3 students), FNDRY (distinct people
   playing or uploading in the Foundry per day, 7-day average), GNTLT (distinct
   people submitting a GAUNTLET answer per day, 7-day average), and the IDEA
-  index (equal-weighted mean of the day's member closes).
+  index (the mean move of its members).
 - **Rejected**: an on-time rate (a ported worksheet has no turn-in, so the
   input would be missing for most work) and tournament matches (they come in
   bursts and the median is zero most weeks, so the price would sit at a bound).
-- **Trading**: with the house at the last close, fractional shares, a 2% fee
-  each way, at most 50 coins of cost basis per stock, on class days only, no
-  shorting (a short can lose more coins than anyone holds, and the economy has
-  no one to collect that debt from). Selling is always allowed, in debt too. A
+- **Trading**: with the house at the current price, fractional shares, a 2% fee
+  each way, at most 50 coins of cost basis per stock, on class days only and
+  never during a halt, no shorting (a short can lose more coins than anyone
+  holds, and the economy has no one to collect that debt from). Selling is
+  allowed in debt too. A
   portfolio's value is shown on `/coin-balance` and never counted in the
   balance; the leaderboard ranks portfolio value.
-- **Backtest**: `node tools/coin-stock-backtest.mjs` replays the formula over a
-  seeded eight weeks with the real nightly run and writes the CSV and chart under
-  `docs/coin-economy/backtests/`; the run asserts no close touches a bound.
+- **Backtest**: `node tools/coin-stock-backtest.mjs` launches at 10 and replays
+  the real tick hourly over a seeded eight weeks, and writes the CSV and chart
+  under `docs/coin-economy/backtests/`; the run asserts every ramp cap held and
+  every halt was earned by its move.
 
 ### 12.8 Economy health (0281)
 

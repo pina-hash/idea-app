@@ -33,8 +33,9 @@ export interface CoinWorld {
 	scalar: <T = string>(sql: string, params?: unknown[]) => Promise<T>;
 }
 
-export async function startCoinWorld(): Promise<CoinWorld> {
-	const db = await startTestDb(WITH_V2);
+/** The whole tree by default; a suite testing one file over seeded data passes the chain short of it. */
+export async function startCoinWorld(chain: readonly string[] = WITH_V2): Promise<CoinWorld> {
+	const db = await startTestDb(chain);
 	const owner = await createUser(db, 'apina@boscotech.edu', 'Mr Pina');
 	const cosso = await createUser(db, 'wcosso@boscotech.edu', 'Mr Cosso');
 	const teacher = await createUser(db, 'teach@boscotech.edu', 'Tee Cher');

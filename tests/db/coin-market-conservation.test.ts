@@ -140,9 +140,11 @@ describe('the economy changes only by logged sinks and faucets', () => {
 				]));
 			} else {
 				if (r() < 0.3) {
-					// The price moves between trades, so sales realize gains and losses.
+					// The price moves between trades (the current one, the latest row:
+					// 0283 trades there), so sales realize gains and losses.
 					await w.db.sql(
-						`update public.coin_stock_closes set close = round((close * (0.85 + random() * 0.3))::numeric, 4) where day = public._coin_la_today() - 1`
+						`update public.coin_stock_closes set close = round((close * (0.85 + random() * 0.3))::numeric, 4)
+						 where (stock_id, day) in (select stock_id, max(day) from public.coin_stock_closes group by stock_id)`
 					);
 				}
 				ok('stock_sell', await w.rpc<Json>(u, `public.coin_stock_sell($1, $2::numeric, $3)`, [

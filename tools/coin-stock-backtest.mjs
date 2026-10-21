@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * REPLAY THE IDEA STOCK FORMULA OVER EIGHT WEEKS (ledger 0402).
+ * REPLAY THE IDEA STOCK PRICE RULE OVER EIGHT WEEKS (ledger 0402; formula v2 since the relaunch, 0283).
  *
  *   node tools/coin-stock-backtest.mjs [out-dir]
  *
  * Runs `tests/db/coin-stocks-backtest.test.ts` (the REAL migrations on an
  * embedded Postgres, a seeded eight weeks of school, the REAL nightly run)
- * with COIN_BACKTEST_OUT set, so the closes land as CSV; then draws them as
- * one plain SVG chart beside it. The test itself is the assertion: no stock
- * closes at its floor or its ceiling, and every class day has a close. This
+ * with COIN_BACKTEST_OUT set, so each day lands as CSV; then draws the closes as
+ * one plain SVG chart beside it. The test itself is the assertion: the launch
+ * ramp caps hold, every breaker was earned, and every class day has a price. This
  * script judges the run by the summary line on stdout AND stderr, never by
  * vitest's exit code (CLAUDE.md, the mutation-script traps).
  *
@@ -21,8 +21,8 @@ import { join, resolve } from 'node:path';
 const outDir = resolve(process.argv[2] ?? 'docs/coin-economy/backtests');
 mkdirSync(outDir, { recursive: true });
 const stamp = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-const csvPath = join(outDir, `${stamp}-stocks-v1.csv`);
-const svgPath = join(outDir, `${stamp}-stocks-v1.svg`);
+const csvPath = join(outDir, `${stamp}-stocks-v2.csv`);
+const svgPath = join(outDir, `${stamp}-stocks-v2.svg`);
 
 const run = spawnSync('npx', ['vitest', 'run', '--project', 'node', 'tests/db/coin-stocks-backtest.test.ts'], {
 	env: { ...process.env, COIN_BACKTEST_OUT: csvPath },
@@ -43,9 +43,10 @@ const rows = readFileSync(csvPath, 'utf8')
 	.split('\n')
 	.slice(1)
 	.map((l) => {
-		const [stock, ticker, day, close] = l.split(',');
-		return { stock, ticker, day, close: Number(close) };
+		const [stock, ticker, day, close, , , , , , halts] = l.split(',');
+		return { stock, ticker, day, close: Number(close), halts: Number(halts) || 0 };
 	});
+const halts = rows.reduce((n, r) => n + r.halts, 0);
 const tickers = [...new Set(rows.map((r) => r.ticker))];
 const days = [...new Set(rows.map((r) => r.day))].sort();
 
@@ -83,7 +84,7 @@ for (let v = lo; v <= hi; v += Math.max(1, Math.round((hi - lo) / 6))) {
 }
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="sans-serif">
 <rect width="${W}" height="${H}" fill="#fbfbf8"/>
-<text x="${L}" y="16" font-size="13" fill="#223">IDEA stocks, formula v1, eight weeks replayed (${days[0]} to ${days.at(-1)}), floor 1, ceiling 100</text>
+<text x="${L}" y="16" font-size="13" fill="#223">IDEA stocks, formula v2, eight weeks replayed hourly from a launch at 10 (${days[0]} to ${days.at(-1)}), ramp 5, 10, 15, 25%, then breakers</text>
 ${ticks.join('\n')}
 ${lines.join('\n')}
 <text x="${L}" y="${H - 12}" font-size="11" fill="#445">${days.length} class days. Seeded data; see tests/db/coin-stocks-backtest.test.ts.</text>
@@ -95,6 +96,6 @@ const summary = tickers.map((t) => {
 	const c = rows.filter((r) => r.ticker === t).map((r) => r.close);
 	return `${t}: ${c[0].toFixed(2)} to ${c.at(-1).toFixed(2)}, low ${Math.min(...c).toFixed(2)}, high ${Math.max(...c).toFixed(2)}`;
 });
-console.log(`Backtest passed: ${days.length} class days, ${tickers.length} stocks, no floor or ceiling hits.`);
+console.log(`Backtest passed: ${days.length} class days, ${tickers.length} stocks, ${halts} halts after the ramp.`);
 for (const s of summary) console.log(`  ${s}`);
 console.log(`  ${csvPath}\n  ${svgPath}`);

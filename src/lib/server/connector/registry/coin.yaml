@@ -419,3 +419,5 @@ coin_stock_detail:
   exclude: One stock's page as the signed-in student sees it, with their own holding; it acts as the caller.
 coin_stocks_board:
   exclude: The stock market as the signed-in student sees it, with their own portfolio; it acts as the caller.
+coin_stocks_tick:
+  exclude: Asks for the minute price update the stocks page makes on load; it throttles itself and answers counts only, so there is nothing for an admin to do with it.

@@ -7,15 +7,31 @@
 	import { coins } from '$lib/coin-format';
 	import StockChart from './StockChart.svelte';
 	import TradeDialog from './TradeDialog.svelte';
-	import { changeWords, KIND_WORDS, price, priceFormulaWords, tradeRulesWords, type Stock, type StocksBoard } from './stocks';
+	import {
+		changeWords,
+		clock,
+		haltRulesWords,
+		haltWords,
+		KIND_WORDS,
+		phaseWords,
+		price,
+		priceFormulaWords,
+		rampWords,
+		shortDay,
+		tradeRulesWords,
+		type Stock,
+		type StocksBoard
+	} from './stocks';
 	import type { StockTransports } from './transports';
 
 	/**
-	 * THE IDEA STOCK MARKET (ledger 0402). The IDEA index on top, every stock
-	 * with its price, its move and its history, your holdings, and a separate
-	 * leaderboard by portfolio value. Every price traces to recorded site data:
-	 * each stock's page says how its price is made, day by day. The route
-	 * mounts this over the database; `/dev/coin-stocks` over an in-memory board.
+	 * THE IDEA STOCK MARKET (ledger 0402; relaunched, 0283). The IDEA index on
+	 * top, every stock with its price, its move since the day's start, where it
+	 * stands in the launch weeks, any trading pause, and its history since the
+	 * launch; your holdings; a separate leaderboard by portfolio value. Every
+	 * price traces to recorded site data: each stock's page says how each price
+	 * was made. The route mounts this over the database and refreshes it each
+	 * minute; `/dev/coin-stocks` over an in-memory board.
 	 */
 	let {
 		state: pageState,
@@ -60,7 +76,7 @@
 		<div>
 			<div class="mk-eyebrow">IDEA Coins</div>
 			<h1>IDEA Stocks</h1>
-			<p class="lead">Prices made from what really happens on the site: grades, the Foundry, GAUNTLET. They change once a class day.</p>
+			<p class="lead">Prices made from what really happens on the site: grades, the Foundry, GAUNTLET. They update about every minute on class days.</p>
 		</div>
 		{#if board}
 			<div class="mk-hero-keys">
@@ -85,6 +101,12 @@
 	{:else}
 		{#if flash}<p class="mk-ok" role="status" data-testid="sk-flash">{flash}</p>{/if}
 		{#if !board.open_today}<p class="mk-note" data-testid="sk-closed">The market is closed today. Trades happen on class days; selling and buying open again then.</p>{/if}
+		{#if board.last_tick_at || board.launched_at}
+			<p class="mk-note" data-testid="sk-fresh">
+				{#if board.launched_at}Relaunched {shortDay(board.launched_at)}; every chart starts there.{/if}
+				{#if board.last_tick_at}Prices checked at {clock(board.last_tick_at)}.{/if}
+			</p>
+		{/if}
 		<div class="mk-layout">
 			<div class="mk-col">
 				{#if index}
@@ -99,14 +121,15 @@
 								<span class="sk-big" data-testid="sk-index-price">{index.last ? price(index.last.close) : 'No price yet'}</span>
 								<span class="sk-move {mv.tone}">{mv.text}</span>
 								<span class="mk-note">{KIND_WORDS.index}</span>
+								{#if index.halt}<span class="sk-halt" data-testid="sk-halt">{haltWords(index.halt)}</span>{:else if index.phase}<span class="mk-note">{phaseWords(index.phase)}</span>{/if}
 							</div>
 							<StockChart series={index.series} label="IDEA index" height={160} />
 						</div>
 						{#if canTrade}
 							<div class="mk-row">
-								<button type="button" class="btn mk-key" disabled={!board.open_today} onclick={() => (trading = { stock: index, side: 'buy' })}>Buy IDEA</button>
+								<button type="button" class="btn mk-key" disabled={!board.open_today || !!index.halt} onclick={() => (trading = { stock: index, side: 'buy' })}>Buy IDEA</button>
 								{#if held(index.id).shares > 0}
-									<button type="button" class="btn secondary mk-key" disabled={!board.open_today} onclick={() => (trading = { stock: index, side: 'sell' })}>Sell IDEA</button>
+									<button type="button" class="btn secondary mk-key" disabled={!board.open_today || !!index.halt} onclick={() => (trading = { stock: index, side: 'sell' })}>Sell IDEA</button>
 								{/if}
 							</div>
 						{/if}
@@ -132,14 +155,15 @@
 									<span class="sk-move {mv.tone}">{mv.text}</span>
 								</div>
 								<StockChart series={s.series} label={s.ticker} height={56} axis={false} />
-								<span class="mk-note">{KIND_WORDS[s.kind]}{s.last?.carried ? ' Last close carried: no data that day.' : ''}</span>
+								<span class="mk-note">{KIND_WORDS[s.kind]}{s.last?.carried ? ' No new data: the price holds.' : ''}</span>
+								{#if s.halt}<span class="sk-halt" data-testid="sk-halt">{haltWords(s.halt)}</span>{:else if s.phase}<span class="mk-note">{phaseWords(s.phase)}</span>{/if}
 								{#if h.shares > 0}<span class="mk-note">You own {h.shares.toFixed(4)} shares.</span>{/if}
 								<div class="mk-row">
 									<a class="btn secondary mk-key" href="/market/stocks/{encodeURIComponent(s.id)}" data-testid="sk-details">How it is made</a>
 									{#if canTrade && s.last}
-										<button type="button" class="btn mk-key" disabled={!board.open_today} onclick={() => (trading = { stock: s, side: 'buy' })} data-testid="sk-buy">Buy</button>
+										<button type="button" class="btn mk-key" disabled={!board.open_today || !!s.halt} onclick={() => (trading = { stock: s, side: 'buy' })} data-testid="sk-buy">Buy</button>
 										{#if h.shares > 0}
-											<button type="button" class="btn secondary mk-key" disabled={!board.open_today} onclick={() => (trading = { stock: s, side: 'sell' })} data-testid="sk-sell">Sell</button>
+											<button type="button" class="btn secondary mk-key" disabled={!board.open_today || !!s.halt} onclick={() => (trading = { stock: s, side: 'sell' })} data-testid="sk-sell">Sell</button>
 										{/if}
 									{/if}
 								</div>
@@ -166,7 +190,7 @@
 								{/each}
 							</tbody>
 						</table>
-						<p class="mk-note">Worth {coins(board.portfolio.value)} at the last closes. Not part of your balance until you sell.</p>
+						<p class="mk-note">Worth {coins(board.portfolio.value)} at today's prices. Not part of your balance until you sell.</p>
 					{:else}
 						<p class="mk-note">You own no shares.</p>
 					{/if}
@@ -188,6 +212,8 @@
 				<section class="card mk-panel" aria-labelledby="sk-h-rules" data-testid="sk-rules">
 					<header><h2 id="sk-h-rules">The rules</h2></header>
 					<p class="mk-body">{priceFormulaWords(board.rules)}</p>
+					<p class="mk-body" data-testid="sk-ramp">{rampWords(board.rules)}</p>
+					<p class="mk-body" data-testid="sk-breakers">{haltRulesWords(board.rules)}</p>
 					<p class="mk-body">{tradeRulesWords(board.rules)}</p>
 					<p class="mk-note">Why no shorting: a short can lose more coins than anyone holds, and the economy has no one to collect that debt from.</p>
 				</section>

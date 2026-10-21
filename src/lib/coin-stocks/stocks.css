@@ -26,10 +26,6 @@
 .sk-chart.down .sk-area {
 	fill: var(--amber);
 }
-.sk-carried {
-	stroke: var(--text-2);
-	stroke-width: 1.5;
-}
 .sk-axis {
 	display: flex;
 	justify-content: space-between;
@@ -139,4 +135,16 @@
 	font-size: 0.85rem;
 	color: var(--text-2);
 	overflow-wrap: anywhere;
+}
+/* A trading pause (0283): a sentence in the text ink, which clears every
+   plate, with the amber on a marker beside it. Measured: the amber as the
+   words themselves was 4.11:1 on the stock tile. */
+.sk-halt {
+	margin: 0;
+	color: var(--text-1);
+	font-size: 0.95rem;
+}
+.sk-halt::before {
+	content: '\25A0\00A0' / '';
+	color: var(--amber);
 }

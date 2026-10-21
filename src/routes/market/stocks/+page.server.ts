@@ -2,9 +2,12 @@ import { parseStocksBoard, type StocksBoard } from '$lib/coin-stocks/stocks';
 import type { PageServerLoad } from './$types';
 
 /**
- * `/market/stocks` (ledger 0402, migration 0279). The catch-up autopay run
- * goes first (it writes the closes that are due) and never fails the page; a
- * database without 0279 answers PGRST202 or 42883: "being set up".
+ * `/market/stocks` (ledger 0402, migration 0279; relaunched in 0283). A price
+ * tick goes first (`coin_stocks_tick`, which throttles itself, so a page
+ * refreshing each minute costs nothing extra) and never fails the page; a
+ * database without 0279 answers PGRST202 or 42883: "being set up". A database
+ * with 0279 but not yet 0283 has no tick to call, which is the same best
+ * effort, and the board it answers is the old one.
  */
 export const load: PageServerLoad = async ({ locals, depends }) => {
 	depends('coin:stocks');
@@ -12,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, depends }) => {
 	if (!locals.claims?.sub) return { state: 'signed_out' as const, ...empty };
 	const sb = locals.supabase;
 	try {
-		await sb.rpc('coin_autopay_run', { p_trigger: 'page' });
+		await sb.rpc('coin_stocks_tick');
 	} catch {
 		// Best effort, always.
 	}

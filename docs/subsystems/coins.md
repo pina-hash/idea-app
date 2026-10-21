@@ -48,13 +48,20 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
     moving by exactly the logged fees, purchases and house gains, with a
     planted unbalanced release as its control. A new market path writes
     through `_coin_market_settle` or that test is the one that reddens.
-  - **A STOCK PRICE IS A STORED CLOSE WITH ITS INPUTS, NEVER COMPUTED ON READ
-    (0279).** `_coin_stock_close` writes the raw inputs, the signal, the median,
-    the target and `formula_version` beside every close, a missing day carries
-    the previous close with a note, and `_coin_stocks_nightly` (inside
-    `coin_autopay_run`) is the only writer. A formula change is a new version
-    string, never an edit that rewrites what earlier closes said; and
-    `node tools/coin-stock-backtest.mjs` replays it before it ships.
+  - **A STOCK PRICE IS A STORED TICK WITH ITS INPUTS, NEVER COMPUTED ON READ
+    (0279, relaunched as formula v2 in 0283).** `_coin_stock_price` is the only
+    writer: it stores the raw inputs, the signal, what the data said, the day's
+    reference and `formula_version` on the day's row in `coin_stock_closes` and,
+    when the price changed, a row in `coin_stock_ticks`; a moment with no data
+    holds the price with a note. Every caller goes through `_coin_stocks_tick`
+    (pg_cron each minute, the stocks page, each trade, `coin_autopay_run`), which
+    throttles itself. **The launch ramp and the circuit breakers are stated once,
+    in `_coin_stock_rules`**; the board hands that object and each stock's
+    worked-out `phase` and `halt` to the page, and the client only puts them into
+    words, so a cap or a halt threshold is never written a second time in
+    TypeScript. A formula change is a new version string, never an edit that
+    rewrites what earlier prices said; and `node tools/coin-stock-backtest.mjs`
+    replays it before it ships.
   - **A PRIVATE TRANSFER IS PRIVATE ON EVERY PUBLIC READ.** Its rows carry
     `meta.private_transfer`, and `coin_public_transactions`,
     `coin_public_student` and `coin_public_transfers` all exclude it; a new

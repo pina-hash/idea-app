@@ -1,18 +1,20 @@
 // tests/db/coin-stocks-backtest.test.ts
 //
-// THE STOCK FORMULA REPLAYED OVER EIGHT WEEKS (ledger 0402, migration 0279).
+// THE V2 PRICE RULE REPLAYED OVER EIGHT WEEKS (the relaunch, migration 0283).
 // A seeded, deterministic eight weeks of school: two classes getting work back
 // two or three times a week (one hard test in week five), a Foundry with a
 // new game spiking in week six, and GAUNTLET submissions that dry up for a
-// week. The REAL nightly run (`_coin_stocks_nightly`) then makes every close,
-// exactly as production would on its first night with eight weeks of history.
+// week. The market launches at 10 at the start of the window, and the REAL
+// tick (`_coin_stocks_tick_at`) prices every stock hourly through each class
+// day, as the minute job would, only less often. Nothing is backfilled: a
+// tick sees only data recorded before its own moment.
 //
-// What it guards, silently otherwise: a formula or a default that pins a stock
-// to its floor or its ceiling under ordinary school data (a price stuck at 1
-// or at 100 tells nobody anything), and a class day with no close.
+// What it guards, silently otherwise: a launch-week cap a price slips past, a
+// circuit breaker missing for a move that should have tripped it (or recorded
+// for one that should not), and a class day with no price.
 //
 // `tools/coin-stock-backtest.mjs` runs this file with COIN_BACKTEST_OUT set,
-// and the closes are written there as CSV for docs/coin-economy/backtests/.
+// and the days are written there as CSV for docs/coin-economy/backtests/.
 
 import { writeFileSync } from 'node:fs';
 import { afterAll, beforeAll, expect, test } from 'vitest';
@@ -21,6 +23,8 @@ import { startCoinWorld, type CoinWorld, type Json } from './coin-market-world';
 
 let w: CoinWorld;
 let days: string[] = [];
+/** The hours a class day is ticked at, Los Angeles time. */
+const HOURS = [8, 9, 10, 11, 12, 13, 14, 15];
 
 /** A small deterministic generator, so the run is the same every time. */
 function rng(seed: number) {
@@ -49,9 +53,9 @@ beforeAll(async () => {
 	}
 	const everyone = [...block1, ...block4];
 
-	// The window the nightly run backfills: eight weeks before today. The
-	// seeded school starts ten days earlier, so the first closes see a full
-	// seven-day window, as production will (its data predates the market).
+	// The window replayed: eight weeks before today. The seeded school starts
+	// ten days earlier, so the launch sees a full seven-day window, as
+	// production's did (its data predates the market).
 	const classDays = async (from: number) =>
 		(
 			await w.db.sql<{ d: string }>(
@@ -113,45 +117,80 @@ beforeAll(async () => {
 			);
 		}
 	}
-	await w.scalar(`select public._coin_stocks_nightly(0) v`);
+	// The launch: every stock at 10 at 7 a.m. on the window's first class day,
+	// no history and no anchor (each anchors at its first real reading).
+	await w.scalar(`select public._coin_stock_sync() v`);
+	await w.db.sql(`delete from public.coin_stock_closes`);
+	await w.db.sql(`delete from public.coin_stock_ticks`);
+	await w.db.sql(`delete from public.coin_stock_halts`);
+	await w.db.sql(
+		`update public.coin_stocks set launched_at = ($1::date + time '07:00') at time zone 'America/Los_Angeles',
+		 launch_price = 10, anchor_price = 10, anchor_signal = null`,
+		[days[0]]
+	);
+	for (const day of days) {
+		for (const h of HOURS) {
+			await w.scalar(`select public._coin_stocks_tick_at(($1::date + make_time($2::integer, 0, 0)) at time zone 'America/Los_Angeles') v`, [day, h]);
+		}
+	}
 }, 900_000);
 
 afterAll(async () => w?.db.stop());
 
-test('every stock closes on every class day of the eight weeks, and none sits at its floor or ceiling', async () => {
+test('every stock has a price every class day; the ramp caps hold; every breaker matches a move that earned it', async () => {
 	const rows = (
-		await w.db.sql<{ stock_id: string; ticker: string; day: string; close: string; signal: string | null; median: string | null; target: string | null; carried: boolean; note: string | null }>(
-			`select c.stock_id, s.ticker, c.day::text, c.close::text, c.signal::text, c.median::text, c.target::text, c.carried, c.note
+		await w.db.sql<Json>(
+			`select c.stock_id, s.ticker, c.day::text, c.open::text, c.high::text, c.low::text, c.close::text, c.prev_close::text ref,
+				public._coin_stock_phase(s.launched_at, c.computed_at) ->> 'phase' phase,
+				(select count(*) from public.coin_stock_halts h where h.stock_id = c.stock_id and h.day = c.day)::int halts
 			 from public.coin_stock_closes c join public.coin_stocks s on s.id = c.stock_id order by s.sort_order, s.ticker, c.day`
 		)
 	).rows;
-	const stocks = [...new Set(rows.map((r) => r.ticker))];
+	const stocks = [...new Set(rows.map((r) => String(r.ticker)))];
 	expect(stocks.length).toBe(5); // the index, two classes, Foundry, GAUNTLET
 	expect(days.length).toBeGreaterThanOrEqual(35);
 	for (const t of stocks) expect(rows.filter((r) => r.ticker === t).length).toBe(days.length);
 
-	const floor = Number(await w.scalar(`select (public._coin_setting('stock_floor') #>> '{}') v`));
-	const ceiling = Number(await w.scalar(`select (public._coin_setting('stock_ceiling') #>> '{}') v`));
-	const hits = rows.filter((r) => Number(r.close) <= floor || Number(r.close) >= ceiling);
-	expect(hits).toEqual([]);
+	// The ramp, tick by tick: never more than the week's cap from the day's reference.
+	const ticks = (
+		await w.db.sql<{ stock_id: string; price: string; ref: string; phase: string; cap: string | null; day: string }>(
+			`select stock_id, price::text, ref_price::text ref, phase, cap_percent::text cap, day::text from public.coin_stock_ticks`
+		)
+	).rows;
+	const moved = (t: { price: string; ref: string }) => (Math.abs(Number(t.price) - Number(t.ref)) / Number(t.ref)) * 100;
+	const ramp = ticks.filter((t) => t.phase === 'ramp');
+	const open = ticks.filter((t) => t.phase === 'open');
+	expect(ramp.length).toBeGreaterThan(20);
+	expect(open.length).toBeGreaterThan(20);
+	expect([...new Set(ramp.map((t) => Number(t.cap)))].sort((a, b) => a - b)).toEqual([5, 10, 15, 25]);
+	for (const t of ramp) expect(moved(t), `${t.stock_id} ${t.day}`).toBeLessThanOrEqual(Number(t.cap) + 0.01);
+	// Positive control: some price pressed against its cap, or the check above
+	// passed over prices that never tried to move that far.
+	expect(ramp.some((t) => Math.abs(moved(t) - Number(t.cap)) < 0.01)).toBe(true);
 
-	// Positive control: the run is not flat. Each stock moved on some day, and
-	// the dry GAUNTLET week carried the price rather than inventing one.
+	// The breakers: after the ramp, a move of 10% from the reference means a
+	// level-1 halt that day, and every halt was earned by its move.
+	const halts = (
+		await w.db.sql<{ stock_id: string; day: string; level: number; move: string }>(
+			`select stock_id, day::text, level, move_percent::text move from public.coin_stock_halts`
+		)
+	).rows;
+	for (const t of open) {
+		if (moved(t) >= 10) expect(halts.some((h) => h.stock_id === t.stock_id && h.day === t.day && h.level === 1), `${t.stock_id} ${t.day}`).toBe(true);
+	}
+	for (const h of halts) expect(Math.abs(Number(h.move))).toBeGreaterThanOrEqual([10, 20, 30][h.level - 1]);
+	expect(ramp.every((t) => !halts.some((h) => h.stock_id === t.stock_id && h.day === t.day))).toBe(true);
+
+	// Positive control: the run is not flat.
 	for (const t of stocks) {
 		const closes = rows.filter((r) => r.ticker === t).map((r) => Number(r.close));
-		expect(Math.max(...closes) - Math.min(...closes)).toBeGreaterThan(0.05);
+		expect(Math.max(...closes) - Math.min(...closes), t).toBeGreaterThan(0.05);
 	}
-	const gauntlet = rows.filter((r) => r.stock_id === 'gauntlet');
-	expect(gauntlet.some((r) => Number(r.signal) === 0 || r.carried)).toBe(true);
 
 	const out = process.env.COIN_BACKTEST_OUT;
 	if (out) {
-		const csv = ['stock,ticker,day,close,signal,median,target,carried,note'];
-		for (const r of rows) {
-			csv.push(
-				[r.stock_id, r.ticker, r.day, r.close, r.signal ?? '', r.median ?? '', r.target ?? '', r.carried, JSON.stringify(r.note ?? '')].join(',')
-			);
-		}
+		const csv = ['stock,ticker,day,close,open,high,low,ref,phase,halts'];
+		for (const r of rows) csv.push([r.stock_id, r.ticker, r.day, r.close, r.open, r.high, r.low, r.ref, r.phase, r.halts].join(','));
 		writeFileSync(out, csv.join('\n') + '\n');
 	}
 });

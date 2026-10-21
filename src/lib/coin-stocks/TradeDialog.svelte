@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { coins } from '$lib/coin-format';
 	import { parseCoinsTyped } from '$lib/coin-market/market';
-	import { price as priceText, sharesFor, type Stock, type StockRules } from './stocks';
+	import { haltWords, price as priceText, sharesFor, type Stock, type StockRules } from './stocks';
 	import type { StockTransports } from './transports';
 
 	/**
-	 * BUY OR SELL ONE STOCK WITH THE HOUSE, at the last close. The preview (the
-	 * fee, the shares) is arithmetic for the eye; the database computes the
-	 * trade and refuses what it must, and its refusal is said here verbatim.
+	 * BUY OR SELL ONE STOCK WITH THE HOUSE, at the current price. The preview
+	 * (the fee, the shares) is arithmetic for the eye; the database computes
+	 * the trade at the price it holds when the trade arrives, refuses what it
+	 * must (a trading pause among them), and its refusal is said here verbatim.
 	 */
 	let {
 		stock,
@@ -55,6 +56,7 @@
 	const room = $derived(Math.max(Math.floor(((rules.position_cap - basis) / (1 - rules.fee_percent / 100)) * 100) / 100, 0));
 	const problem = $derived.by(() => {
 		if (!last) return 'This stock has no price yet.';
+		if (stock.halt) return haltWords(stock.halt);
 		if (side === 'sell' && all) return null;
 		if (amount === null) return side === 'buy' ? `Buy at least ${coins(0.5)}.` : 'Enter the coins to sell, or sell all.';
 		if (side === 'buy') {
@@ -105,7 +107,7 @@
 			<button type="button" class="btn secondary mk-key" onclick={close}>Close</button>
 		</div>
 		<dl class="mk-dl">
-			<dt>Last close</dt>
+			<dt>Price now</dt>
 			<dd class="mk-price">{priceText(last)}</dd>
 			<dt>You own</dt>
 			<dd>{held ? `${held.toFixed(4)} shares, ${coins(heldValue)}` : 'None'}</dd>
@@ -128,7 +130,7 @@
 				{/if}
 			</p>
 		{/if}
-		{#if problem && (amountText || all)}<p class="mk-why" data-testid="sk-trade-problem">{problem}</p>{/if}
+		{#if problem && (amountText || all || stock.halt)}<p class="mk-why" data-testid="sk-trade-problem">{problem}</p>{/if}
 		<div class="mk-row">
 			<button type="button" class="btn mk-key" aria-disabled={problem !== null || busy} onclick={go} data-testid="sk-trade-go">
 				{busy ? 'Working…' : side === 'buy' ? 'Buy' : 'Sell'}

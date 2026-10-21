@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "coin-stocks-halt-1.mjs",
+	"date": "2026-10-21T03:08:09.661Z",
+	"sha": "a2b13e0e55c1695cf3e307d383618b4bef9c285e",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 26,
+	"outsideRows": [],
+	"ms": 10095
+}

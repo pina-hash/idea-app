@@ -1,9 +1,11 @@
 /**
- * THE IDEA STOCK MARKET ON THE CLIENT (ledger 0402, migration 0279): types,
- * parsers, the chart's arithmetic and the words. The prices are the
- * database's; nothing here computes one. `PRICE_FORMULA_WORDS` says the
- * formula in a student's terms, and every number in it is read from the
- * board's own rules, so the sentence cannot drift from the settings.
+ * THE IDEA STOCK MARKET ON THE CLIENT (ledger 0402, migration 0279; formula v2
+ * since the relaunch, 0283): types, parsers, the chart's arithmetic and the
+ * words. The prices are the database's; nothing here computes one. The launch
+ * ramp and the circuit breakers are stated once, in the database
+ * (`_coin_stock_rules`), and arrive on the board as `rules`; every sentence
+ * below reads its numbers from there, and a stock's own `phase` and `halt`
+ * arrive already worked out. Nothing here decides a cap or a halt.
  */
 
 import { personName } from '$lib/person-name';
@@ -11,10 +13,26 @@ import { coins, coinNumber } from '$lib/coin-format';
 
 export type StockKind = 'class' | 'foundry' | 'gauntlet' | 'index';
 
+/** One price change: the series is every change since the launch. */
 export interface StockPoint {
-	day: string;
+	at: string;
 	close: number;
-	carried: boolean;
+}
+
+export interface StockPhase {
+	phase: 'launch' | 'ramp' | 'open';
+	week: number | null;
+	cap_percent: number | null;
+	next_at: string | null;
+	ramp_ends: string | null;
+}
+
+export interface StockHalt {
+	level: number;
+	move_percent: number;
+	started_at: string;
+	until: string;
+	rest_of_day: boolean;
 }
 
 export interface Stock {
@@ -23,7 +41,19 @@ export interface Stock {
 	ticker: string;
 	name: string;
 	active: boolean;
-	last: { day: string; close: number; prev: number | null; carried: boolean; change_percent: number | null } | null;
+	last: {
+		day: string;
+		close: number;
+		prev: number | null;
+		carried: boolean;
+		change_percent: number | null;
+		at: string | null;
+		high: number | null;
+		low: number | null;
+	} | null;
+	launch: { at: string | null; price: number | null } | null;
+	phase: StockPhase | null;
+	halt: StockHalt | null;
 	series: StockPoint[];
 }
 
@@ -46,39 +76,58 @@ export interface Portfolio {
 export interface StockRules {
 	fee_percent: number;
 	position_cap: number;
-	clamp_percent: number;
 	floor: number;
 	ceiling: number;
 	base: number;
-	median_weeks: number;
+	class_window_weeks: number;
+	min_class_students: number;
+	formula_version: string;
+	ramp: { week: number; cap_percent: number }[];
+	halts: { level: number; move_percent: number; minutes: number | null }[];
 }
 
 export interface StocksBoard {
 	in_economy: boolean;
 	balance: number;
 	open_today: boolean;
+	launched_at: string | null;
+	last_tick_at: string | null;
 	rules: StockRules;
 	stocks: Stock[];
 	portfolio: Portfolio;
 	leaderboard: { name: string; value: number; me: boolean }[];
 }
 
-export interface StockClose {
-	day: string;
-	close: number;
-	prev: number | null;
-	target: number | null;
+export interface StockTick {
+	at: string;
+	price: number;
+	raw: number | null;
 	signal: number | null;
-	median: number | null;
+	ref: number | null;
+	phase: string;
+	cap_percent: number | null;
 	carried: boolean;
 	note: string | null;
 	inputs: Record<string, unknown>;
 	formula_version: string;
 }
 
+export interface StockDay {
+	day: string;
+	open: number;
+	high: number;
+	low: number;
+	close: number;
+	prev: number | null;
+	changes: number;
+}
+
 export interface StockDetail {
 	stock: Stock;
-	closes: StockClose[];
+	launch: { at: string | null; price: number | null; anchor_price: number | null; anchor_signal: number | null };
+	days: StockDay[];
+	ticks: StockTick[];
+	halts: { day: string; level: number; move_percent: number; started_at: string; until: string }[];
 	position: { shares: number; cost_basis: number } | null;
 	trades: { at: string; side: 'buy' | 'sell'; shares: number; price: number; gross: number; fee: number; pnl: number }[];
 }
@@ -101,11 +150,33 @@ function arr(v: unknown): unknown[] {
 function s(v: unknown, d = ''): string {
 	return typeof v === 'string' ? v : d;
 }
+function sn(v: unknown): string | null {
+	return typeof v === 'string' && v ? v : null;
+}
+function objs(v: unknown): Record<string, unknown>[] {
+	return arr(v)
+		.map(obj)
+		.filter((x): x is Record<string, unknown> => !!x);
+}
+
+function parsePhase(v: unknown): StockPhase | null {
+	const o = obj(v);
+	if (!o) return null;
+	const phase = o.phase === 'ramp' || o.phase === 'open' ? o.phase : 'launch';
+	return { phase, week: nn(o.week), cap_percent: nn(o.cap_percent), next_at: sn(o.next_at), ramp_ends: sn(o.ramp_ends) };
+}
+
+function parseHalt(v: unknown): StockHalt | null {
+	const o = obj(v);
+	if (!o || typeof o.until !== 'string') return null;
+	return { level: n(o.level, 1), move_percent: n(o.move_percent), started_at: s(o.started_at), until: o.until, rest_of_day: o.rest_of_day === true };
+}
 
 export function parseStock(v: unknown): Stock | null {
 	const o = obj(v);
 	if (!o || typeof o.id !== 'string') return null;
 	const last = obj(o.last);
+	const launch = obj(o.launch);
 	const kind = (['class', 'foundry', 'gauntlet', 'index'].includes(String(o.kind)) ? o.kind : 'class') as StockKind;
 	return {
 		id: o.id,
@@ -119,59 +190,65 @@ export function parseStock(v: unknown): Stock | null {
 					close: n(last.close),
 					prev: nn(last.prev),
 					carried: last.carried === true,
-					change_percent: nn(last.change_percent)
+					change_percent: nn(last.change_percent),
+					at: sn(last.at),
+					high: nn(last.high),
+					low: nn(last.low)
 				}
 			: null,
-		series: arr(o.series)
-			.map(obj)
-			.filter((p): p is Record<string, unknown> => !!p)
-			.map((p) => ({ day: s(p.day), close: n(p.close), carried: p.carried === true }))
+		launch: launch ? { at: sn(launch.at), price: nn(launch.price) } : null,
+		phase: parsePhase(o.phase),
+		halt: parseHalt(o.halt),
+		series: objs(o.series).map((p) => ({ at: s(p.at), close: n(p.close) }))
 	};
 }
 
 export function parsePortfolio(v: unknown): Portfolio {
 	const o = obj(v) ?? {};
 	return {
-		positions: arr(o.positions)
-			.map(obj)
-			.filter((p): p is Record<string, unknown> => !!p)
-			.map((p) => ({
-				stock_id: s(p.stock_id),
-				ticker: s(p.ticker),
-				name: s(p.name),
-				shares: n(p.shares),
-				cost_basis: n(p.cost_basis),
-				price: nn(p.price),
-				value: n(p.value)
-			})),
+		positions: objs(o.positions).map((p) => ({
+			stock_id: s(p.stock_id),
+			ticker: s(p.ticker),
+			name: s(p.name),
+			shares: n(p.shares),
+			cost_basis: n(p.cost_basis),
+			price: nn(p.price),
+			value: n(p.value)
+		})),
 		value: n(o.value),
 		cost_basis: n(o.cost_basis)
+	};
+}
+
+export function parseRules(v: unknown): StockRules {
+	const r = obj(v) ?? {};
+	return {
+		fee_percent: n(r.fee_percent, 2),
+		position_cap: n(r.position_cap, 50),
+		floor: n(r.floor, 1),
+		ceiling: n(r.ceiling, 100),
+		base: n(r.base, 10),
+		class_window_weeks: n(r.class_window_weeks, 4),
+		min_class_students: n(r.min_class_students, 3),
+		formula_version: s(r.formula_version, 'v2'),
+		ramp: objs(r.ramp).map((x) => ({ week: n(x.week), cap_percent: n(x.cap_percent) })),
+		halts: objs(r.halts).map((x) => ({ level: n(x.level), move_percent: n(x.move_percent), minutes: nn(x.minutes) }))
 	};
 }
 
 export function parseStocksBoard(v: unknown): StocksBoard | null {
 	const o = obj(v);
 	if (!o || o.signed_in !== true) return null;
-	const r = obj(o.rules) ?? {};
 	return {
 		in_economy: o.in_economy === true,
 		balance: n(o.balance),
 		open_today: o.open_today === true,
-		rules: {
-			fee_percent: n(r.fee_percent, 2),
-			position_cap: n(r.position_cap, 50),
-			clamp_percent: n(r.clamp_percent, 10),
-			floor: n(r.floor, 1),
-			ceiling: n(r.ceiling, 100),
-			base: n(r.base, 10),
-			median_weeks: n(r.median_weeks, 8)
-		},
+		launched_at: sn(o.launched_at),
+		last_tick_at: sn(o.last_tick_at),
+		rules: parseRules(o.rules),
 		stocks: arr(o.stocks).map(parseStock).filter((x): x is Stock => !!x),
 		portfolio: parsePortfolio(o.portfolio),
-		leaderboard: arr(o.leaderboard)
-			.map(obj)
-			.filter((x): x is Record<string, unknown> => !!x)
-			.map((x) => ({ name: personName(s(x.name, 'A student')), value: n(x.value), me: x.me === true }))
+		leaderboard: objs(o.leaderboard).map((x) => ({ name: personName(s(x.name, 'A student')), value: n(x.value), me: x.me === true }))
 	};
 }
 
@@ -181,36 +258,49 @@ export function parseStockDetail(v: unknown): StockDetail | null {
 	const stock = parseStock(o.stock);
 	if (!stock) return null;
 	const pos = obj(o.position);
+	const launch = obj(o.launch) ?? {};
 	return {
 		stock,
-		closes: arr(o.closes)
-			.map(obj)
-			.filter((c): c is Record<string, unknown> => !!c)
-			.map((c) => ({
-				day: s(c.day),
-				close: n(c.close),
-				prev: nn(c.prev),
-				target: nn(c.target),
-				signal: nn(c.signal),
-				median: nn(c.median),
-				carried: c.carried === true,
-				note: typeof c.note === 'string' ? c.note : null,
-				inputs: obj(c.inputs) ?? {},
-				formula_version: s(c.formula_version, 'v1')
-			})),
+		launch: { at: sn(launch.at), price: nn(launch.price), anchor_price: nn(launch.anchor_price), anchor_signal: nn(launch.anchor_signal) },
+		days: objs(o.days).map((d) => ({
+			day: s(d.day),
+			open: n(d.open),
+			high: n(d.high),
+			low: n(d.low),
+			close: n(d.close),
+			prev: nn(d.prev),
+			changes: n(d.changes)
+		})),
+		ticks: objs(o.ticks).map((t) => ({
+			at: s(t.at),
+			price: n(t.price),
+			raw: nn(t.raw),
+			signal: nn(t.signal),
+			ref: nn(t.ref),
+			phase: s(t.phase),
+			cap_percent: nn(t.cap_percent),
+			carried: t.carried === true,
+			note: typeof t.note === 'string' ? t.note : null,
+			inputs: obj(t.inputs) ?? {},
+			formula_version: s(t.formula_version, 'v2')
+		})),
+		halts: objs(o.halts).map((h) => ({
+			day: s(h.day),
+			level: n(h.level),
+			move_percent: n(h.move_percent),
+			started_at: s(h.started_at),
+			until: s(h.until)
+		})),
 		position: pos ? { shares: n(pos.shares), cost_basis: n(pos.cost_basis) } : null,
-		trades: arr(o.trades)
-			.map(obj)
-			.filter((t): t is Record<string, unknown> => !!t)
-			.map((t) => ({
-				at: s(t.at),
-				side: t.side === 'sell' ? 'sell' : 'buy',
-				shares: n(t.shares),
-				price: n(t.price),
-				gross: n(t.gross),
-				fee: n(t.fee),
-				pnl: n(t.pnl)
-			}))
+		trades: objs(o.trades).map((t) => ({
+			at: s(t.at),
+			side: t.side === 'sell' ? 'sell' : 'buy',
+			shares: n(t.shares),
+			price: n(t.price),
+			gross: n(t.gross),
+			fee: n(t.fee),
+			pnl: n(t.pnl)
+		}))
 	};
 }
 
@@ -221,7 +311,7 @@ export function parseStockDetail(v: unknown): StockDetail | null {
 export interface ChartGeometry {
 	line: string;
 	area: string;
-	points: { x: number; y: number; carried: boolean; day: string; close: number }[];
+	points: { x: number; y: number; at: string; close: number }[];
 	min: number;
 	max: number;
 }
@@ -240,8 +330,7 @@ export function chartGeometry(series: StockPoint[], w: number, h: number, pad = 
 	const points = series.map((p, i) => ({
 		x: Math.round((pad + i * step) * 100) / 100,
 		y: Math.round((pad + (h - pad * 2) * (1 - (p.close - min) / span)) * 100) / 100,
-		carried: p.carried,
-		day: p.day,
+		at: p.at,
 		close: p.close
 	}));
 	const line = points.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
@@ -254,30 +343,98 @@ export function price(v: number | null | undefined): string {
 	return v === null || v === undefined ? '' : v.toFixed(2);
 }
 
+/** A moment as the school reads a clock: "10:45 AM", in Los Angeles. */
+export function clock(iso: string | null | undefined): string {
+	if (!iso) return '';
+	const d = new Date(iso);
+	return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
+}
+
+/** A day as the school reads a calendar: "Oct 21". */
+export function shortDay(iso: string | null | undefined): string {
+	if (!iso) return '';
+	const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+	return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' });
+}
+
 export function changeWords(pct: number | null): { text: string; tone: 'up' | 'down' | 'flat' } {
 	if (pct === null || Math.abs(pct) < 0.005) return { text: 'Unchanged', tone: 'flat' };
 	return pct > 0 ? { text: `Up ${pct.toFixed(2)}%`, tone: 'up' } : { text: `Down ${Math.abs(pct).toFixed(2)}%`, tone: 'down' };
 }
 
 export const KIND_WORDS: Record<StockKind, string> = {
-	index: 'The whole platform: the average of every stock below.',
+	index: 'The whole platform: it moves with the average move of every stock below.',
 	class: "This class's grade ratio on work returned in the last 4 weeks.",
-	foundry: 'People active in the IDEA Foundry each day, averaged over a week.',
-	gauntlet: 'People who submitted a GAUNTLET answer each day, averaged over a week.'
+	foundry: 'People active in the IDEA Foundry each day, over the last 7 days.',
+	gauntlet: 'People who submitted a GAUNTLET answer each day, over the last 7 days.'
 };
 
-/** The formula in words, with the board's own numbers. */
+function list(xs: string[]): string {
+	if (xs.length <= 1) return xs.join('');
+	return `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+}
+
+/** How a price is made, in a student's words. */
 export function priceFormulaWords(r: StockRules): string {
 	return (
-		`Each class day, once it is over, the price is ${coinNumber(r.base)} times today's signal divided by the signal's median over the last ${coinNumber(r.median_weeks)} weeks. ` +
-		`It moves at most ${coinNumber(r.clamp_percent)}% a day and stays between ${coinNumber(r.floor)} and ${coinNumber(r.ceiling)}. ` +
-		`A day with no data keeps the previous price and says so.`
+		`Each price comes straight from what happens on the site and is checked about every minute on class days. ` +
+		`A stock's price is its launch price times its signal now over its signal at the launch, so a signal 10% higher is a price 10% higher. ` +
+		`The IDEA index moves with the average move of the other stocks. When there is no new data, the price holds and the stock's page says why. ` +
+		`Prices stay between ${coinNumber(r.floor)} and ${coinNumber(r.ceiling)}.`
 	);
+}
+
+/** The launch ramp, from the board's own schedule. */
+export function rampWords(r: StockRules): string {
+	if (!r.ramp.length) return '';
+	const steps = r.ramp.map((x) => `${coinNumber(x.cap_percent)}% in week ${x.week}`);
+	return (
+		`For the first ${r.ramp.length} weeks after the launch, a price can move at most ${list(steps)}, ` +
+		`counted from the day's starting price. After that there is no daily limit.`
+	);
+}
+
+/** The circuit breakers, from the board's own schedule. */
+export function haltRulesWords(r: StockRules): string {
+	if (!r.halts.length) return '';
+	const steps = r.halts.map((h, i) => {
+		const len = h.minutes === null ? 'for the rest of the day' : `for ${i ? 'another ' : ''}${coinNumber(h.minutes)} minutes`;
+		return `${coinNumber(h.move_percent)}%${i ? '' : ' pauses it'} ${len}`;
+	});
+	return (
+		`After the launch weeks, a big move pauses trading in that stock, the way a real stock exchange does. ` +
+		`Counted from the day's starting price, a move up or down of ${list(steps)}. ` +
+		`While trading is paused you cannot buy or sell that stock, and its price keeps following the data.`
+	);
+}
+
+/** Where one stock stands: in the launch weeks, or open with breakers. */
+export function phaseWords(p: StockPhase | null): string {
+	if (!p) return '';
+	if (p.phase === 'ramp' && p.week !== null && p.cap_percent !== null) {
+		return `Launch week ${p.week}: moves at most ${coinNumber(p.cap_percent)}% a day.`;
+	}
+	if (p.phase === 'open') return 'No daily limit. A big move pauses trading.';
+	return '';
+}
+
+/** A percentage as a person says it: 11.4, 12, never 11.40. */
+export function percent(v: number): string {
+	return String(Math.round(Math.abs(v) * 100) / 100);
+}
+
+/** A pause in force, in words. */
+export function haltWords(h: StockHalt | null): string {
+	if (!h) return '';
+	const moved = `its price moved ${percent(h.move_percent)}% today`;
+	return h.rest_of_day
+		? `Trading is paused for the rest of the day: ${moved}.`
+		: `Trading is paused until ${clock(h.until)}: ${moved}.`;
 }
 
 export function tradeRulesWords(r: StockRules): string {
 	return (
-		`You trade with the house at the last closing price, on class days only. ` +
+		`You trade with the house at the current price, on class days only. ` +
 		`Each buy and sale costs a ${coinNumber(r.fee_percent)}% fee. At most ${coins(r.position_cap)} in one stock. ` +
 		`No shorting: you can only sell shares you own. Shares are never part of your balance.`
 	);
@@ -287,8 +444,16 @@ export function stockRefusalWords(r: Record<string, unknown> | null | undefined)
 	switch (String(r?.reason ?? '')) {
 		case 'market_closed':
 			return 'The market is closed today. Trades happen on class days.';
+		case 'halted': {
+			const until = typeof r?.until === 'string' ? r.until : null;
+			const moved = nn(r?.move_percent);
+			const why = moved !== null ? ` because its price moved ${percent(moved)}% today` : '';
+			return r?.rest_of_day === true || !until
+				? `Trading in this stock is paused for the rest of the day${why}. Buying and selling open again on the next class day.`
+				: `Trading in this stock is paused until ${clock(until)}${why}. Buying and selling open again then.`;
+		}
 		case 'no_price':
-			return 'This stock has no price yet. Its first close comes after the next class day.';
+			return 'This stock has no price yet. Try again in a minute.';
 		case 'in_debt':
 			return 'You are in debt, so you cannot buy until your balance is back to zero. You can still sell.';
 		case 'insufficient':

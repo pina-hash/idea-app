@@ -4630,6 +4630,9 @@
 		"coin_stocks_board": {
 			"exclude": "The stock market as the signed-in student sees it, with their own portfolio; it acts as the caller."
 		},
+		"coin_stocks_tick": {
+			"exclude": "Asks for the minute price update the stocks page makes on load; it throttles itself and answers counts only, so there is nothing for an admin to do with it."
+		},
 		"connector_call": {
 			"exclude": "The connector's own transport; every connector write goes through it, so it is never a tool of its own."
 		},
@@ -9987,6 +9990,7 @@
 		"coin_public_transfers": "coin.yaml",
 		"coin_stock_detail": "coin.yaml",
 		"coin_stocks_board": "coin.yaml",
+		"coin_stocks_tick": "coin.yaml",
 		"connector_call": "connector.yaml",
 		"connector_audit_failure": "connector.yaml",
 		"connector_admin_state": "connector.yaml",

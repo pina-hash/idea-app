@@ -45,15 +45,14 @@ export const LATER_GROUPS: SettingGroup[] = [
 	{
 		id: 'stocks',
 		title: 'Stocks',
-		intro: 'Each price is the base times the signal over its median, moved at most the daily limit, between the floor and the ceiling.',
+		intro:
+			'Each price is its launch price times its signal now over its signal at the launch, checked about every minute on class days, between the floor and the ceiling. The launch weeks\' daily limits and the trading pauses after them are fixed rules, shown on the stocks page.',
 		fields: [
 			{ key: 'stock_fee_percent', label: 'Trading fee (%)', help: 'From 0 to 50, each way.', kind: 'number', min: 0, max: 50 },
 			{ key: 'stock_position_cap', label: 'Most coins in one stock', help: 'Cost basis, from 0 to 100000.', kind: 'number', min: 0, max: 100000 },
-			{ key: 'stock_base', label: 'Base price', help: 'From 0.01 to 1000.', kind: 'number', min: 0.01, max: 1000 },
-			{ key: 'stock_clamp_percent', label: 'Most a price moves in a day (%)', help: 'From 1 to 100.', kind: 'number', min: 1, max: 100 },
+			{ key: 'stock_base', label: 'Starting price of a new stock', help: 'From 0.01 to 1000. A new class stock launches at this price.', kind: 'number', min: 0.01, max: 1000 },
 			{ key: 'stock_floor', label: 'Floor', help: 'From 0.01 to 1000.', kind: 'number', min: 0.01, max: 1000 },
 			{ key: 'stock_ceiling', label: 'Ceiling', help: 'From 1 to 100000.', kind: 'number', min: 1, max: 100000 },
-			{ key: 'stock_median_weeks', label: 'Median window (weeks)', help: 'A whole number from 1 to 52.', kind: 'int', min: 1, max: 52 },
 			{ key: 'stock_class_window_weeks', label: 'Class stock window (weeks)', help: 'A whole number from 1 to 20.', kind: 'int', min: 1, max: 20 },
 			{ key: 'stock_min_class_students', label: 'Fewest students for a class price', help: 'A whole number from 1 to 50.', kind: 'int', min: 1, max: 50 }
 		]

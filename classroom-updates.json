@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-10-21",
+			"title": "IDEA Stocks has relaunched",
+			"body": "IDEA Stocks (ideabosco.com/market/stocks) started over today. Each stock's price today is its new launch price, and every chart starts from here: the old history is gone. If you own shares, you still own exactly the same shares, worth the same as before; nothing was refunded. From now on prices come only from what really happens on the site and update about every minute on class days. For the first four weeks a price can only move so far in a day: 5% in week 1, 10% in week 2, 15% in week 3 and 25% in week 4. After that there is no daily limit, but a big move pauses trading in that stock, like a real stock exchange: a move of 10% from the day's starting price pauses buying and selling for 15 minutes, 20% for another 15 minutes, and 30% for the rest of the day. The stock's card tells you when trading opens again.",
+			"tags": ["Coins"]
+		},
+		{
 			"date": "2026-10-19",
 			"title": "Clearer banners, a friendlier missing page, and falling code you control",
 			"body": "A post with no picture now shows its kind and title on its banner, and an animated GIF you upload as a banner keeps moving instead of turning into a still picture. If your computer is set to reduce motion, animated banners show their first frame. A page that does not exist now looks like the rest of the site and gives you a way back to your class. On the Matrix theme, your profile menu has a Falling code switch: follow your computer's motion setting, or always move.",
