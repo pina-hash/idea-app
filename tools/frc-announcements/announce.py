@@ -115,18 +115,18 @@ a{color:inherit;text-decoration:none}
 .hero{position:absolute;left:.75in;top:1.4in;font-size:54pt;font-weight:700;color:#FFE629;line-height:.88;letter-spacing:-.025em}
 .hero span{color:#fff}
 .robot{position:absolute;display:block}
-.co{position:absolute;font-family:SM;font-weight:700;font-size:8.5pt;letter-spacing:.14em;color:#FFE629;white-space:nowrap}
-.co i{display:block;font-style:normal;color:#C9CCCF;font-size:7.5pt;letter-spacing:.08em}
+.co{position:absolute;font-family:SM;font-weight:700;font-size:9.5pt;letter-spacing:.12em;color:#FFE629;white-space:nowrap}
+.co i{display:block;font-style:normal;color:#C9CCCF;font-size:9pt;letter-spacing:.06em}
 svg.lines{position:absolute;left:0;top:0;width:8.5in;height:11in}
 .when{position:absolute;left:.75in;right:.55in;display:flex;border:2px solid #FFE629}
 .when div{padding:.1in .16in;font-weight:700;font-size:14pt;line-height:1.1;border-right:2px solid #FFE629}
 .when div:last-child{border-right:0}
-.when div small{display:block;font-family:SM;font-size:8pt;letter-spacing:.18em;color:#94989C;margin-bottom:.03in}
+.when div small{display:block;font-family:SM;font-size:9pt;letter-spacing:.18em;color:#94989C;margin-bottom:.03in}
 .when .d{background:#FFE629;color:#000}
 .when .d small{color:#000}
 .ctx{position:absolute;left:.75in;font-weight:500;font-size:10pt;line-height:1.35;color:#FFFFFF}
-.ctx b{display:block;font-family:SM;font-weight:700;font-size:8.5pt;letter-spacing:.18em;color:#FFE629;margin-bottom:.04in}
-.stamp{position:absolute;left:.75in;right:.55in;display:flex;align-items:center;gap:.14in;font-family:SM;font-weight:700;font-size:8.5pt;letter-spacing:.08em;color:#fff;line-height:1.4}
+.ctx b{display:block;font-family:SM;font-weight:700;font-size:9pt;letter-spacing:.18em;color:#FFE629;margin-bottom:.04in}
+.stamp{position:absolute;left:.75in;right:.55in;display:flex;align-items:center;gap:.14in;font-family:SM;font-weight:700;font-size:9pt;letter-spacing:.06em;color:#fff;line-height:1.4}
 .stamp b{background:#FFE629;color:#000;padding:.04in .1in;white-space:nowrap}
 .body{position:absolute;left:.75in;right:.55in}
 .lede{font-weight:500;font-size:14.5pt;line-height:1.32}
@@ -136,7 +136,7 @@ svg.lines{position:absolute;left:0;top:0;width:8.5in;height:11in}
 .grid{display:grid;gap:.1in}
 .cell{border:2px solid #2E3035;background:#0C0D0F;padding:.1in .15in}
 .cell.hot{border-color:#FFE629}
-.cell .d{font-family:SM;font-weight:700;font-size:8.5pt;letter-spacing:.16em;color:#94989C}
+.cell .d{font-family:SM;font-weight:700;font-size:9pt;letter-spacing:.16em;color:#94989C}
 .cell.hot .d{color:#FFE629}
 .cell .t{font-weight:700;font-size:13.5pt;margin-top:.03in;line-height:1.1}
 .cell .s{font-weight:500;font-size:10pt;color:#B9BCC0;margin-top:.03in;line-height:1.3}
@@ -148,7 +148,7 @@ svg.lines{position:absolute;left:0;top:0;width:8.5in;height:11in}
 .jt{font-weight:700;font-size:30pt;line-height:.92;letter-spacing:-.02em}
 .js{font-weight:500;font-size:11.5pt;margin-top:.1in;line-height:1.3}
 .btn{display:inline-block;margin-top:.12in;background:#000;color:#FFE629;font-weight:700;font-size:14pt;padding:.12in .22in}
-.btn small{display:block;font-family:SM;font-size:8pt;letter-spacing:.12em;color:#94989C;margin-top:.03in;font-weight:700}
+.btn small{display:block;font-family:SM;font-size:9pt;letter-spacing:.12em;color:#94989C;margin-top:.03in;font-weight:700}
 .haz{position:absolute;left:0;bottom:0;width:8.5in;height:.2in;display:block}
 '''
 
@@ -164,7 +164,7 @@ def robot(x, y, w, callouts=True):
     # (label, sub, point as fraction of image, label anchor)
     # Each callout: label, sub, dot (fraction of image), label box (inches from robot box), width, align.
     pts = [("WIRED AND CODED", "BY STUDENTS", .44, .13, (.05, -.62), 1.45, "left"),
-           ("PRECISION METAL PARTS", "DESIGNED AND MADE BY STUDENTS", .80, .40, (w - 2.1, -.3), 2.1, "right"),
+           ("PRECISION METAL PARTS", "MACHINED BY STUDENTS", .80, .40, (w - 2.3, -.3), 2.1, "right"),
            ("EVEN THE BUMPERS", "MADE BY STUDENTS", .60, .84, (.12, h + .2), 1.4, "left")]
     lines, labels = [], []
     for name, sub, fx, fy, (ox, oy), lw, align in pts:
@@ -230,8 +230,8 @@ WEEK = '''<div class=grid style="grid-template-columns:repeat(4,1fr)">
 
 FRI_CELLS = '''<div class=grid style="grid-template-columns:repeat(3,1fr)">
 <div class="cell hot"><div class=d>TODAY · 3:10 PM</div><div class=t>Team meeting</div><div class=s>IDEA Classroom. Mandatory. Then build.</div></div>
-<div class=cell><div class=d>TODAY · 4:30-6 PM</div><div class=t>Coach kids' robotics</div><div class=s>Kids' LEGO robotics teams.</div></div>
-<div class=cell><div class=d>{sat} · 9 - 11 AM</div><div class=t>Coach kids' robotics</div><div class=s>Kids' LEGO robotics teams.</div></div></div>'''
+<div class=cell><div class=d>TODAY · 4:30-6 PM</div><div class=t>Coach kids' robotics</div><div class=s>Our kids' LEGO robotics teams.</div></div>
+<div class=cell><div class=d>{sat} · 9 - 11 AM</div><div class=t>Coach kids' robotics</div><div class=s>Same teams, Saturday session.</div></div></div>'''
 
 
 FRI_TIME = "3:10 to 3:25 PM"  # Friday meeting, stated 2026-10-21
@@ -256,14 +256,14 @@ def flyer_html(air, c):
             hero = '<div class=hero>BEACH<br>BLITZ<br><span>TODAY.</span></div>'
             third = ("", "THROUGH", "Sunday, Nov 1")
         body = (hero + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
-                + when([("d", "DATE", long_date(air)), ("", "WHERE" if c["kind"] == "FRI_BB0" else "MEETING", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else FRI_TIME + ", IDEA Classroom"), third], 4.5)
+                + when([("d", "DATE", long_date(air)), ("", "WHERE" if c["kind"] == "FRI_BB0" else "MANDATORY MEETING", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else FRI_TIME + ", IDEA Classroom"), third], 4.5)
                 + '<div class=body style="top:5.25in"><div class=lede>Our next robotics competition. <b>Every hour before it counts.</b></div>'
                 + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat)
-                + '<div class=k>GOING TO BEACH BLITZ?</div><div class=cell><div class=t>Family sign-up is required to attend.</div>'
+                + '<div class=k>BEACH BLITZ · EVERY MEMBER, EVERY DAY</div><div class=cell><div class=t>Your family&rsquo;s sign-up is required to attend.</div>'
                   '<div class=s>No school transportation. Families carpool from the Bosco Tech front lot. See Mr. Pina.</div></div></div>')
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>BEACH BLITZ</b>', body)
     body = ('<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>' + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
-            + when([("d", "DATE", long_date(air)), ("", "MEETING", FRI_TIME), ("", "PLACE", "IDEA Classroom")], 4.5)
+            + when([("d", "DATE", long_date(air)), ("", "MANDATORY MEETING", FRI_TIME), ("", "PLACE", "IDEA Classroom")], 4.5)
             + '<div class=body style="top:5.25in"><div class=lede>Mandatory for every member. Recap the week, set weekend plans, then build. <b>New students welcome.</b></div>'
             + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat) + '</div>' + STAMP.format(top=7.6))
     return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
