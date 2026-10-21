@@ -1,8 +1,8 @@
 ---
-title: "Ledger 0423: IDEA Armory 0.4.0 -- field fixes from the Oct 8 to Oct 21 notes and incidents, Velopack auto-update, SolidWorks years warned not blocked (migration 0288)"
+title: "Ledger 0423: IDEA Armory 0.4.0 -- field fixes from the Oct 8 to Oct 21 notes and incidents, Velopack auto-update, SolidWorks years warned not blocked (migration 0293)"
 date: 2026-10-21
 branches: [main]
-migrations: ["0288"]
+migrations: ["0293"]
 subsystems: [Armory, Migrations]
 ---
 
@@ -26,10 +26,10 @@ summaries, the notes' logs, and the code.
 | 4 Locked files (repeatedFailure 0063246e, 54c9e3c4, 3cdc2ff5) | d449ed5 | Broken: a sharing violation was a red CantRead notice, a FileFailed in the flight, and after three a repeatedFailure incident; a new file held by SolidWorks (Save As) was red too. | Sharing/lock violations (32/33) are a "lockWait" information notice, never FileFailed; the Windows scan reports held paths; a pass runs again 3 s later. Save As of a new file from a template not checked out is the official route and is tested. |
 | 5 Slow passes | 28ddc41 | Nothing ever ended a stalled loop pass; download slices of ~60 s were reported as slow. The incidents' flights (phase timings) could not be read, so the stalling step is not named. | A pass watch: every step marks progress; a loop pass with none for 2 min is canceled and restarted, the log and flight saying the phase and step; a watch gap over 45 s is the computer asleep or the process paused, recorded as a power event (never a slow pass). A pass that moved files is slow only past 180 s. |
 | 6 Auto-update | 95ba277 | No updater in any version. | Velopack 1.2.161 (MIT). IDEAArmory-win-Setup.exe installs per user; the app reads releases/latest/download/releases.win.json (never the rate-limited API) a minute after start and every 4 h, downloads, applies at quit or next start. Old-style installs of 0.4.0+ move themselves onto it; the install hook retires %LOCALAPPDATA%\Programs\IDEA Armory. 0.3.x needs 0.4.0 installed once by hand. Release workflow packs, installs, checks and uninstalls it on Windows. README "Publishing a release". Version 0.4.0. |
-| 7 SolidWorks years | f3e493d, c2d9d69 | A newer year was refused in both modes (0.3.3 decision A3) and the server raised 22023. | Never blocked: Core allows it (NewerThanPin), migration 0288 records it, every computer shows one card per file with "This is on purpose" (silences that file). "Keep this file on this computer only" still keeps it (FileState.KeptHereHash). docs/agent/decisions-0.4.0.md. |
+| 7 SolidWorks years | f3e493d, c2d9d69 | A newer year was refused in both modes (0.3.3 decision A3) and the server raised 22023. | Never blocked: Core allows it (NewerThanPin), migration 0293 records it, every computer shows one card per file with "This is on purpose" (silences that file). "Keep this file on this computer only" still keeps it (FileState.KeptHereHash). docs/agent/decisions-0.4.0.md. |
 | 8 Quality of life | (in aa7add1) | Tooltips (750 ms), "Finished" only when nothing remains, continuous downloads, instant clicks, fast theme switch, running lines: all already done in 0.3.3 and still green (check-ui, RunningLineTests, ContinuousTransferTests, LargeVaultResponsivenessTests). Layout jumping: broken. Instructor override: Force check in exists; leads rename/move over check outs only by force checking in first. | The layout no longer jumps (task 2). Not built: organizing over someone's check out without force checking it in (see below). |
 
-idea-app: migration `supabase/migrations/0288_armory_newer_release_uploads.sql` and
+idea-app: migration `supabase/migrations/0293_armory_newer_release_uploads.sql` and
 `tests/db/armory-newer-release.test.ts` (9 tests, deployed refusal measured first, re-apply
 idempotent, grants; a mutant that still refuses a newer year fails 3 of them). Undo: re-run the
 0231 body of `armory_check_release`.
@@ -47,18 +47,18 @@ idempotent, grants; a mutant that still refuses a newer year fails 3 of them). U
 
 idea-app full suite on 2026-10-21, rebased on aaa90564: 16,446 of 16,447 pass; the one failure,
 `tests/notebook-text-only-entry.test.ts` (a section grid cell), fails the same on untouched
-origin/main. 0288 joined the Armory series list (`tests/db/armory-proposed.ts`) and
+origin/main. 0293 joined the Armory series list (`tests/db/armory-proposed.ts`) and
 `npm run connector:build` regenerated `schema.generated.json`.
 
 Measured here (Linux, .NET 10.0.402, PostgreSQL 16): the whole idea-armory suite green, 1,345 passing
 tests across 12 projects, with one load-only flake (ProfilesHostTests' add-a-student test timed
 out at 1 min under the whole suite and passes alone and with its project); check-ui PASS (312
-pages) and bbox-diff 0 differing; the 0288 db test green.
+pages) and bbox-diff 0 differing; the 0293 db test green.
 
 Not verified: anything Windows-only (the Windows platform tests skip here; Velopack install,
 update and the legacy retirement; reading Windows event logs; the held-file flag from the real
 scanner), the real Supabase Realtime server's close and refusal frames (a scripted socket stands
-in), and the live database (0288 not applied).
+in), and the live database (0293 not applied).
 
 ## Not built, and why
 
@@ -73,6 +73,6 @@ in), and the live database (0288 not applied).
 ## How to ship
 
 1. A session with push access applies the patches, rebases, runs the checks and pushes
-   idea-armory to main, then idea-app (0288 applies through migrate.yml; renumber if 0422 took it).
+   idea-armory to main, then idea-app (0293 applies through migrate.yml; renumber if 0422 took it).
 2. Mr. Pina publishes v0.4.0 (README, "Publishing a release").
 3. Once, on each computer still on 0.3.x: run IDEAArmory-win-Setup.exe.

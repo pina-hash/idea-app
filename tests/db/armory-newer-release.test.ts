@@ -1,11 +1,11 @@
 // tests/db/armory-newer-release.test.ts
 //
-// MIGRATION 0288: a SolidWorks file saved in a newer release than its project
+// MIGRATION 0293: a SolidWorks file saved in a newer release than its project
 // uses is recorded, never refused (ledger 0423, Mr. Pina 2026-10-21: "Never
-// block"). The chain is every migration before 0288, read off disk behind the
+// block"). The chain is every migration before 0293, read off disk behind the
 // fixture completion (the database production holds before the apply); the
 // project, member, device, files and lock are written through the REAL
-// 0231 to 0236 RPCs; the deployed refusal is measured first, then 0288 goes on
+// 0231 to 0236 RPCs; the deployed refusal is measured first, then 0293 goes on
 // top and the same calls run again.
 //
 // What a wrong answer here would look like, and why each is silent:
@@ -31,11 +31,11 @@ const FIXTURE_COMPLETION = '../../tests/db/full-chain-fixture-completion.sql';
 const ALL = readdirSync(MIGRATIONS_DIR)
 	.filter((f) => /^\d{4}_.*\.sql$/.test(f))
 	.sort();
-const FILES_0288 = ALL.filter((f) => f.startsWith('0288_'));
-if (FILES_0288.length !== 1) throw new Error(`expected exactly one 0288 migration, found ${FILES_0288.length}`);
-const PRE_0288 = [FIXTURE_COMPLETION, ...ALL.filter((f) => f < '0288')];
+const FILES_0293 = ALL.filter((f) => f.startsWith('0293_'));
+if (FILES_0293.length !== 1) throw new Error(`expected exactly one 0293 migration, found ${FILES_0293.length}`);
+const PRE_0293 = [FIXTURE_COMPLETION, ...ALL.filter((f) => f < '0293')];
 /** Read once when the suite loads, so a mutation run reads the mutant. */
-const SQL_0288 = readFileSync(join(MIGRATIONS_DIR, FILES_0288[0]), 'utf8');
+const SQL_0293 = readFileSync(join(MIGRATIONS_DIR, FILES_0293[0]), 'utf8');
 
 /** The refusal texts, written out: a test whose expected value comes from the function cannot fail. */
 const NEWER_REFUSED = 'SolidWorks 2026 cannot upload to a vault pinned to 2025. Keep this private draft or save to 2025.';
@@ -67,7 +67,7 @@ const releaseOf = async (version: string) =>
 	).rows[0];
 
 beforeAll(async () => {
-	db = await startTestDb(PRE_0288);
+	db = await startTestDb(PRE_0293);
 	api = armoryRpc(db);
 	admin = await person(db, 'apina@boscotech.edu', 'Mr. Pina');
 	ana = await person(db, 'ana.reyes@boscotech.net', 'Ana Reyes');
@@ -86,27 +86,27 @@ beforeAll(async () => {
 	sideRefusedBefore = await api.fails(ana, SIDE, [part, null, key(hash('b')), hash('b'), 50, dev, randomUUID(), 2026]);
 
 	preFingerprint = await catalogFingerprint(db);
-	await db.sql(SQL_0288);
+	await db.sql(SQL_0293);
 }, 900_000);
 
 afterAll(async () => {
 	await db?.stop();
 });
 
-describe('0288 as a file', () => {
+describe('0293 as a file', () => {
 	test('it passes the apply tool scan and the paste trap; the planted controls do not', () => {
-		const scan = scanFile(SQL_0288);
+		const scan = scanFile(SQL_0293);
 		expect(scan.findings).toEqual([]);
 		expect(scan.selfManagedTransaction).toBe(false);
 		expect(scanFile("insert into public.armory_projects (name) values ('x');").findings).toHaveLength(1);
-		expect(pasteTrap(SQL_0288)).toEqual([]);
+		expect(pasteTrap(SQL_0293)).toEqual([]);
 		expect(pasteTrap('select 1; -- a $ here')).toHaveLength(1);
 	});
 
 	test('the first object it creates is new in this file, so the deploy probe can see it applied', () => {
-		const first = /\bcreate\s+(?:or\s+replace\s+)?(?:function|table|policy|index)\s+([\w.]+)/i.exec(SQL_0288);
+		const first = /\bcreate\s+(?:or\s+replace\s+)?(?:function|table|policy|index)\s+([\w.]+)/i.exec(SQL_0293);
 		expect(first?.[1]).toBe('public._armory_release_is_newer');
-		const earlier = ALL.filter((x) => x < '0288').map((x) => readFileSync(join(MIGRATIONS_DIR, x), 'utf8'));
+		const earlier = ALL.filter((x) => x < '0293').map((x) => readFileSync(join(MIGRATIONS_DIR, x), 'utf8'));
 		expect(earlier.some((t) => t.includes('_armory_release_is_newer'))).toBe(false);
 		// Positive control: the same scan finds a name an earlier file does carry.
 		expect(earlier.some((t) => t.includes('armory_check_release'))).toBe(true);
@@ -115,7 +115,7 @@ describe('0288 as a file', () => {
 	test('a second paste changes no catalog object, and the first changed something', async () => {
 		const after = await catalogFingerprint(db);
 		expect(after).not.toEqual(preFingerprint);
-		await db.sql(SQL_0288);
+		await db.sql(SQL_0293);
 		expect(await catalogFingerprint(db)).toEqual(after);
 	});
 });
@@ -127,7 +127,7 @@ describe('the deployed refusal, measured before the apply', () => {
 	});
 });
 
-describe('after 0288', () => {
+describe('after 0293', () => {
 	test('a 2026 save is committed and its release recorded as checked', async () => {
 		const v = await commit(part, null, hash('c'), 2026);
 		expect(v.advanced).toBe(true);
