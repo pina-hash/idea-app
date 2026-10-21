@@ -1277,7 +1277,8 @@ rotation, where the class must execute a seven-class timeline on command.
   assignment from the second the step starts. Key only what is new or easy to get wrong (a
   new tool, a rule, a choice with a wrong answer); never at 0:00, which repeats the card;
   never a step the class already knows (Edit Sketch, Extrude). 29 keys on IDEA-Blade 01
-  was too many; 15, at most five a role, was the fix (Mr. Pina, "too many timestamps"). The steps are
+  was too many (Mr. Pina, "too many timestamps"); with eight videos it settled at 20, two to
+  five per role on any one day. An independent audit counts them per role in List view. The steps are
   rewritten from the transcript in the video's order and button names (section 18), so the
   text and the key say the same thing. One video record per recording; a later move that
   reuses its tail (the DXF at the end of the blade video) points at the same id with its own
