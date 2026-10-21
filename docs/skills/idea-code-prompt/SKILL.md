@@ -64,17 +64,17 @@ The first line INSIDE the block is `Before doing anything else` (or `This is a R
 - Large code or data goes as an attached file, not pasted inline.
 - Website work ships complete and refined, never bare minimum. Visual work names the idea-design skill.
 
-## 6. Delivery: he pastes it, or the chat starts it
+## 6. Delivery: the chat starts the session
 
-Mr. Pina, 2026-10-19 (10:34 PT): each time, either he copies and pastes the prompt, or the chat starts the session itself; he says which for that request. If he has not said, give him the prompt to paste and offer in one line to start it. He wants fewer, larger sessions: merge work into as few sessions as the file surfaces allow, and shrink a repo's rules file first when it is large, because every session reads it.
+Mr. Pina, 2026-10-20: chats start Claude Code sessions themselves, as one-time scheduled tasks, rather than handing him prompts to paste. This replaces the 2026-10-19 rule (he pasted the prompt or said which way each time). Interrupt him only for decisions that are his. He wants fewer, larger sessions: merge work into as few sessions as the file surfaces allow, and shrink a repo's rules file first when it is large, because every session reads it.
 
 To start a session from the chat:
 
 1. Push the session's context to `main` first: a `docs/feedback/<date>/QUEUE.md` (or similar) with every item word for word, its ids and route, his answers from the chat, and every screenshot as a file beside it. A session must never need the chat to understand its task.
-2. `create_trigger` with `prompt: "/effort <effort>"`, `initiation: human_request`, `name: "<ledger> <short title> (<model> <effort>)"`.
+2. `create_trigger` with `prompt: "/effort <effort>"`, `initiation: human_request`, `name: "<ledger> <short title> (<model> <effort>)"`, and neither `cron_expression` nor `run_once_at`, so it runs only when step 4 fires it, once (a schedule as well would start a second run).
 3. `update_trigger` with `model:` the exact id from `docs/dispatch/models.json`.
 4. `fire_trigger` with `text`: "Do the work yourself in this session, in the open; do not hand the whole job to one subagent." then the full prompt.
 5. Give him the session link: `session_id` `cse_<x>` is `https://claude.ai/code/session_<x>`. Never delete a session's scheduled task: that deletes the session.
 6. Run at most three at once, never two whose files or database overlap. Sessions in other repos may run alongside.
 
-To hand him a prompt, give the routing header and the prompt in one code block, ready to paste. Before writing, check `main` for anything already running or landed on the same files, and name any overlap in one line.
+If a chat cannot start a session (no scheduled-task tools there), say so in one line and give him the routing header and the prompt in one code block, ready to paste. Before writing, check `main` for anything already running or landed on the same files, and name any overlap in one line.
