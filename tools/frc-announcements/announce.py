@@ -229,9 +229,12 @@ WEEK = '''<div class=grid style="grid-template-columns:repeat(4,1fr)">
 <div class=cell><div class=d>SATURDAY</div><div class=t>Coach kids</div><div class=s>Robotics, 9:00 to 11:00 AM.</div></div></div>'''
 
 FRI_CELLS = '''<div class=grid style="grid-template-columns:repeat(3,1fr)">
-<div class="cell hot"><div class=d>TODAY · AFTER SCHOOL</div><div class=t>Team meeting</div><div class=s>IDEA Classroom. Mandatory. Then build.</div></div>
+<div class="cell hot"><div class=d>TODAY · 3:10 PM</div><div class=t>Team meeting</div><div class=s>IDEA Classroom. Mandatory. Then build.</div></div>
 <div class=cell><div class=d>TODAY · 4:30-6 PM</div><div class=t>Coach kids' robotics</div><div class=s>Kids' LEGO robotics teams.</div></div>
 <div class=cell><div class=d>{sat} · 9 - 11 AM</div><div class=t>Coach kids' robotics</div><div class=s>Kids' LEGO robotics teams.</div></div></div>'''
+
+
+FRI_TIME = "3:10 to 3:25 PM"  # Friday meeting, stated 2026-10-21
 
 
 def flyer_html(air, c):
@@ -253,14 +256,14 @@ def flyer_html(air, c):
             hero = '<div class=hero>BEACH<br>BLITZ<br><span>TODAY.</span></div>'
             third = ("", "THROUGH", "Sunday, Nov 1")
         body = (hero + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
-                + when([("d", "DATE", long_date(air)), ("", "WHERE" if c["kind"] == "FRI_BB0" else "MEETING", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else "After school, IDEA Classroom"), third], 4.5)
+                + when([("d", "DATE", long_date(air)), ("", "WHERE" if c["kind"] == "FRI_BB0" else "MEETING", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else FRI_TIME + ", IDEA Classroom"), third], 4.5)
                 + '<div class=body style="top:5.25in"><div class=lede>Our next robotics competition. <b>Every hour before it counts.</b></div>'
                 + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat)
                 + '<div class=k>GOING TO BEACH BLITZ?</div><div class=cell><div class=t>Family sign-up is required to attend.</div>'
                   '<div class=s>No school transportation. Families carpool from the Bosco Tech front lot. See Mr. Pina.</div></div></div>')
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>BEACH BLITZ</b>', body)
     body = ('<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>' + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
-            + when([("d", "DATE", long_date(air)), ("", "MEETING", "Right after school"), ("", "PLACE", "IDEA Classroom")], 4.5)
+            + when([("d", "DATE", long_date(air)), ("", "MEETING", FRI_TIME), ("", "PLACE", "IDEA Classroom")], 4.5)
             + '<div class=body style="top:5.25in"><div class=lede>Mandatory for every member. Recap the week, set weekend plans, then build. <b>New students welcome.</b></div>'
             + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat) + '</div>' + STAMP.format(top=7.6))
     return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
