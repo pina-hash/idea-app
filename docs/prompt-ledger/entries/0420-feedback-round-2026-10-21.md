@@ -1,4 +1,4 @@
-# Feedback round 2026-10-21: stocks relaunch, HTML assignments, notices, coins for everyone
+# 0420 Feedback round 2026-10-21: stocks relaunch, HTML assignments, notices, coins for everyone
 
 - Issued: 2026-10-21
 - By: Mr. Pina, a numbered list in one session (reports 79e16faa, fbe274c3, 8812b4ba, 7ec59920, 18451adf and others)
