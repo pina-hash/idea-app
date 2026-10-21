@@ -96,7 +96,7 @@ export interface HtmlAssignmentData {
 	manifest: unknown;
 	filename: string;
 	updatedAt: string | null;
-	/** 0283: whether the post title shows above the document. Absent before the column exists, which reads as hidden. */
+	/** 0284: whether the post title shows above the document. Absent before the column exists, which reads as hidden. */
 	showTitle?: boolean;
 }
 

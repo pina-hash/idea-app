@@ -1,4 +1,4 @@
--- 0283_html_assignment_show_title.sql
+-- 0284_html_assignment_show_title.sql
 --
 -- Feedback 8812b4ba. A ported HTML assignment repeats its own title inside the
 -- document, so the post's title banner above it is a duplicate. The page now
@@ -23,10 +23,10 @@
 do $pre$
 begin
 	if to_regclass('public.classroom_html_assignments') is null then
-		raise exception '0283 cannot apply: classroom_html_assignments does not exist. Apply 0195 first.';
+		raise exception '0284 cannot apply: classroom_html_assignments does not exist. Apply 0195 first.';
 	end if;
 	if to_regprocedure('public._classroom_manages_item(uuid)') is null then
-		raise exception '0283 cannot apply: _classroom_manages_item(uuid) does not exist. Apply 0085 first.';
+		raise exception '0284 cannot apply: _classroom_manages_item(uuid) does not exist. Apply 0085 first.';
 	end if;
 end
 $pre$;
@@ -78,12 +78,12 @@ begin
 	if not exists (select 1 from information_schema.columns
 		where table_schema = 'public' and table_name = 'classroom_html_assignments'
 			and column_name = 'show_title') then
-		raise exception '0283 self-check failed: show_title column is missing.';
+		raise exception '0284 self-check failed: show_title column is missing.';
 	end if;
 	if has_function_privilege('anon', 'public.classroom_html_set_show_title(uuid, boolean)', 'execute') then
-		raise exception '0283 self-check failed: anon can execute classroom_html_set_show_title.';
+		raise exception '0284 self-check failed: anon can execute classroom_html_set_show_title.';
 	end if;
-	raise notice '0283: % HTML assignment rows, all default to title hidden',
+	raise notice '0284: % HTML assignment rows, all default to title hidden',
 		(select count(*) from public.classroom_html_assignments);
 end
 $post$;

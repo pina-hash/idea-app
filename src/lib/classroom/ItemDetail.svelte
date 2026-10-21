@@ -800,7 +800,7 @@
 	const showUpdated = $derived(!seen && isUpdatedForViewer(item));
 
 	/**
-	 * THE POST TITLE ABOVE A PORTED HTML ASSIGNMENT (0283). Hidden unless the
+	 * THE POST TITLE ABOVE A PORTED HTML ASSIGNMENT (0284). Hidden unless the
 	 * author switched it on; every other kind of item always shows its title.
 	 * `titleOverride` is the switch's own answer until the page reloads.
 	 */
@@ -2166,7 +2166,7 @@
 		</div>
 		<!-- A PORTED HTML ASSIGNMENT CARRIES ITS OWN TITLE INSIDE THE DOCUMENT, so the
 		     post title is hidden by default and a per-post switch brings it back
-		     (0283). The heading stays in the page for screen readers and for the
+		     (0284). The heading stays in the page for screen readers and for the
 		     document outline either way. -->
 		<h1 class:sr-title={!titleShown}>{itemTitle(item)}</h1>
 		<p class="meta-line">

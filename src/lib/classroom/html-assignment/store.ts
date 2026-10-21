@@ -224,7 +224,7 @@ export interface HtmlAssignmentTransports {
 	 * season hands the transport to an admin and to nobody else.
 	 */
 	setHtmlAssignment: SetHtmlAssignment | null;
-	/** 0283: show or hide the post title above the document. Absent removes the switch. */
+	/** 0284: show or hide the post title above the document. Absent removes the switch. */
 	setShowTitle?: ((itemId: string, show: boolean) => Promise<{ ok: boolean; message?: string }>) | null;
 	/**
 	 * THE RUBRIC WRITE, and it is `classroom_set_rubric` -- the SAME RPC a spec's

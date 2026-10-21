@@ -109,7 +109,7 @@ export async function loadHtmlAssignment<T extends object>(
 		return { htmlAssignment: null, htmlAssignmentReady: true, item: next };
 	}
 
-	// 0283's show_title is its own rung: PostgREST refuses the whole select over
+	// 0284's show_title is its own rung: PostgREST refuses the whole select over
 	// one unknown column, so a deployment without it retries without it and the
 	// title simply stays hidden.
 	const itemId = (next as Record<string, unknown>).id as string;
