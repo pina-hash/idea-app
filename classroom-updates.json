@@ -2505,6 +2505,12 @@
 			"title": "HTML assignments open on the assignment",
 			"body": "When a teacher posts an HTML assignment, the assignment itself is now the first thing you see. The post title above it is hidden by default because the document already has its own title, and the date, points and posted-by details sit on one line instead of three. Posts with no instructions no longer show an empty box.",
 			"tags": ["Classroom", "Assignments"]
+		},
+		{
+			"date": "2026-10-21",
+			"title": "IDEA Coins for everyone",
+			"body": "The IDEA Coin pages, the market and the stock market now work for any student or visitor who signs in, whether or not they are in a class right now. Things that belong to a class, like hall pass time and class jobs, still need a class.",
+			"tags": ["Coins"]
 		}
 	]
 }
