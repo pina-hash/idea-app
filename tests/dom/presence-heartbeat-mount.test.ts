@@ -316,6 +316,34 @@ describe('the beat on the shared poller (ledger 0357)', () => {
 		return mounted;
 	};
 
+	it('any input counts as working, not only keys: pointer, wheel, scroll, and a worksheet frame saying a field changed (report fbe44d35)', async () => {
+		pinClock();
+		try {
+			const typedAfter = async (stir: () => void) => {
+				const sent: PresenceBeat[] = [];
+				const m = mountBeat((b) => sent.push(b));
+				stir();
+				await vi.advanceTimersByTimeAsync(BEAT_MS);
+				const next = sent[sent.length - 1];
+				await m.stop();
+				mounted = null;
+				return next;
+			};
+			expect(await typedAfter(() => {})).toEqual({ typed: false, visible: true });
+			expect(await typedAfter(() => document.dispatchEvent(new Event('pointermove')))).toEqual({ typed: true, visible: true });
+			expect(await typedAfter(() => document.dispatchEvent(new Event('wheel')))).toEqual({ typed: true, visible: true });
+			expect(
+				await typedAfter(() => window.dispatchEvent(new MessageEvent('message', { data: { type: 'idea:change', field: 'x', value: 'y' } })))
+			).toEqual({ typed: true, visible: true });
+			// An unrelated message from a frame is not input.
+			expect(
+				await typedAfter(() => window.dispatchEvent(new MessageEvent('message', { data: { type: 'idea:height', px: 900 } })))
+			).toEqual({ typed: false, visible: true });
+		} finally {
+			unpin();
+		}
+	});
+
 	it('beats every 40 seconds, and a return to the tab is ONE beat for both events', async () => {
 		pinClock();
 		try {

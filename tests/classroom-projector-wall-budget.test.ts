@@ -245,3 +245,14 @@ describe('the wall fits its side column, by the plan', () => {
 		expect(q.sideEmpty).toBe(true);
 	});
 });
+
+describe('a wall line keeps its due time off a row of its own, with no stray dot (report b0d7e288)', () => {
+	it('splits on the last separator when the tail is short, and leaves the rest alone', async () => {
+		const { splitWallLine } = await import('$lib/classroom/live-class/wall-layout');
+		expect(splitWallLine('Cantilever bridge · Due Oct 24, 7:33 PM')).toEqual({ title: 'Cantilever bridge', meta: 'Due Oct 24, 7:33 PM' });
+		expect(splitWallLine('A · B · Due 11:58 PM')).toEqual({ title: 'A · B', meta: 'Due 11:58 PM' });
+		expect(splitWallLine('Clean your bench before the bell')).toEqual({ title: 'Clean your bench before the bell', meta: null });
+		expect(splitWallLine('Title · ' + 'x'.repeat(41))).toMatchObject({ meta: null });
+		expect(splitWallLine(' · Due')).toEqual({ title: ' · Due', meta: null });
+	});
+});

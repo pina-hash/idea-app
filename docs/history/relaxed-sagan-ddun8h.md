@@ -47,3 +47,30 @@ numbered task. This entry grows task by task.
 No signed-in session or live site from this container, so none of this is
 checked on `ideabosco.com`; `svelte-check` held at 0 errors, 33 warnings in 18
 files.
+
+## Task 5, live view and the projector (no migration)
+
+- **Presence input (fbe44d35).** `PresenceHeartbeat` now stamps input on pointer
+  moves, wheel, touch and scroll as well as keys, so "typed" in a beat means any
+  input while the tab is in front. A sandboxed worksheet frame never reaches the
+  page's listeners, so two things that do cross count instead: the document's own
+  bridge messages (`idea:change`, `idea:image*`) and focus moving into a frame.
+  A frame that is open and untouched still goes idle. The database's windows are
+  unchanged (no migration).
+- **Idle and away.** `LIVE_IDLE_MS` is 150 s (two minutes of silence plus the
+  heartbeat's lag, up to 48 s); a row whose page is not visible is `away` at once
+  (it read "idle, other tab" for the whole away window). Words: "Active",
+  "No activity for N min"; the wall's group reads Idle, not "Not typing".
+- **Projector (b0d7e288).** Root cause: full screen was requested on `.lp-stage`,
+  inside `.lp-root`, so the plate's ground stayed behind and the browser's black
+  backdrop showed under the theme's ink (dark clock on black, light cards).
+  `stage` is the root now. Measured in Chromium at 1440x1080, 1920x1080 and
+  1280x720 under Space White and IDEA: ground `rgb(223,227,234)` with clock ink
+  `rgb(13,19,17)` in fullscreen; the clock is 600x230 at 1440 and 800x306 at 1920
+  (it was 529x203). A due time is a row under its title (`splitWallLine`); the fit
+  estimate counts it.
+
+## Not verified
+
+No signed-in live session: the live grid against real students, and the frame
+focus path in a real worksheet, are unchecked.

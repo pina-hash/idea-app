@@ -759,7 +759,7 @@
 									</td>
 									<td data-label="Working time">{@render presenceCell(row)}</td>
 									<td class="so-when" data-label="Last typed">
-										{#if row.presence === 'row'}{row.lastWorkedAt ? when(row.lastWorkedAt) : 'No typing yet'}{/if}
+										{#if row.presence === 'row'}{row.lastWorkedAt ? when(row.lastWorkedAt) : 'No activity yet'}{/if}
 									</td>
 									<td class="so-when" data-label="Last opened">
 										{row.lastOpenedAt ? when(row.lastOpenedAt) : data.sources.overview === 'ready' ? 'No open recorded' : ''}

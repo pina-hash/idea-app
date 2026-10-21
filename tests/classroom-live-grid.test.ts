@@ -64,27 +64,27 @@ function sub(email: string, o: Partial<SubmissionRow> = {}): SubmissionRow {
 
 const base = { workArrived: false, presence: 'ready' as const, signal: true, now: NOW, submission: null, row: null };
 
-describe('the idle threshold, and why it is five minutes', () => {
-	it('is five minutes: longer than presence calls "working", shorter than a 10-minute activity', () => {
-		expect(LIVE_IDLE_MS).toBe(5 * 60_000);
+describe('the idle threshold, and why it is two and a half minutes', () => {
+	it('is 150 seconds: two minutes of silence plus the heartbeat lag, longer than presence calls "working"', () => {
+		expect(LIVE_IDLE_MS).toBe(150_000);
 		expect(LIVE_IDLE_MS).toBeGreaterThan(PRESENCE_LIMITS_FALLBACK.inputWindowSeconds * 1000);
 		expect(LIVE_IDLE_MS).toBeGreaterThan(PRESENCE_LIMITS_FALLBACK.awayWindowSeconds * 1000);
-		expect(LIVE_IDLE_MS).toBeLessThan(10 * 60_000);
+		expect(LIVE_IDLE_MS).toBeLessThan(5 * 60_000);
 	});
 
-	it('typed exactly five minutes ago is still working; one second more is idle', () => {
-		const at = liveCellState({ ...base, row: row('a@x', { last_input_at: ago(300) }) });
+	it('input exactly 150 seconds ago is still working; one second more is idle', () => {
+		const at = liveCellState({ ...base, row: row('a@x', { last_input_at: ago(150) }) });
 		expect(at.state).toBe('working');
-		const past = liveCellState({ ...base, row: row('a@x', { last_input_at: ago(301) }) });
+		const past = liveCellState({ ...base, row: row('a@x', { last_input_at: ago(151) }) });
 		expect(past.state).toBe('idle');
-		expect(past.detail).toBe('No typing for 5 min');
+		expect(past.detail).toBe('No activity for 2 min');
 	});
 
-	it('typing right now reads "Typing"; a tab in the background says so', () => {
-		expect(liveCellState({ ...base, row: row('a@x', { last_input_at: ago(3) }) }).detail).toBe('Typing');
-		expect(
-			liveCellState({ ...base, row: row('a@x', { last_input_at: ago(90), page_visible: false }) }).detail
-		).toBe('Typed 1m ago · other tab');
+	it('input right now reads "Active"; a tab in the background is away, at once, whatever the input said', () => {
+		expect(liveCellState({ ...base, row: row('a@x', { last_input_at: ago(3) }) }).detail).toBe('Active');
+		const hidden = liveCellState({ ...base, row: row('a@x', { last_input_at: ago(10), last_seen_at: ago(10), page_visible: false }) });
+		expect(hidden.state).toBe('away');
+		expect(hidden.detail).toBe('Tab in the background, last seen just now');
 	});
 
 	it('a student who sat down a minute ago is not idle for not having typed since yesterday', () => {
@@ -96,52 +96,52 @@ describe('the idle threshold, and why it is five minutes', () => {
 		expect(liveCellState({ ...base, row: yesterday, arrivedAt: NOW - 60_000 }).detail).toBe('Just opened');
 		// Positive control: a keystroke inside the threshold still names itself,
 		// arrival or no arrival.
-		const recent = row('a@x', { last_input_at: ago(180), last_seen_at: ago(5) });
-		expect(liveCellState({ ...base, row: recent, arrivedAt: NOW - 60_000 }).detail).toBe('Typed 3m ago');
+		const recent = row('a@x', { last_input_at: ago(140), last_seen_at: ago(5) });
+		expect(liveCellState({ ...base, row: recent, arrivedAt: NOW - 60_000 }).detail).toBe('Active 2m ago');
 		// And the arrival grace runs out on the same threshold.
 		expect(liveCellState({ ...base, row: yesterday, arrivedAt: NOW - LIVE_IDLE_MS - 1000 }).state).toBe('idle');
 	});
 
-	it('R11: an idle student whose last keystroke was on an earlier school day reads "No typing today", never a four-digit minute count', () => {
+	it('R11: an idle student whose last keystroke was on an earlier school day reads "No activity today", never a four-digit minute count', () => {
 		// The two rows Mr. Pina filed: 1463 min (24 h 23 min) and 1509 min with
 		// the page in another tab. The student's tab is beating today; their
 		// last input on the item was yesterday.
 		const a = liveCellState({ ...base, row: row('a@x', { last_input_at: ago(1463 * 60), last_seen_at: ago(10) }) });
-		expect(a).toEqual({ state: 'idle', detail: 'No typing today' });
+		expect(a).toEqual({ state: 'idle', detail: 'No activity today' });
 		const b = liveCellState({
 			...base,
 			row: row('b@x', { last_input_at: ago(1509 * 60), last_seen_at: ago(10), page_visible: false })
 		});
-		expect(b).toEqual({ state: 'idle', detail: 'No typing today · other tab' });
+		expect(b.state).toBe('away');
 		for (const c of [a, b]) expect(c.detail).not.toMatch(/\d{3,} min/);
 	});
 
 	it('R11: the same day steps from minutes to hours in the hall pass\'s own spelling', () => {
 		const idle = (s: number) => liveCellState({ ...base, row: row('a@x', { last_input_at: ago(s), last_seen_at: ago(10) }) });
-		expect(idle(51 * 60).detail).toBe('No typing for 51 min');
-		expect(idle(60 * 60).detail).toBe('No typing for 1 hr');
-		expect(idle(72 * 60 + 30).detail).toBe('No typing for 1 hr 12 min');
+		expect(idle(51 * 60).detail).toBe('No activity for 51 min');
+		expect(idle(60 * 60).detail).toBe('No activity for 1 hr');
+		expect(idle(72 * 60 + 30).detail).toBe('No activity for 1 hr 12 min');
 		// Floored, never rounded up: 59 min 59 s is still 59 min.
-		expect(idle(60 * 60 - 1).detail).toBe('No typing for 59 min');
+		expect(idle(60 * 60 - 1).detail).toBe('No activity for 59 min');
 	});
 
 	it('R11: "today" is the school\'s day, at the instant where Los Angeles and UTC disagree', () => {
 		// 8pm Pacific on the 23rd is already the 24th in UTC. A keystroke at
 		// 8am Pacific that morning is the same school day: 12 hours, not
-		// "today". A UTC-day comparison would print "No typing today".
+		// "today". A UTC-day comparison would print "No activity today".
 		const at8pm = Date.parse('2026-09-24T03:00:00Z');
 		const morning = Date.parse('2026-09-23T15:00:00Z');
-		expect(idleDetail(morning, morning, at8pm)).toBe('No typing for 12 hr');
+		expect(idleDetail(morning, morning, at8pm)).toBe('No activity for 12 hr');
 		// And the night before, which IS another school day.
 		const lastNight = Date.parse('2026-09-23T05:00:00Z'); // 10pm Pacific on the 22nd
-		expect(idleDetail(lastNight, lastNight, at8pm)).toBe('No typing today');
+		expect(idleDetail(lastNight, lastNight, at8pm)).toBe('No activity today');
 		// Never typed at all is still its own answer.
-		expect(idleDetail(morning, null, at8pm)).toBe('No typing yet');
+		expect(idleDetail(morning, null, at8pm)).toBe('No activity yet');
 	});
 
-	it('opened and never typed, past the threshold, is idle with no typing yet', () => {
+	it('opened and never typed, past the threshold, is idle with no activity yet', () => {
 		const c = liveCellState({ ...base, row: row('a@x', { last_input_at: null }), arrivedAt: NOW - 400_000 });
-		expect(c).toEqual({ state: 'idle', detail: 'No typing yet' });
+		expect(c).toEqual({ state: 'idle', detail: 'No activity yet' });
 	});
 });
 

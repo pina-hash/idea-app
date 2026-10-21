@@ -94,7 +94,16 @@ import type { PastManifest } from '$lib/classroom/assignment-spec';
  * there is still time to help. The heartbeat and the poll are both 30 seconds,
  * so the flag lands between 5:00 and 6:00 after the last keystroke.
  */
-export const LIVE_IDLE_MS = 5 * 60_000;
+export const LIVE_IDLE_MS = 150_000;
+
+/*
+ * THE THRESHOLD MOVED FROM FIVE MINUTES TO TWO AND A HALF (report fbe44d35).
+ * Mr. Pina asked for idle to mean "about two minutes with no input", where
+ * "input" is anything the student does in front of the work, not only typing.
+ * The extra thirty seconds is the heartbeat's own lag: the database learns of
+ * an input at the next beat, up to 48 seconds later, so a student who really
+ * stopped two minutes ago is first flagged between two and two and a half.
+ */
 
 /** One student's state on the grid. Exhaustive everywhere below: a new one is a type error, never a blank chip. */
 export type LiveCellState =
@@ -158,9 +167,10 @@ export interface LiveCell {
 	name: string;
 	state: LiveCellState;
 	/**
-	 * A few words of evidence, or null: "Typing", "Typed 3m ago", "Just opened",
-	 * "No typing for 7 min", "No typing for 1 hr 12 min", "No typing today",
-	 * "No typing yet", each with " · other tab" when the page is not in front.
+	 * A few words of evidence, or null: "Active", "Active 3m ago", "Just opened",
+	 * "No activity for 7 min", "No activity for 1 hr 12 min", "No activity today",
+	 * "No activity yet". A student whose tab is in the background is away, and
+	 * says so ("Tab in the background").
 	 */
 	detail: string | null;
 	/** Past due with nothing handed in, by `assignmentStanding`. */
@@ -253,9 +263,9 @@ function stamp(iso: string | null | undefined): number | null {
  * Both instants are handed in; no clock is read.
  */
 export function idleDetail(activityMs: number, lastInputMs: number | null, now: number, elsewhere = ''): string {
-	if (lastInputMs === null || !Number.isFinite(activityMs)) return `No typing yet${elsewhere}`;
-	if (laCalendarDay(new Date(activityMs)) !== laCalendarDay(new Date(now))) return `No typing today${elsewhere}`;
-	return `No typing for ${hallPassElapsedLabel(new Date(activityMs).toISOString(), now)}${elsewhere}`;
+	if (lastInputMs === null || !Number.isFinite(activityMs)) return `No activity yet${elsewhere}`;
+	if (laCalendarDay(new Date(activityMs)) !== laCalendarDay(new Date(now))) return `No activity today${elsewhere}`;
+	return `No activity for ${hallPassElapsedLabel(new Date(activityMs).toISOString(), now)}${elsewhere}`;
 }
 
 /**
@@ -298,10 +308,22 @@ export function liveCellState(facts: {
 	const row = facts.row;
 	if (row) {
 		const p = presenceState(row, facts.now, limits);
+		/*
+		 * A TAB IN THE BACKGROUND IS AWAY, AT ONCE (report fbe44d35). The page
+		 * stops beating the moment it is hidden and sends one last beat saying
+		 * so; that beat used to read as "idle, other tab" for the whole away
+		 * window. Mr. Pina's rule: away means the tab is not in front.
+		 */
+		if (p !== 'away' && row.page_visible !== true) {
+			return {
+				state: 'away',
+				detail: `Tab in the background, last seen ${presenceLastWorkedLabel(row.last_seen_at, facts.now).toLowerCase()}`
+			};
+		}
 		if (p !== 'away') {
 			const lastInput = stamp(row.last_input_at);
 			const activity = Math.max(lastInput ?? -Infinity, facts.arrivedAt ?? -Infinity);
-			const elsewhere = row.page_visible !== true ? ' · other tab' : '';
+			const elsewhere = '';
 			if (Number.isFinite(activity) && facts.now - activity <= LIVE_IDLE_MS) {
 				/*
 				 * THE ARRIVAL, NOT THE KEYSTROKE, IS WHAT MADE THEM WORKING when the
@@ -312,10 +334,10 @@ export function liveCellState(facts: {
 				 */
 				const typing =
 					p === 'working'
-						? 'Typing'
+						? 'Active'
 						: lastInput === null || facts.now - lastInput > LIVE_IDLE_MS
 							? 'Just opened'
-							: `Typed ${presenceLastWorkedLabel(row.last_input_at, facts.now).toLowerCase()}`;
+							: `Active ${presenceLastWorkedLabel(row.last_input_at, facts.now).toLowerCase()}`;
 				return { state: 'working', detail: `${typing}${elsewhere}` };
 			}
 			return { state: 'idle', detail: idleDetail(activity, lastInput, facts.now, elsewhere) };

@@ -29,7 +29,7 @@
  * only down to three a group, because the teacher asked for them; then the
  * agenda's tail (four lines kept); then Coming up (one kept); then names
  * again, down to one a group and then whole groups folded into one "+N more
- * names" line, Done first and Not typing last; and as a last resort, for a
+ * names" line, Done first and Idle last; and as a last resort, for a
  * small screen holding long lines, the agenda down to one line and Coming up
  * to none.
  *
@@ -134,6 +134,23 @@ export function wallActivityLive(frame: Pick<ProjectorFrame, 'activity'> | null,
 	return !!a && Number.isFinite(a.at) && now - a.at <= WALL_ACTIVITY_STALE_MS && now - a.at >= -60_000;
 }
 
+/**
+ * A WALL LINE'S TITLE AND ITS TAIL (report b0d7e288). "Cantilever bridge · Due
+ * Oct 24, 7:33 PM" used to wrap wherever it ran out of room, leaving the due
+ * time on a row of its own behind a stray dot. The tail (after the LAST
+ * separator, when it is short) is its own row under the title, always, so a
+ * line is either one row or a title and its tail, never a dangling dot.
+ */
+export const WALL_LINE_SEPARATOR = ' \u00b7 ';
+export function splitWallLine(line: string): { title: string; meta: string | null } {
+	const at = line.lastIndexOf(WALL_LINE_SEPARATOR);
+	if (at <= 0) return { title: line, meta: null };
+	const meta = line.slice(at + WALL_LINE_SEPARATOR.length).trim();
+	const title = line.slice(0, at).trim();
+	if (!meta || !title || meta.length > 40) return { title: line, meta: null };
+	return { title, meta };
+}
+
 /** Lines a text of `chars` characters wraps into, at `fontPx`, in `widthPx`. */
 function wrapRows(chars: number, fontPx: number, widthPx: number, em: number): number {
 	if (chars <= 0) return 1;
@@ -202,7 +219,11 @@ function cardHeights(frame: ProjectorFrame, plan: PlanShape, cuts: Cuts, f: numb
 		const kept = lines.slice(0, shown);
 		let h = chrome + label;
 		kept.forEach((l, i) => {
-			h += wrapRows(l.length + 2, f, inner - 1.4 * f, WALL_CHAR_EM.display) * f * LH.body + (i > 0 ? CARD.lineGap * f : 0);
+			const { title, meta } = splitWallLine(l);
+			h +=
+				wrapRows(title.length + 2, f, inner - 1.4 * f, WALL_CHAR_EM.display) * f * LH.body +
+				(meta ? wrapRows(meta.length, f * 0.8, inner - 1.4 * f, WALL_CHAR_EM.display) * f * 0.8 * LH.body : 0) +
+				(i > 0 ? CARD.lineGap * f : 0);
 		});
 		if (lines.length > shown) h += CARD.lineGap * f + more;
 		return h;

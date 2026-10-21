@@ -2484,9 +2484,15 @@
 		},
 		{
 			"date": "2026-10-21",
+<<<<<<< HEAD
 			"title": "Notices are shorter, and banners look finished",
 			"body": "A class notice now fits on a couple of lines: the title, when it ends, its link and the teacher's Take down sit on one row, and a link's key is named for where it goes (Open IDEA Market) instead of a web address. Posts shown as banners with no picture now get a designed default banner with the post's type and title. Names on the Top portfolios list and the market now read First Last for everyone, you included.",
 			"tags": ["Classroom", "Appearance"]
+=======
+			"title": "Live view counts any activity, and the projector is readable",
+			"body": "On the Live tab, a student counts as working when they do anything in front of the work, such as scrolling, pointing, typing or filling in a worksheet, not only typing. They show as idle after about two and a half minutes without any activity, and as away as soon as their tab is in the background. The projector's full screen view now keeps its colors and layout in every theme, with the clock and cards easy to read from the back of the room, and a due time sits under its title instead of wrapping onto its own row.",
+			"tags": ["Classroom", "Live"]
+>>>>>>> 0c30b824 (Live view counts any activity, away means a background tab, and the projector reads on a wall)
 		}
 	]
 }

@@ -542,7 +542,7 @@ describe('6. student activity reaches the wall as counts, and names only on the 
 		expect(a.counts).toEqual({ working: 2, idle: 2, away: 1, 'not-opened': 1, done: 2 });
 		expect(a.total).toBe(8);
 		expect(a.item).toBe('Truss sketch');
-		expect(WALL_ACTIVITY_GROUPS.map((g) => g.word)).toEqual(['Working', 'Not typing', 'Away', 'Not opened yet', 'Done']);
+		expect(WALL_ACTIVITY_GROUPS.map((g) => g.word)).toEqual(['Working', 'Idle', 'Away', 'Not opened yet', 'Done']);
 	});
 
 	it('names off: the frame names nobody at all, and the sweep can see a name', () => {

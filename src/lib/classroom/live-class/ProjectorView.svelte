@@ -35,7 +35,7 @@
 		type ProjectorFrame,
 		type ProjectorMessage
 	} from './projector';
-	import { wallFit, WALL_SCALE } from './wall-layout';
+	import { splitWallLine, wallFit, WALL_SCALE } from './wall-layout';
 
 	/**
 	 * THE PROJECTOR VIEW: what the class sees on the wall, and nothing else.
@@ -321,15 +321,23 @@
 
 <svelte:window bind:innerWidth={viewW} bind:innerHeight={viewH} />
 
+{#snippet wallLine(line: string, testId: string)}
+	{@const parts = splitWallLine(line)}
+	<li class="lp-line" data-testid={testId}>
+		<span class="lp-line-title">{parts.title}</span>{#if parts.meta}<span class="lp-line-dot" aria-hidden="true"> &middot; </span><span class="lp-line-meta">{parts.meta}</span>{/if}
+	</li>
+{/snippet}
+
 <main
 	class="lp-root {CLASSROOM_PLATE}"
+	bind:this={stage}
 	data-testid="projector"
 	data-has-agenda={agenda.length > 0}
 	data-has-timer={!!timer}
 	data-hero={plan.hero}
 	data-side-empty={plan.sideEmpty}
 >
-	<div class="lp-stage" bind:this={stage}>
+	<div class="lp-stage">
 		<header class="lp-head">
 			<span class="lp-class" data-testid="projector-class">{classLabel}</span>
 			<span class="lp-date">{dateLabel}</span>
@@ -449,7 +457,7 @@
 								<h2 id="lp-agenda-title" class="lp-label">Today</h2>
 								<ol class="lp-lines">
 									{#each agenda.slice(0, plan.agendaShown) as line, i (i)}
-										<li class="lp-line" data-testid="projector-agenda-line">{line}</li>
+										{@render wallLine(line, 'projector-agenda-line')}
 									{/each}
 								</ol>
 								{#if plan.agendaMore > 0}
@@ -462,7 +470,7 @@
 								<h2 id="lp-next-title" class="lp-label">Coming up</h2>
 								<ul class="lp-lines">
 									{#each frame.next.slice(0, plan.nextShown) as line, i (i)}
-										<li class="lp-line" data-testid="projector-next-line">{line}</li>
+										{@render wallLine(line, 'projector-next-line')}
 									{/each}
 								</ul>
 								{#if plan.nextMore > 0}
@@ -580,6 +588,19 @@
 		.lp-root {
 			height: 100dvh;
 		}
+	}
+	/* FULL SCREEN TAKES THE WHOLE ROOM, NOT THE STAGE INSIDE IT (report
+	   b0d7e288). The browser draws a fullscreen element over a black backdrop
+	   and shows only that element, so when the element was `.lp-stage` the
+	   plate's ground, which lives on this root, stayed behind: the clock and the
+	   cards were drawn in the theme's ink over black, a dark clock on a black
+	   wall beside light cards. The root is the element now, and it states its
+	   own ground and size here as well. */
+	.lp-root:fullscreen {
+		width: 100vw;
+		height: 100vh;
+		max-width: none;
+		background-color: var(--plate-plate-bot, var(--surface-0));
 	}
 	:global(body:has(.lp-root)) {
 		background: var(--plate-plate-bot, var(--surface-0));
@@ -861,7 +882,9 @@
 		color: var(--text-1);
 	}
 	.lp-bigclock {
-		font-size: min(36cqh, 15cqw);
+		/* Fills its half of the wall (report b0d7e288): the clock is the hero, so
+		   it takes the column the grid gives it rather than leaving it half empty. */
+		font-size: min(36cqh, 17cqw);
 	}
 	.lp-body[data-side-empty='true'] .lp-bigclock {
 		font-size: min(44cqh, 28cqw);
@@ -945,6 +968,16 @@
 	}
 	.lp-line {
 		overflow-wrap: anywhere;
+	}
+	/* The tail (usually the due time) sits under the title, smaller and quieter,
+	   and the separator is only there for a reader that has no layout. */
+	.lp-line-dot {
+		display: none;
+	}
+	.lp-line-meta {
+		display: block;
+		font-size: 0.8em;
+		color: var(--text-2);
 	}
 	.lp-line::marker {
 		color: var(--text-2);

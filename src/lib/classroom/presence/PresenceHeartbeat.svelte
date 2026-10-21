@@ -126,9 +126,35 @@
 
 		heart.noteVisibility(document.visibilityState === 'visible');
 
-		document.addEventListener('input', onInput, { capture: true, passive: true });
-		document.addEventListener('keydown', onInput, { capture: true, passive: true });
-		document.addEventListener('pointerdown', onInput, { capture: true, passive: true });
+		// ANY INPUT IN FRONT OF THE WORK COUNTS, NOT ONLY KEYS (report fbe44d35).
+		// Working time was typing time, and most of a student's time on a worksheet
+		// is reading, scrolling and pointing. Each listener only stamps "something
+		// happened"; none reads the event. The browser delivers them to a page only
+		// while its tab is in front and its window is focused, so this IS "input
+		// while the tab is in focus".
+		const INPUT_EVENTS = ['input', 'keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart', 'touchmove', 'scroll'] as const;
+		for (const type of INPUT_EVENTS) {
+			document.addEventListener(type, onInput, { capture: true, passive: true });
+		}
+		/**
+		 * A STUDENT WORKING INSIDE A WORKSHEET'S FRAME IS INVISIBLE TO THE PAGE:
+		 * the frame is a sandboxed document, so its keys and clicks never reach
+		 * these listeners. Two things do cross: the document's own bridge messages
+		 * (a field changed, a picture added), and focus, which moves from the page to
+		 * the frame. Both are recorded as input. A frame that is merely open and
+		 * untouched records nothing, so it still goes idle.
+		 */
+		const onFrameMessage = (e: MessageEvent) => {
+			const type = (e.data as { type?: unknown } | null)?.type;
+			if (typeof type === 'string' && /^idea:(change|image|image-remove|image-caption)$/.test(type)) heart.noteInput();
+		};
+		const onBlur = () => {
+			setTimeout(() => {
+				if (document.activeElement instanceof HTMLIFrameElement) heart.noteInput();
+			}, 0);
+		};
+		window.addEventListener('message', onFrameMessage);
+		window.addEventListener('blur', onBlur);
 		// Registered BEFORE the poller's own listener, so a return to the tab beats
 		// here first and the poller's poke that follows is throttled to nothing:
 		// one beat per return.
@@ -174,9 +200,9 @@
 			poller?.stop();
 			poller = null;
 			heart.stop();
-			document.removeEventListener('input', onInput, { capture: true });
-			document.removeEventListener('keydown', onInput, { capture: true });
-			document.removeEventListener('pointerdown', onInput, { capture: true });
+			for (const type of INPUT_EVENTS) document.removeEventListener(type, onInput, { capture: true });
+			window.removeEventListener('message', onFrameMessage);
+			window.removeEventListener('blur', onBlur);
 			document.removeEventListener('visibilitychange', onVisibility);
 		};
 	});

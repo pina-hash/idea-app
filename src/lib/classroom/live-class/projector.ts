@@ -96,7 +96,7 @@ export const WALL_ACTIVITY_GROUPS: readonly {
 	names: boolean;
 }[] = [
 	{ key: 'working', word: 'Working', from: ['working'], names: false },
-	{ key: 'idle', word: 'Not typing', from: ['idle'], names: true },
+	{ key: 'idle', word: 'Idle', from: ['idle'], names: true },
 	{ key: 'away', word: 'Away', from: ['away'], names: true },
 	{ key: 'not-opened', word: 'Not opened yet', from: ['not-opened'], names: true },
 	{ key: 'done', word: 'Done', from: ['needs-grading', 'submitted'], names: true }

@@ -207,7 +207,7 @@ export const PRESENCE_DISPLAY: Record<
 		label: 'Viewing',
 		glyph: '○',
 		tone: 'viewing',
-		hint: 'On the page, not typing.'
+		hint: 'On the page, no input lately.'
 	},
 	'open-elsewhere': {
 		label: 'Open elsewhere',
@@ -346,7 +346,7 @@ export function presenceActiveLabel(seconds: number): string {
  */
 export function presenceLastWorkedLabel(lastInputAt: string | null, at: number): string {
 	const ms = stamp(lastInputAt);
-	if (ms === null) return 'No typing yet';
+	if (ms === null) return 'No activity yet';
 	const ago = Math.max(0, at - ms);
 	const seconds = Math.floor(ago / MS);
 	if (seconds < 60) return 'Just now';
