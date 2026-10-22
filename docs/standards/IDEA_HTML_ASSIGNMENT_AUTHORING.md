@@ -543,7 +543,7 @@ new term.
 
 ## Changelog
 
-- **2.1 (2026-10-22).** Part C rebuilt on measured completion (Mr. Pina asked for the
+- **2.1 (2026-10-22).** Ledger 0429. Part C rebuilt on measured completion (Mr. Pina asked for the
   deeper pass on post count against depth): the live posts' completion table, about 15
   required blocks and 20 at most, evidence captured inside the activity's post rather than a
   documentation post after it, one finish line per post, and C2, every post measured after it
