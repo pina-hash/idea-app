@@ -1,0 +1,456 @@
+{
+ "id": "62ba98eb-6dc4-453c-9469-1b1988bac7e3",
+ "area": "Home > FRC 2026 Off-Season",
+ "body": "bruh",
+ "kind": "idea",
+ "email": "ajette-kouri.2028@boscotech.net",
+ "tried": null,
+ "status": "new",
+ "context": {
+  "log": [
+   "2026-10-21T14:57:19.285Z solidworks: unlinked from pid 20100: SolidWorks closed",
+   "2026-10-21T14:57:37.703Z quitting",
+   "2026-10-21T14:57:37.781Z windows is ending the session (SystemShutdown)",
+   "2026-10-21T14:57:37.872Z engine stopped for good",
+   "2026-10-21T14:58:29.353Z previous run was stopped while it was quitting; its last line was: 2026-10-21T14:57:37.872Z engine stopped for good",
+   "2026-10-21T14:58:29.437Z started 0.3.3",
+   "2026-10-21T14:58:29.452Z shell: listening on [redacted]",
+   "2026-10-21T14:58:29.896Z session loaded for [address]",
+   "2026-10-21T14:58:30.410Z vault runtime started at C:\\Users\\IDEA\\Desktop\\matthew g",
+   "2026-10-21T14:58:30.442Z badges: on",
+   "2026-10-21T14:59:48.888Z solidworks: pid 3264 found in the running object table as SolidWorks_PID_3264",
+   "2026-10-21T15:00:02.159Z solidworks: no Save to Version preference numbers in C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS (2)\\api\\redist\\SolidWorks.Interop.swconst.dll",
+   "2026-10-21T15:00:02.162Z solidworks link attached pid=3264 revision=33.5.0 saveDown=Unsupported",
+   "2026-10-21T15:00:02.165Z solidworks: linked to 33.5.0 (pid 3264), save down Unsupported",
+   "2026-10-21T15:00:06.488Z open files: The process cannot access the file '\\\\?\\C:\\Users\\IDEA\\Desktop\\matthew g\\Blade Team 4\\matthew g body design 1.SLDPRT' because it is being used by another process.",
+   "2026-10-21T15:00:06.703Z sync: Blade Team 4/matthew g body design 1.SLDPRT: Blade Team 4\\matthew g body design 1.SLDPRT: The process cannot access the file '\\\\?\\C:\\Users\\IDEA\\Desktop\\matthew g\\Blade Team 4\\matthew g body design 1.SLDPRT' because it is being used by another process.",
+   "2026-10-21T15:00:11.740Z solidworks: FileSavePostCancelNotify for document type 1: not published",
+   "2026-10-21T15:10:13.572Z open files: The process cannot access the file '\\\\?\\C:\\Users\\IDEA\\Desktop\\matthew g\\Blade Team 4\\matthew g body design 1.SLDPRT' because it is being used by another process. (103 more like it since the last one)",
+   "2026-10-21T15:15:08.679Z WebView2 runtime 155.0.4283.62",
+   "2026-10-21T15:15:33.050Z pass: moving 1 of 1 files (action)",
+   "2026-10-21T15:15:33.988Z pass: ended after 1145 ms (action), 0 downloaded, 1 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T15:15:34.011Z window: check in done",
+   "2026-10-21T15:24:00.633Z pass: moving 1 of 11 files (loop)",
+   "2026-10-21T15:24:02.200Z pass: ended after 1779 ms (loop), 0 downloaded, 1 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T15:24:09.657Z pass: moving 1 of 12 files (loop)",
+   "2026-10-21T15:24:10.728Z pass: ended after 1274 ms (loop), 0 downloaded, 1 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T15:24:13.633Z pass: moving 1 of 13 files (loop)",
+   "2026-10-21T15:24:14.929Z pass: ended after 1504 ms (loop), 0 downloaded, 1 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T15:24:15.260Z pass: moving 1 of 14 files (loop)",
+   "2026-10-21T15:24:16.715Z pass: ended after 1782 ms (loop), 0 downloaded, 1 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T15:24:32.730Z window: check out done",
+   "2026-10-21T15:24:34.928Z window: open done",
+   "2026-10-21T15:24:43.932Z open: the shell did not answer in 10 s; asking File Explorer",
+   "2026-10-21T15:24:56.891Z solidworks link detached pid=3264: SolidWorks is gone",
+   "2026-10-21T15:24:56.891Z solidworks: unlinked from pid 3264: SolidWorks is gone",
+   "2026-10-21T15:26:15.506Z solidworks: pid 24220 found in the running object table as SolidWorks_PID_24220",
+   "2026-10-21T15:26:28.216Z solidworks: no Save to Version preference numbers in C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS (2)\\api\\redist\\SolidWorks.Interop.swconst.dll",
+   "2026-10-21T15:26:28.217Z solidworks link attached pid=24220 revision=33.5.0 saveDown=Unsupported",
+   "2026-10-21T15:26:28.217Z solidworks: linked to 33.5.0 (pid 24220), save down Unsupported",
+   "2026-10-21T15:30:59.325Z solidworks: FileSavePostCancelNotify for document type 1: not published",
+   "2026-10-21T15:32:21.300Z solidworks: matthew g body design 1.SLDPRT changed",
+   "2026-10-21T15:44:16.492Z window: open done",
+   "2026-10-21T15:44:31.304Z solidworks: IB-Body_Template.SLDPRT changed",
+   "2026-10-21T15:47:00.996Z window: open done",
+   "2026-10-21T15:47:09.995Z open: the shell did not answer in 10 s; asking File Explorer",
+   "2026-10-21T15:47:12.050Z solidworks link detached pid=24220: SolidWorks is gone",
+   "2026-10-21T15:47:12.050Z solidworks: unlinked from pid 24220: SolidWorks is gone",
+   "2026-10-21T15:47:20.422Z solidworks: pid 18636 found in the running object table as SolidWorks_PID_18636",
+   "2026-10-21T15:53:12.786Z window: check in refused",
+   "2026-10-21T15:53:16.152Z pass: moving 4 of 18 files (loop)",
+   "2026-10-21T15:53:18.099Z pass: ended after 2313 ms (loop), 3 downloaded, 1 uploaded, 1 kept copies, 0 refused",
+   "2026-10-21T15:56:39.193Z window: open done",
+   "2026-10-21T15:58:13.014Z pass: moving 1 of 18 files (loop)",
+   "2026-10-21T15:58:13.085Z pass: ended after 401 ms (loop), 0 downloaded, 0 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T15:59:28.645Z pass: moving 1 of 19 files (loop)",
+   "2026-10-21T15:59:30.137Z pass: ended after 1720 ms (loop), 0 downloaded, 1 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T16:00:00.484Z window: check in done",
+   "2026-10-21T16:00:17.661Z pass: moving 1 of 20 files (loop)",
+   "2026-10-21T16:00:18.431Z pass: ended after 1053 ms (loop), 1 downloaded, 0 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T16:14:13.168Z window: check out done",
+   "2026-10-21T16:14:14.041Z window: open done",
+   "2026-10-21T16:14:14.428Z open files: The process cannot access the file '\\\\?\\C:\\Users\\IDEA\\Desktop\\matthew g\\Blade Team 4\\IDEA-BLADE_assembly-template.SLDASM' because it is being used by another process. (47 more like it since the last one)",
+   "2026-10-21T16:14:14.601Z sync: Blade Team 4/IDEA-BLADE_assembly-template.SLDASM: Blade Team 4\\IDEA-BLADE_assembly-template.SLDASM: The process cannot access the file '\\\\?\\C:\\Users\\IDEA\\Desktop\\matthew g\\Blade Team 4\\IDEA-BLADE_assembly-template.SLDASM' because it is being used by another process.",
+   "2026-10-21T16:24:18.236Z open files: The process cannot access the file '\\\\?\\C:\\Users\\IDEA\\Desktop\\matthew g\\Blade Team 4\\IDEA-BLADE_assembly-template.SLDASM' because it is being used by another process. (101 more like it since the last one)",
+   "2026-10-21T16:30:34.906Z quitting",
+   "2026-10-21T16:30:35.034Z windows is ending the session (SystemShutdown)",
+   "2026-10-21T16:30:35.058Z engine stopped for good",
+   "2026-10-21T16:30:39.057Z the session ended before Armory finished stopping",
+   "2026-10-21T18:31:25.414Z previous run was stopped while it was quitting; its last line was: 2026-10-21T16:00:18.431Z pass: ended after 1053 ms (loop), 1 downloaded, 0 uploaded, 0 kept copies, 0 refused",
+   "2026-10-21T18:31:25.493Z started 0.3.3",
+   "2026-10-21T18:31:25.508Z shell: listening on [redacted]",
+   "2026-10-21T18:31:25.979Z session loaded for [address]",
+   "2026-10-21T18:31:26.713Z vault runtime started at C:\\Users\\IDEA\\Desktop\\matthew g",
+   "2026-10-21T18:31:26.767Z badges: on",
+   "2026-10-21T21:01:27.464Z solidworks: pid 1948 found in the running object table as SolidWorks_PID_1948",
+   "2026-10-21T21:01:42.904Z solidworks: no Save to Version preference numbers in C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS (2)\\api\\redist\\SolidWorks.Interop.swconst.dll",
+   "2026-10-21T21:01:42.908Z solidworks link attached pid=1948 revision=33.5.0 saveDown=Unsupported",
+   "2026-10-21T21:01:42.910Z solidworks: linked to 33.5.0 (pid 1948), save down Unsupported",
+   "2026-10-22T00:15:57.419Z solidworks link detached pid=1948: SolidWorks closed",
+   "2026-10-22T00:15:57.420Z solidworks: unlinked from pid 1948: SolidWorks closed",
+   "2026-10-22T00:27:22.148Z quitting",
+   "2026-10-22T00:27:22.204Z windows is ending the session (SystemShutdown)",
+   "2026-10-22T00:27:22.219Z engine stopped for good",
+   "2026-10-22T18:19:58.643Z previous run was stopped while it was quitting; its last line was: 2026-10-22T00:27:22.219Z engine stopped for good",
+   "2026-10-22T18:19:58.675Z started 0.3.3",
+   "2026-10-22T18:19:58.683Z shell: listening on [redacted]",
+   "2026-10-22T18:19:59.099Z session loaded for [address]",
+   "2026-10-22T18:19:59.607Z vault runtime started at C:\\Users\\IDEA\\Desktop\\matthew g",
+   "2026-10-22T18:19:59.642Z badges: on",
+   "2026-10-22T18:20:00.379Z pass: moving 5 of 25 files (loop)",
+   "2026-10-22T18:20:03.313Z pass: ended after 3662 ms (loop), 5 downloaded, 0 uploaded, 0 kept copies, 0 refused",
+   "2026-10-22T18:23:20.504Z solidworks: pid 22396 found in the running object table as SolidWorks_PID_22396",
+   "2026-10-22T18:23:36.534Z solidworks: no Save to Version preference numbers in C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS (2)\\api\\redist\\SolidWorks.Interop.swconst.dll",
+   "2026-10-22T18:23:36.538Z solidworks link attached pid=22396 revision=33.5.0 saveDown=Unsupported",
+   "2026-10-22T18:23:36.540Z solidworks: linked to 33.5.0 (pid 22396), save down Unsupported",
+   "2026-10-22T18:24:58.377Z solidworks: FileSavePostCancelNotify for document type 2: not published",
+   "2026-10-22T18:30:36.985Z solidworks: FileSavePostCancelNotify for document type 3: not published",
+   "2026-10-22T18:31:18.829Z solidworks:  changed",
+   "2026-10-22T18:32:41.755Z solidworks:  changed",
+   "2026-10-22T18:33:44.993Z solidworks:  changed",
+   "2026-10-22T18:34:14.378Z solidworks:  changed",
+   "2026-10-22T18:34:51.883Z solidworks:  changed",
+   "2026-10-22T18:46:50.472Z WebView2 runtime 155.0.4283.62",
+   "2026-10-22T19:27:04.353Z live updates: WebSocketException: The remote party closed the WebSocket connection without completing the close handshake. (the regular check for changes carries on)",
+   "2026-10-22T21:07:25.546Z window: check in done",
+   "2026-10-22T21:07:41.242Z signed out",
+   "2026-10-22T21:07:41.245Z connect: waiting for the browser",
+   "2026-10-22T21:07:46.815Z connect: signed in, ArmorySession { Email = ajette-kouri.2028@boscotech.net, DeviceId = e4755527-d836-4a0d-afff-88b93872745e, DeviceName = IDEA-06, ExpiresAt = 2026-10-22T22:07:54.0000000+00:00, tokens redacted }",
+   "2026-10-22T21:08:09.045Z settings saved: vault C:\\IDEA\\Armory\\FRC 2026 Off-Season, start at sign-in True, theme idea",
+   "2026-10-22T21:08:09.051Z engine stopped for good",
+   "2026-10-22T21:08:09.070Z solidworks link detached pid=22396: Armory quit",
+   "2026-10-22T21:08:09.083Z vault runtime started at C:\\IDEA\\Armory\\FRC 2026 Off-Season",
+   "2026-10-22T21:08:09.086Z shell: wrote the right-click items for C:\\IDEA\\Armory\\FRC 2026 Off-Season",
+   "2026-10-22T21:08:09.105Z solidworks: pid 22396 found in the running object table as SolidWorks_PID_22396",
+   "2026-10-22T21:08:09.178Z solidworks: no Save to Version preference numbers in C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS (2)\\api\\redist\\SolidWorks.Interop.swconst.dll",
+   "2026-10-22T21:08:09.179Z solidworks link attached pid=22396 revision=33.5.0 saveDown=Unsupported",
+   "2026-10-22T21:08:09.179Z solidworks: linked to 33.5.0 (pid 22396), save down Unsupported",
+   "2026-10-22T21:08:09.316Z solidworks: FileSavePostCancelNotify for document type 1: not published",
+   "2026-10-22T21:08:33.764Z pass: moving 1,496 of 1,593 files (loop)",
+   "2026-10-22T21:08:34.741Z solidworks: FileSavePostCancelNotify for document type 2: not published",
+   "2026-10-22T21:08:40.418Z pass: ended after 31334 ms (loop), 48 downloaded, 0 uploaded, 0 kept copies, 0 refused, the rest continues at once, 6 still moving",
+   "2026-10-22T21:09:51.254Z signed out",
+   "2026-10-22T21:09:51.257Z connect: waiting for the browser",
+   "2026-10-22T21:09:54.048Z connect: signed in, ArmorySession { Email = ajette-kouri.2028@boscotech.net, DeviceId = 8b906ba1-ad34-40fd-bf54-63b7db8f7e8c, DeviceName = IDEA-06, ExpiresAt = 2026-10-22T22:10:01.0000000+00:00, tokens redacted }",
+   "2026-10-22T21:10:07.721Z window: check out refused",
+   "2026-10-22T21:10:08.981Z window: check out refused",
+   "2026-10-22T21:10:09.334Z window: check out refused",
+   "2026-10-22T21:10:09.493Z window: check out refused",
+   "2026-10-22T21:10:09.653Z window: check out refused",
+   "2026-10-22T21:10:11.558Z pass: moving 1,442 of 1,593 files (loop)",
+   "2026-10-22T21:10:18.689Z pass: ended after 8109 ms (loop), 55 downloaded, 0 uploaded, 0 kept copies, 0 refused, the rest continues at once, 6 still moving",
+   "2026-10-22T21:10:19.522Z pass: moving 1 of 1 files (action)",
+   "2026-10-22T21:10:34.686Z pass: ended after 15971 ms (action), 6 downloaded, 0 uploaded, 0 kept copies, 0 refused",
+   "2026-10-22T21:10:34.754Z window: check out done",
+   "2026-10-22T21:10:34.819Z incident: saved 20261022T211034785Z-slowAction.json.gz (slowAction)",
+   "2026-10-22T21:10:35.239Z incident upload: 20261022T211034785Z-slowAction.json.gz was sent (a346fd0c-2705-4778-9222-5e3dc1a0124f)",
+   "2026-10-22T21:10:35.851Z pass: moving 1,380 of 1,593 files (loop)",
+   "2026-10-22T21:10:59.138Z solidworks: F26-INT-0036 Baseplateredesign.SLDPRT changed",
+   "2026-10-22T21:11:06.507Z window: open done",
+   "2026-10-22T21:11:34.804Z pass: still going after 60 s, 470 downloaded, 0 uploaded so far (loop)",
+   "2026-10-22T21:11:36.560Z pass: ended after 61820 ms (loop), 486 downloaded, 0 uploaded, 0 kept copies, 0 refused, the rest continues at once, 6 still moving",
+   "2026-10-22T21:11:36.624Z incident: saved 20261022T211136581Z-slowPass.json.gz (slowPass)",
+   "2026-10-22T21:11:36.914Z open files: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:11:37.757Z pass: moving 879 of 1,578 files (loop)",
+   "2026-10-22T21:12:26.985Z sync: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:12:27.005Z pass: ended after 50388 ms (loop), 454 downloaded, 0 uploaded, 0 kept copies, 0 refused, the rest continues at once, 5 still moving",
+   "2026-10-22T21:12:28.155Z pass: ended after 1104 ms (action), 5 downloaded, 0 uploaded, 0 kept copies, 0 refused",
+   "2026-10-22T21:12:28.218Z window: check out done",
+   "2026-10-22T21:12:29.055Z window: open done",
+   "2026-10-22T21:12:29.232Z pass: moving 435 of 1,593 files (loop)",
+   "2026-10-22T21:13:29.931Z pass: ended after 61728 ms (loop), 434 downloaded, 0 uploaded, 0 kept copies, 0 refused, 1 still moving",
+   "2026-10-22T21:13:37.187Z incident upload: 20261022T211136581Z-slowPass.json.gz was sent (28c4c6c6-1842-4bbe-a2bd-055a11fa101e)",
+   "2026-10-22T21:13:58.911Z window: open done",
+   "2026-10-22T21:19:10.718Z quitting",
+   "2026-10-22T21:19:10.769Z engine stopped for good",
+   "2026-10-22T21:19:10.856Z solidworks link detached pid=22396: Armory quit",
+   "2026-10-22T21:19:10.879Z stopped",
+   "2026-10-22T21:19:20.198Z started 0.4.1",
+   "2026-10-22T21:19:20.219Z shell: listening on [redacted]",
+   "2026-10-22T21:19:20.398Z session loaded for ajette-kouri.2028@boscotech.net",
+   "2026-10-22T21:19:21.406Z vault runtime started at C:\\IDEA\\Armory\\FRC 2026 Off-Season",
+   "2026-10-22T21:19:21.447Z badges: on",
+   "2026-10-22T21:19:21.452Z solidworks: pid 22396 found in the running object table as SolidWorks_PID_22396",
+   "2026-10-22T21:19:21.579Z solidworks: no Save to Version preference numbers in C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS (2)\\api\\redist\\SolidWorks.Interop.swconst.dll",
+   "2026-10-22T21:19:21.583Z solidworks link attached pid=22396 revision=33.5.0 saveDown=Unsupported",
+   "2026-10-22T21:19:21.588Z solidworks: linked to 33.5.0 (pid 22396), save down Unsupported",
+   "2026-10-22T21:19:21.755Z solidworks: FileSavePostCancelNotify for document type 1: not published",
+   "2026-10-22T21:19:21.939Z open files: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:21.945Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:22.730Z sync: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:23.044Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:23.371Z pass: ended after 557 ms (loop), 0 downloaded, 0 uploaded, 0 kept copies, 1 refused",
+   "2026-10-22T21:19:25.318Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:28.150Z WebView2 runtime 155.0.4283.62",
+   "2026-10-22T21:19:28.740Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:32.068Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:35.367Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:38.682Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:41.983Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:45.286Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:48.575Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:51.868Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:55.202Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:19:58.499Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:01.800Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:05.081Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:08.372Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:10.505Z solidworks: FileSavePostCancelNotify for document type 2: not published",
+   "2026-10-22T21:20:11.669Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:14.967Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:18.278Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:21.572Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:24.889Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:28.195Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:31.518Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:34.798Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:38.091Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:41.380Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process.",
+   "2026-10-22T21:20:42.195Z send feedback: a picture of the window, 1120x760, 207166 bytes",
+   "2026-10-22T21:20:44.679Z waiting: FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM: The process cannot access the file '\\\\?\\C:\\IDEA\\Armory\\FRC 2026 Off-Season\\FRC 2026 Off-Season\\00 Robot Assembly\\F26-ROB-0142 Full Assembly.SLDASM' because it is being used by another process."
+  ],
+  "snapshot": {
+   "host": {
+    "signedIn": true,
+    "connectPhase": "idle",
+    "runtimeProblem": null,
+    "transfersRunning": 0
+   },
+   "sync": {
+    "line": "Everything else is saved. A few files need you.",
+    "state": "attention",
+    "detail": "Last checked just now.",
+    "pendingCount": 0
+   },
+   "files": 1496,
+   "engine": {
+    "live": {
+     "events": 1,
+     "joined": 1,
+     "connections": 1
+    },
+    "inPass": false,
+    "online": true,
+    "paused": false,
+    "records": 1593,
+    "syncing": false,
+    "cutShort": false,
+    "projects": [
+     {
+      "id": "e7db2770-7680-4f67-98cb-2d0839e18589",
+      "name": "FRC 2026 Off-Season",
+      "role": "student",
+      "folder": "FRC 2026 Off-Season",
+      "usable": true,
+      "archived": false,
+      "departed": false,
+      "purgedAt": null,
+      "canTakeBack": false,
+      "putBackFrom": null
+     },
+     {
+      "id": "dad89ee6-4613-42bf-9140-18bd683239db",
+      "name": "test",
+      "role": "student",
+      "folder": "test",
+      "usable": true,
+      "archived": true,
+      "departed": false,
+      "purgedAt": null,
+      "canTakeBack": false,
+      "putBackFrom": null
+     }
+    ],
+    "lastOnline": "2026-10-22T21:20:44.881Z",
+    "solidWorks": "33.5.0 (no save down)",
+    "releasesRead": 0,
+    "lastLoopError": null,
+    "purgedRecords": 0,
+    "releaseStamps": 236,
+    "actionsWaiting": 0,
+    "batchesMissingUntil": null
+   },
+   "prompt": null,
+   "notices": [
+    {
+     "kind": "cantSend",
+     "count": 1498,
+     "items": [
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0001 No. 1 Standoff.SLDPRT",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0001 No. 1 Standoff.STEP",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0002 No. 1.1 Standoff.SLDPRT",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0002 No. 1.1 Standoff.STEP",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0003 1.5625in Fillet-Extruded Shaft.PDF",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0004 1.75 in Fillet Hex Shaft.PDF",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0005 1.9125 Thunderhex shaft.PDF",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0006 10T 10DP Spur Gear.DXF",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0006 10T 10DP Spur Gear.SLDPRT",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0007 15T Pulley 9mm.SLDPRT",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0008 2 in Hex Shaft.PDF",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0009 24T 10DP Spur Gear.DXF",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0009 24T 10DP Spur Gear.SLDPRT",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0009 24T 10DP Spur Gear.STEP",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0010 2nd Electronics Plate V2.DXF",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0010 2nd Electronics Plate V2.SLDPRT",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0011 2nd Electronics Plate.DXF",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0011 2nd Electronics Plate.SLDPRT",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0012 2nd Plate Support Plate.SLDDRW",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      },
+      {
+       "path": "00 Robot Assembly/Assembly Parts/F26-ROB-0012 2nd Plate Support Plate.SLDPRT",
+       "detail": "It is outside every project. Move it into one of your project folders so Armory can keep it."
+      }
+     ],
+     "title": "1,498 files can't be uploaded"
+    },
+    {
+     "kind": "lockWait",
+     "count": 1,
+     "items": [
+      {
+       "path": "FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM",
+       "detail": "SolidWorks (or another program) still has F26-ROB-0142 Full Assembly.SLDASM. Armory uploads it as soon as it lets go. Nothing to do."
+      }
+     ],
+     "title": "Waiting for SolidWorks to let go of F26-ROB-0142 Full Assembly.SLDASM"
+    }
+   ],
+   "activity": null,
+   "refusals": {
+    "refused": 1
+   },
+   "settings": {
+    "theme": "idea",
+    "vaultRoot": "C:\\IDEA\\Armory\\FRC 2026 Off-Season",
+    "startAtSignIn": true
+   },
+   "connection": "signedIn",
+   "lastPasses": [
+    {
+     "ms": 693,
+     "ok": true,
+     "pass": "loop",
+     "moving": 0,
+     "endedAt": "2026-10-22T21:20:38.499Z",
+     "refused": 0,
+     "cutShort": false,
+     "problems": 1,
+     "uploaded": 0,
+     "downloaded": 0,
+     "keptCopies": 0
+    },
+    {
+     "ms": 487,
+     "ok": true,
+     "pass": "loop",
+     "moving": 0,
+     "endedAt": "2026-10-22T21:20:41.583Z",
+     "refused": 0,
+     "cutShort": false,
+     "problems": 1,
+     "uploaded": 0,
+     "downloaded": 0,
+     "keptCopies": 0
+    },
+    {
+     "ms": 531,
+     "ok": true,
+     "pass": "loop",
+     "moving": 0,
+     "endedAt": "2026-10-22T21:20:44.926Z",
+     "refused": 0,
+     "cutShort": false,
+     "problems": 1,
+     "uploaded": 0,
+     "downloaded": 0,
+     "keptCopies": 0
+    }
+   ],
+   "connectPhase": "idle",
+   "filesByStatus": {
+    "synced": 1495,
+    "notOnThisComputer": 1
+   },
+   "checkedOutHere": 2,
+   "pendingRequests": {
+    "undo": 0,
+    "checkIn": 0,
+    "checkOut": 0,
+    "localMoves": 0,
+    "savesWaiting": 0,
+    "moveOrRemoval": 0,
+    "writesInFlight": 0,
+    "checkInWhenClosed": 0
+   },
+   "checkedOutHerePaths": [
+    "FRC 2026 Off-Season/00 Robot Assembly/F26-ROB-0142 Full Assembly.SLDASM",
+    "FRC 2026 Off-Season/00 Robot Assembly/start of updated assembly.SLDASM"
+   ]
+  },
+  "osVersion": "Microsoft Windows 10.0.26200 (X64)",
+  "incidentId": "bf11337c-3dbf-4650-92f0-6a7e880e93e5"
+ },
+ "created_at": "2026-10-22T21:20:55.130518+00:00",
+ "app_version": "0.4.1",
+ "device_name": "IDEA-06",
+ "reviewed_at": null,
+ "reviewed_by": null,
+ "submitter_name": "Abraham Jette-Kouri",
+ "screenshot_path": "d3b8833f-9960-4195-94d3-c0e6b081c7c6/efe3ea54-bd78-4ef1-b816-b91e729b4aba.png"
+}
