@@ -1,6 +1,6 @@
 ---
 name: idea-html-test
-description: Test an IDEA HTML assignment before it reaches students - the automatic in-classroom test, a fresh-agent rule audit and cold open, the practicality pass, Mr. Pina's cold open and a two-student pilot. Use before any post or re-upload.
+description: Test an IDEA HTML assignment before it reaches students - the automatic in-classroom test, a fresh-agent rule audit and cold open, the practicality pass, Mr. Pina's cold open and a two-student pilot - and measure it after it closes. Use before any post or re-upload, and after a post's due date.
 ---
 
 # IDEA HTML assignment testing
@@ -48,6 +48,10 @@ Two students work the first step while the class starts. Anything they stall on 
 ## 7. Every re-upload
 
 Read the replace screen before saving: blocks kept, new, dropped, and how many answers each carries. Nothing dropped; a block students answered is retired, never removed. Then open the live post and confirm the new text is there.
+
+## 8. After the post closes
+
+Measure it, because the next post is built from what this one shows (AUTHORING C2). Through the IDEA Website connector, `read_grades` on the post: for each student, answers saved over blocks. Record the median, the share at 80% or more, and the best student's count, as aggregates only (no names). The best student under 60% of the blocks means dead blocks: cut them from the source. A median under 50% means the post was too big or its evidence sat after the work: split it, or move the evidence into the activity's post. Add the row to the standard's Part C table and a changelog line.
 
 ## Report
 

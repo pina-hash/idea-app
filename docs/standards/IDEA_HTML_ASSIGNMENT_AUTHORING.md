@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.0 - 2026-10-22**
+**Version 2.1 - 2026-10-22**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -133,30 +133,67 @@ skill on the ask.
 
 ## Part C. Sizing a post: count against depth
 
-**Proposed 2026-10-22, awaiting Mr. Pina's confirmation.** He named the balance: how much is
-in each post against how many posts there are. Evidence from the live classes on
-2026-10-22: IDEA209H Unit 1 ran as six posts in two weeks (lab and assignment checkpoints of
-15 to 45 points, a due date every few days); Unit 3 Shop Fix ran as three (Design, Build Log, Presentation);
-IDEA100 ran one post per phase (Hook 01, 02, 03, IDEA-Blade 01, 02), and the two largest
-(Hook 03 across four classes, IDEA-Blade 01 across seven) drew "a disgusting amount of
-scrolling" and "I do not know where I am" before their navigation was rebuilt (L17, L19, L21).
+Mr. Pina named the balance (2026-10-21): how much goes in each post against how many posts
+there are. **This rule is set by his own classes' numbers, read 2026-10-22, and it is
+re-checked after every post closes (C2).** The study usually cited for "more deadlines beat
+fewer" (Ariely and Wertenbroch 2002, Study 2) failed to replicate, and Data Colada concluded
+in September 2026 that its data were likely fabricated; nothing here rests on it.
 
-The rule:
+**C1. What the live posts showed** (saved answers over blocks per student, read through the
+IDEA Website connector; blocks include optional ones, so the ratio understates completion;
+IDEA-Blade 01, the Shop Fix Build Log and Presentation were not yet final; DOGTAG and
+SolidWorks Day measure nothing and are left out):
 
-- **One post is one deliverable a student can name, with one due date.** "The Build Log",
-  not "Day 3".
-- **One to four classes per post.** Past four, split at the next natural hand-in.
+| Post | Blocks | Students at 80% or more | Median | The best student saved |
+|---|---|---|---|---|
+| Shop Trophy Tolerance Inspection (209H, 3 sections) | 8 | 88% | 0.88 | all |
+| Hook 01 (IDEA100) | 12 | 0% (90% at half or more) | 0.75 | 9 of 12 |
+| Shop Fix Design (209H) | 33 | 0% (72% at half or more) | 0.67 | 23 of 33 |
+| Hook 03 (IDEA100) | 50 | 0% | 0.52 | 32 of 50 |
+| Hook 02 (IDEA100) | 62 | 0% | 0.32 | 22 of 62 |
+| Shop Trophy Portfolio Capture (209H, after the inspection) | 25 | 10% | 0.20 | |
+| Shop Fix Build Log (209H, after the design) | 28 | 0% | 0.04 | 18 of 28 |
+
+Three findings, each now a rule:
+
+1. **Small, focused posts finish; big ones carry blocks nobody reaches.** On the 50- and
+   62-block posts even the best student saved a third to two thirds. Points predicted
+   nothing (the 100-point IDEA-Blade 01 landed mid-pack).
+2. **A documentation post after the work collapses.** Portfolio Capture after the
+   inspection and the Build Log after the design had 62% and 70% of students under a
+   quarter, while the same students finished the activity posts. The record is captured
+   during the work, at the machine, not as a separate post afterward.
+3. **IDEA209H Unit 1's six single-hand-in posts held at 90 to 98% turned in.** A post with
+   one clear finish line gets finished (the kit's finish line, E3b, gives an HTML post one).
+
+**The rule:**
+
+- **One post is one deliverable a student can name, with one due date and one finish line.**
+  "The Tolerance Inspection", not "Day 3".
+- **About 15 required blocks, 20 at most.** Every block is one a student is expected to fill;
+  an optional block earns its place or goes. Past 20, split at the next hand-in.
+- **One to four classes, at most four phases and about twelve steps.** The test warns past
+  any of them.
+- **Evidence is captured inside the activity's post, as the work happens**: the photo at
+  the machine, the reading at the bench. Never a log or portfolio post due after the work is
+  done.
 - **Split where the grade changes hands**: at a hand-in graded on its own, at an event (a
   tournament, a test day), or where the work changes kind (design to build to present).
-  Never split one class into several posts, and never a post per class by default.
-- **Fold tiny checkpoints into a phase of a bigger post** rather than posting each alone.
-  A checkpoint worth fewer than 10 points is a step, not a post.
-- **Inside a post: at most four phases and about twelve steps.** More is two posts.
+  Never split one class into several posts, and never a post per class by default. A
+  checkpoint worth fewer than 10 points is a step, not a post.
 - **A post whose phases span classes ships with today's phase only**, later phases locked,
   added by a re-upload under new permanent ids (L16).
 - **IDEA209H posts one copy to all three sections** (identical pacing and grading).
-- **Duplicate post does not copy an HTML document** (audit gap 1): a second post is built
-  from the source, never by duplicating.
+- **Duplicate post does not copy an HTML document** (audit gap 1, filed): a second post is
+  built from the source, never by duplicating.
+
+**C2. Every post is measured after it closes**, and the measurement changes the next one
+(the idea-html-test skill's last gate): read the post's completion through the connector's
+`read_grades` (saved over blocks per student) and record the median, the share at 80% or
+more, and the best student's count. **The best student below 60% of the blocks** means dead
+blocks: cut them from the source before it is used again. **A median below 50%** means the
+post was too big or in the wrong place in the unit: split it or move its evidence into the
+activity. The numbers and the change go into this Part's table and the changelog.
 
 ---
 
@@ -431,6 +468,8 @@ work**: every gate below is an outside judge.
    students work the first step while the rest start; anything they stall on is fixed that
    day. The first week of use is part of the build (L14).
 
+After the due date, **measure the post** (C2) and carry what it shows into the next one.
+
 On every re-upload, **read the replace screen**: blocks kept, new, dropped, and the answers
 each carries. None dropped (L22, L23).
 
@@ -504,6 +543,12 @@ new term.
 
 ## Changelog
 
+- **2.1 (2026-10-22).** Part C rebuilt on measured completion (Mr. Pina asked for the
+  deeper pass on post count against depth): the live posts' completion table, about 15
+  required blocks and 20 at most, evidence captured inside the activity's post rather than a
+  documentation post after it, one finish line per post, and C2, every post measured after it
+  closes with the thresholds that trigger a cut or a split. The deadline study the old intuition
+  rested on failed to replicate and is named so nobody cites it.
 - **2.0 (2026-10-22).** Ledger 0428. Rebuilt from Mr. Pina's planning session of 2026-10-21
   (the HTML Assignment Standard Rebuild Brief) after he found first drafts thin and the file
   "only works for making HTMLs that already exist". New: Part A, his vision as the core

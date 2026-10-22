@@ -166,6 +166,8 @@ try {
 	const size = await frame.evaluate(() => (typeof KIT !== 'undefined' && KIT.plan
 		? { phases: KIT.plan.phases.length, classes: KIT.plan.phases.reduce((n, p) => n + (p.days || []).filter((d) => !d.off).length, 0), steps: KIT.steps.length }
 		: null));
+	const required = blocks.filter((b) => !b.optional && !(manifest.header || []).includes(b)).length;
+	(required > 20 ? WARN : PASS)('post size', 'About 15 required blocks, 20 at most (Part C)', `${required} required blocks${required > 20 ? ': the measured posts this size left most blocks unfilled; split at the next hand-in' : ''}`);
 	if (size) {
 		const big = [size.phases > 4 && `${size.phases} phases (4 at most)`, size.classes > 4 && `${size.classes} classes (4 at most)`, size.steps > 12 && `${size.steps} steps (about 12 at most)`].filter(Boolean);
 		(big.length ? WARN : PASS)('post size', 'One post, one deliverable (Part C)', big.length ? `consider splitting at the next hand-in: ${big.join(', ')}` : `${size.classes} classes, ${size.phases} phases, ${size.steps} steps`);
