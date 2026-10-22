@@ -21,7 +21,7 @@ He also asked for the two fixes found while diagnosing IDEA-06 (items 1 and 2).
 ## 1. A project folder chosen as the Armory folder (note 62ba98eb, IDEA-06, 0.4.1)
 
 Abraham Jette-Kouri, filed 2026-10-22 21:20:55, kind idea, body "bruh", area "Home > FRC 2026
-Off-Season". Full report: `note-62ba98eb-IDEA-06.json`; its log: `note-62ba98eb-IDEA-06.log`;
+Off-Season". Full report: `note-62ba98eb-IDEA-06.json`; its log: `note-62ba98eb-IDEA-06-log.txt`;
 the window he saw: `idea-06-armory-home.png`.
 
 What the log shows:
