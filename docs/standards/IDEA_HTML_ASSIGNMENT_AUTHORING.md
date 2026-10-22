@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.33 - 2026-10-20**
+**Version 1.34 - 2026-10-21**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -1382,8 +1382,42 @@ timing, retiring an answered question, the three views).
   "Build your team's chosen sketch… check your part against it before you hand in." Left
   implicit on Day 1, teams split up and modeled without the sketch.
 
+## 23. The practicality pass, paid for by IDEA-Blade 01's third class (2026-10-21)
+
+A render check and a persona read did not catch what Mr. Pina caught in his room. Before a
+publish, walk every instruction against the real tool, the real room and the real stock, and
+fix what does not survive. What this pass found on IDEA-Blade 01:
+
+- **A file that lives in a vault is not uploaded again.** Students were handing in a
+  standalone `.SLDASM`, which cannot open without its parts, while the team's IDEA Armory
+  project already held every file. When a vault holds the files, grade from the vault: the
+  hand-in is a screenshot and the numbers, and the step says "your file hands in through
+  Armory: save, close, Check in". A file the shop actually runs from (the DXF the laser cuts,
+  a sliced plate) may stay a hand-in, and the page says why.
+- **Copy only claims what the hardware does.** A what-if slider showed "spins up fast"
+  falling as mass moved to the edge; the launchers are electric motors, so there is no spin-up
+  difference to teach. A model of the physics that the real equipment does not follow is
+  removed, not reworded.
+- **Advice names only options the student actually has.** "A thicker blade hits harder" on a
+  project whose blades are all cut from one 0.100 in sheet. Check every suggestion against the
+  stock list.
+- **Sync happens on the vault's action, and the copy says that action.** "A teammate's part is
+  not there: they have not saved" is wrong under Armory, where a part reaches teammates on
+  Check in. Name the action that moves the file.
+- **A setting changed to read one number is changed back in the same step.** Switching a
+  SolidWorks part to MMGS to read grams leaves the next DXF in millimeters. The step that
+  sends a student into a setting brings them back out of it.
+
+**Changes to a document students are already working in never cost them progress.** A retired
+upload stays in the manifest as an optional, hidden block (the same shape as a retired
+question, section 21), so stored files stay attached and gradable. A completion gate may
+only loosen: a stored answer that used to count toward "done" still counts (the Armory step
+still accepts an old part file), and a requirement dropped from a gate is never replaced by
+a new one the student has not seen. Read the replace screen: every block kept, none dropped.
+
 ## Changelog
 
+- **1.34 (2026-10-21).** Ledger 0427. New section 23: the practicality pass (grade from the vault, no upload of what it holds; copy only claims what the hardware does; advice limited to the real stock; name the action that syncs; undo a setting changed to read a number) and changes that never cost students progress.
 - **1.33 (2026-10-20).** Ledger 0419. New section 22 from IDEA-Blade 01's second class: judge layout in IDEA Classroom at 1920x1080 (a 1450x830 frame) and keep the top short, read the replace screen before every publish, any student can see any role's steps with hand-ins hidden, cut controls that change nothing, merge video slots to match recordings, label outside videos, a practice box for an unrecorded role, title-card thumbnails, YouTube processing versus a real embed fault, the card pack, steps that match the real Armory flow, and the sketch-per-person, team-picks-one collaboration said outright.
 - **1.32 (2026-10-20).** Ledger 0418. Section 21: chapter keys on the hard steps of a whole-workflow video, chapter times read from YouTube's own transcript, templates opened from the team's Armory project when that is where the video opens them, a question already answered is retired by hiding its field, never by dropping its block, and a multi-day assignment offers Day, Step and List views over one map of the classes.
 - **1.31 (2026-10-19).** Ledger 0413. Section 21: a rule-by-rule audit by a fresh agent before delivery, tap tips as a component, a limit and a design labeled as two numbers, the real part drawn from the template, the launcher spins left, "You should see" on every procedural move, a printer lookup table, and `min-width: 0` around a wide drawing.
