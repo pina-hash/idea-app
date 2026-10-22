@@ -255,7 +255,7 @@
         <div class="hx-evidence idea-panel">
           <span class="idea-eyebrow">Your caliper</span>
           <label>Reading with the jaws closed
-            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="zero" placeholder="0.000"><span>in</span></span>
+            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="zero" placeholder="e.g. 0.000"><span>in</span></span>
           </label>
           <p class="hx-readout" id="cc-zero-check" aria-live="polite">Type what your display shows.</p>
         </div>
@@ -289,23 +289,23 @@
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Your part</span>
         <label>The feature you measured
-          <input class="idea-well idea-well--field" type="text" data-field="feature" placeholder="The bore for the shaft">
+          <input class="idea-well idea-well--field" type="text" data-field="feature" placeholder="e.g. the bore for the shaft">
         </label>
         <div class="cc-three">
           <label>Designed value
-            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="nominal" placeholder="0.500"><span>in</span></span>
+            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="nominal" placeholder="e.g. 0.500"><span>in</span></span>
           </label>
           <label>Tolerance, plus or minus
-            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="tol" placeholder="0.005"><span>in</span></span>
+            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="tol" placeholder="e.g. 0.005"><span>in</span></span>
           </label>
         </div>
         <div data-field="readings" data-kind="table">
           <table class="cc-table">
             <thead><tr><th>Reading 1, in</th><th>Reading 2, in</th><th>Reading 3, in</th></tr></thead>
             <tbody><tr>
-              <td data-label="Reading 1, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 1 in inches" placeholder="0.000"></td>
-              <td data-label="Reading 2, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 2 in inches" placeholder="0.000"></td>
-              <td data-label="Reading 3, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 3 in inches" placeholder="0.000"></td>
+              <td data-label="Reading 1, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 1 in inches" placeholder="e.g. 0.000"></td>
+              <td data-label="Reading 2, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 2 in inches" placeholder="e.g. 0.000"></td>
+              <td data-label="Reading 3, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 3 in inches" placeholder="e.g. 0.000"></td>
             </tr></tbody>
           </table>
         </div>
@@ -325,6 +325,7 @@
           <li><span>Close the jaws on the same feature again.</span></li>
           <li><span>Photograph the part with the display in the shot.</span></li>
           <li><span>Paste the photo into the box, or press <strong>Choose photo</strong>.</span></li>
+          <li><span>Turn the caliper off and put it back where you got it.</span></li>
         </ol>
         <p class="hx-see">The jaws on your part and a reading you can read in the photo.</p>
         <details class="hx-stuck">
@@ -377,18 +378,15 @@
             <svg viewBox="0 0 200 60" aria-hidden="true"><rect x="50" y="22" width="100" height="16" rx="3" fill="var(--hx-wash)" stroke="var(--hx-ink)"/><line x1="10" y1="30" x2="190" y2="30" stroke="var(--text-2)"/><circle cx="172" cy="30" r="7" fill="var(--plate-ink)"/></svg>
             Outside</label>
         </fieldset>
-        <label>Your average, the limits, and what you would do next
+        <label>Your average, the limits, and what you would do with the part
           <textarea class="idea-well" data-field="why" data-min-sentences="1" placeholder="My average is ... against limits of ... to ..., so I would ..."></textarea>
         </label>
         <p class="idea-chip" data-count-for="why" data-min="1">0 of 1 sentence</p>
       </div>
       <div class="hx-stack">
-        <ol class="hx-do">
-          <li><span>Turn the caliper off and put it back where you got it.</span></li>
-        </ol>
         <div class="idea-panel hx-stretch">
           <span class="idea-eyebrow">Stretch · IDEA Coins, not points</span>
-          <p>Measure a second feature three times. Which of the two should the shop hold tighter, and why?</p>
+          <p>Measure a second feature three times. Which of the two needs the smaller tolerance to work, and why?</p>
           <textarea class="idea-well" data-field="stretch" data-optional placeholder="Second feature, its readings, and the one you would tighten"></textarea>
         </div>
       </div>

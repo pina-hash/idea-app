@@ -308,7 +308,10 @@ the due date**: the post holds it and the document cannot see it (audit gap 6), 
 copy is one that disagrees; the plan strip's last class says when the work ends.
 
 **F5. Write for scanning.** One line per idea, the verb first, the number in the line; detail
-behind one disclosure. State the writing budget near the top ("1 sentence in the whole
+behind one disclosure. **A placeholder shows the form of an answer, starting "e.g.", and never a
+value a student could take for theirs** (a fresh cold open read "0.500" as filled in and
+copied it); a live readout is drawn as a line of text, never as a box that looks typeable
+(the kit's `hx-readout`). State the writing budget near the top ("1 sentence in the whole
 thing"); a required answer is one sentence with a starter as its placeholder, and an
 either/or judgment is a pick, never a sentence (L14). No weekday names, American spelling,
 no em dashes.

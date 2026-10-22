@@ -263,13 +263,17 @@ details.hx-more > summary {
 .hx-unit { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
 .hx-unit > span { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-2); }
 .hx-readout {
-	margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-control);
-	font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 0.02em;
-	background: var(--well-face); box-shadow: var(--shadow-well); border: 1px solid var(--hair); color: var(--plate-ink);
+	margin: 0; padding: 2px 0 2px var(--space-3);
+	border-left: 3px solid var(--cyan);
+	font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 0.02em; color: var(--plate-ink);
 }
-.hx-readout.warn { color: var(--amber); }
+/* A readout is read, never typed in: no well, no box, so it cannot pass for a field. */
+.hx-readout.warn { color: var(--amber); border-left-color: var(--amber); }
 .hx-finish {
 	margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control);
 	border: 1px solid var(--hair); background: var(--status-ok-fill); color: var(--plate-ink);
 }
 .hx-pick svg { width: 100%; height: auto; max-height: 90px; }
+
+/* A placeholder shows the form of an answer and must never pass for one. */
+#hx-page ::placeholder { color: var(--text-2); font-style: italic; opacity: 0.85; }
