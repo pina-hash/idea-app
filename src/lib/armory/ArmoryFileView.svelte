@@ -5,8 +5,12 @@
 	 * version and side version, newest first, each with who saved it and when.
 	 * Since ledger 0366 every version and side version has a Download, through
 	 * a signed fifteen-minute URL; an omitted `downloadHref` (file storage not
-	 * switched on) removes the control and the panel says why.
+	 * switched on) removes the control and the panel says why. Since ledger
+	 * 0430 a file that has a version and was not removed has Open in
+	 * SolidWorks, through the IDEA Armory app on this computer.
 	 */
+	import ArmoryOpenInApp from './ArmoryOpenInApp.svelte';
+	import { openable } from './open-link';
 	import {
 		fileState,
 		holderNames,
@@ -27,7 +31,8 @@
 		now,
 		deviceSeen = {},
 		checkouts = [],
-		downloadHref = null
+		downloadHref = null,
+		openMissing = false
 	}: {
 		file: ArmoryFile;
 		history: ArmoryHistoryEntry[];
@@ -35,6 +40,8 @@
 		deviceSeen?: Record<string, number>;
 		checkouts?: ArmoryCheckout[];
 		downloadHref?: ((versionId: string) => string) | null;
+		/** The dev harness only: draw Open's "nothing answered" line at once. */
+		openMissing?: boolean;
 	} = $props();
 
 	const state = $derived(fileState(file, now, new Map(Object.entries(deviceSeen))));
@@ -59,6 +66,7 @@
 		</p>
 	</div>
 	{#if file.folder}<p class="ar-message">In the folder <code>{file.folder}</code></p>{/if}
+	{#if openable(file)}<ArmoryOpenInApp fileId={file.id} name={file.name} missingAtStart={openMissing} />{/if}
 </section>
 
 <section class="ar-panel" aria-labelledby="ar-history-h">

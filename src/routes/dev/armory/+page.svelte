@@ -280,12 +280,16 @@
 		'devices',
 		'how',
 		'file-side',
+		'file-open-missing',
 		'file-no-storage',
 		'connect',
 		'connect-bad',
 		'download',
 		'download-none'
 	];
+	// The file pages' file with a real file id, as the site has one: Open in SolidWorks
+	// (ledger 0430) links only a uuid to the IDEA Armory app.
+	const OPEN_FILE = { ...SIDE_FILE, id: '6f1c0e2a-9b7d-4c3e-8a5f-1b2c3d4e5f60' };
 	const only = $derived(data.only);
 	const single = $derived(PROJECT_STATES.find((s) => s.key === only) ?? null);
 
@@ -414,15 +418,18 @@
 		<ArmoryHowItWorks />
 	{:else if key === 'file-side'}
 		<ArmoryFileView
-			file={SIDE_FILE}
+			file={OPEN_FILE}
 			history={SIDE_HISTORY}
 			now={NOW}
 			deviceSeen={EDITING_SEEN}
 			checkouts={checkoutsOf(EDITING_FILES)}
 			downloadHref={(v) => `/dev/armory?download=${v}`}
 		/>
+	{:else if key === 'file-open-missing'}
+		<!-- Open in SolidWorks clicked on a computer without IDEA Armory (ledger 0430). -->
+		<ArmoryFileView file={OPEN_FILE} history={SIDE_HISTORY} now={NOW} deviceSeen={EDITING_SEEN} checkouts={checkoutsOf(EDITING_FILES)} openMissing />
 	{:else if key === 'file-no-storage'}
-		<ArmoryFileView file={SIDE_FILE} history={SIDE_HISTORY} now={NOW} deviceSeen={EDITING_SEEN} />
+		<ArmoryFileView file={OPEN_FILE} history={SIDE_HISTORY} now={NOW} deviceSeen={EDITING_SEEN} />
 	{:else if key === 'connect'}
 		<ArmoryConnect request={CONNECT} problem={null} email="ana.reyes@boscotech.net" name="Ana Reyes" action="#" onSwitch={() => {}} />
 	{:else if key === 'connect-bad'}

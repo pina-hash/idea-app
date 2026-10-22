@@ -316,6 +316,34 @@ export function deviceLabels(devices: Iterable<{ id: string; name: string | null
 }
 
 /**
+ * A member's computers as the team shows them: one line per computer name
+ * (ledger 0430, the field round of 2026-10-22). Every sign-in registers a
+ * device of its own, by design (docs/ARMORY.md, "Device identity"), so a lab
+ * computer a student signed in to twice is two devices with one name (IDEA-06
+ * got two two minutes apart), and the team listed it twice, the older one
+ * reading as not heard from. The one heard from last speaks for the name (then
+ * the one registered last); a device with no name stays as it is. The order is
+ * the list's own.
+ */
+export function presenceDevices<T extends { id: string; name: string | null | undefined; last_seen: string | null; registered_at?: string | null }>(devices: readonly T[]): T[] {
+	const at = (t: string | null | undefined) => {
+		const ms = t ? Date.parse(t) : NaN;
+		return Number.isFinite(ms) ? ms : -Infinity;
+	};
+	const freshest = new Map<string, T>();
+	for (const d of devices) {
+		const key = d.name?.trim().toLowerCase();
+		if (!key) continue;
+		const held = freshest.get(key);
+		if (!held || at(d.last_seen) > at(held.last_seen) || (at(d.last_seen) === at(held.last_seen) && at(d.registered_at) > at(held.registered_at))) freshest.set(key, d);
+	}
+	return devices.filter((d) => {
+		const key = d.name?.trim().toLowerCase();
+		return !key || freshest.get(key) === d;
+	});
+}
+
+/**
  * The project page's file rows and checkout list with every computer named by
  * its label. The computers are the project's team (`armory_team_status`) and
  * every computer holding a file; a checkout row carries no device id, so it
@@ -328,7 +356,7 @@ export function labelProjectDevices(
 	members: readonly ArmoryMember[]
 ): { files: ArmoryFile[]; checkouts: ArmoryCheckout[]; labels: Map<string, string> } {
 	const all: Array<{ id: string; name: string | null }> = [];
-	for (const m of members) for (const d of m.devices ?? []) all.push({ id: d.id, name: d.name });
+	for (const m of members) for (const d of presenceDevices(m.devices ?? [])) all.push({ id: d.id, name: d.name });
 	for (const f of files) if (f.lock) all.push({ id: f.lock.holder_device_id, name: f.lock.holder_device_name });
 	const labels = deviceLabels(all);
 	const deviceOfFile = new Map(files.filter((f) => f.lock).map((f) => [f.id, f.lock!.holder_device_id]));

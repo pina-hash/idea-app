@@ -49,6 +49,7 @@
 		needsNewArmory,
 		noComputerWords,
 		PEOPLE_SEARCH_NOT_OFFERED,
+		presenceDevices,
 		ROLE_POWERS_WORDS,
 		sortTeam,
 		type MemberOutcome,
@@ -320,7 +321,7 @@
 					{#if manages}<span class="ar-member-email">{member.email}</span>{/if}
 					{#if teamReady}
 						<ul class="ar-presence" data-testid="armory-presence">
-							{#each member.devices ?? [] as device (device.id)}
+							{#each presenceDevices(member.devices ?? []) as device (device.id)}
 								{@const presence = devicePresence(device, clock)}
 								{@const version = appVersionWords(device)}
 								<li class={`ar-presence-line ar-presence-${presence.tone}`} data-tone={presence.tone}>
