@@ -1,0 +1,418 @@
+/* IDEA Design System: the Plate, as static classes.
+   Recreated from the live Plate (src/lib/classroom/plate.css). Every color,
+   shadow, radius and size is a token from tokens.json, read through its
+   custom property; this file carries geometry only. Geometry is the same in
+   both themes: a theme changes paint, never a box. */
+
+/* ---- The ground: the page is the plate. ---------------------------------- */
+.idea-plate {
+	background-color: var(--page-bot);
+	background-image: linear-gradient(to bottom, var(--page-top), var(--page-bot) 28rem);
+	background-repeat: no-repeat;
+	color: var(--body-ink);
+	font-family: var(--font-display);
+	font-size: 1.05rem;
+	font-weight: 400;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* ---- Eyebrow: the mono label that names a section, above it. ------------- */
+.idea-eyebrow {
+	display: block;
+	margin: 0;
+	font-family: var(--font-mono);
+	font-size: 0.6875rem;
+	font-weight: 400;
+	line-height: 1.6;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--caption);
+}
+.idea-eyebrow--info {
+	color: var(--cyan);
+}
+
+/* ---- Key: every pressable control is a raised key. ----------------------- */
+.idea-key {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	box-sizing: border-box;
+	min-height: var(--tap-min);
+	min-width: var(--tap-min);
+	padding: 0.7rem 1.3rem;
+	margin: 0;
+	font-family: var(--font-mono);
+	font-size: 0.82rem;
+	font-weight: 400;
+	line-height: 1.6;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	text-decoration: none;
+	white-space: nowrap;
+	cursor: pointer;
+	border: 1px solid;
+	border-color: var(--hair-top) var(--hair) var(--hair);
+	border-radius: var(--radius-control);
+	background:
+		linear-gradient(to bottom, var(--key-face-top), var(--key-face-bot)) padding-box,
+		linear-gradient(to bottom, var(--hair-top), var(--hair)) border-box;
+	background-color: var(--key-face-top);
+	box-shadow: var(--shadow-key);
+	color: var(--btn-ink);
+	text-shadow: none;
+	transform: none;
+}
+.idea-key:hover {
+	border-color: var(--hover-ink);
+}
+.idea-key:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+}
+/* Primary: the one accent face on a surface. */
+.idea-key--primary {
+	background:
+		linear-gradient(var(--primary-face), var(--primary-face)) padding-box,
+		linear-gradient(to bottom, var(--hair-top), var(--hair)) border-box;
+	background-color: var(--primary-face);
+	box-shadow: var(--shadow-key-primary);
+	color: var(--primary-ink);
+}
+/* Danger: the gray key, the danger ink. The word says what it costs. */
+.idea-key--danger {
+	color: var(--danger-ink);
+}
+/* Pressed: the face sinks, the light moves to the foot, nothing moves. */
+.idea-key:active:not(:disabled, [aria-disabled='true'], .is-disabled),
+.idea-key.is-pressed {
+	background:
+		linear-gradient(to bottom, var(--key-pressed-top), var(--key-pressed-bot)) padding-box,
+		linear-gradient(to bottom, var(--hair-top), var(--hair)) border-box;
+	background-color: var(--key-pressed-top);
+	box-shadow: var(--shadow-key-pressed);
+}
+/* Lit: a key that is ON. A lighter face, the faint accent ring inside, and
+   the broken accent ring with its marks. aria-pressed says it too. */
+.idea-key:is([aria-pressed='true'], [aria-selected='true'], .is-lit):not(:disabled, [aria-disabled='true'], .is-disabled) {
+	background:
+		linear-gradient(to bottom, var(--key-lit-top), var(--key-lit-bot)) padding-box,
+		linear-gradient(to bottom, var(--hair-top), var(--hair)) border-box;
+	background-color: var(--key-lit-top);
+	box-shadow: var(--shadow-key-lit);
+	color: var(--btn-ink);
+}
+.idea-key:is([aria-pressed='true'], [aria-selected='true'], .is-lit):not(:disabled, [aria-disabled='true'], .is-disabled)::after {
+	content: '';
+	position: absolute;
+	inset: 4px;
+	border: 2px solid var(--accent);
+	border-radius: calc(var(--radius-control) - 3px);
+	box-shadow: inset 0 0 0 1px var(--accent-glow);
+	pointer-events: none;
+	mask:
+		linear-gradient(118deg, #000 calc(100% - 4px), transparent calc(100% - 3.5px)) right 10px top 0 / 36px 5px no-repeat,
+		linear-gradient(118deg, #000 calc(100% - 4px), transparent calc(100% - 3.5px)) left 10px bottom 0 / 17px 5px no-repeat,
+		linear-gradient(#000, #000);
+	mask-composite: exclude;
+}
+.idea-key:is([aria-pressed='true'], [aria-selected='true'], .is-lit):not(:disabled, [aria-disabled='true'], .is-disabled)::before {
+	content: '';
+	position: absolute;
+	inset: 4px;
+	pointer-events: none;
+	background:
+		linear-gradient(118deg, var(--accent) calc(100% - 3px), transparent calc(100% - 2.5px)) right 15px top 0 / 13px 3.5px,
+		linear-gradient(var(--accent), var(--accent)) right 31px top 0 / 2px 2px,
+		linear-gradient(var(--accent), var(--accent)) right 35px top 0 / 2px 2px,
+		linear-gradient(var(--accent), var(--accent)) right 39px top 0 / 2px 2px,
+		linear-gradient(var(--accent), var(--accent)) left 11px bottom 0 / 2px 2px,
+		linear-gradient(var(--accent), var(--accent)) left 15px bottom 0 / 2px 2px;
+	background-repeat: no-repeat;
+}
+/* Disabled: an UNLIT key. Flat, quieter edge, no drop, the word itself. */
+.idea-key:is(:disabled, [aria-disabled='true'], .is-disabled),
+.idea-key:is(:disabled, [aria-disabled='true'], .is-disabled):hover {
+	opacity: 1;
+	cursor: not-allowed;
+	background: linear-gradient(var(--key-disabled-face), var(--key-disabled-face)) padding-box;
+	background-color: var(--key-disabled-face);
+	border: 1px solid var(--key-disabled-edge);
+	box-shadow: var(--shadow-key-disabled);
+	color: var(--disabled-ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+	.idea-key {
+		transition:
+			color 120ms ease-out,
+			border-color 120ms ease-out,
+			box-shadow 120ms ease-out,
+			background-color 120ms ease-out;
+	}
+}
+
+/* ---- Panel: cards, housings, menus. -------------------------------------- */
+.idea-panel {
+	box-sizing: border-box;
+	padding: var(--space-5);
+	border: 1px solid var(--hair);
+	border-radius: var(--radius-panel);
+	background-color: var(--panel-ground);
+	background-image: linear-gradient(to bottom, var(--panel-top), var(--panel-bot));
+	box-shadow: var(--shadow-panel);
+	color: var(--body-ink);
+}
+.idea-panel .idea-panel {
+	box-shadow: var(--shadow-panel-nested);
+}
+.idea-panel--housing {
+	box-shadow: var(--shadow-housing);
+}
+a.idea-panel:hover {
+	border-color: var(--hover-ink);
+}
+
+/* ---- Chip: a recessed tag, never a key. ---------------------------------- */
+.idea-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	box-sizing: border-box;
+	min-height: var(--chip-h);
+	padding: 0 5px;
+	border: 0;
+	border-radius: var(--radius-small);
+	font-family: var(--font-mono);
+	font-size: 0.6875rem;
+	font-weight: 400;
+	line-height: 1;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	background-color: var(--chip-ground);
+	background-image: linear-gradient(to bottom, var(--chip-top), var(--chip-bot));
+	box-shadow: var(--shadow-chip);
+	color: var(--plate-ink);
+}
+/* The lamp: 4px, 5px clear on both sides, paid for by the word's tracking. */
+.idea-chip--lamp {
+	--idea-lamp: var(--led-green);
+	gap: 5px;
+	padding: 0 2px 0 5px;
+	letter-spacing: -0.02em;
+}
+.idea-chip--lamp::before {
+	content: '';
+	flex: none;
+	width: var(--led-size);
+	height: var(--led-size);
+	border-radius: 50%;
+	background: radial-gradient(circle at 42% 36%, rgba(255, 255, 255, 0.8) 0 0.6px, var(--idea-lamp) 1.3px);
+	box-shadow:
+		0 0 0 1px var(--led-ring),
+		0 0 4px 1px var(--idea-lamp);
+	pointer-events: none;
+}
+.idea-chip--amber { --idea-lamp: var(--led-amber); }
+.idea-chip--gold { --idea-lamp: var(--led-gold); }
+.idea-chip--off::before {
+	background: radial-gradient(circle at 42% 36%, var(--led-off-hi) 0 0.6px, var(--led-off) 1.3px);
+	box-shadow: 0 0 0 1px var(--led-ring);
+}
+
+/* ---- Title bar: the page title between two hazard blocks. ---------------- */
+.idea-titlebar {
+	--idea-hazard-w: min(18%, 132px);
+	--idea-hazard-h: var(--hazard-h);
+	--idea-hazard-pitch: 10px;
+	--idea-hazard-tail: 3px;
+	position: relative;
+	box-sizing: border-box;
+	max-width: none;
+	margin: 0;
+	padding: 0.55rem calc(var(--idea-hazard-w) + 14px);
+	font-family: var(--font-mono);
+	font-size: clamp(1.05rem, 0.85rem + 0.55vw, 1.35rem);
+	font-weight: 400;
+	line-height: 1.35;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	text-align: center;
+	text-wrap: balance;
+	color: var(--ink-2);
+	background: linear-gradient(to bottom, var(--plate-hi), transparent 3px);
+	box-shadow: var(--shadow-groove);
+}
+.idea-titlebar::before,
+.idea-titlebar::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	width: calc(round(down, var(--idea-hazard-w) - var(--idea-hazard-tail), var(--idea-hazard-pitch)) + var(--idea-hazard-tail));
+	height: var(--idea-hazard-h);
+	margin-top: calc(var(--idea-hazard-h) / -2);
+	pointer-events: none;
+	clip-path: polygon(0 0, 100% 0, calc(100% - 2 * var(--idea-hazard-tail)) 100%, 0 100%);
+	background: var(--hazard);
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 203 15' width='203' height='15'%3E%3Cpolygon points='0,15 5,15 13,0 8,0'/%3E%3Cpolygon points='10,15 15,15 23,0 18,0'/%3E%3Cpolygon points='20,15 25,15 33,0 28,0'/%3E%3Cpolygon points='30,15 35,15 43,0 38,0'/%3E%3Cpolygon points='40,15 45,15 53,0 48,0'/%3E%3Cpolygon points='50,15 55,15 63,0 58,0'/%3E%3Cpolygon points='60,15 65,15 73,0 68,0'/%3E%3Cpolygon points='70,15 75,15 83,0 78,0'/%3E%3Cpolygon points='80,15 85,15 93,0 88,0'/%3E%3Cpolygon points='90,15 95,15 103,0 98,0'/%3E%3Cpolygon points='100,15 105,15 113,0 108,0'/%3E%3Cpolygon points='110,15 115,15 123,0 118,0'/%3E%3Cpolygon points='120,15 125,15 133,0 128,0'/%3E%3Cpolygon points='130,15 135,15 143,0 138,0'/%3E%3C/svg%3E") left center / auto 100% no-repeat;
+}
+.idea-titlebar::before {
+	left: 0;
+}
+.idea-titlebar::after {
+	right: 0;
+	transform: scaleX(-1);
+}
+@media (max-width: 480px) {
+	.idea-titlebar {
+		--idea-hazard-w: 24px;
+		--idea-hazard-h: 10px;
+		--idea-hazard-pitch: 6.667px;
+		--idea-hazard-tail: 2px;
+		font-size: 0.95rem;
+		letter-spacing: 0.06em;
+	}
+}
+
+/* ---- Well: fields and dropdowns sit in recessed troughs. ----------------- */
+.idea-well {
+	box-sizing: border-box;
+	min-height: var(--tap-min);
+	padding: 0 0.85rem;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 1rem;
+	line-height: 1.4;
+	border: 1px solid var(--hair);
+	border-radius: var(--radius-control);
+	background-color: var(--well-face);
+	background-image: linear-gradient(to bottom, var(--well-top), var(--well-face) 30%);
+	box-shadow: var(--shadow-well);
+	color: var(--plate-ink);
+	outline: none;
+	appearance: none;
+}
+.idea-well::placeholder {
+	color: var(--text-2);
+	opacity: 1;
+}
+.idea-well:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+}
+/* A plain text field takes the small radius; a search or select trough the
+   control radius. */
+.idea-well--field {
+	border-radius: var(--radius-small);
+}
+/* The dropdown: mono caps and a small accent caret. */
+.idea-well--select {
+	padding-right: 2.2rem;
+	font-family: var(--font-mono);
+	font-size: 0.6875rem;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	cursor: pointer;
+	background-image:
+		linear-gradient(to top right, transparent 50%, var(--accent) 50%),
+		linear-gradient(to top left, transparent 50%, var(--accent) 50%),
+		linear-gradient(to bottom, var(--well-top), var(--well-face) 30%);
+	background-position:
+		calc(100% - 1.1rem - 4px) 52%,
+		calc(100% - 1.1rem) 52%,
+		0 0;
+	background-size:
+		4px 5px,
+		4px 5px,
+		100% 100%;
+	background-repeat: no-repeat;
+}
+
+/* ---- Readout: the display housing and its screen. ------------------------ */
+.idea-readout {
+	position: relative;
+	box-sizing: border-box;
+	padding: 0.95rem 0.7rem 44px;
+	border: 1px solid var(--hair);
+	border-radius: 14px;
+	background-color: var(--panel-ground);
+	background-image:
+		radial-gradient(circle at 40% 38%, var(--screw-spec) 0 1.1px, transparent 2px),
+		radial-gradient(circle, var(--screw-dot) 0 2.4px, var(--screw-face) 2.9px 5.2px, transparent 5.6px),
+		radial-gradient(circle at 47% 46%, var(--screw-ring) 0 7px, transparent 7.5px),
+		radial-gradient(circle at 53% 54%, var(--screw-hi) 0 7.3px, transparent 7.8px),
+		radial-gradient(circle at 40% 38%, var(--screw-spec) 0 1.1px, transparent 2px),
+		radial-gradient(circle, var(--screw-dot) 0 2.4px, var(--screw-face) 2.9px 5.2px, transparent 5.6px),
+		radial-gradient(circle at 47% 46%, var(--screw-ring) 0 7px, transparent 7.5px),
+		radial-gradient(circle at 53% 54%, var(--screw-hi) 0 7.3px, transparent 7.8px),
+		linear-gradient(to bottom, var(--panel-top), var(--panel-bot));
+	background-size: 19px 19px, 19px 19px, 19px 19px, 19px 19px, 19px 19px, 19px 19px, 19px 19px, 19px 19px, 100% 100%;
+	background-position:
+		left 12px bottom 12px, left 12px bottom 12px, left 12px bottom 12px, left 12px bottom 12px,
+		right 12px bottom 12px, right 12px bottom 12px, right 12px bottom 12px, right 12px bottom 12px,
+		0 0;
+	background-repeat: no-repeat;
+	box-shadow: var(--shadow-readout);
+	color: var(--plate-ink);
+}
+/* The perforation patch under the screen, between the screws. */
+.idea-readout::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	bottom: 8px;
+	width: 60px;
+	height: 30px;
+	margin-left: -30px;
+	pointer-events: none;
+	background: radial-gradient(circle, var(--perf) 0 1.2px, transparent 1.6px) 1px 1px / 5px 5px;
+	mask: radial-gradient(closest-side, #000 15%, transparent 100%);
+}
+.idea-readout-screen {
+	position: relative;
+	margin: -0.95rem -0.7rem 0;
+	padding: 0.95rem 1rem 1.25rem 2.1rem;
+	border-radius: 7px 7px var(--radius-screen-cut) var(--radius-screen-cut);
+	background-color: var(--screen-top);
+	background-image:
+		linear-gradient(165deg, var(--glass) 0 38%, transparent 62%),
+		linear-gradient(to bottom, var(--screen-top), var(--screen-bot));
+	box-shadow: var(--shadow-screen);
+	color: var(--screen-ink);
+	text-shadow: 0 0 6px var(--screen-glow);
+	font-family: var(--font-mono);
+	font-size: 1rem;
+	line-height: 1.35;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	font-variant-numeric: tabular-nums;
+}
+.idea-readout-screen::before {
+	content: '';
+	position: absolute;
+	left: 0.85rem;
+	top: 50%;
+	width: 7px;
+	height: 7px;
+	margin-top: -4px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 45% 40%, #ffffffaa 0 0.8px, var(--screen-ink) 2.2px);
+	box-shadow: 0 0 6px 1px var(--screen-glow);
+	pointer-events: none;
+}
+.idea-readout-body {
+	padding: 0.85rem 0.35rem 0;
+}
+@supports (corner-shape: bevel) {
+	.idea-readout-screen {
+		corner-shape: round round superellipse(0.25) superellipse(0.25);
+	}
+}
+@media (max-width: 480px) {
+	.idea-readout-screen {
+		font-size: 0.8125rem;
+	}
+}

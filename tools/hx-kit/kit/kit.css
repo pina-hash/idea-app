@@ -1,0 +1,275 @@
+/* IDEA HTML assignment kit: the assignment's own components, on top of the
+   design system's Plate (plate.css) and its tokens (generated into the page by
+   build.mjs from tokens.json). Every color here is a token or the assignment's
+   subject palette. Geometry is the same in both themes. */
+
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+body.idea-plate { background-color: var(--page-bot); }
+
+/* ---- The subject palette: what makes this assignment look like itself. ----
+   Set two hues on <html> (data-hue-from, data-hue-to, OKLCH degrees) and every
+   phase takes a color along that spectrum. Fixed lightness per theme keeps text
+   readable in both. Kept away from green (done), amber (limits, deadlines) and
+   red (danger): test.mjs warns on a hue inside those bands. */
+:root {
+	--hx-from: 195;
+	--hx-to: 290;
+	--hx-l: 0.76;
+	--hx-c: 0.12;
+	--hx-wash-a: 0.16;
+}
+:root[data-theme='light'] { --hx-l: 0.43; --hx-c: 0.13; --hx-wash-a: 0.12; }
+.hx-hue {
+	--hx-h: calc(var(--hx-from) + (var(--hx-to) - var(--hx-from)) * var(--t, 0));
+	--hx-ink: oklch(var(--hx-l) var(--hx-c) var(--hx-h));
+	--hx-wash: oklch(var(--hx-l) var(--hx-c) var(--hx-h) / var(--hx-wash-a));
+}
+
+/* ---- The page. ---------------------------------------------------------- */
+#hx-page {
+	display: flow-root;
+	max-width: 1680px;
+	margin: 0 auto;
+	padding: clamp(12px, 1.8vw, 28px);
+	font-weight: 500;
+}
+#hx-page p, #hx-page li { max-width: 72ch; }
+#hx-page h1, #hx-page h2, #hx-page h3 { color: var(--plate-ink); margin: 0; line-height: 1.15; }
+#hx-page h2 { font-size: 1.4rem; }
+#hx-page h3 { font-size: 1.12rem; }
+#hx-page a { color: var(--accent); }
+.hx-muted { color: var(--text-2); }
+.hx-small { font-size: 0.92rem; }
+.vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- The hero: one band, short, so the first step sits in the first screen. */
+.hx-hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--space-4) var(--space-5);
+	align-items: center;
+	margin-bottom: var(--space-4);
+}
+.hx-hero-text { display: grid; gap: var(--space-2); min-width: 0; }
+.hx-hero h1 { font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.3rem); }
+.hx-crumb { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--caption); }
+.hx-done-when { margin: 0; color: var(--body-ink); }
+.hx-done-when strong { color: var(--plate-ink); }
+.hx-hero-art { width: clamp(160px, 22vw, 380px); aspect-ratio: 2 / 1; margin-right: clamp(0px, 4vw, 80px); }
+.hx-hero-art svg { width: 100%; height: 100%; display: block; }
+.hx-hero-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.hx-hero-tools label { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.hx-hero-tools label .idea-well { width: min(16rem, 100%); }
+@media (max-width: 640px) {
+	.hx-hero { grid-template-columns: 1fr; }
+	.hx-hero-art { display: none; }
+}
+
+/* ---- The plan: classes grouped into phases, colored along the spectrum.
+   One band across the page; each phase is as wide as its days, so the shape of
+   the unit reads at a glance (the IDEA209H Shop Fix calendar is the model). */
+.hx-plan {
+	display: flex;
+	gap: var(--space-2);
+	margin: 0 0 var(--space-4);
+	padding: var(--space-3);
+	overflow-x: auto;
+}
+.hx-phase { display: grid; grid-template-rows: auto 1fr; gap: 6px; min-width: 0; flex: var(--days, 1) 1 0; }
+.hx-phase-name {
+	display: flex; align-items: center; gap: 6px;
+	font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase;
+	color: var(--hx-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hx-phase-name::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--hx-ink); }
+.hx-phase-days { display: flex; gap: 4px; }
+.hx-day {
+	position: relative; flex: 1 1 0;
+	min-width: 72px; min-height: 52px;
+	padding: 8px 10px 6px;
+	display: grid; align-content: center; justify-items: start;
+	font: inherit; text-align: left; cursor: pointer;
+	color: var(--plate-ink);
+	border: 1px solid var(--hair);
+	border-radius: var(--radius-pad);
+	background: linear-gradient(to bottom, var(--hx-wash), var(--hx-wash)), var(--well-face);
+	box-shadow: inset 0 4px 0 0 var(--hx-ink), var(--shadow-chip);
+}
+.hx-day .d1 { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+.hx-day .d2 { font-weight: 700; line-height: 1.2; }
+.hx-day[aria-pressed='true'] { border-color: var(--hx-ink); outline: 2px solid var(--hx-ink); outline-offset: 1px; }
+.hx-day.is-today .d1::after { content: ' · today'; color: var(--accent); }
+.hx-day.is-off { cursor: default; box-shadow: var(--shadow-chip); background: var(--well-face); color: var(--text-2); }
+.hx-day:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (max-width: 640px) {
+	.hx-plan { flex-wrap: wrap; padding: var(--space-2); }
+	.hx-phase { min-width: 88px; }
+	.hx-day { min-width: 0; padding: 6px 8px 4px; }
+	.hx-day .d2 { font-size: 0.92rem; }
+}
+
+/* ---- The bar: where you are, and the one next thing. Not sticky: the step
+   it sits on is never taller than a screen, so it is always near. ---------- */
+.hx-bar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--space-2) var(--space-4);
+	align-items: center;
+	padding: var(--space-3) var(--space-4);
+	margin-bottom: var(--space-3);
+}
+.hx-where { min-width: 0; }
+.hx-where .lbl { display: block; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--caption); }
+.hx-where .val { display: block; font-weight: 700; color: var(--plate-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hx-bar-keys { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; align-items: center; }
+.hx-track { grid-column: 1 / -1; display: flex; gap: 4px; }
+.hx-seg {
+	flex: 1 1 0; position: relative; height: 8px; min-width: 6px; border: 0; padding: 0; cursor: pointer;
+	border-radius: 4px; background: var(--well-face); box-shadow: var(--shadow-chip);
+}
+.hx-seg::after { content: ''; position: absolute; inset: -18px 0; } /* 44px hit area */
+.hx-seg { background: linear-gradient(var(--hx-wash), var(--hx-wash)), var(--well-face); }
+.hx-seg.is-done { background: var(--accent); }
+.hx-seg.is-here { outline: 2px solid var(--hx-ink); outline-offset: 2px; }
+.hx-save { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+.hx-save.failed { color: var(--crimson); }
+.hx-banner-failed {
+	margin: 0 0 var(--space-3); padding: var(--space-3) var(--space-4);
+	border: 1px solid var(--hair); border-radius: var(--radius-control);
+	background: var(--status-danger-fill); color: var(--plate-ink); font-weight: 700;
+}
+@media (max-width: 760px) { .hx-bar { grid-template-columns: 1fr; } .hx-bar-keys { justify-content: flex-start; } .hx-where .val { white-space: normal; } }
+
+/* ---- A step: one screen of work. ---------------------------------------- */
+.hx-step { display: grid; gap: var(--space-4); }
+.hx-step-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; }
+.hx-num {
+	width: 44px; height: 44px; display: grid; place-items: center;
+	font-family: var(--font-mono); font-size: 1.05rem; color: var(--hx-ink);
+	border-radius: var(--radius-control); border: 1px solid var(--hair);
+	background: linear-gradient(to bottom, var(--hx-wash), transparent), var(--well-face);
+	box-shadow: var(--shadow-well);
+}
+.hx-step.is-done .hx-num { color: var(--accent); }
+.hx-step-head .hx-phase-tag { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--hx-ink); }
+.hx-step-body {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+	gap: var(--space-4);
+	align-items: start;
+}
+.hx-step-body > * { min-width: 0; }
+.hx-step-foot { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; align-items: center; }
+.hx-step-foot .hx-next-label { color: var(--text-2); }
+html.hx-view-list .hx-step + .hx-step { margin-top: var(--space-6); }
+html.hx-view-list .hx-step-foot { display: none; }
+
+/* The parts of a step. */
+.hx-do { margin: 0; padding: 0; list-style: none; counter-reset: do; display: grid; gap: var(--space-2); }
+.hx-do > li { counter-increment: do; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: var(--space-2); }
+.hx-do > li::before { content: counter(do); font-family: var(--font-mono); color: var(--hx-ink); padding-top: 0.1rem; }
+.hx-do > li > span { min-width: 0; }
+.hx-see {
+	margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control);
+	background: var(--well-face); box-shadow: var(--shadow-well); border: 1px solid var(--hair);
+}
+.hx-see::before { content: 'You should see'; display: block; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--caption); margin-bottom: 2px; }
+details.hx-stuck > summary {
+	min-height: var(--tap-min); display: flex; align-items: center; gap: var(--space-2); cursor: pointer;
+	font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cyan);
+}
+details.hx-stuck table { width: 100%; border-collapse: collapse; }
+details.hx-stuck td { padding: var(--space-2) var(--space-3); border-top: 1px solid var(--divider); vertical-align: top; overflow-wrap: break-word; }
+details.hx-stuck td:first-child { width: 40%; color: var(--plate-ink); font-weight: 700; }
+
+/* Graded inputs: one labeled panel, inside the step that produces them. */
+.hx-evidence { display: grid; gap: var(--space-3); }
+.hx-evidence > .idea-chip, [data-count-for] { justify-self: start; }
+.hx-evidence > .idea-eyebrow::after { content: ' · counts toward your grade'; color: var(--text-2); text-transform: none; letter-spacing: 0; font-family: var(--font-display); font-size: 0.9rem; }
+.hx-evidence label { display: grid; gap: 4px; font-weight: 600; color: var(--plate-ink); }
+.hx-evidence textarea, .hx-evidence input[type='text'] { width: 100%; padding: 0.6rem 0.85rem; }
+.hx-evidence textarea { min-height: 88px; resize: vertical; padding-top: 0.6rem; }
+.hx-hint { font-weight: 500; color: var(--text-2); font-size: 0.92rem; }
+
+/* A pick drawn as picture cards. */
+.hx-picks { border: 0; margin: 0; padding: 0; display: grid; gap: var(--space-2); grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); }
+.hx-picks legend { padding: 0; margin-bottom: var(--space-2); font-weight: 600; color: var(--plate-ink); }
+.hx-pick {
+	display: grid; gap: 6px; padding: var(--space-3); min-height: var(--tap-min); cursor: pointer;
+	border: 1px solid var(--hair); border-radius: var(--radius-control);
+	background: linear-gradient(to bottom, var(--key-face-top), var(--key-face-bot)); box-shadow: var(--shadow-key); color: var(--btn-ink);
+}
+.hx-pick:has(input:checked) { border-color: var(--accent); box-shadow: var(--shadow-key-lit); }
+.hx-pick input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+/* A picture or file box the portal draws over. */
+.hx-box {
+	display: grid; place-items: center; text-align: center; padding: var(--space-3);
+	width: min(100%, 340px); min-width: 160px; min-height: 120px; aspect-ratio: 4 / 3;
+	border: 1px dashed var(--hair); border-radius: var(--radius-control);
+	background: var(--well-face); box-shadow: var(--shadow-well); color: var(--text-2); overflow: hidden;
+}
+.hx-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.hx-file-keys { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.hx-note { margin: 0; font-size: 0.92rem; color: var(--text-2); }
+.hx-note.failed { color: var(--crimson); font-weight: 700; }
+
+/* An example on a DIFFERENT part than the one the student works on. */
+.hx-example { border-left: 4px solid var(--hx-ink); }
+.hx-example > .idea-eyebrow::after { content: ' · different part, same standard'; text-transform: none; letter-spacing: 0; font-family: var(--font-display); font-size: 0.9rem; color: var(--text-2); }
+
+/* The stretch challenge: optional, paid in IDEA Coins, never in points. */
+.hx-stretch { border: 1px solid var(--hair); }
+.hx-stretch > .idea-eyebrow { color: var(--gold); }
+
+/* Tap tips: a definition behind a term. */
+.it { border-bottom: 1px dotted var(--text-2); cursor: help; position: relative; }
+.it::after {
+	content: attr(data-tip); display: none; position: absolute; z-index: 5; left: 0; top: calc(100% + 6px);
+	width: var(--tip-w, 280px); padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-pad); border: 1px solid var(--hair);
+	background: var(--panel-top); box-shadow: var(--shadow-panel); color: var(--body-ink);
+	font-size: 0.95rem; font-weight: 500; line-height: 1.45; white-space: normal;
+}
+.it:hover::after, .it:focus::after, .it.open::after { display: block; }
+
+/* Video: the portal plays over this box. */
+.hx-video { position: relative; aspect-ratio: 16 / 9; width: 100%; border-radius: var(--radius-control); background: var(--screen-top); display: grid; place-items: center; color: var(--text-2); overflow: hidden; }
+
+/* Fields. */
+#hx-page .idea-well { width: 100%; }
+#hx-page textarea.idea-well { line-height: 1.5; }
+#hx-page td { overflow-wrap: break-word; }
+#hx-page button, #hx-page summary, #hx-page input[type='radio'], #hx-page input[type='checkbox'] { touch-action: manipulation; }
+html.is-readonly .hx-edit-only { display: none !important; }
+@media (prefers-reduced-motion: no-preference) {
+	.hx-step:not([hidden]) { animation: hx-in 140ms ease-out; }
+	@keyframes hx-in { from { opacity: 0.4; } to { opacity: 1; } }
+}
+
+/* ---- Small layout helpers, so a source needs no inline styles. ---------- */
+.hx-stack { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
+.hx-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+details.hx-more > summary {
+	min-height: var(--tap-min); display: flex; align-items: center; gap: var(--space-2); cursor: pointer;
+	font-weight: 600; color: var(--plate-ink);
+}
+.hx-fig { margin: 0; display: grid; gap: var(--space-2); }
+.hx-fig svg { width: 100%; max-width: 420px; height: auto; max-height: 240px; display: block; }
+.hx-fig figcaption { font-size: 0.92rem; color: var(--text-2); }
+.hx-unit { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.hx-unit > span { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-2); }
+.hx-readout {
+	margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-control);
+	font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 0.02em;
+	background: var(--well-face); box-shadow: var(--shadow-well); border: 1px solid var(--hair); color: var(--plate-ink);
+}
+.hx-readout.warn { color: var(--amber); }
+.hx-finish {
+	margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control);
+	border: 1px solid var(--hair); background: var(--status-ok-fill); color: var(--plate-ink);
+}
+.hx-pick svg { width: 100%; height: auto; max-height: 90px; }

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en" data-theme="idea">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classroom stand-in</title>
+<!--
+  A stand-in for the IDEA Classroom item page, for tools/hx-kit/test.mjs only.
+  Layout from the shipped shell at 1024px and up (docs: CLAUDE.md subsystems,
+  split.css and ClassroomShell.svelte as audited 2026-10-22): a 60px masthead, a
+  44px breadcrumb row and 16px under it, then the item in a pane that scrolls on
+  its own, so the frame never scrolls inside and the page around it does not move.
+  Below 1024px the whole page scrolls. The class list starts collapsed on a work
+  surface, so it is not drawn. The bridge half follows HtmlAssignmentFrame.svelte:
+  state on ready then theme, an echo of state after every change (one in three
+  stale), saves acknowledged after 800 ms, the frame sized to the reported height.
+-->
+<style>
+  :root { --bg: #121413; --ink: #eae6d8; --dim: #9aa49d; --hair: #3a3f3c; --panel: #1a1d1b; }
+  :root[data-theme='space-white'] { --bg: #dfe3ea; --ink: #0d1311; --dim: #384340; --hair: #a3a9b0; --panel: #f5f7f9; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  .mast { height: 60px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid var(--hair); font-weight: 700; letter-spacing: .1em; }
+  .crumbs { min-height: 44px; display: flex; align-items: center; padding: 0 20px; color: var(--dim); margin-bottom: 16px; }
+  .item-head { padding: 8px 24px 12px; }
+  .item-head h1 { margin: 0 0 6px; font-size: 26px; }
+  .item-head .meta { color: var(--dim); }
+  .rail { margin: 0 24px 12px; height: 40px; border: 1px solid var(--hair); border-radius: 10px; background: var(--panel); display: flex; align-items: center; padding: 0 12px; color: var(--dim); }
+  .hx-frame-box { margin: 0 24px 40px; border: 1px solid var(--hair); border-radius: 12px; overflow: hidden; }
+  .hx-frame-box iframe { display: block; width: 100%; border: 0; min-height: 320px; }
+  @media (min-width: 1024px) {
+    body { height: 100dvh; overflow: clip; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+    .pane { overflow: auto; height: 100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="mast">IDEA CLASSROOM <span style="font-weight:400;color:var(--dim);margin-left:12px">(test stand-in)</span></div>
+  <div class="crumbs">IDEA209H · Block 2 · __TITLE__</div>
+  <div class="pane" id="pane">
+    <div class="item-head"><h1>__TITLE__</h1><div class="meta">Assignment · __POINTS__ points · Due end of class</div></div>
+    <div class="rail">Progress rail</div>
+    <div class="hx-frame-box"><iframe id="frame" title="Assignment" sandbox="__FLAGS__" referrerpolicy="no-referrer"></iframe></div>
+  </div>
+<script>
+(function () {
+  var FIELDS = __FIELDS__;
+  var DOC = '__DOC__';
+  var frame = document.getElementById('frame');
+  var S = { ready: false, seeded: false, values: {}, images: {}, readOnly: false, theme: 'dark',
+            echoes: 0, stale: 0, messages: 0, dropped: [], boxes: {}, changes: 0, saveTimer: 0 };
+  function post(msg) { frame.contentWindow && frame.contentWindow.postMessage(msg, '*'); }
+  function postState(values) {
+    post({ type: 'idea:state', values: Object.assign({}, values || S.values), images: JSON.parse(JSON.stringify(S.images)), readOnly: S.readOnly });
+    S.seeded = true;
+  }
+  function saved() {
+    clearTimeout(S.saveTimer);
+    S.saveTimer = setTimeout(function () { post({ type: 'idea:saved', at: new Date().toISOString(), ok: true, schemaVersion: 3 }); }, 800);
+  }
+  function known(f) { return typeof f === 'string' && FIELDS.indexOf(f) >= 0; }
+  function okRect(r) { return r === null || (r && [r.x, r.y, r.w, r.h].every(Number.isFinite) && r.x >= 0 && r.y >= 0 && r.w > 0 && r.h > 0 && r.x + r.w <= 8000 && r.y + r.h <= 40000); }
+  addEventListener('message', function (e) {
+    if (e.source !== frame.contentWindow) return;
+    var d = e.data;
+    S.messages++;
+    if (e.origin !== 'null') { S.dropped.push('origin ' + e.origin); return; }
+    if (!d || typeof d !== 'object') { S.dropped.push('not an object'); return; }
+    switch (d.type) {
+      case 'idea:ready':
+        if (d.schemaVersion !== 3) { S.dropped.push('ready with schemaVersion ' + d.schemaVersion); return; }
+        S.ready = true; S.boxes = {};
+        postState(); post({ type: 'idea:theme', theme: S.theme }); post({ type: 'idea:feedback', fields: [] });
+        return;
+      case 'idea:change':
+        if (!known(d.field) || !(typeof d.value === 'string' || typeof d.value === 'boolean')) { S.dropped.push('change ' + d.field); return; }
+        var before = Object.assign({}, S.values);
+        S.values[d.field] = d.value; S.changes++;
+        saved();
+        var stale = S.changes % 3 === 0;
+        setTimeout(function () { S.echoes++; if (stale) S.stale++; postState(stale ? before : S.values); }, 40);
+        return;
+      case 'idea:image':
+        if (!known(d.field) || typeof d.name !== 'string' || typeof d.bytes !== 'string') { S.dropped.push('image ' + d.field); return; }
+        setTimeout(function () { S.images[d.field] = { url: '/api/classroom/attachment/test-' + d.field, name: d.name, caption: '' }; postState(); saved(); }, 300);
+        return;
+      case 'idea:image-remove':
+        if (!known(d.field)) { S.dropped.push('image-remove ' + d.field); return; }
+        delete S.images[d.field]; postState(); saved(); return;
+      case 'idea:image-caption':
+        if (!known(d.field) || typeof d.caption !== 'string' || d.caption.length > 500) { S.dropped.push('caption ' + d.field); return; }
+        if (S.images[d.field]) S.images[d.field].caption = d.caption; postState(); return;
+      case 'idea:height':
+        if (!Number.isFinite(d.px) || d.px <= 0 || d.px > 40000) { S.dropped.push('height ' + d.px); return; }
+        frame.style.height = Math.max(320, Math.ceil(d.px)) + 'px'; return;
+      case 'idea:video':
+        post({ type: 'idea:video-state', videoId: d.videoId || null, open: !!d.videoId }); return;
+      case 'idea:image-box':
+      case 'idea:field-box':
+        if (!known(d.field) || !okRect(d.rect)) { S.dropped.push(d.type + ' ' + d.field); return; }
+        if (d.type === 'idea:image-box') { S.boxes[d.field] = d.rect; if (d.rect && S.images[d.field]) post({ type: 'idea:image-box-state', field: d.field, shown: true }); }
+        return;
+      default:
+        S.dropped.push('type ' + d.type);
+    }
+  });
+  window.__host = {
+    get ready() { return S.ready; }, get seeded() { return S.seeded; },
+    values: function () { return S.values; }, images: function () { return S.images; }, boxes: function () { return S.boxes; },
+    stats: function () { return { echoes: S.echoes, stale: S.stale, messages: S.messages, dropped: S.dropped }; },
+    theme: function (t) { S.theme = t === 'light' ? 'light' : 'dark'; document.documentElement.dataset.theme = t === 'light' ? 'space-white' : 'idea'; post({ type: 'idea:theme', theme: S.theme }); },
+    readOnly: function (b) { S.readOnly = !!b; postState(); },
+    reload: function () { S.ready = false; S.seeded = false; frame.src = DOC + '?r=' + Date.now(); },
+    firstScreen: function () {
+      var r = frame.getBoundingClientRect();
+      return { frameTop: Math.round(r.top), paneBottomInDoc: Math.round(innerHeight - r.top) };
+    }
+  };
+  var q = new URLSearchParams(location.search);
+  if (q.get('theme') === 'light') window.__host.theme('light');
+  frame.src = DOC;
+})();
+</script>
+</body>
+</html>

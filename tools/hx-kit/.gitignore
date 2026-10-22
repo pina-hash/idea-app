@@ -1,0 +1,4 @@
+# test.mjs writes <file>-test/ beside the file it tested
+*-test/
+.entry.mjs
+.real.mjs

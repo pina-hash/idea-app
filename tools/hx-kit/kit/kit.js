@@ -1,0 +1,358 @@
+/* IDEA HTML assignment kit: pages, not one long scroll.
+   Runs after bridge.js (it uses HX, send, hxRoot, hxQueueLayout, hxStart).
+   One step on screen at a time, sized to fit the classroom pane; a bar that
+   says where you are and the one next thing; a plan of the classes colored by
+   phase; arrival derived from saved answers; List view for a grader. */
+var KIT = { steps: [], phases: [], cur: -1, view: 'step', visited: {}, plan: null, today: null, landed: false };
+
+function kitQ(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+function kitEsc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+/* The portal's sentence counter, ported exactly (AUTHORING: one counter, the portal's). */
+function countSentences(text) {
+  var s = text || '';
+  s = s.replace(/\.{2,}/g, '\x01');
+  s = s.replace(/(\d)\.(?=\d)/g, '$1\x01');
+  s = s.replace(/\be\.g\./gi, 'eg\x01');
+  s = s.replace(/\bi\.e\./gi, 'ie\x01');
+  s = s.replace(/\b(mr|mrs|ms|dr|prof|sr|jr|st|vs|etc|approx|fig|vol|ed|eds|al)\./gi, '$1\x01');
+  return s.split(/[.!?]+/).filter(function (piece) { return /[A-Za-z0-9]/.test(piece); }).length;
+}
+
+/* ---- What counts as done ------------------------------------------------ */
+function kitFieldDone(root) {
+  var field = root.dataset.field;
+  var kind = hxKind(root);
+  if (kind === 'image') return !!HX.images[field];
+  var v = hxRead(root);
+  if (kind === 'checkbox') return v === true;
+  if (kind === 'table') {
+    try { return JSON.parse(v).some(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); }); }
+    catch (e) { return false; }
+  }
+  var t = String(v == null ? '' : v).trim();
+  if (!t) return false;
+  var min = Number(root.dataset.minSentences || 0);
+  if (min && countSentences(t) < min) return false;
+  if (root.dataset.number !== undefined) { var n = Number(t); if (!isFinite(n) || n <= 0) return false; }
+  return true;
+}
+function kitRequired(step) {
+  /* A box retired from the page sits in a hidden wrapper inside the step (AUTHORING:
+     keep the block, hide its field). The step itself is hidden in Step view and a
+     file input is hidden by design, so neither of those excuses a field. */
+  return kitQ('[data-field]', step).filter(function (el) {
+    var wrap = el.parentElement && el.parentElement.closest('[hidden]');
+    var retired = wrap && wrap !== step && step.contains(wrap);
+    return !el.hasAttribute('data-optional') && !el.closest('[data-optional]') && !retired;
+  });
+}
+function kitStepDone(i) {
+  var s = KIT.steps[i];
+  var req = kitRequired(s.el);
+  if (req.length) return req.every(kitFieldDone);
+  /* A step with nothing to hand in is done once visited, or once a later step is. */
+  if (KIT.visited[i]) return true;
+  for (var j = i + 1; j < KIT.steps.length; j++) if (kitRequired(KIT.steps[j].el).length && kitStepDoneShallow(j)) return true;
+  return false;
+}
+function kitStepDoneShallow(j) { var req = kitRequired(KIT.steps[j].el); return req.length > 0 && req.every(kitFieldDone); }
+function kitFirstOpen(from) {
+  for (var i = from || 0; i < KIT.steps.length; i++) if (!kitStepDone(i)) return i;
+  return -1;
+}
+
+/* ---- The plan: classes grouped into phases ------------------------------ */
+function kitIsoToday() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function kitReadPlan() {
+  var el = document.getElementById('hx-plan-data');
+  if (!el) return null;
+  try { return JSON.parse(el.textContent); } catch (e) { return null; }
+}
+function kitTodayPhase() {
+  if (!KIT.plan) return null;
+  var today = KIT.today, best = null;
+  KIT.plan.phases.forEach(function (p) {
+    (p.days || []).forEach(function (d) { if (d.date && d.date <= today && (!best || d.date >= best.date)) best = { phase: p.id, day: d.label, date: d.date }; });
+  });
+  return best;
+}
+function kitRenderPlan() {
+  var nav = document.getElementById('hx-plan');
+  if (!nav || !KIT.plan) return;
+  var phases = KIT.plan.phases;
+  nav.style.setProperty('--n-phases', phases.length);
+  var now = kitTodayPhase();
+  nav.innerHTML = phases.map(function (p, i) {
+    var t = phases.length > 1 ? i / (phases.length - 1) : 0;
+    return '<div class="hx-phase hx-hue" style="--t:' + t.toFixed(3) + ';--days:' + Math.max(1, (p.days || []).length) + '">' +
+      '<span class="hx-phase-name">' + kitEsc(p.name) + '</span><div class="hx-phase-days">' +
+      (p.days || []).map(function (d) {
+        var today = now && now.date === d.date;
+        var off = d.off === true;
+        return '<button type="button" class="hx-day' + (today ? ' is-today' : '') + (off ? ' is-off' : '') + '"' +
+          (off ? ' disabled' : '') + ' data-go-phase="' + kitEsc(p.id) + '" data-go-day="' + kitEsc(d.label) + '" aria-pressed="false">' +
+          '<span class="d1">' + kitEsc(d.label) + '</span><span class="d2">' + kitEsc(d.short || p.name) + '</span></button>';
+      }).join('') + '</div></div>';
+  }).join('');
+}
+
+/* ---- Steps --------------------------------------------------------------- */
+function kitCollectSteps() {
+  var phaseIndex = {};
+  if (KIT.plan) KIT.plan.phases.forEach(function (p, i) { phaseIndex[p.id] = i; });
+  var nPhases = KIT.plan ? KIT.plan.phases.length : 1;
+  KIT.steps = kitQ('.hx-step').map(function (el, i) {
+    var pid = el.dataset.phase || '';
+    var pi = phaseIndex[pid] || 0;
+    var t = nPhases > 1 ? pi / (nPhases - 1) : 0;
+    el.classList.add('hx-hue');
+    el.style.setProperty('--t', t.toFixed(3));
+    var head = el.querySelector('.hx-step-head');
+    if (head && !head.querySelector('.hx-num')) {
+      var num = document.createElement('span');
+      num.className = 'hx-num'; num.setAttribute('aria-hidden', 'true'); num.textContent = String(i + 1);
+      head.insertBefore(num, head.firstChild);
+    }
+    var title = el.dataset.title || (el.querySelector('h2') || {}).textContent || ('Step ' + (i + 1));
+    var phaseName = KIT.plan && KIT.plan.phases[pi] ? KIT.plan.phases[pi].name : '';
+    if (!el.querySelector('.hx-step-foot')) {
+      var foot = document.createElement('div');
+      foot.className = 'hx-step-foot';
+      foot.innerHTML = '<button type="button" class="idea-key" data-kit-back>Back</button>' +
+        '<span class="hx-next-label"></span>' +
+        '<button type="button" class="idea-key idea-key--primary" data-kit-next>Next</button>';
+      el.appendChild(foot);
+      if (i === kitQ('.hx-step').length - 1) {
+        var fin = document.createElement('p');
+        fin.className = 'hx-finish';
+        fin.setAttribute('role', 'status');
+        fin.hidden = true;
+        fin.innerHTML = '<strong>Everything is in.</strong> There is nothing to turn in: your work is handed in as it saves. You can still improve any answer.';
+        el.insertBefore(fin, foot);
+      }
+    }
+    return { el: el, id: el.id, title: title.trim(), phase: pid, phaseName: phaseName, day: el.dataset.day || '' };
+  });
+}
+
+function kitShow(i, opts) {
+  opts = opts || {};
+  if (i < 0 || i >= KIT.steps.length) return;
+  KIT.cur = i;
+  KIT.visited[i] = true;
+  if (KIT.view === 'step') KIT.steps.forEach(function (s, j) { s.el.hidden = j !== i; });
+  kitRefresh();
+  hxQueueLayout();
+  if (opts.land) kitLand(KIT.view === 'step' ? document.getElementById('hx-bar') : KIT.steps[i].el, opts.focus ? KIT.steps[i].el.querySelector('h2') : null);
+}
+function kitSetView(view) {
+  KIT.view = view;
+  document.documentElement.classList.toggle('hx-view-list', view === 'list');
+  KIT.steps.forEach(function (s, j) { s.el.hidden = view === 'step' && j !== KIT.cur; });
+  kitRefresh();
+  hxQueueLayout();
+}
+
+/* Land a target at the top of the screen. Inside the frame, scrollIntoView
+   scrolls the classroom page. The frame changes height a beat after a step
+   changes, so aim after it resizes and correct once. */
+function kitLand(target, focusEl) {
+  if (!target) return;
+  setTimeout(function () {
+    target.scrollIntoView({ block: 'start' });
+    setTimeout(function () { target.scrollIntoView({ block: 'start' }); if (focusEl) { focusEl.setAttribute('tabindex', '-1'); focusEl.focus({ preventScroll: true }); } }, 220);
+  }, 140);
+}
+
+/* ---- The bar ------------------------------------------------------------ */
+function kitRenderBar() {
+  var bar = document.getElementById('hx-bar');
+  if (!bar) return;
+  bar.innerHTML =
+    '<div class="hx-where"><span class="lbl" id="hx-where-lbl">You are here</span><span class="val" id="hx-where"></span></div>' +
+    '<div class="hx-bar-keys">' +
+      '<button type="button" class="idea-key" id="hx-next-to-do"></button>' +
+      '<button type="button" class="idea-key" id="hx-view" aria-pressed="false">List view</button>' +
+      '<button type="button" class="idea-key" id="theme-key">Light mode</button>' +
+      '<span class="hx-save" id="hx-save" role="status">Saves as you type</span>' +
+    '</div>' +
+    '<div class="hx-track" id="hx-track" role="group" aria-label="Steps"></div>';
+}
+function kitRefresh() {
+  var n = KIT.steps.length;
+  if (!n) return;
+  var done = KIT.steps.map(function (s, i) { return kitStepDone(i); });
+  var count = done.filter(Boolean).length;
+  KIT.steps.forEach(function (s, i) { s.el.classList.toggle('is-done', done[i]); });
+  var cur = KIT.steps[KIT.cur] || KIT.steps[0];
+  var where = document.getElementById('hx-where');
+  if (where) where.textContent = HX.readOnly
+    ? count + ' of ' + n + ' steps done · every step shown'
+    : (KIT.view === 'list' ? 'List view · ' : '') + (cur.phaseName ? cur.phaseName + ' · ' : '') +
+      'Step ' + (KIT.cur + 1) + ' of ' + n + ' · ' + cur.title + ' · ' + count + ' of ' + n + ' done';
+  var whereLbl = document.getElementById('hx-where-lbl');
+  if (whereLbl) whereLbl.textContent = HX.readOnly ? 'Grading view, read only' : 'You are here';
+  var pill = document.getElementById('hx-save');
+  if (pill) pill.hidden = HX.readOnly;
+  var track = document.getElementById('hx-track');
+  if (track) {
+    track.innerHTML = KIT.steps.map(function (s, i) {
+      return '<button type="button" class="hx-seg hx-hue' + (done[i] ? ' is-done' : '') + (i === KIT.cur ? ' is-here' : '') +
+        '" style="--t:' + (s.el.style.getPropertyValue('--t') || 0) + '" data-go="' + i + '" aria-label="Step ' + (i + 1) + ': ' +
+        kitEsc(s.title) + (done[i] ? ', done' : '') + '"></button>';
+    }).join('');
+  }
+  var next = kitFirstOpen(0);
+  var key = document.getElementById('hx-next-to-do');
+  if (key) {
+    key.textContent = next < 0 ? 'All done · ' + count + ' of ' + n
+      : (next < KIT.cur ? 'Still to do: Step ' : 'Next to do: Step ') + (next + 1) + ' · ' + KIT.steps[next].title;
+    key.dataset.go = next < 0 ? '' : String(next);
+    key.disabled = next < 0 || HX.readOnly;
+    /* On the step that is next to do, the step's own Next is the one action. */
+    key.hidden = HX.readOnly || (next === KIT.cur && KIT.view === 'step');
+  }
+  var view = document.getElementById('hx-view');
+  if (view) { view.setAttribute('aria-pressed', KIT.view === 'list' ? 'true' : 'false'); view.textContent = KIT.view === 'list' ? 'Step view' : 'List view'; view.hidden = HX.readOnly; }
+  KIT.steps.forEach(function (s, i) {
+    var foot = s.el.querySelector('.hx-step-foot');
+    if (!foot) return;
+    var back = foot.querySelector('[data-kit-back]');
+    var fwd = foot.querySelector('[data-kit-next]');
+    var label = foot.querySelector('.hx-next-label');
+    back.disabled = i === 0;
+    if (i === n - 1) {
+      fwd.hidden = next < 0;
+      fwd.textContent = next < 0 ? '' : 'Still to do: Step ' + (next + 1) + ' · ' + KIT.steps[next].title;
+      fwd.dataset.go = next < 0 ? '' : String(next);
+    } else { fwd.hidden = false; fwd.textContent = 'Next: ' + KIT.steps[i + 1].title; fwd.dataset.go = String(i + 1); fwd.disabled = false; }
+    /* A step reads done only on its own evidence, never on a visit. */
+    var own = kitRequired(s.el).length > 0;
+    label.innerHTML = own && done[i] ? '<span class="idea-chip idea-chip--lamp">Step done</span>' : '';
+    var fin = s.el.querySelector('.hx-finish');
+    if (fin) fin.hidden = next >= 0 || HX.readOnly;
+  });
+  kitQ('.hx-day').forEach(function (b) {
+    var on = cur && b.dataset.goPhase === cur.phase && (!cur.day || b.dataset.goDay === cur.day);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+/* ---- Tap tips: a tap toggles, the width fits inside the page ------------ */
+function kitFitTip(el) {
+  var page = document.getElementById('hx-page').getBoundingClientRect();
+  var r = el.getBoundingClientRect();
+  var room = Math.max(160, Math.min(300, page.right - r.left - 16));
+  el.style.setProperty('--tip-w', room + 'px');
+}
+document.addEventListener('click', function (e) {
+  var tip = e.target.closest ? e.target.closest('.it') : null;
+  kitQ('.it.open').forEach(function (o) { if (o !== tip) o.classList.remove('open'); });
+  if (tip) { kitFitTip(tip); tip.classList.toggle('open'); }
+});
+document.addEventListener('focusin', function (e) { if (e.target.classList && e.target.classList.contains('it')) kitFitTip(e.target); });
+document.addEventListener('mouseover', function (e) { var t = e.target.closest ? e.target.closest('.it') : null; if (t) kitFitTip(t); });
+
+/* ---- Keys --------------------------------------------------------------- */
+document.addEventListener('click', function (e) {
+  var t = e.target.closest ? e.target.closest('[data-go], [data-kit-back], [data-go-phase], #hx-view, #theme-key') : null;
+  if (!t) return;
+  if (t.id === 'theme-key') {
+    HX.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    hxSetTheme(HX.theme);
+    return;
+  }
+  if (t.id === 'hx-view') { kitSetView(KIT.view === 'list' ? 'step' : 'list'); return; }
+  if (t.hasAttribute('data-kit-back')) { kitShow(KIT.cur - 1, { land: true, focus: true }); return; }
+  if (t.dataset.goPhase) {
+    var idx = -1;
+    KIT.steps.forEach(function (s, i) { if (idx < 0 && s.phase === t.dataset.goPhase && (!s.day || s.day === t.dataset.goDay)) idx = i; });
+    if (idx < 0) KIT.steps.forEach(function (s, i) { if (idx < 0 && s.phase === t.dataset.goPhase) idx = i; });
+    if (idx >= 0) kitShow(idx, { land: true, focus: true });
+    return;
+  }
+  if (t.dataset.go !== undefined && t.dataset.go !== '') kitShow(Number(t.dataset.go), { land: true, focus: true });
+});
+document.addEventListener('keydown', function (e) {
+  var tip = e.target.classList && e.target.classList.contains('it');
+  if (tip && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.target.classList.toggle('open'); }
+  if (tip && e.key === 'Escape') e.target.classList.remove('open');
+});
+
+/* ---- Page code shared by every assignment -------------------------------- */
+function kitRefreshFields() {
+  kitQ('[data-count-for]').forEach(function (chip) {
+    var box = hxRoot(chip.dataset.countFor);
+    var need = Number(chip.dataset.min);
+    var have = box ? countSentences(box.value) : 0;
+    chip.textContent = Math.min(have, need) + ' of ' + need + ' sentence' + (need === 1 ? '' : 's') + (have >= need ? ', done' : '');
+  });
+  kitQ('textarea').forEach(function (t) {
+    if (!t.getClientRects().length) return;
+    t.style.height = 'auto';
+    t.style.height = t.scrollHeight + 2 + 'px';
+  });
+}
+function kitLabelThemeKey() {
+  var k = document.getElementById('theme-key');
+  if (k) k.textContent = document.documentElement.dataset.theme === 'light' ? 'Dark mode' : 'Light mode';
+}
+document.addEventListener('input', function () { kitRefreshFields(); kitRefresh(); });
+document.addEventListener('change', function () { kitRefresh(); });
+HX.onState.push(function (d, first) {
+  kitRefreshFields();
+  if (first) {
+    if (HX.readOnly) { kitSetView('list'); kitShow(0); }
+    else {
+      var now = kitTodayPhase();
+      var start = -1;
+      if (now) KIT.steps.forEach(function (s, i) { if (start < 0 && s.phase === now.phase && !kitStepDone(i)) start = i; });
+      if (start < 0) start = kitFirstOpen(0);
+      if (start < 0) start = KIT.steps.length - 1;
+      kitShow(Math.max(0, start));
+    }
+  } else if (HX.readOnly && KIT.view !== 'list') kitSetView('list');
+  kitRefresh();
+});
+HX.onSaved.push(function (d) {
+  var b = document.getElementById('hx-failed');
+  if (b) { b.hidden = !!d.ok; if (!d.ok) b.textContent = 'Not saved yet: ' + (d.reason || 'check the connection.') + ' Keep this page open and try again.'; }
+});
+new MutationObserver(kitLabelThemeKey).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+/* ---- The glossary: one definition per term, used by every tip ---------- */
+/* A JSON script element with id hx-glossary holds {"term": "definition"}; a
+   span.it with data-term="term" gets its tip and its screen-reader text from it.
+   (Never write a closing script tag in this file: it is inlined into one.) */
+function kitGlossary() {
+  var el = document.getElementById('hx-glossary');
+  var g = {};
+  if (el) { try { g = JSON.parse(el.textContent); } catch (e) { g = {}; } }
+  kitQ('.it[data-term]').forEach(function (t) {
+    var def = g[t.dataset.term];
+    if (!def) return;
+    t.setAttribute('data-tip', def);
+    t.setAttribute('tabindex', '0');
+    if (!t.querySelector('.vh')) { var v = document.createElement('span'); v.className = 'vh'; v.textContent = ' (' + def + ')'; t.appendChild(v); }
+  });
+}
+
+/* ---- Start -------------------------------------------------------------- */
+function kitStart() {
+  kitGlossary();
+  KIT.today = document.documentElement.dataset.today || kitIsoToday();
+  KIT.plan = kitReadPlan();
+  kitRenderPlan();
+  kitRenderBar();
+  kitCollectSteps();
+  /* Before the portal seeds the page (or with no portal at all), show step 1. */
+  kitShow(0);
+  kitLabelThemeKey();
+  kitRefreshFields();
+  hxStart();
+}
+kitStart();

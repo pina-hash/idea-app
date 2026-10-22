@@ -5,7 +5,7 @@ description: Plan or build IDEA course material - a unit, a day's plan, an HTML 
 
 # IDEA course material
 
-Source of truth: `docs/skills/idea-course-material/SKILL.md` in pina-hash/idea-app. The full rules live beside it in `docs/standards/`: `IDEA_HTML_ASSIGNMENT_AUTHORING.md` (mechanics, every rule paid for), `IDEA_HTML_DESIGN_DIRECTIONS.md` (how it must read and feel), `IDEA_RUBRIC_STANDARDS.md`, `IDEA_MATERIALS_PROCESS.md`. Clone the repo and read the section you need; where a clone is refused, this file is enough to start.
+Source of truth: `docs/skills/idea-course-material/SKILL.md` in pina-hash/idea-app. The full rules live beside it in `docs/standards/`: `IDEA_HTML_ASSIGNMENT_AUTHORING.md` (how an assignment is designed, built and tested; its evidence record is `IDEA_HTML_ASSIGNMENT_LESSONS.md`), `IDEA_HTML_DESIGN_DIRECTIONS.md` (how it must read and feel), `IDEA_RUBRIC_STANDARDS.md`, `IDEA_MATERIALS_PROCESS.md`. Clone the repo and read the section you need; where a clone is refused, this file is enough to start.
 
 ## 1. Start from what is true now
 
@@ -28,15 +28,11 @@ Source of truth: `docs/skills/idea-course-material/SKILL.md` in pina-hash/idea-a
 
 No JSON specs, no separate guide post. The guide folds into the assignment.
 
-1. **One self-contained file**, everything inside it, posted as one Classroom item.
-2. **Manifest first.** Module and block ids are the join key for student answers: semantic and permanent from the first draft. Never rename or reorder ids on a published item; append only (checklists store positionally).
-3. **Rubric**: leveled, 3 or 4 levels (never 2), top level = criterion max, bottom = 0, weighted toward the top (10/7/4/0), a `short` of six words or fewer per level, observable and countable descriptors, no bonus criteria, sums exact.
-4. **AI level per module** (0 OFF, 1 COACH, 2 ASSIST, 3 OPEN) with a one-line note for that module's real work; recommend it, he confirms.
-5. **Look and feel**: run the idea-design skill. Plate look from the live site, Rajdhani and Share Tech Mono, fluid at 320 to 1920, no dead space at 960 (his half-screen), every control 44px, every stage foldable from anywhere, only the next move open, detail behind one disclosure, videos embedded at the timestamp, pictures pasted straight from the clipboard.
-6. **Validate**: both validators in the repo (`tools/validate-assignment-spec.py` for the manifest rules; the HTML checks in AUTHORING section 11), then a real Chromium run at 375, 960 and 1440 in both themes, looked at, not just measured.
-7. **Persona audit** before delivery: the slowest student, a student absent that day, Mr. Cosso grading it cold.
-8. **Deliver** the file plus posting details (title, points, category, due date, post text). Archive to Library C.
-9. **Every fix you make goes into `IDEA_HTML_ASSIGNMENT_AUTHORING.md`** in the repo in the same turn, unprompted.
+**Build it with the idea-html-assignment skill, test it with the idea-html-test skill.** They carry the learning brief he approves before any HTML, the hx-kit starter and build (`tools/hx-kit/`), the look (the IDEA Design System as the base, a subject palette for variance), one step per screen, and the release gates. The rules are `IDEA_HTML_ASSIGNMENT_AUTHORING.md` 2.0 or later.
+
+Two things this skill adds for a unit:
+1. **AI level per module** (0 OFF, 1 COACH, 2 ASSIST, 3 OPEN) with a one-line note for that module's real work; recommend it, he confirms. The parts that prove learning are built so AI is of little use (AUTHORING A7).
+2. **Size the posts before building them** (AUTHORING Part C): one deliverable and one due date per post, one to four classes, split where the grade changes hands.
 
 ## 4. Print, only when print is the right medium
 

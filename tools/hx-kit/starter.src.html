@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en" data-hue-from="200" data-hue-to="300">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caliper Check</title>
+<!--
+  STARTER. Copy this file to <COURSE>_<Day>_<What>.src.html, replace everything
+  below the manifest, and build it:  node tools/hx-kit/build.mjs <file>.src.html
+  Then test it:                      node tools/hx-kit/test.mjs <file>.html
+  Every part of the page is an example of a rule in
+  docs/standards/IDEA_HTML_ASSIGNMENT_AUTHORING.md; keep the pattern, replace the content.
+
+  BRIEF (approved by Mr. Pina before any HTML; AUTHORING Part B)
+  1 Skill: read a digital caliper to 0.001 in and judge a part against its tolerance.
+  2 Proof: a zero reading; three readings of one feature of the student's own part with a
+    photo of the jaws on it; a verdict that names the average and the limits. High quality:
+    three readings within 0.002 in, all three decimals, the verdict matching the numbers.
+  3 Stuck points: jaws not zeroed; measuring on a burr; reading mm as inches; outside jaws
+    on a hole; not knowing where the tolerance is on the drawing.
+  4 Builds on: the part and drawing from the previous build assignment.
+  5 Problem they solve: read an unfamiliar display (step 1) and decide inside or outside
+    from their own numbers (step 4). Stretch: a second feature, and which one the shop
+    should hold tighter (IDEA Coins, not points).
+  6 Shape: one post, three classes, three phases (Learn, Measure, Report), five steps,
+    22 points.
+  7 Facts to confirm: the unit key's label on the lab calipers (in/mm); what to do with a
+    dead battery; whether a burr may be filed; how a phone photo reaches a lab computer.
+  8 Look: blue to violet (data-hue 200 to 300); a digital caliper in the header.
+-->
+<script type="application/json" id="idea-manifest">
+{
+  "schemaVersion": 3, "kind": "html-assignment",
+  "title": "Caliper Check", "course": "IDEA209H", "points": 22,
+  "thumbnail": { "kind": "html", "template": "idea-thumbnail" },
+  "modules": [
+    {
+      "id": "cc-read", "title": "Read and zero", "points": 6, "audience": "individual",
+      "blocks": [
+        {"id": "cc-read-pick", "field": "readPick", "type": "radio", "prompt": "What does the caliper in step 1 read?"},
+        {"id": "cc-read-zero", "field": "zero", "type": "text", "prompt": "Your caliper's reading with the jaws closed"}
+      ],
+      "criteria": [
+        {
+          "id": "read-pick", "text": "Reads an unfamiliar display, unit included", "points": 4,
+          "levels": [
+            {"points": 4, "label": "Complete", "short": "Right number, right unit", "descriptor": "Picks 12.70 mm."},
+            {"points": 2, "label": "Developing", "short": "Right digits, wrong unit", "descriptor": "Picks 12.70 in."},
+            {"points": 0, "label": "Absent", "short": "Wrong or no pick", "descriptor": "Any other pick, or none."}
+          ]
+        },
+        {
+          "id": "read-zero", "text": "The caliper was zeroed before measuring", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Reads 0.000", "descriptor": "The closed-jaw reading is 0.000."},
+            {"points": 1, "label": "Developing", "short": "Not quite zero", "descriptor": "A closed-jaw reading other than 0.000."},
+            {"points": 0, "label": "Absent", "short": "No reading", "descriptor": "No reading."}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cc-measure", "title": "Measure your part", "points": 10, "audience": "individual",
+      "blocks": [
+        {"id": "cc-measure-feature", "field": "feature", "type": "text", "prompt": "The feature you measured"},
+        {"id": "cc-measure-nominal", "field": "nominal", "type": "text", "prompt": "Designed value, in inches, from the drawing"},
+        {"id": "cc-measure-tol", "field": "tol", "type": "text", "prompt": "Tolerance, plus or minus, in inches, from the drawing"},
+        {"id": "cc-measure-readings", "field": "readings", "type": "table", "prompt": "Three readings of the same feature, in inches"},
+        {"id": "cc-measure-photo", "field": "photo", "type": "image", "prompt": "Photo: the jaws on your part"},
+        {"id": "cc-measure-photo-2", "field": "photo2", "type": "image", "optional": true, "prompt": "Another photo, if you have one"}
+      ],
+      "criteria": [
+        {
+          "id": "measure-readings", "text": "Three readings of one named feature, to 0.001 in, with its designed value and tolerance", "points": 6,
+          "levels": [
+            {"points": 6, "label": "Complete", "short": "All of it, three decimals", "descriptor": "The feature, its designed value and tolerance from the drawing, and three readings to 0.001 in within 0.002 in of each other."},
+            {"points": 4, "label": "Proficient", "short": "One piece missing or rounded", "descriptor": "One of these is missing or rounded past 0.001 in, or the readings spread more than 0.002 in."},
+            {"points": 2, "label": "Developing", "short": "Fewer than three readings", "descriptor": "One or two readings, or readings of different features."},
+            {"points": 0, "label": "Absent", "short": "No readings", "descriptor": "No readings."}
+          ]
+        },
+        {
+          "id": "measure-photo", "text": "The photo shows the jaws on the student's own part", "points": 4,
+          "levels": [
+            {"points": 4, "label": "Complete", "short": "Jaws on the part, readable", "descriptor": "The jaws sit on the named feature and the display can be read."},
+            {"points": 2, "label": "Developing", "short": "Part or display unclear", "descriptor": "The part is in the photo, but the jaws or the display cannot be made out."},
+            {"points": 0, "label": "Absent", "short": "No photo", "descriptor": "No photo, or a photo of something else."}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cc-judge", "title": "Judge it", "points": 6, "audience": "individual",
+      "blocks": [
+        {"id": "cc-judge-verdict", "field": "verdict", "type": "radio", "prompt": "Inside or outside the tolerance?"},
+        {"id": "cc-judge-why", "field": "why", "type": "longText", "minSentences": 1, "prompt": "Your average, the limits, and what you would do next"},
+        {"id": "cc-judge-stretch", "field": "stretch", "type": "longText", "optional": true, "prompt": "Stretch: a second feature, and which one the shop should hold tighter"}
+      ],
+      "criteria": [
+        {
+          "id": "judge-verdict", "text": "The verdict follows from the readings and the limits", "points": 6,
+          "levels": [
+            {"points": 6, "label": "Complete", "short": "Verdict backed by the numbers", "descriptor": "The verdict matches the readings, and the sentence names the average and the limit that decides it."},
+            {"points": 4, "label": "Proficient", "short": "Verdict right, numbers missing", "descriptor": "The verdict matches the readings, but the sentence does not name the numbers."},
+            {"points": 2, "label": "Developing", "short": "Verdict contradicts readings", "descriptor": "A verdict the readings do not support."},
+            {"points": 0, "label": "Absent", "short": "No verdict", "descriptor": "No verdict."}
+          ]
+        }
+      ]
+    }
+  ]
+}
+</script>
+<!-- hx:head -->
+<style>
+  /* This assignment's own look. The subject palette is set on <html> above;
+     everything else comes from the kit. */
+  .cc-table { width: 100%; border-collapse: collapse; }
+  .cc-table th { text-align: left; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caption); padding: 0 0 6px; }
+  .cc-table td { padding: 4px 6px 4px 0; }
+  .cc-three { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: var(--space-3); }
+  .cc-display { font-family: var(--font-mono); }
+  @media (max-width: 520px) {
+    .cc-table thead { display: none; }
+    .cc-table tr { display: grid; gap: 4px; margin-bottom: 8px; }
+    .cc-table td::before { content: attr(data-label); display: block; font-size: 0.8rem; color: var(--text-2); }
+  }
+</style>
+<template id="idea-thumbnail">
+<style>
+  :root { --a: #1d2a33; --b: #121618; --ink: #8fc3ff; --line: #d9e1e6; }
+  :root[data-idea-scheme="light"] { --a: #e9eef5; --b: #d3dbe6; --ink: #2d5c9a; --line: #27313a; }
+  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6%; background: radial-gradient(circle at 30% 30%, var(--a), var(--b) 80%); color: var(--line); font: 700 12vh/1 system-ui, sans-serif; white-space: nowrap; }
+  .t svg { height: 72%; }
+  .t span { display: none; }
+  :root[data-idea-shape="wide"] .t span, :root[data-idea-shape="banner"] .t span { display: block; }
+</style>
+<div class="t">
+  <svg viewBox="0 0 320 160" aria-hidden="true"><rect x="20" y="50" width="290" height="16" rx="2" fill="none" stroke="var(--ink)" stroke-width="5"/><path d="M20 50 H44 V120 L34 140 H28 L20 120 Z" fill="none" stroke="var(--line)" stroke-width="5"/><path d="M60 66 H74 V120 L64 140 H60 Z" fill="none" stroke="var(--line)" stroke-width="5"/><rect x="60" y="38" width="90" height="40" rx="6" fill="none" stroke="var(--line)" stroke-width="5"/></svg>
+  <span>Caliper Check</span>
+</div>
+</template>
+</head>
+<body class="idea-plate">
+<main id="hx-page">
+
+  <header class="hx-hero">
+    <div class="hx-hero-text">
+      <span class="hx-crumb">IDEA209H · Measurement · Starter</span>
+      <h1>Caliper Check</h1>
+      <p class="hx-done-when"><strong>Done when:</strong> your caliper reads zero, three readings of your own part sit beside a photo of the jaws on it, and your verdict names the numbers that decide it.</p>
+      <div class="hx-row">
+        <span class="idea-chip">Writing: 1 sentence in all</span>
+        <span class="idea-chip">Everything else: a pick, a number or a photo</span>
+      </div>
+    </div>
+    <div class="hx-hero-art hx-hue" style="--t:0.5" aria-hidden="true">
+      <svg viewBox="0 0 320 160">
+        <rect x="20" y="50" width="290" height="16" rx="2" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2.5"/>
+        <g stroke="var(--hx-ink)" stroke-width="1.5">
+          <line x1="160" y1="50" x2="160" y2="58"/><line x1="176" y1="50" x2="176" y2="55"/><line x1="192" y1="50" x2="192" y2="58"/><line x1="208" y1="50" x2="208" y2="55"/><line x1="224" y1="50" x2="224" y2="58"/><line x1="240" y1="50" x2="240" y2="55"/><line x1="256" y1="50" x2="256" y2="58"/><line x1="272" y1="50" x2="272" y2="55"/><line x1="288" y1="50" x2="288" y2="58"/>
+        </g>
+        <path d="M20 50 H44 V120 L34 140 H28 L20 120 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M36 50 H44 V32 L40 28 H36 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="44" y="98" width="16" height="26" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2"/>
+        <path d="M60 66 H74 V120 L64 140 H60 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M60 40 H66 V30 L62 26 H60 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="60" y="38" width="96" height="42" rx="6" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/>
+        <rect x="70" y="45" width="62" height="24" rx="3" fill="var(--screen-top)"/>
+        <text x="101" y="62" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--screen-ink)">0.512</text>
+        <circle cx="146" cy="74" r="5" fill="none" stroke="var(--plate-ink)" stroke-width="2"/>
+        <line x1="310" y1="58" x2="318" y2="58" stroke="var(--plate-ink)" stroke-width="2.5"/>
+      </svg>
+    </div>
+  </header>
+
+  <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Classes in this assignment"></nav>
+  <div class="hx-bar idea-panel" id="hx-bar"></div>
+  <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
+
+  <!-- STEP 1: a problem with a wrong answer, and a copy-proof example (A4, A6). -->
+  <section class="hx-step idea-panel" id="s-read" data-phase="learn" data-title="Read a caliper">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Learn</span><h2>Read a caliper</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <p>The display shows the distance between the <span class="it" data-term="jaws">jaws</span>. Read every digit, then the small unit mark beside them: <strong>in</strong> or <strong>mm</strong>.</p>
+        <div class="idea-panel hx-example hx-hue" style="--t:0.15">
+          <span class="idea-eyebrow">Example</span>
+          <figure class="hx-fig">
+            <svg viewBox="0 0 240 70" role="img" aria-label="A caliper display reading 0.512 with the unit mark IN">
+              <rect x="1" y="1" width="238" height="68" rx="8" fill="var(--screen-top)" stroke="var(--hair)"/>
+              <text x="24" y="48" font-family="Share Tech Mono, monospace" font-size="34" fill="var(--screen-ink)">0.512</text>
+              <text x="200" y="46" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--screen-ink)">IN</text>
+            </svg>
+            <figcaption>On a bolt head, not your part: 0.512 inches.</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Your answer</span>
+        <figure class="hx-fig">
+          <svg viewBox="0 0 240 70" role="img" aria-label="A caliper display reading 12.70 with a small unit mark MM">
+            <rect x="1" y="1" width="238" height="68" rx="8" fill="var(--screen-top)" stroke="var(--hair)"/>
+            <text x="24" y="48" font-family="Share Tech Mono, monospace" font-size="34" fill="var(--screen-ink)">12.70</text>
+            <text x="200" y="46" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--screen-ink)">MM</text>
+          </svg>
+        </figure>
+        <fieldset class="hx-picks" data-field="readPick" data-kind="radio">
+          <legend>What does this caliper read?</legend>
+          <label class="hx-pick"><input type="radio" name="readPick" value="12.70mm"> 12.70 mm</label>
+          <label class="hx-pick"><input type="radio" name="readPick" value="12.70in"> 12.70 in</label>
+          <label class="hx-pick"><input type="radio" name="readPick" value="1.270in"> 1.270 in</label>
+        </fieldset>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: a procedure, evidence instead of a checkbox (F6), a live mirror (F9). -->
+  <section class="hx-step idea-panel" id="s-zero" data-phase="learn" data-title="Zero your caliper">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Learn</span><h2>Zero your caliper</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Get a digital caliper and turn it on.</span></li>
+          <li><span>Wipe both jaws with a clean rag.</span></li>
+          <li><span>Close the jaws fully.</span></li>
+          <li><span>Press <strong>ZERO</strong>.</span></li>
+        </ol>
+        <p class="hx-see">0.000 with the jaws closed. Open and close once: it comes back to 0.000.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>It reads 0.003 closed</td><td>Something is in the jaws. Wipe them and press <strong>ZERO</strong> again.</td></tr>
+            <tr><td>The numbers jump or fade</td><td>The battery is low. Swap calipers.</td></tr>
+            <tr><td>The unit mark says MM</td><td>Press <strong>in/mm</strong> once.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-stack">
+        <figure class="hx-fig hx-hue" style="--t:0.15">
+          <svg viewBox="0 0 320 120" role="img" aria-label="Caliper jaws closed, display reading 0.000">
+            <rect x="20" y="30" width="290" height="14" rx="2" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2"/>
+            <path d="M20 30 H44 V100 L34 116 H28 L20 100 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/>
+            <path d="M44 44 H58 V100 L48 116 H44 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/>
+            <rect x="44" y="20" width="96" height="40" rx="6" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/>
+            <rect x="54" y="27" width="62" height="24" rx="3" fill="var(--screen-top)"/>
+            <text x="85" y="44" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--screen-ink)">0.000</text>
+          </svg>
+          <figcaption>Jaws closed, no gap, 0.000.</figcaption>
+        </figure>
+        <div class="hx-evidence idea-panel">
+          <span class="idea-eyebrow">Your caliper</span>
+          <label>Reading with the jaws closed
+            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="zero" placeholder="0.000"><span>in</span></span>
+          </label>
+          <p class="hx-readout" id="cc-zero-check" aria-live="polite">Type what your display shows.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: the real act, with its numbers worked out live. -->
+  <section class="hx-step idea-panel" id="s-measure" data-phase="measure" data-title="Measure your part">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Measure</span><h2>Measure your part</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Pick one <span class="it" data-term="feature">feature</span> of the part you made in your last build. Its drawing gives the <span class="it" data-term="designed value">designed value</span> and the <span class="it" data-term="tolerance">tolerance</span>.</span></li>
+          <li><span>A width: the big outside jaws. A hole: the small inside jaws.</span></li>
+          <li><span>Close the jaws square to the faces, with light thumb pressure.</span></li>
+          <li><span>Read it, open the jaws, lift off. Do it three times.</span></li>
+        </ol>
+        <p class="hx-see">Three readings within 0.002 in of each other.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>The readings differ by more than 0.002</td><td>The jaws are tilted. Square them to the faces and go lighter.</td></tr>
+            <tr><td>One reading is much bigger</td><td>A <span class="it" data-term="burr">burr</span> is in the way. Measure away from the edge.</td></tr>
+            <tr><td>No tolerance on the drawing</td><td>Look in the title block: the general tolerance covers every size without its own.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Your part</span>
+        <label>The feature you measured
+          <input class="idea-well idea-well--field" type="text" data-field="feature" placeholder="The bore for the shaft">
+        </label>
+        <div class="cc-three">
+          <label>Designed value
+            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="nominal" placeholder="0.500"><span>in</span></span>
+          </label>
+          <label>Tolerance, plus or minus
+            <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="decimal" data-field="tol" placeholder="0.005"><span>in</span></span>
+          </label>
+        </div>
+        <div data-field="readings" data-kind="table">
+          <table class="cc-table">
+            <thead><tr><th>Reading 1, in</th><th>Reading 2, in</th><th>Reading 3, in</th></tr></thead>
+            <tbody><tr>
+              <td data-label="Reading 1, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 1 in inches" placeholder="0.000"></td>
+              <td data-label="Reading 2, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 2 in inches" placeholder="0.000"></td>
+              <td data-label="Reading 3, in"><input class="idea-well idea-well--field" type="text" inputmode="decimal" aria-label="Reading 3 in inches" placeholder="0.000"></td>
+            </tr></tbody>
+          </table>
+        </div>
+        <p class="hx-readout" id="cc-sum" aria-live="polite">Your average and limits appear here.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP: a hand-in on its own step, so every step fits one screen (E1). -->
+  <section class="hx-step idea-panel" id="s-photo" data-phase="measure" data-title="Photograph it">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Measure</span><h2>Photograph it</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Close the jaws on the same feature again.</span></li>
+          <li><span>Photograph the part with the display in the shot.</span></li>
+          <li><span>Paste the photo into the box, or press <strong>Choose photo</strong>.</span></li>
+        </ol>
+        <p class="hx-see">The jaws on your part and a reading you can read in the photo.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>The display is a blur</td><td>Hold the camera still, closer, with the display facing it.</td></tr>
+            <tr><td>The photo is on my phone</td><td>Send it to yourself, open it on this computer, copy it, and paste it here.</td></tr>
+            <tr><td>Paste does nothing</td><td>Click the box first, then paste. Or press <strong>Choose photo</strong>.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Your photo</span>
+        <div class="hx-box" data-image-box="photo" data-empty="Paste the photo here, or press Choose photo">Paste the photo here, or press Choose photo</div>
+        <input type="file" data-field="photo" accept="image/*" hidden>
+        <div class="hx-row hx-edit-only">
+          <button type="button" class="idea-key" data-edits data-choose="photo">Choose photo</button>
+          <button type="button" class="idea-key" data-edits data-remove="photo" hidden>Remove</button>
+        </div>
+        <p class="hx-note" data-file-note="photo"></p>
+        <details class="hx-more">
+          <summary>Add another photo <span class="idea-chip">Optional</span></summary>
+          <div class="hx-box" data-image-box="photo2" data-optional data-empty="Another photo">Another photo</div>
+          <input type="file" data-field="photo2" data-optional accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="photo2">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="photo2" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="photo2"></p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: a decision from their own numbers; picture-card picks; the stretch (A8). -->
+  <section class="hx-step idea-panel" id="s-judge" data-phase="report" data-title="Judge it">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Report</span><h2>Judge it</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Your verdict</span>
+        <p class="hx-readout" id="cc-sum-2" aria-live="polite">Fill in step 3 first: your average and limits appear here.</p>
+        <fieldset class="hx-picks hx-hue" style="--t:1" data-field="verdict" data-kind="radio">
+          <legend>Inside or outside the tolerance?</legend>
+          <label class="hx-pick"><input type="radio" name="verdict" value="inside">
+            <svg viewBox="0 0 200 60" aria-hidden="true"><rect x="50" y="22" width="100" height="16" rx="3" fill="var(--hx-wash)" stroke="var(--hx-ink)"/><line x1="10" y1="30" x2="190" y2="30" stroke="var(--text-2)"/><circle cx="92" cy="30" r="7" fill="var(--plate-ink)"/></svg>
+            Inside</label>
+          <label class="hx-pick"><input type="radio" name="verdict" value="outside">
+            <svg viewBox="0 0 200 60" aria-hidden="true"><rect x="50" y="22" width="100" height="16" rx="3" fill="var(--hx-wash)" stroke="var(--hx-ink)"/><line x1="10" y1="30" x2="190" y2="30" stroke="var(--text-2)"/><circle cx="172" cy="30" r="7" fill="var(--plate-ink)"/></svg>
+            Outside</label>
+        </fieldset>
+        <label>Your average, the limits, and what you would do next
+          <textarea class="idea-well" data-field="why" data-min-sentences="1" placeholder="My average is ... against limits of ... to ..., so I would ..."></textarea>
+        </label>
+        <p class="idea-chip" data-count-for="why" data-min="1">0 of 1 sentence</p>
+      </div>
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Turn the caliper off and put it back where you got it.</span></li>
+        </ol>
+        <div class="idea-panel hx-stretch">
+          <span class="idea-eyebrow">Stretch · IDEA Coins, not points</span>
+          <p>Measure a second feature three times. Which of the two should the shop hold tighter, and why?</p>
+          <textarea class="idea-well" data-field="stretch" data-optional placeholder="Second feature, its readings, and the one you would tighten"></textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script type="application/json" id="hx-plan-data">
+{
+  "phases": [
+    {"id": "learn", "name": "Learn", "days": [{"label": "Class 1", "short": "Read and zero", "date": "2026-10-26"}]},
+    {"id": "measure", "name": "Measure", "days": [{"label": "Class 2", "short": "Readings and photo", "date": "2026-10-28"}]},
+    {"id": "report", "name": "Report", "days": [{"label": "Class 3", "short": "Verdict", "date": "2026-10-30"}]}
+  ]
+}
+</script>
+<script type="application/json" id="hx-glossary">
+{
+  "jaws": "The two flat faces that close on the part. The big outside jaws measure a width; the small inside jaws measure a hole.",
+  "feature": "One measurable thing on a part: a width, a hole, a slot, a thickness.",
+  "designed value": "The size the drawing asks for.",
+  "tolerance": "How far the real part may be from the designed value and still pass, written as plus or minus.",
+  "burr": "A thin, sharp ridge left on an edge by cutting or drilling."
+}
+</script>
+<!-- hx:script -->
+<script id="hx-page-js">
+/* This assignment's own code: live mirrors, never gates (AUTHORING F9). It runs
+   after the kit, so HX and its helpers exist; it never starts the page. */
+function ccNum(field) {
+  var el = hxRoot(field);
+  var n = el ? parseFloat(String(hxRead(el)).trim()) : NaN;
+  return isFinite(n) ? n : null;
+}
+function ccReadings() {
+  var el = hxRoot('readings');
+  try { return JSON.parse(hxRead(el))[0].map(function (v) { return parseFloat(String(v).trim()); }).filter(isFinite); }
+  catch (e) { return []; }
+}
+function ccRefresh() {
+  var z = ccNum('zero');
+  var zc = document.getElementById('cc-zero-check');
+  var zt = String(hxRead(hxRoot('zero')) || '').trim();
+  zc.classList.toggle('warn', z !== null && z !== 0);
+  zc.textContent = !zt ? 'Type what your display shows.' : z === null ? 'That is not a number. Type it as it shows, like 0.000.'
+    : z === 0 ? 'Zeroed. Go on to step 3.' : 'Not zero yet: wipe the jaws, close them, press ZERO.';
+  var r = ccReadings(), nom = ccNum('nominal'), tol = ccNum('tol');
+  var parts = [];
+  var avg = null;
+  if (r.length) {
+    avg = r.reduce(function (a, b) { return a + b; }, 0) / r.length;
+    var spread = Math.max.apply(null, r) - Math.min.apply(null, r);
+    parts.push('Average ' + avg.toFixed(3) + ' in from ' + r.length + ' reading' + (r.length === 1 ? '' : 's'));
+    parts.push('spread ' + spread.toFixed(3) + ' in' + (spread > 0.002 ? ' (over 0.002: measure again)' : ''));
+  }
+  if (nom !== null && tol !== null) parts.push('limits ' + (nom - tol).toFixed(3) + ' to ' + (nom + tol).toFixed(3) + ' in');
+  var text = parts.length ? parts.join(' · ') : 'Your average and limits appear here.';
+  document.getElementById('cc-sum').textContent = text;
+  document.getElementById('cc-sum-2').textContent = parts.length ? text : 'Fill in step 3 first: your average and limits appear here.';
+}
+document.addEventListener('input', ccRefresh);
+HX.onState.push(ccRefresh);
+ccRefresh();
+</script>
+</body>
+</html>

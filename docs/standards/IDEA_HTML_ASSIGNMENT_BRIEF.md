@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Brief
-**Version 1.0 - 2026-10-14**
+**Version 1.1 - 2026-10-22**
 
 The one file to give a Claude chat that builds an HTML assignment for IDEA Classroom, the
 class portal Mr. Pina (owner) runs for the IDEA pathway at Bosco Tech. With only this file, a
@@ -12,6 +12,13 @@ Home: `docs/standards/IDEA_HTML_ASSIGNMENT_BRIEF.md` in `pina-hash/idea-app`, co
 the authoring standard 1.24, the subsystem specification 1.8, the HTML design directions and
 the template beside it. Where this brief and the portal disagree, the portal is right; say
 so in your delivery.
+
+**A chat that can clone the repository builds with `tools/hx-kit/` instead** (the
+idea-html-assignment skill): the kit inlines section 6's code verbatim, so a document built on
+it gets every behavior below without copying anything, and `IDEA_HTML_ASSIGNMENT_AUTHORING.md`
+2.0 adds what this brief predates: the learning brief approved before any HTML, the subject
+palette, one step per screen of the classroom pane, and the release gates. This file stays
+the self-contained fallback and the source of the kit's `bridge.js`; change both together.
 
 **How to use it.** Read it once, top to bottom, then build in order: the manifest (3), the
 markup (5), the code (6), the look (7), the work (8), the checks (10). **Copy the code in
@@ -1400,6 +1407,10 @@ undo, reload, read-only), and an English learner or a student with a reading dis
 
 ## Changelog
 
+- **1.1 (2026-10-22).** Ledger 0428. A header note: a chat with the repository builds on
+  `tools/hx-kit/`, whose `bridge.js` is section 6.1 to 6.5 verbatim, and follows
+  `IDEA_HTML_ASSIGNMENT_AUTHORING.md` 2.0 for design, look and release; this file remains the
+  no-repository fallback. No rule or code changed.
 - **1.0 (2026-10-14).** New. The one file to hand a Claude chat that builds a ported HTML
   assignment, condensed from the authoring standard 1.24, the subsystem specification 1.8,
   the HTML design directions 1.0 and the template 1.0, with every protocol fact checked
