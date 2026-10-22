@@ -162,6 +162,14 @@ try {
 	const { page, frame } = s;
 	const k = await frame.evaluate(() => ({ kit: typeof KIT !== 'undefined', steps: typeof KIT !== 'undefined' ? KIT.steps.length : 0 }));
 	INFO('layout', 'Steps', k.kit ? `${k.steps} steps, one on screen at a time` : 'no kit navigator: one long page');
+	/* Post size (AUTHORING Part C): one deliverable, a few classes, a few phases. */
+	const size = await frame.evaluate(() => (typeof KIT !== 'undefined' && KIT.plan
+		? { phases: KIT.plan.phases.length, classes: KIT.plan.phases.reduce((n, p) => n + (p.days || []).filter((d) => !d.off).length, 0), steps: KIT.steps.length }
+		: null));
+	if (size) {
+		const big = [size.phases > 4 && `${size.phases} phases (4 at most)`, size.classes > 4 && `${size.classes} classes (4 at most)`, size.steps > 12 && `${size.steps} steps (about 12 at most)`].filter(Boolean);
+		(big.length ? WARN : PASS)('post size', 'One post, one deliverable (Part C)', big.length ? `consider splitting at the next hand-in: ${big.join(', ')}` : `${size.classes} classes, ${size.phases} phases, ${size.steps} steps`);
+	}
 
 	shots.push(await shot(page, '01-in-classroom-1920x1080-first-screen.png'));
 
