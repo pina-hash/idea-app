@@ -882,6 +882,46 @@ is written for a number yet, so the app learns of numbers others took by reading
 `armory_project_part_numbers`; a `part_number_assigned` change kind is the add-in lane's
 to propose.
 
+## Armory 0.4.2: the field round of 2026-10-22 (ledger 0430, no migration)
+
+The feedback, incidents and logs of 2026-10-22 (`docs/feedback/2026-10-22-armory/`, its
+`RESULTS.md` closes each one). No server change: everything here is the Windows app
+(pina-hash/idea-armory, version 0.4.2) and two website changes.
+
+- **The Armory folder is never a project folder.** An Armory folder holds Armory's own
+  `.armory` folder; a project folder is a top-level folder of one, named for its project (it
+  carries no marker of its own). Settings corrects a folder inside an Armory folder, or a
+  folder named for one of the account's projects that holds that project's tree, to the
+  folder that holds the projects, and says so in one sentence. A computer already in that
+  state (IDEA-06, note 62ba98eb) runs no engine there and shows one card with Fix it, which
+  folds the doubled folder back with no duplicate uploaded and no change lost (a copy changed
+  in both places keeps both, the older in `<Armory folder> kept copies <date>` beside it).
+  The idea-armory `docs/agent/ENGINE.md` section "The Armory folder is never a project folder"
+  is the rule.
+- **Thousands of files are one card.** Files outside every project are their own card, one
+  sentence and Open the Armory folder; every card's list reaches every file, grouped by
+  reason, its count the card's.
+- **Open from the website (feedback ba81c57d).** A file's page (`/armory/<project>/file/<file>`)
+  has Open in SolidWorks, a link to `idea-armory:open?f=<file id>`, which IDEA Armory 0.4.2
+  registers with Windows and answers: it opens that file of the student's Armory folder the
+  way the app's own Open does (read-only unless checked out to that computer) and checks
+  nothing out. A browser cannot tell the page whether the link went anywhere, so a page still
+  in front 2.5 seconds after the click says plainly that the computer needs IDEA Armory, with
+  the download. `src/lib/armory/open-link.ts`, `ArmoryOpenInApp.svelte`. A computer on
+  Armory 0.4.1 or older ignores the link (it opens only the window).
+- **Device identity (by design).** Every sign-in registers a device of its own
+  (`armory_register_device`, 0231), so a computer a student signs in to twice is two devices
+  with one name. It is how a check out stays the sign-in's own; the app keeps every id it was
+  synced under (`FormerDevices`) and treats every lock held under any of them as this
+  computer's, so one computer's history is never split. What was split was the website's Team
+  view, which listed each sign-in as its own computer: since ledger 0430 a member's devices
+  sharing a name are one presence line, the one heard from last (`presenceDevices` in
+  `src/lib/armory/team.ts`), and that one line takes the plain name.
+- **Incidents.** A Windows sign out is no longer a crash (the app writes the session line the
+  moment Windows asks, and reads this account's own Winlogon 7002 at the next start); a pass
+  that moved files is slow only past 60 seconds plus 250 ms a file (at least 3 minutes); a
+  file SolidWorks holds was already waiting, never a repeated failure, since 0.4.0.
+
 ## Decisions owed
 
 Answered by Mr. Pina on 2026-10-18, all nine items; `docs/decisions/entries/41-armory-file-vault-scope.md` carries his words.
