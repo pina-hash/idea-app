@@ -16,7 +16,7 @@ Source of truth: `docs/skills/my-writing-style/SKILL.md` in pina-hash/idea-app. 
 - No pep talk. Real stakes stated plainly: "The gap is real. Show up."
 - Name problems plainly: "Only 4 rows were submitted. Please come see me."
 - Minimal exclamation points.
-- Never put a commitment or timeline in his mouth he did not state, and never fill a gap with an assumed fact. Ask him for the one missing fact.
+- Never put a commitment or timeline in his mouth he did not state, and never fill a gap with an assumed fact. A missing fact is looked up first (past chats with conversation_search, the calendar, the repo, project knowledge); ask him only for what none of those can answer, and ask for that one fact.
 - Write to the reader as a capable peer. Cut hard.
 
 ## His words
@@ -29,10 +29,26 @@ Source of truth: `docs/skills/my-writing-style/SKILL.md` in pina-hash/idea-app. 
 ## Sign-offs
 
 - Colleague: "Alejandro". Formal or upward: "Mr. Pina". Team-wide or students: "- Mr. Pina". Parents: "Mr. Pina".
+- Gmail signatures: a REPLY uses his "Mr. Pina Reply 2026" signature; a new email uses his default. The API can insert only the default, so for a reply create the draft with includeSignature false and tell him in one line: open the draft, tap the pen icon (Insert signature) in the bottom toolbar, pick Mr. Pina Reply 2026. For a new email set includeSignature true. Never also type a name sign-off; the signature carries the name.
+
+## Gmail drafts: links (mandatory, every draft)
+
+The Gmail connector (create_draft, update_draft) rewrites EVERY URL into a https://www.google.com/url?q=... redirect: hrefs, bare URLs in plain text, even bare domains like example.com. Recipients land on a Google "Redirect Notice" page. Never hand him a draft in that state.
+
+When a draft contains any URL:
+1. Create the draft with the connector as usual.
+2. Open it in his Gmail through Claude in Chrome (the draft's viewUrl).
+3. In the compose box, unwrap every link with javascript_tool: for each `a[href*="google.com/url"]` set href to the `q` parameter; replace any visible google.com/url text with the real URL; remove `data-saferedirecturl` attributes. Only touch the reply part, never the quoted thread.
+4. Make Gmail save: a JS change alone does NOT save. Click inside the message body (inside the compose window, not the inbox behind it) and press a real key pair (space, BackSpace). Wait about 6 seconds.
+5. Verify by reading the draft back with list_drafts or get_draft: zero occurrences of google.com/url in the reply part. Only then tell him it is ready.
+6. If Chrome is not connected, do not hand over a draft with links. Deliver a paste-ready HTML file instead and say so in one line.
+
+Other connector facts: it strips img tags and inline images; links must be checked on every draft, including short replies. update_draft replaces the body, so a signature inserted at create is lost; to change a drafted reply, create a new draft and delete the old one.
 
 ## By channel
 
 - **Email**: full sentences, plain subject naming the topic ("Band after-school schedule"). Colleague: short context, then the direct ask. Mentor or leadership (Luis Garza register): state the problem as cause and effect, ground it in what was observed ("I noticed... students told me..."), acknowledge the other side ("I understand X, but..."), state his position plainly, end by offering to help build the fix. Admin and UC counselors: formal but plain, same register.
+  - **EVERY EMAIL IS FORMATTED, TO ANYONE, WITHOUT BEING ASKED (his rule, 2026-10-23).** Bare plain-text paragraphs are never the deliverable for an email. The floor, the structure and the build steps are in the gmail-reply-drafts skill under "Formatting floor"; he must never have to ask for it. This is about email only: the plain-text channels below stay plain.
 - **Discord, GroupMe, texts, anything pasted from a phone**: PLAIN TEXT. No markdown, no bold, no headers, no tables; they break on mobile paste. Caps words for section labels (SHOP HOURS), dashes for lists, one blank line between blocks. GroupMe: split into short posts.
 - **Google Classroom posts**: plain text only.
 - **Grading comments**: the exact item or row, never "some errors". No rubric language in student comments. Avoid he/she.
