@@ -3021,6 +3021,9 @@ export function createHtmlAssignmentTransports(supabase: SupabaseClient): HtmlAs
 			// carried through as null and never turned into a refusal.
 			const row = (data ?? {}) as { ok?: boolean; revision?: number | null };
 			if (row.ok === false) return { ok: false, message: 'That document could not be attached.' };
+			// THE DOCUMENT TO THE REPO (ledger 0431): `materials/<course>/<slug>/`,
+			// fired after the write and never waited on, like every spec save.
+			pingClassroomExport(itemId);
 			return { ok: true, revision: row.revision ?? null };
 		},
 		async setRubric(itemId, criteria) {

@@ -14,7 +14,11 @@
  * place people already look, and a copy that survives the database.
  *
  * WHAT IS EXPORTED, AND WHAT IS NOT. Only an item that actually carries an
- * assignment spec or a reference spec. A plain announcement has nothing to
+ * assignment spec, a reference spec or (ledger 0431) a ported HTML document,
+ * which exports as the document verbatim (`assignment.html`), the manifest
+ * stored at import (`manifest.json`) and its rubric. A schema-3 item that
+ * also keeps a superseded spec exports the document: the manifest decides,
+ * the order every rendering surface takes. A plain announcement has nothing to
  * export, and a material with only a written body is not a spec -- exporting
  * either would fill the repo with empty folders that a reader has to learn to
  * ignore. The rubric rides along when one exists, because a rubric is part of
@@ -137,12 +141,21 @@ export interface ExportSubject {
 	itemId: string;
 	title: string | null;
 	kind: 'assignment' | 'material';
-	specKind: 'assignment' | 'reference';
+	specKind: 'assignment' | 'reference' | 'html';
+	/** The spec, or for `html` the manifest stored at import. */
 	spec: unknown;
+	/** For `html` only: the document, byte for byte as stored. */
+	document?: string | null;
+	/** For `html` only: what the teacher uploaded it as. */
+	filename?: string | null;
+	/** For `html` only: when the stored document last changed (its cache version). */
+	documentUpdatedAt?: string | null;
 	rubric: unknown | null;
 	sectionIds: string[];
 	courseDir: string;
 	slug: string;
+	/** The slug was recorded by an earlier export and can no longer change. */
+	slugFrozen?: boolean;
 	revision: number;
 	author: string | null;
 	exportedAt: string;
@@ -163,29 +176,53 @@ function jsonFile(path: string, value: unknown): ExportFile {
  * itself cannot answer.
  */
 export function buildExportFiles(subject: ExportSubject): ExportFile[] {
-	const dir = `${EXPORT_ROOT}/${subject.courseDir}/${subject.slug}`;
+	const dir = exportDir(subject);
+	const meta = {
+		title: subject.title,
+		kind: subject.kind,
+		specKind: subject.specKind,
+		itemId: subject.itemId,
+		revision: subject.revision,
+		author: subject.author,
+		sectionIds: subject.sectionIds,
+		exportedAt: subject.exportedAt
+	};
+	if (subject.specKind === 'html') {
+		// THE DOCUMENT VERBATIM. Nothing rewrites a stored byte (0195), and the
+		// copy in the repo is only worth having if it is exactly what students
+		// were served: no trailing newline added, no re-encoding.
+		const files: ExportFile[] = [
+			{ path: `${dir}/assignment.html`, content: subject.document ?? '' },
+			jsonFile(`${dir}/manifest.json`, subject.spec),
+			// NO EXPORT TIME FOR A DOCUMENT, and that is what makes a rerun free:
+			// the stored document's own version instant instead, so exporting an
+			// unchanged worksheet again builds the identical tree and commits
+			// nothing (every commit to main is a deploy).
+			jsonFile(`${dir}/material.json`, {
+				...meta,
+				exportedAt: undefined,
+				documentUpdatedAt: subject.documentUpdatedAt ?? null,
+				filename: subject.filename ?? null
+			})
+		];
+		if (subject.rubric != null) files.push(jsonFile(`${dir}/rubric.json`, subject.rubric));
+		return files;
+	}
 	const specName = subject.specKind === 'reference' ? 'reference.json' : 'assignment.json';
-	const files: ExportFile[] = [
-		jsonFile(`${dir}/${specName}`, subject.spec),
-		jsonFile(`${dir}/material.json`, {
-			title: subject.title,
-			kind: subject.kind,
-			specKind: subject.specKind,
-			itemId: subject.itemId,
-			revision: subject.revision,
-			author: subject.author,
-			sectionIds: subject.sectionIds,
-			exportedAt: subject.exportedAt
-		})
-	];
+	const files: ExportFile[] = [jsonFile(`${dir}/${specName}`, subject.spec), jsonFile(`${dir}/material.json`, meta)];
 	if (subject.rubric != null) files.push(jsonFile(`${dir}/rubric.json`, subject.rubric));
 	return files;
+}
+
+/** The one folder an item's export writes: `materials/<course>/<slug>`. */
+export function exportDir(subject: { courseDir: string; slug: string }): string {
+	return `${EXPORT_ROOT}/${subject.courseDir}/${subject.slug}`;
 }
 
 /** `classroom: <title> (<kind>) r<revision>` -- the brief's format, verbatim. */
 export function exportCommitMessage(subject: {
 	title: string | null;
-	specKind: 'assignment' | 'reference';
+	specKind: 'assignment' | 'reference' | 'html';
 	revision: number;
 }): string {
 	const title = (subject.title ?? '').trim() || 'Untitled';
@@ -404,6 +441,7 @@ interface ItemRow {
 	author_name: string | null;
 	author_email: string | null;
 	export_slug: string | null;
+	assignment_schema_version?: number | null;
 }
 
 /**
@@ -419,29 +457,27 @@ interface ItemRow {
  * normal answer, not a failure, and leaves the item's export bookkeeping
  * completely alone (so an announcement never grows a failure chip).
  */
-export async function exportClassroomItem(
+/**
+ * WHAT ONE ITEM WOULD EXPORT, read as the caller, or why it exports nothing.
+ * Shared by the per-save export and the one-time HTML backfill, so the two
+ * cannot disagree about the folder, the files or the slug.
+ */
+export async function readExportSubject(
 	supabase: SupabaseClient,
-	itemId: string,
-	deps: ExportDeps = {}
-): Promise<ExportOutcome> {
-	const token = deps.token ?? exportToken();
-	// UNSET IS SILENT, and deliberately so: local development has no token, and
-	// a deployment that has not been given one is not misconfigured, it is not
-	// exporting. Recording a failure here would put a chip on every item.
-	if (!token) return { status: 'skipped', reason: 'no_token' };
-
+	itemId: string
+): Promise<{ subject: ExportSubject } | { skipped: 'not_found' | 'no_spec' }> {
 	const { data: itemRow } = await supabase
 		.from('classroom_items')
-		.select('id, kind, title, author_name, author_email, export_slug')
+		.select('id, kind, title, author_name, author_email, export_slug, assignment_schema_version')
 		.eq('id', itemId)
 		.maybeSingle();
 	const item = itemRow as ItemRow | null;
-	if (!item) return { status: 'skipped', reason: 'not_found' };
+	if (!item) return { skipped: 'not_found' };
 	if (item.kind !== 'assignment' && item.kind !== 'material') {
-		return { status: 'skipped', reason: 'no_spec' };
+		return { skipped: 'no_spec' };
 	}
 
-	const [assignmentRes, referenceRes, rubricRes, postingRes, revisionRes] = await Promise.all([
+	const [assignmentRes, referenceRes, rubricRes, postingRes, revisionRes, htmlRes] = await Promise.all([
 		supabase.from('classroom_assignment_specs').select('spec').eq('item_id', itemId).maybeSingle(),
 		supabase.from('classroom_reference_specs').select('spec').eq('item_id', itemId).maybeSingle(),
 		supabase.from('classroom_rubrics').select('criteria').eq('item_id', itemId).maybeSingle(),
@@ -452,14 +488,31 @@ export async function exportClassroomItem(
 		supabase
 			.from('classroom_content_revisions')
 			.select('id', { count: 'exact', head: true })
-			.eq('item_id', itemId)
+			.eq('item_id', itemId),
+		// ledger 0431: the ported document, read only for an item that IS one,
+		// so a deployment without 0195 never asks for a table it lacks.
+		item.assignment_schema_version === 3
+			? supabase
+					.from('classroom_html_assignments')
+					.select('document, manifest, filename, updated_at')
+					.eq('item_id', itemId)
+					.maybeSingle()
+			: Promise.resolve({ data: null })
 	]);
 
+	const html =
+		(htmlRes.data as { document?: string; manifest?: unknown; filename?: string; updated_at?: string } | null) ??
+		null;
 	const assignmentSpec = (assignmentRes.data as { spec?: unknown } | null)?.spec ?? null;
 	const referenceSpec = (referenceRes.data as { spec?: unknown } | null)?.spec ?? null;
-	const spec = assignmentSpec ?? referenceSpec;
-	if (spec == null) return { status: 'skipped', reason: 'no_spec' };
-	const specKind: 'assignment' | 'reference' = assignmentSpec != null ? 'assignment' : 'reference';
+	const hasHtml = html != null && typeof html.document === 'string' && html.manifest != null;
+	const spec = hasHtml ? html.manifest : (assignmentSpec ?? referenceSpec);
+	if (spec == null) return { skipped: 'no_spec' };
+	const specKind: ExportSubject['specKind'] = hasHtml
+		? 'html'
+		: assignmentSpec != null
+			? 'assignment'
+			: 'reference';
 
 	const postings = (postingRes.data ?? []) as {
 		section_id: string;
@@ -485,15 +538,36 @@ export async function exportClassroomItem(
 		kind: item.kind,
 		specKind,
 		spec,
+		document: hasHtml ? html.document : null,
+		filename: hasHtml ? (html.filename ?? null) : null,
+		documentUpdatedAt: hasHtml ? (html.updated_at ?? null) : null,
 		rubric: (rubricRes.data as { criteria?: unknown } | null)?.criteria ?? null,
 		sectionIds,
 		courseDir,
 		slug,
+		slugFrozen: item.export_slug != null,
 		revision,
 		author: item.author_name ?? item.author_email ?? null,
 		exportedAt: new Date().toISOString()
 	};
+	return { subject };
+}
 
+export async function exportClassroomItem(
+	supabase: SupabaseClient,
+	itemId: string,
+	deps: ExportDeps = {}
+): Promise<ExportOutcome> {
+	const token = deps.token ?? exportToken();
+	// UNSET IS SILENT, and deliberately so: local development has no token, and
+	// a deployment that has not been given one is not misconfigured, it is not
+	// exporting. Recording a failure here would put a chip on every item.
+	if (!token) return { status: 'skipped', reason: 'no_token' };
+
+	const read = await readExportSubject(supabase, itemId);
+	if ('skipped' in read) return { status: 'skipped', reason: read.skipped };
+	const { subject } = read;
+	const { slug, courseDir } = subject;
 	const files = buildExportFiles(subject);
 
 	try {
@@ -538,4 +612,122 @@ export async function exportClassroomItem(
 		});
 		return { status: 'failed', error: message, slug, kind };
 	}
+}
+
+/**
+ * THE ONE-TIME HTML BACKFILL (ledger 0431, report a71b7b8a): every ported HTML
+ * assignment the caller can read, exported to `materials/<course>/<slug>/`
+ * exactly as a save would export it, for the documents that existed before
+ * the per-save export knew about them (IDEA209H Unit 3 among them).
+ *
+ * IT IS SAFE TO RUN AGAIN, which is what makes it safe to run once. Every
+ * batch is one commit built on the live head, and a tree identical to the
+ * head is not committed at all, so a second run writes nothing that is
+ * already there. Folders are batched up to `HTML_BACKFILL_BATCH_BYTES` per
+ * commit rather than one commit per item, because every push to `main`
+ * deploys the site.
+ *
+ * TWO ITEMS NEVER SHARE A FOLDER IN ONE RUN. A slug is frozen once recorded;
+ * an item with no recorded slug whose title slugifies to a folder another item
+ * in this run already takes gets its id's first segment appended.
+ *
+ * As the caller, like the per-save export: an admin reads every document, a
+ * teacher only their own, and `classroom_record_export` refuses anyone who
+ * does not manage the item.
+ */
+export const HTML_BACKFILL_BATCH_BYTES = 3_000_000;
+
+export interface HtmlBackfillResult {
+	status: 'ok' | 'skipped' | 'failed';
+	reason?: string;
+	/** HTML assignments found. */
+	found: number;
+	/** Folders written (or already identical) per item. */
+	exported: { itemId: string; title: string | null; path: string }[];
+	/** Items that could not be exported, with why. */
+	failed: { itemId: string; title: string | null; error: string }[];
+	commits: { sha: string; unchanged: boolean; items: number }[];
+}
+
+export async function exportHtmlBackfill(
+	supabase: SupabaseClient,
+	deps: ExportDeps = {}
+): Promise<HtmlBackfillResult> {
+	const empty = { found: 0, exported: [], failed: [], commits: [] };
+	const token = deps.token ?? exportToken();
+	if (!token) return { status: 'skipped', reason: 'no_token', ...empty };
+
+	const { data, error } = await supabase
+		.from('classroom_html_assignments')
+		.select('item_id')
+		.order('item_id');
+	if (error) return { status: 'failed', reason: 'The list of HTML assignments could not be read.', ...empty };
+	const ids = ((data ?? []) as { item_id: string }[]).map((r) => r.item_id);
+
+	const subjects: ExportSubject[] = [];
+	const failed: HtmlBackfillResult['failed'] = [];
+	const taken = new Map<string, string>();
+	for (const id of ids) {
+		const read = await readExportSubject(supabase, id);
+		if ('skipped' in read) {
+			failed.push({ itemId: id, title: null, error: `Skipped (${read.skipped}).` });
+			continue;
+		}
+		const subject = read.subject;
+		if (subject.specKind !== 'html') {
+			failed.push({ itemId: id, title: subject.title, error: 'Skipped (not marked as an HTML assignment).' });
+			continue;
+		}
+		const holder = taken.get(exportDir(subject));
+		if (holder && holder !== subject.itemId && !subject.slugFrozen) subject.slug = `${subject.slug}-${subject.itemId.split('-')[0]}`;
+		taken.set(exportDir(subject), subject.itemId);
+		subjects.push(subject);
+	}
+
+	// Batches by size, in id order, so a rerun builds the same batches.
+	const batches: { subjects: ExportSubject[]; files: ExportFile[]; bytes: number }[] = [];
+	for (const subject of subjects) {
+		const files = buildExportFiles(subject);
+		const bytes = files.reduce((n, f) => n + f.content.length, 0);
+		const last = batches[batches.length - 1];
+		if (last && last.bytes + bytes <= HTML_BACKFILL_BATCH_BYTES) {
+			last.subjects.push(subject);
+			last.files.push(...files);
+			last.bytes += bytes;
+		} else batches.push({ subjects: [subject], files: [...files], bytes });
+	}
+
+	const exported: HtmlBackfillResult['exported'] = [];
+	const commits: HtmlBackfillResult['commits'] = [];
+	for (const batch of batches) {
+		const n = batch.subjects.length;
+		const message =
+			n === 1
+				? exportCommitMessage(batch.subjects[0])
+				: `classroom: ${n} HTML assignments exported (${batch.subjects.map((s) => (s.title ?? '').trim() || 'Untitled').join(', ').slice(0, 200)})`;
+		try {
+			const { sha, unchanged } = await pushFilesToGitHub({ token, files: batch.files, message, deps });
+			commits.push({ sha, unchanged, items: n });
+			for (const subject of batch.subjects) {
+				await supabase.rpc('classroom_record_export', {
+					p_item_id: subject.itemId,
+					p_slug: subject.slug,
+					p_sha: sha,
+					p_error: null
+				});
+				exported.push({ itemId: subject.itemId, title: subject.title, path: exportDir(subject) });
+			}
+		} catch (e) {
+			const kind: ExportFailureKind = e instanceof GitHubError ? e.kind : 'unknown';
+			const message = exportFailureMessage(kind, e instanceof Error ? e.message : 'The export failed.');
+			for (const subject of batch.subjects) failed.push({ itemId: subject.itemId, title: subject.title, error: message });
+		}
+	}
+	return {
+		status: failed.some((f) => !f.error.startsWith('Skipped')) ? 'failed' : 'ok',
+		found: ids.length,
+		exported,
+		failed,
+		commits
+	};
 }

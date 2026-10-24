@@ -3,4 +3,6 @@
 // The handler module of every admin route the generated layer made a tool for
 // (src/lib/server/connector/endpoints.ts merges these with its own).
 
-export const AUTO_ROUTES: Record<string, () => Promise<Record<string, unknown>>> = {};
+export const AUTO_ROUTES: Record<string, () => Promise<Record<string, unknown>>> = {
+	'/api/classroom/export/html': () => import('../../../routes/api/classroom/export/html/+server'),
+};
