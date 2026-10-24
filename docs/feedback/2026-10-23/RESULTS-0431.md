@@ -20,6 +20,7 @@ Ledger 0431, 2026-10-23, solo on main. Migration: `supabase/migrations/0298_html
 ## Checks
 
 - `svelte-check`: 0 errors, 33 warnings in 18 files (baseline unchanged).
+- Full `npm test` once: 16592 passed, 17 failed of 16609. Thirteen are the failures ledger 0430 recorded on unchanged main (tests/classroom-panel-layout-render x4, tests/db/cert-0262-exam x7, tests/db/feedback-round-0380-foundry, tests/db/ideacad-feature-graph-storage). Four come from 0432's removal of the Coin Desk page, already on main (tests/coin-card-pair, tests/home-tour x2, tests/preferences-store). One, tests/boundary-token, was this session's (new edges counted as load-bearing); fixed and rerun green. Two unhandled errors are database teardown shutdowns (57P01) in unrelated files.
 - Browser: the six `html-assignment-live*` specs, 12 runs, 140 measurements, 0 outside threshold. The existing `html-assignment*` (54 runs), `html-progress` and `html-instructor` specs show only console-error rows from Chromium 153's new CSP wording for refusals the probe documents cause on purpose (present before this change), and one timing miss under load that passed alone.
 
 ## Not verified
