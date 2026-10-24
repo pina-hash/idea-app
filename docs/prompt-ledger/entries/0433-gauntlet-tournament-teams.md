@@ -7,4 +7,4 @@
 - Status: pushed
 - Mode: solo
 - Branch: main (solo)
-- Notes: first landing carries items 12 and 13 (0295). Shas recorded in docs/feedback/2026-10-23/RESULTS-0433.md.
+- Notes: main 48a565d3 (items 12 and 13, migration 0295, applied 2026-10-24), then 736b2035, 5b682d2b, 9fc2f00d and 741d7ce0 (items 14 and 15, migration 0297; written as 0296 and renumbered because ledger 0432 landed its 0296 first). The record is docs/history/0433-gauntlet-tournament-teams.md and docs/feedback/2026-10-23/RESULTS-0433.md.

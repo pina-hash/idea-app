@@ -120,3 +120,8 @@ applied its own 0296 first.
    An entry whose name matches a team's name exactly is linked, not doubled; any that do not match
    are added as new entries, so check the Entries list after and remove a duplicate if one appears.
    The tournament must be in registration or seeding.
+
+## Landed
+
+- `48a565d3`: items 12 and 13 with migration 0295 (applied to production 2026-10-24).
+- `736b2035`, `5b682d2b`, `9fc2f00d`, `741d7ce0`: items 14 and 15 with migration 0297.
