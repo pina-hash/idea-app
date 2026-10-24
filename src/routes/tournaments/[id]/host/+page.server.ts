@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { isAdmin } from '$lib/server/admin';
+import { loadClassTeamLinks } from '$lib/tournaments/class-teams';
 import type { PageServerLoad } from './$types';
 import type {
 	BracketMatch,
@@ -93,6 +94,10 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 			.eq('tournament_id', params.id)
 	]);
 
+	// 0296: which entries follow a class team, and the class team sets this
+	// host may take entries from. Both best effort: empty before 0296.
+	const classTeams = await loadClassTeamLinks(supabase, params.id, true);
+
 	const ledgerRows = (ledgerRes.data ?? []) as {
 		entry_id: string;
 		match_id: string | null;
@@ -124,6 +129,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		entryStyles: (stylesRes.data ?? []) as EntryStyle[],
 		rewardLedgerCount,
 		rewardLedgerCoins,
-		rewardLedgerEntries
+		rewardLedgerEntries,
+		linkedEntries: classTeams.linked,
+		teamSetOptions: classTeams.options
 	};
 };

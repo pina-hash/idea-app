@@ -214,6 +214,7 @@
 	<div class="btn-row">
 		<a class="btn secondary" href="/gauntlet">&lsaquo; All modes</a>
 		<a class="btn secondary" href="/gauntlet/speedrun/history">My attempts</a>
+		<a class="btn" href="/gauntlet/speedrun/community" data-testid="community-speedruns-link">Community speedruns</a>
 		<a class="btn secondary" href="/gauntlet/tools">Tools</a>
 	</div>
 </main>

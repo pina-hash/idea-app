@@ -2544,9 +2544,9 @@
 		},
 		{
 			"date": "2026-10-23",
-			"title": "GAUNTLET scores are back, and team fixes",
-			"body": "The GAUNTLET leaderboards were blank for a few days. No runs were lost: every score is back on its board. In a tournament, anyone on a team can now remove a teammate with no account, such as a name added by mistake, and the team name has its own Rename team button. Typing the team name into Add a teammate no longer adds a person.",
-			"tags": ["GAUNTLET", "Tournaments"]
+			"title": "GAUNTLET scores are back, new parts, your own speedruns, and one team everywhere",
+			"body": "The GAUNTLET leaderboards were blank for a few days. No runs were lost: every score is back on its board. Speedrun has five new parts in a Shop Hardware series, and you can now make your own speedrun from published parts, share its link with friends, and ask for it to be listed for everyone. When a tournament uses your class teams, your team is the same team in both places: change its name, look, description or picture on the class page or in the tournament and it shows in both. In a tournament, anyone on a team can remove a teammate with no account, and the team name has its own Rename team button.",
+			"tags": ["GAUNTLET", "Tournaments", "Classroom"]
 		},
 		{
 			"date": "2026-10-23",

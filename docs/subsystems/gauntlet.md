@@ -116,3 +116,36 @@ on decision 19, and the reasoning is
 - **`gauntlet_room_board` (0010) STILL HAS NO FLOOR.** `0154` named it out of
   scope and 0194 did not take it: a room round is minutes long and a floor
   interacts with a host's own timing. It is a third question, still open.
+
+### COMMUNITY SPEEDRUNS -- a student's run of published parts, reviewed only where it is new (0296, ledger 0433)
+
+**A community speedrun (`gauntlet_routes`) is 2 to 8 PUBLISHED Speedrun parts in
+an order a student chose, and its board is DERIVED, never stored.**
+`_gauntlet_route_board` reads `gauntlet_leaderboard` ranked rows only
+(`rank_state = 'ranked'`), so the plausibility floor, the held state, the
+ranked-first `distinct on` and the test-account rule are the part boards' own
+and are not restated. A player is on a route's board when they hold a ranked
+run on every part; the total is the sum. A held run therefore never counts, and
+still never vanishes: it stays on its part's board and in the run review.
+
+- **WHAT IS REVIEWED IS THE ONE NEW THING.** The parts are already published and
+  the runs already reviewed, so a speedrun adds only its owner's title and
+  description. It is link-shareable the moment it is saved (`private`), and
+  LISTED for every student only after `gauntlet_route_review` by a GAUNTLET
+  author or an admin (`gauntlet_can_author()`, the curating tier, not
+  `is_admin()`). Editing a listed one sends it back to `pending`; a reviewer's
+  `hidden` closes the link to everyone but its owner and reviewers.
+- **The review state is the owner's and a reviewer's to see**: `gauntlet_routes`
+  and `gauntlet_route` project `status` as null to anyone else.
+- `tests/db/gauntlet-community-0296.test.ts` holds both directions and carries
+  the mutation proofs' targets (the ranked filter, the listing rule, the
+  hidden-by-link rule).
+
+### THE BOARD CALLS NO REVOKED HELPER (0295, ledger 0433)
+
+**`gauntlet_leaderboard` is owner-privileged, but Postgres checks EXECUTE on a
+function a view calls as the CALLER.** 0289 called `_idea_test_user_ids()`
+(revoked from `authenticated` by 0288) inside the view and every signed-in board
+read raised, which `readBoard` rightly renders as an empty board. 0295 reads the
+same rule through `idea_hidden_test_user(uuid)`, which is granted. Any helper a
+view calls is granted to the view's readers, or the view breaks for all of them.

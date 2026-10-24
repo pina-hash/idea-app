@@ -620,9 +620,12 @@
 						style={styles[data.myEntry.id] ?? null}
 						busy={styleBusy}
 						error={styleError}
-						note="Your banner shows wherever you appear: the bracket, the live match view, and the big screen."
+						note={data.myEntryFromClass
+							? 'Your team comes from your class. Saving here changes it on your class page too, and the other way round.'
+							: 'Your banner shows wherever you appear: the bracket, the live match view, and the big screen.'}
 						onsave={saveStyle}
-						onupload={uploadBackground}
+						onupload={data.myEntryFromClass ? null : uploadBackground}
+						allowImage={!data.myEntryFromClass}
 					/>
 				</div>
 			{/if}

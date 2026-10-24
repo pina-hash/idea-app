@@ -16,7 +16,13 @@
 		type ClassTheme,
 		type ClassThemeWinners
 	} from '$lib/classroom/class-theme';
-	import { postedTeamsNotice, refreshPostedTeams, saveTeamStyle, teamsManageLink } from '$lib/classroom/class-teams';
+	import {
+		postedTeamsNotice,
+		refreshPostedTeams,
+		saveTeamDetails,
+		saveTeamStyle,
+		teamsManageLink
+	} from '$lib/classroom/class-teams';
 	import { classHeaderTeams } from '$lib/classroom/class-header';
 	import QuickPosts from '$lib/classroom/QuickPosts.svelte';
 	import { createQuickPostTransports } from '$lib/classroom/quick-posts';
@@ -620,6 +626,7 @@
 		today={data.classClock?.today ?? null}
 		refresh={() => refreshPostedTeams(data.supabase, data.section.id)}
 		style={(input) => saveTeamStyle(data.supabase, input)}
+		details={(input) => saveTeamDetails(data.supabase, input)}
 	/>
 {/snippet}
 

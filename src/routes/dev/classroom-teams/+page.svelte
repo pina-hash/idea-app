@@ -6,7 +6,13 @@
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import ClassTeams from '$lib/classroom/ClassTeams.svelte';
-	import { postedTeamSets, teamsManageLink } from '$lib/classroom/class-teams';
+	import {
+		postedTeamSets,
+		teamsManageLink,
+		withSharedTeams,
+		type SharedTeam,
+		type TeamDetailsInput
+	} from '$lib/classroom/class-teams';
 	import {
 		teamWindowEnd,
 		teamWindowState,
@@ -51,6 +57,10 @@
 	const refuse = params.get('refuse') === '1';
 	const extremes = params.get('styled') === 'extremes';
 	const themeParam = params.get('theme');
+	/* `?details=1`: the class team's shared record (0296, ledger 0433): the
+	   first team carries a description, a picture and a tournament it plays
+	   in, and the details write is handed in. In memory, as the style write is. */
+	const detailsOn = params.get('details') === '1';
 
 	/* FORCED THEME ATTRIBUTE, the classroom-live harness's way. A harness holds
 	   no session, so ThemeRoot's own decision is always "none" here; the class
@@ -186,14 +196,45 @@
 					: [])
 			];
 
+	/* THE SHARED RECORD, IN MEMORY: what `classroom_team_shared` answers, and
+	   0296's details write over it. Seeded only under `?details=1`. */
+	let detailCalls = $state(0);
+	const SHARED: SharedTeam[] = [];
+	function seedShared() {
+		const first = SAVED[0]?.teams[0];
+		if (!first) return;
+		SHARED.push({
+			team_id: first.id,
+			description: 'Fastest spinning tops in Block 1. We tune the blade weight every round.',
+			picture_url: `${page.url.origin}/IDEA/apple-touch-icon.png`,
+			tournaments: [{ id: 'sim', name: 'IDEA-Blade Rotation 2', status: 'registration_open' }]
+		});
+	}
+	if (detailsOn) seedShared();
+	async function saveDetails(input: TeamDetailsInput): Promise<TeamStyleResult> {
+		detailCalls += 1;
+		const row = SHARED.find((s) => s.team_id === input.teamId);
+		const clean = (v: string) => (v.trim() === '' ? null : v.trim());
+		if (row) {
+			row.description = clean(input.description);
+			row.picture_url = clean(input.pictureUrl);
+		} else {
+			SHARED.push({ team_id: input.teamId, description: clean(input.description), picture_url: clean(input.pictureUrl), tournaments: [] });
+		}
+		return { ok: true };
+	}
+
 	// What `classroom_team_board` answers: a manager every saved draw, a student
 	// only the showing ones; `showing` stamped on each at call time. A FUNCTION,
 	// so a refresh after a style save reads the saved board as it now stands.
 	const boardNow = () =>
-		postedTeamSets(
-			SAVED.map((s) => ({ ...s, showing: teamWindowState(s, now) === 'showing' })).filter(
-				(s) => teacher || s.showing
-			)
+		withSharedTeams(
+			postedTeamSets(
+				SAVED.map((s) => ({ ...s, showing: teamWindowState(s, now) === 'showing' })).filter(
+					(s) => teacher || s.showing
+				)
+			),
+			detailsOn ? SHARED : []
 		);
 	const posted = boardNow();
 
@@ -292,6 +333,7 @@
 	data-teams={teams.length}
 	data-refreshes={refreshes}
 	data-style-calls={styleCalls}
+	data-detail-calls={detailCalls}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 >
 	<ClassSplit hasDetail={false} nav={classList}>{@render nothing()}</ClassSplit>
@@ -313,6 +355,7 @@
 		{refresh}
 		pollMs={later ? 2_000 : undefined}
 		style={styleOn ? saveStyle : null}
+		details={detailsOn ? saveDetails : null}
 	/>
 	<ClassView section={SECTION} items={ITEMS} canManage={teacher} basePath={BASE} />
 {/snippet}

@@ -27,6 +27,7 @@
 	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import { hostSectionOrder } from '$lib/tournaments/live';
 	import { entryMap, memberMap, parseConfig, statusLabel } from '$lib/tournaments/tournaments';
+	import { takeTeamSetSentence, teamSetBlocker, type TakeTeamSetResult } from '$lib/tournaments/class-teams';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -45,6 +46,27 @@
 	 * and roster RPCs do not exist. Those controls stay off until it has.
 	 */
 	const membersReady = $derived(data.entries.length === 0 || data.members.length > 0);
+	/** Entries that follow a class team (0296): their look and roster come from the class. */
+	const linked = $derived(new Set(data.linkedEntries));
+
+	/** Takes one class team set's teams as entries (0296). The answer is worded, not just acknowledged. */
+	async function takeTeamSet(setId: string) {
+		actionError = '';
+		notice = '';
+		busy = true;
+		const { data: res, error } = await data.supabase.rpc('tournament_take_team_set', {
+			p_tournament_id: t.id,
+			p_team_set_id: setId
+		});
+		busy = false;
+		if (error) {
+			actionError = error.message;
+			return;
+		}
+		notice = takeTeamSetSentence(res as TakeTeamSetResult);
+		await invalidateAll();
+	}
+
 	/** A site admin managing an event they do not host (item 5). */
 	const adminOnly = $derived(data.isAdmin && !data.isHost);
 
@@ -680,6 +702,40 @@
 					Shuffle seeds
 				</button>
 			</div>
+			{#if data.teamSetOptions.length}
+				<div class="class-sets" data-testid="host-class-teams">
+					<p class="class-sets-head">Teams from a class</p>
+					<p class="note">
+						Each team becomes an entry with its players, name, picture and look. When a student
+						changes their team on the class page, it changes here too.
+					</p>
+					{#each data.teamSetOptions as o (o.id)}
+						{@const blocker = teamSetBlocker(o, teamSize, t.status)}
+						<div class="class-set-row" data-team-set={o.id}>
+							<span class="class-set-name">
+								{o.label}
+								<span class="class-set-meta">
+									{o.class ?? 'Class'} · {o.teams} team{o.teams === 1 ? '' : 's'}{o.linked_here
+										? ` · ${o.linked_here} here`
+										: ''}
+								</span>
+							</span>
+							{#if blocker}
+								<span class="class-set-why">{blocker}</span>
+							{:else}
+								<button
+									class="btn secondary"
+									disabled={busy}
+									onclick={() => takeTeamSet(o.id)}
+									data-action="take-team-set"
+								>
+									Use these teams
+								</button>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 		<div class="entry-list">
 			{#each data.entries as e, i (e.id)}
@@ -688,6 +744,22 @@
 					<EntryChip entry={e} style={styles[e.id] ?? null} />
 					{#if e.user_id}
 						<span class="linked-tag">linked account</span>
+					{:else if linked.has(e.id)}
+						<span class="linked-tag" data-testid="host-from-class">from class</span>
+						{#if preBracket}
+							<button
+								class="mini"
+								disabled={busy}
+								title="Stop following the class team. The entry keeps what it shows now."
+								onclick={() =>
+									run(
+										() => data.supabase.rpc('tournament_unlink_class_team', { p_entry_id: e.id }),
+										'This entry no longer follows its class team'
+									)}
+							>
+								stop following
+							</button>
+						{/if}
 					{:else}
 						<button
 							class="mini"
@@ -1101,6 +1173,53 @@
 	.admin-notice p {
 		margin: 0;
 		color: var(--tnm-ink);
+	}
+	.class-sets {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		margin: 0.9rem 0 0.4rem;
+		padding-top: 0.8rem;
+		border-top: 1px solid var(--tnm-line);
+	}
+	.class-sets-head {
+		margin: 0;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--tnm-ink-dim);
+	}
+	.class-set-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.4rem 1rem;
+		padding: 0.5rem 0;
+		border-bottom: 1px solid var(--tnm-line);
+	}
+	.class-set-name {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		font-weight: 700;
+		color: var(--tnm-ink);
+		overflow-wrap: anywhere;
+	}
+	.class-set-meta {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.74rem;
+		font-weight: 400;
+		color: var(--tnm-ink-dim);
+	}
+	.class-set-why {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.74rem;
+		color: var(--amber);
+	}
+	.class-set-row .btn {
+		min-height: 44px;
 	}
 	.linked-tag {
 		font-family: 'Share Tech Mono', monospace;

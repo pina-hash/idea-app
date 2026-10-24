@@ -16,6 +16,7 @@ import {
 	type TournamentInvite
 } from '$lib/tournaments/tournaments';
 import type { EntryStyle } from '$lib/tournaments/entry-styles';
+import { loadClassTeamLinks } from '$lib/tournaments/class-teams';
 
 /**
  * The live tournament view: fully PUBLIC (no session, no cookie needed) --
@@ -112,6 +113,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	// The viewer's OWN member row (their chosen name on the roster), not
 	// their entry: `myEntryFor` above is the one spelling of that.
 	const myMember = uid === null ? null : (members.find((m) => m.user_id === uid) ?? null);
+	// 0296: which entries follow a class team. Entry ids only, public, best effort.
+	const { linked: linkedEntries } = await loadClassTeamLinks(supabase, params.id, false);
 
 	return {
 		tournament: tournament as Tournament,
@@ -126,6 +129,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		canManage: isHost || admin,
 		myEntry,
 		myMember,
+		myEntryFromClass: myEntry !== null && linkedEntries.includes(myEntry.id),
 		myInvite,
 		// Reward tables fail soft to empty pre-0063 (a select error yields no
 		// data), so the page renders without the migration applied.

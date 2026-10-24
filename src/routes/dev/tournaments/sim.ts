@@ -884,11 +884,32 @@ function accountInTournament(sim: Sim, userId: string): boolean {
 	);
 }
 
-/** The captain's row: the member whose user_id is the entry's own, or for an
- * unlinked entry the oldest member. */
-function isCaptainRow(sim: Sim, entry: TournamentEntry, m: TournamentEntryMember): boolean {
-	if (entry.user_id !== null) return m.user_id === entry.user_id;
-	return membersOf(sim, entry.id)[0]?.id === m.id;
+/** The captain's row: the member whose user_id is the entry's own. An
+ * unlinked entry (one a host made) has none, exactly as 0192's RPC reads it
+ * and as the panel's own `isCaptainRow` does; this mirror used to call its
+ * oldest row the captain, which refused the very removal 0295 is about. */
+function isCaptainRow(_sim: Sim, entry: TournamentEntry, m: TournamentEntryMember): boolean {
+	return entry.user_id !== null && m.user_id === entry.user_id;
+}
+
+/**
+ * THE REPORTED STATE (ledger 0433, report 919e2a21): a team a HOST made, so
+ * the entry has no registering account and its first registrant is a
+ * no-account row carrying a name, followed by the viewer and a teammate who
+ * joined with their accounts. The viewer is a member, not a captain.
+ */
+export function hostMadeTeam(sim: Sim, strayName: string): void {
+	const e = sim.entries[0];
+	if (!e) return;
+	e.user_id = null;
+	sim.teamSize = Math.max(sim.teamSize, 4);
+	sim.members = sim.members.filter((m) => m.entry_id !== e.id);
+	const at = (s: number) => new Date(Date.UTC(2026, 9, 20, 15, 0, s)).toISOString();
+	sim.members.push(
+		{ id: 'mb-stray', entry_id: e.id, tournament_id: 'sim', user_id: null, name: strayName, created_at: at(0) },
+		{ id: 'mb-viewer', entry_id: e.id, tournament_id: 'sim', user_id: SIM_VIEWER_ID, name: 'Azad', created_at: at(1) },
+		{ id: 'mb-mate', entry_id: e.id, tournament_id: 'sim', user_id: 'u-mara', name: 'Mara', created_at: at(2) }
+	);
 }
 
 /** Mirrors tournament_update_entry's name path: open until the bracket. */
@@ -938,6 +959,8 @@ export function addMember(
 	if (count >= sim.teamSize) return refuse(`This entry is full (${count} of ${sim.teamSize}).`);
 	const n = trimmedName(name);
 	if (!n) return refuse('Teammate names must be 1 to 40 characters.');
+	if (n.toLowerCase() === e.display_name.trim().toLowerCase())
+		return refuse("That is the team's name, not a teammate. To change the team name, use Rename team.");
 	let userId: string | null = null;
 	if (email && email.trim()) {
 		if (!manager)

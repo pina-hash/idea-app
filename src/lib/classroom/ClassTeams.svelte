@@ -3,6 +3,7 @@
 	import Disclosure from '$lib/Disclosure.svelte';
 	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
 	import TeamStyleEditor from '$lib/classroom/TeamStyleEditor.svelte';
+	import TeamDetails from '$lib/classroom/TeamDetails.svelte';
 	import {
 		backgroundCss,
 		canStyleTeam,
@@ -20,9 +21,11 @@
 		CLASS_TEAMS_POLL_MS,
 		ownTeams,
 		postedTeamsNotice,
+		withSavedDetails,
 		withSavedStyle,
 		type ClassTeam,
-		type ClassTeamSet
+		type ClassTeamSet,
+		type TeamDetailsInput
 	} from '$lib/classroom/class-teams';
 	import { page } from '$app/state';
 	import { PollSignedOut, startPoller, type Poller, type PollOutcome } from '$lib/classroom/poll';
@@ -71,7 +74,8 @@
 		today = null,
 		refresh = null,
 		pollMs = CLASS_TEAMS_POLL_MS,
-		style = null
+		style = null,
+		details = null
 	}: {
 		sets: ClassTeamSet[];
 		/** Where a teacher manages the draw (the People tab). Null for a student: no strip. */
@@ -102,6 +106,12 @@
 		 * a teacher's board -- so a read-only mount is structural, not a flag.
 		 */
 		style?: ((input: SaveTeamStyleInput) => Promise<TeamStyleResult>) | null;
+		/**
+		 * THE TEAM DETAILS WRITE (0296, ledger 0433): description and picture,
+		 * the shared record every tournament the team plays in follows. Same
+		 * rule as `style`: absent removes every Edit details control.
+		 */
+		details?: ((input: TeamDetailsInput) => Promise<TeamStyleResult>) | null;
 	} = $props();
 
 	/**
@@ -209,6 +219,12 @@
 		poller?.runNow();
 	}
 
+	function detailsSaved(input: TeamDetailsInput) {
+		local = { over: sets, sets: withSavedDetails(shown, input) };
+		savedNote = 'Saved. Your team shows it here and in its tournaments.';
+		poller?.runNow();
+	}
+
 	/** What a card draws: the team, or the draft laid over it while that team is being customized. */
 	const look = (team: ClassTeam): ClassTeam =>
 		editing && editing.teamId === team.id ? draftTeam(team, editing.draft) : team;
@@ -241,6 +257,11 @@
 				<li>{name}</li>
 			{/each}
 		</ul>
+		<TeamDetails
+			team={stored}
+			onsave={details && (isOwn ? stored.mine : manager) ? details : null}
+			onsaved={detailsSaved}
+		/>
 		{#if control}
 			<div class="ct-card-tools">
 				<button
@@ -297,7 +318,7 @@
 
 	<!-- ALWAYS MOUNTED WHILE THE REGION IS, ONLY ITS TEXT MOVES: a live region a
 	     screen reader was not already observing is often not announced. -->
-	{#if style}
+	{#if style || details}
 		<p class="ct-saved" role="status" data-testid="class-team-saved">{savedNote}</p>
 	{/if}
 

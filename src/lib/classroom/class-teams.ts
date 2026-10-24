@@ -51,6 +51,31 @@ export interface ClassTeam
 		| 'mine'
 	> {
 	members: string[];
+	/**
+	 * THE SHARED RECORD'S OTHER HALF (0296, ledger 0433): the team's own
+	 * description and picture, and the tournaments it plays in. Read by
+	 * `classroom_team_shared` under the board's own audience and merged in by
+	 * `withSharedTeams`; absent on a deployment before 0296, which renders the
+	 * card exactly as it was.
+	 */
+	description?: string | null;
+	picture_url?: string | null;
+	tournaments?: TeamTournament[];
+}
+
+/** A tournament a class team plays in (0296): enough to link to its bracket. */
+export interface TeamTournament {
+	id: string;
+	name: string;
+	status: string;
+}
+
+/** One row of `classroom_team_shared` (0296). */
+export interface SharedTeam {
+	team_id: string;
+	description: string | null;
+	picture_url: string | null;
+	tournaments: TeamTournament[];
 }
 
 export interface ClassTeamSet {
@@ -193,7 +218,83 @@ export async function refreshPostedTeams(
 	// A refusal for want of a session is thrown, not folded into null, so the
 	// class page's poll stops instead of asking again as anon (ledger 0357).
 	if (!res.ok && res.reason === 'error' && res.signedOut) throw new PollSignedOut();
-	return res.ok ? postedTeamSets(res.sets) : null;
+	if (!res.ok) return null;
+	const sets = postedTeamSets(res.sets);
+	return sets.length ? withSharedTeams(sets, await readSharedTeams(supabase, sectionId)) : sets;
+}
+
+/**
+ * THE SHARED FIELDS, BEST EFFORT (0296). Any failure -- the function not there
+ * yet, a refusal, a network error -- is "nothing to add", never a failed board:
+ * the roster and the look already answered.
+ */
+export async function readSharedTeams(supabase: SupabaseClient, sectionId: string): Promise<SharedTeam[]> {
+	try {
+		const { data, error } = await supabase.rpc('classroom_team_shared', { p_section_id: sectionId });
+		if (error || !Array.isArray(data)) return [];
+		return (data as SharedTeam[]).filter((r) => r && typeof r.team_id === 'string');
+	} catch {
+		return [];
+	}
+}
+
+/** Lays each team's shared fields onto the posted sets. Pure. */
+export function withSharedTeams(sets: readonly ClassTeamSet[], shared: readonly SharedTeam[]): ClassTeamSet[] {
+	if (!shared.length) return [...sets];
+	const byId = new Map(shared.map((s) => [s.team_id, s]));
+	return sets.map((set) => ({
+		...set,
+		teams: set.teams.map((t) => {
+			const s = byId.get(t.id);
+			return s
+				? {
+						...t,
+						description: s.description ?? null,
+						picture_url: s.picture_url ?? null,
+						tournaments: Array.isArray(s.tournaments) ? s.tournaments : []
+					}
+				: t;
+		})
+	}));
+}
+
+/** What a member types into the details form, as the database wants it. */
+export interface TeamDetailsInput {
+	teamId: string;
+	description: string;
+	pictureUrl: string;
+}
+
+/**
+ * A TEAM'S DESCRIPTION AND PICTURE, SAVED FROM THE CLASS PAGE (0296). The same
+ * gate as the look (a member of the team, or a teacher of the class), and the
+ * same record every tournament the team plays in shows. The refusal is shown
+ * verbatim, as the style write's is.
+ */
+export async function saveTeamDetails(supabase: SupabaseClient, input: TeamDetailsInput): Promise<TeamStyleResult> {
+	const { error } = await supabase.rpc('classroom_set_team_details', {
+		p_team_id: input.teamId,
+		p_description: input.description,
+		p_picture_url: input.pictureUrl
+	});
+	return error ? { ok: false, message: error.message } : { ok: true };
+}
+
+/** The class page's overlay after a details save. Pure. */
+export function withSavedDetails(sets: readonly ClassTeamSet[], input: TeamDetailsInput): ClassTeamSet[] {
+	const clean = (v: string) => (v.trim() === '' ? null : v.trim());
+	return sets.map((set) =>
+		set.teams.some((t) => t.id === input.teamId)
+			? {
+					...set,
+					teams: set.teams.map((t) =>
+						t.id === input.teamId
+							? { ...t, description: clean(input.description), picture_url: clean(input.pictureUrl) }
+							: t
+					)
+				}
+			: set
+	);
 }
 
 /** The class page's read: the same audience-gated board the People tab uses.

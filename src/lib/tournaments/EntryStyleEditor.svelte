@@ -28,7 +28,8 @@
 		error = '',
 		note = '',
 		onsave,
-		onupload = null
+		onupload = null,
+		allowImage = true
 	}: {
 		entry: TournamentEntry;
 		style?: EntryStyle | null;
@@ -38,6 +39,12 @@
 		onsave: (draft: EntryStyleDraft) => void;
 		/** Uploads a background image and resolves its public https URL. */
 		onupload?: ((file: File) => Promise<string>) | null;
+		/**
+		 * False for an entry that follows a CLASS team (0296): a class team's
+		 * background is a colour or a gradient, so the Image choice is not
+		 * offered rather than offered and refused.
+		 */
+		allowImage?: boolean;
 	} = $props();
 
 	type BgMode = 'none' | 'solid' | 'gradient' | 'image';
@@ -150,7 +157,7 @@
 	<div class="field">
 		<span class="tnm-label">Background</span>
 		<div class="chips">
-			{#each BG_MODES as m (m.id)}
+			{#each BG_MODES.filter((m) => allowImage || m.id !== 'image') as m (m.id)}
 				<button
 					type="button"
 					class="chip"

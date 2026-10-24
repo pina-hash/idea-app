@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "tournaments-view-team-state-open-stray-1.mjs",
+	"date": "2026-10-24T05:07:59.311Z",
+	"sha": "ec674ea9a24b3e2b76bce1dd1d544d3038bc9fe7",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 40,
+	"outsideRows": [],
+	"ms": 6662
+}

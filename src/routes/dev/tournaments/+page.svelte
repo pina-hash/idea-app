@@ -40,6 +40,7 @@
 	import {
 		addMember,
 		buildSim,
+		hostMadeTeam,
 		buildQualSample,
 		correctLast,
 		eventsFor,
@@ -142,6 +143,8 @@
 		// has ROOM and the add-teammate row is reachable; without it the
 		// team of two is full by construction and the panel says so.
 		if (teamSize !== null) s.teamSize = teamSize;
+		// `?view=team&stray=1`: the reported host-made team (ledger 0433).
+		if (view === 'team' && params.get('stray') === '1') hostMadeTeam(s, 'Blade Breakers');
 		if (state === 'played') {
 			playNext(s);
 			playNext(s);
@@ -879,7 +882,11 @@
 			<h1 class="room-h1">Your entry · {teamStatus}</h1>
 			<p class="note">
 				The real EntryTeamPanel for {teamEntry?.display_name ?? 'entry 1'} against the sim's 0192
-				transports, viewed as {teamViewerId === SIM_VIEWER_ID ? 'the captain' : 'a host (nobody\'s row)'}.
+				transports, viewed as {teamViewerId !== SIM_VIEWER_ID
+					? 'a host (nobody\'s row)'
+					: teamEntry?.user_id === null
+						? 'a member of a team a host made'
+						: 'the captain'}.
 				Teams of up to {sim.teamSize}.
 			</p>
 			{#if teamEntry}
