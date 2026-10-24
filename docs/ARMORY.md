@@ -922,6 +922,39 @@ The feedback, incidents and logs of 2026-10-22 (`docs/feedback/2026-10-22-armory
   that moved files is slow only past 60 seconds plus 250 ms a file (at least 3 minutes); a
   file SolidWorks holds was already waiting, never a repeated failure, since 0.4.0.
 
+## Armory 0.4.3: pins, the version, lab computer names (ledger 0434, no migration)
+
+Mr. Pina's items 16 to 19 of `docs/feedback/2026-10-23/QUEUE.md`; `RESULTS-0434.md` there
+closes each one. Everything is the Windows app (pina-hash/idea-armory, version 0.4.3); no
+server or website change. 0.4.2 was already published, so this ships as 0.4.3.
+
+- **Taskbar pins survive an update.** Measured on a Windows runner (2026-10-24): an update in
+  place keeps a pin, since the app stays at `%LOCALAPPDATA%\IDEAArmory\current\IdeaArmory.exe`
+  and Velopack's `Update.exe apply` left the Start menu shortcut and a pin of it with their
+  target and identity. What breaks a pin is the move onto the updating install, which deletes
+  the older copy's folder (`%LOCALAPPDATA%\Programs\IDEA Armory`) a pin of it points at. 0.4.3
+  points every pin of Armory back at the app in the install step and at each start, and says
+  once how to pin again if File Explorer keeps a blank picture. The idea-armory
+  `docs/agent/INSTALL.md` section "Taskbar pins" is the rule.
+- **The version where a person finds it.** Settings' "About this Armory" says "Version 0.4.3,
+  updated Oct 23, 2026" and "This computer: IDEA-06, device 3f9c"; the tray's hover text has
+  "Armory 0.4.3, updated Oct 23"; an update says "Armory updated from 0.4.2 to 0.4.3." once.
+  Kept in `%LOCALAPPDATA%\IDEA Armory\install.json`.
+- **Computers that share a name.** Nothing in the app decides anything by the Windows name:
+  devices are the server's ids, labels add the 4-character tag when names collide, and the
+  incident `machineId` now also hashes the computer's own network address because an image
+  copied without Sysprep shares `MachineGuid`. **One website place still reads the name:**
+  `presenceDevices` (ledger 0430) folds a member's devices one line per computer name, so one
+  member on two copied computers both named IDEA-06 shows as one line. Telling them apart
+  needs a per-computer key the server does not store (the app could send its `machineId` hash
+  on register or heartbeat, a new column and a new argument); not built, because it is a
+  website change outside this round. Renaming the lab computers removes the case.
+- **Renaming the lab computers in bulk.** idea-armory `docs/LAB_COMPUTER_NAMES.md` and
+  `tools/lab-names/`: one double-click per computer from a flash drive, names from a list keyed
+  by serial number or network address or typed with a suggested next number, a log of every
+  rename on the drive. A renamed computer keeps its old name on the website for each sign-in
+  until that student signs in to Armory again (the name is sent at sign-in).
+
 ## Decisions owed
 
 Answered by Mr. Pina on 2026-10-18, all nine items; `docs/decisions/entries/41-armory-file-vault-scope.md` carries his words.
