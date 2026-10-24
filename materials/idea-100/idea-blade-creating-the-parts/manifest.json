@@ -1,0 +1,168 @@
+{
+  "kind": "html-assignment",
+  "title": "IDEA-Blade CAD 01 - Templates and Roles",
+  "course": "IDEA100",
+  "header": [
+    {
+      "id": "cad01-student-name",
+      "type": "text",
+      "field": "studentName"
+    },
+    {
+      "id": "cad01-team-name",
+      "type": "text",
+      "field": "teamName"
+    }
+  ],
+  "points": 10,
+  "modules": [
+    {
+      "id": "cad01-role",
+      "title": "Your Role",
+      "blocks": [
+        {
+          "id": "cad01-role-pick",
+          "type": "radio",
+          "field": "role"
+        },
+        {
+          "id": "cad01-role-team",
+          "type": "text",
+          "field": "teamRoles"
+        }
+      ],
+      "points": 2,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "role",
+          "text": "Role and team named",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Role and teammates named",
+              "points": 2,
+              "descriptor": "A role is picked, a custom role is described in one line, and every teammate is listed with their role."
+            },
+            {
+              "label": "Developing",
+              "short": "One of the two",
+              "points": 1,
+              "descriptor": "A role is picked or teammates are listed, but not both."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "No role and no teammates."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "cad01-work",
+      "title": "Your Work",
+      "blocks": [
+        {
+          "id": "cad01-work-shot",
+          "type": "image",
+          "field": "workShot"
+        },
+        {
+          "id": "cad01-work-dimension",
+          "type": "text",
+          "field": "keyDimension"
+        },
+        {
+          "id": "cad01-work-summary",
+          "type": "longText",
+          "field": "workSummary",
+          "minSentences": 2
+        }
+      ],
+      "points": 6,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "work",
+          "text": "Work shown with a real number",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Image, number and next step",
+              "points": 6,
+              "descriptor": "The image shows this student's own work, the dimension is a real number with units and says what it controls, and the summary names what got done and the next step."
+            },
+            {
+              "label": "Proficient",
+              "short": "Image, one thing thin",
+              "points": 4,
+              "descriptor": "The image shows the student's work, but the dimension has no units or purpose, or the summary names no next step."
+            },
+            {
+              "label": "Developing",
+              "short": "No image, or generic",
+              "points": 2,
+              "descriptor": "No image is attached, or the answers would fit any student in the room."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "Nothing is filled in."
+            }
+          ],
+          "points": 6
+        }
+      ]
+    },
+    {
+      "id": "cad01-habits",
+      "title": "Good Habits",
+      "blocks": [
+        {
+          "id": "cad01-habit-name",
+          "type": "checkbox",
+          "field": "savedNamed"
+        },
+        {
+          "id": "cad01-habit-edit",
+          "type": "checkbox",
+          "field": "editedFeature"
+        }
+      ],
+      "points": 2,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "habits",
+          "text": "Both habits confirmed",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both checked",
+              "points": 2,
+              "descriptor": "Both boxes are checked."
+            },
+            {
+              "label": "Developing",
+              "short": "One checked",
+              "points": 1,
+              "descriptor": "One box is checked."
+            },
+            {
+              "label": "Absent",
+              "short": "Neither checked",
+              "points": 0,
+              "descriptor": "Neither box is checked."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 3
+}

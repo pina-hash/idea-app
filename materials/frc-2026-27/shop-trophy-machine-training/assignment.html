@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shop Trophy: Machine Training</title>
+<script type="application/json" id="idea-manifest">{"schemaVersion": 3, "kind": "html-assignment", "title": "Shop Trophy: Machine Training", "course": "FRC5669", "points": 100, "header": [{"id": "frc-name", "field": "name", "type": "text"}, {"id": "frc-date", "field": "date", "type": "text"}], "modules": [{"id": "stations", "title": "The five stations", "points": 50, "blocks": [{"id": "frc-rec-base", "field": "rec-base", "type": "longText"}, {"id": "frc-part-base", "field": "part-base", "type": "image"}, {"id": "frc-rec-column", "field": "rec-column", "type": "longText"}, {"id": "frc-part-column", "field": "part-column", "type": "image"}, {"id": "frc-rec-platform", "field": "rec-platform", "type": "longText"}, {"id": "frc-part-platform", "field": "part-platform", "type": "image"}, {"id": "frc-rec-shaft", "field": "rec-shaft", "type": "longText"}, {"id": "frc-part-shaft", "field": "part-shaft", "type": "image"}, {"id": "frc-rec-topper", "field": "rec-topper", "type": "longText"}, {"id": "frc-part-topper", "field": "part-topper", "type": "image"}], "criteria": [{"id": "parts-made", "text": "Five parts made and photographed", "points": 20, "levels": [{"points": 20, "label": "Complete", "short": "5 parts, all identifiable", "descriptor": "Five photos, one per station, and in every one the whole part is in frame and in focus."}, {"points": 16, "label": "Proficient", "short": "5 parts, one poor photo", "descriptor": "Five photos with one out of focus, cut off, or too dark to see the feature."}, {"points": 8, "label": "Developing", "short": "3 or 4 parts", "descriptor": "Three or four station photos."}, {"points": 0, "label": "Absent", "short": "2 or fewer", "descriptor": "Two station photos or fewer."}]}, {"id": "settings-tooling", "text": "Tool, workholding and settings as actually run", "points": 15, "levels": [{"points": 15, "label": "Complete", "short": "All 5 name tool, hold, settings", "descriptor": "All five records name the tool, how the part was held, and the settings actually used at that machine, in terms specific to that machine."}, {"points": 12, "label": "Proficient", "short": "One gap in one record", "descriptor": "One of the three missing from one record, or one record gives planned values rather than the values run."}, {"points": 6, "label": "Developing", "short": "Gaps in 2 or 3", "descriptor": "One or more missing from two or three records, or those records name the operation only."}, {"points": 0, "label": "Absent", "short": "Gaps in most", "descriptor": "Tool, workholding and settings are absent from most records."}]}, {"id": "what-happened", "text": "What actually happened at the machine", "points": 15, "levels": [{"points": 15, "label": "Complete", "short": "All 5 name a real event", "descriptor": "All five records name one of these: a problem, a mistake, a measurement that came out wrong, or something changed mid-cut."}, {"points": 12, "label": "Proficient", "short": "4 name a real event", "descriptor": "Four records name one of those four; one is a general statement such as it went fine."}, {"points": 6, "label": "Developing", "short": "2 or 3 name an event", "descriptor": "Two or three records name one of those four."}, {"points": 0, "label": "Absent", "short": "0 or 1", "descriptor": "One record or none names anything that happened."}]}]}, {"id": "drawings", "title": "Your five drawings", "points": 20, "blocks": [{"id": "frc-draw-base", "field": "draw-base", "type": "image"}, {"id": "frc-draw-column", "field": "draw-column", "type": "image"}, {"id": "frc-draw-platform", "field": "draw-platform", "type": "image"}, {"id": "frc-draw-shaft", "field": "draw-shaft", "type": "image"}, {"id": "frc-draw-topper", "field": "draw-topper", "type": "image"}], "criteria": [{"id": "drawings-present", "text": "Drawings present and legible", "points": 6, "levels": [{"points": 6, "label": "Complete", "short": "5 legible drawings", "descriptor": "All five drawings uploaded and every word and number on them can be read without zooming."}, {"points": 5, "label": "Proficient", "short": "5, one hard to read", "descriptor": "All five present with one that cannot be read without zooming."}, {"points": 2, "label": "Developing", "short": "3 or 4 drawings", "descriptor": "Three or four drawings present."}, {"points": 0, "label": "Absent", "short": "2 or fewer", "descriptor": "Two drawings or fewer."}]}, {"id": "manufacturable", "text": "Manufacturable from the drawing alone", "points": 14, "levels": [{"points": 14, "label": "Complete", "short": "All 5 fully dimensioned", "descriptor": "All five drawings carry every dimension and feature needed to make the part with nothing left to guess, and the topper sketch marks both its 2.5 in limit and its center hole."}, {"points": 11, "label": "Proficient", "short": "One gap in one drawing", "descriptor": "One dimension or feature missing from one drawing, or the topper sketch is missing one of its two marks."}, {"points": 5, "label": "Developing", "short": "Gaps in 2 or 3", "descriptor": "Dimensions or features missing from two or three drawings."}, {"points": 0, "label": "Absent", "short": "Gaps in most", "descriptor": "Most drawings could not be used to make the part."}]}]}, {"id": "inspect", "title": "Inspect what you made", "points": 20, "blocks": [{"id": "frc-meas-table", "field": "measurements", "type": "table"}, {"id": "frc-meas-tool", "field": "meas-tool", "type": "text"}, {"id": "frc-meas-read", "field": "meas-read", "type": "longText"}], "criteria": [{"id": "measured", "text": "Five parts measured and recorded", "points": 10, "levels": [{"points": 10, "label": "Complete", "short": "5 rows complete, tool named", "descriptor": "All five rows name a feature and carry both a nominal and a measured value, and the measuring tool is named."}, {"points": 8, "label": "Proficient", "short": "5 rows, one gap", "descriptor": "Five rows with one missing value, or the measuring tool is not named."}, {"points": 4, "label": "Developing", "short": "3 or 4 rows", "descriptor": "Three or four rows complete."}, {"points": 0, "label": "Absent", "short": "2 or fewer", "descriptor": "Two rows or fewer."}]}, {"id": "read-the-error", "text": "Reading the error", "points": 10, "levels": [{"points": 10, "label": "Complete", "short": "Both named, physical cause, number", "descriptor": "Names the part that came out closest and the one furthest off, quotes a number from the table for each, and gives a physical cause: the tool or beam, how the material behaves, how the part was held, or how the machine moves."}, {"points": 8, "label": "Proficient", "short": "Both named, cause is general", "descriptor": "Names both and quotes a number, but the cause is correct without being tied to the tool, the material, the workholding or the machine."}, {"points": 4, "label": "Developing", "short": "Names them, no cause", "descriptor": "Names closest and furthest with no number or no cause."}, {"points": 0, "label": "Absent", "short": "Not answered", "descriptor": "Does not name which part came out closest and which furthest."}]}]}, {"id": "assemble", "title": "Put it together", "points": 10, "blocks": [{"id": "frc-trophy", "field": "trophy", "type": "image"}, {"id": "frc-fit", "field": "fit", "type": "longText"}], "criteria": [{"id": "assembled", "text": "Assembled and photographed", "points": 4, "levels": [{"points": 4, "label": "Complete", "short": "Assembled, standing, all 5", "descriptor": "Photo shows the trophy assembled from all five parts and standing on its own."}, {"points": 3, "label": "Proficient", "short": "Assembled, poor photo", "descriptor": "Assembled, but the photo does not show all five parts or is too blurred to see them."}, {"points": 1, "label": "Developing", "short": "Partly assembled", "descriptor": "Some parts assembled, or the parts are laid out rather than bolted together."}, {"points": 0, "label": "Absent", "short": "No photo", "descriptor": "No assembly photo."}]}, {"id": "fit", "text": "What the fit told you", "points": 6, "levels": [{"points": 6, "label": "Complete", "short": "Names part, feature and cause", "descriptor": "Names the part and the feature that fought the assembly, or the tightest fit if everything went together, and ties it to how that part was made or measured."}, {"points": 5, "label": "Proficient", "short": "Names it, cause is general", "descriptor": "Names the part and feature but the reason is general rather than tied to how it was made or measured."}, {"points": 2, "label": "Developing", "short": "Fit only, no part named", "descriptor": "Says whether it fit without naming a part or a feature."}, {"points": 0, "label": "Absent", "short": "Not answered", "descriptor": "Nothing written about the fit."}]}]}]}</script>
+<style>
+:root{--paper:#E9E7E1;--paper2:#DCD9D1;--ink:#14161A;--dim:#55595F;--line:rgba(20,22,26,0.22);--acc:#7A6300;--bad:#B0503C}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+ font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:clamp(14px,2.2vw,34px)}
+.team{font:700 12px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.18em;color:var(--acc);margin:0 0 8px}
+h1{font-size:clamp(21px,2.4vw,31px);margin:0 0 4px;line-height:1.14}
+.sub{color:var(--dim);font-size:14px;margin:0 0 16px;max-width:74ch}
+h2{font-size:clamp(17px,1.6vw,21px);margin:30px 0 8px;padding-top:8px;border-top:3px solid var(--acc);
+ display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+h2 .pts{font:700 12px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;color:var(--acc)}
+h3{font-size:16px;margin:0}
+p,li{max-width:74ch}
+.idbar{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));
+ margin:0 0 16px;padding:12px;background:var(--paper2);border-left:4px solid var(--acc)}
+label.lbl{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:4px}
+input[type=text],textarea{width:100%;font:inherit;color:inherit;background:#fff;
+ border:1px solid var(--line);border-radius:3px;padding:8px 10px}
+textarea{min-height:104px;resize:vertical;max-width:80ch}
+input:focus,textarea:focus,.drop:focus-within{outline:2px solid var(--acc);outline-offset:1px}
+details{border:1px solid var(--line);border-radius:4px;padding:10px 14px;margin:10px 0;background:var(--paper2)}
+summary{cursor:pointer;font-weight:700}
+.tag{font:400 12px/1 ui-monospace,Menlo,Consolas,monospace;color:var(--dim);margin-left:8px;letter-spacing:.04em}
+.guide{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));max-width:1320px;margin-top:10px;align-items:start}
+.guide details{margin:0}
+.cards{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));max-width:1180px;margin-top:10px;align-items:start}
+.card{border:1px solid var(--line);border-radius:4px;padding:12px 14px;background:#fff}
+.cardhd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px}
+.mach{font:400 12px/1 ui-monospace,Menlo,Consolas,monospace;color:var(--dim);letter-spacing:.04em}
+.state{font:400 11px/1 ui-monospace,Menlo,Consolas,monospace;color:var(--dim);margin-left:auto}
+.state.on{color:var(--acc);font-weight:700}
+.gb{color:var(--dim);font-size:14px;margin:4px 0 8px}
+.vid{display:inline-block;margin:0 0 12px;padding:6px 12px;border:1px solid var(--acc);border-radius:3px;
+ font-size:13px;font-weight:700;text-decoration:none;color:var(--acc);background:var(--paper2)}
+.vid:hover{background:var(--paper)}
+
+.slots{display:grid;gap:12px;margin-top:10px;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))}
+.slot{border:1px solid var(--line);border-radius:4px;padding:9px;background:#fff}
+.slothd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.slotname{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700}
+.drop{display:flex;align-items:center;justify-content:center;min-height:74px;cursor:pointer;
+ border:2px dashed var(--line);border-radius:4px;background:var(--paper2);margin-bottom:8px}
+.dropmsg{font-size:13px;color:var(--dim)}
+.thumb{width:100%;border-radius:3px;border:1px solid var(--line);margin-bottom:8px;display:block}
+.cap{margin-bottom:8px;font-size:14px}
+.rm{font:inherit;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:3px;padding:4px 10px;cursor:pointer;color:var(--ink)}
+.mirror{font-size:13px;color:var(--dim);margin:8px 0 0;max-width:74ch}
+.mirror.warn{color:var(--bad);font-weight:600}
+table{border-collapse:collapse;width:100%;max-width:1100px;margin-top:8px;background:#fff}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;font-size:14px;vertical-align:middle}
+thead th{background:var(--paper2);font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--acc)}
+td input{padding:6px 8px}
+.diff{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;white-space:nowrap}
+.diff.out{color:var(--bad)}
+.info table td:last-child{white-space:normal}
+.src{margin-top:34px;border-top:1px solid var(--line);padding-top:12px;color:var(--dim);font-size:13px}
+.src ul{margin:6px 0 0;padding-left:20px}
+.src a{color:var(--acc)}
+a{color:var(--acc)}
+@media (max-width:700px){
+ table,thead,tbody,tr,th,td{display:block}
+ thead{display:none}
+ tr{border:1px solid var(--line);margin-bottom:10px;background:#fff}
+ th,td{border:0;border-bottom:1px solid var(--line)}
+ tr>*:last-child{border-bottom:0}
+ td::before,th::before{content:attr(data-label);display:block;font:700 11px/1.4 ui-monospace,Menlo,Consolas,monospace;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--acc);margin-bottom:3px}
+}
+</style></head><body><div class="wrap">
+
+<p class="team">TEAM 5669 TECHMEN</p>
+<h1>Shop Trophy: Machine Training</h1>
+<p class="sub">Five machines. Five parts. They bolt together into a trophy you keep. You are trained on a machine when you have made a part on it and can say what it did.</p>
+
+<div class="idbar">
+ <div><label class="lbl" for="f-name">Your name</label><input type="text" id="f-name" data-field="name"></div>
+ <div><label class="lbl" for="f-date">Date started</label><input type="text" id="f-date" data-field="date" placeholder="2026-09-18"></div>
+</div>
+
+<p class="sub">Work one station, come back here, and fill in that station. Nothing here has to be done in one sitting and nothing has to be done in order. Fill in what you have done.</p>
+
+<h2>Read this first <span class="pts">NOT GRADED</span></h2>
+<div class="guide">
+
+<details><summary>How this works<span class="tag">not graded</span></summary>
+<p><b>Watch</b> your station video before you go to the machine. Not at the machine.</p>
+<p><b>Plan</b> in your notebook before you touch anything. Five questions, in the next panel.</p>
+<p><b>Cut</b> with the video playing. Your partner holds the phone. You run the machine.</p>
+<p><b>No plan, no machine.</b> Your notebook gets checked before you start.</p>
+</details>
+
+<details><summary>The five videos<span class="tag">not graded</span></summary>
+<p class="gb">Runtimes run from about 17 to 43 minutes. Check yours before you start so you know what you are getting into. You do not have to memorize it. You will have it playing while you work.</p>
+<ul><li><a href="https://youtu.be/-IrsuGIgOPw" target="_blank" rel="noreferrer">1. Base on the Bambu H2D Laser</a></li><li><a href="https://youtu.be/JWL5daOmujI" target="_blank" rel="noreferrer">2. Column on the Manual Mill</a></li><li><a href="https://youtu.be/_2fvjiBbSLc" target="_blank" rel="noreferrer">3. Platform on the Axiom CNC Router</a></li><li><a href="https://youtu.be/_M3INhehlA4" target="_blank" rel="noreferrer">4. Shaft on the Manual Lathe</a></li><li><a href="https://youtu.be/P0xCyK7I92Q" target="_blank" rel="noreferrer">5. Topper on the xTool MetalFab</a></li></ul>
+</details>
+
+<details><summary>What you are making<span class="tag">not graded</span></summary>
+<table class="info"><thead><tr><th>Part</th><th>Machine</th><th>What it is</th></tr></thead><tbody><tr><td data-label="Part"><b>Base</b></td><td data-label="Machine">Bambu H2D Laser</td><td data-label="What it is">Plywood. Cut and engraved. Your name on it.</td></tr><tr><td data-label="Part"><b>Column</b></td><td data-label="Machine">Manual Mill</td><td data-label="What it is">Aluminum box tube. Squared up, then two holes: one tapped 1/4-20, one 1/4 in through.</td></tr><tr><td data-label="Part"><b>Platform</b></td><td data-label="Machine">Axiom CNC Router</td><td data-label="What it is">Polycarbonate. Profiled on the router.</td></tr><tr><td data-label="Part"><b>Shaft</b></td><td data-label="Machine">Manual Lathe</td><td data-label="What it is">Hex stock. Turned, tapped 1/4-20 both ends, one end rounded.</td></tr><tr><td data-label="Part"><b>Topper</b></td><td data-label="Machine">xTool MetalFab</td><td data-label="What it is">Steel. Your own design. 2.5 in maximum across, 1/4 in hole dead center.</td></tr></tbody></table>
+<p class="gb">Every thread on the trophy is 1/4-20.</p>
+</details>
+
+<details><summary>The drawing standard<span class="tag">not graded</span></summary>
+<p>You get the model file for each part. Before you make that part, you draw it on paper.</p>
+<p><b>The standard: someone who has never seen the model could make the part from your drawing.</b> Every dimension needed to manufacture it. Every feature. Anything missing is something they would have to guess, and a guess is a wrong part.</p>
+<p><b>The topper is different.</b> There is no model. You design it yourself in the xTool software. Two rules: <b>2.5 inches maximum</b> across, and <b>a 1/4 inch hole dead center</b>. Everything else is yours. Sketch it on paper first, same standard.</p>
+</details>
+
+<details><summary>Before you touch a machine<span class="tag">not graded</span></summary>
+<p class="gb">Same five questions at every station. In your notebook, before you start.</p>
+<p><b>1.</b> What am I making? Sketch it with the dimensions.<br>
+<b>2.</b> What are the steps, in order?<br>
+<b>3.</b> What tool and what settings for each step?<br>
+<b>4.</b> Where do I stop and measure?<br>
+<b>5.</b> What is most likely to go wrong here?</p>
+</details>
+
+<details><summary>Phones at the machines<span class="tag">not graded</span></summary>
+<p><b>Never the same person.</b> Whoever is running the machine does not touch the phone at any point.</p>
+<p>The phone stays <b>off the machine and out of the hazard area</b>. Never on the table, the ways, or inside the enclosure.</p>
+<p>You should be able to <b>turn your head and see it</b>. If you have to lean, reach, or step to see it, move it.</p>
+<p>Phones come out for the station video and <b>nothing else</b>.</p>
+</details>
+
+</div>
+
+<h2>1. The five stations <span class="pts">50 POINTS</span></h2>
+<p class="sub">One record and one photo per station. Write the record at the machine or right after, not at the end of the month.</p>
+<p class="mirror" data-mirror="st"></p>
+<div class="cards"><section class="card">
+<div class="cardhd"><h3>Base</h3><span class="mach">Bambu H2D Laser</span><span class="state" data-rstate="base">empty</span></div>
+<p class="gb">Plywood. Cut and engraved. Your name on it.</p>
+<a class="vid" href="https://youtu.be/-IrsuGIgOPw" target="_blank" rel="noreferrer">Watch the base video</a>
+<label class="lbl" for="f-rec-base">Your record</label>
+<textarea id="f-rec-base" data-field="rec-base" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+<div class="slots"><div class="slot"><div class="slothd"><span class="slotname">Photo of your base</span><span class="state" data-state="part-base">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="part-base" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="part-base" hidden alt="">
+<input type="text" class="cap" data-field="part-base" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="part-base" hidden>Remove</button></div></div>
+</section><section class="card">
+<div class="cardhd"><h3>Column</h3><span class="mach">Manual Mill</span><span class="state" data-rstate="column">empty</span></div>
+<p class="gb">Aluminum box tube. Squared up, then two holes: one tapped 1/4-20, one 1/4 in through.</p>
+<a class="vid" href="https://youtu.be/JWL5daOmujI" target="_blank" rel="noreferrer">Watch the column video</a>
+<label class="lbl" for="f-rec-column">Your record</label>
+<textarea id="f-rec-column" data-field="rec-column" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+<div class="slots"><div class="slot"><div class="slothd"><span class="slotname">Photo of your column</span><span class="state" data-state="part-column">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="part-column" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="part-column" hidden alt="">
+<input type="text" class="cap" data-field="part-column" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="part-column" hidden>Remove</button></div></div>
+</section><section class="card">
+<div class="cardhd"><h3>Platform</h3><span class="mach">Axiom CNC Router</span><span class="state" data-rstate="platform">empty</span></div>
+<p class="gb">Polycarbonate. Profiled on the router.</p>
+<a class="vid" href="https://youtu.be/_2fvjiBbSLc" target="_blank" rel="noreferrer">Watch the platform video</a>
+<label class="lbl" for="f-rec-platform">Your record</label>
+<textarea id="f-rec-platform" data-field="rec-platform" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+<div class="slots"><div class="slot"><div class="slothd"><span class="slotname">Photo of your platform</span><span class="state" data-state="part-platform">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="part-platform" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="part-platform" hidden alt="">
+<input type="text" class="cap" data-field="part-platform" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="part-platform" hidden>Remove</button></div></div>
+</section><section class="card">
+<div class="cardhd"><h3>Shaft</h3><span class="mach">Manual Lathe</span><span class="state" data-rstate="shaft">empty</span></div>
+<p class="gb">Hex stock. Turned, tapped 1/4-20 both ends, one end rounded.</p>
+<a class="vid" href="https://youtu.be/_M3INhehlA4" target="_blank" rel="noreferrer">Watch the shaft video</a>
+<label class="lbl" for="f-rec-shaft">Your record</label>
+<textarea id="f-rec-shaft" data-field="rec-shaft" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+<div class="slots"><div class="slot"><div class="slothd"><span class="slotname">Photo of your shaft</span><span class="state" data-state="part-shaft">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="part-shaft" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="part-shaft" hidden alt="">
+<input type="text" class="cap" data-field="part-shaft" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="part-shaft" hidden>Remove</button></div></div>
+</section><section class="card">
+<div class="cardhd"><h3>Topper</h3><span class="mach">xTool MetalFab</span><span class="state" data-rstate="topper">empty</span></div>
+<p class="gb">Steel. Your own design. 2.5 in maximum across, 1/4 in hole dead center.</p>
+<a class="vid" href="https://youtu.be/P0xCyK7I92Q" target="_blank" rel="noreferrer">Watch the topper video</a>
+<label class="lbl" for="f-rec-topper">Your record</label>
+<textarea id="f-rec-topper" data-field="rec-topper" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+<div class="slots"><div class="slot"><div class="slothd"><span class="slotname">Photo of your topper</span><span class="state" data-state="part-topper">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="part-topper" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="part-topper" hidden alt="">
+<input type="text" class="cap" data-field="part-topper" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="part-topper" hidden>Remove</button></div></div>
+</section></div>
+
+<h2>2. Your five drawings <span class="pts">20 POINTS</span></h2>
+<p class="sub">Photograph each paper drawing flat and straight on, in light good enough that every number on it can be read without zooming.</p>
+<p class="mirror" data-mirror="dw"></p>
+<div class="slots"><div class="slot"><div class="slothd"><span class="slotname">Base drawing</span><span class="state" data-state="draw-base">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="draw-base" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="draw-base" hidden alt="">
+<input type="text" class="cap" data-field="draw-base" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="draw-base" hidden>Remove</button></div><div class="slot"><div class="slothd"><span class="slotname">Column drawing</span><span class="state" data-state="draw-column">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="draw-column" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="draw-column" hidden alt="">
+<input type="text" class="cap" data-field="draw-column" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="draw-column" hidden>Remove</button></div><div class="slot"><div class="slothd"><span class="slotname">Platform drawing</span><span class="state" data-state="draw-platform">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="draw-platform" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="draw-platform" hidden alt="">
+<input type="text" class="cap" data-field="draw-platform" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="draw-platform" hidden>Remove</button></div><div class="slot"><div class="slothd"><span class="slotname">Shaft drawing</span><span class="state" data-state="draw-shaft">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="draw-shaft" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="draw-shaft" hidden alt="">
+<input type="text" class="cap" data-field="draw-shaft" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="draw-shaft" hidden>Remove</button></div><div class="slot"><div class="slothd"><span class="slotname">Topper drawing</span><span class="state" data-state="draw-topper">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="draw-topper" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="draw-topper" hidden alt="">
+<input type="text" class="cap" data-field="draw-topper" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="draw-topper" hidden>Remove</button></div></div>
+
+<h2>3. Inspect what you made <span class="pts">20 POINTS</span></h2>
+<p class="sub">Pick one feature on each part that the drawing gives a number for. Measure it. The difference calculates itself.</p>
+<div style="max-width:420px;margin-bottom:10px"><label class="lbl" for="f-tool">What you measured with</label>
+<input type="text" id="f-tool" data-field="meas-tool" placeholder="Caliper, micrometer, gage pin"></div>
+<input type="hidden" data-field="measurements" id="f-measurements">
+<table><thead><tr><th>Part</th><th>Feature you measured</th><th>Nominal (in)</th><th>Measured (in)</th><th>Difference (in)</th></tr></thead>
+<tbody><tr><th scope="row" data-label="Part">Base</th>
+<td data-label="Feature you measured"><input type="text" data-cell="base|feature" placeholder="e.g. overall length"></td>
+<td data-label="Nominal (in)"><input type="text" inputmode="decimal" data-cell="base|nominal" placeholder="0.000"></td>
+<td data-label="Measured (in)"><input type="text" inputmode="decimal" data-cell="base|measured" placeholder="0.000"></td>
+<td data-label="Difference (in)" class="diff" data-diff="base">-</td></tr><tr><th scope="row" data-label="Part">Column</th>
+<td data-label="Feature you measured"><input type="text" data-cell="column|feature" placeholder="e.g. overall length"></td>
+<td data-label="Nominal (in)"><input type="text" inputmode="decimal" data-cell="column|nominal" placeholder="0.000"></td>
+<td data-label="Measured (in)"><input type="text" inputmode="decimal" data-cell="column|measured" placeholder="0.000"></td>
+<td data-label="Difference (in)" class="diff" data-diff="column">-</td></tr><tr><th scope="row" data-label="Part">Platform</th>
+<td data-label="Feature you measured"><input type="text" data-cell="platform|feature" placeholder="e.g. overall length"></td>
+<td data-label="Nominal (in)"><input type="text" inputmode="decimal" data-cell="platform|nominal" placeholder="0.000"></td>
+<td data-label="Measured (in)"><input type="text" inputmode="decimal" data-cell="platform|measured" placeholder="0.000"></td>
+<td data-label="Difference (in)" class="diff" data-diff="platform">-</td></tr><tr><th scope="row" data-label="Part">Shaft</th>
+<td data-label="Feature you measured"><input type="text" data-cell="shaft|feature" placeholder="e.g. overall length"></td>
+<td data-label="Nominal (in)"><input type="text" inputmode="decimal" data-cell="shaft|nominal" placeholder="0.000"></td>
+<td data-label="Measured (in)"><input type="text" inputmode="decimal" data-cell="shaft|measured" placeholder="0.000"></td>
+<td data-label="Difference (in)" class="diff" data-diff="shaft">-</td></tr><tr><th scope="row" data-label="Part">Topper</th>
+<td data-label="Feature you measured"><input type="text" data-cell="topper|feature" placeholder="e.g. overall length"></td>
+<td data-label="Nominal (in)"><input type="text" inputmode="decimal" data-cell="topper|nominal" placeholder="0.000"></td>
+<td data-label="Measured (in)"><input type="text" inputmode="decimal" data-cell="topper|measured" placeholder="0.000"></td>
+<td data-label="Difference (in)" class="diff" data-diff="topper">-</td></tr></tbody></table>
+<p class="mirror" data-mirror="tbl"></p>
+<label class="lbl" for="f-read" style="margin-top:14px">Read the error</label>
+<p class="gb">Which part came out closest to its number, and which came out furthest off? Quote the number from your table for each. Then say why, physically: the tool or the beam, how the material behaves, how the part was held, or how the machine moves.</p>
+<textarea id="f-read" data-field="meas-read"></textarea>
+<p class="mirror" data-mirror="rd"></p>
+
+<h2>4. Put it together <span class="pts">10 POINTS</span></h2>
+<div class="slots" style="max-width:520px"><div class="slot"><div class="slothd"><span class="slotname">The assembled trophy</span><span class="state" data-state="trophy">empty</span></div>
+<label class="drop"><input type="file" accept="image/*" data-pick="trophy" hidden><span class="dropmsg">Add photo</span></label>
+<img class="thumb" data-thumb="trophy" hidden alt="">
+<input type="text" class="cap" data-field="trophy" placeholder="Caption (optional)">
+<button type="button" class="rm" data-rm="trophy" hidden>Remove</button></div></div>
+<label class="lbl" for="f-fit" style="margin-top:12px">What the fit told you</label>
+<p class="gb">Name the part and the feature that fought the assembly, and why. If everything went together the first time, say so and name the tightest fit and what made it tight.</p>
+<textarea id="f-fit" data-field="fit"></textarea>
+<p class="mirror" data-mirror="fit"></p>
+
+<div class="src"><b>Sources</b>
+<ul>
+<li>The five Shop Trophy station videos, IDEA shop, Don Bosco Technical Institute, 2026. Linked above.</li>
+<li>The part models issued with each station, and the machine controls themselves for every speed, feed and power value.</li>
+<li>Thread size 1/4-20 UNC, tapped at both ends of the shaft and through the column.</li>
+</ul></div>
+
+</div>
+<script>
+(function(){
+ var ST=["base","column","platform","shaft","topper"],RO=false;
+ function post(m){try{parent.postMessage(m,'*')}catch(e){}}
+ function h(){post({type:'idea:height',px:document.documentElement.offsetHeight+4})}
+ function send(f,v){post({type:'idea:change',field:f,value:v})}
+ function q(s){return document.querySelector(s)}
+ function has(f){var t=q('[data-thumb="'+f+'"]');return !!(t&&!t.hidden)}
+ function setState(f,on){
+  var s=q('[data-state="'+f+'"]');if(s){s.textContent=on?'added':'empty';s.classList.toggle('on',!!on)}
+  var r=q('[data-rm="'+f+'"]');if(r)r.hidden=!on||RO;
+  var i=q('[data-pick="'+f+'"]');
+  if(i&&i.parentElement){var d=i.parentElement.querySelector('.dropmsg');if(d)d.textContent=on?'Replace':'Add photo'}
+ }
+ function txt(id){var el=document.getElementById(id);return el?String(el.value||'').trim():''}
+ function mirrors(){
+  var recs=0,pics=0,dws=0;
+  ST.forEach(function(s){
+   var r=txt('f-rec-'+s)?1:0,p=has('part-'+s)?1:0;
+   recs+=r;pics+=p;if(has('draw-'+s))dws++;
+   var el=q('[data-rstate="'+s+'"]');
+   if(el){var n=r+p;el.textContent=n===2?'done':(n===1?'half':'empty');el.classList.toggle('on',n===2)}
+  });
+  var m=q('[data-mirror="st"]');
+  m.textContent=recs+' of 5 records written, '+pics+' of 5 part photos added.';
+  m.classList.toggle('warn',false);
+  var d=q('[data-mirror="dw"]');
+  d.textContent=dws===5?'All five drawings added.':(dws+' of 5 drawings added.');
+  d.classList.toggle('warn',false);
+  var rd=q('[data-mirror="rd"]'),t=txt('f-read');
+  rd.textContent=!t?'Name both parts, quote a number for each, then give the physical cause.'
+   :(/[0-9]*\.[0-9]+/.test(t)?'A number from your table is in here. Good.'
+    :'No decimal number in here yet. Quote the measurement that makes your case.');
+  rd.classList.toggle('warn',false);
+  var ft=q('[data-mirror="fit"]');
+  ft.textContent=txt('f-fit')?'Recorded.':'Name a part and a feature, not just whether it fit.';
+ }
+ var cells=[].slice.call(document.querySelectorAll('[data-cell]'));
+ function num(el){var t=String(el.value||'').trim();if(!t)return null;var n=Number(t);return isFinite(n)?n:NaN}
+ function recompute(){
+  var filled=0,bad=0;
+  ST.forEach(function(s){
+   var td=q('[data-diff="'+s+'"]');
+   var n=num(q('[data-cell="'+s+'|nominal"]')),m=num(q('[data-cell="'+s+'|measured"]'));
+   if(n===null||m===null){td.textContent='-';td.classList.remove('out');return}
+   if(isNaN(n)||isNaN(m)){td.textContent='check entry';td.classList.add('out');bad++;return}
+   var dd=m-n;filled++;
+   td.textContent=(dd>0?'+':'')+dd.toFixed(3);
+   td.classList.toggle('out',Math.abs(dd)>=0.02);
+  });
+  var note=q('[data-mirror="tbl"]');
+  note.textContent=bad?'One or more entries are not numbers. Those rows cannot calculate.'
+   :(filled+' of 5 parts have both values. A difference of 0.020 in or more is flagged; that is a result, not a failure.');
+  note.classList.toggle('warn',bad>0);
+ }
+ function serialise(){
+  var o={};cells.forEach(function(c){var v=String(c.value||'').trim();if(v)o[c.getAttribute('data-cell')]=v});
+  return JSON.stringify(o);
+ }
+ cells.forEach(function(c){c.addEventListener('input',function(){recompute();send('measurements',serialise());h()})});
+ [].slice.call(document.querySelectorAll('[data-field]')).forEach(function(el){
+  if(el.id==='f-measurements')return;
+  el.addEventListener('input',function(){
+   var f=el.getAttribute('data-field');
+   if(el.classList.contains('cap'))post({type:'idea:image-caption',field:f,caption:el.value});
+   send(f,el.value);mirrors();h();
+  });
+ });
+ document.querySelectorAll('[data-pick]').forEach(function(inp){
+  inp.addEventListener('change',function(){
+   var f=inp.getAttribute('data-pick'),file=inp.files&&inp.files[0];if(!file)return;
+   var r=new FileReader();
+   r.onload=function(){
+    var s=String(r.result),i=s.indexOf(',');
+    post({type:'idea:image',field:f,name:file.name,bytes:i>=0?s.slice(i+1):s});
+    var t=q('[data-thumb="'+f+'"]');t.src=s;t.hidden=false;
+    setState(f,true);mirrors();h();
+   };
+   r.readAsDataURL(file);
+  });
+ });
+ document.querySelectorAll('[data-rm]').forEach(function(b){
+  b.addEventListener('click',function(){
+   var f=b.getAttribute('data-rm');post({type:'idea:image-remove',field:f});
+   var t=q('[data-thumb="'+f+'"]');t.hidden=true;t.removeAttribute('src');
+   var i=q('[data-pick="'+f+'"]');if(i)i.value='';
+   setState(f,false);mirrors();h();
+  });
+ });
+ function applyState(msg){
+  var v=msg.values||{},im=msg.images||{};
+  [].slice.call(document.querySelectorAll('[data-field]')).forEach(function(el){
+   var f=el.getAttribute('data-field');
+   if(f==='measurements')return;
+   if(el.classList.contains('cap'))return;
+   if(f in v)el.value=String(v[f]);
+  });
+  if(v.measurements){
+   var o={};try{o=JSON.parse(String(v.measurements))||{}}catch(e){o={}}
+   cells.forEach(function(c){var k=c.getAttribute('data-cell');if(k in o)c.value=String(o[k])});
+  }
+  document.querySelectorAll('[data-thumb]').forEach(function(t){
+   var f=t.getAttribute('data-thumb'),cap=q('.cap[data-field="'+f+'"]');
+   if(im[f]&&im[f].url){t.src=im[f].url;t.hidden=false;if(cap)cap.value=im[f].caption||'';setState(f,true)}
+   else{t.hidden=true;t.removeAttribute('src');setState(f,false);if(cap)cap.value=(f in v)?String(v[f]):''}
+  });
+  RO=!!msg.readOnly;
+  if(RO){
+   document.querySelectorAll('[data-field],[data-cell],[data-pick]').forEach(function(e){e.disabled=true});
+   document.querySelectorAll('.rm').forEach(function(b){b.hidden=true});
+   document.querySelectorAll('.drop').forEach(function(d){d.style.pointerEvents='none';d.style.opacity='.55'});
+  }
+  recompute();mirrors();h();
+ }
+ window.addEventListener('message',function(e){
+  var d=e.data;if(d&&typeof d==='object'&&d.type==='idea:state')applyState(d);
+ });
+ document.querySelectorAll('[data-thumb]').forEach(function(t){setState(t.getAttribute('data-thumb'),false)});
+ recompute();mirrors();
+ post({type:'idea:ready',schemaVersion:3});
+ h();
+ window.addEventListener('resize',h);
+ if(window.ResizeObserver){new ResizeObserver(h).observe(document.documentElement)}
+})();
+</script></body></html>

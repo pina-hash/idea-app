@@ -1,0 +1,1285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDEA-Blade CAD 02 - The Assembly</title>
+<script type="application/json" id="idea-manifest">
+{
+  "schemaVersion": 3,
+  "kind": "html-assignment",
+  "title": "IDEA-Blade CAD 02 - The Assembly",
+  "course": "IDEA100",
+  "points": 20,
+  "header": [
+    {
+      "id": "asm-student-name",
+      "field": "studentName",
+      "type": "text"
+    },
+    {
+      "id": "asm-team-name",
+      "field": "teamName",
+      "type": "text"
+    }
+  ],
+  "modules": [
+    {
+      "id": "asm-built",
+      "title": "It Goes Together",
+      "points": 8,
+      "audience": "team",
+      "blocks": [
+        {
+          "id": "asm-built-shot",
+          "field": "assemblyShot",
+          "type": "image"
+        },
+        {
+          "id": "asm-built-parts",
+          "field": "partsIn",
+          "type": "text"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "built",
+          "text": "Both parts are in one assembly, mated to the spin axis",
+          "points": 8,
+          "levels": [
+            {
+              "points": 8,
+              "label": "Complete",
+              "short": "Mated, spins true",
+              "descriptor": "The screenshot shows body and blade in one assembly, mated to the spin axis, sitting the way the real robot will."
+            },
+            {
+              "points": 5,
+              "label": "Proficient",
+              "short": "In, not fully mated",
+              "descriptor": "Both parts are in the assembly but something is floating or mated to the wrong reference."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "One part only",
+              "descriptor": "Only one part is in the assembly."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Not attempted",
+              "descriptor": "No assembly."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "asm-numbers",
+      "title": "The Four Limits",
+      "points": 8,
+      "audience": "team",
+      "blocks": [
+        {
+          "id": "asm-numbers-table",
+          "field": "limits",
+          "type": "table"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "numbers",
+          "text": "Measured off the assembly, not guessed",
+          "points": 8,
+          "levels": [
+            {
+              "points": 8,
+              "label": "Complete",
+              "short": "All four measured",
+              "descriptor": "All four numbers come off the assembly, with the hex extension and the mass from Mass Properties in grams."
+            },
+            {
+              "points": 5,
+              "label": "Proficient",
+              "short": "Three of four",
+              "descriptor": "Three numbers are measured and one is missing or obviously estimated."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "One or two",
+              "descriptor": "Only one or two numbers are filled in."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Not attempted",
+              "descriptor": "Nothing measured."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "asm-fix",
+      "title": "What Did Not Fit",
+      "points": 4,
+      "audience": "team",
+      "blocks": [
+        {
+          "id": "asm-fix-text",
+          "field": "whatChanged",
+          "type": "longText"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "fix",
+          "text": "You say what was wrong and what you did",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Names it, names the fix",
+              "descriptor": "Names the number that was out or the part that interfered, and what was changed to fix it."
+            },
+            {
+              "points": 2,
+              "label": "Proficient",
+              "short": "Vague",
+              "descriptor": "Says something was wrong without naming the number or the change."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Not attempted",
+              "descriptor": "Nothing written."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+</script>
+<style>
+:root {
+  --bg0:#030503; --bg1:#0c140d; --bg2:#111911; --plate:#1b2a1c; --edge:#010201;
+  --mint:#8FE08A; --brass:#D3C68E; --patina:#93D6C8; --copper:#D99A55; --crimson:#D95F5F;
+  --bone:#EAE6D8; --dim:#87947C; --gear:#75846F;
+  --glow-green:0 0 6px rgba(143,224,138,.55),0 0 18px rgba(143,224,138,.25);
+  --glow-gold:0 0 6px rgba(211,198,142,.5),0 0 18px rgba(211,198,142,.2);
+  --bevel-raised:inset 1px 1px 0 rgba(234,230,216,.06),inset -1px -1px 0 rgba(0,0,0,.45);
+  --bevel-inset:inset 1px 1px 0 rgba(0,0,0,.5),inset -1px -1px 0 rgba(234,230,216,.05);
+  --mono:ui-monospace,"Cascadia Mono","Consolas","SF Mono","Menlo",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI","Roboto",sans-serif;
+  --chamfer:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px),0 14px);
+  --chamfer-sm:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
+  --spin:9s;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; background:var(--bg0); color:var(--bone); font:16px/1.5 var(--sans); }
+#rain { position:absolute; left:0; top:0; width:100%; z-index:0; pointer-events:none; will-change:transform; }
+#probes { position:absolute; left:0; top:0; width:1px; pointer-events:none; opacity:0; }
+#probes i { position:absolute; left:0; width:1px; display:block; }
+body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:radial-gradient(ellipse at 50% 0%,rgba(143,224,138,.10),transparent 60%),radial-gradient(ellipse at 50% 100%,rgba(13,18,12,.9),transparent 70%); }
+body::after { content:""; position:fixed; inset:0; z-index:3; pointer-events:none;
+  background:repeating-linear-gradient(to bottom,rgba(143,224,138,.035) 0 1px,transparent 1px 3px); mix-blend-mode:screen; }
+.wrap { position:relative; z-index:1; max-width:1680px; margin:0 auto; padding:22px clamp(14px,2.2vw,34px) 44px; }
+
+/* HERO */
+.hero-frame { padding:1px; clip-path:var(--chamfer); background:linear-gradient(135deg,var(--mint),var(--patina) 40%,var(--gear) 70%,var(--brass)); margin-bottom:18px; }
+.hero { position:relative; clip-path:var(--chamfer); background:linear-gradient(160deg,rgba(27,42,28,.86),rgba(12,20,13,.86) 55%,rgba(3,5,3,.88)); padding:clamp(20px,2.4vw,34px) clamp(20px,2.6vw,38px); display:grid; grid-template-columns:minmax(0,1fr) clamp(190px,17vw,260px); gap:clamp(18px,2.4vw,40px); align-items:center; overflow:hidden; }
+.hero::before { content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(rgba(143,224,138,.07) 1px,transparent 1px) 0 0/100% 22px,linear-gradient(90deg,rgba(143,224,138,.07) 1px,transparent 1px) 0 0/22px 100%;
+  mask-image:linear-gradient(90deg,transparent,#000 50%,#000); }
+.hud { position:absolute; width:18px; height:18px; border-color:var(--mint); border-style:solid; opacity:.9; }
+.hud.tl { top:12px; left:12px; border-width:2px 0 0 2px; } .hud.tr { top:12px; right:12px; border-width:2px 2px 0 0; }
+.hud.bl { bottom:12px; left:12px; border-width:0 0 2px 2px; } .hud.br { bottom:12px; right:12px; border-width:0 2px 2px 0; }
+.crumb { position:relative; font:600 12px/1 var(--mono); letter-spacing:.22em; color:var(--patina); text-transform:uppercase; }
+.crumb i { font-style:normal; color:var(--gear); padding:0 6px; }
+.title { position:relative; margin:12px 0 4px; font:800 clamp(34px,6vw,58px)/.95 var(--sans); letter-spacing:-.02em; text-transform:uppercase; color:var(--bone); }
+.title .g { position:relative; display:inline-block; }
+.title .g::before,.title .g::after { content:attr(data-text); position:absolute; inset:0; pointer-events:none; opacity:0; }
+.title .num { display:block; font:800 clamp(16px,2.4vw,20px)/1 var(--mono); letter-spacing:.3em; color:var(--mint); text-shadow:var(--glow-green); margin-bottom:10px; }
+.sub { position:relative; color:var(--dim); max-width:62ch; margin:10px 0 16px; }
+.term { position:relative; display:flex; align-items:center; gap:10px; font:13px/1.3 var(--mono); color:var(--mint); background:rgba(13,18,12,.75); border:1px solid var(--plate); padding:9px 12px; clip-path:var(--chamfer-sm); box-shadow:var(--bevel-inset); max-width:520px; }
+.term .led { width:9px; height:9px; border-radius:50%; background:var(--mint); box-shadow:var(--glow-green); flex:none; }
+.term.bad { color:var(--crimson); } .term.bad .led { background:var(--crimson); box-shadow:0 0 8px var(--crimson); }
+.term.ro { color:var(--dim); } .term.ro .led { background:var(--gear); box-shadow:none; }
+.term .cur { display:inline-block; width:8px; height:14px; background:currentColor; margin-left:2px; vertical-align:-2px; }
+.spinbox { position:relative; text-align:center; }
+.spinbox canvas { display:block; margin:0 auto; }
+.rpm { font-variant-numeric:tabular-nums; font:700 20px/1 var(--mono); color:var(--brass); text-shadow:var(--glow-gold); margin-top:2px; }
+.rpm-l { white-space:nowrap; font:10px/1.3 var(--mono); letter-spacing:.1em; color:var(--dim); text-transform:uppercase; }
+
+/* PANELS */
+.panel { position:relative; background:linear-gradient(180deg,rgba(12,20,13,.80),rgba(8,14,9,.84)); backdrop-filter:blur(2px); border:1px solid var(--plate); border-radius:4px; box-shadow:var(--bevel-raised); padding:20px; margin:0 0 18px; }
+.panel::before { content:""; position:absolute; left:-1px; top:18px; width:3px; height:28px; background:var(--mint); box-shadow:var(--glow-green); }
+.sec { display:flex; align-items:center; gap:12px; margin:0 0 16px; font:700 13px/1 var(--mono); letter-spacing:.2em; text-transform:uppercase; }
+.sec .n { color:var(--mint); text-shadow:var(--glow-green); font-size:15px; }
+.sec .t { color:var(--bone); }
+.sec .line { flex:1; height:1px; background:linear-gradient(90deg,var(--mint),rgba(143,224,138,.1)); transform-origin:left; }
+.sec .pts { color:var(--bg0); background:var(--brass); padding:5px 8px; clip-path:var(--chamfer-sm); letter-spacing:.12em; font-size:11px; }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr)); gap:16px; }
+label.field { display:block; font:600 12px/1.3 var(--mono); letter-spacing:.14em; color:var(--patina); margin:14px 0 7px; text-transform:uppercase; }
+.grid2 label.field { margin-top:0; }
+.hint { font-size:14px; color:var(--dim); margin:-2px 0 8px; }
+input[type="text"] { max-width:110ch; }
+input[type="text"],textarea { width:100%; min-height:46px; padding:11px 13px; font:16px/1.4 var(--sans); color:var(--bone); background:rgba(13,18,12,.7); border:1px solid var(--gear); border-radius:3px; box-shadow:var(--bevel-inset); transition:border-color .15s,box-shadow .15s; }
+textarea { min-height:118px; resize:vertical; max-width:110ch; }
+input[type="text"]::placeholder,textarea::placeholder { color:#5f6b58; }
+input[type="text"]:focus,textarea:focus { outline:none; border-color:var(--mint); box-shadow:var(--bevel-inset),var(--glow-green); }
+
+/* LIMITS */
+.limits { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr)); gap:12px; max-width:1020px; }
+.lim { position:relative; background:rgba(13,18,12,.6); border:1px solid var(--plate); padding:14px 14px 12px; clip-path:var(--chamfer-sm); overflow:hidden; }
+.lim b { display:block; font:800 26px/1.05 var(--mono); color:var(--brass); text-shadow:var(--glow-gold); white-space:nowrap; }
+.lim span { display:block; margin-top:6px; font:11px/1.35 var(--mono); letter-spacing:.12em; color:var(--dim); text-transform:uppercase; }
+.lim::after { content:""; position:absolute; left:0; bottom:0; height:2px; width:100%; background:linear-gradient(90deg,transparent,var(--brass),transparent); opacity:.6; }
+
+/* ROLE TILES */
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(268px,100%),1fr)); gap:12px; max-width:900px; }
+.tile { position:relative; display:block; cursor:pointer; background:rgba(13,18,12,.55); border:1px solid var(--plate); padding:14px 14px 12px; clip-path:var(--chamfer-sm); transition:border-color .15s,background .15s,opacity .2s,transform .15s; }
+.tile:hover { border-color:var(--gear); }
+.tile input { position:absolute; opacity:0; width:1px; height:1px; }
+.tile-top { display:flex; align-items:center; gap:10px; min-height:44px; }
+.ico svg { width:34px; height:34px; fill:none; stroke:var(--patina); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; display:block; }
+.ico svg .ax { stroke:var(--gear); stroke-dasharray:3 3; }
+.ico svg .gh { opacity:.4; }
+.tile-name { font:800 15px/1.1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--bone); }
+.tile-tag { white-space:nowrap; margin-left:auto; font:10px/1 var(--mono); letter-spacing:.14em; color:var(--gear); border:1px solid var(--plate); padding:4px 5px; }
+.tile ol { margin:10px 0 0; padding-left:20px; font-size:14.5px; color:#cfcbbd; }
+.tile li { margin:0 0 5px; }
+.tile-active { position:absolute; right:10px; bottom:8px; font:700 10px/1 var(--mono); letter-spacing:.2em; color:var(--bg0); background:var(--mint); padding:4px 6px; opacity:0; transform:translateY(4px); transition:.2s; }
+.tile.is-mine { border-color:var(--mint); background:linear-gradient(160deg,rgba(143,224,138,.14),rgba(13,18,12,.7)); box-shadow:inset 0 0 0 1px var(--mint),0 0 22px rgba(143,224,138,.18); }
+.tile.is-mine .tile-name { color:var(--mint); text-shadow:var(--glow-green); }
+.tile.is-mine .ico svg { stroke:var(--mint); }
+.tile.is-mine .tile-active { opacity:1; transform:none; }
+.tiles.has-pick .tile:not(.is-mine) { opacity:.62; }
+.tile:has(input:focus-visible) { outline:2px solid var(--mint); outline-offset:2px; }
+#custom-wrap { margin-top:14px; }
+.roles-hint { margin:12px 0 0; }
+
+/* WORK */
+.drop { position:relative; display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center; padding:14px; background:rgba(13,18,12,.55);
+  background-image:linear-gradient(90deg,var(--patina) 50%,transparent 50%),linear-gradient(90deg,var(--patina) 50%,transparent 50%),linear-gradient(0deg,var(--patina) 50%,transparent 50%),linear-gradient(0deg,var(--patina) 50%,transparent 50%);
+  background-repeat:repeat-x,repeat-x,repeat-y,repeat-y; background-size:14px 1px,14px 1px,1px 14px,1px 14px; background-position:0 0,0 100%,0 0,100% 0; }
+.thumb { width:92px; height:68px; background:var(--bg0); border:1px solid var(--plate); display:grid; place-items:center; overflow:hidden; font:10px/1.2 var(--mono); color:var(--gear); text-align:center; letter-spacing:.1em; }
+.thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.drop-mid { min-width:0; }
+.drop input[type="file"] { color:var(--dim); font:14px var(--sans); max-width:100%; }
+.drop input[type="file"]::file-selector-button { min-height:44px; margin-right:10px; padding:0 14px; font:700 12px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--bg0); background:var(--mint); border:0; clip-path:var(--chamfer-sm); cursor:pointer; }
+#shot-state { display:block; margin-top:6px; font:12px/1.3 var(--mono); color:var(--dim); overflow-wrap:anywhere; }
+#shot-state.ok { color:var(--mint); }
+button { min-height:44px; padding:0 16px; font:700 12px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--bone); background:var(--bg2); border:1px solid var(--gear); clip-path:var(--chamfer-sm); cursor:pointer; box-shadow:var(--bevel-raised); }
+button:hover { border-color:var(--copper); color:var(--copper); }
+button:active { box-shadow:var(--bevel-inset); transform:translateY(1px); }
+.meter { display:flex; align-items:center; gap:6px; margin-top:8px; font:12px/1 var(--mono); color:var(--dim); letter-spacing:.08em; }
+.meter i { width:34px; height:6px; background:var(--plate); clip-path:var(--chamfer-sm); }
+.meter i.on { background:var(--mint); box-shadow:var(--glow-green); }
+.meter.met { color:var(--mint); }
+
+/* HABITS */
+.tip { position:relative; background:rgba(13,18,12,.6); border:1px solid var(--plate); border-left:3px solid var(--brass); padding:13px 15px; margin:0 0 14px; }
+.tip { max-width:92ch; }
+.tip b { color:var(--brass); font-family:var(--mono); letter-spacing:.06em; text-transform:uppercase; font-size:13px; }
+.check { max-width:92ch; display:flex; align-items:center; gap:14px; min-height:52px; padding:10px 14px; margin:0 0 10px; background:rgba(13,18,12,.55); border:1px solid var(--plate); cursor:pointer; clip-path:var(--chamfer-sm); transition:border-color .15s; }
+.check input { appearance:none; -webkit-appearance:none; flex:none; width:24px; height:24px; margin:0; border:1.5px solid var(--gear); background:var(--bg0); display:grid; place-items:center; cursor:pointer; }
+.check input::after { content:""; width:12px; height:7px; border:solid var(--bg0); border-width:0 0 3px 3px; transform:rotate(-45deg) translate(1px,-1px); opacity:0; }
+.check input:checked { background:var(--mint); border-color:var(--mint); box-shadow:var(--glow-green); }
+.check input:checked::after { opacity:1; }
+.check input:focus-visible { outline:2px solid var(--mint); outline-offset:2px; }
+.check:has(input:checked) { border-color:var(--mint); }
+.early { display:flex; gap:10px; align-items:center; margin-top:6px; font:12px/1.3 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--patina); }
+.early::before { content:">>"; color:var(--mint); }
+.sources { position:relative; z-index:1; font-size:13px; color:var(--dim); border-top:1px solid var(--plate); padding-top:12px; margin-top:26px; }
+.sources b { font:600 11px/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--patina); }
+body.is-readonly input,body.is-readonly textarea,body.is-readonly button,body.is-readonly .tile { cursor:default; }
+
+
+/* PINNED BAR */
+#pin { position:absolute; left:0; right:0; top:0; z-index:20; opacity:0; pointer-events:none; transition:opacity .2s; will-change:transform; }
+#pin.show { opacity:1; pointer-events:auto; }
+.pin-in { max-width:1680px; margin:0 auto; padding:8px clamp(14px,2.2vw,34px) 0; }
+.pin-bar { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:14px; padding:8px 14px; background:rgba(3,5,3,.92); border:1px solid var(--plate); border-bottom:1px solid var(--mint); clip-path:var(--chamfer-sm); box-shadow:0 8px 24px rgba(0,0,0,.55); backdrop-filter:blur(3px); }
+.pin-bar > div { min-width:0; }
+.pin-t { font:700 12px/1.2 var(--mono); letter-spacing:.18em; text-transform:uppercase; color:var(--bone); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pin-t b { color:var(--mint); }
+.pin-track { height:4px; background:var(--plate); margin-top:6px; clip-path:var(--chamfer-sm); }
+#pin-fill { height:100%; width:0; background:var(--mint); box-shadow:var(--glow-green); transition:width .4s; }
+.pin-rpm { font:700 16px/1 var(--mono); color:var(--brass); text-shadow:var(--glow-gold); white-space:nowrap; min-width:92px; text-align:right; font-variant-numeric:tabular-nums; }
+.pin-meta { text-align:right; font:11px/1.3 var(--mono); letter-spacing:.08em; color:var(--dim); white-space:nowrap; }
+.pin-meta #pin-done { color:var(--mint); font-weight:700; }
+.pin-status { display:block; color:var(--mint); }
+.pin-status.bad { color:var(--crimson); } .pin-status.ro { color:var(--dim); }
+
+/* SLIDES */
+.slides { display:grid; grid-template-columns:auto minmax(0,1fr); gap:18px; align-items:center; max-width:1100px; }
+.slides-ico { width:64px; height:64px; display:grid; place-items:center; border:1px solid var(--brass); color:var(--brass); clip-path:var(--chamfer-sm); background:rgba(211,198,142,.08); }
+.slides-ico svg { width:34px; height:34px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; }
+.slides h3 { margin:0 0 4px; font:800 18px/1.2 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--brass); text-shadow:var(--glow-gold); }
+.slides p { margin:0 0 10px; color:var(--dim); font-size:15px; }
+.slides-row { display:grid; grid-template-columns:1fr auto; gap:10px; }
+#slides-url { font:13px/1.3 var(--mono); color:var(--patina); }
+#slides-copy.good { border-color:var(--mint); color:var(--mint); }
+
+/* PASTE */
+.drop:focus { outline:2px solid var(--mint); outline-offset:3px; }
+.drop.over { background-color:rgba(143,224,138,.10); }
+.drop.flash { box-shadow:0 0 0 1px var(--mint),0 0 26px rgba(143,224,138,.35); }
+.paste-hint { grid-column:1 / -1; margin:0; font:12px/1.4 var(--mono); letter-spacing:.06em; color:var(--patina); }
+.paste-hint kbd { font:700 11px/1 var(--mono); color:var(--bg0); background:var(--patina); padding:2px 5px; margin:0 2px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .term .cur { animation:blink 1s steps(1) infinite; }
+  .title .g::before { color:var(--patina); animation:glitch-a 6s infinite steps(1); }
+  .title .g::after { color:var(--copper); animation:glitch-b 6s infinite steps(1); }
+  .sec .line { animation:draw .9s ease-out both; }
+  .panel { animation:rise .5s ease-out both; }
+  .panel:nth-of-type(2) { animation-delay:.05s; } .panel:nth-of-type(3) { animation-delay:.1s; }
+  .panel:nth-of-type(4) { animation-delay:.15s; } .panel:nth-of-type(5) { animation-delay:.2s; }
+  .drop { animation:ants 1.2s linear infinite; }
+  .hero::after { content:""; position:absolute; left:0; right:0; height:60px; top:-60px; pointer-events:none;
+    background:linear-gradient(transparent,rgba(143,224,138,.10),transparent); animation:sweep 5s ease-in-out infinite; }
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes blink { 50% { opacity:0; } }
+@keyframes draw { from { transform:scaleX(0); } }
+@keyframes rise { from { opacity:0; transform:translateY(8px); } }
+@keyframes ants { to { background-position:14px 0,-14px 100%,0 -14px,100% 14px; } }
+@keyframes sweep { 0% { top:-60px; } 60%,100% { top:110%; } }
+@keyframes glitch-a { 0%,91%,100% { opacity:0; transform:none; } 92% { opacity:.85; transform:translate(-3px,1px); clip-path:inset(10% 0 55% 0); } 94% { opacity:.85; transform:translate(2px,-1px); clip-path:inset(60% 0 8% 0); } 96% { opacity:0; } }
+@keyframes glitch-b { 0%,92%,100% { opacity:0; transform:none; } 93% { opacity:.75; transform:translate(3px,0); clip-path:inset(40% 0 30% 0); } 95% { opacity:.75; transform:translate(-2px,1px); clip-path:inset(5% 0 75% 0); } 97% { opacity:0; } }
+
+
+/* SCROLLBAR */
+html { scrollbar-color:#8FE08A #030503; scrollbar-width:thin; }
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-track { background:#030503; border-left:1px solid #1b2a1c; }
+::-webkit-scrollbar-thumb { background:linear-gradient(180deg,#8FE08A,#1fc35a); border:2px solid #030503; }
+::-webkit-scrollbar-thumb:hover { background:#d2ffd9; }
+html, body { overflow-x:hidden; }
+
+/* SPEED TIERS */
+.tier { font:800 12px/1 var(--mono); letter-spacing:.3em; color:var(--tier-color,#75846F); margin-top:6px; text-shadow:0 0 8px rgba(var(--tier-rgb,117,132,111),.6); transition:color .3s; }
+.rpm { transition:color .3s, text-shadow .3s; }
+body[data-tier="4"] .rpm, body[data-tier="5"] .rpm { color:var(--tier-color); text-shadow:0 0 6px rgba(var(--tier-rgb),.7),0 0 22px rgba(var(--tier-rgb),.35); }
+.hero-wrap { margin-bottom:18px; transition:filter .6s; }
+.hero-wrap .hero-frame { margin-bottom:0; transition:background .6s; }
+.hero-wrap.heat-3 { filter:drop-shadow(0 0 10px rgba(147,214,200,.22)); }
+.hero-wrap.heat-4 { filter:drop-shadow(0 0 14px rgba(211,198,142,.30)); }
+.hero-wrap.heat-5 { filter:drop-shadow(0 0 20px rgba(255,231,194,.38)); }
+.hero-wrap.heat-4 .hero-frame { background:linear-gradient(135deg,var(--brass),var(--mint) 40%,var(--gear) 70%,var(--brass)); }
+.hero-wrap.heat-5 .hero-frame { background:linear-gradient(135deg,#FFE7C2,var(--copper) 35%,var(--brass) 65%,#FFE7C2); }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-wrap.heat-5 .hero-frame { animation:hot 0.9s ease-in-out infinite; }
+}
+@keyframes hot { 50% { filter:brightness(1.25); } }
+.pin-rpmbox { text-align:right; }
+.pin-tier { font:700 9px/1 var(--mono); letter-spacing:.24em; color:var(--tier-color,#75846F); margin-top:4px; }
+
+/* SLIDES LINK */
+.slides-row { grid-template-columns:auto 1fr auto !important; }
+.btn-open { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; font:800 13px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; text-decoration:none; color:var(--bg0); background:var(--brass); clip-path:var(--chamfer-sm); box-shadow:0 0 16px rgba(211,198,142,.25); white-space:nowrap; }
+.btn-open:hover { background:#efe3a8; }
+.btn-open:focus-visible { outline:2px solid var(--mint); outline-offset:3px; }
+.slides-note { margin:10px 0 0 !important; color:var(--copper) !important; font-size:14px; }
+
+/* WIDTH: the document is fluid from a phone to a full-screen pane. The grids above
+   reflow on their own content with auto-fit, so these rules only handle the two
+   things a grid cannot decide: when the hero stops being two columns, and when the
+   pinned bar drops its meta column. */
+@media (max-width:660px) {
+  .hero { grid-template-columns:1fr; }
+  .spinbox { order:-1; }
+  .drop { grid-template-columns:1fr; }
+  .slides { grid-template-columns:1fr; }
+  .slides-row { grid-template-columns:1fr !important; }
+  .pin-bar { grid-template-columns:auto minmax(0,1fr) auto; }
+  .pin-meta { display:none; }
+  .lim b { font-size:21px; }
+}
+@media (min-width:1200px) {
+  .title { font-size:clamp(44px,4.4vw,64px); }
+  .panel { padding:24px 26px; }
+}
+
+/* SLIDE ROWS */
+.slide-row { display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:start; margin:0 0 18px; }
+.slide-no.alt { background:transparent; color:var(--brass); border:1px dashed var(--brass); box-shadow:none; }
+.slide-row.bonus { opacity:.92; border-top:1px dashed var(--plate); padding-top:16px; }
+.slide-no { width:46px; height:46px; display:grid; place-items:center; font:800 20px/1 var(--mono); color:var(--bg0); background:var(--mint); clip-path:var(--chamfer-sm); box-shadow:var(--glow-green); margin-top:26px; }
+.slide-row label.field { margin-top:22px; }
+.slide-row textarea { min-height:92px; max-width:none; }
+.slide-row > div { min-width:0; }
+.s-meter { margin-bottom:2px; }
+.linkcheck { margin:8px 0 0; font:13px/1.4 var(--mono); color:var(--dim); }
+.linkcheck.ok { color:var(--mint); }
+.linkcheck.bad { color:var(--copper); }
+.ntable { width:100%; max-width:640px; border-collapse:collapse; background:rgba(13,18,12,.5); }
+.ntable th { text-align:left; font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--patina); padding:10px 12px; border-bottom:1px solid var(--plate); }
+.ntable td { padding:6px 12px; border-bottom:1px solid rgba(27,42,28,.7); font-size:15px; color:#cfcbbd; }
+.ntable td input { width:100%; min-height:42px; padding:6px 10px; font:16px var(--sans); color:var(--bone); background:rgba(3,5,3,.6); border:1px solid var(--gear); border-radius:3px; }
+.ntable td input:focus { outline:none; border-color:var(--mint); box-shadow:var(--glow-green); }
+@media (max-width:560px) { .slide-row { grid-template-columns:1fr; } .slide-no { margin-top:0; } .slide-row label.field { margin-top:8px; } }
+
+/* CHOICE PILLS */
+.choice { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr)); gap:10px; max-width:660px; }
+.choice label { display:flex; align-items:center; gap:12px; min-height:52px; padding:10px 14px; background:rgba(13,18,12,.55); border:1px solid var(--plate); clip-path:var(--chamfer-sm); cursor:pointer; font-weight:600; transition:border-color .15s,color .15s; }
+.choice label:has(input:checked) { border-color:var(--mint); color:var(--mint); background:linear-gradient(160deg,rgba(143,224,138,.12),rgba(13,18,12,.7)); }
+.choice input { appearance:none; -webkit-appearance:none; flex:none; width:22px; height:22px; margin:0; border:1.5px solid var(--gear); border-radius:50%; background:var(--bg0); display:grid; place-items:center; cursor:pointer; }
+.choice input::after { content:""; width:10px; height:10px; border-radius:50%; background:var(--mint); opacity:0; }
+.choice input:checked { border-color:var(--mint); box-shadow:var(--glow-green); }
+.choice input:checked::after { opacity:1; }
+.choice input:focus-visible { outline:2px solid var(--mint); outline-offset:2px; }
+
+/* THE GUIDE: folded into the assignment, one item to post, nothing graded */
+.guide .sec .pts { background:transparent; color:var(--patina); border:1px dashed var(--patina); }
+details.g { border:1px solid var(--plate); background:rgba(13,18,12,.45); clip-path:var(--chamfer-sm); margin:0 0 10px; }
+details.g summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:12px; min-height:52px; padding:12px 16px; font:700 15px/1.35 var(--sans); color:var(--bone); }
+details.g summary::-webkit-details-marker { display:none; }
+details.g summary::before { content:"+"; flex:none; width:24px; height:24px; display:grid; place-items:center; font:800 16px/1 var(--mono); color:var(--brass); border:1px solid var(--gear); border-radius:2px; }
+details.g[open] summary::before { content:"\2212"; color:var(--mint); border-color:var(--mint); }
+details.g[open] summary { color:var(--mint); border-bottom:1px solid var(--plate); }
+details.g summary:hover { background:rgba(143,224,138,.06); }
+details.g summary:focus-visible { outline:2px solid var(--mint); outline-offset:-2px; }
+.g-in { padding:16px; }
+.g-p { margin:0 0 12px; max-width:88ch; font-size:15px; line-height:1.55; color:#cfcbbd; }
+.g-p:last-child { margin-bottom:0; }
+.g-p b { color:var(--brass); }
+.g-steps { margin:0 0 14px; padding-left:22px; max-width:88ch; }
+.g-steps li { margin:0 0 7px; font-size:15px; line-height:1.5; color:#cfcbbd; }
+.g-steps b { color:var(--mint); }
+.gtable { width:100%; border-collapse:collapse; margin:0 0 14px; background:rgba(3,5,3,.4); }
+.gtable th { text-align:left; font:700 11px/1.3 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--patina); padding:9px 12px; border-bottom:1px solid var(--plate); vertical-align:bottom; }
+.gtable td { padding:10px 12px; border-bottom:1px solid rgba(27,42,28,.7); font-size:14px; line-height:1.5; color:#cfcbbd; vertical-align:top; }
+.gtable td b { color:var(--bone); }
+.gtable tr:last-child td { border-bottom:none; }
+@media (max-width:620px) {
+  .gtable, .gtable thead, .gtable tbody, .gtable tr, .gtable th, .gtable td { display:block; }
+  .gtable thead { display:none; }
+  .gtable tr { border-bottom:1px solid var(--plate); padding:4px 0; }
+  .gtable tr:last-child { border-bottom:none; }
+  .gtable td { border-bottom:none; padding:4px 10px 8px; }
+  .gtable td[data-l]::before { content:attr(data-l); display:block; font:700 10px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--patina); margin:0 0 4px; }
+}
+
+.ntable { width:100%; max-width:860px; border-collapse:collapse; background:rgba(13,18,12,.5); }
+.ntable th { text-align:left; font:700 11px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--patina); padding:10px 12px; border-bottom:1px solid var(--plate); }
+.ntable td { padding:8px 12px; border-bottom:1px solid rgba(27,42,28,.7); font-size:15px; color:#cfcbbd; vertical-align:middle; }
+.ntable td.lim-c { font:13px/1.3 var(--mono); color:var(--patina); white-space:nowrap; }
+.ntable td input { width:100%; min-width:110px; min-height:42px; padding:6px 10px; font:16px var(--sans); color:var(--bone); background:rgba(3,5,3,.6); border:1px solid var(--gear); border-radius:3px; }
+.ntable td input:focus { outline:none; border-color:var(--mint); box-shadow:var(--glow-green); }
+.verdict { margin-top:5px; font:12px/1.35 var(--mono); color:var(--dim); }
+.verdict.ok { color:var(--mint); }
+.verdict.over { color:var(--copper); }
+.verdict.warn { color:var(--brass); }
+#f-fix { min-height:96px; max-width:none; }
+@media (max-width:620px) {
+  .ntable, .ntable tbody, .ntable tr, .ntable td { display:block; }
+  .ntable thead { display:none; }
+  .ntable tr { border-bottom:1px solid var(--plate); padding:8px 0; }
+  .ntable tr:last-child { border-bottom:none; }
+  .ntable td { border-bottom:none; padding:3px 10px; }
+  .ntable td.lim-c { font-size:12px; }
+}
+
+/* WORK ORDERS */
+.wo .sec .pts { background:transparent; color:var(--patina); border:1px dashed var(--patina); }
+.wo-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr)); gap:14px 18px; max-width:1180px; margin:0 0 4px; }
+.wo-grid > div { min-width:0; }
+.wo-grid .field { margin-top:0; }
+.wo select { width:100%; min-width:0; min-height:46px; padding:8px 10px; font:16px var(--sans); color:var(--bone); background:rgba(3,5,3,.6); border:1px solid var(--gear); border-radius:3px; }
+.wo select:focus { outline:none; border-color:var(--mint); box-shadow:var(--glow-green); }
+.wo textarea { min-height:70px; max-width:none; }
+.wo-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:18px 0 0; }
+.btn-open { display:inline-flex; align-items:center; justify-content:center; min-height:46px; padding:0 20px; font:800 13px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--bg0); background:var(--brass); border:none; clip-path:var(--chamfer-sm); cursor:pointer; box-shadow:0 0 16px rgba(211,198,142,.25); }
+.btn-open:hover { background:#efe3a8; }
+.wo-state { font:13px/1.4 var(--mono); color:var(--dim); flex:1 1 240px; }
+.wo-state.ok { color:var(--mint); }
+.wo-state.warn { color:var(--brass); }
+.wo-missing { margin:12px 0 0; font:13px/1.4 var(--mono); color:var(--copper); }
+.wo-prev { margin:14px 0 0; border:1px solid var(--plate); background:rgba(3,5,3,.45); clip-path:var(--chamfer-sm); }
+.wo-prev summary { list-style:none; cursor:pointer; min-height:44px; display:flex; align-items:center; padding:10px 14px; font:700 12px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--patina); }
+.wo-prev summary::-webkit-details-marker { display:none; }
+.wo-prev[open] summary { color:var(--mint); border-bottom:1px solid var(--plate); }
+.wo-prev pre { margin:0; padding:14px; font:13px/1.6 var(--mono); color:#cfcbbd; white-space:pre-wrap; word-break:break-word; }
+
+.stack { margin:18px 0 0; padding:16px 18px; border:1px solid var(--plate); background:rgba(13,18,12,.45); clip-path:var(--chamfer-sm); max-width:900px; }
+.stack .sh { font:700 11px/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--patina); margin:0 0 12px; }
+.stack-l { margin:0 0 12px; padding-left:22px; }
+.stack-l li { margin:0 0 7px; font-size:15px; line-height:1.5; color:#cfcbbd; }
+.stack-l b { color:var(--brass); }
+.g-p { margin:0; max-width:88ch; font-size:15px; line-height:1.55; color:#cfcbbd; }
+</style>
+</head>
+<body>
+<canvas id="rain" aria-hidden="true"></canvas>
+<div id="probes" aria-hidden="true"></div>
+<div id="pin" aria-hidden="true"><div class="pin-in"><div class="pin-bar">
+  <canvas id="spin-mini"></canvas>
+  <div><div class="pin-t"><b>CAD 02</b> // The Assembly</div><div class="pin-track"><div id="pin-fill"></div></div></div>
+  <div class="pin-rpmbox"><div class="pin-rpm" id="pin-rpm">0 RPM</div><div class="pin-tier" id="pin-tier">IDLE</div></div>
+  <div class="pin-meta"><span id="pin-done">0 / 7</span> done<span class="pin-status" id="pin-status">LINK: CONNECTING</span></div>
+</div></div></div>
+<div class="wrap" id="content">
+
+<div id="hero-wrap" class="hero-wrap heat-0"><div class="hero-frame"><header class="hero">
+  <span class="hud tl"></span><span class="hud tr"></span><span class="hud bl"></span><span class="hud br"></span>
+  <div>
+    <div class="crumb">IDEA100<i>//</i>IDEA-BLADE<i>//</i>CAD</div>
+    <h1 class="title"><span class="num">CAD 02</span><span class="g" data-text="The">The</span><br><span class="g" data-text="Assembly">Assembly</span></h1>
+    <p class="sub">Your body and your blade have never met. Put them in one file, mate them to the spin axis, and find out whether the robot you drew is legal.</p>
+    <div class="term" id="status"><span class="led"></span><span id="status-text">LINK: CONNECTING</span><span class="cur"></span></div>
+  </div>
+  <div class="spinbox" aria-hidden="true">
+    <canvas id="spin-big"></canvas>
+    <div class="rpm" id="rpm">0 RPM</div>
+    <div class="tier" id="tier">IDLE</div>
+    <div class="rpm-l">Fill it in to spin it up</div>
+  </div>
+</header></div></div>
+
+<section class="panel">
+  <div class="sec"><span class="n">00</span><span class="t">Why This Exists</span><span class="line"></span></div>
+  <div class="tip"><b>Parts pass. Assemblies fail.</b> Height is the one that gets people, because nothing in your part files knows about it. Your body, the hex collar and the shaft above it stack on top of each other, and the collar alone can eat half an inch. A body you measured at 2.80 in on its own becomes a robot over the limit the moment the collar goes on. The assembly is the first place that stack exists anywhere. Find it here, where the fix is a rebuild in SolidWorks instead of a cut part and two days.</div>
+  <div class="limits" style="margin-top:16px">
+    <div class="lim"><b>5.00 in</b><span>Max diameter</span></div>
+    <div class="lim"><b>3.00 in</b><span>Max full height</span></div>
+    <div class="lim"><b>0.50 in</b><span>Max collar on the shaft</span></div>
+    <div class="lim"><b>0.50 in</b><span>Min hex above the collar</span></div>
+    <div class="lim"><b>680 g</b><span>Max mass</span></div>
+  </div>
+  <div class="stack">
+    <div class="sh">The stack, bottom to top</div>
+    <ol class="stack-l">
+      <li><b>Your body.</b> Whatever height you designed.</li>
+      <li><b>The hex collar.</b> Up to 0.50 in of shaft, and most designs use one.</li>
+      <li><b>Bare hex above the collar.</b> At least 0.50 in, every time.</li>
+    </ol>
+    <p class="g-p">All of it together is 3.00 in or under. Run a collar at its full 0.50 in and everything below it has 2.50 in to live in. That is the trade: a taller collar buys you a shorter body, not a taller robot.</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="grid2">
+    <div>
+      <label class="field" for="f-name">Your name</label>
+      <input type="text" id="f-name" data-field="studentName" autocomplete="off">
+    </div>
+    <div>
+      <label class="field" for="f-team">Team name</label>
+      <input type="text" id="f-team" data-field="teamName" autocomplete="off">
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="sec"><span class="n">01</span><span class="t">It Goes Together</span><span class="line"></span><span class="pts">8 PTS</span></div>
+  <p class="hint">Open the assembly template. Insert your body, insert your blade, mate both to the spin axis. If your team is missing a part, insert whatever exists and say so.</p>
+  <label class="field" for="f-shot">A screenshot of the assembly</label>
+  <p class="hint">Isometric view, whole robot in frame. Press <kbd>Ctrl</kbd>+<kbd>7</kbd> for isometric and <kbd>F</kbd> to fit it on screen.</p>
+  <div class="drop" id="drop" tabindex="0" aria-label="Screenshot drop zone">
+    <p class="paste-hint">Paste it straight in with <kbd>Ctrl</kbd>+<kbd>V</kbd>, drag the file in, or choose a file.</p>
+    <div class="thumb" id="thumb">NO<br>IMAGE</div>
+    <div class="drop-mid">
+      <input type="file" id="f-shot" accept="image/*" data-field="assemblyShot">
+      <span id="shot-state">Nothing attached.</span>
+    </div>
+    <button type="button" id="shot-remove">Remove</button>
+  </div>
+  <label class="field" for="f-parts">What is in it?</label>
+  <input type="text" id="f-parts" data-field="partsIn" placeholder="Body and blade, both mated" autocomplete="off">
+  <div class="early">If a part is not ready, say which one. A half assembly you are honest about beats a screenshot of somebody else's.</div>
+</section>
+
+<section class="panel">
+  <div class="sec"><span class="n">02</span><span class="t">The Limits</span><span class="line"></span><span class="pts">8 PTS</span></div>
+  <p class="hint">Measure the assembly, not the parts. Mass comes from <b>Evaluate &gt; Mass Properties</b>, and set the units to grams before you read it. If you are not running a collar, put 0 in that row.</p>
+  <table class="ntable" data-field="limits">
+    <thead><tr><th>What</th><th>The limit</th><th>Your number</th></tr></thead>
+    <tbody>
+      <tr><td>Diameter</td><td class="lim-c">5.00 in max</td><td><input type="text" aria-label="Your diameter"><div class="verdict"></div></td></tr>
+      <tr><td>Full height</td><td class="lim-c">3.00 in max</td><td><input type="text" aria-label="Your full height"><div class="verdict"></div></td></tr>
+      <tr><td>Collar on the shaft</td><td class="lim-c">0.50 in max</td><td><input type="text" aria-label="Your collar height"><div class="verdict"></div></td></tr>
+      <tr><td>Bare hex above the collar</td><td class="lim-c">0.50 in min</td><td><input type="text" aria-label="Your hex extension"><div class="verdict"></div></td></tr>
+      <tr><td>Mass</td><td class="lim-c">680 g max</td><td><input type="text" aria-label="Your mass in grams"><div class="verdict"></div></td></tr>
+    </tbody>
+  </table>
+  <div class="early">A number that is out is not a bad grade. A number you never measured is.</div>
+</section>
+
+<section class="panel">
+  <div class="sec"><span class="n">03</span><span class="t">What Did Not Fit</span><span class="line"></span><span class="pts">4 PTS</span></div>
+  <p class="hint">Something is always off the first time. Name it and name what you did about it.</p>
+  <textarea id="f-fix" data-field="whatChanged" placeholder="Ours came out 5.14 in across, so we cut the blade arms back to 2.42 in from center."></textarea>
+  <div class="tip" style="margin-top:16px"><b>Nothing wrong at all?</b> Say that, and say which number you were most worried about and what it came out to. Nobody gets it right first time by accident.</div>
+</section>
+
+
+<section class="panel wo">
+  <div class="sec"><span class="n">04</span><span class="t">Work Orders</span><span class="line"></span><span class="pts">NOT GRADED</span></div>
+  <div class="tip"><b>You run the printers. You do not run the laser or the router.</b> Your body is yours: slice it, queue it, pull the plate. Anything cut on the MetalFab or the Axiom is a work order, filled by Mr. Pina or an upperclassman. Fill this in, hit the button, and it drafts the email for you.</div>
+  <p class="hint">This stays open all rotation. Use it every time you need a part cut, including recuts. Nothing here is graded and nothing here is saved, so send it before you close the tab. <b>Open Gmail draft</b> is the one that works on a school laptop.</p>
+
+  <div class="wo-grid">
+    <div><label class="field" for="wo-team">Team name</label><input type="text" id="wo-team" autocomplete="off"></div>
+    <div><label class="field" for="wo-who">Who is asking</label><input type="text" id="wo-who" autocomplete="off"></div>
+    <div><label class="field" for="wo-machine">Machine</label>
+      <select id="wo-machine">
+        <option value="xTool MetalFab laser">xTool MetalFab laser</option>
+        <option value="Axiom CNC router">Axiom CNC router</option>
+        <option value="Not sure">Not sure, you pick</option>
+      </select></div>
+    <div><label class="field" for="wo-part">Part name</label><input type="text" id="wo-part" placeholder="Blade" autocomplete="off"></div>
+    <div><label class="field" for="wo-file">File name, exactly</label><input type="text" id="wo-file" placeholder="bluecomet-blade-v2.dxf" autocomplete="off" spellcheck="false"></div>
+    <div><label class="field" for="wo-mat">Material and thickness</label><input type="text" id="wo-mat" placeholder="6061 aluminum, 0.190 in" autocomplete="off"></div>
+    <div><label class="field" for="wo-qty">How many</label>
+      <select id="wo-qty"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+    <div><label class="field" for="wo-why">First order or recut?</label>
+      <select id="wo-why">
+        <option value="First order for this part">First order for this part</option>
+        <option value="Recut: our design was wrong">Recut: our design was wrong</option>
+        <option value="Recut: the cut came out wrong">Recut: the cut came out wrong</option>
+      </select></div>
+  </div>
+  <label class="field" for="wo-note">Anything else worth knowing</label>
+  <textarea id="wo-note" placeholder="Optional. Leave it blank if there is nothing."></textarea>
+
+  <div class="wo-actions">
+    <button type="button" id="wo-send" class="btn-open">Open Gmail draft</button>
+    <button type="button" id="wo-mail">Use my mail app</button>
+    <button type="button" id="wo-copy">Copy it instead</button>
+    <span class="wo-state" id="wo-state"></span>
+  </div>
+  <div class="wo-missing" id="wo-missing" hidden></div>
+  <details class="wo-prev" id="wo-prev"><summary>See what gets sent</summary><pre id="wo-text"></pre></details>
+</section>
+
+<div class="sources"><b>Sources</b><br>IDEA-Blade Rulebook v3.0, section 03 Dimensions and section 05 Inspection. SolidWorks 2025 Help, Mass Properties.</div>
+</div>
+<script>
+(function () {
+  var readOnly = false;
+  var statusBox = document.getElementById('status');
+  var statusText = document.getElementById('status-text');
+  var pinStatus = document.getElementById('pin-status');
+  var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+
+  function send(msg) { try { window.parent.postMessage(msg, '*'); } catch (e) {} }
+  function change(field, value) { if (!readOnly) send({ type: 'idea:change', field: field, value: value }); progress(); }
+  function setStatus(text, cls) {
+    statusText.textContent = text; statusBox.className = 'term' + (cls ? ' ' + cls : '');
+    pinStatus.textContent = text; pinStatus.className = 'pin-status' + (cls ? ' ' + cls : '');
+  }
+
+  /* THE LIMIT READOUT IS A MIRROR, NOT A GATE. It says what the number the
+     student typed does against the rule and stops there: nothing is blocked,
+     nothing is scored on it, and an out-of-limit number still saves. Finding
+     out in CAD is the entire point of the assignment, so the failing case gets
+     a calm sentence rather than a red wall. A field that cannot be read as a
+     number says so instead of guessing. */
+  var LIMITS = [
+    { parse: function (n) { return n <= 5.0; }, ok: 'Inside 5.00 in.', bad: 'Over 5.00 in. Bring the blade arms in.' },
+    { parse: function (n) { return n <= 3.0; }, ok: 'Inside 3.00 in.', bad: 'Over 3.00 in. Shorten the body or the collar.' },
+    { parse: function (n) { return n <= 0.5; }, ok: 'Inside 0.50 in.', bad: 'Over 0.50 in. A collar cannot take more shaft than that.' },
+    { parse: function (n) { return n >= 0.5; }, ok: 'At least 0.50 in.', bad: 'Under 0.50 in. You need more bare hex above the collar.' },
+    { parse: function (n) { return n <= 680; }, ok: 'Under 680 g.', bad: 'Over 680 g. Take material out or thin a wall.' }
+  ];
+  function updateLimits() {
+    var rows = document.querySelectorAll('.ntable tbody tr');
+    for (var i = 0; i < rows.length; i++) {
+      var raw = rows[i].querySelector('input').value.trim();
+      var box = rows[i].querySelector('.verdict');
+      if (!box) continue;
+      if (!raw) { box.textContent = ''; box.className = 'verdict'; continue; }
+      var n = parseFloat(raw.replace(/[^0-9.\-]/g, ''));
+      if (!isFinite(n)) { box.textContent = 'Type a number.'; box.className = 'verdict warn'; continue; }
+      var pass = LIMITS[i].parse(n);
+      box.textContent = pass ? LIMITS[i].ok : LIMITS[i].bad;
+      box.className = 'verdict ' + (pass ? 'ok' : 'over');
+    }
+    woHeadroom(rows);
+  }
+  /* THE ROW-BY-ROW CHECK CANNOT SEE THE TRADE. Each limit passes on its own
+     while the robot still fails, because a taller collar spends the same
+     3.00 in the body is spending. So the height row also reports what is left
+     once the collar the team actually declared is taken out, and it only
+     speaks when both numbers are readable. */
+  function woHeadroom(rows) {
+    var h = parseFloat((rows[1].querySelector('input').value || '').replace(/[^0-9.\-]/g, ''));
+    var c = parseFloat((rows[2].querySelector('input').value || '').replace(/[^0-9.\-]/g, ''));
+    var box = rows[1].querySelector('.verdict');
+    if (!isFinite(h) || !isFinite(c) || c <= 0 || h > 3.0) return;
+    var left = (3.0 - c).toFixed(2);
+    box.textContent += ' With a ' + c.toFixed(2) + ' in collar, everything under it has ' + left + ' in.';
+  }
+
+  var photoOn = false, TOTAL = 7, targetRpm = 0;
+  function tableRows() {
+    return Array.prototype.map.call(document.querySelectorAll('.ntable tbody tr'), function (tr) {
+      return { what: tr.cells[0].textContent, limit: tr.cells[1].textContent, value: tr.querySelector('input').value };
+    });
+  }
+  function progress() {
+    var done = 0;
+    ['f-parts', 'f-fix'].forEach(function (id) { if (document.getElementById(id).value.trim()) done++; });
+    if (photoOn) done++;
+    tableRows().forEach(function (r) { if (r.value.trim()) done++; });
+    var f = Math.min(1, done / TOTAL);
+    targetRpm = f === 0 ? 0 : 600 + f * 2400;
+    document.getElementById('pin-done').textContent = done + ' / ' + TOTAL;
+    document.getElementById('pin-fill').style.width = Math.round(f * 100) + '%';
+    if (mq.matches) { rpm = targetRpm; showRpm(); drawSpinners(0, 0); }
+  }
+
+  document.querySelectorAll('input[type="text"][data-field], textarea[data-field]').forEach(function (el) {
+    el.addEventListener('input', function () { change(el.getAttribute('data-field'), el.value); });
+  });
+  document.querySelectorAll('.ntable input').forEach(function (el) {
+    el.addEventListener('input', function () { updateLimits(); change('limits', JSON.stringify(tableRows())); });
+  });
+
+  var thumb = document.getElementById('thumb'), drop = document.getElementById('drop');
+  function setThumb(src, label) {
+    thumb.innerHTML = '';
+    if (src) { var im = new Image(); im.alt = ''; im.src = src; thumb.appendChild(im); }
+    else { thumb.innerHTML = label || 'NO<br>IMAGE'; }
+  }
+  function attach(file, how) {
+    if (!file || readOnly || !/^image\//.test(file.type)) return false;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data = String(reader.result);
+      var name = file.name && file.name !== 'image.png' ? file.name : ('pasted-image-' + Date.now() + '.png');
+      send({ type: 'idea:image', field: 'assemblyShot', name: name, bytes: data });
+      var s = document.getElementById('shot-state'); s.textContent = (how === 'paste' ? 'Pasted: ' : 'Attached: ') + name; s.className = 'ok';
+      setThumb(data); photoOn = true; progress();
+      drop.classList.add('flash'); setTimeout(function () { drop.classList.remove('flash'); }, 700);
+    };
+    reader.readAsDataURL(file);
+    return true;
+  }
+  document.getElementById('f-shot').addEventListener('change', function (e) { attach(e.target.files && e.target.files[0], 'pick'); });
+  document.addEventListener('paste', function (e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { if (attach(items[i].getAsFile(), 'paste')) e.preventDefault(); return; }
+    }
+  });
+  ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function () { drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { e.preventDefault(); attach(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0], 'pick'); });
+  document.getElementById('shot-remove').addEventListener('click', function () {
+    if (readOnly) return;
+    send({ type: 'idea:image-remove', field: 'assemblyShot' });
+    var s = document.getElementById('shot-state'); s.textContent = 'Nothing attached.'; s.className = '';
+    document.getElementById('f-shot').value = ''; setThumb(null); photoOn = false; progress();
+  });
+
+  function applyState(m) {
+    readOnly = !!m.readOnly;
+    var v = m.values || {};
+    document.querySelectorAll('input[type="text"][data-field], textarea[data-field]').forEach(function (el) {
+      var f = el.getAttribute('data-field'); if (typeof v[f] === 'string') el.value = v[f];
+    });
+    if (typeof v.limits === 'string' && v.limits) {
+      try {
+        var rows = JSON.parse(v.limits), ins = document.querySelectorAll('.ntable input');
+        rows.forEach(function (r, i) { if (ins[i]) ins[i].value = r.value || ''; });
+      } catch (e) {}
+    }
+    var img = (m.images || {}).assemblyShot;
+    var s = document.getElementById('shot-state');
+    s.textContent = img ? ('Attached: ' + img.name) : 'Nothing attached.'; s.className = img ? 'ok' : '';
+    setThumb(null, img ? 'IMAGE<br>SAVED' : null); photoOn = !!img;
+    document.querySelectorAll('[data-field], .ntable input, #shot-remove').forEach(function (el) { el.disabled = readOnly; });
+    document.body.classList.toggle('is-readonly', readOnly);
+    updateLimits(); progress();
+    setStatus(readOnly ? 'READ ONLY' : 'LINK OK // AUTOSAVE ON', readOnly ? 'ro' : '');
+  }
+  window.addEventListener('message', function (e) {
+    if (e.source !== window.parent) return;
+    var m = e.data;
+    if (!m || typeof m.type !== 'string') return;
+    if (m.type === 'idea:state') applyState(m);
+    if (m.type === 'idea:saved') {
+      if (m.ok) setStatus('SAVED ' + new Date(m.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), '');
+      else setStatus('NOT SAVED: ' + (m.reason || 'the save was refused.'), 'bad');
+    }
+  });
+  /* ---------------- spinner: real angular velocity, real motion blur ----------------
+     The blade turns at exactly the RPM on the readout: omega = rpm * 2pi / 60 rad/s,
+     advanced by the real frame time. Each frame draws the blade at many instants across
+     the arc it swept during that frame, the way an eye or a camera shutter integrates
+     it: slow spin reads as crisp blades, fast spin smears into a translucent disc.
+     The RPM has inertia: it spins up quickly and coasts down slowly.
+
+     Once the blades are a blur, a real top looks the same at 1,500 and at 3,000, so
+     SPEED IS SHOWN BY WHAT A FAST TOP DOES TO ITS SURROUNDINGS, in six tiers:
+     a tachometer arc that fills and changes color, a rim that brightens, air rings,
+     sparks thrown off the tips along the direction of spin, a white-hot hub, and at
+     the top tier shockwave rings. The tier also nudges the rain and lights the frame. */
+  var BLADE = new Path2D('M100 100 C 112 70, 140 40, 176 34 C 160 58, 140 82, 118 104 Z');
+  var HEX = new Path2D('M100 88 L110.4 94 L110.4 106 L100 112 L89.6 106 L89.6 94 Z');
+  var MAX_RPM = 3000;
+  var TIERS = [
+    { at: 0,    name: 'IDLE',      color: '#75846F', rgb: '117,132,111' },
+    { at: 20,   name: 'SPIN-UP',   color: '#8FE08A', rgb: '143,224,138' },
+    { at: 700,  name: 'CRUISE',    color: '#8FE08A', rgb: '143,224,138' },
+    { at: 1400, name: 'HIGH',      color: '#93D6C8', rgb: '147,214,200' },
+    { at: 2000, name: 'MAX',       color: '#D3C68E', rgb: '211,198,142' },
+    { at: 2600, name: 'OVERDRIVE', color: '#FFE7C2', rgb: '255,231,194' }
+  ];
+  function tierOf(r) { var t = 0; for (var i = 0; i < TIERS.length; i++) if (r >= TIERS[i].at) t = i; return t; }
+
+  function makeSpinner(canvas, cssSize, units, detail) {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(cssSize * dpr); canvas.height = Math.round(cssSize * dpr);
+    canvas.style.width = cssSize + 'px'; canvas.style.height = cssSize + 'px';
+    return { ctx: canvas.getContext('2d'), k: canvas.width / units, off: (units - 200) / 2, detail: detail };
+  }
+  var big = makeSpinner(document.getElementById('spin-big'), 230, 260, true);
+  var mini = makeSpinner(document.getElementById('spin-mini'), 38, 200, false);
+
+  var sparks = [], shocks = [], sparkDebt = 0, shockClock = 0, clock = 0;
+  var SPARK_RATE = [0, 0, 0, 14, 40, 95];
+  function physics(dtS, th, tier) {
+    clock += dtS;
+    if (mq.matches) { sparks.length = 0; shocks.length = 0; return; }
+    var omega = rpm * Math.PI * 2 / 60;
+    sparkDebt += SPARK_RATE[tier] * dtS;
+    while (sparkDebt >= 1 && sparks.length < 220) {
+      sparkDebt -= 1;
+      var phi = th + Math.floor(Math.random() * 3) * 2.0943951 + 0.72 + (Math.random() - 0.5) * 0.35;
+      var r0 = 80 + Math.random() * 4;
+      var vt = Math.min(omega * r0 * 0.012, 420) * (0.6 + Math.random() * 0.6);
+      var vr = 20 + Math.random() * 60;
+      var cs = Math.cos(phi), sn = Math.sin(phi);
+      sparks.push({ x: 100 + cs * r0, y: 100 + sn * r0, vx: -sn * vt + cs * vr, vy: cs * vt + sn * vr, life: 0, max: 0.25 + Math.random() * (tier === 5 ? 0.55 : 0.35), hot: Math.random() < (tier === 5 ? 0.5 : 0.2) });
+    }
+    if (sparkDebt > 4) sparkDebt = 0;
+    for (var i = sparks.length - 1; i >= 0; i--) {
+      var s = sparks[i]; s.life += dtS;
+      if (s.life > s.max) { sparks.splice(i, 1); continue; }
+      s.vx *= 1 - 1.6 * dtS; s.vy = s.vy * (1 - 1.6 * dtS) + 90 * dtS;
+      s.x += s.vx * dtS; s.y += s.vy * dtS;
+    }
+    if (tier === 5) { shockClock += dtS; if (shockClock > 0.85) { shockClock = 0; shocks.push({ r: 86, life: 0 }); } }
+    else shockClock = 0.6;
+    for (var j = shocks.length - 1; j >= 0; j--) { var w = shocks[j]; w.life += dtS; w.r = 86 + w.life * 70; if (w.life > 0.7) shocks.splice(j, 1); }
+  }
+
+  function drawSpinner(sp, theta, sweep, tier) {
+    var c = sp.ctx, k = sp.k, T = TIERS[tier], f = Math.min(1, rpm / MAX_RPM);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+    c.setTransform(k, 0, 0, k, sp.off * k, sp.off * k);
+    if (sp.detail) {
+      /* Tachometer: 270 degrees from bottom left, ticks every 500 RPM. */
+      var a0 = Math.PI * 0.75, span = Math.PI * 1.5;
+      c.lineCap = 'butt'; c.lineWidth = 5; c.strokeStyle = 'rgba(27,42,28,.95)';
+      c.beginPath(); c.arc(100, 100, 106, a0, a0 + span); c.stroke();
+      if (f > 0.001) {
+        c.save(); c.shadowColor = 'rgba(' + T.rgb + ',.8)'; c.shadowBlur = (4 + tier * 3) * k;
+        c.strokeStyle = T.color; c.beginPath(); c.arc(100, 100, 106, a0, a0 + span * f); c.stroke(); c.restore();
+      }
+      c.lineWidth = 1.2;
+      for (var t = 0; t <= 6; t++) {
+        var ta = a0 + span * (t / 6), on = t / 6 <= f + 1e-6;
+        c.strokeStyle = on ? T.color : 'rgba(117,132,111,.7)';
+        c.beginPath(); c.moveTo(100 + Math.cos(ta) * 111, 100 + Math.sin(ta) * 111); c.lineTo(100 + Math.cos(ta) * 116, 100 + Math.sin(ta) * 116); c.stroke();
+      }
+      c.strokeStyle = 'rgba(147,214,200,.40)'; c.lineWidth = 1.5;
+      c.beginPath(); c.arc(100, 100, 92, 0, Math.PI * 2); c.stroke();
+      /* Air rings: faint dashed arcs dragged around by the spin, from HIGH up. */
+      if (tier >= 3) {
+        c.save(); c.setLineDash([10, 16]); c.lineWidth = 1.2;
+        for (var q = 0; q < tier - 2; q++) {
+          c.strokeStyle = 'rgba(' + T.rgb + ',' + (0.16 + 0.08 * q) + ')';
+          c.lineDashOffset = -clock * (60 + 50 * q) * (tier - 2);
+          c.beginPath(); c.arc(100, 100, 96 + q * 4, 0, Math.PI * 2); c.stroke();
+        }
+        c.restore();
+      }
+      /* Shockwaves at OVERDRIVE. */
+      for (var w = 0; w < shocks.length; w++) {
+        var sw = shocks[w], al = Math.max(0, 1 - sw.life / 0.7);
+        c.strokeStyle = 'rgba(255,231,194,' + (0.5 * al).toFixed(3) + ')'; c.lineWidth = 2.5 * al + 0.5;
+        c.beginPath(); c.arc(100, 100, sw.r, 0, Math.PI * 2); c.stroke();
+      }
+    }
+    /* The blades, integrated across the frame's swept arc. */
+    var n = Math.max(1, Math.min(120, Math.ceil(sweep / 0.04)));
+    var a = n === 1 ? 1 : Math.min(1, 2.4 / n);
+    var smear = n > 10;
+    var bladeFill = smear ? 'rgba(' + (tier >= 4 ? T.rgb : '143,224,138') + ',' + (0.26 + 0.03 * tier) + ')' : 'rgba(143,224,138,.16)';
+    for (var i = 0; i < n; i++) {
+      var ang = theta - sweep * (i / n);
+      c.save();
+      c.translate(100, 100); c.rotate(ang); c.scale(0.84, 0.84); c.translate(-100, -100);
+      c.globalAlpha = a;
+      if (n === 1 && sp.detail) { c.shadowColor = 'rgba(143,224,138,.55)'; c.shadowBlur = 6 * k; }
+      for (var b = 0; b < 3; b++) {
+        c.save(); c.translate(100, 100); c.rotate(b * 2.0943951); c.translate(-100, -100);
+        c.fillStyle = bladeFill; c.fill(BLADE);
+        if (!smear) { c.lineWidth = sp.detail ? 2 : 5; c.strokeStyle = '#8FE08A'; c.stroke(BLADE); }
+        c.restore();
+      }
+      c.restore();
+    }
+    c.globalAlpha = 1; c.shadowBlur = 0;
+    if (smear) {
+      var rim = Math.min(1, (n - 10) / 40);
+      c.save(); c.shadowColor = 'rgba(' + T.rgb + ',.9)'; c.shadowBlur = (tier * 3) * k;
+      c.strokeStyle = 'rgba(' + T.rgb + ',' + Math.min(1, (0.45 + 0.1 * tier) * rim).toFixed(3) + ')';
+      c.lineWidth = (sp.detail ? 2 : 6) + tier * (sp.detail ? 0.5 : 1);
+      c.beginPath(); c.arc(100, 100, 73, 0, Math.PI * 2); c.stroke(); c.restore();
+    }
+    /* Sparks: short streaks along their velocity, hot ones near white. */
+    if (sp.detail && sparks.length) {
+      c.save(); c.lineCap = 'round';
+      for (var s = 0; s < sparks.length; s++) {
+        var p = sparks[s], life = 1 - p.life / p.max;
+        c.strokeStyle = p.hot ? 'rgba(255,244,220,' + life.toFixed(3) + ')' : 'rgba(' + (tier >= 5 ? '217,154,85' : '211,198,142') + ',' + life.toFixed(3) + ')';
+        c.lineWidth = p.hot ? 1.6 : 1.2;
+        c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x - p.vx * 0.028, p.y - p.vy * 0.028); c.stroke();
+      }
+      c.restore();
+    }
+    /* Hub: brass at rest, heating toward white at the top tiers. */
+    var heat = tier >= 4 ? (tier === 5 ? 0.75 + 0.25 * Math.sin(clock * 9) : 0.35) : 0;
+    c.save();
+    if (heat > 0 && sp.detail) { c.shadowColor = 'rgba(255,231,194,' + heat.toFixed(3) + ')'; c.shadowBlur = 18 * heat * k; }
+    c.fillStyle = heat > 0 ? 'rgba(' + Math.round(6 + 120 * heat) + ',' + Math.round(9 + 90 * heat) + ',' + Math.round(6 + 40 * heat) + ',1)' : '#060906';
+    c.strokeStyle = '#D3C68E'; c.lineWidth = sp.detail ? 2 : 5;
+    c.beginPath(); c.arc(100, 100, 22, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore();
+    c.strokeStyle = heat > 0.5 ? '#FFE7C2' : '#D3C68E'; c.lineWidth = sp.detail ? 2 : 5;
+    for (var j = 0; j < n; j++) {
+      c.save(); c.translate(100, 100); c.rotate(theta - sweep * (j / n)); c.translate(-100, -100);
+      c.globalAlpha = a; c.stroke(HEX); c.restore();
+    }
+    c.globalAlpha = 1;
+  }
+  var rpm = 0, theta = 0, shownTier = -1;
+  var rpmEl = document.getElementById('rpm'), pinRpm = document.getElementById('pin-rpm');
+  var tierEl = document.getElementById('tier'), heroWrap = document.getElementById('hero-wrap');
+  function showRpm() {
+    var r = Math.round(rpm / 10) * 10;
+    var t = r.toLocaleString() + ' RPM';
+    rpmEl.textContent = t; pinRpm.textContent = t;
+    var tier = tierOf(rpm);
+    if (tier !== shownTier) {
+      shownTier = tier;
+      tierEl.textContent = TIERS[tier].name; document.getElementById('pin-tier').textContent = TIERS[tier].name;
+      document.documentElement.style.setProperty('--tier-color', TIERS[tier].color);
+      document.documentElement.style.setProperty('--tier-rgb', TIERS[tier].rgb);
+      heroWrap.className = 'hero-wrap heat-' + tier;
+      document.body.setAttribute('data-tier', tier);
+    }
+  }
+  function drawSpinners(th, sw) { var tier = tierOf(rpm); drawSpinner(big, th, sw, tier); drawSpinner(mini, th, sw, tier); }
+
+  /* ---------------- rain: the IDEA site's own matrix rain, ported ----------------
+     Same constants, glyph set, mirrored half, glyph atlas, head and trail colors,
+     destination-out fade, 30 fps paint and per-column speeds as
+     src/lib/design-system/themes/matrix-rain.ts on the site's Matrix theme. */
+  var RAIN = { cell: 16, font: 'ui-monospace, Menlo, Consolas, monospace', head: '#d2ffd9', trail: '#1fc35a',
+    fadePerFrame: 0.09, minSpeed: 0.16, maxSpeed: 0.6, mutationsPerStep: 2, mutationReach: 12 };
+  var GLYPHS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ+-*/=<>|:;'.split('');
+  var GLYPH_COUNT = GLYPHS.length * 2;
+  function randSpeed() { return RAIN.minSpeed + Math.random() * (RAIN.maxSpeed - RAIN.minSpeed); }
+  function fadeFrames() { return Math.ceil(Math.log(0.05) / Math.log(1 - RAIN.fadePerFrame)); }
+  function tailRows(s) { return Math.max(1, Math.ceil(s * fadeFrames())); }
+  function trailAlpha(back, s) { return back <= 0 ? 1 : Math.pow(1 - RAIN.fadePerFrame, back / Math.max(s, 1e-6)); }
+  function fadeAlpha(dt) { var f = Math.max(0, Math.min(dt, 250)) / (1000 / 60); return Math.min(0.5, 1 - Math.pow(1 - RAIN.fadePerFrame, f)); }
+  var rain = document.getElementById('rain'), rc = rain.getContext('2d');
+  var rW = 0, rH = 0, cols = 0, rows = 0, columns = [], atlas = null, AC = 16;
+  function buildAtlas() {
+    var a = document.createElement('canvas'); a.width = AC * GLYPH_COUNT; a.height = AC * 2;
+    var c = a.getContext('2d'); c.font = RAIN.cell + 'px ' + RAIN.font; c.textAlign = 'center'; c.textBaseline = 'middle';
+    [[0, RAIN.head], [1, RAIN.trail]].forEach(function (row) {
+      c.fillStyle = row[1];
+      for (var g = 0; g < GLYPH_COUNT; g++) {
+        c.save(); c.translate(g * AC + AC / 2, row[0] * AC + AC / 2);
+        if (g >= GLYPHS.length) c.scale(-1, 1);
+        c.fillText(GLYPHS[g % GLYPHS.length], 0, 0); c.restore();
+      }
+    });
+    atlas = a;
+  }
+  function cell(col, row, head, glyph, alpha) {
+    var x = col * RAIN.cell, y = row * RAIN.cell;
+    rc.clearRect(x, y, RAIN.cell, RAIN.cell); rc.globalAlpha = alpha;
+    rc.drawImage(atlas, glyph * AC, (head ? 0 : 1) * AC, AC, AC, x, y, RAIN.cell, RAIN.cell);
+  }
+  function layoutRain(w, h) {
+    if (w === rW && h === rH) return;
+    rW = w; rH = h; rain.width = w; rain.height = h; rain.style.height = h + 'px';
+    cols = Math.ceil(w / RAIN.cell); rows = Math.ceil(h / RAIN.cell);
+    columns = [];
+    for (var i = 0; i < cols; i++) columns.push({ head: Math.floor(Math.random() * rows * 2) - rows, speed: randSpeed(), acc: Math.random() });
+    if (!atlas) buildAtlas();
+  }
+  function stepRain(dtFrames) {
+    for (var i = 0; i < columns.length; i++) {
+      var c = columns[i]; c.acc += c.speed * dtFrames;
+      while (c.acc >= 1) {
+        c.acc -= 1; c.head += 1;
+        var tail = tailRows(c.speed);
+        if (c.head - tail > rows) { c.head = -1 - Math.floor(Math.random() * rows * 0.7); c.speed = randSpeed(); c.acc = 0; break; }
+        if (c.head >= 0 && c.head < rows) cell(i, c.head, true, (Math.random() * GLYPH_COUNT) | 0, 1);
+        if (c.head - 1 >= 0 && c.head - 1 < rows) cell(i, c.head - 1, false, (Math.random() * GLYPH_COUNT) | 0, 1);
+        for (var m = 0; m < RAIN.mutationsPerStep; m++) {
+          var back = 2 + Math.floor(Math.random() * RAIN.mutationReach), r = c.head - back;
+          if (r < 0 || r >= rows || back > tail) continue;
+          cell(i, r, false, (Math.random() * GLYPH_COUNT) | 0, trailAlpha(back, c.speed));
+        }
+      }
+    }
+    rc.globalAlpha = 1;
+  }
+  function rainStill() {
+    rc.clearRect(0, 0, rW, rH);
+    for (var i = 0; i < columns.length; i++) {
+      var c = columns[i], head = Math.floor(Math.random() * rows), tail = tailRows(c.speed);
+      cell(i, head, true, (Math.random() * GLYPH_COUNT) | 0, 1);
+      for (var d = 1; d <= tail; d++) { var r = head - d; if (r < 0) break; var a = trailAlpha(d, c.speed); if (a < 0.03) break; cell(i, r, false, (Math.random() * GLYPH_COUNT) | 0, a); }
+    }
+    rc.globalAlpha = 1;
+  }
+
+  /* ---------------- where the reader is looking ----------------
+     This document sits in a frame as tall as itself, so the reader scrolls the page
+     around the frame, not the document, and position: sticky never engages. Thin
+     strips down the page are watched with IntersectionObserver against the real
+     viewport; the top-most visible pixel of the document is the smallest visible
+     strip top. The pinned bar and the rain canvas are placed there, so both behave as
+     if fixed to the reader's screen. Without the observer they simply stay put. */
+  var probes = document.getElementById('probes'), STRIP = 40, visTop = 0, visBottom = 0;
+  var tops = new Map();
+  var pin = document.getElementById('pin'), hero = document.querySelector('.hero-frame');
+  function docH() { return document.getElementById('content').offsetHeight; }
+  function place() {
+    var h = docH();
+    layoutRain(document.documentElement.clientWidth, Math.min(h, 1408));
+    var rt = Math.max(0, Math.min(visTop, h - rH));
+    rain.style.transform = 'translateY(' + rt + 'px)';
+    var heroBottom = hero.getBoundingClientRect().bottom + window.scrollY;
+    var show = visTop > heroBottom - 24;
+    pin.classList.toggle('show', show);
+    var pt = Math.max(0, Math.min(visTop, h - pin.offsetHeight));
+    pin.style.transform = 'translateY(' + pt + 'px)';
+  }
+  function buildProbes() {
+    probes.innerHTML = '';
+    var h = docH(), n = Math.ceil(h / STRIP), frag = document.createDocumentFragment();
+    for (var i = 0; i < n; i++) { var d = document.createElement('i'); d.style.top = (i * STRIP) + 'px'; d.style.height = Math.min(STRIP, h - i * STRIP) + 'px'; frag.appendChild(d); }
+    probes.appendChild(frag);
+    if (io) { io.disconnect(); tops.clear(); probes.querySelectorAll('i').forEach(function (s) { io.observe(s); }); }
+  }
+  var io = null;
+  if ('IntersectionObserver' in window) {
+    var th = []; for (var t = 0; t <= 20; t++) th.push(t / 20);
+    io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting && en.intersectionRect.height > 0) tops.set(en.target, [en.intersectionRect.top + window.scrollY, en.intersectionRect.bottom + window.scrollY]);
+        else tops.delete(en.target);
+      });
+      if (tops.size) {
+        var mn = Infinity, mx = -Infinity;
+        tops.forEach(function (v) { if (v[0] < mn) mn = v[0]; if (v[1] > mx) mx = v[1]; });
+        visTop = mn; visBottom = mx;
+      }
+      place();
+    }, { threshold: th });
+  }
+
+  /* ---------------- one clock ---------------- */
+  var last = 0, parity = 0, pending = 0;
+  function tick(now) {
+    requestAnimationFrame(tick);
+    if (document.hidden) { last = 0; return; }
+    var dt = last ? Math.min(now - last, 100) : 16.7; last = now;
+    var tau = targetRpm > rpm ? 0.7 : 2.4;
+    rpm += (targetRpm - rpm) * (1 - Math.exp(-(dt / 1000) / tau));
+    if (Math.abs(targetRpm - rpm) < 1) rpm = targetRpm;
+    var sweep = rpm * Math.PI * 2 / 60 * (dt / 1000);
+    theta = (theta + sweep) % (Math.PI * 2);
+    physics(dt / 1000, theta, tierOf(rpm));
+    drawSpinners(theta, sweep);
+    showRpm();
+    pending += dt; parity = (parity + 1) % 2;
+    if (!parity) {
+      rc.globalCompositeOperation = 'destination-out'; rc.globalAlpha = fadeAlpha(pending);
+      rc.fillStyle = '#000'; rc.fillRect(0, 0, rW, rH); rc.globalCompositeOperation = 'source-over';
+      stepRain(pending / (1000 / 60) * (1 + 0.12 * Math.max(0, tierOf(rpm) - 1))); pending = 0;
+    }
+  }
+
+  function boot() {
+    buildProbes(); place();
+    if (mq.matches) { rainStill(); drawSpinners(0, 0); showRpm(); }
+    else requestAnimationFrame(tick);
+  }
+  var lastH = 0;
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      var h = Math.ceil(document.getElementById('content').offsetHeight);
+      send({ type: 'idea:height', px: h + 4 });
+      if (Math.abs(h - lastH) > STRIP) { lastH = h; buildProbes(); }
+      place();
+    }).observe(document.getElementById('content'));
+  }
+
+  /* ---------------- work orders ----------------
+     A work order happens many times per team, on demand, so it is a tool
+     rather than a graded field: nothing here carries data-field, nothing is
+     stored, and none of it survives a reload. The button drafts a real email
+     in whatever mail client the student has. THREE THINGS CAN GO WRONG AND
+     ALL THREE ARE HANDLED: the page may be sandboxed without popups, in which
+     case window.open returns null and a same-frame navigation is tried next;
+     the student may have no mail handler registered, in which case nothing
+     visible happens at all and the copy button is the way out; and the mailto
+     body has a practical length limit, which is why the note is the only free
+     text and the preview is always readable on the page. */
+  var WO_TO = 'apina@boscotech.edu';
+  var WO_FIELDS = [
+    { id: 'wo-team', label: 'Team', required: true },
+    { id: 'wo-who', label: 'Submitted by', required: true },
+    { id: 'wo-machine', label: 'Machine', required: true },
+    { id: 'wo-part', label: 'Part', required: true },
+    { id: 'wo-file', label: 'File name', required: true },
+    { id: 'wo-mat', label: 'Material', required: true },
+    { id: 'wo-qty', label: 'Quantity', required: true },
+    { id: 'wo-why', label: 'Reason', required: true },
+    { id: 'wo-note', label: 'Notes', required: false }
+  ];
+  function woValue(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+  function woMissing() {
+    return WO_FIELDS.filter(function (f) { return f.required && !woValue(f.id); }).map(function (f) { return f.label; });
+  }
+  /* THE EMAIL IS PLAIN TEXT AND IT IS READ IN A PROPORTIONAL FONT.
+     Gmail's compose URL carries a body parameter, not markup, and Gmail
+     renders it in Sans Serif. So this formats with RULES AND HEADINGS rather
+     than columns: a run of one repeated glyph draws a clean line at any font,
+     while padded label columns fall apart the moment two labels differ in
+     width. Nothing here relies on characters lining up vertically. */
+  var WO_RULE = '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501';
+  var WO_THIN = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
+  var WO_MACHINE_TAG = { 'xTool MetalFab laser': 'LASER', 'Axiom CNC router': 'ROUTER', 'Not sure': 'UNSURE' };
+  function woIsRecut() { return woValue('wo-why').indexOf('Recut') === 0; }
+  function woSubject() {
+    var bits = ['[WORK ORDER]', WO_MACHINE_TAG[woValue('wo-machine')] || 'UNSURE',
+      woValue('wo-team') || 'team?', woValue('wo-part') || 'part?',
+      'qty ' + (woValue('wo-qty') || '1')];
+    if (woIsRecut()) bits.push('RECUT');
+    return bits.join(' \u00b7 ');
+  }
+  function woStamp() {
+    try {
+      return new Date().toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+  function woSection(title, rows) {
+    var out = ['\u25b8 ' + title];
+    rows.forEach(function (r) { if (r[1]) out.push('   ' + r[0] + ': ' + r[1]); });
+    out.push('');
+    return out;
+  }
+  function woBody() {
+    var lines = [WO_RULE, 'IDEA-BLADE WORK ORDER', 'IDEA100 Rotation 1 \u00b7 Fall 2026', WO_RULE, ''];
+    if (woIsRecut()) { lines.push('\u26a0 RECUT \u00b7 this part has been cut once already', ''); }
+    lines = lines.concat(woSection('THE PART', [
+      ['Part', woValue('wo-part')],
+      ['File', woValue('wo-file')],
+      ['Material', woValue('wo-mat')],
+      ['Quantity', woValue('wo-qty')]]));
+    lines = lines.concat(woSection('THE MACHINE', [['Cut on', woValue('wo-machine')]]));
+    lines = lines.concat(woSection('WHY', [['Reason', woValue('wo-why').replace('Recut: ', '')], ['Notes', woValue('wo-note')]]));
+    lines = lines.concat(woSection('WHO IS ASKING', [
+      ['Team', woValue('wo-team')],
+      ['Submitted by', woValue('wo-who')],
+      ['Sent', woStamp()]]));
+    lines.push(WO_THIN);
+    lines.push('Drafted by IDEA-Blade CAD 02. The file named above is the one to cut.');
+    return lines.join('\n');
+  }
+  function woRender() {
+    document.getElementById('wo-text').textContent = 'To: ' + WO_TO + '\nSubject: ' + woSubject() + '\n\n' + woBody();
+  }
+  function woState(msg, cls) {
+    var el = document.getElementById('wo-state');
+    el.textContent = msg || ''; el.className = 'wo-state' + (cls ? ' ' + cls : '');
+  }
+  function woGuard() {
+    var miss = woMissing(), box = document.getElementById('wo-missing');
+    if (!miss.length) { box.hidden = true; return true; }
+    box.hidden = false;
+    box.textContent = 'Still needed: ' + miss.join(', ') + '.';
+    woState('', '');
+    return false;
+  }
+  WO_FIELDS.forEach(function (f) {
+    var el = document.getElementById(f.id);
+    if (el) el.addEventListener('input', function () { woRender(); if (!document.getElementById('wo-missing').hidden) woGuard(); });
+    if (el && el.tagName === 'SELECT') el.addEventListener('change', woRender);
+  });
+  /* GMAIL IS THE DEFAULT BUTTON BECAUSE MAILTO IS NOT RELIABLE HERE.
+     On a managed school Chrome, `window.open('mailto:...')` opens a blank tab
+     and stops: nothing is registered to handle the protocol, so the browser
+     has nowhere to send it and the student is left staring at about:blank.
+     Every student here has a Google account, so the compose URL does the same
+     job with no handler at all, and it opens in a real tab that shows the
+     draft. The mailto path stays as a second button for anyone with Outlook
+     or Mail set up, and copying is the floor that always works. */
+  function woOpen(url, kind) {
+    var w = null;
+    /* NO 'noopener' IN THE FEATURE STRING. It makes window.open return null
+       by specification, which reads here exactly like a blocked popup and put
+       a false "your browser blocked the new tab" under a tab that opened
+       fine. The opener is cleared on the handle instead. */
+    try { w = window.open(url, '_blank'); if (w) { try { w.opener = null; } catch (e1) {} } } catch (e) { w = null; }
+    if (w) {
+      woState(kind + ' opened in a new tab. Check the draft, then send it.', 'ok');
+    } else {
+      woState('Your browser blocked the new tab. Allow popups for this page, or hit Copy it instead.', 'warn');
+    }
+    document.getElementById('wo-prev').open = true;
+  }
+  document.getElementById('wo-send').addEventListener('click', function () {
+    if (!woGuard()) return;
+    woOpen('https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=' + encodeURIComponent(WO_TO) +
+      '&su=' + encodeURIComponent(woSubject()) + '&body=' + encodeURIComponent(woBody()), 'Gmail');
+  });
+  document.getElementById('wo-mail').addEventListener('click', function () {
+    if (!woGuard()) return;
+    var url = 'mailto:' + WO_TO + '?subject=' + encodeURIComponent(woSubject()) + '&body=' + encodeURIComponent(woBody());
+    try { window.location.href = url; } catch (e) {}
+    woState('Sent to your mail app. If nothing opened, you do not have one set up: use the Gmail button.', '');
+    document.getElementById('wo-prev').open = true;
+  });
+  document.getElementById('wo-copy').addEventListener('click', function () {
+    if (!woGuard()) return;
+    woRender();
+    var pre = document.getElementById('wo-text'), ok = false;
+    try {
+      var r = document.createRange(); r.selectNodeContents(pre);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      ok = document.execCommand('copy'); sel.removeAllRanges();
+    } catch (e) { ok = false; }
+    document.getElementById('wo-prev').open = true;
+    woState(ok ? 'Copied. Paste it into an email to ' + WO_TO + '.' : 'Select the text below and copy it yourself.', ok ? 'ok' : 'warn');
+  });
+  woRender();
+
+  progress(); updateLimits(); boot();
+  send({ type: 'idea:ready', schemaVersion: 3 });
+})();
+</script>
+</body>
+</html>

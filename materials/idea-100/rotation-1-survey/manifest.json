@@ -1,0 +1,474 @@
+{
+  "kind": "html-assignment",
+  "title": "Rotation 1 Survey",
+  "course": "IDEA100",
+  "points": 10,
+  "modules": [
+    {
+      "id": "sv-rate",
+      "title": "Rate The Rotation",
+      "blocks": [
+        {
+          "id": "sv-hexcore-r",
+          "type": "text",
+          "field": "r-hexcore"
+        },
+        {
+          "id": "sv-hexcore-c",
+          "type": "longText",
+          "field": "c-hexcore"
+        },
+        {
+          "id": "sv-sculpture-r",
+          "type": "text",
+          "field": "r-sculpture"
+        },
+        {
+          "id": "sv-sculpture-c",
+          "type": "longText",
+          "field": "c-sculpture"
+        },
+        {
+          "id": "sv-dogtag-r",
+          "type": "text",
+          "field": "r-dogtag"
+        },
+        {
+          "id": "sv-dogtag-c",
+          "type": "longText",
+          "field": "c-dogtag"
+        },
+        {
+          "id": "sv-hook-design-r",
+          "type": "text",
+          "field": "r-hook-design"
+        },
+        {
+          "id": "sv-hook-design-c",
+          "type": "longText",
+          "field": "c-hook-design"
+        },
+        {
+          "id": "sv-sim-r",
+          "type": "text",
+          "field": "r-sim"
+        },
+        {
+          "id": "sv-sim-c",
+          "type": "longText",
+          "field": "c-sim"
+        },
+        {
+          "id": "sv-printing-r",
+          "type": "text",
+          "field": "r-printing"
+        },
+        {
+          "id": "sv-printing-c",
+          "type": "longText",
+          "field": "c-printing"
+        },
+        {
+          "id": "sv-scale-r",
+          "type": "text",
+          "field": "r-scale"
+        },
+        {
+          "id": "sv-scale-c",
+          "type": "longText",
+          "field": "c-scale"
+        },
+        {
+          "id": "sv-hook-bracket-r",
+          "type": "text",
+          "field": "r-hook-bracket"
+        },
+        {
+          "id": "sv-hook-bracket-c",
+          "type": "longText",
+          "field": "c-hook-bracket"
+        },
+        {
+          "id": "sv-blade-design-r",
+          "type": "text",
+          "field": "r-blade-design"
+        },
+        {
+          "id": "sv-blade-design-c",
+          "type": "longText",
+          "field": "c-blade-design"
+        },
+        {
+          "id": "sv-blade-build-r",
+          "type": "text",
+          "field": "r-blade-build"
+        },
+        {
+          "id": "sv-blade-build-c",
+          "type": "longText",
+          "field": "c-blade-build"
+        },
+        {
+          "id": "sv-blade-bracket-r",
+          "type": "text",
+          "field": "r-blade-bracket"
+        },
+        {
+          "id": "sv-blade-bracket-c",
+          "type": "longText",
+          "field": "c-blade-bracket"
+        },
+        {
+          "id": "sv-team-r",
+          "type": "text",
+          "field": "r-team"
+        },
+        {
+          "id": "sv-team-c",
+          "type": "longText",
+          "field": "c-team"
+        },
+        {
+          "id": "sv-presentation-r",
+          "type": "text",
+          "field": "r-presentation"
+        },
+        {
+          "id": "sv-presentation-c",
+          "type": "longText",
+          "field": "c-presentation"
+        },
+        {
+          "id": "sv-ai-day-r",
+          "type": "text",
+          "field": "r-ai-day"
+        },
+        {
+          "id": "sv-ai-day-c",
+          "type": "longText",
+          "field": "c-ai-day"
+        },
+        {
+          "id": "sv-demo-match-r",
+          "type": "text",
+          "field": "r-demo-match"
+        },
+        {
+          "id": "sv-demo-match-c",
+          "type": "longText",
+          "field": "c-demo-match"
+        },
+        {
+          "id": "sv-inspect-lab-r",
+          "type": "text",
+          "field": "r-inspect-lab"
+        },
+        {
+          "id": "sv-inspect-lab-c",
+          "type": "longText",
+          "field": "c-inspect-lab"
+        },
+        {
+          "id": "sv-research-sketch-r",
+          "type": "text",
+          "field": "r-research-sketch"
+        },
+        {
+          "id": "sv-research-sketch-c",
+          "type": "longText",
+          "field": "c-research-sketch"
+        },
+        {
+          "id": "sv-sw-assistant-r",
+          "type": "text",
+          "field": "r-sw-assistant"
+        },
+        {
+          "id": "sv-sw-assistant-c",
+          "type": "longText",
+          "field": "c-sw-assistant"
+        },
+        {
+          "id": "sv-prediction-r",
+          "type": "text",
+          "field": "r-prediction"
+        },
+        {
+          "id": "sv-prediction-c",
+          "type": "longText",
+          "field": "c-prediction"
+        },
+        {
+          "id": "sv-failure-r",
+          "type": "text",
+          "field": "r-failure"
+        },
+        {
+          "id": "sv-failure-c",
+          "type": "longText",
+          "field": "c-failure"
+        },
+        {
+          "id": "sv-charter-r",
+          "type": "text",
+          "field": "r-charter"
+        },
+        {
+          "id": "sv-charter-c",
+          "type": "longText",
+          "field": "c-charter"
+        },
+        {
+          "id": "sv-stackup-r",
+          "type": "text",
+          "field": "r-stackup"
+        },
+        {
+          "id": "sv-stackup-c",
+          "type": "longText",
+          "field": "c-stackup"
+        },
+        {
+          "id": "sv-ideacad-r",
+          "type": "text",
+          "field": "r-ideacad"
+        },
+        {
+          "id": "sv-ideacad-c",
+          "type": "longText",
+          "field": "c-ideacad"
+        },
+        {
+          "id": "sv-templates-r",
+          "type": "text",
+          "field": "r-templates"
+        },
+        {
+          "id": "sv-templates-c",
+          "type": "longText",
+          "field": "c-templates"
+        },
+        {
+          "id": "sv-cad-package-r",
+          "type": "text",
+          "field": "r-cad-package"
+        },
+        {
+          "id": "sv-cad-package-c",
+          "type": "longText",
+          "field": "c-cad-package"
+        },
+        {
+          "id": "sv-assembly-r",
+          "type": "text",
+          "field": "r-assembly"
+        },
+        {
+          "id": "sv-assembly-c",
+          "type": "longText",
+          "field": "c-assembly"
+        },
+        {
+          "id": "sv-work-orders-r",
+          "type": "text",
+          "field": "r-work-orders"
+        },
+        {
+          "id": "sv-work-orders-c",
+          "type": "longText",
+          "field": "c-work-orders"
+        },
+        {
+          "id": "sv-first-spin-r",
+          "type": "text",
+          "field": "r-first-spin"
+        },
+        {
+          "id": "sv-first-spin-c",
+          "type": "longText",
+          "field": "c-first-spin"
+        },
+        {
+          "id": "sv-inspection-r",
+          "type": "text",
+          "field": "r-inspection"
+        },
+        {
+          "id": "sv-inspection-c",
+          "type": "longText",
+          "field": "c-inspection"
+        },
+        {
+          "id": "sv-demos-r",
+          "type": "text",
+          "field": "r-demos"
+        },
+        {
+          "id": "sv-demos-c",
+          "type": "longText",
+          "field": "c-demos"
+        },
+        {
+          "id": "sv-classroom-r",
+          "type": "text",
+          "field": "r-classroom"
+        },
+        {
+          "id": "sv-classroom-c",
+          "type": "longText",
+          "field": "c-classroom"
+        },
+        {
+          "id": "sv-notebook-r",
+          "type": "text",
+          "field": "r-notebook"
+        },
+        {
+          "id": "sv-notebook-c",
+          "type": "longText",
+          "field": "c-notebook"
+        },
+        {
+          "id": "sv-tas-r",
+          "type": "text",
+          "field": "r-tas"
+        },
+        {
+          "id": "sv-tas-c",
+          "type": "longText",
+          "field": "c-tas"
+        },
+        {
+          "id": "sv-open-shop-r",
+          "type": "text",
+          "field": "r-open-shop"
+        },
+        {
+          "id": "sv-open-shop-c",
+          "type": "longText",
+          "field": "c-open-shop"
+        },
+        {
+          "id": "sv-coins-r",
+          "type": "text",
+          "field": "r-coins"
+        },
+        {
+          "id": "sv-coins-c",
+          "type": "longText",
+          "field": "c-coins"
+        }
+      ],
+      "points": 6,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "rated",
+          "text": "Every main item is rated or skipped",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every item rated or skipped",
+              "points": 6,
+              "descriptor": "Every main item has a rating or is marked as not done. The extra items in the dropdowns and the comments are optional and do not change the score."
+            },
+            {
+              "label": "Developing",
+              "short": "Half or more done",
+              "points": 3,
+              "descriptor": "At least half of the main items are rated or marked as not done."
+            },
+            {
+              "label": "Absent",
+              "short": "Less than half done",
+              "points": 0,
+              "descriptor": "Fewer than half of the main items are rated or marked as not done."
+            }
+          ],
+          "points": 6
+        }
+      ]
+    },
+    {
+      "id": "sv-big",
+      "title": "The Big Picture",
+      "blocks": [
+        {
+          "id": "sv-overall-r",
+          "type": "text",
+          "field": "r-overall"
+        },
+        {
+          "id": "sv-pace-r",
+          "type": "text",
+          "field": "r-pace"
+        },
+        {
+          "id": "sv-pathway-r",
+          "type": "text",
+          "field": "r-pathway"
+        },
+        {
+          "id": "sv-keep-c",
+          "type": "longText",
+          "field": "c-keep"
+        },
+        {
+          "id": "sv-change-c",
+          "type": "longText",
+          "field": "c-change"
+        },
+        {
+          "id": "sv-else-c",
+          "type": "longText",
+          "field": "c-else"
+        },
+        {
+          "id": "sv-award-fun",
+          "type": "text",
+          "field": "a-fun"
+        },
+        {
+          "id": "sv-award-learned",
+          "type": "text",
+          "field": "a-learned"
+        },
+        {
+          "id": "sv-award-hard",
+          "type": "text",
+          "field": "a-hard"
+        }
+      ],
+      "points": 4,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "big",
+          "text": "The big picture is answered",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Three sliders, one answer written",
+              "points": 4,
+              "descriptor": "All three big-picture sliders are set and at least one of the three written questions has an answer. What the answers say does not change the score."
+            },
+            {
+              "label": "Developing",
+              "short": "Some of it answered",
+              "points": 2,
+              "descriptor": "Some of the big picture is answered, but a slider is unset or nothing is written."
+            },
+            {
+              "label": "Absent",
+              "short": "Not attempted",
+              "points": 0,
+              "descriptor": "Nothing in the big picture is answered."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 3
+}

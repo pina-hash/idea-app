@@ -1,0 +1,86 @@
+[
+  {
+    "id": "cad01-role-role",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Role and teammates named",
+        "points": 2,
+        "descriptor": "A role is picked, a custom role is described in one line, and every teammate is listed with their role."
+      },
+      {
+        "label": "Developing",
+        "short": "One of the two",
+        "points": 1,
+        "descriptor": "A role is picked or teammates are listed, but not both."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "No role and no teammates."
+      }
+    ],
+    "points": 2,
+    "criterion": "Your Role: Role and team named",
+    "incomplete": false
+  },
+  {
+    "id": "cad01-work-work",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Image, number and next step",
+        "points": 6,
+        "descriptor": "The image shows this student's own work, the dimension is a real number with units and says what it controls, and the summary names what got done and the next step."
+      },
+      {
+        "label": "Proficient",
+        "short": "Image, one thing thin",
+        "points": 4,
+        "descriptor": "The image shows the student's work, but the dimension has no units or purpose, or the summary names no next step."
+      },
+      {
+        "label": "Developing",
+        "short": "No image, or generic",
+        "points": 2,
+        "descriptor": "No image is attached, or the answers would fit any student in the room."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "Nothing is filled in."
+      }
+    ],
+    "points": 6,
+    "criterion": "Your Work: Work shown with a real number",
+    "incomplete": false
+  },
+  {
+    "id": "cad01-habits-habits",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both checked",
+        "points": 2,
+        "descriptor": "Both boxes are checked."
+      },
+      {
+        "label": "Developing",
+        "short": "One checked",
+        "points": 1,
+        "descriptor": "One box is checked."
+      },
+      {
+        "label": "Absent",
+        "short": "Neither checked",
+        "points": 0,
+        "descriptor": "Neither box is checked."
+      }
+    ],
+    "points": 2,
+    "criterion": "Good Habits: Both habits confirmed",
+    "incomplete": false
+  }
+]

@@ -1,0 +1,54 @@
+[
+  {
+    "id": "sv-rate-rated",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Every item rated or skipped",
+        "points": 6,
+        "descriptor": "Every main item has a rating or is marked as not done. The extra items in the dropdowns and the comments are optional and do not change the score."
+      },
+      {
+        "label": "Developing",
+        "short": "Half or more done",
+        "points": 3,
+        "descriptor": "At least half of the main items are rated or marked as not done."
+      },
+      {
+        "label": "Absent",
+        "short": "Less than half done",
+        "points": 0,
+        "descriptor": "Fewer than half of the main items are rated or marked as not done."
+      }
+    ],
+    "points": 6,
+    "criterion": "Rate The Rotation: Every main item is rated or skipped",
+    "incomplete": false
+  },
+  {
+    "id": "sv-big-big",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Three sliders, one answer written",
+        "points": 4,
+        "descriptor": "All three big-picture sliders are set and at least one of the three written questions has an answer. What the answers say does not change the score."
+      },
+      {
+        "label": "Developing",
+        "short": "Some of it answered",
+        "points": 2,
+        "descriptor": "Some of the big picture is answered, but a slider is unset or nothing is written."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "Nothing in the big picture is answered."
+      }
+    ],
+    "points": 4,
+    "criterion": "The Big Picture: The big picture is answered",
+    "incomplete": false
+  }
+]

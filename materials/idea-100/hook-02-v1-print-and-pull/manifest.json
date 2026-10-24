@@ -1,0 +1,711 @@
+{
+  "kind": "html-assignment",
+  "title": "Hook 02 - V1, Print and Pull",
+  "course": "IDEA100",
+  "header": [
+    {
+      "id": "h2-rec-pieces",
+      "type": "radio",
+      "field": "pieces",
+      "prompt": "Multi-part: how the pieces are made"
+    },
+    {
+      "id": "h2-rec-part-b",
+      "type": "image",
+      "field": "partB",
+      "prompt": "V1 part file, piece B"
+    },
+    {
+      "id": "h2-rec-part-c",
+      "type": "image",
+      "field": "partC",
+      "prompt": "V1 part file, piece C"
+    },
+    {
+      "id": "h2-rec-notes-1",
+      "type": "longText",
+      "field": "notes1",
+      "prompt": "Engineering notes, V1"
+    },
+    {
+      "id": "h2-rec-notes-2",
+      "type": "longText",
+      "field": "notes2",
+      "prompt": "Engineering notes, slice and print"
+    },
+    {
+      "id": "h2-rec-notes-3",
+      "type": "longText",
+      "field": "notes3",
+      "prompt": "Engineering notes, the pull"
+    },
+    {
+      "id": "h2-rec-photo-2",
+      "type": "image",
+      "field": "fracture2",
+      "prompt": "Photo 2 of the break"
+    },
+    {
+      "id": "h2-rec-photo-3",
+      "type": "image",
+      "field": "fracture3",
+      "prompt": "Photo 3 of the break"
+    },
+    {
+      "id": "h2-rec-photo-4",
+      "type": "image",
+      "field": "fracture4",
+      "prompt": "Photo 4 of the break"
+    },
+    {
+      "id": "h2-rec-tests",
+      "type": "table",
+      "field": "tests",
+      "prompt": "Test log: every pull after test 1"
+    },
+    {
+      "id": "h2-rec-printer",
+      "type": "radio",
+      "field": "printer",
+      "prompt": "Which printer: X1 Carbon or H2D"
+    },
+    {
+      "id": "h2-rec-mode-other",
+      "type": "text",
+      "field": "breakModeOther",
+      "prompt": "What it did, if none of the choices fit"
+    },
+    {
+      "id": "h2-rec-t2-p1",
+      "type": "image",
+      "field": "t2p1",
+      "prompt": "Test 2, photo 1"
+    },
+    {
+      "id": "h2-rec-t2-p2",
+      "type": "image",
+      "field": "t2p2",
+      "prompt": "Test 2, photo 2"
+    },
+    {
+      "id": "h2-rec-t2-p3",
+      "type": "image",
+      "field": "t2p3",
+      "prompt": "Test 2, photo 3"
+    },
+    {
+      "id": "h2-rec-t3-p1",
+      "type": "image",
+      "field": "t3p1",
+      "prompt": "Test 3, photo 1"
+    },
+    {
+      "id": "h2-rec-t3-p2",
+      "type": "image",
+      "field": "t3p2",
+      "prompt": "Test 3, photo 2"
+    },
+    {
+      "id": "h2-rec-t3-p3",
+      "type": "image",
+      "field": "t3p3",
+      "prompt": "Test 3, photo 3"
+    },
+    {
+      "id": "h2-rec-t4-p1",
+      "type": "image",
+      "field": "t4p1",
+      "prompt": "Test 4, photo 1"
+    },
+    {
+      "id": "h2-rec-t4-p2",
+      "type": "image",
+      "field": "t4p2",
+      "prompt": "Test 4, photo 2"
+    },
+    {
+      "id": "h2-rec-t4-p3",
+      "type": "image",
+      "field": "t4p3",
+      "prompt": "Test 4, photo 3"
+    },
+    {
+      "id": "h2-rec-t5-p1",
+      "type": "image",
+      "field": "t5p1",
+      "prompt": "Test 5, photo 1"
+    },
+    {
+      "id": "h2-rec-t5-p2",
+      "type": "image",
+      "field": "t5p2",
+      "prompt": "Test 5, photo 2"
+    },
+    {
+      "id": "h2-rec-t5-p3",
+      "type": "image",
+      "field": "t5p3",
+      "prompt": "Test 5, photo 3"
+    },
+    {
+      "id": "h2-rec-t6-p1",
+      "type": "image",
+      "field": "t6p1",
+      "prompt": "Test 6, photo 1"
+    },
+    {
+      "id": "h2-rec-t6-p2",
+      "type": "image",
+      "field": "t6p2",
+      "prompt": "Test 6, photo 2"
+    },
+    {
+      "id": "h2-rec-t6-p3",
+      "type": "image",
+      "field": "t6p3",
+      "prompt": "Test 6, photo 3"
+    },
+    {
+      "id": "h2-rec-t7-p1",
+      "type": "image",
+      "field": "t7p1",
+      "prompt": "Test 7, photo 1"
+    },
+    {
+      "id": "h2-rec-t7-p2",
+      "type": "image",
+      "field": "t7p2",
+      "prompt": "Test 7, photo 2"
+    },
+    {
+      "id": "h2-rec-t7-p3",
+      "type": "image",
+      "field": "t7p3",
+      "prompt": "Test 7, photo 3"
+    },
+    {
+      "id": "h2-rec-t8-p1",
+      "type": "image",
+      "field": "t8p1",
+      "prompt": "Test 8, photo 1"
+    },
+    {
+      "id": "h2-rec-t8-p2",
+      "type": "image",
+      "field": "t8p2",
+      "prompt": "Test 8, photo 2"
+    },
+    {
+      "id": "h2-rec-t8-p3",
+      "type": "image",
+      "field": "t8p3",
+      "prompt": "Test 8, photo 3"
+    },
+    {
+      "id": "h2-rec-t9-p1",
+      "type": "image",
+      "field": "t9p1",
+      "prompt": "Test 9, photo 1"
+    },
+    {
+      "id": "h2-rec-t9-p2",
+      "type": "image",
+      "field": "t9p2",
+      "prompt": "Test 9, photo 2"
+    },
+    {
+      "id": "h2-rec-t9-p3",
+      "type": "image",
+      "field": "t9p3",
+      "prompt": "Test 9, photo 3"
+    },
+    {
+      "id": "h2-rec-t10-p1",
+      "type": "image",
+      "field": "t10p1",
+      "prompt": "Test 10, photo 1"
+    },
+    {
+      "id": "h2-rec-t10-p2",
+      "type": "image",
+      "field": "t10p2",
+      "prompt": "Test 10, photo 2"
+    },
+    {
+      "id": "h2-rec-t10-p3",
+      "type": "image",
+      "field": "t10p3",
+      "prompt": "Test 10, photo 3"
+    }
+  ],
+  "points": 35,
+  "modules": [
+    {
+      "id": "h2-v1",
+      "title": "V1",
+      "blocks": [
+        {
+          "id": "h2-v1-type",
+          "type": "radio",
+          "field": "hookType",
+          "prompt": "V1 hook type: standard or multi-part"
+        },
+        {
+          "id": "h2-v1-part-a",
+          "type": "image",
+          "field": "partA",
+          "prompt": "V1 part file (piece A)"
+        },
+        {
+          "id": "h2-v1-shot",
+          "type": "image",
+          "field": "shot",
+          "prompt": "Screenshot of V1 with the feature tree"
+        },
+        {
+          "id": "h2-v1-tree",
+          "type": "radio",
+          "field": "tree",
+          "prompt": "Feature tree: any red or yellow?"
+        },
+        {
+          "id": "h2-v1-dims",
+          "type": "table",
+          "field": "dims",
+          "prompt": "V1 measurements against the rules, with a fix for any that miss"
+        }
+      ],
+      "points": 10,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "file",
+          "text": "The V1 part files are handed in, named, and rebuild",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Named, opens, rebuilds clean",
+              "points": 4,
+              "descriptor": "Every part file the hook needs is handed in (one for a standard hook or a piece printed twice, one per piece otherwise), named V1_ or V1A_, V1B_, V1C_ with the student's last name, opens, is a whole hook rather than a start, and shows no red or yellow marks in the tree."
+            },
+            {
+              "label": "Proficient",
+              "short": "Whole hook, tree has marks",
+              "points": 3,
+              "descriptor": "A whole hook that opens, but the tree carries red or yellow marks, or a name does not follow the pattern."
+            },
+            {
+              "label": "Developing",
+              "short": "Unfinished, or a piece missing",
+              "points": 2,
+              "descriptor": "The file is still a start (a sketch or a partial body), or a multi-part hook is missing a piece."
+            },
+            {
+              "label": "Absent",
+              "short": "No part file",
+              "points": 0,
+              "descriptor": "No part file handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "shot",
+          "text": "The screenshot shows the whole part and a readable tree",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Part and tree readable",
+              "points": 2,
+              "descriptor": "The whole SolidWorks window: the solid part and the full FeatureManager tree, readable."
+            },
+            {
+              "label": "Developing",
+              "short": "Tree cropped or collapsed",
+              "points": 1,
+              "descriptor": "The part shows, but the tree is cropped, collapsed, or too small to read."
+            },
+            {
+              "label": "Absent",
+              "short": "No screenshot",
+              "points": 0,
+              "descriptor": "No screenshot uploaded."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "dims",
+          "text": "Every dimension is measured on the model, and every one outside the rule has a fix",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All measured, every miss planned",
+              "points": 4,
+              "descriptor": "Every row carries a number measured on the student's own model, and every row outside the rule says what changes and by how much."
+            },
+            {
+              "label": "Proficient",
+              "short": "One row missing or unplanned",
+              "points": 3,
+              "descriptor": "One row has no measurement, or one row outside the rule has no fix."
+            },
+            {
+              "label": "Developing",
+              "short": "Rules copied, not measured",
+              "points": 2,
+              "descriptor": "The numbers repeat the rule rather than the model, or two or more rows are missing."
+            },
+            {
+              "label": "Absent",
+              "short": "Table empty",
+              "points": 0,
+              "descriptor": "No measurements entered."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    },
+    {
+      "id": "h2-print",
+      "title": "Slice and Print",
+      "blocks": [
+        {
+          "id": "h2-print-nozzle",
+          "type": "radio",
+          "field": "nozzle",
+          "prompt": "Nozzle set in the slicer"
+        },
+        {
+          "id": "h2-print-plate-type",
+          "type": "radio",
+          "field": "plateType",
+          "prompt": "Plate type set in the slicer"
+        },
+        {
+          "id": "h2-print-filament",
+          "type": "radio",
+          "field": "filament",
+          "prompt": "Filament profile set in the slicer"
+        },
+        {
+          "id": "h2-print-full-mass",
+          "type": "text",
+          "field": "fullMass",
+          "prompt": "Full-size weight from the slicer, grams"
+        },
+        {
+          "id": "h2-print-half-mass",
+          "type": "text",
+          "field": "halfMass",
+          "prompt": "Half-scale weight from the slicer, grams"
+        },
+        {
+          "id": "h2-print-mass-why",
+          "type": "longText",
+          "field": "massWhy",
+          "prompt": "Is the half-scale weight one eighth of full size? If not, why",
+          "minSentences": 1
+        },
+        {
+          "id": "h2-print-preview",
+          "type": "image",
+          "field": "sliceShot",
+          "prompt": "Slicer preview screenshot"
+        },
+        {
+          "id": "h2-print-walls",
+          "type": "longText",
+          "field": "walls",
+          "prompt": "At the thinnest spot: solid walls or infill, and why it matters in a pull",
+          "minSentences": 1
+        },
+        {
+          "id": "h2-print-printer-no",
+          "type": "text",
+          "field": "printerNo",
+          "prompt": "Printer name or number from the print board"
+        }
+      ],
+      "points": 10,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "setup",
+          "text": "The half-scale test copy is set up right and printing",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Set up right, print started",
+              "points": 4,
+              "descriptor": "Nozzle, plate and Generic ABS picked to match the printer, lying flat so the pull runs along the layers (seen in the preview), 50 percent, one plate with every piece of this one hook on it, and the printer it is running on named."
+            },
+            {
+              "label": "Developing",
+              "short": "Printing, setup partly wrong",
+              "points": 2,
+              "descriptor": "The copy is printing, but it is standing up, the wrong size, missing a piece, or sharing a plate with someone else."
+            },
+            {
+              "label": "Absent",
+              "short": "Not sliced or not printing",
+              "points": 0,
+              "descriptor": "No test copy sliced or started."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "preview",
+          "text": "The layer preview screenshot shows the estimated weight",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Preview with the weight",
+              "points": 2,
+              "descriptor": "A screenshot of the sliced layer preview with the filament weight readable."
+            },
+            {
+              "label": "Developing",
+              "short": "Preview, weight not showing",
+              "points": 1,
+              "descriptor": "A screenshot of the part, but not sliced, or the weight is not in the picture."
+            },
+            {
+              "label": "Absent",
+              "short": "No screenshot",
+              "points": 0,
+              "descriptor": "No screenshot uploaded."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "mass",
+          "text": "Both weights are read off the slicer and the full size is judged against 50.0 g",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both weights, compared, explained",
+              "points": 2,
+              "descriptor": "Full-size and half-scale weights from the slicer, the full size judged against 50.0 g, and a reason the half scale is or is not one eighth."
+            },
+            {
+              "label": "Developing",
+              "short": "Weights only",
+              "points": 1,
+              "descriptor": "One or both weights, with no comparison to the cap or no reason."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank",
+              "points": 0,
+              "descriptor": "No weights entered."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "walls",
+          "text": "Says whether the thinnest part is solid walls or walls with infill, and why that matters under a pull",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Found it, and why it matters",
+              "points": 2,
+              "descriptor": "Names where the part is thinnest, what the preview shows there, and why that matters for a part pulled until it breaks."
+            },
+            {
+              "label": "Developing",
+              "short": "Names it, no why",
+              "points": 1,
+              "descriptor": "Says walls or infill without the place or the reason."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "h2-pull",
+      "title": "The Pull",
+      "blocks": [
+        {
+          "id": "h2-pull-date",
+          "type": "text",
+          "field": "pullDate",
+          "prompt": "Date of test 1"
+        },
+        {
+          "id": "h2-pull-predict",
+          "type": "longText",
+          "field": "predict",
+          "prompt": "Prediction: where will it break, and why there",
+          "minSentences": 1
+        },
+        {
+          "id": "h2-pull-load",
+          "type": "text",
+          "field": "loadLb",
+          "prompt": "Breaking load from the score sheet, lb"
+        },
+        {
+          "id": "h2-pull-kept",
+          "type": "checkbox",
+          "field": "kept",
+          "prompt": "Kept the broken pieces"
+        },
+        {
+          "id": "h2-pull-photo",
+          "type": "image",
+          "field": "fracture",
+          "prompt": "Photo 1 of the break"
+        },
+        {
+          "id": "h2-pull-mode",
+          "type": "radio",
+          "field": "breakMode",
+          "prompt": "What the hook did when it failed"
+        },
+        {
+          "id": "h2-pull-where",
+          "type": "longText",
+          "field": "breakWhere",
+          "prompt": "Where on the part it broke",
+          "minSentences": 1
+        },
+        {
+          "id": "h2-pull-call",
+          "type": "radio",
+          "field": "callRight",
+          "prompt": "Was the prediction right?"
+        },
+        {
+          "id": "h2-pull-check",
+          "type": "longText",
+          "field": "predCheck",
+          "prompt": "One thing the next version changes because of it",
+          "minSentences": 1
+        }
+      ],
+      "points": 15,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "test",
+          "text": "The copy is pulled at the rig, the load is recorded, and the pieces are kept",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Pulled, recorded, pieces kept",
+              "points": 5,
+              "descriptor": "Pulled at the rig, the breaking load written down from the score sheet, and the pieces kept."
+            },
+            {
+              "label": "Proficient",
+              "short": "Pulled, one thing missing",
+              "points": 3,
+              "descriptor": "Pulled at the rig, but the load is not recorded or the pieces were not kept."
+            },
+            {
+              "label": "Absent",
+              "short": "Not pulled",
+              "points": 0,
+              "descriptor": "No pull recorded."
+            }
+          ],
+          "points": 5
+        },
+        {
+          "id": "photo",
+          "text": "The fracture photos are close, in focus, and show the broken face",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Close, sharp, broken face",
+              "points": 3,
+              "descriptor": "At least one photo that is close, in focus, and shows the broken face."
+            },
+            {
+              "label": "Proficient",
+              "short": "Blurry, or too far",
+              "points": 2,
+              "descriptor": "Photos of the break that are blurry, far away, or do not show the broken face."
+            },
+            {
+              "label": "Absent",
+              "short": "No photo",
+              "points": 0,
+              "descriptor": "No photo uploaded."
+            }
+          ],
+          "points": 3
+        },
+        {
+          "id": "where",
+          "text": "Says where it broke on the part and how it failed",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Place on the part, and mode",
+              "points": 4,
+              "descriptor": "Names the exact place on the part, and picks how it failed: snapped, pulled open, layers split, the joint let go, or something else described."
+            },
+            {
+              "label": "Proficient",
+              "short": "Place or mode, not both",
+              "points": 2,
+              "descriptor": "Names the place but not the mode, or the mode but not the place."
+            },
+            {
+              "label": "Developing",
+              "short": "It broke, nothing more",
+              "points": 1,
+              "descriptor": "Says it broke with no place and no mode."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "call",
+          "text": "The call is written before the pull and checked honestly after",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Called, checked, next change",
+              "points": 3,
+              "descriptor": "A call made before the pull, right, half right or wrong picked after, and one thing the next version changes because of it. A wrong call earns the same as a right one."
+            },
+            {
+              "label": "Proficient",
+              "short": "Checked, no next change",
+              "points": 2,
+              "descriptor": "The call is checked, but nothing says what changes next, or the call is too vague to check."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank",
+              "points": 0,
+              "descriptor": "No call, or no check."
+            }
+          ],
+          "points": 3
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 3
+}

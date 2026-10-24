@@ -1,38 +1,38 @@
 [
   {
-    "id": "records-r1",
+    "id": "pages-records-present",
     "levels": [
       {
         "label": "Complete",
         "short": "5 readable, machine and part",
         "points": 6,
-        "descriptor": "Five station pages uploaded, every one readable, and every one names its machine and its part."
+        "descriptor": "All five station records uploaded, every one readable, and every one names its machine and its part."
       },
       {
         "label": "Proficient",
-        "short": "5 pages, one gap",
+        "short": "5 records, one gap",
         "points": 5,
-        "descriptor": "Five pages uploaded with one hard to read, or one missing its machine or part."
+        "descriptor": "All five present with one hard to read, or one missing its machine or part."
       },
       {
         "label": "Developing",
-        "short": "3 or 4 pages",
+        "short": "3 or 4 records",
         "points": 2,
-        "descriptor": "Three or four stations captured."
+        "descriptor": "Three or four station records present."
       },
       {
         "label": "Absent",
         "short": "2 or fewer",
         "points": 0,
-        "descriptor": "Two stations or fewer captured."
+        "descriptor": "Two station records or fewer."
       }
     ],
     "points": 6,
-    "criterion": "Your five station records: Records present, readable, identified",
+    "criterion": "Your notebook pages: Station records present, readable, identified",
     "incomplete": false
   },
   {
-    "id": "records-r2",
+    "id": "pages-settings-tooling",
     "levels": [
       {
         "label": "Complete",
@@ -60,11 +60,11 @@
       }
     ],
     "points": 15,
-    "criterion": "Your five station records: Settings and tooling as used",
+    "criterion": "Your notebook pages: Settings and tooling as used",
     "incomplete": false
   },
   {
-    "id": "records-r3",
+    "id": "pages-what-happened",
     "levels": [
       {
         "label": "Complete",
@@ -92,29 +92,29 @@
       }
     ],
     "points": 14,
-    "criterion": "Your five station records: What happened at the machine",
+    "criterion": "Your notebook pages: What happened at the machine",
     "incomplete": false
   },
   {
-    "id": "drawings-r4",
+    "id": "drawings-drawings-present",
     "levels": [
       {
         "label": "Complete",
         "short": "5 legible drawings",
         "points": 6,
-        "descriptor": "Five drawings uploaded and every one is legible."
+        "descriptor": "All five drawings uploaded and every one is legible."
       },
       {
         "label": "Proficient",
         "short": "5, one hard to read",
         "points": 5,
-        "descriptor": "Five uploaded with one hard to read."
+        "descriptor": "All five present with one hard to read."
       },
       {
         "label": "Developing",
         "short": "3 or 4 drawings",
         "points": 2,
-        "descriptor": "Three or four drawings uploaded."
+        "descriptor": "Three or four drawings present."
       },
       {
         "label": "Absent",
@@ -128,7 +128,7 @@
     "incomplete": false
   },
   {
-    "id": "drawings-r5",
+    "id": "drawings-manufacturable",
     "levels": [
       {
         "label": "Complete",
@@ -160,7 +160,7 @@
     "incomplete": false
   },
   {
-    "id": "assembly-r6",
+    "id": "assembly-assembled",
     "levels": [
       {
         "label": "Complete",
@@ -192,7 +192,7 @@
     "incomplete": false
   },
   {
-    "id": "assembly-r7",
+    "id": "assembly-what-fit",
     "levels": [
       {
         "label": "Complete",

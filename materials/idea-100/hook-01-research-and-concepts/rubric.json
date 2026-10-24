@@ -1,0 +1,124 @@
+[
+  {
+    "id": "hook01-research-borrow",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Two designs, specific, load-based",
+        "points": 4,
+        "descriptor": "Two ideas from two different sources: the deck, an image search, or anywhere else. Each row names one specific feature taken and says where the load goes and how that feature handles it."
+      },
+      {
+        "label": "Proficient",
+        "short": "Both specific, one reason vague",
+        "points": 3,
+        "descriptor": "Both rows name a specific feature, but one reason is general (\"it held a lot\") rather than about the load path."
+      },
+      {
+        "label": "Developing",
+        "short": "General, or one row",
+        "points": 2,
+        "descriptor": "The designs are described in general terms, or only one row is complete."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank or repeated source",
+        "points": 0,
+        "descriptor": "The table is empty, or both rows take from the same design."
+      }
+    ],
+    "points": 4,
+    "criterion": "Research: Two borrowed ideas, each specific and tied to where the load goes",
+    "incomplete": false
+  },
+  {
+    "id": "hook01-research-feature3d",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Named, placed, and justified",
+        "points": 2,
+        "descriptor": "Names a feature that uses the thickness direction, says where on the hook it goes, and says why there."
+      },
+      {
+        "label": "Developing",
+        "short": "Named without a reason",
+        "points": 1,
+        "descriptor": "Names a feature but not where it goes or why."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank or flat outline",
+        "points": 0,
+        "descriptor": "Blank, or describes only a flat outline with no use of thickness."
+      }
+    ],
+    "points": 2,
+    "criterion": "Research: A 3D feature is named, placed on the hook, and justified",
+    "incomplete": false
+  },
+  {
+    "id": "hook01-sketch-sketches",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Two distinct hooks, 3D shown",
+        "points": 6,
+        "descriptor": "Two photographed sketches of two genuinely different hooks, both readable, and at least one shows a 3D feature through a side view, a section, or shading."
+      },
+      {
+        "label": "Proficient",
+        "short": "Two sketches, same idea or flat",
+        "points": 4,
+        "descriptor": "Two sketches, but they are the same idea redrawn, or neither shows anything beyond a flat outline."
+      },
+      {
+        "label": "Developing",
+        "short": "One sketch",
+        "points": 2,
+        "descriptor": "Only one sketch is in the photos, or one of the two cannot be read."
+      },
+      {
+        "label": "Absent",
+        "short": "No sketch",
+        "points": 0,
+        "descriptor": "No photo attached."
+      }
+    ],
+    "points": 6,
+    "criterion": "Concept Sketches: Two readable sketches of two different hooks, with a 3D feature shown",
+    "incomplete": false
+  },
+  {
+    "id": "hook01-sketch-notes",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both typed and explained",
+        "points": 3,
+        "descriptor": "Both sketches are marked standard or multi-part, and each note states the idea and its 3D feature."
+      },
+      {
+        "label": "Proficient",
+        "short": "Both present, one generic",
+        "points": 2,
+        "descriptor": "Both notes are present, but one could describe any hook."
+      },
+      {
+        "label": "Developing",
+        "short": "One note only",
+        "points": 1,
+        "descriptor": "Only one sketch is typed and explained."
+      },
+      {
+        "label": "Absent",
+        "short": "No notes",
+        "points": 0,
+        "descriptor": "Neither sketch is typed or explained."
+      }
+    ],
+    "points": 3,
+    "criterion": "Concept Sketches: Each sketch is typed and its idea stated in one line",
+    "incomplete": false
+  }
+]

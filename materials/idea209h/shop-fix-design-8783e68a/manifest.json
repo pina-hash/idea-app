@@ -1,0 +1,730 @@
+{
+  "kind": "html-assignment",
+  "title": "Shop Fix: Design",
+  "course": "IDEA209H",
+  "header": [
+    {
+      "id": "u3d-student-name",
+      "type": "text",
+      "field": "studentName",
+      "prompt": "Your name"
+    },
+    {
+      "id": "u3d-class-block",
+      "type": "radio",
+      "field": "classBlock",
+      "prompt": "Your class"
+    },
+    {
+      "id": "u3d-teammates",
+      "type": "text",
+      "field": "teammates",
+      "prompt": "Teammates"
+    },
+    {
+      "id": "u3d-board-steps",
+      "type": "text",
+      "field": "boardSteps",
+      "prompt": "Shop Fix Board buttons pressed, and when"
+    }
+  ],
+  "points": 50,
+  "modules": [
+    {
+      "id": "u3d-problem",
+      "title": "Part 1: The problem and your fix",
+      "blocks": [
+        {
+          "id": "u3d-problem-photo",
+          "type": "image",
+          "field": "problemPhoto",
+          "prompt": "Before photos"
+        },
+        {
+          "id": "u3d-problem-where",
+          "type": "text",
+          "field": "problemWhere",
+          "prompt": "Where exactly is it?"
+        },
+        {
+          "id": "u3d-problem-text",
+          "type": "longText",
+          "field": "problemText",
+          "prompt": "What goes wrong, and who does it affect?"
+        },
+        {
+          "id": "u3d-fix-idea",
+          "type": "text",
+          "field": "fixIdea",
+          "prompt": "Your fix, in one line"
+        }
+      ],
+      "points": 4,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "problem",
+          "text": "The problem and fix are clearly defined",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Photo, place, problem, fix",
+              "points": 4,
+              "descriptor": "A before photo shows the problem, the location is specific enough to walk to, the answer says what goes wrong and who it affects, and the fix names what will be made."
+            },
+            {
+              "label": "Proficient",
+              "short": "One vague or missing",
+              "points": 3,
+              "descriptor": "One of the four is vague or missing: a general location, a problem without who it affects, or a fix that does not say what will be made."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or more vague or missing",
+              "points": 2,
+              "descriptor": "Two or more of the four are vague or missing."
+            },
+            {
+              "label": "Absent",
+              "short": "Not a real attempt",
+              "points": 0,
+              "descriptor": "Not submitted, or not a real attempt: a placeholder, an off-topic answer or an unrelated photo."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    },
+    {
+      "id": "u3d-sketches",
+      "title": "Part 1: Two designs",
+      "blocks": [
+        {
+          "id": "u3d-sketch-photo",
+          "type": "image",
+          "field": "sketchPhoto",
+          "prompt": "Photos of both sketches"
+        },
+        {
+          "id": "u3d-sketch-choice",
+          "type": "radio",
+          "field": "sketchChoice",
+          "prompt": "Which design are you building?"
+        },
+        {
+          "id": "u3d-sketch-line",
+          "type": "text",
+          "field": "sketchLine",
+          "prompt": "Your design in one line"
+        },
+        {
+          "id": "u3d-sketch-why",
+          "type": "longText",
+          "field": "sketchWhy",
+          "prompt": "Why is it better than the other design?"
+        }
+      ],
+      "points": 10,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "two-ideas",
+          "text": "Two genuinely different designs for the fix",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Two different designs",
+              "points": 4,
+              "descriptor": "Design A and Design B build the same fix two different ways: a different mechanism, layout, parts or way of holding."
+            },
+            {
+              "label": "Proficient",
+              "short": "Different, but closely related",
+              "points": 3,
+              "descriptor": "Two designs that differ in a real way but share most of their parts."
+            },
+            {
+              "label": "Developing",
+              "short": "Same design twice, or only one",
+              "points": 2,
+              "descriptor": "Only one design, or the second is the first at a different size."
+            },
+            {
+              "label": "Absent",
+              "short": "No sketches",
+              "points": 0,
+              "descriptor": "No sketches, or not a real attempt."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "dimensioned",
+          "text": "Sketches could be built from",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every part fully dimensioned",
+              "points": 4,
+              "descriptor": "Both sketches show both major components with every dimension needed to make them, the material, and the critical interface circled."
+            },
+            {
+              "label": "Proficient",
+              "short": "One or two dimensions missing",
+              "points": 3,
+              "descriptor": "Nearly complete: one or two dimensions, a material, or the interface mark is missing."
+            },
+            {
+              "label": "Developing",
+              "short": "Several dimensions missing",
+              "points": 2,
+              "descriptor": "Several dimensions are missing, so a part could not be made without guessing."
+            },
+            {
+              "label": "Absent",
+              "short": "No dimensions",
+              "points": 0,
+              "descriptor": "Sketches have no usable dimensions, or are not attached."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "choice",
+          "text": "Choice is explained",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Pick, one line, specific reason",
+              "points": 2,
+              "descriptor": "Picks A or B, states it in one line, and gives a reason tied to machine time, available stock, safety, or how the fix gets used."
+            },
+            {
+              "label": "Developing",
+              "short": "One line or reason weak",
+              "points": 1,
+              "descriptor": "Picks one, but the one-line solution is missing or the reason could apply to any project."
+            },
+            {
+              "label": "Absent",
+              "short": "No pick or no reason",
+              "points": 0,
+              "descriptor": "No choice made, or no reason given."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "u3d-stock",
+      "title": "Part 1: Stock, parts and hardware",
+      "blocks": [
+        {
+          "id": "u3d-parts-table",
+          "type": "table",
+          "field": "partsTable",
+          "prompt": "Your parts"
+        },
+        {
+          "id": "u3d-hardware-table",
+          "type": "table",
+          "field": "hardwareTable",
+          "prompt": "Fasteners and hardware"
+        },
+        {
+          "id": "u3d-stock-photo",
+          "type": "image",
+          "field": "stockPhoto",
+          "prompt": "Photos of your labeled stock"
+        }
+      ],
+      "points": 6,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "parts",
+          "text": "Parts list is complete and follows the rules",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every part, rules met",
+              "points": 3,
+              "descriptor": "Every part is listed with role, material and stock size, and machine; two major parts; one major part machined with two or more machined features; machined parts have a backup machine."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part or detail missing",
+              "points": 2,
+              "descriptor": "One part, stock size, machine or backup is missing."
+            },
+            {
+              "label": "Developing",
+              "short": "Several gaps or a rule broken",
+              "points": 1,
+              "descriptor": "Two or more gaps, or a project rule is broken, such as no machined major part or a printed major part."
+            },
+            {
+              "label": "Absent",
+              "short": "No parts list",
+              "points": 0,
+              "descriptor": "No parts list, or not a real attempt."
+            }
+          ],
+          "points": 3
+        },
+        {
+          "id": "ready",
+          "text": "Stock and hardware are ready",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Stock labeled, hardware found",
+              "points": 3,
+              "descriptor": "Stock for both major parts is pulled and labeled, shown in photos, and every fastener is listed and found in the IDEA bins, or no fasteners are needed."
+            },
+            {
+              "label": "Proficient",
+              "short": "One thing not ready",
+              "points": 2,
+              "descriptor": "One of these is not done yet: a label, a photo, or a fastener not checked in the bins."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or more not ready",
+              "points": 1,
+              "descriptor": "Two or more of those are not done."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing ready",
+              "points": 0,
+              "descriptor": "No stock photo and no hardware list, or not a real attempt."
+            }
+          ],
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "u3d-cad",
+      "title": "Part 2: CAD",
+      "blocks": [
+        {
+          "id": "u3d-cad-shot",
+          "type": "image",
+          "field": "cadShot",
+          "prompt": "Machined part"
+        },
+        {
+          "id": "u3d-cad-shot-2",
+          "type": "image",
+          "field": "cadShot2",
+          "prompt": "Other major component"
+        },
+        {
+          "id": "u3d-cad-shot-3",
+          "type": "image",
+          "field": "cadShot3",
+          "prompt": "Assembly, zoomed on the fit"
+        },
+        {
+          "id": "u3d-cad-changes",
+          "type": "longText",
+          "field": "cadChanges",
+          "prompt": "What changed from your sketch, and why?"
+        }
+      ],
+      "points": 6,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "models",
+          "text": "Both parts are modeled",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both parts, matching the design",
+              "points": 3,
+              "descriptor": "Both major components are modeled and match the chosen design, with any changes from the sketch explained."
+            },
+            {
+              "label": "Proficient",
+              "short": "Both, one needs work",
+              "points": 2,
+              "descriptor": "Both are modeled, and one is missing a feature or a change is not explained."
+            },
+            {
+              "label": "Developing",
+              "short": "One part only",
+              "points": 1,
+              "descriptor": "Only one major component is modeled."
+            },
+            {
+              "label": "Absent",
+              "short": "No CAD",
+              "points": 0,
+              "descriptor": "No CAD, or not a real attempt."
+            }
+          ],
+          "points": 3
+        },
+        {
+          "id": "assembly",
+          "text": "The assembly shows the interface",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Assembled, interface clearly visible",
+              "points": 3,
+              "descriptor": "The two parts are assembled and the screenshot makes the critical interface easy to see."
+            },
+            {
+              "label": "Proficient",
+              "short": "Assembled, interface hard to see",
+              "points": 2,
+              "descriptor": "The parts are assembled but the interface is hidden or too small to see."
+            },
+            {
+              "label": "Developing",
+              "short": "Parts shown separately",
+              "points": 1,
+              "descriptor": "The parts are only shown separately."
+            },
+            {
+              "label": "Absent",
+              "short": "No assembly",
+              "points": 0,
+              "descriptor": "No assembly screenshot."
+            }
+          ],
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "u3d-drawings",
+      "title": "Part 2: Drawings",
+      "blocks": [
+        {
+          "id": "u3d-drawing-file",
+          "type": "image",
+          "field": "drawingFile",
+          "prompt": "Drawing: machined part"
+        },
+        {
+          "id": "u3d-drawing-file-2",
+          "type": "image",
+          "field": "drawingFile2",
+          "prompt": "Drawing: other major component"
+        }
+      ],
+      "points": 10,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "makeable",
+          "text": "Parts can be made from the drawings",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every dimension, none repeated",
+              "points": 6,
+              "descriptor": "Each drawing carries every dimension needed to make its part, with none repeated inside the same drawing. A mating size may appear on both drawings."
+            },
+            {
+              "label": "Proficient",
+              "short": "One problem",
+              "points": 5,
+              "descriptor": "One problem: one dimension missing, or one repeated inside a drawing."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or more problems",
+              "points": 3,
+              "descriptor": "Two or more problems (missing or repeated dimensions, in any mix), or one drawing is missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No drawings",
+              "points": 0,
+              "descriptor": "No drawings, or not a real attempt."
+            }
+          ],
+          "points": 6
+        },
+        {
+          "id": "tolerance",
+          "text": "The critical dimension carries a tolerance",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Fully toleranced",
+              "points": 2,
+              "descriptor": "Every dimension that sets the critical dimension carries its own tolerance, on the drawing of the part where that feature is made. A general tolerance in the title block does not count."
+            },
+            {
+              "label": "Developing",
+              "short": "Partly toleranced",
+              "points": 1,
+              "descriptor": "Some of those dimensions carry a tolerance, but not all."
+            },
+            {
+              "label": "Absent",
+              "short": "No tolerances",
+              "points": 0,
+              "descriptor": "No tolerance on the critical dimension."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "views",
+          "text": "Views and title block",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Clear views, full title blocks",
+              "points": 2,
+              "descriptor": "Every feature shows in a view, and both title blocks carry material, name and part name."
+            },
+            {
+              "label": "Developing",
+              "short": "Some views or fields missing",
+              "points": 1,
+              "descriptor": "A feature is hidden in every view, or title block fields are missing, but the drawings are still readable."
+            },
+            {
+              "label": "Absent",
+              "short": "Not usable",
+              "points": 0,
+              "descriptor": "Views or title blocks are missing throughout."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "u3d-plan",
+      "title": "Part 2: Process plan",
+      "blocks": [
+        {
+          "id": "u3d-ops-table",
+          "type": "table",
+          "field": "opsTable",
+          "prompt": "Steps for your machined part"
+        },
+        {
+          "id": "u3d-plan-backup",
+          "type": "longText",
+          "field": "planBackup",
+          "prompt": "Your machine is taken when you get there. What do you do, and which step could move to your backup machine?"
+        },
+        {
+          "id": "u3d-plan-proof",
+          "type": "image",
+          "field": "planProof",
+          "prompt": "Toolpath or setup sheet"
+        }
+      ],
+      "points": 8,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "ops",
+          "text": "Steps are complete and in a workable order",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every step with tool, time, check",
+              "points": 5,
+              "descriptor": "Every step to make the machined part is listed in an order that would work, each with machine, tool and holding, minutes, and a measurement check, plus a toolpath or setup sheet."
+            },
+            {
+              "label": "Proficient",
+              "short": "One step incomplete",
+              "points": 4,
+              "descriptor": "One step is missing its tool, time or check, one step is out of order, or the toolpath or setup sheet is missing."
+            },
+            {
+              "label": "Developing",
+              "short": "Several steps incomplete",
+              "points": 3,
+              "descriptor": "Two or more steps are incomplete, or the order would not work."
+            },
+            {
+              "label": "Absent",
+              "short": "No plan",
+              "points": 0,
+              "descriptor": "No process plan, or not a real attempt."
+            }
+          ],
+          "points": 5
+        },
+        {
+          "id": "contention",
+          "text": "Plan for a busy machine",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Plan B and what moves",
+              "points": 3,
+              "descriptor": "Says what they will do when their machine is taken, and names a step that could move to the backup machine."
+            },
+            {
+              "label": "Proficient",
+              "short": "One of the two given",
+              "points": 2,
+              "descriptor": "Gives one of those two."
+            },
+            {
+              "label": "Developing",
+              "short": "Vague answer",
+              "points": 1,
+              "descriptor": "Answer is too general to act on."
+            },
+            {
+              "label": "Absent",
+              "short": "Not answered",
+              "points": 0,
+              "descriptor": "Not answered."
+            }
+          ],
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "u3d-prediction",
+      "title": "Part 2: Lock your prediction",
+      "blocks": [
+        {
+          "id": "u3d-fit-type",
+          "type": "radio",
+          "field": "fitType",
+          "prompt": "Interface type"
+        },
+        {
+          "id": "u3d-fit-what",
+          "type": "text",
+          "field": "fitWhat",
+          "prompt": "Your critical dimension"
+        },
+        {
+          "id": "u3d-fit-feature-a",
+          "type": "text",
+          "field": "fitFeatureA",
+          "prompt": "Designed value"
+        },
+        {
+          "id": "u3d-fit-feature-b",
+          "type": "text",
+          "field": "fitFeatureB",
+          "prompt": "Tolerance, plus or minus"
+        },
+        {
+          "id": "u3d-fit-predicted",
+          "type": "text",
+          "field": "fitPredicted",
+          "prompt": "Predicted actual value"
+        },
+        {
+          "id": "u3d-fit-measure",
+          "type": "text",
+          "field": "fitMeasure",
+          "prompt": "How you will measure it"
+        },
+        {
+          "id": "u3d-fit-reason",
+          "type": "longText",
+          "field": "fitReason",
+          "prompt": "Why will it be off? Name the machine, feature or step."
+        },
+        {
+          "id": "u3d-fit-byhand",
+          "type": "radio",
+          "field": "fitByHand",
+          "prompt": "Will it work on the first try?"
+        },
+        {
+          "id": "u3d-fit-shot",
+          "type": "image",
+          "field": "fitShot",
+          "prompt": "Screenshot of the critical dimension on your drawing"
+        }
+      ],
+      "points": 6,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "numbers",
+          "text": "Prediction is stated in numbers",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All six, in numbers",
+              "points": 3,
+              "descriptor": "Names the critical dimension, gives its designed value and tolerance and a predicted actual value in inches, says how it will be measured, makes the first-try call, and shows it on the drawing."
+            },
+            {
+              "label": "Proficient",
+              "short": "One missing or unclear",
+              "points": 2,
+              "descriptor": "One of those is missing or unclear."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or more missing",
+              "points": 1,
+              "descriptor": "Two or more are missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No prediction",
+              "points": 0,
+              "descriptor": "No prediction."
+            }
+          ],
+          "points": 3
+        },
+        {
+          "id": "reason",
+          "text": "The reason is specific",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Names it and which way",
+              "points": 3,
+              "descriptor": "Names the machine, feature or step expected to push the critical dimension off, and which way: bigger or smaller."
+            },
+            {
+              "label": "Proficient",
+              "short": "Names it, direction unclear",
+              "points": 2,
+              "descriptor": "Names a machine, feature or step, but not which way."
+            },
+            {
+              "label": "Developing",
+              "short": "General reason",
+              "points": 1,
+              "descriptor": "A reason that could apply to any part (human error, being careful), a direction with no cause, or a reason that does not match this part."
+            },
+            {
+              "label": "Absent",
+              "short": "No reason",
+              "points": 0,
+              "descriptor": "No reason given, or not a real attempt."
+            }
+          ],
+          "points": 3
+        }
+      ]
+    }
+  ],
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
+  "schemaVersion": 3
+}

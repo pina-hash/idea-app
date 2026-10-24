@@ -1,0 +1,92 @@
+[
+  {
+    "id": "asm-built-built",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Mated, spins true",
+        "points": 8,
+        "descriptor": "The screenshot shows body and blade in one assembly, mated to the spin axis, sitting the way the real robot will."
+      },
+      {
+        "label": "Proficient",
+        "short": "In, not fully mated",
+        "points": 5,
+        "descriptor": "Both parts are in the assembly but something is floating or mated to the wrong reference."
+      },
+      {
+        "label": "Developing",
+        "short": "One part only",
+        "points": 2,
+        "descriptor": "Only one part is in the assembly."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "No assembly."
+      }
+    ],
+    "points": 8,
+    "criterion": "It Goes Together: Both parts are in one assembly, mated to the spin axis",
+    "incomplete": false
+  },
+  {
+    "id": "asm-numbers-numbers",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All four measured",
+        "points": 8,
+        "descriptor": "All four numbers come off the assembly, with the hex extension and the mass from Mass Properties in grams."
+      },
+      {
+        "label": "Proficient",
+        "short": "Three of four",
+        "points": 5,
+        "descriptor": "Three numbers are measured and one is missing or obviously estimated."
+      },
+      {
+        "label": "Developing",
+        "short": "One or two",
+        "points": 2,
+        "descriptor": "Only one or two numbers are filled in."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "Nothing measured."
+      }
+    ],
+    "points": 8,
+    "criterion": "The Four Limits: Measured off the assembly, not guessed",
+    "incomplete": false
+  },
+  {
+    "id": "asm-fix-fix",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Names it, names the fix",
+        "points": 4,
+        "descriptor": "Names the number that was out or the part that interfered, and what was changed to fix it."
+      },
+      {
+        "label": "Proficient",
+        "short": "Vague",
+        "points": 2,
+        "descriptor": "Says something was wrong without naming the number or the change."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 4,
+    "criterion": "What Did Not Fit: You say what was wrong and what you did",
+    "incomplete": false
+  }
+]

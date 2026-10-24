@@ -1,0 +1,86 @@
+[
+  {
+    "id": "dt-tag-part",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Closed outline, hole, inside box",
+        "points": 6,
+        "descriptor": "The part is drawn in the template, the outline is one closed shape inside the 2 in by 2 in box, there is at least one chain hole, it is extruded, and the tag stays in one piece with metal around every hole and cut-out."
+      },
+      {
+        "label": "Proficient",
+        "short": "A cut breaks the edge",
+        "points": 4,
+        "descriptor": "The part is extruded and closed, but a hole or cut-out crosses the outline, leaves a sliver thin enough to snap, or the outline leaves the box."
+      },
+      {
+        "label": "Developing",
+        "short": "Open outline, no hole, unextruded",
+        "points": 2,
+        "descriptor": "The outline is not closed, there is no chain hole, or the sketch was never extruded."
+      },
+      {
+        "label": "Absent",
+        "short": "No part file",
+        "points": 0,
+        "descriptor": "No SolidWorks part was handed in, or it will not open."
+      }
+    ],
+    "points": 6,
+    "criterion": "Your Dogtag Files: SolidWorks part: a closed tag inside the box",
+    "incomplete": false
+  },
+  {
+    "id": "dt-tag-tag",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Name plus one element",
+        "points": 5,
+        "descriptor": "The student's name and at least one more text or image element are on the tag in xTool Studio, and everything sits fully inside the outline, clear of the holes."
+      },
+      {
+        "label": "Developing",
+        "short": "Name only, or crosses edge",
+        "points": 3,
+        "descriptor": "Only a name is on the tag, or something added crosses or touches the outline or a hole."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing added",
+        "points": 0,
+        "descriptor": "Nothing is added to the tag shape."
+      }
+    ],
+    "points": 5,
+    "criterion": "Your Dogtag Files: It is a finished tag",
+    "incomplete": false
+  },
+  {
+    "id": "dt-tag-ready",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "MetalFab, cuts separated, center outward",
+        "points": 4,
+        "descriptor": "The project is set to the MetalFab CNC Cutter, the DXF outline and every hole are set to Cut while the name and image are set to Engrave or Score, the tag fits inside 2.00 in by 2.00 in, and it cuts from center outward, so every hole cuts before the outline."
+      },
+      {
+        "label": "Developing",
+        "short": "Machine, settings, size or order wrong",
+        "points": 2,
+        "descriptor": "The project is set to a different machine, cuts and engraving are mixed up, the tag is larger than 2.00 in by 2.00 in, or the outline cuts before a hole."
+      },
+      {
+        "label": "Absent",
+        "short": "No xTool file",
+        "points": 0,
+        "descriptor": "No xTool Studio file was handed in."
+      }
+    ],
+    "points": 4,
+    "criterion": "Your Dogtag Files: xTool file ready to run on the MetalFab",
+    "incomplete": false
+  }
+]

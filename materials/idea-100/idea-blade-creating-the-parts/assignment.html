@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDEA-Blade CAD 01 - Templates and Roles</title>
+<script type="application/json" id="idea-manifest">
+{
+  "schemaVersion": 3,
+  "kind": "html-assignment",
+  "title": "IDEA-Blade CAD 01 - Templates and Roles",
+  "course": "IDEA100",
+  "points": 10,
+  "header": [
+    { "id": "cad01-student-name", "field": "studentName", "type": "text" },
+    { "id": "cad01-team-name", "field": "teamName", "type": "text" }
+  ],
+  "modules": [
+    {
+      "id": "cad01-role",
+      "title": "Your Role",
+      "points": 2,
+      "audience": "individual",
+      "blocks": [
+        { "id": "cad01-role-pick", "field": "role", "type": "radio" },
+        { "id": "cad01-role-team", "field": "teamRoles", "type": "text" }
+      ],
+      "criteria": [
+        {
+          "id": "role",
+          "text": "Role and team named",
+          "points": 2,
+          "levels": [
+            { "points": 2, "label": "Complete", "short": "Role and teammates named", "descriptor": "A role is picked, a custom role is described in one line, and every teammate is listed with their role." },
+            { "points": 1, "label": "Developing", "short": "One of the two", "descriptor": "A role is picked or teammates are listed, but not both." },
+            { "points": 0, "label": "Absent", "short": "Not attempted", "descriptor": "No role and no teammates." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cad01-work",
+      "title": "Your Work",
+      "points": 6,
+      "audience": "individual",
+      "blocks": [
+        { "id": "cad01-work-shot", "field": "workShot", "type": "image" },
+        { "id": "cad01-work-dimension", "field": "keyDimension", "type": "text" },
+        { "id": "cad01-work-summary", "field": "workSummary", "type": "longText", "minSentences": 2 }
+      ],
+      "criteria": [
+        {
+          "id": "work",
+          "text": "Work shown with a real number",
+          "points": 6,
+          "levels": [
+            { "points": 6, "label": "Complete", "short": "Image, number and next step", "descriptor": "The image shows this student's own work, the dimension is a real number with units and says what it controls, and the summary names what got done and the next step." },
+            { "points": 4, "label": "Proficient", "short": "Image, one thing thin", "descriptor": "The image shows the student's work, but the dimension has no units or purpose, or the summary names no next step." },
+            { "points": 2, "label": "Developing", "short": "No image, or generic", "descriptor": "No image is attached, or the answers would fit any student in the room." },
+            { "points": 0, "label": "Absent", "short": "Not attempted", "descriptor": "Nothing is filled in." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cad01-habits",
+      "title": "Good Habits",
+      "points": 2,
+      "audience": "individual",
+      "blocks": [
+        { "id": "cad01-habit-name", "field": "savedNamed", "type": "checkbox" },
+        { "id": "cad01-habit-edit", "field": "editedFeature", "type": "checkbox" }
+      ],
+      "criteria": [
+        {
+          "id": "habits",
+          "text": "Both habits confirmed",
+          "points": 2,
+          "levels": [
+            { "points": 2, "label": "Complete", "short": "Both checked", "descriptor": "Both boxes are checked." },
+            { "points": 1, "label": "Developing", "short": "One checked", "descriptor": "One box is checked." },
+            { "points": 0, "label": "Absent", "short": "Neither checked", "descriptor": "Neither box is checked." }
+          ]
+        }
+      ]
+    }
+  ]
+}
+</script>
+<style>
+:root {
+  --bg0:#030503; --bg1:#0c140d; --bg2:#111911; --plate:#1b2a1c; --edge:#010201;
+  --mint:#8FE08A; --brass:#D3C68E; --patina:#93D6C8; --copper:#D99A55; --crimson:#D95F5F;
+  --bone:#EAE6D8; --dim:#87947C; --gear:#75846F;
+  --glow-green:0 0 6px rgba(143,224,138,.55),0 0 18px rgba(143,224,138,.25);
+  --glow-gold:0 0 6px rgba(211,198,142,.5),0 0 18px rgba(211,198,142,.2);
+  --bevel-raised:inset 1px 1px 0 rgba(234,230,216,.06),inset -1px -1px 0 rgba(0,0,0,.45);
+  --bevel-inset:inset 1px 1px 0 rgba(0,0,0,.5),inset -1px -1px 0 rgba(234,230,216,.05);
+  --mono:ui-monospace,"Cascadia Mono","Consolas","SF Mono","Menlo",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI","Roboto",sans-serif;
+  --chamfer:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px),0 14px);
+  --chamfer-sm:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
+  --spin:9s;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; background:var(--bg0); color:var(--bone); font:16px/1.5 var(--sans); }
+#rain { position:absolute; left:0; top:0; width:100%; z-index:0; pointer-events:none; will-change:transform; }
+#probes { position:absolute; left:0; top:0; width:1px; pointer-events:none; opacity:0; }
+#probes i { position:absolute; left:0; width:1px; display:block; }
+body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:radial-gradient(ellipse at 50% 0%,rgba(143,224,138,.10),transparent 60%),radial-gradient(ellipse at 50% 100%,rgba(13,18,12,.9),transparent 70%); }
+body::after { content:""; position:fixed; inset:0; z-index:3; pointer-events:none;
+  background:repeating-linear-gradient(to bottom,rgba(143,224,138,.035) 0 1px,transparent 1px 3px); mix-blend-mode:screen; }
+.wrap { position:relative; z-index:1; max-width:1000px; margin:0 auto; padding:22px 20px 44px; }
+
+/* HERO */
+.hero-frame { padding:1px; clip-path:var(--chamfer); background:linear-gradient(135deg,var(--mint),var(--patina) 40%,var(--gear) 70%,var(--brass)); margin-bottom:18px; }
+.hero { position:relative; clip-path:var(--chamfer); background:linear-gradient(160deg,rgba(27,42,28,.86),rgba(12,20,13,.86) 55%,rgba(3,5,3,.88)); padding:26px 28px 20px; display:grid; grid-template-columns:1fr 210px; gap:20px; align-items:center; overflow:hidden; }
+.hero::before { content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(rgba(143,224,138,.07) 1px,transparent 1px) 0 0/100% 22px,linear-gradient(90deg,rgba(143,224,138,.07) 1px,transparent 1px) 0 0/22px 100%;
+  mask-image:linear-gradient(90deg,transparent,#000 50%,#000); }
+.hud { position:absolute; width:18px; height:18px; border-color:var(--mint); border-style:solid; opacity:.9; }
+.hud.tl { top:12px; left:12px; border-width:2px 0 0 2px; } .hud.tr { top:12px; right:12px; border-width:2px 2px 0 0; }
+.hud.bl { bottom:12px; left:12px; border-width:0 0 2px 2px; } .hud.br { bottom:12px; right:12px; border-width:0 2px 2px 0; }
+.crumb { position:relative; font:600 12px/1 var(--mono); letter-spacing:.22em; color:var(--patina); text-transform:uppercase; }
+.crumb i { font-style:normal; color:var(--gear); padding:0 6px; }
+.title { position:relative; margin:12px 0 4px; font:800 clamp(34px,6vw,58px)/.95 var(--sans); letter-spacing:-.02em; text-transform:uppercase; color:var(--bone); }
+.title .g { position:relative; display:inline-block; }
+.title .g::before,.title .g::after { content:attr(data-text); position:absolute; inset:0; pointer-events:none; opacity:0; }
+.title .num { display:block; font:800 clamp(16px,2.4vw,20px)/1 var(--mono); letter-spacing:.3em; color:var(--mint); text-shadow:var(--glow-green); margin-bottom:10px; }
+.sub { position:relative; color:var(--dim); max-width:560px; margin:10px 0 16px; }
+.term { position:relative; display:flex; align-items:center; gap:10px; font:13px/1.3 var(--mono); color:var(--mint); background:rgba(13,18,12,.75); border:1px solid var(--plate); padding:9px 12px; clip-path:var(--chamfer-sm); box-shadow:var(--bevel-inset); max-width:520px; }
+.term .led { width:9px; height:9px; border-radius:50%; background:var(--mint); box-shadow:var(--glow-green); flex:none; }
+.term.bad { color:var(--crimson); } .term.bad .led { background:var(--crimson); box-shadow:0 0 8px var(--crimson); }
+.term.ro { color:var(--dim); } .term.ro .led { background:var(--gear); box-shadow:none; }
+.term .cur { display:inline-block; width:8px; height:14px; background:currentColor; margin-left:2px; vertical-align:-2px; }
+.spinbox { position:relative; text-align:center; }
+.spinbox canvas { display:block; margin:0 auto; }
+.rpm { font-variant-numeric:tabular-nums; font:700 20px/1 var(--mono); color:var(--brass); text-shadow:var(--glow-gold); margin-top:2px; }
+.rpm-l { white-space:nowrap; font:10px/1.3 var(--mono); letter-spacing:.1em; color:var(--dim); text-transform:uppercase; }
+
+/* PANELS */
+.panel { position:relative; background:linear-gradient(180deg,rgba(12,20,13,.80),rgba(8,14,9,.84)); backdrop-filter:blur(2px); border:1px solid var(--plate); border-radius:4px; box-shadow:var(--bevel-raised); padding:20px; margin:0 0 18px; }
+.panel::before { content:""; position:absolute; left:-1px; top:18px; width:3px; height:28px; background:var(--mint); box-shadow:var(--glow-green); }
+.sec { display:flex; align-items:center; gap:12px; margin:0 0 16px; font:700 13px/1 var(--mono); letter-spacing:.2em; text-transform:uppercase; }
+.sec .n { color:var(--mint); text-shadow:var(--glow-green); font-size:15px; }
+.sec .t { color:var(--bone); }
+.sec .line { flex:1; height:1px; background:linear-gradient(90deg,var(--mint),rgba(143,224,138,.1)); transform-origin:left; }
+.sec .pts { color:var(--bg0); background:var(--brass); padding:5px 8px; clip-path:var(--chamfer-sm); letter-spacing:.12em; font-size:11px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+label.field { display:block; font:600 12px/1.3 var(--mono); letter-spacing:.14em; color:var(--patina); margin:14px 0 7px; text-transform:uppercase; }
+.grid2 label.field { margin-top:0; }
+.hint { font-size:14px; color:var(--dim); margin:-2px 0 8px; }
+input[type="text"],textarea { width:100%; min-height:46px; padding:11px 13px; font:16px/1.4 var(--sans); color:var(--bone); background:rgba(13,18,12,.7); border:1px solid var(--gear); border-radius:3px; box-shadow:var(--bevel-inset); transition:border-color .15s,box-shadow .15s; }
+textarea { min-height:118px; resize:vertical; }
+input[type="text"]::placeholder,textarea::placeholder { color:#5f6b58; }
+input[type="text"]:focus,textarea:focus { outline:none; border-color:var(--mint); box-shadow:var(--bevel-inset),var(--glow-green); }
+
+/* LIMITS */
+.limits { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.lim { position:relative; background:rgba(13,18,12,.6); border:1px solid var(--plate); padding:14px 14px 12px; clip-path:var(--chamfer-sm); overflow:hidden; }
+.lim b { display:block; font:800 26px/1.05 var(--mono); color:var(--brass); text-shadow:var(--glow-gold); white-space:nowrap; }
+.lim span { display:block; margin-top:6px; font:11px/1.35 var(--mono); letter-spacing:.12em; color:var(--dim); text-transform:uppercase; }
+.lim::after { content:""; position:absolute; left:0; bottom:0; height:2px; width:100%; background:linear-gradient(90deg,transparent,var(--brass),transparent); opacity:.6; }
+
+/* ROLE TILES */
+.tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.tile { position:relative; display:block; cursor:pointer; background:rgba(13,18,12,.55); border:1px solid var(--plate); padding:14px 14px 12px; clip-path:var(--chamfer-sm); transition:border-color .15s,background .15s,opacity .2s,transform .15s; }
+.tile:hover { border-color:var(--gear); }
+.tile input { position:absolute; opacity:0; width:1px; height:1px; }
+.tile-top { display:flex; align-items:center; gap:10px; min-height:44px; }
+.ico svg { width:34px; height:34px; fill:none; stroke:var(--patina); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; display:block; }
+.ico svg .ax { stroke:var(--gear); stroke-dasharray:3 3; }
+.ico svg .gh { opacity:.4; }
+.tile-name { font:800 15px/1.1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--bone); }
+.tile-tag { white-space:nowrap; margin-left:auto; font:10px/1 var(--mono); letter-spacing:.14em; color:var(--gear); border:1px solid var(--plate); padding:4px 5px; }
+.tile ol { margin:10px 0 0; padding-left:20px; font-size:14.5px; color:#cfcbbd; }
+.tile li { margin:0 0 5px; }
+.tile-active { position:absolute; right:10px; bottom:8px; font:700 10px/1 var(--mono); letter-spacing:.2em; color:var(--bg0); background:var(--mint); padding:4px 6px; opacity:0; transform:translateY(4px); transition:.2s; }
+.tile.is-mine { border-color:var(--mint); background:linear-gradient(160deg,rgba(143,224,138,.14),rgba(13,18,12,.7)); box-shadow:inset 0 0 0 1px var(--mint),0 0 22px rgba(143,224,138,.18); }
+.tile.is-mine .tile-name { color:var(--mint); text-shadow:var(--glow-green); }
+.tile.is-mine .ico svg { stroke:var(--mint); }
+.tile.is-mine .tile-active { opacity:1; transform:none; }
+.tiles.has-pick .tile:not(.is-mine) { opacity:.62; }
+.tile:has(input:focus-visible) { outline:2px solid var(--mint); outline-offset:2px; }
+#custom-wrap { margin-top:14px; }
+.roles-hint { margin:12px 0 0; }
+
+/* WORK */
+.drop { position:relative; display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center; padding:14px; background:rgba(13,18,12,.55);
+  background-image:linear-gradient(90deg,var(--patina) 50%,transparent 50%),linear-gradient(90deg,var(--patina) 50%,transparent 50%),linear-gradient(0deg,var(--patina) 50%,transparent 50%),linear-gradient(0deg,var(--patina) 50%,transparent 50%);
+  background-repeat:repeat-x,repeat-x,repeat-y,repeat-y; background-size:14px 1px,14px 1px,1px 14px,1px 14px; background-position:0 0,0 100%,0 0,100% 0; }
+.thumb { width:92px; height:68px; background:var(--bg0); border:1px solid var(--plate); display:grid; place-items:center; overflow:hidden; font:10px/1.2 var(--mono); color:var(--gear); text-align:center; letter-spacing:.1em; }
+.thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.drop-mid { min-width:0; }
+.drop input[type="file"] { color:var(--dim); font:14px var(--sans); max-width:100%; }
+.drop input[type="file"]::file-selector-button { min-height:44px; margin-right:10px; padding:0 14px; font:700 12px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--bg0); background:var(--mint); border:0; clip-path:var(--chamfer-sm); cursor:pointer; }
+#shot-state { display:block; margin-top:6px; font:12px/1.3 var(--mono); color:var(--dim); overflow-wrap:anywhere; }
+#shot-state.ok { color:var(--mint); }
+button { min-height:44px; padding:0 16px; font:700 12px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--bone); background:var(--bg2); border:1px solid var(--gear); clip-path:var(--chamfer-sm); cursor:pointer; box-shadow:var(--bevel-raised); }
+button:hover { border-color:var(--copper); color:var(--copper); }
+button:active { box-shadow:var(--bevel-inset); transform:translateY(1px); }
+.meter { display:flex; align-items:center; gap:6px; margin-top:8px; font:12px/1 var(--mono); color:var(--dim); letter-spacing:.08em; }
+.meter i { width:34px; height:6px; background:var(--plate); clip-path:var(--chamfer-sm); }
+.meter i.on { background:var(--mint); box-shadow:var(--glow-green); }
+.meter.met { color:var(--mint); }
+
+/* HABITS */
+.tip { position:relative; background:rgba(13,18,12,.6); border:1px solid var(--plate); border-left:3px solid var(--brass); padding:13px 15px; margin:0 0 14px; }
+.tip b { color:var(--brass); font-family:var(--mono); letter-spacing:.06em; text-transform:uppercase; font-size:13px; }
+.check { display:flex; align-items:center; gap:14px; min-height:52px; padding:10px 14px; margin:0 0 10px; background:rgba(13,18,12,.55); border:1px solid var(--plate); cursor:pointer; clip-path:var(--chamfer-sm); transition:border-color .15s; }
+.check input { appearance:none; -webkit-appearance:none; flex:none; width:24px; height:24px; margin:0; border:1.5px solid var(--gear); background:var(--bg0); display:grid; place-items:center; cursor:pointer; }
+.check input::after { content:""; width:12px; height:7px; border:solid var(--bg0); border-width:0 0 3px 3px; transform:rotate(-45deg) translate(1px,-1px); opacity:0; }
+.check input:checked { background:var(--mint); border-color:var(--mint); box-shadow:var(--glow-green); }
+.check input:checked::after { opacity:1; }
+.check input:focus-visible { outline:2px solid var(--mint); outline-offset:2px; }
+.check:has(input:checked) { border-color:var(--mint); }
+.early { display:flex; gap:10px; align-items:center; margin-top:6px; font:12px/1.3 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--patina); }
+.early::before { content:">>"; color:var(--mint); }
+.sources { position:relative; z-index:1; font-size:13px; color:var(--dim); border-top:1px solid var(--plate); padding-top:12px; margin-top:26px; }
+.sources b { font:600 11px/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--patina); }
+body.is-readonly input,body.is-readonly textarea,body.is-readonly button,body.is-readonly .tile { cursor:default; }
+
+
+/* PINNED BAR */
+#pin { position:absolute; left:0; right:0; top:0; z-index:20; opacity:0; pointer-events:none; transition:opacity .2s; will-change:transform; }
+#pin.show { opacity:1; pointer-events:auto; }
+.pin-in { max-width:1000px; margin:0 auto; padding:8px 20px 0; }
+.pin-bar { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:14px; padding:8px 14px; background:rgba(3,5,3,.92); border:1px solid var(--plate); border-bottom:1px solid var(--mint); clip-path:var(--chamfer-sm); box-shadow:0 8px 24px rgba(0,0,0,.55); backdrop-filter:blur(3px); }
+.pin-bar > div { min-width:0; }
+.pin-t { font:700 12px/1.2 var(--mono); letter-spacing:.18em; text-transform:uppercase; color:var(--bone); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pin-t b { color:var(--mint); }
+.pin-track { height:4px; background:var(--plate); margin-top:6px; clip-path:var(--chamfer-sm); }
+#pin-fill { height:100%; width:0; background:var(--mint); box-shadow:var(--glow-green); transition:width .4s; }
+.pin-rpm { font:700 16px/1 var(--mono); color:var(--brass); text-shadow:var(--glow-gold); white-space:nowrap; min-width:92px; text-align:right; font-variant-numeric:tabular-nums; }
+.pin-meta { text-align:right; font:11px/1.3 var(--mono); letter-spacing:.08em; color:var(--dim); white-space:nowrap; }
+.pin-meta #pin-done { color:var(--mint); font-weight:700; }
+.pin-status { display:block; color:var(--mint); }
+.pin-status.bad { color:var(--crimson); } .pin-status.ro { color:var(--dim); }
+
+/* SLIDES */
+.slides { display:grid; grid-template-columns:auto 1fr; gap:18px; align-items:center; }
+.slides-ico { width:64px; height:64px; display:grid; place-items:center; border:1px solid var(--brass); color:var(--brass); clip-path:var(--chamfer-sm); background:rgba(211,198,142,.08); }
+.slides-ico svg { width:34px; height:34px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; }
+.slides h3 { margin:0 0 4px; font:800 18px/1.2 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--brass); text-shadow:var(--glow-gold); }
+.slides p { margin:0 0 10px; color:var(--dim); font-size:15px; }
+.slides-row { display:grid; grid-template-columns:1fr auto; gap:10px; }
+#slides-url { font:13px/1.3 var(--mono); color:var(--patina); }
+#slides-copy.good { border-color:var(--mint); color:var(--mint); }
+
+/* PASTE */
+.drop:focus { outline:2px solid var(--mint); outline-offset:3px; }
+.drop.over { background-color:rgba(143,224,138,.10); }
+.drop.flash { box-shadow:0 0 0 1px var(--mint),0 0 26px rgba(143,224,138,.35); }
+.paste-hint { grid-column:1 / -1; margin:0; font:12px/1.4 var(--mono); letter-spacing:.06em; color:var(--patina); }
+.paste-hint kbd { font:700 11px/1 var(--mono); color:var(--bg0); background:var(--patina); padding:2px 5px; margin:0 2px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .term .cur { animation:blink 1s steps(1) infinite; }
+  .title .g::before { color:var(--patina); animation:glitch-a 6s infinite steps(1); }
+  .title .g::after { color:var(--copper); animation:glitch-b 6s infinite steps(1); }
+  .sec .line { animation:draw .9s ease-out both; }
+  .panel { animation:rise .5s ease-out both; }
+  .panel:nth-of-type(2) { animation-delay:.05s; } .panel:nth-of-type(3) { animation-delay:.1s; }
+  .panel:nth-of-type(4) { animation-delay:.15s; } .panel:nth-of-type(5) { animation-delay:.2s; }
+  .drop { animation:ants 1.2s linear infinite; }
+  .hero::after { content:""; position:absolute; left:0; right:0; height:60px; top:-60px; pointer-events:none;
+    background:linear-gradient(transparent,rgba(143,224,138,.10),transparent); animation:sweep 5s ease-in-out infinite; }
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes blink { 50% { opacity:0; } }
+@keyframes draw { from { transform:scaleX(0); } }
+@keyframes rise { from { opacity:0; transform:translateY(8px); } }
+@keyframes ants { to { background-position:14px 0,-14px 100%,0 -14px,100% 14px; } }
+@keyframes sweep { 0% { top:-60px; } 60%,100% { top:110%; } }
+@keyframes glitch-a { 0%,91%,100% { opacity:0; transform:none; } 92% { opacity:.85; transform:translate(-3px,1px); clip-path:inset(10% 0 55% 0); } 94% { opacity:.85; transform:translate(2px,-1px); clip-path:inset(60% 0 8% 0); } 96% { opacity:0; } }
+@keyframes glitch-b { 0%,92%,100% { opacity:0; transform:none; } 93% { opacity:.75; transform:translate(3px,0); clip-path:inset(40% 0 30% 0); } 95% { opacity:.75; transform:translate(-2px,1px); clip-path:inset(5% 0 75% 0); } 97% { opacity:0; } }
+
+
+/* SCROLLBAR */
+html { scrollbar-color:#8FE08A #030503; scrollbar-width:thin; }
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-track { background:#030503; border-left:1px solid #1b2a1c; }
+::-webkit-scrollbar-thumb { background:linear-gradient(180deg,#8FE08A,#1fc35a); border:2px solid #030503; }
+::-webkit-scrollbar-thumb:hover { background:#d2ffd9; }
+html, body { overflow-x:hidden; }
+
+/* SPEED TIERS */
+.tier { font:800 12px/1 var(--mono); letter-spacing:.3em; color:var(--tier-color,#75846F); margin-top:6px; text-shadow:0 0 8px rgba(var(--tier-rgb,117,132,111),.6); transition:color .3s; }
+.rpm { transition:color .3s, text-shadow .3s; }
+body[data-tier="4"] .rpm, body[data-tier="5"] .rpm { color:var(--tier-color); text-shadow:0 0 6px rgba(var(--tier-rgb),.7),0 0 22px rgba(var(--tier-rgb),.35); }
+.hero-wrap { margin-bottom:18px; transition:filter .6s; }
+.hero-wrap .hero-frame { margin-bottom:0; transition:background .6s; }
+.hero-wrap.heat-3 { filter:drop-shadow(0 0 10px rgba(147,214,200,.22)); }
+.hero-wrap.heat-4 { filter:drop-shadow(0 0 14px rgba(211,198,142,.30)); }
+.hero-wrap.heat-5 { filter:drop-shadow(0 0 20px rgba(255,231,194,.38)); }
+.hero-wrap.heat-4 .hero-frame { background:linear-gradient(135deg,var(--brass),var(--mint) 40%,var(--gear) 70%,var(--brass)); }
+.hero-wrap.heat-5 .hero-frame { background:linear-gradient(135deg,#FFE7C2,var(--copper) 35%,var(--brass) 65%,#FFE7C2); }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-wrap.heat-5 .hero-frame { animation:hot 0.9s ease-in-out infinite; }
+}
+@keyframes hot { 50% { filter:brightness(1.25); } }
+.pin-rpmbox { text-align:right; }
+.pin-tier { font:700 9px/1 var(--mono); letter-spacing:.24em; color:var(--tier-color,#75846F); margin-top:4px; }
+
+/* SLIDES LINK */
+.slides-row { grid-template-columns:auto 1fr auto !important; }
+.btn-open { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; font:800 13px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; text-decoration:none; color:var(--bg0); background:var(--brass); clip-path:var(--chamfer-sm); box-shadow:0 0 16px rgba(211,198,142,.25); white-space:nowrap; }
+.btn-open:hover { background:#efe3a8; }
+.btn-open:focus-visible { outline:2px solid var(--mint); outline-offset:3px; }
+.slides-note { margin:10px 0 0 !important; color:var(--copper) !important; font-size:14px; }
+
+/* MID WIDTHS: IDEA Classroom's content column runs about 700 to 900 px wide */
+@media (max-width:900px) {
+  .hero { grid-template-columns:1fr 190px; padding:22px 22px 18px; }
+  .spinbox canvas { width:190px !important; height:190px !important; }
+  .tiles { grid-template-columns:1fr 1fr; }
+  .title { font-size:clamp(30px,5.4vw,46px); }
+  .lim b { font-size:20px; }
+}
+@media (max-width:760px) {
+  .limits { grid-template-columns:1fr 1fr; }
+  .lim b { font-size:22px; }
+}
+@media (max-width:640px) {
+  .hero { grid-template-columns:1fr; }
+  .spinbox { order:-1; }
+  .grid2 { grid-template-columns:1fr; }
+  .limits { grid-template-columns:1fr 1fr; }
+  .lim b { font-size:21px; }
+  .drop { grid-template-columns:1fr; }
+  .slides { grid-template-columns:1fr; }
+  .slides-row { grid-template-columns:1fr !important; }
+  .pin-bar { grid-template-columns:auto 1fr auto; }
+  .pin-meta { display:none; }
+}
+@media (max-width:480px) {
+  .tiles { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<canvas id="rain" aria-hidden="true"></canvas>
+<div id="probes" aria-hidden="true"></div>
+<div id="pin" aria-hidden="true"><div class="pin-in"><div class="pin-bar">
+  <canvas id="spin-mini"></canvas>
+  <div><div class="pin-t"><b>CAD 01</b> // Templates and Roles</div><div class="pin-track"><div id="pin-fill"></div></div></div>
+  <div class="pin-rpmbox"><div class="pin-rpm" id="pin-rpm">0 RPM</div><div class="pin-tier" id="pin-tier">IDLE</div></div>
+  <div class="pin-meta"><span id="pin-done">0 / 9</span> done<span class="pin-status" id="pin-status">LINK: CONNECTING</span></div>
+</div></div></div>
+<div class="wrap" id="content">
+
+<div id="hero-wrap" class="hero-wrap heat-0"><div class="hero-frame"><header class="hero">
+  <span class="hud tl"></span><span class="hud tr"></span><span class="hud bl"></span><span class="hud br"></span>
+  <div>
+    <div class="crumb">IDEA100<i>//</i>IDEA-Blade<i>//</i>CAD</div>
+    <h1 class="title"><span class="num">CAD 01</span><span class="g" data-text="Templates">Templates</span><br><span class="g" data-text="and Roles">and Roles</span></h1>
+    <p class="sub">Split the build, open your template, and get your part started. Mr. Pina's template slides are linked in the post above this assignment.</p>
+    <div class="term" id="status"><span class="led"></span><span id="status-text">LINK: CONNECTING</span><span class="cur"></span></div>
+  </div>
+  <div class="spinbox" aria-hidden="true">
+    <canvas id="spin-big"></canvas>
+    <div class="rpm" id="rpm">0 RPM</div>
+    <div class="tier" id="tier">IDLE</div>
+    <div class="rpm-l">Fill it in to spin it up</div>
+  </div>
+</header></div></div>
+
+<section class="panel">
+  <div class="slides">
+    <div class="slides-ico"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="9" width="36" height="24"/><path d="M24 33v8M16 41h16"/><path d="M20 16l9 5-9 5z"/></svg></div>
+    <div>
+      <h3>Template Slides</h3>
+      <p>How to use every template, step by step.</p>
+      <div class="slides-row">
+        <a id="slides-open" class="btn-open" href="https://docs.google.com/presentation/d/10f6NMSQe5FIDbCz7GgqbivLfCxnHnw9TIfmBpLEjrcg/edit?usp=sharing" target="_blank" rel="noopener noreferrer">Open slides &#8599;</a>
+        <input type="text" id="slides-url" readonly value="https://docs.google.com/presentation/d/10f6NMSQe5FIDbCz7GgqbivLfCxnHnw9TIfmBpLEjrcg/edit?usp=sharing" aria-label="Template slides link">
+        <button type="button" id="slides-copy">Copy link</button>
+      </div>
+      <p class="slides-note" id="slides-note" hidden>This class page blocks links from opening inside the assignment. Use the slides link in the post above, or paste the link into a new tab. It is already copied.</p>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="grid2">
+    <div>
+      <label class="field" for="f-name">Your name</label>
+      <input type="text" id="f-name" data-field="studentName" autocomplete="off">
+    </div>
+    <div>
+      <label class="field" for="f-team">Team name</label>
+      <input type="text" id="f-team" data-field="teamName" autocomplete="off">
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="sec"><span class="n">00</span><span class="t">The Four Limits</span><span class="line"></span></div>
+  <div class="limits">
+    <div class="lim"><b>5.00 in</b><span>Max diameter</span></div>
+    <div class="lim"><b>2.90-3.10</b><span>Full height, in</span></div>
+    <div class="lim"><b>0.50 in</b><span>Min hex above body top</span></div>
+    <div class="lim"><b>680 g</b><span>Max mass</span></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="sec"><span class="n">01</span><span class="t">Your Role</span><span class="line"></span><span class="pts">2 PTS</span></div>
+  <div class="tiles" id="tiles">
+    <label class="tile" data-role="body">
+      <input type="radio" name="role" value="body" data-field="role">
+      <span class="tile-top"><span class="ico"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6v36" class="ax"/><path d="M24 10h8l4 6-2 14 4 6H24" /><path d="M24 10h-8l-4 6 2 14-4 6h14" class="gh"/></svg></span><span class="tile-name">Body</span><span class="tile-tag">CORE</span></span>
+      <ol><li>Open the body template.</li><li>Sketch your profile on the construction lines.</li><li>Revolve it about the spin axis.</li><li>Measure full height. Fix it before moving on.</li></ol>
+      <span class="tile-active">ACTIVE</span>
+    </label>
+    <label class="tile" data-role="blade">
+      <input type="radio" name="role" value="blade" data-field="role">
+      <span class="tile-top"><span class="ico"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="5"/><path d="M24 19c2-7 8-11 15-10-4 3-6 7-7 12"/><path d="M28.3 26.5c7 2 10 8 9 15-3-4-7-6-12-7"/><path d="M19.7 26.5c-5 5-12 5-17 1 5 0 9-2 12-6"/></svg></span><span class="tile-name">Blade</span><span class="tile-tag">CORE</span></span>
+      <ol><li>Open the blade template.</li><li>Sketch one blade inside the 5.00 in circle.</li><li>Extrude it to the stock thickness.</li><li>Circular pattern for the rest.</li></ol>
+      <span class="tile-active">ACTIVE</span>
+    </label>
+    <label class="tile" data-role="concept">
+      <input type="radio" name="role" value="concept" data-field="role">
+      <span class="tile-top"><span class="ico"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 38l4-12 20-20 8 8-20 20z"/><path d="M14 26l8 8"/><path d="M30 10l8 8"/></svg></span><span class="tile-name">Concept</span><span class="tile-tag">3RD</span></span>
+      <ol><li>Sketch three blade ideas on paper.</li><li>Pick one with your team.</li><li>Set target numbers: diameter, arm count, mass.</li><li>Hand the numbers to Body and Blade.</li></ol>
+      <span class="tile-active">ACTIVE</span>
+    </label>
+    <label class="tile" data-role="assembly">
+      <input type="radio" name="role" value="assembly" data-field="role">
+      <span class="tile-top"><span class="ico"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6v36" class="ax"/><rect x="12" y="10" width="24" height="8"/><rect x="8" y="22" width="32" height="6"/><rect x="16" y="32" width="16" height="8"/></svg></span><span class="tile-name">Assembly</span><span class="tile-tag">3RD</span></span>
+      <ol><li>Watch the assembly demo. The template arrives during class.</li><li>Collect your team's saved body and blade files.</li><li>Insert them and mate both to the spin axis.</li><li>Measure full height and diameter on the assembly.</li></ol>
+      <span class="tile-active">ACTIVE</span>
+    </label>
+    <label class="tile" data-role="mass">
+      <input type="radio" name="role" value="mass" data-field="role">
+      <span class="tile-top"><span class="ico"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 8v32"/><path d="M8 16h32"/><path d="M8 16l-4 12h8z"/><path d="M40 16l-4 12h8z"/><path d="M16 40h16"/></svg></span><span class="tile-name">Mass and Balance</span><span class="tile-tag">3RD</span></span>
+      <ol><li>Assign a material to every part.</li><li>Run Mass Properties on each part.</li><li>Keep a running total against 680 g.</li><li>Check the center of mass sits on the spin axis.</li></ol>
+      <span class="tile-active">ACTIVE</span>
+    </label>
+    <label class="tile" data-role="custom">
+      <input type="radio" name="role" value="custom" data-field="role">
+      <span class="tile-top"><span class="ico"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 10v28M10 24h28"/><circle cx="24" cy="24" r="16" class="gh"/></svg></span><span class="tile-name">Custom</span><span class="tile-tag">3RD</span></span>
+      <ol><li>Name your role in the box below.</li><li>Get Mr. Pina's OK before you start.</li><li>Set one thing you will finish today.</li><li>Show it in Your Work.</li></ol>
+      <span class="tile-active">ACTIVE</span>
+    </label>
+  </div>
+  <div id="custom-wrap" hidden>
+    <label class="field" for="f-custom">Your custom role, in one line</label>
+    <input type="text" id="f-custom" placeholder="Hardware: hex core, collar and bolt fit" autocomplete="off">
+  </div>
+  <p class="hint roles-hint">Every team has a Body and a Blade. A third member picks Concept, Assembly, Mass and Balance, or Custom. Two-person team: split Concept between you.</p>
+  <label class="field" for="f-roles">Teammates and their roles</label>
+  <input type="text" id="f-roles" data-field="teamRoles" placeholder="Alex - Blade, Sam - Concept" autocomplete="off">
+</section>
+
+<section class="panel">
+  <div class="sec"><span class="n">02</span><span class="t">Your Work</span><span class="line"></span><span class="pts">6 PTS</span></div>
+  <label class="field" for="f-shot">Screenshot or photo of your work</label>
+  <p class="hint">SolidWorks roles: your SolidWorks window. Mass and Balance: the Mass Properties window. Concept: a photo of your sketches.</p>
+  <div class="drop" id="drop" tabindex="0" aria-label="Screenshot drop zone">
+    <p class="paste-hint">Paste a screenshot anywhere on this page with <kbd>Ctrl</kbd>+<kbd>V</kbd>, drag one in, or choose a file.</p>
+    <div class="thumb" id="thumb">NO<br>IMAGE</div>
+    <div class="drop-mid">
+      <input type="file" id="f-shot" accept="image/*" data-field="workShot">
+      <span id="shot-state">Nothing attached.</span>
+    </div>
+    <button type="button" id="shot-remove">Remove</button>
+  </div>
+  <label class="field" for="f-dim">One number from your work, and what it controls</label>
+  <input type="text" id="f-dim" data-field="keyDimension" placeholder="Body height 3.000 in, sets full height" autocomplete="off">
+  <label class="field" for="f-summary">What got done, and what is next</label>
+  <textarea id="f-summary" data-field="workSummary"></textarea>
+  <div class="meter" id="meter"><i></i><i></i><span id="count">0 / 2 sentences</span></div>
+</section>
+
+<section class="panel">
+  <div class="sec"><span class="n">03</span><span class="t">Good Habits</span><span class="line"></span><span class="pts">2 PTS</span></div>
+  <div class="tip"><b>Edit, don't redraw.</b> To change a finished feature, right-click it in the FeatureManager tree and pick Edit Sketch or Edit Feature. Deleting and starting over is slower and breaks everything built on it.</div>
+  <label class="check"><input type="checkbox" data-field="savedNamed"> My file is saved with our team name in it.</label>
+  <label class="check"><input type="checkbox" data-field="editedFeature"> I changed something today with Edit Sketch or Edit Feature.</label>
+  <div class="early">Done early? Start the team assembly.</div>
+</section>
+
+<div class="sources"><b>Sources</b><br>IDEA-Blade Rulebook v3.0, section 01 Design Specifications. Mr. Pina, IDEA-Blade SolidWorks template slides.</div>
+</div>
+
+<script>
+(function () {
+  var readOnly = false;
+  var statusBox = document.getElementById('status');
+  var statusText = document.getElementById('status-text');
+  var pinStatus = document.getElementById('pin-status');
+  var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+
+  function send(msg) { try { window.parent.postMessage(msg, '*'); } catch (e) {} }
+  function change(field, value) { if (!readOnly) send({ type: 'idea:change', field: field, value: value }); progress(); }
+  function setStatus(text, cls) {
+    statusText.textContent = text; statusBox.className = 'term' + (cls ? ' ' + cls : '');
+    pinStatus.textContent = text; pinStatus.className = 'pin-status' + (cls ? ' ' + cls : '');
+  }
+
+  /* ---------------- answers ---------------- */
+  function countSentences(t) { var m = t.trim().match(/[^.!?]+[.!?]+/g); return m ? m.length : 0; }
+  function updateCount() {
+    var n = countSentences(document.getElementById('f-summary').value);
+    document.getElementById('count').textContent = n + ' / 2 sentences';
+    document.querySelectorAll('#meter i').forEach(function (b, i) { b.classList.toggle('on', n > i); });
+    document.getElementById('meter').className = n >= 2 ? 'meter met' : 'meter';
+  }
+  function highlightRole(role) {
+    var any = false;
+    document.querySelectorAll('.tile').forEach(function (t) {
+      var mine = t.getAttribute('data-role') === role; t.classList.toggle('is-mine', mine); if (mine) any = true;
+    });
+    document.getElementById('tiles').classList.toggle('has-pick', any);
+  }
+
+  var photoOn = false, TOTAL = 9, targetRpm = 0;
+  function progress() {
+    var done = 0;
+    ['f-name', 'f-team', 'f-roles', 'f-dim'].forEach(function (id) { if (document.getElementById(id).value.trim()) done++; });
+    if (document.querySelector('input[type="radio"][data-field]:checked')) done++;
+    if (countSentences(document.getElementById('f-summary').value) >= 2) done++;
+    if (photoOn) done++;
+    document.querySelectorAll('input[type="checkbox"][data-field]').forEach(function (c) { if (c.checked) done++; });
+    var f = done / TOTAL;
+    targetRpm = f === 0 ? 0 : 600 + f * 2400;
+    document.getElementById('pin-done').textContent = done + ' / ' + TOTAL;
+    document.getElementById('pin-fill').style.width = Math.round(f * 100) + '%';
+    if (mq.matches) { rpm = targetRpm; showRpm(); drawSpinners(0, 0); }
+  }
+
+  document.querySelectorAll('input[type="text"][data-field], textarea[data-field]').forEach(function (el) {
+    el.addEventListener('input', function () {
+      if (el.id === 'f-summary') updateCount();
+      change(el.getAttribute('data-field'), el.value);
+    });
+  });
+  var customWrap = document.getElementById('custom-wrap');
+  var customInput = document.getElementById('f-custom');
+  function roleValue(v) { return v === 'custom' ? ('custom: ' + customInput.value.trim()) : v; }
+  function showCustom(on) { customWrap.hidden = !on; }
+  document.querySelectorAll('input[type="radio"][data-field]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      if (!el.checked) return;
+      showCustom(el.value === 'custom'); highlightRole(el.value); change('role', roleValue(el.value));
+    });
+  });
+  customInput.addEventListener('input', function () { change('role', roleValue('custom')); });
+  document.querySelectorAll('input[type="checkbox"][data-field]').forEach(function (el) {
+    el.addEventListener('change', function () { change(el.getAttribute('data-field'), el.checked); });
+  });
+
+  /* ---------------- image: picker, paste, drag and drop ---------------- */
+  var thumb = document.getElementById('thumb');
+  var drop = document.getElementById('drop');
+  function setThumb(src, label) {
+    thumb.innerHTML = '';
+    if (src) { var im = new Image(); im.alt = ''; im.src = src; thumb.appendChild(im); }
+    else { thumb.innerHTML = label || 'NO<br>IMAGE'; }
+  }
+  function attach(file, how) {
+    if (!file || readOnly || !/^image\//.test(file.type)) return false;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data = String(reader.result);
+      var name = file.name && file.name !== 'image.png' ? file.name : ('pasted-screenshot-' + Date.now() + '.png');
+      send({ type: 'idea:image', field: 'workShot', name: name, bytes: data });
+      var s = document.getElementById('shot-state'); s.textContent = (how === 'paste' ? 'Pasted: ' : 'Attached: ') + name; s.className = 'ok';
+      setThumb(data); photoOn = true; progress();
+      drop.classList.add('flash'); setTimeout(function () { drop.classList.remove('flash'); }, 700);
+    };
+    reader.readAsDataURL(file);
+    return true;
+  }
+  document.getElementById('f-shot').addEventListener('change', function (e) { attach(e.target.files && e.target.files[0], 'pick'); });
+  document.addEventListener('paste', function (e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file' && /^image\//.test(items[i].type)) {
+        if (attach(items[i].getAsFile(), 'paste')) { e.preventDefault(); drop.scrollIntoView && null; }
+        return;
+      }
+    }
+  });
+  drop.addEventListener('click', function (e) { if (e.target === drop || e.target.classList.contains('paste-hint')) drop.focus(); });
+  ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function () { drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { e.preventDefault(); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; attach(f, 'pick'); });
+  document.getElementById('shot-remove').addEventListener('click', function () {
+    if (readOnly) return;
+    send({ type: 'idea:image-remove', field: 'workShot' });
+    var s = document.getElementById('shot-state'); s.textContent = 'Nothing attached.'; s.className = '';
+    document.getElementById('f-shot').value = ''; setThumb(null); photoOn = false; progress();
+  });
+
+  /* ---------------- slides link: open, with copy as the fallback ----------------
+     Opening a new tab from inside the assignment needs Classroom to allow popups from
+     the frame. Where it does, this opens the slides; where it does not, window.open
+     returns null and the student is told where the clickable link is, and the link is
+     copied for them. */
+  document.getElementById('slides-open').addEventListener('click', function (e) {
+    e.preventDefault();
+    var url = this.getAttribute('href'), w = null;
+    try { w = window.open(url, '_blank'); } catch (err) { w = null; }
+    if (w) { try { w.opener = null; } catch (err2) {} return; }
+    var note = document.getElementById('slides-note');
+    note.hidden = false;
+    linkBox.focus(); linkBox.select();
+    try { document.execCommand('copy'); } catch (err3) {}
+  });
+  /* ---------------- slides link: copy ---------------- */
+  var linkBox = document.getElementById('slides-url');
+  linkBox.addEventListener('focus', function () { linkBox.select(); });
+  linkBox.addEventListener('click', function () { linkBox.select(); });
+  document.getElementById('slides-copy').addEventListener('click', function () {
+    var btn = this, ok = false;
+    linkBox.focus(); linkBox.select();
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    function done(good) {
+      btn.textContent = good ? 'Copied' : 'Press Ctrl+C';
+      btn.classList.toggle('good', good);
+      setTimeout(function () { btn.textContent = 'Copy link'; btn.classList.remove('good'); }, 2200);
+    }
+    if (ok) return done(true);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(linkBox.value).then(function () { done(true); }, function () { done(false); });
+    } else { done(false); }
+  });
+
+  /* ---------------- restore ---------------- */
+  function applyState(m) {
+    readOnly = !!m.readOnly;
+    var v = m.values || {};
+    document.querySelectorAll('input[type="text"][data-field], textarea[data-field]').forEach(function (el) {
+      var f = el.getAttribute('data-field'); if (typeof v[f] === 'string') el.value = v[f];
+    });
+    var role = typeof v.role === 'string' ? v.role : '';
+    var isCustom = role.indexOf('custom') === 0;
+    var base = isCustom ? 'custom' : role;
+    document.querySelectorAll('input[type="radio"][data-field]').forEach(function (el) { el.checked = base === el.value; });
+    customInput.value = isCustom ? role.replace(/^custom:\s*/, '') : '';
+    showCustom(isCustom); highlightRole(base);
+    document.querySelectorAll('input[type="checkbox"][data-field]').forEach(function (el) { el.checked = v[el.getAttribute('data-field')] === true; });
+    var img = (m.images || {}).workShot;
+    var s = document.getElementById('shot-state');
+    s.textContent = img ? ('Attached: ' + img.name) : 'Nothing attached.'; s.className = img ? 'ok' : '';
+    setThumb(null, img ? 'IMAGE<br>SAVED' : null); photoOn = !!img;
+    document.querySelectorAll('[data-field], #f-custom, #shot-remove').forEach(function (el) { el.disabled = readOnly; });
+    document.body.classList.toggle('is-readonly', readOnly);
+    updateCount(); progress();
+    setStatus(readOnly ? 'READ ONLY' : 'LINK OK // AUTOSAVE ON', readOnly ? 'ro' : '');
+  }
+  window.addEventListener('message', function (e) {
+    if (e.source !== window.parent) return;
+    var m = e.data;
+    if (!m || typeof m.type !== 'string') return;
+    if (m.type === 'idea:state') applyState(m);
+    if (m.type === 'idea:saved') {
+      if (m.ok) setStatus('SAVED ' + new Date(m.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), '');
+      else setStatus('NOT SAVED: ' + (m.reason || 'the save was refused.'), 'bad');
+    }
+  });
+
+  /* ---------------- spinner: real angular velocity, real motion blur ----------------
+     The blade turns at exactly the RPM on the readout: omega = rpm * 2pi / 60 rad/s,
+     advanced by the real frame time. Each frame draws the blade at many instants across
+     the arc it swept during that frame, the way an eye or a camera shutter integrates
+     it: slow spin reads as crisp blades, fast spin smears into a translucent disc.
+     The RPM has inertia: it spins up quickly and coasts down slowly.
+
+     Once the blades are a blur, a real top looks the same at 1,500 and at 3,000, so
+     SPEED IS SHOWN BY WHAT A FAST TOP DOES TO ITS SURROUNDINGS, in six tiers:
+     a tachometer arc that fills and changes color, a rim that brightens, air rings,
+     sparks thrown off the tips along the direction of spin, a white-hot hub, and at
+     the top tier shockwave rings. The tier also nudges the rain and lights the frame. */
+  var BLADE = new Path2D('M100 100 C 112 70, 140 40, 176 34 C 160 58, 140 82, 118 104 Z');
+  var HEX = new Path2D('M100 88 L110.4 94 L110.4 106 L100 112 L89.6 106 L89.6 94 Z');
+  var MAX_RPM = 3000;
+  var TIERS = [
+    { at: 0,    name: 'IDLE',      color: '#75846F', rgb: '117,132,111' },
+    { at: 20,   name: 'SPIN-UP',   color: '#8FE08A', rgb: '143,224,138' },
+    { at: 700,  name: 'CRUISE',    color: '#8FE08A', rgb: '143,224,138' },
+    { at: 1400, name: 'HIGH',      color: '#93D6C8', rgb: '147,214,200' },
+    { at: 2000, name: 'MAX',       color: '#D3C68E', rgb: '211,198,142' },
+    { at: 2600, name: 'OVERDRIVE', color: '#FFE7C2', rgb: '255,231,194' }
+  ];
+  function tierOf(r) { var t = 0; for (var i = 0; i < TIERS.length; i++) if (r >= TIERS[i].at) t = i; return t; }
+
+  function makeSpinner(canvas, cssSize, units, detail) {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(cssSize * dpr); canvas.height = Math.round(cssSize * dpr);
+    canvas.style.width = cssSize + 'px'; canvas.style.height = cssSize + 'px';
+    return { ctx: canvas.getContext('2d'), k: canvas.width / units, off: (units - 200) / 2, detail: detail };
+  }
+  var big = makeSpinner(document.getElementById('spin-big'), 230, 260, true);
+  var mini = makeSpinner(document.getElementById('spin-mini'), 38, 200, false);
+
+  var sparks = [], shocks = [], sparkDebt = 0, shockClock = 0, clock = 0;
+  var SPARK_RATE = [0, 0, 0, 14, 40, 95];
+  function physics(dtS, th, tier) {
+    clock += dtS;
+    if (mq.matches) { sparks.length = 0; shocks.length = 0; return; }
+    var omega = rpm * Math.PI * 2 / 60;
+    sparkDebt += SPARK_RATE[tier] * dtS;
+    while (sparkDebt >= 1 && sparks.length < 220) {
+      sparkDebt -= 1;
+      var phi = th + Math.floor(Math.random() * 3) * 2.0943951 + 0.72 + (Math.random() - 0.5) * 0.35;
+      var r0 = 80 + Math.random() * 4;
+      var vt = Math.min(omega * r0 * 0.012, 420) * (0.6 + Math.random() * 0.6);
+      var vr = 20 + Math.random() * 60;
+      var cs = Math.cos(phi), sn = Math.sin(phi);
+      sparks.push({ x: 100 + cs * r0, y: 100 + sn * r0, vx: -sn * vt + cs * vr, vy: cs * vt + sn * vr, life: 0, max: 0.25 + Math.random() * (tier === 5 ? 0.55 : 0.35), hot: Math.random() < (tier === 5 ? 0.5 : 0.2) });
+    }
+    if (sparkDebt > 4) sparkDebt = 0;
+    for (var i = sparks.length - 1; i >= 0; i--) {
+      var s = sparks[i]; s.life += dtS;
+      if (s.life > s.max) { sparks.splice(i, 1); continue; }
+      s.vx *= 1 - 1.6 * dtS; s.vy = s.vy * (1 - 1.6 * dtS) + 90 * dtS;
+      s.x += s.vx * dtS; s.y += s.vy * dtS;
+    }
+    if (tier === 5) { shockClock += dtS; if (shockClock > 0.85) { shockClock = 0; shocks.push({ r: 86, life: 0 }); } }
+    else shockClock = 0.6;
+    for (var j = shocks.length - 1; j >= 0; j--) { var w = shocks[j]; w.life += dtS; w.r = 86 + w.life * 70; if (w.life > 0.7) shocks.splice(j, 1); }
+  }
+
+  function drawSpinner(sp, theta, sweep, tier) {
+    var c = sp.ctx, k = sp.k, T = TIERS[tier], f = Math.min(1, rpm / MAX_RPM);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+    c.setTransform(k, 0, 0, k, sp.off * k, sp.off * k);
+    if (sp.detail) {
+      /* Tachometer: 270 degrees from bottom left, ticks every 500 RPM. */
+      var a0 = Math.PI * 0.75, span = Math.PI * 1.5;
+      c.lineCap = 'butt'; c.lineWidth = 5; c.strokeStyle = 'rgba(27,42,28,.95)';
+      c.beginPath(); c.arc(100, 100, 106, a0, a0 + span); c.stroke();
+      if (f > 0.001) {
+        c.save(); c.shadowColor = 'rgba(' + T.rgb + ',.8)'; c.shadowBlur = (4 + tier * 3) * k;
+        c.strokeStyle = T.color; c.beginPath(); c.arc(100, 100, 106, a0, a0 + span * f); c.stroke(); c.restore();
+      }
+      c.lineWidth = 1.2;
+      for (var t = 0; t <= 6; t++) {
+        var ta = a0 + span * (t / 6), on = t / 6 <= f + 1e-6;
+        c.strokeStyle = on ? T.color : 'rgba(117,132,111,.7)';
+        c.beginPath(); c.moveTo(100 + Math.cos(ta) * 111, 100 + Math.sin(ta) * 111); c.lineTo(100 + Math.cos(ta) * 116, 100 + Math.sin(ta) * 116); c.stroke();
+      }
+      c.strokeStyle = 'rgba(147,214,200,.40)'; c.lineWidth = 1.5;
+      c.beginPath(); c.arc(100, 100, 92, 0, Math.PI * 2); c.stroke();
+      /* Air rings: faint dashed arcs dragged around by the spin, from HIGH up. */
+      if (tier >= 3) {
+        c.save(); c.setLineDash([10, 16]); c.lineWidth = 1.2;
+        for (var q = 0; q < tier - 2; q++) {
+          c.strokeStyle = 'rgba(' + T.rgb + ',' + (0.16 + 0.08 * q) + ')';
+          c.lineDashOffset = -clock * (60 + 50 * q) * (tier - 2);
+          c.beginPath(); c.arc(100, 100, 96 + q * 4, 0, Math.PI * 2); c.stroke();
+        }
+        c.restore();
+      }
+      /* Shockwaves at OVERDRIVE. */
+      for (var w = 0; w < shocks.length; w++) {
+        var sw = shocks[w], al = Math.max(0, 1 - sw.life / 0.7);
+        c.strokeStyle = 'rgba(255,231,194,' + (0.5 * al).toFixed(3) + ')'; c.lineWidth = 2.5 * al + 0.5;
+        c.beginPath(); c.arc(100, 100, sw.r, 0, Math.PI * 2); c.stroke();
+      }
+    }
+    /* The blades, integrated across the frame's swept arc. */
+    var n = Math.max(1, Math.min(120, Math.ceil(sweep / 0.04)));
+    var a = n === 1 ? 1 : Math.min(1, 2.4 / n);
+    var smear = n > 10;
+    var bladeFill = smear ? 'rgba(' + (tier >= 4 ? T.rgb : '143,224,138') + ',' + (0.26 + 0.03 * tier) + ')' : 'rgba(143,224,138,.16)';
+    for (var i = 0; i < n; i++) {
+      var ang = theta - sweep * (i / n);
+      c.save();
+      c.translate(100, 100); c.rotate(ang); c.scale(0.84, 0.84); c.translate(-100, -100);
+      c.globalAlpha = a;
+      if (n === 1 && sp.detail) { c.shadowColor = 'rgba(143,224,138,.55)'; c.shadowBlur = 6 * k; }
+      for (var b = 0; b < 3; b++) {
+        c.save(); c.translate(100, 100); c.rotate(b * 2.0943951); c.translate(-100, -100);
+        c.fillStyle = bladeFill; c.fill(BLADE);
+        if (!smear) { c.lineWidth = sp.detail ? 2 : 5; c.strokeStyle = '#8FE08A'; c.stroke(BLADE); }
+        c.restore();
+      }
+      c.restore();
+    }
+    c.globalAlpha = 1; c.shadowBlur = 0;
+    if (smear) {
+      var rim = Math.min(1, (n - 10) / 40);
+      c.save(); c.shadowColor = 'rgba(' + T.rgb + ',.9)'; c.shadowBlur = (tier * 3) * k;
+      c.strokeStyle = 'rgba(' + T.rgb + ',' + Math.min(1, (0.45 + 0.1 * tier) * rim).toFixed(3) + ')';
+      c.lineWidth = (sp.detail ? 2 : 6) + tier * (sp.detail ? 0.5 : 1);
+      c.beginPath(); c.arc(100, 100, 73, 0, Math.PI * 2); c.stroke(); c.restore();
+    }
+    /* Sparks: short streaks along their velocity, hot ones near white. */
+    if (sp.detail && sparks.length) {
+      c.save(); c.lineCap = 'round';
+      for (var s = 0; s < sparks.length; s++) {
+        var p = sparks[s], life = 1 - p.life / p.max;
+        c.strokeStyle = p.hot ? 'rgba(255,244,220,' + life.toFixed(3) + ')' : 'rgba(' + (tier >= 5 ? '217,154,85' : '211,198,142') + ',' + life.toFixed(3) + ')';
+        c.lineWidth = p.hot ? 1.6 : 1.2;
+        c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x - p.vx * 0.028, p.y - p.vy * 0.028); c.stroke();
+      }
+      c.restore();
+    }
+    /* Hub: brass at rest, heating toward white at the top tiers. */
+    var heat = tier >= 4 ? (tier === 5 ? 0.75 + 0.25 * Math.sin(clock * 9) : 0.35) : 0;
+    c.save();
+    if (heat > 0 && sp.detail) { c.shadowColor = 'rgba(255,231,194,' + heat.toFixed(3) + ')'; c.shadowBlur = 18 * heat * k; }
+    c.fillStyle = heat > 0 ? 'rgba(' + Math.round(6 + 120 * heat) + ',' + Math.round(9 + 90 * heat) + ',' + Math.round(6 + 40 * heat) + ',1)' : '#060906';
+    c.strokeStyle = '#D3C68E'; c.lineWidth = sp.detail ? 2 : 5;
+    c.beginPath(); c.arc(100, 100, 22, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore();
+    c.strokeStyle = heat > 0.5 ? '#FFE7C2' : '#D3C68E'; c.lineWidth = sp.detail ? 2 : 5;
+    for (var j = 0; j < n; j++) {
+      c.save(); c.translate(100, 100); c.rotate(theta - sweep * (j / n)); c.translate(-100, -100);
+      c.globalAlpha = a; c.stroke(HEX); c.restore();
+    }
+    c.globalAlpha = 1;
+  }
+  var rpm = 0, theta = 0, shownTier = -1;
+  var rpmEl = document.getElementById('rpm'), pinRpm = document.getElementById('pin-rpm');
+  var tierEl = document.getElementById('tier'), heroWrap = document.getElementById('hero-wrap');
+  function showRpm() {
+    var r = Math.round(rpm / 10) * 10;
+    var t = r.toLocaleString() + ' RPM';
+    rpmEl.textContent = t; pinRpm.textContent = t;
+    var tier = tierOf(rpm);
+    if (tier !== shownTier) {
+      shownTier = tier;
+      tierEl.textContent = TIERS[tier].name; document.getElementById('pin-tier').textContent = TIERS[tier].name;
+      document.documentElement.style.setProperty('--tier-color', TIERS[tier].color);
+      document.documentElement.style.setProperty('--tier-rgb', TIERS[tier].rgb);
+      heroWrap.className = 'hero-wrap heat-' + tier;
+      document.body.setAttribute('data-tier', tier);
+    }
+  }
+  function drawSpinners(th, sw) { var tier = tierOf(rpm); drawSpinner(big, th, sw, tier); drawSpinner(mini, th, sw, tier); }
+
+  /* ---------------- rain: the IDEA site's own matrix rain, ported ----------------
+     Same constants, glyph set, mirrored half, glyph atlas, head and trail colors,
+     destination-out fade, 30 fps paint and per-column speeds as
+     src/lib/design-system/themes/matrix-rain.ts on the site's Matrix theme. */
+  var RAIN = { cell: 16, font: 'ui-monospace, Menlo, Consolas, monospace', head: '#d2ffd9', trail: '#1fc35a',
+    fadePerFrame: 0.09, minSpeed: 0.16, maxSpeed: 0.6, mutationsPerStep: 2, mutationReach: 12 };
+  var GLYPHS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ+-*/=<>|:;'.split('');
+  var GLYPH_COUNT = GLYPHS.length * 2;
+  function randSpeed() { return RAIN.minSpeed + Math.random() * (RAIN.maxSpeed - RAIN.minSpeed); }
+  function fadeFrames() { return Math.ceil(Math.log(0.05) / Math.log(1 - RAIN.fadePerFrame)); }
+  function tailRows(s) { return Math.max(1, Math.ceil(s * fadeFrames())); }
+  function trailAlpha(back, s) { return back <= 0 ? 1 : Math.pow(1 - RAIN.fadePerFrame, back / Math.max(s, 1e-6)); }
+  function fadeAlpha(dt) { var f = Math.max(0, Math.min(dt, 250)) / (1000 / 60); return Math.min(0.5, 1 - Math.pow(1 - RAIN.fadePerFrame, f)); }
+  var rain = document.getElementById('rain'), rc = rain.getContext('2d');
+  var rW = 0, rH = 0, cols = 0, rows = 0, columns = [], atlas = null, AC = 16;
+  function buildAtlas() {
+    var a = document.createElement('canvas'); a.width = AC * GLYPH_COUNT; a.height = AC * 2;
+    var c = a.getContext('2d'); c.font = RAIN.cell + 'px ' + RAIN.font; c.textAlign = 'center'; c.textBaseline = 'middle';
+    [[0, RAIN.head], [1, RAIN.trail]].forEach(function (row) {
+      c.fillStyle = row[1];
+      for (var g = 0; g < GLYPH_COUNT; g++) {
+        c.save(); c.translate(g * AC + AC / 2, row[0] * AC + AC / 2);
+        if (g >= GLYPHS.length) c.scale(-1, 1);
+        c.fillText(GLYPHS[g % GLYPHS.length], 0, 0); c.restore();
+      }
+    });
+    atlas = a;
+  }
+  function cell(col, row, head, glyph, alpha) {
+    var x = col * RAIN.cell, y = row * RAIN.cell;
+    rc.clearRect(x, y, RAIN.cell, RAIN.cell); rc.globalAlpha = alpha;
+    rc.drawImage(atlas, glyph * AC, (head ? 0 : 1) * AC, AC, AC, x, y, RAIN.cell, RAIN.cell);
+  }
+  function layoutRain(w, h) {
+    if (w === rW && h === rH) return;
+    rW = w; rH = h; rain.width = w; rain.height = h; rain.style.height = h + 'px';
+    cols = Math.ceil(w / RAIN.cell); rows = Math.ceil(h / RAIN.cell);
+    columns = [];
+    for (var i = 0; i < cols; i++) columns.push({ head: Math.floor(Math.random() * rows * 2) - rows, speed: randSpeed(), acc: Math.random() });
+    if (!atlas) buildAtlas();
+  }
+  function stepRain(dtFrames) {
+    for (var i = 0; i < columns.length; i++) {
+      var c = columns[i]; c.acc += c.speed * dtFrames;
+      while (c.acc >= 1) {
+        c.acc -= 1; c.head += 1;
+        var tail = tailRows(c.speed);
+        if (c.head - tail > rows) { c.head = -1 - Math.floor(Math.random() * rows * 0.7); c.speed = randSpeed(); c.acc = 0; break; }
+        if (c.head >= 0 && c.head < rows) cell(i, c.head, true, (Math.random() * GLYPH_COUNT) | 0, 1);
+        if (c.head - 1 >= 0 && c.head - 1 < rows) cell(i, c.head - 1, false, (Math.random() * GLYPH_COUNT) | 0, 1);
+        for (var m = 0; m < RAIN.mutationsPerStep; m++) {
+          var back = 2 + Math.floor(Math.random() * RAIN.mutationReach), r = c.head - back;
+          if (r < 0 || r >= rows || back > tail) continue;
+          cell(i, r, false, (Math.random() * GLYPH_COUNT) | 0, trailAlpha(back, c.speed));
+        }
+      }
+    }
+    rc.globalAlpha = 1;
+  }
+  function rainStill() {
+    rc.clearRect(0, 0, rW, rH);
+    for (var i = 0; i < columns.length; i++) {
+      var c = columns[i], head = Math.floor(Math.random() * rows), tail = tailRows(c.speed);
+      cell(i, head, true, (Math.random() * GLYPH_COUNT) | 0, 1);
+      for (var d = 1; d <= tail; d++) { var r = head - d; if (r < 0) break; var a = trailAlpha(d, c.speed); if (a < 0.03) break; cell(i, r, false, (Math.random() * GLYPH_COUNT) | 0, a); }
+    }
+    rc.globalAlpha = 1;
+  }
+
+  /* ---------------- where the reader is looking ----------------
+     This document sits in a frame as tall as itself, so the reader scrolls the page
+     around the frame, not the document, and position: sticky never engages. Thin
+     strips down the page are watched with IntersectionObserver against the real
+     viewport; the top-most visible pixel of the document is the smallest visible
+     strip top. The pinned bar and the rain canvas are placed there, so both behave as
+     if fixed to the reader's screen. Without the observer they simply stay put. */
+  var probes = document.getElementById('probes'), STRIP = 40, visTop = 0, visBottom = 0;
+  var tops = new Map();
+  var pin = document.getElementById('pin'), hero = document.querySelector('.hero-frame');
+  function docH() { return document.getElementById('content').offsetHeight; }
+  function place() {
+    var h = docH();
+    layoutRain(document.documentElement.clientWidth, Math.min(h, 1408));
+    var rt = Math.max(0, Math.min(visTop, h - rH));
+    rain.style.transform = 'translateY(' + rt + 'px)';
+    var heroBottom = hero.getBoundingClientRect().bottom + window.scrollY;
+    var show = visTop > heroBottom - 24;
+    pin.classList.toggle('show', show);
+    var pt = Math.max(0, Math.min(visTop, h - pin.offsetHeight));
+    pin.style.transform = 'translateY(' + pt + 'px)';
+  }
+  function buildProbes() {
+    probes.innerHTML = '';
+    var h = docH(), n = Math.ceil(h / STRIP), frag = document.createDocumentFragment();
+    for (var i = 0; i < n; i++) { var d = document.createElement('i'); d.style.top = (i * STRIP) + 'px'; d.style.height = Math.min(STRIP, h - i * STRIP) + 'px'; frag.appendChild(d); }
+    probes.appendChild(frag);
+    if (io) { io.disconnect(); tops.clear(); probes.querySelectorAll('i').forEach(function (s) { io.observe(s); }); }
+  }
+  var io = null;
+  if ('IntersectionObserver' in window) {
+    var th = []; for (var t = 0; t <= 20; t++) th.push(t / 20);
+    io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting && en.intersectionRect.height > 0) tops.set(en.target, [en.intersectionRect.top + window.scrollY, en.intersectionRect.bottom + window.scrollY]);
+        else tops.delete(en.target);
+      });
+      if (tops.size) {
+        var mn = Infinity, mx = -Infinity;
+        tops.forEach(function (v) { if (v[0] < mn) mn = v[0]; if (v[1] > mx) mx = v[1]; });
+        visTop = mn; visBottom = mx;
+      }
+      place();
+    }, { threshold: th });
+  }
+
+  /* ---------------- one clock ---------------- */
+  var last = 0, parity = 0, pending = 0;
+  function tick(now) {
+    requestAnimationFrame(tick);
+    if (document.hidden) { last = 0; return; }
+    var dt = last ? Math.min(now - last, 100) : 16.7; last = now;
+    var tau = targetRpm > rpm ? 0.7 : 2.4;
+    rpm += (targetRpm - rpm) * (1 - Math.exp(-(dt / 1000) / tau));
+    if (Math.abs(targetRpm - rpm) < 1) rpm = targetRpm;
+    var sweep = rpm * Math.PI * 2 / 60 * (dt / 1000);
+    theta = (theta + sweep) % (Math.PI * 2);
+    physics(dt / 1000, theta, tierOf(rpm));
+    drawSpinners(theta, sweep);
+    showRpm();
+    pending += dt; parity = (parity + 1) % 2;
+    if (!parity) {
+      rc.globalCompositeOperation = 'destination-out'; rc.globalAlpha = fadeAlpha(pending);
+      rc.fillStyle = '#000'; rc.fillRect(0, 0, rW, rH); rc.globalCompositeOperation = 'source-over';
+      stepRain(pending / (1000 / 60) * (1 + 0.12 * Math.max(0, tierOf(rpm) - 1))); pending = 0;
+    }
+  }
+
+  function boot() {
+    buildProbes(); place();
+    if (mq.matches) { rainStill(); drawSpinners(0, 0); showRpm(); }
+    else requestAnimationFrame(tick);
+  }
+  var lastH = 0;
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      var h = Math.ceil(document.getElementById('content').offsetHeight);
+      send({ type: 'idea:height', px: h + 4 });
+      if (Math.abs(h - lastH) > STRIP) { lastH = h; buildProbes(); }
+      place();
+    }).observe(document.getElementById('content'));
+  }
+  progress(); updateCount(); boot();
+  send({ type: 'idea:ready', schemaVersion: 3 });
+})();
+</script>
+</body>
+</html>

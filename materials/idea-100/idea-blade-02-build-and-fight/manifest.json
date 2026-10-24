@@ -1,0 +1,378 @@
+{
+  "kind": "html-assignment",
+  "title": "IDEA-Blade 02 - Build and Fight",
+  "course": "IDEA100",
+  "points": 90,
+  "modules": [
+    {
+      "id": "blade-build",
+      "title": "Build and Inspect",
+      "blocks": [
+        {
+          "id": "blade-build-photo",
+          "type": "image",
+          "field": "buildPhoto",
+          "prompt": "Photo of your Blade, fight-ready"
+        },
+        {
+          "id": "blade-build-photo-2",
+          "type": "image",
+          "field": "buildPhoto2",
+          "prompt": "Another photo of your Blade",
+          "optional": true
+        },
+        {
+          "id": "blade-inspect-across",
+          "type": "text",
+          "field": "inDia",
+          "prompt": "Measured across, in"
+        },
+        {
+          "id": "blade-inspect-height",
+          "type": "text",
+          "field": "inHeight",
+          "prompt": "Measured full height, tip to the top of the collar, in"
+        },
+        {
+          "id": "blade-inspect-collar",
+          "type": "text",
+          "field": "inCollar",
+          "prompt": "Measured collar height, in"
+        },
+        {
+          "id": "blade-inspect-hex",
+          "type": "text",
+          "field": "inHex",
+          "prompt": "Measured bare hex above the collar, in"
+        },
+        {
+          "id": "blade-inspect-weight",
+          "type": "text",
+          "field": "weighIn",
+          "prompt": "Weight on the scale, fight-ready, g"
+        },
+        {
+          "id": "blade-inspect-result",
+          "type": "radio",
+          "field": "inspect",
+          "prompt": "How inspection went"
+        },
+        {
+          "id": "blade-inspect-fix",
+          "type": "text",
+          "field": "inspectFix",
+          "prompt": "What was fixed, or what still has to change",
+          "optional": true
+        }
+      ],
+      "points": 40,
+      "audience": "team",
+      "criteria": [
+        {
+          "id": "build-done",
+          "text": "The Blade is built and fight-ready",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Built, fight-ready, in the photo",
+              "points": 15,
+              "descriptor": "The photo shows the whole Blade assembled: body, blades, hex and collar."
+            },
+            {
+              "label": "Proficient",
+              "short": "Built, one part missing",
+              "points": 10,
+              "descriptor": "Assembled, but one part is missing or loose in the photo."
+            },
+            {
+              "label": "Developing",
+              "short": "Partly built",
+              "points": 5,
+              "descriptor": "Only some of the parts are together."
+            },
+            {
+              "label": "Absent",
+              "short": "Not built",
+              "points": 0,
+              "descriptor": "No photo of a built Blade."
+            }
+          ],
+          "points": 15
+        },
+        {
+          "id": "build-numbers",
+          "text": "The Blade is measured and weighed",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Four lengths and a weight",
+              "points": 15,
+              "descriptor": "Across, height, collar and bare hex measured with calipers, and a fight-ready weight off the scale."
+            },
+            {
+              "label": "Proficient",
+              "short": "One missing",
+              "points": 10,
+              "descriptor": "One of the five numbers is missing or cannot be read."
+            },
+            {
+              "label": "Developing",
+              "short": "Several missing",
+              "points": 5,
+              "descriptor": "Two or more numbers are missing."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing measured",
+              "points": 0,
+              "descriptor": "No numbers."
+            }
+          ],
+          "points": 15
+        },
+        {
+          "id": "build-inspect",
+          "text": "Inspection, and any fix",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Passed, or the fix is named",
+              "points": 10,
+              "descriptor": "Passed inspection, or names exactly what was fixed or still has to change."
+            },
+            {
+              "label": "Developing",
+              "short": "Result with no fix named",
+              "points": 5,
+              "descriptor": "Did not pass and does not say what has to change."
+            },
+            {
+              "label": "Absent",
+              "short": "Never inspected",
+              "points": 0,
+              "descriptor": "No inspection result."
+            }
+          ],
+          "points": 10
+        }
+      ]
+    },
+    {
+      "id": "blade-fight",
+      "title": "Fight",
+      "blocks": [
+        {
+          "id": "blade-fight-outcome",
+          "type": "radio",
+          "field": "outcome",
+          "prompt": "How the Blade finished"
+        },
+        {
+          "id": "blade-fight-wins",
+          "type": "text",
+          "field": "wins",
+          "prompt": "Wins",
+          "optional": true
+        },
+        {
+          "id": "blade-fight-losses",
+          "type": "text",
+          "field": "losses",
+          "prompt": "Losses",
+          "optional": true
+        },
+        {
+          "id": "blade-fight-how-far",
+          "type": "text",
+          "field": "howFar",
+          "prompt": "How far it got in the bracket",
+          "optional": true
+        },
+        {
+          "id": "blade-fight-photo",
+          "type": "image",
+          "field": "fightPhoto",
+          "prompt": "Photo after the fight",
+          "optional": true
+        },
+        {
+          "id": "blade-fight-learned",
+          "type": "longText",
+          "field": "fightSaw",
+          "prompt": "What a match showed about the design",
+          "minSentences": 1
+        }
+      ],
+      "points": 20,
+      "audience": "team",
+      "criteria": [
+        {
+          "id": "fight-record",
+          "text": "The result and the record",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Result and full record",
+              "points": 8,
+              "descriptor": "How it finished, with wins, losses and how far it got, or why it did not fight."
+            },
+            {
+              "label": "Developing",
+              "short": "Result, record incomplete",
+              "points": 4,
+              "descriptor": "How it finished, but the record or how far it got is missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No result",
+              "points": 0,
+              "descriptor": "Nothing about how it finished."
+            }
+          ],
+          "points": 8
+        },
+        {
+          "id": "fight-learned",
+          "text": "What a match showed",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Names the part and why",
+              "points": 12,
+              "descriptor": "Names a part of the design and what a match showed about it, with the reason."
+            },
+            {
+              "label": "Proficient",
+              "short": "Names the part, no reason",
+              "points": 8,
+              "descriptor": "Names the part but not why it happened."
+            },
+            {
+              "label": "Developing",
+              "short": "General, no part",
+              "points": 4,
+              "descriptor": "Says something happened with no part of the design in it."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "points": 12
+        }
+      ]
+    },
+    {
+      "id": "blade-slide",
+      "title": "Your Slide",
+      "blocks": [
+        {
+          "id": "blade-slide-shot",
+          "type": "image",
+          "field": "slideShot",
+          "prompt": "Screenshot of your finished slide in the class deck"
+        },
+        {
+          "id": "blade-slide-number",
+          "type": "text",
+          "field": "slideNo",
+          "prompt": "Your slide number in the class deck"
+        }
+      ],
+      "points": 30,
+      "audience": "team",
+      "criteria": [
+        {
+          "id": "slide-complete",
+          "text": "Every box on the slide is filled",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every box, photo in, tag gone",
+              "points": 15,
+              "descriptor": "Name, theme, team, roles, the three numbers, the tournament line and one change are all filled, a photo fills the frame, and the TEMPLATE tag is deleted."
+            },
+            {
+              "label": "Proficient",
+              "short": "One or two boxes left",
+              "points": 10,
+              "descriptor": "One or two boxes still show the template text, or there is no photo."
+            },
+            {
+              "label": "Developing",
+              "short": "Mostly template",
+              "points": 5,
+              "descriptor": "Most boxes still show the template text."
+            },
+            {
+              "label": "Absent",
+              "short": "No slide",
+              "points": 0,
+              "descriptor": "No screenshot of a slide."
+            }
+          ],
+          "points": 15
+        },
+        {
+          "id": "slide-true",
+          "text": "The numbers on the slide are the real ones",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Matches the scale and calipers",
+              "points": 10,
+              "descriptor": "Mass, height and across on the slide match Stage 1, and the tournament line matches Stage 2."
+            },
+            {
+              "label": "Proficient",
+              "short": "One number off",
+              "points": 6,
+              "descriptor": "One number does not match."
+            },
+            {
+              "label": "Developing",
+              "short": "Several off",
+              "points": 3,
+              "descriptor": "Two or more numbers do not match, or are still 000."
+            },
+            {
+              "label": "Absent",
+              "short": "No numbers",
+              "points": 0,
+              "descriptor": "The numbers were never filled in."
+            }
+          ],
+          "points": 10
+        },
+        {
+          "id": "slide-change",
+          "text": "One change next time, with a reason",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "A change and its reason",
+              "points": 5,
+              "descriptor": "One specific change to the design, and why."
+            },
+            {
+              "label": "Developing",
+              "short": "A change, no reason",
+              "points": 3,
+              "descriptor": "A change with no reason, or too general to build."
+            },
+            {
+              "label": "Absent",
+              "short": "No change",
+              "points": 0,
+              "descriptor": "The box is still the template text."
+            }
+          ],
+          "points": 5
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 3
+}

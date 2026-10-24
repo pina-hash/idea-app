@@ -1,0 +1,410 @@
+{
+  "kind": "html-assignment",
+  "title": "Shop Trophy: Portfolio Capture",
+  "course": "IDEA209H",
+  "header": [
+    {
+      "id": "cap-name",
+      "type": "text",
+      "field": "name",
+      "prompt": "Name"
+    },
+    {
+      "id": "cap-date",
+      "type": "text",
+      "field": "date",
+      "prompt": "Date"
+    },
+    {
+      "id": "cap-block",
+      "type": "text",
+      "field": "block",
+      "prompt": "Block"
+    }
+  ],
+  "points": 75,
+  "modules": [
+    {
+      "id": "pages",
+      "title": "Your notebook pages",
+      "blocks": [
+        {
+          "id": "cap-plan-base",
+          "type": "image",
+          "field": "page-plan-base",
+          "prompt": "Plan page: Base, H2D Laser"
+        },
+        {
+          "id": "cap-plan-column",
+          "type": "image",
+          "field": "page-plan-column",
+          "prompt": "Plan page: Column, Manual Mill"
+        },
+        {
+          "id": "cap-plan-platform",
+          "type": "image",
+          "field": "page-plan-platform",
+          "prompt": "Plan page: Platform, Axiom CNC Router"
+        },
+        {
+          "id": "cap-plan-shaft",
+          "type": "image",
+          "field": "page-plan-shaft",
+          "prompt": "Plan page: Shaft, Manual Lathe"
+        },
+        {
+          "id": "cap-plan-topper",
+          "type": "image",
+          "field": "page-plan-topper",
+          "prompt": "Plan page: Topper, xTool MetalFab"
+        },
+        {
+          "id": "cap-rec-base",
+          "type": "image",
+          "field": "page-rec-base",
+          "prompt": "Station record page: Base, H2D Laser"
+        },
+        {
+          "id": "cap-rec-column",
+          "type": "image",
+          "field": "page-rec-column",
+          "prompt": "Station record page: Column, Manual Mill"
+        },
+        {
+          "id": "cap-rec-platform",
+          "type": "image",
+          "field": "page-rec-platform",
+          "prompt": "Station record page: Platform, Axiom CNC Router"
+        },
+        {
+          "id": "cap-rec-shaft",
+          "type": "image",
+          "field": "page-rec-shaft",
+          "prompt": "Station record page: Shaft, Manual Lathe"
+        },
+        {
+          "id": "cap-rec-topper",
+          "type": "image",
+          "field": "page-rec-topper",
+          "prompt": "Station record page: Topper, xTool MetalFab"
+        },
+        {
+          "id": "cap-meas-1",
+          "type": "image",
+          "field": "page-meas-1",
+          "prompt": "Measuring page 1"
+        },
+        {
+          "id": "cap-meas-2",
+          "type": "image",
+          "field": "page-meas-2",
+          "prompt": "Measuring page 2",
+          "optional": true
+        },
+        {
+          "id": "cap-extra-1",
+          "type": "image",
+          "field": "page-extra-1",
+          "prompt": "Other notebook page 1",
+          "optional": true
+        },
+        {
+          "id": "cap-extra-2",
+          "type": "image",
+          "field": "page-extra-2",
+          "prompt": "Other notebook page 2",
+          "optional": true
+        },
+        {
+          "id": "cap-extra-3",
+          "type": "image",
+          "field": "page-extra-3",
+          "prompt": "Other notebook page 3",
+          "optional": true
+        }
+      ],
+      "points": 35,
+      "criteria": [
+        {
+          "id": "records-present",
+          "text": "Station records present, readable, identified",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "5 readable, machine and part",
+              "points": 6,
+              "descriptor": "All five station records uploaded, every one readable, and every one names its machine and its part."
+            },
+            {
+              "label": "Proficient",
+              "short": "5 records, one gap",
+              "points": 5,
+              "descriptor": "All five present with one hard to read, or one missing its machine or part."
+            },
+            {
+              "label": "Developing",
+              "short": "3 or 4 records",
+              "points": 2,
+              "descriptor": "Three or four station records present."
+            },
+            {
+              "label": "Absent",
+              "short": "2 or fewer",
+              "points": 0,
+              "descriptor": "Two station records or fewer."
+            }
+          ],
+          "points": 6
+        },
+        {
+          "id": "settings-tooling",
+          "text": "Settings and tooling as used",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 5 carry settings and tool",
+              "points": 15,
+              "descriptor": "All five records carry the settings actually used at that machine and name the tool or workholding used, in terms specific to that machine."
+            },
+            {
+              "label": "Proficient",
+              "short": "One gap in one record",
+              "points": 12,
+              "descriptor": "One of the two is missing from one record, or one record gives planned rather than used values."
+            },
+            {
+              "label": "Developing",
+              "short": "Gaps in 2 or 3",
+              "points": 6,
+              "descriptor": "One or both missing from two or three records, or those records name the operation only."
+            },
+            {
+              "label": "Absent",
+              "short": "Gaps in most",
+              "points": 0,
+              "descriptor": "Settings and tooling are absent from most records."
+            }
+          ],
+          "points": 15
+        },
+        {
+          "id": "what-happened",
+          "text": "What happened at the machine",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 5 record a real event",
+              "points": 14,
+              "descriptor": "All five records name something that actually happened at that machine: a problem, a mistake, a measurement that came out wrong, or something changed mid-cut."
+            },
+            {
+              "label": "Proficient",
+              "short": "4 record a real event",
+              "points": 11,
+              "descriptor": "Four records name a specific event; one is a general statement."
+            },
+            {
+              "label": "Developing",
+              "short": "2 or 3 record an event",
+              "points": 5,
+              "descriptor": "Two or three records name a specific event."
+            },
+            {
+              "label": "Absent",
+              "short": "0 or 1",
+              "points": 0,
+              "descriptor": "One record or none names anything that happened."
+            }
+          ],
+          "points": 14
+        }
+      ]
+    },
+    {
+      "id": "drawings",
+      "title": "Your five drawings",
+      "blocks": [
+        {
+          "id": "cap-draw-base",
+          "type": "image",
+          "field": "page-draw-base",
+          "prompt": "Drawing: Base, H2D Laser"
+        },
+        {
+          "id": "cap-draw-column",
+          "type": "image",
+          "field": "page-draw-column",
+          "prompt": "Drawing: Column, Manual Mill"
+        },
+        {
+          "id": "cap-draw-platform",
+          "type": "image",
+          "field": "page-draw-platform",
+          "prompt": "Drawing: Platform, Axiom CNC Router"
+        },
+        {
+          "id": "cap-draw-shaft",
+          "type": "image",
+          "field": "page-draw-shaft",
+          "prompt": "Drawing: Shaft, Manual Lathe"
+        },
+        {
+          "id": "cap-draw-topper",
+          "type": "image",
+          "field": "page-draw-topper",
+          "prompt": "Drawing: Topper, xTool MetalFab"
+        }
+      ],
+      "points": 25,
+      "criteria": [
+        {
+          "id": "drawings-present",
+          "text": "Drawings present and legible",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "5 legible drawings",
+              "points": 6,
+              "descriptor": "All five drawings uploaded and every one is legible."
+            },
+            {
+              "label": "Proficient",
+              "short": "5, one hard to read",
+              "points": 5,
+              "descriptor": "All five present with one hard to read."
+            },
+            {
+              "label": "Developing",
+              "short": "3 or 4 drawings",
+              "points": 2,
+              "descriptor": "Three or four drawings present."
+            },
+            {
+              "label": "Absent",
+              "short": "2 or fewer",
+              "points": 0,
+              "descriptor": "Two drawings or fewer."
+            }
+          ],
+          "points": 6
+        },
+        {
+          "id": "manufacturable",
+          "text": "Manufacturable from the drawing",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 5 fully dimensioned",
+              "points": 19,
+              "descriptor": "All five drawings carry every dimension and feature needed to make the part with no guessing, and the topper sketch marks its 2.5 inch limit and its center hole."
+            },
+            {
+              "label": "Proficient",
+              "short": "One gap in one drawing",
+              "points": 15,
+              "descriptor": "One dimension or feature missing from one drawing, or the topper sketch is missing one of its two constraint marks."
+            },
+            {
+              "label": "Developing",
+              "short": "Gaps in 2 or 3",
+              "points": 7,
+              "descriptor": "Dimensions or features missing from two or three drawings."
+            },
+            {
+              "label": "Absent",
+              "short": "Gaps in most",
+              "points": 0,
+              "descriptor": "Most drawings could not be used to make the part."
+            }
+          ],
+          "points": 19
+        }
+      ]
+    },
+    {
+      "id": "assembly",
+      "title": "Assemble the trophy",
+      "blocks": [
+        {
+          "id": "cap-trophy",
+          "type": "image",
+          "field": "trophy",
+          "prompt": "Photo of the assembled trophy"
+        },
+        {
+          "id": "cap-fit",
+          "type": "longText",
+          "field": "fit",
+          "prompt": "What did not fit, and why do you think it did not?",
+          "minSentences": 3
+        }
+      ],
+      "points": 15,
+      "criteria": [
+        {
+          "id": "assembled",
+          "text": "Assembled and photographed",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Assembled, standing, clear",
+              "points": 4,
+              "descriptor": "Photo shows the trophy assembled from all five parts and standing on its own."
+            },
+            {
+              "label": "Proficient",
+              "short": "Assembled, poor photo",
+              "points": 3,
+              "descriptor": "Trophy is assembled but the photo is unclear or does not show all five parts."
+            },
+            {
+              "label": "Developing",
+              "short": "Partly assembled",
+              "points": 1,
+              "descriptor": "Some parts assembled, or parts shown laid out rather than together."
+            },
+            {
+              "label": "Absent",
+              "short": "No photo",
+              "points": 0,
+              "descriptor": "No assembly photo uploaded."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "what-fit",
+          "text": "What fit and what did not",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Named part, feature, reason",
+              "points": 11,
+              "descriptor": "Names the specific part and feature that did not fit, or the tightest fit if all fit, and gives a reason tied to how it was made or measured."
+            },
+            {
+              "label": "Proficient",
+              "short": "Named, reason thin",
+              "points": 9,
+              "descriptor": "Names the part and feature but the reason is general."
+            },
+            {
+              "label": "Developing",
+              "short": "General statement",
+              "points": 4,
+              "descriptor": "Says something fit or did not without naming the part or feature."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing written",
+              "points": 0,
+              "descriptor": "No response."
+            }
+          ],
+          "points": 11
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 3
+}

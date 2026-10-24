@@ -1,0 +1,310 @@
+[
+  {
+    "id": "blade-team-team-set",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Team, role, name and theme set",
+        "points": 3,
+        "descriptor": "Team name, teammates, a role, the Blade's name and a theme are all filled in. A team of two has a Blade and Assembly person."
+      },
+      {
+        "label": "Developing",
+        "short": "One or two missing",
+        "points": 2,
+        "descriptor": "One or two of team name, teammates, role, Blade name or theme are missing."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing set",
+        "points": 0,
+        "descriptor": "None of them are filled in."
+      }
+    ],
+    "points": 3,
+    "criterion": "Your Team: Team, role, Blade name and theme are set",
+    "incomplete": false
+  },
+  {
+    "id": "blade-team-team-sketch",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both views, labeled, hitting edge",
+        "points": 8,
+        "descriptor": "A top view and a side view, every part labeled with how it is made (one new steel blade, printed parts, leftovers, hex, collar), the spin direction and the hitting edge marked, and the size written, plus a sentence on why that edge grips."
+      },
+      {
+        "label": "Proficient",
+        "short": "One thing missing",
+        "points": 6,
+        "descriptor": "One of these is missing: a view, the part labels, the hitting edge, the size or the sentence."
+      },
+      {
+        "label": "Developing",
+        "short": "A drawing, not a plan",
+        "points": 3,
+        "descriptor": "A drawing with no labels or sizes, or only one view."
+      },
+      {
+        "label": "Absent",
+        "short": "No sketch",
+        "points": 0,
+        "descriptor": "No sketch handed in."
+      }
+    ],
+    "points": 8,
+    "criterion": "Your Team: The team sketch is a plan someone could model from",
+    "incomplete": false
+  },
+  {
+    "id": "blade-team-team-targets",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All three set, all legal",
+        "points": 4,
+        "descriptor": "Across 5.00 in or less, full height 3.00 in or less, and collar 0.50 in or less, all filled in."
+      },
+      {
+        "label": "Proficient",
+        "short": "One target over or missing",
+        "points": 3,
+        "descriptor": "One target breaks a rule or is missing."
+      },
+      {
+        "label": "Developing",
+        "short": "Several broken or missing",
+        "points": 1,
+        "descriptor": "Two or more targets break a rule or are missing."
+      },
+      {
+        "label": "Absent",
+        "short": "No targets",
+        "points": 0,
+        "descriptor": "No targets."
+      }
+    ],
+    "points": 4,
+    "criterion": "Your Team: The size targets fit the rules",
+    "incomplete": false
+  },
+  {
+    "id": "blade-part-part-file",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Right file, opens, complete",
+        "points": 15,
+        "descriptor": "The part or assembly file for your role opens in SolidWorks and holds the finished model."
+      },
+      {
+        "label": "Proficient",
+        "short": "Opens, still unfinished",
+        "points": 10,
+        "descriptor": "The right file opens, but a feature is missing or broken."
+      },
+      {
+        "label": "Developing",
+        "short": "Wrong file or barely started",
+        "points": 5,
+        "descriptor": "A file for a different part, or a model barely started."
+      },
+      {
+        "label": "Absent",
+        "short": "No file",
+        "points": 0,
+        "descriptor": "No part file handed in."
+      }
+    ],
+    "points": 15,
+    "criterion": "Your Part: Your role's file is handed in and opens",
+    "incomplete": false
+  },
+  {
+    "id": "blade-part-part-ready",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Ready to make as is",
+        "points": 15,
+        "descriptor": "Blade: one closed outline at full size Mr. Pina can cut. Body: a sliced file that opens and prints the body. Assembly: every team part inserted and mated to the spin axis."
+      },
+      {
+        "label": "Proficient",
+        "short": "Ready after one small fix",
+        "points": 10,
+        "descriptor": "One small fix before it can be made: a stray line, a wrong setting, one part not mated."
+      },
+      {
+        "label": "Developing",
+        "short": "Handed in, not makeable",
+        "points": 5,
+        "descriptor": "Handed in, but it cannot be made or checked as it is."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing handed in",
+        "points": 0,
+        "descriptor": "No DXF, sliced file or mates screenshot."
+      }
+    ],
+    "points": 15,
+    "criterion": "Your Part: What gets made is ready to make",
+    "incomplete": false
+  },
+  {
+    "id": "blade-part-part-shot",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Whole part, readable",
+        "points": 5,
+        "descriptor": "The screenshot shows the whole part or assembly, clear enough to read."
+      },
+      {
+        "label": "Developing",
+        "short": "Cut off or unreadable",
+        "points": 3,
+        "descriptor": "Part of it is off screen or too small to read."
+      },
+      {
+        "label": "Absent",
+        "short": "No screenshot",
+        "points": 0,
+        "descriptor": "No screenshot."
+      }
+    ],
+    "points": 5,
+    "criterion": "Your Part: The screenshot shows the part",
+    "incomplete": false
+  },
+  {
+    "id": "blade-part-part-numbers",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Mass and a change, both numbered",
+        "points": 10,
+        "descriptor": "A mass in grams from the right source, and one change named with the number before and after."
+      },
+      {
+        "label": "Proficient",
+        "short": "One of the two",
+        "points": 6,
+        "descriptor": "The mass or the change, not both, or a change with no number."
+      },
+      {
+        "label": "Developing",
+        "short": "Vague",
+        "points": 3,
+        "descriptor": "A guess for the mass and a change with nothing specific in it."
+      },
+      {
+        "label": "Absent",
+        "short": "Neither",
+        "points": 0,
+        "descriptor": "No mass and no change."
+      }
+    ],
+    "points": 10,
+    "criterion": "Your Part: Your mass and one change, with numbers",
+    "incomplete": false
+  },
+  {
+    "id": "blade-stack-stack-built",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Whole Blade, every part in",
+        "points": 10,
+        "descriptor": "The screenshot shows the body, the blades, the hex and the collar together in one assembly."
+      },
+      {
+        "label": "Proficient",
+        "short": "One part missing",
+        "points": 6,
+        "descriptor": "One part is missing from the assembly."
+      },
+      {
+        "label": "Developing",
+        "short": "Barely assembled",
+        "points": 3,
+        "descriptor": "Only one or two parts in the assembly."
+      },
+      {
+        "label": "Absent",
+        "short": "No assembly",
+        "points": 0,
+        "descriptor": "No screenshot of an assembly."
+      }
+    ],
+    "points": 10,
+    "criterion": "The Stack: Your whole Blade is assembled",
+    "incomplete": false
+  },
+  {
+    "id": "blade-stack-stack-numbers",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All seven measured, read right",
+        "points": 20,
+        "descriptor": "Across, height, collar, bare hex and the three masses are all filled in and match the assembly. A number over a rule still earns this."
+      },
+      {
+        "label": "Proficient",
+        "short": "One missing or misread",
+        "points": 14,
+        "descriptor": "One number is missing or does not match the assembly."
+      },
+      {
+        "label": "Developing",
+        "short": "Several missing or guessed",
+        "points": 7,
+        "descriptor": "Two or more are missing, or they were clearly guessed."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing measured",
+        "points": 0,
+        "descriptor": "No numbers."
+      }
+    ],
+    "points": 20,
+    "criterion": "The Stack: The stack is measured off the assembly",
+    "incomplete": false
+  },
+  {
+    "id": "blade-stack-stack-fix",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Problem and fix, with a number",
+        "points": 10,
+        "descriptor": "Names what was off, what was changed and a number, or the number worried about most and what it came out to."
+      },
+      {
+        "label": "Proficient",
+        "short": "Problem named, fix vague",
+        "points": 6,
+        "descriptor": "Names what was off but not what was done about it."
+      },
+      {
+        "label": "Developing",
+        "short": "Says nothing specific",
+        "points": 3,
+        "descriptor": "A sentence with no part and no number in it."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 10,
+    "criterion": "The Stack: What did not fit, and the fix",
+    "incomplete": false
+  }
+]
