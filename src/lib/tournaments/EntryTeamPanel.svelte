@@ -104,6 +104,18 @@
 	const isCaptainRow = (m: TournamentEntryMember) =>
 		entry.user_id !== null && m.user_id === entry.user_id;
 	const mayAct = (m: TournamentEntryMember) => overAll || (viewerId !== null && m.user_id === viewerId);
+	/**
+	 * Remove reaches one row more than the other controls (0295, report
+	 * 919e2a21): a member may take a NO-ACCOUNT name off their own entry, since
+	 * that row is a name somebody typed and nobody's account. Rename stays on
+	 * `mayAct`, which is the server's rename rule.
+	 */
+	const mayRemove = (m: TournamentEntryMember) => mayAct(m) || (viewerIsMember && m.user_id === null);
+	/** A team of more than one is a TEAM in every word the panel says. */
+	const noun = $derived(teamSize > 1 ? 'team' : 'entry');
+	/** The add form refuses the team's own name before the server has to. */
+	const isTeamName = (name: string) =>
+		cleanName(name).toLowerCase() === cleanName(entry.display_name).toLowerCase();
 
 	/** Why a row carries no Remove, or null when it may. */
 	function removeBlocker(m: TournamentEntryMember): string | null {
@@ -163,7 +175,7 @@
 	function submitAdd(e: SubmitEvent) {
 		e.preventDefault();
 		const n = cleanName(addName);
-		if (!n || busy) return;
+		if (!n || busy || isTeamName(n)) return;
 		// A non-manager has no email field, so nothing typed can reach the
 		// server's refusal; the null is the name-only shape the RPC accepts.
 		const email = manager ? addEmail.trim() : '';
@@ -180,7 +192,7 @@
 		{#if renaming}
 			<form class="inline" onsubmit={submitRename} data-form="rename-entry">
 				<label class="field">
-					<span class="f-label">Entry name</span>
+					<span class="f-label">{noun === 'team' ? 'Team name' : 'Entry name'}</span>
 					<input type="text" maxlength="40" required bind:value={entryName} />
 				</label>
 				<div class="tnm-actions">
@@ -192,7 +204,7 @@
 			<p class="name">{entry.display_name}</p>
 			{#if onrename && !locked}
 				<button type="button" class="btn secondary" onclick={openRename} data-action="rename-entry">
-					Rename
+					{noun === 'team' ? 'Rename team' : 'Rename entry'}
 				</button>
 			{:else if onrename && locked}
 				<!-- The absent control says why (CLAUDE.md): the server's one
@@ -255,7 +267,7 @@
 								Rename
 							</button>
 						{/if}
-						{#if onremovemember && inWindow && mayAct(m)}
+						{#if onremovemember && inWindow && mayRemove(m)}
 							{#if blocker}
 								<span class="why">{blocker}</span>
 							{:else}
@@ -281,6 +293,7 @@
 		{:else}
 			<form class="add" onsubmit={submitAdd} data-form="add-member">
 				<p class="tnm-label add-label">Add a teammate</p>
+				<p class="join-note">A person on the roster, not the {noun} name.</p>
 				<div class="add-fields">
 					<label class="field">
 						<span class="f-label">Name on the roster</span>
@@ -293,6 +306,11 @@
 						</label>
 					{/if}
 				</div>
+				{#if hasVisibleText(addName) && isTeamName(addName)}
+					<p class="error" role="alert" data-testid="entry-add-team-name">
+						That is the {noun}'s name, not a teammate. Use Rename {noun} above to change it.
+					</p>
+				{/if}
 				{#if !manager}
 					<!-- The consent path, said in words where the field would have
 					     been: the server refuses a captain's add-by-account, and a
@@ -302,7 +320,12 @@
 					</p>
 				{/if}
 				<div class="tnm-actions">
-					<button type="submit" class="btn" disabled={busy || !hasVisibleText(addName)} data-action="add-member">
+					<button
+						type="submit"
+						class="btn"
+						disabled={busy || !hasVisibleText(addName) || isTeamName(addName)}
+						data-action="add-member"
+					>
 						Add teammate
 					</button>
 				</div>
