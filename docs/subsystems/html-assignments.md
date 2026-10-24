@@ -316,7 +316,7 @@ item and re-uploads over one.
 ### LEDGER 0431: A COPY CARRIES ITS DOCUMENT, THE REPO CARRIES EVERY DOCUMENT, AND AN OPEN WORKSHEET HEARS A CLOSE
 
 **A DUPLICATE COPIES THE WORK SURFACE, IN SQL, AND THE CONNECTOR GETS IT FOR
-FREE.** `classroom_duplicate_item` (0193's body, re-run by 0295) now calls
+FREE.** `classroom_duplicate_item` (0193's body, re-run by 0298) now calls
 `_classroom_duplicate_work_surface`, which copies the `classroom_html_assignments`
 row (document, manifest, filename, `show_title`) under a NEW `document_id` and
 sets `assignment_schema_version` 3 in the same transaction, or the IdeaCAD
@@ -349,7 +349,7 @@ safe to run again.
 
 **AN OPEN WORKSHEET HEARS A CLOSE THREE WAYS, ALL READING THE STUDENT'S OWN
 ROW, AND NONE IS A NEW POLL.** The item page's call budget is spent
-(`tests/classroom-poll.test.ts`), so: 0295 gives `classroom_presence_ping` a
+(`tests/classroom-poll.test.ts`), so: 0298 gives `classroom_presence_ping` a
 `lock` key (the caller's `state` and `submitted_at`), read by `presenceLockOf`;
 the grading page announces the payload-free `lock` topic after a close or reopen
 lands, and a student's page re-reads its row within `LOCK_NOTICE_JITTER_MS`; and

@@ -1,8 +1,8 @@
 ---
-title: "Ledger 0431: HTML assignments -- a duplicate keeps its document, every document exports to the repo with a one-time backfill, closing flips an open worksheet live, full page, and Answers left as a list that jumps (migration 0295)"
+title: "Ledger 0431: HTML assignments -- a duplicate keeps its document, every document exports to the repo with a one-time backfill, closing flips an open worksheet live, full page, and Answers left as a list that jumps (migration 0298)"
 date: 2026-10-23
 branches: [main]
-migrations: ["0295"]
+migrations: ["0298"]
 subsystems: [Classroom, HTML assignments, Connector]
 ---
 
@@ -29,7 +29,7 @@ SELECT for duplicates already left empty.
 
 ### Built
 
-- 0295: `_classroom_duplicate_work_surface` (new, first object, private) and
+- 0298: `_classroom_duplicate_work_surface` (new, first object, private) and
   0193's duplicate body verbatim plus one call; 0238's ping body verbatim plus a
   `lock` key. Signatures unchanged, so no deploy ordering.
 - Export: `readExportSubject` shared by the per-save export and

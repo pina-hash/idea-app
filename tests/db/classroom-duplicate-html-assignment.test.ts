@@ -1,12 +1,12 @@
 // tests/db/classroom-duplicate-html-assignment.test.ts
 //
-// MIGRATION 0295 (ledger 0431): a duplicated HTML assignment carries its
+// MIGRATION 0298 (ledger 0431): a duplicated HTML assignment carries its
 // document, and the item page's heartbeat answers the caller's own lock.
 //
-// The chain is every migration before 0295, read off disk behind the fixture
+// The chain is every migration before 0298, read off disk behind the fixture
 // completion (what production holds before the apply). Everything is seeded
-// through the REAL pre-0295 RPCs, the deployed duplicate is measured FIRST
-// (it drops the document), then 0295 goes on top and the same calls run again.
+// through the REAL pre-0298 RPCs, the deployed duplicate is measured FIRST
+// (it drops the document), then 0298 goes on top and the same calls run again.
 //
 // What a wrong answer here would look like, and why each is silent:
 //   - THE COPY HAS NO DOCUMENT. It reads as a plain assignment with a rubric;

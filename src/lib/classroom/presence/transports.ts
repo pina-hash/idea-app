@@ -82,7 +82,7 @@ export function createPresenceBeatTransport(
 	itemId: string,
 	onFeedbackAt: ((at: string | null) => void) | null = null,
 	/**
-	 * THE STUDENT'S LOCK FLOOR (ledger 0431): since 0295 the same beat answers
+	 * THE STUDENT'S LOCK FLOOR (ledger 0431): since 0298 the same beat answers
 	 * the caller's own submission state on the item (`lock`, absent before), so
 	 * an assignment closed while the worksheet is open goes read-only by the
 	 * next beat with no new poll. Called only when the key is present.

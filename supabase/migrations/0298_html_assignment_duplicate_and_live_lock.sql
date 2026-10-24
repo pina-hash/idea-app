@@ -1,4 +1,4 @@
--- 0295_html_assignment_duplicate_and_live_lock.sql
+-- 0298_html_assignment_duplicate_and_live_lock.sql
 --
 -- TWO FIXES FOR PORTED HTML ASSIGNMENTS (ledger 0431, feedback round
 -- 2026-10-23, items 2954e260 and 9f746072).
@@ -55,17 +55,17 @@
 do $pre$
 begin
 	if to_regclass('public.classroom_html_assignments') is null then
-		raise exception '0295 cannot apply: classroom_html_assignments does not exist. Apply 0195 first.';
+		raise exception '0298 cannot apply: classroom_html_assignments does not exist. Apply 0195 first.';
 	end if;
 	if to_regclass('public.ideacad_editors') is null then
-		raise exception '0295 cannot apply: ideacad_editors does not exist. Apply 0201 first.';
+		raise exception '0298 cannot apply: ideacad_editors does not exist. Apply 0201 first.';
 	end if;
 	if not exists (select 1 from information_schema.columns
 		where table_schema = 'public' and table_name = 'classroom_html_assignments' and column_name = 'show_title') then
-		raise exception '0295 cannot apply: classroom_html_assignments.show_title does not exist. Apply 0284 first.';
+		raise exception '0298 cannot apply: classroom_html_assignments.show_title does not exist. Apply 0284 first.';
 	end if;
 	if to_regclass('public.classroom_feedback_threads') is null then
-		raise exception '0295 cannot apply: classroom_feedback_threads does not exist. Apply 0238 first.';
+		raise exception '0298 cannot apply: classroom_feedback_threads does not exist. Apply 0238 first.';
 	end if;
 end
 $pre$;
@@ -374,22 +374,22 @@ declare
 	v_versioned integer;
 begin
 	if position('_classroom_duplicate_work_surface' in v_dup) = 0 then
-		raise exception '0295: classroom_duplicate_item does not call the work surface copy.';
+		raise exception '0298: classroom_duplicate_item does not call the work surface copy.';
 	end if;
 	if position('''lock''' in v_ping) = 0 or position('feedback_at' in v_ping) = 0 then
-		raise exception '0295: classroom_presence_ping lost a key.';
+		raise exception '0298: classroom_presence_ping lost a key.';
 	end if;
 	if has_function_privilege('anon', 'public._classroom_duplicate_work_surface(uuid, uuid)', 'execute')
 		or has_function_privilege('authenticated', 'public._classroom_duplicate_work_surface(uuid, uuid)', 'execute') then
-		raise exception '0295: the private copy helper is callable by a client role.';
+		raise exception '0298: the private copy helper is callable by a client role.';
 	end if;
 	if has_function_privilege('anon', 'public.classroom_duplicate_item(uuid, uuid[])', 'execute')
 		or not has_function_privilege('authenticated', 'public.classroom_duplicate_item(uuid, uuid[])', 'execute') then
-		raise exception '0295: classroom_duplicate_item grants are wrong.';
+		raise exception '0298: classroom_duplicate_item grants are wrong.';
 	end if;
 	if has_function_privilege('anon', 'public.classroom_presence_ping(uuid, boolean, boolean)', 'execute')
 		or not has_function_privilege('authenticated', 'public.classroom_presence_ping(uuid, boolean, boolean)', 'execute') then
-		raise exception '0295: classroom_presence_ping grants are wrong.';
+		raise exception '0298: classroom_presence_ping grants are wrong.';
 	end if;
 
 	-- THE COUNT AN OPERATOR CAN CHECK: HTML assignments with a document, and
@@ -399,6 +399,6 @@ begin
 	-- here repairs one.
 	select count(*) into v_html from public.classroom_html_assignments;
 	select count(*) into v_versioned from public.classroom_items where assignment_schema_version = 3;
-	raise notice '0295: % HTML documents, % items marked as HTML assignments.', v_html, v_versioned;
+	raise notice '0298: % HTML documents, % items marked as HTML assignments.', v_html, v_versioned;
 end
 $z$;

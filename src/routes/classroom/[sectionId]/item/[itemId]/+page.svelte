@@ -499,7 +499,7 @@
 	 * student has it open used to leave the worksheet editable while every save
 	 * was refused. Three things now move it, all reading the student's OWN row:
 	 *
-	 *   1. the heartbeat the page already sends answers the row (0295's `lock`
+	 *   1. the heartbeat the page already sends answers the row (0298's `lock`
 	 *      key), so no new poll: a close made anywhere, the connector included,
 	 *      lands by the next beat;
 	 *   2. the class's live notice (`lock`), announced by the grading page when
