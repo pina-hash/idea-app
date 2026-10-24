@@ -212,7 +212,6 @@ export const APP_TOUR_WORDS: Readonly<Record<string, HomeTourWords>> = {
 			'Web apps your students built and published. Open one to play it; each published app has a link you can share.'
 	},
 	tournaments: 'Live double-elimination brackets: register a team and follow every match as it is played.',
-	'coin-desk': 'Where staff log fines, awards and purchases. It is the only tool that changes a coin balance.',
 	dashboard:
 		'The control desk: review queues, reports from every page, the admin roster, short links and the Drive connection.'
 };

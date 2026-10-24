@@ -50,12 +50,16 @@ describe('judging one saved request', () => {
 });
 
 describe('the saved requests ledger 0432 added pass the route check', () => {
-	const SQL = readFileSync(fileURLToPath(new URL('../supabase/migrations/' + readdirSync(fileURLToPath(new URL('../supabase/migrations', import.meta.url))).find((f) => /_coin_voice_aliases\.sql$/.test(f)), import.meta.url)), 'utf8');
+	const DIR = fileURLToPath(new URL('../supabase/migrations', import.meta.url));
+	const SQL = readdirSync(DIR)
+		.filter((f) => /_(coin_voice_aliases|feedback_bulk_spam_rewards)\.sql$/.test(f))
+		.map((f) => readFileSync(`${DIR}/${f}`, 'utf8'))
+		.join('\n');
 	const lines = [...SQL.matchAll(/\(\d+, '((?:[^']|'')+)', '(?:read|undo|refuse|confirm)', '(?:[^']|'')*', '(?:[^']|'')*', '(?:[^']|'')*', array\[([^\]]*)\]::text\[\]\)/g)].map((m) => ({
 		said: m[1].replace(/''/g, "'"),
 		path: m[2].split(',').map((x) => x.trim().replace(/^'|'$/g, ''))
 	}));
-	it('reads all twelve from the migration', () => {
+	it('reads all twelve from the two migrations', () => {
 		expect(lines).toHaveLength(12);
 	});
 	for (const l of lines) {

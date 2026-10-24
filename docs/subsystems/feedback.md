@@ -278,7 +278,7 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The report af
     else, a queued field included, and a `DictateButton` whose field unmounts
     stops its own session.
 - **THE REPORT BOX AGAINST SPAM, AND WHAT A REPORT CAN EARN (ledger 0432,
-  migration 0297).** `_app_feedback_spam_guard`, a trigger before insert on
+  migration 0298).** `_app_feedback_spam_guard`, a trigger before insert on
   `app_feedback`, serves both write paths. It refuses a fifth report from one
   account or address inside two minutes, or a sixteenth inside an hour
   (`_feedback_rate_rules`), with `feedback_slow_down`, which
@@ -303,5 +303,5 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The report af
     by the report box for a signed-in student.
   - **A SELECTION MOVES IN ONE CALL.** All three consoles take a
     `setStatusMany` (`$lib/feedback/bulk.ts`, the `*_set_status_many`
-    functions), falling back to one call per row on a database without 0297.
+    functions), falling back to one call per row on a database without 0298.
 

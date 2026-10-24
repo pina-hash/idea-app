@@ -696,7 +696,7 @@ describe('every preferences writer goes through the one write path', () => {
 			'src/lib/AppLauncher.svelte': /writeProfileNamespace\([\s\S]{0,160}?'homepage'/,
 			'src/routes/+page.svelte': /writeProfileNamespace\([\s\S]{0,160}?'classroomFeed'/,
 			'src/routes/classroom/[sectionId]/+layout.svelte': /writeProfileNamespace\([\s\S]{0,160}?'classroomUnits'/,
-			'src/routes/coin-desk/+page.svelte': /writeProfileNamespace\([\s\S]{0,160}?'coinDesk'/,
+			'src/routes/coin/(staff)/log/+page.svelte': /writeProfileNamespace\([\s\S]{0,160}?'coinDesk'/,
 			'src/routes/dashboard/+page.svelte': /updateProfilePreferences\(/
 		};
 		for (const [file, call] of Object.entries(writers)) {

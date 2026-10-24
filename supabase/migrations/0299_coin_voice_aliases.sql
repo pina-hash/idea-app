@@ -1,4 +1,4 @@
--- 0298_coin_voice_aliases.sql
+-- 0299_coin_voice_aliases.sql
 --
 -- VOICE TO ACTION FOR IDEA COINS (ledger 0432, feedback fba5bfcd). Mr. Pina
 -- logs coins by voice through Haiku on his phone, in his own words with a
@@ -34,8 +34,9 @@
 --     list, for a full coin admin. Promote makes the phrase an official flat
 --     category at its default amount and points the phrase at it.
 --
---   * Twelve saved requests for the new connector tools (connector_evals),
---     so the nightly replay checks their routes.
+--   * Nine saved requests for the new connector tools (connector_evals), so
+--     the nightly replay checks their routes; the three about the Armory
+--     lists are 0298's, beside the Armory functions they use.
 --
 -- ADDITIVE, NO ORDERING. IDEMPOTENT: if not exists, create or replace, and
 -- every seed is "on conflict do nothing", inside do blocks.
@@ -47,7 +48,7 @@ do $pre$
 begin
 	if to_regprocedure('public.coin_log_transaction(text, text, numeric, numeric, text)') is null
 		or to_regprocedure('public._coin_full_staff()') is null or to_regprocedure('public._coin_staff()') is null then
-		raise exception '0298 cannot apply: coin_log_transaction or the coin staff gates are missing. Apply 0244 and 0251 first.';
+		raise exception '0299 cannot apply: coin_log_transaction or the coin staff gates are missing. Apply 0244 and 0251 first.';
 	end if;
 end
 $pre$;
@@ -113,7 +114,7 @@ begin
 	where c.active and c.loggable and c.kind in ('award', 'fine', 'purchase') and c.pricing_model <> 'formula'
 	on conflict (phrase, kind) do nothing;
 	get diagnostics v_seeded = row_count;
-	raise notice '0298: % custom categories added, % everyday phrases seeded (amounts left to the categories)', v_custom, v_seeded;
+	raise notice '0299: % custom categories added, % everyday phrases seeded (amounts left to the categories)', v_custom, v_seeded;
 end
 $seed$;
 
@@ -322,7 +323,7 @@ declare
 	v_n integer;
 begin
 	if to_regclass('public.connector_evals') is null or to_regprocedure('public._connector_said_norm(text)') is null then
-		raise notice '0298: no saved request list on this database; none added';
+		raise notice '0299: no saved request list on this database; none added';
 		return;
 	end if;
 	insert into public.connector_evals (seq, said, said_norm, level, must_happen, proof, proof_query, expected_path, source, created_by)
@@ -334,16 +335,13 @@ begin
 		(4, 'Give Mateo coins for fixing the bandsaw guard', 'refuse', 'Asks how many coins; writes nothing', 'No coin_transactions row and no phrase before he answers', 'select count(*) from public.coin_transactions where note = ''fixing the bandsaw guard''', array['coin_transact']::text[]),
 		(5, 'Leo bought an eating pass', 'undo', 'One Eating Pass purchase at its listed price', 'coin_transactions eating_pass row for Leo', 'select amount from public.coin_transactions where category_id = ''eating_pass'' order by created_at desc limit 1', array['coin_transact']::text[]),
 		(6, 'Mark those 22 reports as spam', 'undo', 'One call moves every named report to spam, with one undo', 'app_feedback status spam for exactly those ids; one connector_audit row', 'select status, count(*) from public.app_feedback where reviewed_at > now() - interval ''1 hour'' group by status', array['list_site_feedback', 'mark_feedback']::text[]),
-		(7, 'Resolve every new Armory incident from version 0.3.3', 'undo', 'One call resolves every new incident from 0.3.3 and no other', 'armory_app_incidents status resolved for exactly those', 'select status, count(*) from public.armory_app_incidents where app_version = ''0.3.3'' group by status', array['mark_feedback']::text[]),
-		(8, 'Any new Armory incidents?', 'read', 'The open incidents with counts by status and version', 'Matches armory_app_incidents_admin_list', 'select status, count(*) from public.armory_app_incidents group by status', array['list_armory_reports']::text[]),
-		(9, 'Read the newest Armory slow pass report', 'read', 'The whole report, events, phase timings and log lines', 'Matches the report JSON of that incident', 'select report from public.armory_app_incidents where kind = ''slowPass'' order by created_at desc limit 1', array['list_armory_reports', 'read_armory_incident']::text[]),
-		(10, 'Show me the Block 2 roster', 'read', 'The roster, first and last names', 'Matches classroom_section_roster', 'select e.display_name from public.classroom_enrollments e join public.classroom_sections s on s.id = e.section_id where s.label = ''Block 2'' and e.active order by 1', array['class_roster']::text[]),
-		(11, 'What can''t the connector do yet?', 'read', 'The open gaps', 'Matches connector_gaps with status open', 'select said, missing from public.connector_gaps where status = ''open'' order by created_at desc', array['list_gaps']::text[]),
-		(12, 'Who should I fine for feedback spam?', 'read', 'The ready fines with their evidence; nothing is fined', 'No coin_transactions row', 'select count(*) from public.coin_transactions where category_id = ''feedback_spam'' and created_at > now() - interval ''1 hour''', array['site_call:app_feedback_spam_review']::text[])
+		(7, 'Show me the Block 2 roster', 'read', 'The roster, first and last names', 'Matches classroom_section_roster', 'select e.display_name from public.classroom_enrollments e join public.classroom_sections s on s.id = e.section_id where s.label = ''Block 2'' and e.active order by 1', array['class_roster']::text[]),
+		(8, 'What can''t the connector do yet?', 'read', 'The open gaps', 'Matches connector_gaps with status open', 'select said, missing from public.connector_gaps where status = ''open'' order by created_at desc', array['list_gaps']::text[]),
+		(9, 'Who should I fine for feedback spam?', 'read', 'The ready fines with their evidence; nothing is fined', 'No coin_transactions row', 'select count(*) from public.coin_transactions where category_id = ''feedback_spam'' and created_at > now() - interval ''1 hour''', array['site_call:app_feedback_spam_review']::text[])
 	) as v(n, said, level, must, proof, q, path)
 	on conflict (said_norm) do nothing;
 	get diagnostics v_n = row_count;
-	raise notice '0298: % saved requests added for the new tools', v_n;
+	raise notice '0299: % saved requests added for the new tools', v_n;
 end
 $evals$;
 
@@ -356,14 +354,14 @@ begin
 		'public.coin_alias_delete(uuid)']
 	loop
 		if has_function_privilege('anon', f, 'execute') then
-			raise exception '0298 self-check failed: % is executable by anon.', f;
+			raise exception '0299 self-check failed: % is executable by anon.', f;
 		end if;
 	end loop;
 	if has_function_privilege('authenticated', 'public._coin_phrase(text)', 'execute') then
-		raise exception '0298 self-check failed: the phrase helper is executable by a client.';
+		raise exception '0299 self-check failed: the phrase helper is executable by a client.';
 	end if;
 	if has_table_privilege('authenticated', 'public.coin_phrase_aliases', 'select') then
-		raise exception '0298 self-check failed: the phrase table is readable by a client.';
+		raise exception '0299 self-check failed: the phrase table is readable by a client.';
 	end if;
 end
 $post$;

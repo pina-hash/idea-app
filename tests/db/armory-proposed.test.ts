@@ -21,7 +21,8 @@
 //     server tests say (LockTests / SameParentCommitRace).
 //   - THE CONNECT CODES belong to service_role alone.
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -95,6 +96,12 @@ afterAll(async () => {
 	await db?.stop();
 });
 
+// Ledger 0432's feedback migration moves many Armory notes and incidents at
+// once and reads one incident whole, beside the same for the site's reports:
+// it is the third file allowed to name the Armory tables. Found by name, so a renumber at
+// landing keeps it.
+const ARMORY_BULK = readdirSync(fileURLToPath(new URL('../../supabase/migrations', import.meta.url))).find((f) => /_feedback_bulk_spam_rewards\.sql$/.test(f))!;
+
 describe('the Armory schema is the Armory series (0231 to 0236, 0273, 0274 and 0293) and nothing else names it', () => {
 	test('0231_armory.sql exists in supabase/migrations', () => {
 		expect(PROPOSED_NAME).toBe('0231_armory.sql');
@@ -111,7 +118,9 @@ describe('the Armory schema is the Armory series (0231 to 0236, 0273, 0274 and 0
 		// 0287 counts rows in two Armory tables to price the Armory stock, and
 		// 0290's connector_lookup finds an Armory project by its name (ledger
 		// 0422): the two other readers, and neither writes an Armory table.
-		const READERS = ['0287_coin_stock_areas.sql', '0290_connector_gaps.sql'];
+		// Ledger 0432's feedback migration (ARMORY_BULK) sets the status of many
+		// Armory notes and incidents at once and reads one incident whole.
+		const READERS = ['0287_coin_stock_areas.sql', '0290_connector_gaps.sql', ARMORY_BULK];
 		const others = ALL_MIGRATIONS.filter((f) => !ARMORY_MIGRATIONS.includes(f) && !READERS.includes(f));
 		const named = others.filter((f) => /armory/i.test(f));
 		const mentioning = others.filter((f) => /armory_/i.test(readFileSync(join(MIGRATIONS_DIR, f), 'utf8')));

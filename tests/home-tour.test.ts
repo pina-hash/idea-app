@@ -186,7 +186,7 @@ describe('the staff tour is never a student\'s', () => {
 	it('a student is never shown a staff-only card, and an admin is (both directions)', () => {
 		const adminOnly = PORTAL_APPS.filter((a) => a.adminOnly).map((a) => `app-${a.id}`);
 		// Positive control: there ARE admin-only cards for the student tour to leave out.
-		expect(adminOnly).toEqual(expect.arrayContaining(['app-coin-desk', 'app-dashboard']));
+		expect(adminOnly).toEqual(expect.arrayContaining(['app-dashboard']));
 		const student = homeTourDefs('student', false).map((d) => d.id);
 		for (const id of adminOnly) expect(student).not.toContain(id);
 		const admin = homeTourDefs('teacher', true).map((d) => d.id);
