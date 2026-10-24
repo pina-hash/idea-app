@@ -1,0 +1,580 @@
+[
+  {
+    "id": "h3-v2-file",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "New file, named, rebuilds clean",
+        "points": 5,
+        "descriptor": "Every V2 part file is handed in, named V2_ (or V2A_, V2B_, V2C_) with the student's last name, opens, differs from V1 where the student says it does, and shows no red or yellow marks in the tree."
+      },
+      {
+        "label": "Proficient",
+        "short": "V2, tree marks or name",
+        "points": 3,
+        "descriptor": "A real V2 that opens, but the tree carries red or yellow marks, or a name does not follow the pattern."
+      },
+      {
+        "label": "Developing",
+        "short": "Renamed V1, nothing changed",
+        "points": 1,
+        "descriptor": "The file is V1 under a new name, or a piece of a multi-part hook is missing."
+      },
+      {
+        "label": "Absent",
+        "short": "No part file",
+        "points": 0,
+        "descriptor": "No V2 part file handed in."
+      }
+    ],
+    "points": 5,
+    "criterion": "V2: V2 is its own part file, named, and rebuilds; V1 is left as it was",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v2-shot",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Change highlighted, tree readable",
+        "points": 2,
+        "descriptor": "The whole SolidWorks window with the changed feature or face selected, so it shows highlighted, and a readable tree."
+      },
+      {
+        "label": "Developing",
+        "short": "Part only, nothing selected",
+        "points": 1,
+        "descriptor": "V2 shows, but nothing is selected, or the tree is cropped."
+      },
+      {
+        "label": "Absent",
+        "short": "No screenshot",
+        "points": 0,
+        "descriptor": "No screenshot uploaded."
+      }
+    ],
+    "points": 2,
+    "criterion": "V2: The screenshot shows V2 with the changed feature selected",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v2-dims",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All measured, all legal",
+        "points": 4,
+        "descriptor": "Every row measured on V2, every row inside its rule or carrying a fix, and the full-size weight read off the slicer at 50.0 g or under."
+      },
+      {
+        "label": "Proficient",
+        "short": "One row or weight missing",
+        "points": 3,
+        "descriptor": "One row unmeasured, one miss without a fix, or no weight, or the weight is over 50.0 g with no plan."
+      },
+      {
+        "label": "Developing",
+        "short": "Rules copied, not measured",
+        "points": 2,
+        "descriptor": "The numbers repeat the rules rather than V2, or two or more rows are missing."
+      },
+      {
+        "label": "Absent",
+        "short": "Table empty",
+        "points": 0,
+        "descriptor": "Nothing measured."
+      }
+    ],
+    "points": 4,
+    "criterion": "V2: Every dimension and the full-size weight are measured on V2",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v2-where",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "At the break, named, sized",
+        "points": 5,
+        "descriptor": "Where Test 1 broke is picked, and the change is at that place, named on the part, with the size it changed by."
+      },
+      {
+        "label": "Proficient",
+        "short": "At the break, not sized",
+        "points": 3,
+        "descriptor": "The change is at the break, but how much it changed is missing."
+      },
+      {
+        "label": "Developing",
+        "short": "Changed somewhere else",
+        "points": 1,
+        "descriptor": "A change was made, but not where Test 1 broke, and no reason is given."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 5,
+    "criterion": "V2: The change is at the place Test 1 broke, and says so",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v2-why",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Reason and expected effect",
+        "points": 2,
+        "descriptor": "A reason the change helps at that spot, and what should happen at the next pull."
+      },
+      {
+        "label": "Developing",
+        "short": "Hope, no reason",
+        "points": 1,
+        "descriptor": "Says it will be stronger without saying why."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 2,
+    "criterion": "V2: Says what the change should do to the break",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v2-cost",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Cost picked and explained",
+        "points": 2,
+        "descriptor": "Picks what it cost and says where the grams came from, or why it cost nothing."
+      },
+      {
+        "label": "Developing",
+        "short": "Picked, not explained",
+        "points": 1,
+        "descriptor": "Picks a cost without saying where from or why."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "Nothing picked or written."
+      }
+    ],
+    "points": 2,
+    "criterion": "V2: Accounts for what the change cost in weight",
+    "incomplete": false
+  },
+  {
+    "id": "h3-sim-setup",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Splits, fixture, 400 lbf down",
+        "points": 6,
+        "descriptor": "Both screenshots show a small split face in the top loop and one in the bowl, the fixture on the top split face only, and the load on the bowl split face only, Normal, pointing down, reading 400 lbf."
+      },
+      {
+        "label": "Proficient",
+        "short": "One setup detail off",
+        "points": 4,
+        "descriptor": "Set up and run, with one thing off: a fixture or load on a whole face instead of the split face, units in N, or the load arrows pointing up."
+      },
+      {
+        "label": "Developing",
+        "short": "Several setup details off",
+        "points": 2,
+        "descriptor": "A study exists, but two or more of the split faces, fixture, load face, direction or units are wrong or cannot be seen."
+      },
+      {
+        "label": "Absent",
+        "short": "No setup screenshots",
+        "points": 0,
+        "descriptor": "Neither setup screenshot handed in."
+      }
+    ],
+    "points": 6,
+    "criterion": "Simulate: The study is set up right: split faces, fixture on the top face, 400 lbf down on the bowl face",
+    "incomplete": false
+  },
+  {
+    "id": "h3-sim-plot",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Stress plot, scale showing",
+        "points": 3,
+        "descriptor": "A screenshot of the von Mises stress plot of V2 after Run, with the hook and the color scale both readable."
+      },
+      {
+        "label": "Proficient",
+        "short": "Plot, scale cut off",
+        "points": 2,
+        "descriptor": "The stress plot of V2, but the color scale is cut off or the hook is too small to read."
+      },
+      {
+        "label": "Developing",
+        "short": "Wrong plot or part",
+        "points": 1,
+        "descriptor": "A plot handed in, but it is displacement or strain, or it is not V2."
+      },
+      {
+        "label": "Absent",
+        "short": "No plot",
+        "points": 0,
+        "descriptor": "No stress plot handed in."
+      }
+    ],
+    "points": 3,
+    "criterion": "Simulate: The stress plot is handed in with its color scale",
+    "incomplete": false
+  },
+  {
+    "id": "h3-sim-read",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Red named, Test 1 compared",
+        "points": 3,
+        "descriptor": "Picks where the most red is, it agrees with the plot, and says whether that is where Test 1 broke."
+      },
+      {
+        "label": "Proficient",
+        "short": "Red named, not compared",
+        "points": 2,
+        "descriptor": "Picks where the red is and it agrees with the plot, but does not compare it with Test 1."
+      },
+      {
+        "label": "Developing",
+        "short": "Pick disagrees with plot",
+        "points": 1,
+        "descriptor": "Picks a place, but the plot shows the most red somewhere else."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "Nothing picked."
+      }
+    ],
+    "points": 3,
+    "criterion": "Simulate: Names where the red is and compares it with where Test 1 broke",
+    "incomplete": false
+  },
+  {
+    "id": "h3-sim-plan",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Adds at red, takes blue",
+        "points": 3,
+        "descriptor": "Says what V3 changes, adds material where the plot is red, and names where the plot is blue as the place the grams come from."
+      },
+      {
+        "label": "Proficient",
+        "short": "Red or blue, not both",
+        "points": 2,
+        "descriptor": "A V3 change tied to the plot, but only to the red or only to the blue."
+      },
+      {
+        "label": "Developing",
+        "short": "Change not from plot",
+        "points": 1,
+        "descriptor": "A V3 change that does not use what the plot shows."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 3,
+    "criterion": "Simulate: The V3 plan uses the plot: material added at the red, taken from the blue",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v3-v3",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "New file, at the red",
+        "points": 6,
+        "descriptor": "Every V3 part file is handed in, named V3_ (or V3A_, V3B_, V3C_) with the student's last name, differs from V2 at the spot the stress plot showed red, and the sentence says what changed there and where the grams came from."
+      },
+      {
+        "label": "Proficient",
+        "short": "At the red, half explained",
+        "points": 4,
+        "descriptor": "A real V3 changed at the red, but the sentence leaves out what changed or where the grams came from, or a name does not follow the pattern."
+      },
+      {
+        "label": "Developing",
+        "short": "Not at the red",
+        "points": 2,
+        "descriptor": "A V3 file that is V2 renamed, or changed somewhere the plot did not show red, with no reason given."
+      },
+      {
+        "label": "Absent",
+        "short": "No V3 file",
+        "points": 0,
+        "descriptor": "No V3 part file handed in."
+      }
+    ],
+    "points": 6,
+    "criterion": "V3 and your call: V3 is its own part file, named, built at the red, and the change is explained",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v3-mass",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Weighed, settings named, legal",
+        "points": 3,
+        "descriptor": "The full-size weight read off the slicer with V3 alone on the plate, 50.0 g or under, and the wall loops and infill it was sliced with are named."
+      },
+      {
+        "label": "Proficient",
+        "short": "Weighed, settings missing",
+        "points": 2,
+        "descriptor": "A full-size weight, but the settings are not named, or it is over 50.0 g with a plan to take grams off."
+      },
+      {
+        "label": "Developing",
+        "short": "Weight not V3 alone",
+        "points": 1,
+        "descriptor": "A weight that is half size, or the whole team plate, or over 50.0 g with no plan."
+      },
+      {
+        "label": "Absent",
+        "short": "Not weighed",
+        "points": 0,
+        "descriptor": "No weight."
+      }
+    ],
+    "points": 3,
+    "criterion": "V3 and your call: V3 is weighed alone at full size with its own print settings named",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v3-call",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Load, spot, reason given",
+        "points": 5,
+        "descriptor": "A load in lb, a spot where V3 will break, and a reason for both that uses the student's own tests, the stress plot or both."
+      },
+      {
+        "label": "Proficient",
+        "short": "Load and spot, thin reason",
+        "points": 3,
+        "descriptor": "A load and a spot, but the reason does not use a test or the plot."
+      },
+      {
+        "label": "Developing",
+        "short": "Load or spot missing",
+        "points": 1,
+        "descriptor": "Only a load, or only a spot."
+      },
+      {
+        "label": "Absent",
+        "short": "No call",
+        "points": 0,
+        "descriptor": "Nothing called."
+      }
+    ],
+    "points": 5,
+    "criterion": "V3 and your call: The call is a load and a spot, with a reason from the tests or the plot",
+    "incomplete": false
+  },
+  {
+    "id": "h3-v3-plate",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both hooks, own settings, printing",
+        "points": 6,
+        "descriptor": "The screenshot shows the sliced plate with both team hooks (or one hook, printing alone, said so), each on its owner's settings, and the printer it is on is named."
+      },
+      {
+        "label": "Proficient",
+        "short": "Plate in, one detail off",
+        "points": 4,
+        "descriptor": "The plate is in and printing, but one hook is on the default settings, or the partner or printer is not named."
+      },
+      {
+        "label": "Developing",
+        "short": "Not sliced or not started",
+        "points": 2,
+        "descriptor": "A plate screenshot that is not sliced, or no printer named."
+      },
+      {
+        "label": "Absent",
+        "short": "No plate",
+        "points": 0,
+        "descriptor": "No plate screenshot."
+      }
+    ],
+    "points": 6,
+    "criterion": "V3 and your call: The team plate is sliced with each hook on its owner's settings, and printing",
+    "incomplete": false
+  },
+  {
+    "id": "h3-what-result",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Result, load and spot",
+        "points": 3,
+        "descriptor": "Says what happened to the hook, the most it held in lb from the scale, and where it broke (or that it never broke)."
+      },
+      {
+        "label": "Proficient",
+        "short": "One piece missing",
+        "points": 2,
+        "descriptor": "What happened is there, but the load or the spot is missing."
+      },
+      {
+        "label": "Developing",
+        "short": "Result only",
+        "points": 1,
+        "descriptor": "Says what happened and nothing else."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing recorded",
+        "points": 0,
+        "descriptor": "Nothing picked."
+      }
+    ],
+    "points": 3,
+    "criterion": "What happened: The result is recorded: what happened, the load it held and where it broke",
+    "incomplete": false
+  },
+  {
+    "id": "h3-what-photo",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Close, in focus",
+        "points": 2,
+        "descriptor": "A close photo of the student's own hook with the broken face in focus (or the whole hook, if it never broke)."
+      },
+      {
+        "label": "Developing",
+        "short": "Far, blurry or not theirs",
+        "points": 1,
+        "descriptor": "A photo, but the break is too far away or blurry to read, or it is not this student's hook."
+      },
+      {
+        "label": "Absent",
+        "short": "No photo",
+        "points": 0,
+        "descriptor": "No photo."
+      }
+    ],
+    "points": 2,
+    "criterion": "What happened: A close photo of this student's own break",
+    "incomplete": false
+  },
+  {
+    "id": "h3-what-callreal",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both compared, reason given",
+        "points": 4,
+        "descriptor": "Says plainly whether the call was right on the load and on the spot, and gives a reason for what happened. Right or wrong scores the same."
+      },
+      {
+        "label": "Proficient",
+        "short": "Both compared, no reason",
+        "points": 3,
+        "descriptor": "Compares the load and the spot, but gives no reason."
+      },
+      {
+        "label": "Developing",
+        "short": "Only one compared",
+        "points": 2,
+        "descriptor": "Compares only the load, or only the spot."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "Nothing written, or no comparison to the call."
+      }
+    ],
+    "points": 4,
+    "criterion": "What happened: Compares the call to what happened, on the load and on the spot, with a reason",
+    "incomplete": false
+  },
+  {
+    "id": "h3-what-change",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Change, place, reason",
+        "points": 2,
+        "descriptor": "Names one change, where on the part it goes, and ties it to the break or the load."
+      },
+      {
+        "label": "Developing",
+        "short": "No place or no reason",
+        "points": 1,
+        "descriptor": "A change with no place on the part, or with no reason."
+      },
+      {
+        "label": "Absent",
+        "short": "Blank",
+        "points": 0,
+        "descriptor": "Nothing written."
+      }
+    ],
+    "points": 2,
+    "criterion": "What happened: One change for V4, at a named place, tied to what the break showed",
+    "incomplete": false
+  },
+  {
+    "id": "h3-what-slide",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All six on the slide",
+        "points": 4,
+        "descriptor": "The screenshot shows the student's slide with the hook and student name, the load in lb, a CAD image, the stress plot with its color scale, a photo of the printed hook and a slicer view."
+      },
+      {
+        "label": "Proficient",
+        "short": "Four or five of six",
+        "points": 3,
+        "descriptor": "The slide is in the deck with four or five of the six things."
+      },
+      {
+        "label": "Developing",
+        "short": "Started, three or fewer",
+        "points": 2,
+        "descriptor": "A slide started, with three or fewer of the six."
+      },
+      {
+        "label": "Absent",
+        "short": "No slide",
+        "points": 0,
+        "descriptor": "No screenshot of a slide."
+      }
+    ],
+    "points": 4,
+    "criterion": "What happened: One slide in the IDEA Hook Designs deck carrying all six things",
+    "incomplete": false
+  }
+]

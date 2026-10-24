@@ -1,0 +1,255 @@
+{
+  "kind": "html-assignment",
+  "title": "Shop Fix: Presentation",
+  "course": "IDEA209H",
+  "header": [
+    {
+      "id": "u3p-student-name",
+      "type": "text",
+      "field": "studentName",
+      "prompt": "Your name"
+    },
+    {
+      "id": "u3p-class-block",
+      "type": "radio",
+      "field": "classBlock",
+      "prompt": "Your class"
+    },
+    {
+      "id": "u3p-project",
+      "type": "text",
+      "field": "projectName",
+      "prompt": "Your fix"
+    }
+  ],
+  "points": 25,
+  "modules": [
+    {
+      "id": "u3p-deck",
+      "title": "Deck: Your presentation",
+      "blocks": [
+        {
+          "id": "u3p-link",
+          "link": "presentation",
+          "type": "text",
+          "field": "presLink",
+          "prompt": "Link to your slides, shared so anyone at Bosco Tech can open it"
+        }
+      ],
+      "points": 25,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "problem",
+          "text": "Slide 1: the problem",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Photo, place, who it affects",
+              "points": 3,
+              "descriptor": "Your before photo, where it is in the IDEA building, and who the problem slows down."
+            },
+            {
+              "label": "Proficient",
+              "short": "One missing",
+              "points": 2,
+              "descriptor": "One of the three is missing."
+            },
+            {
+              "label": "Developing",
+              "short": "Vague",
+              "points": 1,
+              "descriptor": "A photo or a sentence that does not make the problem clear."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No slide."
+            }
+          ],
+          "points": 3
+        },
+        {
+          "id": "designs",
+          "text": "Slide 2: two designs",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both sketches and the pick",
+              "points": 3,
+              "descriptor": "Both sketches, and one line on why you picked the one you built."
+            },
+            {
+              "label": "Proficient",
+              "short": "No reason for the pick",
+              "points": 2,
+              "descriptor": "Both sketches, but no reason for the pick."
+            },
+            {
+              "label": "Developing",
+              "short": "One sketch",
+              "points": 1,
+              "descriptor": "Only one design shown."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No slide."
+            }
+          ],
+          "points": 3
+        },
+        {
+          "id": "made",
+          "text": "Slide 3: how I made it",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Photos, machines, one problem solved",
+              "points": 4,
+              "descriptor": "Photos of both major parts being made, each machine named, and one problem you hit and how you solved it."
+            },
+            {
+              "label": "Proficient",
+              "short": "Machines unnamed or no problem",
+              "points": 3,
+              "descriptor": "Photos and machines, but no problem, or machines not named."
+            },
+            {
+              "label": "Developing",
+              "short": "Photos only",
+              "points": 1,
+              "descriptor": "Photos with nothing said about them."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No slide."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "worked",
+          "text": "Slide 4: did it work",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Numbers, verdict and the reason",
+              "points": 6,
+              "descriptor": "Your critical dimension: designed size and tolerance, your locked prediction, what you measured, inside or outside the tolerance, and why it came out there, matching your Build Log fit check."
+            },
+            {
+              "label": "Proficient",
+              "short": "Numbers, thin reason",
+              "points": 4,
+              "descriptor": "The numbers and the verdict, with a reason that is vague or does not match your fit check."
+            },
+            {
+              "label": "Developing",
+              "short": "Numbers only",
+              "points": 2,
+              "descriptor": "Numbers with no verdict or reason."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No slide, or no numbers."
+            }
+          ],
+          "points": 6
+        },
+        {
+          "id": "installed",
+          "text": "Slide 5: it works",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Installed and in use",
+              "points": 2,
+              "descriptor": "The fix installed in the spot from slide 1, doing its job."
+            },
+            {
+              "label": "Developing",
+              "short": "Installed, not shown working",
+              "points": 1,
+              "descriptor": "Installed but not shown working, or shown somewhere other than the problem spot."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No slide."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "delivery",
+          "text": "Delivery: about 4 minutes, to the room",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Clear and on time",
+              "points": 5,
+              "descriptor": "Talks to the room rather than reading the slides, and lands near 4 minutes."
+            },
+            {
+              "label": "Proficient",
+              "short": "One slip",
+              "points": 3,
+              "descriptor": "One slip: reads most of the slides, or runs well over or under."
+            },
+            {
+              "label": "Developing",
+              "short": "Both slips",
+              "points": 1,
+              "descriptor": "Both slips."
+            },
+            {
+              "label": "Absent",
+              "short": "Did not present",
+              "points": 0,
+              "descriptor": "Did not present."
+            }
+          ],
+          "points": 5
+        },
+        {
+          "id": "questions",
+          "text": "Two questions answered",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Specific answers",
+              "points": 2,
+              "descriptor": "Answers two questions from the class or the teacher with specifics about your own part."
+            },
+            {
+              "label": "Developing",
+              "short": "Vague answers",
+              "points": 1,
+              "descriptor": "Answers, but vaguely or without reference to the part."
+            },
+            {
+              "label": "Absent",
+              "short": "No answers",
+              "points": 0,
+              "descriptor": "Does not answer."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    }
+  ],
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
+  "schemaVersion": 3
+}

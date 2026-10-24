@@ -1,0 +1,254 @@
+{
+  "kind": "html-assignment",
+  "title": "SolidWorks Day",
+  "course": "IDEA100",
+  "points": 10,
+  "modules": [
+    {
+      "id": "swday-wrench",
+      "title": "The Wrench",
+      "blocks": [
+        {
+          "id": "swday-step-01",
+          "type": "image",
+          "field": "s1",
+          "prompt": "Wrench step 1 screenshot: new part, inches, saved"
+        },
+        {
+          "id": "swday-step-02",
+          "type": "image",
+          "field": "s2",
+          "prompt": "Wrench step 2 screenshot: circles first"
+        },
+        {
+          "id": "swday-step-03",
+          "type": "image",
+          "field": "s3",
+          "prompt": "Wrench step 3 screenshot: size and space them"
+        },
+        {
+          "id": "swday-step-04",
+          "type": "image",
+          "field": "s4",
+          "prompt": "Wrench step 4 screenshot: connect them"
+        },
+        {
+          "id": "swday-step-05",
+          "type": "image",
+          "field": "s5",
+          "prompt": "Wrench step 5 screenshot: trim to one outline"
+        },
+        {
+          "id": "swday-step-06",
+          "type": "image",
+          "field": "s6",
+          "prompt": "Wrench step 6 screenshot: break it on purpose"
+        },
+        {
+          "id": "swday-step-07",
+          "type": "image",
+          "field": "s7",
+          "prompt": "Wrench step 7 screenshot: a hole, in the same sketch"
+        },
+        {
+          "id": "swday-step-08",
+          "type": "image",
+          "field": "s8",
+          "prompt": "Wrench step 8 screenshot: extrude"
+        },
+        {
+          "id": "swday-step-09",
+          "type": "image",
+          "field": "s9",
+          "prompt": "Wrench step 9 screenshot: look around"
+        },
+        {
+          "id": "swday-step-10",
+          "type": "image",
+          "field": "s10",
+          "prompt": "Wrench step 10 screenshot: round the edges"
+        },
+        {
+          "id": "swday-step-11",
+          "type": "image",
+          "field": "s11",
+          "prompt": "Wrench step 11 screenshot: change a sketch"
+        },
+        {
+          "id": "swday-step-12",
+          "type": "image",
+          "field": "s12",
+          "prompt": "Wrench step 12 screenshot: change a feature"
+        }
+      ],
+      "points": 4,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "steps",
+          "text": "A screenshot for every wrench step, each showing what the step asks for",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All twelve steps shown",
+              "points": 4,
+              "descriptor": "Twelve screenshots, each showing what its step asks for."
+            },
+            {
+              "label": "Proficient",
+              "short": "Nine to eleven steps",
+              "points": 3,
+              "descriptor": "Nine to eleven steps have a matching screenshot."
+            },
+            {
+              "label": "Developing",
+              "short": "Fewer than nine steps",
+              "points": 1,
+              "descriptor": "One to eight steps have a matching screenshot."
+            },
+            {
+              "label": "Absent",
+              "short": "No screenshots",
+              "points": 0,
+              "descriptor": "No screenshots pasted."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    },
+    {
+      "id": "swday-drills",
+      "title": "Drills",
+      "blocks": [
+        {
+          "id": "swday-drill-1",
+          "type": "image",
+          "field": "s13",
+          "prompt": "Drill 1 screenshot: lines and arcs, one tool"
+        },
+        {
+          "id": "swday-drill-2",
+          "type": "image",
+          "field": "s14",
+          "prompt": "Drill 2 screenshot: a path into a band"
+        },
+        {
+          "id": "swday-drill-3",
+          "type": "image",
+          "field": "s15",
+          "prompt": "Drill 3 screenshot: check the rules"
+        }
+      ],
+      "points": 2,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "drills",
+          "text": "A screenshot for each drill, done with the hints or without them",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All three drills shown",
+              "points": 2,
+              "descriptor": "Three drill screenshots, each showing its goal."
+            },
+            {
+              "label": "Developing",
+              "short": "One or two drills",
+              "points": 1,
+              "descriptor": "One or two drills have a matching screenshot."
+            },
+            {
+              "label": "Absent",
+              "short": "No drills shown",
+              "points": 0,
+              "descriptor": "No drill screenshots."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "swday-hook",
+      "title": "Your Hook",
+      "blocks": [
+        {
+          "id": "swday-hook-file",
+          "type": "image",
+          "field": "partA",
+          "prompt": "Your hook part file so far (V1_LASTNAME.SLDPRT)"
+        },
+        {
+          "id": "swday-hook-shot",
+          "type": "image",
+          "field": "ownShot",
+          "prompt": "Screenshot of your hook so far"
+        },
+        {
+          "id": "swday-hook-note",
+          "type": "longText",
+          "field": "ownNote",
+          "prompt": "What you made so far, and what stopped you or what you figured out alone",
+          "minSentences": 2
+        }
+      ],
+      "points": 4,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "file",
+          "text": "The hook part file is started from your own sketch and handed in",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Started, named, handed in",
+              "points": 2,
+              "descriptor": "V1_LASTNAME.SLDPRT is handed in and holds at least the two rule circles from your own sketch."
+            },
+            {
+              "label": "Developing",
+              "short": "Misnamed or nearly empty",
+              "points": 1,
+              "descriptor": "A part file is handed in but is misnamed or holds no sketch from your design."
+            },
+            {
+              "label": "Absent",
+              "short": "No part file",
+              "points": 0,
+              "descriptor": "No part file handed in."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "shot",
+          "text": "A screenshot of the hook so far and two sentences on what you did and what stopped you",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Shown and described",
+              "points": 2,
+              "descriptor": "A screenshot of your hook so far and two sentences."
+            },
+            {
+              "label": "Developing",
+              "short": "Shown or described",
+              "points": 1,
+              "descriptor": "Only the screenshot or only the sentences."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing here",
+              "points": 0,
+              "descriptor": "No screenshot and no sentences."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 3
+}

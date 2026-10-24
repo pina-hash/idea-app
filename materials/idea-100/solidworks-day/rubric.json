@@ -1,0 +1,112 @@
+[
+  {
+    "id": "swday-wrench-steps",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All twelve steps shown",
+        "points": 4,
+        "descriptor": "Twelve screenshots, each showing what its step asks for."
+      },
+      {
+        "label": "Proficient",
+        "short": "Nine to eleven steps",
+        "points": 3,
+        "descriptor": "Nine to eleven steps have a matching screenshot."
+      },
+      {
+        "label": "Developing",
+        "short": "Fewer than nine steps",
+        "points": 1,
+        "descriptor": "One to eight steps have a matching screenshot."
+      },
+      {
+        "label": "Absent",
+        "short": "No screenshots",
+        "points": 0,
+        "descriptor": "No screenshots pasted."
+      }
+    ],
+    "points": 4,
+    "criterion": "The Wrench: A screenshot for every wrench step, each showing what the step asks for",
+    "incomplete": false
+  },
+  {
+    "id": "swday-drills-drills",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All three drills shown",
+        "points": 2,
+        "descriptor": "Three drill screenshots, each showing its goal."
+      },
+      {
+        "label": "Developing",
+        "short": "One or two drills",
+        "points": 1,
+        "descriptor": "One or two drills have a matching screenshot."
+      },
+      {
+        "label": "Absent",
+        "short": "No drills shown",
+        "points": 0,
+        "descriptor": "No drill screenshots."
+      }
+    ],
+    "points": 2,
+    "criterion": "Drills: A screenshot for each drill, done with the hints or without them",
+    "incomplete": false
+  },
+  {
+    "id": "swday-hook-file",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Started, named, handed in",
+        "points": 2,
+        "descriptor": "V1_LASTNAME.SLDPRT is handed in and holds at least the two rule circles from your own sketch."
+      },
+      {
+        "label": "Developing",
+        "short": "Misnamed or nearly empty",
+        "points": 1,
+        "descriptor": "A part file is handed in but is misnamed or holds no sketch from your design."
+      },
+      {
+        "label": "Absent",
+        "short": "No part file",
+        "points": 0,
+        "descriptor": "No part file handed in."
+      }
+    ],
+    "points": 2,
+    "criterion": "Your Hook: The hook part file is started from your own sketch and handed in",
+    "incomplete": false
+  },
+  {
+    "id": "swday-hook-shot",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Shown and described",
+        "points": 2,
+        "descriptor": "A screenshot of your hook so far and two sentences."
+      },
+      {
+        "label": "Developing",
+        "short": "Shown or described",
+        "points": 1,
+        "descriptor": "Only the screenshot or only the sentences."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing here",
+        "points": 0,
+        "descriptor": "No screenshot and no sentences."
+      }
+    ],
+    "points": 2,
+    "criterion": "Your Hook: A screenshot of the hook so far and two sentences on what you did and what stopped you",
+    "incomplete": false
+  }
+]
