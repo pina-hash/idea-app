@@ -1,11 +1,11 @@
-// tests/db/coin-contracts-retired-0295.test.ts
+// tests/db/coin-contracts-retired.test.ts
 //
-// 0295 (ledger 0432, feedback 00463d19, gap 3f52bae9): contracts are retired.
-// The chain is booted SHORT of 0295 and contracts are made through the real
+// the retirement file (ledger 0432, feedback 00463d19, gap 3f52bae9): contracts are retired.
+// The chain is booted SHORT of the retirement file and contracts are made through the real
 // pre-migration RPCs: an open job nobody took, the IDEA Coin Launcher job
 // assigned to a student, a job a student claimed and marked done (a card
 // waiting in the queue, which approval would PAY), and a job already done.
-// Then 0295 is applied over the top, twice.
+// Then the retirement file is applied over the top, twice.
 //
 // The silent guarantees, each with its control:
 //   - nobody is paid: the coin ledger holds exactly the rows it held before,

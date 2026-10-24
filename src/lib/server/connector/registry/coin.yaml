@@ -413,7 +413,7 @@ coin_stocks_board:
 coin_stocks_tick:
   exclude: Asks for the minute price update the stocks page makes on load; it throttles itself and answers counts only, so there is nothing for an admin to do with it.
 
-# CONTRACTS ARE RETIRED (ledger 0432, migration 0295, feedback 00463d19):
+# CONTRACTS ARE RETIRED (ledger 0432, migration 0296, feedback 00463d19):
 # jobs live on the IDEA Market, and every contract write is closed to every
 # client. Nothing about contracts is a connector tool.
 

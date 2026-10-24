@@ -171,7 +171,7 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
     checks every card named before it writes, so an unknown card refuses the
     whole call; staff list every card, with its id, through
     `coin_market_cards_admin`.
-- **CONTRACTS ARE RETIRED (ledger 0432, migration 0295, Mr. Pina
+- **CONTRACTS ARE RETIRED (ledger 0432, migration 0296, Mr. Pina
   2026-10-23: "everything is on the marketplace now").** Every contract was
   closed with nobody paid again, every contract write function lost its
   client grant, and the coin page, the Market, the staff areas and the
@@ -180,7 +180,7 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
   history still renders; a new contract surface is a decision, not a fix.
 - **A STUDENT ACTION IS NEVER A STAFF TOOL, AND THE SEAM SAYS WHO ASKED
   (ledger 0432, gap 3f52bae9).** `_coin_student_seam` answers `staff_account`
-  to coin staff (0295), never `not_in_economy`, which is what a student
+  to coin staff (0296), never `not_in_economy`, which is what a student
   action run as Mr. Pina used to say. For the connector, `CALLER_SEAMS` in
   `tools/connector/gates.mjs` stops the gate walk at the seam and marks every
   function reaching it `acts_as_caller`, which the generated layer excludes;

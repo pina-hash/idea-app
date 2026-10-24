@@ -6,7 +6,7 @@
 		"reads": 28,
 		"asks_first": 83,
 		"excluded": 87,
-		"endpoints": 2,
+		"endpoints": 3,
 		"endpoint_tools": 0
 	},
 	"functions": {
@@ -2770,6 +2770,11 @@
 		}
 	},
 	"endpoints": {
+		"/coin-desk/[...path]": {
+			"auto": true,
+			"exclude": "Generated: not an admin action. The route's handler checks no site admin, so it serves or acts for whoever calls it.",
+			"file": "src/routes/coin-desk/[...path]/+server.ts"
+		},
 		"/dev/foundry-cover-editor/sample": {
 			"auto": true,
 			"exclude": "Generated: not an admin action. The route's handler checks no site admin, so it serves or acts for whoever calls it.",

@@ -1,4 +1,4 @@
--- 0295_coin_contracts_retired.sql
+-- 0296_coin_contracts_retired.sql
 --
 -- CONTRACTS ARE RETIRED (ledger 0432, feedback 00463d19, connector gap
 -- 3f52bae9). Mr. Pina, 2026-10-23: "No more Coin Desk contracts: everything
@@ -43,13 +43,13 @@
 do $pre$
 begin
 	if to_regclass('public.coin_contracts') is null or to_regclass('public.coin_contract_claims') is null then
-		raise exception '0295 cannot apply: the coin contract tables do not exist. Apply 0077 first.';
+		raise exception '0296 cannot apply: the coin contract tables do not exist. Apply 0077 first.';
 	end if;
 	if to_regclass('public.coin_requests') is null then
-		raise exception '0295 cannot apply: coin_requests does not exist. Apply 0245 first.';
+		raise exception '0296 cannot apply: coin_requests does not exist. Apply 0245 first.';
 	end if;
 	if to_regprocedure('public._coin_student_seam(text)') is null or to_regprocedure('public._coin_staff()') is null then
-		raise exception '0295 cannot apply: the coin student seam or the coin staff gate is missing. Apply 0241 and 0244 first.';
+		raise exception '0296 cannot apply: the coin student seam or the coin staff gate is missing. Apply 0241 and 0244 first.';
 	end if;
 end
 $pre$;
@@ -77,7 +77,7 @@ begin
 	where completed_at is null and cancelled_at is null;
 	get diagnostics v_cancelled = row_count;
 
-	raise notice '0295: % waiting contract cards cancelled unpaid, % contract closed as done (the IDEA Coin Launcher), % contracts closed as cancelled',
+	raise notice '0296: % waiting contract cards cancelled unpaid, % contract closed as done (the IDEA Coin Launcher), % contracts closed as cancelled',
 		v_requests, v_done, v_cancelled;
 end
 $close$;
@@ -99,7 +99,7 @@ begin
 		execute format('revoke all on function %s from public, anon, authenticated', f);
 		n := n + 1;
 	end loop;
-	raise notice '0295: % contract write functions closed to every client', n;
+	raise notice '0296: % contract write functions closed to every client', n;
 end
 $grants$;
 
@@ -119,7 +119,7 @@ begin
 		return jsonb_build_object('ok', false, 'reason', 'signed_out');
 	end if;
 	if not exists (select 1 from public._coin_economy_enrollments() x where x.student_email = v_email) then
-		-- 0295: a staff account is never a member; say that, not "not in the economy".
+		-- 0296: a staff account is never a member; say that, not "not in the economy".
 		if public._coin_staff() then
 			return jsonb_build_object('ok', false, 'reason', 'staff_account');
 		end if;
@@ -147,7 +147,7 @@ declare
 begin
 	select count(*) into v_open from public.coin_contracts where completed_at is null and cancelled_at is null;
 	if v_open > 0 then
-		raise exception '0295 self-check failed: % contracts are still open.', v_open;
+		raise exception '0296 self-check failed: % contracts are still open.', v_open;
 	end if;
 	select count(*) into v_granted from pg_catalog.pg_proc p
 	join pg_catalog.pg_namespace s on s.oid = p.pronamespace and s.nspname = 'public'
@@ -156,10 +156,10 @@ begin
 			'coin_admin_reset_contract', 'coin_admin_restore_contract', 'coin_admin_complete_contract', 'coin_admin_cancel_contract')
 		and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'));
 	if v_granted > 0 then
-		raise exception '0295 self-check failed: % contract write functions are still executable by a client.', v_granted;
+		raise exception '0296 self-check failed: % contract write functions are still executable by a client.', v_granted;
 	end if;
 	if has_function_privilege('authenticated', 'public._coin_student_seam(text)', 'execute') then
-		raise exception '0295 self-check failed: the student seam is executable by a client.';
+		raise exception '0296 self-check failed: the student seam is executable by a client.';
 	end if;
 end
 $post$;
