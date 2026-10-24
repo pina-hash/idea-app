@@ -285,8 +285,15 @@ describe('0198 and live: the grading console stops needing a reload', () => {
 		expect(console_).not.toMatch(/liveStatus === 'live'/);
 	});
 
-	it('announces nothing from the grade page, because grading changes no answers', () => {
-		expect(src(GRADE_PAGE)).not.toContain('.announce(');
+	it('announces from the grade page only the lock notice, after a close lands (ledger 0431)', () => {
+		// Grading changes no answers, so `responses` is never announced here;
+		// closing or reopening changes what every open worksheet may do, so it
+		// announces `lock`, and only when the write came back ok.
+		const page = src(GRADE_PAGE);
+		const announces = [...page.matchAll(/\.announce\(([^)]*)\)/g)].map((m) => m[1]);
+		expect(announces).toEqual(["data.section.id, 'lock'"]);
+		expect(page).toMatch(/if \(res\.ok\) live\.announce\(data\.section\.id, 'lock'\)/);
+		expect(page).not.toContain("'responses'");
 	});
 });
 

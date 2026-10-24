@@ -161,7 +161,10 @@
 	import HtmlLinkCheck from '$lib/classroom/html-assignment/HtmlLinkCheck.svelte';
 	import { htmlManifestShaped } from '$lib/classroom/transports';
 	import type { HtmlAssignmentTransports } from '$lib/classroom/html-assignment/store';
-	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
+	import { assignmentLockState, type AssignmentLockState } from '$lib/classroom/html-assignment/lock';
+	import AnswersLeft from '$lib/classroom/html-assignment/AnswersLeft.svelte';
+	import { hxAnswersLeft, hxUnsavedAnswers } from '$lib/classroom/html-assignment/answers-left';
+	import { hxProgress } from '$lib/classroom/html-assignment/progress';
 	import {
 		htmlAssignmentMount,
 		htmlAssignmentServed,
@@ -304,6 +307,7 @@
 		htmlAssignment = null,
 		htmlAnswers = null,
 		htmlTeam = null,
+		htmlLock = undefined,
 		feedback = null,
 		htmlInstructorAnswers = null,
 		htmlAssignmentTransports = null,
@@ -415,6 +419,14 @@
 		htmlAnswers?: HtmlAssignmentAnswers | null;
 		/** The student's own team's progress (ledger 0422), handed to the document; null sends nothing. */
 		htmlTeam?: HxTeamProgress | null;
+		/**
+		 * THE LOCK AS THE PAGE KNOWS IT NOW (ledger 0431), from the heartbeat, the
+		 * class's live notice or a save refused as shut, so an assignment closed
+		 * while the worksheet is open flips it read-only and a reopen flips it
+		 * back. Undefined is "nothing newer than the load", and the lock is then
+		 * read off `engine.submission` exactly as before.
+		 */
+		htmlLock?: AssignmentLockState | null;
 		/**
 		 * THE STUDENT'S FEEDBACK ON THIS WORKSHEET (0238, decision 60): the list
 		 * above the frame and the pins and drawings inside it, all read off one
@@ -668,6 +680,57 @@
 	const htmlProgressManifest = $derived(
 		htmlAssignment && htmlManifestShaped(htmlAssignment.manifest) ? htmlAssignment.manifest : null
 	);
+
+	/** The lock the frame shows: the page's live answer when it has one, else the load's. */
+	const htmlLockNow = $derived(
+		htmlLock !== undefined ? htmlLock : engine ? assignmentLockState(engine.submission) : null
+	);
+
+	/**
+	 * ANSWERS LEFT AND FULL PAGE (ledger 0431). The frame instance is held so a
+	 * row in the list can ask it to take the student to an answer, through the
+	 * bridge; `htmlExpanded` lifts this page's stacking context while the
+	 * worksheet covers the window, the edit layer's own arrangement.
+	 */
+	let htmlFrame = $state<ReturnType<typeof HtmlAssignmentFrame> | null>(null);
+	let htmlExpanded = $state(false);
+	const htmlJump = $derived(
+		htmlAnswers && htmlProgressManifest ? (field: string) => htmlFrame?.focusField(field) ?? 'none' : null
+	);
+	const htmlLeftGroups = $derived(
+		htmlAnswers && htmlProgressManifest
+			? hxAnswersLeft(
+					htmlProgressManifest,
+					hxProgress(htmlProgressManifest, htmlAnswers.values, htmlAnswers.images, {
+						unsaved: htmlAnswers.status?.unsaved ?? []
+					})
+				)
+			: []
+	);
+
+	/**
+	 * WHAT WAS TYPED AFTER A CLOSE AND IS NOT SAVED (ledger 0431). The worksheet
+	 * still shows it, read only; this says so in words above it and lays the
+	 * text out where it can be copied, so nothing a student typed is lost in
+	 * silence. It saves on its own if the teacher reopens the assignment.
+	 */
+	const htmlUnsavedAfterClose = $derived(
+		htmlAnswers && htmlProgressManifest && htmlLockNow === 'closed'
+			? hxUnsavedAnswers(htmlProgressManifest, htmlAnswers.values, htmlAnswers.status?.unsaved ?? [])
+			: null
+	);
+	let copiedField = $state<string | null>(null);
+	async function copyAnswer(field: string, text: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			copiedField = field;
+			setTimeout(() => {
+				if (copiedField === field) copiedField = null;
+			}, 2000);
+		} catch {
+			copiedField = null;
+		}
+	}
 
 	/** The pins and drawings the student's frame draws, from the one session (0238). */
 	const studentNotes = $derived(
@@ -1467,7 +1530,7 @@
 <main
 	class="classroom-page item-page"
 	class:page-wide={htmlMount === 'html'}
-	class:edit-layer-open={editing}
+	class:edit-layer-open={editing || htmlExpanded}
 >
 	<!--
 		THE INSPECTOR: every instructor-only affordance on this page, in one
@@ -2808,6 +2871,7 @@
 						values={htmlAnswers.values}
 						images={htmlAnswers.images}
 						status={htmlAnswers.status ?? null}
+						onjump={htmlJump}
 					/>
 					<!-- A PRESENTATION LINK THE STUDENT PASTED, CHECKED WHERE THEY CAN SEE
 					     IT (ledger 0360): the service it opens on and a Test key, in
@@ -2863,14 +2927,44 @@
 						transports={htmlWorkingCopy.transports}
 					/>
 				{:else}
+					{#if htmlUnsavedAfterClose && (htmlUnsavedAfterClose.answers.length || htmlUnsavedAfterClose.others)}
+						<section class="hx-unsaved" role="status" data-testid="hx-unsaved-after-close">
+							<p class="hx-unsaved-head">
+								{htmlUnsavedAfterClose.answers.length + htmlUnsavedAfterClose.others === 1
+									? 'One answer you typed after it closed is not saved.'
+									: `${htmlUnsavedAfterClose.answers.length + htmlUnsavedAfterClose.others} answers you typed after it closed are not saved.`}
+								It stays on this page, and it saves on its own if your teacher reopens the assignment.
+							</p>
+							{#if htmlUnsavedAfterClose.answers.length}
+								<details class="hx-unsaved-more">
+									<summary>See what is not saved</summary>
+									<ul class="hx-unsaved-list">
+										{#each htmlUnsavedAfterClose.answers as a (a.field)}
+											<li class="hx-unsaved-item">
+												<p class="hx-unsaved-where">{a.where}</p>
+												<p class="hx-unsaved-text">{a.text}</p>
+												<button type="button" class="hx-unsaved-copy" onclick={() => copyAnswer(a.field, a.text)}
+													>{copiedField === a.field ? 'Copied' : 'Copy'}</button
+												>
+											</li>
+										{/each}
+									</ul>
+								</details>
+							{/if}
+						</section>
+					{/if}
 					<HtmlAssignmentFrame
+						bind:this={htmlFrame}
 						src={htmlSrc}
 						title={itemTitle(item)}
 						fieldToBlockId={htmlFields}
 						values={htmlAnswers?.values ?? {}}
 						images={htmlAnswers?.images ?? {}}
 						saved={htmlAnswers?.saved ?? null}
-						lock={engine ? assignmentLockState(engine.submission) : null}
+						lock={htmlLockNow}
+						expandable
+						onexpand={(on) => (htmlExpanded = on)}
+						chrome={htmlJump && htmlLeftGroups.length ? fullPageChrome : null}
 						readOnly={!htmlWrites}
 						onchange={htmlWrites?.onchange}
 						onimage={htmlWrites?.onimage}
@@ -2983,6 +3077,12 @@
 </main>
 {/if}
 
+{#snippet fullPageChrome()}
+	{#if htmlJump}
+		<AnswersLeft groups={htmlLeftGroups} onjump={htmlJump} compact />
+	{/if}
+{/snippet}
+
 <style>
 	/* Spacing only: the look lives in classroom.css. */
 	.feedback {
@@ -3046,6 +3146,84 @@
 	*/
 	.classroom-page.edit-layer-open {
 		z-index: auto;
+	}
+
+	/* WHAT WAS TYPED AFTER A CLOSE (ledger 0431). A notice in the room's own
+	   ink, like the lock sentence: nothing is broken, it is just not saved. */
+	.hx-unsaved {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--boundary);
+		border-left: 3px solid var(--amber);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	.hx-unsaved-head {
+		margin: 0;
+		font-size: 0.95rem;
+		color: var(--text-1);
+	}
+	.hx-unsaved-more summary {
+		min-height: 44px;
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-1);
+	}
+	.hx-unsaved-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.hx-unsaved-item {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding: var(--space-2);
+		border: 1px solid var(--hairline, var(--boundary));
+		border-radius: var(--radius-sm, 6px);
+		background: var(--surface-1);
+	}
+	.hx-unsaved-where {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.hx-unsaved-text {
+		margin: 0;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		color: var(--text-1);
+	}
+	.hx-unsaved-copy {
+		align-self: flex-start;
+		min-height: 44px;
+		padding: 0 0.9rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-1);
+		background: var(--surface-2);
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		cursor: pointer;
+	}
+	.hx-unsaved-copy:focus-visible,
+	.hx-unsaved-more summary:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	/* The app-shell `.hero` is the LANDING hero: centred, with 4rem of air above
 	   it. This is a document opening inside a pane, so it reads from the left

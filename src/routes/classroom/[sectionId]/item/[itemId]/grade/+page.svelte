@@ -144,6 +144,21 @@
 	 */
 	// svelte-ignore state_referenced_locally
 	const feedback = createFeedbackTransports(data.supabase, 'teacher');
+
+	/**
+	 * CLOSING OR REOPENING TELLS THE CLASS (ledger 0431, report 9f746072). A
+	 * student with the worksheet open hears the payload-free `lock` notice and
+	 * re-reads their own row, so the worksheet flips within seconds rather than
+	 * at the next heartbeat. The write is the same call; only a landed one
+	 * announces.
+	 */
+	const closeAndTell = transports.closeAssignment
+		? async (itemId: string, studentEmail: string | null, closed: boolean) => {
+				const res = await transports.closeAssignment!(itemId, studentEmail, closed);
+				if (res.ok) live.announce(data.section.id, 'lock');
+				return res;
+			}
+		: null;
 </script>
 
 <GradingConsole
@@ -157,7 +172,7 @@
 	bulk={batch}
 	{live}
 	{presence}
-	close={transports.closeAssignment}
+	close={closeAndTell}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
 	feedback={htmlMount === 'html' ? feedback : null}
 	manifest={htmlMount === 'html' ? manifest : null}

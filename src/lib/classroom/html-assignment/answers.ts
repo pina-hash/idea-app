@@ -698,6 +698,14 @@ export interface HxAnswersOptions {
 	 * machines are not runes -- so nothing downstream can observe it CHANGING.
 	 */
 	ondirty?: () => void;
+	/**
+	 * THE SERVER SAID THE ASSIGNMENT IS SHUT (ledger 0431). Called when a write
+	 * comes back refused as `locked`, so the page can flip the worksheet
+	 * read-only at once instead of waiting for the next heartbeat: the student
+	 * who keeps typing after a close is told on their next keystroke, not after
+	 * every save has quietly failed. The typed value stays in `values`.
+	 */
+	onlocked?: () => void;
 }
 
 /**
@@ -776,6 +784,8 @@ export class HxAnswers {
 	 * baseline a browser backup copy is written against.
 	 */
 	readonly #acked = new Map<string, ResponseValue>();
+	/** Blocks whose last write was refused because the assignment was shut. */
+	readonly #lockedOut = new Set<string>();
 	#values: Record<string, string | boolean>;
 	#images: Record<string, HxImageState>;
 	#fileIds: Map<string, string>;
@@ -839,6 +849,26 @@ export class HxAnswers {
 			if (a > b || (a === b && a === 1 && (machine.savedAt ?? 0) > (best.savedAt ?? 0))) best = machine;
 		}
 		return best;
+	}
+
+	/**
+	 * THE ASSIGNMENT WAS REOPENED (ledger 0431): every block whose write was
+	 * refused as shut goes out again on the ordinary debounce, so what a student
+	 * typed after the close and could still see is saved the moment the teacher
+	 * opens it again. Answers how many were re-armed.
+	 */
+	resendAfterReopen(): number {
+		let n = 0;
+		for (const blockId of this.#lockedOut) {
+			const machine = this.#machines.get(blockId);
+			if (!machine) continue;
+			this.#failure.delete(blockId);
+			machine.markDirty();
+			n += 1;
+		}
+		this.#lockedOut.clear();
+		if (n > 0) this.#opts.ondirty?.();
+		return n;
 	}
 
 	/** What the server last acknowledged per block id, as stored. A copy. */
@@ -1171,7 +1201,17 @@ export class HxAnswers {
 				const res = await transports.saveResponse(this.#opts.itemId, blockId, sent);
 				const outcome = hxSaveOutcome(res as TxResult<HxOpResult> & { code?: string | null });
 				const kind = hxFailureKind(res, outcome);
+				const answered = res.ok ? ((res as { data?: HxOpResult }).data ?? null) : null;
+				if (answered && answered.ok === false && answered.reason === 'locked') {
+					this.#lockedOut.add(blockId);
+					try {
+						this.#opts.onlocked?.();
+					} catch {
+						/* the page's heartbeat is the next chance */
+					}
+				}
 				if (kind === null) {
+					this.#lockedOut.delete(blockId);
 					this.#acked.set(blockId, sent);
 					this.#failure.delete(blockId);
 					// A WRITE LANDED, SO THE SERVER AND THE SESSION ARE BOTH BACK:

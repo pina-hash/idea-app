@@ -192,6 +192,9 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		 *                   page opens the drawing tool, whose save writes a
 		 *                   FEEDBACK note through 0238's functions and never the
 		 *                   student's answer (0238).
+		 *   `onexpand`   -- full page opened or closed (ledger 0431); the page
+		 *                   lifts its stacking context. A boolean of the frame's own
+		 *                   chrome, nothing from the document.
 		 * None of them can reach `classroom_save_response`.
 		 *
 		 * THE LIST IS PINNED, so a FIFTH callback added to the frame lands in
@@ -199,7 +202,7 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		 * invisible to this whole file, which is the one way a sweep like this
 		 * goes quietly wrong.
 		 */
-		const NOTIFY_PROPS = ['onannotate', 'ondropped', 'onheight', 'onnote', 'onready'];
+		const NOTIFY_PROPS = ['onannotate', 'ondropped', 'onexpand', 'onheight', 'onnote', 'onready'];
 		const unaccounted = unique.filter(
 			(p) => !WRITE_PROPS.includes(p as (typeof WRITE_PROPS)[number]) && !NOTIFY_PROPS.includes(p)
 		);

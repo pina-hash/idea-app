@@ -119,7 +119,14 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { getContext, setContext } from 'svelte';
 
-export type ClassroomLiveTopic = 'hall-pass' | 'song-queue' | 'responses' | 'presence' | 'quick-posts' | 'feedback';
+export type ClassroomLiveTopic =
+	| 'hall-pass'
+	| 'song-queue'
+	| 'responses'
+	| 'presence'
+	| 'quick-posts'
+	| 'feedback'
+	| 'lock';
 
 export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'hall-pass',
@@ -127,8 +134,20 @@ export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'responses',
 	'presence',
 	'quick-posts',
-	'feedback'
+	'feedback',
+	'lock'
 ];
+
+/**
+ * `lock` IS THE SEVENTH (ledger 0431): an instructor closed or reopened an
+ * assignment from the grading page. A student's open worksheet that hears it
+ * re-reads ITS OWN submission row after a random wait of up to this long, so
+ * a class does not ask in the same second, and flips read-only or back. The
+ * notice carries nothing; the floor is the heartbeat the item page already
+ * sends, which answers the same row (`classroom_presence_ping`'s `lock` key),
+ * so a close made through the connector arrives by the beat.
+ */
+export const LOCK_NOTICE_JITTER_MS = 3000;
 
 /**
  * THE GRADING CONSOLE'S POLL, WHICH IS THE FLOOR AND NOT THE SPEED.

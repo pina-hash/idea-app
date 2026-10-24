@@ -80,7 +80,14 @@ export function createPresenceTransports(
 export function createPresenceBeatTransport(
 	supabase: SupabaseClient,
 	itemId: string,
-	onFeedbackAt: ((at: string | null) => void) | null = null
+	onFeedbackAt: ((at: string | null) => void) | null = null,
+	/**
+	 * THE STUDENT'S LOCK FLOOR (ledger 0431): since 0295 the same beat answers
+	 * the caller's own submission state on the item (`lock`, absent before), so
+	 * an assignment closed while the worksheet is open goes read-only by the
+	 * next beat with no new poll. Called only when the key is present.
+	 */
+	onLock: ((lock: { state: string; submitted_at: string | null } | null) => void) | null = null
 ): PresenceBeatTransport {
 	return {
 		ping(beat) {
@@ -102,6 +109,13 @@ export function createPresenceBeatTransport(
 								/* the page's own read is the next chance */
 							}
 						}
+						if (onLock && data && typeof data === 'object' && 'lock' in data) {
+							try {
+								onLock(presenceLockOf((data as { lock?: unknown }).lock));
+							} catch {
+								/* the next beat is the next chance */
+							}
+						}
 						return 'ok';
 					}
 					return isSignedOutFailure(error, status) ? 'signed-out' : 'failed';
@@ -111,6 +125,14 @@ export function createPresenceBeatTransport(
 			);
 		}
 	};
+}
+
+/** The beat's `lock` key as the two columns `assignmentLockState` reads, or null. */
+export function presenceLockOf(raw: unknown): { state: string; submitted_at: string | null } | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const { state, submitted_at } = raw as { state?: unknown; submitted_at?: unknown };
+	if (typeof state !== 'string') return null;
+	return { state, submitted_at: typeof submitted_at === 'string' ? submitted_at : null };
 }
 
 /**

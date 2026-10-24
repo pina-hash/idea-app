@@ -201,6 +201,13 @@ export class HxAnswersStore implements HtmlAssignmentAnswers {
 	};
 
 	/** Write everything still owed and wait for it to settle. */
+	/** See `HxAnswers.resendAfterReopen`. */
+	resendAfterReopen = (): number => {
+		const n = this.#answers.resendAfterReopen();
+		if (n > 0) this.#version += 1;
+		return n;
+	};
+
 	flush(): Promise<void> {
 		return this.#answers.flush();
 	}

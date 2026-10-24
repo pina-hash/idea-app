@@ -356,3 +356,26 @@ function kitStart() {
   hxStart();
 }
 kitStart();
+
+/* ---- Taken to one answer (idea:focus) ----------------------------------
+   The portal's Answers left list sends { type: 'idea:focus', field }. Show
+   the step that holds the field, open a fold around it, focus it without
+   scrolling (the portal scrolls the page and rings the box), and answer with
+   idea:field-box so the portal knows where it is. A portal that never sends
+   it changes nothing here. */
+addEventListener('message', function (e) {
+  var d = e.data;
+  if (e.source !== parent || !d || d.type !== 'idea:focus' || typeof d.field !== 'string') return;
+  var el = document.querySelector('[data-field="' + CSS.escape(d.field) + '"]');
+  var box = document.querySelector('[data-image-box="' + CSS.escape(d.field) + '"]') || el;
+  if (!box) return;
+  var idx = -1;
+  KIT.steps.forEach(function (s, i) { if (idx < 0 && s.el.contains(box)) idx = i; });
+  if (idx >= 0 && idx !== KIT.cur && KIT.view === 'step') kitShow(idx);
+  var fold = box.closest('details:not([open])');
+  if (fold) fold.open = true;
+  setTimeout(function () {
+    if (el && !el.disabled && el.type !== 'file') el.focus({ preventScroll: true });
+    send({ type: 'idea:field-box', field: d.field, rect: fieldBoxOf(d.field) });
+  }, 260);
+});

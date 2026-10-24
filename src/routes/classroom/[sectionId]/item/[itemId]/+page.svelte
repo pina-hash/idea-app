@@ -53,7 +53,12 @@
 	import { createPresenceBeatTransport } from '$lib/classroom/presence/transports';
 	import { FeedbackSession } from '$lib/classroom/feedback/session.svelte';
 	import { createFeedbackTransports } from '$lib/classroom/feedback/transports';
-	import { classroomLiveFromContext, FEEDBACK_NOTICE_JITTER_MS } from '$lib/classroom/live';
+	import { classroomLiveFromContext, FEEDBACK_NOTICE_JITTER_MS, LOCK_NOTICE_JITTER_MS } from '$lib/classroom/live';
+	import {
+		assignmentLockState,
+		type AssignmentLockState,
+		type LockReadableSubmission
+	} from '$lib/classroom/html-assignment/lock';
 	import NotebookCapture from '$lib/notebook/NotebookCapture.svelte';
 	import { captureFiling } from '$lib/notebook/capture';
 	import { browserCaptureStore } from '$lib/notebook/capture-store';
@@ -383,7 +388,11 @@
 				// item. Read on `attach()`, never here, so the server render and
 				// the client's first render agree. The instructor's controller
 				// above takes none: a working copy is never a hand-in.
-				mirrorViewer: data.claims?.sub ?? null
+				mirrorViewer: data.claims?.sub ?? null,
+				// A WRITE REFUSED AS SHUT (ledger 0431): the worksheet goes read
+				// only now and the page asks the database why, rather than letting
+				// the student type into a box every save refuses.
+				onlocked: () => noteLockedRefusal()
 			})
 		};
 		return heldHtmlAnswers.store;
@@ -476,6 +485,75 @@
 					wait = null;
 					sessionNow.noticed();
 				}, Math.random() * FEEDBACK_NOTICE_JITTER_MS);
+			})
+		);
+		return () => {
+			if (wait) clearTimeout(wait);
+			unsubscribe();
+		};
+	});
+
+	/**
+	 * THE LOCK, LIVE (ledger 0431, report 9f746072). `data.engine.submission` is
+	 * the lock as the page loaded; an instructor closing the assignment while a
+	 * student has it open used to leave the worksheet editable while every save
+	 * was refused. Three things now move it, all reading the student's OWN row:
+	 *
+	 *   1. the heartbeat the page already sends answers the row (0295's `lock`
+	 *      key), so no new poll: a close made anywhere, the connector included,
+	 *      lands by the next beat;
+	 *   2. the class's live notice (`lock`), announced by the grading page when
+	 *      it closes or reopens, re-reads the row after a short random wait;
+	 *   3. a save refused as shut flips the worksheet at once and re-reads.
+	 *
+	 * A reopen flips it back and sends again what was typed after the close.
+	 */
+	let htmlLock = $state<AssignmentLockState | undefined>(undefined);
+	function applyLock(row: { state: string; submitted_at: string | null } | null) {
+		const next = assignmentLockState(row as LockReadableSubmission | null);
+		const was = htmlLock ?? (data.engine ? assignmentLockState(data.engine.submission) : 'open');
+		htmlLock = next;
+		if (was !== 'open' && next === 'open') heldHtmlAnswers?.store.resendAfterReopen();
+	}
+	let lockReading = false;
+	function readOwnLock() {
+		if (lockReading || !data.engine || data.canManage) return;
+		lockReading = true;
+		const itemId = data.item.id;
+		void Promise.resolve(
+			data.supabase.from('classroom_submissions').select('state, submitted_at').eq('item_id', itemId).maybeSingle()
+		)
+			.then(({ data: row, error }) => {
+				if (!error && itemId === data.item.id) applyLock(row as { state: string; submitted_at: string | null } | null);
+			})
+			.catch(() => undefined)
+			.finally(() => {
+				lockReading = false;
+			});
+	}
+	function noteLockedRefusal() {
+		const now = htmlLock ?? (data.engine ? assignmentLockState(data.engine.submission) : 'open');
+		if (now === 'open') htmlLock = 'closed';
+		readOwnLock();
+	}
+	// A new item is a new load: nothing newer than it is known yet.
+	$effect(() => {
+		void data.item.id;
+		untrack(() => (htmlLock = undefined));
+	});
+	$effect(() => {
+		const answers = htmlAnswers;
+		const bus = classLive;
+		const sectionId = data.section.id;
+		if (!answers || !bus) return;
+		let wait: ReturnType<typeof setTimeout> | null = null;
+		const unsubscribe = untrack(() =>
+			bus.subscribe(sectionId, (topic) => {
+				if (topic !== 'lock' || wait) return;
+				wait = setTimeout(() => {
+					wait = null;
+					readOwnLock();
+				}, Math.random() * LOCK_NOTICE_JITTER_MS);
 			})
 		);
 		return () => {
@@ -1182,7 +1260,13 @@
 
 	const presenceBeat = $derived(
 		data.engine
-			? createPresenceBeatTransport(data.supabase, data.item.id, (at) => heldFeedback?.session.noteStamp(at))
+			? createPresenceBeatTransport(
+					data.supabase,
+					data.item.id,
+					(at) => heldFeedback?.session.noteStamp(at),
+					// Only a student's own worksheet reads it; a manager has no row.
+					data.canManage ? null : (lock) => applyLock(lock)
+				)
 			: null
 	);
 </script>
@@ -1225,6 +1309,7 @@
 	{ideacadOpenRefusal}
 	{htmlAnswers}
 	{htmlTeam}
+	htmlLock={data.canManage ? undefined : htmlLock}
 	feedback={feedbackSession}
 	{htmlInstructorAnswers}
 	htmlAssignmentTransports={data.canManage && data.navIsAdmin === true

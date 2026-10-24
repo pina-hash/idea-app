@@ -43,7 +43,9 @@
 	 * a Submit inside the document would be a button whose handler the document
 	 * itself wrote.
 	 */
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack, type Snippet } from 'svelte';
+	import { lockDocumentScroll } from '$lib/shell/scroll-lock';
+	import type { HxJumpResult } from './answers-left';
 	import { fileKindLabel, isImageFilename } from '$lib/classroom/classroom';
 	import Lightbox from '$lib/media/Lightbox.svelte';
 	import EnlargeCue from '$lib/media/EnlargeCue.svelte';
@@ -54,6 +56,7 @@
 	import {
 		HX_SANDBOX_FLAGS,
 		hxFeedbackMessage,
+		hxFocusMessage,
 		hxTeamProgressMessage,
 		hxImageBoxStateMessage,
 		hxImagePlacement,
@@ -150,6 +153,18 @@
 		/** The student's own team's progress (ledger 0422), sent down as `idea:team-progress`; null sends nothing. */
 		team = null,
 		/**
+		 * FULL PAGE (ledger 0431, report 989cfcb6). When true the frame carries a
+		 * Full page key that lets the worksheet take the whole browser window
+		 * (not the browser's own fullscreen), with Exit full page and Escape as
+		 * the way back. Absent everywhere a frame is not the page's main work
+		 * (grading, lessons, thumbnails), so those draw exactly what they did.
+		 */
+		expandable = false,
+		/** Parent chrome for the full-page bar (the Answers left list). */
+		chrome = null,
+		/** Told when full page opens and closes, so the page can lift its stacking context. */
+		onexpand,
+		/**
 		 * EVERY DROPPED MESSAGE IS REPORTED. Silence would make a renamed field
 		 * indistinguishable from a working one -- which is precisely the failure
 		 * the contract calls out for a renamed block id: the answer simply stops
@@ -178,6 +193,9 @@
 		onnote?: ((field: string, threadId: string) => void) | null;
 		onannotate?: ((field: string) => void) | null;
 		team?: HxTeamProgress | null;
+		expandable?: boolean;
+		chrome?: Snippet | null;
+		onexpand?: (expanded: boolean) => void;
 		ondropped?: (drop: { reason: HxDropReason; detail: string }) => void;
 	} = $props();
 
@@ -212,7 +230,11 @@
 	 * facts; keeping them separate means the floor stays live.
 	 */
 	let reportedPx = $state(0);
-	const height = $derived(Math.max(minHeight, reportedPx));
+	/** Full page is open (see `setExpanded` below). */
+	let expanded = $state(false);
+	/** The full-page stage's own height, so a document shorter than the window fills it. */
+	let stagePx = $state(0);
+	const height = $derived(Math.max(expanded && stagePx > 0 ? stagePx - 2 : minHeight, reportedPx));
 
 	/** The origin the document is served from, read off `src` -- the URL this
 	    frame is actually about to load, rather than a second read of a variable
@@ -306,6 +328,12 @@
 				fieldBoxes = message.rect
 					? { ...others, [message.field]: { rect: message.rect, clipTop: message.clipTop } }
 					: others;
+				if (message.rect && focusing && focusing.field === message.field) {
+					const answered = focusing;
+					focusing = null;
+					clearTimeout(answered.timer);
+					void goTo(message.rect).then(() => answered.resolve('answer'));
+				}
 				break;
 			}
 		}
@@ -616,9 +644,192 @@
 		if (img.naturalWidth > 0) naturals = { ...naturals, [url]: { w: img.naturalWidth, h: img.naturalHeight } };
 	}
 	const drawnWords = $derived(onannotate ? 'Your drawing is on this picture.' : 'Your teacher drew on this picture.');
+
+	/**
+	 * TAKE THE STUDENT TO ONE ANSWER (ledger 0431, report cb6d42bc), THROUGH THE
+	 * BRIDGE AND NEVER INTO THE DOCUMENT. The frame is focused first (a document
+	 * cannot pull focus into itself from a postMessage alone), `idea:focus` goes
+	 * down, and a document that knows it focuses the field and reports its box
+	 * with `idea:field-box`, which is what this scrolls to and rings. A document
+	 * that predates the message never answers; after a short wait the frame
+	 * falls back to a box it already holds for the field (a noted answer or a
+	 * picture), or to the top of the worksheet, and says which it did.
+	 */
+	const FOCUS_WAIT_MS = 700;
+	let focusing: { field: string; resolve: (r: HxJumpResult) => void; timer: ReturnType<typeof setTimeout> } | null = null;
+	let ring = $state<{ rect: HxVideoRect; key: number } | null>(null);
+	let ringEl = $state<HTMLDivElement | null>(null);
+	let frameBox = $state<HTMLDivElement | null>(null);
+	let ringTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function scrollBehavior(): ScrollBehavior {
+		const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+		return reduce ? 'instant' : 'smooth';
+	}
+
+	async function goTo(rect: HxVideoRect | null): Promise<void> {
+		if (ringTimer) clearTimeout(ringTimer);
+		if (!rect) {
+			ring = null;
+			frameBox?.scrollIntoView({ block: 'start', behavior: scrollBehavior() });
+			return;
+		}
+		ring = { rect, key: Date.now() };
+		await tick();
+		ringEl?.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+		ringTimer = setTimeout(() => (ring = null), 2400);
+	}
+
+	export function focusField(field: string): Promise<HxJumpResult> {
+		if (!ready || !frame || !Object.hasOwn(fieldToBlockId, field)) return Promise.resolve('none');
+		if (focusing) {
+			clearTimeout(focusing.timer);
+			focusing.resolve('none');
+			focusing = null;
+		}
+		frame.focus();
+		post(hxFocusMessage(field));
+		return new Promise<HxJumpResult>((resolve) => {
+			const timer = setTimeout(() => {
+				if (!focusing || focusing.field !== field) return;
+				focusing = null;
+				const known = fieldBoxes[field] ?? boxes[field];
+				void goTo(known?.rect ?? null).then(() => resolve(known ? 'answer' : 'frame'));
+			}, FOCUS_WAIT_MS);
+			focusing = { field, resolve, timer };
+		});
+	}
+
+	/**
+	 * FULL PAGE (ledger 0431, report 989cfcb6). Not the browser's fullscreen:
+	 * the same element, `position: fixed` over the whole window, so the running
+	 * document is never moved, reloaded or asked anything (moving an iframe in
+	 * the DOM reloads it, which would throw away a student's place). Foundry's
+	 * AppStage overlay is the pattern; there is no native path, because a
+	 * worksheet needs the page's own chrome (the Exit key, Answers left) on
+	 * screen.
+	 *
+	 * ESCAPE IS A CONVENIENCE AND THE KEY IS THE GUARANTEE: a keydown inside the
+	 * sandboxed document never reaches this window, so Exit full page stays on
+	 * screen the whole time. REMEMBERED IN THIS BROWSER ONLY, as a convenience:
+	 * storage that throws or comes back empty opens the ordinary view.
+	 */
+	const EXPAND_KEY = 'idea.hx.fullpage';
+	let expandKey = $state<HTMLButtonElement | null>(null);
+	let exitKey = $state<HTMLButtonElement | null>(null);
+
+	function remember(on: boolean) {
+		try {
+			if (on) localStorage.setItem(EXPAND_KEY, '1');
+			else localStorage.removeItem(EXPAND_KEY);
+		} catch {
+			/* a convenience only */
+		}
+	}
+
+	async function setExpanded(on: boolean) {
+		if (expanded === on) return;
+		expanded = on;
+		remember(on);
+		await tick();
+		(on ? exitKey : expandKey)?.focus();
+	}
+
+	onMount(() => {
+		if (!expandable) return;
+		try {
+			if (localStorage.getItem(EXPAND_KEY) === '1') expanded = true;
+		} catch {
+			/* a convenience only */
+		}
+	});
+
+	$effect(() => {
+		if (!expanded) return;
+		const release = lockDocumentScroll();
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key !== 'Escape' || e.defaultPrevented) return;
+			// An open picture closes first; the Lightbox owns that Escape.
+			if (openAt !== null) return;
+			e.preventDefault();
+			void setExpanded(false);
+		};
+		window.addEventListener('keydown', onKey);
+		untrack(() => onexpand?.(true));
+		return () => {
+			window.removeEventListener('keydown', onKey);
+			release();
+			untrack(() => onexpand?.(false));
+		};
+	});
 </script>
 
-<div class="hx-frame-wrap" data-hx-ready={ready ? 'yes' : 'no'} data-hx-listening={listening ? 'yes' : 'no'}>
+<div
+	class="hx-frame-wrap"
+	class:is-expanded={expanded}
+	data-hx-ready={ready ? 'yes' : 'no'}
+	data-hx-listening={listening ? 'yes' : 'no'}
+	data-hx-expanded={expanded ? 'yes' : 'no'}
+	role={expanded ? 'region' : undefined}
+	aria-label={expanded ? `${title}, full page` : undefined}
+>
+	{#if expandable}
+		<!--
+			THE BAR. Ordinary view: one key at the right, the way into full page.
+			Full page: the title, the page's own chrome (Answers left), and the way
+			back, which never fades, because Escape cannot be heard while a student
+			is typing inside the worksheet.
+		-->
+		<div class="hx-bar" class:is-expanded={expanded}>
+			{#if expanded}
+				<p class="hx-bar-title">{title}</p>
+				{#if chrome}
+					<div class="hx-bar-chrome">{@render chrome()}</div>
+				{/if}
+				<button
+					type="button"
+					class="hx-bar-key"
+					data-testid="hx-fullpage-exit"
+					bind:this={exitKey}
+					onclick={() => setExpanded(false)}
+				>
+					<svg viewBox="0 0 16 16" aria-hidden="true"
+						><path
+							d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.6"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/></svg
+					>
+					<span>Exit full page</span>
+				</button>
+			{:else}
+				<button
+					type="button"
+					class="hx-bar-key"
+					data-testid="hx-fullpage"
+					title="Show this worksheet across the whole window"
+					bind:this={expandKey}
+					onclick={() => setExpanded(true)}
+				>
+					<svg viewBox="0 0 16 16" aria-hidden="true"
+						><path
+							d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.6"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/></svg
+					>
+					<span>Full page</span>
+				</button>
+			{/if}
+		</div>
+	{/if}
+	<div class="hx-stage" bind:clientHeight={stagePx}>
 	<!--
 		ABOVE THE DOCUMENT, NOT BELOW IT. A student scrolling a worksheet reads
 		downward from the top, and a sentence explaining why nothing is saving
@@ -669,7 +880,7 @@
 		its own; the box is `display: flex` in one column so it takes exactly the
 		frame's height and adds nothing of its own.
 	-->
-	<div class="hx-frame-box">
+	<div class="hx-frame-box" bind:this={frameBox}>
 		{#if listening}
 			<iframe
 				bind:this={frame}
@@ -812,6 +1023,19 @@
 					<span>{pin.note.label}</span>
 				</button>
 			{/each}
+			{#if ring}
+				<!-- WHERE A JUMP LANDED (ledger 0431): a ring over the answer's box,
+				     parent chrome, gone after a moment. Never a hit target. -->
+				{#key ring.key}
+					<div
+						class="hx-focus-ring"
+						data-testid="hx-focus-ring"
+						bind:this={ringEl}
+						style="left: {ring.rect.x - 4}px; top: {ring.rect.y - 4}px; width: {ring.rect.w + 8}px; height: {ring.rect.h + 8}px;"
+						aria-hidden="true"
+					></div>
+				{/key}
+			{/if}
 		{:else}
 			<!-- Not a pending state to dress up: it lasts one frame after hydration
 			     and a spinner here would be a flash on every load. The box holds its
@@ -900,6 +1124,8 @@
 			</ul>
 		</section>
 	{/if}
+
+	</div>
 
 	{#if lightboxImages.length}
 		<Lightbox
@@ -1059,6 +1285,126 @@
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
+	}
+	.hx-stage {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	/* THE BAR. A single key in the ordinary view; the way back in full page. */
+	.hx-bar {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-2);
+		min-width: 0;
+	}
+	.hx-bar-key {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		min-height: 44px;
+		padding: 0 0.95rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-1);
+		background: var(--surface-1, var(--bg1));
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		cursor: pointer;
+		flex: none;
+	}
+	.hx-bar-key svg {
+		width: 1rem;
+		height: 1rem;
+	}
+	.hx-bar-key:hover {
+		border-color: var(--hover-ink, var(--green));
+	}
+	.hx-bar-key:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	.hx-bar-title {
+		margin: 0;
+		flex: 1 1 auto;
+		min-width: 0;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 1.05rem;
+		color: var(--text-1);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.hx-bar-chrome {
+		flex: none;
+		min-width: 0;
+	}
+
+	/*
+		FULL PAGE. The same element over the whole window, so the document is
+		never moved or reloaded. `100dvh` after `100vh` for a phone's toolbars,
+		AppStage's pair. Above the masthead, which sits at `z-index: 1` in the
+		same stacking context once the page drops its own (ItemDetail does, while
+		this is open). No transition: it appears and goes in one frame.
+	*/
+	.hx-frame-wrap.is-expanded {
+		position: fixed;
+		inset: 0;
+		height: 100vh;
+		height: 100dvh;
+		z-index: 100;
+		background: var(--bg0);
+	}
+	.hx-bar.is-expanded {
+		margin: 0;
+		padding: 0.5rem var(--space-3, 0.9rem);
+		border-bottom: 1px solid var(--boundary);
+		background: var(--surface-1, var(--bg1));
+	}
+	.is-expanded > .hx-stage {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		/* A reading width on a wide screen; the whole width on a phone. */
+		padding: var(--space-2, 0.6rem) max(var(--space-2, 0.6rem), calc((100% - 1400px) / 2));
+	}
+
+	/* WHERE A JUMP LANDED. The focus colour, because it is where focus went. */
+	.hx-focus-ring {
+		position: absolute;
+		z-index: 2;
+		pointer-events: none;
+		border: 3px solid var(--green);
+		border-radius: var(--radius-md, 8px);
+		box-shadow: 0 0 0 4px color-mix(in oklab, var(--green) 25%, transparent);
+	}
+	@media (prefers-reduced-motion: no-preference) {
+		.hx-focus-ring {
+			animation: hx-ring 2400ms ease-out 1 both;
+		}
+	}
+	@keyframes hx-ring {
+		0% {
+			opacity: 0;
+			transform: scale(1.04);
+		}
+		12% {
+			opacity: 1;
+			transform: none;
+		}
+		75% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
 	}
 
 	.hx-frame-placeholder {

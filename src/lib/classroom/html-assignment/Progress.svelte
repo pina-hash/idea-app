@@ -83,6 +83,8 @@
 	 * filled in" here must be one answer.
 	 */
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
+	import AnswersLeft from '$lib/classroom/html-assignment/AnswersLeft.svelte';
+	import { hxAnswersLeft, type HxJumpResult } from '$lib/classroom/html-assignment/answers-left';
 	import type { HxImageState } from '$lib/classroom/html-assignment/bridge';
 	import type { HxSaveStatus } from '$lib/classroom/html-assignment/answers';
 	import {
@@ -106,7 +108,8 @@
 		manifest,
 		values,
 		images = {},
-		status = null
+		status = null,
+		onjump = null
 	}: {
 		/** The manifest STORED AT IMPORT, never one a frame sent. */
 		manifest: HtmlAssignmentManifest;
@@ -119,6 +122,12 @@
 		 * no indicator, nothing published.
 		 */
 		status?: HxSaveStatus | null;
+		/**
+		 * TAKE THE STUDENT TO AN ANSWER (ledger 0431). Handed in, the module
+		 * chips become buttons and an Answers left list opens under them;
+		 * absent (a read-only mount), the chips stay words.
+		 */
+		onjump?: ((field: string) => Promise<HxJumpResult> | HxJumpResult) | null;
 	} = $props();
 
 	const progress = $derived(hxProgress(manifest, values, images, { unsaved: status?.unsaved ?? [] }));
@@ -151,6 +160,9 @@
 	const summary = $derived(hxProgressSummary(progress));
 	/** Only the modules the bar counts get a segment and a chip. */
 	const counted = $derived(progress.modules.filter((m) => m.weight > 0));
+
+	const leftGroups = $derived(onjump ? hxAnswersLeft(manifest, progress) : []);
+	let left = $state<ReturnType<typeof AnswersLeft> | null>(null);
 
 	/** A stable id for `aria-describedby`; one rail per mount. */
 	const noteId = `hxp-note-${Math.random().toString(36).slice(2, 8)}`;
@@ -256,12 +268,24 @@
 	{#if counted.length > 0}
 		<ul class="hxp-mods" aria-label="Modules">
 			{#each counted as mod (mod.id)}
-				<li class="hxp-mod" class:is-done={mod.done} data-hx-mod={mod.id}>
-					<span class="hxp-mod-glyph" aria-hidden="true">{mod.done ? '✓' : '·'}</span>
-					<span class="hxp-mod-word">{hxProgressModuleLine(mod)}</span>
+				<li class="hxp-mod" class:is-done={mod.done} class:is-link={onjump && !mod.done} data-hx-mod={mod.id}>
+					{#if onjump && !mod.done}
+						<!-- A CHIP THAT SAYS "N ANSWERS LEFT" OPENS THE LIST AT THEM. -->
+						<button type="button" class="hxp-mod-btn" data-testid="hxp-mod-open" onclick={() => left?.openAt(mod.id)}>
+							<span class="hxp-mod-glyph" aria-hidden="true">·</span>
+							<span class="hxp-mod-word">{hxProgressModuleLine(mod)}</span>
+						</button>
+					{:else}
+						<span class="hxp-mod-glyph" aria-hidden="true">{mod.done ? '✓' : '·'}</span>
+						<span class="hxp-mod-word">{hxProgressModuleLine(mod)}</span>
+					{/if}
 				</li>
 			{/each}
 		</ul>
+	{/if}
+
+	{#if onjump && leftGroups.length}
+		<AnswersLeft bind:this={left} groups={leftGroups} {onjump} />
 	{/if}
 
 	<p class="hxp-note" id={noteId} data-testid="hxp-note">{HX_PROGRESS_NOT_A_GRADE}</p>
@@ -491,6 +515,31 @@
 	.hxp-mod-word {
 		white-space: normal;
 		overflow-wrap: anywhere;
+	}
+	.hxp-mod.is-link {
+		padding: 0;
+		border-color: var(--boundary);
+	}
+	.hxp-mod-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		min-height: 44px;
+		padding: 0 0.7rem;
+		font: inherit;
+		color: var(--text-1);
+		background: none;
+		border: 0;
+		border-radius: inherit;
+		cursor: pointer;
+		text-align: left;
+	}
+	.hxp-mod-btn:hover {
+		color: var(--hover-ink, var(--text-1));
+	}
+	.hxp-mod-btn:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	.hxp-mod.is-done {
 		color: var(--green);

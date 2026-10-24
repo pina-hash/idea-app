@@ -314,6 +314,20 @@ export const HX_FEEDBACK_TYPE = 'idea:feedback';
 export const HX_TEAM_PROGRESS_TYPE = 'idea:team-progress';
 
 /**
+ * TAKE THE STUDENT TO ONE ANSWER (ledger 0431, report cb6d42bc: "click on
+ * answers left ... and ill be taken to it"). The parent sends
+ * `{ type: 'idea:focus', field }` when a student picks an unanswered item from
+ * the Answers left list. A document that knows it focuses that field WITHOUT
+ * scrolling itself (the frame is as tall as the document, so the page around
+ * it is what scrolls) and answers with `idea:field-box` for the field, which
+ * is what the parent scrolls to and rings. ADVISORY: a document that predates
+ * it ignores it, and the parent then scrolls to any box it already holds for
+ * the field, or to the top of the frame, and says so. A field name only; the
+ * parent never reads the document's DOM to find anything.
+ */
+export const HX_FOCUS_TYPE = 'idea:focus';
+
+/**
  * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
  *
  * BYTES GO FRAME-TO-PARENT ONLY, NEVER BACK. An `idea:image` carries a
@@ -404,6 +418,11 @@ export type HxParentMessage =
 			/** The fields that have a note on them (0238). See `HX_FEEDBACK_TYPE`. */
 			type: typeof HX_FEEDBACK_TYPE;
 			fields: string[];
+	  }
+	| {
+			/** Take the student to this answer. See `HX_FOCUS_TYPE`. */
+			type: typeof HX_FOCUS_TYPE;
+			field: string;
 	  }
 	| {
 			/** The student's own team, teammate by teammate. See `HX_TEAM_PROGRESS_TYPE`. */
@@ -896,6 +915,11 @@ export function hxTeamProgressMessage(team: {
 			modules: m.modules.map((x) => ({ id: x.id, title: x.title, met: x.met, of: x.of }))
 		}))
 	};
+}
+
+/** Ask the document to focus one field (`HX_FOCUS_TYPE`). */
+export function hxFocusMessage(field: string): HxParentMessage {
+	return { type: HX_FOCUS_TYPE, field };
 }
 
 /** The parent's answer to `idea:image-box`. */

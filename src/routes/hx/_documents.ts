@@ -130,6 +130,20 @@ function bridgeClient(): string {
 				var savedNote = document.getElementById('saved-note');
 				if (savedNote) savedNote.textContent = (d.ok ? 'saved ' : 'save failed ') + d.at;
 			}
+			// TAKEN TO ONE ANSWER (ledger 0431, idea:focus): focus the field without
+			// scrolling (the page around the frame scrolls) and say where it is.
+			if (d.type === 'idea:focus' && typeof d.field === 'string') {
+				var focusEl = document.querySelector('[data-field="' + CSS.escape(d.field) + '"]');
+				var focusBox = document.querySelector('[data-image-box="' + CSS.escape(d.field) + '"]') || focusEl;
+				if (!focusBox) return;
+				if (focusEl && !focusEl.disabled && focusEl.type !== 'file') focusEl.focus({ preventScroll: true });
+				var fr = focusBox.getBoundingClientRect();
+				send({ type: 'idea:field-box', field: d.field, rect: fr.width > 0 && fr.height > 0
+					? { x: Math.round(fr.left + scrollX), y: Math.round(fr.top + scrollY), w: Math.round(fr.width), h: Math.round(fr.height) }
+					: null });
+				var focusNote = document.getElementById('focus-note');
+				if (focusNote) focusNote.textContent = 'focused ' + d.field;
+			}
 		});
 		addEventListener('input', function (e) {
 			var el = e.target;
