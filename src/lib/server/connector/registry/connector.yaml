@@ -100,8 +100,8 @@ connector_admin_evals:
 connector_lookup:
   surface: call
   level: read
-  describe: Find a record's id by its name, for any action that needs one, like a class, post, notice, person, tournament, Foundry app, market card, contract or certification.
-  say: ["what's the id of the tissue box card", "find the Blade Night tournament", "look up the go cart contract"]
+  describe: Find a record's id by its name, for any action that needs one, like a class, post, notice, person, tournament, Foundry app, market card or certification.
+  say: ["what's the id of the tissue box card", "find the Blade Night tournament", "look up the Shop Fix post"]
   args:
-    p_kind: {name: kind, enum: [section, course, post, quick_post, student, user, tournament, app, listing, contract, track, challenge, team_set, stock, project, cert, role_holder], describe: "What kind of record."}
+    p_kind: {name: kind, enum: [section, course, post, quick_post, student, user, tournament, app, listing, track, challenge, team_set, stock, project, cert, role_holder], describe: "What kind of record."}
     p_said: {name: name, describe: "Its name, as he said it."}

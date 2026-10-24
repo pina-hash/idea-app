@@ -8,7 +8,6 @@
 	import CoinDonationPanel from './CoinDonationPanel.svelte';
 	import CoinOnHand from './CoinOnHand.svelte';
 	import CoinRequestsList from './CoinRequestsList.svelte';
-	import CoinContractsPanel from './CoinContractsPanel.svelte';
 	import CoinStatsPanel from './CoinStatsPanel.svelte';
 	import CoinAuditorPanel from './CoinAuditorPanel.svelte';
 	import CoinDispute from './CoinDispute.svelte';
@@ -188,9 +187,6 @@
 	const onHandPending = $derived(!!requests?.some((r) => r.kind === 'reported_coins' && r.status === 'pending'));
 	const showPayout = $derived(
 		!!page && sessionTwo && (!!page.payout || (page.in_economy && !!transports.requestPayout))
-	);
-	const showContracts = $derived(
-		!!page && !!extras.contracts && (extras.contracts.length > 0 || page.in_economy)
 	);
 
 	function changed() {
@@ -491,14 +487,6 @@
 						ondone={changed}
 					/>
 				{/if}
-			{/if}
-			{#if showContracts && extras.contracts}
-				<CoinContractsPanel
-					contracts={extras.contracts}
-					claim={page.in_economy ? (transports.claimContract ?? null) : null}
-					markDone={transports.markContractDone ?? null}
-					ondone={changed}
-				/>
 			{/if}
 			{#if page.in_economy && sessionTwo && transports.reportOnHand}
 				<CoinOnHand report={transports.reportOnHand} pending={onHandPending} ondone={changed} />

@@ -60,7 +60,6 @@ const COIN_SOURCES = [
 	'src/routes/dev/tournaments/+page.svelte',
 	'src/lib/coin-balance/CoinAuditorPanel.svelte',
 	'src/lib/coin-balance/CoinBackgroundPanel.svelte',
-	'src/lib/coin-balance/CoinContractsPanel.svelte',
 	'src/lib/coin-balance/CoinDispute.svelte',
 	'src/lib/coin-balance/CoinDonationPanel.svelte',
 	'src/lib/coin-balance/CoinOnHand.svelte',

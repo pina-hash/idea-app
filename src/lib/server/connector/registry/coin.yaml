@@ -278,16 +278,10 @@ coin_me:
   say: ["what's my own coin record", "do I have a coin balance", "show my coin page"]
 
 coin_my_contract_claims:
-  surface: call
-  level: read
-  describe: The coin contracts you have claimed yourself, which for staff is usually none.
-  say: ["which contracts have I claimed", "my claimed contracts", "did I claim any contracts"]
+  exclude: A student's own contract claims; it acts as the caller, and contracts are retired (ledger 0432).
 
 coin_my_contracts:
-  surface: call
-  level: read
-  describe: The coin contracts open to you as a student would see them.
-  say: ["which contracts can I see", "show the contracts as a student sees them", "my open contracts"]
+  exclude: The contracts open to the calling student; it acts as the caller, and contracts are retired (ledger 0432).
 
 coin_my_page:
   surface: call
@@ -316,10 +310,7 @@ coin_no_shop_today:
     p_section_id: {name: class, resolve: class, describe: "The class."}
 
 coin_public_contracts:
-  surface: call
-  level: read
-  describe: The coin contracts as the public coin ledger lists them.
-  say: ["what contracts are posted", "show the public contracts", "which contracts are open on the ledger"]
+  exclude: The old Ledger's contracts tab, readable without signing in; contracts are retired (ledger 0432).
 
 coin_public_leaderboard:
   surface: call
@@ -422,95 +413,23 @@ coin_stocks_board:
 coin_stocks_tick:
   exclude: Asks for the minute price update the stocks page makes on load; it throttles itself and answers counts only, so there is nothing for an admin to do with it.
 
-# CONTRACTS, every field from the connector (ledger 0422, gaps a9d4bab4 and
-# ab5610b6). A contract is the Coin Desk's job card: Sweep IDEA Shop, Fix
-# Go-Cart, IDEA Coin Launcher. Each one is named by its title.
+# CONTRACTS ARE RETIRED (ledger 0432, migration 0295, feedback 00463d19):
+# jobs live on the IDEA Market, and every contract write is closed to every
+# client. Nothing about contracts is a connector tool.
 
 coin_contracts_admin:
-  surface: call
-  level: read
-  describe: Every Coin Desk contract (the jobs students take), open, full, done or cancelled, with who is on each.
-  say: ["list the contracts", "what jobs are open", "who is on the go cart job"]
-
+  exclude: Contracts are retired (ledger 0432); jobs are posted on the IDEA Market, so the old contract list is not offered.
 coin_contract_post:
-  surface: call
-  level: confirm
-  proof: generic
-  describe: Post a new Coin Desk contract, a job students take for coins; it asks first.
-  say: ["post a job to sweep the shop for 2 coins", "add a contract to fix the printer", "create a new job for two students"]
-  args:
-    p_title: {name: title, describe: "What the job is called."}
-    p_description: {name: text, describe: "What has to be done."}
-    p_pay_type: {name: pay, enum: [flat, hourly, quality], describe: "flat for a set amount, hourly by the hour, quality judged on the result."}
-    p_payout_amount: {name: coins, default: null, describe: "The coins it pays, for flat or quality pay."}
-    p_hourly_rate: {name: rate, default: null, describe: "Coins per hour, for hourly pay."}
-    p_max_contractors: {name: students, describe: "How many students can take it, 1 to 50."}
-    p_section_id: {name: class, resolve: class, default: null, describe: "Only this class; leave it out for every class."}
-    p_debt_only: {name: debtOnly, default: null, describe: "True to offer it only to students in debt."}
-
+  exclude: Contracts are retired (ledger 0432); no client may post one, and jobs are posted on the IDEA Market.
 coin_admin_edit_contract:
-  surface: call
-  level: confirm
-  proof: generic
-  describe: Change any part of an existing contract (title, text, pay, coins, rate, how many students, class, debt only); anything left out stays as it is. It asks first.
-  say: ["change the go cart job to 40 coins", "let three students take the printer job", "make the sweep job only for Block 2"]
-  args:
-    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
-    p_title: {name: title, default: null, describe: "A new title."}
-    p_description: {name: text, default: null, describe: "New text for what has to be done."}
-    p_pay_type: {name: pay, default: null, enum: [flat, hourly, quality], describe: "flat, hourly or quality."}
-    p_payout_amount: {name: coins, default: null, describe: "The coins it pays."}
-    p_hourly_rate: {name: rate, default: null, describe: "Coins per hour, for hourly pay."}
-    p_max_contractors: {name: students, default: null, describe: "How many students can take it, never fewer than already have."}
-    p_section_id: {name: class, resolve: class, default: null, describe: "Only this class."}
-    p_debt_only: {name: debtOnly, default: null, describe: "True to offer it only to students in debt, false for everyone."}
-    p_clear_class: {name: everyClass, default: null, describe: "True to open it to every class again."}
-
+  exclude: Contracts are retired (ledger 0432); no client may change one.
 coin_admin_assign_contract:
-  surface: call
-  level: confirm
-  proof: generic
-  describe: Put a student on a contract as if they had taken it, like awarding the IDEA Coin Launcher job to Azad; it asks first.
-  say: ["give the coin launcher job to Azad", "assign the printer job to Timothy", "put Ana on the sweep contract"]
-  args:
-    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
-    p_student_email: {name: student, resolve: student, describe: "The student, as he said the name."}
-
+  exclude: Contracts are retired (ledger 0432); no client may put a student on one.
 coin_admin_cancel_contract:
-  surface: call
-  level: confirm
-  proof: generic
-  describe: Take a contract down (cancel it), with a reason; restore puts it back. It asks first.
-  say: ["remove the rearrange the shop job", "take down the sweep contract", "cancel the go cart job"]
-  args:
-    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
-    p_reason: {name: reason, default: null, describe: "Why, in his words."}
-
+  exclude: Contracts are retired (ledger 0432); every contract was already closed by the migration that retired them.
 coin_admin_restore_contract:
-  surface: call
-  level: confirm
-  proof: generic
-  describe: Bring back a contract that was taken down; it asks first.
-  say: ["restore the FRC field setup job", "bring back the sweep contract", "put the go cart job back up"]
-  args:
-    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
-
+  exclude: Contracts are retired (ledger 0432); no client may reopen one.
 coin_admin_reset_contract:
-  surface: call
-  level: confirm
-  proof: generic
-  describe: Reset a contract, clearing who took it so it is open again; it asks first.
-  say: ["reset the printer job", "clear who has the sweep contract", "open the go cart job again"]
-  args:
-    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
-
+  exclude: Contracts are retired (ledger 0432); no client may reopen one.
 coin_contract_mark_done:
-  surface: call
-  level: confirm
-  proof: generic
-  describe: Mark a contract done so its students are paid, with the hours for an hourly one; it asks first.
-  say: ["mark the printer job done", "the go cart is fixed, pay them", "finish the sweep contract, 2 hours"]
-  args:
-    p_contract_id: {name: contract, describe: "The contract: its title as he says it, or its id."}
-    p_hours: {name: hours, default: null, describe: "Hours worked, for an hourly contract."}
-    p_note: {name: note, default: null, describe: "A note, in his words."}
+  exclude: A student marking their own contract finished, through the coin student seam; through an admin's account it acted as him and answered not in the economy (gap 3f52bae9), and contracts are retired (ledger 0432).

@@ -102,6 +102,8 @@ const AREAS = [
 
 export const NOT_ADMIN_FUNCTION =
 	"Generated: not an admin action. Its body checks no admin, staff or class-teacher gate, so it acts as whoever calls it (a student's or a visitor's own action on their own record).";
+export const CALLER_ACTION =
+	"Generated: a person's own action through the coin student seam; it acts as whoever calls it, so through an admin's account it would act as him (ledger 0432).";
 export const NO_SUCH_FUNCTION = "Generated: the site's code names this function but no migration defines it, so there is nothing to run.";
 export const NOT_ADMIN_ROUTE =
 	"Generated: not an admin action. The route's handler checks no site admin, so it serves or acts for whoever calls it.";
@@ -141,6 +143,7 @@ export function spokenName(param) {
 /** One generated function entry. */
 export function autoFunction(name, overloads) {
 	if (!overloads || overloads.length === 0) return { auto: true, exclude: NO_SUCH_FUNCTION };
+	if (overloads.some((o) => o.acts_as_caller)) return { auto: true, exclude: CALLER_ACTION };
 	const gated = overloads.some((o) => (o.gates ?? []).length > 0);
 	if (!gated) return { auto: true, exclude: NOT_ADMIN_FUNCTION };
 	const writes = overloads.some((o) => o.writes);

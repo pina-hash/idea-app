@@ -12,7 +12,7 @@
 // `gates` (the staff checks the body calls, tools/connector/gates.mjs) and
 // `writes` (the body, or anything it calls, writes).
 
-import { reachedGates, writers } from './gates.mjs';
+import { callerActions, reachedGates, writers } from './gates.mjs';
 
 /**
  * @param {(text: string, params?: unknown[]) => Promise<{ rows: any[] }>} query
@@ -59,6 +59,7 @@ export async function readSchema(query, names) {
 	for (const r of all.rows) bodies.set(r.name, [...(bodies.get(r.name) ?? []), r.body ?? '']);
 	const writing = writers(bodies);
 	const gated = reachedGates(bodies);
+	const callers = callerActions(bodies);
 	const VOLATILITY = { i: 'immutable', s: 'stable', v: 'volatile' };
 	/** @type {Record<string, any[]>} */
 	const out = {};
@@ -81,7 +82,9 @@ export async function readSchema(query, names) {
 			// A function that writes nothing itself and calls nothing that does.
 			// Per NAME, not per overload: the fixpoint is over names, so one
 			// overload that writes makes every form of it a write.
-			writes: writing.has(r.name)
+			writes: writing.has(r.name),
+			// Ledger 0432: it reaches a caller seam, so it acts as whoever calls it.
+			...(callers.has(r.name) ? { acts_as_caller: true } : {})
 		});
 	}
 	return out;

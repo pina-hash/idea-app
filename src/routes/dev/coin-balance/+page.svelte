@@ -227,28 +227,6 @@
 			r.status = 'cancelled';
 			return ok();
 		},
-		async claimContract(id) {
-			await wait();
-			const c = extras.contracts?.find((x) => x.id === id);
-			if (!c) return no('not_open');
-			if (c.mine) return no('already_claimed');
-			if (c.claimed_count >= c.max_contractors) return no('full');
-			if (c.debt_only && current!.balance >= 0) return no('debt_only');
-			c.mine = true;
-			c.claimed_count += 1;
-			return ok({ contract_id: id });
-		},
-		async markContractDone(id, hours) {
-			await wait();
-			const c = extras.contracts?.find((x) => x.id === id);
-			if (!c || !c.mine) return no('not_claimed');
-			if (c.done_at) return no('already_done');
-			if (c.pay_type === 'hourly' && !(hours && hours > 0 && hours <= 200)) return no('hours');
-			c.done_at = new Date(NOW).toISOString();
-			c.request_status = 'pending';
-			const amount = c.pay_type === 'hourly' ? (c.hourly_rate ?? 0) * (hours ?? 0) : (c.payout_amount ?? 0);
-			return ok({ amount });
-		},
 		async auditorValidate(id) {
 			await wait();
 			if (!extras.auditor?.some((a) => a.id === id)) return no('not_found');

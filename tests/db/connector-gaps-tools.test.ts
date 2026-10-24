@@ -23,18 +23,19 @@ afterAll(async () => w?.stop());
 const run = async (name: string, args: Record<string, unknown>) => runTool(await w.ctx(w.admin), name, args);
 
 describe('an id is always takeable by its name (the new item)', () => {
-	it('site_call takes a contract by its title, and an unknown title writes nothing', async () => {
-		const posted = await run('site_call', { name: 'coin_contract_post', args: { title: 'Sweep IDEA Shop', text: 'Sweep it.', pay: 'flat', coins: 2, students: 1, debtOnly: false } });
-		expect(posted.status, JSON.stringify(posted)).toBe('preview');
-		const done = await run('site_call', { name: 'coin_contract_post', args: { title: 'Sweep IDEA Shop', text: 'Sweep it.', pay: 'flat', coins: 2, students: 1, debtOnly: false }, confirm_token: posted.confirm_token });
-		expect(done.status).toBe('done');
-		const edit = await run('site_call', { name: 'coin_admin_edit_contract', args: { contract: 'sweep idea shop', coins: 3 } });
-		expect(edit.status).toBe('preview');
-		const yes = await run('site_call', { name: 'coin_admin_edit_contract', args: { contract: 'sweep idea shop', coins: 3 }, confirm_token: edit.confirm_token });
-		expect(yes.status).toBe('done');
-		expect((await w.db.sql(`select payout_amount from public.coin_contracts where title = 'Sweep IDEA Shop'`)).rows[0].payout_amount).toBe(3);
-		const none = await run('site_call', { name: 'coin_admin_edit_contract', args: { contract: 'fly to the moon', coins: 9 } });
-		expect(none.status).toBe('not_found');
+	it('site_call takes a tournament by its name, and an unknown name writes nothing', async () => {
+		const made = await run('create_tournament', { name: 'Blade Night', description: 'Spinning tops.' });
+		expect(['done', 'preview', 'ok']).toContain(made.status);
+		const found = await run('site_call', { name: 'connector_lookup', args: { kind: 'tournament', name: 'blade night' } });
+		expect(found.status, JSON.stringify(found)).toBe('ok');
+		const none = await run('site_call', { name: 'connector_lookup', args: { kind: 'tournament', name: 'fly to the moon' } });
+		expect(JSON.stringify(none.result ?? none)).not.toContain('Blade Night');
+	});
+	it('a retired contract tool is not offered and writes nothing (ledger 0432)', async () => {
+		const before = Number((await w.db.sql<{ n: string }>(`select count(*) as n from public.coin_contracts`)).rows[0].n);
+		const posted = await run('site_call', { name: 'coin_contract_post', args: { title: 'Sweep IDEA Shop', text: 'Sweep it.', pay: 'flat', coins: 2, students: 1 } });
+		expect(posted.status).toBe('not_available');
+		expect(Number((await w.db.sql<{ n: string }>(`select count(*) as n from public.coin_contracts`)).rows[0].n)).toBe(before);
 	});
 });
 

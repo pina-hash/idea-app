@@ -24,10 +24,8 @@ import {
 import {
 	backgroundRefusalWords,
 	coinDay,
-	contractPayWords,
 	parseAuditorQueue,
 	parseDonationItems,
-	parseMyContracts,
 	parseMyStats,
 	requestCancellable,
 	requestStatusWords,
@@ -215,18 +213,6 @@ describe('a student submission, in words', () => {
 });
 
 describe('the other reads', () => {
-	it('contracts: pay in words, a restitution job flagged', () => {
-		const [hourly, flat, quality] = parseMyContracts([
-			{ id: '1', title: 'A', pay_type: 'hourly', hourly_rate: '2', max_contractors: 1 },
-			{ id: '2', title: 'B', pay_type: 'flat', payout_amount: '6', max_contractors: 2, debt_only: true },
-			{ id: '3', title: 'C', pay_type: 'quality', payout_amount: '8' },
-			{ title: 'no id' }
-		]);
-		expect(contractPayWords(hourly)).toBe(`2${COIN_SYMBOL} an hour, for the hours you report`);
-		expect(contractPayWords(flat)).toBe(`6${COIN_SYMBOL}, split between everyone who claims it`);
-		expect(contractPayWords(quality)).toContain('quality');
-		expect(flat.debt_only).toBe(true);
-	});
 	it('the auditor queue is null unless auditor is true', () => {
 		expect(parseAuditorQueue({ auditor: false })).toBeNull();
 		expect(parseAuditorQueue(null)).toBeNull();
@@ -328,7 +314,6 @@ describe('copy rules on the session-two sources', () => {
 		'src/lib/coin-balance/CoinDonationPanel.svelte',
 		'src/lib/coin-balance/CoinOnHand.svelte',
 		'src/lib/coin-balance/CoinRequestsList.svelte',
-		'src/lib/coin-balance/CoinContractsPanel.svelte',
 		'src/lib/coin-balance/CoinStatsPanel.svelte',
 		'src/lib/coin-balance/CoinAuditorPanel.svelte',
 		'src/lib/coin-balance/CoinDispute.svelte',

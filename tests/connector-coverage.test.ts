@@ -89,7 +89,11 @@ describe('the generated tools (ledger 0416)', () => {
 			const e = (overlayJson as { functions: Record<string, { exclude?: string }> }).functions[name];
 			return !!e?.exclude && e.exclude.length >= 20;
 		};
-		const adminFunctions = inventory.functions.filter((f) => schemaOf(f).some((o) => ((o as { gates?: string[] }).gates ?? []).length > 0));
+		// A function that reaches a caller seam acts as the caller (ledger 0432), so it is no admin action whatever its gates say.
+		const actsAsCaller = (f: string) => schemaOf(f).some((o) => (o as { acts_as_caller?: boolean }).acts_as_caller === true);
+		const adminFunctions = inventory.functions.filter(
+			(f) => !actsAsCaller(f) && schemaOf(f).some((o) => ((o as { gates?: string[] }).gates ?? []).length > 0)
+		);
 		// Measured 2026-10-19 on this tree: well over a hundred, so a gate reader that found none would say so here.
 		expect(adminFunctions.length).toBeGreaterThan(250);
 		const unanswered = adminFunctions.filter((f) => !liveFunction(f) && !handExcluded(f));
@@ -109,6 +113,20 @@ describe('the generated tools (ledger 0416)', () => {
 			.map((e) => e.route)
 			.filter((r) => !callRoutes.has(r) && !handRouteExcluded(r) && !(ENDPOINTS[r]?.auto && ENDPOINTS[r]?.exclude && /parameter|no GET or POST/.test(ENDPOINTS[r].exclude!)));
 		expect(unansweredRoutes).toEqual([]);
+	});
+
+	it('no tool acts as the caller: a student coin action is never reachable as an admin (ledger 0432, gap 3f52bae9)', async () => {
+		const { CALLER_SEAMS } = await tool('gates.mjs');
+		for (const seam of CALLER_SEAMS) expect((await db.sql(`select to_regproc('public.' || $1) as p`, [seam])).rows[0].p, seam).not.toBeNull();
+		const schema = read('schema.generated.json').functions as Record<string, { acts_as_caller?: boolean }[]>;
+		const callers = Object.keys(schema).filter((f) => schema[f].some((o) => o.acts_as_caller));
+		// Measured 2026-10-23: 23 student coin actions, the contract one among them.
+		expect(callers.length).toBeGreaterThan(15);
+		expect(callers).toContain('coin_contract_mark_done');
+		expect(callers.filter((f) => liveFunction(f))).toEqual([]);
+		// Control: an admin coin action is not one.
+		expect(callers).not.toContain('coin_log_transaction');
+		expect(liveFunction('coin_log_transaction')).toBeTruthy();
 	});
 
 	it('a generated tool keeps the contract: a read writes nothing, anything else asks first, and none claims an undo', () => {

@@ -307,7 +307,7 @@
 				<p class="mk-note">Nothing pinned. The banner does not show until something is.</p>
 			{/if}
 			<form class="mk-form" id="md-banner-form" onsubmit={saveBanner} data-testid="md-banner-form">
-				<label class="mk-field">Kind<select bind:value={bKind}><option value="official">Official</option><option value="listing">Student listing</option><option value="contract">Contract</option><option value="shop">Shop item</option><option value="link">Any page</option></select></label>
+				<label class="mk-field">Kind<select bind:value={bKind}><option value="official">Official</option><option value="listing">Student listing</option><option value="shop">Shop item</option><option value="link">Any page</option></select></label>
 				<label class="mk-field wide">Title<input type="text" maxlength="80" bind:value={bTitle} placeholder="Extra Credit is on sale" /></label>
 				<label class="mk-field wide">Line under it (optional)<input type="text" maxlength="140" bind:value={bSub} /></label>
 				<label class="mk-field">Opens<input type="text" bind:value={bHref} /></label>

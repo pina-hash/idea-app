@@ -3,7 +3,6 @@ import type { CoinPageExtras } from '$lib/coin-balance/extras';
 import {
 	parseAuditorQueue,
 	parseDonationItems,
-	parseMyContracts,
 	parseMyStats
 } from '$lib/coin-balance/extras';
 
@@ -127,14 +126,6 @@ function days(from: string, n: number): string[] {
 export function fixtureExtras(s: Scenario): CoinPageExtras {
 	if (s === 'signed_out' || s === 'updating' || s === 'pre0250' || s === 'empty') return {};
 	const debt = s === 'debt';
-	const contracts = [
-		{ id: 'k1', title: 'Sweep the CNC enclosure', description: 'Vacuum chips and wipe the rails after the last class.', pay_type: 'hourly', payout_amount: null, hourly_rate: '2', debt_only: false, max_contractors: 2, claimed_count: 1, section: 'Engineering I Honors, Block 2', mine: true, done_at: null, paid_at: null, request_status: null, estimate: '0' },
-		{ id: 'k2', title: 'Label the bolt bins', description: null, pay_type: 'flat', payout_amount: '6', hourly_rate: null, debt_only: false, max_contractors: 1, claimed_count: 1, section: null, mine: true, done_at: '2026-10-13T20:00:00Z', paid_at: null, request_status: 'pending', estimate: '6' },
-		{ id: 'k3', title: 'Reorganize the filament shelf', description: 'Sort by material and color, and label each spool.', pay_type: 'quality', payout_amount: '8', hourly_rate: null, debt_only: false, max_contractors: 3, claimed_count: 1, section: null, mine: false, done_at: null, paid_at: null, request_status: null, estimate: '8' },
-		...(debt
-			? [{ id: 'k4', title: 'Scrape the paint booth floor', description: 'A restitution job.', pay_type: 'flat', payout_amount: '10', hourly_rate: null, debt_only: true, max_contractors: 1, claimed_count: 0, section: null, mine: false, done_at: null, paid_at: null, request_status: null, estimate: '10' }]
-			: [])
-	];
 	const span = days('2026-09-17', 28);
 	let bal = debt ? 10 : 90;
 	const series = span
@@ -164,7 +155,6 @@ export function fixtureExtras(s: Scenario): CoinPageExtras {
 		events: HISTORY.filter((h) => h.kind && !h.reversed && !h.reverses).map((h) => ({ id: h.id, at: h.at, category_id: h.category_id, name: h.name, kind: h.kind, amount: h.amount, edited: h.id === 'h7', reversed: false }))
 	};
 	return {
-		contracts: parseMyContracts(contracts),
 		stats: parseMyStats(stats),
 		donationItems: parseDonationItems([
 			{ id: 'd1', name: 'Tissue box', rate: '1', photo_path: null, active: true },

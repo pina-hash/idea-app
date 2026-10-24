@@ -55,11 +55,7 @@
 						{ id: 'd1', name: 'Small square tissue box', rate: 1 },
 						{ id: 'd2', name: 'Large tissue box', rate: 2 }
 					],
-					contracts: [
-						{ id: 'c1', title: 'Organize the filament shelf', pay_type: 'flat', payout_amount: 3, hourly_rate: null, debt_only: false, section: null },
-						{ id: 'c2', title: 'Sweep the shop', pay_type: 'hourly', payout_amount: null, hourly_rate: 2, debt_only: true, section: null }
-					],
-					staffCards: board.official,
+		staffCards: board.official,
 					inDebt: board.me.balance < 0
 				})
 			: []

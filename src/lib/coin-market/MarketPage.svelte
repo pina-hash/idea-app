@@ -20,7 +20,7 @@
 	/**
 	 * THE IDEA MARKET (ledger 0402): one roof over everything coins buy. The
 	 * OFFICIAL zone is pinned on top (the shop, want-ads, backgrounds, staff
-	 * cards and contracts, each opening the flow that already exists); the
+	 * cards, each opening the flow that already exists); the
 	 * STUDENT zone is the board of offers and requests, searchable and
 	 * filterable by class and category. Your trades, your listings, posting
 	 * and transfers sit beside it. The route mounts this over the database;
@@ -74,7 +74,6 @@
 		shop: 'shop',
 		donation: 'donation',
 		background: 'background',
-		contract: 'contract',
 		official: 'official'
 	};
 </script>

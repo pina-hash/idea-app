@@ -17,7 +17,7 @@ function fakeBackend(lastReplayAt: number | null, recordAs: string | null) {
 				{ id: 'e1', seq: 1, said: 'who hasn\'t turned in Shop Fix in Block 2', level: 'read', expected_path: ['read_grades'] },
 				{ id: 'e2', seq: 2, said: 'make a seating chart for Block 2', level: 'refuse', expected_path: ['report_gap'] },
 				{ id: 'e3', seq: 3, said: 'do the impossible', level: 'read', expected_path: ['no_such_tool'] },
-				{ id: 'e4', seq: 4, said: 'list the contracts', level: 'read', expected_path: ['site_call:coin_contracts_admin'] }
+				{ id: 'e4', seq: 4, said: 'what is in the coin queue', level: 'read', expected_path: ['site_call:coin_queue'] }
 			],
 			lastReplayAt,
 			recordAs
@@ -35,10 +35,10 @@ describe('judging one saved request', () => {
 		expect(judgeSavedRequest('x', ['no_such_tool'])?.passed).toBe(false);
 	});
 	it('a site_call step must exist AND be among the five matches for his words', () => {
-		const good = judgeSavedRequest('list the contracts', ['site_call:coin_contracts_admin']);
+		const good = judgeSavedRequest('what is in the coin queue', ['site_call:coin_queue']);
 		expect(good?.passed).toBe(true);
 		expect(good?.steps[0].rank).toBeGreaterThanOrEqual(1);
-		const unrouted = judgeSavedRequest('xyzzy plugh', ['site_call:coin_contracts_admin']);
+		const unrouted = judgeSavedRequest('xyzzy plugh', ['site_call:coin_queue']);
 		expect(unrouted?.passed).toBe(false);
 		expect(unrouted?.steps[0]).toMatchObject({ exists: true, rank: null });
 	});

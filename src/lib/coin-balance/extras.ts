@@ -329,105 +329,6 @@ export function requestCancellable(r: CoinMyRequest): boolean {
 	return r.status === 'pending' && r.kind !== 'split' && r.kind !== 'contract';
 }
 
-/* ------------------------------------------------------------------ */
-/* Contracts (2.8).                                                    */
-/* ------------------------------------------------------------------ */
-
-export type CoinPayType = 'hourly' | 'flat' | 'quality';
-
-export interface CoinMyContract {
-	id: string;
-	title: string;
-	description: string | null;
-	pay_type: CoinPayType;
-	payout_amount: number | null;
-	hourly_rate: number | null;
-	debt_only: boolean;
-	max_contractors: number;
-	claimed_count: number;
-	section: string | null;
-	mine: boolean;
-	done_at: string | null;
-	paid_at: string | null;
-	request_status: CoinRequestStatus | null;
-	estimate: number | null;
-}
-
-/** `coin_my_contracts()` (0248). */
-export function parseMyContracts(raw: unknown): CoinMyContract[] {
-	return arr(raw)
-		.map((x) => {
-			const o = obj(x);
-			const pt = str(o.pay_type);
-			const rs = str(o.request_status);
-			return {
-				id: str(o.id),
-				title: str(o.title).trim() || 'Contract',
-				description: strOrNull(o.description),
-				pay_type: (pt === 'hourly' || pt === 'quality' ? pt : 'flat') as CoinPayType,
-				payout_amount: numOrNull(o.payout_amount),
-				hourly_rate: numOrNull(o.hourly_rate),
-				debt_only: o.debt_only === true,
-				max_contractors: Math.max(1, Math.trunc(num(o.max_contractors, 1))),
-				claimed_count: Math.max(0, Math.trunc(num(o.claimed_count))),
-				section: strOrNull(o.section),
-				mine: o.mine === true,
-				done_at: strOrNull(o.done_at),
-				paid_at: strOrNull(o.paid_at),
-				request_status: (['pending', 'approved', 'denied', 'cancelled'].includes(rs) ? rs : null) as CoinRequestStatus | null,
-				estimate: numOrNull(o.estimate)
-			};
-		})
-		.filter((c) => c.id);
-}
-
-/** What a contract pays, in words. */
-export function contractPayWords(c: CoinMyContract): string {
-	if (c.pay_type === 'hourly') {
-		return c.hourly_rate !== null ? `${coins(c.hourly_rate)} an hour, for the hours you report` : 'Paid by the hour';
-	}
-	if (c.pay_type === 'quality') {
-		return c.payout_amount !== null
-			? `About ${coins(c.payout_amount)}, set by your teacher by the quality of the work`
-			: 'Set by your teacher by the quality of the work';
-	}
-	if (c.payout_amount === null) return 'A set amount';
-	return c.max_contractors > 1
-		? `${coins(c.payout_amount)}, split between everyone who claims it`
-		: `${coins(c.payout_amount)}`;
-}
-
-/** Where a held contract stands. */
-export function contractStateWords(c: CoinMyContract): string {
-	if (!c.mine) return 'Open';
-	if (c.paid_at) return 'Paid';
-	if (c.done_at && c.request_status === 'pending') return 'Done, waiting for approval';
-	if (c.done_at) return 'Done';
-	return 'Claimed by you, not done yet';
-}
-
-export function contractRefusalWords(r: { reason: string; data?: Record<string, unknown> }): string {
-	switch (r.reason) {
-		case 'not_open':
-			return 'This contract is closed now.';
-		case 'debt_only':
-			return 'This is a restitution job, only for students whose balance is below zero.';
-		case 'wrong_section':
-			return 'This contract is for another class.';
-		case 'already_claimed':
-			return 'You already claimed this contract.';
-		case 'full':
-			return 'Every place on this contract is taken.';
-		case 'not_claimed':
-			return 'Claim this contract before marking it done.';
-		case 'already_done':
-			return 'You already marked this done. It is waiting for approval.';
-		case 'hours':
-			return 'Enter the hours you worked, more than 0 and up to 200.';
-		default:
-			return seamWords(r.reason) ?? TRY_AGAIN;
-	}
-}
 
 /* ------------------------------------------------------------------ */
 /* Stats (2.14).                                                       */
@@ -566,7 +467,6 @@ export function auditorRefusalWords(r: { reason: string; message?: string }): st
  * the page draws no section for it.
  */
 export interface CoinPageExtras {
-	contracts?: CoinMyContract[] | null;
 	stats?: CoinStats | null;
 	donationItems?: CoinDonationItem[] | null;
 	/** The auditor's queue; null unless the caller is a Student Auditor. */

@@ -2,14 +2,15 @@
  * THE OFFICIAL ZONE (ledger 0402): one roof over everything the economy
  * itself offers. Each tile OPENS AN EXISTING FLOW and never buys anything on
  * its own, so the purchase logic stays where it is (the coin page's shop, the
- * donation panel, the background panel, the contracts list). Pure, so the
+ * donation panel, the background panel). Contracts are retired (ledger
+ * 0432): jobs are posted as official cards. Pure, so the
  * route and the harness build the identical tile list.
  */
 
 import { coins, coinNumber } from '$lib/coin-format';
 import type { Listing } from './market';
 
-export type OfficialKind = 'shop' | 'donation' | 'background' | 'contract' | 'official';
+export type OfficialKind = 'shop' | 'donation' | 'background' | 'official';
 
 export interface OfficialTile {
 	key: string;
@@ -30,28 +31,19 @@ export interface OfficialInputs {
 		printActive: boolean;
 	} | null;
 	donations: { id: string; name: string; rate: number | null }[];
-	contracts: {
-		id: string;
-		title: string;
-		pay_type: 'flat' | 'hourly' | 'quality';
-		payout_amount: number | null;
-		hourly_rate: number | null;
-		debt_only: boolean;
-		section: string | null;
-	}[];
 	staffCards: Listing[];
 	inDebt: boolean;
 	/**
 	 * Ledger 0425, migration 0294: the cards staff switched on or off, keyed
 	 * by tile key (`coin_market_card_features()`). A key not here keeps its
-	 * default: contracts featured, everything else not. An official staff
+	 * default: not featured (contracts, the one featured default, are retired). An official staff
 	 * card is a listing and carries its own featured state, so it is never
 	 * read from here.
 	 */
 	features?: Record<string, boolean>;
 }
 
-/** Card keys a switch may name (0294's own check), besides `donation:<id>` and `contract:<id>`. */
+/** Card keys a switch may name (0294's own check), besides `donation:<id>` (and `contract:<id>`, retired). */
 export const FIXED_CARD_KEYS = ['shop:eating_pass', 'shop:extra_credit', 'shop:pay_raise', 'shop:print', 'background'] as const;
 
 /** `coin_market_card_features()`: `{ card: featured }`, anything else dropped. */
@@ -69,11 +61,6 @@ export const OFFICIAL_HREF = {
 	coinPage: '/coin-balance'
 } as const;
 
-function contractPay(c: OfficialInputs['contracts'][number]): string {
-	if (c.pay_type === 'hourly') return c.hourly_rate !== null ? `${coins(c.hourly_rate)} an hour` : 'Paid by the hour';
-	if (c.pay_type === 'quality') return c.payout_amount !== null ? `Up to ${coins(c.payout_amount)}` : 'Paid by quality';
-	return c.payout_amount !== null ? coins(c.payout_amount) : 'Flat pay';
-}
 
 export function officialTiles(i: OfficialInputs): OfficialTile[] {
 	const tiles = buildTiles(i);
@@ -94,20 +81,6 @@ function buildTiles(i: OfficialInputs): OfficialTile[] {
 			price: c.price !== null ? coins(c.price) : null,
 			href: c.link ?? OFFICIAL_HREF.coinPage,
 			featured: c.featured
-		});
-	}
-	// Contracts are featured listings: admin jobs, including restitution jobs
-	// a student in debt can take to work it off.
-	for (const c of i.contracts) {
-		if (c.debt_only && !i.inDebt) continue;
-		out.push({
-			key: `contract:${c.id}`,
-			kind: 'contract',
-			title: c.title,
-			line: c.debt_only ? 'Restitution job: work off a debt.' : c.section ? `Contract, ${c.section}` : 'Contract from IDEA staff',
-			price: contractPay(c),
-			href: OFFICIAL_HREF.coinPage,
-			featured: true
 		});
 	}
 	const s = i.shop;

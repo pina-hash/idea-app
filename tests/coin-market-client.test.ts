@@ -67,31 +67,24 @@ describe('the official zone', () => {
 	const base = {
 		shop: { eatingPass: 150, extraCreditPerPoint: 2, payRaiseCost: 100, gramsPerCoin: 10, printActive: true },
 		donations: [{ id: 'd1', name: 'Tissue box', rate: 1 }],
-		contracts: [
-			{ id: 'c1', title: 'Shelf', pay_type: 'flat' as const, payout_amount: 3, hourly_rate: null, debt_only: false, section: null },
-			{ id: 'c2', title: 'Sweep', pay_type: 'hourly' as const, payout_amount: null, hourly_rate: 2, debt_only: true, section: null }
-		],
 		staffCards: [],
 		inDebt: false
 	};
-	test('a restitution job is shown only to a student in debt', () => {
-		expect(officialTiles(base).some((t) => t.key === 'contract:c2')).toBe(false);
-		expect(officialTiles({ ...base, inDebt: true }).some((t) => t.key === 'contract:c2')).toBe(true);
+	test('contracts are retired: no tile is a contract (ledger 0432)', () => {
+		expect(officialTiles({ ...base, inDebt: true }).some((t) => t.key.startsWith('contract:'))).toBe(false);
 	});
 	test('every tile opens a page on this site and buys nothing on its own', () => {
 		const tiles = officialTiles({ ...base, inDebt: true });
-		expect(tiles.length).toBe(8); // two contracts, four shop items, one want-ad, the background
+		expect(tiles.length).toBe(6); // four shop items, one want-ad, the background
 		for (const t of tiles) expect(t.href.startsWith('/')).toBe(true);
 	});
-	test('with no switches, contracts are featured and nothing else is (the old page, unchanged)', () => {
-		const tiles = officialTiles(base);
-		expect(tiles.filter((t) => t.featured).map((t) => t.key)).toEqual(['contract:c1']);
+	test('with no switches, nothing is featured', () => {
+		expect(officialTiles(base).filter((t) => t.featured)).toEqual([]);
 	});
-	test('a switch features a want-ad and unfeatures a contract, and featured cards lead in their old order', () => {
-		const tiles = officialTiles({ ...base, inDebt: true, features: { 'donation:d1': true, 'contract:c1': false, 'shop:print': true } });
-		expect(tiles.filter((t) => t.featured).map((t) => t.key)).toEqual(['contract:c2', 'shop:print', 'donation:d1']);
-		expect(tiles.slice(0, 3).every((t) => t.featured)).toBe(true);
-		expect(tiles.slice(3).map((t) => t.key)).toEqual(['contract:c1', 'shop:eating_pass', 'shop:extra_credit', 'shop:pay_raise', 'background']);
+	test('a switch features a want-ad and a shop tile, and featured cards lead in their old order', () => {
+		const tiles = officialTiles({ ...base, features: { 'donation:d1': true, 'shop:print': true } });
+		expect(tiles.filter((t) => t.featured).map((t) => t.key)).toEqual(['shop:print', 'donation:d1']);
+		expect(tiles.slice(2).map((t) => t.key)).toEqual(['shop:eating_pass', 'shop:extra_credit', 'shop:pay_raise', 'background']);
 	});
 	test('an official staff card keeps its own featured state; a switch never reaches it', () => {
 		const card = { id: 'o1', title: 'Supplies', description: '', section: null, price: null, link: '/market', featured: false } as never;

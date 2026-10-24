@@ -52,8 +52,6 @@ export interface CoinPageTransports {
 	reportOnHand?: (count: number) => Promise<CoinActionResult>;
 	disputeFine?: (transactionId: string, reason: string) => Promise<CoinActionResult>;
 	cancelRequest?: (requestId: string) => Promise<CoinActionResult>;
-	claimContract?: (contractId: string) => Promise<CoinActionResult>;
-	markContractDone?: (contractId: string, hours: number | null, note: string | null) => Promise<CoinActionResult>;
 	auditorValidate?: (requestId: string, approve: boolean, note: string | null) => Promise<CoinActionResult>;
 	/** The caller's own raw rows (`coin_export('student', <own address>)`). */
 	exportRows?: () => Promise<{ ok: true; data: unknown } | { ok: false; words: string }>;
@@ -156,9 +154,6 @@ export function createCoinPageTransports(
 		reportOnHand: (count) => act(supabase, 'coin_report_physical', { p_count: count }),
 		disputeFine: (id, reason) => act(supabase, 'coin_dispute_fine', { p_transaction_id: id, p_reason: reason }),
 		cancelRequest: (id) => act(supabase, 'coin_cancel_request', { p_request_id: id }),
-		claimContract: (id) => act(supabase, 'coin_contract_self_claim', { p_contract_id: id }),
-		markContractDone: (id, hours, note) =>
-			act(supabase, 'coin_contract_mark_done', { p_contract_id: id, p_hours: hours, p_note: note }),
 		auditorValidate: (id, approve, note) =>
 			act(supabase, 'coin_auditor_validate', { p_request_id: id, p_approve: approve, p_note: note }),
 		...(email

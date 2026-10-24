@@ -3,7 +3,6 @@ import { coinBarDesk } from '$lib/server/coin-bar';
 import {
 	parseAuditorQueue,
 	parseDonationItems,
-	parseMyContracts,
 	parseMyStats,
 	type CoinPageExtras
 } from '$lib/coin-balance/extras';
@@ -65,7 +64,7 @@ const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 	}
 
 	const sb = locals.supabase;
-	const [answer, contractsRaw, roleRaw, statsRaw, itemsRaw, auditRaw, portfolioRaw, minutesRaw] = await Promise.all([
+	const [answer, roleRaw, statsRaw, itemsRaw, auditRaw, portfolioRaw, minutesRaw] = await Promise.all([
 		(async (): Promise<Rpc | null> => {
 			try {
 				return (await sb.rpc('coin_my_page')) as Rpc;
@@ -73,7 +72,6 @@ const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 				return null;
 			}
 		})(),
-		soft(sb.rpc('coin_my_contracts') as PromiseLike<Rpc>),
 		soft(sb.rpc('coin_my_role') as PromiseLike<Rpc>),
 		soft(sb.rpc('coin_my_stats') as PromiseLike<Rpc>),
 		soft(sb.rpc('coin_donation_items_list') as PromiseLike<Rpc>),
@@ -94,7 +92,6 @@ const loadPage = async ({ locals, depends }: Parameters<PageServerLoad>[0]) => {
 
 	const roleObj = roleRaw && typeof roleRaw === 'object' ? (roleRaw as Record<string, unknown>) : null;
 	const extras: CoinPageExtras = {
-		contracts: Array.isArray(contractsRaw) ? parseMyContracts(contractsRaw) : null,
 		stats: statsRaw ? parseMyStats(statsRaw) : null,
 		donationItems: Array.isArray(itemsRaw) ? parseDonationItems(itemsRaw) : null,
 		auditor: parseAuditorQueue(auditRaw),

@@ -52,6 +52,22 @@ export const STAFF_GATES = Object.freeze([
 
 const GATE_SET = new Set(STAFF_GATES);
 
+/**
+ * A CALLER SEAM IS WHERE A FUNCTION BECOMES THE CALLER'S OWN ACTION, and the
+ * staff checks behind it are not gates (ledger 0432, gap 3f52bae9).
+ * `_coin_student_seam` asks whether the CALLER is a coin member, and the
+ * member list it reads excludes staff by calling `_admin_is_email`: followed
+ * like any private helper, that made every student coin action (finish a
+ * contract, buy a pass, send a transfer) look like an admin action, so one of
+ * them was a connector tool that ran as Mr. Pina and answered
+ * "not_in_economy". A function that reaches a seam acts as whoever calls it.
+ * tests/connector-coverage.test.ts holds every name here to a real function
+ * and every hand entry off a function that reaches one.
+ */
+export const CALLER_SEAMS = Object.freeze(['_coin_student_seam']);
+
+const SEAM_SET = new Set(CALLER_SEAMS);
+
 /** The staff gates a function body calls by name (schema-qualified or not). */
 export function gatesIn(body) {
 	const found = new Set();
@@ -92,7 +108,7 @@ export function reachedGates(bodies) {
 		const out = new Set(direct.get(name) ?? []);
 		for (const body of bodies.get(name) ?? []) {
 			for (const c of callsIn(body)) {
-				if (!c.startsWith('_') || seen.has(c) || !bodies.has(c) || GATE_SET.has(c)) continue;
+				if (!c.startsWith('_') || seen.has(c) || !bodies.has(c) || GATE_SET.has(c) || SEAM_SET.has(c)) continue;
 				for (const g of visit(c, new Set([...seen, c]))) out.add(g);
 			}
 		}
@@ -102,6 +118,29 @@ export function reachedGates(bodies) {
 	const result = new Map();
 	for (const name of bodies.keys()) result.set(name, [...visit(name, new Set([name]))].sort());
 	return result;
+}
+
+/**
+ * The functions that act as their caller: a body that calls a caller seam, or
+ * calls a function that does, to any depth.
+ *
+ * @param {Map<string, string[]>} bodies every public function's bodies, by name
+ */
+export function callerActions(bodies) {
+	const acts = new Set();
+	for (const [name, list] of bodies) if (list.some((b) => callsIn(b).some((c) => SEAM_SET.has(c)))) acts.add(name);
+	let grew = true;
+	while (grew) {
+		grew = false;
+		for (const [name, list] of bodies) {
+			if (acts.has(name) || SEAM_SET.has(name)) continue;
+			if (list.some((b) => callsIn(b).some((c) => acts.has(c)))) {
+				acts.add(name);
+				grew = true;
+			}
+		}
+	}
+	return acts;
 }
 
 /** Every public function a body calls, by name. */

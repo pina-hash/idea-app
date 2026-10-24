@@ -42,8 +42,6 @@ function every() {
 		reportOnHand: vi.fn(okAct),
 		disputeFine: vi.fn(okAct),
 		cancelRequest: vi.fn(okAct),
-		claimContract: vi.fn(okAct),
-		markContractDone: vi.fn(okAct),
 		auditorValidate: vi.fn(okAct),
 		exportRows: vi.fn(() => Promise.resolve({ ok: true as const, data: { rows: [] } }))
 	};
@@ -69,8 +67,6 @@ const CONTROLS = [
 	'[data-testid="onhand-send"]',
 	'[data-testid="coin-dispute"]',
 	'[data-testid="request-cancel"]',
-	'[data-testid="contract-claim"]',
-	'[data-testid="contract-done"]',
 	'[data-testid="stats-export-csv"]',
 	'[data-testid="split-toggle"]'
 ];
@@ -85,10 +81,12 @@ describe('every session-two control is structural', () => {
 		const absent = CONTROLS.map((sel) => w.all(sel).length);
 		expect(absent).toEqual(CONTROLS.map(() => 0));
 		// The positive control: the read half of every section is still drawn.
-		for (const id of ['coin-payout', 'coin-background', 'coin-donations', 'coin-contracts', 'coin-requests', 'coin-stats']) {
+		for (const id of ['coin-payout', 'coin-background', 'coin-donations', 'coin-requests', 'coin-stats']) {
 			expect(w.all(`[data-testid="${id}"]`), id).toHaveLength(1);
 		}
 		expect(w.all('[data-testid="coin-edited"]')).toHaveLength(1);
+		// Contracts are retired (ledger 0432): no contracts section, with every transport or none.
+		expect(w.all('[data-testid="coin-contracts"]')).toHaveLength(0);
 	});
 
 	it('the auditor block is there only with the auditor read, and Approve only with its transport', () => {
