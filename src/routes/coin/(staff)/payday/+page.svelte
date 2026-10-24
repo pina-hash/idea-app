@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-	<title>Payday · IDEA Coin Desk</title>
+	<title>Payday · IDEA Coins</title>
 </svelte:head>
 
 <PaydayView {transports} />

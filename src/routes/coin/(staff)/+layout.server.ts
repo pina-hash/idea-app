@@ -36,7 +36,8 @@ async function autopayCatchUp(supabase: App.Locals['supabase']): Promise<void> {
 }
 
 /**
- * The coin staff gate for the WHOLE /coin-desk route group. Hoisting it here
+ * The coin staff gate for the WHOLE (staff) route group under the coin home
+ * (/coin/<area>, the Coin Desk's areas since ledger 0432). Hoisting it here
  * means a new area cannot ship ungated by forgetting to copy the check; each
  * page still asks for itself (`requireCoinArea`), because a layout's load and
  * a page's run concurrently.

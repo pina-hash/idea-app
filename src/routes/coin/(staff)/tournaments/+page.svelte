@@ -14,7 +14,7 @@
 </script>
 
 <svelte:head>
-	<title>Tournaments · IDEA Coin Desk</title>
+	<title>Tournaments · IDEA Coins</title>
 </svelte:head>
 
 <TournamentTransfer {transports} />

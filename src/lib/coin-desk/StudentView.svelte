@@ -64,7 +64,7 @@
 		categories?: CoinCategory[];
 		/** category id -> kind, for the history rows. */
 		categoryKinds?: Record<string, string>;
-		/** Opens this student on mount (`/coin-desk/students?student=...`). */
+		/** Opens this student on mount (`/coin/students?student=...`). */
 		initialEmail?: string;
 	} = $props();
 

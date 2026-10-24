@@ -29,7 +29,7 @@
 	 */
 	let {
 		transports,
-		queueHref = '/coin-desk/queue'
+		queueHref = '/coin/queue'
 	}: {
 		transports: DigestTransports;
 		queueHref?: string;

@@ -15,6 +15,7 @@
  * "does not exist" for them. `staffOnly` pages are left out unless `desk`.
  */
 import type { MarketGlyphName } from '$lib/coin-market/glyphs';
+import { COIN_DESK_AREAS } from '$lib/coin-desk/nav';
 
 export type CoinPageId = 'home' | 'mine' | 'ledger' | 'market' | 'stocks' | 'desk';
 
@@ -36,7 +37,9 @@ export const COIN_PAGES: CoinPage[] = [
 	{ id: 'ledger', label: 'Ledger', href: '/coins/index.html', glyph: 'ledger', match: ['/coins'] },
 	{ id: 'market', label: 'Market', href: '/market', glyph: 'shop', match: ['/market'] },
 	{ id: 'stocks', label: 'Stocks', href: '/market/stocks', glyph: 'stocks', match: ['/market/stocks'] },
-	{ id: 'desk', label: 'Coin Desk', href: '/coin-desk', glyph: 'desk', match: ['/coin-desk'], staffOnly: true }
+	// Ledger 0432: the Coin Desk folded into the coin home; its areas are
+	// /coin/<area>, and this tab is staff's way to them.
+	{ id: 'desk', label: 'Staff tools', href: '/coin/log', glyph: 'desk', match: COIN_DESK_AREAS.map((a) => a.href), staffOnly: true }
 ];
 
 /** True when `path` is `prefix` itself or sits under it (never `/coins` for `/coinsx`). */

@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	// `requireCoinArea`'s own rule, asked once, so a section tier can be sent
 	// on rather than refused.
 	const staff = await coinStaff(supabase, claims?.sub);
-	if (staff?.scope === 'section') redirect(303, '/coin-desk/fine');
+	if (staff?.scope === 'section') redirect(303, '/coin/fine');
 	if (!staff || !areaAllowed('log', staff.scope)) error(404, 'Not found');
 
 	const [{ data: categories, error: catError }, fine] = await Promise.all([

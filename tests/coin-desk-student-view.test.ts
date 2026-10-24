@@ -1,7 +1,7 @@
 // tests/coin-desk-student-view.test.ts
 //
 // The pure layer under the Coin Desk's IDEA Coin V2 session-two areas
-// ($lib/coin-desk/student-view, log, contracts, roles, settings-session-two).
+// ($lib/coin-desk/student-view, log, roles, settings-session-two).
 //
 // WHY THESE, when most of the desk is verified in its harness: each one fails
 // SILENTLY when it is wrong.
@@ -34,12 +34,6 @@ import {
 	type ExportRow
 } from '../src/lib/coin-desk/student-view';
 import { isBulkEligible, logClasses, rosterEmails } from '../src/lib/coin-desk/log';
-import {
-	claimantState,
-	contractDraftProblem,
-	contractPostParams,
-	emptyContractDraft
-} from '../src/lib/coin-desk/contracts';
 import { classRoleSetting, rulesPayload, rulesProblem, shownRoleDays, type RoleDay } from '../src/lib/coin-desk/roles';
 import {
 	fieldValue,
@@ -168,48 +162,6 @@ describe('the Log area over IDEA Classroom classes', () => {
 	it('reads the class list from coin_fine_sections, and falls back to the scope list with no count', () => {
 		expect(logClasses([{ id: 'c1', label: 'IDEA 100', students: '3' }], [])).toEqual([{ id: 'c1', label: 'IDEA 100', students: 3 }]);
 		expect(logClasses(null, [{ id: 'c2', label: 'IDEA 209H' }])).toEqual([{ id: 'c2', label: 'IDEA 209H' }]);
-	});
-});
-
-describe('the contract post form (mirroring 0248)', () => {
-	it('refuses what coin_contract_post refuses, and lets a whole draft through', () => {
-		const d = emptyContractDraft();
-		expect(contractDraftProblem(d)).toMatch(/title/i);
-		d.title = 'Sweep the shop';
-		expect(contractDraftProblem(d)).toMatch(/payout/i);
-		d.payout = '4.5';
-		expect(contractDraftProblem(d)).toMatch(/whole number/i);
-		d.payout = '5';
-		expect(contractDraftProblem(d)).toBeNull();
-		d.payType = 'hourly';
-		expect(contractDraftProblem(d)).toMatch(/hourly rate/i);
-		d.hourlyRate = '1.5';
-		expect(contractDraftProblem(d)).toBeNull();
-		d.maxContractors = '51';
-		expect(contractDraftProblem(d)).toMatch(/1 to 50/);
-	});
-
-	it('sends a rate for an hourly contract and a payout otherwise, never both', () => {
-		const d = { ...emptyContractDraft(), title: ' Job ', payType: 'hourly' as const, hourlyRate: '1.236', payout: '9', sectionId: '', debtOnly: true };
-		expect(contractPostParams(d)).toEqual({
-			p_title: 'Job',
-			p_description: null,
-			p_pay_type: 'hourly',
-			p_payout_amount: null,
-			p_hourly_rate: 1.24,
-			p_max_contractors: 1,
-			p_section_id: null,
-			p_debt_only: true
-		});
-		expect(contractPostParams({ ...d, payType: 'flat' }).p_hourly_rate).toBeNull();
-		expect(contractPostParams({ ...d, payType: 'flat' }).p_payout_amount).toBe(9);
-	});
-
-	it('reads a denied claim as claimed again, because the work was handed back', () => {
-		const k = { email: 'a@x', name: null, claimed_at: '', done_at: null, hours: null, paid_at: null, request_status: null };
-		expect(claimantState(k)).toBe('claimed');
-		expect(claimantState({ ...k, done_at: 'x', request_status: 'pending' })).toBe('marked_done');
-		expect(claimantState({ ...k, done_at: 'x', paid_at: 'y' })).toBe('paid');
 	});
 });
 

@@ -34,7 +34,7 @@
 </script>
 
 <svelte:head>
-	<title>Digest · IDEA Coin Desk</title>
+	<title>Digest · IDEA Coins</title>
 </svelte:head>
 
 <EconomyHealth load={loadHealth} />

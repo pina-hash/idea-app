@@ -13,7 +13,6 @@
 	import ClassroomMark from '$lib/marks/ClassroomMark.svelte';
 	import NotebookMark from '$lib/marks/NotebookMark.svelte';
 	import TournamentMark from '$lib/marks/TournamentMark.svelte';
-	import CoinDeskMark from '$lib/marks/CoinDeskMark.svelte';
 	import DashboardMark from '$lib/marks/DashboardMark.svelte';
 	import FoundryMark from '$lib/marks/FoundryMark.svelte';
 	import MapsMark from '$lib/marks/MapsMark.svelte';
@@ -320,8 +319,6 @@
 		<NotebookMark once />
 	{:else if id === 'tournament'}
 		<TournamentMark once />
-	{:else if id === 'coin-desk'}
-		<CoinDeskMark once />
 	{:else if id === 'dashboard'}
 		<DashboardMark once />
 	{:else if id === 'foundry'}
@@ -779,7 +776,7 @@
 
 	   As a stylesheet rule keyed on an attribute, the same data sits INSIDE the
 	   cascade: the default above is live for the four cards that declare nothing
-	   (classroom, notebook, ideacad, coin-desk), a new app needs no entry anywhere
+	   (classroom, notebook, ideacad), a new app needs no entry anywhere
 	   to look right, and overriding one card is one selector rather than a
 	   registry edit. The attribute is `data-app`, which both card branches
 	   already carried for the tour and for drag-and-drop.
@@ -1568,12 +1565,6 @@
 		/* Deep emerald, darker than GREENLINE's green so the two part on
 		   lightness as well as hue: 7.35 / 6.82. */
 		--acc-ink: #005e4b;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='coin-desk'] {
-		/* Raspberry: the desk is the coins' other half, and teal is the
-		   Ledger's. Not --crimson, which stays reserved for live and error
-		   status: 5.76 / 5.34. */
-		--acc-ink: #b8245e;
 	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='dashboard'] {
 		/* Plum, for the admin console: 8.32 / 7.73. */

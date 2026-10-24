@@ -30,7 +30,7 @@
 	 */
 	let {
 		supabase,
-		settingsHref = '/coin-desk/settings',
+		settingsHref = '/coin/settings',
 		days = 21
 	}: {
 		supabase: SupabaseClient;

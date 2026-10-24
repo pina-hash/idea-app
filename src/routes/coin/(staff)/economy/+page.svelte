@@ -14,7 +14,7 @@
 </script>
 
 <svelte:head>
-	<title>Economy · Coin Desk</title>
+	<title>Economy · IDEA Coins</title>
 </svelte:head>
 
 <CategoriesManager supabase={data.supabase} bind:categories configured={data.configured} />

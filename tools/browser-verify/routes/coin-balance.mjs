@@ -6,14 +6,14 @@
  * history whose undone pair is gone and said, an edited row with its old value,
  * a disputable automatic fine, and every rule a closed button that opens on a
  * press. Session two adds coins out (held, with Cancel), the desktop
- * background, the want ad, contracts, coins on hand, the student's own
+ * background, the want ad, coins on hand, the student's own
  * submissions, and the stats with two charts and an export. The absence rows
  * are the V2 rule that no second figure is drawn in the standing, and that the
  * auditor block needs the auditor read.
  */
 export default {
 	path: '/dev/coin-balance',
-	label: 'Student coin page (V2): balance, pass, no shop, buy, split, coins out, background, donations, contracts, submissions, stats, history, rules',
+	label: 'Student coin page (V2): balance, pass, no shop, buy, split, coins out, background, donations, submissions, stats, history, rules',
 	prepare: [{ waitFor: '() => !!document.querySelector("[data-coin-hydrated]")' }],
 	presence: [
 		{ selector: '[data-testid="coin-balance"]', label: 'one balance', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -37,10 +37,6 @@ export default {
 		{ selector: '[data-testid="bg-current"]', label: 'the approved background is drawn', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="bg-send"][aria-disabled="true"]', label: 'Send waits for a picture, and says so', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="want-item"]', label: 'the want list, active items only', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-		{ selector: '[data-testid="contract-mine"]', label: 'two contracts held', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-		{ selector: '[data-testid="contract-open"]', label: 'one open to claim', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="contract-done"]', label: 'Mark done only on the one not done', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="contract-restitution"]', label: 'no restitution job outside debt', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-testid="onhand-send"]', label: 'coins on hand', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="request"]', label: 'four submissions', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
 		{ selector: '[data-testid="request-cancel"]', label: 'Cancel only on the pending donation (a split cannot be cancelled)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -49,7 +45,8 @@ export default {
 		{ selector: '[data-testid="stats-categories"] tbody tr', label: 'totals by category', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
 		{ selector: '[data-testid="stats-export-csv"], [data-testid="stats-export-json"]', label: 'the two downloads', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="coin-role-link"] a[href="/coin-balance/role"]', label: 'the link to the role page', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="coin-auditor"]', label: 'no auditor block without the auditor read', expectPresent: 0, maxPresent: 0 }
+		{ selector: '[data-testid="coin-auditor"]', label: 'no auditor block without the auditor read', expectPresent: 0, maxPresent: 0 },
+		{ selector: '[data-testid="coin-contracts"]', label: 'no contracts section: contracts are retired (ledger 0432)', expectPresent: 0, maxPresent: 0 }
 	],
 	textContains: [
 		{ selector: '[data-testid="coin-standing"]', label: 'one number, no split', must: ['Weekly wage', 'tier 2', 'Strikes: 1 of 3'], mustNot: ['physical', 'Physical', 'digital', 'Digital', 'lifetime', 'paid out'] },
@@ -63,8 +60,7 @@ export default {
 		{ selector: '[data-testid="coin-background"]', label: 'the background rules', must: ['16:9', '1920 by 1080', 'One every 14 days', 'pays', 'parent and tour test'] },
 		{ selector: '[data-testid="coin-donations"]', label: 'the want ad rules', must: ['rate per item', 'Other is set by your teacher', 'every 14 days', 'pays up to the limit'] },
 		{ selector: '[data-testid="coin-onhand"]', label: 'who checks and what shows', must: ['Student Auditor', 'Ledger', 'leaderboard still ranks your'] },
-		{ selector: '[data-testid="coin-requests"]', label: 'what happened to each', must: ['Waiting for your teacher', 'Denied: The count did not match', 'Approved, paid 2'] },
-		{ selector: '[data-testid="coin-contracts"]', label: 'pay in words and the state', must: ['an hour', 'Done, waiting for approval', 'quality'] }
+		{ selector: '[data-testid="coin-requests"]', label: 'what happened to each', must: ['Waiting for your teacher', 'Denied: The count did not match', 'Approved, paid 2'] }
 	],
 	tapTargets: [
 		{ selector: '[data-testid="coin-page"] button', label: 'every button on the page', min: 44 },

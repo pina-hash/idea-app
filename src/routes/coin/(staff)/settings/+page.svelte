@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-	<title>Settings · Coin Desk</title>
+	<title>Settings · IDEA Coins</title>
 </svelte:head>
 
 <SettingsPanel supabase={data.supabase} />

@@ -26,7 +26,8 @@
 	import '$lib/coin-desk/coin-desk.css';
 
 	/**
-	 * The persistent chrome for the /coin-desk route group: header, hero, and
+	 * The persistent chrome for the coin staff areas (/coin/<area>; the Coin
+	 * Desk folded into the coin home, ledger 0432): header, hero, and
 	 * the sub-nav. Every area renders its own cards into {@render children()}
 	 * below, so moving between them keeps this shell mounted and the active
 	 * state is derived from the URL rather than tracked in state.
@@ -67,8 +68,8 @@
 
 	<main class="coin-desk-page">
 		<section class="hero">
-			<div class="eyebrow">IDEA · Coin Desk</div>
-			<h1>Coin desk</h1>
+			<div class="eyebrow">IDEA · Coins</div>
+			<h1>Staff tools</h1>
 		</section>
 
 		<CoinDeskNav {active} {scope} />

@@ -4,7 +4,6 @@
 	import CoinDeskNav from '$lib/coin-desk/CoinDeskNav.svelte';
 	import LogView from '$lib/coin-desk/LogView.svelte';
 	import StudentView from '$lib/coin-desk/StudentView.svelte';
-	import ContractsManager from '$lib/coin-desk/ContractsManager.svelte';
 	import RolesManager from '$lib/coin-desk/RolesManager.svelte';
 	import CategoriesManager from '$lib/coin-desk/CategoriesManager.svelte';
 	import AutopayRuns from '$lib/coin-desk/AutopayRuns.svelte';
@@ -156,8 +155,6 @@
 					categories={categoriesFor()}
 					{categoryKinds}
 				/>
-			{:else if area === 'contracts'}
-				<ContractsManager {supabase} classes={HARNESS_CLASSES} queueHref={null} />
 			{:else if area === 'roles'}
 				<RolesManager {supabase} />
 			{:else if area === 'economy'}

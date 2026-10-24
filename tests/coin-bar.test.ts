@@ -30,7 +30,11 @@ describe('which coin page an address is', () => {
 			['/market', 'market'],
 			['/market/stocks', 'stocks'],
 			['/market/stocks/abc', 'stocks'],
-			['/coin-desk/contracts', 'desk'],
+			['/coin/fine', 'desk'],
+			['/coin/log', 'desk'],
+			['/coin/settings/x', 'desk'],
+			['/coin/finex', 'home'],
+			['/coin-desk/fine', null],
 			['/coinsx', null],
 			['/marketing', null],
 			['/', null]
@@ -44,6 +48,24 @@ describe('which coin page an address is', () => {
 	});
 });
 
+describe('the Coin Desk folded into the coin home (ledger 0432)', () => {
+	it('every old address redirects: an area to its new place, the rest to the coin home', async () => {
+		const { coinDeskRedirect } = await import('../src/lib/coin-desk/nav');
+		expect(coinDeskRedirect('')).toBe('/coin');
+		expect(coinDeskRedirect('contracts')).toBe('/coin');
+		expect(coinDeskRedirect('log')).toBe('/coin');
+		expect(coinDeskRedirect('nonsense/deep')).toBe('/coin');
+		expect(coinDeskRedirect('fine')).toBe('/coin/fine');
+		expect(coinDeskRedirect('students', '?student=a%40b')).toBe('/coin/students?student=a%40b');
+		expect(coinDeskRedirect('/settings/')).toBe('/coin/settings');
+	});
+	it('the redirect route exists and the old pages are gone', () => {
+		expect(read('src/routes/coin-desk/[...path]/+server.ts')).toMatch(/redirect\(308, coinDeskRedirect/);
+		expect(() => read('src/routes/coin-desk/+page.svelte')).toThrow();
+		expect(() => read('src/routes/coin/(staff)/contracts/+page.svelte')).toThrow();
+	});
+});
+
 describe('every coin page mounts the bar, naming itself current', () => {
 	it('each page component and the desk layout carry CoinBar with its own page', () => {
 		const mounts: Array<[string, string]> = [
@@ -52,7 +74,7 @@ describe('every coin page mounts the bar, naming itself current', () => {
 			['src/lib/coin-market/MarketPage.svelte', 'market'],
 			['src/lib/coin-stocks/StocksPage.svelte', 'stocks'],
 			['src/lib/coin-stocks/StockDetailPage.svelte', 'stocks'],
-			['src/routes/coin-desk/+layout.svelte', 'desk'],
+			['src/routes/coin/(staff)/+layout.svelte', 'desk'],
 			['src/lib/coin-bar/CoinHomePage.svelte', 'home']
 		];
 		for (const [file, id] of mounts) expect(read(file), file).toMatch(new RegExp(`<CoinBar current="${id}"`));
@@ -83,8 +105,8 @@ describe('the Ledger carries the real bar', () => {
 		expect(bar - header).toBeLessThan(120);
 		expect(out).toMatch(/data-testid="coin-bar-ledger"[^>]*aria-current="page"|aria-current="page"[^>]*data-testid="coin-bar-ledger"/);
 		for (const href of ['/coin', '/coin-balance', '/market', '/market/stocks']) expect(out).toContain(`href="${href}"`);
-		expect(out).not.toContain('href="/coin-desk"');
-		expect(injectCoinBar(LEDGER, true)).toContain('href="/coin-desk"');
+		expect(out).not.toContain('href="/coin/log"');
+		expect(injectCoinBar(LEDGER, true)).toContain('href="/coin/log"');
 		// The rules ride in the head, once.
 		expect(out.split('id="idea-coin-bar-css"').length).toBe(2);
 		expect(out.indexOf('id="idea-coin-bar-css"')).toBeLessThan(out.indexOf('</head>'));

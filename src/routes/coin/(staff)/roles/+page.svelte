@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-	<title>Roles · Coin Desk</title>
+	<title>Roles · IDEA Coins</title>
 </svelte:head>
 
 <RolesManager supabase={data.supabase} />

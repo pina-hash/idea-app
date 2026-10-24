@@ -3,8 +3,8 @@ import { hydrated, MARKET_CONTRAST, MARKET_TAPS } from './_coin-market.mjs';
 /**
  * THE IDEA MARKET (ledger 0402): both zones, every escrow state on Your
  * trades, your listings, and the transfer feed. The official zone holds the
- * shop, two donation want-ads, the desktop background, one staff card and two
- * contracts; the student zone holds six classmates' listings.
+ * shop, two donation want-ads, the desktop background and one staff card
+ * (contracts are retired, ledger 0432); the student zone holds six classmates' listings.
  */
 export default {
 	path: '/dev/coin-market',
@@ -12,7 +12,7 @@ export default {
 	prepare: hydrated(),
 	presence: [
 		{ selector: '[data-testid="mk-official"]', label: 'the official zone', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="mk-official-tile"]', label: 'nine official tiles', expectPresent: 9, maxPresent: 9, expectVisible: 9 },
+		{ selector: '[data-testid="mk-official-tile"]', label: 'seven official tiles (contracts are retired)', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="mk-students"]', label: 'the student zone', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="mk-board"] [data-testid="mk-listing"]', label: "six classmates' listings", expectPresent: 6, maxPresent: 6, expectVisible: 6 },
 		{ selector: '[data-testid="mk-mine"] [data-testid="mk-listing"]', label: 'two of your own listings', expectPresent: 2, maxPresent: 2, expectVisible: 2 },

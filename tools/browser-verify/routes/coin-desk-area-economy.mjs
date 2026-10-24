@@ -33,7 +33,7 @@ export default {
 			   is a real click on the real `CoinDeskNav` in its callback mode.
 			   The predicate names the price list, which only this area renders --
 			   never `aria-current`, which the Log tab satisfies at rest. */
-			click: '.cd-root .desk-nav li:nth-child(5) button',
+			click: '.cd-root .desk-nav li:nth-child(4) button',
 			until: '() => !!document.querySelector(".cd-root .category-rows .kind-group")',
 			attempts: 8,
 			waitMs: 300

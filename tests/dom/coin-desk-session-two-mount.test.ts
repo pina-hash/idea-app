@@ -15,7 +15,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Component } from 'svelte';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import StudentView from '$lib/coin-desk/StudentView.svelte';
-import ContractsManager from '$lib/coin-desk/ContractsManager.svelte';
 import RolesManager from '$lib/coin-desk/RolesManager.svelte';
 import LogView from '$lib/coin-desk/LogView.svelte';
 import SettingsPanel from '$lib/coin-desk/SettingsPanel.svelte';
@@ -118,36 +117,6 @@ describe('the Students area, by tier', () => {
 		v.one<HTMLButtonElement>('[data-testid="cd-undo-edit-confirm"]').click();
 		await settleMany(v);
 		expect(v.all('[data-testid="cd-edited-chip"]').length).toBe(1);
-	});
-});
-
-describe('the Contracts area', () => {
-	it('lists the open contracts with claimant states, and offers no Complete control', async () => {
-		const supabase = createFakeLedger() as unknown as SupabaseClient;
-		m = mountInto(ContractsManager as unknown as Component<Record<string, unknown>>, {
-			supabase,
-			classes: HARNESS_CLASSES,
-			queueHref: '/coin-desk/queue'
-		});
-		await settleMany(m);
-		const cancels = m.all('[data-testid="cd-contract-cancel"]');
-		expect(cancels.length).toBe(3);
-		expect(m.all('[data-testid="cd-contract-complete"]').length).toBe(0);
-		expect(m.all('[data-testid="cd-contract-claimants"] [data-state="marked_done"]').length).toBe(1);
-		expect(m.all('[data-testid="cd-contract-queue-link"]').length).toBe(1);
-		expect(m.all('[data-testid="cd-contract-debt-only"]').length).toBe(1);
-	});
-
-	it('removes the queue link when no queue address is handed in', async () => {
-		const supabase = createFakeLedger() as unknown as SupabaseClient;
-		m = mountInto(ContractsManager as unknown as Component<Record<string, unknown>>, {
-			supabase,
-			classes: HARNESS_CLASSES,
-			queueHref: null
-		});
-		await settleMany(m);
-		expect(m.all('[data-testid="cd-contract-cancel"]').length).toBe(3);
-		expect(m.all('[data-testid="cd-contract-queue-link"]').length).toBe(0);
 	});
 });
 

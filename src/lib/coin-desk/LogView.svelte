@@ -950,7 +950,7 @@
 			{:else if !classes.length}
 				<p class="note">
 					No class has the coin economy on yet. Turn it on for a class under
-					<a href="/coin-desk/settings">Settings</a>, or type a full email address to log against
+					<a href="/coin/settings">Settings</a>, or type a full email address to log against
 					anyone.
 				</p>
 			{:else if !selectedSectionId}
