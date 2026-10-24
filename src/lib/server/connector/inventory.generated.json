@@ -6,8 +6,8 @@
 		"functions_single_line_grep": 428,
 		"functions_through_wrappers": 220,
 		"dynamic_rpc_call_sites": 45,
-		"endpoints": 123,
-		"pages": 360
+		"endpoints": 124,
+		"pages": 361
 	},
 	"functions": [
 		"account_notice_dismiss",
@@ -917,6 +917,13 @@
 		{
 			"route": "/api/classroom/export",
 			"file": "src/routes/api/classroom/export/+server.ts",
+			"methods": [
+				"POST"
+			]
+		},
+		{
+			"route": "/api/classroom/export/html",
+			"file": "src/routes/api/classroom/export/html/+server.ts",
 			"methods": [
 				"POST"
 			]

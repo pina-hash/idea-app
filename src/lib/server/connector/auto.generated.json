@@ -6,8 +6,8 @@
 		"reads": 32,
 		"asks_first": 88,
 		"excluded": 90,
-		"endpoints": 3,
-		"endpoint_tools": 0
+		"endpoints": 4,
+		"endpoint_tools": 1
 	},
 	"functions": {
 		"account_notice_dismiss": {
@@ -2954,6 +2954,28 @@
 		}
 	},
 	"endpoints": {
+		"/api/classroom/export/html": {
+			"auto": true,
+			"proof": "generic",
+			"surface": "call",
+			"tool": "site_route_api_classroom_export_html",
+			"level": "confirm",
+			"method": "POST",
+			"describe": "The site's classroom export html action (/api/classroom/export/html), reached automatically; it sends the same JSON body the site's own page sends, and asks first.",
+			"say": [
+				"run classroom export html",
+				"use the classroom export html action",
+				"classroom export html on the site"
+			],
+			"args": {
+				"body": {
+					"type": "object",
+					"describe": "The body the site's own page sends to this route."
+				}
+			},
+			"body": "$args.body",
+			"file": "src/routes/api/classroom/export/html/+server.ts"
+		},
 		"/coin-desk/[...path]": {
 			"auto": true,
 			"exclude": "Generated: not an admin action. The route's handler checks no site admin, so it serves or acts for whoever calls it.",
