@@ -47,7 +47,7 @@ export interface VoiceCatalog {
 
 export const CUSTOM_CATEGORY: Record<CoinKind, string> = { award: 'custom_award', fine: 'custom_fine', purchase: 'custom_purchase' };
 
-/** Lowercase letters and digits, single spaces: the alias table's own shape (0299's `_coin_phrase`). */
+/** Lowercase letters and digits, single spaces: the alias table's own shape (0300's `_coin_phrase`). */
 export function phraseOf(text: string): string {
 	return text
 		.toLowerCase()

@@ -1,4 +1,4 @@
--- 0299_coin_voice_aliases.sql
+-- 0300_coin_voice_aliases.sql
 --
 -- VOICE TO ACTION FOR IDEA COINS (ledger 0432, feedback fba5bfcd). Mr. Pina
 -- logs coins by voice through Haiku on his phone, in his own words with a
@@ -36,7 +36,7 @@
 --
 --   * Nine saved requests for the new connector tools (connector_evals), so
 --     the nightly replay checks their routes; the three about the Armory
---     lists are 0298's, beside the Armory functions they use.
+--     lists are 0299's, beside the Armory functions they use.
 --
 -- ADDITIVE, NO ORDERING. IDEMPOTENT: if not exists, create or replace, and
 -- every seed is "on conflict do nothing", inside do blocks.
@@ -48,7 +48,7 @@ do $pre$
 begin
 	if to_regprocedure('public.coin_log_transaction(text, text, numeric, numeric, text)') is null
 		or to_regprocedure('public._coin_full_staff()') is null or to_regprocedure('public._coin_staff()') is null then
-		raise exception '0299 cannot apply: coin_log_transaction or the coin staff gates are missing. Apply 0244 and 0251 first.';
+		raise exception '0300 cannot apply: coin_log_transaction or the coin staff gates are missing. Apply 0244 and 0251 first.';
 	end if;
 end
 $pre$;
@@ -114,7 +114,7 @@ begin
 	where c.active and c.loggable and c.kind in ('award', 'fine', 'purchase') and c.pricing_model <> 'formula'
 	on conflict (phrase, kind) do nothing;
 	get diagnostics v_seeded = row_count;
-	raise notice '0299: % custom categories added, % everyday phrases seeded (amounts left to the categories)', v_custom, v_seeded;
+	raise notice '0300: % custom categories added, % everyday phrases seeded (amounts left to the categories)', v_custom, v_seeded;
 end
 $seed$;
 
@@ -323,7 +323,7 @@ declare
 	v_n integer;
 begin
 	if to_regclass('public.connector_evals') is null or to_regprocedure('public._connector_said_norm(text)') is null then
-		raise notice '0299: no saved request list on this database; none added';
+		raise notice '0300: no saved request list on this database; none added';
 		return;
 	end if;
 	insert into public.connector_evals (seq, said, said_norm, level, must_happen, proof, proof_query, expected_path, source, created_by)
@@ -341,7 +341,7 @@ begin
 	) as v(n, said, level, must, proof, q, path)
 	on conflict (said_norm) do nothing;
 	get diagnostics v_n = row_count;
-	raise notice '0299: % saved requests added for the new tools', v_n;
+	raise notice '0300: % saved requests added for the new tools', v_n;
 end
 $evals$;
 
@@ -354,14 +354,14 @@ begin
 		'public.coin_alias_delete(uuid)']
 	loop
 		if has_function_privilege('anon', f, 'execute') then
-			raise exception '0299 self-check failed: % is executable by anon.', f;
+			raise exception '0300 self-check failed: % is executable by anon.', f;
 		end if;
 	end loop;
 	if has_function_privilege('authenticated', 'public._coin_phrase(text)', 'execute') then
-		raise exception '0299 self-check failed: the phrase helper is executable by a client.';
+		raise exception '0300 self-check failed: the phrase helper is executable by a client.';
 	end if;
 	if has_table_privilege('authenticated', 'public.coin_phrase_aliases', 'select') then
-		raise exception '0299 self-check failed: the phrase table is readable by a client.';
+		raise exception '0300 self-check failed: the phrase table is readable by a client.';
 	end if;
 end
 $post$;

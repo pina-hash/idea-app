@@ -175,7 +175,7 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
     category with a set price uses it; a saved phrase uses its default unless
     he says a number, which then replaces it; a new phrase with a number logs
     a Custom Award, Fine or Purchase and saves the phrase
-    (`coin_phrase_aliases`, 0299); no number and nothing listed answers
+    (`coin_phrase_aliases`, 0300); no number and nothing listed answers
     `needs_amount` and writes nothing. `tests/db/connector-coin-voice.test.ts`
     holds the no-write half with a planted control.
   - **A REPLACED TOOL ANSWERS BUT IS NOT OFFERED (`replaced_by`).**

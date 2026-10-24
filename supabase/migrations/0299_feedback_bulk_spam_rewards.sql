@@ -1,4 +1,4 @@
--- 0298_feedback_bulk_spam_rewards.sql
+-- 0299_feedback_bulk_spam_rewards.sql
 --
 -- THE FEEDBACK LISTS IN BULK, THE REPORT BOX AGAINST SPAM, THE FINE PROMPT
 -- AND THE REWARD (ledger 0432, feedback 114d8101, 24a5156f, 4f1bdc96,
@@ -59,11 +59,11 @@
 do $pre$
 begin
 	if to_regclass('public.app_feedback') is null or to_regclass('public.armory_app_incidents') is null then
-		raise exception '0298 cannot apply: the feedback tables do not exist. Apply 0053 and 0233 first.';
+		raise exception '0299 cannot apply: the feedback tables do not exist. Apply 0053 and 0233 first.';
 	end if;
 	if to_regprocedure('public._coin_insert(text, text, numeric, numeric, text, jsonb, text, uuid, text)') is null
 		or to_regprocedure('public._coin_full_staff()') is null then
-		raise exception '0298 cannot apply: the coin writer or the coin staff gate is missing. Apply 0239 and 0244 first.';
+		raise exception '0299 cannot apply: the coin writer or the coin staff gate is missing. Apply 0239 and 0244 first.';
 	end if;
 end
 $pre$;
@@ -707,13 +707,13 @@ grant execute on function public.app_feedback_rewards_list() to authenticated;
 
 -- SAVED REQUESTS FOR THE ARMORY HALF OF THE NEW CONNECTOR TOOLS (ledger 0432),
 -- so the nightly replay checks their routes. Inserted once each, keyed on the
--- normalized words; 0299 adds the coin and feedback half.
+-- normalized words; 0300 adds the coin and feedback half.
 do $evals$
 declare
 	v_n integer;
 begin
 	if to_regclass('public.connector_evals') is null or to_regprocedure('public._connector_said_norm(text)') is null then
-		raise notice '0298: no saved request list on this database; none added';
+		raise notice '0299: no saved request list on this database; none added';
 		return;
 	end if;
 	insert into public.connector_evals (seq, said, said_norm, level, must_happen, proof, proof_query, expected_path, source, created_by)
@@ -725,7 +725,7 @@ begin
 	) as v(n, said, level, must, proof, q, path)
 	on conflict (said_norm) do nothing;
 	get diagnostics v_n = row_count;
-	raise notice '0298: % saved requests added for the Armory lists', v_n;
+	raise notice '0299: % saved requests added for the Armory lists', v_n;
 end
 $evals$;
 
@@ -742,20 +742,20 @@ begin
 		'public.app_feedback_reward(uuid, integer)', 'public.app_feedback_rewards_list()']
 	loop
 		if has_function_privilege('anon', f, 'execute') then
-			raise exception '0298 self-check failed: % is executable by anon.', f;
+			raise exception '0299 self-check failed: % is executable by anon.', f;
 		end if;
 	end loop;
 	foreach f in array array['public._app_feedback_spam_guard()', 'public._feedback_junk_reason(text)',
 		'public._feedback_normal_words(text)', 'public._feedback_rate_rules()', 'public._feedback_status_ok(text)']
 	loop
 		if has_function_privilege('authenticated', f, 'execute') or has_function_privilege('anon', f, 'execute') then
-			raise exception '0298 self-check failed: % is executable by a client.', f;
+			raise exception '0299 self-check failed: % is executable by a client.', f;
 		end if;
 	end loop;
 	if not exists (select 1 from pg_catalog.pg_trigger where tgname = 'app_feedback_spam_guard' and not tgisinternal) then
-		raise exception '0298 self-check failed: the spam guard trigger is missing.';
+		raise exception '0299 self-check failed: the spam guard trigger is missing.';
 	end if;
-	raise notice '0298: % spam reports waiting for a fine decision; the guard is on', (
+	raise notice '0299: % spam reports waiting for a fine decision; the guard is on', (
 		select count(*) from public.app_feedback f where f.status = 'spam' and f.user_id is not null
 			and not exists (select 1 from public.app_feedback_spam_decisions d where d.report_id = f.id));
 end

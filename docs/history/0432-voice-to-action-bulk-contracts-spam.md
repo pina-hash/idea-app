@@ -2,7 +2,7 @@
 title: "Ledger 0432: voice to action for coins and feedback, bulk status on the three feedback lists, contracts retired and the Coin Desk folded into the coin home, the report box against spam with a fine prompt, and rewards for reports"
 date: 2026-10-23
 branches: [main]
-migrations: ["0296", "0298", "0299"]
+migrations: ["0296", "0299", "0300"]
 subsystems: [Coins, Connector, Feedback]
 ---
 
@@ -24,10 +24,11 @@ A solo session from `docs/feedback/2026-10-23/QUEUE.md` items 6 to 11, beside le
 - From his 222 saved requests (1775 requests) on 2026-10-23: 1417 needed `site_call`; 2059 calls were one status change at a time; coin requests averaged 1.64 calls. Production 0296: 1 contract done, 7 cancelled, 0 waiting cards, 8 functions closed.
 - Mutation proofs (each restored byte-identically and re-run green): the connector exclusion of caller actions; a bulk update widened to every row; a fine accepted across two accounts; junk never marked; the coin tool logging with no number.
 - `svelte-check` 0 errors, 33 warnings in 18 files.
+- One full `npm test` (2026-10-24, before the last rebase): 16715 tests, 16696 passed, 19 failed. 13 of the 19 are the four files ledger 0430 recorded as failing on unchanged main, by name: tests/classroom-panel-layout-render (4), tests/db/cert-0262-exam (7), tests/db/feedback-round-0380-foundry (1), tests/db/ideacad-feature-graph-storage (1). The other 6 were this bundle's (tests/derived-numbers 2, tests/home-tour 2, tests/preferences-store 1, tests/db/armory-proposed 1); each was fixed and its file re-run green, with every file this bundle touches re-run after the final rebase (2837 tests, all passed).
 
 ## Not verified
 
-Haiku on a phone running the new tools; the spam guard's `auth.sessions` read on production; the real `/coin/<area>` pages signed in; 0298 and 0299 on production at the time of writing.
+Haiku on a phone running the new tools; the spam guard's `auth.sessions` read on production; the real `/coin/<area>` pages signed in; 0299 and 0300 on production at the time of writing.
 
 ## Outside the stated Owns, and why
 

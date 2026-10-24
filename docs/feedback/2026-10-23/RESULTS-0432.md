@@ -1,6 +1,6 @@
 # Results, session 0432: coins, feedback and the connector (voice to action)
 
-Ledger 0432, issued 2026-10-23 from `QUEUE.md` items 6 to 11. Solo, landed on main in two pushes: part C (contracts retired, the Coin Desk folded into the coin home) first, then A, B, D and E together. Migrations 0296, 0298 and 0299 (0295 and 0297 went to ledger 0433). No student name is in this file.
+Ledger 0432, issued 2026-10-23 from `QUEUE.md` items 6 to 11. Solo, landed on main in two pushes: part C (contracts retired, the Coin Desk folded into the coin home) first, then A, B, D and E together. Migrations 0296, 0299 and 0300 (0295 and 0297 went to ledger 0433, 0298 to ledger 0431). No student name is in this file.
 
 ## What was found and what was built
 
@@ -18,14 +18,14 @@ Ledger 0432, issued 2026-10-23 from `QUEUE.md` items 6 to 11. Solo, landed on ma
 ### A. Voice to action (item 6)
 
 - **Found.** `award_coins` and `fine_coins` needed the category named (or answered `needs_category`), and a name usually went through `find_student` first: coin requests averaged **1.64 calls**. No phrase or alias table existed. The request log already records the model per request; calls per request were not recorded on a replay result.
-- **Built.** `coin_transact`: student (fuzzy, server-side, one question when more than one fits), his words, an optional amount. The server decides award, fine or purchase from the verb, matches a saved phrase or a category name, and applies his amount rule exactly (`src/lib/server/connector/coin-voice.ts`): a set price is used; a saved phrase uses its default unless he says a number, which replaces it; a new phrase with a number logs a Custom Award, Fine or Purchase with his words as the reason and saves the phrase; no number and nothing listed asks for the number and writes nothing; a number that disagrees with a set price asks which. 0299 adds `coin_phrase_aliases` (seeded with up to 45 everyday phrases, only for categories that are on, every amount left to its category), the three custom categories, `coin_voice_log`, and the coin settings list ("Phrases Claude learned": change a default, make it official, forget it). `award_coins` and `fine_coins` still answer by name but are no longer offered (`replaced_by`). Mutation-proven: letting the custom branch log with no number reddens the no-write test.
+- **Built.** `coin_transact`: student (fuzzy, server-side, one question when more than one fits), his words, an optional amount. The server decides award, fine or purchase from the verb, matches a saved phrase or a category name, and applies his amount rule exactly (`src/lib/server/connector/coin-voice.ts`): a set price is used; a saved phrase uses its default unless he says a number, which replaces it; a new phrase with a number logs a Custom Award, Fine or Purchase with his words as the reason and saves the phrase; no number and nothing listed asks for the number and writes nothing; a number that disagrees with a set price asks which. 0300 adds `coin_phrase_aliases` (seeded with up to 45 everyday phrases, only for categories that are on, every amount left to its category), the three custom categories, `coin_voice_log`, and the coin settings list ("Phrases Claude learned": change a default, make it official, forget it). `award_coins` and `fine_coins` still answer by name but are no longer offered (`replaced_by`). Mutation-proven: letting the custom branch log with no number reddens the no-write test.
 - **The most common everyday voice requests, measured** (222 saved requests, 1775 requests, read 2026-10-23 through the connector's own request list; 1417 of the 1775 needed `site_call`): status changes on the Armory incidents (1037), Armory notes (926) and site reports (96); the Armory lists (181); coin fines and awards (185 requests, 69 saved lines); the connector gaps (55 list, 20 set); class roster (20). Tools added for them: `mark_feedback`, `list_armory_reports`, `read_armory_incident`, `coin_transact`, `list_gaps` (promoted), `class_roster` (promoted). The tool list is 44 (the cap was 40; raised to 45 with the reason in the test).
-- **Evals.** Twelve saved requests added for the new tools (0299). Each passes the nightly route check (`tests/connector-replay.test.ts`). `record_eval_result` now stores calls per request and takes the model that ran it. **Haiku success rate: not measured.** No Haiku client is reachable from this session; the nightly replay is a route check, not a model run. Calls per request on the new paths: 1 for every coin request (from 1.64), 1 for a bulk status change of any size (from one call per row).
+- **Evals.** Twelve saved requests added for the new tools (three in 0299, nine in 0300). Each passes the nightly route check (`tests/connector-replay.test.ts`). `record_eval_result` now stores calls per request and takes the model that ran it. **Haiku success rate: not measured.** No Haiku client is reachable from this session; the nightly replay is a route check, not a model run. Calls per request on the new paths: 1 for every coin request (from 1.64), 1 for a bulk status change of any size (from one call per row).
 
 ### D. Spam (items 9 and 10)
 
 - **Found.** The anonymous path was rate limited per address; a signed-in report (most reports) had no limit, no junk handling, and nothing recorded about the session or device. Shape of the 2026-10-22 runs, read from the live list: 18 signed-in spam reports from 15 accounts, the noon run being 10 reports from 10 accounts between 12:03 and 12:08 PM, each 15 to 40 seconds apart ("hi", "stock"), and an afternoon run of 6 "a" reports from 6 accounts in one minute. No single account sent three.
-- **Built.** A trigger on `app_feedback` (0298) for both paths: a fifth report inside two minutes or a sixteenth inside an hour is refused with a sentence that keeps the words in the box; obvious junk and a same-day repeat are kept and marked spam with the reason; the server stamps the sign-in session's start and browser and the gap since the last report; the box sends a random per-browser device key. The fine prompt on the feedback page groups open spam by account with the reports, the evidence, the doubts (a shared lab computer, a sign-in hours old, a browser this student does not usually use, a run from one computer across accounts) and the amount: **a burst is 3 or more spam reports from one account within 10 minutes; each burst is 5i¢, and every other spam report is 1i¢.** Against the 2026-10-22 shape: no burst, 1i¢ per report, 18i¢ across 15 accounts, both runs named on every card in them. One press fines (a system fine, disputable from the coin page) or dismisses; it never fines on its own. Mutation-proven: a fine accepted across two accounts reddens the test.
+- **Built.** A trigger on `app_feedback` (0299) for both paths: a fifth report inside two minutes or a sixteenth inside an hour is refused with a sentence that keeps the words in the box; obvious junk and a same-day repeat are kept and marked spam with the reason; the server stamps the sign-in session's start and browser and the gap since the last report; the box sends a random per-browser device key. The fine prompt on the feedback page groups open spam by account with the reports, the evidence, the doubts (a shared lab computer, a sign-in hours old, a browser this student does not usually use, a run from one computer across accounts) and the amount: **a burst is 3 or more spam reports from one account within 10 minutes; each burst is 5i¢, and every other spam report is 1i¢.** Against the 2026-10-22 shape: no burst, 1i¢ per report, 18i¢ across 15 accounts, both runs named on every card in them. One press fines (a system fine, disputable from the coin page) or dismisses; it never fines on its own. Mutation-proven: a fine accepted across two accounts reddens the test.
 
 ### E. Rewards (item 11)
 
@@ -35,22 +35,22 @@ Ledger 0432, issued 2026-10-23 from `QUEUE.md` items 6 to 11. Solo, landed on ma
 ## Migrations, in apply order
 
 - `supabase/migrations/0296_coin_contracts_retired.sql` (applied 2026-10-24 05:10 UTC)
-- `supabase/migrations/0298_feedback_bulk_spam_rewards.sql`
-- `supabase/migrations/0299_coin_voice_aliases.sql`
+- `supabase/migrations/0299_feedback_bulk_spam_rewards.sql`
+- `supabase/migrations/0300_coin_voice_aliases.sql`
 
 ## Checks
 
 - `svelte-check`: 0 errors, 33 warnings in 18 files (baseline), after `svelte-kit sync`, with `.env` copied from `.env.example`; without an `.env` the container reports 20 errors, all `$env/static/public`, which are the environment and not the tree.
 - Migrations tested over seeded pre-migration data and re-applied twice: `tests/db/coin-contracts-retired.test.ts`, `tests/db/feedback-bulk-spam-rewards.test.ts`, `tests/db/coin-voice-aliases.test.ts`; all three pass the production apply scanner and the editor paste check (`tests/db/coin-feedback-0432-scan.test.ts`).
 - Browser pass at 375 and 1440 on the coin and feedback harness routes: green except `/dev/feedback?view=incidents`'s filter check, which fails identically on main's code (measured both).
-- The full suite: see the record at the end of `docs/history/0432-voice-to-action-bulk-contracts-spam.md`.
+- One full `npm test` (2026-10-24, before the last rebase): 16715 tests, 16696 passed, 19 failed. 13 of the 19 are the four files ledger 0430 recorded as failing on unchanged main, by name: tests/classroom-panel-layout-render (4), tests/db/cert-0262-exam (7), tests/db/feedback-round-0380-foundry (1), tests/db/ideacad-feature-graph-storage (1). The other 6 were this bundle's (tests/derived-numbers 2, tests/home-tour 2, tests/preferences-store 1, tests/db/armory-proposed 1); each was fixed and its file re-run green, with every file this bundle touches re-run after the final rebase (2837 tests, all passed).
 
 ## Not verified
 
 - Haiku 5.5 running the new tools from a phone: no such client here.
 - Production behaviour of the spam guard's session evidence: it reads `auth.sessions`, which the test cluster only imitates.
 - The real `/coin/<area>` pages in a signed-in browser (the harnesses mount the same components).
-- Migrations 0298 and 0299 on production: they apply through migrate.yml after the push.
+- Migrations 0299 and 0300 on production: they apply through migrate.yml after the push.
 
 ## For Mr. Pina
 
