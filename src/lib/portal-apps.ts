@@ -156,7 +156,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		// says which side of the ledger it is, in the same grammar, so the
 		// question "which of these two do I want" is answered by either card on
 		// its own rather than by comparing them.
-		sub: 'Where everyone reads the coins: your balance, the leaderboard, every transaction, open contracts and role applications. Nothing here changes a balance.',
+		sub: 'Where everyone reads the coins: your balance, the leaderboard, every transaction and role applications. Nothing here changes a balance.',
 		icon: 'coins',
 		href: '/coins/index.html',
 		cta: 'View live'

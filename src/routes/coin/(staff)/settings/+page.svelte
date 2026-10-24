@@ -1,6 +1,7 @@
 <script lang="ts">
 	import SettingsPanel from '$lib/coin-desk/SettingsPanel.svelte';
 	import LaterSettings from '$lib/coin-market/LaterSettings.svelte';
+	import CoinPhrasesPanel from '$lib/coin-desk/CoinPhrasesPanel.svelte';
 	import type { PageData } from './$types';
 
 	/**
@@ -17,5 +18,7 @@
 </svelte:head>
 
 <SettingsPanel supabase={data.supabase} />
+<!-- Ledger 0432: the phrases Claude learned from his voice requests. -->
+<CoinPhrasesPanel supabase={data.supabase} />
 <!-- Ledger 0402: the market, transfers, hall pass time, stocks and the banner's look. -->
 <LaterSettings supabase={data.supabase} />

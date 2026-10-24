@@ -160,3 +160,30 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
   backend (`src/lib/server/connector/backend-local.ts`, dev only, over an
   embedded cluster booted by `tools/connector/local-backend.mjs`) is how the MCP
   Inspector run is done with no Supabase project.
+- **VOICE TO ACTION: ONE CALL PER EVERYDAY REQUEST, MEASURED (ledger 0432).**
+  On 2026-10-23 his 222 saved requests (1775 requests) were read: 1417 went
+  through `site_call`, almost all of them one status change at a time on the
+  Armory incidents (1037), the Armory notes (926) and the site's reports (96),
+  then the Armory lists (181), the gaps (75) and a roster (20); coin awards and
+  fines took 1.64 calls each because a name went through `find_student`
+  first. So each got one direct tool: `coin_transact` (coins from his words,
+  `src/lib/server/connector/coin-voice.ts` the one statement of the amount
+  rule), `mark_feedback` (many rows of any of the three lists, one write, one
+  undo, no confirm because a status flip is reversible), `list_armory_reports`,
+  `read_armory_incident`, `class_roster` and `list_gaps`.
+  - **THE AMOUNT RULE IS HIS, AND THE TOOL NEVER INVENTS A NUMBER.** A matched
+    category with a set price uses it; a saved phrase uses its default unless
+    he says a number, which then replaces it; a new phrase with a number logs
+    a Custom Award, Fine or Purchase and saves the phrase
+    (`coin_phrase_aliases`, 0298); no number and nothing listed answers
+    `needs_amount` and writes nothing. `tests/db/connector-coin-voice.test.ts`
+    holds the no-write half with a planted control.
+  - **A REPLACED TOOL ANSWERS BUT IS NOT OFFERED (`replaced_by`).**
+    `award_coins` and `fine_coins` still run for an old chat or a saved
+    request that names them; `toolList` leaves them out so a model on a phone
+    sees one coin tool. The list cap in `tests/connector-registry.test.ts` is
+    45; a tool past it is a decision.
+  - **A STUDENT ACTION IS NEVER A TOOL (`CALLER_SEAMS`).** See
+    `docs/subsystems/coins.md`; the generated layer excludes anything that
+    reaches the coin student seam.
+

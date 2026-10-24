@@ -1442,8 +1442,9 @@ async function recordEvalResult(ctx: ToolContext, args: ToolArgs): Promise<ToolO
 		p_eval: n,
 		p_passed: passed,
 		p_path: list(args.path),
-		p_detail: { note: str(args.note) ?? null, practice: !!ctx.practice },
-		p_model: ctx.model ?? null
+		// Ledger 0432: how many calls the request took, so a run scores calls per request as well as passes.
+		p_detail: { note: str(args.note) ?? null, practice: !!ctx.practice, calls: list(args.path).length },
+		p_model: str(args.model) ?? ctx.model ?? null
 	});
 	if (r.error) return { status: 'refused', message: r.error.message };
 	return { status: 'done', run_id: r.data?.run_id ?? null, message: 'Recorded.' };

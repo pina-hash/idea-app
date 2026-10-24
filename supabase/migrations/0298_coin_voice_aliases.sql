@@ -325,22 +325,22 @@ begin
 		raise notice '0298: no saved request list on this database; none added';
 		return;
 	end if;
-	insert into public.connector_evals (seq, said, said_norm, level, must_happen, proof, expected_path, source, created_by)
-	select (select coalesce(max(seq), 0) from public.connector_evals) + v.n, v.said, public._connector_said_norm(v.said), v.level, v.must, v.proof, v.path, 'seed', 'ledger 0432'
+	insert into public.connector_evals (seq, said, said_norm, level, must_happen, proof, proof_query, expected_path, source, created_by)
+	select (select coalesce(max(seq), 0) from public.connector_evals) + v.n, v.said, public._connector_said_norm(v.said), v.level, v.must, v.proof, v.q, v.path, 'seed', 'ledger 0432'
 	from (values
-		(1, 'Fine Daniel R, phone out', 'undo', 'One Off-Task Device Use fine at its set amount, reason "phone out", in one call', 'coin_transactions row for that Daniel only, the set amount, that reason', array['coin_transact']::text[]),
-		(2, 'Give Mateo 10 coins for hitting a sick trick shot', 'undo', 'One Custom Award of 10 with his words as the reason; the phrase is saved at 10', 'coin_transactions custom_award 10; coin_phrase_aliases row at 10', array['coin_transact']::text[]),
-		(3, 'Give Leo coins for hitting a sick trick shot', 'undo', 'Uses the saved 10 for the phrase, one call', 'coin_transactions custom_award 10 for Leo', array['coin_transact']::text[]),
-		(4, 'Give Mateo coins for fixing the bandsaw guard', 'refuse', 'Asks how many coins; writes nothing', 'No coin_transactions row and no phrase before he answers', array['coin_transact']::text[]),
-		(5, 'Leo bought an eating pass', 'undo', 'One Eating Pass purchase at its listed price', 'coin_transactions eating_pass row for Leo', array['coin_transact']::text[]),
-		(6, 'Mark those 22 reports as spam', 'undo', 'One call moves every named report to spam, with one undo', 'app_feedback status spam for exactly those ids; one connector_audit row', array['list_site_feedback', 'mark_feedback']::text[]),
-		(7, 'Resolve every new Armory incident from version 0.3.3', 'undo', 'One call resolves every new incident from 0.3.3 and no other', 'armory_app_incidents status resolved for exactly those', array['mark_feedback']::text[]),
-		(8, 'Any new Armory incidents?', 'read', 'The open incidents with counts by status and version', 'Matches armory_app_incidents_admin_list', array['list_armory_reports']::text[]),
-		(9, 'Read the newest Armory slow pass report', 'read', 'The whole report, events, phase timings and log lines', 'Matches the report JSON of that incident', array['list_armory_reports', 'read_armory_incident']::text[]),
-		(10, 'Show me the Block 2 roster', 'read', 'The roster, first and last names', 'Matches classroom_section_roster', array['class_roster']::text[]),
-		(11, 'What can''t the connector do yet?', 'read', 'The open gaps', 'Matches connector_gaps with status open', array['list_gaps']::text[]),
-		(12, 'Who should I fine for feedback spam?', 'read', 'The ready fines with their evidence; nothing is fined', 'No coin_transactions row', array['site_call:app_feedback_spam_review']::text[])
-	) as v(n, said, level, must, proof, path)
+		(1, 'Fine Daniel R, phone out', 'undo', 'One Off-Task Device Use fine at its set amount, reason "phone out", in one call', 'coin_transactions row for that Daniel only, the set amount, that reason', 'select amount, note from public.coin_transactions where category_id = ''off_task_device_use'' order by created_at desc limit 1', array['coin_transact']::text[]),
+		(2, 'Give Mateo 10 coins for hitting a sick trick shot', 'undo', 'One Custom Award of 10 with his words as the reason; the phrase is saved at 10', 'coin_transactions custom_award 10; coin_phrase_aliases row at 10', 'select amount, note, category_id from public.coin_transactions where category_id = ''custom_award'' order by created_at desc limit 1', array['coin_transact']::text[]),
+		(3, 'Give Leo coins for hitting a sick trick shot', 'undo', 'Uses the saved 10 for the phrase, one call', 'coin_transactions custom_award 10 for Leo', 'select amount from public.coin_phrase_aliases where phrase = ''hitting a sick trick shot''', array['coin_transact']::text[]),
+		(4, 'Give Mateo coins for fixing the bandsaw guard', 'refuse', 'Asks how many coins; writes nothing', 'No coin_transactions row and no phrase before he answers', 'select count(*) from public.coin_transactions where note = ''fixing the bandsaw guard''', array['coin_transact']::text[]),
+		(5, 'Leo bought an eating pass', 'undo', 'One Eating Pass purchase at its listed price', 'coin_transactions eating_pass row for Leo', 'select amount from public.coin_transactions where category_id = ''eating_pass'' order by created_at desc limit 1', array['coin_transact']::text[]),
+		(6, 'Mark those 22 reports as spam', 'undo', 'One call moves every named report to spam, with one undo', 'app_feedback status spam for exactly those ids; one connector_audit row', 'select status, count(*) from public.app_feedback where reviewed_at > now() - interval ''1 hour'' group by status', array['list_site_feedback', 'mark_feedback']::text[]),
+		(7, 'Resolve every new Armory incident from version 0.3.3', 'undo', 'One call resolves every new incident from 0.3.3 and no other', 'armory_app_incidents status resolved for exactly those', 'select status, count(*) from public.armory_app_incidents where app_version = ''0.3.3'' group by status', array['mark_feedback']::text[]),
+		(8, 'Any new Armory incidents?', 'read', 'The open incidents with counts by status and version', 'Matches armory_app_incidents_admin_list', 'select status, count(*) from public.armory_app_incidents group by status', array['list_armory_reports']::text[]),
+		(9, 'Read the newest Armory slow pass report', 'read', 'The whole report, events, phase timings and log lines', 'Matches the report JSON of that incident', 'select report from public.armory_app_incidents where kind = ''slowPass'' order by created_at desc limit 1', array['list_armory_reports', 'read_armory_incident']::text[]),
+		(10, 'Show me the Block 2 roster', 'read', 'The roster, first and last names', 'Matches classroom_section_roster', 'select e.display_name from public.classroom_enrollments e join public.classroom_sections s on s.id = e.section_id where s.label = ''Block 2'' and e.active order by 1', array['class_roster']::text[]),
+		(11, 'What can''t the connector do yet?', 'read', 'The open gaps', 'Matches connector_gaps with status open', 'select said, missing from public.connector_gaps where status = ''open'' order by created_at desc', array['list_gaps']::text[]),
+		(12, 'Who should I fine for feedback spam?', 'read', 'The ready fines with their evidence; nothing is fined', 'No coin_transactions row', 'select count(*) from public.coin_transactions where category_id = ''feedback_spam'' and created_at > now() - interval ''1 hour''', array['site_call:app_feedback_spam_review']::text[])
+	) as v(n, said, level, must, proof, q, path)
 	on conflict (said_norm) do nothing;
 	get diagnostics v_n = row_count;
 	raise notice '0298: % saved requests added for the new tools', v_n;

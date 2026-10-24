@@ -277,3 +277,31 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The report af
     cannot carry one across. Escape stops dictation before it does anything
     else, a queued field included, and a `DictateButton` whose field unmounts
     stops its own session.
+- **THE REPORT BOX AGAINST SPAM, AND WHAT A REPORT CAN EARN (ledger 0432,
+  migration 0297).** `_app_feedback_spam_guard`, a trigger before insert on
+  `app_feedback`, serves both write paths. It refuses a fifth report from one
+  account or address inside two minutes, or a sixteenth inside an hour
+  (`_feedback_rate_rules`), with `feedback_slow_down`, which
+  `feedbackSlowDown` turns into a sentence that keeps the words typed; it
+  never drops a report. Obvious junk (`_feedback_junk_reason`) and a repeat of
+  the same words within a day are kept and marked `spam`, with
+  `meta.auto_spam` saying why. It stamps `meta.evidence` itself (the sign-in
+  session's start and browser, the gap since the account's last report) and
+  replaces any the client sent; an admin's own reports are never shaped. The
+  client sends `meta.device` (`feedbackDeviceKey`, a random key per browser),
+  which is how a shared lab computer shows.
+  - **THE FINE PROMPT NEVER FINES ON ITS OWN.** `src/lib/feedback/spam.ts` is
+    the one statement of a burst (`SPAM_BURST_SENTENCE`), the amounts (1 a
+    report, 5 a burst) and the doubts that point away from the account owner;
+    `SpamFinePrompt` draws it over `app_feedback_spam_review`, and one press
+    calls `app_feedback_spam_fine`, a system fine the student can dispute, or
+    `app_feedback_spam_dismiss`. Tested against the 2026-10-22 runs in
+    `tests/feedback-spam.test.ts`.
+  - **A REWARD IS HIS NUMBER, 1 TO 10, ONCE.** `app_feedback_reward` pays the
+    reporter and resolves the report; the console's "Led to a change" control
+    asks him for the amount each time. `FEEDBACK_REWARD_LINE` is the one line
+    by the report box for a signed-in student.
+  - **A SELECTION MOVES IN ONE CALL.** All three consoles take a
+    `setStatusMany` (`$lib/feedback/bulk.ts`, the `*_set_status_many`
+    functions), falling back to one call per row on a database without 0297.
+

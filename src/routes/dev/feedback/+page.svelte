@@ -6,6 +6,8 @@
 	import FeedbackSourcesNav from '$lib/feedback/FeedbackSourcesNav.svelte';
 	import ArmoryFeedbackConsole from '$lib/feedback/ArmoryFeedbackConsole.svelte';
 	import ArmoryIncidentConsole from '$lib/feedback/ArmoryIncidentConsole.svelte';
+	import SpamFinePrompt from '$lib/feedback/SpamFinePrompt.svelte';
+	import { spamPrompts, type SpamReport } from '$lib/feedback/spam';
 	import { ARMORY_REPORTS_NOT_READY } from '$lib/feedback/armory-reports';
 	import { armorySampleIncidents, armorySampleNotes, armorySampleReports } from './armory-samples';
 	import { describeBuild, FEEDBACK_EXCLUSIONS } from '$lib/feedback/context';
@@ -593,6 +595,27 @@
 	   ten seconds, so a browser pass measuring it is not racing the timer. The
 	   production route never passes the prop. */
 	const undoMs = page.url.searchParams.get('undo') === 'hold' ? 600_000 : undefined;
+
+	/**
+	 * LEDGER 0432: THE SPAM FINE PROMPT AND THE REWARD, on `?spam=1`. Made-up
+	 * accounts (this repository is public): one that burst, one in a run from a
+	 * shared lab computer. The writes only count presses.
+	 */
+	const spamOn = page.url.searchParams.get('spam') === '1';
+	const spamReport = (user: string, at: string, message: string, over: Partial<SpamReport> = {}): SpamReport => ({
+		id: `${user}-${at}`, user_id: user, email: `${user}@example.net`, name: user === 'u1' ? 'Student One' : 'Student Two', created_at: `2026-10-22T${at}Z`,
+		message, app: 'classroom', page: '/classroom/[sectionId]/item/[itemId]', auto_spam: 'greeting_or_test', evidence: {}, device_key: null, device_label: null, ...over
+	});
+	const devPrompts = spamPrompts({
+		reports: [
+			spamReport('u1', '19:06:35', 'hi'), spamReport('u1', '19:06:50', 'hi'), spamReport('u1', '19:07:09', 'hi'),
+			spamReport('u2', '20:27:23', 'a', { device_key: 'lab', evidence: { session_started: '2026-10-22T11:00:00Z', user_agent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/130' } })
+		],
+		deviceAccounts: { lab: 6 },
+		usualAgents: {}
+	});
+	let spamPresses = $state(0);
+	let rewardPresses = $state(0);
 </script>
 
 <svelte:head><title>Feedback harness // dev</title></svelte:head>
@@ -877,7 +900,19 @@
 					: null}
 				editFeedback={editMode === 'unavailable' ? undefined : editFeedback}
 				{undoMs}
-			/>
+				rewardReport={spamOn ? async () => (rewardPresses++, { ok: true }) : undefined}
+			>
+				{#snippet top()}
+					{#if spamOn}
+						<SpamFinePrompt
+							prompts={devPrompts}
+							fine={async () => (spamPresses++, { ok: true })}
+							dismiss={async () => (spamPresses++, { ok: true })}
+						/>
+					{/if}
+				{/snippet}
+			</FeedbackConsole>
+			<p class="hx-note">spam presses: <span data-testid="spam-presses">{spamPresses}</span>, reward presses: <span data-testid="reward-presses">{rewardPresses}</span></p>
 			<p class="hx-note">horizon writes: <span data-testid="horizon-calls">{horizonCalls}</span></p>
 			<p class="hx-note">edit writes: <span data-testid="edit-calls">{editCalls}</span></p>
 		</div>

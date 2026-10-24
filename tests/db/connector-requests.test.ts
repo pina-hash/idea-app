@@ -76,7 +76,8 @@ describe('the saved requests start as the 52 lines of EVALS.md', () => {
 			`select seq, said, level, expected_path, source, proof_query from public.connector_evals order by seq`
 		)).rows;
 		expect(SEED).toHaveLength(52);
-		expect(rows.filter((r) => r.source === 'seed')).toHaveLength(52);
+		// The 52 lines of EVALS.md, and the saved requests ledger 0432 added for its new tools.
+		expect(rows.filter((r) => r.source === 'seed')).toHaveLength(52 + 12);
 		for (const s of SEED) {
 			const r = rows.find((x) => x.seq === s.n)!;
 			expect(r, `saved request ${s.n}`).toBeDefined();

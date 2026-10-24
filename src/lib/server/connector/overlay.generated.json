@@ -10773,6 +10773,10 @@
 				"note": {
 					"type": "string",
 					"describe": "What went wrong, when it failed."
+				},
+				"model": {
+					"type": "string",
+					"describe": "The model that ran it, like Haiku 5.5, when it is not the one this connection reports."
 				}
 			}
 		},

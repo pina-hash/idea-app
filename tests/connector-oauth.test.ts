@@ -188,7 +188,7 @@ describe('the code and the tokens', () => {
 		expect(initBody.result.serverInfo.name).toBe('IDEA Website');
 		const list = (await (await handleMcp(rpc(access, { jsonrpc: '2.0', id: 2, method: 'tools/list' }), ORIGIN, deps)).json()) as { result: { tools: Array<{ name: string }> } };
 		const names = list.result.tools.map((t) => t.name);
-		expect(names).toEqual(expect.arrayContaining(['award_coins', 'fine_coins', 'create_post', 'find_student', 'site_call', 'site_find_tool', 'undo_last']));
+		expect(names).toEqual(expect.arrayContaining(['coin_transact', 'mark_feedback', 'create_post', 'find_student', 'site_call', 'site_find_tool', 'undo_last']));
 		const call = (await (await handleMcp(rpc(access, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_classes', arguments: {} } }), ORIGIN, deps)).json()) as { result: { content: Array<{ text: string }> } };
 		expect(JSON.parse(call.result.content[0].text).classes.map((c: { class: string }) => c.class).sort()).toEqual(['IDEA209H · Block 2', 'IDEA209H · Block 4']);
 	});

@@ -5,6 +5,8 @@
 // site_call step must be among site_find_tool's five) and the runner to its
 // once-a-night guard, its record, and leaving a gap that is not built out.
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { judgeSavedRequest, runNightlyReplay } from '../src/lib/server/connector/replay';
 import type { ConnectorBackend } from '../src/lib/server/connector/types';
@@ -45,6 +47,23 @@ describe('judging one saved request', () => {
 	it('leaves out a gap that is not built yet', () => {
 		expect(judgeSavedRequest('seating chart', ['report_gap'])).toBeNull();
 	});
+});
+
+describe('the saved requests ledger 0432 added pass the route check', () => {
+	const SQL = readFileSync(fileURLToPath(new URL('../supabase/migrations/' + readdirSync(fileURLToPath(new URL('../supabase/migrations', import.meta.url))).find((f) => /_coin_voice_aliases\.sql$/.test(f)), import.meta.url)), 'utf8');
+	const lines = [...SQL.matchAll(/\(\d+, '((?:[^']|'')+)', '(?:read|undo|refuse|confirm)', '(?:[^']|'')*', '(?:[^']|'')*', '(?:[^']|'')*', array\[([^\]]*)\]::text\[\]\)/g)].map((m) => ({
+		said: m[1].replace(/''/g, "'"),
+		path: m[2].split(',').map((x) => x.trim().replace(/^'|'$/g, ''))
+	}));
+	it('reads all twelve from the migration', () => {
+		expect(lines).toHaveLength(12);
+	});
+	for (const l of lines) {
+		it(l.said, () => {
+			const judged = judgeSavedRequest(l.said, l.path);
+			expect(judged?.passed, JSON.stringify(judged?.steps)).toBe(true);
+		});
+	}
 });
 
 describe('the nightly run', () => {
