@@ -664,6 +664,8 @@ export function coinBuyRefusalWords(r: {
 	switch (r.reason) {
 		case 'signed_out':
 			return 'You are signed out. Sign in again, then try once more.';
+		case 'staff_account':
+			return 'This is a student action. A staff account has no coins of its own to spend here.';
 		case 'not_in_economy':
 			return 'None of your classes is using IDEA Coins right now, so nothing can be bought here.';
 		case 'rate_limited':

@@ -12,7 +12,7 @@ export default {
 	prepare: hydrated(),
 	presence: [
 		{ selector: '[data-testid="mk-official"]', label: 'the official zone', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="mk-official-tile"]', label: 'seven official tiles (contracts are retired)', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
+		{ selector: '[data-testid="mk-official-tile"]', label: 'eight official tiles (contracts are retired)', expectPresent: 8, maxPresent: 8, expectVisible: 8 },
 		{ selector: '[data-testid="mk-students"]', label: 'the student zone', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="mk-board"] [data-testid="mk-listing"]', label: "six classmates' listings", expectPresent: 6, maxPresent: 6, expectVisible: 6 },
 		{ selector: '[data-testid="mk-mine"] [data-testid="mk-listing"]', label: 'two of your own listings', expectPresent: 2, maxPresent: 2, expectVisible: 2 },

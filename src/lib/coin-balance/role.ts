@@ -226,6 +226,8 @@ export function roleCaptureRefusalWords(r: { reason: string; data?: Record<strin
 			return 'That is the most photos one day can hold. Today is already recorded.';
 		case 'signed_out':
 			return 'You are signed out. Sign in again, then try once more.';
+		case 'staff_account':
+			return 'This is a student action. A staff account has no coins of its own to spend here.';
 		case 'not_in_economy':
 			return 'None of your classes is using IDEA Coins right now, so roles are closed.';
 		case 'rate_limited':

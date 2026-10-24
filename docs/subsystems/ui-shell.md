@@ -27,7 +27,7 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Component str
     and four source comments under `src/lib/coin-desk/` and
     `src/lib/coin-balance/` still name it as the thing they were factored out
     of. The desk is one component per AREA now (`LogView`, `QueueView`,
-    `PaydayView`, `DigestView`, `TournamentTransfer`, `ContractsManager`,
+    `PaydayView`, `DigestView`, `TournamentTransfer`,
     `RolesManager`, `CategoriesManager`), mounted by the route group and by
     `/dev/coin-desk` alike -- so the harness still mounts the identical
     components, and what the two no longer share is a screen-level parent. A

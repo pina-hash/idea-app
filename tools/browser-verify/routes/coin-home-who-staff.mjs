@@ -12,7 +12,7 @@ export default {
 		{ selector: '[data-testid="coin-bar"] a', label: 'tabs (home, four pages, the desk)', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
 		{ selector: '[data-testid="coin-bar-desk"]', label: 'the Coin Desk tab', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '.ch-card', label: 'preview cards', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
-		{ selector: '[data-testid="ch-card-desk"] .ch-area', label: 'Coin Desk area keys', expectPresent: 12, maxPresent: 12 }
+		{ selector: '[data-testid="ch-card-desk"] .ch-area', label: 'Staff tools area keys (the Coin Desk folded in, ledger 0432)', expectPresent: 11, maxPresent: 11 }
 	],
 	orderResult: [
 		{

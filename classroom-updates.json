@@ -2547,6 +2547,12 @@
 			"title": "GAUNTLET scores are back, and team fixes",
 			"body": "The GAUNTLET leaderboards were blank for a few days. No runs were lost: every score is back on its board. In a tournament, anyone on a team can now remove a teammate with no account, such as a name added by mistake, and the team name has its own Rename team button. Typing the team name into Add a teammate no longer adds a person.",
 			"tags": ["GAUNTLET", "Tournaments"]
+		},
+		{
+			"date": "2026-10-23",
+			"title": "Contracts are now jobs on the IDEA Market",
+			"body": "Coin contracts are retired. Jobs that pay coins are posted on the IDEA Market, so look there for work. Your coin page no longer has a contracts section, and nothing you already earned has changed.",
+			"tags": ["Coins"]
 		}
 	]
 }

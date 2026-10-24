@@ -1,0 +1,10 @@
+# 0432 Coins, feedback and the connector: voice to action, bulk actions, contracts retired, spam and rewards
+
+- Issued: 2026-10-23
+- By: Mr. Pina, through the IDEA & FRC chat (docs/feedback/2026-10-23/QUEUE.md)
+- Owns: `src/lib/server/connector/**` and `src/routes/mcp/**`, `src/routes/connector/**`, the connector build and its schema, the connector evals and their fixtures; coin code (`src/lib/coin-*/**`, `src/lib/coin-*.ts`, `src/lib/server/coin-*.ts`, `src/routes/coin/**`, `src/routes/coin-desk/**`, `src/routes/coins/**`, `src/routes/coin-balance/**`, `src/routes/market/**`, `src/routes/contracts/**`, `src/lib/legacy/coins/**` only where retiring contracts requires it); feedback code (`src/lib/feedback/**` except `armory-reports.ts` content beyond adding bulk status, `src/lib/server/feedback-console.ts`, `src/routes/admin/feedback/**`, `src/routes/api/feedback/**`, the SiteFeedback report box); the Armory incident and note consoles only for bulk status and reading one incident's report; the home launcher entry for Coin Desk only to remove it (`src/lib/portal-apps.ts`, `src/lib/AppLauncher.svelte`, `tests/home-order-and-accent.test.ts` rows for it); up to three `supabase/migrations/NNNN_*.sql`; `src/routes/dev/coin*/**`, `src/routes/dev/feedback*/**`, `src/routes/dev/connector*/**`; `tests/*coin*`, `tests/db/*coin*`, `tests/*connector*`, `tests/db/*connector*`, `tests/*feedback*`, `tests/db/*feedback*`; `tools/browser-verify/routes/coin*.mjs`, `feedback*.mjs`; the generated regions of `tools/browser-verify/README.md`; one appended entry in `classroom-updates.json`; `docs/subsystems/coins.md`, `connector.md`, `feedback.md`; `docs/prompt-ledger/entries/0432-*`, `docs/feedback/2026-10-23/RESULTS-0432.md`, your own `docs/history/` entry.
+- Migration permitted: up to three, the next free numbers at landing. Claims: 0295
+- Status: pushed
+- Mode: solo
+- Branch: main (solo)
+- Notes: landed in parts, in the order the prompt set (C, B, A, D, E). Part C (contracts retired, the Coin Desk folded into the coin home): see the commits on main between 1d9ce504 and this entry's first push.

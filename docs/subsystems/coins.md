@@ -87,7 +87,7 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
 - **No new coin-economy surface without reading the spec.** Every category
   name, price and rule transcribes `docs/coin-economy/IDEA_COIN_V2.md`, which
   replaces `docs/coin-economy/idea_coin_economy_draft_v3.md` wherever the two
-  disagree. Prices are DATA now: an admin edits them on `/coin-desk/settings`
+  disagree. Prices are DATA now: an admin edits them on `/coin/settings`
   (audited in `coin_settings_audit`), so a price change is not a code change.
   Supabase is the sole system of record for IDEA Coins; there is no second
   ledger.
@@ -118,15 +118,25 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
     is still a query the desk does not make.
 - **EVERY COIN PAGE CARRIES ONE IDEA COIN BAR, AND `COIN_PAGES` IS ITS ONE
   LIST (ledger 0422).** `src/lib/coin-bar/CoinBar.svelte` sits under the header
-  of My coins, the role page, the Market, Stocks, a stock's page and the Coin
-  Desk; `src/lib/coin-bar/pages.ts` holds the tabs (`COIN_PAGES`,
+  of My coins, the role page, the Market, Stocks, a stock's page and the staff
+  areas; `src/lib/coin-bar/pages.ts` holds the tabs (`COIN_PAGES`,
   `coinPagesFor`) and `coinPageFor` names the current one. A new coin page
   joins that list, never a second bar. The tabs wrap and never scroll, the
   lesson the Ledger's own spec recorded.
-  - **THE COIN DESK TAB IS THE DESK'S OWN GATE.** `coinBarDesk` in
+  - **THE STAFF TOOLS TAB IS THE STAFF AREAS' OWN GATE.** `coinBarDesk` in
     `src/lib/server/coin-bar.ts` asks `coinStaff`, so the tab is offered
-    exactly to the people `/coin-desk` opens for; signed out is false with no
-    call, and any error is false (it fails closed).
+    exactly to the people the staff areas open for; signed out is false with
+    no call, and any error is false (it fails closed).
+  - **THE COIN DESK IS PART OF THE COIN HOME (ledger 0432, Mr. Pina
+    2026-10-23).** Its areas are `/coin/<area>` (the `(staff)` route group
+    under `src/routes/coin/`, gated once in its `+layout.server.ts`, 404 to
+    anyone who is not coin staff), listed by `COIN_DESK_AREAS` in
+    `src/lib/coin-desk/nav.ts`; the coin home's Staff tools card and the bar's
+    Staff tools tab are the way in, and there is no launcher tile. Every old
+    `/coin-desk` address answers a 308 from
+    `src/routes/coin-desk/[...path]/+server.ts` through `coinDeskRedirect`: an
+    area to its new address, anything else to `/coin`. A new staff area joins
+    `COIN_DESK_AREAS` and the group, never a second desk.
   - **THE FROZEN LEDGER GETS THE REAL COMPONENT AT SERVE TIME.**
     `injectCoinBar` server-renders the bar under the Ledger's header and adds
     its stylesheet, so the Ledger file stays byte-identical (the freeze in
@@ -161,3 +171,19 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
     checks every card named before it writes, so an unknown card refuses the
     whole call; staff list every card, with its id, through
     `coin_market_cards_admin`.
+- **CONTRACTS ARE RETIRED (ledger 0432, migration 0295, Mr. Pina
+  2026-10-23: "everything is on the marketplace now").** Every contract was
+  closed with nobody paid again, every contract write function lost its
+  client grant, and the coin page, the Market, the staff areas and the
+  connector carry no contract surface. Jobs are official cards on the IDEA
+  Market. The reads (`coin_my_contracts`, `coin_contracts_admin`) stay so old
+  history still renders; a new contract surface is a decision, not a fix.
+- **A STUDENT ACTION IS NEVER A STAFF TOOL, AND THE SEAM SAYS WHO ASKED
+  (ledger 0432, gap 3f52bae9).** `_coin_student_seam` answers `staff_account`
+  to coin staff (0295), never `not_in_economy`, which is what a student
+  action run as Mr. Pina used to say. For the connector, `CALLER_SEAMS` in
+  `tools/connector/gates.mjs` stops the gate walk at the seam and marks every
+  function reaching it `acts_as_caller`, which the generated layer excludes;
+  on 2026-10-23 that took 21 student coin actions off the generated tools.
+  `tests/connector-coverage.test.ts` holds every such function off the
+  connector, with an admin coin write as the control.

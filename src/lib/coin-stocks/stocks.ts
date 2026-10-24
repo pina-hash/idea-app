@@ -532,6 +532,8 @@ export function stockRefusalWords(r: Record<string, unknown> | null | undefined)
 			return `Trade at least ${coins(0.5)}, with at most two decimals.`;
 		case 'not_found':
 			return 'That stock is not trading.';
+		case 'staff_account':
+			return 'This is a student action. A staff account has no coins of its own to spend here.';
 		case 'not_in_economy':
 			return 'None of your classes is using IDEA Coins right now.';
 		case 'rate_limited':
