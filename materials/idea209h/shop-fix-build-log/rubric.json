@@ -1,0 +1,286 @@
+[
+  {
+    "id": "u3b-sessions-sessions",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Every session logged",
+        "points": 3,
+        "descriptor": "One row for every session you worked on a part: the date, the part, the machine and what got done, written specifically enough that someone else could follow it."
+      },
+      {
+        "label": "Proficient",
+        "short": "One session missing",
+        "points": 2,
+        "descriptor": "One fab session has no row, or one row is too vague to follow (\"worked on it\")."
+      },
+      {
+        "label": "Developing",
+        "short": "Two or more missing",
+        "points": 1,
+        "descriptor": "Two or more sessions have no row or are too vague to follow."
+      },
+      {
+        "label": "Absent",
+        "short": "No log",
+        "points": 0,
+        "descriptor": "No log, or not a real attempt."
+      }
+    ],
+    "points": 3,
+    "criterion": "Log: Session log: A row for every fab session",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-sessions-problems",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Every problem has a fix",
+        "points": 2,
+        "descriptor": "Every problem written in the log says what you did about it. Sessions with no problem may leave the column blank."
+      },
+      {
+        "label": "Developing",
+        "short": "Problems without fixes",
+        "points": 1,
+        "descriptor": "At least one problem is written down without what you did about it."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing recorded",
+        "points": 0,
+        "descriptor": "Problems the photos or notes show are missing from the log, or the log is missing."
+      }
+    ],
+    "points": 2,
+    "criterion": "Log: Session log: Problems recorded with what you did about them",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-part-a-photos",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both, clearly yours",
+        "points": 7,
+        "descriptor": "One photo of your part on the machine (held for cutting, or partway through with the machine stopped) and one of the finished part. Both are sharp and clearly your part. Extra photos are welcome and never required."
+      },
+      {
+        "label": "Developing",
+        "short": "One missing or unclear",
+        "points": 4,
+        "descriptor": "One of the two is missing, blurry, or does not clearly show your part."
+      },
+      {
+        "label": "Absent",
+        "short": "No photos",
+        "points": 0,
+        "descriptor": "No photos, or photos of someone else's part."
+      }
+    ],
+    "points": 7,
+    "criterion": "Log: Machined part: Two photos: at the machine, and finished",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-part-a-note",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Specific to your part",
+        "points": 2,
+        "descriptor": "Names one specific thing about making this part on this machine: a setup that worked or did not, a feature that came out off, a step you would do differently."
+      },
+      {
+        "label": "Developing",
+        "short": "General",
+        "points": 1,
+        "descriptor": "A general statement that could describe anyone's part (\"it went well\", \"the mill is hard\")."
+      },
+      {
+        "label": "Absent",
+        "short": "Missing",
+        "points": 0,
+        "descriptor": "Missing or not a real attempt."
+      }
+    ],
+    "points": 2,
+    "criterion": "Log: Machined part: What the machine taught you",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-part-b-photos",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both, clearly yours",
+        "points": 6,
+        "descriptor": "One photo of your part at the machine (held for cutting, the laser job loaded with the material in place, or partway through with the machine stopped) and one of the finished part. Both are sharp and clearly your part. Extra photos are welcome and never required."
+      },
+      {
+        "label": "Developing",
+        "short": "One missing or unclear",
+        "points": 3,
+        "descriptor": "One of the two is missing, blurry, or does not clearly show your part."
+      },
+      {
+        "label": "Absent",
+        "short": "No photos",
+        "points": 0,
+        "descriptor": "No photos, or photos of someone else's part."
+      }
+    ],
+    "points": 6,
+    "criterion": "Log: Second major part: Two photos: at the machine, and finished",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-part-b-note",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Specific to your part",
+        "points": 2,
+        "descriptor": "Names one specific thing about making this part on this machine."
+      },
+      {
+        "label": "Developing",
+        "short": "General",
+        "points": 1,
+        "descriptor": "A general statement that could describe anyone's part."
+      },
+      {
+        "label": "Absent",
+        "short": "Missing",
+        "points": 0,
+        "descriptor": "Missing or not a real attempt."
+      }
+    ],
+    "points": 2,
+    "criterion": "Log: Second major part: What the machine taught you",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-fit-readings",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Copied and measured right",
+        "points": 3,
+        "descriptor": "The designed value, tolerance and prediction match your Locked prediction on the Shop Fix Board, and three or more readings of that same dimension were taken before any filing, sanding or shimming."
+      },
+      {
+        "label": "Proficient",
+        "short": "One slip",
+        "points": 2,
+        "descriptor": "One value differs from the board, or the readings disagree by more than the tolerance with no remeasure."
+      },
+      {
+        "label": "Developing",
+        "short": "Thin",
+        "points": 1,
+        "descriptor": "Only one or two readings, or readings of a different feature."
+      },
+      {
+        "label": "Absent",
+        "short": "Missing",
+        "points": 0,
+        "descriptor": "Missing, or numbers that do not belong to this part."
+      }
+    ],
+    "points": 3,
+    "criterion": "Log: Fit check: Prediction copied and three readings before any filing",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-fit-result",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Correct call, photo shows it",
+        "points": 2,
+        "descriptor": "The inside or outside call matches your readings against the designed value plus or minus the tolerance, and the photo shows both parts together at the interface."
+      },
+      {
+        "label": "Developing",
+        "short": "Call or photo missing",
+        "points": 1,
+        "descriptor": "The call is wrong, or there is no photo of the parts together."
+      },
+      {
+        "label": "Absent",
+        "short": "Missing",
+        "points": 0,
+        "descriptor": "Missing."
+      }
+    ],
+    "points": 2,
+    "criterion": "Log: Fit check: The verdict and the parts together",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-changes-changes",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Every change and its reason",
+        "points": 3,
+        "descriptor": "Every difference between what you made and what you drew or planned is listed with the reason: a dimension, a machine, a step, a material, filing to fit. If nothing changed, it says so and how you know (you measured against the drawing)."
+      },
+      {
+        "label": "Proficient",
+        "short": "A change without a reason",
+        "points": 2,
+        "descriptor": "Every change is listed, but at least one has no reason."
+      },
+      {
+        "label": "Developing",
+        "short": "Vague or incomplete",
+        "points": 1,
+        "descriptor": "Changes are described vaguely (\"I fixed some stuff\"), or a change the photos show is missing."
+      },
+      {
+        "label": "Absent",
+        "short": "Missing",
+        "points": 0,
+        "descriptor": "Missing or not a real attempt."
+      }
+    ],
+    "points": 3,
+    "criterion": "Log: What changed: Every change from the drawing or plan, and why",
+    "incomplete": false
+  },
+  {
+    "id": "u3b-install-installed",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Installed and in use",
+        "points": 5,
+        "descriptor": "A photo of the fix installed in the spot from your before photo, doing the job it was made for: the tool in the holder, the cable routed."
+      },
+      {
+        "label": "Proficient",
+        "short": "Installed, not shown working",
+        "points": 3,
+        "descriptor": "The fix is installed but not shown doing its job, or shown working somewhere other than the problem spot."
+      },
+      {
+        "label": "Developing",
+        "short": "Built, not installed",
+        "points": 1,
+        "descriptor": "Both parts are made and shown together, but the fix is not installed."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing to show",
+        "points": 0,
+        "descriptor": "No photo of the finished fix."
+      }
+    ],
+    "points": 5,
+    "criterion": "Log: Installed: Installed where the problem was, and working",
+    "incomplete": false
+  }
+]

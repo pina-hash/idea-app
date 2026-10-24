@@ -1,0 +1,158 @@
+{
+  "kind": "html-assignment",
+  "title": "Unit 2 Documentation Check",
+  "course": "IDEA209H",
+  "header": [
+    {
+      "id": "doc-name",
+      "type": "text",
+      "field": "name"
+    },
+    {
+      "id": "doc-date",
+      "type": "text",
+      "field": "date"
+    },
+    {
+      "id": "doc-block",
+      "type": "text",
+      "field": "block"
+    }
+  ],
+  "points": 25,
+  "modules": [
+    {
+      "id": "notebook",
+      "title": "How you kept your notebook",
+      "blocks": [],
+      "points": 25,
+      "criteria": [
+        {
+          "id": "entry-per-session",
+          "text": "Every session in the unit has an entry",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every session present",
+              "points": 7,
+              "descriptor": "An entry exists for every session of the unit: each of the five station days, the planning work, and the measuring."
+            },
+            {
+              "label": "Proficient",
+              "short": "One session missing",
+              "points": 5,
+              "descriptor": "One session of the unit has no entry."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or three missing",
+              "points": 2,
+              "descriptor": "Two or three sessions have no entry."
+            },
+            {
+              "label": "Absent",
+              "short": "Four or more missing",
+              "points": 0,
+              "descriptor": "Four or more sessions have no entry, or no pages were uploaded."
+            }
+          ],
+          "points": 7
+        },
+        {
+          "id": "raw-data",
+          "text": "Written at the machine, not copied out later",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Written in the moment",
+              "points": 6,
+              "descriptor": "Numbers and notes appear as they were taken, with corrections and crossed-out readings left visible."
+            },
+            {
+              "label": "Proficient",
+              "short": "Mostly in the moment",
+              "points": 4,
+              "descriptor": "Most entries read as recorded; one or two look copied over."
+            },
+            {
+              "label": "Developing",
+              "short": "Mostly rewritten",
+              "points": 2,
+              "descriptor": "Most entries look rewritten or cleaned up after the fact."
+            },
+            {
+              "label": "Absent",
+              "short": "No working record",
+              "points": 0,
+              "descriptor": "No raw numbers or in-progress notes appear anywhere."
+            }
+          ],
+          "points": 6
+        },
+        {
+          "id": "dated-legible",
+          "text": "Dated, and written so it can be read",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All dated, handwriting clear",
+              "points": 6,
+              "descriptor": "Every entry carries its date and the handwriting can be read. Photo quality is scored on the Capture, not here."
+            },
+            {
+              "label": "Proficient",
+              "short": "One or two gaps",
+              "points": 4,
+              "descriptor": "One or two entries are undated, or one or two pages are hard to read as written."
+            },
+            {
+              "label": "Developing",
+              "short": "Three or four gaps",
+              "points": 2,
+              "descriptor": "Three or four entries are undated or hard to read as written."
+            },
+            {
+              "label": "Absent",
+              "short": "Mostly undated",
+              "points": 0,
+              "descriptor": "Most entries carry no date, or most pages cannot be read as written."
+            }
+          ],
+          "points": 6
+        },
+        {
+          "id": "reconstructible",
+          "text": "A notebook someone else could work from",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Whole unit reproducible",
+              "points": 6,
+              "descriptor": "Taken together the pages let another student repeat the unit: plan, make, measure. What any single station record contains is scored on the Capture, not here."
+            },
+            {
+              "label": "Proficient",
+              "short": "One gap",
+              "points": 4,
+              "descriptor": "One session would need a question answered before it could be repeated."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or three gaps",
+              "points": 2,
+              "descriptor": "Two or three sessions could not be repeated from the pages alone."
+            },
+            {
+              "label": "Absent",
+              "short": "Not reproducible",
+              "points": 0,
+              "descriptor": "The pages record that work happened without recording what was done."
+            }
+          ],
+          "points": 6
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 3
+}

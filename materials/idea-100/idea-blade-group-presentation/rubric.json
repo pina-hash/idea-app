@@ -1,0 +1,98 @@
+[
+  {
+    "id": "pres-plan-plan",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All five, your own build",
+        "points": 20,
+        "descriptor": "All five slides are planned and every one names something only your team could say: your numbers, your parts, your decisions."
+      },
+      {
+        "label": "Proficient",
+        "short": "All five, some general",
+        "points": 14,
+        "descriptor": "All five are planned, but one or two would fit any team in the room."
+      },
+      {
+        "label": "Developing",
+        "short": "Slides missing",
+        "points": 7,
+        "descriptor": "Two or more slides are empty."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "Nothing is planned."
+      }
+    ],
+    "points": 20,
+    "criterion": "The Five Slides: Five slides, and they are about your blade",
+    "incomplete": false
+  },
+  {
+    "id": "pres-evidence-evidence",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Image, numbers, deck opens",
+        "points": 10,
+        "descriptor": "An image of the team's own work, the numbers filled in, and a Slides link that opens."
+      },
+      {
+        "label": "Proficient",
+        "short": "One of the three thin",
+        "points": 7,
+        "descriptor": "Two of the three are there and one is missing."
+      },
+      {
+        "label": "Developing",
+        "short": "Only one present",
+        "points": 3,
+        "descriptor": "Only one of the image, numbers or deck link is present."
+      },
+      {
+        "label": "Absent",
+        "short": "Not attempted",
+        "points": 0,
+        "descriptor": "None of the three are present."
+      }
+    ],
+    "points": 10,
+    "criterion": "Evidence: Real pictures and real numbers",
+    "incomplete": false
+  },
+  {
+    "id": "pres-day-day",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Spoke, knew it, no reading",
+        "points": 10,
+        "descriptor": "The student spoke to their slides and explained them without reading off the screen."
+      },
+      {
+        "label": "Proficient",
+        "short": "Spoke, read some of it",
+        "points": 7,
+        "descriptor": "The student spoke but read most of what was on the screen."
+      },
+      {
+        "label": "Developing",
+        "short": "Barely spoke",
+        "points": 3,
+        "descriptor": "The student was present but said almost nothing."
+      },
+      {
+        "label": "Absent",
+        "short": "Did not present",
+        "points": 0,
+        "descriptor": "The student did not speak."
+      }
+    ],
+    "points": 10,
+    "criterion": "On The Day: You presented your part",
+    "incomplete": false
+  }
+]

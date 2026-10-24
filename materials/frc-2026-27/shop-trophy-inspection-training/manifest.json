@@ -1,0 +1,215 @@
+{
+  "kind": "html-assignment",
+  "title": "Shop Trophy: Inspection Training",
+  "course": "FRC5669",
+  "header": [
+    {
+      "id": "frc-insp-inspector",
+      "type": "text",
+      "field": "inspector"
+    },
+    {
+      "id": "frc-insp-machinist",
+      "type": "text",
+      "field": "machinist"
+    },
+    {
+      "id": "frc-insp-tools",
+      "type": "table",
+      "field": "tools"
+    }
+  ],
+  "points": 50,
+  "modules": [
+    {
+      "id": "inspection",
+      "title": "Component Tolerance Inspection Reports",
+      "blocks": [
+        {
+          "id": "frc-insp-report-base",
+          "type": "table",
+          "field": "report-base"
+        },
+        {
+          "id": "frc-insp-report-column",
+          "type": "table",
+          "field": "report-column"
+        },
+        {
+          "id": "frc-insp-report-platform",
+          "type": "table",
+          "field": "report-platform"
+        },
+        {
+          "id": "frc-insp-report-shaft",
+          "type": "table",
+          "field": "report-shaft"
+        },
+        {
+          "id": "frc-insp-report-topper",
+          "type": "table",
+          "field": "report-topper"
+        }
+      ],
+      "points": 50,
+      "criteria": [
+        {
+          "id": "reports-complete",
+          "text": "Five reports, filled in",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 5 reports fully filled",
+              "points": 15,
+              "descriptor": "All five reports have one row for every lettered dimension on the drawing with its tolerance, a measured value or thread check, a tool, a P or F, a verdict that agrees with the rows, and the date."
+            },
+            {
+              "label": "Proficient",
+              "short": "5 reports, one or two gaps",
+              "points": 12,
+              "descriptor": "All five reports present with one or two missing entries, or one verdict that disagrees with its rows."
+            },
+            {
+              "label": "Developing",
+              "short": "3 or 4 reports",
+              "points": 6,
+              "descriptor": "Three or four reports filled, or five with many missing entries or missing dimensions."
+            },
+            {
+              "label": "Absent",
+              "short": "2 or fewer",
+              "points": 0,
+              "descriptor": "Two reports or fewer."
+            }
+          ],
+          "points": 15
+        },
+        {
+          "id": "read-drawing",
+          "text": "Read off the drawing correctly",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every value matches the drawing",
+              "points": 10,
+              "descriptor": "Every required dimension and every tolerance matches what the drawing gives for that letter."
+            },
+            {
+              "label": "Proficient",
+              "short": "One or two misread",
+              "points": 8,
+              "descriptor": "One or two required dimensions or tolerances do not match the drawing."
+            },
+            {
+              "label": "Developing",
+              "short": "Several misread",
+              "points": 4,
+              "descriptor": "Three to five do not match the drawing."
+            },
+            {
+              "label": "Absent",
+              "short": "Most do not match",
+              "points": 0,
+              "descriptor": "Most required dimensions or tolerances do not match the drawing."
+            }
+          ],
+          "points": 10
+        },
+        {
+          "id": "tool-choice",
+          "text": "Inspection tool fits the feature",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Right tool on every row",
+              "points": 10,
+              "descriptor": "Every row names a tool that can measure that feature to the tolerance the drawing gives."
+            },
+            {
+              "label": "Proficient",
+              "short": "One or two poor fits",
+              "points": 8,
+              "descriptor": "One or two rows name a tool that cannot read to that tolerance or cannot reach that feature."
+            },
+            {
+              "label": "Developing",
+              "short": "Tools missing or wrong often",
+              "points": 4,
+              "descriptor": "Tools missing from, or wrong on, three or more rows."
+            },
+            {
+              "label": "Absent",
+              "short": "No tools named",
+              "points": 0,
+              "descriptor": "No inspection tools named."
+            }
+          ],
+          "points": 10
+        },
+        {
+          "id": "remarks",
+          "text": "Remarks explain what is off",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Every F explained with cause",
+              "points": 10,
+              "descriptor": "Every row marked F has a remark saying which way it is off and a likely cause: the tool, the material, how the part was held, or how the machine moves. On a part with no F, the row with the largest percent error has that remark instead."
+            },
+            {
+              "label": "Proficient",
+              "short": "Explained, cause is general",
+              "points": 8,
+              "descriptor": "Every F has a remark, but the cause is general rather than one of those four."
+            },
+            {
+              "label": "Developing",
+              "short": "Some explained",
+              "points": 4,
+              "descriptor": "Some F rows have a remark and some do not."
+            },
+            {
+              "label": "Absent",
+              "short": "No remarks",
+              "points": 0,
+              "descriptor": "No remarks on any F row, or no remarks at all."
+            }
+          ],
+          "points": 10
+        },
+        {
+          "id": "condition",
+          "text": "Deburring and creativity judged",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All judged, creativity on P1, P5",
+              "points": 5,
+              "descriptor": "Every report rates deburring and says where the part is sharp, burred, or clean, and P1 and P5 carry a creativity comment."
+            },
+            {
+              "label": "Proficient",
+              "short": "One comment thin or missing",
+              "points": 4,
+              "descriptor": "One deburring or creativity comment missing, or one that names no place on the part."
+            },
+            {
+              "label": "Developing",
+              "short": "Several missing",
+              "points": 2,
+              "descriptor": "Two or three deburring or creativity comments missing."
+            },
+            {
+              "label": "Absent",
+              "short": "Not judged",
+              "points": 0,
+              "descriptor": "Deburring and creativity are not judged."
+            }
+          ],
+          "points": 5
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 3
+}

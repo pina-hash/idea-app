@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unit 2 Documentation Check</title>
+<script type="application/json" id="idea-manifest">{"schemaVersion":3,"kind":"html-assignment","title":"Unit 2 Documentation Check","course":"IDEA209H","points":25,"header":[{"id":"doc-name","field":"name","type":"text"},{"id":"doc-date","field":"date","type":"text"},{"id":"doc-block","field":"block","type":"text"}],"modules":[{"id":"notebook","title":"How you kept your notebook","points":25,"blocks":[],"criteria":[{"id":"entry-per-session","text":"Every session in the unit has an entry","points":7,"levels":[{"points":7,"label":"Complete","short":"Every session present","descriptor":"An entry exists for every session of the unit: each of the five station days, the planning work, and the measuring."},{"points":5,"label":"Proficient","short":"One session missing","descriptor":"One session of the unit has no entry."},{"points":2,"label":"Developing","short":"Two or three missing","descriptor":"Two or three sessions have no entry."},{"points":0,"label":"Absent","short":"Four or more missing","descriptor":"Four or more sessions have no entry, or no pages were uploaded."}]},{"id":"raw-data","text":"Written at the machine, not copied out later","points":6,"levels":[{"points":6,"label":"Complete","short":"Written in the moment","descriptor":"Numbers and notes appear as they were taken, with corrections and crossed-out readings left visible."},{"points":4,"label":"Proficient","short":"Mostly in the moment","descriptor":"Most entries read as recorded; one or two look copied over."},{"points":2,"label":"Developing","short":"Mostly rewritten","descriptor":"Most entries look rewritten or cleaned up after the fact."},{"points":0,"label":"Absent","short":"No working record","descriptor":"No raw numbers or in-progress notes appear anywhere."}]},{"id":"dated-legible","text":"Dated, and written so it can be read","points":6,"levels":[{"points":6,"label":"Complete","short":"All dated, handwriting clear","descriptor":"Every entry carries its date and the handwriting can be read. Photo quality is scored on the Capture, not here."},{"points":4,"label":"Proficient","short":"One or two gaps","descriptor":"One or two entries are undated, or one or two pages are hard to read as written."},{"points":2,"label":"Developing","short":"Three or four gaps","descriptor":"Three or four entries are undated or hard to read as written."},{"points":0,"label":"Absent","short":"Mostly undated","descriptor":"Most entries carry no date, or most pages cannot be read as written."}]},{"id":"reconstructible","text":"A notebook someone else could work from","points":6,"levels":[{"points":6,"label":"Complete","short":"Whole unit reproducible","descriptor":"Taken together the pages let another student repeat the unit: plan, make, measure. What any single station record contains is scored on the Capture, not here."},{"points":4,"label":"Proficient","short":"One gap","descriptor":"One session would need a question answered before it could be repeated."},{"points":2,"label":"Developing","short":"Two or three gaps","descriptor":"Two or three sessions could not be repeated from the pages alone."},{"points":0,"label":"Absent","short":"Not reproducible","descriptor":"The pages record that work happened without recording what was done."}]}]}]}</script>
+<style>
+:root{--ink:#0f1511;--mut:#5c6b60;--acc:#146B2A;--line:#d5ddd5;--soft:#f1f5f1;--bad:#8a2b16}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);
+ font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:clamp(14px,2.2vw,34px)}
+h1{font-size:clamp(20px,2.4vw,30px);margin:0 0 4px;line-height:1.15}
+.sub{color:var(--mut);font-size:14px;margin:0 0 18px}
+h2{font-size:clamp(16px,1.5vw,20px);margin:28px 0 8px;padding-top:8px;border-top:3px solid var(--acc)}
+p,li{max-width:74ch}
+.idbar{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));
+ margin:0 0 18px;padding:12px;background:var(--soft);border-left:4px solid var(--acc)}
+label.lbl{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700}
+input[type=text],textarea{width:100%;font:inherit;color:inherit;background:#fff;
+ border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+textarea{min-height:110px;resize:vertical;max-width:78ch}
+input:focus,textarea:focus,.drop:focus-within{outline:2px solid var(--acc);outline-offset:1px}
+details{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:12px 0;background:var(--soft)}
+summary{cursor:pointer;font-weight:700}
+.tag{font-size:12px;color:var(--mut);font-weight:400;margin-left:8px}
+details.grp{background:#fff}
+details.grp summary{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.ct{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--mut);font-weight:400}
+.ct.on{color:var(--acc);font-weight:700}
+.gb{color:var(--mut);font-size:14px;margin:6px 0 0}
+.slots{display:grid;gap:12px;margin-top:10px;
+ grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr))}
+.slot{border:1px solid var(--line);border-radius:10px;padding:9px;background:#fff}
+.slothd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.slotname{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700}
+.state{font-size:11px;color:var(--mut)}
+.state.on{color:var(--acc);font-weight:700}
+.drop{display:flex;align-items:center;justify-content:center;min-height:76px;cursor:pointer;
+ border:2px dashed var(--line);border-radius:8px;background:var(--soft);margin-bottom:8px}
+.dropmsg{font-size:13px;color:var(--mut)}
+.thumb{width:100%;border-radius:8px;border:1px solid var(--line);margin-bottom:8px;display:block}
+.cap{margin-bottom:8px;font-size:14px}
+.rm{font:inherit;font-size:13px;background:#fff;color:var(--bad);border:1px solid var(--line);
+ border-radius:6px;padding:4px 9px;cursor:pointer}
+.mirror{margin-top:10px;padding:10px 12px;background:var(--soft);border-left:4px solid var(--acc);
+ font-size:14px;max-width:74ch}
+.mirror.warn{border-left-color:var(--bad)}
+.field{margin:14px 0;max-width:78ch}
+.foot{margin-top:28px;border-top:1px solid var(--line);padding-top:8px;color:var(--mut);font-size:12px}
+</style>
+<style>.big{border:2px solid var(--acc);border-radius:10px;padding:14px 16px;margin:16px 0;max-width:74ch}
+.big b{font-family:inherit;font-size:17px}
+ol.crit{counter-reset:cn;list-style:none;padding:0;margin:14px 0 0;max-width:74ch}
+ol.crit li{position:relative;padding-left:44px;margin-bottom:14px}
+ol.crit li::before{counter-increment:cn;content:counter(cn);position:absolute;left:0;top:-2px;
+ width:30px;height:30px;border-radius:50%;background:var(--acc);color:#fff;font-weight:700;
+ display:flex;align-items:center;justify-content:center}
+ol.crit .pts{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--acc);
+ font-weight:700;margin-left:8px}
+.split{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));max-width:1100px;margin-top:10px}
+.split>div{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.split h3{margin:0 0 6px;font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--acc)}
+.split ul{margin:0;padding-left:16px;font-size:14px}
+</style></head><body><div class="wrap">
+
+<h1>Unit 2 Documentation Check</h1>
+<p class="sub">IDEA209H &middot; 25 points &middot; Engineering Documentation</p>
+
+<div class="idbar">
+ <div><label class="lbl" for="f-name">Name</label><input type="text" id="f-name" data-field="name"></div>
+ <div><label class="lbl" for="f-block">Block</label><input type="text" id="f-block" data-field="block"></div>
+ <div><label class="lbl" for="f-date">Date</label><input type="text" id="f-date" data-field="date"></div>
+</div>
+
+<div class="big"><b>There is nothing to upload here.</b>
+<p style="margin:6px 0 0">Your notebook is already uploaded on the <strong>Portfolio Capture</strong>,
+and this is graded from those same photos. Upload each page once, there.</p></div>
+
+<h2>What is graded here</h2>
+<p>This is the one place your notebook is graded on <strong>how you kept it</strong>. Four things, and
+they are the four printed in your syllabus.</p>
+
+<ol class="crit">
+<li><strong>An entry for every session.</strong><span class="pts">7 pts</span><br>
+Every station day, the planning work, and the measuring.</li>
+<li><strong>Written at the machine, not copied out later.</strong><span class="pts">6 pts</span><br>
+Numbers as you took them. Crossed-out readings stay. A page that looks too tidy usually means it was
+written up afterward.</li>
+<li><strong>Dated, and written so it can be read.</strong><span class="pts">6 pts</span><br>
+Every entry carries its date.</li>
+<li><strong>A notebook someone else could work from.</strong><span class="pts">6 pts</span><br>
+Another student could read it and repeat the unit without asking you anything.</li>
+</ol>
+
+<h2>Nothing is scored twice</h2>
+<div class="split">
+ <div><h3>Scored here</h3><ul>
+  <li>Whether every session has an entry</li>
+  <li>Whether it was written at the machine</li>
+  <li>Whether it is dated and readable as written</li>
+  <li>Whether someone else could work from it</li></ul></div>
+ <div><h3>Scored on the Capture instead</h3><ul>
+  <li>What your station records actually say</li>
+  <li>Whether your drawings could be built from</li>
+  <li>Whether your photos are readable</li></ul></div>
+</div>
+<p style="margin-top:12px"><strong>A thin station record costs you on the Capture, not here. An undated
+page costs you here, not there.</strong></p>
+
+<div class="big" style="border-color:var(--line);background:var(--soft)">
+<p style="margin:0">A messy page with real numbers on it beats a clean page copied out the night before.</p>
+<p style="margin:8px 0 0">If a page is missing or was written late, say so on the page itself. Marking
+it late is worth more than leaving a gap.</p></div>
+
+<p class="foot">idea209h-u2-documentation &middot; IDEA209H &middot; Don Bosco Technical Institute &middot; v3</p>
+</div>
+<script>
+(function(){
+ function post(m){try{parent.postMessage(m,'*')}catch(e){}}
+ function h(){post({type:'idea:height',px:document.documentElement.offsetHeight+4})}
+ ['name','block','date'].forEach(function(f){
+  var el=document.querySelector('[data-field="'+f+'"]');
+  el.addEventListener('input',function(){post({type:'idea:change',field:f,value:el.value});h();});
+ });
+ window.addEventListener('message',function(e){
+  var d=e.data;if(!d||typeof d!=='object'||d.type!=='idea:state')return;
+  var v=d.values||{};
+  ['name','block','date'].forEach(function(f){if(f in v)document.querySelector('[data-field="'+f+'"]').value=String(v[f]);});
+  if(d.readOnly)document.querySelectorAll('[data-field]').forEach(function(el){el.disabled=true;});
+  h();
+ });
+ post({type:'idea:ready',schemaVersion:3});
+ h();
+ window.addEventListener('resize',h);
+ if(window.ResizeObserver){new ResizeObserver(h).observe(document.documentElement);}
+})();
+</script></body></html>
