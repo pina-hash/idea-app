@@ -518,7 +518,6 @@
 	}
 	.hxp-mod.is-link {
 		padding: 0;
-		border-color: var(--boundary);
 	}
 	.hxp-mod-btn {
 		display: inline-flex;

@@ -1373,7 +1373,7 @@
 	.hx-bar.is-expanded {
 		margin: 0;
 		padding: 0.5rem var(--space-3, 0.9rem);
-		border-bottom: 1px solid var(--boundary);
+		border-bottom: 1px solid var(--hairline);
 		background: var(--surface-1, var(--bg1));
 	}
 	.is-expanded > .hx-stage {

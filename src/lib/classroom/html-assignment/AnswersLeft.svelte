@@ -176,7 +176,7 @@
 		flex-direction: column;
 		gap: var(--space-3);
 		padding: var(--space-3);
-		border: 1px solid var(--boundary);
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		background: var(--surface-2);
 		max-height: min(60vh, 28rem);
@@ -229,7 +229,7 @@
 		font-size: 0.95rem;
 		color: var(--text-1);
 		background: var(--surface-1);
-		border: 1px solid var(--hairline, var(--boundary));
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-sm, 6px);
 		cursor: pointer;
 	}

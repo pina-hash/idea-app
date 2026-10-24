@@ -3156,7 +3156,7 @@
 		gap: var(--space-2);
 		margin: 0 0 var(--space-2);
 		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--boundary);
+		border: 1px solid var(--hairline);
 		border-left: 3px solid var(--amber);
 		border-radius: var(--radius-card);
 		background: var(--surface-2);
@@ -3190,7 +3190,7 @@
 		flex-direction: column;
 		gap: 0.3rem;
 		padding: var(--space-2);
-		border: 1px solid var(--hairline, var(--boundary));
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-sm, 6px);
 		background: var(--surface-1);
 	}
