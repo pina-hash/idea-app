@@ -433,3 +433,61 @@ coin_admin_reset_contract:
   exclude: Contracts are retired (ledger 0432); no client may reopen one.
 coin_contract_mark_done:
   exclude: A student marking their own contract finished, through the coin student seam; through an admin's account it acted as him and answered not in the economy (gap 3f52bae9), and contracts are retired (ledger 0432).
+
+# LEDGER 0432: voice to action. The coin transact tool logs through
+# coin_voice_log; coin settings lists and edits the phrases it learns.
+coin_voice_log:
+  surface: call
+  level: undo
+  describe: Log one coin record from spoken words and save the phrase with its amount; the coin transact tool is the usual way in.
+  say: ["log 5 coins for helping clean the shop", "log a phone fine", "record a custom award for a trick shot"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The student."}
+    p_category_id: {name: category, describe: "The category's short name, from the coin settings."}
+    p_amount: {name: amount, default: null, describe: "Coins, when the category takes an amount."}
+    p_note: {name: reason, default: null, describe: "The reason, in his words."}
+    p_phrase: {name: phrase, default: null, describe: "His words for it, saved with the amount for next time."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+coin_voice_catalog:
+  surface: call
+  level: read
+  describe: The award, fine and purchase categories and every phrase the coin tool has learned, with their amounts.
+  say: ["what coin categories can I use", "what phrases does the coin tool know", "list the fines and awards"]
+
+coin_alias_list:
+  surface: call
+  level: read
+  describe: The phrases the coin tool learned from what you said, each with its category, default amount and how often it was used.
+  say: ["show the coin phrases", "what coin shortcuts have I made", "list the saved award phrases"]
+
+coin_alias_set_amount:
+  surface: call
+  level: undo
+  describe: Change the default amount of one saved coin phrase, like making the trick shot award 5 coins.
+  say: ["make the trick shot award 5 coins", "change the default for helping clean up to 2", "set that phrase to 3 coins"]
+  args:
+    p_id: {name: phrase, describe: "The phrase's id, from the list of coin phrases."}
+    p_amount: {name: amount, describe: "The new default amount."}
+  undo:
+    - function: coin_alias_set_amount
+      args: {p_id: $args.p_id, p_amount: $result.previous_amount}
+
+coin_alias_promote:
+  surface: call
+  level: confirm
+  describe: Make a saved coin phrase an official category with its own name, at its default amount; it asks first.
+  say: ["make the trick shot award an official category", "turn that phrase into a real fine", "promote the helping clean award"]
+  args:
+    p_id: {name: phrase, describe: "The phrase's id, from the list of coin phrases."}
+    p_name: {name: name, describe: "The category's name as people will see it."}
+
+coin_alias_delete:
+  surface: call
+  level: confirm
+  describe: Forget one saved coin phrase; it asks first.
+  say: ["forget the trick shot phrase", "delete that coin phrase", "remove the saved award words"]
+  args:
+    p_id: {name: phrase, describe: "The phrase's id, from the list of coin phrases."}

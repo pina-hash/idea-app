@@ -5,7 +5,8 @@ import { env } from '$env/dynamic/private';
 import {
 	FEEDBACK_CONTACT_MAX,
 	FEEDBACK_MAX_BODY_BYTES,
-	FEEDBACK_MAX_LEN
+	FEEDBACK_MAX_LEN,
+	feedbackSlowDown
 } from '$lib/feedback/feedback';
 import type { RequestHandler } from './$types';
 

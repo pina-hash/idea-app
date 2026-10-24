@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { runBulk } from '$lib/classroom/classroom';
+	import { bulkOutcome, type SetStatusMany } from './bulk';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import FacetMultiSelect from './FacetMultiSelect.svelte';
 	import { FEEDBACK_STATUSES, type FeedbackStatus } from './feedback';
@@ -51,12 +52,15 @@
 		rows,
 		unavailable = null,
 		setStatus,
+		setStatusMany,
 		fetchReports,
 		now = () => Date.now()
 	}: {
 		rows: ArmoryIncidentRow[];
 		unavailable?: string | null;
 		setStatus?: (id: string, status: FeedbackStatus) => Promise<{ ok: boolean; message?: string }>;
+		/** Ledger 0432: a selection moves in one call when this is handed in. */
+		setStatusMany?: SetStatusMany;
 		/**
 		 * The full reports for these ids, read when a download is pressed. An id
 		 * missing from the answer is a report that could not be read, and the
@@ -120,7 +124,7 @@
 		error = null;
 		note = null;
 		try {
-			const outcome = await runBulk(ids, (id) => setStatus(id, status));
+			const outcome = setStatusMany ? bulkOutcome(ids, await setStatusMany(ids, status)) : await runBulk(ids, (id) => setStatus(id, status));
 			const next = { ...moved };
 			for (const id of outcome.succeededIds) next[id] = status;
 			moved = next;

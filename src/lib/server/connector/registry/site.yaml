@@ -261,3 +261,76 @@ push_subscribe:
 
 submit_fsp_question:
   exclude: A visitor asking their own question on the Family Science live board; it acts as the caller.
+
+# LEDGER 0432: the feedback list in bulk, the spam fine prompt and the reward.
+# The bulk write is a status flip, reversible, so it never asks first; its
+# undo puts each report's own status back.
+app_feedback_set_status_many:
+  surface: call
+  level: undo
+  describe: Move many site feedback reports to one status in one go; the mark feedback reports tool is the usual way in.
+  say: ["mark these reports as spam", "resolve all of those reports", "set the reports to seen"]
+  args:
+    p_ids: {name: reports, describe: "Every report's id."}
+    p_status: {name: status, enum: [new, seen, resolved, spam], describe: "new, seen, resolved, or spam."}
+  undo:
+    - function: app_feedback_restore_statuses
+      args: {p_previous: $result.previous}
+
+app_feedback_restore_statuses:
+  surface: call
+  level: undo
+  describe: Put many site feedback reports back to the statuses they had, as the undo of a bulk move does.
+  say: ["put those reports back", "undo the bulk spam marking", "restore the reports' statuses"]
+  args:
+    p_previous: {name: statuses, describe: "Each report's id with the status to put back."}
+  undo:
+    - function: app_feedback_restore_statuses
+      args: {p_previous: $result.previous}
+
+app_feedback_spam_review:
+  surface: call
+  level: read
+  describe: The spam reports waiting for a fine decision, with each one's evidence, as the feedback page's spam card shows them.
+  say: ["who should be fined for feedback spam", "show the spam to review", "any feedback spam waiting"]
+  args:
+    p_days: {name: days, default: 14, describe: "How many days back; leave it out for two weeks."}
+
+app_feedback_spam_fine:
+  surface: call
+  level: confirm
+  describe: Fine one student for spam reports they sent, as a fine they can dispute from their coin page; it asks first.
+  say: ["fine Ana for those spam reports", "give the spam fine to Leo", "fine the account that spammed the feedback"]
+  args:
+    p_report_ids: {name: reports, describe: "The ids of that one student's spam reports."}
+    p_amount: {name: coins, describe: "The fine: 1 for one spam report, 5 for a burst, as the spam card works it out."}
+    p_note: {name: reason, default: null, describe: "A note for the coin record; leave it out for the usual one."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+app_feedback_spam_dismiss:
+  surface: call
+  level: confirm
+  describe: Take spam reports off the fine card without fining anyone; it asks first.
+  say: ["don't fine for those spam reports", "dismiss the spam fine", "let that spam go"]
+  args:
+    p_report_ids: {name: reports, describe: "The reports' ids."}
+
+app_feedback_reward:
+  surface: call
+  level: confirm
+  describe: Reward the student whose report led to a change on the site, 1 to 10 coins you set, once per report; it asks first.
+  say: ["give Mateo 3 coins for that report", "reward the report that found the hall pass bug, 5 coins", "pay the reporter 2 coins"]
+  args:
+    p_report_id: {name: report, describe: "The report's id, from the feedback list."}
+    p_amount: {name: coins, describe: "The reward, a whole number from 1 to 10."}
+  undo:
+    - function: coin_reverse_transaction
+      args: {p_transaction_id: $result.transaction_id, p_note: "Undone through the IDEA Website connector."}
+
+app_feedback_rewards_list:
+  surface: call
+  level: read
+  describe: Which feedback reports were rewarded, with how much.
+  say: ["which reports earned coins", "list the feedback rewards", "what have I paid for reports"]

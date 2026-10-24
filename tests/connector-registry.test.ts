@@ -41,7 +41,9 @@ describe('every facade tool reads well aloud', () => {
 				'list_classes', 'list_posts', 'read_answers', 'read_grades', 'replace_html_assignment', 'send_feedback', 'set_due',
 				'set_points', 'set_published', 'set_rubric', 'undo_last', 'report_gap', 'record_eval_result',
 				// ledger 0416: the site's own feedback list
-				'list_site_feedback', 'feedback_screenshot'
+				'list_site_feedback', 'feedback_screenshot',
+				// ledger 0432: voice to action, and the feedback lists in bulk
+				'coin_transact', 'mark_feedback', 'list_armory_reports', 'read_armory_incident'
 			].sort()
 		);
 	});
@@ -109,7 +111,14 @@ describe('the MCP tool list', () => {
 	it('is the facades, the promoted entries, site_find_tool and site_call, each with a valid input schema', () => {
 		const direct = directEntries().map((e) => e.tool ?? e.name);
 		expect(direct.length).toBeGreaterThanOrEqual(10);
-		expect(tools.map((t) => t.name).sort()).toEqual([...Object.keys(FACADES), ...direct, 'site_call', 'site_find_tool'].sort());
+		const listed = Object.values(FACADES).filter((f) => !f.replaced_by).map((f) => f.name);
+		expect(tools.map((t) => t.name).sort()).toEqual([...listed, ...direct, 'site_call', 'site_find_tool'].sort());
+		// Ledger 0432: a replaced tool answers by name but is not offered, and names a tool that is.
+		for (const f of Object.values(FACADES).filter((x) => x.replaced_by)) {
+			expect(tools.some((t) => t.name === f.name), `${f.name} is not offered`).toBe(false);
+			expect(tools.some((t) => t.name === f.replaced_by), `${f.name} is replaced by an offered tool`).toBe(true);
+		}
+		expect(Object.values(FACADES).filter((x) => x.replaced_by).map((f) => f.name).sort()).toEqual(['award_coins', 'fine_coins']);
 		expect(new Set(tools.map((t) => t.name)).size).toBe(tools.length);
 		for (const t of tools) {
 			expect(t.inputSchema.type).toBe('object');
@@ -117,7 +126,10 @@ describe('the MCP tool list', () => {
 		}
 	});
 	it('stays small enough to read on every turn (about twenty facades, DESIGN.md section 8)', () => {
-		expect(tools.length).toBeLessThanOrEqual(40);
+		// 40 until ledger 0432, which Mr. Pina asked to give each everyday voice
+		// request its own tool (2026-10-23): 44 on that date, two old coin tools
+		// folded into one. A new tool past this is a decision, not a drift.
+		expect(tools.length).toBeLessThanOrEqual(45);
 	});
 	it('every tool takes said, his request in his own words, and requires it', () => {
 		for (const t of tools) {

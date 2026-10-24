@@ -279,9 +279,17 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 	async function mapsNode(): Promise<string> {
 		return (await as<{ id: string }>(w.admin, `insert into public.maps_nodes (kind, name) values ('site', $1) returning id`, [`Campus ${randomUUID().slice(0, 4)}`])).id;
 	}
+	async function phraseId(): Promise<string> {
+		const [r] = await sql<{ id: string }>(
+			`insert into public.coin_phrase_aliases (phrase, kind, category_id, amount, source) values ($1, 'award', 'custom_award', 5, 'voice') returning id`,
+			[`helping out ${letters()}`]
+		);
+		return r.id;
+	}
 	async function feedback(): Promise<string> {
 		const [r] = await sql<{ id: string }>(
-			`insert into public.app_feedback (user_id, app, kind, message) values ($1, 'site', 'bug', 'The button is stuck.') returning id`,
+			// Two days old, so the spam guard (ledger 0432) counts none of them as a burst or a repeat.
+			`insert into public.app_feedback (user_id, app, kind, message, created_at) values ($1, 'site', 'bug', 'The button is stuck.', now() - interval '2 days') returning id`,
 			[w.student.id]
 		);
 		return r.id;
@@ -302,6 +310,11 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			return { p_transaction_id: r.transaction_id, p_note: 'reversing' };
 		},
 		coin_admin_adjust_balance: async () => ({ p_email: w.students.mateo, p_amount: 20, p_note: 'Shop Fix bonus' }),
+		// ledger 0432: voice to action
+		coin_voice_log: async () => ({ p_email: w.students.mateo, p_category_id: 'custom_award', p_amount: 4, p_note: 'a sick trick shot', p_phrase: `trick shot ${letters()}` }),
+		coin_alias_set_amount: async () => ({ p_id: await phraseId(), p_amount: 3 }),
+		coin_alias_promote: async () => ({ p_id: await phraseId(), p_name: `Trick Shot ${letters()}` }),
+		coin_alias_delete: async () => ({ p_id: await phraseId() }),
 		coin_admin_create_category: async () => ({
 			p_id: `sample_${randomUUID().slice(0, 6).replace(/-/g, '')}`,
 			p_name: 'Tool Left Out',
@@ -813,6 +826,48 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			return { p_email: email };
 		},
 		app_feedback_set_status: async () => ({ p_id: await feedback(), p_status: 'seen' }),
+		// ledger 0432: the lists in bulk, the spam fine prompt, the reward
+		app_feedback_set_status_many: async () => ({ p_ids: [await feedback(), await feedback()], p_status: 'spam' }),
+		app_feedback_restore_statuses: async () => ({ p_previous: { [await feedback()]: 'resolved' } }),
+		armory_app_feedback_set_status_many: async () => {
+			const [r] = await sql<{ id: string }>(
+				`insert into public.armory_app_feedback (email, app_version, kind, body, context) values ($1, '0.3.3', 'bug', 'It froze.', '{}'::jsonb) returning id`,
+				[w.student.email]
+			);
+			return { p_ids: [r.id], p_status: 'resolved' };
+		},
+		armory_app_feedback_restore_statuses: async () => {
+			const [r] = await sql<{ id: string }>(
+				`insert into public.armory_app_feedback (email, app_version, kind, body, context) values ($1, '0.3.3', 'bug', 'It froze.', '{}'::jsonb) returning id`,
+				[w.student.email]
+			);
+			return { p_previous: { [r.id]: 'seen' } };
+		},
+		armory_app_incidents_set_status_many: async () => {
+			const [r] = await sql<{ id: string }>(
+				`insert into public.armory_app_incidents (email, app_version, kind, summary, report, report_bytes) values ($1, '0.3.3', 'crash', 'It crashed.', '{}'::jsonb, 2) returning id`,
+				[w.student.email]
+			);
+			return { p_ids: [r.id], p_status: 'resolved' };
+		},
+		armory_app_incidents_restore_statuses: async () => {
+			const [r] = await sql<{ id: string }>(
+				`insert into public.armory_app_incidents (email, app_version, kind, summary, report, report_bytes) values ($1, '0.3.3', 'crash', 'It crashed.', '{}'::jsonb, 2) returning id`,
+				[w.student.email]
+			);
+			return { p_previous: { [r.id]: 'seen' } };
+		},
+		app_feedback_spam_fine: async () => {
+			const id = await feedback();
+			await sql(`update public.app_feedback set status = 'spam' where id = $1`, [id]);
+			return { p_report_ids: [id], p_amount: 1, p_note: null };
+		},
+		app_feedback_spam_dismiss: async () => {
+			const id = await feedback();
+			await sql(`update public.app_feedback set status = 'spam' where id = $1`, [id]);
+			return { p_report_ids: [id] };
+		},
+		app_feedback_reward: async () => ({ p_report_id: await feedback(), p_amount: 2 }),
 		app_feedback_set_horizon: async () => ({ p_id: await feedback(), p_horizon: 'long_term' }),
 		app_feedback_edit: async () => ({ p_id: await feedback(), p_kind: 'bug', p_message: 'The Save button is stuck.', p_tried: null, p_base_revision: 0 }),
 		app_short_link_upsert: async () => ({ p_slug: `blade${randomUUID().slice(0, 4)}`, p_target: '/classroom', p_label: 'Blade', p_active: true }),

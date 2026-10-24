@@ -2,6 +2,7 @@ import type { FeedbackRow } from '$lib/feedback/feedback';
 import { rowScreenshotPath, rowSection, type ClassroomSectionInfo } from '$lib/feedback/console';
 import { FEEDBACK_MEDIA_BUCKET } from '$lib/feedback/screenshot';
 import { requireFeedbackConsole } from '$lib/server/feedback-console';
+import { parseSpamReview } from '$lib/feedback/spam';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -119,7 +120,30 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
+	// LEDGER 0432: the spam fine prompt and which reports were rewarded. Best
+	// effort and on the admin's own client: a database without the migration
+	// answers an error, which is no prompt and no reward control.
+	const soft = async (call: () => PromiseLike<{ data: unknown; error: unknown }>): Promise<unknown> => {
+		try {
+			const r = await call();
+			return r.error ? null : r.data;
+		} catch {
+			return null;
+		}
+	};
+	const [spam, rewards] = await Promise.all([
+		soft(() => supabase.rpc('app_feedback_spam_review', { p_days: 14 })),
+		soft(() => supabase.rpc('app_feedback_rewards_list'))
+	]);
+	const rewarded: Record<string, number> = {};
+	for (const r of Array.isArray(rewards) ? (rewards as { report_id?: unknown; amount?: unknown }[]) : []) {
+		if (typeof r.report_id === 'string' && typeof r.amount === 'number') rewarded[r.report_id] = r.amount;
+	}
+
 	return {
+		spamReview: parseSpamReview(spam),
+		rewardReady: Array.isArray(rewards),
+		rewarded,
 		// Fails soft: 0085 unapplied reads as a clearly-flagged card, not a crash.
 		ready: !rpcError,
 		rows,

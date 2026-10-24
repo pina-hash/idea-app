@@ -504,6 +504,138 @@
 				}
 			}
 		},
+		"armory_app_feedback_set_status_many": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Move many notes from the Armory app to one status in one go; the mark Armory notes tool is the usual way in.",
+			"say": [
+				"mark these Armory notes seen",
+				"resolve those Armory notes",
+				"set the Armory notes to resolved"
+			],
+			"args": {
+				"p_ids": {
+					"name": "notes",
+					"describe": "Every note's id."
+				},
+				"p_status": {
+					"name": "status",
+					"enum": [
+						"new",
+						"seen",
+						"resolved",
+						"spam"
+					],
+					"describe": "new, seen, resolved, or spam."
+				}
+			},
+			"undo": [
+				{
+					"function": "armory_app_feedback_restore_statuses",
+					"args": {
+						"p_previous": "$result.previous"
+					}
+				}
+			]
+		},
+		"armory_app_feedback_restore_statuses": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Put many Armory app notes back to the statuses they had, as the undo of a bulk move does.",
+			"say": [
+				"put those Armory notes back",
+				"undo the Armory note move",
+				"restore the Armory notes"
+			],
+			"args": {
+				"p_previous": {
+					"name": "statuses",
+					"describe": "Each note's id with the status to put back."
+				}
+			},
+			"undo": [
+				{
+					"function": "armory_app_feedback_restore_statuses",
+					"args": {
+						"p_previous": "$result.previous"
+					}
+				}
+			]
+		},
+		"armory_app_incidents_set_status_many": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Move many Armory incident reports to one status in one go; the mark Armory incidents tool is the usual way in.",
+			"say": [
+				"resolve those incidents",
+				"mark these incidents seen",
+				"set the crash reports to resolved"
+			],
+			"args": {
+				"p_ids": {
+					"name": "incidents",
+					"describe": "Every incident's id."
+				},
+				"p_status": {
+					"name": "status",
+					"enum": [
+						"new",
+						"seen",
+						"resolved",
+						"spam"
+					],
+					"describe": "new, seen, resolved, or spam."
+				}
+			},
+			"undo": [
+				{
+					"function": "armory_app_incidents_restore_statuses",
+					"args": {
+						"p_previous": "$result.previous"
+					}
+				}
+			]
+		},
+		"armory_app_incidents_restore_statuses": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Put many Armory incident reports back to the statuses they had, as the undo of a bulk move does.",
+			"say": [
+				"put those incidents back",
+				"undo the incident move",
+				"restore the incidents"
+			],
+			"args": {
+				"p_previous": {
+					"name": "statuses",
+					"describe": "Each incident's id with the status to put back."
+				}
+			},
+			"undo": [
+				{
+					"function": "armory_app_incidents_restore_statuses",
+					"args": {
+						"p_previous": "$result.previous"
+					}
+				}
+			]
+		},
+		"armory_app_incident_report": {
+			"surface": "call",
+			"level": "read",
+			"describe": "One Armory incident report whole, with its events, timings and log lines; the read Armory incident tool is the usual way in.",
+			"say": [
+				"read that Armory incident",
+				"show the whole crash report",
+				"what is in incident 3fa2b1c9"
+			],
+			"args": {
+				"p_id": {
+					"name": "incident",
+					"describe": "The incident's id."
+				}
+			}
+		},
 		"cert_admin_get": {
 			"surface": "call",
 			"level": "read",
@@ -787,7 +919,8 @@
 			}
 		},
 		"classroom_section_roster": {
-			"surface": "call",
+			"surface": "tool",
+			"tool": "class_roster",
 			"level": "read",
 			"describe": "List the students on a class roster, with whether each is still enrolled.",
 			"say": [
@@ -4737,6 +4870,136 @@
 		"coin_contract_mark_done": {
 			"exclude": "A student marking their own contract finished, through the coin student seam; through an admin's account it acted as him and answered not in the economy (gap 3f52bae9), and contracts are retired (ledger 0432)."
 		},
+		"coin_voice_log": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Log one coin record from spoken words and save the phrase with its amount; the coin transact tool is the usual way in.",
+			"say": [
+				"log 5 coins for helping clean the shop",
+				"log a phone fine",
+				"record a custom award for a trick shot"
+			],
+			"args": {
+				"p_email": {
+					"name": "student",
+					"resolve": "student",
+					"describe": "The student."
+				},
+				"p_category_id": {
+					"name": "category",
+					"describe": "The category's short name, from the coin settings."
+				},
+				"p_amount": {
+					"name": "amount",
+					"default": null,
+					"describe": "Coins, when the category takes an amount."
+				},
+				"p_note": {
+					"name": "reason",
+					"default": null,
+					"describe": "The reason, in his words."
+				},
+				"p_phrase": {
+					"name": "phrase",
+					"default": null,
+					"describe": "His words for it, saved with the amount for next time."
+				}
+			},
+			"undo": [
+				{
+					"function": "coin_reverse_transaction",
+					"args": {
+						"p_transaction_id": "$result.transaction_id",
+						"p_note": "Undone through the IDEA Website connector."
+					}
+				}
+			]
+		},
+		"coin_voice_catalog": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The award, fine and purchase categories and every phrase the coin tool has learned, with their amounts.",
+			"say": [
+				"what coin categories can I use",
+				"what phrases does the coin tool know",
+				"list the fines and awards"
+			]
+		},
+		"coin_alias_list": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The phrases the coin tool learned from what you said, each with its category, default amount and how often it was used.",
+			"say": [
+				"show the coin phrases",
+				"what coin shortcuts have I made",
+				"list the saved award phrases"
+			]
+		},
+		"coin_alias_set_amount": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Change the default amount of one saved coin phrase, like making the trick shot award 5 coins.",
+			"say": [
+				"make the trick shot award 5 coins",
+				"change the default for helping clean up to 2",
+				"set that phrase to 3 coins"
+			],
+			"args": {
+				"p_id": {
+					"name": "phrase",
+					"describe": "The phrase's id, from the list of coin phrases."
+				},
+				"p_amount": {
+					"name": "amount",
+					"describe": "The new default amount."
+				}
+			},
+			"undo": [
+				{
+					"function": "coin_alias_set_amount",
+					"args": {
+						"p_id": "$args.p_id",
+						"p_amount": "$result.previous_amount"
+					}
+				}
+			]
+		},
+		"coin_alias_promote": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Make a saved coin phrase an official category with its own name, at its default amount; it asks first.",
+			"say": [
+				"make the trick shot award an official category",
+				"turn that phrase into a real fine",
+				"promote the helping clean award"
+			],
+			"args": {
+				"p_id": {
+					"name": "phrase",
+					"describe": "The phrase's id, from the list of coin phrases."
+				},
+				"p_name": {
+					"name": "name",
+					"describe": "The category's name as people will see it."
+				}
+			}
+		},
+		"coin_alias_delete": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Forget one saved coin phrase; it asks first.",
+			"say": [
+				"forget the trick shot phrase",
+				"delete that coin phrase",
+				"remove the saved award words"
+			],
+			"args": {
+				"p_id": {
+					"name": "phrase",
+					"describe": "The phrase's id, from the list of coin phrases."
+				}
+			}
+		},
 		"connector_call": {
 			"exclude": "The connector's own transport; every connector write goes through it, so it is never a tool of its own."
 		},
@@ -4835,7 +5098,8 @@
 			"exclude": "The audit row the server completes after it runs a site route as him; never a tool of its own."
 		},
 		"connector_admin_gaps": {
-			"surface": "call",
+			"surface": "tool",
+			"tool": "list_gaps",
 			"level": "read",
 			"describe": "The things he asked for that the site cannot do yet, open ones first, with what was tried.",
 			"say": [
@@ -8193,6 +8457,170 @@
 		"submit_fsp_question": {
 			"exclude": "A visitor asking their own question on the Family Science live board; it acts as the caller."
 		},
+		"app_feedback_set_status_many": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Move many site feedback reports to one status in one go; the mark feedback reports tool is the usual way in.",
+			"say": [
+				"mark these reports as spam",
+				"resolve all of those reports",
+				"set the reports to seen"
+			],
+			"args": {
+				"p_ids": {
+					"name": "reports",
+					"describe": "Every report's id."
+				},
+				"p_status": {
+					"name": "status",
+					"enum": [
+						"new",
+						"seen",
+						"resolved",
+						"spam"
+					],
+					"describe": "new, seen, resolved, or spam."
+				}
+			},
+			"undo": [
+				{
+					"function": "app_feedback_restore_statuses",
+					"args": {
+						"p_previous": "$result.previous"
+					}
+				}
+			]
+		},
+		"app_feedback_restore_statuses": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Put many site feedback reports back to the statuses they had, as the undo of a bulk move does.",
+			"say": [
+				"put those reports back",
+				"undo the bulk spam marking",
+				"restore the reports' statuses"
+			],
+			"args": {
+				"p_previous": {
+					"name": "statuses",
+					"describe": "Each report's id with the status to put back."
+				}
+			},
+			"undo": [
+				{
+					"function": "app_feedback_restore_statuses",
+					"args": {
+						"p_previous": "$result.previous"
+					}
+				}
+			]
+		},
+		"app_feedback_spam_review": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The spam reports waiting for a fine decision, with each one's evidence, as the feedback page's spam card shows them.",
+			"say": [
+				"who should be fined for feedback spam",
+				"show the spam to review",
+				"any feedback spam waiting"
+			],
+			"args": {
+				"p_days": {
+					"name": "days",
+					"default": 14,
+					"describe": "How many days back; leave it out for two weeks."
+				}
+			}
+		},
+		"app_feedback_spam_fine": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Fine one student for spam reports they sent, as a fine they can dispute from their coin page; it asks first.",
+			"say": [
+				"fine Ana for those spam reports",
+				"give the spam fine to Leo",
+				"fine the account that spammed the feedback"
+			],
+			"args": {
+				"p_report_ids": {
+					"name": "reports",
+					"describe": "The ids of that one student's spam reports."
+				},
+				"p_amount": {
+					"name": "coins",
+					"describe": "The fine: 1 for one spam report, 5 for a burst, as the spam card works it out."
+				},
+				"p_note": {
+					"name": "reason",
+					"default": null,
+					"describe": "A note for the coin record; leave it out for the usual one."
+				}
+			},
+			"undo": [
+				{
+					"function": "coin_reverse_transaction",
+					"args": {
+						"p_transaction_id": "$result.transaction_id",
+						"p_note": "Undone through the IDEA Website connector."
+					}
+				}
+			]
+		},
+		"app_feedback_spam_dismiss": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Take spam reports off the fine card without fining anyone; it asks first.",
+			"say": [
+				"don't fine for those spam reports",
+				"dismiss the spam fine",
+				"let that spam go"
+			],
+			"args": {
+				"p_report_ids": {
+					"name": "reports",
+					"describe": "The reports' ids."
+				}
+			}
+		},
+		"app_feedback_reward": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Reward the student whose report led to a change on the site, 1 to 10 coins you set, once per report; it asks first.",
+			"say": [
+				"give Mateo 3 coins for that report",
+				"reward the report that found the hall pass bug, 5 coins",
+				"pay the reporter 2 coins"
+			],
+			"args": {
+				"p_report_id": {
+					"name": "report",
+					"describe": "The report's id, from the feedback list."
+				},
+				"p_amount": {
+					"name": "coins",
+					"describe": "The reward, a whole number from 1 to 10."
+				}
+			},
+			"undo": [
+				{
+					"function": "coin_reverse_transaction",
+					"args": {
+						"p_transaction_id": "$result.transaction_id",
+						"p_note": "Undone through the IDEA Website connector."
+					}
+				}
+			]
+		},
+		"app_feedback_rewards_list": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Which feedback reports were rewarded, with how much.",
+			"say": [
+				"which reports earned coins",
+				"list the feedback rewards",
+				"what have I paid for reports"
+			]
+		},
 		"tournament_add_entry_member": {
 			"surface": "call",
 			"level": "undo",
@@ -10132,8 +10560,43 @@
 				}
 			}
 		},
+		"coin_transact": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"coin_voice_log"
+			],
+			"describe": "Give, fine or charge a student IDEA Coins from your own words, one call; it finds the student and the category, and asks only for a missing number.",
+			"say": [
+				"give Mateo 5 coins for helping clean the shop",
+				"fine Daniel R, phone out",
+				"Farzad, 10 coins for hitting a sick trick shot",
+				"Leo bought an eating pass",
+				"fine Ana 3 for leaving her station a mess"
+			],
+			"args": {
+				"student": {
+					"type": "array",
+					"items": "string",
+					"describe": "The student, or each student, as he said the name. Leave it out and name a class for the whole class."
+				},
+				"amount": {
+					"type": "number",
+					"describe": "The number of coins, if he said one. Leave it out when he did not."
+				},
+				"class": {
+					"type": "string",
+					"describe": "A class to look in for the name, or the whole class when no student is named."
+				},
+				"what": {
+					"type": "string",
+					"describe": "Only if he said what it was for in a separate sentence: those words."
+				}
+			}
+		},
 		"award_coins": {
 			"facade": true,
+			"replaced_by": "coin_transact",
 			"level": "undo",
 			"uses": [
 				"coin_log_transaction"
@@ -10174,6 +10637,7 @@
 		},
 		"fine_coins": {
 			"facade": true,
+			"replaced_by": "coin_transact",
 			"level": "undo",
 			"uses": [
 				"coin_log_transaction"
@@ -10378,6 +10842,120 @@
 					"describe": "The report's id, or the first eight characters of it, from the feedback list."
 				}
 			}
+		},
+		"mark_feedback": {
+			"facade": true,
+			"level": "undo",
+			"uses": [
+				"app_feedback_set_status_many",
+				"armory_app_feedback_set_status_many",
+				"armory_app_incidents_set_status_many"
+			],
+			"describe": "Move many feedback reports, Armory notes or Armory incidents to new, seen, resolved or spam in one call, by ids or by status, version and date.",
+			"say": [
+				"mark those 22 reports as spam",
+				"resolve every new Armory incident from version 0.3.3",
+				"mark all the Armory notes as seen",
+				"set every seen report since Monday to resolved"
+			],
+			"args": {
+				"list": {
+					"type": "string",
+					"enum": [
+						"site reports",
+						"armory notes",
+						"armory incidents"
+					],
+					"describe": "Which list: site reports (the Send feedback button, the usual), armory notes, or armory incidents."
+				},
+				"ids": {
+					"type": "array",
+					"items": "string",
+					"describe": "Each one's id, or its first eight characters. Leave it out to pick by status, version and date instead."
+				},
+				"status": {
+					"type": "string",
+					"required": true,
+					"describe": "The new status: new, seen, resolved or spam."
+				},
+				"currently": {
+					"type": "string",
+					"describe": "Without ids: only the ones that have this status now, like new."
+				},
+				"version": {
+					"type": "string",
+					"describe": "Without ids, for the Armory lists: only those sent by this app version, like 0.3.3."
+				},
+				"since": {
+					"type": "string",
+					"describe": "Without ids: only those sent on or after this date, like 2026-10-22."
+				}
+			}
+		},
+		"list_armory_reports": {
+			"facade": true,
+			"level": "read",
+			"uses": [
+				"armory_app_incidents_admin_list",
+				"armory_app_feedback_admin_list"
+			],
+			"describe": "List what the IDEA Armory app sent, incidents or notes, newest first, filtered by status, version, kind and date, with a count of each.",
+			"say": [
+				"any new Armory incidents",
+				"how many Armory crash reports came in today",
+				"show the Armory notes from version 0.4.1",
+				"list the slow pass incidents"
+			],
+			"args": {
+				"list": {
+					"type": "string",
+					"enum": [
+						"incidents",
+						"notes"
+					],
+					"describe": "incidents (crash and slow pass reports, the usual) or notes people typed."
+				},
+				"status": {
+					"type": "string",
+					"describe": "open (new or seen, the usual), one status, or all."
+				},
+				"version": {
+					"type": "string",
+					"describe": "Only those from this app version, like 0.3.3."
+				},
+				"kind": {
+					"type": "string",
+					"describe": "Only this kind, like crash or slowPass."
+				},
+				"since": {
+					"type": "string",
+					"describe": "Only those sent on or after this date."
+				},
+				"count": {
+					"type": "integer",
+					"describe": "How many to list, newest first; leave it out for 25."
+				}
+			}
+		},
+		"read_armory_incident": {
+			"facade": true,
+			"level": "read",
+			"uses": [
+				"armory_app_incident_report"
+			],
+			"describe": "Read one IDEA Armory incident report whole, with its flight recorder events, phase timings and log lines, to diagnose a slow pass or a crash.",
+			"say": [
+				"read Armory incident 3fa2b1c9",
+				"what happened in that slow pass report",
+				"show me the log lines of the newest crash"
+			],
+			"args": {
+				"incident": {
+					"type": "string",
+					"required": true,
+					"describe": "The incident's id, or its first eight characters, from the Armory incidents."
+				}
+			}
 		}
 	},
 	"sources": {
@@ -10415,6 +10993,11 @@
 		"armory_team_status": "armory.yaml",
 		"armory_add_member": "armory.yaml",
 		"armory_remove_member": "armory.yaml",
+		"armory_app_feedback_set_status_many": "armory.yaml",
+		"armory_app_feedback_restore_statuses": "armory.yaml",
+		"armory_app_incidents_set_status_many": "armory.yaml",
+		"armory_app_incidents_restore_statuses": "armory.yaml",
+		"armory_app_incident_report": "armory.yaml",
 		"cert_admin_get": "certifications.yaml",
 		"cert_admin_list": "certifications.yaml",
 		"cert_admin_save": "certifications.yaml",
@@ -10624,6 +11207,12 @@
 		"coin_admin_restore_contract": "coin.yaml",
 		"coin_admin_reset_contract": "coin.yaml",
 		"coin_contract_mark_done": "coin.yaml",
+		"coin_voice_log": "coin.yaml",
+		"coin_voice_catalog": "coin.yaml",
+		"coin_alias_list": "coin.yaml",
+		"coin_alias_set_amount": "coin.yaml",
+		"coin_alias_promote": "coin.yaml",
+		"coin_alias_delete": "coin.yaml",
 		"connector_call": "connector.yaml",
 		"connector_audit_failure": "connector.yaml",
 		"connector_admin_state": "connector.yaml",
@@ -10931,6 +11520,13 @@
 		"profile_avatar_restore": "site.yaml",
 		"push_subscribe": "site.yaml",
 		"submit_fsp_question": "site.yaml",
+		"app_feedback_set_status_many": "site.yaml",
+		"app_feedback_restore_statuses": "site.yaml",
+		"app_feedback_spam_review": "site.yaml",
+		"app_feedback_spam_fine": "site.yaml",
+		"app_feedback_spam_dismiss": "site.yaml",
+		"app_feedback_reward": "site.yaml",
+		"app_feedback_rewards_list": "site.yaml",
 		"find_student": "tools.yaml",
 		"list_classes": "tools.yaml",
 		"list_posts": "tools.yaml",
@@ -10945,6 +11541,7 @@
 		"read_answers": "tools.yaml",
 		"grade": "tools.yaml",
 		"send_feedback": "tools.yaml",
+		"coin_transact": "tools.yaml",
 		"award_coins": "tools.yaml",
 		"fine_coins": "tools.yaml",
 		"coin_balance": "tools.yaml",
@@ -10954,6 +11551,9 @@
 		"record_eval_result": "tools.yaml",
 		"list_site_feedback": "tools.yaml",
 		"feedback_screenshot": "tools.yaml",
+		"mark_feedback": "tools.yaml",
+		"list_armory_reports": "tools.yaml",
+		"read_armory_incident": "tools.yaml",
 		"tournament_add_entry_member": "tournaments.yaml",
 		"tournament_add_host": "tournaments.yaml",
 		"tournament_create": "tournaments.yaml",

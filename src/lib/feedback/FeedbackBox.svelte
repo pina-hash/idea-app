@@ -86,6 +86,7 @@
 		submit,
 		onClose,
 		askContact = false,
+		reward = null,
 		uploadScreenshot = null,
 		screenshotNote = null,
 		dictation = undefined,
@@ -114,6 +115,8 @@
 		 * the same reason it is for the whole control.
 		 */
 		askContact?: boolean;
+		/** Ledger 0432: a line saying a useful report can earn coins; null draws nothing. */
+		reward?: string | null;
 		/**
 		 * STAGE ONE SCREENSHOT. Handed in, so the box neither holds a Supabase
 		 * client nor knows where a bucket is; the dev harness answers in memory.
@@ -618,6 +621,7 @@
 			</div>
 		{:else}
 			<p class="fb-note">{note}</p>
+			{#if reward}<p class="fb-note fb-reward" data-testid="fb-reward-line">{reward}</p>{/if}
 
 			<div class="fb-kinds" role="radiogroup" aria-label="Feedback type">
 				{#each FEEDBACK_KINDS as k (k.id)}
@@ -1030,6 +1034,10 @@
 		color: var(--fb-ink-faint);
 		font-size: 0.74rem;
 		line-height: 1.5;
+	}
+	.fb-reward {
+		margin-top: -0.4rem;
+		color: var(--fb-ink-dim);
 	}
 	.fb-kinds {
 		display: flex;

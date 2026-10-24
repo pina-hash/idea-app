@@ -239,6 +239,7 @@ export async function submitFeedback(
 	if (!needs0170 && !longTerm) {
 		const { error } = await supabase.from(APP_FEEDBACK_TABLE).insert(base);
 		if (!error) return { error: null, retryable: false };
+		if (feedbackSlowDown(error)) return { error: FEEDBACK_REFUSALS.slow_down, retryable: false };
 		return { error: error.message, retryable: feedbackRetryable(error.code) };
 	}
 
@@ -280,6 +281,7 @@ export async function submitFeedback(
 		const { error } = await supabase.from(APP_FEEDBACK_TABLE).insert(row);
 		if (!error) return { error: null, retryable: false };
 		last = error;
+		if (feedbackSlowDown(error)) return { error: FEEDBACK_REFUSALS.slow_down, retryable: false };
 		if (!feedbackColumnMissing(error.code)) break;
 	}
 	return { error: last!.message, retryable: feedbackRetryable(last!.code) };
@@ -457,8 +459,19 @@ export const FEEDBACK_REFUSALS: Record<string, string> = {
 	body_too_large: 'That report is too big to send. Shorten it and try again.',
 	invalid_body: 'That report could not be read. Reload the page and try again.',
 	not_configured: 'Anonymous reports are not switched on for this deployment.',
-	server_refused: 'The server would not take that report.'
+	server_refused: 'The server would not take that report.',
+	slow_down: 'Several reports came from you in the last few minutes. Wait a minute, then press Send again. What you wrote is still here.'
 };
+
+/**
+ * LEDGER 0432: THE DATABASE ASKED THIS ACCOUNT TO WAIT. The spam guard refuses
+ * a fifth report inside two minutes (or a sixteenth inside an hour) with the
+ * message `feedback_slow_down`; the words stay in the box, and the sentence
+ * says what to do. Matched on the code or the message alone.
+ */
+export function feedbackSlowDown(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
+	return !!error && (error.code === 'P0429' || (error.message ?? '').includes('feedback_slow_down'));
+}
 
 export function feedbackRefusalWords(reason: string): string {
 	return FEEDBACK_REFUSALS[reason] ?? `The server refused that report (${reason}).`;

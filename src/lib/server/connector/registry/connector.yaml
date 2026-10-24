@@ -65,7 +65,9 @@ connector_endpoint_finish:
   exclude: The audit row the server completes after it runs a site route as him; never a tool of its own.
 
 connector_admin_gaps:
-  surface: call
+  # Ledger 0432: promoted to its own tool; 55 of his requests went through site_call for it.
+  surface: tool
+  tool: list_gaps
   level: read
   describe: The things he asked for that the site cannot do yet, open ones first, with what was tried.
   say: ["what can't the connector do yet", "show the open gaps", "what have I asked for that isn't built"]

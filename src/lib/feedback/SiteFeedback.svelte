@@ -13,11 +13,14 @@
 	import {
 		appForRouteId,
 		captureMeta,
+		feedbackDeviceKey,
+		summarizeUserAgent,
 		contextOf,
 		feedbackConsoleHref,
 		feedbackExclusion,
 		FEEDBACK_PROMPT,
 		REPORT_LABEL,
+		FEEDBACK_REWARD_LINE,
 		type BuildStamp
 	} from './context';
 	import type { SupabaseClient } from '@supabase/supabase-js';
@@ -450,7 +453,17 @@
 			status,
 			errorMessage,
 			errorId,
-			tab: opener.tab
+			tab: opener.tab,
+			device: (() => {
+				let storage: Storage | null = null;
+				try {
+					storage = typeof localStorage === 'undefined' ? null : localStorage;
+				} catch {
+					storage = null;
+				}
+				const key = feedbackDeviceKey(storage);
+				return key ? { key, label: summarizeUserAgent(userAgent) } : null;
+			})()
 		});
 		open = true;
 	}
@@ -577,6 +590,7 @@
 			meta={captured}
 			{submit}
 			askContact={anonymous}
+			reward={anonymous || role === 'teacher' ? null : FEEDBACK_REWARD_LINE}
 			uploadScreenshot={attach}
 			screenshotNote={attachNote}
 			{dictation}

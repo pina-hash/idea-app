@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { bulkStatusTransport } from '$lib/feedback/bulk';
 	import ArmoryFeedbackConsole from '$lib/feedback/ArmoryFeedbackConsole.svelte';
 	import type { FeedbackStatus } from '$lib/feedback/feedback';
 	import type { PageData } from './$types';
@@ -29,6 +30,9 @@
 		const { data: signed, error } = await supabase.storage.from('armory-feedback-shots').createSignedUrl(path, 300);
 		return error ? null : (signed?.signedUrl ?? null);
 	}
+
+	/** Ledger 0432: a selection in one call. */
+	const setStatusMany = bulkStatusTransport(supabase, 'armory_app_feedback_set_status_many', (id, st) => setStatus(id, st), () => void invalidateAll());
 </script>
 
 <svelte:head>
@@ -39,5 +43,6 @@
 	rows={data.rows}
 	unavailable={data.unavailable}
 	setStatus={data.unavailable ? undefined : setStatus}
+	setStatusMany={data.unavailable ? undefined : setStatusMany}
 	screenshotUrl={data.unavailable ? undefined : screenshotUrl}
 />

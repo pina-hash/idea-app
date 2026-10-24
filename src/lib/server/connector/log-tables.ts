@@ -18,6 +18,8 @@
 export const SYNCED_LOG_TABLES: readonly string[] = [
 	'app_admins',
 	'app_feedback',
+	'app_feedback_rewards',
+	'app_feedback_spam_decisions',
 	'app_short_links',
 	'armory_app_feedback',
 	'armory_app_incidents',
@@ -59,6 +61,7 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'coin_market_card_features',
 	'coin_market_listings',
 	'coin_perfect_scores',
+	'coin_phrase_aliases',
 	'coin_settings',
 	'coin_stocks',
 	'coin_wage_tiers',

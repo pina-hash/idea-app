@@ -152,7 +152,10 @@ describe('the console at /admin/feedback', () => {
 		expect(reads).toEqual([
 			'rpc:is_admin',
 			'rpc:app_feedback_admin_list',
-			'rpc:app_feedback_admin_list'
+			'rpc:app_feedback_admin_list',
+			// Ledger 0432: the spam fine prompt and the rewards, both best effort.
+			'rpc:app_feedback_spam_review',
+			'rpc:app_feedback_rewards_list'
 		]);
 		expect(args[1]).toBeUndefined();
 		expect(args[2]).toEqual({ p_app: null, p_limit: 500, p_horizon: 'long_term' });

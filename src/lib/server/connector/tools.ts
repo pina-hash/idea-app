@@ -46,6 +46,7 @@ import {
 } from './resolve';
 import { opaqueToken } from './crypto';
 import { lookupId, lookupKindFor, looksLikeId, lookupWords } from './lookup';
+import { decideCoin, parseVoiceCatalog } from './coin-voice';
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolOutput = Record<string, unknown>;
@@ -467,6 +468,181 @@ async function feedbackScreenshot(ctx: ToolContext, args: ToolArgs): Promise<Too
 		url: signed.data,
 		expires_at: new Date(ctx.now() + 300_000).toISOString(),
 		message: 'A link to the screenshot, good for five minutes. Open it to look; do not share it.'
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Bulk status on the three feedback lists, and one Armory incident whole
+// (ledger 0432, feedback 114d8101, gap 7432f89f). One call, one write, one
+// audit row and one undo, however many rows: a status flip is reversible, so
+// it needs no confirm (Mr. Pina, 2026-10-23).
+// ---------------------------------------------------------------------------
+
+type ListRow = { id: string; status: string; created_at: string; app_version?: string; app?: string; message?: string; summary?: string; body?: string; kind?: string };
+
+/** His word for a status, as one of the four the lists keep. */
+export function feedbackStatusWord(said: string | undefined): 'new' | 'seen' | 'resolved' | 'spam' | null {
+	const w = (said ?? '').trim().toLowerCase();
+	if (/^(new|open|reopen(ed)?|unread)$/.test(w)) return 'new';
+	if (/^(seen|read|reviewed|reviewing|looked at|acknowledged)$/.test(w)) return 'seen';
+	if (/^(resolved|done|fixed|closed|close|finished|complete(d)?)$/.test(w)) return 'resolved';
+	if (/^(spam|junk|garbage)$/.test(w)) return 'spam';
+	return null;
+}
+
+interface BulkList {
+	tool: string;
+	fn: string;
+	noun: { one: string; many: string };
+	read: (ctx: ToolContext) => Promise<ListRow[] | { refused: string }>;
+}
+
+const BULK_LISTS: Record<string, BulkList> = {
+	mark_feedback_reports: {
+		tool: 'mark_feedback',
+		fn: 'app_feedback_set_status_many',
+		noun: { one: 'report', many: 'reports' },
+		read: (ctx) => feedbackRows(ctx, null, null) as Promise<ListRow[] | { refused: string }>
+	},
+	mark_armory_notes: {
+		tool: 'mark_feedback',
+		fn: 'armory_app_feedback_set_status_many',
+		noun: { one: 'Armory note', many: 'Armory notes' },
+		read: async (ctx) => {
+			const r = await ctx.backend.rpc<ListRow[]>(ctx.session, 'armory_app_feedback_admin_list', { p_limit: 1000 });
+			return r.error ? { refused: r.error.message } : Array.isArray(r.data) ? r.data : [];
+		}
+	},
+	mark_armory_incidents: {
+		tool: 'mark_feedback',
+		fn: 'armory_app_incidents_set_status_many',
+		noun: { one: 'Armory incident', many: 'Armory incidents' },
+		read: async (ctx) => {
+			const r = await ctx.backend.rpc<ListRow[]>(ctx.session, 'armory_app_incidents_admin_list', { p_limit: 1000 });
+			return r.error ? { refused: r.error.message } : Array.isArray(r.data) ? r.data : [];
+		}
+	}
+};
+
+/** His word for a list, as one of the three. */
+function bulkListFor(said: string | undefined): BulkList {
+	const w = (said ?? '').toLowerCase();
+	if (/incident|crash|slow/.test(w)) return BULK_LISTS.mark_armory_incidents;
+	if (/armory|note/.test(w)) return BULK_LISTS.mark_armory_notes;
+	return BULK_LISTS.mark_feedback_reports;
+}
+
+/** list_armory_reports: the Armory app's incidents or notes, filtered and cut to what a person reads. */
+async function listArmoryReports(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const notes = /note/i.test(str(args.list) ?? '');
+	const spec = notes ? BULK_LISTS.mark_armory_notes : BULK_LISTS.mark_armory_incidents;
+	const statusSaid = (str(args.status) ?? 'open').toLowerCase();
+	const status = statusSaid === 'all' || statusSaid === 'open' ? statusSaid : feedbackStatusWord(statusSaid);
+	if (!status) return { status: 'invalid', message: `"${statusSaid}" is not a status: say open, all, new, seen, resolved or spam.` };
+	const since = str(args.since);
+	const sinceMs = since ? Date.parse(since) : NaN;
+	if (since && !Number.isFinite(sinceMs)) return { status: 'invalid', message: `"${since}" is not a date. Say it like 2026-10-16.` };
+	const version = str(args.version);
+	const kind = str(args.kind)?.toLowerCase();
+	const count = Math.min(Math.max(num(args.count) ?? 25, 1), 200);
+	const rows = await spec.read(ctx);
+	if (!Array.isArray(rows)) return { status: 'refused', message: rows.refused };
+	const wanted = rows
+		.filter((r) => (status === 'all' ? true : status === 'open' ? r.status === 'new' || r.status === 'seen' : r.status === status))
+		.filter((r) => !version || (r.app_version ?? '') === version)
+		.filter((r) => !kind || (r.kind ?? '').toLowerCase() === kind)
+		.filter((r) => !Number.isFinite(sinceMs) || Date.parse(r.created_at) >= sinceMs);
+	const byStatus: Record<string, number> = {};
+	const byVersion: Record<string, number> = {};
+	for (const r of wanted) {
+		byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+		if (r.app_version) byVersion[r.app_version] = (byVersion[r.app_version] ?? 0) + 1;
+	}
+	const cut = (t: string | undefined) => (t && t.length > 400 ? `${t.slice(0, 400)}...` : (t ?? null));
+	return {
+		status: 'ok',
+		list: notes ? 'notes' : 'incidents',
+		count: wanted.length,
+		shown: Math.min(count, wanted.length),
+		by_status: byStatus,
+		by_version: byVersion,
+		items: wanted.slice(0, count).map((r) => ({
+			id: r.id,
+			short: r.id.slice(0, 8),
+			sent: r.created_at,
+			version: r.app_version ?? null,
+			kind: r.kind ?? null,
+			status: r.status,
+			text: cut(notes ? r.body : r.summary)
+		})),
+		message: wanted.length > count ? `Showing the newest ${count} of ${wanted.length}. To change them all at once, use mark feedback with the same filters.` : undefined
+	};
+}
+
+async function markMany(ctx: ToolContext, args: ToolArgs, spec: BulkList): Promise<ToolOutput> {
+	const status = feedbackStatusWord(str(args.status));
+	if (!status) return { status: 'invalid', message: 'Say the status: new, seen, resolved or spam. Nothing was changed.' };
+	const said = list(args.ids).map((x) => x.toLowerCase());
+	const fromStatus = str(args.currently) ? feedbackStatusWord(str(args.currently)) : null;
+	if (str(args.currently) && !fromStatus) return { status: 'invalid', message: `"${str(args.currently)}" is not a status. Nothing was changed.` };
+	const version = str(args.version);
+	const since = str(args.since);
+	const sinceMs = since ? Date.parse(since) : NaN;
+	if (since && !Number.isFinite(sinceMs)) return { status: 'invalid', message: `"${since}" is not a date. Say it like 2026-10-16. Nothing was changed.` };
+	if (said.length === 0 && !fromStatus && !version && !since) {
+		return { status: 'invalid', message: `Name the ${spec.noun.many} (their ids or first eight characters), or say which ones: by status, version or date. Nothing was changed.` };
+	}
+	const rows = await spec.read(ctx);
+	if (!Array.isArray(rows)) return { status: 'refused', message: rows.refused };
+	let picked: ListRow[];
+	if (said.length) {
+		picked = [];
+		for (const s of said) {
+			if (s.length < 6) return { status: 'invalid', message: `"${s}" is too short to name one ${spec.noun.one}; use at least eight characters. Nothing was changed.` };
+			const hits = rows.filter((r) => r.id.toLowerCase().startsWith(s));
+			if (hits.length === 0) return { status: 'not_found', said: s, message: `No ${spec.noun.one} starts with "${s}". Nothing was changed.` };
+			if (hits.length > 1) return { status: 'ambiguous', said: s, candidates: hits.map((r) => r.id), message: `More than one ${spec.noun.one} starts with "${s}". Nothing was changed. Use more of the id.` };
+			if (!picked.some((p) => p.id === hits[0].id)) picked.push(hits[0]);
+		}
+	} else {
+		picked = rows
+			.filter((r) => !fromStatus || r.status === fromStatus)
+			.filter((r) => !version || (r.app_version ?? '') === version)
+			.filter((r) => !Number.isFinite(sinceMs) || Date.parse(r.created_at) >= sinceMs);
+	}
+	if (picked.length === 0) return { status: 'not_found', message: `No ${spec.noun.many} match that. Nothing was changed.` };
+	const o = await write(ctx, { tool: spec.tool, fn: spec.fn, args: { p_ids: picked.map((r) => r.id), p_status: status } }, writeOptions(args));
+	const result = (o as { result?: { changed?: number; missing?: number } }).result;
+	return {
+		...outcomeWords(o),
+		to: status,
+		count: picked.length,
+		...(result ? { changed: result.changed ?? null, missing: result.missing ?? null } : {}),
+		...(said.length === 0 && rows.length >= 1000 ? { note: `Only the newest 1000 ${spec.noun.many} were looked at; ask again for the rest.` } : {})
+	};
+}
+
+/** read_armory_incident: one incident whole, its report JSON included, by id or its first eight characters. */
+async function readArmoryIncident(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const said = (str(args.incident) ?? '').toLowerCase();
+	if (said.length < 6) return { status: 'invalid', message: 'Say which incident: its id, or at least its first eight characters.' };
+	let id = said;
+	if (!/^[0-9a-f-]{36}$/.test(said)) {
+		const rows = await BULK_LISTS.mark_armory_incidents.read(ctx);
+		if (!Array.isArray(rows)) return { status: 'refused', message: rows.refused };
+		const hits = rows.filter((r) => r.id.toLowerCase().startsWith(said));
+		if (hits.length !== 1) return { status: hits.length ? 'ambiguous' : 'not_found', candidates: hits.map((r) => r.id), message: hits.length ? 'More than one incident starts with that. Ask him which.' : `No incident starts with "${said}".` };
+		id = hits[0].id;
+	}
+	const r = await ctx.backend.rpc<Record<string, unknown>>(ctx.session, 'armory_app_incident_report', { p_id: id });
+	if (r.error) return { status: 'refused', message: r.error.message };
+	if (!r.data || r.data.ok !== true) return { status: 'not_found', message: 'No incident has that id.' };
+	const text = JSON.stringify(r.data.report ?? {});
+	const LIMIT = 200_000;
+	return {
+		status: 'ok',
+		...r.data,
+		...(text.length > LIMIT ? { report: undefined, report_text: `${text.slice(0, LIMIT)}... (${text.length} characters; the rest is in the download on the Armory incidents page)` } : {})
 	};
 }
 
@@ -1012,6 +1188,69 @@ async function coins(ctx: ToolContext, args: ToolArgs, kind: 'award' | 'fine'): 
 	};
 }
 
+/**
+ * coin_transact (ledger 0432): one call from his words to one coin record per
+ * student, or one short question and nothing written. The student is matched
+ * on the server, award, fine or purchase from his verb, the category from his
+ * words or a phrase he used before, and the amount by his rule
+ * (`decideCoin` in coin-voice.ts, the one statement of it).
+ */
+async function coinTransact(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const opts = writeOptions(args);
+	const said = str(args.said) ?? '';
+	const what = str(args.what);
+	const words = what ? `${said} ${what}`.trim() : said;
+	if (!words) return { status: 'invalid', message: 'Pass his words in said. Nothing was changed.' };
+	const names = list(args.student);
+	const classSaid = str(args.class);
+	let people: RosterStudent[] = [];
+	if (names.length === 0) {
+		if (!classSaid) return { status: 'invalid', message: 'Name the student, as he said it. Nothing was changed.' };
+		const c = await resolveClasses(ctx, classSaid);
+		if (c.status !== 'found') return unresolved('class', c);
+		people = await myStudents(ctx, c.value);
+		if (people.length === 0) return { status: 'not_found', message: `No one is enrolled in ${c.value.map((x) => x.title).join(', ')}. Nothing was changed.` };
+	} else {
+		for (const n of names) {
+			const r = await resolveStudent(ctx, n, classSaid);
+			if (r.status !== 'found') return unresolved('student', r);
+			if (!people.some((p) => p.email === r.value.email)) people.push(r.value);
+		}
+	}
+	const cat = await ctx.backend.rpc<unknown>(ctx.session, 'coin_voice_catalog', {});
+	if (cat.error) return { status: 'refused', message: cat.error.message };
+	const nameWords = [...names.flatMap((n) => n.split(/\s+/)), ...people.flatMap((p) => p.name.split(/\s+/)), ...(classSaid ? classSaid.split(/\s+/) : [])];
+	const decision = decideCoin({ said: words, amount: num(args.amount) ?? null, nameWords, catalog: parseVoiceCatalog(cat.data) });
+	if (decision.action === 'ask') {
+		return { status: decision.status, question: decision.question, students: people.map((p) => p.name), message: `Nothing was changed. Ask him: ${decision.question} Then call again with his answer.` };
+	}
+	const groupKey = `coin_transact:${opts.requestId ?? opaqueToken(ctx.random).slice(0, 16)}`;
+	const results: ToolOutput[] = [];
+	for (const person of people) {
+		const o = await write(
+			ctx,
+			{
+				tool: 'coin_transact',
+				fn: 'coin_voice_log',
+				args: { p_email: person.email, p_category_id: decision.category.id, p_amount: decision.amount, p_note: decision.note, p_phrase: decision.phrase },
+				groupKey
+			},
+			opts
+		);
+		results.push({ student: person.name, ...outcomeWords(o) });
+	}
+	const done = results.filter((r) => r.status === 'done' || r.status === 'repeated').length;
+	return {
+		status: opts.dryRun || ctx.practice ? 'preview' : done === results.length ? 'done' : done === 0 ? 'refused' : 'partial',
+		kind: decision.kind,
+		category: decision.category.name,
+		each: decision.amount,
+		amount_from: decision.amountFrom === 'listed' ? 'the category\'s set amount' : decision.amountFrom === 'saved' ? 'the amount he gave last time for these words' : 'the number he said',
+		reason: decision.note,
+		students: results
+	};
+}
+
 async function disconnect(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	if (!ctx.token) return { status: 'invalid', message: 'This connection has no token to disconnect.' };
 	const o = await write(ctx, { tool: 'connector_disconnect', fn: 'connector_admin_disconnect', args: { p_token_id: ctx.token.id } }, writeOptions(args));
@@ -1215,7 +1454,7 @@ export function requestOutcome(tool: string, out: ToolOutput): 'done' | 'preview
 	const status = String(out.status ?? '');
 	if (tool === 'report_gap' || out.gap_recorded === true) return 'gap';
 	if (status === 'preview') return out.confirm_token ? 'asked' : 'previewed';
-	if (['ambiguous', 'needs_category', 'needs_confirmation', 'not_found', 'none'].includes(status)) return 'asked';
+	if (['ambiguous', 'needs_category', 'needs_confirmation', 'not_found', 'none', 'needs_kind', 'needs_amount', 'needs_choice'].includes(status)) return 'asked';
 	if (['refused', 'invalid', 'not_available'].includes(status)) return 'refused';
 	if (status === 'partial') return 'done';
 	return 'done';
@@ -1261,11 +1500,15 @@ const HANDLERS: Record<string, (ctx: ToolContext, args: ToolArgs) => Promise<Too
 	read_answers: readAnswers,
 	grade,
 	send_feedback: sendFeedback,
+	coin_transact: coinTransact,
 	award_coins: (ctx, a) => coins(ctx, a, 'award'),
 	fine_coins: (ctx, a) => coins(ctx, a, 'fine'),
 	coin_balance: coinBalance,
 	list_site_feedback: listSiteFeedback,
 	feedback_screenshot: feedbackScreenshot,
+	mark_feedback: (ctx, a) => markMany(ctx, a, bulkListFor(str(a.list))),
+	list_armory_reports: listArmoryReports,
+	read_armory_incident: readArmoryIncident,
 	undo_last: (ctx, a) => undoLast(ctx, writeOptions(a)),
 	connector_disconnect: disconnect,
 	site_find_tool: siteFindTool,

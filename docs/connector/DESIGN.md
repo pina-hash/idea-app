@@ -310,19 +310,19 @@ Generated from the overlay on 2026-10-23.
 | Foundry | 20 | 6 | 6 | 0 | 10 |
 | GAUNTLET | 8 | 3 | 1 | 1 | 11 |
 | GREENLINE | 2 | 3 | 1 | 0 | 6 |
-| IDEA Armory | 16 | 2 | 5 | 0 | 11 |
+| IDEA Armory | 17 | 6 | 5 | 0 | 11 |
 | IDEA Classroom | 22 | 45 | 24 | 3 | 25 |
-| IDEA Coin | 25 | 6 | 7 | 1 | 26 |
+| IDEA Coin | 27 | 8 | 9 | 1 | 26 |
 | IDEA Maps | 3 | 2 | 1 | 0 | 0 |
 | IdeaCAD | 5 | 2 | 0 | 0 | 1 |
 | market.yaml | 6 | 0 | 9 | 1 | 0 |
 | Notebook | 4 | 14 | 5 | 1 | 9 |
-| People, feedback and the rest of the site | 11 | 7 | 6 | 0 | 6 |
+| People, feedback and the rest of the site | 13 | 9 | 9 | 0 | 6 |
 | Site routes (run in-process as him) | 4 | 0 | 10 | 0 | 106 |
 | The connector itself | 5 | 1 | 3 | 0 | 7 |
 | Tournaments | 1 | 7 | 10 | 1 | 8 |
 | view-as.yaml | 1 | 0 | 1 | 0 | 3 |
-| **All** | **145** | **98** | **92** | **8** | **239** |
+| **All** | **150** | **106** | **97** | **8** | **239** |
 
 <details><summary>Certifications</summary>
 
@@ -362,8 +362,8 @@ Generated from the overlay on 2026-10-23.
 
 <details><summary>IDEA Armory</summary>
 
-- **Read:** `armory_app_feedback_admin_list`, `armory_app_incidents_admin_list`, `armory_can_take_back`, `armory_cots_list`, `armory_file_history`, `armory_is_member`, `armory_list_changes`, `armory_my_projects`, `armory_orphans_count`, `armory_people_search`, `armory_project_checkouts`, `armory_project_files`, `armory_project_part_numbers`, `armory_project_summaries`, `armory_purge_preview`, `armory_team_status`
-- **Undo:** `armory_app_feedback_set_status`, `armory_app_incident_set_status`
+- **Read:** `armory_app_feedback_admin_list`, `armory_app_incident_report`, `armory_app_incidents_admin_list`, `armory_can_take_back`, `armory_cots_list`, `armory_file_history`, `armory_is_member`, `armory_list_changes`, `armory_my_projects`, `armory_orphans_count`, `armory_people_search`, `armory_project_checkouts`, `armory_project_files`, `armory_project_part_numbers`, `armory_project_summaries`, `armory_purge_preview`, `armory_team_status`
+- **Undo:** `armory_app_feedback_restore_statuses`, `armory_app_feedback_set_status_many`, `armory_app_feedback_set_status`, `armory_app_incident_set_status`, `armory_app_incidents_restore_statuses`, `armory_app_incidents_set_status_many`
 - **Asks first:** `armory_add_member`, `armory_break_lock`, `armory_break_locks`, `armory_create_project`, `armory_remove_member`
 - **Excluded (the reason is in the YAML):** `armory_cots_add`, `armory_cots_correct`, `armory_cots_retire`, `armory_orphans_pending`, `armory_orphans_swept`, `armory_part_number_take`, `armory_part_subsystem_retire`, `armory_part_subsystem_save`, `armory_purge_project`, `armory_register_device`, `armory_set_part_prefix`
 
@@ -371,7 +371,7 @@ Generated from the overlay on 2026-10-23.
 
 <details><summary>IDEA Classroom</summary>
 
-- **Read:** `classroom_course_categories`, `classroom_duplicate_drafts`, `classroom_feedback_list`, `classroom_grade_revocation`, `classroom_hall_pass_events`, `classroom_hall_pass_state`, `classroom_html_retired_blocks`, `classroom_item_revisions`, `classroom_manages_section`, `classroom_posting_perfect_scores`, `classroom_presence_state`, `classroom_public_attachment`, `classroom_public_reference`, `classroom_quick_post_file`, `classroom_quick_posts`, `classroom_section_roster`, `classroom_song_queue`, `classroom_student_overview`, `classroom_team_board`, `classroom_view_as_students`, `classroom_worksheet_latched`, `classroom_worksheet_past_manifests`
+- **Read:** `classroom_course_categories`, `classroom_duplicate_drafts`, `classroom_feedback_list`, `classroom_grade_revocation`, `classroom_hall_pass_events`, `classroom_hall_pass_state`, `classroom_html_retired_blocks`, `classroom_item_revisions`, `classroom_manages_section`, `classroom_posting_perfect_scores`, `classroom_presence_state`, `classroom_public_attachment`, `classroom_public_reference`, `classroom_quick_post_file`, `classroom_quick_posts`, `classroom_section_roster` (class_roster), `classroom_song_queue`, `classroom_student_overview`, `classroom_team_board`, `classroom_view_as_students`, `classroom_worksheet_latched`, `classroom_worksheet_past_manifests`
 - **Undo:** `classroom_add_postings`, `classroom_approve_module`, `classroom_close_assignment` (close_assignment), `classroom_create_item`, `classroom_designate_instructor_key`, `classroom_duplicate_item` (duplicate_post), `classroom_feedback_post`, `classroom_feedback_reply`, `classroom_feedback_set_state`, `classroom_grade_direct`, `classroom_grade_submission`, `classroom_hall_pass_open_for` (open_hall_pass), `classroom_hall_pass_set_limits`, `classroom_html_retire_blocks`, `classroom_post_team_set`, `classroom_quick_post_create`, `classroom_quick_post_set_important`, `classroom_rename_attachment`, `classroom_rename_instructor_attachment`, `classroom_restore_grade`, `classroom_restore_revision`, `classroom_revoke_grade` (revoke_grade), `classroom_save_team_set`, `classroom_set_attachment_order`, `classroom_set_enrollment` (add_student), `classroom_set_html_assignment`, `classroom_set_instructor_attachment_order`, `classroom_set_instructor_resources`, `classroom_set_item_layout`, `classroom_set_item_order`, `classroom_set_item_pinned` (pin_post), `classroom_set_item_public`, `classroom_set_item_thumbnail_focus`, `classroom_set_item_unit`, `classroom_set_posting_perfect_score`, `classroom_set_published`, `classroom_set_rubric`, `classroom_set_section_active`, `classroom_set_section_thumbnail_shape`, `classroom_set_unit_order`, `classroom_undesignate_instructor_key`, `classroom_update_enrollment`, `classroom_update_item`, `classroom_upsert_section`, `classroom_upsert_unit`
 - **Asks first:** `classroom_archive_team_set`, `classroom_delete_attachment`, `classroom_delete_deck`, `classroom_delete_instructor_attachment`, `classroom_delete_item` (delete_post), `classroom_delete_section`, `classroom_delete_unit`, `classroom_feedback_remove`, `classroom_feedback_seen`, `classroom_feedback_update`, `classroom_grade_submissions`, `classroom_hall_pass_close_by_id`, `classroom_html_unretire_blocks`, `classroom_import_roster`, `classroom_move_team_member`, `classroom_quick_post_take_down`, `classroom_remove_enrollment` (remove_student), `classroom_remove_posting`, `classroom_set_item_thumbnail`, `classroom_set_team_style`, `classroom_song_approve`, `classroom_song_reject`, `classroom_unpost_team_set`, `classroom_upsert_course`
 - **By argument:** `classroom_save_instructor_response`: undo when $before.found, otherwise confirm, `classroom_set_assignment_spec`: undo when $before.found, otherwise confirm, `classroom_set_reference_spec`: undo when $before.found, otherwise confirm
@@ -381,9 +381,9 @@ Generated from the overlay on 2026-10-23.
 
 <details><summary>IDEA Coin</summary>
 
-- **Read:** `coin_admin_lookup`, `coin_auditor_queue`, `coin_donation_items_list`, `coin_economy_health`, `coin_export`, `coin_fine_roster`, `coin_fine_sections`, `coin_me`, `coin_my_page`, `coin_my_role`, `coin_my_stats`, `coin_no_shop_today`, `coin_public_leaderboard`, `coin_public_reasons`, `coin_public_reported_coins`, `coin_public_role_badges`, `coin_public_role_questions`, `coin_public_roles`, `coin_public_student`, `coin_public_transactions`, `coin_queue`, `coin_section_role_badges`, `coin_settings_get`, `coin_staff_scope`, `coin_student_stats`
-- **Undo:** `coin_log_extra_credit` (extra_credit_coins), `coin_log_pay_raise`, `coin_log_perfect_score`, `coin_log_property_damage_careless`, `coin_log_three_d_printing`, `coin_log_transaction`
-- **Asks first:** `coin_admin_create_category`, `coin_admin_set_category_active`, `coin_bulk_log_students`, `coin_fine_log`, `coin_reverse_transaction`, `coin_settings_set_category`, `coin_settings_set`
+- **Read:** `coin_admin_lookup`, `coin_alias_list`, `coin_auditor_queue`, `coin_donation_items_list`, `coin_economy_health`, `coin_export`, `coin_fine_roster`, `coin_fine_sections`, `coin_me`, `coin_my_page`, `coin_my_role`, `coin_my_stats`, `coin_no_shop_today`, `coin_public_leaderboard`, `coin_public_reasons`, `coin_public_reported_coins`, `coin_public_role_badges`, `coin_public_role_questions`, `coin_public_roles`, `coin_public_student`, `coin_public_transactions`, `coin_queue`, `coin_section_role_badges`, `coin_settings_get`, `coin_staff_scope`, `coin_student_stats`, `coin_voice_catalog`
+- **Undo:** `coin_alias_set_amount`, `coin_log_extra_credit` (extra_credit_coins), `coin_log_pay_raise`, `coin_log_perfect_score`, `coin_log_property_damage_careless`, `coin_log_three_d_printing`, `coin_log_transaction`, `coin_voice_log`
+- **Asks first:** `coin_admin_create_category`, `coin_admin_set_category_active`, `coin_alias_delete`, `coin_alias_promote`, `coin_bulk_log_students`, `coin_fine_log`, `coin_reverse_transaction`, `coin_settings_set_category`, `coin_settings_set`
 - **By argument:** `coin_admin_adjust_balance` (adjust_balance): undo when p_amount > 0, otherwise confirm
 - **Excluded (the reason is in the YAML):** `coin_admin_assign_contract`, `coin_admin_cancel_contract`, `coin_admin_edit_contract`, `coin_admin_reset_contract`, `coin_admin_restore_contract`, `coin_autopay_run`, `coin_banner`, `coin_buy_hall_pass_minutes`, `coin_contract_mark_done`, `coin_contract_post`, `coin_contract_self_claim`, `coin_contracts_admin`, `coin_digest_push_due`, `coin_hall_pass_minutes_mine`, `coin_hall_pass_minutes_quote`, `coin_market_board`, `coin_my_contract_claims`, `coin_my_contracts`, `coin_my_portfolio`, `coin_public_contracts`, `coin_public_stocks`, `coin_public_transfers`, `coin_role_self_apply`, `coin_stock_detail`, `coin_stocks_board`, `coin_stocks_tick`
 
@@ -425,9 +425,9 @@ Generated from the overlay on 2026-10-23.
 
 <details><summary>People, feedback and the rest of the site</summary>
 
-- **Read:** `admin_list`, `app_feedback_admin_list`, `app_short_link_list`, `app_short_link_target`, `frc_can_review`, `frc_review_queue`, `is_admin`, `is_owner`, `profile_avatar_hold_status`, `profile_avatar_holds`, `profile_avatar_my_hold`
-- **Undo:** `app_feedback_set_horizon`, `app_feedback_set_status`, `app_short_link_upsert`, `frc_mark_complete`, `frc_unmark_complete`, `profile_avatar_hide`, `profile_avatar_restore`
-- **Asks first:** `admin_grant`, `admin_revoke`, `app_feedback_edit`, `app_feedback_file` (file_site_feedback), `app_short_link_delete`, `clear_fsp_session`
+- **Read:** `admin_list`, `app_feedback_admin_list`, `app_feedback_rewards_list`, `app_feedback_spam_review`, `app_short_link_list`, `app_short_link_target`, `frc_can_review`, `frc_review_queue`, `is_admin`, `is_owner`, `profile_avatar_hold_status`, `profile_avatar_holds`, `profile_avatar_my_hold`
+- **Undo:** `app_feedback_restore_statuses`, `app_feedback_set_horizon`, `app_feedback_set_status_many`, `app_feedback_set_status`, `app_short_link_upsert`, `frc_mark_complete`, `frc_unmark_complete`, `profile_avatar_hide`, `profile_avatar_restore`
+- **Asks first:** `admin_grant`, `admin_revoke`, `app_feedback_edit`, `app_feedback_file` (file_site_feedback), `app_feedback_reward`, `app_feedback_spam_dismiss`, `app_feedback_spam_fine`, `app_short_link_delete`, `clear_fsp_session`
 - **Excluded (the reason is in the YAML):** `app_feedback_submit`, `frc_quiz_grade`, `frc_quiz_start`, `idea_cert_sync`, `push_subscribe`, `submit_fsp_question`
 
 </details>
@@ -442,7 +442,7 @@ Generated from the overlay on 2026-10-23.
 
 <details><summary>The connector itself</summary>
 
-- **Read:** `connector_admin_audit`, `connector_admin_evals`, `connector_admin_gaps`, `connector_admin_state`, `connector_lookup`
+- **Read:** `connector_admin_audit`, `connector_admin_evals`, `connector_admin_gaps` (list_gaps), `connector_admin_state`, `connector_lookup`
 - **Undo:** `connector_admin_set_gap`
 - **Asks first:** `connector_admin_disconnect_all`, `connector_admin_disconnect`, `connector_admin_set_enabled`
 - **Excluded (the reason is in the YAML):** `connector_audit_failure`, `connector_call`, `connector_endpoint_begin`, `connector_endpoint_finish`, `connector_eval_record`, `connector_report_gap`, `connector_request_log`

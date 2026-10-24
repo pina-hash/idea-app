@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
+	import SpamFinePrompt from '$lib/feedback/SpamFinePrompt.svelte';
+	import { spamPrompts } from '$lib/feedback/spam';
+	import { bulkStatusTransport } from '$lib/feedback/bulk';
 	import type { FeedbackScreenshotBytes } from '$lib/feedback/archive';
 	import {
 		feedbackRetryable,
@@ -17,6 +20,39 @@
 
 	// svelte-ignore state_referenced_locally
 	const supabase = data.supabase;
+
+	/** Ledger 0432: a selection in one call (`app_feedback_set_status_many`). */
+	const setStatusMany = bulkStatusTransport(supabase, 'app_feedback_set_status_many', (id, st) => setStatus(id, st), () => void invalidateAll());
+
+	/** Ledger 0432: pay a report's student 1 to 10 coins for a change it led to. */
+	async function rewardReport(id: string, amount: number) {
+		const { data: answer, error } = await supabase.rpc('app_feedback_reward', { p_report_id: id, p_amount: amount });
+		if (error) return { ok: false, message: error.message };
+		const r = (answer ?? {}) as { ok?: unknown; reason?: unknown };
+		if (r.ok === true) {
+			void invalidateAll();
+			return { ok: true };
+		}
+		const words: Record<string, string> = {
+			already_rewarded: 'That report was already rewarded.',
+			anonymous: 'That report was sent signed out, so there is nobody to pay.',
+			not_a_student: 'That report is not from a student account.',
+			amount: 'A reward is a whole number from 1 to 10.'
+		};
+		return { ok: false, message: words[String(r.reason)] ?? `The reward did not go through (${String(r.reason)}).` };
+	}
+
+	const prompts = $derived(data.spamReview ? spamPrompts(data.spamReview) : []);
+	async function spamAct(fn: string, args: Record<string, unknown>) {
+		const { data: answer, error } = await supabase.rpc(fn, args);
+		if (error) return { ok: false, message: error.message };
+		const r = (answer ?? {}) as { ok?: unknown; reason?: unknown };
+		if (r.ok === true) {
+			void invalidateAll();
+			return { ok: true };
+		}
+		return { ok: false, reason: typeof r.reason === 'string' ? r.reason : 'unknown' };
+	}
 
 	async function setStatus(id: string, status: FeedbackStatus) {
 		const { error } = await supabase.rpc('app_feedback_set_status', {
@@ -141,4 +177,15 @@
 		? null
 		: 'Moving a report between Fix soon and Long-term ideas needs a database update that has not been applied yet. Reports marked long-term when they were sent still show under their own tab.'}
 	editFeedback={data.editReady ? editFeedback : undefined}
-/>
+	{setStatusMany}
+	rewardReport={data.rewardReady ? rewardReport : undefined}
+	rewarded={data.rewarded}
+>
+	{#snippet top()}
+		<SpamFinePrompt
+			{prompts}
+			fine={(ids, amount) => spamAct('app_feedback_spam_fine', { p_report_ids: ids, p_amount: amount, p_note: null })}
+			dismiss={(ids) => spamAct('app_feedback_spam_dismiss', { p_report_ids: ids })}
+		/>
+	{/snippet}
+</FeedbackConsole>

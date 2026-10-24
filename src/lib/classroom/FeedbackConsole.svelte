@@ -4,7 +4,9 @@
 	// LOG it is compared against is `virtual:site-changelog`, which is imported
 	// lazily inside the export handler for the reason stated there.
 	import { deploy } from 'virtual:site-versions';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, type Snippet } from 'svelte';
+	import { COIN_SYMBOL, coins } from '$lib/coin-format';
+	import { bulkOutcome, type SetStatusMany } from '$lib/feedback/bulk';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { runBulk } from '$lib/classroom/classroom';
 	import Disclosure from '$lib/Disclosure.svelte';
@@ -110,7 +112,11 @@
 		horizonUnavailable = null,
 		editFeedback,
 		now = () => Date.now(),
-		undoMs = FEEDBACK_UNDO_MS
+		undoMs = FEEDBACK_UNDO_MS,
+		setStatusMany,
+		rewardReport,
+		rewarded = {},
+		top
 	}: {
 		ready?: boolean;
 		rows: FeedbackRow[];
@@ -188,7 +194,55 @@
 		 * browser pass can measure the control without racing ten seconds.
 		 */
 		undoMs?: number;
+		/**
+		 * LEDGER 0432: A SELECTION MOVES IN ONE CALL when this is handed in
+		 * (`app_feedback_set_status_many`), instead of one call per report.
+		 * `landed` is every id the database moved. Absent, the bulk bar falls
+		 * back to the one-row transport, exactly as before.
+		 */
+		setStatusMany?: SetStatusMany;
+		/**
+		 * LEDGER 0432: PAY A REPORT'S STUDENT 1 TO 10 COINS FOR A CHANGE IT LED
+		 * TO (`app_feedback_reward`), an amount he sets each time. Absent, no
+		 * reward control is drawn. `rewarded` names the reports already paid.
+		 */
+		rewardReport?: (id: string, amount: number) => Promise<{ ok: boolean; message?: string }>;
+		rewarded?: Record<string, number>;
+		/** Drawn above the lists, inside the console (the spam fine prompt). */
+		top?: Snippet;
 	} = $props();
+
+	let rewardOpen = $state<string | null>(null);
+	let rewardAmount = $state<number | null>(null);
+	let rewardBusy = $state(false);
+	let rewardNote = $state<Record<string, string>>({});
+	let rewardedNow = $state<Record<string, number>>({});
+	const rewardedOf = (id: string): number | null => rewardedNow[id] ?? rewarded[id] ?? null;
+	/** A reward goes to a signed-in reporter who is not staff; the database decides finally. */
+	function rewardable(row: FeedbackRow): boolean {
+		if (rowIsAnonymous(row)) return false;
+		const role = rowRole(row);
+		return role === 'student' || role === 'visitor' || (!role && /@boscotech\.net$/i.test(row.submitter_email ?? ''));
+	}
+	async function sendReward(row: FeedbackRow) {
+		const amount = rewardAmount;
+		if (!rewardReport || rewardBusy || amount === null || !Number.isInteger(amount) || amount < 1 || amount > 10) return;
+		rewardBusy = true;
+		try {
+			const r = await rewardReport(row.id, amount);
+			if (r.ok) {
+				rewardedNow = { ...rewardedNow, [row.id]: amount };
+				moved = { ...moved, [row.id]: 'resolved' };
+				rewardOpen = null;
+				rewardAmount = null;
+				rewardNote = { ...rewardNote, [row.id]: '' };
+			} else {
+				rewardNote = { ...rewardNote, [row.id]: r.message ?? 'The reward did not go through.' };
+			}
+		} finally {
+			rewardBusy = false;
+		}
+	}
 
 	const sectionMap = $derived(new Map(classroomSections.map((s) => [s.id, s])));
 
@@ -619,10 +673,8 @@
 		// bar for the rest of the session, over a queue somebody is part-way
 		// through moving.
 		try {
-			const outcome = await runBulk(
-				batch.map((r) => r.id),
-				(id) => setStatus(id, status)
-			);
+			const ids = batch.map((r) => r.id);
+			const outcome = setStatusMany ? bulkOutcome(ids, await setStatusMany(ids, status)) : await runBulk(ids, (id) => setStatus(id, status));
 			const landed = new Set(outcome.succeededIds);
 			// Optimistic, exactly as the single-row move is: what landed shows its
 			// new status before the parent reloads.
@@ -811,6 +863,8 @@
 		{#if error}
 			<p class="feedback error">{error}</p>
 		{/if}
+
+		{@render top?.()}
 
 		<!--
 			WHEN EACH REPORT IS FOR (0230), above the status tabs because it is the
@@ -1248,6 +1302,24 @@
 						<!-- LAST IN THE ROW, so the status keys keep their places. Absent
 						     with no transport (a deployment before 0233), and absent on
 						     the row whose form is open, which carries its own Cancel. -->
+						{#if rewardReport && rewardable(row)}
+							{#if rewardedOf(row.id) !== null}
+								<span class="fb-rewarded" data-testid="fbc-rewarded-{row.id}">Rewarded {coins(rewardedOf(row.id) ?? 0)}</span>
+							{:else}
+								<button
+									type="button"
+									class="fbc-control btn secondary fb-reward"
+									data-testid="fbc-reward-{row.id}"
+									aria-expanded={rewardOpen === row.id}
+									onclick={() => {
+										rewardOpen = rewardOpen === row.id ? null : row.id;
+										rewardAmount = null;
+									}}
+								>
+									Led to a change
+								</button>
+							{/if}
+						{/if}
 						{#if editFeedback && editingId !== row.id}
 							<button
 								type="button"
@@ -1267,6 +1339,37 @@
 					<p class="fb-edit-hold" id="fb-edit-hold-{row.id}" data-testid="fbc-edit-hold">
 						Save or discard the edit to move this report.
 					</p>
+				{/if}
+				{#if rewardReport && rewardOpen === row.id && rewardedOf(row.id) === null}
+					<form
+						class="fb-reward-form"
+						data-testid="fbc-reward-form"
+						onsubmit={(e) => {
+							e.preventDefault();
+							void sendReward(row);
+						}}
+					>
+						<label class="fb-reward-label" for="fb-reward-{row.id}">Reward its reporter, 1 to 10 {COIN_SYMBOL}</label>
+						<input
+							id="fb-reward-{row.id}"
+							class="fbc-control fbc-input fb-reward-input"
+							type="number"
+							inputmode="numeric"
+							min="1"
+							max="10"
+							step="1"
+							required
+							bind:value={rewardAmount}
+						/>
+						<button type="submit" class="fbc-control btn" disabled={rewardBusy || rewardAmount === null || rewardAmount < 1 || rewardAmount > 10 || !Number.isInteger(rewardAmount)}>
+							{rewardAmount ? `Award ${coins(rewardAmount)}` : 'Award'}
+						</button>
+						<button type="button" class="fbc-control btn secondary" onclick={() => (rewardOpen = null)}>Cancel</button>
+						<p class="note fb-reward-note">Pays the student now and marks the report resolved. It is paid once.</p>
+					</form>
+				{/if}
+				{#if rewardNote[row.id]}
+					<p class="feedback error" data-testid="fbc-reward-error">{rewardNote[row.id]}</p>
 				{/if}
 				{#if row.reviewed_by && statusOf(row) === row.status}
 					<p class="fb-review">
@@ -1615,6 +1718,36 @@
 	   colour or size of its own inherited it), and this label took the main's
 	   page measure, auto margins and a 3rem bottom padding. Renamed so each
 	   rule reaches the one element it was written for. */
+	/* Ledger 0432: the reward for a report that led to a change. */
+	.fb-rewarded {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--gold);
+		align-self: center;
+	}
+	.fb-reward-form {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0.6rem 0 0;
+		padding: 0.6rem 0.7rem;
+		border: 1px solid var(--line);
+		border-radius: 8px;
+	}
+	.fb-reward-label {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+		flex-basis: 100%;
+	}
+	.fb-reward-input {
+		width: 5.5rem;
+	}
+	.fb-reward-note {
+		flex-basis: 100%;
+		margin: 0;
+	}
 	.fb-route {
 		font-family: var(--font-mono);
 		font-size: 0.68rem;

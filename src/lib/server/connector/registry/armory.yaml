@@ -252,3 +252,58 @@ armory_remove_member:
     p_project: {name: project, describe: "The project's id, from your Armory projects."}
     p_email: {name: email, describe: "Their school email address."}
     p_operation: {name: operation, fill: uuid, describe: "Leave it out; the server fills it."}
+
+# LEDGER 0432: the Armory app's two lists in bulk, and one incident whole.
+armory_app_feedback_set_status_many:
+  surface: call
+  level: undo
+  describe: Move many notes from the Armory app to one status in one go; the mark Armory notes tool is the usual way in.
+  say: ["mark these Armory notes seen", "resolve those Armory notes", "set the Armory notes to resolved"]
+  args:
+    p_ids: {name: notes, describe: "Every note's id."}
+    p_status: {name: status, enum: [new, seen, resolved, spam], describe: "new, seen, resolved, or spam."}
+  undo:
+    - function: armory_app_feedback_restore_statuses
+      args: {p_previous: $result.previous}
+
+armory_app_feedback_restore_statuses:
+  surface: call
+  level: undo
+  describe: Put many Armory app notes back to the statuses they had, as the undo of a bulk move does.
+  say: ["put those Armory notes back", "undo the Armory note move", "restore the Armory notes"]
+  args:
+    p_previous: {name: statuses, describe: "Each note's id with the status to put back."}
+  undo:
+    - function: armory_app_feedback_restore_statuses
+      args: {p_previous: $result.previous}
+
+armory_app_incidents_set_status_many:
+  surface: call
+  level: undo
+  describe: Move many Armory incident reports to one status in one go; the mark Armory incidents tool is the usual way in.
+  say: ["resolve those incidents", "mark these incidents seen", "set the crash reports to resolved"]
+  args:
+    p_ids: {name: incidents, describe: "Every incident's id."}
+    p_status: {name: status, enum: [new, seen, resolved, spam], describe: "new, seen, resolved, or spam."}
+  undo:
+    - function: armory_app_incidents_restore_statuses
+      args: {p_previous: $result.previous}
+
+armory_app_incidents_restore_statuses:
+  surface: call
+  level: undo
+  describe: Put many Armory incident reports back to the statuses they had, as the undo of a bulk move does.
+  say: ["put those incidents back", "undo the incident move", "restore the incidents"]
+  args:
+    p_previous: {name: statuses, describe: "Each incident's id with the status to put back."}
+  undo:
+    - function: armory_app_incidents_restore_statuses
+      args: {p_previous: $result.previous}
+
+armory_app_incident_report:
+  surface: call
+  level: read
+  describe: One Armory incident report whole, with its events, timings and log lines; the read Armory incident tool is the usual way in.
+  say: ["read that Armory incident", "show the whole crash report", "what is in incident 3fa2b1c9"]
+  args:
+    p_id: {name: incident, describe: "The incident's id."}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { runBulk } from '$lib/classroom/classroom';
+	import { bulkOutcome, type SetStatusMany } from './bulk';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import FacetMultiSelect from './FacetMultiSelect.svelte';
 	import { FEEDBACK_STATUSES, type FeedbackStatus } from './feedback';
@@ -38,6 +39,7 @@
 		rows,
 		unavailable = null,
 		setStatus,
+		setStatusMany,
 		screenshotUrl,
 		now = () => Date.now()
 	}: {
@@ -45,6 +47,8 @@
 		/** Why there is nothing to show (the database is not updated, or the read failed). */
 		unavailable?: string | null;
 		setStatus?: (id: string, status: FeedbackStatus) => Promise<{ ok: boolean; message?: string }>;
+		/** Ledger 0432: a selection moves in one call when this is handed in. */
+		setStatusMany?: SetStatusMany;
 		/** 0235: a short-lived link to a note's screenshot, on the admin's own client. Absent, the note says one is attached. */
 		screenshotUrl?: (path: string) => Promise<string | null>;
 		now?: () => number;
@@ -108,7 +112,7 @@
 		error = null;
 		note = null;
 		try {
-			const outcome = await runBulk(ids, (id) => setStatus(id, status));
+			const outcome = setStatusMany ? bulkOutcome(ids, await setStatusMany(ids, status)) : await runBulk(ids, (id) => setStatus(id, status));
 			const next = { ...moved };
 			for (const id of outcome.succeededIds) next[id] = status;
 			moved = next;

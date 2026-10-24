@@ -11,6 +11,7 @@
  * only usable if it is not floating over the thing being reported on.
  */
 
+import { coins } from '$lib/coin-format';
 import { pendingLabel } from '$lib/pending';
 
 // ---------------------------------------------------------------------------
@@ -453,6 +454,13 @@ export interface FeedbackContextInput {
 	 * feedback window's frame, as the injected panel it replaced did).
 	 */
 	tab?: string | null;
+	/**
+	 * LEDGER 0432: WHICH BROWSER ON WHICH COMPUTER, as a random key this
+	 * browser keeps (`feedbackDeviceKey`) and the user agent's short summary.
+	 * Client-reported and said so wherever it is shown; the server stamps its
+	 * own evidence beside it. It is what tells a shared lab computer apart.
+	 */
+	device?: { key: string; label: string | null } | null;
 }
 
 /** A path with every email-shaped segment (raw `@` or encoded `%40`) replaced by `:student`. */
@@ -493,7 +501,40 @@ export function captureMeta(input: FeedbackContextInput): Record<string, unknown
 	if (input.errorMessage) meta.error = input.errorMessage;
 	if (input.errorId) meta.errorId = input.errorId;
 	if (input.tab) meta.tab = input.tab;
+	if (input.device?.key) meta.device = { key: input.device.key, label: input.device.label ?? null };
 	return meta;
+}
+
+/**
+ * LEDGER 0432 (feedback 7c869252): the one line by the report box telling a
+ * signed-in student that a useful report can earn coins. Mr. Pina sets each
+ * reward, 1 to 10, so the line names the ceiling and promises nothing.
+ */
+export const FEEDBACK_REWARD_LINE = `A report that leads to a change on the site can earn you up to ${coins(10)}.`;
+
+/** Where the report box keeps its device key. */
+export const FEEDBACK_DEVICE_KEY = 'idea.feedback.device';
+
+/**
+ * THIS BROWSER'S DEVICE KEY (ledger 0432): random, made once, kept in local
+ * storage, never derived from anything about the person. Null where storage
+ * is blocked, which is a report with no device key, never a failed report.
+ */
+export function feedbackDeviceKey(
+	storage: Pick<Storage, 'getItem' | 'setItem'> | null | undefined,
+	random: () => string = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`)
+): string | null {
+	try {
+		if (!storage) return null;
+		const have = storage.getItem(FEEDBACK_DEVICE_KEY);
+		if (have && /^[A-Za-z0-9-]{8,64}$/.test(have)) return have;
+		const next = random().replace(/[^A-Za-z0-9-]/g, '').slice(0, 64);
+		if (next.length < 8) return null;
+		storage.setItem(FEEDBACK_DEVICE_KEY, next);
+		return next;
+	} catch {
+		return null;
+	}
 }
 
 /**

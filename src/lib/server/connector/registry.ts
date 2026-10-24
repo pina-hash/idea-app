@@ -110,6 +110,13 @@ export interface FacadeEntry {
 	say: string[];
 	args?: Record<string, ArgSpec>;
 	idempotent?: string[];
+	/**
+	 * LEDGER 0432: A TOOL ANOTHER ONE REPLACED. It still answers a call by
+	 * name (a chat, a saved request or a memory that names it keeps working),
+	 * but it is not in the tool list, so a model on a phone sees one way to
+	 * do the thing. The value is the tool that replaced it.
+	 */
+	replaced_by?: string;
 }
 
 export interface EndpointEntry {
@@ -575,7 +582,9 @@ export function siteCallTool(): McpTool {
 
 /** The whole MCP tool list, in a stable order. */
 export function toolList(): McpTool[] {
-	const facades = Object.values(FACADES).map(facadeTool);
+	const facades = Object.values(FACADES)
+		.filter((f) => !f.replaced_by)
+		.map(facadeTool);
 	const direct = directEntries().map(functionTool);
 	return [...facades, ...direct, SITE_FIND_TOOL, siteCallTool()];
 }

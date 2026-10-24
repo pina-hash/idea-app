@@ -12,7 +12,9 @@
 #   exclude: <reason> never reachable, and why
 
 classroom_section_roster:
-  surface: call
+  # Ledger 0432: promoted to its own tool; 20 of his requests went through site_call for it.
+  surface: tool
+  tool: class_roster
   level: read
   describe: List the students on a class roster, with whether each is still enrolled.
   say: ["who's in 209H Block 2", "list the roster for Block 1", "show me everyone in IDEA100"]

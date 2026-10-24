@@ -141,6 +141,14 @@ const REVERSED_BY_MEANING: Record<string, { why: string; check: (args: Record<st
 		why: 'A note is removed by a stamp, never deleted; its messages stay under the removed thread.',
 		check: async (a) => (await w.db.sql(`select 1 from public.classroom_feedback_threads where item_id = $1 and removed_at is not null`, [a.p_item_id])).rows.length >= 1
 	},
+	coin_voice_log: {
+		why: 'Undo reverses the coin record (ledger 0432); the phrase he said stays learned with its amount, because a default he set is his, not part of one record.',
+		check: async (a) =>
+			(await w.db.sql(
+				`select 1 from public.coin_transactions t where t.student_email = $1 and t.category_id = $2 and public._coin_is_reversed(t.id)`,
+				[a.p_email, a.p_category_id]
+			)).rows.length >= 1
+	},
 	coin_banner_save: {
 		why: 'A banner pin is taken down by a stamp (0280), never deleted, so the banner keeps its record of what ran (ledger 0416).',
 		check: async (a) => (await w.db.sql(`select 1 from public.coin_banner_pins where title = $1 and removed_at is not null`, [a.p_title])).rows.length === 1
