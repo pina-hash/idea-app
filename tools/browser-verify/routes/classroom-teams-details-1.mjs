@@ -1,5 +1,5 @@
 /**
- * THE CLASS TEAM'S SHARED RECORD ON THE CLASS PAGE (0296, ledger 0433, gap
+ * THE CLASS TEAM'S SHARED RECORD ON THE CLASS PAGE (0297, ledger 0433, gap
  * 5f6a37e8). Class teams are the source of truth for tournaments, so the own
  * team's card shows the team's description, its picture and the tournament it
  * plays in, and a member edits the description and picture right there. The

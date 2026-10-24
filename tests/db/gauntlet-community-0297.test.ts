@@ -1,9 +1,9 @@
-// tests/db/gauntlet-community-0296.test.ts
+// tests/db/gauntlet-community-0297.test.ts
 //
-// 0296, ledger 0433 items 14 and 15, on the FULL chain read off disk. The chain
-// boots SHORT of 0296, the class, its team set, a tournament with a hand-made
+// 0297, ledger 0433 items 14 and 15, on the FULL chain read off disk. The chain
+// boots SHORT of 0297, the class, its team set, a tournament with a hand-made
 // entry (the report's "set up twice" state) and the GAUNTLET runs are seeded
-// through the REAL pre-0296 RPCs where one exists, then 0296 goes over the top
+// through the REAL pre-0297 RPCs where one exists, then 0297 goes over the top
 // TWICE.
 //
 // ITEM 14, class teams are the source of truth:
@@ -26,7 +26,7 @@
 //   * a private speedrun opens by link and is on nobody else's list; listing it
 //     takes a GAUNTLET author; editing a listed one sends it back for review.
 //
-// GAUNTLET_0296_SQL swaps in a permissive copy for the mutation proofs, which
+// GAUNTLET_0297_SQL swaps in a permissive copy for the mutation proofs, which
 // are recorded in docs/history/0433-gauntlet-tournament-teams.md.
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -43,11 +43,11 @@ import {
 } from './harness';
 
 const DIR = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
-const FILE = '0296_class_team_tournaments_and_community_speedruns.sql';
+const FILE = '0297_class_team_tournaments_and_community_speedruns.sql';
 const ALL = readdirSync(DIR)
 	.filter((f) => /^\d{4}_.*\.sql$/.test(f))
 	.sort();
-const SQL = readFileSync(process.env.GAUNTLET_0296_SQL ?? join(DIR, FILE), 'utf8');
+const SQL = readFileSync(process.env.GAUNTLET_0297_SQL ?? join(DIR, FILE), 'utf8');
 const SEED = JSON.parse(
 	readFileSync(fileURLToPath(new URL('../../gauntlet_speedrun_seed.json', import.meta.url)), 'utf8')
 ) as {
@@ -186,7 +186,7 @@ const rosterOf = async (entryId: string) =>
 		)
 	).rows;
 
-describe('0296: a tournament takes its teams from a class (item 14)', () => {
+describe('0297: a tournament takes its teams from a class (item 14)', () => {
 	let result: Record<string, number>;
 	let team1Entry: string;
 
@@ -361,7 +361,7 @@ function geometryVolume(ops: Array<Record<string, number | string>>): number {
 	return v;
 }
 
-describe('0296: five new Speedrun parts (item 15)', () => {
+describe('0297: five new Speedrun parts (item 15)', () => {
 	it('stores each part exactly as the seed file says, once, published, in one series', async () => {
 		const rows = (
 			await db.sql<{ title: string; difficulty: number; status: string; prompt: Record<string, unknown>; answer: Record<string, unknown>; series: string }>(
@@ -402,7 +402,7 @@ describe('0296: five new Speedrun parts (item 15)', () => {
 	});
 });
 
-describe('0296: community speedruns (item 15)', () => {
+describe('0297: community speedruns (item 15)', () => {
 	let parts: string[];
 	let draftPart: string;
 	let route: string;

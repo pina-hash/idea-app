@@ -1,7 +1,7 @@
 // tests/gauntlet-community.test.ts
 //
 // The community speedrun module's words and refusals (ledger 0433, item 15).
-// The database is the authority (tests/db/gauntlet-community-0296.test.ts);
+// The database is the authority (tests/db/gauntlet-community-0297.test.ts);
 // these pin that the builder's Save button says the same things it would.
 
 import { describe, expect, it } from 'vitest';

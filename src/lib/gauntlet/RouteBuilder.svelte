@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * THE COMMUNITY SPEEDRUN BUILDER (0296, ledger 0433). Pick 2 to 8 published
+	 * THE COMMUNITY SPEEDRUN BUILDER (0297, ledger 0433). Pick 2 to 8 published
 	 * Speedrun parts, put them in order, name it. Presentation only: `onsave`
 	 * is the route's own call to `gauntlet_route_save`, which re-checks every
 	 * part and every bound. The Save button carries the same refusals as words

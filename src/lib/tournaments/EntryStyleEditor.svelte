@@ -40,7 +40,7 @@
 		/** Uploads a background image and resolves its public https URL. */
 		onupload?: ((file: File) => Promise<string>) | null;
 		/**
-		 * False for an entry that follows a CLASS team (0296): a class team's
+		 * False for an entry that follows a CLASS team (0297): a class team's
 		 * background is a colour or a gradient, so the Image choice is not
 		 * offered rather than offered and refused.
 		 */

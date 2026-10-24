@@ -107,7 +107,7 @@
 		 */
 		style?: ((input: SaveTeamStyleInput) => Promise<TeamStyleResult>) | null;
 		/**
-		 * THE TEAM DETAILS WRITE (0296, ledger 0433): description and picture,
+		 * THE TEAM DETAILS WRITE (0297, ledger 0433): description and picture,
 		 * the shared record every tournament the team plays in follows. Same
 		 * rule as `style`: absent removes every Edit details control.
 		 */

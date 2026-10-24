@@ -1,4 +1,4 @@
--- 0296_class_team_tournaments_and_community_speedruns.sql
+-- 0297_class_team_tournaments_and_community_speedruns.sql
 --
 -- LEDGER 0433, docs/feedback/2026-10-23/QUEUE.md items 14 and 15.
 --
@@ -659,7 +659,7 @@ begin
 	if not found then
 		raise exception 'Entry not found.';
 	end if;
-	-- 0296: AN ENTRY THAT FOLLOWS A CLASS TEAM IS EDITED AS THAT TEAM, under the
+	-- 0297: AN ENTRY THAT FOLLOWS A CLASS TEAM IS EDITED AS THAT TEAM, under the
 	-- class team's own rule (a student on it, or a teacher of the class).
 	select l.team_id into v_team from public.tournament_entry_class_teams l where l.entry_id = p_entry_id;
 	if v_team is not null then
@@ -755,7 +755,7 @@ begin
 		raise exception 'Entry not found.';
 	end if;
 
-	-- 0296: an entry that follows a class team is styled as that team.
+	-- 0297: an entry that follows a class team is styled as that team.
 	select l.team_id into v_team from public.tournament_entry_class_teams l where l.entry_id = p_entry_id;
 	if v_team is not null then
 		if not public._classroom_team_may_style(v_team) then
@@ -1161,7 +1161,7 @@ grant execute on function public.gauntlet_route(uuid) to authenticated;
 -- ===========================================================================
 -- PART 3. FIVE NEW SPEEDRUN PARTS ("Shop Hardware")
 --
--- Generated from gauntlet_speedrun_seed.json; tests/db/gauntlet-community-0296.test.ts
+-- Generated from gauntlet_speedrun_seed.json; tests/db/gauntlet-community-0297.test.ts
 -- checks every stored value against that file and recomputes each volume from
 -- its geometry. Inside a do block (a seed row is never top-level DML). A part
 -- whose slug already exists is left alone, so a re-paste inserts nothing.
@@ -1194,7 +1194,7 @@ begin
 	loop
 		v_blocker := public.gauntlet_publish_blocker('speedrun'::public.gauntlet_mode, v_row.prompt, v_row.answer);
 		if v_blocker is not null then
-			raise exception '0296: part % cannot publish: %', v_row.slug, v_blocker;
+			raise exception '0297: part % cannot publish: %', v_row.slug, v_blocker;
 		end if;
 		if exists (select 1 from public.challenges c where c.mode = 'speedrun' and c.prompt ->> 'slug' = v_row.slug) then
 			v_kept := v_kept + 1;
@@ -1204,13 +1204,13 @@ begin
 		values ('speedrun', v_row.title, v_row.difficulty, 'published', v_author, v_row.prompt, v_row.answer, v_series, v_row.ord);
 		v_new := v_new + 1;
 	end loop;
-	raise notice '0296: % new Speedrun parts published in Shop Hardware, % already there', v_new, v_kept;
+	raise notice '0297: % new Speedrun parts published in Shop Hardware, % already there', v_new, v_kept;
 end;
 $seed$;
 
 do $chk$
 begin
-	raise notice '0296: % class team links, % community speedruns',
+	raise notice '0297: % class team links, % community speedruns',
 		(select count(*) from public.tournament_entry_class_teams), (select count(*) from public.gauntlet_routes);
 end;
 $chk$;

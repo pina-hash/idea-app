@@ -1,5 +1,5 @@
 /**
- * A TOURNAMENT'S TEAMS, TAKEN FROM A CLASS (0296, ledger 0433, connector gap
+ * A TOURNAMENT'S TEAMS, TAKEN FROM A CLASS (0297, ledger 0433, connector gap
  * 5f6a37e8). Mr. Pina, 2026-10-23: "class teams are the source of truth;
  * tournaments follow them". The class team set is the record; an entry made
  * from it is LINKED, follows the team's name, picture, description and look,
@@ -56,7 +56,7 @@ export function teamSetBlocker(o: TeamSetOption, teamSize: number, status: strin
 	return null;
 }
 
-/** The host console's two reads, best effort: a deployment before 0296 answers empty. */
+/** The host console's two reads, best effort: a deployment before 0297 answers empty. */
 export async function loadClassTeamLinks(
 	supabase: SupabaseClient,
 	tournamentId: string,

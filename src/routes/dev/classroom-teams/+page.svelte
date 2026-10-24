@@ -57,7 +57,7 @@
 	const refuse = params.get('refuse') === '1';
 	const extremes = params.get('styled') === 'extremes';
 	const themeParam = params.get('theme');
-	/* `?details=1`: the class team's shared record (0296, ledger 0433): the
+	/* `?details=1`: the class team's shared record (0297, ledger 0433): the
 	   first team carries a description, a picture and a tournament it plays
 	   in, and the details write is handed in. In memory, as the style write is. */
 	const detailsOn = params.get('details') === '1';
@@ -197,7 +197,7 @@
 			];
 
 	/* THE SHARED RECORD, IN MEMORY: what `classroom_team_shared` answers, and
-	   0296's details write over it. Seeded only under `?details=1`. */
+	   0297's details write over it. Seeded only under `?details=1`. */
 	let detailCalls = $state(0);
 	const SHARED: SharedTeam[] = [];
 	function seedShared() {

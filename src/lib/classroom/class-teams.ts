@@ -52,10 +52,10 @@ export interface ClassTeam
 	> {
 	members: string[];
 	/**
-	 * THE SHARED RECORD'S OTHER HALF (0296, ledger 0433): the team's own
+	 * THE SHARED RECORD'S OTHER HALF (0297, ledger 0433): the team's own
 	 * description and picture, and the tournaments it plays in. Read by
 	 * `classroom_team_shared` under the board's own audience and merged in by
-	 * `withSharedTeams`; absent on a deployment before 0296, which renders the
+	 * `withSharedTeams`; absent on a deployment before 0297, which renders the
 	 * card exactly as it was.
 	 */
 	description?: string | null;
@@ -63,14 +63,14 @@ export interface ClassTeam
 	tournaments?: TeamTournament[];
 }
 
-/** A tournament a class team plays in (0296): enough to link to its bracket. */
+/** A tournament a class team plays in (0297): enough to link to its bracket. */
 export interface TeamTournament {
 	id: string;
 	name: string;
 	status: string;
 }
 
-/** One row of `classroom_team_shared` (0296). */
+/** One row of `classroom_team_shared` (0297). */
 export interface SharedTeam {
 	team_id: string;
 	description: string | null;
@@ -224,7 +224,7 @@ export async function refreshPostedTeams(
 }
 
 /**
- * THE SHARED FIELDS, BEST EFFORT (0296). Any failure -- the function not there
+ * THE SHARED FIELDS, BEST EFFORT (0297). Any failure -- the function not there
  * yet, a refusal, a network error -- is "nothing to add", never a failed board:
  * the roster and the look already answered.
  */
@@ -266,7 +266,7 @@ export interface TeamDetailsInput {
 }
 
 /**
- * A TEAM'S DESCRIPTION AND PICTURE, SAVED FROM THE CLASS PAGE (0296). The same
+ * A TEAM'S DESCRIPTION AND PICTURE, SAVED FROM THE CLASS PAGE (0297). The same
  * gate as the look (a member of the team, or a teacher of the class), and the
  * same record every tournament the team plays in shows. The refusal is shown
  * verbatim, as the style write's is.

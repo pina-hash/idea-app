@@ -117,7 +117,7 @@ on decision 19, and the reasoning is
   scope and 0194 did not take it: a room round is minutes long and a floor
   interacts with a host's own timing. It is a third question, still open.
 
-### COMMUNITY SPEEDRUNS -- a student's run of published parts, reviewed only where it is new (0296, ledger 0433)
+### COMMUNITY SPEEDRUNS -- a student's run of published parts, reviewed only where it is new (0297, ledger 0433)
 
 **A community speedrun (`gauntlet_routes`) is 2 to 8 PUBLISHED Speedrun parts in
 an order a student chose, and its board is DERIVED, never stored.**
@@ -137,7 +137,7 @@ still never vanishes: it stays on its part's board and in the run review.
   `hidden` closes the link to everyone but its owner and reviewers.
 - **The review state is the owner's and a reviewer's to see**: `gauntlet_routes`
   and `gauntlet_route` project `status` as null to anyone else.
-- `tests/db/gauntlet-community-0296.test.ts` holds both directions and carries
+- `tests/db/gauntlet-community-0297.test.ts` holds both directions and carries
   the mutation proofs' targets (the ranked filter, the listing rule, the
   hidden-by-link rule).
 

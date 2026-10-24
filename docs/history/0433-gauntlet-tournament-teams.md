@@ -2,7 +2,7 @@
 title: "Ledger 0433: the GAUNTLET board reads again (0289 called a revoked helper inside an owner-privileged view), stray tournament registrants removable, class teams as the source of truth for tournaments, five Shop Hardware parts and community speedruns"
 date: 2026-10-23
 branches: [main]
-migrations: ["0295", "0296"]
+migrations: ["0295", "0297"]
 subsystems: [GAUNTLET, Tournaments, Classroom]
 ---
 
@@ -45,7 +45,7 @@ mirrors both (`mayRemove`, `isTeamName`), names the team control "Rename team", 
 the RPC does and would have refused the very removal this item is about. Production reported 31
 no-account rows on entries that also have a signed-in member; none were deleted.
 
-## Item 14: class teams as the source of truth (0296)
+## Item 14: class teams as the source of truth (0297)
 
 - **Storage.** `classroom_teams` gains `description` and `picture_url`; `tournament_entry_class_teams`
   links an entry to the team it follows (unique per tournament and team). RLS on, no policy, no grant:
@@ -69,7 +69,7 @@ no-account rows on entries that also have a signed-in member; none were deleted.
   `classroom_team_board` itself was NOT recreated: `tests/db/classroom-team-edits.test.ts` diffs its
   body, and a second read keeps it untouched.
 
-## Item 15: parts and community speedruns (0296)
+## Item 15: parts and community speedruns (0297)
 
 Five Speedrun parts, published in a new Shop Hardware series, from `gauntlet_speedrun_seed.json`:
 prismatic geometry with closed-form volumes (a ring slot strip by the circular-segment integral, R8
@@ -83,12 +83,12 @@ The board is derived from `gauntlet_leaderboard` ranked rows, so no run rule is 
 
 ## Measured
 
-- `tests/db/gauntlet-board-0295.test.ts` 10/10; `tests/db/gauntlet-community-0296.test.ts` 23/23;
+- `tests/db/gauntlet-board-0295.test.ts` 10/10; `tests/db/gauntlet-community-0297.test.ts` 23/23;
   both boot the full chain short of their file, seed through real RPCs where one exists (runs are
   inserted as the owner, since the macro path needs a run token), and apply the file twice.
 - Mutation proofs, each against a copy handed in through an environment variable, file md5 unchanged:
   0295 test-account predicate to `true` (2 red), `is_correct = true` to `true` (2 red), held rank to
-  ranked (1 red), member removal widened to any no-account row (3 red); 0296 `_classroom_team_may_style`
+  ranked (1 red), member removal widened to any no-account row (3 red); 0297 `_classroom_team_may_style`
   to `true` (1 red), `classroom_team_shared` enrollment gate removed (1 red), route board ranked filter
   removed (2 red), hidden route open by link (1 red), private routes listed (3 red).
 - svelte-check 0 errors, 33 warnings in 18 files, after `cp .env.example .env` (the worktree had no
@@ -105,11 +105,15 @@ The board is derived from `gauntlet_leaderboard` ranked rows, so no run rule is 
   this worktree had no `origin/integration` ref, and pass once it is fetched.
   `tests/db/ideacad-grants-anon-execute-surface.test.ts` caught a real finding:
   `tournament_class_linked_entries` was granted to `anon`. Its one reader is a signed-in player's own
-  entry, so 0296 (unapplied, corrected in place) grants `authenticated` only and the 0296 test asserts
+  entry, so 0297 (unapplied, corrected in place) grants `authenticated` only and the 0297 test asserts
   the anon refusal.
+
+- Renumbered at landing: the second migration was written as 0296; ledger 0432 landed and applied
+  its own 0296 (`0296_coin_contracts_retired.sql`) first, so this one is 0297 and its tests were rerun
+  on the chain that includes it.
 
 ## Not verified
 
-The sync and the community pages against production (0296 applies through migrate.yml after the
+The sync and the community pages against production (0297 applies through migrate.yml after the
 push); the five parts modelled in SolidWorks; any signed-in browser session; a picture upload from
 the class page (the class page takes a web address only).

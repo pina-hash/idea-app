@@ -4,7 +4,7 @@
 	import RouteBuilder from '$lib/gauntlet/RouteBuilder.svelte';
 
 	/**
-	 * Dev-only harness for the community speedrun builder (0296, ledger 0433).
+	 * Dev-only harness for the community speedrun builder (0297, ledger 0433).
 	 * It mounts the REAL `RouteBuilder` over a literal list of published parts;
 	 * `?picked=3` starts with three in the order, which is the state with every
 	 * control on screen (order rows with up, down and remove, the pick list

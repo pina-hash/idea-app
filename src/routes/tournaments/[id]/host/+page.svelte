@@ -46,10 +46,10 @@
 	 * and roster RPCs do not exist. Those controls stay off until it has.
 	 */
 	const membersReady = $derived(data.entries.length === 0 || data.members.length > 0);
-	/** Entries that follow a class team (0296): their look and roster come from the class. */
+	/** Entries that follow a class team (0297): their look and roster come from the class. */
 	const linked = $derived(new Set(data.linkedEntries));
 
-	/** Takes one class team set's teams as entries (0296). The answer is worded, not just acknowledged. */
+	/** Takes one class team set's teams as entries (0297). The answer is worded, not just acknowledged. */
 	async function takeTeamSet(setId: string) {
 		actionError = '';
 		notice = '';

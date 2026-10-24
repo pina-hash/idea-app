@@ -3,13 +3,13 @@ import type { PageServerLoad } from './$types';
 import type { RouteSummary } from '$lib/gauntlet/community';
 
 /**
- * COMMUNITY SPEEDRUNS: the list and the builder (0296, ledger 0433). The list
+ * COMMUNITY SPEEDRUNS: the list and the builder (0297, ledger 0433). The list
  * is `gauntlet_routes()`, which answers only what the caller may see: listed
  * speedruns, the caller's own, and (for a GAUNTLET author or an admin) the
  * review queue. The builder offers published Speedrun parts by name only; the
  * database re-checks every part on save.
  *
- * `unavailable` is a deployment before 0296 (PGRST202 alone); every other
+ * `unavailable` is a deployment before 0297 (PGRST202 alone); every other
  * error is a failed read and says so, never an empty list.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {

@@ -1,6 +1,6 @@
 // tests/dom/class-team-details.test.ts
 //
-// THE CLASS TEAM'S SHARED RECORD ON THE CLASS PAGE (0296, ledger 0433, gap
+// THE CLASS TEAM'S SHARED RECORD ON THE CLASS PAGE (0297, ledger 0433, gap
 // 5f6a37e8), on the real `ClassTeams`. A team's description, picture and the
 // tournaments it plays in show on its card; a member gets Edit details on
 // their own card, a classmate's card offers none, and a mount with no

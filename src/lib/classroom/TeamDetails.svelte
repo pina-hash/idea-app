@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * A CLASS TEAM'S DESCRIPTION, PICTURE AND TOURNAMENTS (0296, ledger 0433,
+	 * A CLASS TEAM'S DESCRIPTION, PICTURE AND TOURNAMENTS (0297, ledger 0433,
 	 * connector gap 5f6a37e8). The class team is the one record a tournament
 	 * follows, so what a member writes here is what the bracket shows, and the
 	 * tournaments it plays in are linked from the card.

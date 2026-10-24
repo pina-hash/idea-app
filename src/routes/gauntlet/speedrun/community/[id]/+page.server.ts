@@ -3,7 +3,7 @@ import type { PageServerLoad } from './$types';
 import type { RouteDetail } from '$lib/gauntlet/community';
 
 /**
- * ONE COMMUNITY SPEEDRUN (0296, ledger 0433): its parts in order, the caller's
+ * ONE COMMUNITY SPEEDRUN (0297, ledger 0433): its parts in order, the caller's
  * progress on each, and its board. `gauntlet_route` answers anyone signed in
  * who holds the link unless a reviewer took it down; "not found" and "not
  * yours" are the same 404. The published parts are offered to the owner for

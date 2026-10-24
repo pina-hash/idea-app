@@ -113,7 +113,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	// The viewer's OWN member row (their chosen name on the roster), not
 	// their entry: `myEntryFor` above is the one spelling of that.
 	const myMember = uid === null ? null : (members.find((m) => m.user_id === uid) ?? null);
-	// 0296: which entries follow a class team. Entry ids only, signed in only, best effort.
+	// 0297: which entries follow a class team. Entry ids only, signed in only, best effort.
 	const { linked: linkedEntries } = myEntry ? await loadClassTeamLinks(supabase, params.id, false) : { linked: [] as string[] };
 
 	return {

@@ -41,7 +41,7 @@ were deleted; each can now be removed by its own team or an admin.
 **Found.** Class team sets (0223/0225) and tournament entries (0062/0192) were separate records: a
 team's name and look were stored twice and customized twice, and roster changes did not carry over.
 
-**Built** (migration 0296):
+**Built** (migration 0297):
 - A host who also teaches the class presses **Use these teams** in the tournament's Entries card.
   Each team becomes an entry with every member who has an account; an entry already made by hand with
   the team's name is linked instead of doubled (the IDEA-Blade Rotation 2 case), and its banner is
@@ -76,15 +76,19 @@ Speedrun page.
 
 ## Migrations, in apply order
 
+The second file was written as 0296 and renumbered 0297 at landing, because session 0432 landed and
+applied its own 0296 first.
+
+
 - `supabase/migrations/0295_gauntlet_board_and_tournament_registrants.sql` (applied 2026-10-24)
-- `supabase/migrations/0296_class_team_tournaments_and_community_speedruns.sql`
+- `supabase/migrations/0297_class_team_tournaments_and_community_speedruns.sql`
 
 ## Checks
 
 - svelte-check: 0 errors, 33 warnings in 18 files (baseline unchanged).
 - Database tests on the full chain, pre-migration data, each file applied twice:
-  `tests/db/gauntlet-board-0295.test.ts` 10/10, `tests/db/gauntlet-community-0296.test.ts` 23/23.
-  Mutation proofs: 4 on 0295 and 5 on 0296, each red, file restored byte-identical (md5).
+  `tests/db/gauntlet-board-0295.test.ts` 10/10, `tests/db/gauntlet-community-0297.test.ts` 23/23.
+  Mutation proofs: 4 on 0295 and 5 on 0297, each red, file restored byte-identical (md5).
 - Browser pass (own dev server, 375 and 1440): 24 specs, 48 runs, 686 measurements, 0 outside
   threshold, including the new specs for the stray team, the class team details and the speedrun
   builder.
@@ -92,12 +96,12 @@ Speedrun page.
   0430 named on unchanged main (classroom-panel-layout-render 4, cert-0262-exam 7,
   feedback-round-0380-foundry 1, ideacad-feature-graph-storage 1). The other two files were a
   missing `origin/integration` ref in this checkout (both pass once fetched) and one finding of mine,
-  an anon grant on `tournament_class_linked_entries`, fixed in 0296 before landing; those three
-  files then pass (106 of 106 with the 0296 test).
+  an anon grant on `tournament_class_linked_entries`, fixed in 0297 before landing; those three
+  files then pass (106 of 106 with the 0297 test).
 
 ## Not verified
 
-- The class team sync and community speedruns against production: 0296 applies through migrate.yml
+- The class team sync and community speedruns against production: 0297 applies through migrate.yml
   after this push.
 - The five new parts modelled in SolidWorks. Volumes are exact closed forms checked by a second
   implementation in the test, but nobody has yet modelled one from its drawing and submitted it.

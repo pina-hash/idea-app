@@ -94,8 +94,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 			.eq('tournament_id', params.id)
 	]);
 
-	// 0296: which entries follow a class team, and the class team sets this
-	// host may take entries from. Both best effort: empty before 0296.
+	// 0297: which entries follow a class team, and the class team sets this
+	// host may take entries from. Both best effort: empty before 0297.
 	const classTeams = await loadClassTeamLinks(supabase, params.id, true);
 
 	const ledgerRows = (ledgerRes.data ?? []) as {
