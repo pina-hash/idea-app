@@ -248,8 +248,8 @@ describe('the per-save export', () => {
 		const results = [{ data: { ok: true, revision: 2 }, error: null }, { data: null, error: { message: 'nope' } }];
 		const supabase = { rpc: async () => results.shift() } as never;
 		const t = createHtmlAssignmentTransports(supabase);
-		expect((await t.setHtmlAssignment('item-1', DOC, MANIFEST as never, 'a.html')).ok).toBe(true);
-		expect((await t.setHtmlAssignment('item-2', DOC, MANIFEST as never, 'a.html')).ok).toBe(false);
+		expect((await t.setHtmlAssignment!('item-1', DOC, MANIFEST as never, 'a.html')).ok).toBe(true);
+		expect((await t.setHtmlAssignment!('item-2', DOC, MANIFEST as never, 'a.html')).ok).toBe(false);
 		expect(pinged).toEqual(['/api/classroom/export {"item_id":"item-1"}']);
 	});
 });
