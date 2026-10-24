@@ -31,7 +31,7 @@
 --    * `tournament_unlink_class_team` lets a host stop following; the entry
 --      keeps its current copy.
 --    * Reads: `tournament_class_linked_entries` (which entries follow a class
---      team, ids only, for the bracket's note), `tournament_team_set_options`
+--      team, ids only, signed in), `tournament_team_set_options`
 --      (a host's class team sets), `classroom_team_shared` (the class page's
 --      description, picture and tournaments, under `classroom_team_board`'s own
 --      audience rule).
@@ -479,7 +479,8 @@ revoke all on function public.tournament_unlink_class_team(uuid) from public, an
 grant execute on function public.tournament_unlink_class_team(uuid) to authenticated;
 
 -- Which entries of a tournament follow a class team. Entry ids only: no class,
--- no team, no roster. Public, like the bracket it annotates.
+-- no team, no roster. Signed-in only: the one reader is a player's own entry
+-- panel, and a signed-out bracket needs nothing from it.
 create or replace function public.tournament_class_linked_entries(p_tournament_id uuid)
 returns uuid[]
 language sql
@@ -492,7 +493,7 @@ as $fn$
 	where l.tournament_id = p_tournament_id;
 $fn$;
 revoke all on function public.tournament_class_linked_entries(uuid) from public, anon, authenticated;
-grant execute on function public.tournament_class_linked_entries(uuid) to anon, authenticated;
+grant execute on function public.tournament_class_linked_entries(uuid) to authenticated;
 
 -- The class team sets a host may take entries from: live sets of classes the
 -- caller manages. Answers an empty list to anybody else.

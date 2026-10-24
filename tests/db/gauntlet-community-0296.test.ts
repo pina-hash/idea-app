@@ -297,9 +297,10 @@ describe('0296: a tournament takes its teams from a class (item 14)', () => {
 			expect(await refusal(db.asUser(ana.id, (q) => q(`select * from public.tournament_entry_class_teams`)))).toMatch(/permission denied/);
 		});
 
-		it('tells the bracket which entries follow a class, and nothing more', async () => {
-			const ids = (await db.asAnon((q) => q<{ r: string[] }>(`select public.tournament_class_linked_entries($1) as r`, [tournament]))).rows[0].r;
+		it('tells a signed-in player which entries follow a class, and nothing more; nothing to anon', async () => {
+			const ids = await one<string[]>(outsider, `select public.tournament_class_linked_entries($1) as r`, [tournament]);
 			expect([...ids].sort()).toEqual([handEntry, team1Entry].sort());
+			expect(await refusal(db.asAnon((q) => q(`select public.tournament_class_linked_entries($1)`, [tournament])))).toMatch(/permission denied/);
 		});
 
 		it('gives the class page its shared fields, to the class only', async () => {
