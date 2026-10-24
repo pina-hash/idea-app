@@ -1345,6 +1345,15 @@
 		flex: none;
 		min-width: 0;
 	}
+	/* ON A PHONE THE TWO KEYS TAKE THE ROW; the worksheet says its own title. */
+	@media (max-width: 520px) {
+		.hx-bar.is-expanded .hx-bar-title {
+			display: none;
+		}
+		.hx-bar.is-expanded {
+			justify-content: flex-end;
+		}
+	}
 
 	/*
 		FULL PAGE. The same element over the whole window, so the document is

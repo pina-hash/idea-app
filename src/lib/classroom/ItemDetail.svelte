@@ -2933,7 +2933,7 @@
 								{htmlUnsavedAfterClose.answers.length + htmlUnsavedAfterClose.others === 1
 									? 'One answer you typed after it closed is not saved.'
 									: `${htmlUnsavedAfterClose.answers.length + htmlUnsavedAfterClose.others} answers you typed after it closed are not saved.`}
-								It stays on this page, and it saves on its own if your teacher reopens the assignment.
+								It stays on this page, and it saves on its own if your teacher reopens the assignment while this page is open.
 							</p>
 							{#if htmlUnsavedAfterClose.answers.length}
 								<details class="hx-unsaved-more">

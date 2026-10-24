@@ -60,6 +60,9 @@ export function hxAnswerWant(block: HxProgressBlock): string {
 		const left = Math.max(1, block.need - block.have);
 		return `${left} more ${left === 1 ? 'sentence' : 'sentences'}`;
 	}
+	if (block.need > 0 && (block.type === 'text' || block.type === 'longText')) {
+		return `Needs ${block.need} ${block.need === 1 ? 'sentence' : 'sentences'}`;
+	}
 	if (block.type === 'checkbox') return 'Box to check';
 	if (block.type === 'radio') return 'Pick one';
 	if (block.type === 'table') return 'Empty table';

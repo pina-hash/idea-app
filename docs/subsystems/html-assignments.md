@@ -312,3 +312,73 @@ item and re-uploads over one.
     student hand-in. The working copy REPLACES the read-only frame rather than
     joining it: two mounts of one document are two worksheets a teacher can type
     into, and the one that records nothing looks identical.
+
+### LEDGER 0431: A COPY CARRIES ITS DOCUMENT, THE REPO CARRIES EVERY DOCUMENT, AND AN OPEN WORKSHEET HEARS A CLOSE
+
+**A DUPLICATE COPIES THE WORK SURFACE, IN SQL, AND THE CONNECTOR GETS IT FOR
+FREE.** `classroom_duplicate_item` (0193's body, re-run by 0295) now calls
+`_classroom_duplicate_work_surface`, which copies the `classroom_html_assignments`
+row (document, manifest, filename, `show_title`) under a NEW `document_id` and
+sets `assignment_schema_version` 3 in the same transaction, or the IdeaCAD
+`ideacad_editors` row and version 4. The version is written only beside its row.
+The connector's `duplicate_post` calls the same function and needed no change.
+The copy skips the admin season gate of `classroom_set_html_assignment` on
+purpose: it puts back bytes an admin already imported, never new ones.
+`tests/db/classroom-duplicate-html-assignment.test.ts` compares each copy's
+document byte for byte with the literal its own source was given, across two
+classes, and carries the read-only SELECT (in
+`docs/feedback/2026-10-23/RESULTS-0431.md`) that lists duplicates made empty
+before the fix.
+
+**EVERY HTML ASSIGNMENT EXPORTS TO THE COURSE'S FOLDER UNDER `materials/`, AS
+A SPEC DOES.** `readExportSubject` in `src/lib/server/classroom-export.ts` is the one
+reader for both the per-save export and the backfill: a schema-3 item with a
+document writes the file assignment.html (verbatim: no newline added, no re-encode),
+`manifest.json`, `rubric.json` and `material.json`; the manifest decides over a
+leftover spec. The document's `material.json` carries `documentUpdatedAt` and NO
+export time, so exporting an unchanged worksheet again builds the identical
+tree and commits nothing (every commit to `main` is a deploy).
+`createHtmlAssignmentTransports` pings the export after an upload lands.
+**THE CONNECTOR'S `replace_html_assignment` DOES NOT PING IT** (it writes
+server side, in connector code this lane did not own); the backfill catches it
+up. `exportHtmlBackfill`, behind the admin route `/api/classroom/export/html`,
+exports every document the caller can read in commits of at most
+`HTML_BACKFILL_BATCH_BYTES`, gives a second item that would take an existing
+folder its id's first segment (never renaming a frozen `export_slug`), and is
+safe to run again.
+
+**AN OPEN WORKSHEET HEARS A CLOSE THREE WAYS, ALL READING THE STUDENT'S OWN
+ROW, AND NONE IS A NEW POLL.** The item page's call budget is spent
+(`tests/classroom-poll.test.ts`), so: 0295 gives `classroom_presence_ping` a
+`lock` key (the caller's `state` and `submitted_at`), read by `presenceLockOf`;
+the grading page announces the payload-free `lock` topic after a close or reopen
+lands, and a student's page re-reads its row within `LOCK_NOTICE_JITTER_MS`; and
+a save answered `locked` calls `onlocked`, which flips the frame at once. The
+frame's `lock` prop is the page's live answer (`htmlLock` on `ItemDetail`),
+falling back to the load. **What was typed after a close is kept**: the frame
+shows it read only, `hxUnsavedAnswers` lays it out above the frame with Copy,
+and a reopen calls `resendAfterReopen`, which re-arms exactly the blocks refused
+as shut. A close made through the connector arrives by the next beat (about 40
+seconds), not by the notice.
+
+**FULL PAGE IS THE SAME ELEMENT, FIXED, NEVER MOVED.** `expandable` on
+`HtmlAssignmentFrame` draws a Full page key; open, the wrapper is
+`position: fixed` over the window (moving an iframe reloads it), the page's
+scroll is held with `lockDocumentScroll`, and `onexpand` lets `ItemDetail` drop
+its stacking context (`edit-layer-open`) exactly as its edit layer does. Exit
+full page is always on screen because a keydown inside the sandboxed document
+never reaches the window; Escape is the convenience. It is remembered in this
+browser only (`idea.hx.fullpage`), wrapped in try/catch.
+
+**ANSWERS LEFT TAKES THE STUDENT TO AN ANSWER THROUGH THE BRIDGE.**
+`hxAnswersLeft` is `hxProgress`'s own unmet, counted blocks, so the list and the
+chip's count are one answer. A row calls the frame's `focusField`, which focuses
+the frame and sends `idea:focus` (`HX_FOCUS_TYPE`, a field name only); a
+document that knows it focuses the field without scrolling and answers
+`idea:field-box`, and the parent scrolls to that box and rings it. A document
+that predates the message falls back, after a short wait, to a box the parent
+already holds or to the top of the frame, and the list says so. The reference
+responders are `bridgeClient()` in `src/routes/hx/_documents.ts` and the kit's
+`kit.js`; **a live document gets the jump only once it is rebuilt on the kit
+and re-uploaded.** `tools/browser-verify/routes/html-assignment-live*.mjs`
+measures all three at 375 and 1440 on `/dev/html-assignment-live`.
