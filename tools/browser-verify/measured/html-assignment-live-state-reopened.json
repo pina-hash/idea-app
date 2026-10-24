@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "html-assignment-live-state-reopened.mjs",
+	"date": "2026-10-24T05:14:49.044Z",
+	"sha": "db87fe1b3448ba8c61c4a811d5c954eea137f566",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 7538
+}
