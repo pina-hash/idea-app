@@ -4,6 +4,6 @@
 - By: Mr. Pina, through the IDEA & FRC chat (docs/feedback/2026-10-26/QUEUE-0438.md)
 - Owns: src/lib/classroom/**, src/routes/classroom/**, src/lib/connector/** and its generated files, src/routes/dev/** (new harness routes only), supabase/migrations/ (new files only), tests/**, tools/browser-verify/ (route specs only), classroom-updates.json, docs/subsystems/classroom-*.md, docs/subsystems/html-assignments.md, docs/subsystems/connector.md, CLAUDE.md (only where a rule or name changes), docs/prompt-ledger/entries/0438-*, docs/feedback/2026-10-26/RESULTS-0438.md, your own docs/history/ entry. Shared with 0439 (rebase, never merge generated files by hand): classroom-updates.json, generated connector files.
 - Migration permitted: yes, as many as needed, each at the next free number at landing. Claims: 0311, 0312
-- Status: issued
-- Mode: solo (beside 0439)
+- Status: pushed (f4063212, 20a64e5b, 3373a09b, eb2b5d4e, f289e07b, 502b2b39, b74dc689, 60dbf23f, 72c8bdd1; migrations 0311 and 0312 applied, records 1b49d743 and a2b15924)
+- Mode: solo (beside 0439, then 0441)
 - Branch: main (solo)
