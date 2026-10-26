@@ -306,6 +306,7 @@ Generated from the overlay on 2026-10-26.
 
 | Family | read | undo (runs, logged) | confirm (asks first) | by argument | excluded |
 |---|---|---|---|---|---|
+| calendar.yaml | 4 | 0 | 5 | 0 | 3 |
 | Certifications | 12 | 0 | 3 | 0 | 10 |
 | Foundry | 20 | 6 | 6 | 0 | 10 |
 | GAUNTLET | 8 | 3 | 1 | 1 | 11 |
@@ -322,7 +323,15 @@ Generated from the overlay on 2026-10-26.
 | The connector itself | 5 | 1 | 3 | 0 | 7 |
 | Tournaments | 1 | 7 | 10 | 1 | 8 |
 | view-as.yaml | 1 | 0 | 1 | 0 | 3 |
-| **All** | **153** | **110** | **103** | **8** | **240** |
+| **All** | **157** | **110** | **108** | **8** | **243** |
+
+<details><summary>calendar.yaml</summary>
+
+- **Read:** `calendar_events_list`, `calendar_feed_for`, `calendar_feed`, `classroom_item_pacing`
+- **Asks first:** `calendar_event_move`, `calendar_event_remove`, `calendar_event_save`, `classroom_item_pacing_clear`, `classroom_item_pacing_set`
+- **Excluded (the reason is in the YAML):** `calendar_feed_by_token`, `calendar_feed_link_revoke`, `calendar_feed_link`
+
+</details>
 
 <details><summary>Certifications</summary>
 

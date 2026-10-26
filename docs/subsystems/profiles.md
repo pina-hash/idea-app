@@ -157,7 +157,8 @@ inferred from an email.
 
 **`preferences` is a shared JSONB blob with several independent namespaces**
 (`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`,
-`quickNote`, `pathway`). Every
+`quickNote`, `pathway`, and `calendar`: the layers and classes a viewer switched off,
+read by `readCalendarPrefs` and, for the phone link, by 0308's `_calendar_prefs`). Every
 write goes through **`$lib/preferences/profile-io`**, which READS THE ROW FIRST and
 merges one namespace, in one queue per tab (ledger 0297): a writer spreading the
 page-load snapshot was measured erasing a sibling's write one click later (a folded

@@ -62,6 +62,7 @@
 		hxTeamStateMessage,
 		hxTeamTrackerMessage,
 		type HxTeamTracker,
+		type HxSchedule,
 		hxImageBoxStateMessage,
 		hxImagePlacement,
 		hxPostTarget,
@@ -166,6 +167,7 @@
 		teamState = null,
 		/** The team plan's tracker (ledger 0436), sent down as `idea:team-tracker`; null sends nothing. */
 		teamTracker = null,
+		schedule = null,
 		onfieldfocus,
 		onfieldblur,
 		/**
@@ -211,6 +213,8 @@
 		team?: HxTeamProgress | null;
 		teamState?: HxTeamStatePayload | null;
 		teamTracker?: HxTeamTracker | null;
+		/** The post's due date and its pacing, sent on every `idea:state` (ledger 0439, SPEC 17.4). */
+		schedule?: HxSchedule | null;
 		onfieldfocus?: (field: { blockId: string; field: string }) => void;
 		onfieldblur?: (field: { blockId: string; field: string }) => void;
 		expandable?: boolean;
@@ -463,7 +467,7 @@
 		nextImages: Record<string, HxImageState>,
 		nextReadOnly: boolean
 	) {
-		post(hxStateMessage($state.snapshot(nextValues), $state.snapshot(nextImages), nextReadOnly));
+		post(hxStateMessage($state.snapshot(nextValues), $state.snapshot(nextImages), nextReadOnly, schedule ? $state.snapshot(schedule) : null));
 	}
 
 	/** The portal's theme, after the first state and whenever the site's own
@@ -482,7 +486,7 @@
 	    that has not said `idea:ready` has no listener yet, so a send would go
 	    nowhere and the `ready` branch above covers the first one. */
 	$effect(() => {
-		const snapshot = { values, images, shut, ready };
+		const snapshot = { values, images, shut, ready, schedule };
 		if (!snapshot.ready) return;
 		postState(snapshot.values, snapshot.images, snapshot.shut);
 	});

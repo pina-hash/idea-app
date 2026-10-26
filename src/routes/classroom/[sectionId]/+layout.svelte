@@ -27,6 +27,7 @@
 	import QuickPosts from '$lib/classroom/QuickPosts.svelte';
 	import { createQuickPostTransports } from '$lib/classroom/quick-posts';
 	import LiveDoor from '$lib/classroom/live-class/LiveDoor.svelte';
+	import WeekStrip from '$lib/calendar/WeekStrip.svelte';
 	import { liveItemChoices } from '$lib/classroom/live-class/grid';
 	import { createPresenceTransports } from '$lib/classroom/presence/transports';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
@@ -628,6 +629,10 @@
 		style={(input) => saveTeamStyle(data.supabase, input)}
 		details={(input) => saveTeamDetails(data.supabase, input)}
 	/>
+	<!-- THIS WEEK IN THIS CLASS (ledger 0439): due dates, pacing, the team's
+	     tasks and the school's days, under the header where a student looks,
+	     with the door to the class's calendar. It loads itself. -->
+	<WeekStrip supabase={data.supabase} scope={data.section.id} calendarHref={`/classroom/${data.section.id}/calendar`} />
 {/snippet}
 
 {#snippet classNotices()}

@@ -65,6 +65,7 @@ This file holds the rules that apply to every task. Everything specific to one s
 | The class page: teams, themes, header, quick posts, tour, panel layout | [`docs/subsystems/classroom-class-page.md`](docs/subsystems/classroom-class-page.md) | changing what the top or the list of a class shows |
 | Live class, presence, hall pass, projector, polling | [`docs/subsystems/classroom-live.md`](docs/subsystems/classroom-live.md) | the grading roster, the Live tab, the wall, any widget that re-asks the database |
 | Notebook capture, the item page, post thumbnails, what a student owes | [`docs/subsystems/classroom-work.md`](docs/subsystems/classroom-work.md) | Missing and Complete, to-do, home feed, item media |
+| The IDEA calendar, its week strip, phone link and assignment pacing | [`docs/subsystems/calendar.md`](docs/subsystems/calendar.md) | `/calendar`, `src/lib/calendar/`, `calendar_*` functions, a manifest's `pacing`, `schedule` on `idea:state` |
 | Progressive feedback, one student's page | [`docs/subsystems/classroom-feedback.md`](docs/subsystems/classroom-feedback.md) | instructor notes on work, the per-student conference page |
 | Ported HTML assignments (`/hx`) | [`docs/subsystems/html-assignments.md`](docs/subsystems/html-assignments.md) | the document frame, bridge, manifest or answer writes |
 | Foundry (gallery, submit, review, plays) | [`docs/subsystems/foundry.md`](docs/subsystems/foundry.md) | anything under `/foundry` or `student_apps` |

@@ -6,7 +6,7 @@
 		"reads": 38,
 		"asks_first": 96,
 		"excluded": 95,
-		"endpoints": 6,
+		"endpoints": 8,
 		"endpoint_tools": 1
 	},
 	"functions": {
@@ -3316,6 +3316,16 @@
 		}
 	},
 	"endpoints": {
+		"/api/calendar/feed/[token]": {
+			"auto": true,
+			"exclude": "Generated: not an admin action. The route's handler checks no site admin, so it serves or acts for whoever calls it.",
+			"file": "src/routes/api/calendar/feed/[token]/+server.ts"
+		},
+		"/api/calendar/outside": {
+			"auto": true,
+			"exclude": "Generated: not an admin action. The route's handler checks no site admin, so it serves or acts for whoever calls it.",
+			"file": "src/routes/api/calendar/outside/+server.ts"
+		},
 		"/api/classroom/export/html": {
 			"auto": true,
 			"proof": "generic",

@@ -124,6 +124,9 @@ const authedPrefixes = [
 	'/greenline',
 	'/notebook',
 	'/classroom',
+	// The IDEA calendar (ledger 0439) is one person's own; its subscription
+	// link is under /api and reads no session.
+	'/calendar',
 	// Foundry is the signed-in tier: any account may publish, and every surface
 	// under it is about the caller's own work. A redirect is correct because
 	// the section's existence is not the secret.

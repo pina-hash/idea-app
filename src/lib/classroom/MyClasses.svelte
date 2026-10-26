@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import { sectionTitle, sortSections, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
@@ -42,7 +43,8 @@
 		sections,
 		todo = null,
 		todoHref = '/classroom/todo',
-		themes = {}
+		themes = {},
+		week = null
 	}: {
 		ready?: boolean;
 		isStaff?: boolean;
@@ -57,6 +59,8 @@
 		todoHref?: string;
 		/** Each class's voted look (decision 45), keyed by section id; absent draws the plain card. */
 		themes?: Record<string, ClassTheme>;
+		/** This week across every class (ledger 0439), drawn under the title. */
+		week?: Snippet | null;
 	} = $props();
 
 	const ordered = $derived(sortSections(sections));
@@ -165,6 +169,8 @@
 			</p>
 		{/if}
 	</section>
+
+	{#if week}{@render week()}{/if}
 
 	{#if !ready}
 		<section class="card">

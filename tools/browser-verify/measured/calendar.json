@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "calendar.mjs",
+	"date": "2026-10-26T13:09:00.148Z",
+	"sha": "fa3975543b4127494610143bb88da0d7ab94c2e4",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 10,
+	"outsideRows": [],
+	"ms": 6916
+}

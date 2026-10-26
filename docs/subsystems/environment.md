@@ -135,6 +135,19 @@ build break):
   scheduled caller; it sends the bearer when a repository secret of the same
   name is set and calls the open route when it is not, and `CRON_SECRET` locks
   the route only once it is set in BOTH places.
+- **`BOSCO_CALENDAR_ICS_URL` + `ROBOTICS_CALENDAR_ICS_URL`** -- the IDEA
+  calendar's two outside feeds (ledger 0439). Read ONLY by
+  `src/lib/server/calendar/feeds.ts`, server side, cached per instance for
+  `FRESH_MS` and never sent to a browser, printed or logged. **Neither is
+  required.** Unset, the school feed is the Bosco Tech calendar's PUBLIC
+  iCalendar address (`BOSCO_CALENDAR_PUBLIC_ICS`, which answered 200 with the
+  whole calendar on 2026-10-26); set it only if the school makes that calendar
+  private, to the calendar's "Secret address in iCal format". Unset, the
+  robotics layer is the events a site admin adds on this site; set, it is also
+  the Techmen app's own subscription feed (a member's calendar link with
+  `scope=all`), which is a capability link and is treated as a secret.
+  A feed that cannot be read shows a sentence on the calendar and no events,
+  never an error page.
 **RETIRED, and to be removed from the Vercel env: `COIN_API_KEY`,
 `COIN_LEDGER_URL`, `PUBLIC_FOUNDRY_APPS_HOST`, `PUBLIC_FOUNDRY_APP_ORIGIN` and
 `FOUNDRY_TOKEN_SECRET`.** Nothing reads any of them. **Retired on the Supabase

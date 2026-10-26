@@ -218,7 +218,7 @@ details.hx-stuck td:first-child { width: 40%; color: var(--plate-ink); font-weig
 .hx-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .hx-box { position: relative; cursor: pointer; }
 .hx-box.hx-paste-target { border: 2px solid var(--accent); box-shadow: var(--shadow-well), 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-.hx-box.hx-paste-target::after { content: "Ctrl+V pastes here"; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px; background: var(--accent); color: var(--bg0, #111); font: 600 0.75rem/1.6 var(--font-mono, monospace); letter-spacing: 0.06em; white-space: nowrap; }
+.hx-box.hx-paste-target::after { content: "Ctrl+V pastes here"; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px; background: var(--accent); color: var(--bg0, #111); font: 600 0.75rem/1.6 var(--font-mono); letter-spacing: 0.06em; white-space: nowrap; }
 .hx-file-keys { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .hx-note { margin: 0; font-size: 0.92rem; color: var(--text-2); }
 .hx-note.failed { color: var(--crimson); font-weight: 700; }
@@ -299,3 +299,10 @@ details.hx-more > summary {
 .hx-tk-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 6px 0; border-bottom: 1px solid var(--hair); }
 .hx-tk-meta { color: var(--text-2); font-size: 0.9rem; }
 .hx-flag-warn { --idea-lamp: var(--led-amber); }
+
+/* The portal's schedule (ledger 0439): an element with data-idea-schedule. */
+.hx-sched-due { margin: 0 0 0.4rem; font-family: var(--font-mono); font-size: 0.85rem; letter-spacing: 0.04em; }
+.hx-sched { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.hx-sched li { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: baseline; }
+.hx-sched-day, .hx-sched-state { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; }
+.hx-sched li[data-state="done"] .hx-sched-title { opacity: 0.6; }

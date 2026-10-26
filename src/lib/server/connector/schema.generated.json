@@ -1712,6 +1712,259 @@
 				"writes": false
 			}
 		],
+		"calendar_event_move": [
+			{
+				"signature": "calendar_event_move(uuid,date,date)",
+				"args": [
+					{
+						"name": "p_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_starts_on",
+						"type": "date",
+						"has_default": false
+					},
+					{
+						"name": "p_ends_on",
+						"type": "date",
+						"has_default": true
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"is_admin"
+				],
+				"writes": true
+			}
+		],
+		"calendar_event_remove": [
+			{
+				"signature": "calendar_event_remove(uuid)",
+				"args": [
+					{
+						"name": "p_id",
+						"type": "uuid",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"is_admin"
+				],
+				"writes": true
+			}
+		],
+		"calendar_event_save": [
+			{
+				"signature": "calendar_event_save(uuid,text,text,date,date,time without time zone,time without time zone,text,text)",
+				"args": [
+					{
+						"name": "p_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_layer",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_title",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_starts_on",
+						"type": "date",
+						"has_default": false
+					},
+					{
+						"name": "p_ends_on",
+						"type": "date",
+						"has_default": true
+					},
+					{
+						"name": "p_start_time",
+						"type": "time without time zone",
+						"has_default": true
+					},
+					{
+						"name": "p_end_time",
+						"type": "time without time zone",
+						"has_default": true
+					},
+					{
+						"name": "p_location",
+						"type": "text",
+						"has_default": true
+					},
+					{
+						"name": "p_notes",
+						"type": "text",
+						"has_default": true
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"is_admin"
+				],
+				"writes": true
+			}
+		],
+		"calendar_events_list": [
+			{
+				"signature": "calendar_events_list(date,date,text)",
+				"args": [
+					{
+						"name": "p_from",
+						"type": "date",
+						"has_default": true
+					},
+					{
+						"name": "p_to",
+						"type": "date",
+						"has_default": true
+					},
+					{
+						"name": "p_layer",
+						"type": "text",
+						"has_default": true
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "stable",
+				"gates": [
+					"is_admin"
+				],
+				"writes": false
+			}
+		],
+		"calendar_feed": [
+			{
+				"signature": "calendar_feed(date,date)",
+				"args": [
+					{
+						"name": "p_from",
+						"type": "date",
+						"has_default": true
+					},
+					{
+						"name": "p_to",
+						"type": "date",
+						"has_default": true
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "stable",
+				"gates": [
+					"is_admin"
+				],
+				"writes": false
+			}
+		],
+		"calendar_feed_by_token": [
+			{
+				"signature": "calendar_feed_by_token(text,date,date)",
+				"args": [
+					{
+						"name": "p_token",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_from",
+						"type": "date",
+						"has_default": true
+					},
+					{
+						"name": "p_to",
+						"type": "date",
+						"has_default": true
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "stable",
+				"gates": [],
+				"writes": false
+			}
+		],
+		"calendar_feed_for": [
+			{
+				"signature": "calendar_feed_for(text,date,date)",
+				"args": [
+					{
+						"name": "p_email",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_from",
+						"type": "date",
+						"has_default": true
+					},
+					{
+						"name": "p_to",
+						"type": "date",
+						"has_default": true
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "stable",
+				"gates": [
+					"is_admin"
+				],
+				"writes": false
+			}
+		],
+		"calendar_feed_link": [
+			{
+				"signature": "calendar_feed_link(boolean)",
+				"args": [
+					{
+						"name": "p_reset",
+						"type": "boolean",
+						"has_default": true
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [],
+				"writes": true
+			}
+		],
+		"calendar_feed_link_revoke": [
+			{
+				"signature": "calendar_feed_link_revoke()",
+				"args": [],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [],
+				"writes": true
+			}
+		],
 		"cert_admin_delete": [
 			{
 				"signature": "cert_admin_delete(uuid)",
@@ -4903,6 +5156,94 @@
 				"gates": [
 					"classroom_is_staff",
 					"classroom_manages_section"
+				],
+				"writes": true
+			}
+		],
+		"classroom_item_pacing": [
+			{
+				"signature": "classroom_item_pacing(uuid)",
+				"args": [
+					{
+						"name": "p_item_id",
+						"type": "uuid",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "stable",
+				"gates": [],
+				"writes": false
+			}
+		],
+		"classroom_item_pacing_clear": [
+			{
+				"signature": "classroom_item_pacing_clear(uuid,text)",
+				"args": [
+					{
+						"name": "p_item_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_step_id",
+						"type": "text",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"is_admin"
+				],
+				"writes": true
+			}
+		],
+		"classroom_item_pacing_set": [
+			{
+				"signature": "classroom_item_pacing_set(uuid,text,text,date,text[],boolean)",
+				"args": [
+					{
+						"name": "p_item_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_step_id",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_title",
+						"type": "text",
+						"has_default": true
+					},
+					{
+						"name": "p_day",
+						"type": "date",
+						"has_default": true
+					},
+					{
+						"name": "p_modules",
+						"type": "text[]",
+						"has_default": true
+					},
+					{
+						"name": "p_remove",
+						"type": "boolean",
+						"has_default": true
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"is_admin"
 				],
 				"writes": true
 			}

@@ -407,6 +407,8 @@ export type HxParentMessage =
 			 */
 			images: Record<string, HxImageState>;
 			readOnly: boolean;
+			/** The post's due date and its day-by-day plan (ledger 0439, SPEC 17.4). Absent when the page has none. */
+			schedule?: HxSchedule;
 	  }
 	| {
 			/** The portal's theme, sent after every state message and whenever it changes. See `hxThemeOf`. */
@@ -1110,9 +1112,33 @@ export const hxPostTarget = '*';
 export function hxStateMessage(
 	values: Record<string, string | boolean>,
 	images: Record<string, HxImageState>,
-	readOnly: boolean
+	readOnly: boolean,
+	schedule: HxSchedule | null = null
 ): HxParentMessage {
-	return { type: 'idea:state', values, images, readOnly };
+	return schedule ? { type: 'idea:state', values, images, readOnly, schedule } : { type: 'idea:state', values, images, readOnly };
+}
+
+/**
+ * WHAT A DOCUMENT IS TOLD ABOUT TIME (ledger 0439, report d0041188, SPEC
+ * 17.4): the school's today, the POST's due date, so a document shows it
+ * instead of a typed copy that can disagree with the post, and the resolved
+ * day-by-day plan with each step's state for this student. Advisory: a
+ * document must render without it.
+ */
+export interface HxSchedule {
+	today: string;
+	due: { at: string | null; day: string | null };
+	pacing: HxPacingStep[];
+}
+
+export type HxPacingState = 'done' | 'behind' | 'today' | 'next' | 'later';
+
+export interface HxPacingStep {
+	id: string;
+	title: string;
+	day: string;
+	modules: string[];
+	state: HxPacingState;
 }
 
 /**

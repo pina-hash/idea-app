@@ -398,3 +398,32 @@ addEventListener('message', function (e) {
     send({ type: 'idea:field-box', field: d.field, rect: fieldBoxOf(d.field) });
   }, 260);
 });
+
+/* THE POST'S DUE DATE AND DAY-BY-DAY PLAN (ledger 0439, SPEC 17.4). The portal
+   sends `schedule` on idea:state: today, the post's own due date, and the
+   manifest's pacing resolved to school days with this student's state. Any
+   element carrying data-idea-schedule is filled with it; data-idea-due gets the
+   due date alone. So a document never types a date that can disagree with its
+   post. A portal that sends no schedule leaves both elements as written. */
+var KIT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var KIT_PACE_WORDS = { done: 'Done', behind: 'Behind', today: 'Today', next: 'Next', later: 'Coming up' };
+function kitDay(day) {
+  var p = String(day || '').split('-');
+  return p.length === 3 ? KIT_MONTHS[Number(p[1]) - 1] + ' ' + Number(p[2]) : '';
+}
+HX.onState.push(function (d) {
+  var s = d && d.schedule;
+  if (!s || typeof s !== 'object') return;
+  var due = s.due && s.due.day ? 'Due ' + kitDay(s.due.day) : 'No due date';
+  kitQ('[data-idea-due]').forEach(function (el) { el.textContent = due; });
+  var steps = Array.isArray(s.pacing) ? s.pacing : [];
+  kitQ('[data-idea-schedule]').forEach(function (el) {
+    el.innerHTML = '<p class="hx-sched-due">' + kitEsc(due) + '</p>' + (steps.length
+      ? '<ol class="hx-sched">' + steps.map(function (p) {
+          return '<li data-state="' + kitEsc(p.state) + '"><span class="hx-sched-day">' + kitEsc(kitDay(p.day)) +
+            '</span> <span class="hx-sched-title">' + kitEsc(p.title) + '</span> <span class="hx-sched-state">' +
+            kitEsc(KIT_PACE_WORDS[p.state] || '') + '</span></li>';
+        }).join('') + '</ol>'
+      : '');
+  });
+});

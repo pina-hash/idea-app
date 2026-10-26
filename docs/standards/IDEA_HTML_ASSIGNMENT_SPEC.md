@@ -2068,8 +2068,12 @@ over the manifest; the next re-upload keeps them.
   render without it. It is sent with every `idea:state`, so it follows the student's
   typing: a step turns `done` as its last block is saved.
 
-The hx-kit starter draws `schedule` in its header when the document holds an element
-with `data-idea-schedule`; a hand-written document may draw it any way it likes.
+A document built on `tools/hx-kit` gets it drawn for it: any element carrying
+`data-idea-schedule` is filled with the due date and the steps with their states, and any
+element carrying `data-idea-due` with the due date alone (`kit.js`). A hand-written
+document may draw it any way it likes. The page around the document draws the same plan
+above the frame whatever the document does, so a document that ignores `schedule` still
+has its plan on screen.
 
 ---
 

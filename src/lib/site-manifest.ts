@@ -113,6 +113,19 @@ export const APPS: SiteApp[] = [
 		]
 	},
 	{
+		// Ledger 0439: the IDEA calendar. A class's own calendar page sits under
+		// the classroom's routes and is the classroom's.
+		id: 'calendar',
+		label: 'Calendar',
+		prefixes: [
+			'src/routes/calendar/',
+			'src/routes/api/calendar/',
+			'src/lib/calendar/',
+			'src/lib/server/calendar/',
+			'src/routes/dev/calendar/'
+		]
+	},
+	{
 		id: 'maps',
 		label: 'IDEA Maps',
 		prefixes: ['src/routes/maps/', 'src/lib/maps/', 'src/routes/dev/maps-edit/']

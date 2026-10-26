@@ -1,0 +1,114 @@
+# THE IDEA CALENDAR (ledger 0439, migration 0308). One entry per database
+# function the calendar calls. The no-school days are classroom.yaml's
+# classroom_no_school_day_set, which the calendar reads and does not repeat.
+#
+#   surface: call     reached through site_call (site_find_tool lists it)
+#   level:            read | undo | confirm (asks first)
+#   exclude: <reason> never reachable, and why
+
+calendar_feed:
+  surface: call
+  level: read
+  describe: His own IDEA calendar between two days, every layer, his classes, team tasks, pacing, no-school days and program events.
+  say: ["what's on my calendar this week", "what's due next week", "what's coming up in November"]
+  args:
+    p_from: {name: from, describe: "The first day, as YYYY-MM-DD; leave it out for a week ago."}
+    p_to: {name: to, describe: "The last day, as YYYY-MM-DD; leave it out for six weeks ahead."}
+
+calendar_feed_for:
+  surface: call
+  level: read
+  describe: One person's IDEA calendar exactly as they see it, between two days, with the layers and classes they switched off.
+  say: ["what's on Ana's calendar this week", "show me what Daniel has due", "read Mateo's calendar for November"]
+  args:
+    p_email: {name: student, resolve: student, describe: "The person, as he said the name."}
+    p_from: {name: from, describe: "The first day, as YYYY-MM-DD; leave it out for a week ago."}
+    p_to: {name: to, describe: "The last day, as YYYY-MM-DD; leave it out for six weeks ahead."}
+
+calendar_events_list:
+  surface: call
+  level: read
+  describe: The IDEA and robotics events on the calendar between two days, with their ids, to pick one to move or remove.
+  say: ["list the robotics events", "what IDEA events are on the calendar", "which events are in December"]
+  args:
+    p_from: {name: from, describe: "The first day, as YYYY-MM-DD; leave it out for a week ago."}
+    p_to: {name: to, describe: "The last day, as YYYY-MM-DD; leave it out for four months ahead."}
+    p_layer: {name: calendar, describe: "idea or robotics; leave it out for both."}
+
+calendar_event_save:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Add an IDEA or robotics event to everyone's calendar, or change one by its id; it asks first.
+  say: ["add Beach Blitz Oct 30 to Nov 1 to the robotics calendar", "put the SCAR event on Dec 5 on the IDEA calendar", "rename the open house event"]
+  args:
+    p_id: {name: event, describe: "The event's id to change one, from the event list; leave it out to add a new one."}
+    p_layer: {name: calendar, describe: "idea or robotics."}
+    p_title: {name: name, describe: "What the event is called."}
+    p_starts_on: {name: first day, describe: "The first day, as YYYY-MM-DD."}
+    p_ends_on: {name: last day, describe: "The last day of a multi-day event, as YYYY-MM-DD; leave it out for one day."}
+    p_start_time: {name: starts, describe: "The start time in school time, like 15:30; leave it out for all day."}
+    p_end_time: {name: ends, describe: "The end time in school time, like 18:00."}
+    p_location: {name: where, describe: "Where it is."}
+    p_notes: {name: notes, describe: "A line of detail people should know."}
+
+calendar_event_move:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Move an IDEA or robotics event to another day; a multi-day event keeps its length unless a last day is given. It asks first.
+  say: ["move the robotics build day to Thursday", "push the IDEA showcase to Dec 10", "move Beach Blitz a week later"]
+  args:
+    p_id: {name: event, describe: "The event's id, from the event list."}
+    p_starts_on: {name: first day, describe: "The new first day, as YYYY-MM-DD."}
+    p_ends_on: {name: last day, describe: "The new last day, as YYYY-MM-DD, only to change the length."}
+
+calendar_event_remove:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Take an IDEA or robotics event off everyone's calendar; it asks first.
+  say: ["cancel the robotics meeting on the 12th", "take the open house off the calendar", "remove the SCAR event"]
+  args:
+    p_id: {name: event, describe: "The event's id, from the event list."}
+
+classroom_item_pacing:
+  surface: call
+  level: read
+  describe: An assignment's day-by-day plan, each step on its school day, with its due date.
+  say: ["what's the pacing for the Design post", "show me the day by day plan for Launcher plan", "when should they finish the sketches"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+
+classroom_item_pacing_set:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Move, rename, hide or add one step of an assignment's day-by-day plan, for every class it is in; it asks first.
+  say: ["move the sketch step of the Design post to Nov 3", "add a step to Launcher plan, mock-up done by Oct 29", "drop the review step from the Shop Fix pacing"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_step_id: {name: step, describe: "The step's id, from the plan; a new id adds a step."}
+    p_title: {name: title, describe: "The step's new words; leave it out to keep them."}
+    p_day: {name: day, describe: "The step's new day, as YYYY-MM-DD; leave it out to keep it."}
+    p_modules: {name: parts, describe: "The parts of the assignment the step covers, by their ids; leave it out to keep them."}
+    p_remove: {name: hide, describe: "True to hide the step."}
+
+classroom_item_pacing_clear:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Put one step of an assignment's plan back to what the assignment itself says, or drop a step added by hand; it asks first.
+  say: ["put the sketch step back", "undo my change to the Design pacing", "reset the review step"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_step_id: {name: step, describe: "The step's id, from the plan."}
+
+calendar_feed_by_token:
+  exclude: The phone subscription's own read, by a person's private link with no session; it is never a staff action and a chat has no link to give it.
+
+calendar_feed_link:
+  exclude: Makes or replaces the caller's own private calendar link; it acts as whoever calls it, and a link made through a chat would be his, not a student's.
+
+calendar_feed_link_revoke:
+  exclude: Turns off the caller's own private calendar link; it acts as whoever calls it, so through the connector it could only ever turn off his.

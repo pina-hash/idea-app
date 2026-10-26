@@ -35,6 +35,8 @@ export const SITE_PLATE_PREFIXES: readonly string[] = [
 	'/archive',
 	'/armory',
 	'/auth',
+	// Ledger 0439: the IDEA calendar.
+	'/calendar',
 	'/certifications',
 	// Ledger 0422: the coin home.
 	'/coin',
@@ -61,6 +63,7 @@ export const SITE_PLATE_EXCLUDE: readonly RegExp[] = [/^\/tournaments\/[^/]+\/tv
  */
 export const SITE_PLATE_DEV_PREFIXES: readonly string[] = [
 	'/dev/home-order',
+	'/dev/calendar',
 	'/dev/home-feed',
 	'/dev/tour',
 	'/dev/themes',

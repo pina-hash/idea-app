@@ -10,7 +10,7 @@
 	} from '$lib/ideacad/mount';
 	import type { IdeacadStoreState } from '$lib/ideacad/store';
 	import type { Snippet } from 'svelte';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import {
 		ideacadAttachRefusal,
 		ideacadAttachState,
@@ -170,6 +170,9 @@
 	import AnswersLeft from '$lib/classroom/html-assignment/AnswersLeft.svelte';
 	import { hxAnswersLeft, hxUnsavedAnswers } from '$lib/classroom/html-assignment/answers-left';
 	import { hxProgress } from '$lib/classroom/html-assignment/progress';
+	import { page } from '$app/state';
+	import { hxScheduleFor, loadItemPacing, type ItemPacing } from '$lib/calendar/item-schedule';
+	import PacingStrip from '$lib/calendar/PacingStrip.svelte';
 	import {
 		htmlAssignmentMount,
 		htmlAssignmentServed,
@@ -695,6 +698,37 @@
 	 */
 	const htmlProgressManifest = $derived(
 		htmlAssignment && htmlManifestShaped(htmlAssignment.manifest) ? htmlAssignment.manifest : null
+	);
+
+	/**
+	 * THE DUE DATE AND THE DAY-BY-DAY PLAN (ledger 0439, SPEC 17). Read once per
+	 * item through the page's own client (`classroom_item_pacing` re-checks the
+	 * caller); a harness with no client, or a database without 0308, shows no
+	 * plan. Judged against the rail's own `hxProgress`, and sent down on
+	 * `idea:state` as `schedule`, so the strip and the document agree.
+	 */
+	let itemPacing = $state<ItemPacing | null>(null);
+	$effect(() => {
+		const id = item.id;
+		const client = (page.data as { supabase?: Parameters<typeof loadItemPacing>[0] } | undefined)?.supabase;
+		const want = htmlMount === 'html';
+		untrack(() => {
+			itemPacing = null;
+			if (!want || !client) return;
+			void loadItemPacing(client, id).then((p) => {
+				if (item.id === id) itemPacing = p;
+			});
+		});
+	});
+	const htmlSchedule = $derived(
+		itemPacing
+			? hxScheduleFor(
+					{ ...itemPacing, dueAt: item.due_at ?? itemPacing.dueAt },
+					htmlAnswers && htmlProgressManifest
+						? hxProgress(htmlProgressManifest, htmlAnswers.values, htmlAnswers.images, { unsaved: htmlAnswers.status?.unsaved ?? [] })
+						: null
+				)
+			: null
 	);
 
 	/** The lock the frame shows: the page's live answer when it has one, else the load's. */
@@ -2878,6 +2912,10 @@
 					-->
 					<p class="note">{HTML_ASSIGNMENT_NOT_LIVE}</p>
 				{:else}
+				{#if htmlSchedule}
+					<!-- THE DAY-BY-DAY PLAN (ledger 0439): above the rail, parent chrome. -->
+					<PacingStrip schedule={htmlSchedule} />
+				{/if}
 				{#if htmlAnswers && htmlProgressManifest}
 					<!--
 						THE PROGRESS RAIL (0142). Parent chrome above the frame, so every
@@ -3011,6 +3049,7 @@
 						team={htmlTeam}
 						teamState={htmlTeamDoc?.statePayload ?? null}
 						teamTracker={htmlTeamDoc?.tracker ?? null}
+						schedule={htmlSchedule}
 						onfieldfocus={htmlTeamDoc ? (f) => void htmlTeamDoc?.focus(f.blockId, f.field) : undefined}
 						onfieldblur={htmlTeamDoc ? (f) => void htmlTeamDoc?.blur(f.blockId) : undefined}
 						onnote={feedback ? (_field, threadId) => feedback?.show(threadId) : null}
