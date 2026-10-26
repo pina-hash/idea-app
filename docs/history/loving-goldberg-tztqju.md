@@ -27,6 +27,10 @@ entry is `0436-unit4-team-launcher.md` (its Notes say so).
 | f | team board, machine counts, push on a new request | 0306 | `0b8b9fd`, `1a99f1f` | `9902525` |
 | addendum 2 | teams by voice through the connector | 0307 | `7a3ca47`, corrected `5fda514` | `3eabe4d` |
 
+After the closing push the live footer read **IDEA Portal v1.2549 · 84c0f6b**
+(Oct 26, 2026); `84c0f6b` is a later ledger's docs commit on top of this ledger's
+last, `1087880`, so the deploy carries all of it.
+
 Final migration numbers, in apply order (all applied by `migrate.yml`):
 
 - `supabase/migrations/0301_html_manifest_team_roles.sql`
