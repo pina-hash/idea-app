@@ -1372,7 +1372,8 @@
 			canManageDeck ||
 			canManageCheckIn ||
 			hasState ||
-			!!revisionTransports
+			!!revisionTransports ||
+			canSwitchTitle
 	);
 	/**
 	 * THE THREE GROUPS THE BODY IS SORTED INTO, and each is an OR of exactly the
@@ -1404,7 +1405,7 @@
 			canManageCheckIn
 	);
 	const groupPrivate = $derived(hasInstructorMaterial);
-	const groupPost = $derived(editable || !!revisionTransports);
+	const groupPost = $derived(editable || !!revisionTransports || canSwitchTitle);
 	/**
 	 * THE HEADER'S SHORTCUT TO THE GRADING CONSOLE.
 	 *
@@ -2225,6 +2226,24 @@
 					{#if groupPost}
 						<section class="insp-group" data-testid="insp-group-post">
 							<h2 class="insp-group-label">This post</h2>
+							{#if canSwitchTitle}
+								<!-- THE POST TITLE ABOVE A PORTED WORKSHEET (0284) is an edit option,
+								     so it lives here and not on the page (ledger 0438, report 3ac88030). -->
+								<div class="insp-block title-block">
+									<h3 class="section-label">Post title on the page</h3>
+									<span class="card-actions">
+										<button
+											type="button"
+											class="btn secondary tiny"
+											aria-pressed={titleShown}
+											disabled={titleBusy}
+											onclick={toggleTitle}
+											data-testid="item-title-switch"
+										>{titleShown ? 'Hide title' : 'Show title'}</button>
+									</span>
+									{#if titleError}<span class="title-error" role="alert">{titleError}</span>{/if}
+								</div>
+							{/if}
 							{#if editable}
 								<div class="insp-block">
 									<!-- THE ONE BLOCK THAT CARRIED NO LABEL OF ANY KIND. Three
@@ -2267,34 +2286,31 @@
 		</section>
 	{/if}
 
-	<section class="hero">
+	<!-- A HIDDEN TITLE LEAVES THE HERO ENTIRELY (ledger 0438, reports 3ac88030 and
+	     36198988). It stays in the outline for assistive technology, but OUTSIDE
+	     `.hero`: the plate theme's title bar rule (`.hero h1` in plate.css) outranks
+	     `.sr-title`, so a hidden heading inside the hero kept its padding and both
+	     hazard decals, and drew an empty slashed bar a full row tall. -->
+	{#if !titleShown}<h1 class="sr-title">{itemTitle(item)}</h1>{/if}
+	<section class="hero" class:hero-compact={!titleShown} data-testid="item-hero">
 		<!--
-			ONE LINE FOR THE KIND, THE CHIPS AND THE TITLE SWITCH. The kind label, the
-			Pinned and Updated chips and the manager's switch each used to take a row
-			of their own (report 8812b4ba, "short single-line items taking a full
-			row"). They share this line and it wraps on a phone.
+			ONE LINE FOR THE KIND AND THE CHIPS. The kind label and the Pinned and
+			Updated chips each used to take a row of their own (report 8812b4ba,
+			"short single-line items taking a full row"). They share this line and
+			it wraps on a phone. With the title hidden the due, points and posted
+			line joins them, so the whole header is one line (ledger 0438). The
+			show-title switch is an edit option and lives in the inspector's
+			"This post" group, not here.
 		-->
 		<div class="hero-top">
 			<span class="eyebrow">{itemKindLabel(item.kind)}</span>
 			{#if item.pinned}<span class="chip pin-chip">Pinned</span>{/if}
 			{#if showUpdated}<span class="chip updated-chip">Updated</span>{/if}
-			{#if canSwitchTitle}
-				<button
-					type="button"
-					class="title-switch"
-					aria-pressed={titleShown}
-					disabled={titleBusy}
-					onclick={toggleTitle}
-					data-testid="item-title-switch"
-				>{titleShown ? 'Hide title' : 'Show title'}</button>
-				{#if titleError}<span class="title-error" role="alert">{titleError}</span>{/if}
-			{/if}
 		</div>
 		<!-- A PORTED HTML ASSIGNMENT CARRIES ITS OWN TITLE INSIDE THE DOCUMENT, so the
 		     post title is hidden by default and a per-post switch brings it back
-		     (0284). The heading stays in the page for screen readers and for the
-		     document outline either way. -->
-		<h1 class:sr-title={!titleShown}>{itemTitle(item)}</h1>
+		     (0284). -->
+		{#if titleShown}<h1>{itemTitle(item)}</h1>{/if}
 		<p class="meta-line">
 			{#if item.kind === 'assignment'}
 				<!-- NO DUE SEGMENT WHEN THERE IS NO DUE DATE. `formatDue(null)` is
@@ -3509,16 +3525,22 @@
 		flex-wrap: wrap;
 		gap: 0.3rem 0.5rem;
 	}
-	.title-switch {
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		min-height: 2rem;
-		padding: 0 0.7rem;
-		border: 1px dashed var(--gold);
-		border-radius: var(--radius-card);
-		background: none;
-		color: var(--text-2);
-		cursor: pointer;
+	/* THE TITLE HIDDEN: ONE COMPACT LINE (ledger 0438). The kind, the chips and
+	   the due, points and posted line share a row and wrap together on a phone,
+	   with less air above and below than a hero with a title needs. */
+	:global(.cr-root) .hero.hero-compact,
+	.hero.hero-compact {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.15rem 0.75rem;
+		padding: var(--space-2) 0 var(--space-2);
+	}
+	.hero.hero-compact .meta-line,
+	.hero.hero-compact .eyebrow {
+		/* app.css's landing `.hero .eyebrow` carries 1.5rem under it, for a
+		   title that is not here. */
+		margin: 0;
 	}
 	.title-error {
 		font-size: 0.72rem;

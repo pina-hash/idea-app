@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "item-header-manage-1-switch-1-shown-1.mjs",
+	"date": "2026-10-26T12:14:08.442Z",
+	"sha": "84c0f6bbe65031e868a3285c264dd27f2d239b6c",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 12084
+}
