@@ -1,4 +1,4 @@
-# 0436 IDEA_HTML_ASSIGNMENT_AUTHORING 2.3 and hx-kit: the paste target is marked
+# 0438 IDEA_HTML_ASSIGNMENT_AUTHORING 2.3 and hx-kit: the paste target is marked
 
 - Issued: 2026-10-26
 - By: Mr. Pina, from the IDEA-Blade chat. Mode: solo.

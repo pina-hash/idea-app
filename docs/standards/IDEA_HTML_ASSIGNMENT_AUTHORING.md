@@ -558,7 +558,7 @@ new term.
 
 ## Changelog
 
-- **2.3 (2026-10-26).** Ledger 0436. From Mr. Pina opening IDEA-Blade 01 and 02 at 3 AM before
+- **2.3 (2026-10-26).** Ledger 0438. From Mr. Pina opening IDEA-Blade 01 and 02 at 3 AM before
   class: F10, the paste target is always marked and optional picture boxes sit in the open; F9b,
   the step's done mark counts a box the student's pick made necessary; F14, thumbnails carry
   the title and differ across a unit; F4, video cards show the real YouTube thumbnail with a
