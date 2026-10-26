@@ -564,3 +564,27 @@ export function inboxCounts(threads: readonly FeedbackThread[], f: Omit<InboxFil
 	for (const v of INBOX_VIEWS) out[v.id] = inboxThreads(threads, { ...f, view: v.id }).length;
 	return out;
 }
+
+/**
+ * THE NOTES ON ONE ASSIGNMENT, BY STUDENT, AS AN EXPORT CARRIES THEM (ledger
+ * 0438): every thread oldest first, every message in order, a removed message
+ * already absent from the read. Keyed by the lowercased address the roster uses.
+ */
+export function notesForExport(
+	threads: readonly FeedbackThread[]
+): Map<string, { blockId: string | null; state: 'open' | 'fixed' | 'resolved'; createdAt: string; messages: { from: 'instructor' | 'student'; at: string; text: string }[] }[]> {
+	const out = new Map<string, ReturnType<typeof notesForExport> extends Map<string, infer V> ? V : never>();
+	const sorted = [...threads].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+	for (const t of sorted) {
+		const key = t.studentEmail.trim().toLowerCase();
+		const list = out.get(key) ?? [];
+		list.push({
+			blockId: t.blockId,
+			state: t.resolvedAt ? 'resolved' : t.fixedAt ? 'fixed' : 'open',
+			createdAt: t.createdAt,
+			messages: t.messages.map((m) => ({ from: m.role === 'student' ? 'student' : 'instructor', at: m.createdAt, text: m.body }))
+		});
+		out.set(key, list);
+	}
+	return out;
+}

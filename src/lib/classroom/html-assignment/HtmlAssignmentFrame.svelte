@@ -296,6 +296,7 @@
 				fieldBoxes = {};
 				announced = new Set();
 				toldNotes = null;
+				toldTeam = null;
 				toldTeamState = null;
 				toldTracker = null;
 				video = null;
@@ -307,6 +308,14 @@
 				postTheme();
 				untrack(() => tellNotes(noteFieldList));
 				untrack(() => {
+					// EVERY TEAM MESSAGE GOES DOWN AGAIN ON A SECOND `idea:ready` (ledger
+					// 0438, report 4fbab5ca): `ready` stays true across a reload in place,
+					// so the effects below never re-run for it, and the progress line
+					// used to stay blank until a teammate saved something.
+					if (team) {
+						toldTeam = JSON.stringify(team);
+						post(hxTeamProgressMessage(team));
+					}
 					if (teamTracker) {
 						const tracker = hxTeamTrackerMessage(teamTracker);
 						toldTracker = JSON.stringify(tracker);

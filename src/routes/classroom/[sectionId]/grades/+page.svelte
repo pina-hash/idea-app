@@ -10,4 +10,5 @@
 	section={data.section}
 	standings={data.standings}
 	resubmittedAfterGrading={data.resubmittedAfterGrading}
+	gradebook={data.gradebook}
 />

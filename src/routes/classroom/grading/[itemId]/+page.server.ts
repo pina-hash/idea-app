@@ -4,6 +4,8 @@ import { POSTING_SELECT, normalizePostings, selectItemsWithDoc } from '$lib/clas
 import { managedPostedSections } from '$lib/classroom/grading-bulk';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
 import { loadHtmlAssignment } from '$lib/classroom/html-assignment/load';
+import { retiredBlocksInto } from '$lib/classroom/html-assignment/store';
+import { hxIsTeamManifest } from '$lib/classroom/html-assignment/team-doc';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -71,6 +73,19 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		// item is not live), exactly as the per-class console does.
 		loadHtmlAssignment(supabase, item, item.kind)
 	]);
+
+	// A TEAM ASSIGNMENT IS GRADED BY TEAM (ledger 0436, 0305), exactly as the
+	// per-class console sends it: the database refuses a grade given one
+	// student at a time. The first managed class's team page is the one door.
+	if (html.htmlAssignment && hxIsTeamManifest(html.htmlAssignment.manifest)) {
+		redirect(303, `/classroom/${ordered[0].id}/item/${item.id}/teams`);
+	}
+
+	// RETIRED QUESTIONS (ledger 0422) show in grading here too (ledger 0438,
+	// report 4fbab5ca): the per-class console folded them in and this one did
+	// not, so Answers and Answers by question dropped them while the exports
+	// kept them. One reader for both consoles, `retiredBlocksInto`.
+	if (html.htmlAssignment) await retiredBlocksInto(supabase, item.id, html.htmlAssignment);
 
 	return {
 		// The console's `section` prop is its title line and its export default.

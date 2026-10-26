@@ -51,7 +51,7 @@
 	import FeedbackPanel from '$lib/classroom/feedback/FeedbackPanel.svelte';
 	import FeedbackDrawing from '$lib/classroom/feedback/FeedbackDrawing.svelte';
 	import { FeedbackSession } from '$lib/classroom/feedback/session.svelte';
-	import { fieldNotes, marksByField, type FeedbackThread } from '$lib/classroom/feedback/notes';
+	import { fieldNotes, marksByField, notesForExport, type FeedbackThread } from '$lib/classroom/feedback/notes';
 	import type { FeedbackTransports } from '$lib/classroom/feedback/transports';
 	import {
 		drawablePictures,
@@ -2453,7 +2453,24 @@
 	let exportNote = $state<string | null>(null);
 	let exporting = $state(false);
 
-	function payloadFor(scope: ExportScope) {
+	/**
+	 * THE INSTRUCTOR'S NOTES ON THIS ASSIGNMENT, FOR AN EXPORT (ledger 0438,
+	 * report 4fbab5ca). One read at the click, through the console's own
+	 * feedback transport, which answers exactly the notes this caller can read
+	 * here. No transport, or a read that fails, exports as before with no notes.
+	 */
+	async function exportNotes() {
+		if (!feedback) return null;
+		try {
+			const threads = await feedback.list({ itemId: item.id });
+			return threads ? notesForExport(threads) : null;
+		} catch {
+			return null;
+		}
+	}
+
+	async function payloadFor(scope: ExportScope) {
+		const notes = await exportNotes();
 		return buildGradingExport({
 			section: exportSection,
 			item,
@@ -2468,11 +2485,12 @@
 			scope,
 			identity,
 			// Threaded from the click, never read inside the pure module.
-			now: new Date()
+			now: new Date(),
+			notes
 		});
 	}
 
-	function exportJson(scope: ExportScope) {
+	async function exportJson(scope: ExportScope) {
 		if (scope === 'student' && !selected) {
 			exportNote = 'Choose a student in the roster first, then export their work.';
 			return;
@@ -2484,7 +2502,7 @@
 			exportNote = `${selected?.displayName} is not in ${sectionTitle(exportSection)}. Switch the class above, or open a student in it.`;
 			return;
 		}
-		const payload = payloadFor(scope);
+		const payload = await payloadFor(scope);
 		download(
 			new Blob([gradingExportJson(payload)], { type: 'application/json;charset=utf-8' }),
 			gradingExportFilename(payload, 'json')
@@ -2496,7 +2514,7 @@
 		if (exporting) return;
 		exporting = true;
 		try {
-			const payload = payloadFor('section');
+			const payload = await payloadFor('section');
 			const bytes = await buildXlsx(gradingExportSheets(payload));
 			download(
 				new Blob([bytes as unknown as BlobPart], {
@@ -2520,8 +2538,8 @@
 	 * JSON and the workbook -- the class picker, the identity switch and the
 	 * roster order are theirs -- and no read of anything new.
 	 */
-	function exportAnswersCsv() {
-		const payload = payloadFor('section');
+	async function exportAnswersCsv() {
+		const payload = await payloadFor('section');
 		download(
 			new Blob([gradingAnswersCsv(payload)], { type: 'text/csv;charset=utf-8' }),
 			gradingAnswersCsvFilename(payload)

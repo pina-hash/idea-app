@@ -773,3 +773,22 @@ export function withRetiredBlocks<T>(manifest: T, retired: ReadonlyArray<{ block
 		modules: [...m.modules, { id: 'retired-questions', title: 'Retired questions', points: 0, blocks, criteria: [] }]
 	} as unknown as T;
 }
+
+/**
+ * THE ONE READ OF A WORKSHEET'S RETIRED QUESTIONS FOR A GRADING CONSOLE (ledger
+ * 0438): both consoles call this, so the per-class one and the cross-class one
+ * cannot disagree about which questions a class answered. Before 0290 the read
+ * fails and the manifest is left exactly as stored.
+ */
+export async function retiredBlocksInto(
+	supabase: { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> },
+	itemId: string,
+	htmlAssignment: { manifest: unknown }
+): Promise<void> {
+	const { data, error } = await supabase.rpc('classroom_html_retired_blocks', { p_item_id: itemId });
+	if (error || !Array.isArray(data) || data.length === 0) return;
+	htmlAssignment.manifest = withRetiredBlocks(
+		htmlAssignment.manifest,
+		data as Array<{ block_id: string; block: Record<string, unknown>; module_title?: string | null }>
+	);
+}

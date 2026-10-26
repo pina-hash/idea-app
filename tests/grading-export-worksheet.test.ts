@@ -911,3 +911,48 @@ describe('the answers CSV (ledger 0360)', () => {
 		);
 	});
 });
+
+describe('teacher notes in the exports (ledger 0438, report 4fbab5ca)', () => {
+	const NOTES = new Map([
+		[
+			ALICE_EMAIL,
+			[
+				{
+					blockId: 'hd-name',
+					state: 'open' as const,
+					createdAt: '2026-09-24T10:00:00.000Z',
+					messages: [
+						{ from: 'instructor' as const, at: '2026-09-24T10:00:00.000Z', text: 'Spell out the full name.' },
+						{ from: 'student' as const, at: '2026-09-24T11:00:00.000Z', text: 'Done.' }
+					]
+				}
+			]
+		]
+	]);
+
+	it('absent notes leave every student without a notes key, so an export made without them is unchanged', () => {
+		const students = buildGradingExport(input()).assignments[0].students;
+		expect(students.every((s) => !('notes' in s))).toBe(true);
+		expect(gradingAnswersCsv(buildGradingExport(input()))).not.toContain('Teacher notes');
+	});
+
+	it('handed in, each student carries their own notes and only their own', () => {
+		const students = buildGradingExport(input({ notes: NOTES })).assignments[0].students;
+		const alice = students.find((s) => s.email === ALICE_EMAIL)!;
+		expect(alice.notes).toHaveLength(1);
+		expect(alice.notes![0].messages.map((m) => m.text)).toEqual(['Spell out the full name.', 'Done.']);
+		const others = students.filter((s) => s.email !== ALICE_EMAIL);
+		expect(others.length).toBeGreaterThan(0);
+		expect(others.every((s) => Array.isArray(s.notes) && s.notes.length === 0)).toBe(true);
+		const csv = gradingAnswersCsv(buildGradingExport(input({ notes: NOTES })));
+		expect(csv).toContain('Teacher notes');
+		expect(csv.match(/Spell out the full name\./g)).toHaveLength(1);
+	});
+
+	it('the workbook gains a Teacher notes sheet, one row per message', async () => {
+		const sheets = gradingExportSheets(buildGradingExport(input({ notes: NOTES })));
+		const notes = sheets.find((s) => s.name === 'Teacher notes');
+		expect(notes?.rows).toHaveLength(2);
+		expect(gradingExportSheets(buildGradingExport(input())).some((s) => s.name === 'Teacher notes')).toBe(false);
+	});
+});

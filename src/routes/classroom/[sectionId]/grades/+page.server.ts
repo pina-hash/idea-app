@@ -12,6 +12,7 @@ import {
 	readWorkPages,
 	readWorksheetLatches
 } from '$lib/classroom/transports';
+import { gradebookFor, type GradebookScore } from '$lib/classroom/gradebook-export';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -127,6 +128,9 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage: true,
 		standings: assignmentStandings(content.items, submissions, students.length, finished),
+		// THE GRADES EXPORT (ledger 0438): the same rows, reduced to this class's roster.
+		gradebook: gradebookFor(content.items, students, rows as unknown as GradebookScore[]),
+
 		resubmittedAfterGrading: countResubmittedAfterGrading(rows)
 	};
 };

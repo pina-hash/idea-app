@@ -1,4 +1,4 @@
-import { withRetiredBlocks } from '$lib/classroom/html-assignment/store';
+import { retiredBlocksInto } from '$lib/classroom/html-assignment/store';
 import { error, redirect } from '@sveltejs/kit';
 import { normalizeItemRow, normalizeSectionRow } from '$lib/classroom/classroom';
 import { SECTION_SELECT, selectItemsWithDoc } from '$lib/classroom/transports';
@@ -13,7 +13,6 @@ import type { PageServerLoad } from './$types';
  * item they can read); the real boundary is classroom_can_review_submission
  * inside every grading RPC plus the RLS on the rows the console loads.
  */
-type RetiredRow = { block_id: string; block: Record<string, unknown>; module_title: string | null };
 
 export const load: PageServerLoad = async ({ params, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
@@ -81,12 +80,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	// RETIRED QUESTIONS (ledger 0422): their stored answers show in grading
 	// under the question they answered. Before 0290 the read fails and the
 	// manifest is the stored one, unchanged.
-	if (htmlAssignment) {
-		const { data: retired, error: retiredError } = await supabase.rpc('classroom_html_retired_blocks', { p_item_id: item.id });
-		if (!retiredError && Array.isArray(retired) && retired.length) {
-			htmlAssignment.manifest = withRetiredBlocks(htmlAssignment.manifest, retired as RetiredRow[]);
-		}
-	}
+	if (htmlAssignment) await retiredBlocksInto(supabase, item.id, htmlAssignment);
 
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),

@@ -26,6 +26,12 @@
 		},
 		{
 			"date": "2026-10-26",
+			"title": "Team progress comes back after a reload",
+			"body": "On a team worksheet, your teammates' progress used to stay blank after the page reloaded until somebody saved again. It now shows again as soon as the worksheet is back.",
+			"tags": ["teams"]
+		},
+		{
+			"date": "2026-10-26",
 			"title": "A tidier header on worksheets",
 			"body": "When a worksheet carries its own title, the line above it is now one short row: the kind of post, any Updated tag, and the due date and points. The empty striped bar that used to sit there is gone.",
 			"tags": ["assignments"]

@@ -410,6 +410,24 @@ export interface ExportedStudent {
 	scoreTotal: number | null;
 	/** `teacher_comment`: the grader's note, released to the student on return. */
 	privateComment: string | null;
+	/**
+	 * THE INSTRUCTOR'S NOTES ON THIS STUDENT'S WORK (progressive feedback, 0238),
+	 * oldest first, every reply included (ledger 0438, report 4fbab5ca: "no export
+	 * carries teacher notes"). Present only when the console handed notes in, so
+	 * an export made without them is byte-identical to before.
+	 */
+	notes?: ExportedNote[];
+}
+
+/** One note thread on a student's work, as an export carries it. */
+export interface ExportedNote {
+	/** The question it is pinned to (its block id), or null for the whole work. */
+	blockId: string | null;
+	/** open, fixed (the student said Fixed it) or resolved. */
+	state: 'open' | 'fixed' | 'resolved';
+	createdAt: string;
+	/** Every message in order: who wrote it (`instructor` or `student`), when, and its words. */
+	messages: { from: 'instructor' | 'student'; at: string; text: string }[];
 }
 
 export interface ExportedAssignment {
@@ -475,6 +493,11 @@ export interface GradingExportInput {
 	identity: ExportIdentity;
 	/** Threaded in: a module that reads its own clock cannot be asserted. */
 	now: Date;
+	/**
+	 * The instructor's notes on each student's work, keyed by roster email
+	 * (ledger 0438). Absent: no `notes` key on any student, as before.
+	 */
+	notes?: ReadonlyMap<string, ExportedNote[]> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1095,9 +1118,10 @@ export function buildGradingExport(input: GradingExportInput): GradingExport {
 			: roster;
 	// A team assignment's maximum is one role block, not all of them (ledger 0436).
 	const outOf = rubric?.length ? teamRubricOutOf(rubric, spec ? null : input.manifest) : (item.points ?? 0);
-	const students = chosen.map((row) =>
-		exportStudent(row, labels.get(row.email) ?? 'Student', spec, rubric, outOf, identity, hx)
-	);
+	const students = chosen.map((row) => {
+		const out = exportStudent(row, labels.get(row.email) ?? 'Student', spec, rubric, outOf, identity, hx);
+		return input.notes ? { ...out, notes: input.notes.get(row.email) ?? [] } : out;
+	});
 
 	return {
 		export: {
@@ -1475,12 +1499,14 @@ export function gradingAnswersCsv(payload: GradingExport): string {
 	const named = payload.export.identity === 'included';
 	const students = payload.assignments[0]?.students ?? [];
 	const columns = worksheetAnswerColumns(students);
+	const hasNotes = students.some((s) => s.notes !== undefined);
 	const header = [
 		'Student',
 		...(named ? ['Name', 'Email'] : []),
 		'State',
 		'Complete',
-		...columns.map((c) => c.label)
+		...columns.map((c) => c.label),
+		...(hasNotes ? ['Teacher notes'] : [])
 	];
 	const lines = [header.map((h) => csvCell(h)).join(',')];
 	for (const s of students) {
@@ -1501,7 +1527,8 @@ export function gradingAnswersCsv(payload: GradingExport): string {
 			...columns.map((c) => {
 				const r = byBlock.get(c.blockId);
 				return r ? csvAnswerCell(r) : '';
-			})
+			}),
+			...(hasNotes ? [notesText(s.notes ?? [])] : [])
 		];
 		lines.push(cells.map((cell) => csvCell(cell)).join(','));
 	}
@@ -1509,6 +1536,17 @@ export function gradingAnswersCsv(payload: GradingExport): string {
 	// accented names and answers correctly, and a source literal did not survive
 	// the toolchain.
 	return String.fromCharCode(0xfeff) + lines.join('\r\n') + '\r\n';
+}
+
+/** A student's notes as one CSV cell: each thread on its own line, replies after a bar. */
+export function notesText(notes: readonly ExportedNote[]): string {
+	return notes
+		.map((n) => {
+			const where = n.blockId ? `[${n.blockId}] ` : '';
+			const said = n.messages.map((m) => (m.from === 'student' ? `Student: ${m.text}` : m.text)).join(' | ');
+			return `${where}${said}${n.state === 'open' ? '' : ` (${n.state})`}`;
+		})
+		.join('\n');
 }
 
 /** `answers-<assignment>-<section>[-anon].csv`, filesystem-safe. */
@@ -1827,7 +1865,25 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 		]
 	};
 
-	return [grades, ...answers, unmet, responses, ...tableSheets, files, about];
+	// THE INSTRUCTOR'S NOTES (ledger 0438): one row per message, only when the
+	// console handed notes in, so a workbook made without them keeps its sheets.
+	const noteSheet: XlsxSheet[] = students.some((s) => s.notes !== undefined)
+		? [
+				{
+					name: 'Teacher notes',
+					maxRowHeight: MAX_ROW_HEIGHT_PT,
+					header: [...whoHeader, 'Question', 'Note state', 'From', 'When', 'Text'],
+					widths: [...whoWidths, 14, 10, 10, 20, 80],
+					rows: students.flatMap((s) =>
+						(s.notes ?? []).flatMap((n) =>
+							n.messages.map((m) => [...who(s), n.blockId ?? '', n.state, m.from, m.at, m.text])
+						)
+					)
+				}
+			]
+		: [];
+
+	return [grades, ...answers, unmet, responses, ...tableSheets, files, ...noteSheet, about];
 }
 
 /** `graded-<assignment>-<section>-<scope>[-anon].<ext>`, filesystem-safe. */

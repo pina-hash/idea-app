@@ -10,6 +10,7 @@
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 	import { formatSectionLabel } from '$lib/section-label';
+	import { gradebookCsv, gradebookCsvFilename, type Gradebook } from '$lib/classroom/gradebook-export';
 	import {
 		GRADING_ORDER_DEFAULT,
 		GRADING_ORDER_OPTIONS,
@@ -36,7 +37,8 @@
 		section,
 		standings = [],
 		basePath = '/classroom',
-		resubmittedAfterGrading = {}
+		resubmittedAfterGrading = {},
+		gradebook = null
 	}: {
 		section: ClassroomSection;
 		standings?: AssignmentStanding[];
@@ -53,7 +55,21 @@
 		 * complete. The grading console carries both.
 		 */
 		resubmittedAfterGrading?: Record<string, number>;
+		/** Every student's score on every assignment, for Download grades (ledger 0438). Absent: no key. */
+		gradebook?: Gradebook | null;
 	} = $props();
+
+	function downloadGrades() {
+		if (!gradebook) return;
+		const url = URL.createObjectURL(new Blob([gradebookCsv(gradebook)], { type: 'text/csv;charset=utf-8' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = gradebookCsvFilename(sectionTitle(section));
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
+	}
 
 	/**
 	 * THE ORDER LIVES IN `grading-order.ts`, NOT HERE, and the reason is in that
@@ -107,6 +123,11 @@
 				>
 			{/if}
 		</p>
+		{#if gradebook && gradebook.assignments.length}
+			<button type="button" class="btn secondary tiny tap-44 grades-download" data-testid="grades-download" onclick={downloadGrades}
+				>Download grades (CSV)</button
+			>
+		{/if}
 	</section>
 
 	{#if ordered.length === 0}
