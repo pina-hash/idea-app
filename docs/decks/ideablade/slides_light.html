@@ -1,0 +1,159 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:Orbitron;font-weight:800;src:url(fonts/orbitron/files/orbitron-latin-800-normal.woff2)}
+@font-face{font-family:Orbitron;font-weight:600;src:url(fonts/orbitron/files/orbitron-latin-600-normal.woff2)}
+@font-face{font-family:Rajdhani;font-weight:500;src:url(fonts/rajdhani/files/rajdhani-latin-500-normal.woff2)}
+@font-face{font-family:Rajdhani;font-weight:600;src:url(fonts/rajdhani/files/rajdhani-latin-600-normal.woff2)}
+@font-face{font-family:Rajdhani;font-weight:700;src:url(fonts/rajdhani/files/rajdhani-latin-700-normal.woff2)}
+@font-face{font-family:"Share Tech Mono";src:url(fonts/share-tech-mono/files/share-tech-mono-latin-400-normal.woff2)}
+:root{
+ --plate-top:#161918;--plate-bot:#121413;--hair:#656f68;--hair-top:#7a857d;
+ --panel-top:#1c1f1d;--panel-bot:#171a18;--panel-hi:rgba(255,255,255,.12);
+ --drop:rgba(0,0,0,.55);--drop-far:rgba(0,0,0,.45);
+ --well-shade:#050606;--well-top:#0a0b0b;--well-face:#0f1110;--well-lip:rgba(255,255,255,.2);
+ --chip-top:#121413;--chip-bot:#171a18;--chip-edge:rgba(255,255,255,.13);--chip-shade:rgba(0,0,0,.6);--chip-lip:rgba(255,255,255,.1);
+ --face-top:#2f3431;--face-bot:#252a27;--bezel-hi:rgba(255,255,255,.16);--bezel-mid:rgba(255,255,255,.06);--foot:rgba(0,0,0,.5);
+ --text-1:#e7eae8;--caption:#b9c0bb;--green:#78b870;--glow:rgba(143,224,138,.38);--bloom:rgba(120,184,112,.3);
+}
+*{box-sizing:border-box;margin:0}
+body{width:1920px;height:1080px;background:transparent;overflow:hidden}
+.slide{position:relative;width:1920px;height:1080px;overflow:hidden;font-family:Rajdhani;color:var(--text-1);
+ background:linear-gradient(to bottom,var(--plate-top),var(--plate-bot) 760px);}
+.mono{font-family:"Share Tech Mono";text-transform:uppercase;letter-spacing:.22em;color:var(--caption)}
+.panel{position:absolute;border:1px solid var(--hair);border-radius:14px;
+ background:linear-gradient(to bottom,var(--panel-top),var(--panel-bot));
+ box-shadow:inset 0 1px 0 0 var(--panel-hi),0 1px 2px 0 var(--drop),0 8px 14px -6px var(--drop),-2px 18px 30px -14px var(--drop-far)}
+.well{position:absolute;border-radius:12px;border:1px solid #000;
+ background:linear-gradient(to bottom,var(--well-top),var(--well-face) 30%);
+ box-shadow:inset 0 1px 0 0 var(--well-shade),inset 0 3px 6px -1px var(--well-shade),0 1px 0 0 var(--well-lip)}
+.chip{display:inline-flex;align-items:center;gap:12px;height:40px;padding:0 18px 0 14px;border-radius:6px;border:1px solid var(--chip-edge);
+ background:linear-gradient(to bottom,var(--chip-top),var(--chip-bot));
+ box-shadow:inset 0 1px 0 0 var(--chip-shade),inset 0 2px 3px -1px var(--chip-shade),0 1px 0 0 var(--chip-lip);
+ font-family:"Share Tech Mono";font-size:19px;letter-spacing:.16em;text-transform:uppercase;color:var(--caption)}
+.led{width:11px;height:11px;border-radius:50%;background:radial-gradient(circle at 42% 36%,rgba(255,255,255,.85) 0 1px,var(--led,#78b870) 2.4px);
+ box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 7px 2px var(--led,#78b870)}
+.strip{position:absolute;left:0;right:0;top:0;height:104px;
+ background:linear-gradient(to bottom,#202422,#1a1d1b);border-bottom:1px solid #050606;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 0 rgba(255,255,255,.07),0 10px 22px -8px rgba(0,0,0,.6)}
+.rule{position:absolute;height:1px;background:linear-gradient(to right,transparent,var(--hair) 12%,var(--hair) 88%,transparent)}
+.lbl{position:absolute;font-family:"Share Tech Mono";font-size:20px;letter-spacing:.24em;text-transform:uppercase;color:var(--caption)}
+.lbl b{color:var(--green);font-weight:400}
+.bar{position:absolute;width:6px;border-radius:3px;background:var(--green);box-shadow:0 0 12px 1px var(--bloom)}
+.bracket{position:absolute;width:44px;height:44px;border-color:var(--hair);border-style:solid;opacity:.9}
+:root{
+ --plate-top:#e4e8ee;--plate-bot:#dfe3ea;--hair:#757c86;--hair-top:#757c86;
+ --panel-top:#f5f7f9;--panel-bot:#e2e6ec;--panel-hi:#ffffff;
+ --drop:rgba(70,80,100,.25);--drop-far:rgba(70,80,100,.18);
+ --well-shade:#a9aeb8;--well-top:#bfc4ce;--well-face:#c8ccd5;--well-lip:#eef1f6;
+ --chip-top:#dde0e6;--chip-bot:#e6e9ee;--chip-edge:#b3b8c0;--chip-shade:rgba(70,80,100,.3);--chip-lip:rgba(255,255,255,.85);
+ --text-1:#0d1311;--caption:#545a61;--green:#3b6c36;--glow:rgba(59,108,54,.3);--bloom:rgba(59,108,54,.25);
+}
+.strip{background:linear-gradient(to bottom,#eef1f5,#e4e8ee)!important;border-bottom:1px solid #b3b8c0!important;box-shadow:inset 0 1px 0 #fff,0 10px 22px -10px rgba(70,80,100,.35)!important}
+.well{border-color:#a9aeb8!important}
+.led{--led:#3b6c36;box-shadow:0 0 0 1px #7c828a,0 0 6px 1px rgba(120,184,112,.35)!important}
+#tpl .mono[style*="#8e968f"]{color:#545a61!important}
+#tpl div[style*="#6f7871"]{color:#56625e!important}
+</style></head><body>
+
+<!-- TITLE -->
+<section class="slide" id="title">
+ <div class="strip"></div>
+ <img src="gear.png" style="position:absolute;left:64px;top:24px;width:56px;height:56px">
+ <div class="mono" style="position:absolute;left:140px;top:38px;font-size:22px">IDEA100 · Rotation 2</div>
+ <div class="chip" style="position:absolute;right:64px;top:31px"><span class="led"></span>Fall 2026</div>
+ <div class="bar" style="left:64px;top:300px;height:212px"></div>
+ <div class="mono" style="position:absolute;left:100px;top:300px;font-size:24px;color:var(--green)">The class gallery</div>
+ <div style="position:absolute;left:96px;top:342px;font-family:Orbitron;font-weight:800;font-size:132px;line-height:1;letter-spacing:.02em">IDEA-BLADE</div>
+ <div style="position:absolute;left:100px;top:478px;font-family:Orbitron;font-weight:600;font-size:46px;letter-spacing:.42em;color:var(--caption)">DESIGNS</div>
+ <div style="position:absolute;left:100px;top:600px;width:700px;font-size:34px;font-weight:500;line-height:1.3;color:var(--caption)">Every Blade this rotation built, one slide each.</div>
+
+ <svg style="position:absolute;left:0;top:0" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="Share Tech Mono">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,1.5 L10,5 L0,8.5 z" fill="#78b870"/></marker></defs>
+  <g stroke="#8e968f" fill="none" stroke-width="1.6">
+   <line x1="1400" y1="330" x2="1400" y2="880" stroke-dasharray="26 6 4 6" stroke-width="1.2"/>
+   <line x1="1040" y1="820" x2="1760" y2="820" stroke-width="1.2"/>
+   <rect x="1100" y="460" width="600" height="360" stroke="#78b870" stroke-width="2" stroke-dasharray="14 8"/>
+   <rect x="1340" y="460" width="120" height="60" stroke="#e7eae8" stroke-width="2"/>
+   <rect x="1370" y="392" width="60" height="68" stroke="#e7eae8" stroke-width="2"/>
+   <line x1="1385" y1="392" x2="1385" y2="460" stroke-width="1"/><line x1="1415" y1="392" x2="1415" y2="460" stroke-width="1"/>
+   <path d="M1400 820 l-10 -14 h20 z" fill="#e7eae8" stroke="none"/>
+  </g>
+  <g stroke="#5e6862" stroke-width="1.2">
+   <line x1="1100" y1="826" x2="1100" y2="914"/><line x1="1700" y1="826" x2="1700" y2="914"/>
+   <line x1="1706" y1="460" x2="1796" y2="460"/><line x1="1706" y1="820" x2="1796" y2="820"/>
+   <line x1="1466" y1="460" x2="1496" y2="460"/><line x1="1466" y1="520" x2="1496" y2="520"/>
+   <line x1="1436" y1="392" x2="1576" y2="392"/><line x1="1466" y1="460" x2="1576" y2="460"/>
+  </g>
+  <g stroke="#78b870" stroke-width="1.6">
+   <line x1="1104" y1="900" x2="1696" y2="900" marker-start="url(#ar)" marker-end="url(#ar)"/>
+   <line x1="1780" y1="464" x2="1780" y2="816" marker-start="url(#ar)" marker-end="url(#ar)"/>
+   <line x1="1486" y1="464" x2="1486" y2="516" marker-start="url(#ar)" marker-end="url(#ar)"/>
+   <line x1="1566" y1="396" x2="1566" y2="456" marker-start="url(#ar)" marker-end="url(#ar)"/>
+  </g>
+  <g fill="#78b870" font-size="22" letter-spacing="2">
+   <text x="1400" y="940" text-anchor="middle">&#8960; 5.00 MAX</text>
+   <text transform="translate(1818 640) rotate(-90)" text-anchor="middle">3.00 MAX  TIP TO COLLAR</text>
+   <text x="1500" y="497" font-size="18" letter-spacing="1">COLLAR 0.50 MAX</text>
+   <text x="1580" y="432">BARE HEX 0.50 MIN</text>
+  </g>
+  <g fill="#8e968f" font-size="17" letter-spacing="3">
+   <text x="1412" y="346">AXIS OF REVOLUTION</text>
+   <text x="1412" y="806">TIP</text>
+   <text x="1118" y="800">DESIGN ENVELOPE</text>
+  </g>
+  <g transform="translate(1100 158)">
+   <rect width="600" height="104" rx="6" fill="#121413" stroke="#5e6862" stroke-width="1.2"/>
+   <line x1="0" y1="52" x2="600" y2="52" stroke="#5e6862" stroke-width="1"/><line x1="300" y1="52" x2="300" y2="104" stroke="#5e6862" stroke-width="1"/>
+   <text x="20" y="35" fill="#e7eae8" font-size="22" letter-spacing="3">IDEA-BLADE · ENVELOPE</text>
+   <text x="20" y="85" fill="#8e968f" font-size="16" letter-spacing="2">UNITS: INCHES</text>
+   <text x="320" y="85" fill="#8e968f" font-size="16" letter-spacing="2">MASS: 680 g MAX</text>
+  </g>
+ </svg>
+ <div class="rule" style="left:64px;right:64px;top:1000px"></div>
+ <div class="mono" style="position:absolute;left:64px;top:1022px;font-size:18px;color:#8e968f">ideabosco.com</div>
+ <img src="logo.png" style="position:absolute;right:64px;top:1012px;height:44px">
+</section>
+
+<!-- TEMPLATE -->
+<section class="slide" id="tpl">
+ <div class="strip"></div>
+ <img src="gear.png" style="position:absolute;left:64px;top:24px;width:56px;height:56px">
+ <div class="mono" style="position:absolute;left:140px;top:38px;font-size:22px">IDEA-Blade designs</div>
+ <div class="bar" style="left:64px;top:140px;height:128px"></div>
+ <!-- photo well -->
+ <div class="well" style="left:64px;top:300px;width:1056px;height:716px"></div>
+ <div class="bracket" style="left:92px;top:328px;border-width:2px 0 0 2px"></div>
+ <div class="bracket" style="left:1048px;top:328px;border-width:2px 2px 0 0"></div>
+ <div class="bracket" style="left:92px;top:944px;border-width:0 0 2px 2px"></div>
+ <div class="bracket" style="left:1048px;top:944px;border-width:0 2px 2px 0"></div>
+ <div class="mono" style="position:absolute;left:64px;width:1056px;top:620px;text-align:center;font-size:24px;color:#8e968f">Photo of your Blade</div>
+ <div style="position:absolute;left:64px;width:1056px;top:662px;text-align:center;font-size:26px;font-weight:500;color:#6f7871">Insert, Image, then drag it to fill this frame</div>
+ <!-- spec card -->
+ <div class="panel" style="left:1152px;top:140px;width:704px;height:876px"></div>
+ <div class="lbl" style="left:1192px;top:176px"><b>01</b>&nbsp; Team</div>
+ <div class="rule" style="left:1192px;width:624px;top:282px"></div>
+ <div class="lbl" style="left:1192px;top:304px"><b>02</b>&nbsp; Roles</div>
+ <div class="chip" style="position:absolute;left:1192px;top:350px;width:168px"><span class="led"></span>Blade</div>
+ <div class="chip" style="position:absolute;left:1192px;top:404px;width:168px"><span class="led"></span>Body</div>
+ <div class="chip" style="position:absolute;left:1192px;top:458px;width:168px"><span class="led"></span>Assembly</div>
+ <div class="rule" style="left:1192px;width:624px;top:530px"></div>
+ <div class="lbl" style="left:1192px;top:552px"><b>03</b>&nbsp; Fight-ready</div>
+ <div class="well" style="left:1192px;top:598px;width:196px;height:120px"></div>
+ <div class="well" style="left:1406px;top:598px;width:196px;height:120px"></div>
+ <div class="well" style="left:1620px;top:598px;width:196px;height:120px"></div>
+ <div class="mono" style="position:absolute;left:1208px;top:612px;font-size:16px">Mass · g</div>
+ <div class="mono" style="position:absolute;left:1422px;top:612px;font-size:16px">Height · in</div>
+ <div class="mono" style="position:absolute;left:1636px;top:612px;font-size:16px">Across · in</div>
+ <div class="mono" style="position:absolute;left:1192px;width:196px;top:728px;font-size:15px;color:#8e968f;text-align:center;letter-spacing:.14em">Max 680</div>
+ <div class="mono" style="position:absolute;left:1406px;width:196px;top:728px;font-size:15px;color:#8e968f;text-align:center;letter-spacing:.14em">Max 3.00</div>
+ <div class="mono" style="position:absolute;left:1620px;width:196px;top:728px;font-size:15px;color:#8e968f;text-align:center;letter-spacing:.14em">Max 5.00</div>
+ <div class="rule" style="left:1192px;width:624px;top:770px"></div>
+ <div class="lbl" style="left:1192px;top:792px"><b>04</b>&nbsp; Tournament</div>
+ <div class="rule" style="left:1192px;width:624px;top:880px"></div>
+ <div class="lbl" style="left:1192px;top:902px"><b>05</b>&nbsp; One change next time</div>
+</section>
+
+<!-- TEMPLATE TAG (separate image students delete) -->
+<section id="tag" style="display:inline-block;padding:8px;background:transparent">
+ <div class="chip" style="--led:#e0a43c;height:52px;font-size:20px;background:linear-gradient(to bottom,#1d1a12,#171510);border-color:rgba(224,164,60,.45);color:#e8c27a"><span class="led" style="--led:#e0a43c"></span>Template · duplicate this slide, then delete this tag</div>
+</section>
+</body></html>
