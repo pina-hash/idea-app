@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""FRC Team 5669 morning announcement builder.
+"""FRC Team 5669 announcement builder.
 
 Builds, for one air date, the announcement request (subject + HTML body for the
-office) and a dated one-page flyer PDF. Used by the scheduled task that leaves
+office) and a dated one-page flyer PDF. Each request carries TWO announcements:
+one for the morning announcements and a shorter, urgent one for the after school
+announcements at 3:05, just before the 3:10 meeting. Used by the scheduled task that leaves
 a Gmail draft for Mr. Pina each school day before a Monday, Tuesday or Friday.
 
   python3 announce.py --auto --out OUTDIR          # next school day, from today (Los Angeles)
@@ -55,47 +57,72 @@ def long_date(d):
     return d.strftime("%A, %B ") + str(d.day)
 
 
-MEET = ("The Techmen robotics team meets today right after school in the IDEA Classroom. "
-        "This meeting is mandatory for every team member, and attendance is taken. ")
+AGAIN = "Again: robotics, 3:10, IDEA Classroom."
+
+# One-off lines Mr. Pina adds for one air date: (morning line, after school line, flyer line).
+# Each is his call (rule: asked, not assumed), so it lives here by date, never computed.
+EXTRA = {
+    dt.date(2026, 10, 27): (
+        "We will go over Beach Blitz, our robotics competition this Friday through Sunday. "
+        "Right after the meeting, from 3:25 to 4:10, Paul Calderon leads scouting training for the competition. "
+        "Bring a charged phone. ",
+        "Scouting training with Paul follows at 3:25. ",
+        "<b>Beach Blitz prep:</b> the competition is this Friday to Sunday. "
+        "Then <b>scouting training with Paul, 3:25 to 4:10.</b> Bring a charged phone. "),
+}
 
 
 def content(air):
-    # 2026-10-19: required meetings are Tuesday and Friday right after school; the Monday
-    # lunch meeting ended 10/19, so Monday no longer gets an announcement.
+    # 2026-10-19: required meetings are Tuesday and Friday at 3:10, right after school, 15 minutes,
+    # then training until 5:00. 2026-10-26: the 80% line is out of every announcement and flyer, and
+    # every request carries a morning read and an urgent after school read at 3:05.
     k = {1: "TUE", 4: "FRI"}.get(air.weekday())
+    xm, xa, xf = EXTRA.get(air, ("", "", ""))
+    now_title = "NOW! Robotics Team Meeting at 3:10, MANDATORY"
+    now_body = ("Robotics team members, our team meeting starts in five minutes, at 3:10, in the IDEA Classroom. "
+                "Head there now. " + xa)
+    meet = ("Robotics team members, our team meeting is today at 3:10, right after school, in the IDEA Classroom. "
+            "It takes 15 minutes, and attendance is taken. ")
     if k == "TUE":
-        return dict(kind="TUE",
-            title="TODAY! Robotics Team Meeting, MANDATORY",
-            body=(MEET + "Members must make 80 percent of team meetings to stay on the team. "
-                  "New students, you are welcome too. Come see what the robotics team is all about. "
-                  "Team members, bring a friend."),
+        return dict(kind="TUE", flyer_extra=xf,
+            title="TODAY! Robotics Team Meeting at 3:10, MANDATORY",
+            body=(meet + (xm or "Then we train until 5:00. ")
+                  + "New students, you are welcome too. Team members, bring a friend. " + AGAIN),
+            pm_title=now_title,
+            pm_body=now_body + "New students, come with them. " + AGAIN,
             file="Flyer_Techmen Robotics Team Meeting.pdf")
     if k == "FRI":
         # 2026-10-21: spoken-first rewrite approved by Mr. Pina. One start time, length stated,
         # no internal detail, the key facts repeated at the end.
-        meet = ("Robotics team members, our team meeting is today at 3:10, right after school, in the IDEA Classroom. "
-                "It takes 15 minutes, and attendance is taken. ")
-        again = "Again: robotics, 3:10, IDEA Classroom."
         days = (BEACH_BLITZ[0] - air).days
         if days > 0:
-            return dict(kind="FRI_BB", days=days,
+            return dict(kind="FRI_BB", days=days, flyer_extra=xf,
                 title="TODAY! Robotics Team Meeting at 3:10, MANDATORY",
-                body=(meet + f"Beach Blitz, our next robotics competition, is {span(days)} away. "
+                body=(meet + xm + f"Beach Blitz, our next robotics competition, is {span(days)} away. "
                       "Every member goes, and your family's sign-up is required. "
-                      "New students are welcome to come see what the team does. " + again),
+                      "New students are welcome to come see what the team does. " + AGAIN),
+                pm_title=now_title,
+                pm_body=now_body + f"Beach Blitz is {span(days)} away. " + AGAIN,
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
         if days == 0:
-            return dict(kind="FRI_BB0", days=0,
+            return dict(kind="FRI_BB0", days=0, flyer_extra=xf,
                 title="TODAY! Robotics at Beach Blitz",
                 body=("The Techmen robotics team competes at Beach Blitz, a major robotics competition, starting today at Capistrano Valley "
                       "High School, through Sunday. Wish the team luck, and follow along this weekend."),
+                pm_title="NOW! Robotics Leaves for Beach Blitz",
+                pm_body=("Robotics team members going to Beach Blitz, head to the front parking lot now. "
+                         "Cars leave as they fill. Good luck, Techmen."),
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
-        return dict(kind="FRI",
+        return dict(kind="FRI", flyer_extra=xf,
             title="TODAY! Robotics Team Meeting at 3:10, MANDATORY",
-            body=(meet + "From 4:30 to 6:00, the team coaches kids' robotics teams. "
-                  "New students are welcome to come see what the team does. " + again),
+            body=(meet + xm + "Then we train until 5:00, and from 4:30 to 6:00, the team coaches kids' robotics teams. "
+                  "New students are welcome to come see what the team does. " + AGAIN),
+            pm_title=now_title,
+            pm_body=now_body + "New students, come with them. " + AGAIN,
             file="Flyer_Techmen Robotics Team Meeting.pdf")
     return None
+
+
 
 
 # ---------------------------------------------------------------- flyer HTML
@@ -229,8 +256,8 @@ ROLES = [
 ]
 
 WEEK = '''<div class=grid style="grid-template-columns:repeat(4,1fr)">
-<div class="cell hot"><div class=d>TUESDAY</div><div class=t>Team meeting</div><div class=s>After school. Mandatory.</div></div>
-<div class="cell hot"><div class=d>FRIDAY</div><div class=t>Team meeting</div><div class=s>After school. Mandatory.</div></div>
+<div class="cell hot"><div class=d>TUESDAY</div><div class=t>Team meeting</div><div class=s>3:10 PM. Mandatory. Train until 5.</div></div>
+<div class="cell hot"><div class=d>FRIDAY</div><div class=t>Team meeting</div><div class=s>3:10 PM. Mandatory. Train until 5.</div></div>
 <div class=cell><div class=d>MON · WED · THU</div><div class=t>Open shop</div><div class=s>Build time, until 5:00 PM.</div></div>
 <div class=cell><div class=d>SATURDAY</div><div class=t>Coach kids</div><div class=s>Robotics, 9:00 to 11:00 AM.</div></div></div>'''
 
@@ -248,10 +275,10 @@ def flyer_html(air, c):
     sat = (air + dt.timedelta(days=1)).strftime("SAT %-m/%-d")
     if c["kind"] == "TUE":
         body = (f'<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>{robot(4.2, 1.6, 3.95)}' + CTX.format(top=3.42, w=3.3)
-                + when([("d", "DATE", long_date(air)), ("", "TIME", "Right after school"), ("", "PLACE", "IDEA Classroom")], 4.5)
-                + '<div class=body style="top:5.25in"><div class=lede>Every member, every Tuesday and Friday. '
-                  '<b>Attendance is taken:</b> 80% of team meetings to stay on the team. '
-                  '<b>New students welcome.</b> Come see what we build. Members, bring a friend.</div>'
+                + when([("d", "DATE", long_date(air)), ("", "TIME", "3:10 PM"), ("", "PLACE", "IDEA Classroom")], 4.5)
+                + '<div class=body style="top:5.25in"><div class=lede>Mandatory for every member. <b>Attendance is taken.</b> '
+                + (c["flyer_extra"] or 'Then we train until 5:00 PM. ')
+                + '<b>New students welcome.</b> Members, bring a friend.</div>'
                 + f'<div class=k>EVERY WEEK</div>{WEEK}</div>' + STAMP.format(top=8.08))
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
     if c["kind"] in ("FRI_BB", "FRI_BB0"):
@@ -270,7 +297,7 @@ def flyer_html(air, c):
         return page(f'ROBOTICS TEAM <b>5669</b> · <b>BEACH BLITZ</b>', body)
     body = ('<div class=hero>TEAM<br>MEETING<br><span>TODAY.</span></div>' + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
             + when([("d", "DATE", long_date(air)), ("", "MANDATORY MEETING", FRI_TIME), ("", "PLACE", "IDEA Classroom")], 4.5)
-            + '<div class=body style="top:5.25in"><div class=lede>Mandatory for every member. Recap the week, set weekend plans, then build. <b>New students welcome.</b></div>'
+            + '<div class=body style="top:5.25in"><div class=lede>Mandatory for every member. <b>Attendance is taken.</b> ' + c["flyer_extra"] + 'Then we train until 5:00 PM. <b>New students welcome.</b></div>'
             + '<div class=k>THIS WEEKEND</div>' + FRI_CELLS.format(sat=sat) + '</div>' + STAMP.format(top=7.6))
     return page(f'ROBOTICS TEAM <b>5669</b> · <b>MANDATORY</b>', body)
 
@@ -294,10 +321,13 @@ def render_pdf(html, out_pdf):
 
 def email_html(air, c, flyer):
     short = air.strftime("%a %-m/%-d")
-    return (f'Hello,<br><br>I would like to request a morning announcement for {short}:<br><br>'
-            f'<b>{c["title"]}</b> -- <i>{c["body"]}</i><br><br>'
+    # No typed name: the draft is created with his Gmail signature, which carries it.
+    return (f'Hello,<br><br>I would like to request two announcements for {short}: one for the morning '
+            f'announcements and a shorter one for the after school announcements at 3:05.<br><br>'
+            f'<b>MORNING</b><br><b>{c["title"]}</b> -- <i>{c["body"]}</i><br><br>'
+            f'<b>AFTER SCHOOL (3:05)</b><br><b>{c["pm_title"]}</b> -- <i>{c["pm_body"]}</i><br><br>'
             f'Contact: Mr. Pina | apina@boscotech.edu<br>' + ('Flyer attached.<br>' if flyer else '')
-            + '<br>Thank you,<br>Mr. Pina')
+            + '<br>Thank you,')
 
 
 def main():
@@ -328,9 +358,9 @@ def main():
     short = air.strftime("%a %-m/%-d")
     print(json.dumps({
         "job": True, "air": air.isoformat(), "kind": c["kind"],
-        "to": TO, "cc": CC, "subject": f"Morning Announcement Request for {short}",
+        "to": TO, "cc": CC, "subject": f"Morning and After School Announcement Request for {short}",
         "html": email_html(air, c, True), "flyer": str(pdf.resolve()),
-        "notify": f"Robotics announcement draft ready for {short}. Attach the flyer from this message and send before 2:00 PM today.",
+        "notify": f"Robotics announcement draft (morning and after school) ready for {short}. Attach the flyer from this message and send before 2:00 PM today.",
     }, indent=1))
 
 

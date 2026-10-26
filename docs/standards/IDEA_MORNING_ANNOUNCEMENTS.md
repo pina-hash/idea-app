@@ -153,7 +153,7 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
 
 - **Two days a week: Tuesday and Friday (from 2026-10-19).** Both are mandatory team
   meetings right after school in the IDEA Classroom: Tuesday plans the week, Friday
-  recaps it and sets weekend plans, then the team builds until 5:00 PM (Friday also
+  recaps it and sets weekend plans; each meeting is 3:10 to 3:25, then the team trains until 5:00 PM (Friday also
   coaches kids' robotics teams 4:30 to 6:00 PM). Each announcement is stern with members
   and invites new students to come see what the team is about. Monday gets no
   announcement: the Mon 10/19 lunch meeting was the last one. Mon, Wed and Thu are open
@@ -173,10 +173,20 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
   as "a robotics competition" the first time. What students made is described by
   what it took (designed, machined, wired, coded), never a word that undersells it
   such as "cut". Short beats complete: when a line needs explaining, cut the line.
-- **Attendance is a written rule.** Members sign the Team 5669 handbook: 80% of
-  required team meetings or removal, tracked by app check-in, modeled on Team 1678.
-  The Tuesday announcement and every meeting flyer say "Attendance is taken" and the
-  80% rule.
+- **Attendance is taken, and that is all an announcement says about it (2026-10-26).**
+  Mr. Pina took the 80% line out of every announcement and flyer. The handbook still
+  owns the attendance rule; announcements and flyers say "attendance is taken" and
+  nothing about percentages or removal.
+- **Two reads per request: morning and after school (2026-10-26).** Every request
+  asks for a morning announcement and a separate, shorter after school announcement at
+  3:05, five minutes before the 3:10 meeting. The after school read is urgent ("NOW!",
+  "starts in five minutes", "Head there now") and carries only what a student needs
+  in the next five minutes. One email, two labeled blocks (MORNING, AFTER SCHOOL
+  (3:05)); subject `Morning and After School Announcement Request for <Ddd M/D>`.
+- **One-off lines live in `EXTRA` in `announce.py`, by air date** (a morning line, an
+  after school line, a flyer line). They are Mr. Pina's call, so they are added when
+  he states them, never computed. Example: Tue 10/27, Beach Blitz prep and Paul
+  Calderon's scouting training 3:25 to 4:10.
 - **Spoken checks, every announcement (2026-10-21).** The title is read aloud too, so the body never repeats it word for word. One time per event: the start time, plus how long it takes when that helps ("It takes 15 minutes"), never a stacked range like "right after school, 3:10 to 3:25". Cut anything a listener cannot act on ("we recap the week"). End by repeating the three facts: "Again: robotics, 3:10, IDEA Classroom." Other student entries in the bulletin run 10 to 60 words; stay near 40 unless Mr. Pina adds a line. Any line whose content is his call (Beach Blitz, inviting new students) is asked, not assumed.
 - **Flyers keep the poster grammar (2026-10-21).** All-caps hero, the ghost 5669 behind the robot, leader-line callouts, the gold join band and the hazard stripe are the look. Rounded gray cards and sentence-case headings read as cheap; Mr. Pina rejected a redesign built that way. Fix defects inside the existing look. Nothing on a flyer is under 9 pt, and Beach Blitz and every competition read "every member, every day" (handbook), never as optional.
 - **Recruiting leans on peers.** Research (2026-10-14, "How Elite FRC Teams
@@ -184,7 +194,8 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
   members, bring a friend."
 - **Drafts, never sends.** A scheduled task at 7:50 AM each weekday runs
   `tools/frc-announcements/announce.py --auto`, leaves a Gmail draft for the next
-  school day when it is a Tuesday or Friday, and notifies Mr. Pina with the
+  school day when it is a Tuesday or Friday, with his Gmail signature
+  (`includeSignature`; the body types no name), and notifies Mr. Pina with the
   flyer to attach. To change one day, he edits the draft before sending.
 
 ## What Claude does when asked for an announcement
@@ -207,6 +218,8 @@ Mr. Pina's decisions of 2026-10-07 to 2026-10-14:
 ---
 
 ## Changelog
+
+- **1.7 (2026-10-26)** - The 80% line is out of every announcement and flyer ("attendance is taken" stays). Every request now carries a morning read and a separate urgent after school read at 3:05. One-off lines by date (`EXTRA`). Draft uses his Gmail signature.
 
 - **1.6 (2026-10-21)** - Spoken checks added (title not repeated, one time per event, repeat the three facts at the end). Flyer poster grammar kept; 9 pt minimum; competitions are every member, every day; Friday flyer shows the 3:10 to 3:25 meeting.
 - **1.5 (2026-10-19)** - Rotation is now Tuesday and Friday, both mandatory after-school meetings in the IDEA Classroom that also welcome new students; Monday lunch meeting and its announcement retired; 80% rule applies to required team meetings.
