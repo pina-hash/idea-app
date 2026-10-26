@@ -955,75 +955,104 @@ server or website change. 0.4.2 was already published, so this ships as 0.4.3.
   rename on the drive. A renamed computer keeps its old name on the website for each sign-in
   until that student signs in to Armory again (the name is sent at sign-in).
 
-## Several people on one computer: what the next update must do (owed, not built)
+## Armory 0.5.0: shared lab computers and file icons (ledger 0437, no migration)
+
+Mr. Pina, 2026-10-26 (`docs/feedback/2026-10-26/QUEUE-0437.md`; `RESULTS-0437.md` there closes
+it): every IDEA lab computer uses one shared Windows sign-in named "IDEA"; the update must carry
+existing Armory files and folders forward; and file icons must cover every type the lab uses.
+Everything is the Windows app (pina-hash/idea-armory, version 0.5.0); no server or website
+change. idea-armory `docs/agent/PROFILES.md` ("0.5.0 as built") is the rule; the section below
+says what each requirement became.
+
+- **Shared by itself, one click to switch.** A second person signing in makes a computer shared;
+  no PIN unless a mentor turns PINs on; the window opens on everyone's faces only when two or more
+  people use the computer.
+- **One folder per project per computer.** The next person's engine takes the folder over by
+  itself; nothing downloads again; what the last person left waiting is held for them, read-only
+  for the next person, and sent only under their own sign-in.
+- **Robotics work safe from everyone else on the computer** (Mr. Pina's site report of
+  2026-10-25: freshmen use the same computers as the robotics team). A project the person in use is
+  not in is not shown to them, and every file of it is read-only for them from their first pass;
+  anything they save there anyway (the bit cleared by hand) is never sent, and when a member is
+  back it moves to the folder's `.armory\recovery` and the team's version comes back. A member's
+  waiting work that someone else wrote over comes back as theirs, from their own save. idea-armory
+  `ProjectSafetyTests` proves it end to end.
+- **Existing computers carried forward** at the first start of 0.5.0: 0.4.x state documents load
+  with their person; 0.3.3 to 0.4.x shared profiles keep everyone's sign-in, with PINs kept only
+  where a mentor turned them on; every `C:\IDEA\Armory-<name>` folder is folded into
+  `C:\IDEA\Armory` without deleting anything the shared folder does not already have.
+- **File icons for every lab type** (SolidWorks part, assembly, drawing, template, library feature,
+  block; eDrawings; STEP, IGES, Parasolid; STL, 3MF, OBJ; G-code; DXF, DWG, SVG, AI; LightBurn and
+  xTool jobs; PDF, Word, Excel, PowerPoint, text and Markdown, CSV; pictures; video; ZIP), with
+  Windows' own preview winning wherever it can make one.
+
+## Several people on one computer (built in 0.5.0)
 
 Mr. Pina, 2026-10-25. The Windows app (pina-hash/idea-armory) has had a shared-computer mode since
-0.3.3 (`docs/agent/PROFILES.md` there). It works, but it is a setup someone has to do, and it still
-makes a second copy of a project in one case. His two rules for the update, in his words:
+0.3.3 (`docs/agent/PROFILES.md` there), but it was a setup someone had to do, and it made a second
+copy of a project in one case. His two rules, in his words:
 
 1. Setting up a new person on a computer, and switching between people, "has to be very thoughtless
-   and automatic". Today it is not: shared mode is a setting that is off by default, the first person
-   chooses a PIN when turning it on, every other person does **Add a student** (a browser sign-in with
-   "Not you? Use another account"), and every switch asks for a PIN.
+   and automatic".
 2. Two people on one computer who are on the same project work out of the same project folder.
-   "I don't want to be downloading the same project multiple times on one computer." Today, when the
-   last person has work waiting in the shared folder (a file checked out, a save not sent), the next
-   person is offered **Use `C:\IDEA\Armory-<name>`**, a folder of their own. That is a second copy of
-   every project they open, which is the case he is ruling out. Armory also moves them back later,
-   which is two more rounds of copying.
+   "I don't want to be downloading the same project multiple times on one computer."
 
-### Requirements
+On 2026-10-26 he answered the open question: every IDEA lab computer uses one shared Windows
+sign-in named "IDEA". Armory 0.5.0 (ledger 0437) builds both rules for that case and keeps a
+second Windows account safe.
 
-- **No setup step.** A computer becomes shared by itself the first time a second person signs in on
-  it. No setting, no "this computer is shared" question, no PIN to choose. The browser connect page
-  already signs in whoever the browser shows; the app adds that person and switches to them in the
-  same step.
-- **Switching is one click or none.** The window opens on the people who have used this computer
-  (names, pictures or initials), most recent first. One click switches. No PIN by default. A mentor can
-  turn PINs on for a lab computer; that is the exception, not the setup.
-- **One folder per project per computer, never one per person.** A project lives in one place under
-  the Armory folder for everyone who uses the computer. Whoever is signed in works in it. Files are
-  stored by content hash, so a second person on the same project downloads only what the computer does
-  not already have, which is usually nothing.
-- **No folder of one's own.** Remove it from the picker and from the rules. Where it was offered, the
-  last person's work waiting in the folder must not block the next person.
-- **Waiting work stays with its person, inside the same folder.** A file checked out by the last
-  person is read-only for the next one (the sealing 0.3.3 already does, kept as the whole mechanism
-  instead of the workaround). Their unsent saves stay in place and are sent under their own sign-in
-  when they next use the computer, or at once if their session can still be used. Nobody's save is
-  ever sent as someone else.
-- **Open files stay open.** A switch must not close or move a document SolidWorks has open. The
-  switch changes who Armory acts for, not what is on disk.
-- **Both account cases.** One Windows sign-in shared by everyone (the lab norm) and a separate
-  Windows account per person (Fast User Switching) must both land on one folder and one running
-  engine. `C:\IDEA\Armory` is already shared across Windows accounts, but each account runs its own
-  agent and its own sign-in store, so a second account today meets "this vault belongs to someone
-  else".
+### Requirements, and what each became in 0.5.0
 
-### What has to change in the app (the hard part)
+- **No setup step.** Built: the first time someone else signs in (Connect or Switch account), the
+  computer becomes shared by itself; the first person's sign-in moves into a profile of their own
+  (never copied) and the new person is in use at once. No setting, no question, no PIN to choose.
+- **Switching is one click or none.** Built: the window opens on the faces of the people who use
+  the computer, most recent first, and only when two or more do; one click switches; no PIN by
+  default; a mentor can turn PINs on for a computer.
+- **One folder per project per computer, never one per person.** Built: everyone works in
+  `C:\IDEA\Armory`; a second person on the same project downloads nothing.
+- **No folder of one's own.** Removed from the picker and the rules. 0.5.0 folds every folder
+  0.3.3 to 0.4.x made (`C:\IDEA\Armory-<name>`) back into the shared one at its first start.
+- **Waiting work stays with its person, inside the same folder.** Built: a file checked out, a save
+  not sent, a changed or new file of the last person is held for them in the same folder (the
+  engine's state document keeps it under their address), read-only for the next person, refused
+  to the next person's Check out and Rename, and sent only under its owner's sign-in when they pick
+  their name again. Before a switch the last person's engine sends what it can, under their own
+  sign-in.
+- **Open files stay open.** Built: a switch changes who Armory acts for, never what is on disk; a
+  file SolidWorks has open only gets its read-only bit when it is held for someone else.
+- **Both account cases.** The shared "IDEA" sign-in is the built case. A separate Windows account
+  per person (Fast User Switching) is kept safe at today's level: while another account's Armory
+  holds the folder, Armory says so plainly (never "choose another folder") and starts by itself
+  when the folder is free; work either account leaves waiting is held for its person. Not built: a
+  second Windows account handing its work to the engine that already runs.
 
-- The folder's state document is bound to one email and one device, and one engine runs per folder
-  (`ENGINE.md`, Phase A, Identity). That is why a second person has to take the folder over or leave
-  it. The binding must move from a person to the computer, with the owner recorded per file (who holds
-  its checkout, who has an unsent save), so one engine can act for several people at once, each file
-  under its own holder's session.
-- Locks are taken per device (`armory_acquire_lock(p_file, p_device, ...)`). Each person on a computer
-  already has a device row of their own, so nothing here needs a migration so far. If one computer
-  must read as one device on the website (the shared-name problem under "Armory 0.4.3"), that is a
-  small server change and comes back to him first.
-- A second Windows account must hand its work to the engine that already runs, not start another one
-  on the same folder.
+### What changed in the app
+
+- The folder's state document is the computer's (schema 3): the person in use, every person's
+  device ids, and each other person's held work, with the owner recorded per file. One engine runs
+  at a time and acts for the person in use; every held file is under its owner's record until they
+  are back.
+- Locks stay per device (`armory_acquire_lock(p_file, p_device, ...)`), each person with their own
+  device rows, so **no migration**.
+
+### A request for Mr. Pina, not built: one computer as one line on the website
+
+Not needed for 0.5.0 to work: a check out is held by a person's own device, which is right on a
+shared computer. If the website should also show a shared lab computer as one computer (the Team
+view lists each person's device on IDEA-06 separately, and `presenceDevices` folds a member's
+devices by computer name, so cloned names still merge), it needs a per-computer key the server does
+not store: a nullable `computer_key` column on `armory_devices`, written by `armory_register_device`
+and `armory_heartbeat` from a new optional argument (the app already computes a per-computer hash,
+its incident `machineId`), and the Team view grouping by it. That is a migration and a website
+change, so it comes back to him first.
 
 ### Owed to the lab
 
-Run on a real lab computer before it ships: one person leaves a file checked out and a second opens
-the same assembly; two people on one project with nothing checked out (no download should start);
-a switch while SolidWorks has a part open; Fast User Switching between two Windows accounts.
-
-### Open question
-
-Do the IDEA computers use one Windows sign-in for everyone, or one per student? The first is the
-common case and the simpler build; the second is needed only if any lab computer works that way.
+Run on a real lab computer before 0.5.0 is relied on: one person leaves a file checked out and a
+second opens the same assembly; two people on one project with nothing checked out (no download
+should start); a switch while SolidWorks has a part open; a computer with an existing
+`Armory-<name>` folder updating in place; Fast User Switching between two Windows accounts.
 
 ## Decisions owed
 
