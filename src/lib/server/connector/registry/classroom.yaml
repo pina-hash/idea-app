@@ -60,6 +60,7 @@ classroom_update_item:
     p_resources: {name: links, describe: "The post's links, each with a url and a label."}
     p_body_doc: {name: document, describe: "The text as a document in the site's document shape."}
     p_publish_at: {name: showing, resolve: due, describe: "When it shows to students."}
+    p_fields: {name: changing, describe: "The fields this edit changes, so nothing else changes."}
   undo:
     - function: classroom_restore_revision
       args: {p_revision_id: $written.classroom_content_revisions.id}
