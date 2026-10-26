@@ -80,4 +80,10 @@ export const PART_NUMBERS_NAME = '0274_armory_part_numbers.sql';
 /** The Armory migrations, in order: the only files that may name armory_. */
 // 0293 (ledger 0423): a SolidWorks release newer than the pin is recorded, never refused.
 export const NEWER_RELEASE_NAME = '0293_armory_newer_release_uploads.sql';
-export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME, NEWER_RELEASE_NAME];
+// Ledger 0441: the per-computer key. Found by name, so a renumber at landing keeps it.
+const FILES_COMPUTER_KEY = ALL_MIGRATIONS.filter((f) => /^\d{4}_armory_computer_key\.sql$/.test(f));
+if (FILES_COMPUTER_KEY.length !== 1) {
+	throw new Error(`expected exactly one armory_computer_key migration, found ${FILES_COMPUTER_KEY.length}`);
+}
+export const COMPUTER_KEY_NAME = FILES_COMPUTER_KEY[0];
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME, NEWER_RELEASE_NAME, COMPUTER_KEY_NAME];

@@ -32,6 +32,7 @@ import { catalogFingerprint, pasteTrap } from './chain-0230';
 import {
 	ALL_MIGRATIONS,
 	ARMORY_MIGRATIONS,
+	COMPUTER_KEY_NAME,
 	MIGRATIONS_DIR,
 	PRE_ARMORY,
 	PROPOSED_ENTRY,
@@ -102,14 +103,15 @@ afterAll(async () => {
 // landing keeps it.
 const ARMORY_BULK = readdirSync(fileURLToPath(new URL('../../supabase/migrations', import.meta.url))).find((f) => /_feedback_bulk_spam_rewards\.sql$/.test(f))!;
 
-describe('the Armory schema is the Armory series (0231 to 0236, 0273, 0274 and 0293) and nothing else names it', () => {
+describe('the Armory schema is the Armory series (0231 to 0236, 0273, 0274, 0293 and the computer key) and nothing else names it', () => {
 	test('0231_armory.sql exists in supabase/migrations', () => {
 		expect(PROPOSED_NAME).toBe('0231_armory.sql');
 		expect(PROPOSED_ENTRY).toBe('0231_armory.sql');
 		expect(ALL_MIGRATIONS).toContain('0231_armory.sql');
 	});
 	test('no migration but the Armory series names armory_ in its filename or body', () => {
-		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql', V3_NAME, '0234_armory_break_locks.sql', '0235_armory_app_feedback_v2.sql', '0236_armory_v033.sql', '0273_armory_release_choice.sql', '0274_armory_part_numbers.sql', '0293_armory_newer_release_uploads.sql']);
+		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql', V3_NAME, '0234_armory_break_locks.sql', '0235_armory_app_feedback_v2.sql', '0236_armory_v033.sql', '0273_armory_release_choice.sql', '0274_armory_part_numbers.sql', '0293_armory_newer_release_uploads.sql', COMPUTER_KEY_NAME]);
+		expect(COMPUTER_KEY_NAME).toMatch(/^\d{4}_armory_computer_key\.sql$/);
 		expect(ALL_MIGRATIONS).toContain('0234_armory_break_locks.sql');
 		expect(ALL_MIGRATIONS).toContain('0273_armory_release_choice.sql');
 		expect(ALL_MIGRATIONS).toContain('0274_armory_part_numbers.sql');
