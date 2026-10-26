@@ -421,6 +421,14 @@ under `materials/` through the deployed gate and then 0301).
   owner and lock refusals, posting and unposting, a move, mutation-proven in the permissive
   direction) and `/dev/team-document`, two browser contexts as two teammates over the
   in-memory stand-in in `_fake.ts`, which is never evidence for a database rule.
+- **A POST THAT BECOMES A TEAM POST CARRIES ITS STUDENTS' ANSWERS OVER (0313, spec 16.9).**
+  `_classroom_team_carry_over` fills an empty team or role box from the members' own rows
+  (newest wins, every differing answer logged to `classroom_team_log` first) when a team
+  manifest is stored (`classroom_html_assignments_team_carry_over`) and when a draw is
+  posted (`classroom_team_sets_carry_over`). Without it the first teammate's save
+  overwrote every member's row, which is how a mid-assignment switch lost work. Never
+  widen it to individual blocks: `tests/db/classroom-team-carry-over.test.ts` is
+  mutation-proven on exactly that.
 - **WHAT A TEAMMATE CANNOT SEE: another member's picture.** Submission files stay their
   uploader's (0086's file policies are unchanged), so a picture in a shared box shows only
   for the student who took it and in grading; spec 16.3 tells authors to prefer text.

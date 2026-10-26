@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.12 - 2026-10-26**
+**Version 1.13 - 2026-10-26**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -1983,6 +1983,25 @@ Assignments"):
 - A live presentation (the Design Review) is a team module, scored on the Teams screen
   from a phone: every level is a key carrying its `short`.
 
+### 16.9 A post that becomes a team post keeps what students wrote
+
+Ledger 0446, migration 0313 (Mr. Pina, 2026-10-26, switching IDEA-Blade 02 mid-assignment:
+"dont lose any student work"). A per-student post may gain `team` after students have
+answered. The moment a team manifest is stored for a post (an upload or a replace), and
+again whenever a draw is posted in a class the post is in, every EMPTY team box of a
+`team` or `role` block (never a picture, never an individual block) is filled from the
+team's members' own answers: the newest answer becomes the team's answer and every
+member's copy. Every member's own answer that differed from it is written to the box's
+history first, so the instructor can read it and nothing is lost. A box the team already
+has an answer for is never touched.
+
+- Keep picture blocks in an `individual` module when converting: a shared box never shows
+  a teammate's picture (16.3), so each student keeps pasting their own.
+- Converting changes grading to the Teams screen (16.8). Grade nothing on the post before
+  converting, or regrade it there.
+- The draw must stay posted through the due date: a draw past its `visible_until` is no
+  draw, and the page closes for the class (16.1).
+
 ## 17. Day-by-day pacing and the due date
 
 Ledger 0439 (report 0ccf7bff, folded in d0041188). An assignment has a due date on its
@@ -2079,6 +2098,9 @@ has its plan on screen.
 
 ## Changelog
 
+- **1.13 (2026-10-26).** Ledger 0446, migration 0313. Section 16.9: a post that becomes a
+  team post carries its students' own answers into the team's empty boxes, and keeps every
+  answer that differed in the box's history.
 - **1.12 (2026-10-26).** Ledger 0439, migration 0308. Section 17: day-by-day `pacing` in the
   manifest (a display key: warned, never refused), how `day` resolves to school days, an
   admin's step moves, and `schedule` on `idea:state` carrying the post's due date and the

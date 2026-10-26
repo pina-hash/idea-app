@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-26",
+			"title": "IDEA-Blade 02 is now one page per team",
+			"body": "Your team now shares one copy of IDEA-Blade 02: the measurements, the inspection pick, the fight result, what a match showed, and your slide number. When a teammate fills a box, it fills for everyone on your team, and a box someone is typing in shows their name until they click out. Anything your team already typed is still there. Photos are still your own, so paste yours.",
+			"tags": ["Assignments"]
+		},
+		{
+			"date": "2026-10-26",
 			"title": "The IDEA calendar",
 			"body": "There is now one calendar for everything you need to keep up: when posts open and when work is due in each of your classes, your team's tasks and sign-offs, the day-by-day plan for assignments that have one, no-school days, IDEA events, robotics events and the Bosco Tech school calendar. Open it from Calendar on the This week strip at the top of My Classes or any class page. Everything is on to start; tap a color key to hide a layer you do not need, like Robotics if you are not on the team, or hide a whole class. Under Put this calendar on your phone you can make a private link that adds it to your phone's calendar app. Keep that link to yourself, and turn it off or replace it any time.",
 			"tags": ["new"]
