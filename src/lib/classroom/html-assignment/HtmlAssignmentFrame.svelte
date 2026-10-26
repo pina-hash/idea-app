@@ -60,6 +60,8 @@
 		hxFocusMessage,
 		hxTeamProgressMessage,
 		hxTeamStateMessage,
+		hxTeamTrackerMessage,
+		type HxTeamTracker,
 		hxImageBoxStateMessage,
 		hxImagePlacement,
 		hxPostTarget,
@@ -162,6 +164,8 @@
 		 * and releases a box's lock.
 		 */
 		teamState = null,
+		/** The team plan's tracker (ledger 0436), sent down as `idea:team-tracker`; null sends nothing. */
+		teamTracker = null,
 		onfieldfocus,
 		onfieldblur,
 		/**
@@ -206,6 +210,7 @@
 		onannotate?: ((field: string) => void) | null;
 		team?: HxTeamProgress | null;
 		teamState?: HxTeamStatePayload | null;
+		teamTracker?: HxTeamTracker | null;
 		onfieldfocus?: (field: { blockId: string; field: string }) => void;
 		onfieldblur?: (field: { blockId: string; field: string }) => void;
 		expandable?: boolean;
@@ -288,6 +293,7 @@
 				announced = new Set();
 				toldNotes = null;
 				toldTeamState = null;
+				toldTracker = null;
 				video = null;
 				onready?.(message.schemaVersion);
 				// The document is listening now, so the state it should open on goes
@@ -297,6 +303,11 @@
 				postTheme();
 				untrack(() => tellNotes(noteFieldList));
 				untrack(() => {
+					if (teamTracker) {
+						const tracker = hxTeamTrackerMessage(teamTracker);
+						toldTracker = JSON.stringify(tracker);
+						post(tracker);
+					}
 					if (!teamState) return;
 					const message = hxTeamStateMessage(teamState);
 					toldTeamState = JSON.stringify(message);
@@ -684,6 +695,24 @@
 			const key = JSON.stringify(message);
 			if (key === toldTeamState) return;
 			toldTeamState = key;
+			post(message);
+		});
+	});
+
+	/** The tracker, the same way: once the document listens, and only on a change. */
+	let toldTracker: string | null = null;
+	$effect(() => {
+		const t = teamTracker;
+		if (!ready) {
+			toldTracker = null;
+			return;
+		}
+		if (!t) return;
+		untrack(() => {
+			const message = hxTeamTrackerMessage(t);
+			const key = JSON.stringify(message);
+			if (key === toldTracker) return;
+			toldTracker = key;
 			post(message);
 		});
 	});

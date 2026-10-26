@@ -430,6 +430,10 @@
 						const { data: raw, error } = await supabase.rpc('classroom_team_document', { p_item_id: itemId });
 						return error ? null : raw;
 					},
+					readPlan: async (sectionId) => {
+						const { data: raw, error } = await supabase.rpc('classroom_team_plan', { p_section_id: sectionId, p_team_id: null });
+						return error ? null : raw;
+					},
 					lock: async (itemId, blockId, take) => {
 						const { data: raw, error } = await supabase.rpc('classroom_team_box_lock', {
 							p_item_id: itemId,

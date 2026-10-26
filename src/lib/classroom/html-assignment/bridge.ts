@@ -354,6 +354,16 @@ export const HX_FIELD_BLUR_TYPE = 'idea:field-blur';
 export const HX_TEAM_STATE_TYPE = 'idea:team-state';
 
 /**
+ * THE TEAM'S TRACKER, INSIDE THE DOCUMENT (ledger 0436), parent to frame, the
+ * `idea:team-progress` pattern: `{ type: 'idea:team-tracker', team, today,
+ * summary, tasks, flags, next }`, built by `teamTrackerMessage` in
+ * `$lib/classroom/team-plan`. Task titles, first names and statuses only, never
+ * an answer. Sent after the first state and again when it changes; a document
+ * must never wait on it.
+ */
+export const HX_TEAM_TRACKER_TYPE = 'idea:team-tracker';
+
+/**
  * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
  *
  * BYTES GO FRAME-TO-PARENT ONLY, NEVER BACK. An `idea:image` carries a
@@ -450,6 +460,7 @@ export type HxParentMessage =
 			type: typeof HX_FOCUS_TYPE;
 			field: string;
 	  }
+	| ({ type: typeof HX_TEAM_TRACKER_TYPE } & HxTeamTracker)
 	| {
 			/** Who may type where in a team document. See `HX_TEAM_STATE_TYPE`. */
 			type: typeof HX_TEAM_STATE_TYPE;
@@ -972,6 +983,28 @@ export function hxTeamProgressMessage(team: {
 }
 
 /** Ask the document to focus one field (`HX_FOCUS_TYPE`). */
+/** The tracker payload (`HX_TEAM_TRACKER_TYPE`). */
+export interface HxTeamTracker {
+	team: string;
+	today: string;
+	summary: string;
+	tasks: { id: string; title: string; owner: string; due: string | null; status: string; points: number }[];
+	flags: { behind: number; slipping: boolean; uneven: boolean };
+	next: { title: string; date: string | null; state: string } | null;
+}
+
+export function hxTeamTrackerMessage(tracker: HxTeamTracker): HxParentMessage {
+	return {
+		type: HX_TEAM_TRACKER_TYPE,
+		team: tracker.team,
+		today: tracker.today,
+		summary: tracker.summary,
+		tasks: tracker.tasks.map((t) => ({ ...t })),
+		flags: { ...tracker.flags },
+		next: tracker.next ? { ...tracker.next } : null
+	};
+}
+
 /** Who may type where, for a team document. Fields sorted so a re-send of the same state is the same message. */
 export function hxTeamStateMessage(state: {
 	team: string;

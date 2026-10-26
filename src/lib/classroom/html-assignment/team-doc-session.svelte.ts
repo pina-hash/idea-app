@@ -39,12 +39,16 @@ import {
 	type TeamDocument
 } from './team-doc';
 import { TEAM_NOTICE_JITTER_MS, type ClassroomLive } from '$lib/classroom/live';
+import { parseTeamPlan, teamTrackerMessage } from '$lib/classroom/team-plan';
+import type { HxTeamTracker } from './bridge';
 
 export interface TeamDocTransports {
 	/** `classroom_team_document(item)`'s raw answer, or null on a failed read. */
 	read(itemId: string): Promise<unknown>;
 	/** `classroom_team_box_lock(item, block, take)`'s raw answer, or null on a failed call. */
 	lock(itemId: string, blockId: string, take: boolean): Promise<unknown>;
+	/** `classroom_team_plan(section)`'s raw answer, for the tracker inside the document. Optional. */
+	readPlan?(sectionId: string): Promise<unknown>;
 }
 
 /** What the session needs of the answers controller, and nothing else. */
@@ -69,6 +73,7 @@ export class TeamDocSession {
 	readonly #blocks: ReturnType<typeof hxTeamBlocks>;
 	readonly #now: () => number;
 	#doc = $state<TeamDocument | null>(null);
+	#tracker = $state<HxTeamTracker | null>(null);
 	/** Bumped when a lock runs out on the clock, so states re-derive with no read. */
 	#tick = $state(0);
 	/** Server minus client, from the last read. */
@@ -93,6 +98,11 @@ export class TeamDocSession {
 	/** The last read, or null before one has answered. */
 	get doc(): TeamDocument | null {
 		return this.#doc;
+	}
+
+	/** The team plan's tracker for the document, or null (no plan read, or no team). */
+	get tracker(): HxTeamTracker | null {
+		return this.#tracker;
 	}
 
 	/** True once the first read has answered (either way). */
@@ -148,6 +158,13 @@ export class TeamDocSession {
 			if (this.#stopped) return;
 			const doc = parseTeamDocument(raw);
 			if (doc) this.#adopt(doc, since);
+			const section = doc?.team?.section_id;
+			if (section && this.#opts.transports.readPlan) {
+				const plan = parseTeamPlan(await this.#opts.transports.readPlan(section).catch(() => null)).plan;
+				if (!this.#stopped) this.#tracker = plan ? teamTrackerMessage(plan) : null;
+			} else if (!doc?.team) {
+				this.#tracker = null;
+			}
 		} catch {
 			/* the floor reads again */
 		} finally {

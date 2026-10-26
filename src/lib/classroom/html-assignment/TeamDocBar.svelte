@@ -16,6 +16,9 @@
 	<div class="tdb-team">
 		<span class="section-label">Your team</span>
 		<strong class="tdb-name">{doc.team?.name}</strong>
+		{#if doc.team?.section_id}
+			<a class="btn secondary tdb-plan" href={`/classroom/${doc.team.section_id}/plan`} data-testid="team-plan-link">Team plan</a>
+		{/if}
 		<ul class="tdb-people">
 			{#each teammates as m (m.name + (m.me ? ':me' : ''))}
 				<li class="chip tdb-person" class:me={m.me}>{m.name}{m.me ? ' (you)' : ''}</li>
@@ -56,6 +59,11 @@
 		font-size: 1.1rem;
 		font-weight: 600;
 		color: var(--text-1, var(--white));
+	}
+	.tdb-plan {
+		margin-left: auto;
+		order: 3;
+		min-height: 44px;
 	}
 	.tdb-people {
 		display: flex;

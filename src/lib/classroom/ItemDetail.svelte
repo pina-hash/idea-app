@@ -3010,6 +3010,7 @@
 						marks={studentMarks}
 						team={htmlTeam}
 						teamState={htmlTeamDoc?.statePayload ?? null}
+						teamTracker={htmlTeamDoc?.tracker ?? null}
 						onfieldfocus={htmlTeamDoc ? (f) => void htmlTeamDoc?.focus(f.blockId, f.field) : undefined}
 						onfieldblur={htmlTeamDoc ? (f) => void htmlTeamDoc?.blur(f.blockId) : undefined}
 						onnote={feedback ? (_field, threadId) => feedback?.show(threadId) : null}

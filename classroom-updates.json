@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-26",
+			"title": "Your team plan",
+			"body": "Your team now has a plan: open it with Team plan at the top of your team's document. Every graded box of your team posts is already a task with its points, and a part your role owns is already yours. Choose who owns each role and each team task so the points split evenly, set your due dates, and at the start of class tap the tasks you are on today. A task turns Done by itself when its box is filled in. If something is in your way, mark the task Blocked with one line saying why. The timeline shows every task by day, with the sign-off dates as lines.",
+			"tags": ["Assignments", "Teams"]
+		},
+		{
+			"date": "2026-10-26",
 			"title": "One shared document for your team",
 			"body": "Some posts are now team posts: your whole team works in one document together. Before your class's teams are posted the post says so, and the moment Mr. Pina posts the teams it opens on its own, with your team's name and who owns each part at the top. Click into a box to work in it; your teammates see your name on it while you type, and you see theirs. Your words save on their own and show up for your teammates in a couple of seconds. A part that belongs to a teammate's role is theirs to write, and you can read it as they work. After the due date your team's answers are read only.",
 			"tags": ["Assignments", "Teams"]
