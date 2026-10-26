@@ -33,7 +33,34 @@ export function teamManifest() {
 		title: 'Launcher plan',
 		course: 'IDEA209H',
 		points: 100,
-		team: { roles: ROLES.map((r) => ({ ...r })) },
+		team: {
+			roles: ROLES.map((r) => ({ ...r })),
+			checkpoints: [
+				{
+					id: 'plan',
+					title: 'Plan',
+					date: '2026-10-28',
+					items: [
+						{ id: 'owners', kind: 'auto', check: 'plan-owners', text: 'Every task has an owner and a due date' },
+						{ id: 'roles', kind: 'auto', check: 'roles-owned', text: 'Every role has an owner' },
+						{ id: 'balance', kind: 'auto', check: 'plan-balanced', text: 'The plan balances' },
+						{ id: 'fields', kind: 'auto', check: 'blocks-complete', blocks: ['frame-text', 'energy-text', 'drive-text', 'ballpath-text'], text: "Each role's requirement field is complete" },
+						{ id: 'interfaces', kind: 'tap', role: 'frame', text: 'The sketches meet at the named interfaces' },
+						{ id: 'method', kind: 'tap', ownerOnly: true, text: 'The launch method is a flywheel or a catapult' }
+					]
+				},
+				{
+					id: 'design',
+					title: 'Design',
+					date: '2026-11-02',
+					gate: 'No metal is cut before this sign-off.',
+					items: [
+						{ id: 'aluminum', kind: 'tap', text: 'The structure is aluminum, with wood only for a minor part' },
+						{ id: 'mount', kind: 'tap', role: 'drive', text: 'The drill or power tool is clamped or mounted to the launcher, never hand-held while firing' }
+					]
+				}
+			]
+		},
 		header: [{ id: 'who', field: 'studentName', type: 'text' }],
 		modules: [
 			{

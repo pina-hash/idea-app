@@ -43,6 +43,10 @@
 			for (const t of tasks()) if (t.id === id) t.depends_on = on;
 			return ok();
 		},
+		request: async (_t, key) => {
+			for (const c of raw.checkpoints as Record<string, unknown>[]) if (c.key === key) c.state = 'requested';
+			return ok();
+		},
 		checkin: async (_t, ids) => {
 			for (const t of tasks()) t.on_it = ids.includes(String(t.id)) ? ['k-ana'] : [];
 			return ok();

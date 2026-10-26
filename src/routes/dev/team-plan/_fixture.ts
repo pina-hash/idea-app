@@ -82,8 +82,16 @@ export function fixturePlan(): Record<string, unknown> {
 		],
 		no_school: [{ day: '2026-11-11', label: 'Veterans Day' }],
 		checkpoints: [
-			{ key: 'plan', title: 'Plan', date: '2026-10-28', gate: null, state: 'approved' },
-			{ key: 'design', title: 'Design', date: '2026-11-02', gate: 'No metal is cut before this sign-off.', state: 'open' },
+			{ key: 'plan', title: 'Plan', date: '2026-10-28', gate: null, state: 'approved', items: [], auto: {},
+				decision: { status: 'approved', at: '2026-10-28T16:12:00Z', by: 'A. Pina', note: null } },
+			{ key: 'design', title: 'Design', date: '2026-11-02', gate: 'No metal is cut before this sign-off.', state: 'open',
+				items: [
+					{ id: 'fields', kind: 'auto', text: "The Design post's fields are complete" },
+					{ id: 'calc', kind: 'auto', text: 'Its calculators have been run' },
+					{ id: 'aluminum', kind: 'tap', text: 'The structure is aluminum, with wood only for a minor part' },
+					{ id: 'mount', kind: 'tap', text: 'The drill or power tool is clamped or mounted to the launcher, never hand-held while firing' }
+				],
+				auto: { fields: true, calc: true }, decision: null },
 			{ key: 'safe', title: 'Safe to test', date: '2026-11-09', gate: 'No firing before this sign-off.', state: 'open' },
 			{ key: 'ready', title: 'Competition ready', date: '2026-11-12', gate: null, state: 'open' }
 		],

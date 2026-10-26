@@ -74,7 +74,24 @@ export interface TeamCheckpoint {
 	gate: string | null;
 	/** 'approved', 'requested', 'sent-back' or 'open'. */
 	state: string;
+	items: { id: string; kind: 'auto' | 'tap'; text: string }[];
+	/** The database's answer for each auto item. */
+	auto: Record<string, boolean>;
+	/** The latest decision: who and when, and the note of a send-back. */
+	decision: { status: string; at: string | null; by: string; note: string | null } | null;
 }
+
+/** True when every auto item passes, which is what unlocks Request sign-off. */
+export function teamCheckpointReady(cp: TeamCheckpoint): boolean {
+	return cp.items.filter((i) => i.kind === 'auto').every((i) => cp.auto[i.id] === true);
+}
+
+export const TEAM_CHECKPOINT_WORDS: Record<string, string> = {
+	approved: 'Approved',
+	requested: 'Waiting for sign-off',
+	'sent-back': 'Sent back',
+	open: 'Not requested'
+};
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
@@ -139,7 +156,21 @@ export function parseTeamPlan(raw: unknown): { plan: TeamPlan | null; reason: st
 				title: String(c.title ?? c.key),
 				date: str(c.date),
 				gate: str(c.gate),
-				state: String(c.state ?? 'open')
+				state: String(c.state ?? 'open'),
+				items: arr(c.items).map((i) => ({
+					id: String(i.id),
+					kind: (i.kind === 'auto' ? 'auto' : 'tap') as 'auto' | 'tap',
+					text: String(i.text ?? '')
+				})),
+				auto: isRecord(c.auto) ? Object.fromEntries(Object.entries(c.auto).map(([k, v]) => [k, v === true])) : {},
+				decision: isRecord(c.decision)
+					? {
+							status: String(c.decision.status ?? ''),
+							at: str(c.decision.at),
+							by: String(c.decision.by ?? ''),
+							note: str(c.decision.note)
+						}
+					: null
 			})),
 			ownersFixed: raw.owners_fixed === true
 		}
@@ -326,4 +357,6 @@ export interface TeamPlanWrites {
 	block(taskId: string, reason: string | null): Promise<unknown>;
 	depends(taskId: string, on: string | null): Promise<unknown>;
 	checkin(teamId: string, taskIds: string[]): Promise<unknown>;
+	/** Request a checkpoint's sign-off (0304). */
+	request(teamId: string, checkpointKey: string): Promise<unknown>;
 }

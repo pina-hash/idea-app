@@ -128,7 +128,8 @@ export type ClassroomLiveTopic =
 	| 'feedback'
 	| 'lock'
 	| 'teams'
-	| 'team-doc';
+	| 'team-doc'
+	| 'signoffs';
 
 export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'hall-pass',
@@ -139,7 +140,8 @@ export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'feedback',
 	'lock',
 	'teams',
-	'team-doc'
+	'team-doc',
+	'signoffs'
 ];
 
 /**
@@ -170,6 +172,13 @@ export const LOCK_NOTICE_JITTER_MS = 3000;
  * So the wait is short and only coalesces a burst of notices into one read.
  */
 export const TEAM_NOTICE_JITTER_MS = 300;
+
+/**
+ * `signoffs` IS THE TENTH (ledger 0436, 0304), sent from the database to the
+ * SECTION's channel when a team requests a sign-off or one is decided, so an
+ * open queue re-reads at once. The queue page listens on every section it can
+ * decide for; the payload is the topic alone, as always.
+ */
 
 /**
  * THE GRADING CONSOLE'S POLL, WHICH IS THE FLOOR AND NOT THE SPEED.

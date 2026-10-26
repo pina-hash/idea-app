@@ -108,7 +108,8 @@
 		removeTask: (taskId) => call('classroom_team_task_remove', { p_task_id: taskId }),
 		block: (taskId, why) => call('classroom_team_task_block', { p_task_id: taskId, p_reason: why }),
 		depends: (taskId, on) => call('classroom_team_task_depends', { p_task_id: taskId, p_depends_on: on }),
-		checkin: (teamId, ids) => call('classroom_team_checkin', { p_team_id: teamId, p_task_ids: ids })
+		checkin: (teamId, ids) => call('classroom_team_checkin', { p_team_id: teamId, p_task_ids: ids }),
+		request: (teamId, key) => call('classroom_signoff_request', { p_team_id: teamId, p_checkpoint_key: key })
 	};
 </script>
 

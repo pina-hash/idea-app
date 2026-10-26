@@ -17,7 +17,9 @@
 	 * read again (`onchanged`), and the team's live notice reaches teammates.
 	 */
 	import {
+		TEAM_CHECKPOINT_WORDS,
 		TEAM_STATUS_WORDS,
+		teamCheckpointReady,
 		teamDayWords,
 		teamDueChoices,
 		teamPlanSummary,
@@ -103,6 +105,10 @@
 				return 'Only the task owner can mark it blocked.';
 			case 'not_member':
 				return 'That person is not on your team.';
+			case 'auto_failed':
+				return 'Some checks the site makes do not pass yet. Finish those, then ask again.';
+			case 'already_requested':
+				return 'Your team already asked. It is in the queue.';
 			default:
 				return 'That change did not save.';
 		}
@@ -221,6 +227,49 @@
 					{checkedIn ? 'Update my check-in' : 'Check in'}
 				</button>
 			{/if}
+		</section>
+	{/if}
+
+	{#if plan.checkpoints.length}
+		<section class="card tp-signoffs" aria-label="Sign-offs" data-testid="team-signoffs">
+			<h2 class="section-label">Sign-offs</h2>
+			<ol class="tp-cps">
+				{#each plan.checkpoints as cp (cp.key)}
+					<li class="tp-cp" data-state={cp.state}>
+						<div class="tp-cp-head">
+							<strong class="tp-cp-title">{cp.title}</strong>
+							{#if cp.date}<span class="tp-cp-date">{teamDayWords(cp.date)}</span>{/if}
+							<span class={`tp-chip cp-${cp.state}`}>{TEAM_CHECKPOINT_WORDS[cp.state] ?? cp.state}</span>
+						</div>
+						{#if cp.gate}<p class="tp-cp-gate">{cp.gate}</p>{/if}
+						{#if cp.decision?.status === 'approved'}
+							<p class="tp-cp-stamp">Approved by {cp.decision.by}{cp.decision.at ? `, ${new Date(cp.decision.at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</p>
+						{:else if cp.decision?.status === 'sent_back' && cp.state === 'sent-back'}
+							<p class="tp-cp-back">Sent back: {cp.decision.note}</p>
+						{/if}
+						{#if cp.state !== 'approved'}
+							<ul class="tp-cp-items">
+								{#each cp.items as item (item.id)}
+									<li class:ok={item.kind === 'auto' && cp.auto[item.id]} class:no={item.kind === 'auto' && !cp.auto[item.id]}>
+										<span class="tp-cp-mark" aria-hidden="true">{item.kind === 'auto' ? (cp.auto[item.id] ? '✓' : '·') : '○'}</span>
+										{item.text}
+										<span class="tp-cp-kind">{item.kind === 'auto' ? (cp.auto[item.id] ? 'passes' : 'not yet') : 'your teacher checks'}</span>
+									</li>
+								{/each}
+							</ul>
+							{#if me && (cp.state === 'open' || cp.state === 'sent-back')}
+								<button
+									type="button"
+									class="btn tp-request"
+									data-testid={`request-${cp.key}`}
+									disabled={busy || !teamCheckpointReady(cp)}
+									onclick={() => run(() => writes.request(plan.team.id, cp.key))}>Request sign-off</button
+								>
+							{/if}
+						{/if}
+					</li>
+				{/each}
+			</ol>
 		</section>
 	{/if}
 
@@ -482,6 +531,7 @@
 	.tp :global(.tp-title .section-label) {
 		margin: 0;
 	}
+	.tp-signoffs,
 	.tp-roles,
 	.tp-checkin,
 	.tp-time,
@@ -733,6 +783,93 @@
 	.tp-add > * {
 		min-height: 44px;
 		min-width: 0;
+	}
+	.tp-cps {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 0.5rem;
+	}
+	.tp-cp {
+		display: grid;
+		gap: 0.35rem;
+		padding: 0.6rem 0.7rem;
+		border-radius: 0.6rem;
+		border: 1px solid color-mix(in srgb, var(--dim) 25%, transparent);
+	}
+	.tp-cp[data-state='approved'] {
+		border-color: color-mix(in srgb, var(--green) 55%, transparent);
+	}
+	.tp-cp-head {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.tp-cp-title {
+		font-family: var(--font-display);
+		font-size: 1.05rem;
+		color: var(--text-1, var(--white));
+	}
+	.tp-cp-date {
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		color: var(--text-2, var(--dim));
+		margin-right: auto;
+	}
+	.tp-chip.cp-approved {
+		color: var(--green);
+		border-color: color-mix(in srgb, var(--green) 60%, transparent);
+	}
+	.tp-chip.cp-sent-back {
+		color: var(--amber);
+		border-color: var(--amber);
+	}
+	.tp-cp-gate,
+	.tp-cp-stamp,
+	.tp-cp-back {
+		margin: 0;
+		font-family: var(--font-display);
+	}
+	.tp-cp-gate {
+		color: var(--amber);
+	}
+	.tp-cp-stamp {
+		color: var(--green);
+	}
+	.tp-cp-back {
+		color: var(--amber);
+	}
+	.tp-cp-items {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 0.2rem;
+		font-family: var(--font-display);
+		color: var(--text-1, var(--white));
+	}
+	.tp-cp-mark {
+		display: inline-block;
+		width: 1.1rem;
+		color: var(--text-2, var(--dim));
+	}
+	.tp-cp-items li.ok .tp-cp-mark {
+		color: var(--green);
+	}
+	.tp-cp-kind {
+		margin-left: 0.4rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2, var(--dim));
+	}
+	.tp-cp-items li.no .tp-cp-kind {
+		color: var(--amber);
+	}
+	.tp-request {
+		justify-self: start;
+		min-height: 44px;
 	}
 	@media (max-width: 640px) {
 		.tp-stats {

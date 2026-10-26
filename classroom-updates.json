@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-26",
+			"title": "Sign-offs for your team",
+			"body": "Your team plan now lists your sign-offs, each with its checklist. The checks the site makes show as passing or not yet; when they all pass, anyone on your team can press Request sign-off. Your teacher checks the rest in class and either approves it, with their name and the time on your plan, or sends it back. If it comes back, each item that did not pass becomes a task on your plan for whoever owns that part, and you can ask again as soon as it is fixed. Once your plan is approved, who owns each part is set. Sign-offs carry no points, but the shop goes by them: no metal is cut before the Design sign-off and nothing is fired before Safe to test.",
+			"tags": ["Assignments", "Teams"]
+		},
+		{
+			"date": "2026-10-26",
 			"title": "Your team plan",
 			"body": "Your team now has a plan: open it with Team plan at the top of your team's document. Every graded box of your team posts is already a task with its points, and a part your role owns is already yours. Choose who owns each role and each team task so the points split evenly, set your due dates, and at the start of class tap the tasks you are on today. A task turns Done by itself when its box is filled in. If something is in your way, mark the task Blocked with one line saying why. The timeline shows every task by day, with the sign-off dates as lines.",
 			"tags": ["Assignments", "Teams"]
