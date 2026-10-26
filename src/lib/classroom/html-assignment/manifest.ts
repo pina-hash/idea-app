@@ -172,9 +172,23 @@ export interface HtmlModule {
 	id: string;
 	title: string;
 	points: number;
-	audience?: 'team' | 'individual';
+	/**
+	 * WHO WRITES THIS MODULE IN A TEAM ASSIGNMENT (ledger 0435, migration 0301).
+	 * Read by `hxModuleOwnership` in `./team-manifest`, and only when the
+	 * manifest declares `team`: without it every module is one student's own,
+	 * exactly as before, whatever this says.
+	 */
+	audience?: 'team' | 'individual' | 'role';
+	/** The `team.roles` id that owns this module. Required iff `audience` is `role`. */
+	role?: string;
 	blocks: HtmlBlock[];
 	criteria: HtmlCriterion[];
+}
+
+/** One subsystem role a team assignment declares (ledger 0435). */
+export interface HtmlTeamRole {
+	id: string;
+	title: string;
 }
 
 export interface HtmlAssignmentManifest {
@@ -204,7 +218,18 @@ export interface HtmlAssignmentManifest {
 	 * understand is no thumbnail, never a refusal.
 	 */
 	thumbnail?: unknown;
+	/**
+	 * A TEAM ASSIGNMENT (ledger 0435). Present means one shared document per
+	 * team: `team` modules hold one answer per block per team, `role` modules
+	 * belong to the role's owner from the team plan, `individual` modules stay
+	 * each student's own. Validated here and by 0301; the plan keys it may also
+	 * carry (`checkpoints`) are read tolerantly by `./team-manifest`.
+	 */
+	team?: { roles: HtmlTeamRole[]; checkpoints?: unknown };
 }
+
+/** At most this many roles in one team assignment (0301 states the same eight). */
+export const HTML_MAX_TEAM_ROLES = 8;
 
 export const HTML_MANIFEST_SCHEMA_VERSION = 3;
 export const HTML_MANIFEST_KIND = 'html-assignment';
@@ -618,6 +643,41 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 		errors.push(`At most ${HTML_MAX_MODULES} modules per document (this one has ${modules.length}).`);
 	}
 
+	// THE TEAM KEY (ledger 0435), checked only when present, in 0301's words.
+	const teamRoleIds = new Set<string>();
+	if (m.team != null) {
+		const team = m.team as Record<string, unknown>;
+		const roles = typeof team === 'object' && !Array.isArray(team) ? team.roles : undefined;
+		if (!Array.isArray(roles) || roles.length > HTML_MAX_TEAM_ROLES) {
+			errors.push(
+				`The manifest team must be an object with a roles array of at most ${HTML_MAX_TEAM_ROLES} roles.`
+			);
+		} else {
+			const bad = roles.some((r) => {
+				const role = r as Record<string, unknown>;
+				return (
+					!role ||
+					typeof role !== 'object' ||
+					Array.isArray(role) ||
+					!HTML_ID_RE.test(String(role.id ?? '')) ||
+					!String(role.title ?? '').trim()
+				);
+			});
+			if (bad) {
+				errors.push(
+					'Every team role needs an id of letters, digits, - and _ (up to 40 characters) and a title.'
+				);
+			} else {
+				for (const r of roles) {
+					const id = String((r as Record<string, unknown>).id);
+					if (teamRoleIds.has(id)) errors.push('Two team roles share one id.');
+					teamRoleIds.add(id);
+					errors.push(...copyIssues(`Team role "${id}" title`, String((r as Record<string, unknown>).title)));
+				}
+			}
+		}
+	}
+
 	const moduleIds = new Set<string>();
 	/** Block ids are unique across the WHOLE manifest: they key a response row. */
 	const blockIds = new Set<string>();
@@ -742,8 +802,13 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 		} else {
 			modulePointsSum += modPoints as number;
 		}
-		if (mod.audience != null && mod.audience !== 'team' && mod.audience !== 'individual') {
-			errors.push(`Module "${name}" audience must be "team" or "individual" when present.`);
+		if (mod.audience != null && mod.audience !== 'team' && mod.audience !== 'individual' && mod.audience !== 'role') {
+			errors.push(`Module "${name}" audience must be "team", "individual" or "role" when present.`);
+		}
+		if (mod.audience === 'role' && (typeof mod.role !== 'string' || !teamRoleIds.has(mod.role))) {
+			errors.push(
+				`Module "${name}" is owned by a role, so it needs a role that the manifest's team.roles declares.`
+			);
 		}
 
 		// --- blocks ---------------------------------------------------------

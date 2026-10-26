@@ -491,6 +491,24 @@ def check_manifest(manifest, name, html=None):
               f"none and never reach the rubric; move it into a module if it "
               f"is worth marks.")
 
+    # The team key (ledger 0435, migration 0301), checked only when present.
+    team_role_ids = []
+    team = manifest.get("team")
+    if team is not None:
+        roles = team.get("roles") if isinstance(team, dict) else None
+        if not isinstance(roles, list) or len(roles) > 8:
+            E("manifest team must be an object with a roles array of at most 8 roles")
+        else:
+            for r in roles:
+                if (not isinstance(r, dict) or not HTML_ID.match(str(r.get("id", "")))
+                        or not str(r.get("title") or "").strip()):
+                    E("every team role needs an id of letters, digits, - and _ "
+                      "(up to 40 characters) and a title")
+                    continue
+                if r["id"] in team_role_ids:
+                    E(f'two team roles share the id "{r["id"]}"')
+                team_role_ids.append(r["id"])
+
     for m in modules:
         mid = m.get("id", "?")
         if not HTML_ID.match(str(mid)):
@@ -510,8 +528,13 @@ def check_manifest(manifest, name, html=None):
         total += pts
 
         aud = m.get("audience")
-        if aud is not None and aud not in ("team", "individual"):
-            E(f'module "{mid}" audience is {aud!r}, expected team or individual')
+        if aud is not None and aud not in ("team", "individual", "role"):
+            E(f'module "{mid}" audience is {aud!r}, expected team, individual or role')
+        # A role-owned module (ledger 0435, migration 0301) names a role the
+        # manifest's own team.roles declares.
+        if aud == "role" and m.get("role") not in team_role_ids:
+            E(f'module "{mid}" is owned by a role, so it needs a role that the '
+              f"manifest's team.roles declares")
 
         blocks = m.get("blocks") or []
         for b in blocks:
