@@ -2449,6 +2449,73 @@
 				}
 			}
 		},
+		"classroom_grade_team": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Grade one team on a team assignment, team and role scores once for the team and any per-student scores; it asks first.",
+			"say": [
+				"grade the Torque team on the Unit 4 assignment",
+				"give team 3 a 9 on design and 8 on build",
+				"score the Gearheads and return it"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The team assignment."
+				},
+				"p_team_id": {
+					"name": "team",
+					"describe": "The team's id, from the grading packet's teams."
+				},
+				"p_scores": {
+					"name": "scores",
+					"describe": "Team and role criterion scores, keyed by the rubric criterion's id from the grading packet."
+				},
+				"p_member_scores": {
+					"name": "studentScores",
+					"default": null,
+					"describe": "Each student's own criterion scores, keyed by their address, then by criterion id."
+				},
+				"p_comment": {
+					"name": "comment",
+					"default": null,
+					"describe": "A comment every member reads with the grade."
+				},
+				"p_criterion_comments": {
+					"name": "notes",
+					"default": null,
+					"describe": "A comment on each criterion, keyed by its id."
+				},
+				"p_return": {
+					"name": "return",
+					"default": false,
+					"describe": "True to return it to the team now, false to hold it."
+				}
+			}
+		},
+		"classroom_team_grading": {
+			"surface": "call",
+			"level": "read",
+			"describe": "One team's grading screen on a team assignment, the roles and who owns them, and each member's grade as it stands.",
+			"say": [
+				"show the Torque team's grades on Unit 4",
+				"who owns which role on team 3",
+				"what did I give the Gearheads"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The team assignment."
+				},
+				"p_team_id": {
+					"name": "team",
+					"describe": "The team's id, from the grading packet's teams."
+				}
+			}
+		},
 		"classroom_hall_pass_close_by_id": {
 			"surface": "call",
 			"level": "confirm",
@@ -11043,11 +11110,12 @@
 			"facade": true,
 			"level": "read",
 			"uses": [],
-			"describe": "Read what a student answered on an assignment, or every student's answers at once; every question or just one.",
+			"describe": "Read what a student answered on an assignment, or everyone's at once, with a link to every file and picture they handed in.",
 			"say": [
 				"what did Mateo answer on question 3 of the DFM worksheet",
 				"read me Leo's answers on the Shop Fix",
-				"show everyone's answers to question 2 of the Blade worksheet"
+				"show everyone's answers to question 2 of the Blade worksheet",
+				"show me the sketch photos on the Blade worksheet"
 			],
 			"args": {
 				"post": {
@@ -11067,17 +11135,52 @@
 				}
 			}
 		},
+		"grading_packet": {
+			"facade": true,
+			"level": "read",
+			"uses": [],
+			"describe": "Everything needed to grade one assignment in one read, the questions, rubric, worksheet, and every student's answers, file links, status, grade and notes.",
+			"say": [
+				"get the grading packet for the Blade worksheet in Block 2",
+				"I want to grade Shop Fix, pull everything",
+				"show me all the turned in work on Tolerance Check",
+				"load the Unit 4 team assignment for grading"
+			],
+			"args": {
+				"post": {
+					"type": "string",
+					"required": true,
+					"resolve": "post",
+					"describe": "The assignment's title as you said it."
+				},
+				"class": {
+					"type": "string",
+					"describe": "Only this class, like 209H Block 2. Leave it out for every class it is posted to."
+				},
+				"student": {
+					"type": "string",
+					"describe": "Only this student, as you said the name."
+				},
+				"document": {
+					"type": "boolean",
+					"describe": "True to include the worksheet's HTML itself, for reading exactly what was asked."
+				}
+			}
+		},
 		"grade": {
 			"facade": true,
 			"level": "undo",
 			"uses": [
-				"classroom_grade_direct"
+				"classroom_grade_direct",
+				"classroom_grade_submission"
 			],
-			"describe": "Give a student a score on an assignment, with an optional comment, and return it to them unless you say to hold it.",
+			"describe": "Grade one student or a whole class at once, by score or rubric, held for review unless you say return; or return everything held.",
 			"say": [
 				"grade Mateo's Shop Fix 18 out of 20, comment fix the fillet callout",
 				"give Leo a perfect score on the trophy reflection",
-				"score Ana's Tolerance Check 15 and hold it"
+				"score Ana's Tolerance Check 15 and hold it",
+				"save those grades for the whole class, I'll check them first",
+				"return the held grades on the Blade worksheet"
 			],
 			"args": {
 				"post": {
@@ -11088,9 +11191,8 @@
 				},
 				"student": {
 					"type": "string",
-					"required": true,
 					"resolve": "student",
-					"describe": "The student, as you said the name."
+					"describe": "One student, as you said the name. Leave it out when giving grades for many."
 				},
 				"score": {
 					"type": "number",
@@ -11106,7 +11208,53 @@
 				},
 				"hold": {
 					"type": "boolean",
-					"describe": "True to save the grade without returning it to the student yet."
+					"describe": "For one student: true to save the grade without returning it yet."
+				},
+				"grades": {
+					"type": "array",
+					"describe": "Many students at once, held unless return is true. Each has the student and a score, perfect, or scores by rubric criterion, and an optional comment.",
+					"items": {
+						"type": "object",
+						"properties": {
+							"student": {
+								"type": "string",
+								"describe": "The student, as you said the name."
+							},
+							"score": {
+								"type": "number",
+								"describe": "One score out of the total."
+							},
+							"perfect": {
+								"type": "boolean",
+								"describe": "True for full points."
+							},
+							"scores": {
+								"type": "object",
+								"describe": "Points for each rubric criterion, by its name or id, like Accuracy 8."
+							},
+							"notes": {
+								"type": "object",
+								"describe": "A note on a criterion, by its name; needed when a score falls between two levels."
+							},
+							"comment": {
+								"type": "string",
+								"describe": "A comment the student reads with the grade."
+							}
+						}
+					}
+				},
+				"return": {
+					"type": "boolean",
+					"describe": "With grades: true to return them to the students now. They are held by default."
+				},
+				"returnHeld": {
+					"type": "boolean",
+					"describe": "True to return every grade held on this assignment, with the score and comment it already has."
+				},
+				"students": {
+					"type": "array",
+					"items": "string",
+					"describe": "With returnHeld: only these students."
 				}
 			}
 		},
@@ -11678,6 +11826,8 @@
 		"classroom_grade_revocation": "classroom.yaml",
 		"classroom_grade_submission": "classroom.yaml",
 		"classroom_grade_submissions": "classroom.yaml",
+		"classroom_grade_team": "classroom.yaml",
+		"classroom_team_grading": "classroom.yaml",
 		"classroom_hall_pass_close_by_id": "classroom.yaml",
 		"classroom_hall_pass_events": "classroom.yaml",
 		"classroom_hall_pass_open_for": "classroom.yaml",
@@ -12155,6 +12305,7 @@
 		"replace_html_assignment": "tools.yaml",
 		"read_grades": "tools.yaml",
 		"read_answers": "tools.yaml",
+		"grading_packet": "tools.yaml",
 		"grade": "tools.yaml",
 		"send_feedback": "tools.yaml",
 		"coin_transact": "tools.yaml",

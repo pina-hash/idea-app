@@ -43,7 +43,9 @@ describe('every facade tool reads well aloud', () => {
 				// ledger 0416: the site's own feedback list
 				'list_site_feedback', 'feedback_screenshot',
 				// ledger 0432: voice to action, and the feedback lists in bulk
-				'coin_transact', 'mark_feedback', 'list_armory_reports', 'read_armory_incident'
+				'coin_transact', 'mark_feedback', 'list_armory_reports', 'read_armory_incident',
+				// ledger 0438: a whole assignment in one read, for grading from a chat
+				'grading_packet'
 			].sort()
 		);
 	});

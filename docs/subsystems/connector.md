@@ -186,4 +186,22 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
   - **A STUDENT ACTION IS NEVER A TOOL (`CALLER_SEAMS`).** See
     `docs/subsystems/coins.md`; the generated layer excludes anything that
     reaches the coin student seam.
+- **GRADING FROM A CHAT: ONE READ IN, ONE CALL OUT (ledger 0438, feedback
+  6db4fbe5, gap 8fd1c0bb).** `grading_packet` reads a whole assignment as him:
+  the questions (retired ones included), the rubric with criterion ids, the
+  post's own files and answer keys, the worksheet's HTML on request, and per
+  student the status, earlier grade and comments, text answers, handed-in files
+  and his notes (`classroom_feedback_list`). For a team assignment it adds each
+  team through `classroom_item_teams`, `classroom_team_grading` and
+  `classroom_team_document_for`. **A FILE IS A LINK, NEVER BYTES**: each is
+  signed AS HIM for `GRADING_LINK_SECONDS` through `signStorage`, so the bucket's
+  own policy decides, and `read_answers` carries the same links. **WHO A PACKET
+  CARRIES IS THE CLASS ROSTER**: an admin reads every row of a cross-posted
+  assignment, so the class narrowing is the privacy line, and
+  `tests/db/connector-grading.test.ts` holds it both ways (mutation proved).
+  `grade` takes `grades` (many students, by score or by rubric criterion with
+  `notes`, HELD unless `return`), each its own undoable write in one group so
+  `undo_last` takes the batch back, and `returnHeld` returns what was held with
+  the score it already has. A team assignment is graded by team through
+  `classroom_grade_team` (a hand entry, asks first), never through `grade`.
 

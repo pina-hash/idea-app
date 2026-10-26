@@ -200,32 +200,68 @@ read_answers:
   facade: true
   level: read
   uses: []
-  describe: Read what a student answered on an assignment, or every student's answers at once; every question or just one.
+  describe: Read what a student answered on an assignment, or everyone's at once, with a link to every file and picture they handed in.
   say:
     - what did Mateo answer on question 3 of the DFM worksheet
     - read me Leo's answers on the Shop Fix
     - show everyone's answers to question 2 of the Blade worksheet
+    - show me the sketch photos on the Blade worksheet
   args:
     post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
     student: {type: string, resolve: student, describe: "The student, as you said the name. Leave it out for every student's answers."}
     question: {type: string, describe: "One question: its number, its name, or words from its prompt. Leave it out for every answer."}
 
+# FULL GRADING FROM A CHAT (ledger 0438, feedback 6db4fbe5, gap 8fd1c0bb):
+# one read carries a whole assignment and class; grade takes many at once.
+grading_packet:
+  facade: true
+  level: read
+  uses: []
+  describe: Everything needed to grade one assignment in one read, the questions, rubric, worksheet, and every student's answers, file links, status, grade and notes.
+  say:
+    - get the grading packet for the Blade worksheet in Block 2
+    - I want to grade Shop Fix, pull everything
+    - show me all the turned in work on Tolerance Check
+    - load the Unit 4 team assignment for grading
+  args:
+    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    class: {type: string, describe: "Only this class, like 209H Block 2. Leave it out for every class it is posted to."}
+    student: {type: string, describe: "Only this student, as you said the name."}
+    document: {type: boolean, describe: "True to include the worksheet's HTML itself, for reading exactly what was asked."}
+
 grade:
   facade: true
   level: undo
-  uses: [classroom_grade_direct]
-  describe: Give a student a score on an assignment, with an optional comment, and return it to them unless you say to hold it.
+  uses: [classroom_grade_direct, classroom_grade_submission]
+  describe: Grade one student or a whole class at once, by score or rubric, held for review unless you say return; or return everything held.
   say:
     - grade Mateo's Shop Fix 18 out of 20, comment fix the fillet callout
     - give Leo a perfect score on the trophy reflection
     - score Ana's Tolerance Check 15 and hold it
+    - save those grades for the whole class, I'll check them first
+    - return the held grades on the Blade worksheet
   args:
     post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
-    student: {type: string, required: true, resolve: student, describe: "The student, as you said the name."}
+    student: {type: string, resolve: student, describe: "One student, as you said the name. Leave it out when giving grades for many."}
     score: {type: number, describe: "The score. Say perfect, or leave it out with perfect true, for full points."}
     perfect: {type: boolean, describe: "True for full points."}
     comment: {type: string, describe: "A comment the student reads with the grade."}
-    hold: {type: boolean, describe: "True to save the grade without returning it to the student yet."}
+    hold: {type: boolean, describe: "For one student: true to save the grade without returning it yet."}
+    grades:
+      type: array
+      describe: "Many students at once, held unless return is true. Each has the student and a score, perfect, or scores by rubric criterion, and an optional comment."
+      items:
+        type: object
+        properties:
+          student: {type: string, describe: "The student, as you said the name."}
+          score: {type: number, describe: "One score out of the total."}
+          perfect: {type: boolean, describe: "True for full points."}
+          scores: {type: object, describe: "Points for each rubric criterion, by its name or id, like Accuracy 8."}
+          notes: {type: object, describe: "A note on a criterion, by its name; needed when a score falls between two levels."}
+          comment: {type: string, describe: "A comment the student reads with the grade."}
+    return: {type: boolean, describe: "With grades: true to return them to the students now. They are held by default."}
+    returnHeld: {type: boolean, describe: "True to return every grade held on this assignment, with the score and comment it already has."}
+    students: {type: array, items: string, describe: "With returnHeld: only these students."}
 
 send_feedback:
   facade: true

@@ -47,6 +47,8 @@ import {
 import { opaqueToken } from './crypto';
 import { lookupId, lookupKindFor, looksLikeId, lookupWords } from './lookup';
 import { decideCoin, parseVoiceCatalog } from './coin-voice';
+import { notesForExport, parseThreads } from '$lib/classroom/feedback/notes';
+import { hxIsTeamManifest } from '$lib/classroom/html-assignment/team-doc';
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolOutput = Record<string, unknown>;
@@ -331,11 +333,16 @@ async function readAnswers(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 			list.push({ question: promptOf.get(r.block_id)?.number ?? null, prompt: promptOf.get(r.block_id)?.prompt ?? r.block_id, answer: r.value, saved: r.updated_at });
 			by.set(r.student_email, list);
 		}
+		// FILE AND PICTURE ANSWERS (gap 8fd1c0bb): each hand-in as a short-lived
+		// link signed as him, beside the text answers.
+		const files = await answerFiles(ctx, p.value.id, null, want, (id) => ({ number: promptOf.get(id ?? '')?.number ?? null, prompt: promptOf.get(id ?? '')?.prompt ?? id }));
+		for (const email of files.keys()) if (!by.has(email)) by.set(email, []);
 		const students = [...by.entries()]
 			.map(([email, answers]) => ({
 				student: nameOf.get(email) ?? email.split('@')[0],
 				email,
-				answers: answers.sort((a, b) => (a.question ?? 999) - (b.question ?? 999))
+				answers: answers.sort((a, b) => (a.question ?? 999) - (b.question ?? 999)),
+				files: files.get(email) ?? []
 			}))
 			.sort((a, b) => a.student.localeCompare(b.student));
 		return {
@@ -360,12 +367,384 @@ async function readAnswers(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		.filter((r) => !want || want.includes(r.block_id))
 		.map((r) => ({ question: promptOf.get(r.block_id)?.number ?? null, prompt: promptOf.get(r.block_id)?.prompt ?? r.block_id, answer: r.value, saved: r.updated_at }))
 		.sort((a, b) => (a.question ?? 999) - (b.question ?? 999));
+	const files = (await answerFiles(ctx, p.value.id, s.value.email, want, (id) => ({ number: promptOf.get(id ?? '')?.number ?? null, prompt: promptOf.get(id ?? '')?.prompt ?? id }))).get(s.value.email) ?? [];
 	return {
 		status: 'ok',
 		post: p.value.title,
 		student: s.value.name,
 		answers,
-		message: answers.length ? undefined : want ? 'No answer is stored for that question.' : 'No answers are stored yet.'
+		files,
+		...(files.length ? { links_expire_at: new Date(ctx.now() + GRADING_LINK_SECONDS * 1000).toISOString() } : {}),
+		message: answers.length || files.length ? undefined : want ? 'No answer is stored for that question.' : 'No answers are stored yet.'
+	};
+}
+
+/** Every handed-in file on one item (one student's, or everyone's), linked, by address. */
+async function answerFiles(
+	ctx: ToolContext,
+	itemId: string,
+	email: string | null,
+	want: string[] | null,
+	question: (blockId: string | null) => { number: number | null; prompt: string | null }
+): Promise<Map<string, ReturnType<typeof fileOut>[]>> {
+	const subs = await pageAll<{ id: string; student_email: string }>(ctx, {
+		table: 'classroom_submissions',
+		columns: ['id', 'student_email'],
+		eq: email ? { item_id: itemId, student_email: email } : { item_id: itemId },
+		order: [['student_email', 'asc']]
+	});
+	const rows = (await submissionFiles(ctx, subs.map((x) => x.id))).filter((f) => !want || (f.block_id !== null && want.includes(f.block_id)));
+	const links = await signFiles(ctx, 'submission-files', rows);
+	const emailOf = new Map(subs.map((x) => [x.id, x.student_email.toLowerCase()]));
+	const out = new Map<string, ReturnType<typeof fileOut>[]>();
+	rows.forEach((f, i) => {
+		const e = emailOf.get(f.submission_id);
+		if (!e) return;
+		const list = out.get(e) ?? [];
+		list.push(fileOut(f, links[i], question));
+		out.set(e, list);
+	});
+	return out;
+}
+
+// ---------------------------------------------------------------------------
+// FULL GRADING FROM A CHAT (ledger 0438, feedback 6db4fbe5, gap 8fd1c0bb).
+//
+// Every read here is HIS OWN, through the minted session, so RLS and the
+// storage policies decide exactly as on the grading console: a submission
+// row is own-row-or-reviewer, a hand-in object is readable by its owner or a
+// reviewer (`classroom_can_read_submission_object`), an answer key by a
+// manager of the item. Nothing here is a service-role read and nothing widens
+// a policy. A file reaches the chat as a SHORT-LIVED SIGNED LINK signed as
+// him, never as bytes in an answer, and a link is an attachment download on
+// the storage origin, the same object the console's Download opens.
+// ---------------------------------------------------------------------------
+
+/** How long a file link in a packet stays good: long enough to look at a class's work. */
+export const GRADING_LINK_SECONDS = 3600;
+
+type FileRow = {
+	id: string;
+	submission_id: string;
+	block_id: string | null;
+	caption: string | null;
+	filename: string;
+	storage_key: string | null;
+	size_bytes: number | null;
+	created_at: string | null;
+};
+
+const PICTURE = /\.(png|jpe?g|gif|webp|heic|heif|bmp|svg)$/i;
+
+/** Links for many stored files, signed as him, ten at a time. A file that will not sign says why. */
+async function signFiles(ctx: ToolContext, bucket: string, rows: Array<{ storage_key: string | null }>): Promise<Array<string | null>> {
+	const out: Array<string | null> = new Array(rows.length).fill(null);
+	for (let i = 0; i < rows.length; i += 10) {
+		await Promise.all(
+			rows.slice(i, i + 10).map(async (row, j) => {
+				if (!row.storage_key) return;
+				const r = await ctx.backend.signStorage(ctx.session, bucket, row.storage_key, GRADING_LINK_SECONDS).catch(() => null);
+				out[i + j] = r && !r.error ? r.data : null;
+			})
+		);
+	}
+	return out;
+}
+
+/** The files hanging off these submissions, read as him (0133's storage key on the wide rung). */
+async function submissionFiles(ctx: ToolContext, submissionIds: string[]): Promise<FileRow[]> {
+	const rows: FileRow[] = [];
+	for (let i = 0; i < submissionIds.length; i += 100) {
+		rows.push(
+			...(await pageAll<FileRow>(ctx, {
+				table: 'classroom_submission_files',
+				columns: ['id', 'submission_id', 'block_id', 'caption', 'filename', 'storage_key', 'size_bytes', 'created_at'],
+				in: { submission_id: submissionIds.slice(i, i + 100) },
+				order: [['id', 'asc']]
+			}))
+		);
+	}
+	return rows;
+}
+
+/** One file as the chat sees it: what it is, which question, and a link to open it. */
+function fileOut(f: FileRow, link: string | null, question: (blockId: string | null) => { number: number | null; prompt: string | null }) {
+	const q = question(f.block_id);
+	return {
+		filename: f.filename,
+		question: f.block_id ? q.number : null,
+		prompt: f.block_id ? q.prompt : 'Handed in with the work',
+		caption: f.caption ?? undefined,
+		picture: PICTURE.test(f.filename),
+		size_bytes: f.size_bytes ?? undefined,
+		uploaded: f.created_at ?? undefined,
+		link: link ?? undefined,
+		...(link ? {} : { note: f.storage_key ? 'This file could not be linked just now. Open it from the grading console.' : 'An older file kept in Drive. Open it from the grading console.' })
+	};
+}
+
+/** Every question an assignment asks: a worksheet's blocks (retired ones last) or a spec's. */
+async function questionsOf(ctx: ToolContext, p: PostRow): Promise<{ list: Array<{ number: number; id: string; type: string; prompt: string; module?: string; retired?: true }>; manifest: HtmlAssignmentManifest | null }> {
+	if (p.assignment_schema_version === 3) {
+		const manifest = await storedManifest(ctx, p.id);
+		if (!manifest) return { list: [], manifest: null };
+		const list: Array<{ number: number; id: string; type: string; prompt: string; module?: string; retired?: true }> = questionList(manifest).map((q) => ({ ...q, prompt: String(q.prompt) }));
+		const retired = await ctx.backend.rpc<Array<{ block_id: string; block: Record<string, unknown>; module_title: string | null }>>(ctx.session, 'classroom_html_retired_blocks', { p_item_id: p.id });
+		if (!retired.error && Array.isArray(retired.data)) {
+			for (const r of retired.data) {
+				if (list.some((q) => q.id === r.block_id)) continue;
+				list.push({
+					number: list.length + 1,
+					id: r.block_id,
+					type: typeof r.block.type === 'string' ? r.block.type : 'text',
+					prompt: `${typeof r.block.prompt === 'string' ? r.block.prompt : r.block_id}${r.module_title ? ` (was in ${r.module_title})` : ''}`,
+					retired: true
+				});
+			}
+		}
+		return { list, manifest };
+	}
+	const spec = await ctx.backend.select<{ spec: { modules?: Array<{ title?: string; blocks?: Array<Record<string, unknown>> }> } }>(ctx.session, {
+		table: 'classroom_assignment_specs',
+		columns: ['spec'],
+		eq: { item_id: p.id }
+	});
+	const list: Array<{ number: number; id: string; type: string; prompt: string; module?: string }> = [];
+	for (const m of spec.data?.[0]?.spec?.modules ?? []) {
+		for (const b of m.blocks ?? []) {
+			if (typeof b.id !== 'string') continue;
+			const prompt = typeof b.prompt === 'string' ? b.prompt : typeof b.content === 'string' ? b.content.slice(0, 200) : b.id;
+			list.push({ number: list.length + 1, id: b.id, type: String(b.type ?? 'block'), prompt, module: m.title });
+		}
+	}
+	return { list, manifest: null };
+}
+
+/** The post's own files (what the class sees) and its answer keys (managers only), linked. */
+async function postFiles(ctx: ToolContext, itemId: string) {
+	const shown = await ctx.backend.select<{ filename: string; storage_key: string | null }>(ctx.session, {
+		table: 'classroom_attachments',
+		columns: ['filename', 'storage_key'],
+		eq: { item_id: itemId }
+	});
+	const keys = await ctx.backend.select<{ filename: string; storage_key: string | null }>(ctx.session, {
+		table: 'classroom_instructor_attachments',
+		columns: ['filename', 'storage_key'],
+		eq: { item_id: itemId }
+	});
+	const a = shown.data ?? [];
+	const k = keys.data ?? [];
+	const [al, kl] = await Promise.all([signFiles(ctx, 'classroom-attachments', a), signFiles(ctx, 'instructor-attachments', k)]);
+	return {
+		attachments: a.map((f, i) => ({ filename: f.filename, picture: PICTURE.test(f.filename), link: al[i] ?? undefined })),
+		answer_keys: k.map((f, i) => ({ filename: f.filename, picture: PICTURE.test(f.filename), link: kl[i] ?? undefined }))
+	};
+}
+
+type NoteThread = { blockId: string | null; state: string; messages: Array<{ from: string; at: string; text: string }> };
+
+/** His notes on each student's work on this item, by address, oldest first. */
+async function notesByStudent(ctx: ToolContext, itemId: string): Promise<Map<string, NoteThread[]>> {
+	const r = await ctx.backend.rpc<unknown>(ctx.session, 'classroom_feedback_list', { p_item_id: itemId, p_student_email: null, p_section_id: null });
+	const out = new Map<string, NoteThread[]>();
+	if (r.error) return out;
+	for (const [email, threads] of notesForExport(parseThreads(r.data))) out.set(email, threads);
+	return out;
+}
+
+type SubRow = {
+	id: string;
+	student_email: string;
+	state: string;
+	submitted_at: string | null;
+	returned_at: string | null;
+	graded_at: string | null;
+	score: number | null;
+	direct_score: number | null;
+	rubric_scores: Record<string, number> | null;
+	criterion_comments: Record<string, string> | null;
+	teacher_comment: string | null;
+	extra_credit: number | null;
+};
+const SUB_COLUMNS = ['id', 'student_email', 'state', 'submitted_at', 'returned_at', 'graded_at', 'score', 'direct_score', 'rubric_scores', 'criterion_comments', 'teacher_comment', 'extra_credit'];
+
+/**
+ * ONE READ FOR A WHOLE ASSIGNMENT: what was asked, how it is scored, and every
+ * student's work, status, earlier grade, notes and file links, so a class fits
+ * in one call and the grades go back in one `grade` call with `grades`.
+ */
+async function gradingPacket(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	const p = await postFrom(ctx, { post: args.post, class: args.class });
+	if (p.status !== 'found') return unresolved('post', p);
+	if (p.value.kind !== 'assignment') return { status: 'invalid', message: `${p.value.title} is not an assignment, so there is nothing to grade.` };
+	let sections: MySection[] = (await mySections(ctx)).filter((s) => p.value.sections.some((x) => x.id === s.id));
+	const classSaid = str(args.class);
+	if (classSaid) {
+		const c = await resolveClasses(ctx, classSaid);
+		if (c.status !== 'found') return unresolved('class', c);
+		sections = sections.filter((s) => c.value.some((x) => x.id === s.id));
+		if (sections.length === 0) return { status: 'not_found', message: `${p.value.title} is not posted in ${classSaid}.` };
+	}
+	const today = laCalendarDay(new Date(ctx.now()));
+	const [roster, rubric, questions, files, notes] = await Promise.all([
+		myStudents(ctx, sections),
+		rubricOf(ctx, p.value.id),
+		questionsOf(ctx, p.value),
+		postFiles(ctx, p.value.id),
+		notesByStudent(ctx, p.value.id)
+	]);
+	const onRoster = new Set(roster.map((r) => r.email));
+	const studentSaid = str(args.student);
+	let only: string | null = null;
+	if (studentSaid) {
+		const s = await resolveStudent(ctx, studentSaid);
+		if (s.status !== 'found') return unresolved('student', s);
+		only = s.value.email;
+	}
+	const wanted = (email: string) => onRoster.has(email) && (!only || email === only);
+
+	const subs = (
+		await pageAll<SubRow>(ctx, { table: 'classroom_submissions', columns: SUB_COLUMNS, eq: { item_id: p.value.id }, order: [['student_email', 'asc']] })
+	).filter((s) => wanted(s.student_email.toLowerCase()));
+	const subByEmail = new Map(subs.map((s) => [s.student_email.toLowerCase(), s]));
+	const responses = (
+		await pageAll<{ student_email: string; block_id: string; value: unknown; updated_at: string }>(ctx, {
+			table: 'classroom_responses',
+			columns: ['student_email', 'block_id', 'value', 'updated_at'],
+			eq: { item_id: p.value.id },
+			order: [['student_email', 'asc'], ['block_id', 'asc']]
+		})
+	).filter((r) => wanted(r.student_email.toLowerCase()));
+	const fileRows = await submissionFiles(ctx, subs.map((s) => s.id));
+	const links = await signFiles(ctx, 'submission-files', fileRows);
+	const byQuestion = new Map(questions.list.map((q) => [q.id, q]));
+	const question = (id: string | null) => {
+		const q = id ? byQuestion.get(id) : undefined;
+		return { number: q?.number ?? null, prompt: q?.prompt ?? id };
+	};
+	const emailOfSub = new Map(subs.map((s) => [s.id, s.student_email.toLowerCase()]));
+	const filesBy = new Map<string, ReturnType<typeof fileOut>[]>();
+	fileRows.forEach((f, i) => {
+		const email = emailOfSub.get(f.submission_id);
+		if (!email) return;
+		const list = filesBy.get(email) ?? [];
+		list.push(fileOut(f, links[i], question));
+		filesBy.set(email, list);
+	});
+	const answersBy = new Map<string, Array<{ question: number | null; prompt: string; answer: unknown; saved: string }>>();
+	for (const r of responses) {
+		const email = r.student_email.toLowerCase();
+		const list = answersBy.get(email) ?? [];
+		const q = question(r.block_id);
+		list.push({ question: q.number, prompt: q.prompt ?? r.block_id, answer: r.value, saved: r.updated_at });
+		answersBy.set(email, list);
+	}
+
+	// A TEAM ASSIGNMENT (ledger 0436, 0305): the teams, who owns which role, the
+	// team's shared answers and each member's grade, read through the site's
+	// own team grading screen.
+	let teams: ToolOutput[] | undefined;
+	const teamOf = new Map<string, string>();
+	if (questions.manifest && hxIsTeamManifest(questions.manifest)) {
+		teams = [];
+		const listed = await ctx.backend.rpc<{ sections?: Array<{ section_id: string; label: string; teams: Array<{ id: string; name: string }> }> }>(ctx.session, 'classroom_item_teams', { p_item_id: p.value.id });
+		const wantedSections = new Set(sections.map((s) => s.id));
+		for (const sec of listed.data?.sections ?? []) {
+			if (!wantedSections.has(sec.section_id)) continue;
+			for (const t of sec.teams ?? []) {
+				const [g, doc] = await Promise.all([
+					ctx.backend.rpc<Record<string, unknown>>(ctx.session, 'classroom_team_grading', { p_item_id: p.value.id, p_team_id: t.id }),
+					ctx.backend.rpc<Record<string, unknown>>(ctx.session, 'classroom_team_document_for', { p_item_id: p.value.id, p_team_id: t.id })
+				]);
+				const members = (g.data?.members as Array<Record<string, unknown>> | undefined) ?? [];
+				for (const m of members) teamOf.set(String(m.email).toLowerCase(), t.name);
+				const values = (doc.data?.values ?? {}) as Record<string, { value?: unknown; by?: string; at?: string }>;
+				teams.push({
+					team: t.name,
+					team_id: t.id,
+					class: sec.label,
+					roles: g.data?.roles ?? [],
+					team_criteria: g.data?.team_criteria ?? [],
+					role_of: g.data?.role_of ?? {},
+					out_of: g.data?.out_of ?? null,
+					members: members.map((m) => ({ student: m.name, roles: m.roles, score: m.score, scores: m.scores, comment: m.comment, graded: !!m.graded_at })),
+					answers: Object.entries(values).map(([blockId, v]) => ({ question: question(blockId).number, prompt: question(blockId).prompt, answer: v?.value, by: v?.by, saved: v?.at }))
+				});
+			}
+		}
+	}
+
+	const nameOf = new Map(roster.map((r) => [r.email, r]));
+	const students = roster
+		.filter((r) => wanted(r.email))
+		.map((st) => {
+			const s = subByEmail.get(st.email);
+			return {
+				student: st.name,
+				email: st.email,
+				classes: st.classes.map((c) => c.title),
+				...(teamOf.has(st.email) ? { team: teamOf.get(st.email) } : {}),
+				state: s?.state ?? 'not started',
+				turned_in: !!s?.submitted_at,
+				turned_in_at: s?.submitted_at ?? undefined,
+				late: !!(s?.submitted_at && p.value.due_at && Date.parse(s.submitted_at) > Date.parse(p.value.due_at)) || undefined,
+				graded: !!s?.graded_at,
+				returned: !!s?.returned_at,
+				score: s?.score ?? null,
+				typed_score: s?.direct_score ?? undefined,
+				rubric_scores: s?.rubric_scores && Object.keys(s.rubric_scores).length ? s.rubric_scores : undefined,
+				criterion_comments: s?.criterion_comments && Object.keys(s.criterion_comments).length ? s.criterion_comments : undefined,
+				comment: s?.teacher_comment ?? undefined,
+				extra_credit: s?.extra_credit ?? undefined,
+				answers: (answersBy.get(st.email) ?? []).sort((a, b) => (a.question ?? 999) - (b.question ?? 999)),
+				files: filesBy.get(st.email) ?? [],
+				notes: notes.get(st.email) ?? []
+			};
+		})
+		.sort((a, b) => (nameOf.get(a.email)?.last ?? '').localeCompare(nameOf.get(b.email)?.last ?? ''));
+
+	let document: ToolOutput | undefined;
+	if (p.value.assignment_schema_version === 3) {
+		const d = await ctx.backend.select<{ document: string; filename: string | null }>(ctx.session, {
+			table: 'classroom_html_assignments',
+			columns: bool(args.document) ? ['document', 'filename'] : ['filename'],
+			eq: { item_id: p.value.id }
+		});
+		const row = d.data?.[0];
+		document = row
+			? {
+					filename: row.filename ?? undefined,
+					...(bool(args.document) ? { html: row.document } : { note: 'Call again with document true for the worksheet HTML itself.' })
+				}
+			: undefined;
+	}
+
+	const outOf = rubric?.length ? rubric.reduce((sum, c) => sum + Number(c.points ?? 0), 0) : p.value.points;
+	return {
+		status: 'ok',
+		...postSummary(p.value, today),
+		classes: sections.map((s) => s.title),
+		out_of: outOf,
+		assignment: {
+			text: p.value.body.length > 6000 ? `${p.value.body.slice(0, 6000)}...` : p.value.body,
+			...(document ? { document } : {}),
+			questions: questions.list,
+			rubric: rubric?.map((c) => ({ id: c.id, criterion: c.criterion, points: c.points, levels: (c.levels ?? []).map((l) => ({ label: l.label, points: l.points, means: (l as { descriptor?: string }).descriptor })) })) ?? null,
+			...files
+		},
+		...(teams
+			? {
+					teams,
+					team_note:
+						'A team assignment is graded by team: once per team, site_call classroom_grade_team with the post, the team_id, the team and role scores keyed by rubric id, and any per-student scores; each team asks first.'
+				}
+			: {}),
+		students,
+		counts: { students: students.length, turned_in: students.filter((s) => s.turned_in).length, graded: students.filter((s) => s.graded).length },
+		links_expire_at: new Date(ctx.now() + GRADING_LINK_SECONDS * 1000).toISOString(),
+		how_to_grade: teams
+			? 'Propose each team\'s scores to him first, then grade each team as team_note says.'
+			: 'Propose each score to him first. Then one grade call with grades: [{student, score or scores by rubric criterion, comment}] saves them all held (students do not see them yet); after he looks, grade with returnHeld true returns them.'
 	};
 }
 
@@ -974,6 +1353,9 @@ async function grade(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	const p = await postFrom(ctx, { post: args.post });
 	if (p.status !== 'found') return unresolved('post', p);
 	if (p.value.kind !== 'assignment') return { status: 'invalid', message: `${p.value.title} is not an assignment.` };
+	// A WHOLE CLASS IN ONE CALL, AND RETURNING WHAT WAS HELD (ledger 0438).
+	if (bool(args.returnHeld)) return returnHeld(ctx, p.value, args);
+	if (Array.isArray(args.grades)) return gradeMany(ctx, p.value, args);
 	const s = await resolveStudent(ctx, str(args.student) ?? '');
 	if (s.status !== 'found') return unresolved('student', s);
 	const rubric = await rubricOf(ctx, p.value.id);
@@ -1027,6 +1409,225 @@ async function grade(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 				? 'This replaced a grade given by rubric score, so undo_last cannot put that one back; the grading console still can.'
 				: undefined
 	};
+}
+
+/** A rubric criterion named by its id, its name, or the start of its name. */
+function rubricCriterionId(rubric: RubricCriterion[], said: string): string | null {
+	const t = said.trim().toLowerCase();
+	const hit =
+		rubric.find((c) => c.id.toLowerCase() === t) ??
+		rubric.find((c) => c.criterion.trim().toLowerCase() === t) ??
+		(rubric.filter((c) => c.criterion.toLowerCase().startsWith(t)).length === 1 ? rubric.find((c) => c.criterion.toLowerCase().startsWith(t)) : undefined);
+	return hit ? hit.id : null;
+}
+
+function byRubric(rubric: RubricCriterion[], raw: unknown): { ok: true; scores: Record<string, number> } | { ok: false; message: string } {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, message: 'Criterion scores are a list of criterion and points.' };
+	const out: Record<string, number> = {};
+	for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+		const id = rubricCriterionId(rubric, k);
+		const n = num(v);
+		if (!id) return { ok: false, message: `"${k}" is not a criterion on this rubric: ${rubric.map((c) => c.criterion).join(', ')}.` };
+		if (n === undefined) return { ok: false, message: `The score for ${k} is not a number.` };
+		out[id] = n;
+	}
+	return { ok: true, scores: out };
+}
+
+/**
+ * EVERY STUDENT'S GRADE IN ONE CALL (ledger 0438). Each grade is its own write
+ * through the site's own grading function, so each is checked, logged and
+ * undoable exactly as one grade is; they share one group, so undo_last takes
+ * the whole batch back. HELD BY DEFAULT: students see nothing until he says
+ * so (`return true` now, or `returnHeld` later). A team assignment's grades
+ * go by team, through the Teams screen's own function (classroom_grade_team,
+ * which asks first), never through here.
+ */
+async function gradeMany(ctx: ToolContext, p: PostRow, args: ToolArgs): Promise<ToolOutput> {
+	const opts = writeOptions(args);
+	const giveBack = bool(args.return) ?? false;
+	const rubric = (await rubricOf(ctx, p.id)) ?? [];
+	const manifest = p.assignment_schema_version === 3 ? await storedManifest(ctx, p.id) : null;
+	const team = !!manifest && hxIsTeamManifest(manifest);
+	const outOf = rubric.length ? rubric.reduce((sum, c) => sum + Number(c.points ?? 0), 0) : p.points;
+	const groupKey = `grade:${p.id}:${opts.requestId ?? opaqueToken(ctx.random).slice(0, 16)}`;
+	const entries = (args.grades as unknown[]).filter((e): e is Record<string, unknown> => !!e && typeof e === 'object');
+	if (entries.length === 0) return { status: 'invalid', message: 'Give at least one grade.' };
+	if (entries.length > 200) return { status: 'invalid', message: 'At most 200 grades in one call.' };
+	const results: ToolOutput[] = [];
+
+	if (team) {
+		return {
+			status: 'invalid',
+			message:
+				'This is a team assignment, graded by team: use the grade team call (site_call classroom_grade_team) once per team with the team id from the grading packet. Each team asks first.'
+		};
+	}
+
+	const seen = new Set<string>();
+	for (const e of entries) {
+		const s = await resolveStudent(ctx, str(e.student) ?? '');
+		if (s.status !== 'found') {
+			results.push(unresolved('student', s));
+			continue;
+		}
+		const email = s.value.email;
+		if (seen.has(email)) {
+			results.push({ status: 'invalid', student: s.value.name, message: `${s.value.name} is in this list twice; grade each student once.` });
+			continue;
+		}
+		seen.add(email);
+		const ropts = { ...opts, requestId: opts.requestId ? `${opts.requestId}:${email}` : undefined };
+		if (e.scores !== undefined) {
+			if (!rubric.length) {
+				results.push({ status: 'invalid', student: s.value.name, message: `${p.title} has no rubric; give a single score instead.` });
+				continue;
+			}
+			const sc = byRubric(rubric, e.scores);
+			if (!sc.ok) {
+				results.push({ status: 'invalid', student: s.value.name, message: sc.message });
+				continue;
+			}
+			// A NOTE PER CRITERION, by its name or id. The site requires one on any
+			// score that lands between two levels (an override).
+			const notes: Record<string, string> = {};
+			if (e.notes && typeof e.notes === 'object') {
+				for (const [k, v] of Object.entries(e.notes as Record<string, unknown>)) {
+					const id = rubricCriterionId(rubric, k);
+					if (id && typeof v === 'string' && v.trim()) notes[id] = v.trim();
+				}
+			}
+			const callArgs = {
+				p_item_id: p.id,
+				p_student_email: email,
+				p_scores: sc.scores,
+				p_comment: str(e.comment) ?? null,
+				p_return: giveBack,
+				p_criterion_comments: Object.keys(notes).length ? notes : null,
+				p_extra_credit: null
+			};
+			const before = await readBefore(ctx, FUNCTIONS['classroom_grade_submission']?.before, callArgs);
+			const o = await write(ctx, { tool: 'grade', fn: 'classroom_grade_submission', args: callArgs, before, groupKey }, ropts);
+			const override = (o as { code?: string }).code === 'override_needs_comment';
+			results.push({
+				student: s.value.name,
+				scores: e.scores,
+				...outcomeWords(o),
+				...(override ? { message: 'A score between two rubric levels needs a note on that criterion: give notes with the criterion and why. Nothing was saved for this student.' } : {})
+			});
+			continue;
+		}
+		let score = num(e.score);
+		if (bool(e.perfect)) score = outOf ?? undefined;
+		if (score === undefined) {
+			results.push({ status: 'invalid', student: s.value.name, message: 'Give a score, perfect, or criterion scores.' });
+			continue;
+		}
+		const prior = (
+			await ctx.backend.select<{ direct_score: number | null; teacher_comment: string | null; returned_at: string | null; extra_credit: number | null; graded_at: string | null }>(ctx.session, {
+				table: 'classroom_submissions',
+				columns: ['direct_score', 'teacher_comment', 'returned_at', 'extra_credit', 'graded_at'],
+				eq: { item_id: p.id, student_email: email }
+			})
+		).data?.[0];
+		const o = await write(
+			ctx,
+			{
+				tool: 'grade',
+				fn: 'classroom_grade_direct',
+				args: { p_item_id: p.id, p_student_email: email, p_score: score, p_comment: str(e.comment) ?? prior?.teacher_comment ?? null, p_return: giveBack, p_extra_credit: prior?.extra_credit ?? null },
+				before: {
+					graded: !!(prior?.graded_at && prior.direct_score !== null),
+					fresh: !prior?.graded_at,
+					score: prior?.direct_score ?? null,
+					comment: prior?.teacher_comment ?? null,
+					returned: !!prior?.returned_at,
+					extra_credit: prior?.extra_credit ?? null
+				},
+				groupKey
+			},
+			ropts
+		);
+		results.push({ student: s.value.name, score, ...outcomeWords(o) });
+	}
+	const done = results.filter((r) => r.status === 'done' || r.status === 'repeated').length;
+	return {
+		status: done === results.length ? 'done' : done === 0 ? (results.every((r) => r.status === 'preview') ? 'preview' : 'refused') : 'partial',
+		post: p.title,
+		out_of: outOf,
+		graded: done,
+		of: results.length,
+		returned: giveBack,
+		results,
+		message: giveBack
+			? undefined
+			: 'Saved and held: students do not see these yet. When he says to, call grade with returnHeld true to return them.'
+	};
+}
+
+/**
+ * RETURN WHAT WAS HELD (ledger 0438): every graded, unreturned grade on the
+ * assignment (or only the students named), returned with the score and
+ * comment it already has, through the same grading functions.
+ */
+async function returnHeld(ctx: ToolContext, p: PostRow, args: ToolArgs): Promise<ToolOutput> {
+	const opts = writeOptions(args);
+	const manifest = p.assignment_schema_version === 3 ? await storedManifest(ctx, p.id) : null;
+	if (manifest && hxIsTeamManifest(manifest)) {
+		return { status: 'invalid', message: 'A team assignment is returned by team: grade each team again with return true, or use the Teams screen.' };
+	}
+	const names = list(args.students);
+	let only: Set<string> | null = null;
+	if (names.length) {
+		only = new Set();
+		for (const n of names) {
+			const s = await resolveStudent(ctx, n);
+			if (s.status !== 'found') return unresolved('student', s);
+			only.add(s.value.email);
+		}
+	}
+	const held = (
+		await pageAll<SubRow>(ctx, { table: 'classroom_submissions', columns: SUB_COLUMNS, eq: { item_id: p.id }, order: [['student_email', 'asc']] })
+	).filter((s) => s.graded_at && !s.returned_at && (!only || only.has(s.student_email.toLowerCase())));
+	if (held.length === 0) return { status: 'none', post: p.title, message: 'Nothing is held on this assignment.' };
+	const roster = await myStudents(ctx, p.sections.map((s) => ({ id: s.id, title: s.title }) as MySection)).catch(() => [] as RosterStudent[]);
+	const nameOf = new Map(roster.map((r) => [r.email, r.name]));
+	const groupKey = `return:${p.id}:${opts.requestId ?? opaqueToken(ctx.random).slice(0, 16)}`;
+	const results: ToolOutput[] = [];
+	for (const s of held) {
+		const email = s.student_email.toLowerCase();
+		const ropts = { ...opts, requestId: opts.requestId ? `${opts.requestId}:${email}` : undefined };
+		const who = nameOf.get(email) ?? email.split('@')[0];
+		if (s.direct_score !== null) {
+			const o = await write(
+				ctx,
+				{
+					tool: 'grade',
+					fn: 'classroom_grade_direct',
+					args: { p_item_id: p.id, p_student_email: email, p_score: s.direct_score, p_comment: s.teacher_comment, p_return: true, p_extra_credit: s.extra_credit },
+					before: { graded: true, fresh: false, score: s.direct_score, comment: s.teacher_comment, returned: false, extra_credit: s.extra_credit },
+					groupKey
+				},
+				ropts
+			);
+			results.push({ student: who, ...outcomeWords(o) });
+			continue;
+		}
+		const callArgs = {
+			p_item_id: p.id,
+			p_student_email: email,
+			p_scores: s.rubric_scores ?? {},
+			p_comment: s.teacher_comment,
+			p_return: true,
+			p_criterion_comments: s.criterion_comments ?? null,
+			p_extra_credit: s.extra_credit
+		};
+		const before = await readBefore(ctx, FUNCTIONS['classroom_grade_submission']?.before, callArgs);
+		const o = await write(ctx, { tool: 'grade', fn: 'classroom_grade_submission', args: callArgs, before, groupKey }, ropts);
+		results.push({ student: who, ...outcomeWords(o) });
+	}
+	const done = results.filter((r) => r.status === 'done' || r.status === 'repeated').length;
+	return { status: done === results.length ? 'done' : done ? 'partial' : 'refused', post: p.title, returned: done, of: results.length, results };
 }
 
 async function sendFeedback(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
@@ -1499,6 +2100,7 @@ const HANDLERS: Record<string, (ctx: ToolContext, args: ToolArgs) => Promise<Too
 	replace_html_assignment: replaceHtml,
 	read_grades: readGrades,
 	read_answers: readAnswers,
+	grading_packet: gradingPacket,
 	grade,
 	send_feedback: sendFeedback,
 	coin_transact: coinTransact,

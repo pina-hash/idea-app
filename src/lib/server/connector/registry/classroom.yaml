@@ -555,6 +555,32 @@ classroom_grade_submissions:
     p_grades: {name: grades, describe: "Each student's address with their scores, comment and extra credit."}
     p_return: {name: return, describe: "True to return the grades now, false to hold them."}
 
+# GRADING A TEAM ASSIGNMENT FROM A CHAT (ledger 0438): the Teams screen's own
+# function, once per team, with the team id the grading packet lists.
+classroom_grade_team:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Grade one team on a team assignment, team and role scores once for the team and any per-student scores; it asks first.
+  say: ["grade the Torque team on the Unit 4 assignment", "give team 3 a 9 on design and 8 on build", "score the Gearheads and return it"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The team assignment."}
+    p_team_id: {name: team, describe: "The team's id, from the grading packet's teams."}
+    p_scores: {name: scores, describe: "Team and role criterion scores, keyed by the rubric criterion's id from the grading packet."}
+    p_member_scores: {name: studentScores, default: null, describe: "Each student's own criterion scores, keyed by their address, then by criterion id."}
+    p_comment: {name: comment, default: null, describe: "A comment every member reads with the grade."}
+    p_criterion_comments: {name: notes, default: null, describe: "A comment on each criterion, keyed by its id."}
+    p_return: {name: return, default: false, describe: "True to return it to the team now, false to hold it."}
+
+classroom_team_grading:
+  surface: call
+  level: read
+  describe: One team's grading screen on a team assignment, the roles and who owns them, and each member's grade as it stands.
+  say: ["show the Torque team's grades on Unit 4", "who owns which role on team 3", "what did I give the Gearheads"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The team assignment."}
+    p_team_id: {name: team, describe: "The team's id, from the grading packet's teams."}
+
 classroom_hall_pass_close_by_id:
   surface: call
   level: confirm
