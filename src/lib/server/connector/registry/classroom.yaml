@@ -1401,3 +1401,24 @@ classroom_signoff_decide:
     p_request_id: {name: request, describe: "The request's id, from the sign-off queue."}
     p_results: {name: items, describe: "Every tap item's id with true for pass or false for fail; send back needs at least one false."}
     p_approve: {name: approve, describe: "True to approve, false to send back."}
+
+classroom_machine_tag_set:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Add, rename or retire a shop machine teams can tag a task with (laser, router, printer, mill, lathe); it asks first.
+  say: ["add the bandsaw to the machine list", "rename router to CNC router", "take the lathe off the machine list"]
+  args:
+    p_id: {name: machine, describe: "The machine's short id, letters and dashes, like bandsaw."}
+    p_label: {name: label, describe: "The name teams see, like Bandsaw."}
+    p_active: {name: active, describe: "False to take it off the list; tasks already tagged keep the tag."}
+
+classroom_no_school_day_set:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Mark a date as a no-school day the team plans skip, or clear it with no label; it asks first.
+  say: ["Nov 26 is a no-school day", "add Thanksgiving break to the calendar", "Nov 11 is a school day after all"]
+  args:
+    p_day: {name: date, describe: "The date, as YYYY-MM-DD."}
+    p_label: {name: label, describe: "What the day is, like Veterans Day; leave it out to make it a school day again."}

@@ -51,6 +51,8 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'classroom_song_requests',
 	// Ledger 0436 (0302 to 0307): the team plan, its change log and the sign-offs,
 	// which the voice team tools write.
+	'classroom_machine_tags',
+	'classroom_no_school_days',
 	'classroom_signoff_requests',
 	'classroom_team_log',
 	'classroom_team_members',

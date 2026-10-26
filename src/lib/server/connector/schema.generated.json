@@ -4919,6 +4919,36 @@
 				"writes": false
 			}
 		],
+		"classroom_machine_tag_set": [
+			{
+				"signature": "classroom_machine_tag_set(text,text,boolean)",
+				"args": [
+					{
+						"name": "p_id",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_label",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_active",
+						"type": "boolean",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"is_admin"
+				],
+				"writes": true
+			}
+		],
 		"classroom_manages_section": [
 			{
 				"signature": "classroom_manages_section(uuid)",
@@ -4983,6 +5013,31 @@
 				"volatility": "volatile",
 				"gates": [
 					"classroom_manages_section"
+				],
+				"writes": true
+			}
+		],
+		"classroom_no_school_day_set": [
+			{
+				"signature": "classroom_no_school_day_set(date,text)",
+				"args": [
+					{
+						"name": "p_day",
+						"type": "date",
+						"has_default": false
+					},
+					{
+						"name": "p_label",
+						"type": "text",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"is_admin"
 				],
 				"writes": true
 			}
