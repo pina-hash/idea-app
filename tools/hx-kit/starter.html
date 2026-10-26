@@ -1713,30 +1713,55 @@ function kitCollectSteps() {
 function kitShow(i, opts) {
   opts = opts || {};
   if (i < 0 || i >= KIT.steps.length) return;
+  /* Hold only what one step showing alone measured: never the first paint (every
+     step still showing) and never List view. */
+  if (KIT.cur >= 0 && KIT.view === 'step') kitHoldHeight();
   KIT.cur = i;
   KIT.visited[i] = true;
   if (KIT.view === 'step') KIT.steps.forEach(function (s, j) { s.el.hidden = j !== i; });
   kitRefresh();
   hxQueueLayout();
-  if (opts.land) kitLand(KIT.view === 'step' ? document.getElementById('hx-bar') : KIT.steps[i].el, opts.focus ? KIT.steps[i].el.querySelector('h2') : null);
+  var focusEl = opts.focus ? KIT.steps[i].el.querySelector('h2') : null;
+  if (focusEl) { focusEl.setAttribute('tabindex', '-1'); focusEl.focus({ preventScroll: true }); }
+  if (opts.land) kitLand(KIT.view === 'step' ? document.getElementById('hx-bar') : KIT.steps[i].el);
 }
 function kitSetView(view) {
   KIT.view = view;
   document.documentElement.classList.toggle('hx-view-list', view === 'list');
+  kitHoldHeight(true);
   KIT.steps.forEach(function (s, j) { s.el.hidden = view === 'step' && j !== KIT.cur; });
   kitRefresh();
   hxQueueLayout();
 }
 
-/* Land a target at the top of the screen. Inside the frame, scrollIntoView
-   scrolls the classroom page. The frame changes height a beat after a step
-   changes, so aim after it resizes and correct once. */
-function kitLand(target, focusEl) {
+/* ---- Moving between steps without the page jumping (Mr. Pina, 2026-10-26) ----
+   Two things made it jump. The frame shrank when a shorter step replaced a longer
+   one, so the classroom page clamped its scroll and everything slid; and every
+   click scrolled to the bar twice, 140 and 360 ms later, so the control he had
+   just pressed moved out from under the mouse. Now the page never gets shorter
+   while a student moves between steps (it only grows), and it scrolls only when
+   the bar is off screen, once, after layout. A click in the bar or the plan
+   moves nothing on screen. */
+function kitHoldHeight(reset) {
+  var pg = document.getElementById('hx-page');
+  if (!pg) return;
+  if (reset) { KIT.holdH = 0; pg.style.minHeight = ''; return; }
+  var h = Math.ceil(pg.getBoundingClientRect().height);
+  if (h > (KIT.holdH || 0)) { KIT.holdH = h; pg.style.minHeight = h + 'px'; }
+}
+KIT.barSeen = true;
+(function () {
+  var bar = document.getElementById('hx-bar');
+  if (!bar || typeof IntersectionObserver !== 'function') return;
+  new IntersectionObserver(function (es) { KIT.barSeen = es[es.length - 1].intersectionRatio > 0.98; }, { threshold: [0, 0.98, 1] }).observe(bar);
+})();
+function kitLand(target) {
   if (!target) return;
-  setTimeout(function () {
-    target.scrollIntoView({ block: 'start' });
-    setTimeout(function () { target.scrollIntoView({ block: 'start' }); if (focusEl) { focusEl.setAttribute('tabindex', '-1'); focusEl.focus({ preventScroll: true }); } }, 220);
-  }, 140);
+  if (target.id === 'hx-bar' && KIT.barSeen) return;
+  var smooth = matchMedia('(prefers-reduced-motion: no-preference)').matches;
+  requestAnimationFrame(function () { requestAnimationFrame(function () {
+    target.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
+  }); });
 }
 
 /* ---- The bar ------------------------------------------------------------ */

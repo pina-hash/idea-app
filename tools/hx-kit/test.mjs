@@ -274,6 +274,30 @@ try {
 		const bare = await frame.evaluate(() => KIT.steps.map((st, i) => (kitRequired(st.el).length ? null : `${i + 1} ${st.title}`)).filter(Boolean));
 		(bare.length ? WARN : PASS)('learning', 'Every step asks for evidence of its own (a step done on a visit proves nothing)', bare.length ? `no evidence: ${bare.join('; ')}` : `${k.steps} steps`);
 		(over.length ? FAIL : PASS)('layout', `Every step fits one screen of the classroom pane (${PANE}px, bar to step bottom)`, over.length ? `split or trim: ${over.join('; ')}` : sizes.join('; '));
+
+		/* Moving between steps does not move the page (Mr. Pina, 2026-10-26: "the
+		   document shouldn't move up and down"). Real clicks on the step track, in the
+		   classroom stand-in, with the bar on screen: every segment must stay where it
+		   was. A shrinking frame or a landing scroll moves them. */
+		await frame.evaluate(() => kitShow(0));
+		await page.waitForTimeout(300);
+		await frame.locator('#hx-bar').scrollIntoViewIfNeeded();
+		await page.mouse.wheel(0, -120);
+		await page.waitForTimeout(400);
+		const drift = [];
+		const order = [...Array(k.steps).keys()].slice(1).concat([0, k.steps - 1, 1]);
+		for (const i of order) {
+			const seg = frame.locator('#hx-track .hx-seg').nth(i);
+			const before = await seg.boundingBox();
+			await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2);
+			await page.waitForTimeout(700);
+			const after = await seg.boundingBox();
+			drift.push(Math.round(Math.abs(after.y - before.y)));
+		}
+		const worst = Math.max(...drift);
+		const empty = await frame.evaluate(() => Math.round(document.getElementById('hx-page').getBoundingClientRect().bottom - KIT.steps[KIT.cur].el.getBoundingClientRect().bottom));
+		(empty > 240 ? FAIL : PASS)('layout', 'Holding the height leaves no dead space under a step', `${empty}px between the current step and the end of the page`);
+		(worst > 2 ? FAIL : PASS)('layout', 'Clicking through the steps does not move the page', `${drift.length} clicks on the step track, largest move ${worst}px (${drift.join(', ')})`);
 	} else {
 		const hgt = await frame.evaluate(() => document.getElementById('hx-page').getBoundingClientRect().height);
 		const screens = hgt / PANE;

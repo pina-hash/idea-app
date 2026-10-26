@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.5 - 2026-10-26**
+**Version 2.6 - 2026-10-26**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -296,6 +296,12 @@ document (measured 2026-10-20, L22).
 names the next step; the kit's navigator does this. **Every step, from the bar to its
 bottom, fits one screen of the pane (830px at 1920x1080)**; a step that does not is split
 or trimmed. The test measures every step.
+**Moving between steps never moves the page** (Mr. Pina, 2026-10-26: "When I click on a
+button to navigate, the document shouldn't move up and down"). A click in the bar, the
+track or the plan leaves every control where it was; the page never gets shorter while a
+student moves between steps (the kit holds its height, so the classroom page never clamps
+its scroll); it scrolls only when the bar is off screen, once, after layout. The test clicks
+through the track in the classroom stand-in and fails any move over 2px.
 
 **E2. One obvious next action, everywhere.** The bar says where you are in words ("Measure
 · Step 3 of 4 · Measure your part") and offers Next to do when the student is somewhere
@@ -398,8 +404,16 @@ completion; one required photo with optional slots (L8, L14).
 (L15). A pick that depends on a machine asks once and shows only that machine's steps (L13).
 
 **F8. Never ask for a number before its instrument exists**, and name the instrument beside
-the box (SolidWorks Mass Properties, the slicer, the scale). Weights in pounds and grams
-(L21). A limit and a design are two labeled numbers (L21).
+the box (SolidWorks Mass Properties, the slicer, the scale). **Sizes in inches; weights in
+pounds and grams together**, pounds first, as the same number said two ways ("1.5 lb
+(680 g)"), wherever a weight appears: the rule, the fix table, the live check, the copied
+line (Mr. Pina, 2026-10-26; L21). A field takes whatever unit its instrument reads (the
+scale reads grams) and the mirror says the other. Metric appears only where the tool itself
+is metric, and an example avoids a unit entirely when a count says it (two walls, not
+1.5 mm). A limit and a design are two labeled numbers (L21).
+**F8b. A measurement step shows what to measure**: a dimensioned side view of the real part,
+each dimension lettered to match its box and its rule (IDEA-Blade 02's Measure step is the
+model). Words alone for a physical measurement are a defect.
 
 **F9. Live checks are mirrors, never gates**: say what to do, not just what is wrong; a
 cross-check for trade-offs; an unparseable entry says so (L9). Work out the numbers a student
@@ -597,6 +611,12 @@ new term.
 
 ## Changelog
 
+- **2.6 (2026-10-26).** Ledger 0442. From Mr. Pina's pass on IDEA-Blade 02 before class: E1,
+  moving between steps never moves the page (measured: the old kit moved a track segment up
+  to 289px on one click, the new one 0px over 7 clicks on the starter); F8, sizes in inches
+  and weights in pounds and grams together; F8b, a measurement step shows a dimensioned
+  view. Kit: `kitHoldHeight` and a one-pass `kitLand` in `tools/hx-kit/kit/kit.js`; `test.mjs`
+  clicks through the track and fails a move over 2px or dead space over 240px.
 - **2.5 (2026-10-26).** Ledger 0440. Mr. Pina, reviewing the FRC Training Library's Start
   Here ladder: the cyan-blue-violet run across eight tracks had "no establishment there"; he
   asked for colors "unique per track", with SolidWorks CAD in SolidWorks red and white, and
