@@ -792,7 +792,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 			.filter((seg) => !/^\(.*\)$/.test(seg))
 			.map((seg) => (/^\[.*\]$/.test(seg) ? 'x' : seg))
 			.join('/') || '/';
-	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/armory', '/auth', '/certifications', '/coin', '/coin-balance', '/coin-desk', '/foundry', '/maps', '/market', '/tournaments'];
+	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/armory', '/auth', '/calendar', '/certifications', '/coin', '/coin-balance', '/coin-desk', '/foundry', '/maps', '/market', '/tournaments'];
 	// `/feedback` is the feedback window's own page (ledger 0396), which a Space
 	// White Ledger opens over itself: it follows the theme exactly as the Ledger
 	// does, through the same scope.
