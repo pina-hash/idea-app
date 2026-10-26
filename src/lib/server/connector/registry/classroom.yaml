@@ -1275,3 +1275,135 @@ classroom_html_retired_blocks:
   say: ["which questions did I retire from the Blade worksheet", "show the retired questions", "what was taken out of the DFM worksheet"]
   args:
     p_item_id: {name: post, resolve: post, describe: "The assignment's title as he said it."}
+
+# ---- IDEA209H Unit 4: teams by voice (ledger 0436, 0307; Mr. Pina's addendum 2) ----
+# Each entry is the function the site's own button calls, so a change here and
+# a click write the same rows, the same change log and the same live notice.
+# Levels are his: reads read; draw, post, rename, add team and swap undo;
+# remove team, an owner change, approve and send back confirm.
+
+classroom_preview_team_draw:
+  surface: call
+  level: read
+  describe: Draw teams of 3 or 4 for a class at random and show them, saving nothing; it returns the seed, which draw teams takes to save exactly this draw.
+  say: ["draw teams for Block 2", "make teams of four for Block 3, Mateo and Leo are absent", "show me a random team draw for Block 4"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_size: {name: size, describe: "3 or 4, the team size he wants; the other size makes up the remainder. Never 2 or 5."}
+    p_leave_out: {name: absent, describe: "Students to leave out, each by name or school address."}
+    p_seed: {name: seed, describe: "A seed from an earlier draw, to show that draw again."}
+
+classroom_draw_teams:
+  surface: call
+  level: undo
+  describe: Save a team draw for a class from its seed, and post it to the class when he says post it; undo retires the draw.
+  say: ["save that draw", "post it", "keep these teams and show them to the class"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_size: {name: size, describe: "The same size as the draw he read."}
+    p_leave_out: {name: absent, describe: "The same students left out as the draw he read."}
+    p_seed: {name: seed, describe: "The seed the draw he read returned, so the saved teams are the ones he heard."}
+    p_post: {name: post, describe: "True to show the teams to the class now."}
+    p_label: {name: label, describe: "A name for the draw, like Launcher teams."}
+  undo:
+    - function: classroom_archive_team_set
+      args: {p_team_set_id: $result.team_set_id}
+
+classroom_swap_team_members:
+  surface: call
+  level: undo
+  describe: Swap two students between their teams in a team draw.
+  say: ["swap Mateo and Leo", "trade Ana and Daniel between teams", "switch Mateo with Leo on the Block 2 teams"]
+  args:
+    p_team_set_id: {name: teams, describe: "The team draw's id, from the class's team board."}
+    p_first: {name: student, resolve: student, describe: "One student."}
+    p_second: {name: other, resolve: student, describe: "The other student."}
+  undo:
+    - function: classroom_swap_team_members
+      args: {p_team_set_id: $args.p_team_set_id, p_first: $args.p_first, p_second: $args.p_second}
+
+classroom_add_team:
+  surface: call
+  level: undo
+  describe: Add an empty team to the end of a team draw.
+  say: ["add a team to Block 2", "make a sixth team", "add an empty team called Volt"]
+  args:
+    p_team_set_id: {name: teams, describe: "The team draw's id, from the class's team board."}
+    p_name: {name: name, describe: "The team's name, if he gives one."}
+  undo:
+    - function: classroom_remove_team
+      args: {p_team_id: $result.team_id}
+
+classroom_remove_team:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Remove an empty team from a team draw; a team with anyone on it, or with saved work, is refused. It asks first.
+  say: ["remove the empty team", "delete team 6", "get rid of the extra team"]
+  args:
+    p_team_id: {name: team, describe: "The team's id, from the class's team board."}
+
+classroom_rename_team:
+  surface: call
+  level: undo
+  describe: Rename a team; an empty name puts back Team and its number.
+  say: ["rename team 3 to the Gearheads", "call the first team Torque", "change team 2's name"]
+  args:
+    p_team_id: {name: team, describe: "The team's id, from the class's team board."}
+    p_name: {name: name, describe: "The new name, 40 characters at most."}
+  undo:
+    - function: classroom_rename_team
+      args: {p_team_id: $args.p_team_id, p_name: $result.previous}
+
+classroom_team_set_role:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Assign or change who owns a role on a team (frame and mount, energy store, drive, ball path); logged on the team's plan. It asks first, and after a team's first sign-off only a teacher can change it.
+  say: ["make Mateo the drive owner on team 3", "give Leo the energy store", "Ana owns frame and mount now"]
+  args:
+    p_team_id: {name: team, describe: "The team's id, from the class's team board."}
+    p_role_id: {name: role, describe: "The role's id from the assignment, like frame, energy, drive or ballpath."}
+    p_owner_email: {name: student, resolve: student, describe: "The student who owns it."}
+
+classroom_team_plan:
+  surface: call
+  level: read
+  describe: One team's plan and tracker - tasks with owners, due dates and status, Behind and Slipping, the share split, the roles and the sign-offs.
+  say: ["read team 3's plan in Block 2", "how is Team Torque doing", "who's behind on team 2"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class."}
+    p_team_id: {name: team, describe: "The team's id, from the class's team board."}
+
+classroom_team_plans_board:
+  surface: call
+  level: read
+  describe: Every team in every class he teaches, each with its plan and when its work was saved, for the burn-up board.
+  say: ["show the team board", "which teams are slipping", "how are all the launcher teams doing"]
+
+classroom_team_task_set_due:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Move a team task's due date, logged on the plan; never past the post's due date, and only to a school day. It asks first.
+  say: ["move the frame cut to Nov 5", "push team 3's test procedure to Thursday", "give the drive print one more day"]
+  args:
+    p_task_id: {name: task, describe: "The task's id, from the team's plan."}
+    p_due_on: {name: due, describe: "The new due date, as YYYY-MM-DD."}
+
+classroom_signoff_queue:
+  surface: call
+  level: read
+  describe: The sign-off requests waiting for him, oldest first, each with its checklist and the items the site checks.
+  say: ["read the sign-off queue", "who's waiting for a sign-off", "any sign-off requests"]
+
+classroom_signoff_decide:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Approve a sign-off request, or send it back naming the items that failed; the failed items become the team's tasks. It asks first.
+  say: ["approve Team Torque's design sign-off", "send team 3 back, the bearings failed", "sign off on Team Arc's plan"]
+  args:
+    p_request_id: {name: request, describe: "The request's id, from the sign-off queue."}
+    p_results: {name: items, describe: "Every tap item's id with true for pass or false for fail; send back needs at least one false."}
+    p_approve: {name: approve, describe: "True to approve, false to send back."}

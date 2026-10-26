@@ -161,6 +161,10 @@ const REVERSED_BY_MEANING: Record<string, { why: string; check: (args: Record<st
 		why: 'A saved draw is archived, never deleted, so the record of who worked with whom stays.',
 		check: async (a) => (await w.db.sql(`select 1 from public.classroom_team_sets where label = $1 and archived_at is not null`, [a.p_label])).rows.length === 1
 	},
+	classroom_draw_teams: {
+		why: 'A draw saved by voice is undone as a saved draw is (0307 calls classroom_save_team_set): archived, never deleted.',
+		check: async (a) => (await w.db.sql(`select 1 from public.classroom_team_sets where label = $1 and archived_at is not null`, [a.p_label])).rows.length === 1
+	},
 	greenline_decal_review: {
 		why: 'No function returns a reviewed decal to pending; the undo of an approval sends it back for revision, out of public view.',
 		check: async (a) => (await w.db.sql(`select 1 from public.greenline_decals where user_id = $1 and status <> 'approved'`, [a.p_user_id])).rows.length === 1

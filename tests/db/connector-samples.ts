@@ -13,7 +13,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createUser, type SeededUser } from './harness';
+import { createClassroomSection, createUser, enrollStudent, type SeededUser } from './harness';
 import type { ConnectorWorld } from './connector-fixture';
 import { samplePackage, samplePool } from './cert-chain';
 import { stageHtmlDocument } from '../../src/lib/classroom/html-assignment/store';
@@ -185,6 +185,17 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 				{ team_number: 2, members: [w.students.danielR] }
 			])]
 		)).id;
+	}
+	/** A class of three of its own, so a voice draw has a team of 3 to make (ledger 0436). */
+	let drawSection: string | null = null;
+	async function drawClass(): Promise<string> {
+		if (drawSection) return drawSection;
+		const id = await createClassroomSection(w.db, { as: w.admin, courseCode: 'IDEA209H', courseTitle: 'Engineering I Honors', label: 'Block 3', teacherEmail: w.admin.email });
+		for (const [email, name] of [['ivy.wong@boscotech.net', 'Wong, Ivy'], ['jay.park@boscotech.net', 'Park, Jay'], ['kai.diaz@boscotech.net', 'Diaz, Kai']]) {
+			await enrollStudent(w.db, { as: w.admin, sectionId: id, email, displayName: name });
+		}
+		drawSection = id;
+		return id;
 	}
 	async function thread(): Promise<string> {
 		const r = await asAdminRpc('classroom_feedback_post', {
@@ -593,6 +604,28 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			const id = await teamSet();
 			const [t] = await sql<{ id: string }>(`select id from public.classroom_teams where team_set_id = $1 and team_number = 2`, [id]);
 			return { p_team_set_id: id, p_student_email: w.students.mateo, p_to_team_id: t.id };
+		},
+		// ledger 0436, 0307: teams by voice.
+		classroom_draw_teams: async () => ({
+			p_section_id: await drawClass(),
+			p_size: 4,
+			p_leave_out: [],
+			p_seed: 7,
+			p_post: false,
+			p_label: `Voice draw ${randomUUID().slice(0, 4)}`
+		}),
+		// Posted, so the two moves land in the team's change log: a swap that only
+		// trades two team ids reads as nothing once ids are normalized.
+		classroom_swap_team_members: async () => {
+			const id = await teamSet();
+			await asAdminRpc('classroom_post_team_set', { p_team_set_id: id, p_visible_until: new Date(Date.now() + 86_400_000).toISOString() });
+			return { p_team_set_id: id, p_first: w.students.mateo, p_second: w.students.danielR };
+		},
+		classroom_add_team: async () => ({ p_team_set_id: await teamSet(), p_name: 'Volt' }),
+		classroom_rename_team: async () => {
+			const id = await teamSet();
+			const [t] = await sql<{ id: string }>(`select id from public.classroom_teams where team_set_id = $1 and team_number = 1`, [id]);
+			return { p_team_id: t.id, p_name: 'Torque' };
 		},
 		classroom_set_team_style: async () => {
 			const id = await teamSet();

@@ -143,21 +143,21 @@ export function rpcOf(db: TestDb) {
 	return { rpc, refusal };
 }
 
-export async function seedUnit4(db: TestDb, opts: { dueAt?: string | null } = {}): Promise<Unit4Fixture> {
+export async function seedUnit4(db: TestDb, opts: { dueAt?: string | null; courseCode?: string } = {}): Promise<Unit4Fixture> {
 	const { rpc } = rpcOf(db);
 	const admin = await createUser(db, 'apina@boscotech.edu', 'A. Pina');
 	const teacher = await createUser(db, 'cosso@boscotech.edu', 'M. Cosso');
 	await db.sql('insert into public.app_admins (email, granted_by) values ($1, $1) on conflict do nothing', [admin.email]);
 	const sectionA = await createClassroomSection(db, {
 		as: admin,
-		courseCode: 'IDEA209H',
+		courseCode: opts.courseCode ?? 'IDEA209H',
 		courseTitle: 'Engineering Design',
 		label: 'Block 2',
 		teacherEmail: admin.email
 	});
 	const sectionB = await createClassroomSection(db, {
 		as: admin,
-		courseCode: 'IDEA209H',
+		courseCode: opts.courseCode ?? 'IDEA209H',
 		courseTitle: 'Engineering Design',
 		label: 'Block 4',
 		teacherEmail: teacher.email
