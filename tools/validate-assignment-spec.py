@@ -491,7 +491,7 @@ def check_manifest(manifest, name, html=None):
               f"none and never reach the rubric; move it into a module if it "
               f"is worth marks.")
 
-    # The team key (ledger 0435, migration 0301), checked only when present.
+    # The team key (ledger 0436, migration 0301), checked only when present.
     team_role_ids = []
     team = manifest.get("team")
     if team is not None:
@@ -530,7 +530,7 @@ def check_manifest(manifest, name, html=None):
         aud = m.get("audience")
         if aud is not None and aud not in ("team", "individual", "role"):
             E(f'module "{mid}" audience is {aud!r}, expected team, individual or role')
-        # A role-owned module (ledger 0435, migration 0301) names a role the
+        # A role-owned module (ledger 0436, migration 0301) names a role the
         # manifest's own team.roles declares.
         if aud == "role" and m.get("role") not in team_role_ids:
             E(f'module "{mid}" is owned by a role, so it needs a role that the '

@@ -136,6 +136,7 @@
  * point, silently, in a student's favour or against it.
  */
 
+import { teamRefusalWords } from './team-doc';
 import {
 	countSentences,
 	submissionFileSrc,
@@ -616,6 +617,8 @@ export function hxSubmitRefusal(incomplete: readonly HxIncompleteBlock[]): strin
 export interface HxOpResult {
 	ok?: boolean;
 	reason?: string;
+	/** A first name, on a team refusal that names who to wait for (0302). */
+	by?: string;
 }
 
 /**
@@ -647,7 +650,12 @@ export function hxSaveOutcome(
 	if (res.ok) {
 		const answered = res.data;
 		if (answered && answered.ok === false) {
-			const reason = answered.reason === 'locked' ? HX_REFUSALS.locked : fallback;
+			// A team document's refusals (0302) are said in the student's terms,
+			// naming the teammate to wait for; `locked` is the close, as always.
+			const reason =
+				answered.reason === 'locked'
+					? HX_REFUSALS.locked
+					: (teamRefusalWords(answered.reason, answered.by) ?? fallback);
 			return { ok: false, retryable: false, message: reason };
 		}
 		return { ok: true };
@@ -784,6 +792,8 @@ export class HxAnswers {
 	 * baseline a browser backup copy is written against.
 	 */
 	readonly #acked = new Map<string, ResponseValue>();
+	/** When each block was last typed into or acknowledged, on this controller's clock (`adoptRemote`). */
+	readonly #touchedAt = new Map<string, number>();
 	/** Blocks whose last write was refused because the assignment was shut. */
 	readonly #lockedOut = new Set<string>();
 	#values: Record<string, string | boolean>;
@@ -801,6 +811,11 @@ export class HxAnswers {
 			const blockId = this.#fieldToBlock.get(field);
 			if (blockId) this.#acked.set(blockId, hxStoredValue(value));
 		}
+	}
+
+	/** This controller's clock: the injected one, or the wall clock. */
+	#clock(): number {
+		return this.#opts.now?.() ?? Date.now();
 	}
 
 	/** The item these answers belong to. */
@@ -893,6 +908,34 @@ export class HxAnswers {
 		this.#opts.ondirty?.();
 	}
 
+	/**
+	 * A TEAMMATE'S SAVED ANSWERS ARRIVED (ledger 0436). Each lands in its field
+	 * and becomes the acknowledged value, so nothing is sent back; a field whose
+	 * block still owes the server a write (this student is typing in it) is
+	 * left exactly as it is. Answers which fields moved.
+	 */
+	adoptRemote(values: Record<string, string | boolean>, readSince?: number): string[] {
+		const moved: string[] = [];
+		const next = { ...this.#values };
+		for (const [field, value] of Object.entries(values)) {
+			const blockId = this.#fieldToBlock.get(field);
+			if (!blockId) continue;
+			if (this.#machines.get(blockId)?.dirty) continue;
+			// A READ THAT LEFT BEFORE THIS PAGE'S OWN WRITE LANDED is older than
+			// what the student sees, and must not take their words back.
+			if (readSince !== undefined && (this.#touchedAt.get(blockId) ?? -Infinity) >= readSince) continue;
+			if (next[field] === value) continue;
+			next[field] = value;
+			this.#acked.set(blockId, hxStoredValue(value));
+			moved.push(field);
+		}
+		if (moved.length) {
+			this.#values = next;
+			this.#opts.onvalues?.(this.#values);
+		}
+		return moved;
+	}
+
 	/** The map `HtmlAssignmentFrame` is handed. Built from the stored manifest,
 	    which is the whole reason a frame naming a block id gets nowhere. */
 	get fieldToBlockId(): Record<string, string> {
@@ -964,6 +1007,7 @@ export class HxAnswers {
 		}
 		this.#values = { ...this.#values, [message.field]: message.value };
 		this.#opts.onvalues?.(this.#values);
+		this.#touchedAt.set(message.blockId, this.#clock());
 		this.#machine(message.blockId, message.field).markDirty();
 		// TYPING ANYWHERE RE-SENDS WHAT IS OWED (ledger 0360). A block that
 		// spent its retries on a busy server is re-armed onto the ordinary
@@ -1213,6 +1257,7 @@ export class HxAnswers {
 				if (kind === null) {
 					this.#lockedOut.delete(blockId);
 					this.#acked.set(blockId, sent);
+					this.#touchedAt.set(blockId, this.#clock());
 					this.#failure.delete(blockId);
 					// A WRITE LANDED, SO THE SERVER AND THE SESSION ARE BOTH BACK:
 					// every block that stopped on a busy server or a lost session

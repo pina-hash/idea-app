@@ -152,6 +152,11 @@
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
+	import TeamDocGate from '$lib/classroom/html-assignment/TeamDocGate.svelte';
+	import TeamDocuments from '$lib/classroom/html-assignment/TeamDocuments.svelte';
+	import type { TeamDocumentsTransports } from '$lib/classroom/html-assignment/team-doc';
+	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
+	import type { TeamDocSession } from '$lib/classroom/html-assignment/team-doc-session.svelte';
 	import FeedbackPanel from '$lib/classroom/feedback/FeedbackPanel.svelte';
 	import type { FeedbackSession } from '$lib/classroom/feedback/session.svelte';
 	import { fieldNotes, marksByField } from '$lib/classroom/feedback/notes';
@@ -307,6 +312,8 @@
 		htmlAssignment = null,
 		htmlAnswers = null,
 		htmlTeam = null,
+		htmlTeamDoc = null,
+		htmlTeamDocuments = null,
 		htmlLock = undefined,
 		feedback = null,
 		htmlInstructorAnswers = null,
@@ -419,6 +426,15 @@
 		htmlAnswers?: HtmlAssignmentAnswers | null;
 		/** The student's own team's progress (ledger 0422), handed to the document; null sends nothing. */
 		htmlTeam?: HxTeamProgress | null;
+		/**
+		 * THE STUDENT'S LIVE TEAM DOCUMENT (ledger 0436), for a team assignment
+		 * only: who may type where, the box locks, and the sentence shown
+		 * INSTEAD of the document before the class's teams are posted. Null for
+		 * every other worksheet, which renders exactly as before.
+		 */
+		htmlTeamDoc?: TeamDocSession | null;
+		/** EVERY TEAM'S DOCUMENT, for a manager of a team assignment (ledger 0436); null shows nothing. */
+		htmlTeamDocuments?: { manifest: HtmlAssignmentManifest; transports: TeamDocumentsTransports } | null;
 		/**
 		 * THE LOCK AS THE PAGE KNOWS IT NOW (ledger 0431), from the heartbeat, the
 		 * class's live notice or a save refused as shut, so an assignment closed
@@ -762,8 +778,17 @@
 			a handler that does nothing.
 		*/
 		return {
-			onchange: (change: { blockId: string; field: string; value: string | boolean }) =>
-				answers.change(change),
+			onchange: (change: { blockId: string; field: string; value: string | boolean }) => {
+				// A TEAM DOCUMENT (ledger 0436): a box a teammate holds, a part
+				// another member owns, or a closed post takes no write here, and the
+				// database would refuse it anyway. The document was told read only.
+				const team = htmlTeamDoc;
+				if (team && team.shares(change.blockId)) {
+					if (!team.mayWrite(change.field)) return;
+					team.changed(change.blockId);
+				}
+				answers.change(change);
+			},
 			onimage: answers.image
 				? (image: { blockId: string; field: string; name: string; bytes: string }) =>
 						void answers.image?.(image)
@@ -2926,6 +2951,16 @@
 						data={htmlWorkingCopy.data}
 						transports={htmlWorkingCopy.transports}
 					/>
+					{#if htmlTeamDocuments}
+						<TeamDocuments
+							itemId={item.id}
+							manifest={htmlTeamDocuments.manifest}
+							src={htmlSrc}
+							title={itemTitle(item)}
+							fieldToBlockId={htmlFields}
+							transports={htmlTeamDocuments.transports}
+						/>
+					{/if}
 				{:else}
 					{#if htmlUnsavedAfterClose && (htmlUnsavedAfterClose.answers.length || htmlUnsavedAfterClose.others)}
 						<section class="hx-unsaved" role="status" data-testid="hx-unsaved-after-close">
@@ -2953,6 +2988,7 @@
 							{/if}
 						</section>
 					{/if}
+					{#snippet htmlFrameMount()}
 					<HtmlAssignmentFrame
 						bind:this={htmlFrame}
 						src={htmlSrc}
@@ -2973,8 +3009,17 @@
 						notes={studentNotes}
 						marks={studentMarks}
 						team={htmlTeam}
+						teamState={htmlTeamDoc?.statePayload ?? null}
+						onfieldfocus={htmlTeamDoc ? (f) => void htmlTeamDoc?.focus(f.blockId, f.field) : undefined}
+						onfieldblur={htmlTeamDoc ? (f) => void htmlTeamDoc?.blur(f.blockId) : undefined}
 						onnote={feedback ? (_field, threadId) => feedback?.show(threadId) : null}
 					/>
+					{/snippet}
+					{#if htmlTeamDoc}
+						<TeamDocGate session={htmlTeamDoc}>{@render htmlFrameMount()}</TeamDocGate>
+					{:else}
+						{@render htmlFrameMount()}
+					{/if}
 				{/if}
 				{/if}
 			</section>

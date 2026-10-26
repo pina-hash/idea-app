@@ -202,7 +202,11 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		 * invisible to this whole file, which is the one way a sweep like this
 		 * goes quietly wrong.
 		 */
-		const NOTIFY_PROPS = ['onannotate', 'ondropped', 'onexpand', 'onheight', 'onnote', 'onready'];
+		// `onfieldfocus` and `onfieldblur` (ledger 0436) carry a field name and
+		// nothing a student typed: they take and release a team box's lock. The
+		// grading mount hands neither down, and the instructor's team view uses
+		// focus only to open a box's history.
+		const NOTIFY_PROPS = ['onannotate', 'ondropped', 'onexpand', 'onfieldblur', 'onfieldfocus', 'onheight', 'onnote', 'onready'];
 		const unaccounted = unique.filter(
 			(p) => !WRITE_PROPS.includes(p as (typeof WRITE_PROPS)[number]) && !NOTIFY_PROPS.includes(p)
 		);

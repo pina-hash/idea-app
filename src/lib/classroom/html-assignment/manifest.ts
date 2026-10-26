@@ -173,7 +173,7 @@ export interface HtmlModule {
 	title: string;
 	points: number;
 	/**
-	 * WHO WRITES THIS MODULE IN A TEAM ASSIGNMENT (ledger 0435, migration 0301).
+	 * WHO WRITES THIS MODULE IN A TEAM ASSIGNMENT (ledger 0436, migration 0301).
 	 * Read by `hxModuleOwnership` in `./team-manifest`, and only when the
 	 * manifest declares `team`: without it every module is one student's own,
 	 * exactly as before, whatever this says.
@@ -185,7 +185,7 @@ export interface HtmlModule {
 	criteria: HtmlCriterion[];
 }
 
-/** One subsystem role a team assignment declares (ledger 0435). */
+/** One subsystem role a team assignment declares (ledger 0436). */
 export interface HtmlTeamRole {
 	id: string;
 	title: string;
@@ -219,7 +219,7 @@ export interface HtmlAssignmentManifest {
 	 */
 	thumbnail?: unknown;
 	/**
-	 * A TEAM ASSIGNMENT (ledger 0435). Present means one shared document per
+	 * A TEAM ASSIGNMENT (ledger 0436). Present means one shared document per
 	 * team: `team` modules hold one answer per block per team, `role` modules
 	 * belong to the role's owner from the team plan, `individual` modules stay
 	 * each student's own. Validated here and by 0301; the plan keys it may also
@@ -643,7 +643,7 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 		errors.push(`At most ${HTML_MAX_MODULES} modules per document (this one has ${modules.length}).`);
 	}
 
-	// THE TEAM KEY (ledger 0435), checked only when present, in 0301's words.
+	// THE TEAM KEY (ledger 0436), checked only when present, in 0301's words.
 	const teamRoleIds = new Set<string>();
 	if (m.team != null) {
 		const team = m.team as Record<string, unknown>;

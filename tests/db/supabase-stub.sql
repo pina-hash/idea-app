@@ -259,3 +259,17 @@ stable
 as $realtimetopic$
 	select nullif(current_setting('realtime.topic', true), '')::text;
 $realtimetopic$;
+
+-- realtime.send, the hosted project's "broadcast from the database" call
+-- (ledger 0436). Same class of fixture as the table above: it lives outside
+-- supabase/migrations and a hosted project ships it. This stand-in writes the
+-- row the real one writes, so a suite can COUNT the notices a write sends;
+-- the real one also delivers it to the channel's subscribers, which no test
+-- here can observe.
+create or replace function realtime.send(payload jsonb, event text, topic text, private boolean default true)
+returns void
+language sql
+as $realtimesend$
+	insert into realtime.messages (topic, extension, event, payload, private)
+	values (topic, 'broadcast', event, payload, private);
+$realtimesend$;

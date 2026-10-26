@@ -53,11 +53,13 @@
 	import MarkLayer from '$lib/classroom/feedback/MarkLayer.svelte';
 	import { noteFields, type FieldNote, type Marks } from '$lib/classroom/feedback/notes';
 	import type { HxTeamProgress } from './team';
+	import type { HxTeamStatePayload } from './team-doc';
 	import {
 		HX_SANDBOX_FLAGS,
 		hxFeedbackMessage,
 		hxFocusMessage,
 		hxTeamProgressMessage,
+		hxTeamStateMessage,
 		hxImageBoxStateMessage,
 		hxImagePlacement,
 		hxPostTarget,
@@ -153,6 +155,16 @@
 		/** The student's own team's progress (ledger 0422), sent down as `idea:team-progress`; null sends nothing. */
 		team = null,
 		/**
+		 * WHO MAY TYPE WHERE IN A TEAM DOCUMENT (ledger 0436), sent down as
+		 * `idea:team-state` after the first state and whenever it changes; null
+		 * sends nothing. `onfieldfocus` and `onfieldblur` hear the document's
+		 * `idea:field-focus` and `idea:field-blur`, which is how the page takes
+		 * and releases a box's lock.
+		 */
+		teamState = null,
+		onfieldfocus,
+		onfieldblur,
+		/**
 		 * FULL PAGE (ledger 0431, report 989cfcb6). When true the frame carries a
 		 * Full page key that lets the worksheet take the whole browser window
 		 * (not the browser's own fullscreen), with Exit full page and Escape as
@@ -193,6 +205,9 @@
 		onnote?: ((field: string, threadId: string) => void) | null;
 		onannotate?: ((field: string) => void) | null;
 		team?: HxTeamProgress | null;
+		teamState?: HxTeamStatePayload | null;
+		onfieldfocus?: (field: { blockId: string; field: string }) => void;
+		onfieldblur?: (field: { blockId: string; field: string }) => void;
 		expandable?: boolean;
 		chrome?: Snippet | null;
 		onexpand?: (expanded: boolean) => void;
@@ -272,6 +287,7 @@
 				fieldBoxes = {};
 				announced = new Set();
 				toldNotes = null;
+				toldTeamState = null;
 				video = null;
 				onready?.(message.schemaVersion);
 				// The document is listening now, so the state it should open on goes
@@ -280,6 +296,12 @@
 				postState(values, images, shut);
 				postTheme();
 				untrack(() => tellNotes(noteFieldList));
+				untrack(() => {
+					if (!teamState) return;
+					const message = hxTeamStateMessage(teamState);
+					toldTeamState = JSON.stringify(message);
+					post(message);
+				});
 				break;
 			case 'change':
 				onchange?.({ blockId: message.blockId, field: message.field, value: message.value });
@@ -323,6 +345,12 @@
 				boxes = message.rect ? { ...rest, [message.field]: { rect: message.rect, clipTop: message.clipTop } } : rest;
 				break;
 			}
+			case 'field-focus':
+				onfieldfocus?.({ blockId: message.blockId, field: message.field });
+				break;
+			case 'field-blur':
+				onfieldblur?.({ blockId: message.blockId, field: message.field });
+				break;
 			case 'field-box': {
 				const { [message.field]: _gone, ...others } = fieldBoxes;
 				fieldBoxes = message.rect
@@ -634,6 +662,29 @@
 			if (key === toldTeam) return;
 			toldTeam = key;
 			post(hxTeamProgressMessage(t));
+		});
+	});
+
+	/**
+	 * WHO MAY TYPE WHERE GOES DOWN AS `idea:team-state` (ledger 0436), once the
+	 * document is listening and only when it changed. A second `idea:ready`
+	 * clears the memory so a reloaded document hears it again.
+	 */
+	let toldTeamState: string | null = null;
+	$effect(() => {
+		const t = teamState;
+		const r = ready;
+		if (!r) {
+			toldTeamState = null;
+			return;
+		}
+		if (!t) return;
+		untrack(() => {
+			const message = hxTeamStateMessage(t);
+			const key = JSON.stringify(message);
+			if (key === toldTeamState) return;
+			toldTeamState = key;
+			post(message);
 		});
 	});
 

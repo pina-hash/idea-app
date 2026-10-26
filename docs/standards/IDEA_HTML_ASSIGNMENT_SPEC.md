@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.9 - 2026-10-16**
+**Version 1.10 - 2026-10-26**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -1765,7 +1765,213 @@ Both variables are documented in `.env.example`.
 
 ---
 
+## 16. Team assignments: one shared document per team
+
+Ledger 0436 (IDEA209H Unit 4), migrations 0301 and 0302 onward. Every decision here is
+Mr. Pina's, confirmed in chat 2026-10-23 to 2026-10-26; `docs/decisions/entries/71-*`
+records them. This section is the whole authoring contract for a team post. The fixture
+that exercises all of it is `TEAM_FIXTURE_MANIFEST` and `teamFixtureHtml()` in
+`src/lib/classroom/html-assignment/team-fixture.ts`, mounted by `/dev/team-document`;
+copy it and grow it.
+
+### 16.1 Declaring a team assignment
+
+A manifest with a top-level `team` object is a team assignment. Nothing else is needed:
+the post is not bound to a draw at upload and is never linked by hand. Each class the
+post is shared with resolves its own teams AT EVERY READ: that class's current posted
+team draw from the People tab (the most recently posted when two are showing). Before a
+draw is posted a student opening the post sees exactly "Teams are drawn in class. Your
+team's document opens here the moment teams are posted." and no form; the moment the
+teacher posts, every student with the post open lands in their own team's document
+within about two seconds, with no reload. Unposting, a redraw that is posted, and a hand
+move on the People tab take effect the same way.
+
+```json
+"team": {
+  "roles": [
+    { "id": "frame",    "title": "Frame and mount" },
+    { "id": "energy",   "title": "Energy store" },
+    { "id": "drive",    "title": "Drive" },
+    { "id": "ballpath", "title": "Ball path" }
+  ],
+  "checkpoints": [ ... section 16.5 ... ]
+}
+```
+
+- `roles` is required when `team` is present: one to eight roles, each an `id` in the
+  block-id charset (section 4.3) and a `title`, ids unique. Roles are declared by the
+  assignment and never hardcoded anywhere in the site; a role is the same role across
+  every post that declares the same id.
+- 0301 validates `team` and `roles` and refuses a malformed one; it never reads
+  `checkpoints` (section 16.5), which is read tolerantly.
+
+### 16.2 Who writes each module
+
+`audience` on a module now takes three values, and in a team assignment they mean:
+
+| `audience` | Stored as | Who may edit |
+|---|---|---|
+| `"team"` | ONE answer per block per team | any member; one person at a time per box |
+| `"role"` with `"role": "<role id>"` | ONE answer per block per team | only the member who owns that role in the team plan; teammates read it live |
+| `"individual"` or absent | each student's own answer, as every worksheet always was | the student |
+
+```json
+{ "id": "drive-plan", "title": "Drive", "points": 15,
+  "audience": "role", "role": "drive",
+  "blocks": [ { "id": "drive-req", "field": "driveReq", "type": "longText" } ],
+  "criteria": [ ... ] }
+```
+
+- A `role` module must name a role `team.roles` declares, or the import is refused.
+- Give each role its own module (its own blocks and criteria), one per role. On a team of
+  three, one student owns two roles and so gets two owned modules.
+- The header stays each student's own (name, date).
+- A manifest WITHOUT `team` keeps every module per student whatever `audience` says, so
+  a stored worksheet with `"audience": "team"` behaves exactly as before.
+- Owned and team answers are enforced by the SERVER (0302), not only by the page: a save
+  into a box a teammate holds, or into another member's owned module, is refused.
+
+### 16.3 One box at a time, and live
+
+- **Per-box lock.** When a student focuses a shared box it is theirs; teammates see
+  "<first name> is editing" and cannot type there. The lock is released when the student
+  leaves the box, or two minutes after they last typed in it, so a closed laptop never
+  freezes a box.
+- **Live.** A saved change reaches every teammate within about two seconds. Answers are
+  never sent over a socket: a payload-free notice says "read again", and each page reads
+  through its own permission-checked call.
+- **Every save is logged:** who, when, which box, before and after. An instructor opens
+  any box and reads its whole history.
+- **After the post's due date** every team and role box is read only. The instructor's
+  close (0198) shuts it as it shuts any worksheet.
+- **Pictures in a shared box** are stored with the student who took them; a teammate's
+  page does not show another member's picture inside the document (it is read in
+  grading). Prefer text, table and checkbox blocks in team and role modules.
+
+### 16.4 The plan keys on a block: linked-field points and machine tags
+
+Every graded block of a team assignment arrives in the team plan as a task, with its
+points and its linked field fixed (section 16.6). Two optional block keys shape that
+task; like `prompt`, neither decides a write and 0195/0301 never read them:
+
+| Key | Value | Meaning |
+|---|---|---|
+| `taskPoints` | whole number, 0 or more | the points the block's task carries. Absent: the module's points spread evenly over its counted blocks (whole numbers, the remainder on the first blocks). Give the blocks of one module `taskPoints` that sum to the module's points. |
+| `machine` | `"laser"`, `"router"`, `"printer"`, `"mill"` or `"lathe"` | the shop machine the task needs. The list is admin-editable data; a tag the list does not hold is no tag. |
+| `task` | text, up to 80 characters | the task's title in the plan. Absent: the block's `prompt`, else its field. |
+
+An `optional` block is never a task. A `team` block's task is assigned by the team; a
+`role` block's task is pre-assigned to the role's owner; an `individual` block becomes
+one task per member, owned by that member.
+
+### 16.5 Checkpoints and their checklists
+
+A team assignment may declare the sign-offs its blocks feed:
+
+```json
+"checkpoints": [
+  { "id": "plan", "title": "Plan", "date": "2026-10-28",
+    "items": [
+      { "id": "owners",  "kind": "auto", "check": "plan-owners",   "text": "Every task has an owner and a due date" },
+      { "id": "roles",   "kind": "auto", "check": "roles-owned",   "text": "Every role has an owner" },
+      { "id": "balance", "kind": "auto", "check": "plan-balanced", "text": "The plan balances" },
+      { "id": "fields",  "kind": "auto", "check": "blocks-complete",
+        "blocks": ["frame-req", "frame-sketch", "energy-req", "energy-sketch",
+                   "drive-req", "drive-sketch", "ballpath-req", "ballpath-sketch"],
+        "text": "Each role's requirement and sketch fields are complete" },
+      { "id": "interfaces", "kind": "tap", "text": "The sketches meet at the named interfaces" },
+      { "id": "method", "kind": "tap", "ownerOnly": true,
+        "text": "The launch method is a flywheel or a catapult" } ] }
+]
+```
+
+- `id` is the checkpoint's key: the same id declared by two posts of one unit is ONE
+  checkpoint, whose items are both posts' items (title, date and gate from the post
+  created first).
+- `date` is the school day it is due, `YYYY-MM-DD`. `gate` (optional) is the shop rule it
+  opens, said on the board, for example `"No metal is cut before this sign-off."`
+- An item is `"kind": "auto"` (the site checks it) or `"kind": "tap"` (the instructor
+  taps pass or fail). `ownerOnly: true` sends the request to Mr. Pina alone. `role` (a
+  role id) on a tap item names the role whose owner gets the fix task when it fails; a
+  tap item with no `role` gives the fix task to the team.
+- Auto checks: `plan-owners` (every task has an owner and a due date), `roles-owned`
+  (every role has an owner), `plan-balanced` (each member holds 0.75 to 1.25 times an even
+  share of the planned points), `blocks-complete` with `blocks` (the named blocks of THIS
+  post pass the completion rule), `assignment-complete` (every counted block of this post
+  passes it). Run a calculator into a block (a `text` field the calculator fills) so
+  `blocks-complete` can see it was run.
+- Sign-offs carry no points and never appear in a rubric (`IDEA_RUBRIC_STANDARDS.md` 1.4).
+- The site copies a checkpoint into its own records the first time a team's plan reads
+  it; after that the checklist is admin-editable data, and a re-upload never overwrites
+  an edited checklist.
+
+**The IDEA209H Unit 4 checklists, as Mr. Pina set them (with his power-source change of
+2026-10-26):**
+
+| Checkpoint | Date | Gate | Items |
+|---|---|---|---|
+| Plan | 2026-10-28 | | auto `plan-owners`; auto `roles-owned`; auto `plan-balanced`; auto `blocks-complete` (each role's requirement and sketch fields); tap "The sketches meet at the named interfaces"; tap, owner only, "The launch method is a flywheel or a catapult" |
+| Design | 2026-11-02 | No metal is cut before this sign-off. | auto `assignment-complete` on the Design post (its fields, including each role's prototype field); auto `blocks-complete` (its calculator result fields); tap "The structure is aluminum, with wood only for a minor part"; tap "A process is named for every part"; tap "The team uses 6 or fewer 1/2 in hex bearings"; tap "The drill or power tool is clamped or mounted to the launcher, never hand-held while firing" |
+| Safe to test | 2026-11-09 | No firing before this sign-off. | tap "Frame rigid"; tap "Fasteners tight"; tap "Rotating parts guarded"; tap "Power stops the moment the trigger or switch is released" |
+| Competition ready | 2026-11-12 | | auto `blocks-complete` (the test procedure field); tap "Three test shots fired in an approved area" |
+
+Launchers are powered by the shop's 3-speed DeWalt drills by default; the DeWalt impact
+driver, other shop power tools or a power source the team builds are also allowed, and a
+gear ratio is optional.
+
+### 16.6 The team plan, as the document sees it
+
+One plan per team. A task carries its title, owner, due date, linked field (post and
+block), points, optional machine tag and status. The team adds its own tasks at 0 points
+(they count toward Behind, never toward the share). Status is never typed into the
+document: **Done** is automatic (the linked field passes the completion rule), **On it**
+comes from the start-of-class check-in, **Blocked** is the one status a student sets,
+**Behind** is past due and not done, and the team is **Slipping** when done points fall
+below 80% of the points planned to date. There is no done button and no turn-in button.
+
+### 16.7 The bridge messages a team document sends and receives
+
+Frame to parent (judged like every field message: the field through the parent's own
+map, section 6.4):
+
+| Type | Payload | When |
+|---|---|---|
+| `idea:field-focus` | `field` | a field gains focus: the parent takes that box's lock |
+| `idea:field-blur` | `field` | it loses focus: the parent lets the box's save land, then releases the lock |
+
+A document that never sends them still works: the first save takes the lock, and the lock
+lapses two minutes after the last save.
+
+Parent to frame (advisory: a document must never wait on one):
+
+| Type | Payload |
+|---|---|
+| `idea:team-state` | `team` (name), `me` (the student's first name), `roles` (`[{id, title, owner, mine}]`), `fields`: per shared field `{ state, by? }` |
+| `idea:team-tracker` | `team`, `today` (`YYYY-MM-DD`), `summary` (one sentence), `tasks` (`[{id, title, owner, due, status, points}]`, the student's own first), `flags` (`{behind, slipping, uneven}`), `next` (`{title, date, state}`, the next sign-off) |
+
+`state` in `idea:team-state` is one of `free` and `mine` (the student may type), `held`
+(`by` is editing it), `owned` (it belongs to `by`), `unowned` (its role has no owner yet:
+choose one in the team plan) and `closed` (past due). A document draws a field that is not
+`free` or `mine` read only with the words beside it, and on `idea:state` it never
+overwrites the field the student has focus in. `idea:state`'s `values` already carry the
+team's answers for shared fields, so nothing else carries an answer down.
+
+`idea:team-tracker` follows the `idea:team-progress` pattern (ledger 0422): sent after
+the first state and again when it changes, field names and plan words only, never another
+student's answer.
+
+---
+
 ## Changelog
+
+- **1.10 (2026-10-26).** Ledger 0436 (IDEA209H Unit 4), migrations 0301 and 0302. The new
+  section 16 is the authoring contract for a team post: `team.roles`, `audience` "role"
+  with `role`, what each audience means in a team assignment, the per-box lock, live
+  saves and the change log, past-due read only, the plan keys `taskPoints`, `machine` and
+  `task`, `team.checkpoints` with the Unit 4 checklists (Mr. Pina's power-source change
+  of 2026-10-26 applied), and four bridge messages (`idea:field-focus`, `idea:field-blur`,
+  `idea:team-state`, `idea:team-tracker`). Posting a team draw is the switch: nothing is
+  bound at upload. A stored worksheet answers exactly as before (0301's corpus test).
 
 - **1.9 (2026-10-16).** Ledger 0396, migration 0268 (post thumbnails, report a6a037f3).
   Section 4.1 gains the optional top-level `thumbnail` key and the new section 4.10 says

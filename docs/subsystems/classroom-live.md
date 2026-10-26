@@ -293,3 +293,20 @@ while hidden, a backoff doubling to 5 minutes, and a full stop on a 401, 403 or
   with a measurement, never a tweak.
 - **A HARNESS THAT COUNTS READS PASSES `pollMs`**, which the class page never
   does, so a randomly placed first poll cannot land inside a spec's few seconds.
+
+### NOTICES FROM THE DATABASE: `teams` AND `team-doc` (ledger 0436, 0302)
+
+**The first two topics sent by a TRIGGER rather than a client.** `_classroom_live_notice`
+calls Supabase's `realtime.send` with the same payload-free `{ topic }` a client announces,
+best effort (a database without it sends nothing, and a failed send never fails the
+write). `teams` goes to the SECTION's channel when a draw is posted, unposted, retired,
+renamed or a member moves, so a page showing a team document re-reads which team its
+student is on; that is what makes the People tab's Post, the connector and the SQL editor
+all reach an open page within the two seconds Mr. Pina asked for. `team-doc` goes to ONE
+team's channel, keyed `team-<team id>` through the ordinary `ClassroomLive` interface (the
+key is a channel name), when a team box is saved, locked or released or a role owner set,
+so only that team's pages re-read. `TEAM_NOTICE_JITTER_MS` is 300: a team is four people,
+not a class, and the wait only coalesces a burst. The floor is a tab return, never an
+interval (the item page's call budget is spent), and a lock running out redraws on the
+clock with no read (`teamNextLockChange`). `tests/db/supabase-stub.sql` carries a
+`realtime.send` that writes the row the real one writes, so a suite can count notices.

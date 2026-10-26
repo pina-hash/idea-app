@@ -1,6 +1,6 @@
 // tests/db/html-manifest-team-roles.test.ts
 //
-// LEDGER 0435, MIGRATION 0301: THE MANIFEST GATE WIDENS AND ANSWERS EVERY
+// LEDGER 0436, MIGRATION 0301: THE MANIFEST GATE WIDENS AND ANSWERS EVERY
 // STORED MANIFEST EXACTLY AS BEFORE.
 //
 // CLAUDE.md, DEPLOY ORDERING: a widened gate's first obligation is to answer
@@ -19,7 +19,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startTestDb, type TestDb } from './harness';
-import { migrationSql, treeShortOf } from './chain-0435';
+import { migrationSql, treeShortOf } from './chain-0436';
 import { validateHtmlManifest } from '../../src/lib/classroom/html-assignment/manifest';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));

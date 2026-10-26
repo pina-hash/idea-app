@@ -43,6 +43,8 @@
 	} from '$lib/classroom/html-assignment/answers';
 	import { HxAnswersStore } from '$lib/classroom/html-assignment/answers-store.svelte';
 	import { teamProgressFor, type HxTeamProgress, type TeamProgressRaw } from '$lib/classroom/html-assignment/team';
+	import { hxIsTeamManifest } from '$lib/classroom/html-assignment/team-doc';
+	import { TeamDocSession } from '$lib/classroom/html-assignment/team-doc-session.svelte';
 	import type { HtmlRetiredBlock } from '$lib/classroom/html-assignment/store';
 	import { hxInstructorAnswerTransports } from '$lib/classroom/html-assignment/instructor';
 	import { HX_UNSAVED_WARNING } from '$lib/classroom/html-assignment/answers';
@@ -396,6 +398,83 @@
 			})
 		};
 		return heldHtmlAnswers.store;
+	});
+
+	/**
+	 * THE STUDENT'S LIVE TEAM DOCUMENT (ledger 0436, 0302), for a team
+	 * assignment only: held with the answers controller it lays team answers
+	 * over, and started and stopped by the effect below. Its floor is a tab
+	 * return and its speed the team's and the section's live notices; it runs
+	 * no interval, because the item page's call budget is spent.
+	 */
+	let heldTeamDoc: { key: string; session: TeamDocSession } | null = null;
+	const htmlTeamDoc = $derived.by(() => {
+		const answers = htmlAnswers;
+		const doc = data.htmlAssignment;
+		const manifest = doc && htmlManifestShaped(doc.manifest) ? doc.manifest : null;
+		const key = answers && manifest && hxIsTeamManifest(manifest) ? `${data.item.id}:${doc?.documentId}` : '';
+		if (heldTeamDoc && heldTeamDoc.key === key) return heldTeamDoc.session;
+		heldTeamDoc = null;
+		if (!key || !answers || !manifest) return null;
+		const supabase = data.supabase;
+		heldTeamDoc = {
+			key,
+			session: new TeamDocSession({
+				itemId: data.item.id,
+				sectionId: data.section.id,
+				manifest,
+				answers,
+				live: classLive,
+				transports: {
+					read: async (itemId) => {
+						const { data: raw, error } = await supabase.rpc('classroom_team_document', { p_item_id: itemId });
+						return error ? null : raw;
+					},
+					lock: async (itemId, blockId, take) => {
+						const { data: raw, error } = await supabase.rpc('classroom_team_box_lock', {
+							p_item_id: itemId,
+							p_block_id: blockId,
+							p_take: take
+						});
+						return error ? null : raw;
+					}
+				}
+			})
+		};
+		return heldTeamDoc.session;
+	});
+	$effect(() => {
+		const session = htmlTeamDoc;
+		if (!session) return;
+		return untrack(() => session.start());
+	});
+	/** EVERY TEAM'S DOCUMENT, for a manager of a team assignment (ledger 0436). */
+	const htmlTeamDocuments = $derived.by(() => {
+		const doc = data.htmlAssignment;
+		const manifest = doc && htmlManifestShaped(doc.manifest) ? doc.manifest : null;
+		if (!data.canManage || !manifest || !hxIsTeamManifest(manifest)) return null;
+		const supabase = data.supabase;
+		const call = async (fn: string, args: Record<string, unknown>) => {
+			const { data: raw, error } = await supabase.rpc(fn, args);
+			return error ? null : raw;
+		};
+		return {
+			manifest,
+			transports: {
+				listTeams: (itemId: string) => call('classroom_item_teams', { p_item_id: itemId }),
+				readTeam: (itemId: string, teamId: string) =>
+					call('classroom_team_document_for', { p_item_id: itemId, p_team_id: teamId }),
+				history: (itemId: string, teamId: string, blockId: string) =>
+					call('classroom_team_box_history', { p_item_id: itemId, p_team_id: teamId, p_block_id: blockId })
+			}
+		};
+	});
+	/* A landed write tells the teammates at once (the database tells them too, where it can). */
+	$effect(() => {
+		const ack = htmlAnswers?.saved;
+		const session = htmlTeamDoc;
+		if (!ack?.ok || !session) return;
+		untrack(() => session.announceSaved());
 	});
 
 	/**
@@ -1309,6 +1388,8 @@
 	{ideacadOpenRefusal}
 	{htmlAnswers}
 	{htmlTeam}
+	{htmlTeamDoc}
+	{htmlTeamDocuments}
 	htmlLock={data.canManage ? undefined : htmlLock}
 	feedback={feedbackSession}
 	{htmlInstructorAnswers}

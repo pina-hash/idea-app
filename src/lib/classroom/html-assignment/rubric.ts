@@ -114,7 +114,8 @@ export interface HtmlModule {
 	id: string;
 	title: string;
 	points: number;
-	audience?: 'team' | 'individual';
+	audience?: 'team' | 'individual' | 'role';
+	role?: string;
 	blocks: HtmlBlock[];
 	criteria: HtmlCriterion[];
 }

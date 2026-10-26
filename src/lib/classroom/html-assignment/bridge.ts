@@ -159,7 +159,9 @@ export type HxFrameMessage =
 	| { type: 'idea:image-caption'; field: string; caption: string }
 	| { type: 'idea:height'; px: number }
 	| { type: typeof HX_VIDEO_TYPE; videoId: string | null; rect?: HxVideoRect; clipTop?: number; start?: number }
-	| { type: typeof HX_IMAGE_BOX_TYPE; field: string; rect: HxVideoRect | null; clipTop?: number };
+	| { type: typeof HX_IMAGE_BOX_TYPE; field: string; rect: HxVideoRect | null; clipTop?: number }
+	| { type: typeof HX_FIELD_FOCUS_TYPE; field: string }
+	| { type: typeof HX_FIELD_BLUR_TYPE; field: string };
 
 /**
  * A VIDEO IS PLAYED BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN, AND
@@ -328,6 +330,30 @@ export const HX_TEAM_PROGRESS_TYPE = 'idea:team-progress';
 export const HX_FOCUS_TYPE = 'idea:focus';
 
 /**
+ * A STUDENT ENTERED OR LEFT A FIELD (ledger 0436). A team document sends
+ * `{ type: 'idea:field-focus', field }` when a field gains focus and
+ * `{ type: 'idea:field-blur', field }` when it loses it, so the parent can
+ * take the box's team lock on focus and release it on blur. Field names only,
+ * resolved through the parent's own map like every other field message. A
+ * document that never sends them still works: the parent takes the lock with
+ * the first save, and the lock lapses two minutes after the last one.
+ */
+export const HX_FIELD_FOCUS_TYPE = 'idea:field-focus';
+export const HX_FIELD_BLUR_TYPE = 'idea:field-blur';
+
+/**
+ * WHO MAY TYPE WHERE IN A TEAM DOCUMENT (ledger 0436), parent to frame:
+ * `{ type: 'idea:team-state', team, me, roles, fields }`. `fields` maps a
+ * shared field to `{ state, by? }`: `free` and `mine` may be typed into;
+ * `held` (a teammate named in `by` is editing it), `owned` (it belongs to the
+ * role owner named in `by`), `unowned` (its role has no owner yet) and
+ * `closed` (past the due date) are read only. Sent after the first state and
+ * whenever it changes. A document that ignores it still cannot write a box it
+ * may not: the parent drops the change and the database refuses it.
+ */
+export const HX_TEAM_STATE_TYPE = 'idea:team-state';
+
+/**
  * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
  *
  * BYTES GO FRAME-TO-PARENT ONLY, NEVER BACK. An `idea:image` carries a
@@ -425,6 +451,14 @@ export type HxParentMessage =
 			field: string;
 	  }
 	| {
+			/** Who may type where in a team document. See `HX_TEAM_STATE_TYPE`. */
+			type: typeof HX_TEAM_STATE_TYPE;
+			team: string;
+			me: string;
+			roles: { id: string; title: string; owner: string | null; mine: boolean }[];
+			fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed'; by?: string }>;
+	  }
+	| {
 			/** The student's own team, teammate by teammate. See `HX_TEAM_PROGRESS_TYPE`. */
 			type: typeof HX_TEAM_PROGRESS_TYPE;
 			team: string;
@@ -455,7 +489,10 @@ export type HxAccepted =
 	/** `rect` null is the document withdrawing the box; `clipTop` is then 0. */
 	| { kind: 'image-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number }
 	/** Where an answer sits (0238). The same shape as a picture box. */
-	| { kind: 'field-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number };
+	| { kind: 'field-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number }
+	/** A field gained or lost focus (ledger 0436), resolved through the parent's map. */
+	| { kind: 'field-focus'; blockId: string; field: string }
+	| { kind: 'field-blur'; blockId: string; field: string };
 
 /**
  * Why a message was dropped. These are DISTINCT on purpose: "a message from
@@ -808,6 +845,23 @@ export function hxReceive(incoming: HxIncoming, gate: HxGate): HxVerdict {
 			return { ok: true, message: { kind: 'field-box', blockId, field, rect: box.rect, clipTop: box.clipTop } };
 		}
 
+		/** A field entered or left (ledger 0436): the shape, then the field through the parent's own map. */
+		case HX_FIELD_FOCUS_TYPE:
+		case HX_FIELD_BLUR_TYPE: {
+			const field = data.field;
+			if (typeof field !== 'string' || field === '') {
+				return { ok: false, reason: 'shape', detail: `${data.type} without a non-empty field` };
+			}
+			const blockId = resolveField(field, gate);
+			if (blockId === null) {
+				return { ok: false, reason: 'field', detail: `no block declares the field ${JSON.stringify(field)}` };
+			}
+			return {
+				ok: true,
+				message: { kind: data.type === HX_FIELD_FOCUS_TYPE ? 'field-focus' : 'field-blur', blockId, field }
+			};
+		}
+
 		default:
 			return { ok: false, reason: 'type', detail: `unknown message type ${JSON.stringify(data.type)}` };
 	}
@@ -918,6 +972,27 @@ export function hxTeamProgressMessage(team: {
 }
 
 /** Ask the document to focus one field (`HX_FOCUS_TYPE`). */
+/** Who may type where, for a team document. Fields sorted so a re-send of the same state is the same message. */
+export function hxTeamStateMessage(state: {
+	team: string;
+	me: string;
+	roles: { id: string; title: string; owner: string | null; mine: boolean }[];
+	fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed'; by?: string }>;
+}): HxParentMessage {
+	const fields = Object.fromEntries(
+		Object.keys(state.fields)
+			.sort((a, b) => a.localeCompare(b))
+			.map((f) => [f, { ...state.fields[f] }])
+	);
+	return {
+		type: HX_TEAM_STATE_TYPE,
+		team: state.team,
+		me: state.me,
+		roles: state.roles.map((r) => ({ ...r })),
+		fields
+	};
+}
+
 export function hxFocusMessage(field: string): HxParentMessage {
 	return { type: HX_FOCUS_TYPE, field };
 }

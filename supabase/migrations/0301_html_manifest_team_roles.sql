@@ -1,6 +1,6 @@
 -- 0301_html_manifest_team_roles.sql
 --
--- THE MANIFEST GATE ADMITS ROLE-OWNED MODULES (ledger 0435, IDEA209H Unit 4,
+-- THE MANIFEST GATE ADMITS ROLE-OWNED MODULES (ledger 0436, IDEA209H Unit 4,
 -- Mr. Pina's decisions of 2026-10-23 to 2026-10-26). THIS FILE ONLY WIDENS.
 --
 -- A team assignment declares its subsystem roles once, at the top of the

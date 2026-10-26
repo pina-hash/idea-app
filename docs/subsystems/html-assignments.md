@@ -382,3 +382,45 @@ responders are `bridgeClient()` in `src/routes/hx/_documents.ts` and the kit's
 `kit.js`; **a live document gets the jump only once it is rebuilt on the kit
 and re-uploaded.** `tools/browser-verify/routes/html-assignment-live*.mjs`
 measures all three at 375 and 1440 on `/dev/html-assignment-live`.
+
+### LEDGER 0436: A TEAM ASSIGNMENT IS ONE SHARED DOCUMENT PER TEAM, AND POSTING A DRAW IS THE SWITCH
+
+**A MANIFEST WITH A TOP-LEVEL `team` IS A TEAM ASSIGNMENT (0301, 0302; spec section 16,
+decision 71).** `team` modules hold one answer per block per team, `role` modules belong to
+the member who owns the role in the team plan, and every other module is the student's own;
+a manifest without `team` is per student whatever `audience` says, so every stored worksheet
+answers as before (`tests/db/html-manifest-team-roles.test.ts` puts every exported manifest
+under `materials/` through the deployed gate and then 0301).
+- **NOTHING IS BOUND AT UPLOAD.** `_classroom_section_team_set` is the one answer to "which
+  teams": the section's current posted draw, asked at every call, so Post, Unpost, a redraw
+  that is posted and a hand move are each the switch. Do not add a binding table or a pin:
+  a later draw must never re-team a unit by itself, and a post shared by three sections
+  resolves three draws.
+- **THE TEAM'S ANSWER IS `classroom_team_answers`, AND THE MEMBER ROWS ARE ITS COPIES.**
+  `classroom_save_response` (still the one student write, widened by 0302 with one branch
+  before its insert) writes the team row and every current member's `classroom_responses`
+  row in one statement, so grading, the bulk path, the FACTS export, Missing and Complete
+  and 0290's teammate progress read a team answer with no change. A move takes the old
+  team's answers out of the student's rows (only rows still equal to the team's value) and
+  puts the new team's in (`_classroom_team_members_resync`), so work never follows a
+  student. **Never read the team's value off a member row**: it is the team row.
+- **THE LOCK IS THE SERVER'S.** `_classroom_team_block_refusal` is the one statement of who
+  may write a shared box (past due, closed, role owner) and `_classroom_team_take_lock` the
+  one lock (two minutes after the last touch, read at call time); the save and
+  `classroom_team_box_lock` both ask them. The page only mirrors it: `TeamDocSession`
+  (`team-doc-session.svelte.ts`) takes the lock on `idea:field-focus`, lets the box's write
+  land and releases it on `idea:field-blur`, and drops a change to a box the student may
+  not write before it reaches the save path. `HxAnswers.adoptRemote` lays a teammate's
+  saved answers down and NEVER over a box still owed a write or one touched after the read
+  left (`readSince`), which is the measured race: a notice for the student's own save
+  re-read the team before the save landed and put the old words back.
+- **A STORED VALUE IS READ BACK THROUGH `hxBridgeValue`.** A team row holds the ordinary
+  stored shape (`{ text }`), and the harness showed nothing reaching a teammate until
+  `teamValuesFor` read it that way.
+- **WHERE IT IS MEASURED.** `tests/db/classroom-team-documents.test.ts` (privacy both ways,
+  owner and lock refusals, posting and unposting, a move, mutation-proven in the permissive
+  direction) and `/dev/team-document`, two browser contexts as two teammates over the
+  in-memory stand-in in `_fake.ts`, which is never evidence for a database rule.
+- **WHAT A TEAMMATE CANNOT SEE: another member's picture.** Submission files stay their
+  uploader's (0086's file policies are unchanged), so a picture in a shared box shows only
+  for the student who took it and in grading; spec 16.3 tells authors to prefer text.

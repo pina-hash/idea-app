@@ -200,7 +200,13 @@ export class HxAnswersStore implements HtmlAssignmentAnswers {
 		this.#version += 1;
 	};
 
-	/** Write everything still owed and wait for it to settle. */
+	/** See `HxAnswers.adoptRemote`: a teammate's saved answers, never over unsaved typing. */
+	adoptRemote = (values: Record<string, string | boolean>, readSince?: number): string[] => {
+		const moved = this.#answers.adoptRemote(values, readSince);
+		if (moved.length) this.#mirror?.schedule();
+		return moved;
+	};
+
 	/** See `HxAnswers.resendAfterReopen`. */
 	resendAfterReopen = (): number => {
 		const n = this.#answers.resendAfterReopen();
@@ -208,6 +214,7 @@ export class HxAnswersStore implements HtmlAssignmentAnswers {
 		return n;
 	};
 
+	/** Write everything still owed and wait for it to settle. */
 	flush(): Promise<void> {
 		return this.#answers.flush();
 	}

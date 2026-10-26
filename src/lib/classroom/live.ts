@@ -126,7 +126,9 @@ export type ClassroomLiveTopic =
 	| 'presence'
 	| 'quick-posts'
 	| 'feedback'
-	| 'lock';
+	| 'lock'
+	| 'teams'
+	| 'team-doc';
 
 export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'hall-pass',
@@ -135,7 +137,9 @@ export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'presence',
 	'quick-posts',
 	'feedback',
-	'lock'
+	'lock',
+	'teams',
+	'team-doc'
 ];
 
 /**
@@ -148,6 +152,24 @@ export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
  * so a close made through the connector arrives by the beat.
  */
 export const LOCK_NOTICE_JITTER_MS = 3000;
+
+/**
+ * `teams` IS THE EIGHTH AND `team-doc` THE NINTH (ledger 0436, 0302), and they
+ * are the first sent FROM THE DATABASE: a trigger calls Supabase's
+ * `realtime.send` with the same payload-free `{ topic }` a client announces,
+ * so a draw posted on the People tab, through the connector or in the SQL
+ * editor reaches every open page the same way. `teams` goes to the SECTION's
+ * channel (a draw posted, unposted, renamed or a member moved): a page showing
+ * a team document re-reads which team its student is on. `team-doc` goes to
+ * ONE TEAM's channel, keyed `team-<team id>` through this same interface (the
+ * key is a channel name, not necessarily a section), so a box saved, locked or
+ * released re-reads only that team's pages, never the class's.
+ *
+ * A team of four re-reads at once on purpose: there is no class to spread out,
+ * and a teammate's saved change is meant to appear within about two seconds.
+ * So the wait is short and only coalesces a burst of notices into one read.
+ */
+export const TEAM_NOTICE_JITTER_MS = 300;
 
 /**
  * THE GRADING CONSOLE'S POLL, WHICH IS THE FLOOR AND NOT THE SPEED.
