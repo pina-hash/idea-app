@@ -330,7 +330,9 @@ try {
 			const cells = await frame.$$(`${sel} tbody tr:first-child input, ${sel} tbody tr:first-child textarea`);
 			const vals = [];
 			for (let i = 0; i < cells.length; i++) { const v = `cell ${i + 1} with spaces`; await cells[i].click(); await cells[i].type(v, { delay: 8 }); vals.push(v); }
-			expected[field] = JSON.stringify([vals]);
+			/* A table with more than one row stores every row; the rows not typed in stay empty strings. */
+			const shape = await frame.evaluate((s2) => Array.prototype.map.call(document.querySelectorAll(s2 + ' tbody tr'), (tr) => tr.querySelectorAll('input, textarea, select').length), sel);
+			expected[field] = JSON.stringify(shape.map((n, r) => (r === 0 ? vals : Array.from({ length: n }, () => ''))));
 		}
 	}
 	(missing.length ? FAIL : PASS)('save', 'Every declared field has a box on the page', missing.join(', '));

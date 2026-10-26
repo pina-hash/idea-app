@@ -99,6 +99,11 @@
         if (!known(d.field) || !okRect(d.rect)) { S.dropped.push(d.type + ' ' + d.field); return; }
         if (d.type === 'idea:image-box') { S.boxes[d.field] = d.rect; if (d.rect && S.images[d.field]) post({ type: 'idea:image-box-state', field: d.field, shown: true }); }
         return;
+      case 'idea:field-focus':
+      case 'idea:field-blur':
+        /* Team posts (SPEC 16.7): the portal takes and releases the box's lock. */
+        if (!known(d.field)) { S.dropped.push(d.type + ' ' + d.field); return; }
+        return;
       default:
         S.dropped.push('type ' + d.type);
     }

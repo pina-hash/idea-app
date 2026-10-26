@@ -283,3 +283,19 @@ details.hx-more > summary {
 
 /* A placeholder shows the form of an answer and must never pass for one. */
 #hx-page ::placeholder { color: var(--text-2); font-style: italic; opacity: 0.85; }
+
+/* ---- Team posts (kit/team.js, SPEC 16). Words carry the state; color only backs them. */
+.hx-who { margin: 2px 0 0; font-size: 0.88rem; color: var(--text-2); min-height: 0; }
+.hx-who:empty { display: none; }
+.hx-who.mine { color: var(--accent); }
+.hx-who.locked { color: var(--text-2); font-style: italic; }
+.hx-locked { opacity: 0.78; }
+[data-role] { border-left: 3px solid var(--hair); }
+[data-role].is-mine { border-left-color: var(--accent); }
+[data-role-owner].is-mine { color: var(--accent); font-weight: 700; }
+.hx-tk-sum { margin: 0; }
+.hx-tk-next { margin: 0; color: var(--text-2); }
+.hx-tk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hx-tk-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 6px 0; border-bottom: 1px solid var(--hair); }
+.hx-tk-meta { color: var(--text-2); font-size: 0.9rem; }
+.hx-flag-warn { --idea-lamp: var(--led-amber); }
