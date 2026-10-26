@@ -127,6 +127,7 @@
 		presence = null,
 		loadGrading = null,
 		projectorHref,
+		presentHref = null,
 		peopleHref = null,
 		gradeHrefFor = null,
 		initialItemId = null,
@@ -155,6 +156,8 @@
 		loadGrading?: ((itemId: string, sectionId: string) => Promise<TxResult<GradingData>>) | null;
 		/** The projector page for this class. */
 		projectorHref: string;
+		/** The presentation check-off page (ledger 0438), opened on a phone; absent, no key. */
+		presentHref?: string | null;
 		/** The People tab, which is the picker's and the teams' first-class home. */
 		peopleHref?: string | null;
 		gradeHrefFor?: ((itemId: string) => string) | null;
@@ -764,6 +767,9 @@
 		>
 			Open projector view
 		</a>
+		{#if presentHref}
+			<a class="btn secondary lc-open" href={presentHref} data-testid="live-open-present">Presentations</a>
+		{/if}
 	</header>
 
 	<div class="lc-cols">

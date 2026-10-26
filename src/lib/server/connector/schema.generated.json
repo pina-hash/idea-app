@@ -5525,6 +5525,157 @@
 				"writes": false
 			}
 		],
+		"classroom_presentation_close": [
+			{
+				"signature": "classroom_presentation_close(uuid)",
+				"args": [
+					{
+						"name": "p_queue_id",
+						"type": "uuid",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"classroom_manages_section"
+				],
+				"writes": true
+			}
+		],
+		"classroom_presentation_mark": [
+			{
+				"signature": "classroom_presentation_mark(uuid,text)",
+				"args": [
+					{
+						"name": "p_entry_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_status",
+						"type": "text",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"classroom_manages_section"
+				],
+				"writes": true
+			}
+		],
+		"classroom_presentation_move": [
+			{
+				"signature": "classroom_presentation_move(uuid,integer)",
+				"args": [
+					{
+						"name": "p_entry_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_position",
+						"type": "integer",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"classroom_manages_section"
+				],
+				"writes": true
+			}
+		],
+		"classroom_presentation_queue": [
+			{
+				"signature": "classroom_presentation_queue(uuid)",
+				"args": [
+					{
+						"name": "p_section_id",
+						"type": "uuid",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "stable",
+				"gates": [
+					"classroom_manages_section"
+				],
+				"writes": false
+			}
+		],
+		"classroom_presentation_reopen": [
+			{
+				"signature": "classroom_presentation_reopen(uuid)",
+				"args": [
+					{
+						"name": "p_queue_id",
+						"type": "uuid",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"classroom_manages_section"
+				],
+				"writes": true
+			}
+		],
+		"classroom_presentation_start": [
+			{
+				"signature": "classroom_presentation_start(uuid,uuid,text,text,bigint)",
+				"args": [
+					{
+						"name": "p_section_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_item_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_title",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_order",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_seed",
+						"type": "bigint",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"_classroom_manages_section_email",
+					"classroom_manages_section"
+				],
+				"writes": true
+			}
+		],
 		"classroom_preview_team_draw": [
 			{
 				"signature": "classroom_preview_team_draw(uuid,integer,text[],bigint)",

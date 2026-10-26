@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import LiveControl from '$lib/classroom/live-class/LiveControl.svelte';
 	import { sectionTitle } from '$lib/classroom/classroom';
+	import { classPresentHref } from '$lib/classroom/nav';
 	import { createClassroomLive } from '$lib/classroom/live';
 	import { createPresenceTransports } from '$lib/classroom/presence/transports';
 	import { createHallPassTransports, createTeacherEngineTransports } from '$lib/classroom/transports';
@@ -61,6 +62,7 @@
 	{presence}
 	{loadGrading}
 	projectorHref={`${base}/live/projector`}
+	presentHref={classPresentHref(data.section.id)}
 	peopleHref={`${base}/people`}
 	gradeHrefFor={(itemId) => `${base}/item/${itemId}/grade`}
 	initialItemId={page.url.searchParams.get('item')}

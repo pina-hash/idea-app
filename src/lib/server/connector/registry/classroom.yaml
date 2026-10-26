@@ -1449,3 +1449,76 @@ classroom_no_school_day_set:
   args:
     p_day: {name: date, describe: "The date, as YYYY-MM-DD."}
     p_label: {name: label, describe: "What the day is, like Veterans Day; leave it out to make it a school day again."}
+
+# PRESENTATION LISTS (ledger 0438 item 5, 0312). The phone page at
+# /classroom/<id>/present is the usual way in; these let a chat ask who is up
+# and check people off. A note while they present is classroom_feedback_post
+# (the send feedback tool) on the list's assignment, not a function here.
+classroom_presentation_queue:
+  surface: call
+  level: read
+  describe: Show a class's presentation list, who is up now, who is next and who is done, with each entry's id.
+  say: ["who is presenting next in Block 2", "who is up for presentations", "show the presentation list for 209H Block 1"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class, like 209H Block 2."}
+
+classroom_presentation_start:
+  surface: call
+  level: undo
+  describe: Start a presentation list for a class in roster order, random order or by posted teams; an open list is closed first.
+  say: ["start presentations in Block 2", "make a random presentation order for Block 1", "set up team presentations for the launcher"]
+  args:
+    p_section_id: {name: class, resolve: class, describe: "The class, like 209H Block 2."}
+    p_item_id: {name: post, resolve: post, describe: "The assignment the presentations are for, so notes and scores go on it."}
+    p_title: {name: title, describe: "A title for the list; the assignment's title when left out."}
+    p_order: {name: order, enum: [roster, random, teams], describe: "roster, random, or teams for the class's posted teams."}
+    p_seed: {name: seed, describe: "A number that fixes a random order; left out, the order is new each time."}
+  undo:
+    - function: classroom_presentation_close
+      args: {p_queue_id: $result.queue_id}
+
+classroom_presentation_mark:
+  surface: call
+  level: undo
+  describe: Check off one entry on a presentation list as presented, absent or redo, or put it up now.
+  say: ["mark the next presenter presented", "mark that team absent", "put the next student up for a redo"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id, from the class's presentation list."}
+    p_status: {name: status, enum: [presented, absent, redo, up, waiting], describe: "presented, absent, redo, up to start them, or waiting to take a mark back."}
+  undo:
+    - function: classroom_presentation_mark
+      args: {p_entry_id: $args.p_entry_id, p_status: $result.previous}
+
+classroom_presentation_move:
+  surface: call
+  level: undo
+  describe: Move one entry to a new place in a presentation list; the rest close up around it.
+  say: ["move that team to first", "put the student last in the presentation order", "swap who presents next"]
+  args:
+    p_entry_id: {name: entry, describe: "The entry's id, from the class's presentation list."}
+    p_position: {name: place, describe: "The new place in the order, 1 for first."}
+  undo:
+    - function: classroom_presentation_move
+      args: {p_entry_id: $args.p_entry_id, p_position: $result.previous}
+
+classroom_presentation_close:
+  surface: call
+  level: undo
+  describe: Close a class's presentation list when presentations are over; it is kept as a record.
+  say: ["close the presentation list", "presentations are done in Block 2", "end presentations for today"]
+  args:
+    p_queue_id: {name: list, describe: "The list's id, from the class's presentation list."}
+  undo:
+    - function: classroom_presentation_reopen
+      args: {p_queue_id: $args.p_queue_id}
+
+classroom_presentation_reopen:
+  surface: call
+  level: undo
+  describe: Reopen a closed presentation list so check-off can continue; any newer open list in the class is closed.
+  say: ["reopen the presentation list", "bring back yesterday's presentation order", "undo closing presentations"]
+  args:
+    p_queue_id: {name: list, describe: "The list's id."}
+  undo:
+    - function: classroom_presentation_close
+      args: {p_queue_id: $args.p_queue_id}

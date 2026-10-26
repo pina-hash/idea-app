@@ -319,3 +319,14 @@ teammate's saved answer reaches the board only through its poller floor (120 sec
 team's `team-doc` channel would hold fifteen channels open to show a burn-up that moves
 once a class. A new request also reaches the deciding teacher's phone, by push, through
 `POST /api/classroom/signoff-request` (`_classroom_signoff_notify` names who).
+
+**PRESENTATION CHECK-OFF IS A PHONE PAGE WITH NO CHANNEL (ledger 0438, 0312).**
+`/classroom/<id>/present` (`PresentationQueue.svelte`, `classPresentHref`) re-reads
+the list only after the teacher's own taps and on Refresh: no poller, no realtime
+channel, and nothing the projector or the wall reads, because the request that
+asked for it ruled out driving the projector from the phone. A note there is an
+instructor note through `classroom_feedback_post`; a score is a HELD grade through
+`classroom_grade_submission` or `classroom_grade_team`, and because both replace a
+student's whole grade, `createPresentationScoring` reads what is stored and sends it
+back under the tapped rows (`teamScorePlan` refuses a team whose members carry
+different comments rather than overwrite one).

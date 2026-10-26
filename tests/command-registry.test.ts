@@ -188,8 +188,9 @@ describe('who gets what: the role filter, both directions', () => {
 		// Thirteen: `class.check-ins` left the manager set for the `any` notebook
 		// tab, the Live tab brought four (ledger 0297), the class's Settings
 		// tab brought one (report R06), Quick post one (ledger 0360, R22), and
-		// the Student feedback inbox one (0238, a staff door like Courses).
-		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(13);
+		// the Student feedback inbox one (0238, a staff door like Courses), and
+		// Presentations one (ledger 0438, a door like Duplicates).
+		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(14);
 	});
 
 	it('Student feedback is a staff door on top of the role, outside any class', () => {

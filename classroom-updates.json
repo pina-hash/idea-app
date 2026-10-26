@@ -2607,6 +2607,12 @@
 			"title": "HTML assignments: full page, a list of what is left, and a clear close",
 			"body": "Press Full page above an HTML assignment to spread it across the whole window, and Exit full page (or Escape) to come back. Press Answers left, or a section that still has answers left, to see every answer you still owe; pick one and the page takes you straight to it. If your teacher closes the assignment while you have it open, it turns read only within seconds and says so. Anything you typed after it closed stays on the page with a Copy button, and if your teacher reopens it while the page is still open, it saves on its own.",
 			"tags": ["Classroom", "Assignments"]
+		},
+		{
+			"date": "2026-10-26",
+			"title": "Presentation notes from your teacher",
+			"body": "When you present, your teacher can now check you off and write notes from a phone while you talk. Those notes show up on your work for that assignment, the same place other feedback appears, so read them after you present.",
+			"tags": ["Classroom", "Assignments"]
 		}
 	]
 }

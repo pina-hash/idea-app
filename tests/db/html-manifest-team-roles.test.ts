@@ -38,7 +38,14 @@ function manifestsUnder(dir: string): { name: string; manifest: unknown }[] {
 	return out;
 }
 
-const CORPUS = manifestsUnder(join(ROOT, 'materials'));
+// THE DOCUMENTS STORED BEFORE 0301 WIDENED THE GATE: the obligation is about
+// those. A worksheet posted since that uses 0301's own team roles (Launcher:
+// Design, 2026-10-26) is a document the deployed gate never saw and rightly
+// refuses, so it is set aside here and counted below, never compared.
+const ALL_MANIFESTS = manifestsUnder(join(ROOT, 'materials'));
+const usesRoles = (m: unknown) => typeof m === 'object' && m !== null && 'team' in m;
+const CORPUS = ALL_MANIFESTS.filter((c) => !usesRoles(c.manifest));
+const SINCE_0301 = ALL_MANIFESTS.filter((c) => usesRoles(c.manifest));
 
 const LEVELS = [
 	{ points: 4, label: 'Complete', short: 'All there', descriptor: 'Every part is present.' },
@@ -121,6 +128,8 @@ describe('0301 widens the manifest gate and answers every stored manifest as bef
 		);
 		expect(teamModules.length).toBeGreaterThan(0);
 		expect(CORPUS.every((c) => !('team' in (c.manifest as object)))).toBe(true);
+		// Every manifest is in exactly one of the two sets.
+		expect(CORPUS.length + SINCE_0301.length).toBe(ALL_MANIFESTS.length);
 	});
 
 	it('every stored manifest answers exactly as the deployed gate did', () => {

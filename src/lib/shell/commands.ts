@@ -34,7 +34,7 @@
  */
 import { GRADE_KEYS } from '$lib/classroom/grading-keys';
 import { REVIEW_KEYS } from '$lib/notebook-review';
-import { classDuplicatesHref, sectionTabs, type SectionTabId } from '$lib/classroom/nav';
+import { classDuplicatesHref, classPresentHref, sectionTabs, type SectionTabId } from '$lib/classroom/nav';
 import type { KeyBinding } from './keys';
 
 export type CommandRole = 'any' | 'student' | 'manager';
@@ -370,6 +370,17 @@ const CORE: readonly ShellCommand[] = [
 		context: 'class',
 		keywords: ['copies', 'repeated', 'duplicate drafts'],
 		href: (env) => (env.sectionId ? classDuplicatesHref(env.sectionId, env.basePath) : null)
+	},
+	{
+		// PRESENTATION CHECK-OFF FROM THE PHONE (ledger 0438): a door, not a tab.
+		id: 'class.present',
+		name: 'Presentations',
+		icon: ICONS.checklist,
+		description: 'Who is up, Presented, Absent or Redo, notes and the rubric, from your phone.',
+		role: 'manager',
+		context: 'class',
+		keywords: ['presentation', 'present', 'check off', 'who is up', 'queue', 'speakers'],
+		href: (env) => (env.sectionId ? classPresentHref(env.sectionId, env.basePath) : null)
 	},
 	{
 		// The class's own Notebook tab (ledger 0297): a student's notebook in

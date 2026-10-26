@@ -236,6 +236,16 @@ export function sectionTabs(sectionId: string, basePath = '/classroom'): Section
  * section (`tests/classroom-nav-duplicates-gate.test.ts`), whoever built the
  * link.
  */
+/**
+ * A CLASS'S PRESENTATION CHECK-OFF PAGE (ledger 0438), a door rather than a
+ * tab, as Duplicates is: the palette's `class.present` command and the Live
+ * tab's key both read it. The page 404s for anybody who does not manage the
+ * class, whoever built the link.
+ */
+export function classPresentHref(sectionId: string, basePath = '/classroom'): string {
+	return `${basePath}/${encodeURIComponent(sectionId)}/present`;
+}
+
 export function classDuplicatesHref(sectionId: string, basePath = '/classroom'): string {
 	return `${basePath}/${encodeURIComponent(sectionId)}/duplicates`;
 }
