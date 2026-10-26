@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.1 - 2026-10-22**
+**Version 2.2 - 2026-10-26**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -331,7 +331,7 @@ Levels follow `IDEA_RUBRIC_STANDARDS.md`.
 | Fix list | `details.hx-stuck` | "That is not what I see": symptoms in the student's words beside the fix (L18). |
 | Evidence | `hx-evidence` | The graded inputs, in one panel inside the step that produces them, labeled as counting toward the grade (L15). |
 | Example | `hx-example` | A different part, same standard (A6). |
-| Stretch | `hx-stretch` | Optional, IDEA Coins not points (A8). |
+| Stretch | `hx-stretch` | Optional, IDEA Coins not points (A8). Inside the step it extends, as a closed disclosure; never a step of its own, because a step with no required box counts as done on a visit. |
 | Terms | `.it[data-term]` + `#hx-glossary` | The first use of each term; the kit writes every tip from one glossary, so a term reads the same everywhere; never on a button name (L21). |
 | Video | `hx-video` + `idea:video` | The portal plays it over the box, full width, at the step it teaches, chapter keys only where students get stuck (L18, L21). |
 
@@ -348,7 +348,8 @@ copy is one that disagrees; the plan strip's last class says when the work ends.
 behind one disclosure. **A placeholder shows the form of an answer, starting "e.g.", and never a
 value a student could take for theirs** (a fresh cold open read "0.500" as filled in and
 copied it); a live readout is drawn as a line of text, never as a box that looks typeable
-(the kit's `hx-readout`). State the writing budget near the top ("1 sentence in the whole
+(the kit's `hx-readout`). Show the form only ("e.g. 0.00", "e.g. 000"): a believable number
+in a measurement box is one a student copies. State the writing budget near the top ("1 sentence in the whole
 thing"); a required answer is one sentence with a starter as its placeholder, and an
 either/or judgment is a pick, never a sentence (L14). No weekday names, American spelling,
 no em dashes.
@@ -369,6 +370,12 @@ the box (SolidWorks Mass Properties, the slicer, the scale). Weights in pounds a
 cross-check for trade-offs; an unparseable entry says so (L9). Work out the numbers a student
 needs for the next decision and show them where the decision is made (the starter's average,
 spread and limits, repeated on the verdict step).
+
+**F9b. An optional box the rubric grades says when it is still empty.** A block that can only
+be optional (a live post's gate may only loosen, or the box depends on a pick) but carries
+rubric points gets a readout beside it: "Still to fill: wins, losses" once the pick that needs
+it is made. Never hide such a box behind a pick: a hidden box is skipped by the automatic test
+and by a student, so show it with a line saying when to leave it blank.
 
 **F10. Hand-ins.** Pictures: paste or choose, one upload at a time, a box the portal draws
 the stored copy into (`data-image-box`, L10b). Files that are not pictures: the extension
@@ -543,6 +550,12 @@ new term.
 
 ## Changelog
 
+- **2.2 (2026-10-26).** Ledger 0435. From rebuilding IDEA-Blade 02 on the kit the night
+  before class, judged by the automatic test and two fresh agents: F9b, an optional box the
+  rubric grades says when it is still empty and is never hidden behind a pick; F5, placeholders
+  show the form only, never a believable number; F4, the stretch lives inside the step it extends.
+  Kit: `test.mjs` now hands in every required picture, so the finish line is tested on a
+  complete page rather than warned about whenever a post has two picture hand-ins.
 - **2.1 (2026-10-22).** Ledger 0429. Part C rebuilt on measured completion (Mr. Pina asked for the
   deeper pass on post count against depth): the live posts' completion table, about 15
   required blocks and 20 at most, evidence captured inside the activity's post rather than a

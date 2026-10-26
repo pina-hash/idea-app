@@ -334,6 +334,13 @@ try {
 	const imageFields = Object.entries(fieldInfo).filter(([, b]) => b.type === 'image' && !b.optional).map(([f]) => f);
 	if (imageFields.length) {
 		const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAFCAIAAAD38zoCAAAAEUlEQVR4nGOIWpCHFTHQQQIAucA4QbqkH88AAAAASUVORK5CYII=', 'base64');
+		/* Every required picture hands in, so the finish line below sees a complete page; the first one is reported. */
+		for (const g of imageFields.slice(1)) {
+			await frame.evaluate((fd) => { const el = document.querySelector(`[data-field="${CSS.escape(fd)}"]`); if (typeof KIT !== 'undefined') { const i = KIT.steps.findIndex((s) => s.el.contains(el)); if (i >= 0) kitShow(i); } }, g);
+			await page.waitForTimeout(150);
+			await (await frame.$(`input[type="file"][data-field="${g}"]`)).setInputFiles({ name: 'evidence.png', mimeType: 'image/png', buffer: png });
+			await page.waitForTimeout(900);
+		}
 		const f = imageFields[0];
 		await frame.evaluate((fd) => { const el = document.querySelector(`[data-field="${CSS.escape(fd)}"]`); if (typeof KIT !== 'undefined') { const i = KIT.steps.findIndex((s) => s.el.contains(el)); if (i >= 0) kitShow(i); } }, f);
 		await page.waitForTimeout(150);
