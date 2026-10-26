@@ -4621,8 +4621,8 @@
 		},
 		"classroom_presentation_start": {
 			"surface": "call",
-			"level": "undo",
-			"describe": "Start a presentation list for a class in roster order, random order or by posted teams; an open list is closed first.",
+			"level": "confirm",
+			"describe": "Start a presentation list for a class in roster order, random order or by posted teams; it asks first, since an open list is closed.",
 			"say": [
 				"start presentations in Block 2",
 				"make a random presentation order for Block 1",
@@ -4656,15 +4656,7 @@
 					"name": "seed",
 					"describe": "A number that fixes a random order; left out, the order is new each time."
 				}
-			},
-			"undo": [
-				{
-					"function": "classroom_presentation_close",
-					"args": {
-						"p_queue_id": "$result.queue_id"
-					}
-				}
-			]
+			}
 		},
 		"classroom_presentation_mark": {
 			"surface": "call",

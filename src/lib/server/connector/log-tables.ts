@@ -46,6 +46,9 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'classroom_instructor_resources',
 	'classroom_instructor_responses',
 	'classroom_module_approvals',
+	// Ledger 0438 (0312): the presentation lists the check-off tools write.
+	'classroom_presentation_entries',
+	'classroom_presentation_queues',
 	'classroom_reference_specs',
 	'classroom_sections',
 	'classroom_song_requests',

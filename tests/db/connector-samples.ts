@@ -197,6 +197,13 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 		drawSection = id;
 		return id;
 	}
+	/** A fresh presentation list on Block 2 (ledger 0438, 0312): its id and its first entry's. */
+	async function presentationList(): Promise<{ queue: string; entry: string }> {
+		const started = await asAdminRpc('classroom_presentation_start', { p_section_id: w.block2, p_item_id: null, p_title: 'Talks', p_order: 'roster', p_seed: 1 });
+		const read = await asAdminRpc('classroom_presentation_queue', { p_section_id: w.block2 });
+		const entries = ((read.queue as { entries?: Array<{ id: string }> } | null)?.entries ?? []);
+		return { queue: started.queue_id as string, entry: entries[0].id };
+	}
 	async function thread(): Promise<string> {
 		const r = await asAdminRpc('classroom_feedback_post', {
 			p_item_id: await newItem(`Feedback ${randomUUID().slice(0, 6)}`),
@@ -536,6 +543,15 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 		}),
 		classroom_close_assignment: async () => ({ p_item_id: await newItem('Close me'), p_student_email: w.students.mateo, p_closed: true }),
 		classroom_approve_module: async () => ({ p_item_id: await specItem('Approve me'), p_student_email: w.students.mateo, p_module_id: 'mod-1', p_approved: true }),
+		classroom_presentation_start: async () => ({ p_section_id: w.block2, p_item_id: null, p_title: 'Talks', p_order: 'roster', p_seed: 3 }),
+		classroom_presentation_mark: async () => ({ p_entry_id: (await presentationList()).entry, p_status: 'presented' }),
+		classroom_presentation_move: async () => ({ p_entry_id: (await presentationList()).entry, p_position: 2 }),
+		classroom_presentation_close: async () => ({ p_queue_id: (await presentationList()).queue }),
+		classroom_presentation_reopen: async () => {
+			const { queue } = await presentationList();
+			await asAdminRpc('classroom_presentation_close', { p_queue_id: queue });
+			return { p_queue_id: queue };
+		},
 		classroom_feedback_post: async () => ({ p_item_id: await newItem('Feedback me'), p_student_email: w.students.mateo, p_block_id: null, p_file_id: null, p_body: 'Cite the datasheet.', p_marks: null }),
 		classroom_feedback_remove: async () => ({ p_thread_id: await thread() }),
 		classroom_feedback_reply: async () => ({ p_thread_id: await thread(), p_body: 'One more thing.' }),
