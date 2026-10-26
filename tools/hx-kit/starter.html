@@ -754,6 +754,9 @@ details.hx-stuck td:first-child { width: 40%; color: var(--plate-ink); font-weig
 	background: var(--well-face); box-shadow: var(--shadow-well); color: var(--text-2); overflow: hidden;
 }
 .hx-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.hx-box { position: relative; cursor: pointer; }
+.hx-box.hx-paste-target { border: 2px solid var(--accent); box-shadow: var(--shadow-well), 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.hx-box.hx-paste-target::after { content: "Ctrl+V pastes here"; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px; background: var(--accent); color: var(--bg0, #111); font: 600 0.75rem/1.6 var(--font-mono, monospace); letter-spacing: 0.06em; white-space: nowrap; }
 .hx-file-keys { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .hx-note { margin: 0; font-size: 0.92rem; color: var(--text-2); }
 .hx-note.failed { color: var(--crimson); font-weight: 700; }
@@ -1723,6 +1726,24 @@ function kitRenderBar() {
     '</div>' +
     '<div class="hx-track" id="hx-track" role="group" aria-label="Steps"></div>';
 }
+/* ---- Where a pasted picture goes: always marked (Mr. Pina, 2026-10-26) ----
+   The bridge picks the box (the one last clicked while empty and showing, else the
+   first); this marks it, so with two boxes on screen a student sees which one a
+   paste fills before pressing Ctrl+V. Clicking or tabbing to a box moves the mark. */
+function kitMarkPaste() {
+  var target = (!HX.readOnly && typeof hxPasteTarget === 'function') ? hxPasteTarget() : null;
+  kitQ('[data-image-box]').forEach(function (b) {
+    var on = b.getAttribute('data-image-box') === target;
+    b.classList.toggle('hx-paste-target', on);
+    if (!b.hasAttribute('tabindex') && !HX.readOnly) b.setAttribute('tabindex', '0');
+  });
+}
+document.addEventListener('focusin', function (e) {
+  var b = e.target.closest ? e.target.closest('[data-image-box]') : null;
+  if (b) HX.lastBox = b.getAttribute('data-image-box');
+  kitMarkPaste();
+});
+document.addEventListener('click', function () { setTimeout(kitMarkPaste, 0); });
 function kitRefresh() {
   var n = KIT.steps.length;
   if (!n) return;
@@ -1781,6 +1802,7 @@ function kitRefresh() {
     var on = cur && b.dataset.goPhase === cur.phase && (!cur.day || b.dataset.goDay === cur.day);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
+  kitMarkPaste();
 }
 
 /* ---- Tap tips: a tap toggles, the width fits inside the page ------------ */

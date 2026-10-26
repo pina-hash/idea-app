@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.2 - 2026-10-26**
+**Version 2.3 - 2026-10-26**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -333,7 +333,7 @@ Levels follow `IDEA_RUBRIC_STANDARDS.md`.
 | Example | `hx-example` | A different part, same standard (A6). |
 | Stretch | `hx-stretch` | Optional, IDEA Coins not points (A8). Inside the step it extends, as a closed disclosure; never a step of its own, because a step with no required box counts as done on a visit. |
 | Terms | `.it[data-term]` + `#hx-glossary` | The first use of each term; the kit writes every tip from one glossary, so a term reads the same everywhere; never on a button name (L21). |
-| Video | `hx-video` + `idea:video` | The portal plays it over the box, full width, at the step it teaches, chapter keys only where students get stuck (L18, L21). |
+| Video | `hx-video` + `idea:video` | The portal plays it over the box, full width, at the step it teaches, chapter keys only where students get stuck (L18, L21). A video card shows the video's own YouTube thumbnail, embedded as bytes (the frame loads no remote image), with a small play badge in a corner that never covers it; a generic card per video makes every video look the same. |
 
 **F4b. One evidence panel per step**, the same classes on every step. When a step's moves
 and its hand-ins do not fit one screen, the hand-in becomes its own step (the starter's
@@ -375,9 +375,14 @@ spread and limits, repeated on the verdict step).
 be optional (a live post's gate may only loosen, or the box depends on a pick) but carries
 rubric points gets a readout beside it: "Still to fill: wins, losses" once the pick that needs
 it is made. Never hide such a box behind a pick: a hidden box is skipped by the automatic test
-and by a student, so show it with a line saying when to leave it blank.
+and by a student, so show it with a line saying when to leave it blank. **The step's own done mark
+counts it too**: when the pick makes the box necessary, the page drops its `data-optional` and calls
+`kitRefresh()`, so "Step done" never shows over an empty box the rubric grades.
 
-**F10. Hand-ins.** Pictures: paste or choose, one upload at a time, a box the portal draws
+**F10. Hand-ins.** **Where a paste goes is always marked**: the kit outlines the target box and
+labels it "Ctrl+V pastes here", and clicking or tabbing to another box moves the mark (two
+boxes on one screen otherwise leave a student guessing). An optional picture box sits in the
+open, never behind a disclosure a student has to discover. Pictures: paste or choose, one upload at a time, a box the portal draws
 the stored copy into (`data-image-box`, L10b). Files that are not pictures: the extension
 checked in words, success read off `idea:state`, replace means remove first (L9b; the
 portal appends a new row on every upload, so a document that skips Remove piles up old
@@ -396,7 +401,10 @@ small WebP, video by YouTube id only; icons as inline SVG, never a glyph (L11b).
 `noopener` in `window.open` (clear `w.opener` instead), one worded key per external tool
 (L5, L20).
 
-**F14. Thumbnails**: the manifest's `thumbnail` key, a picture of the real thing (L10d, L21).
+**F14. Thumbnails**: the manifest's `thumbnail` key, a picture of the real thing (L10d, L21). The
+wide and banner shapes carry the title and the stage in words, and posts in one unit look
+different from each other at a glance: a different scene (the part being built, two parts
+fighting) and the post's own subject palette, never the same render on the same gray.
 
 **F15. Teams**: `idea:team-progress` reaches the document with each teammate's progress
 (audit); a team assignment may show it. Teams of two in a class of threes fold one role
@@ -550,6 +558,11 @@ new term.
 
 ## Changelog
 
+- **2.3 (2026-10-26).** Ledger 0436. From Mr. Pina opening IDEA-Blade 01 and 02 at 3 AM before
+  class: F10, the paste target is always marked and optional picture boxes sit in the open; F9b,
+  the step's done mark counts a box the student's pick made necessary; F14, thumbnails carry
+  the title and differ across a unit; F4, video cards show the real YouTube thumbnail with a
+  corner play badge. Kit: `kitMarkPaste` in `tools/hx-kit/kit/kit.js` and its style in `kit.css`.
 - **2.2 (2026-10-26).** Ledger 0435. From rebuilding IDEA-Blade 02 on the kit the night
   before class, judged by the automatic test and two fresh agents: F9b, an optional box the
   rubric grades says when it is still empty and is never hidden behind a pick; F5, placeholders

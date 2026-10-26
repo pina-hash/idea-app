@@ -182,6 +182,24 @@ function kitRenderBar() {
     '</div>' +
     '<div class="hx-track" id="hx-track" role="group" aria-label="Steps"></div>';
 }
+/* ---- Where a pasted picture goes: always marked (Mr. Pina, 2026-10-26) ----
+   The bridge picks the box (the one last clicked while empty and showing, else the
+   first); this marks it, so with two boxes on screen a student sees which one a
+   paste fills before pressing Ctrl+V. Clicking or tabbing to a box moves the mark. */
+function kitMarkPaste() {
+  var target = (!HX.readOnly && typeof hxPasteTarget === 'function') ? hxPasteTarget() : null;
+  kitQ('[data-image-box]').forEach(function (b) {
+    var on = b.getAttribute('data-image-box') === target;
+    b.classList.toggle('hx-paste-target', on);
+    if (!b.hasAttribute('tabindex') && !HX.readOnly) b.setAttribute('tabindex', '0');
+  });
+}
+document.addEventListener('focusin', function (e) {
+  var b = e.target.closest ? e.target.closest('[data-image-box]') : null;
+  if (b) HX.lastBox = b.getAttribute('data-image-box');
+  kitMarkPaste();
+});
+document.addEventListener('click', function () { setTimeout(kitMarkPaste, 0); });
 function kitRefresh() {
   var n = KIT.steps.length;
   if (!n) return;
@@ -240,6 +258,7 @@ function kitRefresh() {
     var on = cur && b.dataset.goPhase === cur.phase && (!cur.day || b.dataset.goDay === cur.day);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
+  kitMarkPaste();
 }
 
 /* ---- Tap tips: a tap toggles, the width fits inside the page ------------ */
