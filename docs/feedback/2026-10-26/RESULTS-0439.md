@@ -2,7 +2,7 @@
 
 Built and on main. Both database changes are applied to production.
 
-- idea-app: `3dfff740` (pacing in manifests), `58203049` (the calendar's database), `fa397554` (the migration tool fix that let it apply), the calendar itself in the push carrying this file.
+- idea-app: `3dfff740` (pacing in manifests), `58203049` (the calendar's database), `fa397554` (the migration tool fix that let it apply), `52cd7fcd` (the calendar itself), `a2857988` (this file).
 - Migrations: `supabase/migrations/0308_idea_calendar.sql`, then `supabase/migrations/0309_short_link_reserve_calendar.sql`. Applied by Migrate (records `1b8f9951`, `6575c9d4`).
 
 ## What the audit found, and what was reused
