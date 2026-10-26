@@ -285,79 +285,156 @@ export const ROLE_POWERS_WORDS: ReadonlyArray<{ role: ArmoryRole; words: string 
 	{ role: 'mentor', words: 'everything, including adding and removing people and giving any role.' }
 ];
 
-// ---- Two computers with one name (Armory 0.3.3 item 4) ----
+// ---- One computer, one line (Armory 0.3.3 item 4, ledger 0430, ledger 0441) ----
 
-/** How many characters of a device id tell two same-named computers apart, as the app writes them. */
+/** How many characters of a device id or a computer token tell two same-named computers apart. */
 export const DEVICE_ID_CHARS = 4;
 
+/** What the grouping reads of a device. `computer` is 0310's per-computer token (ledger 0441). */
+export interface ComputerDevice {
+	id: string;
+	name: string | null | undefined;
+	last_seen: string | null;
+	registered_at?: string | null;
+	computer?: string | null;
+}
+
+function moment(t: string | null | undefined): number {
+	const ms = t ? Date.parse(t) : NaN;
+	return Number.isFinite(ms) ? ms : -Infinity;
+}
+
+/** Heard from last first, then registered last, then by id, so the order never depends on the input's. */
+function freshestFirst(a: ComputerDevice, b: ComputerDevice): number {
+	return moment(b.last_seen) - moment(a.last_seen) || moment(b.registered_at) - moment(a.registered_at) || a.id.localeCompare(b.id);
+}
+
 /**
- * Each computer's label, by device id: its name, or "NAME (abcd)" with the
- * first four characters of its id when another computer in the same list
- * shares the name (letter case and surrounding spaces ignored). Two lab
- * computers imaged alike are both IDEA-06, and Armory 0.3.3 writes them the
- * same way, so a person reads the same label in the app and on the website.
+ * WHICH COMPUTER A DEVICE IS ON (ledger 0441). Every sign-in registers a device of its own, by
+ * design (docs/ARMORY.md, "Device identity"), so one lab computer five people signed in to is
+ * five devices with one name, and two lab computers imaged alike are two devices that share a
+ * name too. Since 0310 a device from Armory 0.5.1 carries `computer`, the same token for every
+ * sign-in on one computer, and that decides. A device without one (an older app, an older
+ * database) is grouped by its name, which is what ledger 0430 did: the name is the only thing
+ * left to go on. A keyed device and a keyless one are never put together, because nothing says
+ * which of two same-named keyed computers a keyless device was on.
  */
-export function deviceLabels(devices: Iterable<{ id: string; name: string | null | undefined }>): Map<string, string> {
-	const byName = new Map<string, Set<string>>();
-	const names = new Map<string, string>();
+export function computerKey(device: Pick<ComputerDevice, 'id' | 'name' | 'computer'>): string {
+	const computer = device.computer?.trim();
+	if (computer) return `c:${computer}`;
+	const name = device.name?.trim().toLowerCase();
+	return name ? `n:${name}` : `d:${device.id}`;
+}
+
+/** The devices of each computer, the freshest first; the computers in the order they first appear. */
+export function computerGroups<T extends ComputerDevice>(devices: readonly T[]): T[][] {
+	const groups = new Map<string, T[]>();
+	for (const d of devices) {
+		const key = computerKey(d);
+		const list = groups.get(key);
+		if (list) list.push(d);
+		else groups.set(key, [d]);
+	}
+	return [...groups.values()].map((list) => [...list].sort(freshestFirst));
+}
+
+/**
+ * A member's computers as the team shows them: one line per computer (`computerKey`). The one
+ * heard from last speaks for the computer (then the one registered last); a device with no
+ * name stays as it is. The order is the list's own.
+ */
+export function presenceDevices<T extends ComputerDevice>(devices: readonly T[]): T[] {
+	const speaks = new Set(computerGroups(devices).map((g) => g[0]));
+	return devices.filter((d) => speaks.has(d));
+}
+
+/**
+ * Each device's label, by device id: the computer's name, or "NAME (abcd)" where another
+ * computer in the same list shares the name (letter case and surrounding spaces ignored).
+ * A computer is a `computer` token when the device carries one, so every sign-in on one lab
+ * computer reads one label and two computers imaged alike read two, the four characters
+ * coming from the token. A device with no token is its own computer, labeled with the first
+ * four characters of its id, as Armory 0.3.3 writes it in the app: without a token, two
+ * devices that share a name are never merged in a label.
+ */
+export function deviceLabels(devices: Iterable<{ id: string; name: string | null | undefined; computer?: string | null }>): Map<string, string> {
+	const units = new Map<string, { name: string; tag: string; ids: string[] }>();
 	for (const d of devices) {
 		if (!d.id || !d.name?.trim()) continue;
-		const key = d.name.trim().toLowerCase();
-		names.set(d.id, d.name.trim());
-		if (!byName.has(key)) byName.set(key, new Set());
-		byName.get(key)!.add(d.id);
+		const computer = d.computer?.trim();
+		const unit = computer ? `c:${computer}` : `d:${d.id}`;
+		const held = units.get(unit);
+		if (held) {
+			if (!held.ids.includes(d.id)) held.ids.push(d.id);
+		} else {
+			units.set(unit, { name: d.name.trim(), tag: (computer ?? d.id).slice(0, DEVICE_ID_CHARS).toLowerCase(), ids: [d.id] });
+		}
 	}
+	const perName = new Map<string, number>();
+	for (const u of units.values()) perName.set(u.name.toLowerCase(), (perName.get(u.name.toLowerCase()) ?? 0) + 1);
 	const out = new Map<string, string>();
-	for (const [id, name] of names) {
-		const shared = (byName.get(name.toLowerCase())?.size ?? 0) > 1;
-		out.set(id, shared ? `${name} (${id.slice(0, DEVICE_ID_CHARS).toLowerCase()})` : name);
+	for (const u of units.values()) {
+		const label = (perName.get(u.name.toLowerCase()) ?? 0) > 1 ? `${u.name} (${u.tag})` : u.name;
+		for (const id of u.ids) out.set(id, label);
 	}
 	return out;
 }
 
-/**
- * A member's computers as the team shows them: one line per computer name
- * (ledger 0430, the field round of 2026-10-22). Every sign-in registers a
- * device of its own, by design (docs/ARMORY.md, "Device identity"), so a lab
- * computer a student signed in to twice is two devices with one name (IDEA-06
- * got two two minutes apart), and the team listed it twice, the older one
- * reading as not heard from. The one heard from last speaks for the name (then
- * the one registered last); a device with no name stays as it is. The order is
- * the list's own.
- */
-export function presenceDevices<T extends { id: string; name: string | null | undefined; last_seen: string | null; registered_at?: string | null }>(devices: readonly T[]): T[] {
-	const at = (t: string | null | undefined) => {
-		const ms = t ? Date.parse(t) : NaN;
-		return Number.isFinite(ms) ? ms : -Infinity;
-	};
-	const freshest = new Map<string, T>();
-	for (const d of devices) {
-		const key = d.name?.trim().toLowerCase();
-		if (!key) continue;
-		const held = freshest.get(key);
-		if (!held || at(d.last_seen) > at(held.last_seen) || (at(d.last_seen) === at(held.last_seen) && at(d.registered_at) > at(held.registered_at))) freshest.set(key, d);
-	}
-	return devices.filter((d) => {
-		const key = d.name?.trim().toLowerCase();
-		return !key || freshest.get(key) === d;
-	});
+/** One computer on the Team view: who has signed in on it, most recent first, and its freshest device. */
+export interface TeamComputer {
+	/** `computerKey` of the computer, stable across reads. */
+	key: string;
+	/** The device heard from last, which speaks for the computer's presence. */
+	device: ArmoryTeamDevice;
+	/** Every member signed in on it, the one heard from last first, each once. */
+	people: string[];
 }
 
 /**
- * The project page's file rows and checkout list with every computer named by
- * its label. The computers are the project's team (`armory_team_status`) and
- * every computer holding a file; a checkout row carries no device id, so it
- * takes the one its file's lock names. Nothing is fetched and nothing else
- * moves.
+ * THE TEAM'S COMPUTERS (ledger 0441): one line per computer across the whole team, every person
+ * signed in on it, most recent first. The computers are those `armory_team_status` already
+ * lists for this project's members, so nobody sees a computer they could not see before.
+ * Ordered by the freshest device, then by name.
+ */
+export function teamComputers(members: readonly Pick<ArmoryMember, 'email' | 'devices'>[]): TeamComputer[] {
+	const owned: Array<ArmoryTeamDevice & { owner: string }> = [];
+	for (const m of members) for (const d of m.devices ?? []) owned.push({ ...d, owner: m.email });
+	return computerGroups(owned)
+		.map((group) => {
+			const people: string[] = [];
+			for (const d of group) if (!people.includes(d.owner)) people.push(d.owner);
+			const { owner: _owner, ...device } = group[0];
+			return { key: computerKey(group[0]), device, people };
+		})
+		.sort((a, b) => freshestFirst(a.device, b.device) || (a.device.name ?? '').localeCompare(b.device.name ?? ''));
+}
+
+/**
+ * The project page's file rows and checkout list with every computer named by its label. The
+ * computers are the project's team (`armory_team_status`: every device carrying a computer
+ * token, so a check out held by any sign-in on a shared computer reads that computer's label,
+ * and of the keyless ones the device speaking for its name) and every computer
+ * holding a file; a lock carries no computer token, so it takes the one the team lists for its
+ * device, and a checkout row carries no device id, so it takes the one its file's lock names.
+ * Nothing is fetched and nothing else moves.
  */
 export function labelProjectDevices(
 	files: readonly ArmoryFile[],
 	checkouts: readonly ArmoryCheckout[],
 	members: readonly ArmoryMember[]
 ): { files: ArmoryFile[]; checkouts: ArmoryCheckout[]; labels: Map<string, string> } {
-	const all: Array<{ id: string; name: string | null }> = [];
-	for (const m of members) for (const d of presenceDevices(m.devices ?? [])) all.push({ id: d.id, name: d.name });
-	for (const f of files) if (f.lock) all.push({ id: f.lock.holder_device_id, name: f.lock.holder_device_name });
+	const all: Array<{ id: string; name: string | null; computer?: string | null }> = [];
+	const known = new Set<string>();
+	for (const m of members) {
+		// A keyless device counts only where it speaks for its name (ledger 0430's fold), as before 0441.
+		const speaking = new Set(presenceDevices(m.devices ?? []));
+		for (const d of m.devices ?? []) {
+			if (!d.computer?.trim() && !speaking.has(d)) continue;
+			all.push({ id: d.id, name: d.name, computer: d.computer });
+			known.add(d.id);
+		}
+	}
+	for (const f of files) if (f.lock && !known.has(f.lock.holder_device_id)) all.push({ id: f.lock.holder_device_id, name: f.lock.holder_device_name });
 	const labels = deviceLabels(all);
 	const deviceOfFile = new Map(files.filter((f) => f.lock).map((f) => [f.id, f.lock!.holder_device_id]));
 	return {

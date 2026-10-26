@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "armory-parts-theme-space-white.mjs",
-	"date": "2026-10-19T03:01:50.794Z",
-	"sha": "14dbdfd57c0664c3d1acb80646979e25c6c36bba",
-	"dirty": true,
+	"date": "2026-10-26T15:15:49.938Z",
+	"sha": "3692587bdd2557a95a62fd80519b1630d55e10b8",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 72,
 	"outsideRows": [],
-	"ms": 16189
+	"ms": 10423
 }

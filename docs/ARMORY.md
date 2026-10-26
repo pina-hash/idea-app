@@ -947,8 +947,8 @@ server or website change. 0.4.2 was already published, so this ships as 0.4.3.
   `presenceDevices` (ledger 0430) folds a member's devices one line per computer name, so one
   member on two copied computers both named IDEA-06 shows as one line. Telling them apart
   needs a per-computer key the server does not store (the app could send its `machineId` hash
-  on register or heartbeat, a new column and a new argument); not built, because it is a
-  website change outside this round. Renaming the lab computers removes the case.
+  on register or heartbeat, a new column and a new argument); not built in that round, and
+  built since by ledger 0441 ("One computer as one line on the website", below). Renaming the lab computers removes the case.
 - **Renaming the lab computers in bulk.** idea-armory `docs/LAB_COMPUTER_NAMES.md` and
   `tools/lab-names/`: one double-click per computer from a flash drive, names from a list keyed
   by serial number or network address or typed with a suggested next number, a log of every
@@ -1036,16 +1036,42 @@ second Windows account safe.
 - Locks stay per device (`armory_acquire_lock(p_file, p_device, ...)`), each person with their own
   device rows, so **no migration**.
 
-### A request for Mr. Pina, not built: one computer as one line on the website
+### One computer as one line on the website (built, ledger 0441, migration 0310, Armory 0.5.1)
 
-Not needed for 0.5.0 to work: a check out is held by a person's own device, which is right on a
-shared computer. If the website should also show a shared lab computer as one computer (the Team
-view lists each person's device on IDEA-06 separately, and `presenceDevices` folds a member's
-devices by computer name, so cloned names still merge), it needs a per-computer key the server does
-not store: a nullable `computer_key` column on `armory_devices`, written by `armory_register_device`
-and `armory_heartbeat` from a new optional argument (the app already computes a per-computer hash,
-its incident `machineId`), and the Team view grouping by it. That is a migration and a website
-change, so it comes back to him first.
+Asked here after 0.5.0 and approved by Mr. Pina on 2026-10-26 ("go for the server change"). A
+check out is still held by a person's own device, which is right on a shared computer; what
+changed is how the website counts computers.
+
+- **The server stores a per-computer key.** `armory_devices.computer_key` (nullable) holds the
+  app's per-computer hash, its incident `machineId` (MachineGuid plus the computer's own network
+  address, because lab images copied without Sysprep share MachineGuid). It is written by
+  `armory_heartbeat` and `armory_register_device` from a new optional argument,
+  `p_computer_key`, kept only when it is 1 to 64 letters, digits, dashes or underscores (the
+  `armory_app_incidents.machine_id` rule) and otherwise stored as null, never refused. A bare
+  beat never erases it.
+- **No deploy ordering.** The widening is additive: each function has a four-argument form with
+  no defaults and keeps its old form as a thin wrapper, so 0.5.0 computers keep calling the old
+  forms, and a 0.5.1 app talking to a database without 0310 gets 404 PGRST202 and sends the same
+  beat again without the key (asked again after six hours). Registration (the website's connect
+  flow, or the app's own sign-in) still uses the two-argument form and sends no key, so a device
+  gets its key with its first 0.5.1 heartbeat, seconds after it connects.
+- **The website groups by computer.** `armory_team_status` gives each listed device a
+  `computer` token: 12 characters made from the project id and the key, so one computer reads
+  one token within a project and a different one in another, and the key itself is never sent
+  to a browser. The devices listed and who may read them did not move (`armory_can_view`). The
+  Team view gains a Computers list, one line per computer with everyone who used it, most
+  recent first; each member's own lines fold the same way; the Files and Checked out views
+  label every sign-in on a shared computer with one label. Two computers imaged alike and both
+  named IDEA-06 stay two lines, "IDEA-06 (3fa1)" and "IDEA-06 (b2c4)" (the four characters
+  from the token). A device whose app is older than 0.5.1 carries no token and is grouped by
+  its name, as before; a keyed and a keyless device are never put together, so during the
+  changeover a shared computer can show one line from 0.5.1 sign-ins and one from older ones,
+  until those people next open 0.5.1.
+- **The app still labels a check out by its device** ("IDEA-06 (a030)" from the device id), as
+  0.3.3 made it; only the website labels by computer.
+- **The connector** reads the same team payload, so `armory_team_status` through the IDEA
+  Website connector now carries `computer` per device: two devices with the same value are one
+  computer.
 
 ### Owed to the lab
 

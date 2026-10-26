@@ -1113,6 +1113,36 @@ span.ar-person-out {
 	text-decoration: none;
 	color: var(--text-2);
 }
+/* ONE LINE PER COMPUTER (ledger 0441): the computer and its presence, then
+   everyone signed in on it. Text only, no control, so a row is as short as its
+   words; on a wide view the people sit beside the computer. */
+.ar-computer {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+	padding: 0.45rem 0;
+	font-size: 0.9rem;
+	color: var(--text-2);
+}
+.ar-computer.ar-presence-open .ar-presence-line {
+	color: var(--text-1);
+}
+.ar-computer-people {
+	padding-left: 1.4rem;
+	color: var(--text-2);
+	overflow-wrap: anywhere;
+}
+@container ar-view (min-width: 48rem) {
+	.ar-computer {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+		column-gap: 1rem;
+		align-items: baseline;
+	}
+	.ar-computer-people {
+		padding-left: 0;
+	}
+}
 /* A WIDE ROW IS TWO LINES, NOT FIVE (ledger 0380, report c1904a7f): the name
    and the address stack on the left, the computers sit on the right beside
    them, and the role and Remove stay on the row's own line. A student's

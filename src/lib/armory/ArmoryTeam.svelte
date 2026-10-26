@@ -21,6 +21,12 @@
 	 * is in (`adminReach`; `memberManagerRole`), member or not, because
 	 * `armory_add_member` and `armory_remove_member` admit `is_admin()`.
 	 *
+	 * ONE LINE PER COMPUTER (ledger 0441): beneath the people, every computer the team read
+	 * lists, once, with everyone signed in on it, the one heard from last first
+	 * (`teamComputers`). A shared lab computer is one line and two computers imaged alike are
+	 * two, by the server's per-computer token (0310); a computer whose app is older than 0.5.1
+	 * is grouped by its name.
+	 *
 	 * Adding people: `ArmoryPeoplePicker` for those the search admits, and the
 	 * paste box ("Add by email", for someone with no site account yet) in a
 	 * closed section beneath it, or open with a sentence saying why when the
@@ -52,6 +58,7 @@
 		presenceDevices,
 		ROLE_POWERS_WORDS,
 		sortTeam,
+		teamComputers,
 		type MemberOutcome,
 		type PeopleSearchAnswer
 	} from './team';
@@ -259,6 +266,16 @@
 		}
 	}
 
+	// ---- One line per computer (ledger 0441) ----
+	const computers = $derived(teamReady ? teamComputers(team) : []);
+	/** How many names a computer's line spells out before "and N more"; the rest are in its title. */
+	const COMPUTER_NAMES_SHOWN = 6;
+	function personWords(email: string): string {
+		const m = team.find((x) => x.email === email);
+		const name = m ? memberName(m) : email.split('@')[0];
+		return email === me ? `${name} (you)` : name;
+	}
+
 	const pasteWhy = $derived(
 		!searchOffered || searchGone === 'refused'
 			? PEOPLE_SEARCH_NOT_OFFERED
@@ -399,6 +416,27 @@
 			</li>
 		{/each}
 	</ul>
+	{#if computers.length > 0}
+		<div class="ar-computers" data-testid="armory-computers">
+			<h3 class="section-label ar-view-h">Computers</h3>
+			<ul class="ar-well ar-computer-list">
+				{#each computers as computer (computer.key)}
+					{@const presence = devicePresence(computer.device, clock)}
+					{@const version = appVersionWords(computer.device)}
+					{@const names = computer.people.map(personWords)}
+					<li class={`ar-computer ar-presence-${presence.tone}`} data-testid="armory-computer" data-tone={presence.tone} data-people={computer.people.length}>
+						<span class="ar-presence-line">
+							<span class="ar-presence-glyph" aria-hidden="true">{presence.glyph}</span>
+							<span><span class="ar-presence-device" data-testid="armory-computer-name">{labels.get(computer.device.id) ?? computer.device.name}</span>: {presence.words}{#if version}<span class="ar-presence-version">{` · ${version}`}</span>{/if}</span>
+						</span>
+						<span class="ar-computer-people" data-testid="armory-computer-people" title={names.length > COMPUTER_NAMES_SHOWN ? names.join(', ') : undefined}>
+							{names.length === 1 ? 'Used by ' : `Used by ${names.length} people: `}{names.slice(0, COMPUTER_NAMES_SHOWN).join(', ')}{names.length > COMPUTER_NAMES_SHOWN ? ` and ${names.length - COMPUTER_NAMES_SHOWN} more` : ''}
+						</span>
+					</li>
+				{/each}
+			</ul>
+		</div>
+	{/if}
 	{#if armedRemove}
 		<p class="ar-message">Press again to remove them. Their saved files and history stay in the project.</p>
 	{/if}

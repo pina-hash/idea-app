@@ -119,6 +119,12 @@ export interface ArmoryTeamDevice {
 	app_version?: string | null;
 	/** 'idle', 'syncing' or 'offline-soon'; anything else reads as no state. */
 	state?: string | null;
+	/**
+	 * Which computer this device is on, since 0310 (ledger 0441): an opaque token, the same for
+	 * every sign-in on one computer within a project. Null from an app older than 0.5.1, and
+	 * absent on a database without 0310; either way the device is grouped by its name.
+	 */
+	computer?: string | null;
 }
 
 /** One file a member has checked out, as `armory_team_status` reports it. */

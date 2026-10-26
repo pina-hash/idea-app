@@ -336,3 +336,43 @@ export const SUMMARIES = [
 	{ ...PROJECTS[3], files: 212, removed: 14, checked_out: 0, mine: 0, members: 9, versions: 1_604, side_versions: 37, bytes: 3_221_225_472, stored: 1_390, last_change_at: at(60 * 24 * 120) },
 	{ id: '6b1f6c1e-0000-4000-8000-000000000006', name: 'Freshman Drawbot', season: null, role: null, archived: false, files: 26, removed: 0, checked_out: 3, mine: 0, members: 5, versions: 90, side_versions: 0, bytes: 30_000_000, stored: 60, last_change_at: at(300) }
 ];
+
+// ---- One lab computer, one line (ledger 0441) ----
+
+/** The per-computer tokens 0310's team read hands out: one lab computer, and a clone of it imaged alike. */
+const LAB_06 = '3fa1c0de9b7e';
+const LAB_06_CLONE = 'b2c4e6f8a012';
+const keyed = (id: string, name: string, minutesAgo: number | null, computer: string | null, app = '0.5.1', state: string | null = 'idle') => ({
+	...dev(id, name, minutesAgo, state, app),
+	computer
+});
+
+/**
+ * THE SHARED LAB: four people signed in on one IDEA-06 (each sign-in a device of its own, one
+ * computer token), Ben on a second computer imaged alike and also named IDEA-06, Ana's laptop
+ * on 0.5.1, and two computers still on 0.5.0 that send no token. The Team view lists five
+ * computers; the Files and Checked out views read "IDEA-06 (3fa1)" for both of the shared
+ * computer's checkouts and "IDEA-06 (b2c4)" for the clone's.
+ */
+export const SHARED_TEAM: ArmoryMember[] = [
+	{ email: 'apina@boscotech.edu', role: 'mentor', name: 'Mr. Pina', avatar: 'preset:hex', avatar_url: null, pathway: 'IDEA', has_account: true, devices: [dev('s-pina', 'Room 214 desk', 4, 'idle', '0.5.0')], checkouts: [] },
+	{ email: 'ana.reyes@boscotech.net', role: 'student', name: 'Ana Reyes', avatar: 'preset:fox', avatar_url: null, pathway: 'ACE', has_account: true, devices: [keyed('s-ana-06', 'IDEA-06', 1, LAB_06), keyed('s-ana-home', 'Ana laptop', 60 * 20, 'c0ffee000001')], checkouts: [] },
+	{ email: 'ben.okafor@boscotech.net', role: 'student', name: 'Ben Okafor', avatar: null, avatar_url: null, pathway: 'MSET', has_account: true, devices: [keyed('s-ben-06b', 'IDEA-06', 2, LAB_06_CLONE, '0.5.1', 'syncing')], checkouts: [] },
+	{ email: 'diego.marin@boscotech.net', role: 'student', name: 'Diego Marin', avatar: 'preset:gear', avatar_url: null, pathway: 'BMET', has_account: true, devices: [keyed('s-diego-06', 'IDEA-06', 25, LAB_06)], checkouts: [] },
+	{ email: 'priya.natarajan@boscotech.net', role: 'student', name: 'Priya Natarajan', avatar: 'preset:orbit', avatar_url: null, pathway: 'CSEE', has_account: true, devices: [keyed('s-priya-06', 'IDEA-06', 60 * 5, LAB_06)], checkouts: [] },
+	{ email: 'sam.whitfield@boscotech.net', role: 'student', name: 'Sam Whitfield', avatar: null, avatar_url: null, pathway: 'MAT', has_account: true, devices: [keyed('s-sam-06', 'IDEA-06', 60 * 24 * 2, LAB_06)], checkouts: [] },
+	{ email: 'maria.lopez@boscotech.net', role: 'cad_lead', name: 'Maria Lopez', avatar: 'preset:owl', avatar_url: null, pathway: 'IDEA', has_account: true, devices: [dev('s-maria', 'Lab PC 7', 60 * 3, 'idle', '0.5.0')], checkouts: [] }
+];
+
+export const SHARED_FILES: ArmoryFile[] = SYNCED_FILES.map((f) =>
+	f.id === 'f-2'
+		? { ...f, lock: lock('ana.reyes@boscotech.net', 'IDEA-06', 's-ana-06', 18) }
+		: f.id === 'f-4'
+			? { ...f, lock: lock('diego.marin@boscotech.net', 'IDEA-06', 's-diego-06', 30) }
+			: f.id === 'f-5'
+				? { ...f, lock: lock('ben.okafor@boscotech.net', 'IDEA-06', 's-ben-06b', 6) }
+				: f
+);
+export const SHARED_SEEN: Record<string, number> = { 's-ana-06': NOW - 60_000, 's-diego-06': NOW - 25 * 60_000, 's-ben-06b': NOW - 2 * 60_000 };
+export const sharedCheckouts = (files: ArmoryFile[]): ArmoryCheckout[] =>
+	checkoutsFromFiles(files).map((c) => ({ ...c, holder_name: NAMES[c.holder_email] ?? null }));

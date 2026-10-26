@@ -68,6 +68,10 @@
 		SIDE_COUNTS,
 		SIDE_FILE,
 		SIDE_FILES,
+		SHARED_FILES,
+		SHARED_SEEN,
+		SHARED_TEAM,
+		sharedCheckouts,
 		SIDE_HISTORY,
 		START_RELEASE,
 		STORAGE,
@@ -81,6 +85,7 @@
 
 	let small = $state<ArmoryMember[]>(MEMBERS_LINKED.map((m) => ({ ...m })));
 	let big = $state<ArmoryMember[]>(TEAM.map((m) => ({ ...m })));
+	let shared = $state<ArmoryMember[]>(SHARED_TEAM.map((m) => ({ ...m })));
 	let editing = $state<ArmoryFile[]>(EDITING_FILES.map((f) => ({ ...f })));
 	let many = $state<ArmoryFile[]>(MANY_FILES.map((f) => ({ ...f })));
 	let quiet = $state<ArmoryFile[]>(QUIET_FILES.map((f) => ({ ...f })));
@@ -105,10 +110,11 @@
 		};
 	});
 
-	type Team = 'small' | 'big';
-	const listOf = (team: Team) => (team === 'big' ? big : small);
+	type Team = 'small' | 'big' | 'shared';
+	const listOf = (team: Team) => (team === 'big' ? big : team === 'shared' ? shared : small);
 	function setList(team: Team, next: ArmoryMember[]) {
 		if (team === 'big') big = next;
+		else if (team === 'shared') shared = next;
 		else small = next;
 	}
 
@@ -243,6 +249,9 @@
 		{ key: 'offline', label: 'A computer holding a file has gone quiet; a file with no first version, which a mentor can remove', view: 'files', files: () => quiet, seen: QUIET_SEEN },
 		{ key: 'offline-student', label: 'The same, for a student: the file with no first version has no Remove', view: 'files', files: () => QUIET_FILES, seen: QUIET_SEEN, viewer: 'student' },
 		{ key: 'twins', label: 'Two computers named IDEA-06: each is labeled with the start of its id', view: 'checked-out', files: () => TWIN_FILES, seen: EDITING_SEEN },
+		{ key: 'shared-team', label: 'One lab computer four people sign in to is one line; a computer imaged alike with the same name is another (ledger 0441)', view: 'team', files: () => SHARED_FILES, seen: SHARED_SEEN, team: 'shared' },
+		{ key: 'shared-files', label: 'The same lab: both checkouts on the shared computer carry its one label, the clone its own', view: 'files', files: () => SHARED_FILES, seen: SHARED_SEEN, team: 'shared' },
+		{ key: 'shared-out', label: 'The same lab as a table of checkouts', view: 'checked-out', files: () => SHARED_FILES, seen: SHARED_SEEN, team: 'shared' },
 		{ key: 'side', label: 'Files with side versions', view: 'files', files: () => SIDE_FILES, seen: EDITING_SEEN, sides: SIDE_COUNTS },
 		{ key: 'storage-off', label: 'File storage not configured', view: 'files', files: () => SYNCED_FILES, storageOff: true },
 		{ key: 'filter-out', label: 'The Checked out filter', view: 'files', files: () => EDITING_FILES, seen: EDITING_SEEN, filter: 'checked-out' },
@@ -342,7 +351,7 @@
 		members={membersOf(s)}
 		sideCounts={s.sides ?? {}}
 		deviceSeen={s.seen ?? {}}
-		checkouts={s.many ? manyCheckouts(files) : checkoutsOf(files)}
+		checkouts={s.many ? manyCheckouts(files) : s.team === 'shared' ? sharedCheckouts(files) : checkoutsOf(files)}
 		activity={s.many ? MANY_ACTIVITY : files.length ? ACTIVITY : []}
 		storage={s.many ? MANY_STORAGE : files.length ? STORAGE : { bytes: 0, files: 0 }}
 		now={NOW}

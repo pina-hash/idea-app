@@ -99,9 +99,24 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
   and so does the project page (`canTakeBack`, null before 0236). A role list
   written anywhere else is the second copy. Because an instructor holds it,
   only a mentor makes or changes an instructor.
-- **TWO COMPUTERS WITH ONE NAME ARE LABELED, NEVER MERGED**: `labelProjectDevices`
-  in `$lib/armory/team.ts` names each "NAME (abcd)" with the start of its
-  device id wherever two in a project share a name, the label the app writes.
+- **A COMPUTER IS ITS TOKEN WHEN IT HAS ONE, AND ITS NAME ONLY WHEN IT DOES NOT
+  (ledger 0441, migration 0310).** Every sign-in registers a device of its own,
+  so one lab computer five people use is five devices with one name. Armory
+  0.5.1 sends its per-computer hash with each heartbeat
+  (`armory_devices.computer_key`, written by the additive four-argument
+  `armory_heartbeat` and `armory_register_device`; the 0233 and 0231 forms are
+  thin wrappers), and `armory_team_status` hands each project an opaque
+  12-character `computer` token per device (an md5 of the project id and the
+  key), never the key, so nothing links a computer across projects.
+  `computerKey` in `$lib/armory/team.ts` is the one statement of the grouping:
+  the token, else the name, never a keyed and a keyless device together.
+  `presenceDevices` (one member's lines), `teamComputers` (the Team view's
+  Computers list, everyone on each computer, most recent first) and
+  `labelProjectDevices` (the Files and Checked out labels) all go through it.
+  **TWO COMPUTERS WITH ONE NAME ARE STILL LABELED, NEVER MERGED**: a keyed
+  computer is "NAME (abcd)" from its token wherever two computers in a project
+  share a name, and a keyless device keeps the start of its device id, the
+  label the app writes.
 - **DELETE FOREVER IS ROWS, THEN THE QUEUE, THEN OBJECTS** (`POST
   /api/armory/purge`, `handlePurge`): the RPC runs on the caller's client, `ok`
   is true the moment it returns, and the sweep (`sweepArmoryOrphans`) deletes
