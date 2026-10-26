@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.10 - 2026-10-26**
+**Version 1.11 - 2026-10-26**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -1960,9 +1960,37 @@ team's answers for shared fields, so nothing else carries an answer down.
 the first state and again when it changes, field names and plan words only, never another
 student's answer.
 
+### 16.8 Grading a team assignment
+
+The rubric is still generated from the manifest (section 9); who each criterion is scored
+for comes from the module's `audience`, by IDEA_RUBRIC_STANDARDS.md 1.4 ("Team
+Assignments"):
+
+| `audience` | Scored | Lands on |
+|---|---|---|
+| `"team"` | once per team | every member, with no per-student override |
+| `"role"` | once per role block | only the member who owns the role on the team plan |
+| `"individual"` or absent | per member | that member |
+
+- A member owning two roles is scored on the MEAN of the two role blocks, so every
+  member's maximum is the team criteria plus the individual criteria plus one role block.
+  Give every role module the same `points`.
+- A team assignment is graded only from its Teams screen, one screen per team per post
+  (0305): the engine refuses a grade given one student at a time, and the ordinary
+  grading console sends a team post to the Teams screen. A role nobody owns cannot be
+  scored; set the roles on the team plan first.
+- Sign-off checklist items (16.5) are never rubric criteria.
+- A live presentation (the Design Review) is a team module, scored on the Teams screen
+  from a phone: every level is a key carrying its `short`.
+
 ---
 
 ## Changelog
+
+- **1.11 (2026-10-26).** Ledger 0436, migration 0305. Section 16.8: how a team assignment
+  is graded (team criteria once for every member, role criteria on the role's owner, a
+  double owner's mean, individual criteria per member, graded only by team), following
+  IDEA_RUBRIC_STANDARDS.md 1.4.
 
 - **1.10 (2026-10-26).** Ledger 0436 (IDEA209H Unit 4), migrations 0301 and 0302. The new
   section 16 is the authoring contract for a team post: `team.roles`, `audience` "role"

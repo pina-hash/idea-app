@@ -6,6 +6,8 @@
 		type RubricCriterion,
 		type SubmissionRow
 	} from '$lib/classroom/assignment-spec';
+	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/rubric';
+	import { teamRoleCriteria, teamRubricOutOf } from '$lib/classroom/team-grade';
 
 	/**
 	 * A RETURNED GRADE, ON EVERY ENGINE, IN ONE CARD (ledger 0297, package ITEM).
@@ -45,7 +47,8 @@
 		submission,
 		rubric = null,
 		points = null,
-		note = null
+		note = null,
+		manifest = null
 	}: {
 		submission: SubmissionRow;
 		/** The STORED rubric (`classroom_rubrics`), never a spec-derived copy. */
@@ -59,9 +62,26 @@
 		 * sentence about a control that is not there.
 		 */
 		note?: string | null;
+		/**
+		 * A ported worksheet's manifest (ledger 0436). On a team assignment with
+		 * role modules a student is graded on the team criteria, their own and
+		 * one role block (the mean of two for a double owner), so the "out of"
+		 * is that maximum and the breakdown leaves out the roles they do not
+		 * own: a role criterion with no score of theirs is not theirs.
+		 */
+		manifest?: HtmlAssignmentManifest | null;
 	} = $props();
 
-	const outOf = $derived(rubric?.length ? rubricTotal(rubric) : (points ?? 0));
+	const roleIds = $derived(teamRoleCriteria(manifest));
+	const shown = $derived(
+		rubric?.length && roleIds.size
+			? rubric.filter((c) => !roleIds.has(c.id) || submission.rubric_scores?.[c.id] != null)
+			: rubric
+	);
+	const ownedRoles = $derived(new Set((shown ?? []).filter((c) => roleIds.has(c.id)).map((c) => roleIds.get(c.id))).size);
+	const outOf = $derived(
+		rubric?.length ? (roleIds.size ? teamRubricOutOf(rubric, manifest) : rubricTotal(rubric)) : (points ?? 0)
+	);
 </script>
 
 <section class="card grade-card" data-testid="returned-grade">
@@ -77,7 +97,7 @@
 			<span class="comment-text">{submission.teacher_comment}</span>
 		</p>
 	{/if}
-	{#if rubric?.length}
+	{#if shown?.length}
 		<Disclosure
 			label="Rubric breakdown"
 			scope={`item:${submission.item_id}:rubric`}
@@ -85,8 +105,11 @@
 			testId="returned-grade-breakdown-disclosure"
 		>
 			<div data-testid="returned-grade-breakdown">
+				{#if ownedRoles > 1}
+					<p class="grade-note" data-testid="returned-grade-mean">You hold two roles, so your role score is the average of your two role blocks.</p>
+				{/if}
 				<RubricView
-					criteria={rubric}
+					criteria={shown}
 					scores={submission.rubric_scores ?? {}}
 					comments={submission.criterion_comments ?? null}
 					title="Criteria"

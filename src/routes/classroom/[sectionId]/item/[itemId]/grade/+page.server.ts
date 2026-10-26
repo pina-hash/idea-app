@@ -4,6 +4,7 @@ import { normalizeItemRow, normalizeSectionRow } from '$lib/classroom/classroom'
 import { SECTION_SELECT, selectItemsWithDoc } from '$lib/classroom/transports';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
 import { loadHtmlAssignment } from '$lib/classroom/html-assignment/load';
+import { hxIsTeamManifest } from '$lib/classroom/html-assignment/team-doc';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -69,6 +70,13 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		item,
 		item.kind
 	);
+
+	// A TEAM ASSIGNMENT IS GRADED BY TEAM (ledger 0436, 0305): the database
+	// refuses a grade given one student at a time, so this console never opens
+	// for one.
+	if (htmlAssignment && hxIsTeamManifest(htmlAssignment.manifest)) {
+		redirect(303, `/classroom/${params.sectionId}/item/${params.itemId}/teams`);
+	}
 
 	// RETIRED QUESTIONS (ledger 0422): their stored answers show in grading
 	// under the question they answered. Before 0290 the read fails and the

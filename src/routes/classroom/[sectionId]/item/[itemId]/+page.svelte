@@ -1401,7 +1401,9 @@
 		? htmlAssignmentTransports
 		: null}
 	htmlAssignmentAdmin={data.navIsAdmin === true}
-	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
+	gradeHref={data.canManage
+		? `/classroom/${data.section.id}/item/${data.item.id}/${htmlTeamDocuments ? 'teams' : 'grade'}`
+		: null}
 	panelLayout={classPrefs?.current.panels.itemPage ?? null}
 	onArrange={classPrefStore ? () => runCommand('settings.open', 'panels:item') : null}
 	onchanged={() => invalidateAll()}

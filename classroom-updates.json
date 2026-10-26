@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-26",
+			"title": "How team assignments are graded",
+			"body": "On a team assignment, the parts your whole team writes get one score, and everyone on the team gets that same score. The part you own for your role is scored on its own and counts only for you. If you hold two roles because your team has three people, your role score is the average of your two parts, so nobody can earn more or less than a teammate just because of team size. Anything you write on your own is scored for you alone. When it comes back, your grade shows the team parts, your own role and your own work, out of the same total as everyone else.",
+			"tags": ["Assignments", "Teams", "Grades"]
+		},
+		{
+			"date": "2026-10-26",
 			"title": "Sign-offs for your team",
 			"body": "Your team plan now lists your sign-offs, each with its checklist. The checks the site makes show as passing or not yet; when they all pass, anyone on your team can press Request sign-off. Your teacher checks the rest in class and either approves it, with their name and the time on your plan, or sends it back. If it comes back, each item that did not pass becomes a task on your plan for whoever owns that part, and you can ask again as soon as it is fixed. Once your plan is approved, who owns each part is set. Sign-offs carry no points, but the shop goes by them: no metal is cut before the Design sign-off and nothing is fired before Safe to test.",
 			"tags": ["Assignments", "Teams"]

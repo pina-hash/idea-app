@@ -66,7 +66,6 @@ import {
 	criterionIssues,
 	criterionMax,
 	rubricFromSpec,
-	rubricTotal,
 	type AssignmentSpec,
 	type RubricCriterion
 } from '$lib/classroom/assignment-spec';
@@ -356,6 +355,21 @@ export function manifestRubricIssues(manifest: HtmlAssignmentManifest): string[]
 		}
 	}
 
+	// A TEAM ASSIGNMENT'S ROLE BLOCKS ARE WORTH THE SAME (rubric standard 1.4):
+	// a member's maximum counts one role block, so a role worth more than
+	// another would make what a student can earn depend on the role they drew.
+	const rolePoints = new Map<string, number>();
+	for (const [id, role] of teamRoleCriteria(manifest)) {
+		const mod = modules.find((m) => id.startsWith(`${m.id}-`) && m.role === role);
+		const crit = mod?.criteria?.find((c) => manifestCriterionId(mod.id, c.id) === id);
+		if (crit) rolePoints.set(role, (rolePoints.get(role) ?? 0) + (criterionMax({ points: Number(crit.points), levels: crit.levels }) || 0));
+	}
+	if (new Set(rolePoints.values()).size > 1) {
+		issues.push(
+			`The role blocks are worth different points (${[...rolePoints].map(([r, p]) => `${r} ${p}`).join(', ')}). Every role is graded out of the same total, so give each role's criteria the same points.`
+		);
+	}
+
 	if (!count) {
 		issues.push(
 			'This assignment has no rubric criteria at all, so there is nothing to grade against. A rubric needs at least one criterion.'
@@ -370,15 +384,50 @@ export function manifestRubricIssues(manifest: HtmlAssignmentManifest): string[]
 }
 
 /**
+ * A team assignment's role criteria, stored rubric id to role id: the mirror
+ * of `_classroom_role_criteria` (0305). Empty for any other manifest.
+ */
+export function teamRoleCriteria(manifest: HtmlAssignmentManifest | null | undefined): Map<string, string> {
+	const out = new Map<string, string>();
+	const team = (manifest as { team?: unknown } | null | undefined)?.team;
+	if (!manifest || !team || typeof team !== 'object') return out;
+	for (const mod of manifest.modules ?? []) {
+		if (mod.audience !== 'role' || !mod.role) continue;
+		for (const c of mod.criteria ?? []) out.set(manifestCriterionId(mod.id, c.id), mod.role);
+	}
+	return out;
+}
+
+/**
+ * THE ONE MAXIMUM A MEMBER CAN SCORE, from the stored rubric and the
+ * manifest: the team and individual criteria, plus the largest role block.
+ * The mirror of `_classroom_item_out_of` (0305) for a surface holding the
+ * manifest; with no role module it is the rubric's own total.
+ */
+export function teamRubricOutOf(rubric: RubricCriterion[], manifest: HtmlAssignmentManifest | null | undefined): number {
+	const roleOf = teamRoleCriteria(manifest);
+	let base = 0;
+	const sums = new Map<string, number>();
+	for (const c of rubric) {
+		const role = roleOf.get(c.id);
+		const max = criterionMax(c) || 0;
+		if (role) sums.set(role, (sums.get(role) ?? 0) + max);
+		else base += max;
+	}
+	return base + (sums.size ? Math.max(...sums.values()) : 0);
+}
+
+/**
  * What the grading console will show as the denominator, from the manifest.
  *
- * `rubricTotal` over the DERIVED criteria rather than a sum of `module.points`:
+ * The derived criteria's total (`teamRubricOutOf`, which is `rubricTotal`'s sum
+ * unless a team assignment's role blocks count once) rather than a sum of `module.points`:
  * the console's out-of comes from the rubric, so anywhere the two disagree the
  * rubric is the number on screen. `manifestRubricIssues` reports the
  * disagreement; this reports what a grader will actually see.
  */
 export function manifestRubricTotal(manifest: HtmlAssignmentManifest): number {
-	return rubricTotal(manifestToRubric(manifest));
+	return teamRubricOutOf(manifestToRubric(manifest), manifest);
 }
 
 // ---------------------------------------------------------------------------

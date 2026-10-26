@@ -2863,7 +2863,7 @@
 				     class row. Never inside the document: a returned grade is the
 				     parent's, exactly as Submit and a restored picture are. -->
 				{#if returnedSubmission}
-					<ReturnedGrade submission={returnedSubmission} rubric={engine?.rubric ?? null} points={item.points} />
+					<ReturnedGrade submission={returnedSubmission} rubric={engine?.rubric ?? null} points={item.points} manifest={htmlProgressManifest} />
 				{/if}
 				{#if !htmlServed}
 					<!--

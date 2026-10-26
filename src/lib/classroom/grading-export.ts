@@ -54,7 +54,6 @@ import {
 	levelIndexForScore,
 	levelShort,
 	responsesMap,
-	rubricTotal,
 	specUnmet,
 	splitLastFirst,
 	submissionStateLabel,
@@ -83,6 +82,7 @@ import { htmlAnswerSheet, type HtmlAnswerGroup } from './html-assignment/mount';
 import { ASSIGNMENT_LOCK_CHIP, assignmentLockState } from './html-assignment/lock';
 import { blockLabelsFromManifest, type BlockLabel } from './bulk-download';
 import { directScoreOf } from './grading-direct';
+import { teamRubricOutOf } from './team-grade';
 
 // ---------------------------------------------------------------------------
 // DID THE WORK CHANGE AFTER IT WAS GRADED
@@ -1093,7 +1093,8 @@ export function buildGradingExport(input: GradingExportInput): GradingExport {
 		scope === 'student'
 			? roster.filter((r) => r.email === input.selectedEmail)
 			: roster;
-	const outOf = rubric?.length ? rubricTotal(rubric) : (item.points ?? 0);
+	// A team assignment's maximum is one role block, not all of them (ledger 0436).
+	const outOf = rubric?.length ? teamRubricOutOf(rubric, spec ? null : input.manifest) : (item.points ?? 0);
 	const students = chosen.map((row) =>
 		exportStudent(row, labels.get(row.email) ?? 'Student', spec, rubric, outOf, identity, hx)
 	);

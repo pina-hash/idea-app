@@ -237,6 +237,16 @@
 	.sq-key {
 		min-height: 48px;
 	}
+	.sq-key[aria-pressed='true'] {
+		border-color: var(--green);
+		color: var(--green);
+		background: color-mix(in srgb, var(--green) 14%, transparent);
+	}
+	.sq-fail[aria-pressed='true'] {
+		border-color: var(--amber);
+		color: var(--amber);
+		background: color-mix(in srgb, var(--amber) 14%, transparent);
+	}
 	.sq-autos {
 		margin: 0;
 		font-family: var(--font-display);

@@ -424,3 +424,13 @@ under `materials/` through the deployed gate and then 0301).
 - **WHAT A TEAMMATE CANNOT SEE: another member's picture.** Submission files stay their
   uploader's (0086's file policies are unchanged), so a picture in a shared box shows only
   for the student who took it and in grading; spec 16.3 tells authors to prefer text.
+- **A TEAM ASSIGNMENT IS GRADED ONLY BY TEAM (0305).** `classroom_grade_submission` refuses
+  a team assignment's grade unless `classroom_grade_team` named the student's team for the
+  transaction (`idea.team_grade`, set with `set_config(..., true)`, the 0270 connector
+  pattern), so the per-student console, the bulk path called directly and a direct score
+  all refuse it; `/classroom/<id>/item/<id>/grade` sends a team post to `.../teams`. Inside,
+  the one grading rule does the team arithmetic: a role criterion (`_classroom_role_criteria`)
+  counts only for its owner (`_classroom_owned_roles`), a double owner gets the mean of the
+  role blocks, and `_classroom_item_out_of` is the team and individual criteria plus ONE
+  role block. Any surface showing a team assignment's "out of" asks `teamRubricOutOf`
+  (`src/lib/classroom/team-grade.ts`), the mirror of that function, never `rubricTotal`.

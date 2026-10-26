@@ -1,5 +1,5 @@
 # IDEA Rubric Standards
-**Version 1.3 - 2026-08-25**
+**Version 1.4 - 2026-10-26**
 Governs how rubrics are authored, structured, and used across every IDEA course. Applies to IDEA100, IDEA209H, and every course after.
 
 ---
@@ -76,6 +76,20 @@ This is the part that does the work. Everything else is arithmetic.
 
 ---
 
+## Team Assignments
+
+A team assignment (IDEA_HTML_ASSIGNMENT_SPEC.md section 16) is still one rubric generated from one manifest. What a team assignment adds is who each module's criteria are scored for, and it is read per module from the manifest, never chosen at grading time.
+
+- **Team modules** (`audience` "team") are scored once for the team. The score is copied to every member. There is no per-student override on a team criterion: a team criterion that one member deserves less on is a criterion that was written about individual work, and it belongs in an individual or role module instead.
+- **Role-owned modules** (`audience` "role") are scored once per role block. The score lands only on the member who owns that role on the team plan when the grade is written.
+- **Individual modules** (`audience` "individual", or absent) are each student's own and are scored per member, on the same screen.
+- **A student who owns two roles is scored on the mean of the two role blocks.** On a team of three one student owns two roles, and the mean keeps every student's maximum identical: team criteria plus individual criteria plus one role block. Summing the two blocks would give that student a larger maximum than their teammates, and giving them only one would leave half their owned work ungraded.
+- **Every role module carries the same points.** The maximum is computed with one role block, so a role worth more than another changes what a student can earn depending on which role they drew. A role that needs more work gets more criteria inside the same points, not more points.
+- **Sign-off checklists are not rubrics.** A checkpoint's items (section 16.5) are pass or fail, carry no points, and are never copied into a rubric as criteria. A criterion that restates a sign-off item grades the same thing twice, once as a gate and once as a score.
+- **Grading happens by team, one screen per team per post.** The engine refuses a team assignment's grade given one student at a time, so the instrument cannot drift between members of one team.
+
+---
+
 ## Authoring Workflow
 
 Rubrics are authored inside the assignment spec, in the same pass as the content. There is no separate rubric artifact, no rubric CSV, no rubric markdown per assignment.
@@ -109,10 +123,13 @@ Structural guarantees handle most of this, but two practices are worth keeping:
 - Every descriptor is observable and countable
 - Level labels are consistent across criteria within the assignment
 - No comparative language anywhere
+- On a team assignment: every role module carries the same points, no team criterion grades individual work, and no criterion restates a sign-off checklist item
 
 ---
 
 ## Changelog
+
+- **1.4 (2026-10-26)** - Added Team Assignments, written for IDEA209H Unit 4 (the team launcher) and decided by Mr. Pina on 2026-10-23 through 2026-10-26. Team modules are scored once and copied to every member, with no per-student override; role-owned modules are scored per role block and land on the role's owner from the team plan; individual modules stay per student. A student owning two roles (a team of three) is scored on the mean of the two role blocks, which is what keeps every student's maximum the same, and role modules therefore carry equal points. Sign-off checklists are kept out of rubrics entirely, since a criterion restating a gate grades one thing twice. The verification list gained the matching check. The engine enforces the team half (0305): a team assignment is graded only by team, one screen per team per post.
 
 - **1.3 (2026-08-25)** - Added the rule that a bonus criterion cannot exist under leveled scoring, and the verification check that enforces it. Criterion maximums sum to module points, so a criterion marked bonus either pushes the module past its own total or silently makes optional work required, and the rubric gives the grader no way to tell which. Written after the IDEA209H Unit 1 Lab Final rubric was found listing optional bonus samples as its fifth criterion while the assignment spec was already handling them on IDEA Coins, leaving two instruments in disagreement. Recognition for optional work now belongs outside the rubric, in the coin economy or a flagged extra-credit assignment, and the assignment instructions state that it carries no points.
 

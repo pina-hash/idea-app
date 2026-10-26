@@ -4480,6 +4480,56 @@
 				"writes": true
 			}
 		],
+		"classroom_grade_team": [
+			{
+				"signature": "classroom_grade_team(uuid,uuid,jsonb,jsonb,text,jsonb,boolean)",
+				"args": [
+					{
+						"name": "p_item_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_team_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_scores",
+						"type": "jsonb",
+						"has_default": false
+					},
+					{
+						"name": "p_member_scores",
+						"type": "jsonb",
+						"has_default": false
+					},
+					{
+						"name": "p_comment",
+						"type": "text",
+						"has_default": false
+					},
+					{
+						"name": "p_criterion_comments",
+						"type": "jsonb",
+						"has_default": false
+					},
+					{
+						"name": "p_return",
+						"type": "boolean",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"classroom_manages_section"
+				],
+				"writes": true
+			}
+		],
 		"classroom_hall_pass_close_by_id": [
 			{
 				"signature": "classroom_hall_pass_close_by_id(uuid)",
@@ -6609,6 +6659,31 @@
 		"classroom_team_document_for": [
 			{
 				"signature": "classroom_team_document_for(uuid,uuid)",
+				"args": [
+					{
+						"name": "p_item_id",
+						"type": "uuid",
+						"has_default": false
+					},
+					{
+						"name": "p_team_id",
+						"type": "uuid",
+						"has_default": false
+					}
+				],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "stable",
+				"gates": [
+					"classroom_manages_section"
+				],
+				"writes": false
+			}
+		],
+		"classroom_team_grading": [
+			{
+				"signature": "classroom_team_grading(uuid,uuid)",
 				"args": [
 					{
 						"name": "p_item_id",
