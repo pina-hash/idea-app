@@ -25,7 +25,7 @@ Send it and stop for his approval. Ask only for facts you cannot check, one at a
 
 1. Copy `tools/hx-kit/starter.src.html` to `<COURSE>_<Day or unit>_<What>.src.html`. Paste the approved brief into its top comment.
 2. Write the manifest first: semantic, permanent block ids; a `prompt` on every block; optional blocks marked; points adding up three ways (Part F2).
-3. Set the subject palette on `<html>` (`data-hue-from`, `data-hue-to`), draw the header picture from the real subject, and fill `hx-plan-data` with the phases and their classes.
+3. Set the subject palette on `<html>` (`data-hue-from`, `data-hue-to`, optional `data-hue-chroma`) from the real subject's own colors, anywhere on the wheel but the site's green; cyan to violet is never a default (standard D3). Draw the header picture from the real subject, and fill `hx-plan-data` with the phases and their classes.
 4. Write each step with the anatomy in F4: the action as the title, numbered moves from his video in its order and button names, "You should see", "That is not what I see", the evidence panel with the graded inputs, a copy-proof example where one helps, a tap tip on the first use of each term. One step must fit one screen; split rather than scroll.
 5. Put the problem the student must solve (A4) and the stretch (A8, `data-optional`, "IDEA Coins, not points") where the brief said.
 6. Build: `node tools/hx-kit/build.mjs <file>.src.html`. Never edit the inlined kit blocks. A plumbing fix goes into `tools/hx-kit/kit/`, then rebuild.

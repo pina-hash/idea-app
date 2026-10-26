@@ -10,22 +10,25 @@ body { margin: 0; }
 body.idea-plate { background-color: var(--page-bot); }
 
 /* ---- The subject palette: what makes this assignment look like itself. ----
-   Set two hues on <html> (data-hue-from, data-hue-to, OKLCH degrees) and every
-   phase takes a color along that spectrum. Fixed lightness per theme keeps text
-   readable in both. Kept away from green (done), amber (limits, deadlines) and
-   red (danger): test.mjs warns on a hue inside those bands. */
+   Set two hues on <html> (data-hue-from, data-hue-to, OKLCH degrees, any part
+   of the wheel; data-hue-to may pass 360 to run through red) and optionally
+   data-hue-chroma (a multiplier, 0.3 for a near-neutral steel or graphite
+   look, 1 by default). build.mjs writes them into --hx-from, --hx-to and
+   --hx-cs; there is deliberately no default hue here, so a page that never
+   chose one shows no phase color rather than somebody else's. Fixed lightness
+   per theme keeps text readable in both. Only the site's green is reserved
+   (it means done): test.mjs fails a hue inside it. */
 :root {
-	--hx-from: 195;
-	--hx-to: 290;
 	--hx-l: 0.76;
 	--hx-c: 0.12;
+	--hx-cs: 1;
 	--hx-wash-a: 0.16;
 }
 :root[data-theme='light'] { --hx-l: 0.43; --hx-c: 0.13; --hx-wash-a: 0.12; }
 .hx-hue {
 	--hx-h: calc(var(--hx-from) + (var(--hx-to) - var(--hx-from)) * var(--t, 0));
-	--hx-ink: oklch(var(--hx-l) var(--hx-c) var(--hx-h));
-	--hx-wash: oklch(var(--hx-l) var(--hx-c) var(--hx-h) / var(--hx-wash-a));
+	--hx-ink: oklch(var(--hx-l) calc(var(--hx-c) * var(--hx-cs)) var(--hx-h));
+	--hx-wash: oklch(var(--hx-l) calc(var(--hx-c) * var(--hx-cs)) var(--hx-h) / var(--hx-wash-a));
 }
 
 /* ---- The page. ---------------------------------------------------------- */

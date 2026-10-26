@@ -207,13 +207,25 @@ try {
 	}, visibleInDoc);
 	(green.length > 3 ? WARN : PASS)('look', 'Green is rationed on the first screen (3 or fewer)', `${green.length}: ${green.slice(0, 8).join(', ')}`);
 
-	/* The subject palette: in bounds, and readable in both themes. */
+	/* The subject palette: actually applied, clear of the site's green, not the
+	   old blanket cyan-to-violet, and readable in both themes. */
 	if (Number.isFinite(hueFrom) && Number.isFinite(hueTo)) {
+		const applied = await frame.evaluate(() => {
+			const cs = getComputedStyle(document.documentElement);
+			return [cs.getPropertyValue('--hx-from').trim(), cs.getPropertyValue('--hx-to').trim()];
+		});
+		(Number(applied[0]) === hueFrom && Number(applied[1]) === hueTo ? PASS : FAIL)(
+			'look', 'The palette on <html> is the palette on the page',
+			`declared ${hueFrom} to ${hueTo}, rendered ${applied[0] || 'nothing'} to ${applied[1] || 'nothing'}`
+		);
 		const n = (await frame.evaluate(() => (typeof KIT !== 'undefined' && KIT.plan ? KIT.plan.phases.length : 3))) || 3;
 		const hues = Array.from({ length: n }, (_, i) => hueFrom + ((hueTo - hueFrom) * (n > 1 ? i / (n - 1) : 0)));
-		const bad = hues.filter((h) => { const x = ((h % 360) + 360) % 360; return (x >= 115 && x <= 165) || (x >= 35 && x <= 85) || x < 20 || x > 345; });
-		(bad.length ? WARN : PASS)('look', 'Subject palette stays clear of green, amber and red', `phase hues ${hues.map((h) => Math.round(h)).join(', ')}${bad.length ? `; inside a reserved band: ${bad.map(Math.round).join(', ')}` : ''}`);
-	} else WARN('look', 'Subject palette set', 'No data-hue-from/data-hue-to on <html>: every assignment then looks the same.');
+		const wrap = (h) => ((h % 360) + 360) % 360;
+		const green = hues.filter((h) => { const x = wrap(h); return x >= 120 && x <= 160; });
+		(green.length ? FAIL : PASS)('look', "Subject palette stays clear of the site's green (done)", `phase hues ${hues.map((h) => Math.round(wrap(h))).join(', ')}${green.length ? `; inside green: ${green.map((h) => Math.round(wrap(h))).join(', ')}` : ''}`);
+		const cool = hues.every((h) => { const x = wrap(h); return x >= 185 && x <= 305; });
+		(cool ? WARN : PASS)('look', 'Not the old blanket cyan, blue and violet', cool ? 'Every phase sits in cyan to violet. Mr. Pina rejected that as a default (2026-10-26): use it only when the subject itself is that color, and say so in the brief.' : 'palette leaves the cyan-to-violet band');
+	} else FAIL('look', 'Subject palette set', 'No data-hue-from/data-hue-to on <html>. There is no default; pick it from the subject.');
 
 	for (const theme of ['dark', 'light']) {
 		await host(page, 'theme', theme);

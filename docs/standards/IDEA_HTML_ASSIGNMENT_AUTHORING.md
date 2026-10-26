@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.3 - 2026-10-26**
+**Version 2.4 - 2026-10-26**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -216,14 +216,28 @@ must not all look the same: "a blob of do this step, do this step". Each one has
 identity on top of the base, so it stays cohesive with the brand and distinct from the
 others:
 
-- **A subject palette.** Two hues on `<html>` (`data-hue-from`, `data-hue-to`, OKLCH degrees);
-  the kit colors each phase along that spectrum: the plan strip, step numbers, phase tags,
-  the step track, example and figure accents. Lightness is fixed per theme, so text stays
-  readable; the test measures every phase color at 4.5:1 in both themes and warns on a hue
-  inside green (done), amber (limits) or red (danger).
-- **Pick the spectrum from the subject**, for example cool blues to violet for CAD and
-  analysis, teal to blue for measurement, blue to violet for a design-build-present arc.
-  Never the same pair as the course's previous assignment.
+- **A subject palette.** Two hues on `<html>` (`data-hue-from`, `data-hue-to`, OKLCH degrees,
+  anywhere on the wheel; `data-hue-to` may pass 360 to run through red) and, optionally,
+  `data-hue-chroma` (a multiplier: 0.3 to 0.5 for a near-neutral steel or graphite look, 1 by
+  default). `build.mjs` is the one place these are read: it writes them into the page and
+  refuses to build without them, because there is no default. The kit colors each phase along
+  that spectrum: the plan strip, step numbers, phase tags, the step track, example and figure
+  accents. Lightness is fixed per theme, so text stays readable; the test measures every
+  phase color at 4.5:1 in both themes, FAILS a page whose rendered palette is not the one
+  declared, and FAILS a hue inside the site's green (120 to 160, which means done). Amber and
+  red keep their meaning in the chrome because chrome states carry words; a warm subject
+  palette is allowed.
+- **Pick the spectrum from the real subject's own colors**, never from a habit: the material,
+  the machine, the part, the theme of the project. Combat and fabrication run warm (sparks,
+  hot steel, copper, bronze); a printed part takes the filament's color; a calendar or
+  survey takes something neither of its neighbors has. **Cyan to violet is not a default**
+  (Mr. Pina, 2026-10-26: "Everything's just cyan, blue, purple now"). Until that date the
+  kit never read the attributes, so every kit page showed cyan to violet whatever its author
+  chose, and the examples in this section steered the rest there too. Use that band only when
+  the subject itself is that color, and say so in the brief; the test warns otherwise.
+  Never within 60 degrees of the course's previous assignment's pair.
+- **Candidates, not one guess.** The palette is a taste call: render two to five on the real
+  page (first screen and the thumbnail) and let him pick.
 - **A header picture of the real subject** (the part, the tool, the machine), drawn as SVG on
   the palette or rendered from the real geometry (L21, show the real thing).
 - **Figures and illustrations in the palette**, so the content layer carries the identity
@@ -558,6 +572,15 @@ new term.
 
 ## Changelog
 
+- **2.4 (2026-10-26).** Ledger 0439. Mr. Pina: "Everything's just cyan, blue, purple now."
+  Root cause, measured: nothing in the kit read `data-hue-from`/`data-hue-to`, so every kit
+  page rendered kit.css's default 195 to 290 whatever its author set, and D3's examples plus
+  test bands that excluded every warm hue steered authors to the same band anyway. D3 now: the
+  palette comes from the subject's own colors anywhere on the wheel, only the site's green is
+  reserved, cyan to violet is never a default, an optional chroma multiplier allows steel and
+  graphite looks, candidates are rendered for him to pick. Kit: `palette` and `paletteCss` in
+  `tools/hx-kit/build.mjs` (the one reader; no default, refuses to build without one),
+  `--hx-cs` in `kit.css`, and `test.mjs` fails a page whose rendered palette is not the declared one.
 - **2.3 (2026-10-26).** Ledger 0438. From Mr. Pina opening IDEA-Blade 01 and 02 at 3 AM before
   class: F10, the paste target is always marked and optional picture boxes sit in the open; F9b,
   the step's done mark counts a box the student's pick made necessary; F14, thumbnails carry

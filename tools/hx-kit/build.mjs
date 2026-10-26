@@ -110,7 +110,31 @@ export function build(source) {
 	if (!source.includes('<!-- hx:script -->')) throw new Error('The source has no <!-- hx:script --> marker at the end of <body>.');
 	if (/<script[^>]*>[\s\S]*?\bhxStart\(\)/.test(source.replace(/<!-- hx:script -->/, '')))
 		throw new Error('The source calls hxStart() itself. The kit starts the page; remove that call.');
-	return source.replace('<!-- hx:head -->', () => kitHead()).replace('<!-- hx:script -->', () => kitScript());
+	return source.replace('<!-- hx:head -->', () => kitHead() + paletteCss(source)).replace('<!-- hx:script -->', () => kitScript());
+}
+
+/** The subject palette, read off <html> and written as the custom properties
+    kit.css colors every phase from. Until 2026-10-26 nothing read these
+    attributes, so every kit page showed kit.css's old cyan-to-violet default
+    whatever its author chose; this is the one place they are read. */
+export function palette(source) {
+	const tag = (source.match(/<html\b[^>]*>/i) || [''])[0];
+	const num = (name) => {
+		const m = tag.match(new RegExp(`\\b${name}="(-?\\d+(?:\\.\\d+)?)"`));
+		return m ? Number(m[1]) : NaN;
+	};
+	const from = num('data-hue-from');
+	const to = num('data-hue-to');
+	const chroma = num('data-hue-chroma');
+	if (!Number.isFinite(from) || !Number.isFinite(to))
+		throw new Error('Set the subject palette on <html>: data-hue-from and data-hue-to (OKLCH degrees), picked from the real subject. There is no default.');
+	if (Number.isFinite(chroma) && (chroma < 0 || chroma > 1.5)) throw new Error('data-hue-chroma is a multiplier between 0 and 1.5.');
+	return { from, to, chroma: Number.isFinite(chroma) ? chroma : 1 };
+}
+
+export function paletteCss(source) {
+	const p = palette(source);
+	return `\n<style id="hx-palette">:root{--hx-from:${p.from};--hx-to:${p.to};--hx-cs:${p.chroma}}</style>`;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
