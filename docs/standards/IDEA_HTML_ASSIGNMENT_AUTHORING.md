@@ -440,6 +440,10 @@ small WebP, video by YouTube id only; icons as inline SVG, never a glyph (L11b).
 wide and banner shapes carry the title and the stage in words, and posts in one unit look
 different from each other at a glance: a different scene (the part being built, two parts
 fighting) and the post's own subject palette, never the same render on the same gray.
+The wide and banner shapes center the picture and the title together as one group, with
+equal margins left and right, so a unit's banners line up in the class list (Mr. Pina,
+2026-10-26, IDEA-Blade 01 centered beside IDEA-Blade 02 pulled left). The starter's template
+already does; never add `justify-content: flex-start` to a shape.
 
 **F15. Teams**: `idea:team-progress` reaches the document with each teammate's progress
 (audit); a team assignment may show it. Teams of two in a class of threes fold one role
