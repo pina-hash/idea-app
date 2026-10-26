@@ -1,0 +1,676 @@
+{
+  "kind": "html-assignment",
+  "team": {
+    "roles": [
+      {
+        "id": "frame",
+        "title": "Frame and mount"
+      },
+      {
+        "id": "energy",
+        "title": "Energy store"
+      },
+      {
+        "id": "drive",
+        "title": "Drive"
+      },
+      {
+        "id": "ballpath",
+        "title": "Ball path"
+      }
+    ],
+    "checkpoints": [
+      {
+        "id": "plan",
+        "date": "2026-10-28",
+        "items": [
+          {
+            "id": "owners",
+            "kind": "auto",
+            "text": "Every task has an owner and a due date",
+            "check": "plan-owners"
+          },
+          {
+            "id": "roles",
+            "kind": "auto",
+            "text": "Every role has an owner",
+            "check": "roles-owned"
+          },
+          {
+            "id": "balance",
+            "kind": "auto",
+            "text": "The plan balances",
+            "check": "plan-balanced"
+          },
+          {
+            "id": "fields",
+            "kind": "auto",
+            "text": "Each role's requirement and sketch fields are complete",
+            "check": "blocks-complete",
+            "blocks": [
+              "frame-req",
+              "frame-sketch",
+              "energy-req",
+              "energy-sketch",
+              "drive-req",
+              "drive-sketch",
+              "ballpath-req",
+              "ballpath-sketch"
+            ]
+          },
+          {
+            "id": "interfaces",
+            "kind": "tap",
+            "text": "The sketches meet at the named interfaces"
+          },
+          {
+            "id": "method",
+            "kind": "tap",
+            "text": "The launch method is a flywheel or a catapult",
+            "ownerOnly": true
+          }
+        ],
+        "title": "Plan"
+      },
+      {
+        "id": "design",
+        "date": "2026-11-03",
+        "gate": "No metal is cut before this sign-off.",
+        "items": [
+          {
+            "id": "complete",
+            "kind": "auto",
+            "text": "Every part of the Design post is filled in, including each role's prototype and calculations",
+            "check": "assignment-complete"
+          },
+          {
+            "id": "aluminum",
+            "kind": "tap",
+            "role": "frame",
+            "text": "The structure is aluminum, with wood only for a minor part"
+          },
+          {
+            "id": "process",
+            "kind": "tap",
+            "text": "A process is named for every part"
+          },
+          {
+            "id": "bearings",
+            "kind": "tap",
+            "text": "The team uses 6 or fewer 1/2 in hex bearings"
+          },
+          {
+            "id": "clamped",
+            "kind": "tap",
+            "role": "drive",
+            "text": "The drill or power tool is clamped or mounted to the launcher, never hand-held while firing"
+          }
+        ],
+        "title": "Design"
+      }
+    ]
+  },
+  "title": "Launcher: Design",
+  "course": "IDEA209H",
+  "points": 28,
+  "modules": [
+    {
+      "id": "u4d-rules",
+      "title": "The rules",
+      "blocks": [
+        {
+          "id": "u4d-rule-test",
+          "task": "Rules check: testing",
+          "type": "radio",
+          "field": "ruleTest",
+          "prompt": "Your launcher is ready for its first full-power shot. Where?"
+        },
+        {
+          "id": "u4d-rule-box",
+          "task": "Rules check: the team document",
+          "type": "radio",
+          "field": "ruleBox",
+          "prompt": "Ana owns Drive. Who can type in the Drive boxes?"
+        }
+      ],
+      "points": 2,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "rules-check",
+          "text": "Knows where to test and who types where",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both right",
+              "points": 2,
+              "descriptor": "Football field, and only the Drive owner."
+            },
+            {
+              "label": "Developing",
+              "short": "One right",
+              "points": 1,
+              "descriptor": "One of the two picks is right."
+            },
+            {
+              "label": "Absent",
+              "short": "Neither right",
+              "points": 0,
+              "descriptor": "Both wrong, or no picks."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "u4d-idea",
+      "title": "Your concept sketch",
+      "blocks": [
+        {
+          "id": "u4d-idea-method",
+          "task": "Your idea: launch method",
+          "type": "radio",
+          "field": "ideaMethod",
+          "prompt": "How does your idea throw the ball?"
+        },
+        {
+          "id": "u4d-idea-line",
+          "task": "Your idea in one line",
+          "type": "text",
+          "field": "ideaLine",
+          "prompt": "Your idea in one line"
+        },
+        {
+          "id": "u4d-idea-sketch",
+          "task": "Your concept sketch",
+          "type": "image",
+          "field": "ideaSketch",
+          "prompt": "Photo of your concept sketch"
+        },
+        {
+          "id": "u4d-idea-sketch-2",
+          "type": "image",
+          "field": "ideaSketch2",
+          "prompt": "Another page of your sketch (optional)",
+          "optional": true
+        },
+        {
+          "id": "u4d-idea-stretch",
+          "type": "image",
+          "field": "ideaStretch",
+          "prompt": "Stretch: a second concept with a different launch method",
+          "optional": true
+        }
+      ],
+      "points": 4,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "idea-views",
+          "text": "The sketch shows how the launcher holds, powers and throws the ball, in a top and a side view",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Two views, whole path",
+              "points": 2,
+              "descriptor": "Top and side view; the ball's path from loading to leaving and the power source are both drawn."
+            },
+            {
+              "label": "Developing",
+              "short": "One view or gaps",
+              "points": 1,
+              "descriptor": "One view only, or the power source or the ball's path is missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No sketch",
+              "points": 0,
+              "descriptor": "No sketch, or not a launcher."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "idea-labels",
+          "text": "Parts are labeled with sizes and how each is made",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Sizes and processes",
+              "points": 2,
+              "descriptor": "Every major part has a size and a process or stock item."
+            },
+            {
+              "label": "Developing",
+              "short": "Some labels",
+              "points": 1,
+              "descriptor": "Some parts are labeled; sizes or processes are missing on others."
+            },
+            {
+              "label": "Absent",
+              "short": "No labels",
+              "points": 0,
+              "descriptor": "No sizes or processes."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "u4d-select",
+      "title": "Score and pick (team)",
+      "blocks": [
+        {
+          "id": "u4d-wot-ideas",
+          "task": "Name ideas A to D",
+          "type": "table",
+          "field": "wotIdeas",
+          "prompt": "Ideas A to D: whose sketch, and what it is"
+        },
+        {
+          "id": "u4d-wot",
+          "task": "Weighted objectives table",
+          "type": "table",
+          "field": "wot",
+          "prompt": "Weighted objectives table: criteria, weights, scores and what decided each"
+        },
+        {
+          "id": "u4d-pick",
+          "task": "Pick the winning idea",
+          "type": "radio",
+          "field": "pick",
+          "prompt": "Which idea is the team building?"
+        },
+        {
+          "id": "u4d-pick-why",
+          "task": "Why it won",
+          "type": "longText",
+          "field": "pickWhy",
+          "prompt": "Why it won, with its total",
+          "minSentences": 1
+        },
+        {
+          "id": "u4d-interfaces",
+          "task": "Where the four parts meet",
+          "type": "longText",
+          "field": "interfaces",
+          "prompt": "Where the four parts meet",
+          "minSentences": 2
+        }
+      ],
+      "points": 6,
+      "audience": "team",
+      "criteria": [
+        {
+          "id": "select-wot",
+          "text": "Weighted objectives table: 5 criteria, weights summing to 50, every idea scored, a reason on every criterion",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Full table, every reason",
+              "points": 3,
+              "descriptor": "Five criteria, weights total 50, every idea scored 1 to 5, and every criterion says what decided it."
+            },
+            {
+              "label": "Proficient",
+              "short": "One gap",
+              "points": 2,
+              "descriptor": "One of those is missing: a reason, a score, or the weights do not total 50."
+            },
+            {
+              "label": "Developing",
+              "short": "Several gaps",
+              "points": 1,
+              "descriptor": "Fewer than five criteria, or several scores or reasons missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No table",
+              "points": 0,
+              "descriptor": "No table."
+            }
+          ],
+          "points": 3
+        },
+        {
+          "id": "select-pick",
+          "text": "The pick is explained by the table, and the interfaces between the four parts are named",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Pick backed, interfaces named",
+              "points": 3,
+              "descriptor": "The reason names the total, or says why the team overrode it; every subsystem's meeting point is named with how they join."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 2,
+              "descriptor": "The reason or the interfaces are vague (no total, or a meeting point missing)."
+            },
+            {
+              "label": "Developing",
+              "short": "Both thin",
+              "points": 1,
+              "descriptor": "A pick with no reason from the table, and interfaces barely named."
+            },
+            {
+              "label": "Absent",
+              "short": "No pick",
+              "points": 0,
+              "descriptor": "No pick."
+            }
+          ],
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "u4d-frame",
+      "role": "frame",
+      "title": "Frame and mount",
+      "blocks": [
+        {
+          "id": "frame-req",
+          "task": "Frame requirement",
+          "type": "text",
+          "field": "frameReq",
+          "prompt": "Frame and mount: the one requirement it must meet, with its number"
+        },
+        {
+          "id": "frame-sketch",
+          "task": "Frame sketch",
+          "type": "image",
+          "field": "frameSketch",
+          "prompt": "Frame and mount: sketch with sizes"
+        }
+      ],
+      "points": 4,
+      "audience": "role",
+      "criteria": [
+        {
+          "id": "frame-req",
+          "text": "One requirement a measurement can check",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Number, unit, check",
+              "points": 2,
+              "descriptor": "One requirement with a number and a unit that a tape measure, scale or test can check."
+            },
+            {
+              "label": "Developing",
+              "short": "No number",
+              "points": 1,
+              "descriptor": "A requirement with no number, or more than one mixed together."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No requirement."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "frame-sketch",
+          "text": "Subsystem sketch with sizes and how each part is made",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Sizes and processes",
+              "points": 2,
+              "descriptor": "The subsystem drawn with its sizes, its stock or process, and where it meets the others."
+            },
+            {
+              "label": "Developing",
+              "short": "Sizes or processes missing",
+              "points": 1,
+              "descriptor": "Drawn, but sizes or processes are missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No sketch",
+              "points": 0,
+              "descriptor": "No sketch."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "u4d-energy",
+      "role": "energy",
+      "title": "Energy store",
+      "blocks": [
+        {
+          "id": "energy-req",
+          "task": "Energy store requirement",
+          "type": "text",
+          "field": "energyReq",
+          "prompt": "Energy store: the one requirement it must meet, with its number"
+        },
+        {
+          "id": "energy-sketch",
+          "task": "Energy store sketch",
+          "type": "image",
+          "field": "energySketch",
+          "prompt": "Energy store: sketch with sizes"
+        }
+      ],
+      "points": 4,
+      "audience": "role",
+      "criteria": [
+        {
+          "id": "energy-req",
+          "text": "One requirement a measurement can check",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Number, unit, check",
+              "points": 2,
+              "descriptor": "One requirement with a number and a unit that a tape measure, scale or test can check."
+            },
+            {
+              "label": "Developing",
+              "short": "No number",
+              "points": 1,
+              "descriptor": "A requirement with no number, or more than one mixed together."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No requirement."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "energy-sketch",
+          "text": "Subsystem sketch with sizes and how each part is made",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Sizes and processes",
+              "points": 2,
+              "descriptor": "The subsystem drawn with its sizes, its stock or process, and where it meets the others."
+            },
+            {
+              "label": "Developing",
+              "short": "Sizes or processes missing",
+              "points": 1,
+              "descriptor": "Drawn, but sizes or processes are missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No sketch",
+              "points": 0,
+              "descriptor": "No sketch."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "u4d-drive",
+      "role": "drive",
+      "title": "Drive",
+      "blocks": [
+        {
+          "id": "drive-req",
+          "task": "Drive requirement",
+          "type": "text",
+          "field": "driveReq",
+          "prompt": "Drive: the one requirement it must meet, with its number"
+        },
+        {
+          "id": "drive-sketch",
+          "task": "Drive sketch",
+          "type": "image",
+          "field": "driveSketch",
+          "prompt": "Drive: sketch with sizes"
+        }
+      ],
+      "points": 4,
+      "audience": "role",
+      "criteria": [
+        {
+          "id": "drive-req",
+          "text": "One requirement a measurement can check",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Number, unit, check",
+              "points": 2,
+              "descriptor": "One requirement with a number and a unit that a tape measure, scale or test can check."
+            },
+            {
+              "label": "Developing",
+              "short": "No number",
+              "points": 1,
+              "descriptor": "A requirement with no number, or more than one mixed together."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No requirement."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "drive-sketch",
+          "text": "Subsystem sketch with sizes and how each part is made",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Sizes and processes",
+              "points": 2,
+              "descriptor": "The subsystem drawn with its sizes, its stock or process, and where it meets the others."
+            },
+            {
+              "label": "Developing",
+              "short": "Sizes or processes missing",
+              "points": 1,
+              "descriptor": "Drawn, but sizes or processes are missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No sketch",
+              "points": 0,
+              "descriptor": "No sketch."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "u4d-ballpath",
+      "role": "ballpath",
+      "title": "Ball path",
+      "blocks": [
+        {
+          "id": "ballpath-req",
+          "task": "Ball path requirement",
+          "type": "text",
+          "field": "ballpathReq",
+          "prompt": "Ball path: the one requirement it must meet, with its number"
+        },
+        {
+          "id": "ballpath-sketch",
+          "task": "Ball path sketch",
+          "type": "image",
+          "field": "ballpathSketch",
+          "prompt": "Ball path: sketch with sizes"
+        }
+      ],
+      "points": 4,
+      "audience": "role",
+      "criteria": [
+        {
+          "id": "ballpath-req",
+          "text": "One requirement a measurement can check",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Number, unit, check",
+              "points": 2,
+              "descriptor": "One requirement with a number and a unit that a tape measure, scale or test can check."
+            },
+            {
+              "label": "Developing",
+              "short": "No number",
+              "points": 1,
+              "descriptor": "A requirement with no number, or more than one mixed together."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "No requirement."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "ballpath-sketch",
+          "text": "Subsystem sketch with sizes and how each part is made",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Sizes and processes",
+              "points": 2,
+              "descriptor": "The subsystem drawn with its sizes, its stock or process, and where it meets the others."
+            },
+            {
+              "label": "Developing",
+              "short": "Sizes or processes missing",
+              "points": 1,
+              "descriptor": "Drawn, but sizes or processes are missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No sketch",
+              "points": 0,
+              "descriptor": "No sketch."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    }
+  ],
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
+  "schemaVersion": 3
+}
