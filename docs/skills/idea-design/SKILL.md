@@ -1,6 +1,6 @@
 ---
 name: idea-design
-description: Make anything visual for IDEA or FRC Team 5669 - a deck, doc, web page, HTML assignment's look, flyer, trifold, poster, icon, logo use, email design or app screen - in the current look of ideabosco.com.
+description: Make anything visual for IDEA or FRC Team 5669 - a deck, doc, web page, HTML assignment's look, flyer, trifold, poster, icon, logo use, survey, email design or app screen - in the current look of ideabosco.com.
 ---
 
 # IDEA design
@@ -18,8 +18,9 @@ Source of truth: `docs/skills/idea-design/SKILL.md` in pina-hash/idea-app. The d
 - **Plate grammar.** Raised means pressable, inset means read-only. Keys are raised graphite with mono caps labels; status chips are recessed with a small lamp; panels are soft graphite plates; titles are spaced mono caps on a groove between hazard ends.
 - **Rounded plus chamfered, gray gradients, a little glow.** Premium, never kiddy, never bare minimum. It should look like it belongs on the site, not like a template.
 - **Green is rationed.** It marks the primary action, the active item, done, progress. Not the fill, not every heading. Other colors only when they make something clearer, each with a meaning.
+- **Color by content.** Every color is chosen for what it stands for, and the anchor is written down: the subject's own colors, a brand (SolidWorks red and white), a material (copper, bare aluminum), a standard (ANSI safety yellow), an association the reader already has (red and blue alliances). Things that each have an identity (tracks, machines, vendors, roles) each get their own fixed color, the same everywhere they appear, never a decorative gradient and never a habitual cyan to violet. Identity colors mark identity only (stripe, badge, icon); keys and status keep the site's meanings. A pale identity color is a filled badge with dark ink, not an outline. A color with no anchor is a guess: replace it. (`IDEA_HTML_ASSIGNMENT_AUTHORING.md` D3.)
 - **Type is the site's.** Rajdhani for text (about 17px, weight 500 on screens), Share Tech Mono for labels and numbers, Orbitron only in the wordmark.
-- **Never**: neon greens or cyans (#00FF41, #C8FF00, #00F0FF), the // motif, grid or blueprint backgrounds outside a real chart, scanlines, matrix rain, Chakra Petch, flat machined-green slabs, orange, yellow-brown or pink accents, stark white image rectangles, emoji as decoration.
+- **Never**: neon greens or cyans (#00FF41, #C8FF00, #00F0FF), the // motif, grid or blueprint backgrounds outside a real chart, scanlines, matrix rain, Chakra Petch, flat machined-green slabs, orange, yellow-brown or pink as UI accents (as a real identity color of the content they are fine, see Color by content), stark white image rectangles, emoji as decoration.
 - **Space.** Dead space is a defect (check at 960, 1440 and a phone). Say less: one line per idea, detail behind a disclosure.
 - **Images** composited into the page: rounded, shadowed or on a plate; relevant; transparent icons with no square behind them.
 - **Logo**: the full mark with the gear on print and covers; the light variants on space-white. Files are in the design system's Logos group. Never redraw it.

@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.4 - 2026-10-26**
+**Version 2.5 - 2026-10-26**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -122,7 +122,8 @@ The brief, as short bullets he can react to on his phone:
 5. **The problem they solve themselves** (A4) and **the stretch** (A8).
 6. **The shape.** Classes, phases and steps (Part C), the post it lives in, points.
 7. **Facts to confirm.** Every lab or equipment fact the assignment will assert (A9).
-8. **The look.** The subject palette and the picture in the header (Part D).
+8. **The look.** The subject palette, or each item's identity color, with the real-world
+   anchor of every color, and the picture in the header (Part D).
 
 Approved, the brief is pasted as a comment at the top of the source file, all eight items, so
 the next chat that touches it inherits the intent (the starter's comment is the model; a
@@ -236,6 +237,26 @@ others:
   chose, and the examples in this section steered the rest there too. Use that band only when
   the subject itself is that color, and say so in the brief; the test warns otherwise.
   Never within 60 degrees of the course's previous assignment's pair.
+- **Every color is chosen for what it stands for (Mr. Pina, 2026-10-26).** A color is
+  picked because of the content it marks, never because it looks nice next to its neighbors:
+  the subject's own colors, a brand (SolidWorks red and white), a material (copper wire, bare
+  aluminum, hot steel), a standard (ANSI safety yellow), an association the reader already
+  has (the red and blue alliances). The brief's look item names every color with its anchor;
+  a color with no anchor is a guess and is replaced before the build.
+- **Items with their own identity each get their own fixed color, never a gradient.** When a
+  page lists things that each have a real-world identity (training tracks, machines,
+  materials, vendors, software, alliances, roles), each takes the color of that identity, not
+  a step along one spectrum: a cyan-blue-violet run across eight FRC tracks had "no
+  establishment there" (Mr. Pina). Set it on the item as `--trk` (with `--trk-ink` for text
+  on it, and `--hx-ink` pointed at it so the kit's figures follow). It marks identity only:
+  the item's stripe, badge, icon, its own lit chips and its selected outline; never a key, a
+  status chip or a done mark, because D2's meanings hold (green is next and done, red is a
+  number that must change). The same item keeps the same color on every page that shows it,
+  so a student learns it once. A pale identity color (yellow, gold, aluminum) is used as a
+  filled badge with dark ink, never as an outline or thin icon: on space-white an outline in
+  those colors fails 4.5:1. The FRC 5669 Training Library is the model: Shop safety yellow,
+  SolidWorks red, aluminum, copper, code-editor blue, Bambu green, alliance red and blue,
+  Techmen gold.
 - **Candidates, not one guess.** The palette is a taste call: render two to five on the real
   page (first screen and the thumbnail) and let him pick.
 - **A header picture of the real subject** (the part, the tool, the machine), drawn as SVG on
@@ -572,6 +593,13 @@ new term.
 
 ## Changelog
 
+- **2.5 (2026-10-26).** Ledger 0440. Mr. Pina, reviewing the FRC Training Library's Start
+  Here ladder: the cyan-blue-violet run across eight tracks had "no establishment there"; he
+  asked for colors "unique per track", with SolidWorks CAD in SolidWorks red and white, and
+  then for every HTML's colors to be "chosen for their content and relevancy". D3 gains two
+  rules: every color carries a named real-world anchor, and sibling items with their own
+  identity each take a fixed identity color on identity marks only, with D2's chrome meanings
+  kept and pale colors used as filled badges. Part B item 8 now lists each color's anchor.
 - **2.4 (2026-10-26).** Ledger 0439. Mr. Pina: "Everything's just cyan, blue, purple now."
   Root cause, measured: nothing in the kit read `data-hue-from`/`data-hue-to`, so every kit
   page rendered kit.css's default 195 to 290 whatever its author set, and D3's examples plus
