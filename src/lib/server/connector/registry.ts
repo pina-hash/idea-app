@@ -35,8 +35,13 @@ export interface ArgSpec {
 	name?: string;
 	/** On a function entry: the value sent when the argument is left out (null included). */
 	default?: unknown;
-	/** On a function entry: the server fills the argument when it is left out (`uuid`: a fresh id). */
-	fill?: 'uuid';
+	/**
+	 * On a function entry: the server fills the argument when it is left out
+	 * (`uuid`: a fresh id; `fields`: the names of the arguments the call gave,
+	 * other than the record it acts on, ledger 0438, so an edit changes only
+	 * what was said).
+	 */
+	fill?: 'uuid' | 'fields';
 }
 
 export interface UndoAlternative {
@@ -446,7 +451,7 @@ export interface CallArg {
 	/** Present when the overlay gives a value for a left-out argument. */
 	hasDefault?: boolean;
 	default?: unknown;
-	fill?: 'uuid';
+	fill?: 'uuid' | 'fields';
 }
 
 /** A function entry's arguments, by spoken name where the overlay gives one. */

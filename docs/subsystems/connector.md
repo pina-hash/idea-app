@@ -204,4 +204,12 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
   `undo_last` takes the batch back, and `returnHeld` returns what was held with
   the score it already has. A team assignment is graded by team through
   `classroom_grade_team` (a hand entry, asks first), never through `grade`.
+- **AN EDIT NAMES ITS FIELDS (ledger 0438, gap 4353a482).** PostgREST cannot
+  tell a field left out from one sent as null, so `classroom_update_item`
+  (0311) takes `p_fields`, and an argument with `fill: fields` is filled by
+  `site_call` with the names of the arguments he gave (never the post itself).
+  `set_points` and `set_due` name their one field. Left null, the call is the
+  item editor's full edit, unchanged. `tests/db/connector-edit-post.test.ts`
+  replays the 2026-10-26 call that emptied a live post and reads every other
+  column back.
 

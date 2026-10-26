@@ -1264,10 +1264,12 @@
 		"classroom_update_item": {
 			"surface": "call",
 			"level": "undo",
-			"describe": "Edit a post's title, text, points, due date or category; the set points tool and the set due tool are the usual way in.",
+			"describe": "Edit a post's title, text, points, due date or grading category; only what is said changes and everything else is kept.",
 			"say": [
 				"rename Tolerance Check",
 				"change the text of the syllabus post",
+				"set a post's grading category",
+				"put the Launcher post in the Design category",
 				"edit the Shop Fix's category"
 			],
 			"args": {
@@ -1316,7 +1318,8 @@
 				},
 				"p_fields": {
 					"name": "changing",
-					"describe": "The fields this edit changes, so nothing else changes."
+					"fill": "fields",
+					"describe": "Filled by the site with the fields said, so nothing else changes."
 				}
 			},
 			"undo": [
@@ -10879,6 +10882,10 @@
 				"linkName": {
 					"type": "string",
 					"describe": "For a notice: what the link key says after Open, like Tournament bracket."
+				},
+				"category": {
+					"type": "string",
+					"describe": "For an assignment or material: its grading category, like Design."
 				}
 			}
 		},

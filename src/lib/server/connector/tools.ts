@@ -1102,6 +1102,7 @@ async function createPost(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput>
 				p_body: body,
 				p_points: kind === 'assignment' ? (num(args.points) ?? null) : null,
 				p_due_at: kind === 'assignment' ? due.iso : null,
+				p_category: str(args.category) ?? null,
 				p_published: bool(args.published) ?? true
 			}
 		},
@@ -1111,6 +1112,10 @@ async function createPost(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput>
 }
 
 async function updateItem(ctx: ToolContext, tool: string, p: PostRow, change: { points?: number | null; due?: string | null }, opts: WriteOptions) {
+	// ONLY THE FIELD BEING CHANGED IS NAMED (ledger 0438, 0311): the stored
+	// values ride along for an older database, but with the names given the
+	// edit cannot touch anything else.
+	const fields = [...(change.points !== undefined ? ['p_points'] : []), ...(change.due !== undefined ? ['p_due_at'] : [])];
 	return write(
 		ctx,
 		{
@@ -1126,7 +1131,8 @@ async function updateItem(ctx: ToolContext, tool: string, p: PostRow, change: { 
 				p_published: p.published,
 				p_resources: null,
 				p_body_doc: p.body_doc ?? null,
-				p_publish_at: p.publish_at
+				p_publish_at: p.publish_at,
+				p_fields: fields
 			},
 			before: { points: p.points, due_at: p.due_at }
 		},
@@ -1969,11 +1975,17 @@ async function siteCallEntry(ctx: ToolContext, entry: FunctionEntry, args: ToolA
 		out[param.param] = r.value;
 	}
 	const filled: string[] = [];
+	// THE FIELDS HE NAMED (ledger 0438, gap 4353a482): an edit sends the names
+	// of what was said, so every field left out keeps what is stored. Taken
+	// before any default is added below, and never the record it acts on.
+	const named = Object.keys(out).filter((k) => params.find((p) => p.param === k)?.resolve !== 'post');
 	for (const p of params) {
 		if (p.param in out) continue;
 		if (p.fill === 'uuid') {
 			out[p.param] = freshUuid(ctx);
 			filled.push(p.param);
+		} else if (p.fill === 'fields') {
+			out[p.param] = named;
 		} else if (p.hasDefault) out[p.param] = p.default ?? null;
 	}
 	const missing = params.filter((p) => p.required && !(p.param in out)).map((p) => p.name);

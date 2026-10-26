@@ -90,6 +90,7 @@ create_post:
     important: {type: boolean, describe: "For a notice: true to mark it important so it stands out at the top."}
     link: {type: string, describe: "For a notice: a web address to put on it as a key."}
     linkName: {type: string, describe: "For a notice: what the link key says after Open, like Tournament bracket."}
+    category: {type: string, describe: "For an assignment or material: its grading category, like Design."}
 
 set_points:
   facade: true

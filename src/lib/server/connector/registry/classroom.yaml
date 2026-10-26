@@ -47,8 +47,8 @@ classroom_create_item:
 classroom_update_item:
   surface: call
   level: undo
-  describe: Edit a post's title, text, points, due date or category; the set points tool and the set due tool are the usual way in.
-  say: ["rename Tolerance Check", "change the text of the syllabus post", "edit the Shop Fix's category"]
+  describe: Edit a post's title, text, points, due date or grading category; only what is said changes and everything else is kept.
+  say: ["rename Tolerance Check", "change the text of the syllabus post", "set a post's grading category", "put the Launcher post in the Design category", "edit the Shop Fix's category"]
   args:
     p_id: {name: post, resolve: post, describe: "The post."}
     p_title: {name: title, describe: "The new title."}
@@ -60,7 +60,7 @@ classroom_update_item:
     p_resources: {name: links, describe: "The post's links, each with a url and a label."}
     p_body_doc: {name: document, describe: "The text as a document in the site's document shape."}
     p_publish_at: {name: showing, resolve: due, describe: "When it shows to students."}
-    p_fields: {name: changing, describe: "The fields this edit changes, so nothing else changes."}
+    p_fields: {name: changing, fill: fields, describe: "Filled by the site with the fields said, so nothing else changes."}
   undo:
     - function: classroom_restore_revision
       args: {p_revision_id: $written.classroom_content_revisions.id}
