@@ -29,13 +29,19 @@ Fix every FAIL or write down why not.
 
 Give a second fresh agent only the screenshots (not the source, not the brief) and this prompt:
 
-> You are a ninth grader who has never seen this assignment. Looking only at these screens: what do you do first, how do you know a step is done, and how do you know the whole thing is done? Then answer as the slowest student in the class, and as a teacher grading it cold with no explanation. Name every place you would hesitate or guess.
+> Play four people meeting this assignment cold, looking only at these screens, one after another:
+> 1. **Maya**, a strong 10th grader who moves fast and skims.
+> 2. **Jordan**, an average 10th grader who does what the page says and nothing more.
+> 3. **Theo**, a 10th grader who missed the first day of the project and has no idea what the team already decided.
+> 4. **The Block 4 teacher**, who has no Claude access, did not build this, and must run the class and grade it with no explanation.
+>
+> For each: what do you do first, how do you know a step is done, how do you know the whole thing is done, and where exactly would you get stuck or have to guess? Quote the screen text that caused it.
 
-Any hesitation is a finding. Then run the persona audit in `IDEA_HTML_DESIGN_DIRECTIONS.md` section 4.
+Any place one of them gets stuck or guesses is a finding, fixed before posting. The teacher's answers decide whether Block 4 can run it with nothing unwritten. Then run the persona audit in `IDEA_HTML_DESIGN_DIRECTIONS.md` section 4.
 
 ## 4. The practicality pass
 
-Walk every instruction against the real tool, the real room and the real stock (AUTHORING A9, L23): the button names in the current version of the software, where things actually live, what the machines actually do, what students actually have. List every lab or equipment fact the file asserts and confirm each with Mr. Pina. Never assert one he has not confirmed.
+Walk every instruction against the real tool, the real room and the real stock (AUTHORING A9, L23), and recompute every worked example's arithmetic from its inputs (AUTHORING A6): the button names in the current version of the software, where things actually live, what the machines actually do, what students actually have. List every lab or equipment fact the file asserts and confirm each with Mr. Pina. Never assert one he has not confirmed.
 
 ## 5. Mr. Pina's cold open
 

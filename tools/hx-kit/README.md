@@ -18,7 +18,7 @@ the test bundles the real importer check from `src/`).
 |---|---|
 | `starter.src.html` | A complete small assignment using every component. Copy it; replace everything under the manifest. |
 | `starter.html` | The starter, built. It passes `test.mjs` with no FAIL. |
-| `build.mjs` | Inlines the kit at two markers: `<!-- hx:head -->` (fonts, tokens for both themes, the Plate, `kit.css`) and `<!-- hx:script -->` (`bridge.js`, `kit.js`, `team.js`). Refuses a source that starts the page itself, and reports the size against the 2 MB import cap. |
+| `build.mjs` | Inlines the kit at two markers: `<!-- hx:head -->` (fonts, tokens for both themes, the Plate, `kit.css`) and `<!-- hx:script -->` (`bridge.js`, `kit.js`, `team.js`, `camera.js`). Refuses a source that starts the page itself, and reports the size against the 2 MB import cap. |
 | `test.mjs` | The automatic test. Serves the built file under the real served policy (bundled from `src/routes/hx/_headers.ts` and `bridge.ts` on every run) inside `host.html`, a stand-in for the classroom item page, and drives it like a student and a grader. Writes `report.md`, `report.json` and screenshots. Exit 1 on any FAIL. |
 | `host.html` | The classroom stand-in: the shell's geometry at 1024px and up, and the portal's half of the bridge (echoes with one in three stale, 800 ms saves, read-only, theme, picture boxes). |
 | `kit/tokens.json` | The IDEA Design System's tokens, copied from the Design System artifact (its `meta` says which `main` commit it was synced from). Refresh it when the design system changes. |
@@ -27,6 +27,7 @@ the test bundles the real importer check from `src/`).
 | `kit/bridge.js` | The bridge client, verbatim from `IDEA_HTML_ASSIGNMENT_BRIEF.md` 6.1 to 6.5. Change both together. |
 | `kit/kit.js` | Pages, not one long scroll: one step on screen, the bar, the plan strip, arrival from saved answers, List view for a grader, tap tips, the sentence counter. |
 | `kit/team.js` | Team posts (`IDEA_HTML_ASSIGNMENT_SPEC.md` section 16): box focus and blur for the portal's lock, a box a teammate holds or owns drawn read only with the words beside it, a teammate's saved answer replacing this page's in a shared box, role panels and owners, and the team tracker. Inert in a worksheet that is not a team post. |
+| `kit/camera.js` | A phone's camera: on a touch screen every picture box gets a Take photo key beside Choose that opens the camera directly, and a photo over 1.5 MB is shrunk to a 2400 px longest side at JPEG 0.85 before it is sent. Hidden on a computer; nothing for an author to write. |
 
 ## The source, in brief
 

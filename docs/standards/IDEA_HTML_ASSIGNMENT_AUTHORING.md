@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.6 - 2026-10-26**
+**Version 2.7 - 2026-10-26**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -66,7 +66,10 @@ problem the student must work through themselves: a choice with a wrong answer, 
 they must find, a fix they must design, a result they must explain. A walkthrough with
 nothing to decide teaches clicking. **A question whose answer is printed beside it checks
 nothing**: ask about a different instance than the one shown (the starter shows 0.512 in and
-asks about a display reading 12.70 mm).
+asks about a display reading 12.70 mm). **A rules check never gives its answer away in the
+question**: the stem names a situation, never the rule's own words, and no option is the only
+one that repeats the stem's wording (Launcher: Design's "Ana owns Drive. Who can type in the
+Drive boxes?" is the shape; "Only the owner may edit an owned box. Who may edit it?" is not).
 
 **A5. Evidence Mr. Pina grades, and the bar is visible.** No file analyzer: SolidWorks work
 varies too much. A student proves the skill with evidence of their own work (a screenshot
@@ -77,7 +80,10 @@ high quality looks like, in the evidence panel, before the student starts.
 **A6. Examples are copy-proof.** Some students copy or paraphrase any example. An example
 shows the standard on a different part, problem or scenario than the one the student must
 do, so the bar is clear and the answer cannot be lifted (the kit's `hx-example` panel labels
-itself "different part, same standard").
+itself "different part, same standard"). **Every worked example is checked by arithmetic
+before posting**: each number in it recomputed from its inputs (sums, weights to 50,
+conversions, totals), by a fresh agent or a script, never by eye. A worked example with a wrong
+total teaches the wrong total to every student who copies its method (Part H, gate 5).
 
 **A7. AI is a tool, used responsibly.** Mr. Pina encourages AI to elevate work and does not
 ban it. AI augments a student; it never replaces their work or their understanding. So an
@@ -227,7 +233,10 @@ others:
   phase color at 4.5:1 in both themes, FAILS a page whose rendered palette is not the one
   declared, and FAILS a hue inside the site's green (120 to 160, which means done). Amber and
   red keep their meaning in the chrome because chrome states carry words; a warm subject
-  palette is allowed.
+  palette is allowed. **Avoid hues 40 to 105 for a page's main hue**: in the light theme the
+  kit's fixed lightness turns that band brown (a yellow or orange subject reads as mud on
+  space-white). Run it through that band only as a short stretch of a wider spectrum, or take
+  the subject's color from either side of it, and check the light-theme screenshot.
 - **Pick the spectrum from the real subject's own colors**, never from a habit: the material,
   the machine, the part, the theme of the project. Combat and fabrication run warm (sparks,
   hot steel, copper, bronze); a printed part takes the filament's color; a calendar or
@@ -431,7 +440,13 @@ counts it too**: when the pick makes the box necessary, the page drops its `data
 **F10. Hand-ins.** **Where a paste goes is always marked**: the kit outlines the target box and
 labels it "Ctrl+V pastes here", and clicking or tabbing to another box moves the mark (two
 boxes on one screen otherwise leave a student guessing). An optional picture box sits in the
-open, never behind a disclosure a student has to discover. Pictures: paste or choose, one upload at a time, a box the portal draws
+open, never behind a disclosure a student has to discover. **Every picture box works with a
+phone camera**, and the author writes nothing for it: on a touch screen the kit puts a "Take
+photo" key beside Choose that opens the camera directly, and shrinks a photo over 1.5 MB to a
+2400 px longest side at JPEG 0.85 before it is sent, so a 12 MP sketch photo lands on school
+Wi-Fi (`tools/hx-kit/kit/camera.js`; on a computer the key stays hidden; `test.mjs` checks both
+in an emulated phone). A picture box that accepts only `.png` refuses the shrunk `.jpg`, so a
+photo box accepts `.jpg`. Pictures: paste or choose, one upload at a time, a box the portal draws
 the stored copy into (`data-image-box`, L10b). Files that are not pictures: the extension
 checked in words, success read off `idea:state`, replace means remove first (L9b; the
 portal appends a new row on every upload, so a document that skips Remove piles up old
@@ -457,7 +472,10 @@ fighting) and the post's own subject palette, never the same render on the same 
 The wide and banner shapes center the picture and the title together as one group, with
 equal margins left and right, so a unit's banners line up in the class list (Mr. Pina,
 2026-10-26, IDEA-Blade 01 centered beside IDEA-Blade 02 pulled left). The starter's template
-already does; never add `justify-content: flex-start` to a shape.
+already does; never add `justify-content: flex-start` to a shape. **Thumbnail and banner text
+is sized from `--idea-thumb-h`**, the shape's own height, never from `vh` or the window: the
+same thumbnail draws at 56 px tall in a class list's banner and full size on the post, and text
+sized from the viewport is unreadable in the banner. Check the 56 px banner render.
 
 **F15. Teams**: `idea:team-progress` reaches the document with each teammate's progress
 (audit); a team assignment may show it. Teams of two in a class of threes fold one role
@@ -489,7 +507,14 @@ prediction before any filing (the IDEA209H Shop Fix Build Log pattern).
 
 **G5. Design** (sketch, CAD, decide). Paper before CAD: a concept sketch per student, the
 team picks one; the real part drawn from the instructor's template; fixes drawn before and
-after on the earlier part's geometry (L15, L16, L21).
+after on the earlier part's geometry (L15, L16, L21). **A project starts with a timed
+research step before any sketching**: real links to look at (actual builds, articles, a parts
+vendor's page) and the exact image and video search terms to type, a time box ("12 minutes"),
+and one thing to bring back from it (a mechanism they would copy, a photo saved to the team
+document). Sketching from nothing produces the first idea anyone had. **A team post explains the
+team document in plain words** before its first shared box: who owns which box, that a box with
+"X is editing" under it is locked while that teammate types, that a box someone else owns is
+read only for you, and what to do when the owner is absent.
 
 **G6. Results stage** (after an event). The first pick decides what else is asked; the
 earlier prediction beside the result, worked out in words (L20).
@@ -524,12 +549,14 @@ work**: every gate below is an outside judge.
    line shows when everything is in. **Then look at its screenshots.**
 3. **The rule audit by a fresh agent** that has seen neither the build nor the chat: this
    file and the built document, PASS or FAIL with the line for every rule that applies (L21).
-4. **The cold open by a fresh agent**: given only the screenshots and the file, it answers
-   "what do you do first, and how do you know you are done?" for a first-timer, the slowest
-   student and a grader. Any hesitation is a finding. Then the persona audit (Design
+4. **The cold open by a fresh agent**: given only the screenshots and the file, it plays three
+   named 10th graders (one strong, one average, one who missed the first day of the project)
+   and the Block 4 teacher, who has no Claude access and grades cold, and each reports where
+   they would get stuck or guess (the idea-html-test skill holds the prompt). Any hesitation is a finding. Then the persona audit (Design
    Directions 4).
 5. **The practicality pass**: every instruction walked against the real tool, the real room
-   and the real stock; every fact on the brief's list confirmed with Mr. Pina (A9, L23).
+   and the real stock; every fact on the brief's list confirmed with Mr. Pina (A9, L23); every
+   worked example's arithmetic recomputed from its inputs (A6).
 6. **Mr. Pina's cold open**: he opens it with no explanation. Any confusion is a fail, fixed
    before posting.
 7. **A two-student pilot** before the whole class, for a new kind of assignment: two
@@ -610,6 +637,16 @@ new term.
 ---
 
 ## Changelog
+
+- **2.7 (2026-10-26).** Ledger 0443. From Mr. Pina's work on Unit 4's Launcher: Design: F10,
+  every picture box works with a phone camera through the kit (`tools/hx-kit/kit/camera.js`;
+  measured 2026-10-26: a 35 MB test JPEG sent as 0.22 MB, and `test.mjs` gains a phone gate);
+  A4, a rules check never gives its answer in the question; A6 and Part H gate 5, every worked
+  example's arithmetic is recomputed before posting; G5, a project opens with a timed research
+  step with real links and search terms, and a team post explains the team document in plain
+  words; F14, thumbnail and banner text sized from `--idea-thumb-h`, never `vh`; D3, avoid hues
+  40 to 105 for a page's main hue, which the light theme turns brown; Part H gate 4, the cold
+  open plays three named 10th graders and the Block 4 teacher.
 
 - **2.6 (2026-10-26).** Ledger 0442. From Mr. Pina's pass on IDEA-Blade 02 before class: E1,
   moving between steps never moves the page (measured: the old kit moved a track segment up

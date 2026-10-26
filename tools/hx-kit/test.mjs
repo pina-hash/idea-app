@@ -119,8 +119,8 @@ await new Promise((r) => hostServer.listen(HOST_PORT, '127.0.0.1', r));
 
 const { browser } = await launch();
 const consoleErrors = [];
-async function openHost(width, height, extra = {}) {
-	const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+async function openHost(width, height, extra = {}, ctx = {}) {
+	const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, reducedMotion: 'reduce', ...ctx });
 	await context.addInitScript(() => {
 		window.__hxErrors = [];
 		addEventListener('error', (e) => window.__hxErrors.push(String(e.message || e)));
@@ -436,6 +436,64 @@ for (const [w, h, label] of [[1440, 900, 'laptop'], [960, 900, 'half screen'], [
 		(over > 1 ? FAIL : PASS)('layout', `No sideways scroll at ${w}px (${label})`, over > 1 ? `${over}px too wide` : '');
 		shots.push(await shot(v.page, `04-in-classroom-${w}.png`));
 		shots.push(await docShot(v.frame, `05-document-${w}.png`));
+	} finally { await v.context.close(); }
+}
+
+/* ---- 6. a phone's camera (kit/camera.js) ------------------------------- */
+const camFields = Object.entries(fieldInfo).filter(([, b]) => b.type === 'image').map(([f]) => f);
+if (camFields.length) {
+	const v = await openHost(390, 844, {}, { hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+	try {
+		const coarse = await v.frame.evaluate(() => matchMedia('(pointer: coarse)').matches);
+		const keys = await v.frame.evaluate((fs) => fs.map((fd) => {
+			const k = document.querySelector(`[data-capture="${CSS.escape(fd)}"]`);
+			const c = document.querySelector(`[data-choose="${CSS.escape(fd)}"]`);
+			return { field: fd, key: !!k, shown: !!k && getComputedStyle(k).display !== 'none', choose: !!c };
+		}), camFields);
+		const missing = keys.filter((k) => k.choose && !k.shown).map((k) => k.field);
+		const withChoose = keys.filter((k) => k.choose).length;
+		((coarse && !missing.length && withChoose) ? PASS : FAIL)('phone', 'Every picture box shows Take photo on a phone', coarse ? (missing.length ? 'no Take photo on: ' + missing.join(', ') : `${withChoose} of ${camFields.length} picture boxes`) : 'the emulated phone did not report pointer: coarse');
+		const desk = await openHost(1440, 900);
+		try {
+			const shownOnDesk = await desk.frame.evaluate(() => [...document.querySelectorAll('[data-capture]')].filter((k) => getComputedStyle(k).display !== 'none').length);
+			(shownOnDesk ? FAIL : PASS)('phone', 'Take photo stays hidden on a computer', shownOnDesk ? `${shownOnDesk} shown at 1440px with a mouse` : '0 shown at 1440px');
+		} finally { await desk.context.close(); }
+
+		const f = camFields.find((fd) => keys.find((k) => k.field === fd && k.shown));
+		if (f) {
+			await v.frame.evaluate((fd) => { const el = document.querySelector(`[data-field="${CSS.escape(fd)}"]`); if (typeof KIT !== 'undefined') { const i = KIT.steps.findIndex((s2) => s2.el.contains(el)); if (i >= 0) kitShow(i); } }, f);
+			await v.page.waitForTimeout(200);
+			/* A 10 MB photo: a big, mildly noisy picture saved at full quality, made in the browser. */
+			const big = await v.page.evaluate(async () => {
+				for (const [w, h, q] of [[8000, 6000, 1], [9000, 6750, 1], [10000, 7500, 1]]) {
+					const c = document.createElement('canvas'); c.width = w; c.height = h;
+					const g = c.getContext('2d');
+					const grad = g.createLinearGradient(0, 0, w, h); grad.addColorStop(0, '#e8e2d4'); grad.addColorStop(1, '#9aa4b1'); g.fillStyle = grad; g.fillRect(0, 0, w, h);
+					const tile = g.createImageData(512, 512);
+					for (let i = 0; i < tile.data.length; i += 4) { const n = (Math.random() * 90) | 0; tile.data[i] = n; tile.data[i + 1] = n; tile.data[i + 2] = n; tile.data[i + 3] = 60; }
+					const t = document.createElement('canvas'); t.width = 512; t.height = 512; t.getContext('2d').putImageData(tile, 0, 0);
+					g.fillStyle = g.createPattern(t, 'repeat'); g.fillRect(0, 0, w, h);
+					const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', q));
+					if (blob.size >= 10 * 1048576) { const b = new Uint8Array(await blob.arrayBuffer()); let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768)); return { size: blob.size, b64: btoa(s) }; }
+				}
+				return null;
+			});
+			if (!big) WARN('phone', 'A 10 MB photo goes in under 2 MB', 'could not make a 10 MB test photo in this browser');
+			else {
+				const chooserP = v.page.waitForEvent('filechooser', { timeout: 5000 }).catch(() => null);
+				await (await v.frame.$(`[data-capture="${f}"]`)).tap();
+				const chooser = await chooserP;
+				const cap = chooser ? await chooser.element().getAttribute('capture') : null;
+				((chooser && cap === 'environment') ? PASS : FAIL)('phone', 'Take photo opens the camera', chooser ? `file chooser opened, capture=${cap}` : 'no file chooser opened');
+				if (chooser) {
+					await chooser.setFiles({ name: 'sketch.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(big.b64, 'base64') });
+					await v.page.waitForFunction((fd) => window.__host.images()[fd], f, { timeout: 30000 }).catch(() => null);
+					const got = await v.page.evaluate((fd) => window.__host.images()[fd] || null, f);
+					const ok = got && got.bytes < 2 * 1048576;
+					(ok ? PASS : FAIL)('phone', 'A 10 MB photo goes in under 2 MB', got ? `${(big.size / 1048576).toFixed(1)} MB in, ${(got.bytes / 1048576).toFixed(2)} MB sent as ${got.name}` : 'the photo never reached the portal');
+				}
+			}
+		}
 	} finally { await v.context.close(); }
 }
 

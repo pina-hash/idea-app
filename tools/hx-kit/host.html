@@ -81,7 +81,7 @@
         return;
       case 'idea:image':
         if (!known(d.field) || typeof d.name !== 'string' || typeof d.bytes !== 'string') { S.dropped.push('image ' + d.field); return; }
-        setTimeout(function () { S.images[d.field] = { url: '/api/classroom/attachment/test-' + d.field, name: d.name, caption: '' }; postState(); saved(); }, 300);
+        setTimeout(function () { S.images[d.field] = { url: '/api/classroom/attachment/test-' + d.field, name: d.name, caption: '', bytes: Math.floor((d.bytes.length - d.bytes.indexOf(',') - 1) * 3 / 4) }; postState(); saved(); }, 300);
         return;
       case 'idea:image-remove':
         if (!known(d.field)) { S.dropped.push('image-remove ' + d.field); return; }

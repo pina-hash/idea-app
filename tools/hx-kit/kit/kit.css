@@ -306,3 +306,7 @@ details.hx-more > summary {
 .hx-sched li { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: baseline; }
 .hx-sched-day, .hx-sched-state { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; }
 .hx-sched li[data-state="done"] .hx-sched-title { opacity: 0.6; }
+
+/* ---- Phone camera (kit/camera.js): Take photo shows on touch screens only. */
+.hx-capture { display: none !important; }
+@media (pointer: coarse) { .hx-capture { display: inline-flex !important; } }

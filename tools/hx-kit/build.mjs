@@ -93,7 +93,7 @@ export function kitHead() {
 }
 
 export function kitScript() {
-	for (const f of ['bridge.js', 'kit.js', 'team.js']) {
+	for (const f of ['bridge.js', 'kit.js', 'team.js', 'camera.js']) {
 		if (/<\/script/i.test(readFileSync(join(KIT, f), 'utf8'))) throw new Error(`kit/${f} contains a closing script tag, which would end the inlined script early.`);
 	}
 	return (
@@ -103,6 +103,8 @@ export function kitScript() {
 		readFileSync(join(KIT, 'kit.js'), 'utf8') +
 		'\n' +
 		readFileSync(join(KIT, 'team.js'), 'utf8') +
+		'\n' +
+		readFileSync(join(KIT, 'camera.js'), 'utf8') +
 		'\n</script>'
 	);
 }
