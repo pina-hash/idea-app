@@ -63,14 +63,16 @@ describe('0307 the rules', () => {
 		await db?.stop();
 	});
 
-	it('is safe to paste and re-applies; the draw board keeps its one form and the burn-up board has its own name', async () => {
+	it('is safe to paste and re-applies; both board forms stand and each answers its own call', async () => {
 		expect(pasteTrap(migrationSql('0307'))).toEqual([]);
 		await db.sql(migrationSql('0307'));
 		const forms = await db.sql<{ args: string }>(
-			"select pg_get_function_identity_arguments(p.oid) as args from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'classroom_team_board'"
+			"select pg_get_function_identity_arguments(p.oid) as args from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'classroom_team_board' order by 1"
 		);
-		expect(forms.rows.map((r) => r.args)).toEqual(['p_section_id uuid']);
-		expect((await rpc<{ ok: boolean }>(f.admin, 'public.classroom_team_plans_board()')).ok).toBe(true);
+		expect(forms.rows.map((r) => r.args)).toEqual(['', 'p_section_id uuid']);
+		// No payload binds to both: the burn-up board takes nothing, the draw board its class.
+		expect((await rpc<{ ok: boolean; teams: unknown[] }>(f.admin, 'public.classroom_team_board()')).ok).toBe(true);
+		expect(await rpc<unknown>(f.admin, 'public.classroom_team_board(p_section_id => $1::uuid)', [f.sectionA])).toBeTruthy();
 	});
 
 	it('teams of 3 and 4 only, for every class size that allows it, and never 2 or 5', async () => {

@@ -1,6 +1,6 @@
 -- 0307_classroom_team_voice.sql
 --
--- TEAMS BY VOICE, AND THE BOARD'S OWN NAME (ledger 0436, IDEA209H Unit 4;
+-- TEAMS BY VOICE (ledger 0436, IDEA209H Unit 4;
 -- Mr. Pina's addendum 2 of 2026-10-26: "Teams must be fully manageable from
 -- the IDEA Website connector, by voice").
 --
@@ -21,21 +21,18 @@
 --     with no saved work), classroom_rename_team (returns the old name, so
 --     undo puts it back).
 --
--- AND A NAME FIXED. 0306 created classroom_team_board() for the burn-up board,
--- which is an overload of 0223's classroom_team_board(uuid), the People tab's
--- draw board and a connector read. Two forms of one name is the overload trap
--- (docs/subsystems/database.md), so the burn-up board becomes
--- classroom_team_plans_board() and the no-argument form is dropped. Nothing
--- reads the board through the old name but the page this ledger shipped, and
--- its next deploy names the new one.
+-- AND A NAME KEPT, ON PURPOSE. 0306's burn-up board is classroom_team_board()
+-- beside 0223's classroom_team_board(uuid), the People tab's draw board. The
+-- pair is resolvable (the one form takes no argument, the other one required
+-- uuid with no default, so no payload binds to both). Renaming it was tried in
+-- this file before it ever ran and refused by the Migrate probe: a drop of
+-- either form reads, by name, as retiring 0225's function, and 0225 has no
+-- history row to answer for it. So nothing here drops or renames it.
+
+-- DEPLOY ORDERING: none for the site; the connector entries naming these
+-- functions answer "could not find the function" until it is applied.
 --
--- DEPLOY ORDERING: apply before the client that names
--- classroom_team_plans_board deploys; between the two the board page reads
--- "could not be read" and retries. No team draw is posted yet.
---
--- WHAT UNDOES IT, a person's paste: re-run 0306's classroom_team_board() with
--- its grant lines, then
---   drop function if exists public.classroom_team_plans_board();
+-- WHAT UNDOES IT, a person's paste:
 --   drop function if exists public.classroom_preview_team_draw(uuid, integer, text[], bigint);
 --   drop function if exists public.classroom_draw_teams(uuid, integer, text[], bigint, boolean, text);
 --   drop function if exists public._classroom_team_draw(uuid, integer, text[], bigint);
@@ -50,76 +47,11 @@ begin
 	if to_regprocedure('public.classroom_save_team_set(uuid, text, bigint, text, integer, jsonb)') is null then
 		raise exception '0307 cannot apply: classroom_save_team_set does not exist. Apply 0223 first.';
 	end if;
-	if to_regprocedure('public._classroom_team_task_saved_at(uuid, public.classroom_team_tasks)') is null then
-		raise exception '0307 cannot apply: apply 0306 first.';
-	end if;
 end
 $pre$;
 
 -- ---------------------------------------------------------------------------
--- 1. The burn-up board under its own name (0306's body, renamed).
--- ---------------------------------------------------------------------------
-
-create or replace function public.classroom_team_plans_board()
-returns jsonb
-language plpgsql
-volatile
-security definer
-set search_path = ''
-as $f$
-declare
-	v_section record;
-	v_team record;
-	v_plan jsonb;
-	v_teams jsonb := '[]'::jsonb;
-	v_sections jsonb := '[]'::jsonb;
-begin
-	if (select auth.uid()) is null then
-		raise exception 'You must be signed in.';
-	end if;
-	for v_section in
-		select s.id, s.label from public.classroom_sections s
-		where public.classroom_manages_section(s.id)
-			and public._classroom_section_team_set(s.id) is not null
-		order by s.label
-	loop
-		v_sections := v_sections || jsonb_build_array(jsonb_build_object('id', v_section.id, 'label', v_section.label));
-		for v_team in
-			select t.id from public.classroom_teams t
-			where t.team_set_id = public._classroom_section_team_set(v_section.id)
-			order by t.team_number
-		loop
-			v_plan := public.classroom_team_plan(v_section.id, v_team.id);
-			continue when v_plan->'team' is null or jsonb_typeof(v_plan->'team') <> 'object';
-			v_teams := v_teams || jsonb_build_array(v_plan || jsonb_build_object(
-				'section_label', v_section.label,
-				'saved_at', coalesce((
-					select jsonb_object_agg(t.id, public._classroom_team_task_saved_at(v_team.id, t))
-					from public.classroom_team_plans p
-					join public.classroom_team_tasks t on t.plan_id = p.id
-					where p.team_id = v_team.id and t.removed_at is null
-						and public._classroom_team_task_saved_at(v_team.id, t) is not null
-				), '{}'::jsonb)
-			));
-		end loop;
-	end loop;
-	return jsonb_build_object(
-		'ok', true,
-		'today', public._classroom_school_today(),
-		'sections', v_sections,
-		'teams', v_teams,
-		'machines', coalesce((select jsonb_agg(jsonb_build_object('id', mt.id, 'label', mt.label) order by mt.sort)
-			from public.classroom_machine_tags mt where mt.active), '[]'::jsonb),
-		'no_school', coalesce((select jsonb_agg(jsonb_build_object('day', d.day, 'label', d.label) order by d.day)
-			from public.classroom_no_school_days d), '[]'::jsonb)
-	);
-end;
-$f$;
-
-drop function if exists public.classroom_team_board();
-
--- ---------------------------------------------------------------------------
--- 2. The draw. One rule, previewed and saved from the same seed.
+-- 1. The draw. One rule, previewed and saved from the same seed.
 -- ---------------------------------------------------------------------------
 
 -- THE DRAW, written nowhere: the class's active students (test accounts and
@@ -298,7 +230,7 @@ end;
 $f$;
 
 -- ---------------------------------------------------------------------------
--- 3. Editing a draw: swap, add, remove, rename.
+-- 2. Editing a draw: swap, add, remove, rename.
 -- ---------------------------------------------------------------------------
 
 -- Two students trade teams in one draw: two ordinary moves.
@@ -428,8 +360,6 @@ begin
 end;
 $f$;
 
-revoke all on function public.classroom_team_plans_board() from public, anon, authenticated;
-grant execute on function public.classroom_team_plans_board() to authenticated;
 revoke all on function public._classroom_team_draw(uuid, integer, text[], bigint) from public, anon, authenticated;
 revoke all on function public.classroom_preview_team_draw(uuid, integer, text[], bigint) from public, anon, authenticated;
 grant execute on function public.classroom_preview_team_draw(uuid, integer, text[], bigint) to authenticated;
@@ -450,8 +380,8 @@ declare
 begin
 	select count(*) into v_n from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 	where n.nspname = 'public' and p.proname = 'classroom_team_board';
-	if v_n <> 1 then
-		raise exception '0307: expected exactly 1 classroom_team_board (the draw board), found %.', v_n;
+	if v_n <> 2 then
+		raise exception '0307: expected the two classroom_team_board forms (the draw board and the burn-up board), found %.', v_n;
 	end if;
 	if has_function_privilege('anon', 'public.classroom_draw_teams(uuid, integer, text[], bigint, boolean, text)', 'execute')
 		or has_function_privilege('authenticated', 'public._classroom_team_draw(uuid, integer, text[], bigint)', 'execute') then

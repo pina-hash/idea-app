@@ -6721,6 +6721,18 @@
 		],
 		"classroom_team_board": [
 			{
+				"signature": "classroom_team_board()",
+				"args": [],
+				"returns": "jsonb",
+				"definer": true,
+				"comment": "",
+				"volatility": "volatile",
+				"gates": [
+					"classroom_manages_section"
+				],
+				"writes": true
+			},
+			{
 				"signature": "classroom_team_board(uuid)",
 				"args": [
 					{
@@ -6736,7 +6748,7 @@
 				"gates": [
 					"classroom_manages_section"
 				],
-				"writes": false
+				"writes": true
 			}
 		],
 		"classroom_team_box_history": [
@@ -6933,20 +6945,6 @@
 						"has_default": false
 					}
 				],
-				"returns": "jsonb",
-				"definer": true,
-				"comment": "",
-				"volatility": "volatile",
-				"gates": [
-					"classroom_manages_section"
-				],
-				"writes": true
-			}
-		],
-		"classroom_team_plans_board": [
-			{
-				"signature": "classroom_team_plans_board()",
-				"args": [],
 				"returns": "jsonb",
 				"definer": true,
 				"comment": "",

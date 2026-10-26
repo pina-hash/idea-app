@@ -4180,16 +4180,6 @@
 				}
 			}
 		},
-		"classroom_team_plans_board": {
-			"surface": "call",
-			"level": "read",
-			"describe": "Every team in every class he teaches, each with its plan and when its work was saved, for the burn-up board.",
-			"say": [
-				"show the team board",
-				"which teams are slipping",
-				"how are all the launcher teams doing"
-			]
-		},
 		"classroom_team_task_set_due": {
 			"surface": "call",
 			"level": "confirm",
@@ -11454,7 +11444,6 @@
 		"classroom_rename_team": "classroom.yaml",
 		"classroom_team_set_role": "classroom.yaml",
 		"classroom_team_plan": "classroom.yaml",
-		"classroom_team_plans_board": "classroom.yaml",
 		"classroom_team_task_set_due": "classroom.yaml",
 		"classroom_signoff_queue": "classroom.yaml",
 		"classroom_signoff_decide": "classroom.yaml",
