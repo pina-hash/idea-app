@@ -5,6 +5,7 @@ branches: ["main"]
 migrations: []
 subsystems: ["html-assignments"]
 ---
+
 The assignment-building kit had no support for the team documents ledger 0436 shipped. The Unit 4 authoring chat wrote `tools/hx-kit/kit/team.js` and checked it in Chromium against the 0436 contract, but its container could not push, so it left a patch; the IDEA & FRC chat applied it unchanged on 2026-10-26.
 
 What changed:
