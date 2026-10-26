@@ -239,6 +239,26 @@ describe('B2 control 1: an entry saying "Migration permitted: no" refuses', () =
 		}
 	});
 
+	it('two entries sharing a number: the one claiming the migration authorises it, and nothing else does (ledger 0439)', () => {
+		const dir = scratch();
+		try {
+			writeFileSync(join(dir, '0099-docs-only.md'), '# 0099 Docs\n- Migration permitted: no.\n- Status: pushed\n');
+			writeFileSync(join(dir, '0099-the-calendar.md'), '# 0099 Calendar\n- Migration permitted: yes. Claims: 0308, 0309\n- Status: issued\n');
+			// Without a target, or for a migration neither claims, still refused as two.
+			for (const v of [resolveLedger('0099', dir), resolveLedger('0099', dir, 310)]) {
+				expect(v.ok).toBe(false);
+				if (v.ok) throw new Error('unreachable');
+				expect(v.why).toContain('2 ledger entries claim 0099');
+			}
+			const v = resolveLedger('0099', dir, 309);
+			expect(v.ok).toBe(true);
+			if (!v.ok) throw new Error('unreachable');
+			expect(v.file).toBe('0099-the-calendar.md');
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	it('POSITIVE CONTROL: the same fixture with a permitting line passes', () => {
 		// Without this, the refusal above would pass just as well against a
 		// resolveLedger that refused everything.

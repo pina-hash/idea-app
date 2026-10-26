@@ -144,7 +144,7 @@ import {
 } from './deploy-probe.mjs';
 // THE ONE PARSER OF THE `Migration permitted:` LINE. See `ledgerPermission`
 // below for what this replaced and what it measurably got wrong.
-import { parsePermitted } from './migration-claims.mjs';
+import { ledgerClaimants, parsePermitted } from './migration-claims.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(HERE, '..');
@@ -372,9 +372,10 @@ export function inferLedgerEntry(cwd = REPO_ROOT) {
  *
  * @param {string | undefined} explicit
  * @param {string} [dir]
+ * @param {number | null} [target] the migration being applied; picks the one claimant when two entries share the number
  * @returns {LedgerVerdict}
  */
-export function resolveLedger(explicit, dir = LEDGER_DIR) {
+export function resolveLedger(explicit, dir = LEDGER_DIR, target = null) {
 	/** @type {{ id: string, file: string } | null} */
 	let found = null;
 	if (explicit) {
@@ -385,6 +386,26 @@ export function resolveLedger(explicit, dir = LEDGER_DIR) {
 			names = readdirSync(dir).filter((f) => f.startsWith(`${id}-`) && f.endsWith('.md'));
 		} catch {
 			names = [];
+		}
+		// TWO ENTRIES CAN SHARE A NUMBER (ledger 0439, 2026-10-26: a docs-only
+		// chat had already written 0439-authoring-2-4-subject-palette.md when the
+		// calendar bundle was issued 0439-idea-calendar.md, and Migrate refused
+		// 0308 on the pair). Given the migration being applied, the one entry
+		// whose permission line claims it is the authority, read the way
+		// `ledgerClaimants` reads it for the workflow; anything else (none, or
+		// still several) is refused exactly as before.
+		if (names.length > 1 && target !== null && target !== undefined) {
+			const claimants = ledgerClaimants(
+				target,
+				names.map((file) => {
+					try {
+						return { file, text: readFileSync(join(dir, file), 'utf8') };
+					} catch {
+						return { file, text: '' };
+					}
+				})
+			);
+			if (claimants.length === 1) names = claimants;
 		}
 		if (names.length !== 1) {
 			return {
@@ -1772,7 +1793,7 @@ async function main() {
 	// BEFORE the connection, deliberately: an unauthorised bundle should not
 	// even open a socket to the production database, and every check here is
 	// local. See `resolveLedger` for how the entry is found and why.
-	const ledger = resolveLedger(opts.ledger);
+	const ledger = resolveLedger(opts.ledger, LEDGER_DIR, Number(basename(target.file).slice(0, 4)));
 	if (!ledger.ok) {
 		say('');
 		say(`REFUSING to apply ${target.file}: ${ledger.why}`);
