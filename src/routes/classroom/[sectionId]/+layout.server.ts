@@ -229,11 +229,28 @@ async function sectionLayoutReady(supabase: SupabaseClient): Promise<boolean> {
 export const load: LayoutServerLoad = async ({ params, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
-	const { data: sectionRow } = await supabase
-		.from('classroom_sections')
-		.select(SECTION_SELECT)
-		.eq('id', params.sectionId)
-		.maybeSingle();
+	/*
+	 * THE SECTION ROW, THE PROFILE AND THE FIRST ROUND START TOGETHER (ledger
+	 * 0438, report a5f80fd7). This load used to wait on the section row, then the
+	 * round below, then (for a manager) the class list, the instructor
+	 * materials, the notebook grid, the units and the profile, one after
+	 * another, and every class page, a student's page included, waits on it.
+	 * Starting a read is not answering it: the 404 below still comes first.
+	 */
+	const sectionRead = Promise.resolve(
+		supabase.from('classroom_sections').select(SECTION_SELECT).eq('id', params.sectionId).maybeSingle()
+	);
+	// Which unit groups this user keeps folded (profiles.preferences, the home
+	// feed's pattern). Absent reads as nothing folded.
+	const profileRead = Promise.resolve(
+		supabase.from('profiles').select('preferences').eq('id', claims.sub).maybeSingle()
+	);
+	// The course's units, as soon as the section row names the course.
+	const unitsRead = sectionRead.then(({ data }) =>
+		data ? loadCourseUnits(supabase, String((data as { course_id?: unknown }).course_id ?? '')) : []
+	);
+	for (const pending of [profileRead, unitsRead]) pending.catch(() => {});
+	const { data: sectionRow } = await sectionRead;
 	if (!sectionRow) error(404, 'Not found');
 
 	/**
@@ -284,12 +301,22 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	const canManage = manages === true;
 	let sections: ReturnType<typeof normalizeSectionRow>[] = [];
 	let items = content.items;
+	// The manager's notebook grid (see `sectionOutstanding` below), started
+	// beside the class list and the instructor materials rather than after them.
+	const gridRead =
+		canManage && checkInRows?.rows.length
+			? Promise.resolve(supabase.rpc('notebook_get_section_grid', { p_section_id: params.sectionId, p_unit_number: null }))
+			: null;
+	gridRead?.catch(() => {});
 	if (canManage) {
-		const { data } = await supabase.from('classroom_sections').select(SECTION_SELECT);
+		const [{ data }, merged] = await Promise.all([
+			supabase.from('classroom_sections').select(SECTION_SELECT),
+			// Instructor-only materials (0090) are fetched ONLY for a manager -- a
+			// student's read never even asks the question, let alone gets an answer.
+			mergeInstructorMaterials(supabase, items)
+		]);
 		sections = ((data ?? []) as Record<string, unknown>[]).map(normalizeSectionRow);
-		// Instructor-only materials (0090) are fetched ONLY for a manager -- a
-		// student's read never even asks the question, let alone gets an answer.
-		items = await mergeInstructorMaterials(supabase, items);
+		items = merged;
 	}
 
 	/**
@@ -376,10 +403,9 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 * mean re-deriving the roster and the cell rules outside the one function
 		 * that owns them.
 		 */
-		const { data: grid, error: gridError } = await supabase.rpc('notebook_get_section_grid', {
-			p_section_id: params.sectionId,
-			p_unit_number: null
-		});
+		const { data: grid, error: gridError } = gridRead
+			? await gridRead
+			: { data: null, error: null };
 		if (!gridError && grid) sectionOutstanding = gridSummary(grid as SectionGrid).outstanding;
 	}
 
@@ -413,7 +439,7 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	 * which renders exactly as a course with no units does: one chronological
 	 * list, the view this page had before units existed.
 	 */
-	const units = await loadCourseUnits(supabase, section.course_id);
+	const units = await unitsRead;
 
 	/**
 	 * WHERE THE STUDENT THEMSELVES STANDS ON EACH ASSIGNMENT.
@@ -472,13 +498,7 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		}
 	}
 
-	// Which unit groups this user keeps folded (profiles.preferences, the home
-	// feed's pattern). Absent reads as nothing folded.
-	const { data: profile } = await supabase
-		.from('profiles')
-		.select('preferences')
-		.eq('id', claims.sub)
-		.maybeSingle();
+	const { data: profile } = await profileRead;
 
 	return {
 		section,

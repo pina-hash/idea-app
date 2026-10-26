@@ -956,3 +956,68 @@ describe('a check-in attached to a classroom item', () => {
 		).toHaveLength(1);
 	});
 });
+
+/**
+ * HOW MANY ROUND TRIPS A MANAGER'S CLASS PAGE WAITS ON (ledger 0438, report
+ * a5f80fd7), on the real database fixture: every read and function call of
+ * the shim answers after the same added delay, so wall time over that delay is
+ * the waterfall's depth. Every class page, a student's own page included,
+ * waits on this load. Measured 2026-10-26 for the teacher of Period 1,
+ * 20 to 22 calls either way: about 11 round trips before this bundle, 8 after. What is
+ * left is inside the shared readers (the item ladder, the check-in ladder).
+ */
+describe('the class page waterfall', () => {
+	it('a manager waits on at most 8 round trips', async () => {
+		const L = 120;
+		const shim = createPostgrestShim(db, fks, teacher.id) as unknown as Record<string, unknown>;
+		let calls = 0;
+		const wait = () => new Promise((r) => setTimeout(r, L));
+		const slow = {
+			...shim,
+			rpc: (...a: unknown[]) => {
+				calls++;
+				return wait().then(() => (shim.rpc as (...x: unknown[]) => unknown)(...a));
+			},
+			from: (table: string) => {
+				const b = (shim.from as (t: string) => Record<string, unknown>)(table);
+				const wrap = (q: Record<string, unknown>): Record<string, unknown> =>
+					new Proxy(q, {
+						get(target, prop) {
+							const v = target[prop as string];
+							if (prop === 'then') {
+								return (res: (x: unknown) => unknown, rej?: (e: unknown) => unknown) => {
+									calls++;
+									return wait().then(() => (v as (a: unknown, b: unknown) => unknown).call(target, res, rej));
+								};
+							}
+							if (typeof v === 'function') {
+								return (...args: unknown[]) => {
+									const out = (v as (...x: unknown[]) => unknown).apply(target, args);
+									return out && typeof out === 'object' && 'then' in (out as object) ? wrap(out as Record<string, unknown>) : out;
+								};
+							}
+							return v;
+						}
+					});
+				return wrap(b);
+			}
+		};
+		const run = (supabase: unknown) =>
+			(load as unknown as (event: unknown) => Promise<LoadResult>)({
+				params: { sectionId: p1 },
+				locals: { supabase, claims: { sub: teacher.id, email: teacher.email, role: 'authenticated' } }
+			});
+		// The same load with no added delay first, so the database's own time is
+		// taken off and a slow machine does not read as a deeper waterfall.
+		let t0 = performance.now();
+		await run(shim);
+		const own = performance.now() - t0;
+		t0 = performance.now();
+		const out = await run(slow);
+		const total = performance.now() - t0;
+		const rounds = Math.round((total - own) / L);
+		console.log(`class page load (manager): about ${rounds} round trips, ${calls} calls, ${Math.round(total)}ms at ${L}ms each`);
+		expect(out.canManage).toBe(true);
+		expect(rounds).toBeLessThanOrEqual(8);
+	});
+});

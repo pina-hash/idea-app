@@ -351,3 +351,52 @@ describe('a source that cannot answer costs its own section, never the page', ()
 		expect(timedOut.studentPage.streak).toBeNull();
 	});
 });
+
+/**
+ * HOW LONG THE PAGE WAITS ON THE DATABASE (ledger 0438, report a5f80fd7: "it
+ * takes a particularly long time to load student profiles"). Every read and
+ * every function call here answers after the same fixed delay, so the load's
+ * wall time divided by that delay is the number of round trips it waits for
+ * one after another: the waterfall, measured rather than read off the code.
+ * Measured 2026-10-26 on this fixture, 14 calls either way: 6 round trips
+ * after the layout before this bundle, 3 after.
+ */
+function slow(c: ReturnType<typeof client>, ms: number) {
+	const wait = () => new Promise((r) => setTimeout(r, ms));
+	let calls = 0;
+	return {
+		get calls() {
+			return calls;
+		},
+		client: {
+			...c,
+			rpc: async (fn: string, args: Record<string, unknown>) => {
+				calls++;
+				await wait();
+				return c.rpc(fn, args);
+			},
+			from: (table: string) => {
+				const b = c.from(table) as unknown as Record<string, unknown> & { then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise<unknown> };
+				const then = b.then.bind(b);
+				b.then = (res, rej) => {
+					calls++;
+					return wait().then(() => then(res, rej));
+				};
+				return b;
+			}
+		} as unknown as ReturnType<typeof client>
+	};
+}
+
+describe('the waterfall', () => {
+	it('waits on at most 3 round trips after the layout', async () => {
+		const L = 60;
+		const s = slow(client(), L);
+		const t0 = performance.now();
+		const answer = (await run({ email: EMAIL, supabase: s.client })) as { studentPage: { assignments: unknown[] } };
+		const rounds = Math.round((performance.now() - t0) / L);
+		console.log(`student page load: ${rounds} round trips, ${s.calls} calls`);
+		expect(answer.studentPage.assignments.length).toBeGreaterThan(0);
+		expect(rounds).toBeLessThanOrEqual(3);
+	});
+});

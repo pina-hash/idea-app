@@ -58,83 +58,73 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 	const email = studentEmailParam(params.studentEmail);
 	if (!email) error(404, 'Not found');
 
-	const { canManage, items, checkIns, classClock } = await parent();
-	if (canManage !== true) error(404, 'Not found');
+	/*
+	 * ONE WAVE, NOT SEVEN (ledger 0438, report a5f80fd7: "it takes a particularly
+	 * long time to load student profiles"). Measured on the fixture with every
+	 * read answering after a fixed delay, this load used to wait on its reads one
+	 * after another: the layout, then the roster, then six reads, then the
+	 * worksheet read, then the notebook entries, then the pictures, then the
+	 * profile. Each read now starts the moment what it needs is known, and the
+	 * four that need nothing from the layout start before the layout answers.
+	 * Starting a read is not answering it: every refusal below is still the same
+	 * 404 before anything is returned, and every read is still the caller's own
+	 * under RLS, pinned to the one student.
+	 */
+	const rosterRead = loadSectionRoster(supabase, params.sectionId);
+	const overviewRead = Promise.resolve(
+		supabase.rpc('classroom_student_overview', { p_section_id: params.sectionId, p_student_email: email })
+	);
+	const gridRead = Promise.resolve(
+		supabase.rpc('notebook_get_section_grid', { p_section_id: params.sectionId, p_unit_number: null })
+	);
+	const boardRead = createTeamTransports(supabase)
+		.board(params.sectionId)
+		.catch(() => null);
 
-	const roster = await loadSectionRoster(supabase, params.sectionId);
-	const row = roster.ok ? roster.data.rows.find((r) => r.student_email.toLowerCase() === email) : undefined;
-	if (!row || row.manages === true) error(404, 'Not found');
+	const { canManage, items, checkIns, classClock, isAdmin: admin } = await parent();
+	if (canManage !== true) error(404, 'Not found');
 
 	const itemIds = items.map((i) => i.id);
 	const assignmentIds = items.filter((i) => i.kind === 'assignment').map((i) => i.id);
 
-	const [overviewRead, submissionsRead, presenceRead, gridRead, board, ideacadRead] = await Promise.all([
-		supabase.rpc('classroom_student_overview', { p_section_id: params.sectionId, p_student_email: email }),
-		assignmentIds.length
-			? supabase
+	const submissionsRead = assignmentIds.length
+		? Promise.resolve(
+				supabase
 					.from('classroom_submissions')
 					.select('id, item_id, student_email, state, score, submitted_at, returned_at, graded_at')
 					.eq('student_email', email)
 					.in('item_id', assignmentIds)
-			: Promise.resolve({ data: [], error: null }),
-		assignmentIds.length
-			? supabase
+			)
+		: Promise.resolve({ data: [], error: null });
+	const presenceRead = assignmentIds.length
+		? Promise.resolve(
+				supabase
 					.from('classroom_presence')
 					.select('item_id, first_seen_at, last_seen_at, last_input_at, active_seconds')
 					.eq('student_email', email)
 					.in('item_id', assignmentIds)
-			: Promise.resolve({ data: [], error: null }),
-		supabase.rpc('notebook_get_section_grid', { p_section_id: params.sectionId, p_unit_number: null }),
-		createTeamTransports(supabase)
-			.board(params.sectionId)
-			.catch(() => null),
-		readIdeaCadDocuments(supabase, email, itemIds)
-	]);
+			)
+		: Promise.resolve({ data: [], error: null });
+	const ideacadRead = readIdeaCadDocuments(supabase, email, itemIds);
+	// Ledger 0422: an admin gets View as / Act as for a student who has signed in.
+	const profileRead =
+		admin === true
+			? Promise.resolve(supabase.from('profiles').select('id').eq('email', email).maybeSingle()).catch(() => ({ data: null }))
+			: Promise.resolve({ data: null });
 
-	/*
-	 * PGRST202 IS THE ONE "NOT YET": a database without 0233 has no such read,
-	 * and the page says the section arrives with the next update. Any other
-	 * failure, a NULL (the read refusing a student the roster lists) and a
-	 * payload that does not parse are all "could not load", never "not yet".
-	 */
-	const overview: StudentOverviewPayload | null = overviewRead.error ? null : parseStudentOverview(overviewRead.data);
-	const overviewState: SourceState = overview
-		? 'ready'
-		: (overviewRead.error as { code?: string } | null)?.code === 'PGRST202'
-			? 'unavailable'
-			: 'error';
-
-	const submissions = submissionsRead.error ? null : ((submissionsRead.data ?? []) as StudentSubmissionRow[]);
-	const presence = presenceRead.error ? null : ((presenceRead.data ?? []) as StudentPresenceRow[]);
+	const submissionsP = submissionsRead.then((r) => (r.error ? null : ((r.data ?? []) as StudentSubmissionRow[])));
 
 	// Only an open worksheet is worth the completeness read: a turned-in, closed
 	// or returned one already says where it stands (the section layout's rule).
-	const settled = new Set((submissions ?? []).filter((s) => s.state !== 'draft').map((s) => s.item_id));
-	const completions = await readWorksheetCompletions(
-		supabase,
-		assignmentIds.filter((id) => !settled.has(id)),
-		// A manager's read of the stamped latches (0237): a finished worksheet stays finished here too.
-		{ onlyEmail: email, latches: { sectionId: params.sectionId } }
-	);
-
-	const gridState: SourceState = gridRead.error
-		? (gridRead.error as { code?: string }).code === 'PGRST202'
-			? 'unavailable'
-			: 'error'
-		: gridRead.data
-			? 'ready'
-			: 'error';
-	const grid = gridState === 'ready' ? (gridRead.data as SectionGrid) : null;
-
-	const userId =
-		overview?.userId ??
-		grid?.students.find((s) => (s.email ?? '').toLowerCase() === email)?.id ??
-		null;
-
-	const [entries, foundry] = await Promise.all([
-		userId ? readTurnedInEntries(supabase, userId, params.sectionId) : Promise.resolve([] as EntryRow[]),
-		userId ? readFoundryApps(supabase, userId) : Promise.resolve([] as { id: string; slug: string; title: string }[])
-	]);
+	const completionsP = submissionsP.then((submissions) => {
+		const settled = new Set((submissions ?? []).filter((s) => s.state !== 'draft').map((s) => s.item_id));
+		return readWorksheetCompletions(
+			supabase,
+			assignmentIds.filter((id) => !settled.has(id)),
+			// A manager's read of the stamped latches (0237): a finished worksheet stays finished here too.
+			{ onlyEmail: email, latches: { sectionId: params.sectionId } }
+		);
+	});
 
 	/*
 	 * THEIR WORK AS PICTURES (ledger 0392): the hand-in files hanging off THIS
@@ -143,10 +133,82 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 	 * attributed to the one student, and both pictures are served by the proxies
 	 * a thumbnail already uses, which re-ask the same policies.
 	 */
-	const [files, photos] = await Promise.all([
-		readSubmissionFiles(supabase, (submissions ?? []).map((s) => s.id).filter((id): id is string => typeof id === 'string')),
-		entries ? readNotebookPhotos(supabase, entries.map((e) => e.id)) : Promise.resolve(null)
-	]);
+	const filesP = submissionsP.then((submissions) =>
+		readSubmissionFiles(supabase, (submissions ?? []).map((s) => s.id).filter((id): id is string => typeof id === 'string'))
+	);
+
+	/*
+	 * PGRST202 IS THE ONE "NOT YET": a database without 0233 has no such read,
+	 * and the page says the section arrives with the next update. Any other
+	 * failure, a NULL (the read refusing a student the roster lists) and a
+	 * payload that does not parse are all "could not load", never "not yet".
+	 */
+	const overviewP = overviewRead.then((r) => ({
+		value: r.error ? null : parseStudentOverview(r.data),
+		code: (r.error as { code?: string } | null)?.code ?? null
+	}));
+	const gridP = gridRead.then((r) => {
+		const state: SourceState = r.error
+			? (r.error as { code?: string }).code === 'PGRST202'
+				? 'unavailable'
+				: 'error'
+			: r.data
+				? 'ready'
+				: 'error';
+		return { state, value: state === 'ready' ? (r.data as SectionGrid) : null };
+	});
+	// The student's uuid from the overview, and from the grid only when the
+	// overview has none, so the notebook reads wait on the grid only then.
+	const userIdP = overviewP.then(async (o) => {
+		if (o.value?.userId) return o.value.userId;
+		const g = await gridP;
+		return g.value?.students.find((s) => (s.email ?? '').toLowerCase() === email)?.id ?? null;
+	});
+	const entriesP = userIdP.then((id) => (id ? readTurnedInEntries(supabase, id, params.sectionId) : ([] as EntryRow[])));
+	const foundryP = userIdP.then((id) => (id ? readFoundryApps(supabase, id) : ([] as { id: string; slug: string; title: string }[])));
+	const photosP = entriesP.then((entries) => (entries ? readNotebookPhotos(supabase, entries.map((e) => e.id)) : null));
+
+	/**
+	 * THE GRADING CONSOLE'S OPAQUE STUDENT TOKEN, ONE PER ASSIGNMENT (report
+	 * 5464ceb2): the console keeps the student being graded in its address as
+	 * `studentToken(itemId, email)` and never as the address, so the key on
+	 * each row carries the same token and the console opens on this student.
+	 * Computed here, beside the reads, because the hash is async and the
+	 * component is pure.
+	 */
+	const tokensP = Promise.all(assignmentIds.map(async (id) => [id, await studentToken(id, email)] as const));
+
+	// A refusal below leaves these unawaited; a handler on each keeps a failed
+	// read from surfacing as an unhandled rejection. The reads themselves are
+	// still awaited, and still fail soft, in the Promise.all after it.
+	for (const pending of [overviewP, gridP, boardRead, submissionsP, presenceRead, ideacadRead, completionsP, entriesP, foundryP, filesP, photosP, tokensP, profileRead]) {
+		Promise.resolve(pending).catch(() => {});
+	}
+
+	const roster = await rosterRead;
+	const row = roster.ok ? roster.data.rows.find((r) => r.student_email.toLowerCase() === email) : undefined;
+	if (!row || row.manages === true) error(404, 'Not found');
+
+	const [overview, grid, board, submissions, presenceAnswer, ideacad, completions, entries, foundry, files, photos, tokens, profile] =
+		await Promise.all([
+			overviewP,
+			gridP,
+			boardRead,
+			submissionsP,
+			presenceRead,
+			ideacadRead,
+			completionsP,
+			entriesP,
+			foundryP,
+			filesP,
+			photosP,
+			tokensP,
+			profileRead
+		]);
+
+	const overviewState: SourceState = overview.value ? 'ready' : overview.code === 'PGRST202' ? 'unavailable' : 'error';
+	const presence = presenceAnswer.error ? null : ((presenceAnswer.data ?? []) as StudentPresenceRow[]);
+
 	const labels = new Map(checkIns.map((c) => [c.session_id, c.session_label]));
 	const gallery =
 		files === null && photos === null
@@ -179,11 +241,11 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 		},
 		items,
 		now: classClock.now,
-		overview: { state: overviewState, value: overview },
+		overview: { state: overviewState, value: overview.value },
 		submissions,
 		presence,
 		completions,
-		grid: { state: gridState, value: grid },
+		grid,
 		streak: entries
 			? classDayStreak(
 					entries,
@@ -193,32 +255,18 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 			: null,
 		entriesFiled: entries ? entries.length : null,
 		board,
-		ideacad: ideacadRead,
+		ideacad,
 		foundry,
 		gallery
 	});
 
-	/**
-	 * THE GRADING CONSOLE'S OPAQUE STUDENT TOKEN, ONE PER ASSIGNMENT ROW (report
-	 * 5464ceb2): the console keeps the student being graded in its address as
-	 * `studentToken(itemId, email)` and never as the address, so the key on
-	 * each row carries the same token and the console opens on this student.
-	 * Computed here, once, because the hash is async and the component is pure.
-	 */
-	const gradeTokens: Record<string, string> = {};
-	await Promise.all(
-		studentPage.assignments.map(async (row) => {
-			gradeTokens[row.itemId] = await studentToken(row.itemId, email);
-		})
-	);
+	// Only the rows the page shows carry a token, as before.
+	const shown = new Set(studentPage.assignments.map((r) => r.itemId));
+	const gradeTokens: Record<string, string> = Object.fromEntries(tokens.filter(([id]) => shown.has(id)));
 
-	// Ledger 0422: an admin gets View as / Act as for a student who has signed in.
-	let viewAsUser: { id: string; name: string } | null = null;
-	const { isAdmin: admin } = await parent();
-	if (admin === true) {
-		const { data: p } = await supabase.from('profiles').select('id').eq('email', email).maybeSingle();
-		if (p?.id) viewAsUser = { id: p.id as string, name: studentPage.student.display_name };
-	}
+	const profileId = (profile as { data: { id?: unknown } | null }).data?.id;
+	const viewAsUser: { id: string; name: string } | null =
+		typeof profileId === 'string' ? { id: profileId, name: studentPage.student.display_name } : null;
 
 	return { student: studentPage.student, studentPage, gradeTokens, viewAsUser };
 };
