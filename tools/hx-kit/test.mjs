@@ -529,11 +529,21 @@ if (camFields.length) {
 			});
 			if (!big) WARN('phone', 'A 10 MB photo goes in under 2 MB', 'could not make a 10 MB test photo in this browser');
 			else {
-				const chooserP = v.page.waitForEvent('filechooser', { timeout: 5000 }).catch(() => null);
-				await (await v.frame.$(`[data-capture="${f}"]`)).tap();
-				const chooser = await chooserP;
+				/* A tap first, as a phone sends it; some Chromium builds deliver the touch but never
+				   the click a tap makes (Playwright 1.56's stock Chromium, 2026-10-26), so a click
+				   follows when the tap opened nothing. HX_TEST_CAMERA_PRESS=click skips the tap, which
+				   is how the fallback is proved on a browser whose tap does work. */
+				const key = await v.frame.$(`[data-capture="${f}"]`);
+				const presses = process.env.HX_TEST_CAMERA_PRESS === 'click' ? ['click'] : ['tap', 'click'];
+				let chooser = null, pressed = null;
+				for (const how of presses) {
+					const chooserP = v.page.waitForEvent('filechooser', { timeout: how === 'tap' ? 2000 : 5000 }).catch(() => null);
+					await (how === 'tap' ? key.tap() : key.click());
+					chooser = await chooserP;
+					if (chooser) { pressed = how; break; }
+				}
 				const cap = chooser ? await chooser.element().getAttribute('capture') : null;
-				((chooser && cap === 'environment') ? PASS : FAIL)('phone', 'Take photo opens the camera', chooser ? `file chooser opened, capture=${cap}` : 'no file chooser opened');
+				((chooser && cap === 'environment') ? PASS : FAIL)('phone', 'Take photo opens the camera', chooser ? `file chooser opened on ${pressed}, capture=${cap}` : `no file chooser opened (tried ${presses.join(' then ')})`);
 				if (chooser) {
 					await chooser.setFiles({ name: 'sketch.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(big.b64, 'base64') });
 					await v.page.waitForFunction((fd) => window.__host.images()[fd], f, { timeout: 30000 }).catch(() => null);

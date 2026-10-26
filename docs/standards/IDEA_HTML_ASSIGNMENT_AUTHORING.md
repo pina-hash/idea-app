@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.7 - 2026-10-26**
+**Version 2.8 - 2026-10-26**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -529,6 +529,20 @@ so the Answers CSV reads (Design Directions 2.8).
 **G9. Simulation or game.** The interactive is the lesson: real feedback, physically honest
 motion, a model only of physics the real equipment follows (L23, Design Directions 2.11).
 
+**G10. Team post** (one shared document per team, SPEC section 16). **Every step and every
+answer area says who does it**, with one of three badges: **"Just you"** (each student answers
+for themselves: their research, their own sketch, the rules check), **"Whole team"** (one answer
+the team writes together, graded once for everyone) or **"Your role only"** (only the role's
+owner types there; teammates see it read only). The step's badge sits in its head beside the
+phase tag, and each answer area carries its own. **A step that mixes them shows both** (a step
+with a team table and a role box is marked "Whole team" and "Your role only"), and each area
+inside it says which. **Step 2 explains the three badges** in plain words before the first
+shared box, beside how the team document works (G5). The reference is Launcher: Design
+(IDEA209H Unit 4), **as live on the site**: its step 2 already lays out who types where and how
+each kind of box is graded, and its role steps carry "Your role" in the phase tag. Read it
+from the post's current document (revision 4, 2026-10-26), never from `materials/`, whose copy
+is stale until a replace re-exports (gap cdb5eb34).
+
 ---
 
 ## Part H. Testing and release
@@ -638,6 +652,12 @@ new term.
 
 ## Changelog
 
+- **2.8 (2026-10-26).** Ledger 0445. G10, a team post marks every step and answer area
+  "Just you", "Whole team" or "Your role only", shows both on a mixed step and explains
+  them in step 2, with Launcher: Design's live revision as the reference (its `materials/`
+  copy is stale, gap cdb5eb34). Kit: `test.mjs`'s camera gate taps, then clicks when the tap
+  opened no file chooser (Playwright 1.56's stock Chromium delivers the touch but no click).
+
 - **2.7 (2026-10-26).** Ledger 0443. From Mr. Pina's work on Unit 4's Launcher: Design: F10,
   every picture box works with a phone camera through the kit (`tools/hx-kit/kit/camera.js`;
   measured 2026-10-26: a 35 MB test JPEG sent as 0.22 MB, and `test.mjs` gains a phone gate);
@@ -647,7 +667,6 @@ new term.
   words; F14, thumbnail and banner text sized from `--idea-thumb-h`, never `vh`; D3, avoid hues
   40 to 105 for a page's main hue, which the light theme turns brown; Part H gate 4, the cold
   open plays three named 10th graders and the Block 4 teacher.
-
 - **2.6 (2026-10-26).** Ledger 0442. From Mr. Pina's pass on IDEA-Blade 02 before class: E1,
   moving between steps never moves the page (measured: the old kit moved a track segment up
   to 289px on one click, the new one 0px over 7 clicks on the starter); F8, sizes in inches
