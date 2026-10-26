@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.11 - 2026-10-26**
+**Version 1.12 - 2026-10-26**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -826,7 +826,7 @@ Parent to frame (`HxParentMessage`):
 
 | Type | Payload |
 |---|---|
-| `idea:state` | `values: Record<field, string \| boolean>`, `images: Record<field, HxImageState>`, `readOnly: boolean` |
+| `idea:state` | `values: Record<field, string \| boolean>`, `images: Record<field, HxImageState>`, `readOnly: boolean`, and since ledger 0439 `schedule?` (section 17.4) |
 | `idea:saved` | `at: string`, `ok: boolean`, `schemaVersion: 3`, `reason?: string` (only when `ok` is false) |
 | `idea:video-state` | `videoId: string`, `open: boolean` |
 | `idea:theme` | `theme: 'light' \| 'dark'` |
@@ -1983,9 +1983,102 @@ Assignments"):
 - A live presentation (the Design Review) is a team module, scored on the Teams screen
   from a phone: every level is a key carrying its `short`.
 
+## 17. Day-by-day pacing and the due date
+
+Ledger 0439 (report 0ccf7bff, folded in d0041188). An assignment has a due date on its
+post; pacing says which part should be done by which class day before it, so a student
+can keep the class's pace. The plan appears in three places: on the IDEA calendar, in
+the page around the document (a strip above the frame), and inside the document when it
+draws it from `idea:state`.
+
+### 17.1 Declaring pacing
+
+```json
+"pacing": [
+  { "id": "d1", "day": 1, "title": "Read the brief and sketch three ideas", "modules": ["brief"] },
+  { "id": "d2", "day": 2, "title": "Pick one idea and size it", "modules": ["sizing"] },
+  { "id": "review", "date": "2026-11-02", "title": "Design review ready", "modules": ["design", "review"] }
+]
+```
+
+- `id`: letters, digits, `-` and `_`, up to 40 characters, unique in the list. It is the
+  step's key: an admin's move of a step (17.3) is stored against it, so keep it when you
+  re-upload.
+- `title`: what to have done, at most 120 characters shown. No weekday: the step
+  already has its day.
+- Exactly one of:
+  - `day`: a whole number from 1 to 60, a SCHOOL DAY of the assignment. Day 1 is the day
+    the post opens (its scheduled time, or the day it was first published), or the next
+    school day when it opens on a weekend or a no-school day; each later day skips
+    weekends and the site's no-school days. Prefer `day`: one document then paces every
+    section and every year.
+  - `date`: a fixed day, `YYYY-MM-DD`, for a unit whose dates are set.
+- `modules` (optional): the module ids the step covers. An id the manifest does not
+  declare is dropped. A step with modules is **done** for a student when every counted
+  block in them passes the completion rule (4.9); a step with none is a reminder and is
+  never marked done.
+- At most 40 steps. Order does not matter; steps are shown by date.
+
+### 17.2 What each layer does with the key
+
+`pacing` is a display key (4.8): it changes what is seen and never what may be stored.
+
+| Layer | Reads | A malformed value |
+| --- | --- | --- |
+| `validateHtmlManifest` | `manifestPacingWarnings` | a WARNING naming the step; never an error |
+| 0195 / 0301 `_classroom_check_html_manifest` | nothing | stored as sent |
+| `manifestPacing` (`$lib/classroom/html-assignment/pacing`) | the steps it understands | the step is dropped |
+| `_classroom_item_pacing` (0308) | the same shape, turning `day` into a date | the step is dropped |
+| the write gates (0197, 0199) | never | never |
+
+`tests/html-assignment-pacing.test.ts` puts every stored document under `materials/`
+through the validator with pacing added and with it broken, and holds the errors
+identical in both.
+
+### 17.3 Moving a step without a re-upload
+
+A site admin can move a step to another day, retitle it, hide it, or add a step to any
+assignment (also one with no manifest), from the IDEA Website connector or the
+assignment page. Those changes are stored beside the post, keyed by step id, and win
+over the manifest; the next re-upload keeps them.
+
+### 17.4 What the document receives: `schedule` on `idea:state`
+
+```json
+"schedule": {
+  "today": "2026-10-28",
+  "due": { "at": "2026-11-03T06:59:59.999Z", "day": "2026-11-02" },
+  "pacing": [
+    { "id": "d1", "title": "Read the brief and sketch three ideas", "day": "2026-10-27",
+      "modules": ["brief"], "state": "done" },
+    { "id": "d2", "title": "Pick one idea and size it", "day": "2026-10-28",
+      "modules": ["sizing"], "state": "today" }
+  ]
+}
+```
+
+- `today` is the school's day (America/Los_Angeles), `YYYY-MM-DD`.
+- `due` is the POST's due date: `at` the instant, `day` the school day it falls on, both
+  null when the post has none. **Show this rather than typing a date into the document**:
+  a typed date is a second copy that disagrees with the post the day the post moves.
+- `pacing` is the resolved plan, by date. `state` is one of `done` (every counted block
+  in its modules is met), `behind` (its day has passed and it is not done), `today`,
+  `next` (the first step after today) and `later`.
+- The key is absent when the parent has nothing to say (an older page); a document must
+  render without it. It is sent with every `idea:state`, so it follows the student's
+  typing: a step turns `done` as its last block is saved.
+
+The hx-kit starter draws `schedule` in its header when the document holds an element
+with `data-idea-schedule`; a hand-written document may draw it any way it likes.
+
 ---
 
 ## Changelog
+
+- **1.12 (2026-10-26).** Ledger 0439, migration 0308. Section 17: day-by-day `pacing` in the
+  manifest (a display key: warned, never refused), how `day` resolves to school days, an
+  admin's step moves, and `schedule` on `idea:state` carrying the post's due date and the
+  resolved plan (d0041188).
 
 - **1.11 (2026-10-26).** Ledger 0436, migration 0305. Section 16.8: how a team assignment
   is graded (team criteria once for every member, role criteria on the role's owner, a

@@ -60,6 +60,7 @@ import { HX_READY_TYPE } from '$lib/classroom/html-assignment/bridge';
 // THE THUMBNAIL KEY HAS ITS OWN READER (ledger 0396), and this validator only
 // carries its sentences: every one a warning, never a refusal (SPEC 4.8).
 import { manifestThumbnailWarnings } from '$lib/classroom/html-assignment/thumbnail';
+import { manifestPacingWarnings } from '$lib/classroom/html-assignment/pacing';
 
 // ---------------------------------------------------------------------------
 // The contract's types, verbatim.
@@ -226,6 +227,12 @@ export interface HtmlAssignmentManifest {
 	 * carry (`checkpoints`) are read tolerantly by `./team-manifest`.
 	 */
 	team?: { roles: HtmlTeamRole[]; checkpoints?: unknown };
+	/**
+	 * DAY-BY-DAY PACING (ledger 0439): which modules by which school day of the
+	 * assignment. A display key (SPEC 4.8, section 17); read by `manifestPacing`
+	 * and 0308's `_classroom_item_pacing`, never by a gate.
+	 */
+	pacing?: unknown;
 }
 
 /** At most this many roles in one team assignment (0301 states the same eight). */
@@ -1049,6 +1056,10 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 	// malformed one, or a template the document does not carry, is said here and
 	// shows the generated look on the class page; it never stops an import.
 	warnings.push(...manifestThumbnailWarnings(m, html));
+
+	// THE PACING (ledger 0439): a display key too. A step the reader cannot use
+	// is said here and left off the plan; it never stops an import.
+	warnings.push(...manifestPacingWarnings(m));
 
 	if (errors.length) return fail();
 	return { manifest: raw as HtmlAssignmentManifest, errors: [], warnings };
