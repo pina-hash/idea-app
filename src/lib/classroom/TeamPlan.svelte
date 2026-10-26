@@ -116,10 +116,9 @@
 
 	// Today's check-in: the student's own open tasks, tapped.
 	const myOpen = $derived(plan.tasks.filter((t) => t.owner === plan.me && statusOf(t) !== 'done'));
-	let picked = $state<Set<string>>(new Set());
-	$effect(() => {
-		picked = new Set(plan.tasks.filter((t) => t.onIt.includes(plan.me)).map((t) => t.id));
-	});
+	// Starts from the tasks already checked in today and resets on every re-read;
+	// a tap overrides it until then (a writable derived, no effect).
+	let picked = $derived(new Set(plan.tasks.filter((t) => t.onIt.includes(plan.me)).map((t) => t.id)));
 	const checkedIn = $derived(plan.checkedIn.includes(plan.me));
 	function toggle(id: string) {
 		const next = new Set(picked);

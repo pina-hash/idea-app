@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "team-board.mjs",
+	"date": "2026-10-26T12:00:25.450Z",
+	"sha": "b75c58d9dfa8b3a990686e88165acb0357016816",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 20,
+	"outsideRows": [],
+	"ms": 4534
+}

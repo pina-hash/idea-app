@@ -162,6 +162,22 @@ a level or an undo. Asking first is the stricter of the two answers.
   as before; 0305 left every stored total and grade unchanged except the team
   assignment's out-of.
 
+## The full suite, once, at the end
+
+`npm test` on `b75c58d`: **Test Files 8 failed | 905 passed (913); Tests 9 failed |
+16847 passed | 6 skipped (16862)**. Five were this ledger's and are fixed in the
+closing push, each file re-run green: the team plan's check-in `$effect` (now a
+writable `$derived`, `classroom-composer-effect-reactivity`), the standards
+register rows for the spec 1.11 and the rubric standard 1.4
+(`standards-version-header`), the sequence count 0302's `classroom_team_log` adds
+(`grant-sequence-sweep-control`, 16 to 17) and the browser-verify README counts
+for the four new specs (`derived-numbers`, five assertions). Four are not this
+ledger's and fail the same way without it: `apply-migration-guard` control 3 and
+`apply-migration-trace` (no `origin/integration` ref in this checkout),
+`identity-style-shared` (its pinned commit is outside this shallow clone) and
+`coin-stocks-relaunch` (it boots the chain short of 0283, so no migration of this
+ledger is in it).
+
 ## Two apply incidents, both closed
 
 - **0305's record was committed by hand.** The apply succeeded (run 40309704841,
