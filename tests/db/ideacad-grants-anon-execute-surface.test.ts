@@ -543,7 +543,10 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
 	connector_call: 'THE CONNECTOR\'S TRANSPORT, PASSED THROUGH FOR A SIGNED-OUT CALLER (ledger 0400, docs/connector/DESIGN.md section 5). connector_call is SECURITY INVOKER: for anyone who is not a site admin it runs the named function exactly as a direct call would and then refuses, so a signed-out call reads the inner function\'s own "permission denied" text for text and nothing lands. Granting it to anon is what makes that comparison exact; it grants no reach, because the inner function still runs as anon. tests/db/connector-permissions.test.ts holds both halves.',
 
 	// --- A Foundry game's HTML cover (1). 0291, ledger 0422. ---
-	foundry_cover_html: 'THE APPS ORIGIN HOLDS NO SESSION (ledger 0422, 0291, docs/subsystems/origin-split.md). /c/<app id> serves an admin\'s HTML cover there under sandbox allow-scripts with no network, and reads it through the request\'s own client, which on that origin is anon. It answers the document only for an app the gallery shows and nothing while the Foundry is off, the same publication gate the bundle routes keep; tests/db/foundry-covers-0291.test.ts holds both directions.'
+	foundry_cover_html: 'THE APPS ORIGIN HOLDS NO SESSION (ledger 0422, 0291, docs/subsystems/origin-split.md). /c/<app id> serves an admin\'s HTML cover there under sandbox allow-scripts with no network, and reads it through the request\'s own client, which on that origin is anon. It answers the document only for an app the gallery shows and nothing while the Foundry is off, the same publication gate the bundle routes keep; tests/db/foundry-covers-0291.test.ts holds both directions.',
+
+	// --- The IDEA calendar's subscription link (1). 0308, ledger 0439. ---
+	calendar_feed_by_token: 'A PHONE CALENDAR APP HOLDS NO SESSION (ledger 0439). /api/calendar/feed/<token> is read by a subscribed calendar with no cookie, so the read is anon. It answers {ok:false} for any string that is not a current 64-hex link and otherwise exactly its owner\'s calendar through the one visibility rule; the token table has no client grant and only its owner makes, replaces or deletes a link. tests/db/calendar.test.ts holds both directions, with the rule mutation-proven.'
 };
 
 /**
@@ -556,7 +559,7 @@ const ANON_EXECUTE_SURFACE: Readonly<Record<string, string>> = {
  * moving it without reading the reason beside the new entry is what the pin
  * refuses.
  */
-const ANON_EXECUTE_SURFACE_SIZE = 31;
+const ANON_EXECUTE_SURFACE_SIZE = 32;
 
 // ---------------------------------------------------------------------------
 // Plumbing

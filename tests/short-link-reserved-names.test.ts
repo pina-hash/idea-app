@@ -147,7 +147,9 @@ const CHAIN = [
 	'0275_short_link_reserve_market.sql',
 	// 0292 (ledger 0422) reserves `coin` (the coin home), `c` (a Foundry game's
 	// HTML cover, 0291) and `view-as` (the end of a view as session, 0288).
-	'0292_short_link_reserve_coin_cover_view_as.sql'
+	'0292_short_link_reserve_coin_cover_view_as.sql',
+	// 0309 (ledger 0439) reserves `calendar`, the IDEA calendar at /calendar.
+	'0309_short_link_reserve_calendar.sql'
 ] as const;
 
 let db: TestDb;

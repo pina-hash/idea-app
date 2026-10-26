@@ -42,7 +42,7 @@ export const SLUG_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/;
  * (`ideacad`), 0231 (`armory`, supabase/migrations/0231_armory.sql), 0260
  * (`certifications`), 0269 (`feedback`, the feedback window's own page at
  * /feedback/embed, ledger 0396) and 0271 (`connector` and `mcp`, the IDEA
- * Website connector's routes, ledger 0400) -- earlier copies are immutable applied records
+ * Website connector's routes, ledger 0400), and since then 0275, 0292 and 0309 (`calendar`, ledger 0439) -- earlier copies are immutable applied records
  * and are never edited to match this one; change both together.
  * tests/short-link-reserved-names.test.ts asserts they agree, and separately
  * walks the real route tree so a route added later reddens the suite instead
@@ -62,6 +62,7 @@ export const RESERVED_SLUGS = [
 	'auth',
 	'b',
 	'c',
+	'calendar',
 	'certifications',
 	'classroom',
 	'coin',
