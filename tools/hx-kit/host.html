@@ -47,7 +47,7 @@
   var DOC = '__DOC__';
   var frame = document.getElementById('frame');
   var S = { ready: false, seeded: false, values: {}, images: {}, readOnly: false, theme: 'dark',
-            echoes: 0, stale: 0, messages: 0, dropped: [], boxes: {}, changes: 0, saveTimer: 0 };
+            echoes: 0, stale: 0, messages: 0, dropped: [], boxes: {}, changes: 0, saveTimer: 0, focus: [] };
   function post(msg) { frame.contentWindow && frame.contentWindow.postMessage(msg, '*'); }
   function postState(values) {
     post({ type: 'idea:state', values: Object.assign({}, values || S.values), images: JSON.parse(JSON.stringify(S.images)), readOnly: S.readOnly });
@@ -103,6 +103,7 @@
       case 'idea:field-blur':
         /* Team posts (SPEC 16.7): the portal takes and releases the box's lock. */
         if (!known(d.field)) { S.dropped.push(d.type + ' ' + d.field); return; }
+        S.focus.push(d.type.slice(11) + ' ' + d.field);
         return;
       default:
         S.dropped.push('type ' + d.type);
@@ -114,6 +115,10 @@
     stats: function () { return { echoes: S.echoes, stale: S.stale, messages: S.messages, dropped: S.dropped }; },
     theme: function (t) { S.theme = t === 'light' ? 'light' : 'dark'; document.documentElement.dataset.theme = t === 'light' ? 'space-white' : 'idea'; post({ type: 'idea:theme', theme: S.theme }); },
     readOnly: function (b) { S.readOnly = !!b; postState(); },
+    /* Team posts: what the portal would say, and a teammate's saved answer arriving. */
+    teamState: function (msg) { post(Object.assign({ type: 'idea:team-state' }, msg)); },
+    teammate: function (a) { S.values[a[0]] = a[1]; postState(); },
+    focusLog: function () { return S.focus.slice(); },
     reload: function () { S.ready = false; S.seeded = false; frame.src = DOC + '?r=' + Date.now(); },
     firstScreen: function () {
       var r = frame.getBoundingClientRect();

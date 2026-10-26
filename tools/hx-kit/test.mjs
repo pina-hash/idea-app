@@ -304,6 +304,55 @@ try {
 		(screens > 3 ? FAIL : screens > 1.5 ? WARN : PASS)('layout', 'Scroll budget', `${Math.round(hgt)}px tall, ${screens.toFixed(1)} screens of a ${PANE}px pane. Use the kit's steps.`);
 	}
 
+	/* A team post (spec 16): one shared page per team. Driven through the stand-in
+	   as the portal drives it: a box a teammate holds is drawn read only with their
+	   name and every other box stays writable; focusing a box asks for its lock;
+	   a teammate's saved answer replaces a box the student already typed in once
+	   that save has landed, and never the box the student is in. */
+	if (manifest.team && k.kit) {
+		const shared = new Set((manifest.modules || []).filter((m) => m.audience === 'team' || m.audience === 'role').flatMap((m) => (m.blocks || []).filter((b) => b.type === 'text' || b.type === 'longText').map((b) => b.field)));
+		const fields = await frame.evaluate((sh) => sh.filter((f) => { const r = hxRoot(f); return r && /^(INPUT|TEXTAREA)$/.test(r.tagName); }), [...shared]);
+		if (fields.length < 3) WARN('team', 'A team page has three shared text boxes to drive', `found ${fields.length}`);
+		else {
+			const [held, mine, live] = fields;
+			const show = (f) => frame.evaluate((x) => { const i = KIT.steps.findIndex((s) => s.el.contains(hxRoot(x))); if (i >= 0) kitShow(i); }, f);
+			const states = Object.fromEntries(fields.map((f) => [f, { state: 'free' }]));
+			states[held] = { state: 'held', by: 'Alex' };
+			await host(page, 'teamState', { team: 'Team 3', me: 'Sam', roles: [], fields: states });
+			await page.waitForTimeout(200);
+			const paint = await frame.evaluate(([fs, h]) => ({
+				lockedHeld: hxRoot(h).disabled, words: (document.querySelector('[data-who="' + h + '"]') || {}).textContent || '',
+				lockedOthers: fs.filter((f) => f !== h && hxRoot(f).disabled).length,
+				labels: [...document.querySelectorAll('.hx-who')].filter((w) => w.textContent.trim()).length
+			}), [fields, held]);
+			(paint.lockedHeld && /Alex is editing/.test(paint.words) && paint.lockedOthers === 0 && paint.labels === 1 ? PASS : FAIL)('team', 'A box a teammate holds is read only with their name; every other box stays writable',
+				`held box read only: ${paint.lockedHeld}, says "${paint.words}"; other shared boxes read only: ${paint.lockedOthers} of ${fields.length - 1}; boxes with words beside them: ${paint.labels}`);
+			await host(page, 'teamState', { team: 'Team 3', me: 'Sam', roles: [], fields: Object.fromEntries(fields.map((f) => [f, { state: 'free' }])) });
+			await show(mine);
+			await frame.locator(`[data-field="${mine}"]`).click();
+			await page.keyboard.type('ours');
+			await show(live);
+			await frame.locator(`[data-field="${live}"]`).click();
+			await page.waitForTimeout(1200);
+			await page.keyboard.type('typing');
+			await host(page, 'teammate', [mine, 'from a teammate']);
+			await host(page, 'teammate', [live, 'overwritten']);
+			await page.waitForTimeout(300);
+			const after = await frame.evaluate(([a, b]) => [hxRoot(a).value, hxRoot(b).value], [mine, live]);
+			const log = await host(page, 'focusLog');
+			const asked = log.includes('focus ' + mine) && log.includes('blur ' + mine) && log.includes('focus ' + live);
+			(after[0] === 'from a teammate' && after[1] === 'typing' && asked ? PASS : FAIL)('team', "A teammate's saved answer arrives, never over the box the student is in, and focus asks for the lock",
+				`left box now "${after[0]}" (want "from a teammate"); box in use "${after[1]}" (want "typing"); lock messages: ${log.join(', ') || 'none'}`);
+			/* Put both boxes back as they were, so the save checks below start clean. */
+			await frame.evaluate(() => document.activeElement && document.activeElement.blur());
+			await page.waitForTimeout(1000);
+			await frame.evaluate((fs) => fs.forEach((f) => { delete HX.owned[f]; }), [mine, live]);
+			await host(page, 'teammate', [mine, '']);
+			await host(page, 'teammate', [live, '']);
+			await page.waitForTimeout(300);
+		}
+	}
+
 	/* Tap targets: every control a student presses is 44px. */
 	const small = await frame.evaluate(() => {
 		const out = [];
