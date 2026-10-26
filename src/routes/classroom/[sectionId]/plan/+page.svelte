@@ -109,7 +109,20 @@
 		block: (taskId, why) => call('classroom_team_task_block', { p_task_id: taskId, p_reason: why }),
 		depends: (taskId, on) => call('classroom_team_task_depends', { p_task_id: taskId, p_depends_on: on }),
 		checkin: (teamId, ids) => call('classroom_team_checkin', { p_team_id: teamId, p_task_ids: ids }),
-		request: (teamId, key) => call('classroom_signoff_request', { p_team_id: teamId, p_checkpoint_key: key })
+		// Through the server, which makes the request as this student and then
+		// tells the teacher who decides it (ledger 0436, 0306).
+		request: async (teamId, key) => {
+			const res = await fetch('/api/classroom/signoff-request', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ team_id: teamId, checkpoint_key: key })
+			});
+			const out = await res.json().catch(() => null);
+			if (!res.ok && !out) throw new Error('The request did not reach the site.');
+			if (out?.reason === 'error') throw new Error(String(out.message ?? 'The request was refused.'));
+			if (plan && live) live.announce(teamLiveKey(plan.team.id), 'team-doc');
+			return out;
+		}
 	};
 </script>
 

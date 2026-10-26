@@ -171,6 +171,7 @@
 "/api/classroom/deck": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
 "/api/classroom/deck/[deck_id]/[...path]": {exclude: "Serves a page or a file to a browser; nothing a person asks for."}
 "/api/classroom/delete-content": {exclude: "The site's delete route; the connector's delete post deletes through the same function, audited and asked first, and sweeps the same Drive files afterward."}
+"/api/classroom/signoff-request": {exclude: "A student asking for their own team's sign-off; the connector reads the queue and decides through the sign-off functions."}
 "/api/classroom/export": {exclude: "Runs on its own after every save to copy a post to the repository; never a person's action."}
 "/api/classroom/html-assignment-source/[itemId]": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}
 "/api/classroom/instructor-attachment": {exclude: "A file's bytes, uploaded or downloaded; bytes cannot come through a chat."}

@@ -9758,6 +9758,9 @@
 		"/api/classroom/delete-content": {
 			"exclude": "The site's delete route; the connector's delete post deletes through the same function, audited and asked first, and sweeps the same Drive files afterward."
 		},
+		"/api/classroom/signoff-request": {
+			"exclude": "A student asking for their own team's sign-off; the connector reads the queue and decides through the sign-off functions."
+		},
 		"/api/classroom/export": {
 			"exclude": "Runs on its own after every save to copy a post to the repository; never a person's action."
 		},
@@ -11268,6 +11271,7 @@
 		"/api/classroom/deck": "endpoints.yaml",
 		"/api/classroom/deck/[deck_id]/[...path]": "endpoints.yaml",
 		"/api/classroom/delete-content": "endpoints.yaml",
+		"/api/classroom/signoff-request": "endpoints.yaml",
 		"/api/classroom/export": "endpoints.yaml",
 		"/api/classroom/html-assignment-source/[itemId]": "endpoints.yaml",
 		"/api/classroom/instructor-attachment": "endpoints.yaml",

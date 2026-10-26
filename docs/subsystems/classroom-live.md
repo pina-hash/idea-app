@@ -310,3 +310,12 @@ not a class, and the wait only coalesces a burst. The floor is a tab return, nev
 interval (the item page's call budget is spent), and a lock running out redraws on the
 clock with no read (`teamNextLockChange`). `tests/db/supabase-stub.sql` carries a
 `realtime.send` that writes the row the real one writes, so a suite can count notices.
+
+**THE STAFF PAGES LISTEN ON THE SECTION, NEVER ON EVERY TEAM (ledger 0436, 0304, 0306).**
+`/classroom/signoffs` and `/classroom/board` subscribe to each class they list
+(`staffSections`) for `signoffs`, and the board for `teams` too, with the same jitter; a
+teammate's saved answer reaches the board only through its poller floor (120 seconds,
+`startPoller`, which also re-reads on a tab return), because a board subscribed to every
+team's `team-doc` channel would hold fifteen channels open to show a burn-up that moves
+once a class. A new request also reaches the deciding teacher's phone, by push, through
+`POST /api/classroom/signoff-request` (`_classroom_signoff_notify` names who).
