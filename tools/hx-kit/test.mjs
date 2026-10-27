@@ -96,6 +96,21 @@ const visibleText = html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<st
 (/—/.test(visibleText) ? FAIL : PASS)('copy', 'No em dashes in student text', /—/.test(visibleText) ? 'found an em dash' : '');
 const kitBuilt = /id="hx-kit-js"/.test(html);
 (kitBuilt ? PASS : WARN)('kit', 'Built on the kit (plumbing inlined by build.mjs)', kitBuilt ? '' : 'Hand-rolled plumbing: every rule in AUTHORING 6 is now this file\'s to get right.');
+/* The author's own CSS (AUTHORING D1): a part the kit or the live Plate
+   already has, redrawn by hand, is what made assignments look homemade
+   (geometry audit, 2026-10-26). Stripes, washes and dark-trough boxes. */
+{
+	const own = [...html.matchAll(/<style(?![^>]*id="hx-(?:kit-css|palette)")[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+	const hits = [];
+	const stripe = own.match(/border-(?:left|right|top)\s*:\s*[3-9]px[^;]*/g) || [];
+	if (stripe.length) hits.push(`${stripe.length} thick side stripe${stripe.length > 1 ? 's' : ''} (use a section with an eyebrow, or a lamp)`);
+	const wells = (own.match(/background(?:-color)?\s*:\s*var\(--well-face\)/g) || []).length;
+	if (wells) hits.push(`${wells} box${wells > 1 ? 'es' : ''} on the dark well face (a well is for typing into; use .hx-tile or .hx-list)`);
+	const rules = (own.match(/border-(?:top|bottom)\s*:\s*1px solid var\(--hair\)/g) || []).length;
+	if (rules) hits.push(`${rules} flat 1px rule${rules > 1 ? 's' : ''} between rows (use .hx-table or .hx-list, whose rows are etched)`);
+	(hits.length ? WARN : PASS)('look', "The page draws the site's parts, not its own copies", hits.length ? hits.join('; ') : 'no stripes, well-face boxes or flat row rules in the author CSS');
+}
+
 /* Content colors (AUTHORING D3): build.mjs writes every used color, solved for
    each theme, into hx-palette-data. Judge each value here against the real
    grounds; the browser pass below checks the page applies them. */
@@ -226,7 +241,8 @@ try {
 		const rgb = (c) => { probe.clearRect(0, 0, 1, 1); probe.fillStyle = '#000'; probe.fillStyle = c; probe.fillRect(0, 0, 1, 1); const d = probe.getImageData(0, 0, 1, 1).data; return d[3] < 20 ? null : [d[0], d[1], d[2]]; };
 		const root = getComputedStyle(document.documentElement);
 		const greens = ['--accent', '--primary-face', '--led-green'].map((v) => rgb(root.getPropertyValue(v).trim())).filter(Boolean);
-		const near = (a) => a && greens.some((g) => Math.abs(a[0] - g[0]) + Math.abs(a[1] - g[1]) + Math.abs(a[2] - g[2]) < 40);
+		/* Close to a green token AND green itself: a neutral key face (#2f3431) sits within 40 of the dark primary face (#2f4b2c) and is not green. */
+		const near = (a) => a && a[1] - Math.max(a[0], a[2]) > 12 && greens.some((g) => Math.abs(a[0] - g[0]) + Math.abs(a[1] - g[1]) + Math.abs(a[2] - g[2]) < 40);
 		const hits = [];
 		for (const el of document.querySelectorAll('body *')) {
 			const r = el.getBoundingClientRect();

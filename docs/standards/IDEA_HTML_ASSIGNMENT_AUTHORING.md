@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.9 - 2026-10-26**
+**Version 2.10 - 2026-10-27**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -212,6 +212,39 @@ design system's own `tokens.json`; nobody types a hex. Raised means pressable, i
 read-only; panels, keys, chips and wells are the system's classes. Quality is on par with
 the site because it is the site's parts (L21, design system tokens).
 
+**D1a. The geometry is the classroom page's (2.10, Mr. Pina 2026-10-26: assignments looked
+"a little too vibe-coded... a cheap thing on the beautiful website").** The audit found the
+Plate parts matched and everything the kit drew on top of them did not. `kit.css` now draws
+only live parts (`src/lib/classroom/plate.css`), and a source uses them rather than its own:
+- **The hero** is the item page's head: a cyan eyebrow, the title bar between its hazard
+  blocks, then "Done when" beside the subject's picture.
+- **A class is a pad**, the live tab: a 3px bezel band (anodized in its phase color), an inner
+  lip, an LED. Today's class has its LED lit; the chosen class is the lit pad. A phase is
+  named with its lamp.
+- **The step track is the live progress rail**: 14px round slots with a hairline, a done step
+  filled with the accent and its gloss, the current step ringed in its phase ink.
+- **One panel per step, never a box in a box.** An evidence, example or stretch panel inside a
+  step is drawn as a section of the step: a groove above it and its eyebrow, no border, face or
+  shadow. The one nested panel is `.hx-tile`, the live card in a housing, for options, roles
+  or parts side by side (`.hx-tiles` lays them out).
+- **No stripes, no washes, no colored slabs.** A color shows as a lamp, a badge, a band or
+  in a figure. A notice is a printed line with its lamp.
+- **A readout is the display** (the returned grade's screen): glass, its lit LED, the screen
+  ink. A computed number reads like an instrument, never a quoted line or a field.
+- **A pick is a key**: raised, a lit top edge, the chosen one lit with its broken ring; its
+  radio is an LED.
+- **A disclosure is the live one**: mono caps in the body ink, a caret, SHOW or HIDE at the
+  right. Its rows sit in the list well, cut by etched dividers.
+- **Rows and tables are etched**, never ruled: `.hx-list` (a list well) and `.hx-table` (mono
+  caption heads, etched rows).
+- **A line is typed into a trough; a paragraph is written on the panel's face** (the live
+  textarea, radius 5). A picture box is the live upload zone, a well with a solid hairline.
+- **Type**: body Rajdhani 400, a step title 1.2rem at 600 under its eyebrow (the step chip and
+  its phase lamp), step lists numbered in chips. The page is at most 1440px wide and prose
+  72 characters.
+The test WARNS on an author's own CSS that redraws these: a side stripe of 3px or more, a box
+on the dark well face, a flat 1px rule between rows.
+
 **D2. Color by meaning, in the chrome.** Green is act and done, and rationed: the one next
 action, active and done marks, links, focus (three or fewer green elements on the first
 screen; the test counts them). Amber is a limit, a warning or a deadline. Red is only a
@@ -270,7 +303,7 @@ others:
   a step along one spectrum: a cyan-blue-violet run across eight FRC tracks had "no
   establishment there" (Mr. Pina). Set it on the item as `data-color="name"`; the build also
   writes `--trk` (the fill) and `--trk-ink` (the text shade) there, solved per theme. It marks identity only:
-  the item's stripe, badge, icon, its own lit chips and its selected outline; never a key, a
+  the item's lamp, badge, icon, its own lit chips and its selected outline; never a key, a
   status chip or a done mark, because D2's meanings hold (green is next and done, red is a
   number that must change). The same item keeps the same color on every page that shows it,
   so a student learns it once. A pale identity color (yellow, gold, aluminum) is a filled
@@ -662,6 +695,14 @@ new term.
 ---
 
 ## Changelog
+
+- **2.10 (2026-10-27).** Ledger 0448. D1a: the kit's geometry is the live classroom's parts
+  (title bar, pads with LEDs, the progress rail, one panel per step with sections cut by
+  grooves, the display for readouts, keys for picks, the live disclosure, etched rows, the
+  live textarea and upload zone, body weight 400, a 1440px page), with `.hx-tile`, `.hx-tiles`,
+  `.hx-list` and `.hx-table` for an author's own sets, tables and rows. The test warns on
+  stripes, well-face boxes and flat rules in an author's CSS. Nineteen tokens added from the
+  live Plate (pad bands, lips, glows, drops); the 2026-10-17 values had not drifted.
 
 - **2.9 (2026-10-26).** Ledger 0447. D3: named content colors solved separately for each
   theme into ink, fill, on, line and wash (`colors.json`, `color.mjs` `solve`, `build.mjs`

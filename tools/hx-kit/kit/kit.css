@@ -32,34 +32,98 @@ body.idea-plate { background-color: var(--page-bot); }
 /* ---- The page. ---------------------------------------------------------- */
 #hx-page {
 	display: flow-root;
-	max-width: 1680px;
+	max-width: 1440px;
 	margin: 0 auto;
 	padding: clamp(12px, 1.8vw, 28px);
-	font-weight: 500;
+	font-weight: 400;
 }
 #hx-page p, #hx-page li { max-width: 72ch; }
-#hx-page h1, #hx-page h2, #hx-page h3 { color: var(--plate-ink); margin: 0; line-height: 1.15; }
-#hx-page h2 { font-size: 1.4rem; }
-#hx-page h3 { font-size: 1.12rem; }
+#hx-page h1, #hx-page h2, #hx-page h3 { color: var(--plate-ink); margin: 0; line-height: 1.2; }
+#hx-page h2 { font-size: 1.2rem; font-weight: 600; letter-spacing: 0.01em; }
+#hx-page h3 { font-size: 1.05rem; font-weight: 600; }
+#hx-page strong, #hx-page b { font-weight: 600; color: var(--plate-ink); }
 #hx-page a { color: var(--accent); }
 .hx-muted { color: var(--text-2); }
 .hx-small { font-size: 0.92rem; }
 .vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* ---- The hero: one band, short, so the first step sits in the first screen. */
+/* The groove: a cut across the plate, dark line over a light one (the live
+   title bar's and rubric head's). A section under one needs no box. */
+.hx-groove-top {
+	background-image: linear-gradient(var(--groove-dk), var(--groove-dk)), linear-gradient(var(--groove-lt), var(--groove-lt));
+	background-size: 100% 1px, 100% 1px;
+	background-position: 0 0, 0 1px;
+	background-repeat: no-repeat;
+}
+
+/* A lamp: the 4px light the live chips and pads carry, in a content color. */
+.hx-lamp, .hx-phase-name::before, .hx-phase-tag::before, [data-color] > .idea-eyebrow::before {
+	content: '';
+	display: inline-block;
+	flex: none;
+	width: 6px;
+	height: 6px;
+	margin-right: 7px;
+	vertical-align: 0.12em;
+	border-radius: 50%;
+	background: radial-gradient(circle at 42% 36%, rgba(255, 255, 255, 0.75) 0 0.7px, var(--hx-fill) 1.6px);
+	box-shadow: 0 0 0 1px var(--led-ring), 0 0 4px 0 var(--hx-fill);
+}
+
+/* ---- The hero: the challenge named the way the item page names itself. ----
+   A cyan eyebrow, the title bar between its hazard blocks, then what done
+   looks like beside the picture of the real subject. */
 .hx-hero {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
-	gap: var(--space-4) var(--space-5);
+	gap: var(--space-2) var(--space-5);
 	align-items: center;
 	margin-bottom: var(--space-4);
 }
-.hx-hero-text { display: grid; gap: var(--space-2); min-width: 0; }
-.hx-hero h1 { font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.3rem); }
-.hx-crumb { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--caption); }
+.hx-hero-text { display: contents; }
+.hx-hero-text > * { grid-column: 1; min-width: 0; }
+.hx-crumb {
+	grid-column: 1 / -1 !important;
+	font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase;
+	color: var(--cyan);
+}
+#hx-page .hx-hero h1 {
+	--idea-hazard-w: min(18%, 132px);
+	--idea-hazard-h: var(--hazard-h);
+	--idea-hazard-pitch: 10px;
+	--idea-hazard-tail: 3px;
+	grid-column: 1 / -1;
+	position: relative;
+	margin: 0 0 var(--space-2);
+	padding: 0.55rem calc(var(--idea-hazard-w) + 14px);
+	font-family: var(--font-mono);
+	font-size: clamp(1.05rem, 0.85rem + 0.55vw, 1.35rem);
+	font-weight: 400;
+	line-height: 1.35;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	text-align: center;
+	text-wrap: balance;
+	color: var(--ink-2);
+	background: linear-gradient(to bottom, var(--plate-hi), transparent 3px);
+	box-shadow: var(--shadow-groove);
+}
+#hx-page .hx-hero h1::before, #hx-page .hx-hero h1::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	width: calc(round(down, var(--idea-hazard-w) - var(--idea-hazard-tail), var(--idea-hazard-pitch)) + var(--idea-hazard-tail));
+	height: var(--idea-hazard-h);
+	margin-top: calc(var(--idea-hazard-h) / -2);
+	pointer-events: none;
+	clip-path: polygon(0 0, 100% 0, calc(100% - 2 * var(--idea-hazard-tail)) 100%, 0 100%);
+	background: var(--hazard);
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 203 15' width='203' height='15'%3E%3Cpolygon points='0,15 5,15 13,0 8,0'/%3E%3Cpolygon points='10,15 15,15 23,0 18,0'/%3E%3Cpolygon points='20,15 25,15 33,0 28,0'/%3E%3Cpolygon points='30,15 35,15 43,0 38,0'/%3E%3Cpolygon points='40,15 45,15 53,0 48,0'/%3E%3Cpolygon points='50,15 55,15 63,0 58,0'/%3E%3Cpolygon points='60,15 65,15 73,0 68,0'/%3E%3Cpolygon points='70,15 75,15 83,0 78,0'/%3E%3Cpolygon points='80,15 85,15 93,0 88,0'/%3E%3Cpolygon points='90,15 95,15 103,0 98,0'/%3E%3Cpolygon points='100,15 105,15 113,0 108,0'/%3E%3Cpolygon points='110,15 115,15 123,0 118,0'/%3E%3Cpolygon points='120,15 125,15 133,0 128,0'/%3E%3Cpolygon points='130,15 135,15 143,0 138,0'/%3E%3C/svg%3E") left center / auto 100% no-repeat;
+}
+#hx-page .hx-hero h1::before { left: 0; }
+#hx-page .hx-hero h1::after { right: 0; transform: scaleX(-1); }
 .hx-done-when { margin: 0; color: var(--body-ink); }
-.hx-done-when strong { color: var(--plate-ink); }
-.hx-hero-art { width: clamp(160px, 22vw, 380px); aspect-ratio: 2 / 1; margin-right: clamp(0px, 4vw, 80px); }
+.hx-hero-art { grid-column: 2; grid-row: 3 / span 3; width: clamp(150px, 18vw, 280px); aspect-ratio: 2 / 1; margin-right: clamp(0px, 3vw, 48px); }
 .hx-hero-art svg { width: 100%; height: 100%; display: block; }
 .hx-hero-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .hx-hero-tools label { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
@@ -68,184 +132,405 @@ body.idea-plate { background-color: var(--page-bot); }
 	.hx-hero { grid-template-columns: 1fr; }
 	.hx-hero-art { display: none; }
 }
+@media (max-width: 480px) {
+	#hx-page .hx-hero h1 { --idea-hazard-w: 24px; --idea-hazard-h: 10px; --idea-hazard-pitch: 6.667px; --idea-hazard-tail: 2px; font-size: 0.95rem; letter-spacing: 0.06em; }
+}
 
-/* ---- The plan: classes grouped into phases, colored along the spectrum.
-   One band across the page; each phase is as wide as its days, so the shape of
-   the unit reads at a glance (the IDEA209H Shop Fix calendar is the model). */
+/* ---- The plan: classes grouped into phases. Each class is a PAD, the live
+   tab's part: a 3px bezel band (anodized in its phase color), an inner lip, an
+   LED in its corner. Today's class has its LED lit; the class a student picked
+   is the lit pad. Each phase is as wide as its days. */
 .hx-plan {
 	display: flex;
-	gap: var(--space-2);
+	gap: var(--space-3);
 	margin: 0 0 var(--space-4);
-	padding: var(--space-3);
+	padding: 0 0 var(--space-3);
 	overflow-x: auto;
+	border: 0;
+	border-radius: 0;
+	background: none;
+	box-shadow: var(--shadow-groove);
 }
 .hx-phase { display: grid; grid-template-rows: auto 1fr; gap: 6px; min-width: 0; flex: var(--days, 1) 1 0; }
 .hx-phase-name {
-	display: flex; align-items: center; gap: 6px;
+	display: flex; align-items: center;
 	font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase;
-	color: var(--hx-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	color: var(--caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	padding: 4px 2px 0;
 }
-.hx-phase-name::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--hx-fill); box-shadow: inset 0 0 0 1px var(--hx-line); }
-.hx-phase-days { display: flex; gap: 4px; }
+.hx-phase-days { display: flex; gap: 6px; padding: 3px; }
 .hx-day {
 	position: relative; flex: 1 1 0;
 	min-width: 72px; min-height: 52px;
-	padding: 8px 10px 6px;
+	padding: 7px 18px 6px 10px;
 	display: grid; align-content: center; justify-items: start;
 	font: inherit; text-align: left; cursor: pointer;
 	color: var(--plate-ink);
-	border: 1px solid var(--hair);
+	border: 3px solid transparent;
 	border-radius: var(--radius-pad);
-	background: linear-gradient(to bottom, var(--hx-wash), var(--hx-wash)), var(--well-face);
-	box-shadow: inset 0 4px 0 0 var(--hx-line), var(--shadow-chip);
+	background:
+		linear-gradient(to bottom, var(--key-face-top), var(--key-face-bot)) padding-box,
+		linear-gradient(to bottom, color-mix(in oklab, var(--hx-fill) 55%, var(--band-top)), color-mix(in oklab, var(--hx-fill) 35%, var(--band-bot))) border-box;
+	background-color: var(--key-face-top);
+	box-shadow:
+		0 0 0 1px var(--hair),
+		inset 0 0 0 1px var(--pad-lip),
+		inset 0 0 3px 1px var(--tube-lo),
+		0 0 1px 2px var(--rim-out),
+		0 2px 3px 1px var(--drop),
+		0 5px 8px -3px var(--drop-far);
 }
-.hx-day .d1 { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
-.hx-day .d2 { font-weight: 700; line-height: 1.2; }
-.hx-day[aria-pressed='true'] { border-color: var(--hx-ink); outline: 2px solid var(--hx-ink); outline-offset: 1px; }
-.hx-day.is-today .d1::after { content: ' · today'; color: var(--accent); }
-.hx-day.is-off { cursor: default; box-shadow: var(--shadow-chip); background: var(--well-face); color: var(--text-2); }
-.hx-day:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.hx-day::after {
+	content: '';
+	position: absolute;
+	right: 3px;
+	bottom: 4px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	pointer-events: none;
+	background:
+		radial-gradient(circle, var(--led-off-hi) 0 0.7px, var(--led-off) 1.6px, var(--led-ring) 2.1px 2.4px, transparent 2.8px),
+		radial-gradient(circle at 50% 30%, var(--led-cup-in) 0 2.1px, var(--led-cup) 3.5px);
+	box-shadow: 0 1px 0 0 var(--bezel-hi);
+}
+.hx-day.is-today::after {
+	background:
+		radial-gradient(circle, var(--accent-glow) 0 0.5px, var(--accent) 1.5px, var(--led-ring) 2.1px 2.4px, transparent 2.8px),
+		radial-gradient(circle at 50% 30%, var(--led-cup-in) 0 2.1px, var(--led-cup) 3.5px);
+	box-shadow: 0 1px 0 0 var(--bezel-hi), 0 0 4px 1px var(--led-halo);
+}
+.hx-day .d1 { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--caption); }
+.hx-day .d2 { font-weight: 600; line-height: 1.2; }
+.hx-day:hover:not(:disabled) { border-color: var(--hover-ink); }
+.hx-day[aria-pressed='true'] {
+	background:
+		linear-gradient(to bottom, var(--key-lit-top), var(--key-lit-bot)) padding-box,
+		linear-gradient(to bottom, color-mix(in oklab, var(--hx-fill) 55%, var(--band-top)), color-mix(in oklab, var(--hx-fill) 35%, var(--band-bot))) border-box;
+	background-color: var(--key-lit-top);
+	box-shadow:
+		0 0 0 1px var(--hair),
+		inset 0 0 0 1px var(--lit-glow),
+		inset 0 0 0 3px var(--lit-glow),
+		inset 0 0 6px 4px var(--lit-core),
+		0 0 1px 2px var(--rim-out),
+		0 0 10px 1px var(--bloom),
+		0 2px 3px 1px var(--drop),
+		0 5px 8px -3px var(--drop-far);
+}
+.hx-day[aria-pressed='true'] .d2 { font-weight: 700; }
+.hx-day.is-today .d1::after { content: ' · today'; color: var(--plate-ink); }
+.hx-day.is-off {
+	cursor: default;
+	background: linear-gradient(var(--key-disabled-face), var(--key-disabled-face)) padding-box, linear-gradient(var(--band-bot), var(--band-bot)) border-box;
+	box-shadow: 0 0 0 1px var(--key-disabled-edge);
+	color: var(--disabled-ink);
+}
+.hx-day.is-off .d1 { color: var(--disabled-ink); }
+.hx-day:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 @media (max-width: 640px) {
-	.hx-plan { flex-wrap: wrap; padding: var(--space-2); }
+	.hx-plan { flex-wrap: wrap; }
 	.hx-phase { min-width: 88px; }
-	.hx-day { min-width: 0; padding: 6px 8px 4px; }
+	.hx-day { min-width: 0; padding: 5px 16px 4px 8px; }
 	.hx-day .d2 { font-size: 0.92rem; }
 }
 
-/* ---- The bar: where you are, and the one next thing. Not sticky: the step
-   it sits on is never taller than a screen, so it is always near. ---------- */
+/* ---- The bar: where you are, and the one next thing. -------------------- */
 .hx-bar {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	gap: var(--space-2) var(--space-4);
 	align-items: center;
-	padding: var(--space-3) var(--space-4);
+	padding: var(--space-3) var(--space-4) var(--space-4);
 	margin-bottom: var(--space-3);
 }
 .hx-where { min-width: 0; }
 .hx-where .lbl { display: block; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--caption); }
-.hx-where .val { display: block; font-weight: 700; color: var(--plate-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hx-where .val { display: block; font-weight: 600; color: var(--plate-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hx-bar-keys { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; align-items: center; }
-.hx-track { grid-column: 1 / -1; display: flex; gap: 4px; }
+/* The step track is the live progress rail (Progress.svelte .hxp-bar): 14px
+   slots, fully round, a hairline each, divided by a 3px gap. A done step is
+   filled with the accent and its gloss; the step you are on is ringed in its
+   phase's ink; the rest show their phase's tint, so phases read along it. */
+.hx-track { grid-column: 1 / -1; display: flex; gap: 3px; height: 14px; min-width: 0; }
 .hx-seg {
-	flex: 1 1 0; position: relative; height: 8px; min-width: 6px; border: 0; padding: 0; cursor: pointer;
-	border-radius: 4px; background: var(--well-face); box-shadow: var(--shadow-chip);
+	flex: 1 1 0; position: relative; min-width: 6px; padding: 0; cursor: pointer;
+	border: 1px solid var(--hairline);
+	border-radius: 999px;
+	background: linear-gradient(var(--hx-wash), var(--hx-wash)), var(--list-face);
+	box-shadow: inset 0 1px 1px 0 var(--chip-shade);
 }
-.hx-seg::after { content: ''; position: absolute; inset: -18px 0; } /* 44px hit area */
-.hx-seg { background: linear-gradient(var(--hx-wash), var(--hx-wash)), var(--well-face); }
-.hx-seg.is-done { background: var(--accent); }
-.hx-seg.is-here { outline: 2px solid var(--hx-ink); outline-offset: 2px; }
-.hx-save { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
-.hx-save.failed { color: var(--crimson); }
-.hx-banner-failed {
+.hx-seg::after { content: ''; position: absolute; inset: -15px 0; } /* 44px hit area */
+.hx-seg.is-done {
+	background:
+		linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%) -100% 0 / 200% 100% no-repeat,
+		var(--accent);
+	border-color: var(--accent);
+	box-shadow: none;
+}
+.hx-seg.is-here { box-shadow: 0 0 0 2px var(--panel-top), 0 0 0 4px var(--hx-ink); }
+.hx-seg:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 5px; }
+.hx-save {
+	display: inline-flex; align-items: center; min-height: var(--chip-h); padding: 0 6px;
+	border-radius: var(--radius-small);
+	background-color: var(--chip-ground); background-image: linear-gradient(to bottom, var(--chip-top), var(--chip-bot)); box-shadow: var(--shadow-chip);
+	font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--plate-ink);
+}
+.hx-save::before { content: ''; width: 4px; height: 4px; margin-right: 6px; border-radius: 50%; background: var(--led-green); box-shadow: 0 0 0 1px var(--led-ring), 0 0 4px 1px var(--led-green); }
+.hx-save.failed { color: var(--plate-ink); }
+.hx-save.failed::before { background: var(--crimson); box-shadow: 0 0 0 1px var(--led-ring), 0 0 4px 1px var(--crimson); }
+/* A notice is a printed line with its lamp, never a colored slab. */
+.hx-banner-failed, .hx-finish {
+	display: flex; align-items: baseline; gap: 10px;
 	margin: 0 0 var(--space-3); padding: var(--space-3) var(--space-4);
 	border: 1px solid var(--hair); border-radius: var(--radius-control);
-	background: var(--status-danger-fill); color: var(--plate-ink); font-weight: 700;
+	background-color: var(--panel-ground); background-image: linear-gradient(to bottom, var(--panel-top), var(--panel-bot));
+	box-shadow: var(--shadow-panel-nested);
+	color: var(--plate-ink); font-weight: 600;
 }
+.hx-banner-failed::before, .hx-finish::before {
+	content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; transform: translateY(-1px);
+	background: var(--crimson); box-shadow: 0 0 0 1px var(--led-ring), 0 0 6px 1px var(--crimson);
+}
+.hx-finish::before { background: var(--accent); box-shadow: 0 0 0 1px var(--led-ring), 0 0 6px 1px var(--led-halo); }
+.hx-finish { margin: 0; font-weight: 400; }
 @media (max-width: 760px) { .hx-bar { grid-template-columns: 1fr; } .hx-bar-keys { justify-content: flex-start; } .hx-where .val { white-space: normal; } }
 
-/* ---- A step: one screen of work. ---------------------------------------- */
+/* ---- A step: one screen of work, ONE panel. ------------------------------
+   The head is the live module card's: an eyebrow (the step's number chip and
+   its phase, with the phase lamp) over a 1.2rem title. */
 .hx-step { display: grid; gap: var(--space-4); }
-.hx-step-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; }
+.hx-step-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; row-gap: 2px; align-items: center; }
+.hx-step-head > div:not([class]) { display: contents; }
+.hx-step-head h2 { grid-column: 1 / -1; grid-row: 2; }
 .hx-num {
-	width: 44px; height: 44px; display: grid; place-items: center;
-	font-family: var(--font-mono); font-size: 1.05rem; color: var(--hx-ink);
-	border-radius: var(--radius-control); border: 1px solid var(--hair);
-	background: linear-gradient(to bottom, var(--hx-wash), transparent), var(--well-face);
-	box-shadow: var(--shadow-well);
+	grid-row: 1; grid-column: 1;
+	display: inline-flex; align-items: center; justify-content: center;
+	min-width: var(--chip-h); height: var(--chip-h); padding: 0 6px;
+	border-radius: var(--radius-small);
+	background-color: var(--chip-ground); background-image: linear-gradient(to bottom, var(--chip-top), var(--chip-bot)); box-shadow: var(--shadow-chip);
+	font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.04em; color: var(--plate-ink);
 }
-.hx-step.is-done .hx-num { color: var(--accent); }
-.hx-step-head .hx-phase-tag { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--hx-ink); }
+.hx-num::before { content: 'Step '; text-transform: uppercase; margin-right: 3px; color: var(--caption); }
+.hx-step.is-done .hx-num::after { content: '✓'; margin-left: 4px; color: var(--accent); }
+.hx-step-head .hx-phase-tag {
+	grid-row: 1; grid-column: 2;
+	display: inline-flex; align-items: center;
+	font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caption);
+}
 .hx-step-body {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
-	gap: var(--space-4);
+	gap: var(--space-4) var(--space-5);
 	align-items: start;
 }
 .hx-step-body > * { min-width: 0; }
-.hx-step-foot { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; align-items: center; }
+.hx-step-foot { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; align-items: center; padding-top: var(--space-3); box-shadow: inset 0 1px 0 0 var(--groove-dk), inset 0 2px 0 0 var(--groove-lt); }
 .hx-step-foot .hx-next-label { color: var(--text-2); }
 html.hx-view-list .hx-step + .hx-step { margin-top: var(--space-6); }
 html.hx-view-list .hx-step-foot { display: none; }
 
+/* NO BOX INSIDE A BOX. Inside a step, every panel an author wrote (the
+   evidence, an example, the stretch) is a SECTION of the one step panel: no
+   border, face or shadow of its own, cut off by a groove and named by its
+   eyebrow, the way the item page labels Your work. */
+.hx-step .idea-panel {
+	padding: var(--space-3) 0 0;
+	border: 0;
+	border-radius: 0;
+	background-color: transparent;
+	background-image: linear-gradient(var(--groove-dk), var(--groove-dk)), linear-gradient(var(--groove-lt), var(--groove-lt));
+	background-size: 100% 1px, 100% 1px;
+	background-position: 0 0, 0 1px;
+	background-repeat: no-repeat;
+	box-shadow: none;
+}
+.hx-step .idea-panel > .idea-eyebrow:first-child { margin-bottom: 2px; }
+/* A tile: the one place a panel sits inside a panel, as the live card in a
+   housing does: the same face, a shorter shadow. For a set of options, roles
+   or parts side by side. */
+.hx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+#hx-page .hx-tile {
+	display: grid; gap: 4px; align-content: start; padding: var(--space-3);
+	border: 1px solid var(--hair); border-radius: var(--radius-pad);
+	background-color: var(--panel-ground); background-image: linear-gradient(to bottom, var(--panel-top), var(--panel-bot));
+	box-shadow: var(--shadow-panel-nested);
+}
+
 /* The parts of a step. */
 .hx-do { margin: 0; padding: 0; list-style: none; counter-reset: do; display: grid; gap: var(--space-2); }
-.hx-do > li { counter-increment: do; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: var(--space-2); }
-.hx-do > li::before { content: counter(do); font-family: var(--font-mono); color: var(--hx-ink); padding-top: 0.1rem; }
+.hx-do > li { counter-increment: do; display: grid; grid-template-columns: 1.75rem minmax(0, 1fr); gap: var(--space-2); }
+.hx-do > li::before {
+	content: counter(do); align-self: start; margin-top: 0.1rem;
+	display: inline-flex; align-items: center; justify-content: center; height: var(--chip-h); min-width: var(--chip-h);
+	border-radius: var(--radius-small);
+	background-color: var(--chip-ground); background-image: linear-gradient(to bottom, var(--chip-top), var(--chip-bot)); box-shadow: var(--shadow-chip);
+	font-family: var(--font-mono); font-size: 0.75rem; color: var(--plate-ink);
+}
 .hx-do > li > span { min-width: 0; }
 .hx-see {
-	margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control);
-	background: var(--well-face); box-shadow: var(--shadow-well); border: 1px solid var(--hair);
+	margin: 0; padding: var(--space-3) 0 0;
+	background-image: linear-gradient(var(--groove-dk), var(--groove-dk)), linear-gradient(var(--groove-lt), var(--groove-lt));
+	background-size: 100% 1px, 100% 1px; background-position: 0 0, 0 1px; background-repeat: no-repeat;
 }
-.hx-see::before { content: 'You should see'; display: block; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--caption); margin-bottom: 2px; }
-details.hx-stuck > summary {
-	min-height: var(--tap-min); display: flex; align-items: center; gap: var(--space-2); cursor: pointer;
-	font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cyan);
-}
-details.hx-stuck table { width: 100%; border-collapse: collapse; }
-details.hx-stuck td { padding: var(--space-2) var(--space-3); border-top: 1px solid var(--divider); vertical-align: top; overflow-wrap: break-word; }
-details.hx-stuck td:first-child { width: 40%; color: var(--plate-ink); font-weight: 700; }
+.hx-see::before { content: 'You should see'; display: block; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan); margin-bottom: 2px; }
 
-/* Graded inputs: one labeled panel, inside the step that produces them. */
+/* A disclosure is the live one (Disclosure.svelte): mono caps in the body ink,
+   a caret, and SHOW or HIDE at the right. */
+details.hx-stuck > summary, details.hx-more > summary {
+	list-style: none;
+	min-height: var(--tap-min); display: flex; align-items: center; gap: var(--space-2); cursor: pointer;
+	padding: var(--space-2) 0;
+	font-family: var(--font-mono); font-size: 0.78rem; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--plate-ink);
+}
+details.hx-stuck > summary::-webkit-details-marker, details.hx-more > summary::-webkit-details-marker { display: none; }
+details.hx-stuck > summary::before, details.hx-more > summary::before { content: '▸'; flex: none; width: 0.9em; color: var(--text-2); }
+details.hx-stuck[open] > summary::before, details.hx-more[open] > summary::before { content: '▾'; }
+details.hx-stuck > summary::after, details.hx-more > summary::after { content: 'Show'; margin-left: auto; font-size: 0.72rem; color: var(--text-2); }
+details.hx-stuck[open] > summary::after, details.hx-more[open] > summary::after { content: 'Hide'; }
+details.hx-stuck > summary:hover, details.hx-more > summary:hover { color: var(--hover-ink); }
+details.hx-stuck > summary:focus-visible, details.hx-more > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Its rows sit in the list well, divided by etched cuts that fade 12px from
+   each edge (the live class list's rows). */
+details.hx-stuck table, .hx-list {
+	width: 100%; border-collapse: separate; border-spacing: 0;
+	border: 1px solid var(--hair); border-radius: var(--radius-panel);
+	background-color: var(--list-face);
+	box-shadow:
+		inset 0 1px 0 0 var(--groove-dk),
+		inset 0 6px 8px -4px var(--inset-shade),
+		inset 8px 0 10px -8px var(--inset-shade),
+		inset -1px 0 0 0 var(--well-lip),
+		inset 0 -1px 0 0 var(--well-lip),
+		0 1px 0 0 var(--well-lip);
+	overflow: hidden;
+}
+details.hx-stuck td { padding: var(--space-2) var(--space-3); vertical-align: top; overflow-wrap: break-word; }
+details.hx-stuck td:first-child { width: 40%; color: var(--plate-ink); font-weight: 600; }
+details.hx-stuck tr + tr > td, .hx-list > li + li {
+	background-image:
+		linear-gradient(to right, var(--etch-fade-l, transparent) 0, var(--divider) var(--etch-l, 0px), var(--divider) calc(100% - var(--etch-r, 0px)), var(--etch-fade-r, transparent) 100%),
+		linear-gradient(to right, var(--etch-fade-l, transparent) 0, var(--well-lip) var(--etch-l, 0px), var(--well-lip) calc(100% - var(--etch-r, 0px)), var(--etch-fade-r, transparent) 100%);
+	background-size: 100% 1px, 100% 1px; background-position: 0 0, 0 1px; background-repeat: no-repeat;
+	--etch-fade-l: var(--divider); --etch-fade-r: var(--divider);
+}
+details.hx-stuck tr + tr > td:first-child, .hx-list > li + li { --etch-l: 12px; --etch-fade-l: transparent; }
+details.hx-stuck tr + tr > td:last-child, .hx-list > li + li { --etch-r: 12px; --etch-fade-r: transparent; }
+.hx-list { list-style: none; margin: 0; padding: 0; display: block; }
+.hx-list > li { padding: var(--space-2) var(--space-3); max-width: none !important; }
+
+/* Graded inputs: one labeled section, inside the step that produces them. */
 .hx-evidence { display: grid; gap: var(--space-3); }
 .hx-evidence > .idea-chip, [data-count-for] { justify-self: start; }
 .hx-evidence > .idea-eyebrow::after { content: ' · counts toward your grade'; color: var(--text-2); text-transform: none; letter-spacing: 0; font-family: var(--font-display); font-size: 0.9rem; }
 .hx-evidence label { display: grid; gap: 4px; font-weight: 600; color: var(--plate-ink); }
 .hx-evidence textarea, .hx-evidence input[type='text'] { width: 100%; padding: 0.6rem 0.85rem; }
 .hx-evidence textarea { min-height: 88px; resize: vertical; padding-top: 0.6rem; }
-.hx-hint { font-weight: 500; color: var(--text-2); font-size: 0.92rem; }
+.hx-hint { font-weight: 400; color: var(--text-2); font-size: 0.92rem; }
 
-/* A pick drawn as picture cards. */
+/* A pick drawn as cards is a set of KEYS: raised, a lit top edge, and the
+   chosen one is the lit key with its broken accent ring. The radio is its LED. */
 .hx-picks { border: 0; margin: 0; padding: 0; display: grid; gap: var(--space-2); grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); }
 .hx-picks legend { padding: 0; margin-bottom: var(--space-2); font-weight: 600; color: var(--plate-ink); }
 .hx-pick {
-	display: grid; gap: 6px; padding: var(--space-3); min-height: var(--tap-min); cursor: pointer;
-	border: 1px solid var(--hair); border-radius: var(--radius-control);
-	background: linear-gradient(to bottom, var(--key-face-top), var(--key-face-bot)); box-shadow: var(--shadow-key); color: var(--btn-ink);
+	position: relative;
+	display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; padding: var(--space-3); min-height: var(--tap-min); cursor: pointer;
+	border: 1px solid; border-color: var(--hair-top) var(--hair) var(--hair); border-radius: var(--radius-control);
+	background:
+		linear-gradient(to bottom, var(--key-face-top), var(--key-face-bot)) padding-box,
+		linear-gradient(to bottom, var(--hair-top), var(--hair)) border-box;
+	background-color: var(--key-face-top);
+	box-shadow: var(--shadow-key);
+	color: var(--btn-ink);
+	font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 0.03em;
 }
-.hx-pick:has(input:checked) { border-color: var(--accent); box-shadow: var(--shadow-key-lit); }
-.hx-pick input { width: 20px; height: 20px; accent-color: var(--accent); }
+.hx-pick > svg { grid-column: 1 / -1; }
+.hx-pick:hover { border-color: var(--hover-ink); }
+.hx-pick input {
+	appearance: none; margin: 0; flex: none; width: 12px; height: 12px; border-radius: 50%; cursor: pointer;
+	background: radial-gradient(circle, var(--led-off-hi) 0 1px, var(--led-off) 3px);
+	box-shadow: 0 0 0 1px var(--led-ring), 0 1px 0 1px var(--bezel-hi);
+}
+.hx-pick input:checked { background: radial-gradient(circle at 45% 40%, var(--accent-glow) 0 1px, var(--accent) 3.5px); box-shadow: 0 0 0 1px var(--led-ring), 0 0 6px 1px var(--led-halo); }
+.hx-pick input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.hx-pick:has(input:checked) {
+	background:
+		linear-gradient(to bottom, var(--key-lit-top), var(--key-lit-bot)) padding-box,
+		linear-gradient(to bottom, var(--hair-top), var(--hair)) border-box;
+	background-color: var(--key-lit-top);
+	box-shadow: var(--shadow-key-lit);
+}
+.hx-pick:has(input:checked)::after {
+	content: ''; position: absolute; inset: 4px; pointer-events: none;
+	border: 2px solid var(--accent); border-radius: calc(var(--radius-control) - 3px);
+	box-shadow: inset 0 0 0 1px var(--accent-glow);
+	mask:
+		linear-gradient(118deg, #000 calc(100% - 4px), transparent calc(100% - 3.5px)) right 10px top 0 / 36px 5px no-repeat,
+		linear-gradient(118deg, #000 calc(100% - 4px), transparent calc(100% - 3.5px)) left 10px bottom 0 / 17px 5px no-repeat,
+		linear-gradient(#000, #000);
+	mask-composite: exclude;
+}
+.hx-pick svg { width: 100%; height: auto; max-height: 90px; }
 
-/* A picture or file box the portal draws over. */
+/* A picture or file box the portal draws over: the live upload zone, a well
+   with a solid hairline. */
 .hx-box {
 	display: grid; place-items: center; text-align: center; padding: var(--space-3);
 	width: min(100%, 340px); min-width: 160px; min-height: 120px; aspect-ratio: 4 / 3;
-	border: 1px dashed var(--hair); border-radius: var(--radius-control);
-	background: var(--well-face); box-shadow: var(--shadow-well); color: var(--text-2); overflow: hidden;
+	border: 1px solid var(--hair); border-radius: var(--radius-control);
+	background-color: var(--well-face); background-image: linear-gradient(to bottom, var(--well-top), var(--well-face) 30%);
+	box-shadow: var(--shadow-well); color: var(--text-2); overflow: hidden;
 }
 .hx-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .hx-box { position: relative; cursor: pointer; }
-.hx-box.hx-paste-target { border: 2px solid var(--accent); box-shadow: var(--shadow-well), 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-.hx-box.hx-paste-target::after { content: "Ctrl+V pastes here"; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px; background: var(--accent); color: var(--bg0, #111); font: 600 0.75rem/1.6 var(--font-mono); letter-spacing: 0.06em; white-space: nowrap; }
+.hx-box.hx-paste-target { border-color: var(--accent); box-shadow: var(--shadow-well), 0 0 0 1px var(--accent), 0 0 8px 1px var(--led-halo); }
+.hx-box.hx-paste-target::after { content: "Ctrl+V pastes here"; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); padding: 2px 8px; border-radius: var(--radius-small); background: var(--primary-face); color: var(--primary-ink); font: 400 0.6875rem/1.6 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .hx-file-keys { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .hx-note { margin: 0; font-size: 0.92rem; color: var(--text-2); }
-.hx-note.failed { color: var(--crimson); font-weight: 700; }
+.hx-note.failed { color: var(--plate-ink); font-weight: 600; }
+.hx-note.failed::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 0 1px var(--led-ring), 0 0 6px 1px var(--crimson); }
 
-/* An example on a DIFFERENT part than the one the student works on. */
-.hx-example { border-left: 4px solid var(--hx-line); }
+/* An example on a DIFFERENT part than the one the student works on: a section
+   like any other, its color only in its lamp and its figure. */
 .hx-example > .idea-eyebrow::after { content: ' · different part, same standard'; text-transform: none; letter-spacing: 0; font-family: var(--font-display); font-size: 0.9rem; color: var(--text-2); }
 
-/* The stretch challenge: optional, paid in IDEA Coins, never in points. */
-.hx-stretch { border: 1px solid var(--hair); }
-.hx-stretch > .idea-eyebrow { color: var(--gold); }
+/* The stretch challenge: optional, paid in IDEA Coins, never in points. Its
+   lamp is gold (the stretch), its words the caption ink. */
+.hx-stretch > .idea-eyebrow::before {
+	content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 7px; vertical-align: 0.12em; border-radius: 50%;
+	background: radial-gradient(circle at 42% 36%, rgba(255, 255, 255, 0.75) 0 0.7px, var(--led-gold) 1.6px);
+	box-shadow: 0 0 0 1px var(--led-ring), 0 0 4px 0 var(--led-gold);
+}
 
-/* Tap tips: a definition behind a term. */
+/* Tap tips: a definition behind a term, in the live tooltip's housing. */
 .it { border-bottom: 1px dotted var(--text-2); cursor: help; position: relative; }
 .it::after {
 	content: attr(data-tip); display: none; position: absolute; z-index: 5; left: 0; top: calc(100% + 6px);
 	width: var(--tip-w, 280px); padding: var(--space-2) var(--space-3);
-	border-radius: var(--radius-pad); border: 1px solid var(--hair);
-	background: var(--panel-top); box-shadow: var(--shadow-panel); color: var(--body-ink);
-	font-size: 0.95rem; font-weight: 500; line-height: 1.45; white-space: normal;
+	border-radius: var(--radius-panel); border: 1px solid var(--hair);
+	background-color: var(--panel-ground); background-image: linear-gradient(to bottom, var(--panel-top), var(--panel-bot));
+	box-shadow: var(--shadow-housing); color: var(--body-ink);
+	font-size: 0.92rem; font-weight: 400; line-height: 1.45; white-space: normal; text-transform: none; letter-spacing: 0;
 }
 .it:hover::after, .it:focus::after, .it.open::after { display: block; }
 
 /* Video: the portal plays over this box. */
-.hx-video { position: relative; aspect-ratio: 16 / 9; width: 100%; border-radius: var(--radius-control); background: var(--screen-top); display: grid; place-items: center; color: var(--text-2); overflow: hidden; }
+.hx-video { position: relative; aspect-ratio: 16 / 9; width: 100%; border-radius: var(--radius-control); background: var(--screen-top); box-shadow: var(--shadow-screen); display: grid; place-items: center; color: var(--text-2); overflow: hidden; }
 
-/* Fields. */
+/* Fields. A line is typed into a dark trough; a paragraph is written on the
+   panel's own face (the live textarea rule). */
 #hx-page .idea-well { width: 100%; }
-#hx-page textarea.idea-well { line-height: 1.5; }
+#hx-page textarea, #hx-page textarea.idea-well {
+	line-height: 1.5;
+	font-family: var(--font-display); font-size: 1rem;
+	border: 1px solid var(--hair);
+	border-radius: var(--radius-small);
+	background-color: var(--panel-bot);
+	background-image: linear-gradient(to bottom, var(--chip-top), var(--panel-bot) 18px);
+	box-shadow: inset 0 1px 0 0 var(--chip-shade), inset 0 2px 3px -1px var(--chip-shade), 0 1px 0 0 var(--well-lip);
+	color: var(--plate-ink);
+}
+#hx-page textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 #hx-page td { overflow-wrap: break-word; }
 #hx-page button, #hx-page summary, #hx-page input[type='radio'], #hx-page input[type='checkbox'] { touch-action: manipulation; }
 html.is-readonly .hx-edit-only { display: none !important; }
@@ -254,47 +539,62 @@ html.is-readonly .hx-edit-only { display: none !important; }
 	@keyframes hx-in { from { opacity: 0.4; } to { opacity: 1; } }
 }
 
+/* A table of the author's own: mono caption heads, etched rows, no rules. */
+.hx-table { width: 100%; border-collapse: collapse; }
+.hx-table th { text-align: left; font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caption); padding: 0 8px 6px 0; }
+.hx-table td { padding: 6px 8px 6px 0; vertical-align: top; }
+.hx-table tbody tr > td {
+	background-image: linear-gradient(var(--divider), var(--divider)), linear-gradient(var(--well-lip), var(--well-lip));
+	background-size: 100% 1px, 100% 1px; background-position: 0 0, 0 1px; background-repeat: no-repeat;
+}
+
 /* ---- Small layout helpers, so a source needs no inline styles. ---------- */
 .hx-stack { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
 .hx-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
-details.hx-more > summary {
-	min-height: var(--tap-min); display: flex; align-items: center; gap: var(--space-2); cursor: pointer;
-	font-weight: 600; color: var(--plate-ink);
-}
+details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 .hx-fig { margin: 0; display: grid; gap: var(--space-2); }
 .hx-fig svg { width: 100%; max-width: 420px; height: auto; max-height: 240px; display: block; }
 .hx-fig figcaption { font-size: 0.92rem; color: var(--text-2); }
 .hx-unit { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
 .hx-unit > span { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-2); }
+/* A readout is read, never typed in: it is the live display (the returned
+   grade's screen), glass with its lit LED, so it cannot pass for a field. */
 .hx-readout {
-	margin: 0; padding: 2px 0 2px var(--space-3);
-	border-left: 3px solid var(--cyan);
-	font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 0.02em; color: var(--plate-ink);
+	position: relative;
+	margin: 0; padding: 0.6rem 1rem 0.65rem 2rem;
+	border-radius: 7px 7px var(--radius-pad) var(--radius-pad);
+	background-color: var(--screen-top);
+	background-image: linear-gradient(165deg, var(--glass) 0 38%, transparent 62%), linear-gradient(to bottom, var(--screen-top), var(--screen-bot));
+	box-shadow: var(--shadow-screen);
+	font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 0.02em; line-height: 1.45;
+	color: var(--screen-ink); text-shadow: 0 0 6px var(--screen-glow);
+	font-variant-numeric: tabular-nums;
+	max-width: none !important;
 }
-/* A readout is read, never typed in: no well, no box, so it cannot pass for a field. */
-.hx-readout.warn { color: var(--amber); border-left-color: var(--amber); }
-.hx-finish {
-	margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-control);
-	border: 1px solid var(--hair); background: var(--status-ok-fill); color: var(--plate-ink);
+.hx-readout::before {
+	content: ''; position: absolute; left: 0.8rem; top: 0.95rem; width: 7px; height: 7px; border-radius: 50%;
+	background: radial-gradient(circle at 45% 40%, #ffffffaa 0 0.8px, var(--screen-ink) 2.2px);
+	box-shadow: 0 0 6px 1px var(--screen-glow);
 }
-.hx-pick svg { width: 100%; height: auto; max-height: 90px; }
+.hx-readout.warn { color: var(--led-amber); text-shadow: 0 0 6px color-mix(in srgb, var(--led-amber) 55%, transparent); }
+.hx-readout.warn::before { background: radial-gradient(circle at 45% 40%, #ffffffaa 0 0.8px, var(--led-amber) 2.2px); box-shadow: 0 0 6px 1px var(--led-amber); }
 
 /* A placeholder shows the form of an answer and must never pass for one. */
 #hx-page ::placeholder { color: var(--text-2); font-style: italic; opacity: 0.85; }
 
-/* ---- Team posts (kit/team.js, SPEC 16). Words carry the state; color only backs them. */
+/* ---- Team posts (kit/team.js, SPEC 16). Words carry the state; a lamp backs them. */
 .hx-who { margin: 2px 0 0; font-size: 0.88rem; color: var(--text-2); min-height: 0; }
 .hx-who:empty { display: none; }
-.hx-who.mine { color: var(--accent); }
+.hx-who.mine { color: var(--plate-ink); }
+.hx-who.mine::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; vertical-align: 0.1em; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--led-ring), 0 0 4px 1px var(--led-halo); }
 .hx-who.locked { color: var(--text-2); font-style: italic; }
 .hx-locked { opacity: 0.78; }
-[data-role] { border-left: 3px solid var(--hair); }
-[data-role].is-mine { border-left-color: var(--accent); }
-[data-role-owner].is-mine { color: var(--accent); font-weight: 700; }
+[data-role-owner].is-mine { color: var(--plate-ink); font-weight: 600; }
 .hx-tk-sum { margin: 0; }
 .hx-tk-next { margin: 0; color: var(--text-2); }
-.hx-tk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.hx-tk-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 6px 0; border-bottom: 1px solid var(--hair); }
+.hx-tk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.hx-tk-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 6px 0; max-width: none !important; }
+.hx-tk-list li + li { background-image: linear-gradient(var(--divider), var(--divider)), linear-gradient(var(--well-lip), var(--well-lip)); background-size: 100% 1px, 100% 1px; background-position: 0 0, 0 1px; background-repeat: no-repeat; }
 .hx-tk-meta { color: var(--text-2); font-size: 0.9rem; }
 .hx-flag-warn { --idea-lamp: var(--led-amber); }
 

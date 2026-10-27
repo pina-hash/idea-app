@@ -47,6 +47,18 @@ the test bundles the real importer check from `src/`).
 - A field a student need not fill carries `data-optional` (and `"optional": true` in the
   manifest). `data-min-sentences` on a textarea sets when it counts as done.
 
+## The parts (standard D1a)
+
+`kit.css` draws only the live classroom's parts, so a source uses these and never its own copies:
+- Inside a step, `idea-panel` (evidence, example, stretch) is a section: a groove above and its eyebrow. The step itself is the one panel.
+- `.hx-tiles` > `.hx-tile`: options, roles or parts side by side, the one nested panel (the live card in a housing).
+- `.hx-list` (a list well with etched rows) and `.hx-table` (mono caption heads, etched rows) for anything in rows.
+- `.hx-readout` (add `.warn`): a computed number, drawn as the display.
+- `.hx-picks` > `.hx-pick`: a pick as keys; `.hx-box`: a picture box (the upload zone).
+- `details.hx-stuck` / `details.hx-more`: the live disclosure.
+- `.hx-lamp`: a 6px light in the element's `data-color`.
+`test.mjs` warns on a side stripe of 3px or more, a box on `--well-face` and a flat 1px row rule in the source's own CSS.
+
 ## What the test does not cover
 
 The real portal frame and its gate (`npm run verify:browser`, `/dev/html-assignment`), whether
