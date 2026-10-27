@@ -1195,6 +1195,53 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 #hx-page .hx-tile[data-role].is-mine { outline: 0; border-color: var(--accent); box-shadow: var(--shadow-panel-nested), 0 0 0 1px var(--sel-edge), 0 0 10px 1px var(--sel-glow); }
 #hx-page [data-role].is-mine > :is(h3, b):first-child::after { content: ' · your role'; color: var(--text-2); font-family: var(--font-display); font-weight: 400; text-transform: none; letter-spacing: 0; }
 
+/* ---- Width comes from the box, not the page (2026-10-27). ----------------
+   A layout keyed on the page width squeezes a card that sits in a narrow
+   column, which is what a 125% zoom does to every laptop. Each step column is
+   a size container, so a part lays itself out by its own width. */
+.hx-step-body > *, .hx-stack, .hx-evidence, .hx-tile { container-type: inline-size; }
+/* A link to a document or tool: icon, words, and its Open key. Side by side
+   when the card is wide enough for a sentence; stacked when it is not. */
+#hx-page .hx-link-card {
+	display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-3);
+	padding: var(--space-3); text-decoration: none; color: var(--body-ink);
+	border: 1px solid var(--hair); border-radius: var(--radius-pad);
+	background-color: var(--panel-ground); background-image: linear-gradient(to bottom, var(--panel-top), var(--panel-bot));
+	box-shadow: var(--shadow-panel-nested);
+}
+#hx-page .hx-link-card:hover { border-color: var(--hover-ink); }
+#hx-page .hx-link-card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.hx-link-card > .hx-link-ico { display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--radius-pad); background-color: var(--chip-ground); background-image: linear-gradient(to bottom, var(--chip-top), var(--chip-bot)); box-shadow: var(--shadow-chip); color: var(--hx-ink); }
+.hx-link-card > .hx-link-ico svg { width: 24px; height: 24px; }
+.hx-link-card > .hx-link-text { display: grid; gap: 2px; min-width: 0; }
+.hx-link-card > .hx-link-text > small { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caption); }
+.hx-link-card > .hx-link-text > b { font-size: 1.05rem; line-height: 1.2; color: var(--plate-ink); }
+.hx-link-card > .hx-link-text > span { font-size: 0.92rem; line-height: 1.35; color: var(--text-2); }
+.hx-link-card > .hx-link-go { display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap-min); padding: 0 1rem; border: 1px solid; border-color: var(--hair-top) var(--hair) var(--hair); border-radius: var(--radius-control); background: linear-gradient(to bottom, var(--key-face-top), var(--key-face-bot)); box-shadow: var(--shadow-key); font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--btn-ink); white-space: nowrap; }
+.hx-link-card > .hx-link-go svg { width: 14px; height: 14px; }
+@container (max-width: 26rem) {
+	#hx-page .hx-link-card { grid-template-columns: auto minmax(0, 1fr); }
+	.hx-link-card > .hx-link-go { grid-column: 1 / -1; justify-content: center; }
+}
+.hx-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr)); gap: var(--space-2); }
+/* On a phone the plan is one phase per row, and a "That is not what I see"
+   row reads top to bottom, so no word is squeezed into a 100px column. */
+@media (max-width: 640px) {
+	.hx-plan { flex-direction: column; flex-wrap: nowrap; gap: var(--space-2); }
+	.hx-phase { min-width: 0; }
+	.hx-phase-days { flex-wrap: wrap; }
+	.hx-day { flex: 1 1 8rem; }
+}
+@media (max-width: 520px) {
+	details.hx-stuck tr, details.hx-stuck td { display: block; width: auto !important; }
+	details.hx-stuck td:first-child { padding-bottom: 0; }
+	details.hx-stuck tr + tr > td:last-child { background-image: none; }
+}
+/* The bar keeps room for where you are: the Still-to-do key wraps before it
+   takes the line (at 960px it had pushed "You are here" to 0px). */
+@media (min-width: 761px) { .hx-bar { grid-template-columns: minmax(12rem, 1fr) minmax(0, auto); } }
+.hx-bar-keys { min-width: 0; }
+
 </style>
 <style id="hx-palette">
 [data-color="steel"]{--hx-ink:#969da5;--hx-fill:#8a9199;--hx-on:#0d1311;--hx-line:#8a9199;--hx-wash:rgba(138,145,153,0.16);--trk:#8a9199;--trk-ink:#969da5}

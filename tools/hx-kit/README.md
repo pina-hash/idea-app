@@ -59,6 +59,7 @@ the test bundles the real importer check from `src/`).
 - `.hx-lamp`: a 6px light in the element's `data-color`.
 - `.hx-scale`: a rating (radios as one row of small keys) with `.hx-scale-ends`.
 - `data-any-one` around boxes of which one must be filled (each `optional` in the manifest); `data-keys-for="<field>"` around the keys that set a `readonly` box.
+- `.hx-links` > `a.hx-link-card` (`.hx-link-ico`, `.hx-link-text` with `small`, `b`, `span`, then `.hx-link-go`): a link to a document or tool, stacking by its own width. Step columns are size containers: change a layout with `@container`, never `@media`.
 - `.hx-full` (span a step's columns), `data-layout="full"` on a step (one wide column).
 `test.mjs` warns on a side stripe of 3px or more, a box on `--well-face` and a flat 1px row rule in the source's own CSS.
 

@@ -566,11 +566,36 @@ try {
 }
 
 /* ---- 5. other widths, both ends -------------------------------------- */
-for (const [w, h, label] of [[1440, 900, 'laptop'], [960, 900, 'half screen'], [375, 812, 'phone']]) {
+/* 1152 is a 1440 laptop zoomed to 125% (Mr. Pina's own setting, 2026-10-27:
+   resource cards squeezed their words into a column one word wide there). */
+for (const [w, h, label] of [[1440, 900, 'laptop'], [1152, 720, 'laptop at 125% zoom'], [960, 900, 'half screen'], [375, 812, 'phone']]) {
 	const v = await openHost(w, h);
 	try {
 		const over = await v.frame.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 		(over > 1 ? FAIL : PASS)('layout', `No sideways scroll at ${w}px (${label})`, over > 1 ? `${over}px too wide` : '');
+		/* Text squeezed into a column a few words wide: every step shown, any block
+		   of three or more words narrower than 9 of its own letters' em and three
+		   lines or taller. Layout keyed on the page width instead of the box's own
+		   width is the usual cause; the fix is a container query or a stack. */
+		const squeezed = await v.frame.evaluate(() => {
+			if (typeof kitSetView === 'function') kitSetView('list');
+			document.querySelectorAll('details').forEach((d) => { d.open = true; });
+			const out = [];
+			for (const el of document.querySelectorAll('#hx-page *')) {
+				if (!el.getClientRects().length || el.closest('[hidden]') || el.closest('svg')) continue;
+				const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' ').trim();
+				if (own.split(/\s+/).filter(Boolean).length < 3) continue;
+				const cs = getComputedStyle(el);
+				const fs = parseFloat(cs.fontSize) || 16;
+				const lh = parseFloat(cs.lineHeight) || fs * 1.4;
+				const r = el.getBoundingClientRect();
+				const words = own.split(/\s+/).filter(Boolean).length;
+				if (r.width < 9 * fs && r.height / lh >= 2.6 && words >= 3) out.push(`${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} "${own.slice(0, 28)}" ${Math.round(r.width)}px wide, ${Math.round(r.height / lh)} lines`);
+			}
+			if (typeof kitSetView === 'function') kitSetView('step');
+			return out;
+		});
+		(squeezed.length ? FAIL : PASS)('layout', `No text squeezed into a narrow column at ${w}px (${label})`, squeezed.length ? squeezed.slice(0, 5).join('; ') + (squeezed.length > 5 ? `; ${squeezed.length - 5} more` : '') : '');
 		shots.push(await shot(v.page, `04-in-classroom-${w}.png`));
 		shots.push(await docShot(v.frame, `05-document-${w}.png`));
 	} finally { await v.context.close(); }

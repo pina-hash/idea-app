@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.11 - 2026-10-27**
+**Version 2.12 - 2026-10-27**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -250,8 +250,16 @@ only live parts (`src/lib/classroom/plate.css`), and a source uses them rather t
   and `data-layout="full"` gives a step one wide column, for a wide set of cards; a link drawn
   as `.idea-key` keeps the key's ink; a `[data-role]` box that is the student's own is ringed
   and its heading says "your role".
+- **A part lays itself out by its own width, never the page's (2.12, Mr. Pina 2026-10-27, at
+  125% zoom: "the text formatting is wild").** A zoomed laptop is a narrower page, and a card
+  sitting in one column of a step is far narrower than the page, so a layout switched by a
+  `@media` width squeezes its words into a column one word wide. Every step column is a size
+  container; a part that changes layout uses `@container`. A link to a document or tool is
+  `.hx-link-card` (icon, words, Open key, stacking under 26rem) inside `.hx-links`.
 The test WARNS on an author's own CSS that redraws these: a side stripe of 3px or more, a box
-on the dark well face, a flat 1px rule between rows.
+on the dark well face, a flat 1px rule between rows. It FAILS any block of three or more words
+narrower than 9 of its own em and three lines tall, at 1440, 1152 (a 1440 laptop at 125%), 960
+and 375 pixels, with every step shown.
 
 **D2. Color by meaning, in the chrome.** Green is act and done, and rationed: the one next
 action, active and done marks, links, focus (three or fewer green elements on the first
@@ -703,6 +711,13 @@ new term.
 ---
 
 ## Changelog
+
+- **2.12 (2026-10-27).** Ledger 0450. D1a: parts lay out by their own width (step columns are
+  size containers, `@container` for a layout change), `.hx-link-card` and `.hx-links` for a
+  link to a document or tool, and the test's squeezed-text check at 1440, 1152 (125% zoom),
+  960 and 375. It found, besides the cards Mr. Pina saw on IDEA-Blade 01 at 125%, the kit's
+  own plan pads and "That is not what I see" rows on a phone and the bar's location line at
+  960; all three are fixed.
 
 - **2.11 (2026-10-27).** Ledger 0449. Nine kit gaps reported by the IDEA 100 and IDEA209H
   overhaul chats: the kit's Next and Still-to-do keys wrap on a phone; `.hx-scale` (a rating);
