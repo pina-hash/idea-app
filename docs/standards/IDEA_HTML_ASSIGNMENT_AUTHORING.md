@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.12 - 2026-10-27**
+**Version 2.13 - 2026-10-27**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -711,6 +711,13 @@ new term.
 ---
 
 ## Changelog
+
+- **2.13 (2026-10-27).** Ledger 0451. Four kit fixes from the FRC Training Library overhaul:
+  the solver judges a color on the hex that ships, with margin (FIRST red's on-fill read 4.50
+  as a float and 4.49 rounded); a step body holds two columns at most, so a `.hx-full` row no
+  longer opens an empty third one past about 1180px; "That is not what I see" rows stack by
+  their column's width (`@container`), not the screen's; the test's camera check opens the
+  disclosures around a picture box before pressing Take photo, where a closed one crashed it.
 
 - **2.12 (2026-10-27).** Ledger 0450. D1a: parts lay out by their own width (step columns are
   size containers, `@container` for a layout change), `.hx-link-card` and `.hx-links` for a

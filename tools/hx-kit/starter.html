@@ -861,7 +861,9 @@ body.idea-plate { background-color: var(--page-bot); }
 }
 .hx-step-body {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+	/* Two columns at most: a track is never narrower than half the body, so a
+	   .hx-full row cannot hold open a third, empty column on a wide screen. */
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, max(380px, calc((100% - var(--space-5)) / 2))), 1fr));
 	gap: var(--space-4) var(--space-5);
 	align-items: start;
 }
@@ -1199,7 +1201,7 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
    A layout keyed on the page width squeezes a card that sits in a narrow
    column, which is what a 125% zoom does to every laptop. Each step column is
    a size container, so a part lays itself out by its own width. */
-.hx-step-body > *, .hx-stack, .hx-evidence, .hx-tile { container-type: inline-size; }
+.hx-step, .hx-step-body > *, .hx-stack, .hx-evidence, .hx-tile { container-type: inline-size; }
 /* A link to a document or tool: icon, words, and its Open key. Side by side
    when the card is wide enough for a sentence; stacked when it is not. */
 #hx-page .hx-link-card {
@@ -1232,7 +1234,9 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 	.hx-phase-days { flex-wrap: wrap; }
 	.hx-day { flex: 1 1 8rem; }
 }
-@media (max-width: 520px) {
+/* By the column's width, not the screen's: a long symptom in a half-width
+   column squeezed at 1440 while the screen rule waited for 520px. */
+@container (max-width: 34rem) {
 	details.hx-stuck tr, details.hx-stuck td { display: block; width: auto !important; }
 	details.hx-stuck td:first-child { padding-bottom: 0; }
 	details.hx-stuck tr + tr > td:last-child { background-image: none; }
@@ -1247,13 +1251,13 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 [data-color="steel"]{--hx-ink:#969da5;--hx-fill:#8a9199;--hx-on:#0d1311;--hx-line:#8a9199;--hx-wash:rgba(138,145,153,0.16);--trk:#8a9199;--trk-ink:#969da5}
 :root[data-theme="light"] [data-color="steel"]{--hx-ink:#5b6269;--hx-fill:#8a9199;--hx-on:#0d1311;--hx-line:#5b6269;--hx-wash:rgba(138,145,153,0.22);--trk:#8a9199;--trk-ink:#5b6269}
 [data-color="sky"]{--hx-ink:#37a5df;--hx-fill:#2f9fd8;--hx-on:#0d1311;--hx-line:#2f9fd8;--hx-wash:rgba(47,159,216,0.16);--trk:#2f9fd8;--trk-ink:#37a5df}
-:root[data-theme="light"] [data-color="sky"]{--hx-ink:#006893;--hx-fill:#2f9fd8;--hx-on:#0d1311;--hx-line:#006893;--hx-wash:rgba(47,159,216,0.22);--trk:#2f9fd8;--trk-ink:#006893}
+:root[data-theme="light"] [data-color="sky"]{--hx-ink:#006692;--hx-fill:#2f9fd8;--hx-on:#0d1311;--hx-line:#006692;--hx-wash:rgba(47,159,216,0.22);--trk:#2f9fd8;--trk-ink:#006692}
 [data-color="marigold"]{--hx-ink:#e8a33a;--hx-fill:#e8a33a;--hx-on:#0d1311;--hx-line:#e8a33a;--hx-wash:rgba(232,163,58,0.16);--trk:#e8a33a;--trk-ink:#e8a33a}
 :root[data-theme="light"] [data-color="marigold"]{--hx-ink:#a34200;--hx-fill:#e8a33a;--hx-on:#0d1311;--hx-line:#a34200;--hx-wash:rgba(232,163,58,0.22);--trk:#e8a33a;--trk-ink:#a34200}
 [data-color="magenta"]{--hx-ink:#eb71c2;--hx-fill:#c851a2;--hx-on:#0d1311;--hx-line:#c851a2;--hx-wash:rgba(200,81,162,0.16);--trk:#c851a2;--trk-ink:#eb71c2}
 :root[data-theme="light"] [data-color="magenta"]{--hx-ink:#a53083;--hx-fill:#c851a2;--hx-on:#0d1311;--hx-line:#c851a2;--hx-wash:rgba(200,81,162,0.22);--trk:#c851a2;--trk-ink:#a53083}
 </style>
-<script type="application/json" id="hx-palette-data">{"arc":null,"colors":{"steel":{"anchor":"#8A9199","means":"steel stock and parts","status":"approx","dark":{"ink":"#969da5","fill":"#8a9199","on":"#0d1311","line":"#8a9199","wash":"rgba(138,145,153,0.16)","washOver":"#2e3131","notes":[]},"light":{"ink":"#5b6269","fill":"#8a9199","on":"#0d1311","line":"#5b6269","wash":"rgba(138,145,153,0.22)","washOver":"#dde1e4","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"sky":{"anchor":"#2F9FD8","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#37a5df","fill":"#2f9fd8","on":"#0d1311","line":"#2f9fd8","wash":"rgba(47,159,216,0.16)","washOver":"#1f333b","notes":[]},"light":{"ink":"#006893","fill":"#2f9fd8","on":"#0d1311","line":"#006893","wash":"rgba(47,159,216,0.22)","washOver":"#c9e4f2","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"marigold":{"anchor":"#E8A33A","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#e8a33a","fill":"#e8a33a","on":"#0d1311","line":"#e8a33a","wash":"rgba(232,163,58,0.16)","washOver":"#3d3422","notes":[]},"light":{"ink":"#a34200","fill":"#e8a33a","on":"#0d1311","line":"#a34200","wash":"rgba(232,163,58,0.22)","washOver":"#f2e5cf","notes":["ink hue moved 73 to 45 toward orange, so text is an ochre, never olive","warm text kept saturated, a muted dark orange or yellow is brown","the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"magenta":{"anchor":"#C64FA0","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#eb71c2","fill":"#c851a2","on":"#0d1311","line":"#c851a2","wash":"rgba(200,81,162,0.16)","washOver":"#382732","notes":[]},"light":{"ink":"#a53083","fill":"#c851a2","on":"#0d1311","line":"#c851a2","wash":"rgba(200,81,162,0.22)","washOver":"#ebd2e6","notes":[]}}}}</script>
+<script type="application/json" id="hx-palette-data">{"arc":null,"colors":{"steel":{"anchor":"#8A9199","means":"steel stock and parts","status":"approx","dark":{"ink":"#969da5","fill":"#8a9199","on":"#0d1311","line":"#8a9199","wash":"rgba(138,145,153,0.16)","washOver":"#2e3131","notes":[]},"light":{"ink":"#5b6269","fill":"#8a9199","on":"#0d1311","line":"#5b6269","wash":"rgba(138,145,153,0.22)","washOver":"#dde1e4","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"sky":{"anchor":"#2F9FD8","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#37a5df","fill":"#2f9fd8","on":"#0d1311","line":"#2f9fd8","wash":"rgba(47,159,216,0.16)","washOver":"#1f333b","notes":[]},"light":{"ink":"#006692","fill":"#2f9fd8","on":"#0d1311","line":"#006692","wash":"rgba(47,159,216,0.22)","washOver":"#c9e4f2","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"marigold":{"anchor":"#E8A33A","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#e8a33a","fill":"#e8a33a","on":"#0d1311","line":"#e8a33a","wash":"rgba(232,163,58,0.16)","washOver":"#3d3422","notes":[]},"light":{"ink":"#a34200","fill":"#e8a33a","on":"#0d1311","line":"#a34200","wash":"rgba(232,163,58,0.22)","washOver":"#f2e5cf","notes":["ink hue moved 73 to 45 toward orange, so text is an ochre, never olive","warm text kept saturated, a muted dark orange or yellow is brown","the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"magenta":{"anchor":"#C64FA0","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#eb71c2","fill":"#c851a2","on":"#0d1311","line":"#c851a2","wash":"rgba(200,81,162,0.16)","washOver":"#382732","notes":[]},"light":{"ink":"#a53083","fill":"#c851a2","on":"#0d1311","line":"#c851a2","wash":"rgba(200,81,162,0.22)","washOver":"#ebd2e6","notes":[]}}}}</script>
 <style>
   /* This assignment's own look. Phase colors are in hx-plan-data, other colors are data-color;
      everything else comes from the kit. */

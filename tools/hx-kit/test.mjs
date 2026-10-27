@@ -623,7 +623,15 @@ if (camFields.length) {
 
 		const f = camFields.find((fd) => keys.find((k) => k.field === fd && k.shown));
 		if (f) {
-			await v.frame.evaluate((fd) => { const el = document.querySelector(`[data-field="${CSS.escape(fd)}"]`); if (typeof KIT !== 'undefined') { const i = KIT.steps.findIndex((s2) => s2.el.contains(el)); if (i >= 0) kitShow(i); } }, f);
+			/* Bring the box's step into view and open every disclosure around its Take photo key
+			   (a box inside a closed "Show it" timed the tap out and crashed the run, 2026-10-27). */
+			await v.frame.evaluate((fd) => {
+				const el = document.querySelector(`[data-field="${CSS.escape(fd)}"]`);
+				if (typeof KIT !== 'undefined') { const i = KIT.steps.findIndex((s2) => s2.el.contains(el)); if (i >= 0) kitShow(i); }
+				const keyEl = document.querySelector(`[data-capture="${CSS.escape(fd)}"]`);
+				for (const n of [el, keyEl]) for (let d = n && n.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
+				if (keyEl) keyEl.scrollIntoView({ block: 'center' });
+			}, f);
 			await v.page.waitForTimeout(200);
 			/* A 10 MB photo: a big, mildly noisy picture saved at full quality, made in the browser. */
 			const big = await v.page.evaluate(async () => {

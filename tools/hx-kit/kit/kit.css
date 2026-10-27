@@ -320,7 +320,9 @@ body.idea-plate { background-color: var(--page-bot); }
 }
 .hx-step-body {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+	/* Two columns at most: a track is never narrower than half the body, so a
+	   .hx-full row cannot hold open a third, empty column on a wide screen. */
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, max(380px, calc((100% - var(--space-5)) / 2))), 1fr));
 	gap: var(--space-4) var(--space-5);
 	align-items: start;
 }
@@ -658,7 +660,7 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
    A layout keyed on the page width squeezes a card that sits in a narrow
    column, which is what a 125% zoom does to every laptop. Each step column is
    a size container, so a part lays itself out by its own width. */
-.hx-step-body > *, .hx-stack, .hx-evidence, .hx-tile { container-type: inline-size; }
+.hx-step, .hx-step-body > *, .hx-stack, .hx-evidence, .hx-tile { container-type: inline-size; }
 /* A link to a document or tool: icon, words, and its Open key. Side by side
    when the card is wide enough for a sentence; stacked when it is not. */
 #hx-page .hx-link-card {
@@ -691,7 +693,9 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 	.hx-phase-days { flex-wrap: wrap; }
 	.hx-day { flex: 1 1 8rem; }
 }
-@media (max-width: 520px) {
+/* By the column's width, not the screen's: a long symptom in a half-width
+   column squeezed at 1440 while the screen rule waited for 520px. */
+@container (max-width: 34rem) {
 	details.hx-stuck tr, details.hx-stuck td { display: block; width: auto !important; }
 	details.hx-stuck td:first-child { padding-bottom: 0; }
 	details.hx-stuck tr + tr > td:last-child { background-image: none; }

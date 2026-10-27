@@ -155,7 +155,7 @@ const INK_LIGHT = '#f6f7f4';
     allows) for the value closest to `L0` whose contrast against every ground is at
     least `target`, moving in the direction that raises contrast. */
 function solveL(H, C, grounds, target, L0, dir) {
-	const ok = (L) => grounds.every((g) => contrast(oklchToRgb(L, C, H), g) >= target);
+	const ok = (L) => grounds.every((g) => contrast(hex(toHex(oklchToRgb(L, C, H))), g) >= target);
 	let L = L0;
 	for (let i = 0; i < 200 && !ok(L); i++) L += dir * 0.004;
 	return Math.min(0.99, Math.max(0.05, L));
@@ -196,10 +196,14 @@ export function solve(anchorHex, theme) {
 	if (Math.abs(fL - a.L) > 0.12) notes.push(`fill lightness ${a.L.toFixed(2)} to ${fL.toFixed(2)} to read on this ground`);
 	// on
 	const pickOn = (f) => (contrast(hex(INK_DARK), f) >= contrast(hex(INK_LIGHT), f) ? INK_DARK : INK_LIGHT);
+	/* Judged on the hex that ships, not the float: first-red's fill measured
+	   4.50 as a float and 4.49 once rounded to #rrggbb (2026-10-27). */
+	const snap = (rgb) => hex(toHex(rgb));
+	fill = snap(fill);
 	let on = pickOn(fill);
-	for (let i = 0; i < 60 && contrast(hex(on), fill) < 4.5; i++) {
+	for (let i = 0; i < 80 && contrast(hex(on), fill) < 4.55; i++) {
 		fL += on === INK_DARK ? 0.006 : -0.006;
-		fill = oklchToRgb(fL, C, a.H);
+		fill = snap(oklchToRgb(fL, C, a.H));
 		on = pickOn(fill);
 	}
 	// line and wash
