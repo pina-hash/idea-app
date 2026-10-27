@@ -44,19 +44,26 @@ function kitRequired(step) {
   return kitQ('[data-field]', step).filter(function (el) {
     var wrap = el.parentElement && el.parentElement.closest('[hidden]');
     var retired = wrap && wrap !== step && step.contains(wrap);
-    return !el.hasAttribute('data-optional') && !el.closest('[data-optional]') && !retired;
+    return !el.hasAttribute('data-optional') && !el.closest('[data-optional]') && !el.closest('[data-any-one]') && !retired;
   });
 }
+/* "Any one of these boxes" (2026-10-27): a step's [data-any-one] groups, each
+   done when at least one box in it is. A group counts as a requirement. */
+function kitAnyGroups(step) {
+  return kitQ('[data-any-one]', step).filter(function (g) { return !(g.parentElement && g.parentElement.closest('[hidden]') && g.parentElement.closest('[hidden]') !== step); });
+}
+function kitGroupDone(g) { return kitQ('[data-field]', g).some(kitFieldDone); }
 function kitStepDone(i) {
   var s = KIT.steps[i];
   var req = kitRequired(s.el);
-  if (req.length) return req.every(kitFieldDone);
+  var groups = kitAnyGroups(s.el);
+  if (req.length || groups.length) return req.every(kitFieldDone) && groups.every(kitGroupDone);
   /* A step with nothing to hand in is done once visited, or once a later step is. */
   if (KIT.visited[i]) return true;
-  for (var j = i + 1; j < KIT.steps.length; j++) if (kitRequired(KIT.steps[j].el).length && kitStepDoneShallow(j)) return true;
+  for (var j = i + 1; j < KIT.steps.length; j++) if (kitStepDoneShallow(j)) return true;
   return false;
 }
-function kitStepDoneShallow(j) { var req = kitRequired(KIT.steps[j].el); return req.length > 0 && req.every(kitFieldDone); }
+function kitStepDoneShallow(j) { var el = KIT.steps[j].el, req = kitRequired(el), groups = kitAnyGroups(el); return (req.length + groups.length) > 0 && req.every(kitFieldDone) && groups.every(kitGroupDone); }
 function kitFirstOpen(from) {
   for (var i = from || 0; i < KIT.steps.length; i++) if (!kitStepDone(i)) return i;
   return -1;
@@ -288,7 +295,7 @@ function kitRefresh() {
       fwd.dataset.go = next < 0 ? '' : String(next);
     } else { fwd.hidden = false; fwd.textContent = 'Next: ' + KIT.steps[i + 1].title; fwd.dataset.go = String(i + 1); fwd.disabled = false; }
     /* A step reads done only on its own evidence, never on a visit. */
-    var own = kitRequired(s.el).length > 0;
+    var own = kitRequired(s.el).length + kitAnyGroups(s.el).length > 0;
     label.innerHTML = own && done[i] ? '<span class="idea-chip idea-chip--lamp">Step done</span>' : '';
     var fin = s.el.querySelector('.hx-finish');
     if (fin) fin.hidden = next >= 0 || HX.readOnly;

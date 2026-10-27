@@ -608,3 +608,48 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 /* ---- Phone camera (kit/camera.js): Take photo shows on touch screens only. */
 .hx-capture { display: none !important; }
 @media (pointer: coarse) { .hx-capture { display: inline-flex !important; } }
+
+/* ---- Gaps found by the first overhauls (2026-10-27). -------------------- */
+/* A key the kit names from a step title wraps rather than pushing the page
+   sideways on a phone. */
+#hx-page [data-kit-next], #hx-page #hx-next-to-do { white-space: normal; text-align: center; max-width: 100%; line-height: 1.35; }
+/* A link drawn as a key keeps the key's ink, not the link green. */
+#hx-page a.idea-key { color: var(--btn-ink); }
+#hx-page a.idea-key--primary { color: var(--primary-ink); }
+#hx-page a.idea-key--danger { color: var(--danger-ink); }
+/* A wide set of cards: .hx-full spans every column of a step, and a step with
+   data-layout="full" lays its body out in one column. */
+.hx-step-body > .hx-full { grid-column: 1 / -1; }
+.hx-step[data-layout='full'] .hx-step-body { grid-template-columns: minmax(0, 1fr); }
+/* A rating: a fieldset of radios drawn as one row of small keys, 1 to 10 or
+   any count, with the meaning of each end under it.
+   <fieldset class="hx-scale" data-field="f" data-kind="radio"><legend>...</legend>
+   <label><input type="radio" name="f" value="1"><span>1</span></label> ...
+   <p class="hx-scale-ends"><span>Weak</span><span>Strong</span></p></fieldset> */
+.hx-scale { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; max-width: 34rem; }
+.hx-scale > label { flex: 1 1 0; min-width: 40px; }
+.hx-scale legend { padding: 0; margin-bottom: var(--space-2); font-weight: 600; color: var(--plate-ink); }
+.hx-scale > label {
+	position: relative; display: grid; place-items: center; min-height: var(--tap-min); cursor: pointer;
+	border: 1px solid; border-color: var(--hair-top) var(--hair) var(--hair); border-radius: var(--radius-pad);
+	background: linear-gradient(to bottom, var(--key-face-top), var(--key-face-bot)) padding-box, linear-gradient(to bottom, var(--hair-top), var(--hair)) border-box;
+	background-color: var(--key-face-top); box-shadow: var(--shadow-key);
+	font-family: var(--font-mono); font-size: 0.95rem; color: var(--btn-ink); font-variant-numeric: tabular-nums;
+}
+.hx-scale > label:hover { border-color: var(--hover-ink); }
+.hx-scale > label input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.hx-scale > label:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.hx-scale > label:has(input:checked) {
+	background: linear-gradient(to bottom, var(--key-lit-top), var(--key-lit-bot)) padding-box, linear-gradient(to bottom, var(--hair-top), var(--hair)) border-box;
+	background-color: var(--key-lit-top); box-shadow: var(--shadow-key-lit), inset 0 0 0 2px var(--accent); font-weight: 700;
+}
+.hx-scale > label:has(input:disabled) { cursor: not-allowed; opacity: 0.7; }
+.hx-scale-ends { flex: 1 0 100%; display: flex; justify-content: space-between; gap: var(--space-3); margin: 2px 0 0; font-size: 0.88rem; color: var(--text-2); max-width: none !important; }
+@media (max-width: 480px) { .hx-scale { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); } .hx-scale-ends { grid-column: 1 / -1; } }
+/* "Any one of these": wrap the boxes in data-any-one; the step is done when
+   one of them is filled. Mark each box optional in the manifest too. */
+[data-any-one] > .hx-any-note { margin: 0; font-size: 0.88rem; color: var(--text-2); }
+/* The student's own role, marked (team.js sets .is-mine on [data-role]). */
+#hx-page [data-role].is-mine { outline: 1px solid var(--sel-edge); outline-offset: 4px; border-radius: var(--radius-pad); }
+#hx-page .hx-tile[data-role].is-mine { outline: 0; border-color: var(--accent); box-shadow: var(--shadow-panel-nested), 0 0 0 1px var(--sel-edge), 0 0 10px 1px var(--sel-glow); }
+#hx-page [data-role].is-mine > :is(h3, b):first-child::after { content: ' · your role'; color: var(--text-2); font-family: var(--font-display); font-weight: 400; text-transform: none; letter-spacing: 0; }

@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.10 - 2026-10-27**
+**Version 2.11 - 2026-10-27**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -242,6 +242,14 @@ only live parts (`src/lib/classroom/plate.css`), and a source uses them rather t
 - **Type**: body Rajdhani 400, a step title 1.2rem at 600 under its eyebrow (the step chip and
   its phase lamp), step lists numbered in chips. The page is at most 1440px wide and prose
   72 characters.
+- **Parts for common needs (2.11, from the first overhauls):** `.hx-scale`, a 1 to 10 (or
+  any count) rating as one row of small keys, its ends named in `.hx-scale-ends`; a
+  `data-any-one` wrapper around boxes of which a student fills one (each also `optional` in the
+  manifest; the step is done when one is filled); a box set by keys rather than typing carries
+  `readonly` and its keys sit in `data-keys-for="<field>"`; `.hx-full` spans a step's columns
+  and `data-layout="full"` gives a step one wide column, for a wide set of cards; a link drawn
+  as `.idea-key` keeps the key's ink; a `[data-role]` box that is the student's own is ringed
+  and its heading says "your role".
 The test WARNS on an author's own CSS that redraws these: a side stripe of 3px or more, a box
 on the dark well face, a flat 1px rule between rows.
 
@@ -695,6 +703,14 @@ new term.
 ---
 
 ## Changelog
+
+- **2.11 (2026-10-27).** Ledger 0449. Nine kit gaps reported by the IDEA 100 and IDEA209H
+  overhaul chats: the kit's Next and Still-to-do keys wrap on a phone; `.hx-scale` (a rating);
+  `data-any-one` (any one of these boxes); `data-keys-for` (a box set by keys, which the test
+  now drives); `.hx-full` and `data-layout="full"`; the student's own `[data-role]` box marked;
+  a link drawn as a key keeps its ink; the test types as many sentences as
+  `data-min-sentences` asks, numbers where a box wants one, and every row of a table; the
+  test finds Chromium wherever Playwright installed it.
 
 - **2.10 (2026-10-27).** Ledger 0448. D1a: the kit's geometry is the live classroom's parts
   (title bar, pads with LEDs, the progress rail, one panel per step with sections cut by

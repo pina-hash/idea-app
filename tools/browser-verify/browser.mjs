@@ -6,8 +6,45 @@
  * answers 403 to CONNECT for cdn.playwright.dev), so the resolution order
  * below ends at an explicit path rather than at an install step.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { createRequire } from 'node:module';
 import { chromium } from 'playwright-core';
+
+/* A new workspace keeps its browsers somewhere else and at another revision
+   (a Claude chat's container had chromium-1243 under ~/.cache/ms-playwright
+   on 2026-10-27, which none of the fixed paths named). So look in every place
+   Playwright installs to, newest revision first, before giving up. */
+export function scanInstalled() {
+	const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH, join(homedir(), '.cache', 'ms-playwright'), '/opt/pw-browsers', '/ms-playwright'].filter(Boolean);
+	const found = [];
+	for (const root of roots) {
+		let dirs = [];
+		try { dirs = readdirSync(root); } catch { continue; }
+		for (const d of dirs) {
+			const m = d.match(/^chromium(?:_headless_shell)?(?:-(\d+))?$/);
+			if (!m) continue;
+			let subs = [];
+			try { subs = readdirSync(join(root, d)); } catch { continue; }
+			for (const sub of subs.filter((x) => /^chrome-linux|^chrome-headless-shell-linux/.test(x))) {
+				for (const bin of ['chrome', 'headless_shell', 'chrome-headless-shell']) {
+					const p = join(root, d, sub, bin);
+					if (existsSync(p)) found.push({ p, rev: Number(m[1] || 0), shell: /headless/.test(d) });
+				}
+			}
+		}
+	}
+	found.sort((a, b) => a.shell - b.shell || b.rev - a.rev);
+	return found.length ? found[0].p : null;
+}
+function fullPlaywright() {
+	try {
+		return createRequire(import.meta.url)('playwright').chromium.executablePath();
+	} catch {
+		return null;
+	}
+}
 
 /** Fallbacks in order. The first that exists wins; all are reported. */
 export const EXECUTABLE_CANDIDATES = [
@@ -19,9 +56,12 @@ export const EXECUTABLE_CANDIDATES = [
 		}
 	},
 	() => process.env.CHROMIUM_PATH || null,
+	fullPlaywright,
+	scanInstalled,
 	() => '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
 	() => '/opt/pw-browsers/chromium/chrome-linux/chrome',
 	() => '/usr/bin/chromium',
+	() => '/usr/bin/chromium-browser',
 	() => '/usr/bin/google-chrome'
 ];
 

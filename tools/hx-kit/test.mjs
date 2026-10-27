@@ -70,6 +70,8 @@ async function realChecks() {
 	return import(bundle + '?t=' + Date.now());
 }
 
+/* Declared before the first early finish(), which lists them. */
+const shots = [];
 const real = await realChecks();
 const validation = real.validateHtmlManifest(html);
 if (validation.errors.length) FAIL('import', 'The importer accepts the file', validation.errors.join(' | '));
@@ -201,7 +203,6 @@ const docShot = async (frame, name) => {
 	await page.waitForTimeout(100);
 	return name;
 };
-const shots = [];
 
 /* ---- 3. the student, at the classroom's own size ---------------------- */
 const W = 1920, H = 1080;
@@ -323,7 +324,7 @@ try {
 			if (m.inner > 1) FAIL('layout', 'No scrollbar inside the frame', `step ${i + 1}: the document is ${m.inner}px taller than its frame`);
 			shots.push(await docShot(frame, `10-step-${String(i + 1).padStart(2, '0')}.png`));
 		}
-		const bare = await frame.evaluate(() => KIT.steps.map((st, i) => (kitRequired(st.el).length ? null : `${i + 1} ${st.title}`)).filter(Boolean));
+		const bare = await frame.evaluate(() => KIT.steps.map((st, i) => (kitRequired(st.el).length + (typeof kitAnyGroups === 'function' ? kitAnyGroups(st.el).length : 0) ? null : `${i + 1} ${st.title}`)).filter(Boolean));
 		(bare.length ? WARN : PASS)('learning', 'Every step asks for evidence of its own (a step done on a visit proves nothing)', bare.length ? `no evidence: ${bare.join('; ')}` : `${k.steps} steps`);
 		(over.length ? FAIL : PASS)('layout', `Every step fits one screen of the classroom pane (${PANE}px, bar to step bottom)`, over.length ? `split or trim: ${over.join('; ')}` : sizes.join('; '));
 
@@ -424,6 +425,14 @@ try {
 	(allSmall.length ? FAIL : PASS)('people', 'Every control is 44px or taller', allSmall.slice(0, 10).join('; '));
 	await frame.evaluate(() => { if (typeof kitSetView === 'function') kitSetView('step'); });
 
+	/* "Any one of these": every box in a group must be optional in the manifest,
+	   or the portal still counts each one as owed. */
+	const anyBad = await frame.evaluate(() => [...document.querySelectorAll('[data-any-one] [data-field]')].map((e) => e.dataset.field));
+	if (anyBad.length) {
+		const owed = [...new Set(anyBad)].filter((f) => fieldInfo[f] && !fieldInfo[f].optional);
+		(owed.length ? FAIL : PASS)('grading', 'Every box in an "any one of these" group is optional in the manifest', owed.length ? `still required there: ${owed.join(', ')}` : `${new Set(anyBad).size} boxes in ${await frame.evaluate(() => document.querySelectorAll('[data-any-one]').length)} groups`);
+	}
+
 	/* ---- 4. type like a student, against an echoing, sometimes stale parent. */
 	const phrase = (f) => `the ${f} reads 0.501 in on two edges`;
 	const expected = {};
@@ -442,9 +451,24 @@ try {
 		await page.waitForTimeout(120);
 		const sel = `[data-field="${field}"]`;
 		if (b.type === 'text' || b.type === 'longText') {
+			/* Type what the box asks for: as many sentences as data-min-sentences,
+			   a number where data-number. A box students cannot type into (read only
+			   or hidden, set by keys) is driven by its [data-keys-for] keys. */
+			const box = await frame.evaluate((s2) => {
+				const el = document.querySelector(s2);
+				const st = getComputedStyle(el);
+				return { min: Number(el.dataset.minSentences || 1), number: el.dataset.number !== undefined || /^(decimal|numeric)$/.test(el.inputMode || ''), typable: !el.readOnly && !el.disabled && el.type !== 'hidden' && st.display !== 'none' && st.visibility !== 'hidden' && !!el.getClientRects().length, keys: document.querySelectorAll(`[data-keys-for="${CSS.escape(el.dataset.field)}"] button, button[data-keys-for="${CSS.escape(el.dataset.field)}"]`).length };
+			}, sel);
+			if (!box.typable) {
+				if (box.keys) {
+					expected[field] = await frame.evaluate((fd) => { const k = document.querySelector(`[data-keys-for="${CSS.escape(fd)}"] button, button[data-keys-for="${CSS.escape(fd)}"]`); k.click(); return hxRead(hxRoot(fd)); }, field);
+				} else FAIL('save', 'A box a student cannot type into is set by its keys', `${field} is read only or hidden and has no [data-keys-for="${field}"] keys: give it keys, or make it a radio (.hx-picks or .hx-scale)`);
+				continue;
+			}
+			const text = box.number ? '12' : Array.from({ length: Math.max(1, box.min) }, (_, i) => (i ? `Sentence ${i + 1} about ${field} names a number.` : phrase(field) + '.')).join(' ');
 			await frame.click(sel);
-			await frame.type(sel, phrase(field), { delay: 12 });
-			expected[field] = phrase(field);
+			await frame.type(sel, text, { delay: 6 });
+			expected[field] = text;
 		} else if (b.type === 'radio') {
 			const v = await frame.evaluate((s2) => { const r = document.querySelector(s2 + ' input[type="radio"]'); r.closest('label') ? r.closest('label').click() : r.click(); return r.value; }, sel);
 			expected[field] = v;
@@ -452,12 +476,22 @@ try {
 			await frame.click(sel);
 			expected[field] = true;
 		} else if (b.type === 'table') {
-			const cells = await frame.$$(`${sel} tbody tr:first-child input, ${sel} tbody tr:first-child textarea`);
-			const vals = [];
-			for (let i = 0; i < cells.length; i++) { const v = `cell ${i + 1} with spaces`; await cells[i].click(); await cells[i].type(v, { delay: 8 }); vals.push(v); }
-			/* A table with more than one row stores every row; the rows not typed in stay empty strings. */
-			const shape = await frame.evaluate((s2) => Array.prototype.map.call(document.querySelectorAll(s2 + ' tbody tr'), (tr) => tr.querySelectorAll('input, textarea, select').length), sel);
-			expected[field] = JSON.stringify(shape.map((n, r) => (r === 0 ? vals : Array.from({ length: n }, () => ''))));
+			/* Every row, as a student finishing the page would: numbers where the cell asks for one. */
+			const rows = await frame.$$(`${sel} tbody tr`);
+			const out = [];
+			for (let r = 0; r < rows.length; r++) {
+				const cells = await rows[r].$$('input, textarea, select');
+				const vals = [];
+				for (let i = 0; i < cells.length; i++) {
+					const kind = await cells[i].evaluate((c) => (c.tagName === 'SELECT' ? 'select' : c.readOnly || c.disabled ? 'fixed' : c.type === 'number' || /^(decimal|numeric)$/.test(c.inputMode || '') ? 'number' : 'text'));
+					if (kind === 'select') { vals.push(await cells[i].evaluate((c) => { const o = [...c.options].find((x) => x.value); if (o) { c.value = o.value; c.dispatchEvent(new Event('change', { bubbles: true })); } return c.value; })); continue; }
+					if (kind === 'fixed') { vals.push(await cells[i].evaluate((c) => c.value)); continue; }
+					const v = kind === 'number' ? String(1 + ((r + i) % 5)) : `cell ${r + 1}.${i + 1} with spaces`;
+					await cells[i].click(); await cells[i].type(v, { delay: 4 }); vals.push(v);
+				}
+				out.push(vals);
+			}
+			expected[field] = JSON.stringify(out);
 		}
 	}
 	(missing.length ? FAIL : PASS)('save', 'Every declared field has a box on the page', missing.join(', '));
@@ -470,7 +504,9 @@ try {
 	else PASS('save', 'Nothing the document sends is dropped by the gate', `${echoes.messages} messages`);
 
 	/* A picture: choose, upload, the box reported. */
-	const imageFields = Object.entries(fieldInfo).filter(([, b]) => b.type === 'image' && !b.optional).map(([f]) => f);
+	/* Required pictures, and the first picture of any "any one of these" group, so the finish line sees a complete page. */
+	const anyImages = await frame.evaluate((imgs) => [...document.querySelectorAll('[data-any-one]')].map((g) => [...g.querySelectorAll('[data-field]')].map((e) => e.dataset.field).find((f) => imgs.includes(f))).filter(Boolean), Object.entries(fieldInfo).filter(([, b]) => b.type === 'image').map(([f]) => f));
+	const imageFields = [...new Set([...Object.entries(fieldInfo).filter(([, b]) => b.type === 'image' && !b.optional).map(([f]) => f), ...anyImages])];
 	if (imageFields.length) {
 		const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAFCAIAAAD38zoCAAAAEUlEQVR4nGOIWpCHFTHQQQIAucA4QbqkH88AAAAASUVORK5CYII=', 'base64');
 		/* Every required picture hands in, so the finish line below sees a complete page; the first one is reported. */
