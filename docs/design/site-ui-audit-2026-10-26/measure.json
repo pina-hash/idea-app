@@ -1,0 +1,4211 @@
+[
+ {
+  "name": "home-student",
+  "width": 375,
+  "theme": "idea",
+  "small": 35,
+  "smallSamples": [
+   "9.6px 2 classes",
+   "9.6px Take the tour",
+   "9.6px Note",
+   "9.3px Active Courses",
+   "9.3px School Year",
+   "9.3px Instructors"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 69,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    13
+   ],
+   [
+    "Share Tech Mono 9.3",
+    12
+   ],
+   [
+    "Orbitron 10.6",
+    12
+   ],
+   [
+    "Share Tech Mono 9.9",
+    6
+   ],
+   [
+    "Share Tech Mono 13.1",
+    6
+   ],
+   [
+    "Orbitron 9.6",
+    3
+   ],
+   [
+    "Orbitron 14.4",
+    3
+   ],
+   [
+    "Share Tech Mono 11.5",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "4px",
+    24
+   ],
+   [
+    "11px",
+    12
+   ],
+   [
+    "3px",
+    12
+   ],
+   [
+    "5px",
+    11
+   ],
+   [
+    "12px",
+    5
+   ],
+   [
+    "999px",
+    2
+   ],
+   [
+    "50%",
+    1
+   ]
+  ],
+  "targets": 38,
+  "smallTargets": 5,
+  "smallTargetSamples": [
+   "72x34 IDEA home",
+   "86x34 Note",
+   "107x34 AA   IDEA ▾",
+   "165x16 Course archive (2025-26)",
+   "209x16 Freshman Summer Program "
+  ],
+  "maxP": 0,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 2724,
+  "fontsN": 17,
+  "radiiN": 7,
+  "textColorsN": 17
+ },
+ {
+  "name": "home-student",
+  "width": 375,
+  "theme": "space-white",
+  "small": 35,
+  "smallSamples": [
+   "9.6px 2 classes",
+   "9.6px Take the tour",
+   "9.6px Note",
+   "9.3px Active Courses",
+   "9.3px School Year",
+   "9.3px Instructors"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 69,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    13
+   ],
+   [
+    "Share Tech Mono 9.3",
+    12
+   ],
+   [
+    "Orbitron 10.6",
+    12
+   ],
+   [
+    "Share Tech Mono 9.9",
+    6
+   ],
+   [
+    "Share Tech Mono 13.1",
+    6
+   ],
+   [
+    "Orbitron 9.6",
+    3
+   ],
+   [
+    "Orbitron 14.4",
+    3
+   ],
+   [
+    "Share Tech Mono 11.5",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "4px",
+    24
+   ],
+   [
+    "11px",
+    12
+   ],
+   [
+    "3px",
+    12
+   ],
+   [
+    "5px",
+    11
+   ],
+   [
+    "12px",
+    5
+   ],
+   [
+    "999px",
+    2
+   ],
+   [
+    "50%",
+    1
+   ]
+  ],
+  "targets": 38,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "72x34 IDEA home",
+   "107x34 AA   IDEA ▾",
+   "165x16 Course archive (2025-26)",
+   "209x16 Freshman Summer Program "
+  ],
+  "maxP": 0,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 3029,
+  "fontsN": 17,
+  "radiiN": 7,
+  "textColorsN": 22
+ },
+ {
+  "name": "home-student",
+  "width": 1440,
+  "theme": "idea",
+  "small": 38,
+  "smallSamples": [
+   "8.2px LOC",
+   "9.6px 1 229 350",
+   "9.6px 1 229 350 lines of code. Open the breakd",
+   "9.6px 2 classes",
+   "9.6px Take the tour",
+   "9.6px Note"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 72,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    13
+   ],
+   [
+    "Share Tech Mono 9.3",
+    12
+   ],
+   [
+    "Orbitron 10.6",
+    12
+   ],
+   [
+    "Share Tech Mono 9.9",
+    6
+   ],
+   [
+    "Share Tech Mono 13.1",
+    6
+   ],
+   [
+    "Orbitron 9.6",
+    5
+   ],
+   [
+    "Orbitron 15.2",
+    3
+   ],
+   [
+    "Share Tech Mono 11.5",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "4px",
+    24
+   ],
+   [
+    "11px",
+    13
+   ],
+   [
+    "3px",
+    12
+   ],
+   [
+    "5px",
+    11
+   ],
+   [
+    "12px",
+    5
+   ],
+   [
+    "999px",
+    2
+   ],
+   [
+    "50%",
+    1
+   ]
+  ],
+  "targets": 39,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "131x24 LOC 1 229 350 ▾ 1 229 35",
+   "107x34 AA   IDEA ▾",
+   "165x16 Course archive (2025-26)",
+   "209x16 Freshman Summer Program "
+  ],
+  "maxP": 0,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1738,
+  "fontsN": 18,
+  "radiiN": 7,
+  "textColorsN": 17
+ },
+ {
+  "name": "home-student",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 38,
+  "smallSamples": [
+   "8.2px LOC",
+   "9.6px 1 229 350",
+   "9.6px 1 229 350 lines of code. Open the breakd",
+   "9.6px 2 classes",
+   "9.6px Take the tour",
+   "9.6px Note"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 72,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    13
+   ],
+   [
+    "Share Tech Mono 9.3",
+    12
+   ],
+   [
+    "Orbitron 10.6",
+    12
+   ],
+   [
+    "Share Tech Mono 9.9",
+    6
+   ],
+   [
+    "Share Tech Mono 13.1",
+    6
+   ],
+   [
+    "Orbitron 9.6",
+    5
+   ],
+   [
+    "Orbitron 15.2",
+    3
+   ],
+   [
+    "Share Tech Mono 11.5",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "4px",
+    24
+   ],
+   [
+    "11px",
+    13
+   ],
+   [
+    "3px",
+    12
+   ],
+   [
+    "5px",
+    11
+   ],
+   [
+    "12px",
+    5
+   ],
+   [
+    "999px",
+    2
+   ],
+   [
+    "50%",
+    1
+   ]
+  ],
+  "targets": 39,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "131x24 LOC 1 229 350 ▾ 1 229 35",
+   "107x34 AA   IDEA ▾",
+   "165x16 Course archive (2025-26)",
+   "209x16 Freshman Summer Program "
+  ],
+  "maxP": 0,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1738,
+  "fontsN": 18,
+  "radiiN": 7,
+  "textColorsN": 22
+ },
+ {
+  "name": "cr-class",
+  "width": 375,
+  "theme": "idea",
+  "small": 3,
+  "smallSamples": [
+   "10.2px 1 link",
+   "10.2px 1 file",
+   "10.2px 2 links"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 61,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    41
+   ],
+   [
+    "Rajdhani 14.4",
+    12
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Rajdhani 16.8",
+    2
+   ],
+   [
+    "Share Tech Mono 15.2",
+    1
+   ],
+   [
+    "Share Tech Mono 12.5",
+    1
+   ],
+   [
+    "Share Tech Mono 12.8",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    10
+   ],
+   [
+    "7px",
+    10
+   ],
+   [
+    "11px",
+    4
+   ],
+   [
+    "12px",
+    1
+   ]
+  ],
+  "targets": 21,
+  "smallTargets": 8,
+  "smallTargetSamples": [
+   "150x42 INPUT",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸"
+  ],
+  "maxP": 309,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 1511,
+  "fontsN": 7,
+  "radiiN": 4,
+  "textColorsN": 8
+ },
+ {
+  "name": "cr-class",
+  "width": 375,
+  "theme": "space-white",
+  "small": 3,
+  "smallSamples": [
+   "10.2px 1 link",
+   "10.2px 1 file",
+   "10.2px 2 links"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 61,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    41
+   ],
+   [
+    "Rajdhani 14.4",
+    12
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Rajdhani 16.8",
+    2
+   ],
+   [
+    "Share Tech Mono 15.2",
+    1
+   ],
+   [
+    "Share Tech Mono 12.5",
+    1
+   ],
+   [
+    "Share Tech Mono 12.8",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    10
+   ],
+   [
+    "7px",
+    10
+   ],
+   [
+    "11px",
+    4
+   ],
+   [
+    "12px",
+    1
+   ]
+  ],
+  "targets": 21,
+  "smallTargets": 8,
+  "smallTargetSamples": [
+   "150x42 INPUT",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸"
+  ],
+  "maxP": 309,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 1511,
+  "fontsN": 7,
+  "radiiN": 4,
+  "textColorsN": 7
+ },
+ {
+  "name": "cr-class",
+  "width": 1440,
+  "theme": "idea",
+  "small": 3,
+  "smallSamples": [
+   "10.2px 1 link",
+   "10.2px 1 file",
+   "10.2px 2 links"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 61,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    41
+   ],
+   [
+    "Rajdhani 14.4",
+    12
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Rajdhani 16.8",
+    2
+   ],
+   [
+    "Share Tech Mono 21.5",
+    1
+   ],
+   [
+    "Share Tech Mono 12.5",
+    1
+   ],
+   [
+    "Share Tech Mono 11.2",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    10
+   ],
+   [
+    "9px",
+    10
+   ],
+   [
+    "11px",
+    4
+   ],
+   [
+    "12px",
+    1
+   ]
+  ],
+  "targets": 21,
+  "smallTargets": 8,
+  "smallTargetSamples": [
+   "431x42 INPUT",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸"
+  ],
+  "maxP": 702,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1204,
+  "fontsN": 7,
+  "radiiN": 4,
+  "textColorsN": 8
+ },
+ {
+  "name": "cr-class",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 3,
+  "smallSamples": [
+   "10.2px 1 link",
+   "10.2px 1 file",
+   "10.2px 2 links"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 61,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    41
+   ],
+   [
+    "Rajdhani 14.4",
+    12
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Rajdhani 16.8",
+    2
+   ],
+   [
+    "Share Tech Mono 21.5",
+    1
+   ],
+   [
+    "Share Tech Mono 12.5",
+    1
+   ],
+   [
+    "Share Tech Mono 11.2",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    10
+   ],
+   [
+    "9px",
+    10
+   ],
+   [
+    "11px",
+    4
+   ],
+   [
+    "12px",
+    1
+   ]
+  ],
+  "targets": 21,
+  "smallTargets": 8,
+  "smallTargetSamples": [
+   "431x42 INPUT",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸",
+   "30x44 ▸"
+  ],
+  "maxP": 702,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1204,
+  "fontsN": 7,
+  "radiiN": 4,
+  "textColorsN": 7
+ },
+ {
+  "name": "cr-item",
+  "width": 375,
+  "theme": "idea",
+  "small": 4,
+  "smallSamples": [
+   "10.2px example.com",
+   "10.2px example.com",
+   "9.9px Enlarge",
+   "10.2px 18 KB"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 35,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    8
+   ],
+   [
+    "Rajdhani 15.2",
+    8
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Share Tech Mono 12.5",
+    2
+   ],
+   [
+    "Rajdhani 15.7",
+    2
+   ],
+   [
+    "Share Tech Mono 15.2",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "12px",
+    7
+   ],
+   [
+    "5px",
+    2
+   ],
+   [
+    "4px",
+    1
+   ],
+   [
+    "999px",
+    1
+   ],
+   [
+    "11px",
+    1
+   ]
+  ],
+  "targets": 8,
+  "smallTargets": 1,
+  "smallTargetSamples": [
+   "89x23 truss-detail.png"
+  ],
+  "maxP": 343,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 2053,
+  "fontsN": 12,
+  "radiiN": 5,
+  "textColorsN": 8
+ },
+ {
+  "name": "cr-item",
+  "width": 375,
+  "theme": "space-white",
+  "small": 4,
+  "smallSamples": [
+   "10.2px example.com",
+   "10.2px example.com",
+   "9.9px Enlarge",
+   "10.2px 18 KB"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 35,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    8
+   ],
+   [
+    "Rajdhani 15.2",
+    8
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Share Tech Mono 12.5",
+    2
+   ],
+   [
+    "Rajdhani 15.7",
+    2
+   ],
+   [
+    "Share Tech Mono 15.2",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "12px",
+    7
+   ],
+   [
+    "5px",
+    2
+   ],
+   [
+    "4px",
+    1
+   ],
+   [
+    "999px",
+    1
+   ],
+   [
+    "11px",
+    1
+   ]
+  ],
+  "targets": 8,
+  "smallTargets": 1,
+  "smallTargetSamples": [
+   "89x23 truss-detail.png"
+  ],
+  "maxP": 343,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 2053,
+  "fontsN": 12,
+  "radiiN": 5,
+  "textColorsN": 6
+ },
+ {
+  "name": "cr-item",
+  "width": 1440,
+  "theme": "idea",
+  "small": 4,
+  "smallSamples": [
+   "10.2px example.com",
+   "10.2px example.com",
+   "9.9px Enlarge",
+   "10.2px 18 KB"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 35,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    8
+   ],
+   [
+    "Rajdhani 15.2",
+    8
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Share Tech Mono 11.2",
+    2
+   ],
+   [
+    "Share Tech Mono 12.5",
+    2
+   ],
+   [
+    "Rajdhani 15.7",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "12px",
+    7
+   ],
+   [
+    "5px",
+    2
+   ],
+   [
+    "4px",
+    1
+   ],
+   [
+    "999px",
+    1
+   ],
+   [
+    "11px",
+    1
+   ]
+  ],
+  "targets": 8,
+  "smallTargets": 1,
+  "smallTargetSamples": [
+   "89x23 truss-detail.png"
+  ],
+  "maxP": 736,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1916,
+  "fontsN": 11,
+  "radiiN": 5,
+  "textColorsN": 8
+ },
+ {
+  "name": "cr-item",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 4,
+  "smallSamples": [
+   "10.2px example.com",
+   "10.2px example.com",
+   "9.9px Enlarge",
+   "10.2px 18 KB"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 35,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    8
+   ],
+   [
+    "Rajdhani 15.2",
+    8
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Share Tech Mono 11.2",
+    2
+   ],
+   [
+    "Share Tech Mono 12.5",
+    2
+   ],
+   [
+    "Rajdhani 15.7",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "12px",
+    7
+   ],
+   [
+    "5px",
+    2
+   ],
+   [
+    "4px",
+    1
+   ],
+   [
+    "999px",
+    1
+   ],
+   [
+    "11px",
+    1
+   ]
+  ],
+  "targets": 8,
+  "smallTargets": 1,
+  "smallTargetSamples": [
+   "89x23 truss-detail.png"
+  ],
+  "maxP": 736,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1916,
+  "fontsN": 11,
+  "radiiN": 5,
+  "textColorsN": 6
+ },
+ {
+  "name": "cr-student",
+  "width": 375,
+  "theme": "idea",
+  "small": 20,
+  "smallSamples": [
+   "10.4px Print",
+   "10.4px Sections",
+   "10.4px Back to People",
+   "10.4px Open full notebook",
+   "10.4px Previous",
+   "10.4px Next"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 264,
+  "fonts": [
+   [
+    "Rajdhani 18.0",
+    53
+   ],
+   [
+    "Rajdhani 15.2",
+    44
+   ],
+   [
+    "Share Tech Mono 12.8",
+    30
+   ],
+   [
+    "Share Tech Mono 11.0",
+    23
+   ],
+   [
+    "Share Tech Mono 11.8",
+    22
+   ],
+   [
+    "Share Tech Mono 12.5",
+    18
+   ],
+   [
+    "Share Tech Mono 10.4",
+    12
+   ],
+   [
+    "Rajdhani 14.4",
+    9
+   ]
+  ],
+  "radii": [
+   [
+    "999px",
+    26
+   ],
+   [
+    "5px",
+    23
+   ],
+   [
+    "4px",
+    18
+   ],
+   [
+    "11px",
+    10
+   ],
+   [
+    "12px",
+    10
+   ],
+   [
+    "8px",
+    7
+   ],
+   [
+    "6px",
+    7
+   ],
+   [
+    "1px",
+    3
+   ]
+  ],
+  "targets": 75,
+  "smallTargets": 36,
+  "smallTargetSamples": [
+   "62x18 My Classes",
+   "180x18 IDEA209H · Period 1 · Bl",
+   "37x18 People",
+   "18x18 Include when printing: Work pictures",
+   "18x18 Include when printing: Needs attention",
+   "52x24 Grade"
+  ],
+  "maxP": 293,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 8152,
+  "fontsN": 24,
+  "radiiN": 9,
+  "textColorsN": 12
+ },
+ {
+  "name": "cr-student",
+  "width": 375,
+  "theme": "space-white",
+  "small": 20,
+  "smallSamples": [
+   "10.4px Print",
+   "10.4px Sections",
+   "10.4px Back to People",
+   "10.4px Open full notebook",
+   "10.4px Previous",
+   "10.4px Next"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 264,
+  "fonts": [
+   [
+    "Rajdhani 18.0",
+    53
+   ],
+   [
+    "Rajdhani 15.2",
+    44
+   ],
+   [
+    "Share Tech Mono 12.8",
+    30
+   ],
+   [
+    "Share Tech Mono 11.0",
+    23
+   ],
+   [
+    "Share Tech Mono 11.8",
+    22
+   ],
+   [
+    "Share Tech Mono 12.5",
+    18
+   ],
+   [
+    "Share Tech Mono 10.4",
+    12
+   ],
+   [
+    "Rajdhani 14.4",
+    9
+   ]
+  ],
+  "radii": [
+   [
+    "999px",
+    26
+   ],
+   [
+    "5px",
+    23
+   ],
+   [
+    "4px",
+    18
+   ],
+   [
+    "11px",
+    10
+   ],
+   [
+    "12px",
+    10
+   ],
+   [
+    "8px",
+    7
+   ],
+   [
+    "6px",
+    7
+   ],
+   [
+    "1px",
+    3
+   ]
+  ],
+  "targets": 75,
+  "smallTargets": 36,
+  "smallTargetSamples": [
+   "62x18 My Classes",
+   "180x18 IDEA209H · Period 1 · Bl",
+   "37x18 People",
+   "18x18 Include when printing: Work pictures",
+   "18x18 Include when printing: Needs attention",
+   "52x24 Grade"
+  ],
+  "maxP": 293,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 8152,
+  "fontsN": 24,
+  "radiiN": 9,
+  "textColorsN": 13
+ },
+ {
+  "name": "cr-student",
+  "width": 1440,
+  "theme": "idea",
+  "small": 20,
+  "smallSamples": [
+   "10.4px Print",
+   "10.4px Sections",
+   "10.4px Back to People",
+   "10.4px Open full notebook",
+   "10.4px Previous",
+   "10.4px Next"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 274,
+  "fonts": [
+   [
+    "Rajdhani 18.0",
+    53
+   ],
+   [
+    "Rajdhani 15.2",
+    44
+   ],
+   [
+    "Share Tech Mono 12.8",
+    30
+   ],
+   [
+    "Share Tech Mono 11.8",
+    30
+   ],
+   [
+    "Share Tech Mono 11.0",
+    25
+   ],
+   [
+    "Share Tech Mono 12.5",
+    18
+   ],
+   [
+    "Share Tech Mono 10.4",
+    12
+   ],
+   [
+    "Rajdhani 14.4",
+    9
+   ]
+  ],
+  "radii": [
+   [
+    "999px",
+    26
+   ],
+   [
+    "5px",
+    23
+   ],
+   [
+    "4px",
+    18
+   ],
+   [
+    "11px",
+    12
+   ],
+   [
+    "12px",
+    10
+   ],
+   [
+    "8px",
+    7
+   ],
+   [
+    "6px",
+    7
+   ],
+   [
+    "50%",
+    1
+   ]
+  ],
+  "targets": 87,
+  "smallTargets": 44,
+  "smallTargetSamples": [
+   "62x18 My Classes",
+   "180x18 IDEA209H · Period 1 · Bl",
+   "37x18 People",
+   "18x18 Include when printing: Work pictures",
+   "18x18 Include when printing: Needs attention",
+   "52x24 Grade"
+  ],
+  "maxP": 1326,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 3575,
+  "fontsN": 24,
+  "radiiN": 8,
+  "textColorsN": 12
+ },
+ {
+  "name": "cr-student",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 20,
+  "smallSamples": [
+   "10.4px Print",
+   "10.4px Sections",
+   "10.4px Back to People",
+   "10.4px Open full notebook",
+   "10.4px Previous",
+   "10.4px Next"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 274,
+  "fonts": [
+   [
+    "Rajdhani 18.0",
+    53
+   ],
+   [
+    "Rajdhani 15.2",
+    44
+   ],
+   [
+    "Share Tech Mono 12.8",
+    30
+   ],
+   [
+    "Share Tech Mono 11.8",
+    30
+   ],
+   [
+    "Share Tech Mono 11.0",
+    25
+   ],
+   [
+    "Share Tech Mono 12.5",
+    18
+   ],
+   [
+    "Share Tech Mono 10.4",
+    12
+   ],
+   [
+    "Rajdhani 14.4",
+    9
+   ]
+  ],
+  "radii": [
+   [
+    "999px",
+    26
+   ],
+   [
+    "5px",
+    23
+   ],
+   [
+    "4px",
+    18
+   ],
+   [
+    "11px",
+    12
+   ],
+   [
+    "12px",
+    10
+   ],
+   [
+    "8px",
+    7
+   ],
+   [
+    "6px",
+    7
+   ],
+   [
+    "50%",
+    1
+   ]
+  ],
+  "targets": 87,
+  "smallTargets": 44,
+  "smallTargetSamples": [
+   "62x18 My Classes",
+   "180x18 IDEA209H · Period 1 · Bl",
+   "37x18 People",
+   "18x18 Include when printing: Work pictures",
+   "18x18 Include when printing: Needs attention",
+   "52x24 Grade"
+  ],
+  "maxP": 1326,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 3575,
+  "fontsN": 24,
+  "radiiN": 8,
+  "textColorsN": 13
+ },
+ {
+  "name": "cr-todo",
+  "width": 375,
+  "theme": "idea",
+  "small": 19,
+  "smallSamples": [
+   "10.9px 6 missing",
+   "10.9px 5 due this week",
+   "10.9px ENG1H",
+   "10.9px Period 2 · Block B\n\t\t\t\t · vargas",
+   "10.9px 2 missing",
+   "10.9px 2 due this week"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 50,
+  "fonts": [
+   [
+    "Share Tech Mono 10.9",
+    16
+   ],
+   [
+    "Share Tech Mono 11.0",
+    8
+   ],
+   [
+    "Rajdhani 16.8",
+    6
+   ],
+   [
+    "Share Tech Mono 11.2",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Rajdhani 13.8",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    8
+   ],
+   [
+    "12px",
+    6
+   ],
+   [
+    "11px",
+    5
+   ],
+   [
+    "8px",
+    4
+   ],
+   [
+    "4px",
+    4
+   ],
+   [
+    "1px",
+    3
+   ]
+  ],
+  "targets": 14,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 343,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 1618,
+  "fontsN": 11,
+  "radiiN": 6,
+  "textColorsN": 8
+ },
+ {
+  "name": "cr-todo",
+  "width": 375,
+  "theme": "space-white",
+  "small": 19,
+  "smallSamples": [
+   "10.9px 6 missing",
+   "10.9px 5 due this week",
+   "10.9px ENG1H",
+   "10.9px Period 2 · Block B\n\t\t\t\t · vargas",
+   "10.9px 2 missing",
+   "10.9px 2 due this week"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 50,
+  "fonts": [
+   [
+    "Share Tech Mono 10.9",
+    16
+   ],
+   [
+    "Share Tech Mono 11.0",
+    8
+   ],
+   [
+    "Rajdhani 16.8",
+    6
+   ],
+   [
+    "Share Tech Mono 11.2",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Rajdhani 13.8",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    8
+   ],
+   [
+    "12px",
+    6
+   ],
+   [
+    "11px",
+    5
+   ],
+   [
+    "8px",
+    4
+   ],
+   [
+    "4px",
+    4
+   ],
+   [
+    "1px",
+    3
+   ]
+  ],
+  "targets": 14,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 343,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 1618,
+  "fontsN": 11,
+  "radiiN": 6,
+  "textColorsN": 8
+ },
+ {
+  "name": "cr-todo",
+  "width": 1440,
+  "theme": "idea",
+  "small": 20,
+  "smallSamples": [
+   "10.9px Ctrl K",
+   "10.9px 6 missing",
+   "10.9px 5 due this week",
+   "10.9px ENG1H",
+   "10.9px Period 2 · Block B\n\t\t\t\t · vargas",
+   "10.9px 2 missing"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 56,
+  "fonts": [
+   [
+    "Share Tech Mono 10.9",
+    17
+   ],
+   [
+    "Share Tech Mono 11.0",
+    13
+   ],
+   [
+    "Rajdhani 16.8",
+    6
+   ],
+   [
+    "Share Tech Mono 11.2",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Rajdhani 13.8",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "11px",
+    10
+   ],
+   [
+    "5px",
+    8
+   ],
+   [
+    "12px",
+    6
+   ],
+   [
+    "4px",
+    5
+   ],
+   [
+    "8px",
+    4
+   ]
+  ],
+  "targets": 19,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 620,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1136,
+  "fontsN": 11,
+  "radiiN": 5,
+  "textColorsN": 8
+ },
+ {
+  "name": "cr-todo",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 20,
+  "smallSamples": [
+   "10.9px Ctrl K",
+   "10.9px 6 missing",
+   "10.9px 5 due this week",
+   "10.9px ENG1H",
+   "10.9px Period 2 · Block B\n\t\t\t\t · vargas",
+   "10.9px 2 missing"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 56,
+  "fonts": [
+   [
+    "Share Tech Mono 10.9",
+    17
+   ],
+   [
+    "Share Tech Mono 11.0",
+    13
+   ],
+   [
+    "Rajdhani 16.8",
+    6
+   ],
+   [
+    "Share Tech Mono 11.2",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Share Tech Mono 10.2",
+    3
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Rajdhani 13.8",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "11px",
+    10
+   ],
+   [
+    "5px",
+    8
+   ],
+   [
+    "12px",
+    6
+   ],
+   [
+    "4px",
+    5
+   ],
+   [
+    "8px",
+    4
+   ]
+  ],
+  "targets": 19,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 620,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1136,
+  "fontsN": 11,
+  "radiiN": 5,
+  "textColorsN": 8
+ },
+ {
+  "name": "notebook",
+  "width": 375,
+  "theme": "idea",
+  "small": 3,
+  "smallSamples": [
+   "10.6px Next check-in",
+   "9.6px +1",
+   "9.6px +1"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 85,
+  "fonts": [
+   [
+    "Rajdhani 11.0",
+    28
+   ],
+   [
+    "Rajdhani 14.7",
+    10
+   ],
+   [
+    "Rajdhani 12.5",
+    7
+   ],
+   [
+    "Share Tech Mono 11.0",
+    5
+   ],
+   [
+    "Rajdhani 13.1",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Rajdhani 12.8",
+    3
+   ]
+  ],
+  "radii": [
+   [
+    "3px",
+    27
+   ],
+   [
+    "5px",
+    12
+   ],
+   [
+    "4px",
+    11
+   ],
+   [
+    "11px",
+    9
+   ],
+   [
+    "50%",
+    5
+   ],
+   [
+    "1px",
+    3
+   ],
+   [
+    "8px",
+    2
+   ],
+   [
+    "12px",
+    2
+   ]
+  ],
+  "targets": 37,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "62x18 My Classes",
+   "1x1 INPUT",
+   "1x1 INPUT",
+   "244x22 INPUT"
+  ],
+  "maxP": 343,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 2492,
+  "fontsN": 19,
+  "radiiN": 9,
+  "textColorsN": 8
+ },
+ {
+  "name": "notebook",
+  "width": 375,
+  "theme": "space-white",
+  "small": 3,
+  "smallSamples": [
+   "10.6px Next check-in",
+   "9.6px +1",
+   "9.6px +1"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 85,
+  "fonts": [
+   [
+    "Rajdhani 11.0",
+    28
+   ],
+   [
+    "Rajdhani 14.7",
+    10
+   ],
+   [
+    "Rajdhani 12.5",
+    7
+   ],
+   [
+    "Share Tech Mono 11.0",
+    5
+   ],
+   [
+    "Rajdhani 13.1",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ],
+   [
+    "Rajdhani 12.8",
+    3
+   ]
+  ],
+  "radii": [
+   [
+    "3px",
+    27
+   ],
+   [
+    "5px",
+    12
+   ],
+   [
+    "4px",
+    11
+   ],
+   [
+    "11px",
+    9
+   ],
+   [
+    "50%",
+    5
+   ],
+   [
+    "1px",
+    3
+   ],
+   [
+    "8px",
+    2
+   ],
+   [
+    "12px",
+    2
+   ]
+  ],
+  "targets": 37,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "62x18 My Classes",
+   "1x1 INPUT",
+   "1x1 INPUT",
+   "244x22 INPUT"
+  ],
+  "maxP": 343,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 2492,
+  "fontsN": 19,
+  "radiiN": 9,
+  "textColorsN": 8
+ },
+ {
+  "name": "notebook",
+  "width": 1440,
+  "theme": "idea",
+  "small": 3,
+  "smallSamples": [
+   "10.6px Next check-in",
+   "9.6px +1",
+   "9.6px +1"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 87,
+  "fonts": [
+   [
+    "Rajdhani 11.0",
+    28
+   ],
+   [
+    "Rajdhani 14.7",
+    10
+   ],
+   [
+    "Share Tech Mono 11.0",
+    7
+   ],
+   [
+    "Rajdhani 12.5",
+    7
+   ],
+   [
+    "Rajdhani 13.1",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Share Tech Mono 11.2",
+    3
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ]
+  ],
+  "radii": [
+   [
+    "3px",
+    27
+   ],
+   [
+    "5px",
+    12
+   ],
+   [
+    "11px",
+    11
+   ],
+   [
+    "4px",
+    11
+   ],
+   [
+    "50%",
+    5
+   ],
+   [
+    "8px",
+    2
+   ],
+   [
+    "12px",
+    2
+   ],
+   [
+    "999px",
+    1
+   ]
+  ],
+  "targets": 39,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "62x18 My Classes",
+   "1x1 INPUT",
+   "1x1 INPUT",
+   "616x22 INPUT"
+  ],
+  "maxP": 1326,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1013,
+  "fontsN": 18,
+  "radiiN": 8,
+  "textColorsN": 8
+ },
+ {
+  "name": "notebook",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 3,
+  "smallSamples": [
+   "10.6px Next check-in",
+   "9.6px +1",
+   "9.6px +1"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 87,
+  "fonts": [
+   [
+    "Rajdhani 11.0",
+    28
+   ],
+   [
+    "Rajdhani 14.7",
+    10
+   ],
+   [
+    "Share Tech Mono 11.0",
+    7
+   ],
+   [
+    "Rajdhani 12.5",
+    7
+   ],
+   [
+    "Rajdhani 13.1",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Share Tech Mono 11.2",
+    3
+   ],
+   [
+    "Rajdhani 14.4",
+    3
+   ]
+  ],
+  "radii": [
+   [
+    "3px",
+    27
+   ],
+   [
+    "5px",
+    12
+   ],
+   [
+    "11px",
+    11
+   ],
+   [
+    "4px",
+    11
+   ],
+   [
+    "50%",
+    5
+   ],
+   [
+    "8px",
+    2
+   ],
+   [
+    "12px",
+    2
+   ],
+   [
+    "999px",
+    1
+   ]
+  ],
+  "targets": 39,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "62x18 My Classes",
+   "1x1 INPUT",
+   "1x1 INPUT",
+   "616x22 INPUT"
+  ],
+  "maxP": 1326,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1013,
+  "fontsN": 18,
+  "radiiN": 8,
+  "textColorsN": 8
+ },
+ {
+  "name": "cert-catalog",
+  "width": 375,
+  "theme": "idea",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 147,
+  "fonts": [
+   [
+    "Share Tech Mono 11.8",
+    57
+   ],
+   [
+    "Share Tech Mono 13.1",
+    35
+   ],
+   [
+    "Rajdhani 16.8",
+    17
+   ],
+   [
+    "Rajdhani 20.0",
+    14
+   ],
+   [
+    "Share Tech Mono 12.8",
+    9
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Rajdhani 14.4",
+    4
+   ],
+   [
+    "Share Tech Mono 11.0",
+    3
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    67
+   ],
+   [
+    "11px",
+    27
+   ],
+   [
+    "12px",
+    14
+   ],
+   [
+    "8px",
+    4
+   ],
+   [
+    "999px",
+    2
+   ],
+   [
+    "50%",
+    1
+   ],
+   [
+    "4px",
+    1
+   ]
+  ],
+  "targets": 47,
+  "smallTargets": 1,
+  "smallTargetSamples": [
+   "107x34 IDEA ▾"
+  ],
+  "maxP": 343,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 6152,
+  "fontsN": 11,
+  "radiiN": 7,
+  "textColorsN": 8
+ },
+ {
+  "name": "cert-catalog",
+  "width": 375,
+  "theme": "space-white",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 147,
+  "fonts": [
+   [
+    "Share Tech Mono 11.8",
+    57
+   ],
+   [
+    "Share Tech Mono 13.1",
+    35
+   ],
+   [
+    "Rajdhani 16.8",
+    17
+   ],
+   [
+    "Rajdhani 20.0",
+    14
+   ],
+   [
+    "Share Tech Mono 12.8",
+    9
+   ],
+   [
+    "Share Tech Mono 11.5",
+    4
+   ],
+   [
+    "Rajdhani 14.4",
+    4
+   ],
+   [
+    "Share Tech Mono 11.0",
+    3
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    67
+   ],
+   [
+    "11px",
+    27
+   ],
+   [
+    "12px",
+    14
+   ],
+   [
+    "8px",
+    4
+   ],
+   [
+    "999px",
+    2
+   ],
+   [
+    "50%",
+    1
+   ],
+   [
+    "4px",
+    1
+   ]
+  ],
+  "targets": 47,
+  "smallTargets": 1,
+  "smallTargetSamples": [
+   "107x34 IDEA ▾"
+  ],
+  "maxP": 343,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 6152,
+  "fontsN": 11,
+  "radiiN": 7,
+  "textColorsN": 9
+ },
+ {
+  "name": "cert-catalog",
+  "width": 1440,
+  "theme": "idea",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 147,
+  "fonts": [
+   [
+    "Share Tech Mono 11.8",
+    57
+   ],
+   [
+    "Share Tech Mono 13.1",
+    36
+   ],
+   [
+    "Rajdhani 16.8",
+    17
+   ],
+   [
+    "Rajdhani 20.0",
+    14
+   ],
+   [
+    "Share Tech Mono 12.8",
+    13
+   ],
+   [
+    "Rajdhani 14.4",
+    4
+   ],
+   [
+    "Share Tech Mono 11.0",
+    3
+   ],
+   [
+    "Share Tech Mono 13.6",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    67
+   ],
+   [
+    "11px",
+    27
+   ],
+   [
+    "12px",
+    14
+   ],
+   [
+    "8px",
+    4
+   ],
+   [
+    "999px",
+    2
+   ],
+   [
+    "50%",
+    1
+   ],
+   [
+    "4px",
+    1
+   ]
+  ],
+  "targets": 47,
+  "smallTargets": 1,
+  "smallTargetSamples": [
+   "107x34 IDEA ▾"
+  ],
+  "maxP": 736,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 3390,
+  "fontsN": 9,
+  "radiiN": 7,
+  "textColorsN": 8
+ },
+ {
+  "name": "cert-catalog",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 147,
+  "fonts": [
+   [
+    "Share Tech Mono 11.8",
+    57
+   ],
+   [
+    "Share Tech Mono 13.1",
+    36
+   ],
+   [
+    "Rajdhani 16.8",
+    17
+   ],
+   [
+    "Rajdhani 20.0",
+    14
+   ],
+   [
+    "Share Tech Mono 12.8",
+    13
+   ],
+   [
+    "Rajdhani 14.4",
+    4
+   ],
+   [
+    "Share Tech Mono 11.0",
+    3
+   ],
+   [
+    "Share Tech Mono 13.6",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    67
+   ],
+   [
+    "11px",
+    27
+   ],
+   [
+    "12px",
+    14
+   ],
+   [
+    "8px",
+    4
+   ],
+   [
+    "999px",
+    2
+   ],
+   [
+    "50%",
+    1
+   ],
+   [
+    "4px",
+    1
+   ]
+  ],
+  "targets": 47,
+  "smallTargets": 1,
+  "smallTargetSamples": [
+   "107x34 IDEA ▾"
+  ],
+  "maxP": 736,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 3390,
+  "fontsN": 9,
+  "radiiN": 7,
+  "textColorsN": 9
+ },
+ {
+  "name": "armory",
+  "width": 375,
+  "theme": "idea",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 2289,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    434
+   ],
+   [
+    "Rajdhani 14.4",
+    378
+   ],
+   [
+    "Share Tech Mono 13.1",
+    226
+   ],
+   [
+    "Share Tech Mono 11.5",
+    217
+   ],
+   [
+    "Share Tech Mono 11.8",
+    206
+   ],
+   [
+    "Rajdhani 13.6",
+    156
+   ],
+   [
+    "Share Tech Mono 12.0",
+    127
+   ],
+   [
+    "Share Tech Mono 12.5",
+    121
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    285
+   ],
+   [
+    "50%",
+    222
+   ],
+   [
+    "11px",
+    190
+   ],
+   [
+    "8px",
+    166
+   ],
+   [
+    "12px",
+    129
+   ],
+   [
+    "999px",
+    53
+   ],
+   [
+    "4px",
+    10
+   ]
+  ],
+  "targets": 619,
+  "smallTargets": 35,
+  "smallTargetSamples": [
+   "107x34 IDEA ▾",
+   "18x44 INPUT",
+   "18x44 Select Drivetrain.SLDASM",
+   "18x44 Select Roller Bracket.SLDPRT",
+   "18x44 INPUT",
+   "18x44 Select Drivetrain.SLDASM"
+  ],
+  "maxP": 343,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 73017,
+  "fontsN": 20,
+  "radiiN": 7,
+  "textColorsN": 20
+ },
+ {
+  "name": "armory",
+  "width": 375,
+  "theme": "space-white",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 2283,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    434
+   ],
+   [
+    "Rajdhani 14.4",
+    378
+   ],
+   [
+    "Share Tech Mono 13.1",
+    226
+   ],
+   [
+    "Share Tech Mono 11.5",
+    217
+   ],
+   [
+    "Share Tech Mono 11.8",
+    206
+   ],
+   [
+    "Rajdhani 13.6",
+    150
+   ],
+   [
+    "Share Tech Mono 12.0",
+    127
+   ],
+   [
+    "Share Tech Mono 12.5",
+    121
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    285
+   ],
+   [
+    "50%",
+    222
+   ],
+   [
+    "11px",
+    190
+   ],
+   [
+    "8px",
+    166
+   ],
+   [
+    "12px",
+    129
+   ],
+   [
+    "999px",
+    53
+   ],
+   [
+    "4px",
+    10
+   ]
+  ],
+  "targets": 619,
+  "smallTargets": 35,
+  "smallTargetSamples": [
+   "107x34 IDEA ▾",
+   "18x44 INPUT",
+   "18x44 Select Drivetrain.SLDASM",
+   "18x44 Select Roller Bracket.SLDPRT",
+   "18x44 INPUT",
+   "18x44 Select Drivetrain.SLDASM"
+  ],
+  "maxP": 343,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 73126,
+  "fontsN": 20,
+  "radiiN": 7,
+  "textColorsN": 22
+ },
+ {
+  "name": "armory",
+  "width": 1440,
+  "theme": "idea",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 2329,
+  "fonts": [
+   [
+    "Rajdhani 14.4",
+    486
+   ],
+   [
+    "Rajdhani 16.8",
+    434
+   ],
+   [
+    "Share Tech Mono 13.1",
+    254
+   ],
+   [
+    "Share Tech Mono 12.8",
+    217
+   ],
+   [
+    "Share Tech Mono 11.8",
+    206
+   ],
+   [
+    "Share Tech Mono 12.0",
+    121
+   ],
+   [
+    "Share Tech Mono 12.5",
+    121
+   ],
+   [
+    "Rajdhani 16.0",
+    113
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    279
+   ],
+   [
+    "50%",
+    222
+   ],
+   [
+    "11px",
+    218
+   ],
+   [
+    "8px",
+    166
+   ],
+   [
+    "12px",
+    129
+   ],
+   [
+    "999px",
+    53
+   ],
+   [
+    "4px",
+    10
+   ]
+  ],
+  "targets": 641,
+  "smallTargets": 51,
+  "smallTargetSamples": [
+   "107x34 IDEA ▾",
+   "18x44 INPUT",
+   "18x44 Select Drivetrain.SLDASM",
+   "18x44 Select Roller Bracket.SLDPRT",
+   "18x44 INPUT",
+   "18x44 Select Drivetrain.SLDASM"
+  ],
+  "maxP": 1216,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 42677,
+  "fontsN": 20,
+  "radiiN": 7,
+  "textColorsN": 20
+ },
+ {
+  "name": "armory",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 2329,
+  "fonts": [
+   [
+    "Rajdhani 14.4",
+    486
+   ],
+   [
+    "Rajdhani 16.8",
+    434
+   ],
+   [
+    "Share Tech Mono 13.1",
+    254
+   ],
+   [
+    "Share Tech Mono 12.8",
+    217
+   ],
+   [
+    "Share Tech Mono 11.8",
+    206
+   ],
+   [
+    "Share Tech Mono 12.0",
+    121
+   ],
+   [
+    "Share Tech Mono 12.5",
+    121
+   ],
+   [
+    "Rajdhani 16.0",
+    113
+   ]
+  ],
+  "radii": [
+   [
+    "5px",
+    279
+   ],
+   [
+    "50%",
+    222
+   ],
+   [
+    "11px",
+    218
+   ],
+   [
+    "8px",
+    166
+   ],
+   [
+    "12px",
+    129
+   ],
+   [
+    "999px",
+    53
+   ],
+   [
+    "4px",
+    10
+   ]
+  ],
+  "targets": 641,
+  "smallTargets": 51,
+  "smallTargetSamples": [
+   "107x34 IDEA ▾",
+   "18x44 INPUT",
+   "18x44 Select Drivetrain.SLDASM",
+   "18x44 Select Roller Bracket.SLDPRT",
+   "18x44 INPUT",
+   "18x44 Select Drivetrain.SLDASM"
+  ],
+  "maxP": 1216,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 42677,
+  "fontsN": 20,
+  "radiiN": 7,
+  "textColorsN": 21
+ },
+ {
+  "name": "coin-home",
+  "width": 375,
+  "theme": "idea",
+  "small": 12,
+  "smallSamples": [
+   "10.6px Balance",
+   "10.6px Wage",
+   "10.6px Payday",
+   "10.6px Students",
+   "10.6px In circulation",
+   "10.6px In debt"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 63,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    13
+   ],
+   [
+    "Share Tech Mono 10.6",
+    12
+   ],
+   [
+    "Share Tech Mono 16.8",
+    9
+   ],
+   [
+    "Share Tech Mono 11.2",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    5
+   ],
+   [
+    "Share Tech Mono 16.0",
+    5
+   ],
+   [
+    "Share Tech Mono 13.6",
+    4
+   ],
+   [
+    "Share Tech Mono 11.0",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "8px",
+    7
+   ],
+   [
+    "50%",
+    4
+   ],
+   [
+    "12px",
+    4
+   ],
+   [
+    "11px",
+    2
+   ],
+   [
+    "5px",
+    1
+   ]
+  ],
+  "targets": 12,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "76x15 My coins",
+   "57x15 Ledger",
+   "57x15 Market",
+   "57x15 Stocks"
+  ],
+  "maxP": 343,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 1686,
+  "fontsN": 16,
+  "radiiN": 5,
+  "textColorsN": 7
+ },
+ {
+  "name": "coin-home",
+  "width": 375,
+  "theme": "space-white",
+  "small": 12,
+  "smallSamples": [
+   "10.6px Balance",
+   "10.6px Wage",
+   "10.6px Payday",
+   "10.6px Students",
+   "10.6px In circulation",
+   "10.6px In debt"
+  ],
+  "lowc": 9,
+  "lowcSamples": [
+   "4.33 11px rgb(80, 92, 88) \"Students\"",
+   "4.33 11px rgb(80, 92, 88) \"In circulation\"",
+   "4.33 11px rgb(80, 92, 88) \"In debt\"",
+   "4.33 11px rgb(80, 92, 88) \"Offers\"",
+   "4.33 11px rgb(80, 92, 88) \"Requests\"",
+   "4.33 11px rgb(80, 92, 88) \"Your open trades\"",
+   "4.33 11px rgb(80, 92, 88) \"Top riser\"",
+   "4.33 11px rgb(80, 92, 88) \"You hold\""
+  ],
+  "texts": 63,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    13
+   ],
+   [
+    "Share Tech Mono 10.6",
+    12
+   ],
+   [
+    "Share Tech Mono 16.8",
+    9
+   ],
+   [
+    "Share Tech Mono 11.2",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    5
+   ],
+   [
+    "Share Tech Mono 16.0",
+    5
+   ],
+   [
+    "Share Tech Mono 13.6",
+    4
+   ],
+   [
+    "Share Tech Mono 11.0",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "8px",
+    7
+   ],
+   [
+    "50%",
+    4
+   ],
+   [
+    "12px",
+    4
+   ],
+   [
+    "11px",
+    2
+   ],
+   [
+    "5px",
+    1
+   ]
+  ],
+  "targets": 12,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "76x15 My coins",
+   "57x15 Ledger",
+   "57x15 Market",
+   "57x15 Stocks"
+  ],
+  "maxP": 343,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 1686,
+  "fontsN": 16,
+  "radiiN": 5,
+  "textColorsN": 7
+ },
+ {
+  "name": "coin-home",
+  "width": 1440,
+  "theme": "idea",
+  "small": 12,
+  "smallSamples": [
+   "10.6px Balance",
+   "10.6px Wage",
+   "10.6px Payday",
+   "10.6px Students",
+   "10.6px In circulation",
+   "10.6px In debt"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 64,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    13
+   ],
+   [
+    "Share Tech Mono 10.6",
+    12
+   ],
+   [
+    "Share Tech Mono 16.8",
+    9
+   ],
+   [
+    "Share Tech Mono 12.2",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    5
+   ],
+   [
+    "Share Tech Mono 16.0",
+    5
+   ],
+   [
+    "Share Tech Mono 13.6",
+    4
+   ],
+   [
+    "Share Tech Mono 11.0",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "8px",
+    7
+   ],
+   [
+    "50%",
+    4
+   ],
+   [
+    "12px",
+    4
+   ],
+   [
+    "11px",
+    2
+   ],
+   [
+    "5px",
+    1
+   ]
+  ],
+  "targets": 12,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "76x15 My coins",
+   "57x15 Ledger",
+   "57x15 Market",
+   "57x15 Stocks"
+  ],
+  "maxP": 426,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 947,
+  "fontsN": 17,
+  "radiiN": 5,
+  "textColorsN": 7
+ },
+ {
+  "name": "coin-home",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 12,
+  "smallSamples": [
+   "10.6px Balance",
+   "10.6px Wage",
+   "10.6px Payday",
+   "10.6px Students",
+   "10.6px In circulation",
+   "10.6px In debt"
+  ],
+  "lowc": 9,
+  "lowcSamples": [
+   "4.33 11px rgb(80, 92, 88) \"Students\"",
+   "4.33 11px rgb(80, 92, 88) \"In circulation\"",
+   "4.33 11px rgb(80, 92, 88) \"In debt\"",
+   "4.33 11px rgb(80, 92, 88) \"Offers\"",
+   "4.33 11px rgb(80, 92, 88) \"Requests\"",
+   "4.33 11px rgb(80, 92, 88) \"Your open trades\"",
+   "4.33 11px rgb(80, 92, 88) \"Top riser\"",
+   "4.33 11px rgb(80, 92, 88) \"You hold\""
+  ],
+  "texts": 64,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    13
+   ],
+   [
+    "Share Tech Mono 10.6",
+    12
+   ],
+   [
+    "Share Tech Mono 16.8",
+    9
+   ],
+   [
+    "Share Tech Mono 12.2",
+    5
+   ],
+   [
+    "Share Tech Mono 11.5",
+    5
+   ],
+   [
+    "Share Tech Mono 16.0",
+    5
+   ],
+   [
+    "Share Tech Mono 13.6",
+    4
+   ],
+   [
+    "Share Tech Mono 11.0",
+    2
+   ]
+  ],
+  "radii": [
+   [
+    "8px",
+    7
+   ],
+   [
+    "50%",
+    4
+   ],
+   [
+    "12px",
+    4
+   ],
+   [
+    "11px",
+    2
+   ],
+   [
+    "5px",
+    1
+   ]
+  ],
+  "targets": 12,
+  "smallTargets": 4,
+  "smallTargetSamples": [
+   "76x15 My coins",
+   "57x15 Ledger",
+   "57x15 Market",
+   "57x15 Stocks"
+  ],
+  "maxP": 426,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 947,
+  "fontsN": 17,
+  "radiiN": 5,
+  "textColorsN": 7
+ },
+ {
+  "name": "coin-market",
+  "width": 375,
+  "theme": "idea",
+  "small": 39,
+  "smallSamples": [
+   "10.6px Balance",
+   "10.6px Featured",
+   "10.6px Offer · Fabrication",
+   "10.6px Featured",
+   "10.6px Request · Service",
+   "10.6px Offer · Tutoring"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 177,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    31
+   ],
+   [
+    "Share Tech Mono 16.8",
+    24
+   ],
+   [
+    "Share Tech Mono 10.6",
+    21
+   ],
+   [
+    "Share Tech Mono 10.9",
+    18
+   ],
+   [
+    "Rajdhani 14.1",
+    16
+   ],
+   [
+    "Share Tech Mono 13.1",
+    15
+   ],
+   [
+    "Rajdhani 14.7",
+    15
+   ],
+   [
+    "Rajdhani 15.7",
+    8
+   ]
+  ],
+  "radii": [
+   [
+    "12px",
+    27
+   ],
+   [
+    "4px",
+    17
+   ],
+   [
+    "11px",
+    16
+   ],
+   [
+    "50%",
+    9
+   ],
+   [
+    "5px",
+    4
+   ]
+  ],
+  "targets": 42,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 343,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 5741,
+  "fontsN": 17,
+  "radiiN": 5,
+  "textColorsN": 8
+ },
+ {
+  "name": "coin-market",
+  "width": 375,
+  "theme": "space-white",
+  "small": 39,
+  "smallSamples": [
+   "10.6px Balance",
+   "10.6px Featured",
+   "10.6px Offer · Fabrication",
+   "10.6px Featured",
+   "10.6px Request · Service",
+   "10.6px Offer · Tutoring"
+  ],
+  "lowc": 6,
+  "lowcSamples": [
+   "3.38 17px rgb(113, 93, 34) \"4.6 out of 5 from 5 reviews\"",
+   "3.38 17px rgb(113, 93, 34) \"4.0 out of 5 from 2 reviews\"",
+   "3.38 17px rgb(113, 93, 34) \"5.0 out of 5 from 9 reviews\"",
+   "3.38 17px rgb(113, 93, 34) \"No reviews yet\"",
+   "3.38 17px rgb(113, 93, 34) \"3.5 out of 5 from 4 reviews\"",
+   "3.38 17px rgb(113, 93, 34) \"4.6 out of 5 from 5 reviews\""
+  ],
+  "texts": 177,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    31
+   ],
+   [
+    "Share Tech Mono 16.8",
+    24
+   ],
+   [
+    "Share Tech Mono 10.6",
+    21
+   ],
+   [
+    "Share Tech Mono 10.9",
+    18
+   ],
+   [
+    "Rajdhani 14.1",
+    16
+   ],
+   [
+    "Share Tech Mono 13.1",
+    15
+   ],
+   [
+    "Rajdhani 14.7",
+    15
+   ],
+   [
+    "Rajdhani 15.7",
+    8
+   ]
+  ],
+  "radii": [
+   [
+    "12px",
+    27
+   ],
+   [
+    "4px",
+    17
+   ],
+   [
+    "11px",
+    16
+   ],
+   [
+    "50%",
+    9
+   ],
+   [
+    "5px",
+    4
+   ]
+  ],
+  "targets": 42,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 343,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 5541,
+  "fontsN": 17,
+  "radiiN": 5,
+  "textColorsN": 9
+ },
+ {
+  "name": "coin-market",
+  "width": 1440,
+  "theme": "idea",
+  "small": 39,
+  "smallSamples": [
+   "10.6px Balance",
+   "10.6px Featured",
+   "10.6px Offer · Fabrication",
+   "10.6px Featured",
+   "10.6px Request · Service",
+   "10.6px Offer · Tutoring"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 186,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    39
+   ],
+   [
+    "Share Tech Mono 16.8",
+    24
+   ],
+   [
+    "Rajdhani 14.7",
+    23
+   ],
+   [
+    "Share Tech Mono 10.6",
+    21
+   ],
+   [
+    "Share Tech Mono 10.9",
+    18
+   ],
+   [
+    "Share Tech Mono 13.1",
+    15
+   ],
+   [
+    "Rajdhani 14.9",
+    13
+   ],
+   [
+    "Rajdhani 14.1",
+    8
+   ]
+  ],
+  "radii": [
+   [
+    "12px",
+    27
+   ],
+   [
+    "4px",
+    17
+   ],
+   [
+    "11px",
+    16
+   ],
+   [
+    "50%",
+    9
+   ],
+   [
+    "5px",
+    4
+   ]
+  ],
+  "targets": 42,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 614,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 2322,
+  "fontsN": 16,
+  "radiiN": 5,
+  "textColorsN": 8
+ },
+ {
+  "name": "coin-market",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 39,
+  "smallSamples": [
+   "10.6px Balance",
+   "10.6px Featured",
+   "10.6px Offer · Fabrication",
+   "10.6px Featured",
+   "10.6px Request · Service",
+   "10.6px Offer · Tutoring"
+  ],
+  "lowc": 6,
+  "lowcSamples": [
+   "3.38 17px rgb(113, 93, 34) \"4.6 out of 5 from 5 reviews\"",
+   "3.38 17px rgb(113, 93, 34) \"4.0 out of 5 from 2 reviews\"",
+   "3.38 17px rgb(113, 93, 34) \"5.0 out of 5 from 9 reviews\"",
+   "3.38 17px rgb(113, 93, 34) \"No reviews yet\"",
+   "3.38 17px rgb(113, 93, 34) \"3.5 out of 5 from 4 reviews\"",
+   "3.38 17px rgb(113, 93, 34) \"4.6 out of 5 from 5 reviews\""
+  ],
+  "texts": 186,
+  "fonts": [
+   [
+    "Rajdhani 16.8",
+    39
+   ],
+   [
+    "Share Tech Mono 16.8",
+    24
+   ],
+   [
+    "Rajdhani 14.7",
+    23
+   ],
+   [
+    "Share Tech Mono 10.6",
+    21
+   ],
+   [
+    "Share Tech Mono 10.9",
+    18
+   ],
+   [
+    "Share Tech Mono 13.1",
+    15
+   ],
+   [
+    "Rajdhani 14.9",
+    13
+   ],
+   [
+    "Rajdhani 14.1",
+    8
+   ]
+  ],
+  "radii": [
+   [
+    "12px",
+    27
+   ],
+   [
+    "4px",
+    17
+   ],
+   [
+    "11px",
+    16
+   ],
+   [
+    "50%",
+    9
+   ],
+   [
+    "5px",
+    4
+   ]
+  ],
+  "targets": 42,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 614,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 2322,
+  "fontsN": 16,
+  "radiiN": 5,
+  "textColorsN": 9
+ },
+ {
+  "name": "calendar",
+  "width": 375,
+  "theme": "idea",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 1,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "11px",
+    1
+   ]
+  ],
+  "targets": 1,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 0,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 12225,
+  "fontsN": 1,
+  "radiiN": 1,
+  "textColorsN": 1
+ },
+ {
+  "name": "calendar",
+  "width": 375,
+  "theme": "space-white",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 1,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "11px",
+    1
+   ]
+  ],
+  "targets": 1,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 0,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 12225,
+  "fontsN": 1,
+  "radiiN": 1,
+  "textColorsN": 1
+ },
+ {
+  "name": "calendar",
+  "width": 1440,
+  "theme": "idea",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 1,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "11px",
+    1
+   ]
+  ],
+  "targets": 1,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 0,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1334,
+  "fontsN": 1,
+  "radiiN": 1,
+  "textColorsN": 1
+ },
+ {
+  "name": "calendar",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 0,
+  "smallSamples": [],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 1,
+  "fonts": [
+   [
+    "Share Tech Mono 11.0",
+    1
+   ]
+  ],
+  "radii": [
+   [
+    "11px",
+    1
+   ]
+  ],
+  "targets": 1,
+  "smallTargets": 0,
+  "smallTargetSamples": [],
+  "maxP": 0,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 1334,
+  "fontsN": 1,
+  "radiiN": 1,
+  "textColorsN": 1
+ },
+ {
+  "name": "portal-admin",
+  "width": 375,
+  "theme": "idea",
+  "small": 155,
+  "smallSamples": [
+   "9.6px Home",
+   "10.4px IDEA · Administration",
+   "9.3px Signed in as",
+   "9.3px Role",
+   "9.3px Waiting on you",
+   "9.9px ana.reyes0@boscotech.net"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 275,
+  "fonts": [
+   [
+    "Share Tech Mono 10.6",
+    136
+   ],
+   [
+    "Share Tech Mono 13.1",
+    24
+   ],
+   [
+    "Share Tech Mono 12.5",
+    15
+   ],
+   [
+    "Rajdhani 15.2",
+    15
+   ],
+   [
+    "Rajdhani 20.0",
+    11
+   ],
+   [
+    "Share Tech Mono 11.5",
+    11
+   ],
+   [
+    "Share Tech Mono 11.0",
+    11
+   ],
+   [
+    "Share Tech Mono 11.8",
+    10
+   ]
+  ],
+  "radii": [
+   [
+    "4px",
+    61
+   ],
+   [
+    "3px",
+    60
+   ],
+   [
+    "11px",
+    31
+   ],
+   [
+    "5px",
+    28
+   ],
+   [
+    "12px",
+    19
+   ],
+   [
+    "50%",
+    7
+   ],
+   [
+    "999px",
+    6
+   ]
+  ],
+  "targets": 120,
+  "smallTargets": 61,
+  "smallTargetSamples": [
+   "44x34 TV   ▾",
+   "309x29 01 Mechanical Design Pro",
+   "309x29 02 Reading Technical Dra",
+   "309x29 03 FRC Hardware Vocabula",
+   "309x29 04 Sketching and the Fir",
+   "309x29 05 Building Real Parts"
+  ],
+  "maxP": 343,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 6485,
+  "fontsN": 24,
+  "radiiN": 7,
+  "textColorsN": 16
+ },
+ {
+  "name": "portal-admin",
+  "width": 375,
+  "theme": "space-white",
+  "small": 155,
+  "smallSamples": [
+   "9.6px Home",
+   "10.4px IDEA · Administration",
+   "9.3px Signed in as",
+   "9.3px Role",
+   "9.3px Waiting on you",
+   "9.9px ana.reyes0@boscotech.net"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 275,
+  "fonts": [
+   [
+    "Share Tech Mono 10.6",
+    136
+   ],
+   [
+    "Share Tech Mono 13.1",
+    24
+   ],
+   [
+    "Share Tech Mono 12.5",
+    15
+   ],
+   [
+    "Rajdhani 15.2",
+    15
+   ],
+   [
+    "Rajdhani 20.0",
+    11
+   ],
+   [
+    "Share Tech Mono 11.5",
+    11
+   ],
+   [
+    "Share Tech Mono 11.0",
+    11
+   ],
+   [
+    "Share Tech Mono 11.8",
+    10
+   ]
+  ],
+  "radii": [
+   [
+    "4px",
+    61
+   ],
+   [
+    "3px",
+    60
+   ],
+   [
+    "11px",
+    31
+   ],
+   [
+    "5px",
+    28
+   ],
+   [
+    "12px",
+    19
+   ],
+   [
+    "50%",
+    7
+   ],
+   [
+    "999px",
+    6
+   ]
+  ],
+  "targets": 120,
+  "smallTargets": 61,
+  "smallTargetSamples": [
+   "44x34 TV   ▾",
+   "309x29 01 Mechanical Design Pro",
+   "309x29 02 Reading Technical Dra",
+   "309x29 03 FRC Hardware Vocabula",
+   "309x29 04 Sketching and the Fir",
+   "309x29 05 Building Real Parts"
+  ],
+  "maxP": 343,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 375,
+  "vw": 375,
+  "h": 6485,
+  "fontsN": 24,
+  "radiiN": 7,
+  "textColorsN": 16
+ },
+ {
+  "name": "portal-admin",
+  "width": 1440,
+  "theme": "idea",
+  "small": 155,
+  "smallSamples": [
+   "9.6px Home",
+   "10.4px IDEA · Administration",
+   "9.3px Signed in as",
+   "9.3px Role",
+   "9.3px Waiting on you",
+   "9.9px ana.reyes0@boscotech.net"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 275,
+  "fonts": [
+   [
+    "Share Tech Mono 10.6",
+    136
+   ],
+   [
+    "Share Tech Mono 13.1",
+    25
+   ],
+   [
+    "Share Tech Mono 12.5",
+    15
+   ],
+   [
+    "Rajdhani 15.2",
+    15
+   ],
+   [
+    "Rajdhani 20.0",
+    11
+   ],
+   [
+    "Share Tech Mono 11.5",
+    11
+   ],
+   [
+    "Share Tech Mono 11.0",
+    11
+   ],
+   [
+    "Share Tech Mono 11.8",
+    10
+   ]
+  ],
+  "radii": [
+   [
+    "4px",
+    61
+   ],
+   [
+    "3px",
+    60
+   ],
+   [
+    "11px",
+    31
+   ],
+   [
+    "5px",
+    28
+   ],
+   [
+    "12px",
+    19
+   ],
+   [
+    "50%",
+    7
+   ],
+   [
+    "999px",
+    6
+   ]
+  ],
+  "targets": 120,
+  "smallTargets": 61,
+  "smallTargetSamples": [
+   "44x34 TV   ▾",
+   "429x29 01 Mechanical Design Pro",
+   "429x29 02 Reading Technical Dra",
+   "429x29 03 FRC Hardware Vocabula",
+   "429x29 04 Sketching and the Fir",
+   "429x29 05 Building Real Parts"
+  ],
+  "maxP": 1334,
+  "attr": null,
+  "bodyBg": "rgb(18, 20, 19)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 2626,
+  "fontsN": 23,
+  "radiiN": 7,
+  "textColorsN": 16
+ },
+ {
+  "name": "portal-admin",
+  "width": 1440,
+  "theme": "space-white",
+  "small": 155,
+  "smallSamples": [
+   "9.6px Home",
+   "10.4px IDEA · Administration",
+   "9.3px Signed in as",
+   "9.3px Role",
+   "9.3px Waiting on you",
+   "9.9px ana.reyes0@boscotech.net"
+  ],
+  "lowc": 0,
+  "lowcSamples": [],
+  "texts": 275,
+  "fonts": [
+   [
+    "Share Tech Mono 10.6",
+    136
+   ],
+   [
+    "Share Tech Mono 13.1",
+    25
+   ],
+   [
+    "Share Tech Mono 12.5",
+    15
+   ],
+   [
+    "Rajdhani 15.2",
+    15
+   ],
+   [
+    "Rajdhani 20.0",
+    11
+   ],
+   [
+    "Share Tech Mono 11.5",
+    11
+   ],
+   [
+    "Share Tech Mono 11.0",
+    11
+   ],
+   [
+    "Share Tech Mono 11.8",
+    10
+   ]
+  ],
+  "radii": [
+   [
+    "4px",
+    61
+   ],
+   [
+    "3px",
+    60
+   ],
+   [
+    "11px",
+    31
+   ],
+   [
+    "5px",
+    28
+   ],
+   [
+    "12px",
+    19
+   ],
+   [
+    "50%",
+    7
+   ],
+   [
+    "999px",
+    6
+   ]
+  ],
+  "targets": 120,
+  "smallTargets": 61,
+  "smallTargetSamples": [
+   "44x34 TV   ▾",
+   "429x29 01 Mechanical Design Pro",
+   "429x29 02 Reading Technical Dra",
+   "429x29 03 FRC Hardware Vocabula",
+   "429x29 04 Sketching and the Fir",
+   "429x29 05 Building Real Parts"
+  ],
+  "maxP": 1334,
+  "attr": "space-white",
+  "bodyBg": "rgb(223, 227, 234)",
+  "scrollW": 1440,
+  "vw": 1440,
+  "h": 2626,
+  "fontsN": 23,
+  "radiiN": 7,
+  "textColorsN": 16
+ }
+]
