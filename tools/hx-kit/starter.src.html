@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-hue-from="45" data-hue-to="95" data-hue-chroma="0.6">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,7 +26,7 @@
     22 points.
   7 Facts to confirm: the unit key's label on the lab calipers (in/mm); what to do with a
     dead battery; whether a burr may be filed; how a phone photo reaches a lab computer.
-  8 Look: brass and steel (data-hue 45 to 95, chroma 0.6), the caliper's own colors; a digital caliper in the header.
+  8 Look: one color per phase from the linking set (Learn sky, Measure magenta, Report marigold), the caliper in steel; a digital caliper in the header.
 -->
 <script type="application/json" id="idea-manifest">
 {
@@ -113,7 +113,7 @@
 </script>
 <!-- hx:head -->
 <style>
-  /* This assignment's own look. The subject palette is set on <html> above;
+  /* This assignment's own look. Phase colors are in hx-plan-data, other colors are data-color;
      everything else comes from the kit. */
   .cc-table { width: 100%; border-collapse: collapse; }
   .cc-table th { text-align: left; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caption); padding: 0 0 6px; }
@@ -154,7 +154,7 @@
         <span class="idea-chip">Everything else: a pick, a number or a photo</span>
       </div>
     </div>
-    <div class="hx-hero-art hx-hue" style="--t:0.5" aria-hidden="true">
+    <div class="hx-hero-art" data-color="steel" aria-hidden="true">
       <svg viewBox="0 0 320 160">
         <rect x="20" y="50" width="290" height="16" rx="2" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2.5"/>
         <g stroke="var(--hx-ink)" stroke-width="1.5">
@@ -186,7 +186,7 @@
     <div class="hx-step-body">
       <div class="hx-stack">
         <p>The display shows the distance between the <span class="it" data-term="jaws">jaws</span>. Read every digit, then the small unit mark beside them: <strong>in</strong> or <strong>mm</strong>.</p>
-        <div class="idea-panel hx-example hx-hue" style="--t:0.15">
+        <div class="idea-panel hx-example" data-color="sky">
           <span class="idea-eyebrow">Example</span>
           <figure class="hx-fig">
             <svg viewBox="0 0 240 70" role="img" aria-label="A caliper display reading 0.512 with the unit mark IN">
@@ -241,7 +241,7 @@
         </details>
       </div>
       <div class="hx-stack">
-        <figure class="hx-fig hx-hue" style="--t:0.15">
+        <figure class="hx-fig" data-color="sky">
           <svg viewBox="0 0 320 120" role="img" aria-label="Caliper jaws closed, display reading 0.000">
             <rect x="20" y="30" width="290" height="14" rx="2" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2"/>
             <path d="M20 30 H44 V100 L34 116 H28 L20 100 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/>
@@ -369,7 +369,7 @@
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Your verdict</span>
         <p class="hx-readout" id="cc-sum-2" aria-live="polite">Fill in step 3 first: your average and limits appear here.</p>
-        <fieldset class="hx-picks hx-hue" style="--t:1" data-field="verdict" data-kind="radio">
+        <fieldset class="hx-picks" data-color="marigold" data-field="verdict" data-kind="radio">
           <legend>Inside or outside the tolerance?</legend>
           <label class="hx-pick"><input type="radio" name="verdict" value="inside">
             <svg viewBox="0 0 200 60" aria-hidden="true"><rect x="50" y="22" width="100" height="16" rx="3" fill="var(--hx-wash)" stroke="var(--hx-ink)"/><line x1="10" y1="30" x2="190" y2="30" stroke="var(--text-2)"/><circle cx="92" cy="30" r="7" fill="var(--plate-ink)"/></svg>
@@ -398,9 +398,9 @@
 <script type="application/json" id="hx-plan-data">
 {
   "phases": [
-    {"id": "learn", "name": "Learn", "days": [{"label": "Class 1", "short": "Read and zero", "date": "2026-10-26"}]},
-    {"id": "measure", "name": "Measure", "days": [{"label": "Class 2", "short": "Readings and photo", "date": "2026-10-28"}]},
-    {"id": "report", "name": "Report", "days": [{"label": "Class 3", "short": "Verdict", "date": "2026-10-30"}]}
+    {"id": "learn", "name": "Learn", "color": "sky", "days": [{"label": "Class 1", "short": "Read and zero", "date": "2026-10-26"}]},
+    {"id": "measure", "name": "Measure", "color": "magenta", "days": [{"label": "Class 2", "short": "Readings and photo", "date": "2026-10-28"}]},
+    {"id": "report", "name": "Report", "color": "marigold", "days": [{"label": "Class 3", "short": "Verdict", "date": "2026-10-30"}]}
   ]
 }
 </script>

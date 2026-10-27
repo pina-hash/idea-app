@@ -80,6 +80,20 @@ function kitTodayPhase() {
   });
   return best;
 }
+/* A phase's color (AUTHORING D3): its own "color" from hx-plan-data, else the
+   nearest of the eleven solved stops of the older data-hue arc. build.mjs
+   writes both themes' values for every name used. */
+function kitPhaseColor(p, t) {
+  return (p && p.color) || ('t' + Math.round((t || 0) * 10));
+}
+/* Older sources set style="--t:x" on an .hx-hue element; give it the nearest
+   solved stop so it is per-theme too. */
+function kitArcColors() {
+  kitQ('.hx-hue:not([data-color])').forEach(function (el) {
+    var t = parseFloat(el.style.getPropertyValue('--t'));
+    el.setAttribute('data-color', 't' + Math.round((isFinite(t) ? t : 0) * 10));
+  });
+}
 function kitRenderPlan() {
   var nav = document.getElementById('hx-plan');
   if (!nav || !KIT.plan) return;
@@ -88,7 +102,7 @@ function kitRenderPlan() {
   var now = kitTodayPhase();
   nav.innerHTML = phases.map(function (p, i) {
     var t = phases.length > 1 ? i / (phases.length - 1) : 0;
-    return '<div class="hx-phase hx-hue" style="--t:' + t.toFixed(3) + ';--days:' + Math.max(1, (p.days || []).length) + '">' +
+    return '<div class="hx-phase hx-hue" data-color="' + kitEsc(kitPhaseColor(p, t)) + '" style="--days:' + Math.max(1, (p.days || []).length) + '">' +
       '<span class="hx-phase-name">' + kitEsc(p.name) + '</span><div class="hx-phase-days">' +
       (p.days || []).map(function (d) {
         var today = now && now.date === d.date;
@@ -110,7 +124,7 @@ function kitCollectSteps() {
     var pi = phaseIndex[pid] || 0;
     var t = nPhases > 1 ? pi / (nPhases - 1) : 0;
     el.classList.add('hx-hue');
-    el.style.setProperty('--t', t.toFixed(3));
+    if (!el.hasAttribute('data-color')) el.setAttribute('data-color', kitPhaseColor(KIT.plan && KIT.plan.phases[pi], t));
     var head = el.querySelector('.hx-step-head');
     if (head && !head.querySelector('.hx-num')) {
       var num = document.createElement('span');
@@ -245,7 +259,7 @@ function kitRefresh() {
   if (track) {
     track.innerHTML = KIT.steps.map(function (s, i) {
       return '<button type="button" class="hx-seg hx-hue' + (done[i] ? ' is-done' : '') + (i === KIT.cur ? ' is-here' : '') +
-        '" style="--t:' + (s.el.style.getPropertyValue('--t') || 0) + '" data-go="' + i + '" aria-label="Step ' + (i + 1) + ': ' +
+        '" data-color="' + kitEsc(s.el.getAttribute('data-color') || '') + '" data-go="' + i + '" aria-label="Step ' + (i + 1) + ': ' +
         kitEsc(s.title) + (done[i] ? ', done' : '') + '"></button>';
     }).join('');
   }
@@ -390,6 +404,7 @@ function kitStart() {
   kitGlossary();
   KIT.today = document.documentElement.dataset.today || kitIsoToday();
   KIT.plan = kitReadPlan();
+  kitArcColors();
   kitRenderPlan();
   kitRenderBar();
   kitCollectSteps();

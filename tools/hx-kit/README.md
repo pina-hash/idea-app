@@ -31,7 +31,7 @@ the test bundles the real importer check from `src/`).
 
 ## The source, in brief
 
-- `<html data-hue-from="45" data-hue-to="95" data-hue-chroma="0.6">` sets the subject palette (OKLCH degrees; chroma is an optional multiplier). It is required: `build.mjs` reads it and refuses to build without it. Pick it from the subject (standard D3); cyan to violet is never a default.
+- Colors are names, never hexes (standard D3): `"color": "sky"` on each phase in `hx-plan-data`, `data-color="copper"` on anything else, from `kit/colors.json` or the source's own `hx-colors` block (`{"name": {"anchor": "#rrggbb", "means": "..."}}`). `build.mjs` solves each used name separately for each theme (`color.mjs` `solve`) into `--hx-ink`, `--hx-fill`, `--hx-on`, `--hx-line`, `--hx-wash`, and writes the values into `hx-palette-data` for `test.mjs` to judge. The older `data-hue-from`/`data-hue-to` on `<html>` still builds, with a warning.
 - `<script type="application/json" id="idea-manifest">` in the head, as always.
 - `<nav class="hx-plan idea-panel" id="hx-plan">` and `<div class="hx-bar idea-panel" id="hx-bar">`
   are filled by the kit; `<script type="application/json" id="hx-plan-data">` lists the phases

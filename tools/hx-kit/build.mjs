@@ -20,6 +20,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { solve, hex, rgbToOklch, oklchToRgb, toHex } from './color.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const KIT = join(HERE, 'kit');
@@ -117,10 +118,32 @@ export function build(source) {
 	return source.replace('<!-- hx:head -->', () => kitHead() + paletteCss(source)).replace('<!-- hx:script -->', () => kitScript());
 }
 
-/** The subject palette, read off <html> and written as the custom properties
-    kit.css colors every phase from. Until 2026-10-26 nothing read these
-    attributes, so every kit page showed kit.css's old cyan-to-violet default
-    whatever its author chose; this is the one place they are read. */
+/* ---- Content colors (AUTHORING D3) ---------------------------------------
+   Every color an assignment uses has a name, a meaning and an anchor. The kit's
+   library is kit/colors.json; a source adds its own in a JSON block
+   <script type="application/json" id="hx-colors">{"name": {"anchor": "#hex",
+   "means": "what it stands for"}}</script>. An element takes one with
+   data-color="name"; a phase takes one with "color" in hx-plan-data, and its
+   steps and progress segments inherit it. Each used color is solved separately
+   for each theme (color.mjs solve) into --hx-ink (text), --hx-fill (marks,
+   badges, bands), --hx-on (text on the fill), --hx-line (an edge) and --hx-wash
+   (a quiet tint), so a yellow is a bright fill on the white theme and never a
+   brown outline. The older data-hue-from/to on <html> still builds: it becomes
+   eleven solved stops t0 to t10 along that arc, which kit.js gives any phase
+   without a color. */
+const GREEN_BAND = [120, 160]; // the site's green means done (AUTHORING D2)
+
+export function library() {
+	return JSON.parse(readFileSync(join(KIT, 'colors.json'), 'utf8')).colors;
+}
+
+/** The two themes' grounds, from the same tokens the page is built with. */
+export function themes(tokens) {
+	const v = (name, theme) => hex(tokens.color.tokens.find((t) => t.name === name).value[theme]);
+	const grounds = (theme) => ['panel-top', 'panel-bot', 'page-top', 'page-bot'].map((n) => v(n, theme));
+	return { dark: { dark: true, panels: grounds('idea') }, light: { dark: false, panels: grounds('space-white') } };
+}
+
 export function palette(source) {
 	const tag = (source.match(/<html\b[^>]*>/i) || [''])[0];
 	const num = (name) => {
@@ -130,15 +153,56 @@ export function palette(source) {
 	const from = num('data-hue-from');
 	const to = num('data-hue-to');
 	const chroma = num('data-hue-chroma');
-	if (!Number.isFinite(from) || !Number.isFinite(to))
-		throw new Error('Set the subject palette on <html>: data-hue-from and data-hue-to (OKLCH degrees), picked from the real subject. There is no default.');
 	if (Number.isFinite(chroma) && (chroma < 0 || chroma > 1.5)) throw new Error('data-hue-chroma is a multiplier between 0 and 1.5.');
-	return { from, to, chroma: Number.isFinite(chroma) ? chroma : 1 };
+	const lib = library();
+	const own = source.match(/<script[^>]*id="hx-colors"[^>]*>([\s\S]*?)<\/script>/);
+	if (own) {
+		let extra;
+		try { extra = JSON.parse(own[1]); } catch (e) { throw new Error(`hx-colors is not valid JSON: ${e.message}`); }
+		for (const [name, c] of Object.entries(extra)) {
+			if (!/^[a-z][a-z0-9-]*$/.test(name)) throw new Error(`hx-colors: "${name}" is not a color name (lowercase, digits, hyphens).`);
+			if (!c || !/^#[0-9a-f]{6}$/i.test(c.anchor || '')) throw new Error(`hx-colors: "${name}" needs an anchor, a #rrggbb value taken from the real thing.`);
+			if (!c.means) throw new Error(`hx-colors: "${name}" needs "means": what it stands for, in the student's terms.`);
+			lib[name] = { ...c, source: c.source || 'this assignment', status: c.status || 'author' };
+		}
+	}
+	const plan = (source.match(/<script[^>]*id="hx-plan-data"[^>]*>([\s\S]*?)<\/script>/) || [])[1];
+	const phaseColors = plan ? [...plan.matchAll(/"color"\s*:\s*"([^"]+)"/g)].map((m) => m[1]) : [];
+	const used = new Set([...source.matchAll(/\bdata-color="([^"]+)"/g)].map((m) => m[1]).filter((n) => !/^t\d+$/.test(n)));
+	phaseColors.forEach((n) => used.add(n));
+	for (const n of used) if (!lib[n]) throw new Error(`Color "${n}" is not in kit/colors.json or this source's hx-colors block. Add it with an anchor and what it means.`);
+	for (const n of phaseColors) {
+		const H = rgbToOklch(hex(lib[n].anchor)).H;
+		if (lib[n].identityOnly) throw new Error(`"${n}" cannot color a phase: ${lib[n].identityOnly}.`);
+		if (H >= GREEN_BAND[0] && H <= GREEN_BAND[1] && rgbToOklch(hex(lib[n].anchor)).C > 0.04) throw new Error(`"${n}" is in the site's green, which means done. A phase cannot wear it.`);
+	}
+	const arc = Number.isFinite(from) && Number.isFinite(to) ? { from, to, chroma: Number.isFinite(chroma) ? chroma : 1 } : null;
+	if (!arc && !phaseColors.length && plan)
+		throw new Error('Give each phase a color: "color" on each phase in hx-plan-data, a name from kit/colors.json or hx-colors, picked from the real subject. There is no default.');
+	const named = {};
+	for (const n of used) named[n] = lib[n];
+	if (arc) for (let i = 0; i <= 10; i++) {
+		const h = arc.from + ((arc.to - arc.from) * i) / 10;
+		named[`t${i}`] = { anchor: toHex(oklchToRgb(0.68, 0.14 * arc.chroma, ((h % 360) + 360) % 360)), means: `stop ${i} of the data-hue arc`, source: 'data-hue on <html>', status: 'arc' };
+	}
+	return { arc, phaseColors, colors: named };
 }
 
-export function paletteCss(source) {
+/** Solve every used color for both themes. */
+export function solvePalette(source, tokens) {
 	const p = palette(source);
-	return `\n<style id="hx-palette">:root{--hx-from:${p.from};--hx-to:${p.to};--hx-cs:${p.chroma}}</style>`;
+	const th = themes(tokens);
+	const solved = {};
+	for (const [n, c] of Object.entries(p.colors)) solved[n] = { ...c, dark: solve(c.anchor, th.dark), light: solve(c.anchor, th.light) };
+	return { ...p, solved };
+}
+
+export function paletteCss(source, tokens = JSON.parse(readFileSync(join(KIT, 'tokens.json'), 'utf8'))) {
+	const { solved, arc } = solvePalette(source, tokens);
+	const vars = (s) => `--hx-ink:${s.ink};--hx-fill:${s.fill};--hx-on:${s.on};--hx-line:${s.line};--hx-wash:${s.wash};--trk:${s.fill};--trk-ink:${s.ink}`;
+	const rules = Object.entries(solved).flatMap(([n, s]) => [`[data-color="${n}"]{${vars(s.dark)}}`, `:root[data-theme="light"] [data-color="${n}"]{${vars(s.light)}}`]);
+	const meta = JSON.stringify({ arc, colors: Object.fromEntries(Object.entries(solved).map(([n, s]) => [n, { anchor: s.anchor, means: s.means, status: s.status, dark: s.dark, light: s.light }])) });
+	return `\n<style id="hx-palette">\n${rules.join('\n')}\n</style>\n<script type="application/json" id="hx-palette-data">${meta.replace(/</g, '\\u003c')}</script>`;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

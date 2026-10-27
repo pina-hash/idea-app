@@ -1,0 +1,240 @@
+{
+	"note": "The content color library for IDEA HTML assignments (AUTHORING D3). Every entry names what it stands for and where its anchor value comes from. build.mjs solves each one separately for the dark (idea) and light (space-white) themes into an ink (text), a fill (marks, bands, badges), an on (text on the fill), a line (the fill's edge) and a wash (a quiet tint), and test.mjs judges the result. 'verified' means the value was read from the owner's published source; 'approx' means a documented conversion or a widely used value not published by the owner. The linking set (status linking) is for phases and for tying a term to its part of a diagram when nothing real has a color. An author may add an entry in the source's hx-colors block with an anchor and a why; it is judged the same way. Sources: research_notes/Theme aware assignment color system/anchor_colors.md (2026-10-26).",
+	"colors": {
+		"first-blue": {
+			"anchor": "#0066B3",
+			"means": "FIRST, blue alliance",
+			"source": "FIRST Branding and Design Guidelines 2020 (PMS 286)",
+			"status": "verified"
+		},
+		"first-red": {
+			"anchor": "#ED1C24",
+			"means": "FIRST, red alliance",
+			"source": "FIRST Branding and Design Guidelines 2020 (PMS 485)",
+			"status": "verified"
+		},
+		"first-gray": {
+			"anchor": "#9A989A",
+			"means": "FIRST neutral",
+			"source": "FIRST Branding and Design Guidelines 2020 (Cool Gray 7)",
+			"status": "verified"
+		},
+		"frc-blue": {
+			"anchor": "#009CD7",
+			"means": "FIRST Robotics Competition",
+			"source": "FIRST Branding and Design Guidelines 2020 (Process Blue)",
+			"status": "verified"
+		},
+		"ftc-orange": {
+			"anchor": "#F57E25",
+			"means": "FIRST Tech Challenge",
+			"source": "FIRST Branding and Design Guidelines 2020",
+			"status": "verified"
+		},
+		"fll-purple": {
+			"anchor": "#662D91",
+			"means": "FIRST LEGO League",
+			"source": "FIRST Branding and Design Guidelines 2020",
+			"status": "verified"
+		},
+		"solidworks-red": {
+			"anchor": "#DA291C",
+			"means": "SolidWorks",
+			"source": "widely cited Dassault red; no official value published",
+			"status": "approx"
+		},
+		"fusion-orange": {
+			"anchor": "#F78F1E",
+			"means": "Autodesk Fusion",
+			"source": "widely cited; no official value found",
+			"status": "approx"
+		},
+		"prusa-orange": {
+			"anchor": "#FA6831",
+			"means": "Prusa printers",
+			"source": "accent color in prusa3d.com's live CSS",
+			"status": "approx"
+		},
+		"vscode-blue": {
+			"anchor": "#007ACC",
+			"means": "VS Code, writing code",
+			"source": "VS Code brand page",
+			"status": "verified"
+		},
+		"youtube-red": {
+			"anchor": "#FF0033",
+			"means": "a YouTube video",
+			"source": "widely cited 2024 YouTube red; no official hex",
+			"status": "approx"
+		},
+		"bambu-green": {
+			"anchor": "#00AE42",
+			"means": "Bambu Lab printers",
+			"source": "widely cited; no official value found",
+			"status": "approx",
+			"identityOnly": "green means done: a badge with its word, never a phase or step color"
+		},
+		"danger-red": {
+			"anchor": "#BB2724",
+			"means": "danger: serious injury (ANSI DANGER)",
+			"source": "ANSI Z535.1 Safety Red 7.5R 4/14, hue-matched sRGB",
+			"status": "approx"
+		},
+		"warning-orange": {
+			"anchor": "#DE7D00",
+			"means": "warning: could injure (ANSI WARNING)",
+			"source": "ANSI Z535.1 Safety Orange 5YR 6/15, hue-matched sRGB",
+			"status": "approx"
+		},
+		"caution-yellow": {
+			"anchor": "#EFCB00",
+			"means": "caution, physical hazard (ANSI CAUTION)",
+			"source": "ANSI Z535.1 Safety Yellow 5Y 8/12, hue-matched sRGB",
+			"status": "approx"
+		},
+		"notice-blue": {
+			"anchor": "#005989",
+			"means": "notice, required action (ANSI NOTICE, ISO mandatory)",
+			"source": "ANSI Z535.1 Safety Blue 2.5PB 3.5/10, hue-matched sRGB",
+			"status": "approx"
+		},
+		"steel": {
+			"anchor": "#8A9199",
+			"means": "steel stock and parts",
+			"source": "darkened from physicallybased.info iron #C0BEBB for use as a mark",
+			"status": "approx"
+		},
+		"stainless": {
+			"anchor": "#A8A39C",
+			"means": "stainless steel",
+			"source": "darkened from physicallybased.info stainless #D6D1CB",
+			"status": "approx"
+		},
+		"aluminum": {
+			"anchor": "#B9C0C7",
+			"means": "aluminum stock and extrusion",
+			"source": "darkened from physicallybased.info aluminum #F5F6F6",
+			"status": "approx"
+		},
+		"copper": {
+			"anchor": "#B87333",
+			"means": "copper, wire, electrical",
+			"source": "common copper swatch; physicallybased.info copper reflectance #F7CFBF is its lit tone",
+			"status": "approx"
+		},
+		"brass": {
+			"anchor": "#B5A642",
+			"means": "brass hardware",
+			"source": "darkened from physicallybased.info brass #F5E4AE",
+			"status": "approx"
+		},
+		"bronze": {
+			"anchor": "#CD7F32",
+			"means": "bronze bushings and bearings",
+			"source": "common bronze swatch",
+			"status": "approx"
+		},
+		"titanium": {
+			"anchor": "#8E867E",
+			"means": "titanium",
+			"source": "darkened from physicallybased.info titanium #B1AAA2",
+			"status": "approx"
+		},
+		"plywood": {
+			"anchor": "#D2B07C",
+			"means": "plywood and wood stock",
+			"source": "typical birch ply face",
+			"status": "approx"
+		},
+		"rubber": {
+			"anchor": "#3A3A3A",
+			"means": "rubber, tread, belts",
+			"source": "physicallybased.info tire rubber #2A2A2A, lifted to read as a mark",
+			"status": "approx"
+		},
+		"filament-orange": {
+			"anchor": "#F28C28",
+			"means": "a printed part in orange filament",
+			"source": "typical PLA orange",
+			"status": "approx"
+		},
+		"sketch-blue": {
+			"anchor": "#2B59D9",
+			"means": "SolidWorks: under defined sketch geometry",
+			"source": "SolidWorks sketch status: under defined is blue (help names the color, not a value)",
+			"status": "approx"
+		},
+		"overdefined-red": {
+			"anchor": "#D62020",
+			"means": "SolidWorks: over defined or unsolvable",
+			"source": "SolidWorks sketch status: over defined is red",
+			"status": "approx"
+		},
+		"stress-low": {
+			"anchor": "#1F3FBF",
+			"means": "FEA: low stress (blue end of the plot)",
+			"source": "jet colormap low end, the SolidWorks Simulation default look",
+			"status": "approx"
+		},
+		"stress-high": {
+			"anchor": "#C81E1E",
+			"means": "FEA: high stress (red end of the plot)",
+			"source": "jet colormap high end",
+			"status": "approx"
+		},
+		"can-yellow": {
+			"anchor": "#E6C200",
+			"means": "CAN-High wire",
+			"source": "WPILib control system wiring: CAN-High yellow",
+			"status": "verified"
+		},
+		"power-red": {
+			"anchor": "#D22B2B",
+			"means": "power (+) wire",
+			"source": "WPILib wiring: power red, ground black",
+			"status": "verified"
+		},
+		"ground-black": {
+			"anchor": "#2E2E2E",
+			"means": "ground (-) wire",
+			"source": "WPILib wiring: ground black",
+			"status": "verified"
+		},
+		"sky": {
+			"anchor": "#2F9FD8",
+			"means": "a phase or link color: no real-world meaning",
+			"source": "kit linking set, checked pairwise under deuteranopia and protanopia (test.mjs)",
+			"status": "linking"
+		},
+		"indigo": {
+			"anchor": "#5468E0",
+			"means": "a phase or link color: no real-world meaning",
+			"source": "kit linking set, checked pairwise under deuteranopia and protanopia (test.mjs)",
+			"status": "linking"
+		},
+		"violet": {
+			"anchor": "#9361D6",
+			"means": "a phase or link color: no real-world meaning",
+			"source": "kit linking set, checked pairwise under deuteranopia and protanopia (test.mjs)",
+			"status": "linking"
+		},
+		"magenta": {
+			"anchor": "#C64FA0",
+			"means": "a phase or link color: no real-world meaning",
+			"source": "kit linking set, checked pairwise under deuteranopia and protanopia (test.mjs)",
+			"status": "linking"
+		},
+		"marigold": {
+			"anchor": "#E8A33A",
+			"means": "a phase or link color: no real-world meaning",
+			"source": "kit linking set, checked pairwise under deuteranopia and protanopia (test.mjs)",
+			"status": "linking"
+		},
+		"coral": {
+			"anchor": "#E26A4F",
+			"means": "a phase or link color: no real-world meaning, never beside a safety red",
+			"source": "kit linking set, checked pairwise under deuteranopia and protanopia (test.mjs)",
+			"status": "linking"
+		}
+	}
+}

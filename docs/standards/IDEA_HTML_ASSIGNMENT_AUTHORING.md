@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.8 - 2026-10-26**
+**Version 2.9 - 2026-10-26**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -223,21 +223,33 @@ must not all look the same: "a blob of do this step, do this step". Each one has
 identity on top of the base, so it stays cohesive with the brand and distinct from the
 others:
 
-- **A subject palette.** Two hues on `<html>` (`data-hue-from`, `data-hue-to`, OKLCH degrees,
-  anywhere on the wheel; `data-hue-to` may pass 360 to run through red) and, optionally,
-  `data-hue-chroma` (a multiplier: 0.3 to 0.5 for a near-neutral steel or graphite look, 1 by
-  default). `build.mjs` is the one place these are read: it writes them into the page and
-  refuses to build without them, because there is no default. The kit colors each phase along
-  that spectrum: the plan strip, step numbers, phase tags, the step track, example and figure
-  accents. Lightness is fixed per theme, so text stays readable; the test measures every
-  phase color at 4.5:1 in both themes, FAILS a page whose rendered palette is not the one
-  declared, and FAILS a hue inside the site's green (120 to 160, which means done). Amber and
-  red keep their meaning in the chrome because chrome states carry words; a warm subject
-  palette is allowed. **Avoid hues 40 to 105 for a page's main hue**: in the light theme the
-  kit's fixed lightness turns that band brown (a yellow or orange subject reads as mud on
-  space-white). Run it through that band only as a short stretch of a wider spectrum, or take
-  the subject's color from either side of it, and check the light-theme screenshot.
-- **Pick the spectrum from the real subject's own colors**, never from a habit: the material,
+- **Named colors, solved for each theme (2.9, Mr. Pina 2026-10-26: one light-theme color
+  "looks like poop brown").** Every color on a page is a NAME from the kit's library
+  (`tools/hx-kit/kit/colors.json`: shop safety per ANSI Z535, materials, CAD and FEA, wiring,
+  FIRST, tools and brands, and a linking set for phases) or from the source's own
+  `<script type="application/json" id="hx-colors">` block, each with an `anchor` (a hex taken
+  from the real thing) and `means` (what it stands for). An element takes one with
+  `data-color="name"`; a phase takes one with `"color"` in `hx-plan-data`, and its steps and
+  track segments inherit it. `build.mjs` solves each used color separately for the dark and
+  the white theme (`color.mjs` `solve`) into five roles, and a page uses the role, never the
+  raw color: `--hx-ink` for words and thin strokes (4.8:1 on every light ground, 6:1 on dark),
+  `--hx-fill` for marks, badges, bands and lamps (never muddy), `--hx-on` for text on the fill
+  (4.5:1), `--hx-line` for an edge or rule that must read (3:1), `--hx-wash` for a tint behind
+  body text. On white, a yellow or orange stays a bright fill with dark text on it and its
+  text shade moves toward a saturated burnt orange; it is never darkened into olive or brown.
+  The build refuses an unknown name, an author color without an anchor or a meaning, and a
+  phase in the site's green (it means done) or in a color marked identity only. The older
+  `data-hue-from`/`data-hue-to` arc still builds, as eleven solved stops, and the test warns
+  that its neighbours are hard to tell apart. The test FAILS any role under its contrast, a
+  muddy fill on either theme, and a color without a meaning, and WARNS when two colors drawn
+  on one page are closer than ΔE00 12, or 8 under simulated deuteranopia and protanopia
+  (Machado 2009). Research and numbers: the 2026-10-26 report "Theme aware assignment color
+  system".
+- **On white, colored text carries one warm meaning at most.** Readable text on a near-white
+  ground forces every color to about the same darkness, so warm text shades converge (a
+  copper, a bronze and a plywood label all come out burnt orange). Tell colors apart with
+  their fills, a word or an icon, never with text color alone (WCAG 1.4.1).
+- **Pick the colors from the real subject**, never from a habit: the material,
   the machine, the part, the theme of the project. Combat and fabrication run warm (sparks,
   hot steel, copper, bronze); a printed part takes the filament's color; a calendar or
   survey takes something neither of its neighbors has. **Cyan to violet is not a default**
@@ -256,14 +268,13 @@ others:
   page lists things that each have a real-world identity (training tracks, machines,
   materials, vendors, software, alliances, roles), each takes the color of that identity, not
   a step along one spectrum: a cyan-blue-violet run across eight FRC tracks had "no
-  establishment there" (Mr. Pina). Set it on the item as `--trk` (with `--trk-ink` for text
-  on it, and `--hx-ink` pointed at it so the kit's figures follow). It marks identity only:
+  establishment there" (Mr. Pina). Set it on the item as `data-color="name"`; the build also
+  writes `--trk` (the fill) and `--trk-ink` (the text shade) there, solved per theme. It marks identity only:
   the item's stripe, badge, icon, its own lit chips and its selected outline; never a key, a
   status chip or a done mark, because D2's meanings hold (green is next and done, red is a
   number that must change). The same item keeps the same color on every page that shows it,
-  so a student learns it once. A pale identity color (yellow, gold, aluminum) is used as a
-  filled badge with dark ink, never as an outline or thin icon: on space-white an outline in
-  those colors fails 4.5:1. The FRC 5669 Training Library is the model: Shop safety yellow,
+  so a student learns it once. A pale identity color (yellow, gold, aluminum) is a filled
+  badge with `--hx-on` text and a `--hx-line` edge, never a bare outline or thin icon. The FRC 5669 Training Library is the model: Shop safety yellow,
   SolidWorks red, aluminum, copper, code-editor blue, Bambu green, alliance red and blue,
   Techmen gold.
 - **Candidates, not one guess.** The palette is a taste call: render two to five on the real
@@ -651,6 +662,13 @@ new term.
 ---
 
 ## Changelog
+
+- **2.9 (2026-10-26).** Ledger 0447. D3: named content colors solved separately for each
+  theme into ink, fill, on, line and wash (`colors.json`, `color.mjs` `solve`, `build.mjs`
+  `paletteCss`), replacing one fixed lightness per theme that turned every yellow and orange
+  brown on white; the test judges each role in both themes, mud, meaning and colorblind
+  distance. The "avoid hues 40 to 105" workaround is gone. On white, colored text carries one
+  warm meaning at most. The starter uses phase colors; data-hue still builds, with a warning.
 
 - **2.8 (2026-10-26).** Ledger 0445. G10, a team post marks every step and answer area
   "Just you", "Whole team" or "Your role only", shows both on a mixed step and explains

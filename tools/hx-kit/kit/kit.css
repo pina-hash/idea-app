@@ -9,26 +9,24 @@ html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; }
 body.idea-plate { background-color: var(--page-bot); }
 
-/* ---- The subject palette: what makes this assignment look like itself. ----
-   Set two hues on <html> (data-hue-from, data-hue-to, OKLCH degrees, any part
-   of the wheel; data-hue-to may pass 360 to run through red) and optionally
-   data-hue-chroma (a multiplier, 0.3 for a near-neutral steel or graphite
-   look, 1 by default). build.mjs writes them into --hx-from, --hx-to and
-   --hx-cs; there is deliberately no default hue here, so a page that never
-   chose one shows no phase color rather than somebody else's. Fixed lightness
-   per theme keeps text readable in both. Only the site's green is reserved
-   (it means done): test.mjs fails a hue inside it. */
+/* ---- Content colors: what makes this assignment look like itself. --------
+   Every color is a NAME with a meaning (kit/colors.json, or the source's own
+   hx-colors block), taken with data-color="name" or a phase's "color". build.mjs
+   solves each one separately for each theme and writes, on [data-color]:
+     --hx-ink   text and thin strokes (4.8:1 on light panels, 6:1 on dark)
+     --hx-fill  marks, badges, bands, lamps (never muddy on either theme)
+     --hx-on    text drawn on the fill (4.5:1)
+     --hx-line  an edge or rule that must read (3:1 on every ground)
+     --hx-wash  a quiet tint behind body text
+   So use ink for words, fill plus on for a badge, line for a border, wash for
+   a tint, and never one color for all four. With no data-color an element
+   falls back to the neutral text tones, never to somebody else's hue. */
 :root {
-	--hx-l: 0.76;
-	--hx-c: 0.12;
-	--hx-cs: 1;
-	--hx-wash-a: 0.16;
-}
-:root[data-theme='light'] { --hx-l: 0.43; --hx-c: 0.13; --hx-wash-a: 0.12; }
-.hx-hue {
-	--hx-h: calc(var(--hx-from) + (var(--hx-to) - var(--hx-from)) * var(--t, 0));
-	--hx-ink: oklch(var(--hx-l) calc(var(--hx-c) * var(--hx-cs)) var(--hx-h));
-	--hx-wash: oklch(var(--hx-l) calc(var(--hx-c) * var(--hx-cs)) var(--hx-h) / var(--hx-wash-a));
+	--hx-ink: var(--text-2);
+	--hx-fill: var(--text-2);
+	--hx-on: var(--page-bot);
+	--hx-line: var(--text-2);
+	--hx-wash: transparent;
 }
 
 /* ---- The page. ---------------------------------------------------------- */
@@ -87,7 +85,7 @@ body.idea-plate { background-color: var(--page-bot); }
 	font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase;
 	color: var(--hx-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.hx-phase-name::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--hx-ink); }
+.hx-phase-name::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--hx-fill); box-shadow: inset 0 0 0 1px var(--hx-line); }
 .hx-phase-days { display: flex; gap: 4px; }
 .hx-day {
 	position: relative; flex: 1 1 0;
@@ -99,7 +97,7 @@ body.idea-plate { background-color: var(--page-bot); }
 	border: 1px solid var(--hair);
 	border-radius: var(--radius-pad);
 	background: linear-gradient(to bottom, var(--hx-wash), var(--hx-wash)), var(--well-face);
-	box-shadow: inset 0 4px 0 0 var(--hx-ink), var(--shadow-chip);
+	box-shadow: inset 0 4px 0 0 var(--hx-line), var(--shadow-chip);
 }
 .hx-day .d1 { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
 .hx-day .d2 { font-weight: 700; line-height: 1.2; }
@@ -224,7 +222,7 @@ details.hx-stuck td:first-child { width: 40%; color: var(--plate-ink); font-weig
 .hx-note.failed { color: var(--crimson); font-weight: 700; }
 
 /* An example on a DIFFERENT part than the one the student works on. */
-.hx-example { border-left: 4px solid var(--hx-ink); }
+.hx-example { border-left: 4px solid var(--hx-line); }
 .hx-example > .idea-eyebrow::after { content: ' · different part, same standard'; text-transform: none; letter-spacing: 0; font-family: var(--font-display); font-size: 0.9rem; color: var(--text-2); }
 
 /* The stretch challenge: optional, paid in IDEA Coins, never in points. */

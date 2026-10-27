@@ -133,9 +133,84 @@ export function simulate(rgb, kind) {
 }
 
 /** Muddy: the dark-yellow-to-brown region Palmer and Schloss (2010, PNAS) found
-    least preferred, as an OKLCH box. The bounds are this kit's own heuristic,
-    tuned against the colors Mr. Pina rejected; they are not a published standard. */
+    least preferred (dark yellow and dark orange at the bottom of 32 colors), as an
+    OKLCH box. The bounds are this kit's own heuristic, not a published standard:
+    yellow-to-orange hues at mid-low lightness with some chroma. It is applied to
+    fills and washes (areas), never to small text, where the design systems all use
+    a dark ochre on light grounds (Radix amber 11, Primer attention fg). */
 export function isMuddy(rgb) {
 	const { L, C, H } = rgbToOklch(rgb);
-	return H >= 50 && H <= 115 && C >= 0.03 && L < 0.66;
+	return H >= 35 && H <= 115 && C >= 0.03 && L < 0.66;
+}
+
+/* ---- The per-theme solver ----------------------------------------------- */
+/** A yellow-to-orange anchor: on a light ground it can only be a bright fill
+    with dark text on it, never a dark outline (the brown problem). */
+export const isYellowFamily = (H) => H >= 55 && H <= 115;
+
+const INK_DARK = '#0d1311';
+const INK_LIGHT = '#f6f7f4';
+
+/** Search lightness (keeping hue and as much of the anchor's chroma as the gamut
+    allows) for the value closest to `L0` whose contrast against every ground is at
+    least `target`, moving in the direction that raises contrast. */
+function solveL(H, C, grounds, target, L0, dir) {
+	const ok = (L) => grounds.every((g) => contrast(oklchToRgb(L, C, H), g) >= target);
+	let L = L0;
+	for (let i = 0; i < 200 && !ok(L); i++) L += dir * 0.004;
+	return Math.min(0.99, Math.max(0.05, L));
+}
+
+/**
+ * Solve one anchor color for one theme.
+ * theme: { dark: bool, panels: [rgb...] (the grounds text sits on), page: rgb }
+ * Returns hex strings: ink (text, >= 4.8:1 light, >= 6:1 dark on every panel stop),
+ * fill (a mark, band, lamp or badge), on (text on the fill, >= 4.5:1), line (the
+ * fill's edge: the fill itself when it reaches 3:1 on every ground, else the ink), and
+ * wash (the fill at low alpha, as rgba over the panel), plus notes on what moved.
+ */
+export function solve(anchorHex, theme) {
+	const a = rgbToOklch(hex(anchorHex));
+	const notes = [];
+	const C = Math.max(a.C, 0);
+	const panels = theme.panels;
+	const panel = panels[0];
+	// ink
+	let inkH = a.H;
+	if (!theme.dark && isYellowFamily(a.H) && C > 0.04) { inkH = Math.max(45, a.H - 28); notes.push(`ink hue moved ${Math.round(a.H)} to ${Math.round(inkH)} toward orange, so text is an ochre, never olive`); }
+	/* A dark warm text color reads as an ochre or a burnt orange only while it
+	   keeps its chroma; a muted one is brown. So on light grounds a warm ink
+	   takes a chroma floor (the report's warm-chroma floor, about CIE C* 38). */
+	let inkC = C;
+	if (!theme.dark && a.H >= 35 && a.H <= 115 && C > 0.02 && C < 0.15) { inkC = 0.15; notes.push('warm text kept saturated, a muted dark orange or yellow is brown'); }
+	const ink = theme.dark
+		? oklchToRgb(solveL(a.H, C, panels, 6.0, Math.max(a.L, 0.62), +1), C, a.H)
+		: oklchToRgb(solveL(inkH, inkC, panels, 4.8, Math.min(a.L, 0.62), -1), inkC, inkH);
+	// fill
+	let fL;
+	if (theme.dark) fL = Math.min(0.84, Math.max(0.6, a.L));
+	else if (a.H >= 35 && a.H <= 115 && C > 0.04) { fL = Math.max(a.H >= 75 ? 0.82 : 0.7, a.L); if (fL !== a.L) notes.push('light-theme fill kept bright, a yellow or orange is never darkened into brown'); }
+	else fL = Math.min(0.68, Math.max(0.4, a.L));
+	let fill = oklchToRgb(fL, C, a.H);
+	for (let i = 0; i < 40 && isMuddy(fill); i++) { fL += 0.01; fill = oklchToRgb(fL, C, a.H); }
+	if (Math.abs(fL - a.L) > 0.12) notes.push(`fill lightness ${a.L.toFixed(2)} to ${fL.toFixed(2)} to read on this ground`);
+	// on
+	const pickOn = (f) => (contrast(hex(INK_DARK), f) >= contrast(hex(INK_LIGHT), f) ? INK_DARK : INK_LIGHT);
+	let on = pickOn(fill);
+	for (let i = 0; i < 60 && contrast(hex(on), fill) < 4.5; i++) {
+		fL += on === INK_DARK ? 0.006 : -0.006;
+		fill = oklchToRgb(fL, C, a.H);
+		on = pickOn(fill);
+	}
+	// line and wash
+	const line = panels.every((g) => contrast(fill, g) >= 3) ? toHex(fill) : toHex(ink);
+	if (line !== toHex(fill)) notes.push('the fill alone is under 3:1 on the panel, so its edge is drawn in the ink');
+	const washA = theme.dark ? 0.16 : 0.22;
+	const f = fill;
+	return {
+		ink: toHex(ink), fill: toHex(fill), on, line,
+		wash: `rgba(${Math.round(f.r * 255)},${Math.round(f.g * 255)},${Math.round(f.b * 255)},${washA})`,
+		washOver: toHex(over(fill, washA, panel)),
+		notes
+	};
 }

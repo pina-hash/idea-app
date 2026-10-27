@@ -32,6 +32,8 @@ import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { launch } from '../browser-verify/browser.mjs';
+import * as C from './color.mjs';
+import { themes as kitThemes } from './build.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
@@ -94,8 +96,39 @@ const visibleText = html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<st
 (/—/.test(visibleText) ? FAIL : PASS)('copy', 'No em dashes in student text', /—/.test(visibleText) ? 'found an em dash' : '');
 const kitBuilt = /id="hx-kit-js"/.test(html);
 (kitBuilt ? PASS : WARN)('kit', 'Built on the kit (plumbing inlined by build.mjs)', kitBuilt ? '' : 'Hand-rolled plumbing: every rule in AUTHORING 6 is now this file\'s to get right.');
-const hueFrom = Number((html.match(/data-hue-from="(\d+(?:\.\d+)?)"/) || [])[1]);
-const hueTo = Number((html.match(/data-hue-to="(\d+(?:\.\d+)?)"/) || [])[1]);
+/* Content colors (AUTHORING D3): build.mjs writes every used color, solved for
+   each theme, into hx-palette-data. Judge each value here against the real
+   grounds; the browser pass below checks the page applies them. */
+const paletteData = (() => {
+	const m = html.match(/<script type="application\/json" id="hx-palette-data">([\s\S]*?)<\/script>/);
+	try { return m ? JSON.parse(m[1]) : null; } catch { return null; }
+})();
+const kitTokens = JSON.parse(readFileSync(join(HERE, 'kit', 'tokens.json'), 'utf8'));
+const TH = kitThemes(kitTokens);
+const plateInk = { dark: C.hex(kitTokens.color.tokens.find((t) => t.name === 'plate-ink').value.idea), light: C.hex(kitTokens.color.tokens.find((t) => t.name === 'plate-ink').value['space-white']) };
+if (!paletteData) FAIL('color', 'Content colors built per theme', 'No hx-palette-data: rebuild with the current kit (node tools/hx-kit/build.mjs).');
+else {
+	const entries = Object.entries(paletteData.colors);
+	for (const theme of ['dark', 'light']) {
+		const g = TH[theme].panels;
+		const worst = (hexv) => Math.min(...g.map((x) => C.contrast(C.hex(hexv), x)));
+		const bad = [];
+		const mud = [];
+		for (const [n, c] of entries) {
+			const s = c[theme];
+			if (worst(s.ink) < 4.5) bad.push(`${n} text ${worst(s.ink).toFixed(2)}`);
+			if (C.contrast(C.hex(s.on), C.hex(s.fill)) < 4.5) bad.push(`${n} text on fill ${C.contrast(C.hex(s.on), C.hex(s.fill)).toFixed(2)}`);
+			if (worst(s.line) < 3) bad.push(`${n} edge ${worst(s.line).toFixed(2)}`);
+			if (C.contrast(plateInk[theme], C.hex(s.washOver)) < 4.5) bad.push(`${n} body text on its tint`);
+			if (C.isMuddy(C.hex(s.fill))) mud.push(`${n} ${s.fill}`);
+		}
+		(bad.length ? FAIL : PASS)('color', `Every color readable as text, on its fill and as an edge, ${theme} theme`, bad.length ? bad.join(', ') : `${entries.length} colors: text 4.5:1 on every ground, on-fill 4.5:1, edges 3:1, body text on tints 4.5:1`);
+		(mud.length ? FAIL : PASS)('color', `No muddy fills (dark yellow to brown), ${theme} theme`, mud.length ? mud.join(', ') : 'none');
+	}
+	const unexplained = entries.filter(([, c]) => !c.means);
+	(unexplained.length ? FAIL : PASS)('color', 'Every color says what it stands for', unexplained.length ? unexplained.map(([n]) => n).join(', ') : entries.map(([n, c]) => `${n}: ${c.means}`).slice(0, 8).join('; '));
+	if (paletteData.arc) WARN('color', 'Phases colored from named colors, not the older data-hue arc', `data-hue ${paletteData.arc.from} to ${paletteData.arc.to}: the arc's neighbours are hard to tell apart. Give each phase a "color" (AUTHORING D3).`);
+}
 
 /* ---- 2. serve the document and the host -------------------------------- */
 const HOST_PORT = 5301 + Math.floor(Math.random() * 300);
@@ -207,25 +240,28 @@ try {
 	}, visibleInDoc);
 	(green.length > 3 ? WARN : PASS)('look', 'Green is rationed on the first screen (3 or fewer)', `${green.length}: ${green.slice(0, 8).join(', ')}`);
 
-	/* The subject palette: actually applied, clear of the site's green, not the
-	   old blanket cyan-to-violet, and readable in both themes. */
-	if (Number.isFinite(hueFrom) && Number.isFinite(hueTo)) {
-		const applied = await frame.evaluate(() => {
-			const cs = getComputedStyle(document.documentElement);
-			return [cs.getPropertyValue('--hx-from').trim(), cs.getPropertyValue('--hx-to').trim()];
-		});
-		(Number(applied[0]) === hueFrom && Number(applied[1]) === hueTo ? PASS : FAIL)(
-			'look', 'The palette on <html> is the palette on the page',
-			`declared ${hueFrom} to ${hueTo}, rendered ${applied[0] || 'nothing'} to ${applied[1] || 'nothing'}`
-		);
-		const n = (await frame.evaluate(() => (typeof KIT !== 'undefined' && KIT.plan ? KIT.plan.phases.length : 3))) || 3;
-		const hues = Array.from({ length: n }, (_, i) => hueFrom + ((hueTo - hueFrom) * (n > 1 ? i / (n - 1) : 0)));
-		const wrap = (h) => ((h % 360) + 360) % 360;
-		const green = hues.filter((h) => { const x = wrap(h); return x >= 120 && x <= 160; });
-		(green.length ? FAIL : PASS)('look', "Subject palette stays clear of the site's green (done)", `phase hues ${hues.map((h) => Math.round(wrap(h))).join(', ')}${green.length ? `; inside green: ${green.map((h) => Math.round(wrap(h))).join(', ')}` : ''}`);
-		const cool = hues.every((h) => { const x = wrap(h); return x >= 185 && x <= 305; });
-		(cool ? WARN : PASS)('look', 'Not the old blanket cyan, blue and violet', cool ? 'Every phase sits in cyan to violet. Mr. Pina rejected that as a default (2026-10-26): use it only when the subject itself is that color, and say so in the brief.' : 'palette leaves the cyan-to-violet band');
-	} else FAIL('look', 'Subject palette set', 'No data-hue-from/data-hue-to on <html>. There is no default; pick it from the subject.');
+	/* Content colors on the page: which names are drawn, kept apart from each
+	   other (also for colorblind students), and clear of the site's green on
+	   phases and steps. */
+	const drawn = await frame.evaluate(() => {
+		const phase = new Set([...document.querySelectorAll('.hx-phase[data-color], .hx-step[data-color]')].map((e) => e.getAttribute('data-color')));
+		const all = new Set([...document.querySelectorAll('[data-color]')].map((e) => e.getAttribute('data-color')));
+		return { phase: [...phase], all: [...all] };
+	});
+	if (paletteData) {
+		const missing = drawn.all.filter((n) => !paletteData.colors[n]);
+		(missing.length ? FAIL : PASS)('color', 'Every color on the page was solved by the build', missing.length ? `not built: ${missing.join(', ')}` : drawn.all.join(', ') || 'no colors drawn');
+		const greenPhase = drawn.phase.filter((n) => { const c = paletteData.colors[n]; if (!c) return false; const o = C.rgbToOklch(C.hex(c.dark.fill)); return o.C > 0.04 && o.H >= 120 && o.H <= 160; });
+		(greenPhase.length ? FAIL : PASS)('color', "Phases and steps stay clear of the site's green (done)", greenPhase.length ? greenPhase.join(', ') : `phase colors ${drawn.phase.join(', ') || 'none'}`);
+		const names = drawn.all.filter((n) => paletteData.colors[n]);
+		const close = [];
+		for (const theme of ['dark', 'light']) for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
+			const A = C.hex(paletteData.colors[names[i]][theme].fill), B = C.hex(paletteData.colors[names[j]][theme].fill);
+			const n0 = C.deltaE2000(A, B), d = C.deltaE2000(C.simulate(A, 'deutan'), C.simulate(B, 'deutan')), p = C.deltaE2000(C.simulate(A, 'protan'), C.simulate(B, 'protan'));
+			if (n0 < 12 || d < 8 || p < 8) close.push(`${names[i]}/${names[j]} ${theme} ${n0.toFixed(0)}, deutan ${d.toFixed(0)}, protan ${p.toFixed(0)}`);
+		}
+		(close.length ? WARN : PASS)('color', 'Colors on the page tell apart, also for colorblind students (fills: dE00 12, simulated 8)', close.length ? close.slice(0, 6).join('; ') + '. A pair that must be told apart needs another color; otherwise give each its word or icon.' : `${names.length} colors, every pair apart`);
+	}
 
 	for (const theme of ['dark', 'light']) {
 		await host(page, 'theme', theme);
@@ -237,7 +273,7 @@ try {
 			const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 			const ground = rgb(getComputedStyle(document.documentElement).getPropertyValue('--panel-top').trim());
 			/* A custom property reads back unresolved, so resolve each phase ink through a real color. */
-			const inks = [...document.querySelectorAll('.hx-hue')].map((el) => {
+			const inks = [...document.querySelectorAll('[data-color]')].map((el) => {
 				const probeEl = document.createElement('span');
 				probeEl.style.color = 'var(--hx-ink)';
 				el.appendChild(probeEl);
@@ -249,7 +285,7 @@ try {
 			return uniq.map((ink) => Math.round(ratio(rgb(ink), ground) * 100) / 100);
 		});
 		const low = c.filter((r) => r < 4.5);
-		(low.length ? FAIL : PASS)('look', `Phase colors readable on panels, ${theme} theme (4.5:1)`, c.length ? `ratios ${c.join(', ')}` : 'no phase colors in use');
+		(low.length ? FAIL : PASS)('color', `Colors as drawn are readable on panels, ${theme} theme (4.5:1)`, c.length ? `ratios ${c.join(', ')}` : 'no colors in use');
 		shots.push(await shot(page, `02-in-classroom-1920x1080-${theme}.png`));
 	}
 	await host(page, 'theme', 'dark');
