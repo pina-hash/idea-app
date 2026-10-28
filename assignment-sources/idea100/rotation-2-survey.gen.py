@@ -100,7 +100,7 @@ HOW=('<ol class="hx-do"><li><span>Everything from here on is optional. Rate as m
 def step(sid,title,body,eyebrow='Your ratings',lead='',tag='Quick',optional=False):
     full=' data-layout="full"' if 'hx-tiles' in body else ''
     return ('<section class="hx-step idea-panel" id="%s" data-phase="survey" data-title="%s"%s%s><div class="hx-step-head"><div><span class="hx-phase-tag">%s</span><h2>%s</h2></div></div>'
-            '<div class="hx-step-body">%s<div class="hx-evidence idea-panel"><span class="idea-eyebrow">%s</span>%s</div></div></section>')%(sid,title,full,' data-optional' if optional else '',tag,title,lead,eyebrow,body)
+            '<div class="hx-step-body">%s<div class="hx-evidence idea-panel"%s><span class="idea-eyebrow">%s</span>%s</div></div></section>')%(sid,title,full,' data-optional' if optional else '',tag,title,lead,' data-graded="no"' if optional else '',eyebrow,body)
 
 STUCK=('<details class="hx-stuck"><summary>Is this anonymous?</summary><table><tr><td>Does Mr. Pina see my name?</td><td>Yes. This is not anonymous.</td></tr>'
        '<tr><td>Can a low rating hurt me?</td><td>No. You get full credit for finishing, whatever you say. A low rating with a reason is the most useful answer here.</td></tr></table></details>')
@@ -151,8 +151,6 @@ SHELL=r'''<!doctype html>
 <style>
   /* "Didn't do it" is the last key of a rating, on its own row. */
   .hx-scale > label.sv-skip { flex-basis: 100%; }
-  /* An optional step's ratings do not count toward the grade (kit gap, reported 2026-10-28). */
-  .hx-step[data-optional] .hx-evidence > .idea-eyebrow::after { content: ' · optional, does not change your grade'; }
 </style>
 <template id="idea-thumbnail">
 <style>
@@ -161,9 +159,11 @@ SHELL=r'''<!doctype html>
   .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 5%; background: radial-gradient(ellipse at 30% 50%, var(--a), var(--b) 85%); }
   .t svg { height: 60%; flex: none; }
   .w { display: none; font: 700 clamp(13px, 26vh, 24px)/1.05 Rajdhani, "Segoe UI", system-ui, sans-serif; color: var(--word); white-space: nowrap; }
-  .w small { display: block; font: 400 .6em/1.2 "Share Tech Mono", ui-monospace, monospace; color: var(--cap); letter-spacing: .16em; text-transform: uppercase; margin-top: .35em; }
+  .w small { display: block; font: 400 max(11px, .6em)/1.2 "Share Tech Mono", ui-monospace, monospace; color: var(--cap); letter-spacing: .16em; text-transform: uppercase; margin-top: .35em; }
   :root[data-idea-shape="wide"] .t, :root[data-idea-shape="banner"] .t { justify-content: center; padding: 0 5%; box-sizing: border-box; }
   :root[data-idea-shape="wide"] .w, :root[data-idea-shape="banner"] .w { display: block; }
+  :root[data-idea-shape="wide"] .t svg { height: auto; width: 46%; }
+  :root[data-idea-shape="wide"] .w { white-space: normal; flex: 1 1 0; min-width: 0; }
 </style>
 <div class="t">
   <svg viewBox="0 0 250 60" aria-hidden="true">
