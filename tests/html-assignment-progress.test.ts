@@ -551,7 +551,12 @@ describe('ItemDetail mounts the rail above the frame', () => {
 	it('hands the rail the controller records the frame is seeded from', () => {
 		const block = src.slice(src.indexOf('<Progress'), src.indexOf('/>', src.indexOf('<Progress')));
 		expect(block).toContain('values={htmlAnswers.values}');
-		expect(block).toContain('images={htmlAnswers.images}');
+		// 0316: the pictures are the page's one image map (the student's own,
+		// with the team's in team and role boxes), the same one the frame takes.
+		expect(block).toContain('images={htmlImages}');
+		const frame = src.slice(src.indexOf('<HtmlAssignmentFrame'), src.indexOf('/>', src.indexOf('<HtmlAssignmentFrame')));
+		expect(frame).toContain('images={htmlImages}');
+		expect(src).toMatch(/const htmlImages = \$derived\.by\(\(\) => \{\s*const own = htmlAnswers\?\.images/);
 	});
 
 	it('does not restate the not-a-grade sentence anywhere else', () => {

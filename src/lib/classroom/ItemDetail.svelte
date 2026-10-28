@@ -701,6 +701,24 @@
 	);
 
 	/**
+	 * THE PICTURES THE DOCUMENT AND THE RAIL SEE (ledger 0456, 0316). On a team
+	 * post a picture in a team or role box is the TEAM'S: the session reads the
+	 * team's newest one per box (`classroom_team_files`) and it shows here for
+	 * every member, read only where the box is not theirs, the way a teammate's
+	 * text already does. The student's own upload keeps its own record (its
+	 * file id for Remove and the caption); the session re-reads the team's
+	 * after every picture this page adds, removes or captions, so the team's
+	 * newest per box is what everyone sees. Every other post is the student's
+	 * own pictures, unchanged.
+	 */
+	const htmlImages = $derived.by(() => {
+		const own = htmlAnswers?.images ?? {};
+		const team = htmlTeamDoc?.images ?? {};
+		if (!Object.keys(team).length) return own;
+		return { ...own, ...team };
+	});
+
+	/**
 	 * THE DUE DATE AND THE DAY-BY-DAY PLAN (ledger 0439, SPEC 17). Read once per
 	 * item through the page's own client (`classroom_item_pacing` re-checks the
 	 * caller); a harness with no client, or a database without 0308, shows no
@@ -725,7 +743,7 @@
 			? hxScheduleFor(
 					{ ...itemPacing, dueAt: item.due_at ?? itemPacing.dueAt },
 					htmlAnswers && htmlProgressManifest
-						? hxProgress(htmlProgressManifest, htmlAnswers.values, htmlAnswers.images, { unsaved: htmlAnswers.status?.unsaved ?? [] })
+						? hxProgress(htmlProgressManifest, htmlAnswers.values, htmlImages, { unsaved: htmlAnswers.status?.unsaved ?? [] })
 						: null
 				)
 			: null
@@ -751,7 +769,7 @@
 		htmlAnswers && htmlProgressManifest
 			? hxAnswersLeft(
 					htmlProgressManifest,
-					hxProgress(htmlProgressManifest, htmlAnswers.values, htmlAnswers.images, {
+					hxProgress(htmlProgressManifest, htmlAnswers.values, htmlImages, {
 						unsaved: htmlAnswers.status?.unsaved ?? []
 					})
 				)
@@ -800,6 +818,10 @@
 	 * null here is null everywhere below, so read-only and "no write path" are
 	 * the same fact rather than two that can disagree.
 	 */
+	function teamPicture(blockId: string): void {
+		const team = htmlTeamDoc;
+		if (team && team.shares(blockId)) team.announceSaved(true);
+	}
 	const htmlWrites = $derived.by(() => {
 		const answers = htmlAnswers;
 		if (!answers) return null;
@@ -823,16 +845,20 @@
 				}
 				answers.change(change);
 			},
+			// A picture in a team or role box is the team's (0316): once this
+			// page's write settles, the team's pictures are read again so every
+			// teammate's page and this one show the same newest picture.
 			onimage: answers.image
 				? (image: { blockId: string; field: string; name: string; bytes: string }) =>
-						void answers.image?.(image)
+						void Promise.resolve(answers.image?.(image)).then(() => teamPicture(image.blockId))
 				: undefined,
 			onimageremove: answers.imageRemove
-				? (image: { blockId: string; field: string }) => void answers.imageRemove?.(image)
+				? (image: { blockId: string; field: string }) =>
+						void Promise.resolve(answers.imageRemove?.(image)).then(() => teamPicture(image.blockId))
 				: undefined,
 			onimagecaption: answers.imageCaption
 				? (image: { blockId: string; field: string; caption: string }) =>
-						void answers.imageCaption?.(image)
+						void Promise.resolve(answers.imageCaption?.(image)).then(() => teamPicture(image.blockId))
 				: undefined
 		};
 	});
@@ -2948,7 +2974,7 @@
 					<Progress
 						manifest={htmlProgressManifest}
 						values={htmlAnswers.values}
-						images={htmlAnswers.images}
+						images={htmlImages}
 						status={htmlAnswers.status ?? null}
 						onjump={htmlJump}
 					/>
@@ -3049,7 +3075,7 @@
 						title={itemTitle(item)}
 						fieldToBlockId={htmlFields}
 						values={htmlAnswers?.values ?? {}}
-						images={htmlAnswers?.images ?? {}}
+						images={htmlImages}
 						saved={htmlAnswers?.saved ?? null}
 						lock={htmlLockNow}
 						expandable

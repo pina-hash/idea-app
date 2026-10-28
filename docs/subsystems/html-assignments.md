@@ -429,9 +429,24 @@ under `materials/` through the deployed gate and then 0301).
   overwrote every member's row, which is how a mid-assignment switch lost work. Never
   widen it to individual blocks: `tests/db/classroom-team-carry-over.test.ts` is
   mutation-proven on exactly that.
-- **WHAT A TEAMMATE CANNOT SEE: another member's picture.** Submission files stay their
-  uploader's (0086's file policies are unchanged), so a picture in a shared box shows only
-  for the student who took it and in grading; spec 16.3 tells authors to prefer text.
+- **A PICTURE IN A TEAM OR ROLE BOX IS THE TEAM'S (0316, ledger 0456; it used to show only
+  for its uploader).** `_classroom_team_file_visible(file, email)` is the one rule: a picture
+  in a `team` or `role` block, read by a member of the uploader's team in that section's
+  current draw. Both read paths ask it: one permissive row policy beside 0086's (through the
+  caller-scoped `_classroom_team_file_visible_to_me`) and a branch in
+  `classroom_can_read_submission_object`, the storage policy's predicate, so the file route's
+  signed URL is minted on the teammate's own session. `classroom_team_files` lists the team's
+  newest picture per box; `TeamDocSession.images` lays it into the document through
+  `teamImagesFrom`, and the item page's ONE image map (`htmlImages` in `ItemDetail`) feeds the
+  frame, the rail and the pacing strip, so every teammate's progress counts the team's
+  pictures (and `classroom_team_progress` counts the team's boxes for every member). A role
+  picture is written only by the role's owner (`classroom_add_submission_file` asks
+  `_classroom_team_block_refusal`). **A picture in an individual block stays its uploader's**:
+  it is that student's own graded answer. `tests/db/classroom-team-photos.test.ts` is
+  mutation-proven on the rule.
+- **NAMES.** `_classroom_first_name` reads the given name ("Last, First" or "First Last"),
+  and `_classroom_team_display_name(team, email)` is "First L." where two members of one team
+  share a first name; every team payload names members through it (0316).
 - **A TEAM ASSIGNMENT IS GRADED ONLY BY TEAM (0305).** `classroom_grade_submission` refuses
   a team assignment's grade unless `classroom_grade_team` named the student's team for the
   transaction (`idea.team_grade`, set with `set_config(..., true)`, the 0270 connector

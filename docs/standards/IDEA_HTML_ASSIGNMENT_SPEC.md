@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.13 - 2026-10-26**
+**Version 1.14 - 2026-10-28**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -1844,9 +1844,11 @@ move on the People tab take effect the same way.
   any box and reads its whole history.
 - **After the post's due date** every team and role box is read only. The instructor's
   close (0198) shuts it as it shuts any worksheet.
-- **Pictures in a shared box** are stored with the student who took them; a teammate's
-  page does not show another member's picture inside the document (it is read in
-  grading). Prefer text, table and checkbox blocks in team and role modules.
+- **Pictures in a shared box are the team's** (1.14, migration 0316). A picture in a `team`
+  or `role` block shows to every member of the team inside the document, read only for
+  anyone who may not write that box, and counts toward every member's progress; a `role`
+  picture is uploaded only by the role's owner. A picture in an `individual` block stays
+  that student's own. Role sketches, CAD screenshots and drawings belong in role modules.
 
 ### 16.4 The plan keys on a block: linked-field points and machine tags
 
@@ -1995,8 +1997,8 @@ member's copy. Every member's own answer that differed from it is written to the
 history first, so the instructor can read it and nothing is lost. A box the team already
 has an answer for is never touched.
 
-- Keep picture blocks in an `individual` module when converting: a shared box never shows
-  a teammate's picture (16.3), so each student keeps pasting their own.
+- A picture block in a `team` or `role` module is shared with the team (16.3); keep it in
+  an `individual` module when each student must hand in their own.
 - Converting changes grading to the Teams screen (16.8). Grade nothing on the post before
   converting, or regrade it there.
 - The draw must stay posted through the due date: a draw past its `visible_until` is no
@@ -2098,6 +2100,9 @@ has its plan on screen.
 
 ## Changelog
 
+- **1.14 (2026-10-28).** Ledger 0456, migration 0316. Section 16.3: a picture in a team or role
+  box shows to the whole team (read only for non-owners) and counts in every member's progress;
+  teammates are named by first name, "First L." where two share one. 16.9 updated to match.
 - **1.13 (2026-10-26).** Ledger 0446, migration 0313. Section 16.9: a post that becomes a
   team post carries its students' own answers into the team's empty boxes, and keeps every
   answer that differed in the box's history.

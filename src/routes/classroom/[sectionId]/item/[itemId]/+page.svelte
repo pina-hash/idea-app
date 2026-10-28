@@ -430,6 +430,12 @@
 						const { data: raw, error } = await supabase.rpc('classroom_team_document', { p_item_id: itemId });
 						return error ? null : raw;
 					},
+					// The team's pictures in team and role boxes (0316); a database
+					// without it answers an error and the page shows the student's own.
+					readFiles: async (itemId) => {
+						const { data: raw, error } = await supabase.rpc('classroom_team_files', { p_item_id: itemId });
+						return error ? null : raw;
+					},
 					readPlan: async (sectionId) => {
 						const { data: raw, error } = await supabase.rpc('classroom_team_plan', { p_section_id: sectionId, p_team_id: null });
 						return error ? null : raw;

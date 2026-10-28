@@ -20,7 +20,8 @@
 
 import type { HtmlAssignmentManifest } from './manifest';
 import { HX_REFUSALS, hxBridgeValue } from './answers';
-import type { ResponseValue } from '$lib/classroom/assignment-spec';
+import { submissionFileSrc, type ResponseValue } from '$lib/classroom/assignment-spec';
+import type { HxImageState } from './bridge';
 
 /** Who writes a block of a team assignment. Null for an individual or header block. */
 export type HxTeamAudience = { audience: 'team' } | { audience: 'role'; role: string };
@@ -285,4 +286,31 @@ export interface TeamDocumentsTransports {
 	listTeams(itemId: string): Promise<unknown>;
 	readTeam(itemId: string, teamId: string): Promise<unknown>;
 	history(itemId: string, teamId: string, blockId: string): Promise<unknown>;
+}
+
+/**
+ * THE TEAM'S PICTURES, KEYED BY FIELD (0316), from `classroom_team_files`. Only
+ * team and role boxes of this manifest; a row the manifest does not declare is
+ * dropped. Pure, so a test can put a payload to it.
+ */
+export function teamImagesFrom(manifest: HtmlAssignmentManifest, raw: unknown): Record<string, HxImageState> {
+	const out: Record<string, HxImageState> = {};
+	const files = (raw as { ok?: boolean; files?: unknown } | null)?.files;
+	if (!Array.isArray(files)) return out;
+	const blocks = hxTeamBlocks(manifest);
+	const fieldOf = new Map<string, string>();
+	for (const mod of manifest.modules ?? []) for (const b of mod.blocks ?? []) fieldOf.set(b.id, b.field);
+	for (const f of files) {
+		if (!f || typeof f !== 'object') continue;
+		const row = f as { id?: unknown; block_id?: unknown; filename?: unknown; caption?: unknown };
+		const blockId = typeof row.block_id === 'string' ? row.block_id : '';
+		const field = fieldOf.get(blockId);
+		if (!field || !blocks.has(blockId) || typeof row.id !== 'string') continue;
+		out[field] = {
+			url: submissionFileSrc(row.id),
+			name: typeof row.filename === 'string' ? row.filename : 'picture',
+			caption: typeof row.caption === 'string' ? row.caption : ''
+		};
+	}
+	return out;
 }

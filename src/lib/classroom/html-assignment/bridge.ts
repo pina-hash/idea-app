@@ -137,6 +137,25 @@ export const HX_SANDBOX_FLAGS =
 	'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads';
 
 /**
+ * THE FRAME'S PERMISSIONS POLICY: THE CAMERA, AND NOTHING ELSE (ledger 0456,
+ * report ed0b584e, 2026-10-28: "When you click take photo, it sends you to
+ * camera but it won't load. It'll be a black screen").
+ *
+ * The kit's Take photo key is a file input with `capture` (tools/hx-kit/kit/
+ * camera.js), which on a phone opens the camera from inside this frame. The
+ * frame is cross-origin by design and its document's origin is opaque (no
+ * `allow-same-origin`), and the camera's Permissions-Policy default allowlist
+ * is `self`, so without a grant the browser opened the capture view and then
+ * refused it the camera: a black screen. Picking a photo from the camera roll
+ * needs no camera, which is why that worked. `camera` with no allowlist means
+ * the frame's own `src`, so the grant is to the worksheet the portal served and
+ * not to anywhere it navigates. Every other powerful feature (microphone,
+ * location, display capture, clipboard) stays refused;
+ * `tests/html-assignment-frame-permissions.test.ts` holds both halves.
+ */
+export const HX_FRAME_ALLOW = 'camera';
+
+/**
  * THE HANDSHAKE'S OWN NAME, WRITTEN DOWN ONCE.
  *
  * A document that never sends this is not a worksheet: the parent posts no

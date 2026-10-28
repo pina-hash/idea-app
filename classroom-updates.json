@@ -19,6 +19,12 @@
 			"tags": ["Assignments"]
 		},
 		{
+			"date": "2026-10-28",
+			"title": "Your teammates' photos show on your team's page",
+			"body": "A photo or sketch in a team box or a role box now shows for everyone on your team, not only for the person who added it. You can look at a teammate's role sketch, and only the role's owner can change it. Your team's progress bar counts those photos for everyone, so it reads the same on every teammate's screen. Teammates are shown by first name. On a phone, Take photo now opens a working camera inside the assignment.",
+			"tags": ["Assignments"]
+		},
+		{
 			"date": "2026-10-26",
 			"title": "IDEA-Blade 02 is now one page per team",
 			"body": "Your team now shares one copy of IDEA-Blade 02: the measurements, the inspection pick, the fight result, what a match showed, and your slide number. When a teammate fills a box, it fills for everyone on your team, and a box someone is typing in shows their name until they click out. Anything your team already typed is still there. Photos are still your own, so paste yours.",

@@ -29,6 +29,7 @@ import {
 	parseTeamDocument,
 	teamFieldStates,
 	teamFieldWritable,
+	teamImagesFrom,
 	teamLiveKey,
 	teamNextLockChange,
 	teamStatePayload,
@@ -40,7 +41,7 @@ import {
 } from './team-doc';
 import { TEAM_NOTICE_JITTER_MS, type ClassroomLive } from '$lib/classroom/live';
 import { parseTeamPlan, teamTrackerMessage } from '$lib/classroom/team-plan';
-import type { HxTeamTracker } from './bridge';
+import type { HxImageState, HxTeamTracker } from './bridge';
 
 export interface TeamDocTransports {
 	/** `classroom_team_document(item)`'s raw answer, or null on a failed read. */
@@ -49,6 +50,12 @@ export interface TeamDocTransports {
 	lock(itemId: string, blockId: string, take: boolean): Promise<unknown>;
 	/** `classroom_team_plan(section)`'s raw answer, for the tracker inside the document. Optional. */
 	readPlan?(sectionId: string): Promise<unknown>;
+	/**
+	 * `classroom_team_files(item)`'s raw answer (0316): the team's newest picture
+	 * per team or role box. Optional; absent, or a database without 0316, is no
+	 * team pictures, which is what a student saw before.
+	 */
+	readFiles?(itemId: string): Promise<unknown>;
 }
 
 /** What the session needs of the answers controller, and nothing else. */
@@ -74,6 +81,7 @@ export class TeamDocSession {
 	readonly #now: () => number;
 	#doc = $state<TeamDocument | null>(null);
 	#tracker = $state<HxTeamTracker | null>(null);
+	#images = $state<Record<string, HxImageState>>({});
 	/** Bumped when a lock runs out on the clock, so states re-derive with no read. */
 	#tick = $state(0);
 	/** Server minus client, from the last read. */
@@ -103,6 +111,15 @@ export class TeamDocSession {
 	/** The team plan's tracker for the document, or null (no plan read, or no team). */
 	get tracker(): HxTeamTracker | null {
 		return this.#tracker;
+	}
+
+	/**
+	 * The team's pictures in team and role boxes, keyed by field (0316): what a
+	 * teammate uploaded shows here read only, and counts toward progress the
+	 * same for every member.
+	 */
+	get images(): Record<string, HxImageState> {
+		return this.#images;
 	}
 
 	/** True once the first read has answered (either way). */
@@ -158,6 +175,12 @@ export class TeamDocSession {
 			if (this.#stopped) return;
 			const doc = parseTeamDocument(raw);
 			if (doc) this.#adopt(doc, since);
+			if (doc?.team && this.#opts.transports.readFiles) {
+				const files = await this.#opts.transports.readFiles(this.#opts.itemId).catch(() => null);
+				if (!this.#stopped) this.#images = teamImagesFrom(this.#opts.manifest, files);
+			} else if (!doc?.team) {
+				this.#images = {};
+			}
 			const section = doc?.team?.section_id;
 			if (section && this.#opts.transports.readPlan) {
 				const plan = parseTeamPlan(await this.#opts.transports.readPlan(section).catch(() => null)).plan;
@@ -282,10 +305,15 @@ export class TeamDocSession {
 		if (this.#blocks.has(blockId) && this.#doc?.team) this.#held.add(blockId);
 	}
 
-	/** This page's write landed: tell the teammates (the database tells them too where it can). */
-	announceSaved(): void {
+	/**
+	 * This page's write landed: tell the teammates (the database tells them too
+	 * where it can). A picture this page just put in a team box is read back
+	 * with the team's, so the newest one per box is the one shown.
+	 */
+	announceSaved(picture = false): void {
 		const team = this.#doc?.team;
 		if (team) this.#opts.live?.announce(teamLiveKey(team.id), 'team-doc');
+		if (team && picture) this.noticed();
 	}
 
 	/** Listen, read once, and hand back the teardown. */

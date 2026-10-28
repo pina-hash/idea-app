@@ -55,6 +55,7 @@
 	import type { HxTeamProgress } from './team';
 	import type { HxTeamStatePayload } from './team-doc';
 	import {
+		HX_FRAME_ALLOW,
 		HX_SANDBOX_FLAGS,
 		hxFeedbackMessage,
 		hxFocusMessage,
@@ -982,6 +983,7 @@
 				class="hx-frame"
 				style="height: {height}px;"
 				sandbox={HX_SANDBOX_FLAGS}
+				allow={HX_FRAME_ALLOW}
 				referrerpolicy="no-referrer"
 				loading="eager"
 				data-hx-frame
