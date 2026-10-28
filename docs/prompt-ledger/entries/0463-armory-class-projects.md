@@ -8,6 +8,7 @@
 - Owns (idea-armory): the folder sync, empty-folder and folder-permission code under `src/` and `tests/`, the version bump and `docs/agent/release-notes/`; creating the GitHub release only after Mr. Pina's yes.
 - Does not touch: tournaments and copy (0455), team documents and sign-offs (0456), grading (0457), the HTML program (0458).
 - Migration permitted: yes, as many as needed, each under the next free migration number at landing. Claims: 0314
-- Status: pushed (the roster import fix, 0314); the Armory class projects in progress
+- Status: pushed (the roster import fix, 0314); the Armory class projects TAKEN OVER 2026-10-28 14:45 PT by the IDEA100-3 chat (Mr. Pina: "Do the armory. Armory needs to be completely ready for tomorrow"), built from that chat's own container. Any other session working 0463 stops and commits nothing further for it.
+- Release: Mr. Pina's 14:35 words are his yes to publishing the idea-armory release this lane needs.
 - Mode: solo (beside 0455, 0456 and 0457, which own no Armory files)
 - Branch: main (solo)
