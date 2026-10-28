@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop Fix: Finished</title>
+<!--
+  BRIEF (Mr. Pina's spec, approved 2026-10-28)
+  1 Skill: finish a manufactured product: two major parts of your own, installed where the
+    problem is, and working when someone else uses it.
+  2 Proof: checked in person, in class. Four done or not-done lines: Part A made by me 15,
+    Part B made by me 15, installed at the problem spot 10, works when the teacher tries it 10.
+    Nothing the Build Log already holds is asked again; one optional photo.
+  3 Stuck points: teams counting a shared part twice; a teammate's part shown as mine;
+    FRC robot students (approved: their robot parts count, on the robot counts as installed).
+  4 Builds on: Shop Fix: Design and Shop Fix: Build Log.
+  5 Shape: one post, three classes (Blocks 2, 3, 4), one step, 50 points, Unit Labs,
+    due Nov 6 11:59 PM. Late lines earn half (8 for a 15 line, 5 for a 10 line). Excused
+    absence: one school day later per day out, from FACTS attendance.
+  6 Look: the fix on a wall: an aluminum bracket (Part A) on a plywood mount (Part B),
+    a rubber cord coiled on it. Phase color sky (linking set, no meaning).
+-->
+<script type="application/json" id="idea-manifest">
+{
+  "schemaVersion": 3, "kind": "html-assignment",
+  "title": "Shop Fix: Finished", "course": "IDEA209H", "points": 50,
+  "thumbnail": { "kind": "html", "template": "idea-thumbnail" },
+  "modules": [
+    {
+      "id": "u3f-finished", "title": "Finished: checked in class", "points": 50, "audience": "individual",
+      "blocks": [
+        {"id": "u3f-where", "field": "where", "type": "text", "prompt": "Where your fix is installed"},
+        {"id": "u3f-photo", "field": "photo", "type": "image", "optional": true, "prompt": "Photo: installed (optional)"}
+      ],
+      "criteria": [
+        {
+          "id": "part-a", "text": "Part A made by me", "points": 15,
+          "levels": [
+            {"points": 15, "label": "Complete", "short": "Shown by the due date", "descriptor": "The student shows Part A, a major part of the fix that the student made, by the due date (moved one school day per excused day out, from FACTS attendance). A major part is machined on a shop machine (mill, lathe, CNC router or laser); printed parts and hardware never count. A part a teammate made does not count, and a shared team part counts once, for the teammate the Build Log lists as its maker. FRC students Mr. Pina approved: a robot part they made counts."},
+            {"points": 8, "label": "Developing", "short": "Shown after the due date", "descriptor": "Part A meets every condition above, shown after the due date: half credit."},
+            {"points": 0, "label": "Absent", "short": "Not shown or not theirs", "descriptor": "Part A is not shown, or the student did not make it."}
+          ]
+        },
+        {
+          "id": "part-b", "text": "Part B made by me", "points": 15,
+          "levels": [
+            {"points": 15, "label": "Complete", "short": "Shown by the due date", "descriptor": "The student shows Part B, a second major part of the fix that the student made, by the due date (moved one school day per excused day out, from FACTS attendance). A major part is machined on a shop machine (mill, lathe, CNC router or laser); printed parts and hardware never count. A part a teammate made does not count, and a shared team part counts once, for the teammate the Build Log lists as its maker. FRC students Mr. Pina approved: a robot part they made counts."},
+            {"points": 8, "label": "Developing", "short": "Shown after the due date", "descriptor": "Part B meets every condition above, shown after the due date: half credit."},
+            {"points": 0, "label": "Absent", "short": "Not shown or not theirs", "descriptor": "Part B is not shown, or the student did not make it."}
+          ]
+        },
+        {
+          "id": "installed", "text": "Installed at the problem spot", "points": 10,
+          "levels": [
+            {"points": 10, "label": "Complete", "short": "Installed by the due date", "descriptor": "The fix is fixed in place at the spot the student's Shop Fix: Design names (its \"Where exactly is it?\" answer), by the due date (moved one school day per excused day out). For approved FRC students, installed on the robot counts."},
+            {"points": 5, "label": "Developing", "short": "Installed after the due date", "descriptor": "Installed at the problem spot, checked after the due date: half credit."},
+            {"points": 0, "label": "Absent", "short": "Not installed there", "descriptor": "Not installed, or installed somewhere other than the problem spot."}
+          ]
+        },
+        {
+          "id": "works", "text": "Works when the teacher tries it", "points": 10,
+          "levels": [
+            {"points": 10, "label": "Complete", "short": "Works, by the due date", "descriptor": "The teacher uses the fix once, by the due date (moved one school day per excused day out), and it does the job the student's Shop Fix: Design names. For approved FRC students: it works when the robot runs it."},
+            {"points": 5, "label": "Developing", "short": "Works, after the due date", "descriptor": "It does that job when the teacher tries it after the due date: half credit."},
+            {"points": 0, "label": "Absent", "short": "Does not work", "descriptor": "It does not do that job when the teacher tries it, or it was not tried."}
+          ]
+        }
+      ]
+    }
+  ]
+}
+</script>
+<!-- hx:head -->
+<style>
+  #hx-page .sf-line { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 12px; align-items: center; }
+  .sf-line svg { width: 34px; height: 34px; color: var(--text-2); }
+  .sf-line b { color: var(--plate-ink); font-size: 1rem; line-height: 1.2; }
+  .sf-line .idea-chip { justify-self: end; }
+  .sf-lines { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+</style>
+<template id="idea-thumbnail">
+<style>
+  :root { --a: #1d2a33; --b: #121618; --ink: #c8ced3; --wood: #c9a77a; --line: #d9e1e6; }
+  :root[data-idea-scheme="light"] { --a: #e9eef5; --b: #d3dbe6; --ink: #5d6770; --wood: #8a6a3e; --line: #27313a; }
+  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6%; background: radial-gradient(circle at 30% 30%, var(--a), var(--b) 80%); color: var(--line); font: 700 12vh/1 system-ui, sans-serif; white-space: nowrap; }
+  .t svg { height: 72%; }
+  .t span { display: none; }
+  :root[data-idea-shape="wide"] .t span, :root[data-idea-shape="banner"] .t span { display: block; }
+</style>
+<div class="t">
+  <svg viewBox="0 0 200 160" aria-hidden="true"><rect x="40" y="20" width="120" height="40" rx="4" fill="none" stroke="var(--wood)" stroke-width="5"/><path d="M70 60 V96 H130 V60" fill="none" stroke="var(--ink)" stroke-width="6" stroke-linejoin="round"/><circle cx="70" cy="40" r="5" fill="var(--ink)"/><circle cx="130" cy="40" r="5" fill="var(--ink)"/><path d="M100 96 V146" stroke="var(--line)" stroke-width="7" stroke-linecap="round"/><circle cx="100" cy="100" r="11" fill="none" stroke="var(--line)" stroke-width="5"/></svg>
+  <span>Shop Fix: Finished</span>
+</div>
+</template>
+</head>
+<body class="idea-plate">
+<main id="hx-page">
+
+  <header class="hx-hero">
+    <div class="hx-hero-text">
+      <span class="hx-crumb">IDEA209H · Unit 3 · Shop Fix</span>
+      <h1>Shop Fix: Finished</h1>
+      <p class="hx-done-when"><strong>Done when:</strong> your two parts are installed where the problem was, and your fix works when your teacher tries it.</p>
+      <div class="hx-row">
+        <span class="idea-chip">Checked in person, in class</span>
+        <span class="idea-chip">Writing: a few words</span>
+      </div>
+    </div>
+    <div class="hx-hero-art" aria-hidden="true">
+      <svg viewBox="0 0 320 160">
+        <g data-color="plywood">
+          <rect x="60" y="14" width="200" height="56" rx="4" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2.5"/>
+          <path d="M72 30 Q130 24 190 32 T250 28 M72 52 Q140 46 200 54 T250 50" fill="none" stroke="var(--hx-line)" stroke-width="1.5"/>
+        </g>
+        <g data-color="aluminum">
+          <path d="M110 70 V112 H210 V70 H198 V100 H122 V70 Z" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2.5" stroke-linejoin="round"/>
+        </g>
+        <g fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2">
+          <circle cx="116" cy="42" r="6"/><circle cx="204" cy="42" r="6"/>
+        </g>
+        <g stroke="var(--plate-ink)" stroke-width="2"><line x1="112" y1="42" x2="120" y2="42"/><line x1="200" y1="42" x2="208" y2="42"/></g>
+        <g data-color="rubber" fill="none" stroke="var(--hx-ink)" stroke-width="4">
+          <ellipse cx="160" cy="128" rx="34" ry="22"/>
+          <ellipse cx="160" cy="126" rx="28" ry="18"/>
+          <path d="M126 130 Q118 148 132 156" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </div>
+  </header>
+
+  <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Classes in this assignment"></nav>
+  <div class="hx-bar idea-panel" id="hx-bar"></div>
+  <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
+
+  <section class="hx-step idea-panel" id="s-show" data-phase="show" data-title="Show your teacher">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Show it</span><h2>Show your teacher</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <span class="idea-eyebrow">What your teacher checks · 50 points</span>
+        <ul class="hx-tiles sf-lines" aria-label="The four lines">
+          <li class="hx-tile sf-line"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M6 26 V10 H28 V26 Z M12 10 V26 M22 10 V26" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg><b>Part A, made by you</b><span class="idea-chip">15</span></li>
+          <li class="hx-tile sf-line"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M6 8 H28 V16 H18 V28 H6 Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg><b>Part B, made by you</b><span class="idea-chip">15</span></li>
+          <li class="hx-tile sf-line"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M4 30 H30 M8 30 V6 M8 12 H24 V20 H8" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg><b>Installed at the <span class="it" data-term="problem spot">problem spot</span></b><span class="idea-chip">10</span></li>
+          <li class="hx-tile sf-line"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="13" fill="none" stroke="currentColor" stroke-width="3"/><path d="M11 17 L15 21 L23 13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Works when your teacher tries it</b><span class="idea-chip">10</span></li>
+        </ul>
+        <ol class="hx-do">
+          <li><span>Finish and install your two <span class="it" data-term="major part">major parts</span>.</span></li>
+          <li><span>Type where it is installed, on the right. This tells your teacher where to look; the check is what earns the points.</span></li>
+          <li><span>In class, ask your teacher to check it. Show both parts, then let your teacher use it.</span></li>
+        </ol>
+        <p class="hx-see">Your teacher marks all four lines done.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>It falls off or jams when tried</td><td>Fix it, then ask for another check before the last class.</td></tr>
+            <tr><td>A teammate made one of my parts</td><td>It counts for them. Make your own.</td></tr>
+            <tr><td>I have no parts yet</td><td>Get machine time now: in class, or when the shop is open outside class.</td></tr>
+            <tr><td>My fix is not installed yet</td><td>Parts in hand still earn Part A and Part B. Install it to earn the other two lines.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-stack">
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Your fix</span>
+        <label>Where is it installed?
+          <input class="idea-well idea-well--field" type="text" data-field="where" placeholder="e.g. room, wall or machine, and which side">
+        </label>
+        <details class="hx-more">
+          <summary>Add a photo of it installed <span class="idea-chip">Optional</span></summary>
+          <div class="hx-box" data-image-box="photo" data-optional data-empty="Paste the photo here, or press Choose photo">Paste the photo here, or press Choose photo</div>
+          <input type="file" data-field="photo" data-optional accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="photo">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="photo" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="photo"></p>
+        </details>
+      </div>
+      <span class="idea-eyebrow">The rules</span>
+      <ul class="hx-list sf-rules">
+        <li><b>Teams:</b> two major parts per teammate. A shared part counts once, for whoever your Build Log lists as its maker.</li>
+        <li><b>FRC robot, with Mr. Pina's approval:</b> your robot parts count, on the robot counts as installed, and it works when the robot runs it.</li>
+        <li><b>Shown after Nov 6:</b> each line earns half.</li>
+        <li><b>Excused absence:</b> one more school day per day out, from FACTS attendance.</li>
+      </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script type="application/json" id="hx-plan-data">
+{
+  "phases": [
+    {"id": "show", "name": "Show it", "color": "sky", "days": [{"label": "Last class", "short": "Show it by Nov 6", "date": "2026-11-06"}]}
+  ]
+}
+</script>
+<script type="application/json" id="hx-glossary">
+{
+  "major part": "One of the two main parts of your fix that you machined yourself on a shop machine (mill, lathe, CNC router or laser): Part A and Part B on your Build Log. Printed parts and hardware never count.",
+  "problem spot": "The place your Shop Fix: Design named in its \"Where exactly is it?\" answer."
+}
+</script>
+<!-- hx:script -->
+<script id="hx-page-js">
+/* No page code: the four lines are checked in person. */
+</script>
+</body>
+</html>
