@@ -455,6 +455,19 @@ try {
 		(owed.length ? FAIL : PASS)('grading', 'Every box in an "any one of these" group is optional in the manifest', owed.length ? `still required there: ${owed.join(', ')}` : `${new Set(anyBad).size} boxes in ${await frame.evaluate(() => document.querySelectorAll('[data-any-one]').length)} groups`);
 	}
 
+	/* The last step's key with work still missing (2026-10-28): never the green
+	   Next look, and it says what is missing. Checked before anything is filled. */
+	if (k.kit && k.steps > 1) {
+		const lastKey = await frame.evaluate(() => {
+			kitShow(KIT.steps.length - 1);
+			const b = KIT.steps[KIT.steps.length - 1].el.querySelector('[data-kit-next]');
+			const r = b && !b.hidden ? { text: b.textContent.trim(), primary: b.classList.contains('idea-key--primary') } : null;
+			kitShow(0);
+			return r;
+		});
+		if (lastKey) ((!lastKey.primary && /^Not finished/.test(lastKey.text)) ? PASS : FAIL)('navigation', 'On the last step, unfinished work is a plain key that says what is missing, never a green Next', `"${lastKey.text}"${lastKey.primary ? ', drawn as the green primary key' : ''}`);
+	}
+
 	/* ---- 4. type like a student, against an echoing, sometimes stale parent. */
 	const phrase = (f) => `the ${f} reads 0.501 in on two edges`;
 	const expected = {};

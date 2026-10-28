@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.16 - 2026-10-28**
+**Version 2.17 - 2026-10-28**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -422,7 +422,12 @@ step without any. A grader (read-only) gets List view, every step open, and a ba
 
 **E3b. The finish line is said.** When everything is in, the last step says so and that
 there is nothing to turn in (the work hands in as it saves, decision 37); the kit does this.
-Without it a student hunts for a Submit button that does not exist.
+Without it a student hunts for a Submit button that does not exist. **Until then, the last
+step's key is plain, never green, and says what is missing** ("Not finished: Step 3 has an
+empty box (and 1 more step)"), and pressing it goes there (2.17, Mr. Pina 2026-10-28: a green
+"Still to do: Step 3 · Research how far things fly" on the last step read as Next and jumped
+students backward). Green on the last step is only the finish line itself. The kit does this;
+the test fails a green or unworded last-step key.
 
 **E4. The plan strip shows the whole unit.** Every class in the post, grouped by phase,
 today marked; pressing a class opens its first step. A no-class day is a flat chip.
@@ -814,6 +819,10 @@ new term.
 ---
 
 ## Changelog
+
+- **2.17 (2026-10-28).** Ledger 0464. E3b: the last step's key, while work is missing, is a
+  plain key worded "Not finished: Step N has an empty box", never the green Next; the test
+  checks it before anything is filled.
 
 - **2.16 (2026-10-28).** Ledger 0460. From the FRC Classroom migration chat: the kit's
   `data-graded="no"` and `.hx-keep-case`; the test reads rendered labels (styling's own words

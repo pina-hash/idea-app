@@ -68,6 +68,21 @@ function kitStepDone(i) {
   return false;
 }
 function kitStepDoneShallow(j) { var el = KIT.steps[j].el, req = kitRequired(el), groups = kitAnyGroups(el); return (req.length + groups.length) > 0 && req.every(kitFieldDone) && groups.every(kitGroupDone); }
+/* What is still missing, for the last step's key: the first unfinished step, its
+   empty boxes, and how many other steps are unfinished. */
+function kitOpenBoxes(i) {
+  var el = KIT.steps[i].el;
+  return kitRequired(el).filter(function (f) { return !kitFieldDone(f); }).length +
+    kitAnyGroups(el).filter(function (g) { return !kitGroupDone(g); }).length;
+}
+function kitMissingWords(first) {
+  var boxes = kitOpenBoxes(first);
+  var others = 0;
+  for (var j = first + 1; j < KIT.steps.length; j++) if (!kitStepOptional(j) && !kitStepDone(j)) others++;
+  var what = boxes > 1 ? boxes + ' empty boxes' : boxes === 1 ? 'an empty box' : 'not been opened';
+  return 'Not finished: Step ' + (first + 1) + (boxes ? ' has ' : ' has ') + what +
+    (others ? ' (and ' + others + ' more step' + (others > 1 ? 's' : '') + ')' : '');
+}
 /* A step marked data-optional (depth after a clear "you're done" line, 2026-10-28) is
    never the next thing to do and is not counted in "x of n done". */
 function kitStepOptional(i) { return KIT.steps[i].el.hasAttribute('data-optional'); }
@@ -299,10 +314,16 @@ function kitRefresh() {
     var label = foot.querySelector('.hx-next-label');
     back.disabled = i === 0;
     if (i === KIT.steps.length - 1) {
+      /* The last step's key never reads as Next (2026-10-28: a green "Still to do: Step 3"
+         on the last step read as Next and jumped students backward). Work missing: a
+         plain key that says what is missing and where. Everything in: no key, and the
+         finish line is the green. */
       fwd.hidden = next < 0;
-      fwd.textContent = next < 0 ? '' : 'Still to do: Step ' + (next + 1) + ' · ' + KIT.steps[next].title;
+      fwd.classList.toggle('idea-key--primary', false);
+      fwd.classList.toggle('hx-not-finished', next >= 0);
+      fwd.textContent = next < 0 ? '' : kitMissingWords(next);
       fwd.dataset.go = next < 0 ? '' : String(next);
-    } else { fwd.hidden = false; fwd.textContent = 'Next: ' + KIT.steps[i + 1].title; fwd.dataset.go = String(i + 1); fwd.disabled = false; }
+    } else { fwd.hidden = false; fwd.classList.add('idea-key--primary'); fwd.classList.remove('hx-not-finished'); fwd.textContent = 'Next: ' + KIT.steps[i + 1].title; fwd.dataset.go = String(i + 1); fwd.disabled = false; }
     /* A step reads done only on its own evidence, never on a visit. */
     var own = kitRequired(s.el).length + kitAnyGroups(s.el).length > 0;
     label.innerHTML = own && done[i] ? '<span class="idea-chip idea-chip--lamp">Step done</span>' : '';
