@@ -11,6 +11,8 @@
   .rf-rules { display: grid; gap: var(--space-3); }
   .rf-rule b { display: block; color: var(--plate-ink); }
   .rf-rule span { color: var(--text-2); }
+  /* The kit marks every evidence panel as graded; these checks are not. */
+  .hx-evidence > .idea-eyebrow.rf-ungraded::after { content: ' · not graded'; }
   .hx-tiles .hx-tile span { color: var(--text-2); }
 </style>
 <template id="idea-thumbnail"><style>
@@ -79,7 +81,7 @@
     <div class="hx-step-body"><div class="hx-stack">
           <p>You get the model file for each part. Before you make that part, you draw it on paper.</p>
           <p><strong>The standard: someone who has never seen the model could make the part from your drawing.</strong> Every dimension needed to manufacture it. Every feature. If something is missing, they would have to guess, and a guess is a wrong part.</p>
-          <p class="hx-see">You end with five drawings, one per part.</p><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="trophy-drawing" data-kind="radio"><legend>Your drawing is done when:</legend><label class="hx-pick"><input type="radio" name="trophy-drawing" value="a">It looks like the model</label><label class="hx-pick"><input type="radio" name="trophy-drawing" value="b">Someone who never saw the model could make the part from it</label><label class="hx-pick"><input type="radio" name="trophy-drawing" value="c">It has the overall size</label></fieldset><p class="hx-readout" id="ro-trophy-drawing" aria-live="polite">Pick one.</p></div></div><div class="hx-stack"><div class="idea-panel hx-example" data-color="sky"><span class="idea-eyebrow">Draw one rotation ahead</span>
+          <p class="hx-see">You end with five drawings, one per part.</p><div class="hx-evidence idea-panel"><span class="idea-eyebrow rf-ungraded">Check yourself</span><fieldset class="hx-picks" data-field="trophy-drawing" data-kind="radio"><legend>Your drawing is done when:</legend><label class="hx-pick"><input type="radio" name="trophy-drawing" value="a">It looks like the model</label><label class="hx-pick"><input type="radio" name="trophy-drawing" value="b">Someone who never saw the model could make the part from it</label><label class="hx-pick"><input type="radio" name="trophy-drawing" value="c">It has the overall size</label></fieldset><p class="hx-readout" id="ro-trophy-drawing" aria-live="polite">Pick one.</p></div></div><div class="hx-stack"><div class="idea-panel hx-example" data-color="sky"><span class="idea-eyebrow">Draw one rotation ahead</span>
           <p>Draw your first part before the rotations start. After that, draw the <strong>next</strong> rotation's part while you are at your current station and not on the machine. That is what the waiting time is for.</p></div></div></div>
   </section>
   <section class="hx-step idea-panel" id="s-plan" data-phase="learn" data-day="Plan" data-title="The five plan questions, and phones">
