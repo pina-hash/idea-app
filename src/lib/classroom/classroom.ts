@@ -2185,6 +2185,10 @@ export function importReasonLabel(reason: string | undefined): string {
 			return 'no section with that label';
 		case 'not_your_section':
 			return 'you are not the teacher of record for that section';
+		case 'class_not_found':
+			return 'no class with that id or name';
+		case 'class_ambiguous':
+			return 'more than one class has that name; use the class id';
 		case 'error':
 			return 'unexpected error';
 		default:

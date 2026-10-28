@@ -643,7 +643,7 @@ classroom_import_roster:
   describe: Import a roster of students into classes at once; it asks first because it is a bulk change.
   say: ["import this roster", "add these thirty students to their classes", "load the new term's roster"]
   args:
-    p_rows: {name: rows, describe: "One row per student, each with the class, the student's address and their name."}
+    p_rows: {name: rows, describe: "One row per student: email, name (Last, First) and class, the class by its id or its name like IDEA100 Section 3."}
 
 classroom_manages_section:
   surface: call
