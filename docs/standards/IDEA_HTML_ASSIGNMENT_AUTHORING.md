@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.14 - 2026-10-28**
+**Version 2.15 - 2026-10-28**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -130,8 +130,12 @@ The brief, as short bullets he can react to on his phone:
 7. **Facts to confirm.** Every lab or equipment fact the assignment will assert (A9).
 8. **The look.** The subject palette, or each item's identity color, with the real-world
    anchor of every color, and the picture in the header (Part D).
+9. **Feasibility, for a build project (2.15).** The core calculation, run before the unit
+   starts, so the rules and the physics agree. Launcher: Design's rules made gearing optional;
+   run after posting, a drill straight onto a 4 in wheel throws about 10 ft/s against roughly
+   73 ft/s needed for 90 ft.
 
-Approved, the brief is pasted as a comment at the top of the source file, all eight items, so
+Approved, the brief is pasted as a comment at the top of the source file, every item, so
 the next chat that touches it inherits the intent (the starter's comment is the model; a
 brief missing its facts or its look was the first thing a fresh audit caught). Before writing the brief, run the deeper-not-bigger
 skill on the ask.
@@ -172,6 +176,15 @@ Three findings, each now a rule:
    during the work, at the machine, not as a separate post afterward.
 3. **IDEA209H Unit 1's six single-hand-in posts held at 90 to 98% turned in.** A post with
    one clear finish line gets finished (the kit's finish line, E3b, gives an HTML post one).
+
+**C3. Map the unit before post 1 (2.15).** The brief for a unit's first post maps every post
+of the unit, with the boundaries at its sign-offs, before post 1 is built. Launcher: Design
+was split at the block limit after it was live, so its plan strip showed Prototype tabs with
+no steps behind them. The test FAILS a phase in the plan with no step in the post, and warns
+when its days are all off (a later post holds it; say which).
+**C4. A team post's points are what one member is graded out of**: the team modules, the
+individual ones and one role, never the manifest's total of every role. Launcher: Design's
+card read 28 while students were graded out of 16. The test prints the member maximum.
 
 **The rule:**
 
@@ -245,6 +258,15 @@ only live parts (`src/lib/classroom/plate.css`), and a source uses them rather t
 - **A library** (separate modules a student works through at their own pace, like the FRC
   Training Library tracks) sets `data-post="library"` on `<html>`; Part C's one-deliverable
   sizing does not apply to it and the test reports its size instead of warning.
+- **More parts (2.15)**: a step marked `data-optional` (depth after a "You're done" line) is
+  never the next thing to do and is not counted; a `<select class="idea-well idea-well--select"
+  data-field>` is a dropdown, saved like a text box (manifest type `text`), for one of many;
+  `.hx-table` stacks its rows as cards when its column is narrow (give each `td` a `data-label`)
+  and its text always wraps; `<html data-color-pairs="steel/black-oxide">` names a pair of real
+  colors that are close in life and never need telling apart (each beside its word), so the
+  colorblind warning shows only when it matters.
+- **No typed dates or rotation names in the copy.** A page is copied forward to the next
+  rotation; dates come from `hx-plan-data` and the portal's schedule (`data-idea-schedule`).
 - **Parts for common needs (2.11, from the first overhauls):** `.hx-scale`, a 1 to 10 (or
   any count) rating as one row of small keys, its ends named in `.hx-scale-ends`; a
   `data-any-one` wrapper around boxes of which a student fills one (each also `optional` in the
@@ -586,8 +608,11 @@ earlier prediction beside the result, worked out in words (L20).
 link handed in as `link: "presentation"`; the deck opened in a new tab once (L20, Design
 Directions 2.7).
 
-**G8. Survey.** Fewest questions that matter, everything optional, a `prompt` on every block
-so the Answers CSV reads (Design Directions 2.8).
+**G8. Survey (2.15, Mr. Pina 2026-10-27).** A short required part, about seven answers and two
+minutes, graded on finishing; then a clear "You're done" line; then optional depth for whoever
+wants to say more, its steps marked `data-optional` so they never count as owed. A `prompt` on
+every block so the Answers CSV reads (Design Directions 2.8). This replaces "everything
+optional", which contradicted a graded survey.
 
 **G9. Simulation or game.** The interactive is the lesson: real feedback, physically honest
 motion, a model only of physics the real equipment follows (L23, Design Directions 2.11).
@@ -605,6 +630,23 @@ shared box, beside how the team document works (G5). The reference is Launcher: 
 each kind of box is graded, and its role steps carry "Your role" in the phase tag. Read it
 from the post's current document (revision 4, 2026-10-26), never from `materials/`, whose copy
 is stale until a replace re-exports (gap cdb5eb34).
+- **The kit draws the badges (2.15)** from each block's module audience in the manifest, on
+  every step head and every answer section, so the page and the grading cannot disagree.
+  `<html data-badges="manual">` keeps an author's own. The kit also never holds a student's
+  step open on a box another member owns or a role nobody has taken.
+- **Pictures in team and role boxes are seen only by the teacher** (SPEC 16.3, gap 36d0596c);
+  students read it as "nobody can see my sketch". Until the site shares them, the page says so
+  in words beside the box, or the picture is an individual block. The test warns.
+- **A team table locks as one box** (gap 2d621bcc): one student in one cell locks every cell.
+  Name one typist on the page, or split it into a block per row. The test warns.
+- **Leave out the `plan-owners` and `plan-balanced` sign-off checks** until the site fixes them:
+  the seeded tasks have no due dates, and a team of three cannot balance. The test warns.
+- **Switching a live post to teams**: post the team draw first; each student's own answers carry
+  over, and where teammates' answers differed, each box keeps them in its history.
+- **A teacher card ships with every post that uses a new site feature**: one screen saying where
+  the queue is (the sign-off queue is at `/classroom/signoffs`, linked from nowhere yet), what
+  each checklist item means and what to do when a team is stuck. Block 4's teacher gets these
+  requests with no Claude.
 
 ---
 
@@ -622,8 +664,9 @@ work**: every gate below is an outside judge.
    every control 44px; every typed answer reaches the portal exactly through stale echoes;
    nothing dropped by the gate; a picture hands in and its box is reported; a reload restores
    every answer; read-only disables every graded control and shows every step; a clean
-   console; no sideways scroll at 1440, 960 and 375; every step asks for evidence; the finish
-   line shows when everything is in. **Then look at its screenshots.**
+   console; no sideways scroll and no squeezed text at 1440, 1152 (125% zoom), 960 and 375;
+   every step asks for evidence; the finish line shows when everything is in; on a team post, a
+   member can finish with teammates' boxes empty. **Then look at its screenshots.**
 3. **The rule audit by a fresh agent** that has seen neither the build nor the chat: this
    file and the built document, PASS or FAIL with the line for every rule that applies (L21).
 4. **The cold open by a fresh agent**: given only the screenshots and the file, it plays three
@@ -640,6 +683,12 @@ work**: every gate below is an outside judge.
    students work the first step while the rest start; anything they stall on is fixed that
    day. The first week of use is part of the build (L14).
 
+**A team post adds one gate before Mr. Pina's cold open (2.15): the team rehearsal.** Draw a
+test team from the test accounts (`_idea_test_emails`), fill the post as each role, request
+every sign-off, and approve it from `/classroom/signoffs` and from the connector. Nothing
+team-based posts until it passes. Launcher: Design shipped with steps no member could finish
+and sign-off checks that could not pass; this gate, and the test's team pass, catch both.
+
 After the due date, **measure the post** (C2) and carry what it shows into the next one.
 
 On every re-upload, **read the replace screen**: blocks kept, new, dropped, and the answers
@@ -651,10 +700,21 @@ each carries. None dropped (L22, L23).
 
 - **Filename** leads with course and day: `IDEA209H_Day08_<What>.html`; the source beside
   it as `.src.html`.
+- **Edit from the live page, never the export (2.15).** Read the post's current document through
+  the connector, check that the committed source rebuilds to it, and after the replace read it
+  again and compare. `materials/` can be days behind (IDEA-Blade 01's copy was two days behind,
+  and editing it nearly erased Mr. Pina's changes).
+- **A generated source commits its generator** beside it (`<slug>.gen.py`), or the page is not
+  generated: editing a generated source by hand loses the script's version.
+- **A hand-built page** (no kit) moves onto the kit before it is reused. Until then the test
+  reports the kit-only checks instead of failing them, and still fails what a student feels:
+  saving, fitting the screen, squeezed text, phones.
 - **The source is committed to the repo (2.14)**: `assignment-sources/<course>/<slug>.src.html`
   on `main`, in the same session as the re-upload, so any chat can rebuild the page on a newer
-  kit. Library C keeps a copy when the Drive connector can take the file; a source too large for
-  it is never turned into a manual upload for Mr. Pina. A source holds no answer, name or grade,
+  kit. A chat that cannot push to GitHub (a claude.ai chat without repository access) puts the
+  source in Library C and names it in its report, and the HTML standards chat commits it; the
+  site taking the source with the upload is filed (013c83d0). A page whose source is in the
+  repo needs no Library C copy, and nothing is ever turned into a manual upload for Mr. Pina. A source holds no answer, name or grade,
   which is why it may sit in the public repository.
 - **Posting details** with the file: title, points, category, due date, the post text (the
   only reliably clickable link for a student).
@@ -719,6 +779,16 @@ new term.
 ---
 
 ## Changelog
+
+- **2.15 (2026-10-28).** Ledger 0453. From the IDEA209H Unit 4 and IDEA 100 overhaul chats:
+  the kit never holds a team member's step open on another member's box, and draws the G10
+  badges from the manifest; the test runs a team pass (one member, others' roles, an unowned
+  role) and warns on team pictures, team tables and the two sign-off checks that cannot pass,
+  prints the member's points, fails a phase with no step, counts a cell's own text lines (a
+  table row's height had read as three lines); optional steps, a dropdown, stacking tables,
+  quiet color pairs; B9 feasibility, C3 map the unit, C4 member points, G8 survey, G10 team
+  rules and the teacher card, Part I edit from live, generators, hand-built pages, sources
+  from a chat that cannot push; Part H's team rehearsal.
 
 - **2.14 (2026-10-28).** Ledger 0452. Part I: sources are committed to
   `assignment-sources/<course>/<slug>.src.html`, Library C is a second copy when the connector

@@ -123,7 +123,7 @@ const paletteData = (() => {
 const kitTokens = JSON.parse(readFileSync(join(HERE, 'kit', 'tokens.json'), 'utf8'));
 const TH = kitThemes(kitTokens);
 const plateInk = { dark: C.hex(kitTokens.color.tokens.find((t) => t.name === 'plate-ink').value.idea), light: C.hex(kitTokens.color.tokens.find((t) => t.name === 'plate-ink').value['space-white']) };
-if (!paletteData) FAIL('color', 'Content colors built per theme', 'No hx-palette-data: rebuild with the current kit (node tools/hx-kit/build.mjs).');
+if (!paletteData) (kitBuilt ? FAIL : INFO)('color', 'Content colors built per theme', kitBuilt ? 'No hx-palette-data: rebuild with the current kit (node tools/hx-kit/build.mjs).' : 'A hand-built page has no kit colors. Move it onto the kit before it is reused (AUTHORING Part I); until then the checks a student feels (saving, fitting, squeezing, phones) still apply.');
 else {
 	const entries = Object.entries(paletteData.colors);
 	for (const theme of ['dark', 'light']) {
@@ -222,6 +222,16 @@ try {
 	const library = /<html\b[^>]*\bdata-post="library"/i.test(html);
 	if (library) INFO('post size', 'A library of separate modules (data-post="library")', `${required} required blocks${size ? `, ${size.classes} classes, ${size.steps} steps` : ''}; Part C sizing does not apply`);
 	else (required > 20 ? WARN : PASS)('post size', 'About 15 required blocks, 20 at most (Part C)', `${required} required blocks${required > 20 ? ': the measured posts this size left most blocks unfilled; split at the next hand-in' : ''}`);
+	/* A phase in the plan with no step behind it (Launcher: Design showed Prototype
+	   tabs with nothing to open). A phase whose every day is off is a preview of a
+	   later post and only warned on. */
+	const empty = await frame.evaluate(() => {
+		if (typeof KIT === 'undefined' || !KIT.plan) return [];
+		const used = new Set(KIT.steps.map((st) => st.el.dataset.phase));
+		return KIT.plan.phases.filter((p) => !used.has(p.id)).map((p) => ({ name: p.name, allOff: (p.days || []).length > 0 && (p.days || []).every((d) => d.off === true) }));
+	});
+	if (empty.some((p) => !p.allOff)) FAIL('post size', 'Every phase in the plan has a step in this post', `no steps: ${empty.filter((p) => !p.allOff).map((p) => p.name).join(', ')}. Mark its days "off" if a later post holds it, or remove it.`);
+	else if (empty.length) WARN('post size', 'Every phase in the plan has a step in this post', `${empty.map((p) => p.name).join(', ')}: only off days here, so a later post holds it. Say which post on the page.`);
 	if (size && !library) {
 		const big = [size.phases > 4 && `${size.phases} phases (4 at most)`, size.classes > 4 && `${size.classes} classes (4 at most)`, size.steps > 12 && `${size.steps} steps (about 12 at most)`].filter(Boolean);
 		(big.length ? WARN : PASS)('post size', 'One post, one deliverable (Part C)', big.length ? `consider splitting at the next hand-in: ${big.join(', ')}` : `${size.classes} classes, ${size.phases} phases, ${size.steps} steps`);
@@ -276,10 +286,14 @@ try {
 		const greenPhase = drawn.phase.filter((n) => { const c = paletteData.colors[n]; if (!c) return false; const o = C.rgbToOklch(C.hex(c.dark.fill)); return o.C > 0.04 && o.H >= 120 && o.H <= 160; });
 		(greenPhase.length ? FAIL : PASS)('color', "Phases and steps stay clear of the site's green (done)", greenPhase.length ? greenPhase.join(', ') : `phase colors ${drawn.phase.join(', ') || 'none'}`);
 		const names = drawn.all.filter((n) => paletteData.colors[n]);
+		/* A pair the page says never needs telling apart (two real colors that are close in
+		   life, each beside its own word): <html data-color-pairs="steel/black-oxide, ..."> */
+		const okPairs = new Set(((html.match(/<html\b[^>]*\bdata-color-pairs="([^"]*)"/i) || [])[1] || '').split(',').map((x) => x.trim().split('/').map((y) => y.trim()).sort().join('/')).filter((x) => x.includes('/')));
 		const close = [];
 		for (const theme of ['dark', 'light']) for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
 			const A = C.hex(paletteData.colors[names[i]][theme].fill), B = C.hex(paletteData.colors[names[j]][theme].fill);
 			const n0 = C.deltaE2000(A, B), d = C.deltaE2000(C.simulate(A, 'deutan'), C.simulate(B, 'deutan')), p = C.deltaE2000(C.simulate(A, 'protan'), C.simulate(B, 'protan'));
+			if (okPairs.has([names[i], names[j]].sort().join('/'))) continue;
 			if (n0 < 12 || d < 8 || p < 8) close.push(`${names[i]}/${names[j]} ${theme} ${n0.toFixed(0)}, deutan ${d.toFixed(0)}, protan ${p.toFixed(0)}`);
 		}
 		(close.length ? WARN : PASS)('color', 'Colors on the page tell apart, also for colorblind students (fills: dE00 12, simulated 8)', close.length ? close.slice(0, 6).join('; ') + '. A pair that must be told apart needs another color; otherwise give each its word or icon.' : `${names.length} colors, every pair apart`);
@@ -329,7 +343,7 @@ try {
 			if (m.inner > 1) FAIL('layout', 'No scrollbar inside the frame', `step ${i + 1}: the document is ${m.inner}px taller than its frame`);
 			shots.push(await docShot(frame, `10-step-${String(i + 1).padStart(2, '0')}.png`));
 		}
-		const bare = await frame.evaluate(() => KIT.steps.map((st, i) => (kitRequired(st.el).length + (typeof kitAnyGroups === 'function' ? kitAnyGroups(st.el).length : 0) ? null : `${i + 1} ${st.title}`)).filter(Boolean));
+		const bare = await frame.evaluate(() => KIT.steps.map((st, i) => (st.el.hasAttribute('data-optional') || kitRequired(st.el).length + (typeof kitAnyGroups === 'function' ? kitAnyGroups(st.el).length : 0) ? null : `${i + 1} ${st.title}`)).filter(Boolean));
 		(bare.length ? WARN : PASS)('learning', 'Every step asks for evidence of its own (a step done on a visit proves nothing)', bare.length ? `no evidence: ${bare.join('; ')}` : `${k.steps} steps`);
 		(over.length ? FAIL : PASS)('layout', `Every step fits one screen of the classroom pane (${PANE}px, bar to step bottom)`, over.length ? `split or trim: ${over.join('; ')}` : sizes.join('; '));
 
@@ -464,6 +478,10 @@ try {
 				const st = getComputedStyle(el);
 				return { min: Number(el.dataset.minSentences || 1), number: el.dataset.number !== undefined || /^(decimal|numeric)$/.test(el.inputMode || ''), typable: !el.readOnly && !el.disabled && el.type !== 'hidden' && st.display !== 'none' && st.visibility !== 'hidden' && !!el.getClientRects().length, keys: document.querySelectorAll(`[data-keys-for="${CSS.escape(el.dataset.field)}"] button, button[data-keys-for="${CSS.escape(el.dataset.field)}"]`).length };
 			}, sel);
+			if (await frame.evaluate((s2) => document.querySelector(s2).tagName === 'SELECT', sel)) {
+				expected[field] = await frame.evaluate((s2) => { const c = document.querySelector(s2); const o = [...c.options].find((x) => x.value); c.value = o ? o.value : ''; c.dispatchEvent(new Event('change', { bubbles: true })); return c.value; }, sel);
+				continue;
+			}
 			if (!box.typable) {
 				if (box.keys) {
 					expected[field] = await frame.evaluate((fd) => { const k = document.querySelector(`[data-keys-for="${CSS.escape(fd)}"] button, button[data-keys-for="${CSS.escape(fd)}"]`); k.click(); return hxRead(hxRoot(fd)); }, field);
@@ -536,6 +554,64 @@ try {
 	await page.waitForTimeout(300);
 	const fin = await frame.evaluate(() => { const f = document.querySelector('.hx-finish'); return f ? !f.hidden : null; });
 	if (fin !== null) (fin ? PASS : WARN)('navigation', 'A finished student is told it is all in and nothing is left to turn in', fin ? '' : 'the finish line did not show with every field filled');
+
+	/* A team pass (2026-10-28: Launcher: Design shipped with steps no student could
+	   finish, because teammates' role boxes held every step open). One member owns the
+	   first role, other members own the rest but the last, nobody owns the last; the
+	   teammates have not filled their boxes. This member must be able to finish every
+	   step, see the finish line, and see every box that is not theirs read only, with
+	   words. */
+	if (manifest.team && Array.isArray(manifest.team.roles) && manifest.team.roles.length && fin !== null) {
+		const roles = manifest.team.roles.map((r) => r.id);
+		const mineRole = roles[0];
+		const unownedRole = roles.length > 2 ? roles[roles.length - 1] : null;
+		const states = {};
+		const others = [];
+		for (const m of manifest.modules || []) {
+			for (const b of m.blocks || []) {
+				if (m.audience === 'team') states[b.field] = { state: 'free' };
+				else if (m.audience === 'role') {
+					if (m.role === mineRole) states[b.field] = { state: 'free' };
+					else if (m.role === unownedRole) { states[b.field] = { state: 'unowned' }; others.push(b.field); }
+					else { states[b.field] = { state: 'owned', by: 'Alex' }; others.push(b.field); }
+				}
+			}
+		}
+		const roleList = roles.map((id) => ({ id, mine: id === mineRole, owner: id === mineRole ? 'Sam' : id === unownedRole ? null : 'Alex' }));
+		await host(page, 'teamState', { team: 'Team 3', me: 'Sam', roles: roleList, fields: states });
+		const kept = await page.evaluate(() => Object.assign({}, window.__host.values()));
+		for (const f of others) await host(page, 'teammate', [f, '']);
+		await page.waitForTimeout(400);
+		const tp = await frame.evaluate((oth) => {
+			kitShow(KIT.steps.length - 1);
+			const open = KIT.steps.map((st, i) => (st.el.hasAttribute('data-optional') || kitStepDone(i) ? null : `${i + 1} ${st.title}`)).filter(Boolean);
+			const f = document.querySelector('.hx-finish');
+			const bad = oth.filter((fd) => { const r = hxRoot(fd); if (!r) return false; const c = r.matches('input,textarea,select') ? r : r.querySelector('input,textarea,select'); const w = document.querySelector(`[data-who="${CSS.escape(fd)}"]`); return (c && !c.disabled) || !(w && w.textContent.trim()); });
+			return { open, finish: f ? !f.hidden : null, bad };
+		}, others);
+		(tp.open.length ? FAIL : PASS)('team', 'A member can finish every step with teammates\' role boxes still empty', tp.open.length ? `held open by boxes that are not theirs: ${tp.open.join('; ')}` : `${roles.length} roles: one theirs, ${others.length} boxes belong to others or nobody`);
+		if (tp.finish !== null) (tp.finish ? PASS : FAIL)('team', 'The finish line shows for a member who has done their part', tp.finish ? '' : 'hidden while only teammates\' boxes are empty');
+		(tp.bad.length ? FAIL : PASS)('team', 'Every box that is not theirs is read only, with words', tp.bad.length ? tp.bad.slice(0, 6).join(', ') : `${others.length} boxes`);
+		await host(page, 'teamState', { team: 'Team 3', me: 'Sam', roles: roleList, fields: Object.fromEntries(Object.keys(states).map((f) => [f, { state: 'free' }])) });
+		/* Put the teammates' answers back, so the reload check below sees the page it filled. */
+		for (const f of others) if (kept[f] !== undefined) await host(page, 'teammate', [f, kept[f]]);
+		await page.waitForTimeout(200);
+	}
+	/* Team-post shapes that read as broken in class (2026-10-28). */
+	if (manifest.team) {
+		const mods = manifest.modules || [];
+		const img = mods.filter((m) => m.audience !== 'individual' && m.audience).flatMap((m) => (m.blocks || []).filter((b) => b.type === 'image').map((b) => b.field));
+		if (img.length) WARN('team', 'Pictures in team or role boxes are seen only by the teacher', `${img.join(', ')}: teammates cannot see these pictures (gap 36d0596c). Say so on the page in words, or make them individual.`);
+		const tbl = mods.filter((m) => m.audience === 'team').flatMap((m) => (m.blocks || []).filter((b) => b.type === 'table').map((b) => b.field));
+		if (tbl.length) WARN('team', 'A team table locks as one box', `${tbl.join(', ')}: one student in one cell locks the whole table (gap 2d621bcc). Name one typist on the page, or split it into a block per row.`);
+		const autos = JSON.stringify(manifest.team.checkpoints || []).match(/"check"\s*:\s*"(plan-owners|plan-balanced)"/g) || [];
+		if (autos.length) WARN('team', 'Sign-off checks that cannot pass yet', `${[...new Set(autos.map((a) => a.match(/"(plan-[a-z]+)"$/)[1]))].join(', ')}: plan-owners needs due dates the seeded tasks do not have, and plan-balanced fails a team of three by design. Leave them out until the site fixes them.`);
+		/* What a member is graded out of: the team modules, the individual ones, and one role. */
+		const sum = (aud) => mods.filter((m) => (m.audience || 'individual') === aud).reduce((n, m) => n + (m.points || 0), 0);
+		const roleMax = Math.max(0, ...mods.filter((m) => m.audience === 'role').map((m) => m.points || 0));
+		const member = sum('team') + sum('individual') + roleMax;
+		INFO('team', 'Points: what one member is graded out of', `${member} (team ${sum('team')} + individual ${sum('individual')} + one role ${roleMax}); the manifest totals ${manifest.points}. Set the post's points to ${member}.`);
+	}
 	shots.push(await docShot(frame, '06-finished.png'));
 
 	/* Reload: everything comes back, and arrival lands on the next thing to do. */
@@ -592,10 +668,19 @@ for (const [w, h, label] of [[1440, 900, 'laptop'], [1152, 720, 'laptop at 125% 
 				if (own.split(/\s+/).filter(Boolean).length < 3) continue;
 				const cs = getComputedStyle(el);
 				const fs = parseFloat(cs.fontSize) || 16;
-				const lh = parseFloat(cs.lineHeight) || fs * 1.4;
-				const r = el.getBoundingClientRect();
 				const words = own.split(/\s+/).filter(Boolean).length;
-				if (r.width < 9 * fs && r.height / lh >= 2.6 && words >= 3) out.push(`${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} "${own.slice(0, 28)}" ${Math.round(r.width)}px wide, ${Math.round(r.height / lh)} lines`);
+				/* Count the text's own line boxes, never the element's height: a table cell is
+				   as tall as its row, so a one-line date beside a two-line note read as 3 lines. */
+				const tops = new Set();
+				let left = Infinity, right = -Infinity;
+				for (const n of el.childNodes) {
+					if (n.nodeType !== 3 || !n.textContent.trim()) continue;
+					const rg = document.createRange(); rg.selectNodeContents(n);
+					for (const q of rg.getClientRects()) { if (q.width < 1) continue; tops.add(Math.round(q.top / 4)); left = Math.min(left, q.left); right = Math.max(right, q.right); }
+				}
+				const lines = tops.size;
+				const w = el.getBoundingClientRect().width;
+				if (w < 9 * fs && lines >= 3 && words >= 3) out.push(`${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} "${own.slice(0, 28)}" ${Math.round(w)}px wide, ${lines} lines`);
 			}
 			if (typeof kitSetView === 'function') kitSetView('step');
 			return out;

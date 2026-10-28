@@ -13,7 +13,7 @@ Source of truth: `docs/skills/idea-html-test/SKILL.md` in pina-hash/idea-app. Th
 node tools/hx-kit/test.mjs <file>.html
 ```
 
-It runs the real importer check and the authoring validator, then drives the file inside a stand-in for the classroom item page at 1920x1080, 1440, 960 and 375, both themes. Every line must be PASS; read every WARN. Then open the screenshots and look at them, at least `01-in-classroom-1920x1080-first-screen.png`, every `10-step-*.png`, `03-grader-read-only-1920x1080.png` and `05-document-375.png`. A layout check passes over things only eyes catch: a label wrapping badly, an empty column, a picture that says nothing.
+It runs the real importer check and the authoring validator, then drives the file inside a stand-in for the classroom item page at 1920x1080, 1440, 1152 (a laptop at 125% zoom), 960 and 375, both themes, and as a team member when the post is a team post. Every line must be PASS; read every WARN. Then open the screenshots and look at them, at least `01-in-classroom-1920x1080-first-screen.png`, every `10-step-*.png`, `03-grader-read-only-1920x1080.png` and `05-document-375.png`. A layout check passes over things only eyes catch: a label wrapping badly, an empty column, a picture that says nothing.
 
 Pass `--today YYYY-MM-DD` to see arrival on a given class day, and `--pane <px>` with a fresher classroom measurement.
 
@@ -43,6 +43,10 @@ Any place one of them gets stuck or guesses is a finding, fixed before posting. 
 
 Walk every instruction against the real tool, the real room and the real stock (AUTHORING A9, L23), and recompute every worked example's arithmetic from its inputs (AUTHORING A6): the button names in the current version of the software, where things actually live, what the machines actually do, what students actually have. List every lab or equipment fact the file asserts and confirm each with Mr. Pina. Never assert one he has not confirmed.
 
+## 4b. A team post: the rehearsal
+
+Draw a test team from the test accounts (`_idea_test_emails`). Fill the post as each role, request every sign-off, and approve it from `/classroom/signoffs` and from the IDEA Website connector. The automatic test's team pass must already be PASS. Nothing team-based posts until the rehearsal passes. Ship a one-screen teacher card with it: where the sign-off queue is, what each checklist item means, what to do when a team is stuck (Block 4's teacher has no Claude).
+
 ## 5. Mr. Pina's cold open
 
 He opens it with no explanation, as a draft post in his class (drafts are invisible to students). Send him only the posting details and one line: "Open it cold and tell me where you get stuck." Any confusion is a fail, fixed before the post goes live.
@@ -53,7 +57,7 @@ Two students work the first step while the class starts. Anything they stall on 
 
 ## 7. Every re-upload
 
-Read the replace screen before saving: blocks kept, new, dropped, and how many answers each carries. Nothing dropped; a block students answered is retired, never removed. Then open the live post and confirm the new text is there.
+Start from the live page, never `materials/`: read the post's current document, and check the committed source rebuilds to it. Read the replace screen before saving: blocks kept, new, dropped, and how many answers each carries. Nothing dropped; a block students answered is retired, never removed. Then read the stored document again and compare it with what you uploaded.
 
 ## 8. After the post closes
 

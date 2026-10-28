@@ -44,7 +44,11 @@ function kitRequired(step) {
   return kitQ('[data-field]', step).filter(function (el) {
     var wrap = el.parentElement && el.parentElement.closest('[hidden]');
     var retired = wrap && wrap !== step && step.contains(wrap);
-    return !el.hasAttribute('data-optional') && !el.closest('[data-optional]') && !el.closest('[data-any-one]') && !retired;
+    /* A team post (2026-10-28, Launcher: Design): a box another member owns, or a role
+       nobody has taken, is not this student's to fill, so it never holds their step open. */
+    var t = (typeof TEAM !== 'undefined' && TEAM.on) ? TEAM.fields[el.getAttribute('data-field')] : null;
+    var notMine = !!(t && (t.state === 'owned' || t.state === 'unowned'));
+    return !el.hasAttribute('data-optional') && !el.closest('[data-optional]') && !el.closest('[data-any-one]') && !retired && !notMine;
   });
 }
 /* "Any one of these boxes" (2026-10-27): a step's [data-any-one] groups, each
@@ -64,8 +68,11 @@ function kitStepDone(i) {
   return false;
 }
 function kitStepDoneShallow(j) { var el = KIT.steps[j].el, req = kitRequired(el), groups = kitAnyGroups(el); return (req.length + groups.length) > 0 && req.every(kitFieldDone) && groups.every(kitGroupDone); }
+/* A step marked data-optional (depth after a clear "you're done" line, 2026-10-28) is
+   never the next thing to do and is not counted in "x of n done". */
+function kitStepOptional(i) { return KIT.steps[i].el.hasAttribute('data-optional'); }
 function kitFirstOpen(from) {
-  for (var i = from || 0; i < KIT.steps.length; i++) if (!kitStepDone(i)) return i;
+  for (var i = from || 0; i < KIT.steps.length; i++) if (!kitStepOptional(i) && !kitStepDone(i)) return i;
   return -1;
 }
 
@@ -147,7 +154,9 @@ function kitCollectSteps() {
         '<span class="hx-next-label"></span>' +
         '<button type="button" class="idea-key idea-key--primary" data-kit-next>Next</button>';
       el.appendChild(foot);
-      if (i === kitQ('.hx-step').length - 1) {
+      /* The finish line sits on the last step that counts; optional depth comes after it. */
+      var counted = kitQ('.hx-step').filter(function (x) { return !x.hasAttribute('data-optional'); });
+      if (el === (counted.length ? counted[counted.length - 1] : kitQ('.hx-step').pop())) {
         var fin = document.createElement('p');
         fin.className = 'hx-finish';
         fin.setAttribute('role', 'status');
@@ -247,10 +256,10 @@ document.addEventListener('focusin', function (e) {
 });
 document.addEventListener('click', function () { setTimeout(kitMarkPaste, 0); });
 function kitRefresh() {
-  var n = KIT.steps.length;
+  var n = KIT.steps.filter(function (s, i) { return !kitStepOptional(i); }).length;
   if (!n) return;
   var done = KIT.steps.map(function (s, i) { return kitStepDone(i); });
-  var count = done.filter(Boolean).length;
+  var count = done.filter(function (d, i) { return d && !kitStepOptional(i); }).length;
   KIT.steps.forEach(function (s, i) { s.el.classList.toggle('is-done', done[i]); });
   var cur = KIT.steps[KIT.cur] || KIT.steps[0];
   var where = document.getElementById('hx-where');
@@ -289,7 +298,7 @@ function kitRefresh() {
     var fwd = foot.querySelector('[data-kit-next]');
     var label = foot.querySelector('.hx-next-label');
     back.disabled = i === 0;
-    if (i === n - 1) {
+    if (i === KIT.steps.length - 1) {
       fwd.hidden = next < 0;
       fwd.textContent = next < 0 ? '' : 'Still to do: Step ' + (next + 1) + ' · ' + KIT.steps[next].title;
       fwd.dataset.go = next < 0 ? '' : String(next);
@@ -406,12 +415,50 @@ function kitGlossary() {
   });
 }
 
+/* ---- Who does it (AUTHORING G10), drawn from the manifest ----------------
+   On a team post every step head and every answer section says who answers there:
+   "Just you" (individual), "Whole team" (team) or "Your role only" (role), both on a
+   step that mixes them. Read from each block's module audience, so the page and the
+   grading can never disagree. <html data-badges="manual"> keeps an author's own. */
+var KIT_WHO = { individual: 'Just you', team: 'Whole team', role: 'Your role only' };
+function kitWhoBadges() {
+  if (document.documentElement.getAttribute('data-badges') === 'manual') return;
+  var m; try { m = JSON.parse((document.getElementById('idea-manifest') || {}).textContent || '{}'); } catch (e) { return; }
+  var aud = {};
+  (m.modules || []).forEach(function (mod) { (mod.blocks || []).forEach(function (b) { aud[b.field] = mod.audience || 'individual'; }); });
+  var kinds = Object.keys(aud).map(function (f) { return aud[f]; });
+  if (!kinds.some(function (a) { return a !== 'individual'; })) return; /* not a team post */
+  var chip = function (a) { return '<span class="idea-chip hx-who-badge" data-audience="' + a + '">' + KIT_WHO[a] + '</span>'; };
+  var of = function (el) {
+    var seen = {};
+    kitQ('[data-field]', el).forEach(function (f) { var a = aud[f.getAttribute('data-field')]; if (a && KIT_WHO[a]) seen[a] = 1; });
+    return ['individual', 'team', 'role'].filter(function (a) { return seen[a]; });
+  };
+  kitQ('.hx-step').forEach(function (step) {
+    var head = step.querySelector('.hx-step-head');
+    var list = of(step);
+    if (head && list.length && !head.querySelector('.hx-who-badge')) {
+      var box = document.createElement('span'); box.className = 'hx-who-badges'; box.innerHTML = list.map(chip).join('');
+      head.appendChild(box);
+    }
+    kitQ('.hx-evidence, [data-role]', step).forEach(function (sec) {
+      var l2 = of(sec);
+      if (!l2.length || sec.querySelector(':scope > .hx-who-badges')) return;
+      var b = document.createElement('span'); b.className = 'hx-who-badges'; b.innerHTML = l2.map(chip).join('');
+      /* On the eyebrow's own line, so a badge never costs a row of the step's height. */
+      var eb = sec.querySelector(':scope > .idea-eyebrow');
+      if (eb) { b.classList.add('hx-who-inline'); eb.appendChild(b); } else sec.insertBefore(b, sec.firstChild);
+    });
+  });
+}
+
 /* ---- Start -------------------------------------------------------------- */
 function kitStart() {
   kitGlossary();
   KIT.today = document.documentElement.dataset.today || kitIsoToday();
   KIT.plan = kitReadPlan();
   kitArcColors();
+  kitWhoBadges();
   kitRenderPlan();
   kitRenderBar();
   kitCollectSteps();

@@ -12,12 +12,12 @@ The goal is Mr. Pina's: an assignment a student completes alone, start to finish
 ## 1. Know what is true now
 
 1. Read the standard's Parts A to F. They are short; read them every time.
-2. Find what already exists: `materials/<course>/` in the repo, the live post (`get_post` on the IDEA Website connector), the earlier assignment this one builds on, and his raw sources (his videos and their transcripts, the template part or slide, the rulebook, Library A and B in Drive). The owning source wins over any older document.
+2. Find what already exists: the live post first (`get_post` on the IDEA Website connector; `materials/` can be days behind and is never edited from), its source in `assignment-sources/<course>/`, the earlier assignment this one builds on, and his raw sources (his videos and their transcripts, the template part or slide, the rulebook, Library A and B in Drive). The owning source wins over any older document.
 3. Run the deeper-not-bigger skill on the ask.
 
 ## 2. The learning brief, approved before any HTML
 
-Write the one-screen brief from the standard's Part B: the skill, the proof and what high quality looks like, where students get stuck, what it builds on, the problem they solve themselves, the stretch, the shape (classes, phases, steps, post, points, sized by Part C), the facts to confirm, and the look (each color named with its anchor, and the header picture). Short bullets he can read on a phone.
+Write the one-screen brief from the standard's Part B (for a unit's first post, map every post of the unit, C3; for a build project, run the core calculation, B9): the skill, the proof and what high quality looks like, where students get stuck, what it builds on, the problem they solve themselves, the stretch, the shape (classes, phases, steps, post, points, sized by Part C), the facts to confirm, and the look (each color named with its anchor, and the header picture). Short bullets he can read on a phone.
 
 Send it and stop for his approval. Ask only for facts you cannot check, one at a time. A revision of a live assignment skips the brief; a new stage does not. If he is away, do the source reading and the brief, and stop there.
 
@@ -38,7 +38,7 @@ Run the idea-html-test skill. Every gate, in order. Fix and rebuild until the au
 ## 5. Deliver
 
 - The built file and its source, plus the posting details: title, points, category, due date, the post text. For an existing post, a re-upload over it, reading the replace screen first (nothing dropped).
-- Commit the source to `assignment-sources/<course>/<slug>.src.html` on main (standard Part I), and copy both files to Library C when the Drive connector takes them. Never hand Mr. Pina a file to upload.
+- Commit the source (and its generator, if a script writes it) to `assignment-sources/<course>/` on main (standard Part I). A chat that cannot push puts the source in Library C and says so; the HTML standards chat commits it. Never hand Mr. Pina a file to upload.
 - When the choice was taste (a palette, a header picture, a layout), show two to five rendered candidates from the test's screenshots and let him pick.
 
 ## 6. Leave the system better

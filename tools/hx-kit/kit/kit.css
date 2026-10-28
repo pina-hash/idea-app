@@ -654,7 +654,7 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 /* The student's own role, marked (team.js sets .is-mine on [data-role]). */
 #hx-page [data-role].is-mine { outline: 1px solid var(--sel-edge); outline-offset: 4px; border-radius: var(--radius-pad); }
 #hx-page .hx-tile[data-role].is-mine { outline: 0; border-color: var(--accent); box-shadow: var(--shadow-panel-nested), 0 0 0 1px var(--sel-edge), 0 0 10px 1px var(--sel-glow); }
-#hx-page [data-role].is-mine > :is(h3, b):first-child::after { content: ' · your role'; color: var(--text-2); font-family: var(--font-display); font-weight: 400; text-transform: none; letter-spacing: 0; }
+/* The words are [data-role-owner]'s "Yours" (team.js), so the ring never stands alone. */
 
 /* ---- Width comes from the box, not the page (2026-10-27). ----------------
    A layout keyed on the page width squeezes a card that sits in a narrow
@@ -704,3 +704,27 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
    takes the line (at 960px it had pushed "You are here" to 0px). */
 @media (min-width: 761px) { .hx-bar { grid-template-columns: minmax(12rem, 1fr) minmax(0, auto); } }
 .hx-bar-keys { min-width: 0; }
+
+/* ---- Who does it, and tables in a narrow column (2026-10-28). ----------- */
+.hx-who-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.hx-step-head > .hx-who-badges { grid-row: 1; grid-column: 3; justify-self: end; }
+.hx-who-inline { margin-left: 8px; vertical-align: 0.05em; text-transform: none; letter-spacing: 0; }
+.hx-who-inline .hx-who-badge { min-height: 18px; }
+@container (max-width: 34rem) { .hx-step-head > .hx-who-badges { grid-column: 1 / -1; grid-row: 3; justify-self: start; } }
+.hx-who-badge[data-audience='team'] { box-shadow: var(--shadow-chip), inset 0 0 0 1px var(--hair); }
+.hx-who-badge[data-audience='role'] { font-weight: 700; }
+/* A table reads row by row as cards when its column is too narrow for its
+   columns, and its text always wraps (Blade 02's no-wrap first column scrolled a
+   phone sideways). Each cell shows its column head from data-label. */
+#hx-page .hx-table td, #hx-page .hx-table th { white-space: normal; overflow-wrap: anywhere; }
+@container (max-width: 30rem) {
+	#hx-page .hx-table thead { display: none; }
+	#hx-page .hx-table, #hx-page .hx-table tbody, #hx-page .hx-table tr, #hx-page .hx-table td { display: block; width: auto; }
+	#hx-page .hx-table tr { padding: var(--space-2) 0; }
+	#hx-page .hx-table tbody tr > td { background-image: none; padding: 2px 0; }
+	#hx-page .hx-table tbody tr + tr { background-image: linear-gradient(var(--divider), var(--divider)), linear-gradient(var(--well-lip), var(--well-lip)); background-size: 100% 1px, 100% 1px; background-position: 0 0, 0 1px; background-repeat: no-repeat; }
+	#hx-page .hx-table td[data-label]::before { content: attr(data-label); display: block; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--caption); }
+}
+/* A dropdown: one of many without three screens of keys. A <select> with
+   data-field saves like a text box (manifest type "text"). */
+#hx-page select.idea-well { width: 100%; }
