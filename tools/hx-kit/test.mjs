@@ -64,7 +64,8 @@ async function realChecks() {
 	writeFileSync(entry, [
 		`export { validateHtmlManifest, fieldBlockMap } from ${JSON.stringify(join(REPO, 'src/lib/classroom/html-assignment/manifest.ts'))};`,
 		`export { hxDocumentCsp } from ${JSON.stringify(join(REPO, 'src/routes/hx/_headers.ts'))};`,
-		`export { HX_SANDBOX_FLAGS } from ${JSON.stringify(join(REPO, 'src/lib/classroom/html-assignment/bridge.ts'))};`
+		`export { HX_SANDBOX_FLAGS } from ${JSON.stringify(join(REPO, 'src/lib/classroom/html-assignment/bridge.ts'))};`,
+		`export { thumbnailDocument, manifestThumbnail } from ${JSON.stringify(join(REPO, 'src/lib/classroom/html-assignment/thumbnail.ts'))};`
 	].join('\n'));
 	await esbuild.build({ entryPoints: [entry], bundle: true, platform: 'node', format: 'esm', outfile: bundle, alias: { $lib: join(REPO, 'src/lib') }, logLevel: 'error', tsconfigRaw: '{}' });
 	return import(bundle + '?t=' + Date.now());
@@ -336,10 +337,12 @@ try {
 			const m = await frame.evaluate(() => {
 				const bar = document.getElementById('hx-bar').getBoundingClientRect();
 				const step = KIT.steps[KIT.cur].el.getBoundingClientRect();
-				return { title: KIT.steps[KIT.cur].title, h: Math.round(step.bottom - bar.top), inner: document.documentElement.scrollHeight - innerHeight };
+				/* Each column's height, so a step too tall says which column to move things out of. */
+				const cols = [...KIT.steps[KIT.cur].el.querySelectorAll(':scope > .hx-step-body > *')].map((c) => Math.round(c.getBoundingClientRect().height));
+				return { title: KIT.steps[KIT.cur].title, h: Math.round(step.bottom - bar.top), inner: document.documentElement.scrollHeight - innerHeight, cols };
 			});
 			sizes.push(`${i + 1} ${m.title}: ${m.h}px`);
-			if (m.h > PANE) over.push(`${i + 1} ${m.title} (${m.h}px)`);
+			if (m.h > PANE) over.push(`${i + 1} ${m.title} (${m.h}px; columns ${m.cols.join(' / ')}px)`);
 			if (m.inner > 1) FAIL('layout', 'No scrollbar inside the frame', `step ${i + 1}: the document is ${m.inner}px taller than its frame`);
 			shots.push(await docShot(frame, `10-step-${String(i + 1).padStart(2, '0')}.png`));
 		}
@@ -597,6 +600,32 @@ try {
 		for (const f of others) if (kept[f] !== undefined) await host(page, 'teammate', [f, kept[f]]);
 		await page.waitForTimeout(200);
 	}
+	/* What the page SAYS once its styling has added its words (2026-10-28: three FRC
+	   reading pages read "not graded · counts toward your grade" for an hour, and an
+	   all-caps label turned the micro sign into an M). */
+	const said = await frame.evaluate(() => {
+		if (typeof kitSetView === 'function') kitSetView('list');
+		const words = (el) => {
+			const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' ');
+			const pseudo = (w) => { const c = getComputedStyle(el, w).content; return c && c !== 'none' && c !== 'normal' ? c.replace(/^"|"$/g, '') : ''; };
+			return (pseudo('::before') + ' ' + own + ' ' + pseudo('::after')).replace(/\s+/g, ' ').trim();
+		};
+		const both = [], caps = [];
+		const unit = /µ|\d\s?(mm|ms|mA|mV|mW|mN|mL|mg|nm|kg|kN|kPa|MPa|GPa|mph|psi)\b/;
+		for (const el of document.querySelectorAll('#hx-page *')) {
+			if (!el.getClientRects().length || el.closest('[hidden]') || el.closest('svg')) continue;
+			const w = words(el);
+			if (!w) continue;
+			if (/not graded/i.test(w) && /counts toward your grade/i.test(w)) both.push(w.slice(0, 80));
+			const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' ');
+			if (getComputedStyle(el).textTransform === 'uppercase' && unit.test(own)) caps.push(own.trim().slice(0, 40));
+		}
+		if (typeof kitSetView === 'function') kitSetView('step');
+		return { both, caps };
+	});
+	(said.both.length ? FAIL : PASS)('copy', 'No label says both "not graded" and "counts toward your grade"', said.both.length ? said.both.slice(0, 4).join(' | ') + '. The kit writes "counts toward your grade" itself; mark an ungraded section data-graded="no".' : 'rendered labels read, styling included');
+	(said.caps.length ? FAIL : PASS)('copy', 'No unit changes meaning in capitals', said.caps.length ? `${said.caps.slice(0, 5).join(' | ')}: an all-caps label turns mm into MM and µ into M. Wrap the unit in <span class="hx-keep-case">.` : '');
+
 	/* Team-post shapes that read as broken in class (2026-10-28). */
 	if (manifest.team) {
 		const mods = manifest.modules || [];
@@ -644,6 +673,59 @@ try {
 	(all.length ? FAIL : PASS)('console', 'Clean console (a page error is a lost answer)', all.slice(0, 5).join(' | '));
 } finally {
 	await s.context.close();
+}
+
+/* ---- 4b. the thumbnail, in every slot the classroom draws it ----------
+   (2026-10-28: thumbnails sized to the window put text too small to read in the
+   56px banner, and nothing checked.) The real shell from thumbnail.ts, at the
+   classroom's own slot sizes (PostThumbnail.svelte: a 48px tile, 34px on a phone, a
+   56px banner, a 16:9 wide card), in both schemes. Text must be 11px or more, sit
+   inside its slot, and not stack three lines in a narrow column. */
+{
+	const tpl = (html.match(/<template id="([^"]+)">([\s\S]*?)<\/template>/g) || []).map((t) => t.match(/<template id="([^"]+)">([\s\S]*?)<\/template>/));
+	const wantId = (manifest.thumbnail && manifest.thumbnail.template) || 'idea-thumbnail';
+	const t = tpl.find((m) => m[1] === wantId);
+	if (!manifest.thumbnail) INFO('thumbnail', 'Thumbnail', 'no thumbnail key: posts show the generated look');
+	else if (!t) FAIL('thumbnail', 'The thumbnail template is in the file', `no <template id="${wantId}">`);
+	else {
+		const slots = [['tile', 48, 48], ['tile', 34, 34], ['banner', 600, 56], ['banner', 340, 56], ['wide', 320, 180]];
+		const { browser } = await launch();
+		const ctx = await browser.newContext({ viewport: { width: 700, height: 300 } });
+		const pg = await ctx.newPage();
+		const bad = [];
+		for (const scheme of ['dark', 'light']) {
+			for (const [shape, w, h] of slots) {
+				const doc = real.thumbnailDocument(t[2], { interactive: false, shape }).replace('<html ', `<html data-idea-scheme="${scheme}" data-idea-theme="${scheme === 'light' ? 'space-white' : 'idea'}" `);
+				await pg.setViewportSize({ width: w, height: h });
+				await pg.setContent(doc);
+				await pg.waitForTimeout(150);
+				const r = await pg.evaluate(() => {
+					const out = [];
+					for (const el of document.querySelectorAll('body *')) {
+						if (!el.getClientRects().length || el.closest('svg')) continue;
+						const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' ').trim();
+						if (!own) continue;
+						const cs = getComputedStyle(el);
+						if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
+						const fs = parseFloat(cs.fontSize);
+						const b = el.getBoundingClientRect();
+						const rg = document.createRange(); const tops = new Set();
+						for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) { rg.selectNodeContents(n); for (const q of rg.getClientRects()) if (q.width >= 1) tops.add(Math.round(q.top / 4)); }
+						if (fs < 11) out.push(`"${own.slice(0, 20)}" at ${fs.toFixed(1)}px`);
+						if (b.right > innerWidth + 1 || b.bottom > innerHeight + 1 || el.scrollWidth > el.clientWidth + 1) out.push(`"${own.slice(0, 20)}" runs outside the slot`);
+						if (tops.size >= 3 && own.split(/\s+/).length >= 3) out.push(`"${own.slice(0, 20)}" stacks ${tops.size} lines`);
+					}
+					return out;
+				});
+				r.forEach((x) => bad.push(`${shape} ${w}x${h} ${scheme}: ${x}`));
+				const name = `07-thumb-${shape}-${w}x${h}-${scheme}.png`;
+				await pg.screenshot({ path: join(OUT, name) });
+				shots.push(join(OUT, name));
+			}
+		}
+		await browser.close();
+		(bad.length ? FAIL : PASS)('thumbnail', 'The thumbnail reads in every classroom slot, both themes (text 11px or more, inside the slot)', bad.length ? bad.slice(0, 6).join('; ') + (bad.length > 6 ? `; ${bad.length - 6} more` : '') : `${slots.length} slots x 2 themes; look at the 07-thumb screenshots`);
+	}
 }
 
 /* ---- 5. other widths, both ends -------------------------------------- */

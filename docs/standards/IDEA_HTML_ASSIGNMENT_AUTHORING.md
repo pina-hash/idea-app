@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.15 - 2026-10-28**
+**Version 2.16 - 2026-10-28**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -265,6 +265,17 @@ only live parts (`src/lib/classroom/plate.css`), and a source uses them rather t
   and its text always wraps; `<html data-color-pairs="steel/black-oxide">` names a pair of real
   colors that are close in life and never need telling apart (each beside its word), so the
   colorblind warning shows only when it matters.
+- **The kit writes "counts toward your grade"** after every evidence eyebrow; an author never
+  types it (typed too, it reads twice). A section that is not graded is `data-graded="no"`, and
+  a reference page sets `data-graded="no"` on `<html>`; the test FAILS any label that says both
+  (2.16: three FRC reading pages read "not graded · counts toward your grade" for an hour).
+- **A unit keeps its case.** Eyebrows, chips, keys, phase tags and plan labels are set in
+  capitals, which turns mm into MM and µm into MM; a unit inside one sits in
+  `<span class="hx-keep-case">`. The test FAILS a unit in a capitalized label.
+- **The thumbnail reads in every slot** the classroom draws it: a 48px tile (34px on a phone),
+  a 56px banner and a 16:9 card, in both schemes. Size its text to the slot's height with an
+  11px floor (`clamp(11px, 30vh, 22px)`); the test draws all five slots and FAILS text under
+  11px or outside the slot.
 - **No typed dates or rotation names in the copy.** A page is copied forward to the next
   rotation; dates come from `hx-plan-data` and the portal's schedule (`data-idea-schedule`).
 - **Parts for common needs (2.11, from the first overhauls):** `.hx-scale`, a 1 to 10 (or
@@ -706,9 +717,33 @@ each carries. None dropped (L22, L23).
   and editing it nearly erased Mr. Pina's changes).
 - **A generated source commits its generator** beside it (`<slug>.gen.py`), or the page is not
   generated: editing a generated source by hand loses the script's version.
+- **"Straight to live" means a look-only rebuild (2.16)**: the same blocks, every one kept on the
+  replace screen, the automatic test at 0 FAIL, and his yes on the before and after. A new page,
+  or a page whose blocks change, runs every gate in Part H; three FRC reading pages went live
+  without four of them.
+- **Restructuring a post nobody has answered** (splitting a block, changing its type) is
+  allowed when the replace screen shows zero answers on every block it changes; that count is
+  the proof, quoted in the report. A block anyone answered is kept (retired, never changed).
+- **Moving a custom answer box onto a kit type** keeps its id and adds a reader for the old
+  saved format in the page's own script, so a student's earlier answer loads (Machine
+  Training's measurement table, 2026-10-28).
+- **Replacing an old non-HTML post with an HTML one**: create the new post as a draft and copy
+  its files over; file it in the unit and set its place in the order (new posts land at the
+  bottom); publish it and hide the old post, never delete it; if the old post is shared, remove
+  it from this class only and confirm the other classes still have it.
+- **Get his yes before starting the uploads**: a staged upload expires after 30 minutes and a
+  confirm step after 10, so an upload made before the yes is made twice.
 - **A hand-built page** (no kit) moves onto the kit before it is reused. Until then the test
   reports the kit-only checks instead of failing them, and still fails what a student feels:
   saving, fitting the screen, squeezed text, phones.
+- **Sources are named for the post (2.16)**: `<slug>` is the post's title in lowercase with
+  hyphens, the same slug the classroom's `materials/` export uses, and the course folder is the
+  course id (`idea100`, `idea209h`, `frc-2026-27`). Built pages never sit beside them:
+  `.gitignore` keeps only `.src.html`, generators and the README there (16 built pages landed in
+  the folder before this rule).
+- **A commit's title and its list are separate**: one short title line, a blank line, then the
+  `- ` bullets. A missing blank line turns the whole message into one long title in the site's
+  update list (two chats did it on 2026-10-28).
 - **The source is committed to the repo (2.14)**: `assignment-sources/<course>/<slug>.src.html`
   on `main`, in the same session as the re-upload, so any chat can rebuild the page on a newer
   kit. A chat that cannot push to GitHub (a claude.ai chat without repository access) puts the
@@ -780,7 +815,16 @@ new term.
 
 ## Changelog
 
-- **2.15 (2026-10-28).** Ledger 0453. From the IDEA209H Unit 4 and IDEA 100 overhaul chats:
+- **2.16 (2026-10-28).** Ledger 0460. From the FRC Classroom migration chat: the kit's
+  `data-graded="no"` and `.hx-keep-case`; the test reads rendered labels (styling's own words
+  included) and FAILS "not graded" beside "counts toward your grade" and a unit in capitals,
+  draws the thumbnail in all five classroom slots in both schemes, and prints each column's
+  height on a step too tall; built pages carry `hx-kit` and `hx-standard` meta tags for the
+  site's kit-health list. Part I: "straight to live" defined, restructuring an unanswered post,
+  moving a custom box onto a kit type, replacing a non-HTML post, the yes before uploads,
+  source names, built pages kept out of the sources folder, commit title and list.
+
+- **2.15 (2026-10-28).** Ledger 0459 (first written as 0453, a number already taken). From the IDEA209H Unit 4 and IDEA 100 overhaul chats:
   the kit never holds a team member's step open on another member's box, and draws the G10
   badges from the manifest; the test runs a team pass (one member, others' roles, an unowned
   role) and warns on team pictures, team tables and the two sign-off checks that cannot pass,

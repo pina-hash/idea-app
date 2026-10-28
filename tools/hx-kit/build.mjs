@@ -18,6 +18,7 @@
  * The importer's 2 MB cap is checked here; the full checks are test.mjs.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { solve, hex, rgbToOklch, oklchToRgb, toHex } from './color.mjs';
@@ -79,9 +80,26 @@ export function fontsCss() {
 		.join('\n');
 }
 
+/** Which kit and which standard built this page, as two meta tags the site's
+    kit-health list reads (2026-10-28): the last commit that touched tools/hx-kit,
+    its date, and the standard's version line. */
+export function kitStamp() {
+	let sha = 'unknown', date = 'unknown', std = 'unknown';
+	try {
+		const out = execFileSync('git', ['-C', REPO, 'log', '-1', '--format=%h %cs', '--', 'tools/hx-kit'], { encoding: 'utf8' }).trim();
+		if (out) [sha, date] = out.split(' ');
+	} catch {}
+	try {
+		const m = readFileSync(join(REPO, 'docs/standards/IDEA_HTML_ASSIGNMENT_AUTHORING.md'), 'utf8').match(/\*\*Version ([0-9.]+)/);
+		if (m) std = m[1];
+	} catch {}
+	return `<meta name="hx-kit" content="${sha} ${date}">\n<meta name="hx-standard" content="${std}">\n`;
+}
+
 export function kitHead() {
 	const tokens = JSON.parse(readFileSync(join(KIT, 'tokens.json'), 'utf8'));
 	return (
+		kitStamp() +
 		`<style id="hx-kit-css">\n/* hx-kit: fonts, design-system tokens (${tokens.meta?.ref ?? 'unknown ref'}, synced ${tokens.meta?.synced ?? '?'}), Plate, kit. Rebuilt by tools/hx-kit/build.mjs; edit the kit, not this block. */\n` +
 		fontsCss() +
 		'\n' +

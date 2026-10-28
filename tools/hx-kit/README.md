@@ -62,6 +62,8 @@ the test bundles the real importer check from `src/`).
 - `.hx-links` > `a.hx-link-card` (`.hx-link-ico`, `.hx-link-text` with `small`, `b`, `span`, then `.hx-link-go`): a link to a document or tool, stacking by its own width. Step columns are size containers: change a layout with `@container`, never `@media`.
 - Team posts: the kit draws "Just you", "Whole team" and "Your role only" from the manifest's module audiences (`<html data-badges="manual">` to keep your own), and never holds a step open on another member's box.
 - `data-optional` on a `.hx-step`: depth after the finish, never counted as owed. A `<select class="idea-well idea-well--select" data-field>` is a dropdown (manifest type `text`). `.hx-table` cells take `data-label` so rows stack as cards in a narrow column. `<html data-color-pairs="a/b, c/d">` quiets the colorblind warning for real pairs that never need telling apart.
+- `data-graded="no"` on a `.hx-evidence` (or on `<html>` for a reference page) reads "not graded" instead of the kit's "counts toward your grade"; never type either. `<span class="hx-keep-case">` keeps a unit's case inside a capitalized label.
+- Every built page carries `<meta name="hx-kit">` (the last kit commit and its date) and `<meta name="hx-standard">`.
 - `.hx-full` (span a step's columns), `data-layout="full"` on a step (one wide column).
 `test.mjs` warns on a side stripe of 3px or more, a box on `--well-face` and a flat 1px row rule in the source's own CSS.
 

@@ -728,3 +728,12 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 /* A dropdown: one of many without three screens of keys. A <select> with
    data-field saves like a text box (manifest type "text"). */
 #hx-page select.idea-well { width: 100%; }
+
+/* ---- Ungraded sections, and units in capitals (2026-10-28). -------------
+   The kit writes "counts toward your grade" after every evidence eyebrow, so an
+   author never types it. A section that is not graded says data-graded="no", and a
+   reference page sets it on <html> for every section. A unit inside an all-caps
+   label keeps its case in .hx-keep-case (mm is not MM, µm is not MM). */
+.hx-evidence[data-graded='no'] > .idea-eyebrow::after,
+:root[data-graded='no'] .hx-evidence > .idea-eyebrow::after { content: ' · not graded'; }
+.hx-keep-case { text-transform: none !important; }

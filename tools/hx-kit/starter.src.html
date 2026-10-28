@@ -130,7 +130,8 @@
 <style>
   :root { --a: #1d2a33; --b: #121618; --ink: #8fc3ff; --line: #d9e1e6; }
   :root[data-idea-scheme="light"] { --a: #e9eef5; --b: #d3dbe6; --ink: #2d5c9a; --line: #27313a; }
-  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6%; background: radial-gradient(circle at 30% 30%, var(--a), var(--b) 80%); color: var(--line); font: 700 12vh/1 system-ui, sans-serif; white-space: nowrap; }
+  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6%; background: radial-gradient(circle at 30% 30%, var(--a), var(--b) 80%); color: var(--line); font: 700 clamp(11px, 30vh, 22px)/1 Rajdhani, system-ui, sans-serif; white-space: nowrap; }
+  /* Text in a thumbnail is sized to the slot's height with an 11px floor: 12vh was 6.7px in the 56px banner (test.mjs checks every slot). */
   .t svg { height: 72%; }
   .t span { display: none; }
   :root[data-idea-shape="wide"] .t span, :root[data-idea-shape="banner"] .t span { display: block; }
