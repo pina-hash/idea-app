@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "tournament-settings-status-live-unplayed-1.mjs",
+	"date": "2026-10-29T00:55:55.056Z",
+	"sha": "399202367c10f8daa577e58e747a48f5782e2054",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 40,
+	"outsideRows": [],
+	"ms": 11246
+}

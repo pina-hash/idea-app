@@ -108,6 +108,10 @@
 		type ThumbnailTransports
 	} from '$lib/classroom/thumbnail';
 	import { duplicateDoorLabel } from '$lib/classroom/duplicate-count';
+	import CopyForwardPanel from '$lib/classroom/CopyForwardPanel.svelte';
+	import { createCopyForwardTransports, type CopyForwardTransports } from '$lib/classroom/copy-forward';
+	import { page } from '$app/state';
+	import type { SupabaseClient } from '@supabase/supabase-js';
 
 	/**
 	 * ONE view of a class's content, grouped by the units its teacher authored.
@@ -157,6 +161,7 @@
 		opensOn = 'all',
 		clock = null,
 		loadDuplicateCount = null,
+		copyForward = undefined,
 		theme = null,
 		themePanel = null,
 		tools = null,
@@ -176,6 +181,12 @@
 		units?: ClassroomUnit[];
 		/** Every section the caller manages, for the composer's linkage controls. */
 		sections?: ClassroomSection[];
+		/**
+		 * COPY POSTS TO ANOTHER CLASS (ledger 0455). Undefined takes the page's
+		 * own client, which is the class page; null removes the key (a harness
+		 * or a read-only surface); a harness hands in its own transports.
+		 */
+		copyForward?: CopyForwardTransports | null;
 		canManage?: boolean;
 		/** Omitted (null) on every read-only surface. */
 		transports?: ClassroomComposerTransports | null;
@@ -341,6 +352,13 @@
 	} = $props();
 
 	let unitsOpen = $state(false);
+	let copyOpen = $state(false);
+	const copyTransports = $derived.by((): CopyForwardTransports | null => {
+		if (copyForward !== undefined) return copyForward;
+		const client = page.data?.supabase as SupabaseClient | undefined;
+		return client ? createCopyForwardTransports(client, section.id) : null;
+	});
+
 	/** The class header's Next due key (`nextDueFor`), from the loader's one clock read. */
 	const nextDue = $derived(
 		clock
@@ -482,6 +500,8 @@
 	const shownNotice = $derived(localNotice ?? notice);
 
 	const editable = $derived(canManage && !!transports);
+	/** COPY TO CLASS (ledger 0455): a manager who teaches another class to copy into. */
+	const copyOffered = $derived(editable && !!copyTransports && sections.some((s) => s.id !== section.id));
 
 	/**
 	 * THE CLASS PAGE IS A DROP TARGET FOR A MANAGER (R01): let a file go on it
@@ -717,7 +737,7 @@
 	 * move; the posts are the anchor. A hidden panel or piece is not rendered,
 	 * so whatever it polls (the hall pass, the music, the vote) stops.
 	 */
-	const postingKeys = $derived(editable && (!!quickPost || !!onCompose || !!(unitTransports && section.course)));
+	const postingKeys = $derived(editable && (!!quickPost || !!onCompose || copyOffered || !!(unitTransports && section.course)));
 	const panelsPresent = $derived(
 		new Set([
 			'banner',
@@ -2421,7 +2441,7 @@
 		quickPost={editable && !hiddenPanels.has('actions') ? quickPost : null}
 		tools={hiddenPanels.has('tools') ? null : tools}
 		themePanel={hiddenPanels.has('theme') ? null : themePanel}
-		actions={editable && !hiddenPanels.has('actions') && (onCompose || (unitTransports && section.course)) ? headerActions : null}
+		actions={editable && !hiddenPanels.has('actions') && (onCompose || copyOffered || (unitTransports && section.course)) ? headerActions : null}
 		bulletin={noticesFirst ? null : bulletin}
 	/>
 	{/snippet}
@@ -2443,6 +2463,18 @@
 				onclick={() => onCompose?.()}
 			>
 				{composing ? 'Close' : 'New post'}
+			</button>
+		{/if}
+		{#if copyOffered}
+			<button
+				type="button"
+				class="btn secondary tiny"
+				class:on={copyOpen}
+				aria-expanded={copyOpen}
+				data-testid="copy-forward-toggle"
+				onclick={() => (copyOpen = !copyOpen)}
+			>
+				{copyOpen ? 'Close copy' : 'Copy to class'}
 			</button>
 		{/if}
 		{#if unitTransports && section.course}
@@ -2874,6 +2906,18 @@
 			>
 				Set up units
 			</button>
+		</section>
+	{/if}
+
+	{#if copyOffered && copyOpen && copyTransports}
+		<section class="card tool-panel">
+			<CopyForwardPanel
+				{section}
+				{sections}
+				transports={copyTransports}
+				onclose={() => (copyOpen = false)}
+				oncopied={() => onchanged?.()}
+			/>
 		</section>
 	{/if}
 

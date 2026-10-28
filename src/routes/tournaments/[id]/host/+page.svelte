@@ -12,6 +12,8 @@
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
 	import TournamentSettingsForm from '$lib/tournaments/TournamentSettingsForm.svelte';
 	import LiveSettingsConfirm from '$lib/tournaments/LiveSettingsConfirm.svelte';
+	import PersonPicker from '$lib/tournaments/PersonPicker.svelte';
+	import { peopleAnswerFrom, type PeopleAnswer } from '$lib/tournaments/people';
 	import {
 		LIVE_EDIT_NOTE,
 		liveRefusalSentence,
@@ -19,6 +21,7 @@
 		type LivePlan
 	} from '$lib/tournaments/live-settings';
 	import {
+		bracketHasResult,
 		largestRoster,
 		settingsLocks,
 		tournamentUpdateArgs,
@@ -287,13 +290,18 @@
 	// A SITE ADMIN MAY CHANGE A LIVE EVENT'S FORMAT (0266, report d1d40a60),
 	// through a preview that says what happens to played matches and an apply
 	// that refuses a stale preview. A host keeps the lock.
-	const liveAdmin = $derived(t.status === 'live' && data.isAdmin === true);
+	// UNTIL THE FIRST RESULT ANY HOST MAY CHANGE THE MATCH LENGTHS (0317, ledger
+	// 0455, report 544604c9): the ordinary save re-stamps every unplayed match.
+	// After it, an admin keeps 0266's previewed change and a host the lock.
+	const hasResult = $derived(bracketHasResult(data.bracketMatches, data.games.length));
+	const liveAdmin = $derived(t.status === 'live' && data.isAdmin === true && hasResult);
 	const settingsLock = $derived(
 		settingsLocks({
 			status: t.status,
 			pools: data.pools.length,
 			qualResults: data.qualMatches.filter((m) => m.winner_id !== null).length,
-			liveAdmin
+			liveAdmin,
+			hasResult: t.status === 'live' ? hasResult : undefined
 		})
 	);
 	const minTeamSize = $derived(
@@ -314,7 +322,27 @@
 				draft,
 				settingsLock
 			);
-			if (liveAdmin && args.p_config) {
+			// A DATABASE WITHOUT 0317 still locks a drawn bracket's format. For an
+			// admin that is 0266's previewed change, so the save takes that path
+			// when the ordinary one answers with the old lock; anyone else reads it.
+			let viaPreview = liveAdmin;
+			if (!viaPreview && args.p_config && t.status === 'live') {
+				const { error } = await data.supabase.rpc('tournament_update', args);
+				if (!error) {
+					settingsSaved = `Match lengths changed at ${new Date().toLocaleTimeString([], {
+						hour: 'numeric',
+						minute: '2-digit'
+					})}. Every match not yet played uses them.`;
+					await invalidateAll();
+					return;
+				}
+				if (!(data.isAdmin === true && /locked once the bracket/.test(error.message))) {
+					settingsError = error.message;
+					return;
+				}
+				viaPreview = true;
+			}
+			if (viaPreview && args.p_config) {
 				// PREVIEW FIRST: nothing is written until the confirm is pressed.
 				const { data: res, error } = await data.supabase.rpc('tournament_live_config_preview', {
 					p_tournament_id: t.id,
@@ -407,6 +435,19 @@
 	// --- invites / hosts ---
 	let inviteEmail = $state('');
 	let cohostEmail = $state('');
+	/**
+	 * THE DIRECTORY BEHIND EVERY PERSON FIELD ON THIS PAGE (0317, ledger 0455,
+	 * report c6830880). A deployment without it answers `unavailable` and each
+	 * field is the plain address box it was.
+	 */
+	async function searchPeople(q: string): Promise<PeopleAnswer> {
+		const { data: rows, error } = await data.supabase.rpc('tournament_people_search', {
+			p_tournament_id: t.id,
+			p_query: q,
+			p_limit: 12
+		});
+		return peopleAnswerFrom(rows, error);
+	}
 
 	// --- quals ---
 	let poolCount = $state(2);
@@ -881,6 +922,7 @@
 							status={t.status}
 							viewerId={data.claims?.sub ?? null}
 							manager={true}
+							searchPeople={searchPeople}
 							{busy}
 							onaddmember={hostAddMember(e.id)}
 							onremovemember={hostRemoveMember}
@@ -913,7 +955,13 @@
 	<section class="card">
 		<h2>Invites & co-hosts</h2>
 		<div class="add-row">
-			<input type="email" placeholder="Invite by account email" bind:value={inviteEmail} />
+			<PersonPicker
+				bind:value={inviteEmail}
+				search={searchPeople}
+				label="Invite a person, by name or school email"
+				placeholder="Invite by name or school email"
+				testid="invite-person"
+			/>
 			<button
 				class="btn"
 				disabled={busy || !inviteEmail.trim()}
@@ -943,7 +991,13 @@
 			</div>
 		{/if}
 		<div class="add-row">
-			<input type="email" placeholder="Add co-host by account email" bind:value={cohostEmail} />
+			<PersonPicker
+				bind:value={cohostEmail}
+				search={searchPeople}
+				label="Add a co-host, by name or school email"
+				placeholder="Add co-host by name or school email"
+				testid="cohost-person"
+			/>
 			<button
 				class="btn secondary"
 				disabled={busy || !cohostEmail.trim()}
@@ -1101,7 +1155,6 @@
 		width: 3.4rem;
 	}
 	input[type='text'],
-	input[type='email'],
 	input[type='number'] {
 		background: var(--bg0);
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));

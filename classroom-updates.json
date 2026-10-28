@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-28",
+			"title": "New rotations start with their posts ready, and seeded tournaments start again",
+			"body": "When a new rotation starts, your teacher can copy the last class's assignments into your class in one step, with every due date and day-by-day plan moved to your class's own calendar, so check the dates in your own class, not the ones a friend in another rotation had. Nothing anyone else wrote, turned in or was graded on comes with it. Tournaments that use seeding matches can start their bracket again, and until the first bracket match begins your teacher can still change how many games each match is, with a longer final if they want one.",
+			"tags": ["Assignments", "Tournaments"]
+		},
+		{
+			"date": "2026-10-28",
 			"title": "Worksheets show how much you have answered",
 			"body": "On assignments you fill in right on the page, your teacher now sees how many questions you have answered and whether any answer was saved after the due date, instead of \"not turned in\". There is still no turn-in button on these: saving your answers is how you hand them in. Answers saved after the due date are marked late, so finish on time.",
 			"tags": ["Assignments"]

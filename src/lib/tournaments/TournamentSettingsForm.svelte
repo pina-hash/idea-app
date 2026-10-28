@@ -214,7 +214,7 @@
 				/>
 				<span>Qualifying pools before the bracket (head-to-head round robin, seeds the bracket)</span>
 			</label>
-			{#if locks.quals}
+			{#if locks.quals && locks.quals !== locks.score}
 				<p class="ts-lock" data-testid="settings-quals-lock">{locks.quals}</p>
 			{/if}
 			<label class="ts-row ts-toggle">
@@ -237,13 +237,16 @@
 			</label>
 			<label class="ts-row">
 				<span>Registrants per entry</span>
-				<select bind:value={draft.teamSize} data-field="team_size">
+				<select bind:value={draft.teamSize} data-field="team_size" disabled={!!locks.team}>
 					{#each TEAM_SIZES as n (n)}
 						<option value={n} disabled={n < minTeamSize}>{teamSizeLabel(n)}</option>
 					{/each}
 				</select>
 			</label>
-			{#if minTeamSize > 1}
+			{#if locks.team && locks.team !== locks.score}
+				<p class="ts-lock" data-testid="settings-team-lock">{locks.team}</p>
+			{/if}
+			{#if minTeamSize > 1 && !locks.team}
 				<p class="ts-hint" data-testid="settings-team-floor">
 					An entry already has {minTeamSize} registrants, so the size cannot go below {minTeamSize}.
 				</p>

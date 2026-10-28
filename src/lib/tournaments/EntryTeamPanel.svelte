@@ -48,6 +48,8 @@
 	 * grant: the RPC re-checks the caller.
 	 */
 	import { cleanName, hasVisibleText } from '$lib/tournaments/names';
+	import PersonPicker from './PersonPicker.svelte';
+	import type { PeopleAnswer } from './people';
 	import {
 		entriesLocked,
 		entryIsFull,
@@ -65,6 +67,7 @@
 		busy = false,
 		error = '',
 		manager = false,
+		searchPeople = null,
 		onrename,
 		onaddmember,
 		onremovemember,
@@ -83,6 +86,12 @@
 		 * console): it is what offers the account-email field on the add row.
 		 * The default is the event page's own entry, which adds by name alone. */
 		manager?: boolean;
+		/**
+		 * The host console's directory (ledger 0455, report c6830880): with it
+		 * the account field is a person picker that also fills the roster
+		 * name; without it, the plain address box it always was.
+		 */
+		searchPeople?: ((q: string) => Promise<PeopleAnswer>) | null;
 		onrename?: (name: string) => void;
 		onaddmember?: (name: string, email: string | null) => void;
 		onremovemember?: (memberId: string) => void;
@@ -300,10 +309,20 @@
 						<input type="text" maxlength="40" required bind:value={addName} data-field="name" />
 					</label>
 					{#if manager}
-						<label class="field">
-							<span class="f-label">Account email (optional)</span>
-							<input type="email" bind:value={addEmail} data-field="email" />
-						</label>
+						<div class="field">
+							<span class="f-label">Account (optional)</span>
+							<PersonPicker
+								bind:value={addEmail}
+								search={searchPeople}
+								label="Find their account by name or school email"
+								placeholder="Name or school email"
+								testid="entry-add-person"
+								field="email"
+								onpick={(p) => {
+									if (p && !hasVisibleText(addName)) addName = p.name.slice(0, 40);
+								}}
+							/>
+						</div>
 					{/if}
 				</div>
 				{#if hasVisibleText(addName) && isTeamName(addName)}

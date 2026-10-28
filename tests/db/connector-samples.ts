@@ -395,6 +395,15 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			return { p_revision_id: rev[0].id };
 		},
 		classroom_add_postings: async () => ({ p_item_id: await newItem('Post me wider'), p_section_ids: [w.block4] }),
+		// Ledger 0455: one post of Block 2 copied forward into Block 4.
+		classroom_copy_forward: async () => ({
+			p_from_section: w.block2,
+			p_to_section: w.block4,
+			p_first_day: '2026-11-02',
+			p_from_first_day: '2026-09-01',
+			p_item_ids: [await newItem('Copy me forward')],
+			p_publish: false
+		}),
 		classroom_remove_posting: async () => {
 			const id = await newItem('Narrow me');
 			await asAdminRpc('classroom_add_postings', { p_item_id: id, p_section_ids: [w.block4] });
@@ -978,6 +987,14 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			const t = await tournament();
 			await tEntry(t, 'One');
 			await tEntry(t, 'Two');
+			return { p_tournament_id: t };
+		},
+		// Ledger 0455: drawing the bracket, a setup write.
+		tournament_generate_bracket: async () => {
+			const t = await tournament();
+			await tEntry(t, 'One');
+			await tEntry(t, 'Two');
+			await as(w.admin, `select public.tournament_set_status($1, 'seeding')`, [t]);
 			return { p_tournament_id: t };
 		},
 		tournament_generate_qual_pools: async () => {

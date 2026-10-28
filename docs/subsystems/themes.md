@@ -490,7 +490,22 @@ properly. That is a bundle, not a line.
   `expected` argument and refuses `stale` if anything moved in between. Played
   and started matches keep their length, nothing is re-decided, no coins
   move, qualifying stays locked (`LIVE_QUALS_LOCK`), and the change is logged
-  as a correction. `tournament_update` is untouched.
+  as a correction. **BEFORE THE FIRST RESULT ANY HOST CHANGES THE LENGTHS
+  THROUGH `tournament_update` ITSELF (0317, ledger 0455)**: a drawn bracket
+  with nothing started or decided (`_tournament_has_result`; a bye is not a
+  result) takes a new `best_of_default` and final length, every unplayed match
+  is re-stamped, qualifying, scoring and team size stay as drawn, and the host
+  console asks `bracketHasResult` in `src/lib/tournaments/settings.ts`. After
+  the first result the old lock answers in its old words and an admin keeps
+  the preview above.
+- **A FUNCTION A CLIENT REACHES MUST NOT RUN AN UPDATE OR DELETE WITHOUT A
+  TOP-LEVEL WHERE, TEMP TABLES INCLUDED (ledger 0455).** The hosted project
+  loads pg-safeupdate for API requests, so such a statement raises "UPDATE
+  requires a WHERE clause" in production while every db suite passes (the
+  fixture loads no extension). `_tournament_qual_seed_order` (0062) did it to
+  its own `pg_temp` standings and stopped every seeded bracket for weeks;
+  `tests/db/tournament-bracket-seeded-0317.test.ts` holds every tournament
+  function to the rule, with the pre-0317 body as its positive control.
 - **`.tnm-root` -- Tournaments emerald.** **Restraint is a hard rule: at most ONE
   dominant emerald element per screen** (the active-match indicator, the primary
   action, or one key status); a third surface takes the panel token instead. Gold is

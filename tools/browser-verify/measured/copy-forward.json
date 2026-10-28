@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "copy-forward.mjs",
+	"date": "2026-10-29T00:54:48.633Z",
+	"sha": "399202367c10f8daa577e58e747a48f5782e2054",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 44,
+	"outsideRows": [],
+	"ms": 10827
+}

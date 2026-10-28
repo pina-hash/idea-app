@@ -452,7 +452,7 @@ classroom_duplicate_item:
   surface: tool
   tool: duplicate_post
   level: undo
-  describe: Make a copy of a post, with its files, rubric and settings, in the classes you choose.
+  describe: Make a copy of a post, with its files, rubric, pacing days, sign-off checklists and settings, in the classes you choose, as a draft.
   say: ["copy Tolerance Check to Block 4", "duplicate the Shop Fix", "make a copy of the syllabus post for IDEA100"]
   args:
     p_item_id: {name: post, resolve: post, describe: "The post to copy."}
@@ -460,6 +460,34 @@ classroom_duplicate_item:
   undo:
     - function: classroom_delete_item
       args: {p_id: $result.item_id}
+
+# Ledger 0455 (reports 3a549386 and 64441b57): a class's posts copied forward
+# to a new class in one step, dates moved by school days. The preview is a
+# read; the copy asks first because it makes a post for every post.
+classroom_copy_forward_preview:
+  surface: call
+  level: read
+  describe: Preview copying every post of one class into another, with each post's old and new due date counted in school days from the new class's first class day. Nothing is written.
+  say: ["copy IDEA100 Section 2's posts to Section 3, first class day October 29", "what would copying rotation 2 forward look like", "preview the rotation copy"]
+  args:
+    p_from_section: {name: from, resolve: class, describe: "The class to copy from, like IDEA100 Section 2."}
+    p_to_section: {name: to, resolve: class, describe: "The new class, like IDEA100 Section 3."}
+    p_first_day: {name: first day, describe: "The new class's first class day, as YYYY-MM-DD."}
+    p_from_first_day: {name: old first day, default: null, describe: "The old class's first class day, as YYYY-MM-DD; leave it out to take it from its first post."}
+    p_item_ids: {name: posts, default: null, describe: "Only these posts, by their ids; leave it out for every post."}
+
+classroom_copy_forward:
+  surface: call
+  level: confirm
+  describe: Copy every post of one class into another as drafts, every date moved by school days to the new class's first day; no student work is copied. It asks first.
+  say: ["copy rotation 2 forward to IDEA100 Section 3 starting October 29", "copy all of Section 2's posts into Section 3", "set up the new rotation from the last one"]
+  args:
+    p_from_section: {name: from, resolve: class, describe: "The class to copy from, like IDEA100 Section 2."}
+    p_to_section: {name: to, resolve: class, describe: "The new class, like IDEA100 Section 3."}
+    p_first_day: {name: first day, describe: "The new class's first class day, as YYYY-MM-DD."}
+    p_from_first_day: {name: old first day, default: null, describe: "The old class's first class day, as YYYY-MM-DD; leave it out to take it from its first post."}
+    p_item_ids: {name: posts, default: null, describe: "Only these posts, by their ids; leave it out for every post."}
+    p_publish: {name: publish, default: false, describe: "True only if he said to publish them: each published post is scheduled to open on its new day. Drafts stay drafts."}
 
 classroom_feedback_reply:
   surface: call

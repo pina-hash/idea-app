@@ -143,10 +143,46 @@ tournament_respond_invite:
 tournament_reward_settlement:
   surface: call
   level: read
-  describe: What a tournament has paid out in coins, and what it would pay.
-  say: ["what did Blade Night pay out", "show the tournament's coin rewards", "who got coins from the bracket"]
+  describe: Whether a tournament's coin rewards were settled, and when; the tournament setup read gives the rules themselves.
+  say: ["were Blade Night's coins paid out", "is the tournament settled", "did the bracket rewards go out"]
   args:
-    p_tournament_id: {name: tournament, describe: "The tournament's id."}
+    p_tournament_id: {name: tournament, describe: "The tournament: its name as he says it, or its id."}
+
+# Ledger 0455 (report d4c2b43e): every setup read in one call, so a setup
+# conversation never has to fall back to the browser.
+tournament_setup_state:
+  surface: call
+  level: read
+  describe: Read a tournament's whole setup in one call, its format, entries, seeds, players, pools, bracket progress and coin rules, and what can still change.
+  say: ["show me Blade Night's setup", "what are the seeds for the IDEA-Blade tournament", "is the Hook tournament ready to start"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament: its name as he says it, or its id."}
+
+tournament_list_admin:
+  surface: call
+  level: read
+  describe: List every tournament, newest first, with its status and entry count.
+  say: ["list every tournament", "which brackets are live", "show me every bracket"]
+
+tournament_people_search:
+  surface: call
+  level: read
+  describe: Find a person to add to a tournament by two letters of their name or school address; says who is already entered.
+  say: ["find Mateo for Blade Night", "who is Lance Yip's address", "look up a student to add to the bracket"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament: its name as he says it, or its id."}
+    p_query: {name: name, describe: "Two or more letters of their name or school address."}
+    p_limit: {name: count, default: 12, describe: "At most this many, up to 12."}
+
+# Ledger 0455 (report c940fc00): drawing the bracket is the last SETUP step, so
+# it is in scope; running the matches after it stays on the site.
+tournament_generate_bracket:
+  surface: call
+  level: confirm
+  describe: Draw a tournament's bracket from its seeds or its qualifying results and start it; it asks first because the bracket cannot be redrawn. Running the matches stays on the site.
+  say: ["generate the bracket for Blade Night", "draw the bracket", "start the IDEA-Blade tournament"]
+  args:
+    p_tournament_id: {name: tournament, describe: "The tournament: its name as he says it, or its id."}
 
 tournament_send_invite:
   surface: call
@@ -215,14 +251,20 @@ tournament_shuffle_seeds:
 
 tournament_start_match:
   exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); starting a match is done on the site.
+tournament_submit_match_result:
+  exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); entering a match result is done on the site.
+tournament_correct_match_result:
+  exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); correcting a match result is done on the site.
+tournament_reset_match:
+  exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); resetting a played match is done on the site.
 tournament_submit_qual_result:
   exclude: Live tournament operation stays manual (Mr. Pina, 2026-10-17); entering a score is done on the site.
 
 tournament_update:
   surface: call
   level: undo
-  describe: Change a tournament's name, description or format while you set it up.
-  say: ["rename Blade Night to Blade Bash", "change the tournament's description", "make the matches best of three"]
+  describe: Change a tournament's name, description or format; once the bracket is drawn the match lengths (and the final's) can still change until the first match starts.
+  say: ["rename Blade Night to Blade Bash", "make the matches best of three", "make the final best of five"]
   args:
     p_tournament_id: {name: tournament, describe: "The tournament's id."}
     p_name: {name: name, describe: "The new name."}

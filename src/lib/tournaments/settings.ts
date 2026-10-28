@@ -16,10 +16,11 @@
  * which is why `tests/tournament-settings.test.ts` pins it.
  *
  * THE LOCKS ARE THE DATABASE'S RULE PLUS ONE EDGE IT DOES NOT COVER.
- *   - Format, once the bracket exists (`live`, `complete`): the RPC refuses a
- *     config then with 'Format settings are locked once the bracket is
- *     generated.' The form shows the format as text instead of controls, so
- *     the refusal is never the first a host hears of it.
+ *   - Format, once the bracket has a RESULT (since 0317, ledger 0455; before
+ *     it, once the bracket existed): the RPC refuses a config then with
+ *     'Format settings are locked once the bracket is generated.' The form
+ *     shows the format as text instead of controls, so the refusal is never
+ *     the first a host hears of it. Drawn and unplayed, only the lengths move.
  *   - Qualifying on/off, once pools exist. The RPC still accepts
  *     `quals_enabled: false` in `seeding` after `tournament_generate_qual_pools`,
  *     and the bracket generator then ignores the pools -- which stay in the
@@ -64,9 +65,43 @@ export interface SettingsLocks {
 	format: string | null;
 	quals: string | null;
 	score: string | null;
+	/**
+	 * The registrants per entry (ledger 0455). Free everywhere but a live
+	 * bracket with no result yet, where only the match lengths may move.
+	 */
+	team?: string | null;
 }
 
-export const OPEN_LOCKS: SettingsLocks = { format: null, quals: null, score: null };
+export const OPEN_LOCKS: SettingsLocks = { format: null, quals: null, score: null, team: null };
+
+/**
+ * THE BRACKET IS DRAWN AND NOTHING IS PLAYED (ledger 0455, report 544604c9):
+ * the lengths may still change, because every match is unplayed, but the
+ * bracket was drawn from qualifying and team size and scoring decides how a
+ * result is entered, so those three hold. The database's own rule is
+ * `_tournament_has_result` (0317); this sentence is shown beside each one.
+ */
+export const LENGTHS_ONLY_LOCK =
+	'The bracket is drawn, so only the match lengths can change until the first match starts.';
+
+/**
+ * Whether a bracket has a result, the client's reading of 0317's
+ * `_tournament_has_result`: a match started, a match decided between two
+ * entries (a bye is not a result), or a game recorded.
+ */
+export function bracketHasResult(
+	matches: readonly { status: string; entry_a_id: string | null; entry_b_id: string | null }[],
+	gameCount: number
+): boolean {
+	return (
+		gameCount > 0 ||
+		matches.some(
+			(m) =>
+				m.status === 'in_progress' ||
+				(m.status === 'complete' && m.entry_a_id !== null && m.entry_b_id !== null)
+		)
+	);
+}
 
 /** The draft a brand-new tournament starts from: today's new-tournament
  * defaults, unchanged. */
@@ -162,7 +197,8 @@ export function effectiveDraft(
 	return {
 		...draft,
 		qualsEnabled: locks.quals ? stored.qualsEnabled : draft.qualsEnabled,
-		scoreEntry: locks.score ? stored.scoreEntry : draft.scoreEntry
+		scoreEntry: locks.score ? stored.scoreEntry : draft.scoreEntry,
+		teamSize: locks.team ? stored.teamSize : draft.teamSize
 	};
 }
 
@@ -282,7 +318,16 @@ export function settingsLocks(input: {
 	 * every other caller's lock, unchanged.
 	 */
 	liveAdmin?: boolean;
+	/**
+	 * Whether the bracket has a result (`bracketHasResult`). A live bracket
+	 * with none takes new match lengths from any host (0317). Absent reads as
+	 * played, which is the lock every caller had before.
+	 */
+	hasResult?: boolean;
 }): SettingsLocks {
+	if (input.status === 'live' && input.hasResult === false) {
+		return { format: null, quals: LENGTHS_ONLY_LOCK, score: LENGTHS_ONLY_LOCK, team: LENGTHS_ONLY_LOCK };
+	}
 	if (input.status === 'live' && input.liveAdmin) {
 		return { format: null, quals: LIVE_QUALS_LOCK, score: null };
 	}

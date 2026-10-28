@@ -19,6 +19,9 @@
 	 *   &overrides=1                       the stored config carries per-round overrides
 	 *   &refuse=host|team|<text>           the stand-in refuses every call, verbatim
 	 *   &quals=1                           qualifying on in the stored config with no pools yet
+	 *   &unplayed=1                        live, but no match started or decided (0317, ledger
+	 *                                      0455): any host may change the match lengths, and
+	 *                                      qualifying, scoring and team size say why they hold
 	 *   &admin=1                           the viewer is a site admin: on a live event the
 	 *                                      format opens, and Save previews then confirms
 	 *                                      through stand-ins for 0266's preview and apply
@@ -91,8 +94,11 @@
 	});
 
 	const admin = q.get('admin') === '1';
-	const liveAdmin = status === 'live' && admin;
-	const locks = $derived(settingsLocks({ status, pools, qualResults: results, liveAdmin }));
+	const unplayed = status === 'live' && q.get('unplayed') === '1';
+	const liveAdmin = status === 'live' && admin && !unplayed;
+	const locks = $derived(
+		settingsLocks({ status, pools, qualResults: results, liveAdmin, hasResult: status === 'live' ? !unplayed : undefined })
+	);
 
 	/** Stand-ins for 0266: the preview's plan over a fixed bracket, and an
 	 * apply that refuses a stale preview exactly as the database does. */
@@ -174,7 +180,8 @@
 	 * whole-object write, and nothing else. */
 	function simUpdate(args: ReturnType<typeof tournamentUpdateArgs>): string | null {
 		if (refuse) return refuse;
-		if (args.p_config && (status === 'live' || status === 'complete')) {
+		// 0317: a live bracket with no result takes new lengths.
+		if (args.p_config && (status === 'complete' || (status === 'live' && !unplayed))) {
 			return 'Format settings are locked once the bracket is generated.';
 		}
 		if (args.p_name !== null) stored.name = args.p_name;

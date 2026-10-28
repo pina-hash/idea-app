@@ -73,6 +73,19 @@ and sends the same object as `schedule` on `idea:state` (`HxSchedule`), whose
 `due` is the POST's due date, so a document never types a second copy. The kit
 fills `[data-idea-schedule]` and `[data-idea-due]` from it.
 
+### Copying a class forward moves dates by school days
+
+`classroom_copy_forward` (0318, ledger 0455) copies every post of one class into
+another as drafts and moves each due date, scheduled day, pacing step and
+sign-off date by `_classroom_shift_school_day`: the Nth school day of the old
+class (weekends and `classroom_no_school_days` skipped) becomes the Nth of the
+new one, and a non-school day keeps its distance from the school day before it.
+That function is the one statement of the rule; the class page's "Copy to
+class" panel (`CopyForwardPanel.svelte`, `src/lib/classroom/copy-forward.ts`)
+only words its answer. A shared post is shared, never copied. A duplicate
+(`classroom_duplicate_item`) carries the post's pacing rows and checkpoints
+as they are, through `_classroom_copy_post_extras`.
+
 ### Connector
 
 `src/lib/server/connector/registry/calendar.yaml`: reads (`calendar_feed`,

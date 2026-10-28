@@ -2181,7 +2181,7 @@
 			"surface": "tool",
 			"tool": "duplicate_post",
 			"level": "undo",
-			"describe": "Make a copy of a post, with its files, rubric and settings, in the classes you choose.",
+			"describe": "Make a copy of a post, with its files, rubric, pacing days, sign-off checklists and settings, in the classes you choose, as a draft.",
 			"say": [
 				"copy Tolerance Check to Block 4",
 				"duplicate the Shop Fix",
@@ -2206,6 +2206,83 @@
 					}
 				}
 			]
+		},
+		"classroom_copy_forward_preview": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Preview copying every post of one class into another, with each post's old and new due date counted in school days from the new class's first class day. Nothing is written.",
+			"say": [
+				"copy IDEA100 Section 2's posts to Section 3, first class day October 29",
+				"what would copying rotation 2 forward look like",
+				"preview the rotation copy"
+			],
+			"args": {
+				"p_from_section": {
+					"name": "from",
+					"resolve": "class",
+					"describe": "The class to copy from, like IDEA100 Section 2."
+				},
+				"p_to_section": {
+					"name": "to",
+					"resolve": "class",
+					"describe": "The new class, like IDEA100 Section 3."
+				},
+				"p_first_day": {
+					"name": "first day",
+					"describe": "The new class's first class day, as YYYY-MM-DD."
+				},
+				"p_from_first_day": {
+					"name": "old first day",
+					"default": null,
+					"describe": "The old class's first class day, as YYYY-MM-DD; leave it out to take it from its first post."
+				},
+				"p_item_ids": {
+					"name": "posts",
+					"default": null,
+					"describe": "Only these posts, by their ids; leave it out for every post."
+				}
+			}
+		},
+		"classroom_copy_forward": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Copy every post of one class into another as drafts, every date moved by school days to the new class's first day; no student work is copied. It asks first.",
+			"say": [
+				"copy rotation 2 forward to IDEA100 Section 3 starting October 29",
+				"copy all of Section 2's posts into Section 3",
+				"set up the new rotation from the last one"
+			],
+			"args": {
+				"p_from_section": {
+					"name": "from",
+					"resolve": "class",
+					"describe": "The class to copy from, like IDEA100 Section 2."
+				},
+				"p_to_section": {
+					"name": "to",
+					"resolve": "class",
+					"describe": "The new class, like IDEA100 Section 3."
+				},
+				"p_first_day": {
+					"name": "first day",
+					"describe": "The new class's first class day, as YYYY-MM-DD."
+				},
+				"p_from_first_day": {
+					"name": "old first day",
+					"default": null,
+					"describe": "The old class's first class day, as YYYY-MM-DD; leave it out to take it from its first post."
+				},
+				"p_item_ids": {
+					"name": "posts",
+					"default": null,
+					"describe": "Only these posts, by their ids; leave it out for every post."
+				},
+				"p_publish": {
+					"name": "publish",
+					"default": false,
+					"describe": "True only if he said to publish them: each published post is scheduled to open on its new day. Drafts stay drafts."
+				}
+			}
 		},
 		"classroom_feedback_reply": {
 			"surface": "call",
@@ -9847,16 +9924,83 @@
 		"tournament_reward_settlement": {
 			"surface": "call",
 			"level": "read",
-			"describe": "What a tournament has paid out in coins, and what it would pay.",
+			"describe": "Whether a tournament's coin rewards were settled, and when; the tournament setup read gives the rules themselves.",
 			"say": [
-				"what did Blade Night pay out",
-				"show the tournament's coin rewards",
-				"who got coins from the bracket"
+				"were Blade Night's coins paid out",
+				"is the tournament settled",
+				"did the bracket rewards go out"
 			],
 			"args": {
 				"p_tournament_id": {
 					"name": "tournament",
-					"describe": "The tournament's id."
+					"describe": "The tournament: its name as he says it, or its id."
+				}
+			}
+		},
+		"tournament_setup_state": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Read a tournament's whole setup in one call, its format, entries, seeds, players, pools, bracket progress and coin rules, and what can still change.",
+			"say": [
+				"show me Blade Night's setup",
+				"what are the seeds for the IDEA-Blade tournament",
+				"is the Hook tournament ready to start"
+			],
+			"args": {
+				"p_tournament_id": {
+					"name": "tournament",
+					"describe": "The tournament: its name as he says it, or its id."
+				}
+			}
+		},
+		"tournament_list_admin": {
+			"surface": "call",
+			"level": "read",
+			"describe": "List every tournament, newest first, with its status and entry count.",
+			"say": [
+				"list every tournament",
+				"which brackets are live",
+				"show me every bracket"
+			]
+		},
+		"tournament_people_search": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Find a person to add to a tournament by two letters of their name or school address; says who is already entered.",
+			"say": [
+				"find Mateo for Blade Night",
+				"who is Lance Yip's address",
+				"look up a student to add to the bracket"
+			],
+			"args": {
+				"p_tournament_id": {
+					"name": "tournament",
+					"describe": "The tournament: its name as he says it, or its id."
+				},
+				"p_query": {
+					"name": "name",
+					"describe": "Two or more letters of their name or school address."
+				},
+				"p_limit": {
+					"name": "count",
+					"default": 12,
+					"describe": "At most this many, up to 12."
+				}
+			}
+		},
+		"tournament_generate_bracket": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Draw a tournament's bracket from its seeds or its qualifying results and start it; it asks first because the bracket cannot be redrawn. Running the matches stays on the site.",
+			"say": [
+				"generate the bracket for Blade Night",
+				"draw the bracket",
+				"start the IDEA-Blade tournament"
+			],
+			"args": {
+				"p_tournament_id": {
+					"name": "tournament",
+					"describe": "The tournament: its name as he says it, or its id."
 				}
 			}
 		},
@@ -10022,17 +10166,26 @@
 		"tournament_start_match": {
 			"exclude": "Live tournament operation stays manual (Mr. Pina, 2026-10-17); starting a match is done on the site."
 		},
+		"tournament_submit_match_result": {
+			"exclude": "Live tournament operation stays manual (Mr. Pina, 2026-10-17); entering a match result is done on the site."
+		},
+		"tournament_correct_match_result": {
+			"exclude": "Live tournament operation stays manual (Mr. Pina, 2026-10-17); correcting a match result is done on the site."
+		},
+		"tournament_reset_match": {
+			"exclude": "Live tournament operation stays manual (Mr. Pina, 2026-10-17); resetting a played match is done on the site."
+		},
 		"tournament_submit_qual_result": {
 			"exclude": "Live tournament operation stays manual (Mr. Pina, 2026-10-17); entering a score is done on the site."
 		},
 		"tournament_update": {
 			"surface": "call",
 			"level": "undo",
-			"describe": "Change a tournament's name, description or format while you set it up.",
+			"describe": "Change a tournament's name, description or format; once the bracket is drawn the match lengths (and the final's) can still change until the first match starts.",
 			"say": [
 				"rename Blade Night to Blade Bash",
-				"change the tournament's description",
-				"make the matches best of three"
+				"make the matches best of three",
+				"make the final best of five"
 			],
 			"args": {
 				"p_tournament_id": {
@@ -12109,6 +12262,8 @@
 		"classroom_designate_instructor_key": "classroom.yaml",
 		"classroom_duplicate_drafts": "classroom.yaml",
 		"classroom_duplicate_item": "classroom.yaml",
+		"classroom_copy_forward_preview": "classroom.yaml",
+		"classroom_copy_forward": "classroom.yaml",
 		"classroom_feedback_reply": "classroom.yaml",
 		"classroom_feedback_seen": "classroom.yaml",
 		"classroom_feedback_set_state": "classroom.yaml",
@@ -12638,12 +12793,19 @@
 		"tournament_reorder_seed": "tournaments.yaml",
 		"tournament_respond_invite": "tournaments.yaml",
 		"tournament_reward_settlement": "tournaments.yaml",
+		"tournament_setup_state": "tournaments.yaml",
+		"tournament_list_admin": "tournaments.yaml",
+		"tournament_people_search": "tournaments.yaml",
+		"tournament_generate_bracket": "tournaments.yaml",
 		"tournament_send_invite": "tournaments.yaml",
 		"tournament_set_entry_style": "tournaments.yaml",
 		"tournament_set_reward_rules": "tournaments.yaml",
 		"tournament_set_status": "tournaments.yaml",
 		"tournament_shuffle_seeds": "tournaments.yaml",
 		"tournament_start_match": "tournaments.yaml",
+		"tournament_submit_match_result": "tournaments.yaml",
+		"tournament_correct_match_result": "tournaments.yaml",
+		"tournament_reset_match": "tournaments.yaml",
 		"tournament_submit_qual_result": "tournaments.yaml",
 		"tournament_update": "tournaments.yaml",
 		"tournament_update_entry": "tournaments.yaml",
