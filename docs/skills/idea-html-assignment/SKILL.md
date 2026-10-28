@@ -26,7 +26,7 @@ Send it and stop for his approval. Ask only for facts you cannot check, one at a
 1. Copy `tools/hx-kit/starter.src.html` to `<COURSE>_<Day or unit>_<What>.src.html`. Paste the approved brief into its top comment.
 2. Write the manifest first: semantic, permanent block ids; a `prompt` on every block; optional blocks marked; points adding up three ways (Part F2).
 3. Pick the colors (standard D3). Each phase gets a `"color"` in `hx-plan-data`, and anything else that carries a color gets `data-color="name"`: names from `tools/hx-kit/kit/colors.json` (safety, materials, CAD, wiring, FIRST, brands, the linking set), or your own in an `hx-colors` block with an `anchor` taken from the real thing and `means`. Never type a hex in the page and never use one color for text, fill and edge: use `--hx-ink`, `--hx-fill` with `--hx-on`, `--hx-line`, `--hx-wash`, which the build solves for each theme. Never the site's green for a phase. Items with a real-world identity each get their own named color, never a step along a spectrum. Every color gets its anchor in the brief. Draw the header picture from the real subject, and fill `hx-plan-data` with the phases and their classes.
-4. Use the kit's parts, never your own copies of them (standard D1a): one `idea-panel` per step, sections inside it, `.hx-tile` for side-by-side options, roles or parts, `.hx-list` and `.hx-table` for rows, `.hx-readout` for a computed number. No stripes, no boxes on the well face, no ruled rows.
+4. Use the kit's parts, never your own copies of them (standard D1a); a library of separate modules sets `data-post="library"` on `<html>`: one `idea-panel` per step, sections inside it, `.hx-tile` for side-by-side options, roles or parts, `.hx-list` and `.hx-table` for rows, `.hx-readout` for a computed number. No stripes, no boxes on the well face, no ruled rows.
 5. Write each step with the anatomy in F4: the action as the title, numbered moves from his video in its order and button names, "You should see", "That is not what I see", the evidence panel with the graded inputs, a copy-proof example where one helps, a tap tip on the first use of each term. One step must fit one screen; split rather than scroll.
 6. Put the problem the student must solve (A4) and the stretch (A8, `data-optional`, "IDEA Coins, not points") where the brief said.
 7. Build: `node tools/hx-kit/build.mjs <file>.src.html`. Never edit the inlined kit blocks. A plumbing fix goes into `tools/hx-kit/kit/`, then rebuild.
@@ -38,7 +38,7 @@ Run the idea-html-test skill. Every gate, in order. Fix and rebuild until the au
 ## 5. Deliver
 
 - The built file and its source, plus the posting details: title, points, category, due date, the post text. For an existing post, a re-upload over it, reading the replace screen first (nothing dropped).
-- Archive both files to Library C.
+- Commit the source to `assignment-sources/<course>/<slug>.src.html` on main (standard Part I), and copy both files to Library C when the Drive connector takes them. Never hand Mr. Pina a file to upload.
 - When the choice was taste (a palette, a header picture, a layout), show two to five rendered candidates from the test's screenshots and let him pick.
 
 ## 6. Leave the system better

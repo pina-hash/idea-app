@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 2.13 - 2026-10-27**
+**Version 2.14 - 2026-10-28**
 
 How any HTML assignment for any IDEA class is designed, built, tested and released. It is
 written so the first draft is the right one: a chat that follows it delivers an assignment
@@ -242,6 +242,9 @@ only live parts (`src/lib/classroom/plate.css`), and a source uses them rather t
 - **Type**: body Rajdhani 400, a step title 1.2rem at 600 under its eyebrow (the step chip and
   its phase lamp), step lists numbered in chips. The page is at most 1440px wide and prose
   72 characters.
+- **A library** (separate modules a student works through at their own pace, like the FRC
+  Training Library tracks) sets `data-post="library"` on `<html>`; Part C's one-deliverable
+  sizing does not apply to it and the test reports its size instead of warning.
 - **Parts for common needs (2.11, from the first overhauls):** `.hx-scale`, a 1 to 10 (or
   any count) rating as one row of small keys, its ends named in `.hx-scale-ends`; a
   `data-any-one` wrapper around boxes of which a student fills one (each also `optional` in the
@@ -647,7 +650,12 @@ each carries. None dropped (L22, L23).
 ## Part I. Delivering, and changing a live post
 
 - **Filename** leads with course and day: `IDEA209H_Day08_<What>.html`; the source beside
-  it as `.src.html`. Finished documents go to Library C.
+  it as `.src.html`.
+- **The source is committed to the repo (2.14)**: `assignment-sources/<course>/<slug>.src.html`
+  on `main`, in the same session as the re-upload, so any chat can rebuild the page on a newer
+  kit. Library C keeps a copy when the Drive connector can take the file; a source too large for
+  it is never turned into a manual upload for Mr. Pina. A source holds no answer, name or grade,
+  which is why it may sit in the public repository.
 - **Posting details** with the file: title, points, category, due date, the post text (the
   only reliably clickable link for a student).
 - **A change never costs a student progress**: a block students answered is retired by
@@ -711,6 +719,12 @@ new term.
 ---
 
 ## Changelog
+
+- **2.14 (2026-10-28).** Ledger 0452. Part I: sources are committed to
+  `assignment-sources/<course>/<slug>.src.html`, Library C is a second copy when the connector
+  can take it (the FRC Training Library chat could not archive 13 pages to Drive and handed
+  Mr. Pina a zip to drag). D1a: `data-post="library"` for a library of modules, which Part C
+  sizing does not apply to.
 
 - **2.13 (2026-10-27).** Ledger 0451. Four kit fixes from the FRC Training Library overhaul:
   the solver judges a color on the hex that ships, with margin (FIRST red's on-fill read 4.50

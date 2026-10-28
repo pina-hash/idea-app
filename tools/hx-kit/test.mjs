@@ -216,8 +216,13 @@ try {
 		? { phases: KIT.plan.phases.length, classes: KIT.plan.phases.reduce((n, p) => n + (p.days || []).filter((d) => !d.off).length, 0), steps: KIT.steps.length }
 		: null));
 	const required = blocks.filter((b) => !b.optional && !(manifest.header || []).includes(b)).length;
-	(required > 20 ? WARN : PASS)('post size', 'About 15 required blocks, 20 at most (Part C)', `${required} required blocks${required > 20 ? ': the measured posts this size left most blocks unfilled; split at the next hand-in' : ''}`);
-	if (size) {
+	/* A library (a set of separate modules a student works through at their own pace, like the
+	   FRC Training Library tracks) declares data-post="library" on <html>: Part C sizes one
+	   deliverable, so it does not apply. */
+	const library = /<html\b[^>]*\bdata-post="library"/i.test(html);
+	if (library) INFO('post size', 'A library of separate modules (data-post="library")', `${required} required blocks${size ? `, ${size.classes} classes, ${size.steps} steps` : ''}; Part C sizing does not apply`);
+	else (required > 20 ? WARN : PASS)('post size', 'About 15 required blocks, 20 at most (Part C)', `${required} required blocks${required > 20 ? ': the measured posts this size left most blocks unfilled; split at the next hand-in' : ''}`);
+	if (size && !library) {
 		const big = [size.phases > 4 && `${size.phases} phases (4 at most)`, size.classes > 4 && `${size.classes} classes (4 at most)`, size.steps > 12 && `${size.steps} steps (about 12 at most)`].filter(Boolean);
 		(big.length ? WARN : PASS)('post size', 'One post, one deliverable (Part C)', big.length ? `consider splitting at the next hand-in: ${big.join(', ')}` : `${size.classes} classes, ${size.phases} phases, ${size.steps} steps`);
 	}
