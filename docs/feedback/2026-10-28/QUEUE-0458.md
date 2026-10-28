@@ -51,3 +51,27 @@ The kit (standard 2.11) lets a step ask for any one of several boxes (data-any-o
 ## Item 3: IDEA100 posts before copy-forward (f2ba055d)
 
 IDEA-Blade 01 - Design is still a hand-built page, not on the kit, and fails 13 kit checks (no Take photo button on phones for its 8 photo boxes, 10 boxes a student cannot fill, 4.4 screens of scrolling). Run the kit test on every IDEA100 post (Dogtag, Solidworks Day, Hook 01 to 03, IDEA-Blade 01 and 02, Rotation 2 Survey) and record the results on the kit-health list. Rebuilding a page's content is authoring work for its course chat; do not rewrite student-facing content here. Report the failures in your history entry.
+
+## Added 2026-10-28 11:01 by Mr. Pina (fold-in)
+
+Kit ownership: tools/hx-kit/ belongs to the HTML standards chat (https://claude.ai/code/session_01AhbdScnRCcFy5idt3AfdXy). This lane may edit tools/hx-kit/kit/bridge.js and tools/hx-kit/kit/kit.js ONLY for the bridge halves of item 25 (idea:steps and idea:go-step) and f8c1b1d8 (the plan strip's days from the calendar pacing the site sends). Rebase on main first, run `node tools/hx-kit/test.mjs tools/hx-kit/starter.html` to 0 FAIL, and say in the ledger entry what changed there. Nothing else in tools/hx-kit. That replaces every earlier line in this file allowing kit edits: b63b8966 (real YouTube frames in the kit build) is the HTML standards chat's, not this lane's.
+
+Already done in the kit (standard 2.16 on main), so build only the site half:
+- 123aad84 dropdown: built in the kit (a select with data-field); marked resolved on the feedback list. Nothing to build.
+- 88ad281b: the kit counts required steps only and its test skips data-optional steps. Still owed: Progress.svelte counting required steps only.
+- 3d205727 anyOf: the kit's data-any-one is done. Still owed: the manifest group, the importer, Progress and Answers.
+- 23b3776c CI retest: test.mjs now also draws the thumbnail in every slot and runs a team pass, and still needs Chromium only (tools/browser-verify/browser.mjs finds it).
+
+Item 23 (kit-health list): since standard 2.16 every built page carries `<meta name="hx-kit" content="<sha> <date>">` and `<meta name="hx-standard" content="2.16">`. Read those tags; do not parse the CSS comment. Pages without them are pre-2.16 or hand-built.
+
+569a1891 (ungraded HTML post): the kit already has `<html data-graded="no">`, which turns "counts toward your grade" into "not graded". The site half is 0 points, no due date, and no grade row.
+
+New items:
+- 84cf8690 (bug): every one of 16 FRC 2026/27 replaces on Oct 28 reported "revision 1", with nothing pointing back to the earlier document, while Launcher: Design reported revisions 2, 3 and 4 on Oct 26. Check whether a replace on a post first created from a non-HTML post, or created and replaced in one session, restarts the count or overwrites the earlier revision. Every replace keeps the earlier document as a numbered revision a teacher can read and roll back to.
+- 3147afb1: "Replace with an HTML assignment" on any post keeps its id, its place in the unit order, its classes, its files and its due date, and opens the normal upload and replace screen (today: new draft, copy files by hand, file it, drag it from the bottom, publish, hide the old one, class by class for a shared post). Also: a new post lands where the teacher filed it in the unit's order, not at the bottom.
+- f3a3a687: the thumbnail shell (thumbnailDocument in src/lib/classroom/html-assignment/thumbnail.ts) carries no fonts and no color tokens. Inline Rajdhani and Share Tech Mono (font-src data: is already allowed) and the kit's tokens for the current theme, so a template uses var(--accent) and the site's faces. The upload or replace screen previews the thumbnail in all four slots (48px and 34px tiles, the 56px banner, the 16:9 card) in both themes and warns on text under 11px (the check tools/hx-kit/test.mjs runs since 2.16; the kit's own starter failed it at 6.7px).
+- 0a569932 with gap 02743baf: report_gap merges separate gaps that share the same said (three of four Unit 4 gaps were lost on Oct 28). Dedupe on request_id, never on said. replace_html_assignment returns a SHA-256 of the stored document, and the connector can read back a post's stored document (or at least size, SHA-256 and last replaced), drafts included. This is part of item 27.
+- 4d0ddefe: a staged upload lives until it is confirmed or discarded, or 24 hours; a confirm token lives 30 minutes (today 30 and 10, so an upload waiting on his yes expires; the FRC chat uploaded five part models twice).
+- gap b4c9ae73: files listed in get_post, and a copy-files action (post to post, every file or the ones named) that asks once.
+- gap 154c8fb3: a read that lists a course's units with their ids, and get_post and grading_packet showing which unit a post is filed under (classroom_set_item_unit needs a unit id no tool returns).
+- fb08d358: (1) a CI check or commit-msg hook refusing a first line over about 90 characters or one carrying " - " joined clauses, and src/lib/site-versions.ts splitting such subjects into a title and bullets for commits already landed (two Oct 28 commits show as one long title); (2) a test holding every docs/prompt-ledger/entries number to one file, the way apply-migration-claimants holds migration numbers (0453 was taken twice on Oct 28).

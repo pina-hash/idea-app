@@ -53,3 +53,13 @@ Team documents show a member as the first word of the roster's "Last, First" nam
 ## Item 30: names targeting a classmate (3d4d8b76)
 
 During Oct 28 grading, team names, taglines and a team theme mocking a named student in another class went live with nothing flagging them. Team names, taglines, tournament entries and market listings are checked against the rosters on save, and a match to another student's name is held for his OK before it shows. Rotation 3 team names start Oct 29. (Tournament entry text lives in lane 0455's files; add only the shared check and call it from team text here, and leave a one-line note in your report for the tournament and market call sites.)
+
+## Added 2026-10-28 11:01 by Mr. Pina (fold-in)
+
+Coverage check against the open connector gaps:
+- gap 36d0596c (Oct 28, his words: "when someone owns a role and they put in their input to a place, that everyone has to be able to see that. Right now it's just like one person"): URGENT, Unit 4 in use now. A picture in a role or team box is stored only with the student who took it (SPEC 16.3), so each role owner's sketch shows empty to the rest of the team. A role or team picture shows to every member, read only for anyone but its owner, the same way role text already does. Also needed in Launcher: Prototype and Detail Design (CAD screenshots and drawings). This is the same work as item 6 (06061518); close both.
+- gap 2d621bcc (one student locks a whole table): covered by item 8.
+- gap 87b6bd95 (sign-offs with no way in): covered by item 4.
+
+Parked, long term, do not build:
+- a7766d45: a team post declares a slide (title, the fields it shows, one picture) and the class's deck view assembles one slide per team from their saved answers. Unit 4's final morning had no team slide in the shared Google Slides deck while the numbers were on each page.
