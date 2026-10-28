@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Shop Trophy</title>
+<script type="application/json" id="idea-manifest">{"schemaVersion": 3, "kind": "html-assignment", "title": "The Shop Trophy", "course": "FRC5669", "points": 2, "thumbnail": {"kind": "html", "template": "idea-thumbnail"}, "modules": [{"id": "trophy-ready", "title": "Ready to plan", "points": 2, "criteria": [{"id": "trophy-checks", "text": "Checks answered", "points": 2, "levels": [{"points": 2, "label": "Complete", "short": "All answered", "descriptor": "Every check on this page is answered."}, {"points": 1, "label": "Developing", "short": "Some answered", "descriptor": "Some checks are answered."}, {"points": 0, "label": "Absent", "short": "None answered", "descriptor": "No check is answered."}]}], "blocks": [{"id": "frc-trophy-drawing", "type": "radio", "field": "trophy-drawing", "prompt": "When a drawing is done"}, {"id": "frc-trophy-plan-ready", "type": "checkbox", "field": "plan-ready", "prompt": "My five plan questions are in my notebook"}]}]}</script>
+<!-- hx:head -->
+<style>
+  /* This page's own layout only; parts and colors are the kit's. */
+  .rf-rules { display: grid; gap: var(--space-3); }
+  .rf-rule b { display: block; color: var(--plate-ink); }
+  .rf-rule span { color: var(--text-2); }
+  .hx-tiles .hx-tile span { color: var(--text-2); }
+</style>
+<template id="idea-thumbnail"><style>
+  :root { --t1: #1c2023; --t2: #0f1113; --tink: #eef1f3; --tdim: #9aa3aa; --fill: #B5A642; }
+  :root[data-idea-scheme="light"] { --t1: #f4f6f8; --t2: #dbe1e6; --tink: #14181b; --tdim: #4a535a; }
+  .t { --h: var(--idea-thumb-h, 120px); --w: var(--idea-thumb-w, 120px); position: absolute; inset: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: calc(var(--h) * 0.14); padding: 0 calc(var(--h) * 0.22); background: radial-gradient(130% 150% at 18% 18%, var(--t1), var(--t2)); color: var(--tink); font-family: system-ui, sans-serif; overflow: hidden; }
+  .t::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: max(3px, calc(var(--h) * 0.045)); background: var(--fill); }
+  .b { flex: none; height: 64%; aspect-ratio: 1; border-radius: 24%; background: var(--fill); display: grid; place-items: center; box-shadow: inset 0 calc(var(--h) * 0.01) 0 rgba(255,255,255,.35), 0 calc(var(--h) * 0.02) calc(var(--h) * 0.05) rgba(0,0,0,.35); }
+  .b svg { width: 64%; height: 64%; }
+  .w { display: none; min-width: 0; gap: calc(var(--h) * 0.04); }
+  .w b { font-weight: 700; font-size: min(calc(var(--h) * 0.24), calc(var(--w) * 0.05)); line-height: 1.08; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .w small { font: 600 max(8px, min(calc(var(--h) * 0.11), calc(var(--w) * 0.024)))/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tdim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :root[data-idea-shape="wide"] .w, :root[data-idea-shape="banner"] .w { display: grid; }
+  :root[data-idea-shape="banner"] .b { height: 72%; }
+  :root[data-idea-shape="wide"] .t { gap: calc(var(--h) * 0.1); padding: 0 calc(var(--w) * 0.07); }
+  :root[data-idea-shape="wide"] .b { height: min(46%, calc(var(--w) * 0.26)); }
+  :root[data-idea-shape="wide"] .w b { font-size: min(calc(var(--h) * 0.17), calc(var(--w) * 0.062)); -webkit-line-clamp: 3; }
+  :root[data-idea-shape="wide"] .w small { font-size: max(9px, min(calc(var(--h) * 0.08), calc(var(--w) * 0.028))); white-space: normal; }
+  :root[data-idea-shape="banner"] .w b { font-size: min(calc(var(--h) * 0.32), calc(var(--w) * 0.035)); -webkit-line-clamp: 1; white-space: nowrap; }
+  :root[data-idea-shape="banner"] .w small { font-size: max(8px, calc(var(--h) * 0.15)); }
+  :root[data-idea-shape="tile"] .b, :root:not([data-idea-shape]) .b { height: 70%; }
+</style><div class="t"><div class="b"><svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="#16181a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 9h22v13a11 11 0 0 1-22 0z"/><path d="M21 13h-8v4a8 8 0 0 0 8 8M43 13h8v4a8 8 0 0 1-8 8"/><path d="M32 33v9"/><path d="M24 42h16v10H24z"/><path d="M19 56h26"/></svg></div><div class="w"><small>Shop Training · Step 2</small><b>The Shop Trophy</b></div></div></template>
+</head>
+<body class="idea-plate">
+<main id="hx-page">
+  <header class="hx-hero">
+    <div class="hx-hero-text">
+      <span class="hx-crumb">FRC 5669 · Shop Training · Step 2</span>
+      <h1>The Shop Trophy</h1>
+      <p class="hx-done-when"><strong>Done when:</strong> you know how a station runs, which video and model go with each part, and you have your five plan questions ready.</p>
+      <div class="hx-row"><span class="idea-chip">5 stations · 5 parts</span><span class="idea-chip">Not graded</span></div>
+    </div>
+    <div class="hx-hero-art" data-color="brass" aria-hidden="true"><svg viewBox="0 0 320 170"><rect x="100" y="140" width="120" height="20" rx="3" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2.5"/><rect x="146" y="84" width="28" height="56" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><path d="M118 72h84l-10 12h-64z" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2.5"/><rect x="154" y="40" width="12" height="32" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><path d="M160 6l8 12h14l-11 8 4 14-15-9-15 9 4-14-11-8h14z" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/></svg></div>
+  </header>
+  <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Sections"></nav>
+  <div class="hx-bar idea-panel" id="hx-bar"></div>
+  <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
+
+  <section class="hx-step idea-panel" id="s-how" data-phase="how" data-day="How" data-title="How it works">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Read this once: the same at every station</span><h2>How it works</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+          <div class="idea-panel hx-example" data-color="caution-yellow"><span class="idea-eyebrow">Watch. Plan. Cut.</span>
+          <ol class="hx-list"><li><strong>Watch</strong> your station's video before your rotation opens. Not at the machine.</li>
+          <li><strong>Plan</strong> in your notebook before you touch anything. Five questions, in this post.</li>
+          <li><strong>Cut</strong> with the video playing. Your partner holds the phone. You run the machine.</li>
+          <li><strong>No plan, no machine.</strong> Your notebook gets checked before you start.</li></ol></div></div><div class="hx-stack"><span class="idea-eyebrow">Two sessions per station</span>
+          <p>Your group gets two sessions at each station. In those two sessions, <strong>every person in the group leaves with their own part.</strong> How you get there is up to the group.</p>
+          <p class="hx-see">Five rotations. Five stations. Five parts. They assemble into your trophy, and you take it home.</p></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-parts" data-phase="how" data-day="Parts" data-title="What you are making" data-layout="full">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Bottom to top</span><h2>What you are making</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+          <div class="hx-tiles"><div class="hx-tile" data-color="plywood"><b>Base</b><span>Cut and engraved. Your name goes on it. Add a logo or an image if you have time. On the H2D laser.</span></div><div class="hx-tile" data-color="aluminum"><b>Column</b><span>Aluminum box tube, squared up, then two holes: one tapped 1/4-20, one 1/4 inch through. On the manual mill.</span></div><div class="hx-tile" data-color="sky"><b>Platform</b><span>Polycarbonate, cut on the router. On the Axiom CNC router.</span></div><div class="hx-tile" data-color="steel"><b>Shaft</b><span>Hex stock, turned, tapped 1/4-20 at both ends, rounded on one end. On the manual lathe.</span></div><div class="hx-tile" data-color="brass"><b>Topper</b><span>Steel, your design. On the xTool MetalFab.</span></div></div>
+          <p class="hx-small">All the threads are 1/4-20. The five part models (p1 to p5, SolidWorks) are attached to this post, below it.</p>
+          <div class="idea-panel hx-example" data-color="brass"><span class="idea-eyebrow">The topper is different</span>
+          <p>There is no model. You design it yourself in the xTool software. Two rules: <strong>2.5 inches maximum</strong> width or diameter, and <strong>a 1/4 inch hole dead center</strong>. Everything else is yours. Sketch it on paper first, same standard.</p></div></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-videos" data-phase="learn" data-day="Videos" data-title="The five videos" data-layout="full">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Watch yours before your rotation opens</span><h2>The five videos</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+          <p>Runtimes run from about 17 to 43 minutes. Check yours before you start so you know what you are getting into. You do not have to memorize it. You will have it playing while you work.</p>
+          <div class="hx-links"><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/-IrsuGIgOPw" target="_blank" rel="noopener"><span class="hx-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg></span><span class="hx-link-text"><small>Video 1</small><b>The base</b><span>H2D Laser</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/JWL5daOmujI" target="_blank" rel="noopener"><span class="hx-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg></span><span class="hx-link-text"><small>Video 2</small><b>The column</b><span>Manual Mill</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/_2fvjiBbSLc" target="_blank" rel="noopener"><span class="hx-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg></span><span class="hx-link-text"><small>Video 3</small><b>The platform</b><span>Axiom CNC Router</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/_M3INhehlA4" target="_blank" rel="noopener"><span class="hx-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg></span><span class="hx-link-text"><small>Video 4</small><b>The shaft</b><span>Manual Lathe</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/P0xCyK7I92Q" target="_blank" rel="noopener"><span class="hx-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg></span><span class="hx-link-text"><small>Video 5</small><b>The topper</b><span>xTool MetalFab</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a></div></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-drawing" data-phase="learn" data-day="Drawing" data-title="The drawing">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">One per part, on paper, before you make it</span><h2>The drawing</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+          <p>You get the model file for each part. Before you make that part, you draw it on paper.</p>
+          <p><strong>The standard: someone who has never seen the model could make the part from your drawing.</strong> Every dimension needed to manufacture it. Every feature. If something is missing, they would have to guess, and a guess is a wrong part.</p>
+          <p class="hx-see">You end with five drawings, one per part.</p><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="trophy-drawing" data-kind="radio"><legend>Your drawing is done when:</legend><label class="hx-pick"><input type="radio" name="trophy-drawing" value="a">It looks like the model</label><label class="hx-pick"><input type="radio" name="trophy-drawing" value="b">Someone who never saw the model could make the part from it</label><label class="hx-pick"><input type="radio" name="trophy-drawing" value="c">It has the overall size</label></fieldset><p class="hx-readout" id="ro-trophy-drawing" aria-live="polite">Pick one.</p></div></div><div class="hx-stack"><div class="idea-panel hx-example" data-color="sky"><span class="idea-eyebrow">Draw one rotation ahead</span>
+          <p>Draw your first part before the rotations start. After that, draw the <strong>next</strong> rotation's part while you are at your current station and not on the machine. That is what the waiting time is for.</p></div></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-plan" data-phase="learn" data-day="Plan" data-title="The five plan questions, and phones">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">In your notebook, before every station</span><h2>The five plan questions, and phones</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+          <ol class="hx-do"><li><span>What am I making? Sketch it with the dimensions.</span></li><li><span>What are the steps, in order?</span></li>
+          <li><span>What tool and what settings for each step?</span></li><li><span>Where do I stop and measure?</span></li>
+          <li><span>What is most likely to go wrong here?</span></li></ol>
+          <label class="hx-row"><input type="checkbox" data-field="plan-ready"> My five questions are in my notebook for my next station.</label></div><div class="hx-stack"><div class="idea-panel hx-example" data-color="caution-yellow"><span class="idea-eyebrow">One holds the phone, one runs the machine</span>
+          <ul class="hx-list"><li><strong>Never the same person.</strong> The person running the machine does not touch the phone at any point.</li>
+          <li>The phone stays <strong>off the machine and out of the hazard area.</strong> Never on the table, the ways, or inside the enclosure.</li>
+          <li>You should be able to <strong>turn your head and see it.</strong> If you have to lean, reach, or step to see it, move it.</li>
+          <li>Phones come out for the station video and <strong>nothing else</strong>.</li></ul></div>
+          <p class="hx-see">Next: <a href="https://ideabosco.com/classroom/aa1e8bca-c61b-42a1-b16a-dd95fc212069/item/b283b7a9-dbab-4564-94b2-f4eff566049d" target="_blank" rel="noopener">Shop Trophy: Machine Training</a>, where you record each part.</p></div></div>
+  </section>
+</main>
+<script type="application/json" id="hx-plan-data">
+{"phases": [{"id": "how", "name": "How it works", "color": "caution-yellow", "days": [{"label": "How", "short": "How"}, {"label": "Parts", "short": "Parts"}]}, {"id": "learn", "name": "Before each station", "color": "brass", "days": [{"label": "Videos", "short": "Videos"}, {"label": "Drawing", "short": "Drawing"}, {"label": "Plan", "short": "Plan"}]}]}
+</script>
+<script type="application/json" id="hx-glossary">
+{}
+</script>
+<!-- hx:script -->
+
+<script id="hx-page-js">
+var RF_CHECKS = {"trophy-drawing": {"a": "b", "r": "Every dimension and feature, nothing left to guess.", "w": "A guess is a wrong part: every dimension, every feature."}};
+function rfRefresh() {
+  Object.keys(RF_CHECKS).forEach(function (f) {
+    var el = hxRoot(f), out = document.getElementById('ro-' + f);
+    if (!el || !out) return;
+    var v = String(hxRead(el) || ''), c = RF_CHECKS[f];
+    out.classList.toggle('warn', !!v && v !== c.a);
+    out.textContent = !v ? 'Pick one.' : v === c.a ? 'Right. ' + c.r : 'Not yet. ' + c.w + ' Pick again.';
+  });
+}
+document.addEventListener('input', rfRefresh);
+HX.onState.push(rfRefresh);
+rfRefresh();
+</script>
+</body>
+</html>

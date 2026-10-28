@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop Trophy: Machine Training</title>
+<script type="application/json" id="idea-manifest">{"schemaVersion": 3, "kind": "html-assignment", "title": "Shop Trophy: Machine Training", "course": "FRC5669", "points": 100, "header": [{"id": "frc-name", "field": "name", "type": "text"}, {"id": "frc-date", "field": "date", "type": "text"}], "modules": [{"id": "stations", "title": "The five stations", "points": 50, "blocks": [{"id": "frc-rec-base", "field": "rec-base", "type": "longText"}, {"id": "frc-part-base", "field": "part-base", "type": "image"}, {"id": "frc-rec-column", "field": "rec-column", "type": "longText"}, {"id": "frc-part-column", "field": "part-column", "type": "image"}, {"id": "frc-rec-platform", "field": "rec-platform", "type": "longText"}, {"id": "frc-part-platform", "field": "part-platform", "type": "image"}, {"id": "frc-rec-shaft", "field": "rec-shaft", "type": "longText"}, {"id": "frc-part-shaft", "field": "part-shaft", "type": "image"}, {"id": "frc-rec-topper", "field": "rec-topper", "type": "longText"}, {"id": "frc-part-topper", "field": "part-topper", "type": "image"}], "criteria": [{"id": "parts-made", "text": "Five parts made and photographed", "points": 20, "levels": [{"points": 20, "label": "Complete", "short": "5 parts, all identifiable", "descriptor": "Five photos, one per station, and in every one the whole part is in frame and in focus."}, {"points": 16, "label": "Proficient", "short": "5 parts, one poor photo", "descriptor": "Five photos with one out of focus, cut off, or too dark to see the feature."}, {"points": 8, "label": "Developing", "short": "3 or 4 parts", "descriptor": "Three or four station photos."}, {"points": 0, "label": "Absent", "short": "2 or fewer", "descriptor": "Two station photos or fewer."}]}, {"id": "settings-tooling", "text": "Tool, workholding and settings as actually run", "points": 15, "levels": [{"points": 15, "label": "Complete", "short": "All 5 name tool, hold, settings", "descriptor": "All five records name the tool, how the part was held, and the settings actually used at that machine, in terms specific to that machine."}, {"points": 12, "label": "Proficient", "short": "One gap in one record", "descriptor": "One of the three missing from one record, or one record gives planned values rather than the values run."}, {"points": 6, "label": "Developing", "short": "Gaps in 2 or 3", "descriptor": "One or more missing from two or three records, or those records name the operation only."}, {"points": 0, "label": "Absent", "short": "Gaps in most", "descriptor": "Tool, workholding and settings are absent from most records."}]}, {"id": "what-happened", "text": "What actually happened at the machine", "points": 15, "levels": [{"points": 15, "label": "Complete", "short": "All 5 name a real event", "descriptor": "All five records name one of these: a problem, a mistake, a measurement that came out wrong, or something changed mid-cut."}, {"points": 12, "label": "Proficient", "short": "4 name a real event", "descriptor": "Four records name one of those four; one is a general statement such as it went fine."}, {"points": 6, "label": "Developing", "short": "2 or 3 name an event", "descriptor": "Two or three records name one of those four."}, {"points": 0, "label": "Absent", "short": "0 or 1", "descriptor": "One record or none names anything that happened."}]}]}, {"id": "drawings", "title": "Your five drawings", "points": 20, "blocks": [{"id": "frc-draw-base", "field": "draw-base", "type": "image"}, {"id": "frc-draw-column", "field": "draw-column", "type": "image"}, {"id": "frc-draw-platform", "field": "draw-platform", "type": "image"}, {"id": "frc-draw-shaft", "field": "draw-shaft", "type": "image"}, {"id": "frc-draw-topper", "field": "draw-topper", "type": "image"}], "criteria": [{"id": "drawings-present", "text": "Drawings present and legible", "points": 6, "levels": [{"points": 6, "label": "Complete", "short": "5 legible drawings", "descriptor": "All five drawings uploaded and every word and number on them can be read without zooming."}, {"points": 5, "label": "Proficient", "short": "5, one hard to read", "descriptor": "All five present with one that cannot be read without zooming."}, {"points": 2, "label": "Developing", "short": "3 or 4 drawings", "descriptor": "Three or four drawings present."}, {"points": 0, "label": "Absent", "short": "2 or fewer", "descriptor": "Two drawings or fewer."}]}, {"id": "manufacturable", "text": "Manufacturable from the drawing alone", "points": 14, "levels": [{"points": 14, "label": "Complete", "short": "All 5 fully dimensioned", "descriptor": "All five drawings carry every dimension and feature needed to make the part with nothing left to guess, and the topper sketch marks both its 2.5 in limit and its center hole."}, {"points": 11, "label": "Proficient", "short": "One gap in one drawing", "descriptor": "One dimension or feature missing from one drawing, or the topper sketch is missing one of its two marks."}, {"points": 5, "label": "Developing", "short": "Gaps in 2 or 3", "descriptor": "Dimensions or features missing from two or three drawings."}, {"points": 0, "label": "Absent", "short": "Gaps in most", "descriptor": "Most drawings could not be used to make the part."}]}]}, {"id": "inspect", "title": "Inspect what you made", "points": 20, "blocks": [{"id": "frc-meas-table", "field": "measurements", "type": "table"}, {"id": "frc-meas-tool", "field": "meas-tool", "type": "text"}, {"id": "frc-meas-read", "field": "meas-read", "type": "longText"}], "criteria": [{"id": "measured", "text": "Five parts measured and recorded", "points": 10, "levels": [{"points": 10, "label": "Complete", "short": "5 rows complete, tool named", "descriptor": "All five rows name a feature and carry both a nominal and a measured value, and the measuring tool is named."}, {"points": 8, "label": "Proficient", "short": "5 rows, one gap", "descriptor": "Five rows with one missing value, or the measuring tool is not named."}, {"points": 4, "label": "Developing", "short": "3 or 4 rows", "descriptor": "Three or four rows complete."}, {"points": 0, "label": "Absent", "short": "2 or fewer", "descriptor": "Two rows or fewer."}]}, {"id": "read-the-error", "text": "Reading the error", "points": 10, "levels": [{"points": 10, "label": "Complete", "short": "Both named, physical cause, number", "descriptor": "Names the part that came out closest and the one furthest off, quotes a number from the table for each, and gives a physical cause: the tool or beam, how the material behaves, how the part was held, or how the machine moves."}, {"points": 8, "label": "Proficient", "short": "Both named, cause is general", "descriptor": "Names both and quotes a number, but the cause is correct without being tied to the tool, the material, the workholding or the machine."}, {"points": 4, "label": "Developing", "short": "Names them, no cause", "descriptor": "Names closest and furthest with no number or no cause."}, {"points": 0, "label": "Absent", "short": "Not answered", "descriptor": "Does not name which part came out closest and which furthest."}]}]}, {"id": "assemble", "title": "Put it together", "points": 10, "blocks": [{"id": "frc-trophy", "field": "trophy", "type": "image"}, {"id": "frc-fit", "field": "fit", "type": "longText"}], "criteria": [{"id": "assembled", "text": "Assembled and photographed", "points": 4, "levels": [{"points": 4, "label": "Complete", "short": "Assembled, standing, all 5", "descriptor": "Photo shows the trophy assembled from all five parts and standing on its own."}, {"points": 3, "label": "Proficient", "short": "Assembled, poor photo", "descriptor": "Assembled, but the photo does not show all five parts or is too blurred to see them."}, {"points": 1, "label": "Developing", "short": "Partly assembled", "descriptor": "Some parts assembled, or the parts are laid out rather than bolted together."}, {"points": 0, "label": "Absent", "short": "No photo", "descriptor": "No assembly photo."}]}, {"id": "fit", "text": "What the fit told you", "points": 6, "levels": [{"points": 6, "label": "Complete", "short": "Names part, feature and cause", "descriptor": "Names the part and the feature that fought the assembly, or the tightest fit if everything went together, and ties it to how that part was made or measured."}, {"points": 5, "label": "Proficient", "short": "Names it, cause is general", "descriptor": "Names the part and feature but the reason is general rather than tied to how it was made or measured."}, {"points": 2, "label": "Developing", "short": "Fit only, no part named", "descriptor": "Says whether it fit without naming a part or a feature."}, {"points": 0, "label": "Absent", "short": "Not answered", "descriptor": "Nothing written about the fit."}]}]}], "thumbnail": {"kind": "html", "template": "idea-thumbnail"}}</script>
+<!-- hx:head -->
+<style>
+  /* This assignment's own layout. Colors are data-color roles; parts are the kit's. */
+  .st-id { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: var(--space-3); }
+  .st-id label, .st-tool { display: grid; gap: 6px; }
+  .st-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); gap: var(--space-3); align-items: end; }
+  .st-five { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); gap: var(--space-3); }
+  .st-five .hx-box { min-height: 120px; }
+  .st-vids { grid-template-columns: minmax(0, 1fr); }
+  .st-table th[scope="row"] { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0; text-transform: none; color: var(--plate-ink); padding-top: 14px; }
+  .st-diff { display: block; white-space: nowrap; }
+  .st-diff.warn { border-color: var(--warn-edge, currentColor); }
+  /* Narrow column: each row reads top to bottom, its labels from data-label. */
+  @container (max-width: 40rem) {
+    .st-table thead { display: none; }
+    .st-table tr { display: grid; gap: 4px; padding: 8px 0; }
+    .st-table td, .st-table th[scope="row"] { display: block; padding: 0; }
+    .st-table td::before { content: attr(data-label); display: block; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caption); margin-bottom: 2px; }
+  }
+</style>
+<template id="idea-thumbnail"><style>
+  :root { --t1: #1c2023; --t2: #0f1113; --tink: #eef1f3; --tdim: #9aa3aa; --fill: #B9C0C7; }
+  :root[data-idea-scheme="light"] { --t1: #f4f6f8; --t2: #dbe1e6; --tink: #14181b; --tdim: #4a535a; }
+  .t { --h: var(--idea-thumb-h, 120px); --w: var(--idea-thumb-w, 120px); position: absolute; inset: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: calc(var(--h) * 0.14); padding: 0 calc(var(--h) * 0.22); background: radial-gradient(130% 150% at 18% 18%, var(--t1), var(--t2)); color: var(--tink); font-family: system-ui, sans-serif; overflow: hidden; }
+  .t::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: max(3px, calc(var(--h) * 0.045)); background: var(--fill); }
+  .b { flex: none; height: 64%; aspect-ratio: 1; border-radius: 24%; background: var(--fill); display: grid; place-items: center; box-shadow: inset 0 calc(var(--h) * 0.01) 0 rgba(255,255,255,.35), 0 calc(var(--h) * 0.02) calc(var(--h) * 0.05) rgba(0,0,0,.35); }
+  .b svg { width: 64%; height: 64%; }
+  .w { display: none; min-width: 0; gap: calc(var(--h) * 0.04); }
+  .w b { font-weight: 700; font-size: min(calc(var(--h) * 0.24), calc(var(--w) * 0.05)); line-height: 1.08; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .w small { font: 600 max(8px, min(calc(var(--h) * 0.11), calc(var(--w) * 0.024)))/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tdim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :root[data-idea-shape="wide"] .w, :root[data-idea-shape="banner"] .w { display: grid; }
+  :root[data-idea-shape="banner"] .b { height: 72%; }
+  :root[data-idea-shape="wide"] .t { gap: calc(var(--h) * 0.1); padding: 0 calc(var(--w) * 0.07); }
+  :root[data-idea-shape="wide"] .b { height: min(46%, calc(var(--w) * 0.26)); }
+  :root[data-idea-shape="wide"] .w b { font-size: min(calc(var(--h) * 0.17), calc(var(--w) * 0.062)); -webkit-line-clamp: 3; }
+  :root[data-idea-shape="wide"] .w small { font-size: max(9px, min(calc(var(--h) * 0.08), calc(var(--w) * 0.028))); white-space: normal; }
+  :root[data-idea-shape="banner"] .w b { font-size: min(calc(var(--h) * 0.32), calc(var(--w) * 0.035)); -webkit-line-clamp: 1; white-space: nowrap; }
+  :root[data-idea-shape="banner"] .w small { font-size: max(8px, calc(var(--h) * 0.15)); }
+  :root[data-idea-shape="tile"] .b, :root:not([data-idea-shape]) .b { height: 70%; }
+</style><div class="t"><div class="b"><svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="#16181a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="44" width="46" height="10" rx="2"/><path d="M24 44V31h16v13"/><path d="M32 31V9"/><path d="M25 15h14"/><path d="M28 9h8"/></svg></div><div class="w"><small>Shop Training · Step 3</small><b>Machine Training</b></div></div></template>
+</head>
+<body class="idea-plate">
+<main id="hx-page">
+
+  <header class="hx-hero">
+    <div class="hx-hero-text">
+      <span class="hx-crumb">FRC 5669 · Shop Training · Shop Trophy</span>
+      <h1>Shop Trophy: Machine Training</h1>
+      <p class="hx-done-when"><strong>Done when:</strong> you have made a part on each of the five machines, written what each one did, drawn and measured every part, and bolted them into a trophy you keep.</p>
+      <div class="hx-row">
+        <span class="idea-chip">5 machines · 5 parts</span>
+        <span class="idea-chip">Any order, any number of sessions</span>
+      </div>
+    </div>
+    <div class="hx-hero-art" data-color="brass" aria-hidden="true">
+      <svg viewBox="0 0 320 170">
+        <rect x="60" y="138" width="200" height="22" rx="3" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2.5"/>
+        <text x="160" y="153" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="11" fill="var(--hx-ink)">YOUR NAME</text>
+        <rect x="140" y="78" width="40" height="60" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/>
+        <circle cx="160" cy="96" r="4" fill="none" stroke="var(--plate-ink)" stroke-width="2"/>
+        <circle cx="160" cy="120" r="4" fill="none" stroke="var(--plate-ink)" stroke-width="2"/>
+        <path d="M96 66 H224 L212 78 H108 Z" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="152" y="34" width="16" height="32" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/>
+        <path d="M152 34 Q160 26 168 34" fill="none" stroke="var(--plate-ink)" stroke-width="2.5"/>
+        <path d="M160 6 L168 18 L182 18 L171 26 L175 40 L160 31 L145 40 L149 26 L138 18 L152 18 Z" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2" stroke-linejoin="round"/>
+        <circle cx="160" cy="24" r="2.5" fill="var(--hx-on)"/>
+      </svg>
+    </div>
+  </header>
+
+  <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Stages of the training"></nav>
+  <div class="hx-bar idea-panel" id="hx-bar"></div>
+  <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
+
+  <section class="hx-step idea-panel" id="s-start" data-phase="start" data-day="Start" data-title="How this works">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Read this first · not graded</span><h2>How this works</h2></div></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span><strong>Watch</strong> your station video before you go to the machine. Not at the machine.</span></li>
+          <li><span><strong>Plan</strong> in your notebook before you touch anything. Five questions, beside this.</span></li>
+          <li><span><strong>Cut</strong> with the video playing. Your partner holds the phone. You run the machine.</span></li>
+          <li><span><strong>No plan, no machine.</strong> Your notebook gets checked before you start.</span></li>
+        </ol>
+        <p class="hx-see">Work one station, come back here, and fill in that station. Nothing here has to be done in one sitting and nothing has to be done in order.</p>
+        <div class="st-id">
+          <label>Your name<input type="text" class="idea-well idea-well--field" id="f-name" data-field="name" placeholder="First and last"></label>
+          <label>Date started<input type="text" class="idea-well idea-well--field" id="f-date" data-field="date" placeholder="e.g. 2026-09-18"></label>
+        </div>
+      </div>
+      <div class="hx-stack">
+        <div class="idea-panel hx-example" data-color="caution-yellow">
+          <span class="idea-eyebrow">Before you touch a machine</span>
+          <p>Same five questions at every station. In your notebook, before you start.</p>
+          <ol class="hx-list">
+            <li>What am I making? Sketch it with the dimensions.</li>
+            <li>What are the steps, in order?</li>
+            <li>What tool and what settings for each step?</li>
+            <li>Where do I stop and measure?</li>
+            <li>What is most likely to go wrong here?</li>
+          </ol>
+        </div>
+        <details class="hx-more">
+          <summary>Phones at the machines</summary>
+          <ul class="hx-list">
+            <li><strong>Never the same person.</strong> Whoever is running the machine does not touch the phone at any point.</li>
+            <li>The phone stays <strong>off the machine and out of the hazard area</strong>. Never on the table, the ways, or inside the enclosure.</li>
+            <li>You should be able to <strong>turn your head and see it</strong>. If you have to lean, reach, or step to see it, move it.</li>
+            <li>Phones come out for the station video and <strong>nothing else</strong>.</li>
+          </ul>
+        </details>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-making" data-phase="start" data-day="Parts" data-title="What you are making">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Read this first · not graded</span><h2>What you are making</h2></div></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <div><table class="hx-table st-table st-info"><thead><tr><th>Part</th><th>Machine</th><th>What it is</th></tr></thead><tbody><tr><td data-label="Part"><strong>Base</strong></td><td data-label="Machine">Bambu H2D Laser</td><td data-label="What it is">Plywood. Cut and engraved. Your name on it.</td></tr><tr><td data-label="Part"><strong>Column</strong></td><td data-label="Machine">Manual Mill</td><td data-label="What it is">Aluminum box tube. Squared up, then two holes: one tapped 1/4-20, one 1/4 in through.</td></tr><tr><td data-label="Part"><strong>Platform</strong></td><td data-label="Machine">Axiom CNC Router</td><td data-label="What it is">Polycarbonate. Profiled on the router.</td></tr><tr><td data-label="Part"><strong>Shaft</strong></td><td data-label="Machine">Manual Lathe</td><td data-label="What it is">Hex stock. Turned, tapped 1/4-20 both ends, one end rounded.</td></tr><tr><td data-label="Part"><strong>Topper</strong></td><td data-label="Machine">xTool MetalFab</td><td data-label="What it is">Steel. Your own design. 2.5 in maximum across, 1/4 in hole dead center.</td></tr></tbody></table></div>
+        <p class="hx-small">Every thread on the trophy is 1/4-20.</p>
+        <details class="hx-more">
+          <summary>The drawing standard</summary>
+          <p>You get the model file for each part. Before you make that part, you draw it on paper.</p>
+          <p><strong>The standard: someone who has never seen the model could make the part from your drawing.</strong> Every dimension needed to manufacture it. Every feature. Anything missing is something they would have to guess, and a guess is a wrong part.</p>
+          <p><strong>The topper is different.</strong> There is no model. You design it yourself in the xTool software. Two rules: <strong>2.5 inches maximum</strong> across, and <strong>a 1/4 inch hole dead center</strong>. Everything else is yours. Sketch it on paper first, same standard.</p>
+        </details>
+      </div>
+      <div class="hx-stack">
+        <p class="hx-small">The five videos run about 17 to 43 minutes each: check yours before you start. You do not have to memorize it; it plays while you work.</p>
+        <div class="hx-links st-vids"><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/-IrsuGIgOPw" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>1. Base on the Bambu H2D Laser</b></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/JWL5daOmujI" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>2. Column on the Manual Mill</b></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/_2fvjiBbSLc" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>3. Platform on the Axiom CNC Router</b></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/_M3INhehlA4" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>4. Shaft on the Manual Lathe</b></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/P0xCyK7I92Q" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>5. Topper on the xTool MetalFab</b></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a></div>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-base" data-phase="stations" data-day="Base" data-title="Base on the Bambu H2D Laser">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Station 1 of 5 · Bambu H2D Laser</span><h2>Base</h2></div><span class="idea-chip" data-rstate="base">Not started</span></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <div class="idea-panel st-part" data-color="plywood"><span class="idea-eyebrow">What you make</span><p>Plywood. Cut and engraved. Your name on it.</p></div>
+        <ol class="hx-do">
+          <li><span><strong>Watch</strong> the base video before you go to the machine. Not at the machine.</span></li>
+          <li><span><strong>Plan</strong> in your notebook: the five questions from step 1. No plan, no machine.</span></li>
+          <li><span><strong>Cut</strong> with the video playing. Your partner holds the phone. You run the machine.</span></li>
+          <li><span><strong>Write your record</strong> at the machine or right after, then add the photo.</span></li>
+        </ol>
+        <div class="hx-links"><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/-IrsuGIgOPw" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>Watch the base video</b><span>Base on the Bambu H2D Laser</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a></div>
+        <label>Your record
+          <textarea class="idea-well" id="f-rec-base" data-field="rec-base" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+        </label>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Photo of your base</span>
+          <div class="hx-box" data-image-box="part-base" data-empty="Paste the photo here, or press Choose photo">Paste the photo here, or press Choose photo</div>
+          <input type="file" data-field="part-base" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="part-base">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="part-base" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="part-base"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="part-base" aria-label="Caption for photo of your base" placeholder="Caption (optional)">
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-column" data-phase="stations" data-day="Column" data-title="Column on the Manual Mill">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Station 2 of 5 · Manual Mill</span><h2>Column</h2></div><span class="idea-chip" data-rstate="column">Not started</span></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <div class="idea-panel st-part" data-color="aluminum"><span class="idea-eyebrow">What you make</span><p>Aluminum box tube. Squared up, then two holes: one tapped 1/4-20, one 1/4 in through.</p></div>
+        <ol class="hx-do">
+          <li><span><strong>Watch</strong> the column video before you go to the machine. Not at the machine.</span></li>
+          <li><span><strong>Plan</strong> in your notebook: the five questions from step 1. No plan, no machine.</span></li>
+          <li><span><strong>Cut</strong> with the video playing. Your partner holds the phone. You run the machine.</span></li>
+          <li><span><strong>Write your record</strong> at the machine or right after, then add the photo.</span></li>
+        </ol>
+        <div class="hx-links"><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/JWL5daOmujI" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>Watch the column video</b><span>Column on the Manual Mill</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a></div>
+        <label>Your record
+          <textarea class="idea-well" id="f-rec-column" data-field="rec-column" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+        </label>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Photo of your column</span>
+          <div class="hx-box" data-image-box="part-column" data-empty="Paste the photo here, or press Choose photo">Paste the photo here, or press Choose photo</div>
+          <input type="file" data-field="part-column" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="part-column">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="part-column" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="part-column"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="part-column" aria-label="Caption for photo of your column" placeholder="Caption (optional)">
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-platform" data-phase="stations" data-day="Platform" data-title="Platform on the Axiom CNC Router">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Station 3 of 5 · Axiom CNC Router</span><h2>Platform</h2></div><span class="idea-chip" data-rstate="platform">Not started</span></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <div class="idea-panel st-part"><span class="idea-eyebrow">What you make</span><p>Polycarbonate. Profiled on the router.</p></div>
+        <ol class="hx-do">
+          <li><span><strong>Watch</strong> the platform video before you go to the machine. Not at the machine.</span></li>
+          <li><span><strong>Plan</strong> in your notebook: the five questions from step 1. No plan, no machine.</span></li>
+          <li><span><strong>Cut</strong> with the video playing. Your partner holds the phone. You run the machine.</span></li>
+          <li><span><strong>Write your record</strong> at the machine or right after, then add the photo.</span></li>
+        </ol>
+        <div class="hx-links"><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/_2fvjiBbSLc" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>Watch the platform video</b><span>Platform on the Axiom CNC Router</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a></div>
+        <label>Your record
+          <textarea class="idea-well" id="f-rec-platform" data-field="rec-platform" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+        </label>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Photo of your platform</span>
+          <div class="hx-box" data-image-box="part-platform" data-empty="Paste the photo here, or press Choose photo">Paste the photo here, or press Choose photo</div>
+          <input type="file" data-field="part-platform" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="part-platform">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="part-platform" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="part-platform"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="part-platform" aria-label="Caption for photo of your platform" placeholder="Caption (optional)">
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-shaft" data-phase="stations" data-day="Shaft" data-title="Shaft on the Manual Lathe">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Station 4 of 5 · Manual Lathe</span><h2>Shaft</h2></div><span class="idea-chip" data-rstate="shaft">Not started</span></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <div class="idea-panel st-part" data-color="aluminum"><span class="idea-eyebrow">What you make</span><p>Hex stock. Turned, tapped 1/4-20 both ends, one end rounded.</p></div>
+        <ol class="hx-do">
+          <li><span><strong>Watch</strong> the shaft video before you go to the machine. Not at the machine.</span></li>
+          <li><span><strong>Plan</strong> in your notebook: the five questions from step 1. No plan, no machine.</span></li>
+          <li><span><strong>Cut</strong> with the video playing. Your partner holds the phone. You run the machine.</span></li>
+          <li><span><strong>Write your record</strong> at the machine or right after, then add the photo.</span></li>
+        </ol>
+        <div class="hx-links"><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/_M3INhehlA4" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>Watch the shaft video</b><span>Shaft on the Manual Lathe</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a></div>
+        <label>Your record
+          <textarea class="idea-well" id="f-rec-shaft" data-field="rec-shaft" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+        </label>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Photo of your shaft</span>
+          <div class="hx-box" data-image-box="part-shaft" data-empty="Paste the photo here, or press Choose photo">Paste the photo here, or press Choose photo</div>
+          <input type="file" data-field="part-shaft" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="part-shaft">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="part-shaft" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="part-shaft"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="part-shaft" aria-label="Caption for photo of your shaft" placeholder="Caption (optional)">
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-topper" data-phase="stations" data-day="Topper" data-title="Topper on the xTool MetalFab">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Station 5 of 5 · xTool MetalFab</span><h2>Topper</h2></div><span class="idea-chip" data-rstate="topper">Not started</span></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <div class="idea-panel st-part" data-color="steel"><span class="idea-eyebrow">What you make</span><p>Steel. Your own design. 2.5 in maximum across, 1/4 in hole dead center.</p></div>
+        <ol class="hx-do">
+          <li><span><strong>Watch</strong> the topper video before you go to the machine. Not at the machine.</span></li>
+          <li><span><strong>Plan</strong> in your notebook: the five questions from step 1. No plan, no machine.</span></li>
+          <li><span><strong>Cut</strong> with the video playing. Your partner holds the phone. You run the machine.</span></li>
+          <li><span><strong>Write your record</strong> at the machine or right after, then add the photo.</span></li>
+        </ol>
+        <div class="hx-links"><a class="hx-link-card" data-color="youtube-red" href="https://youtu.be/P0xCyK7I92Q" target="_blank" rel="noreferrer"><span class="hx-link-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="var(--hx-fill)"/><path d="M10 9v6l5-3z" fill="var(--hx-on)"/></svg></span><span class="hx-link-text"><small>Video</small><b>Watch the topper video</b><span>Topper on the xTool MetalFab</span></span><span class="hx-link-go">Open <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></a></div>
+        <label>Your record
+          <textarea class="idea-well" id="f-rec-topper" data-field="rec-topper" placeholder="Tool and how you held it. The settings you actually ran. One thing that went wrong, came out wrong, or that you changed mid-cut."></textarea>
+        </label>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Photo of your topper</span>
+          <div class="hx-box" data-image-box="part-topper" data-empty="Paste the photo here, or press Choose photo">Paste the photo here, or press Choose photo</div>
+          <input type="file" data-field="part-topper" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="part-topper">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="part-topper" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="part-topper"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="part-topper" aria-label="Caption for photo of your topper" placeholder="Caption (optional)">
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-drawings" data-phase="drawings" data-day="Drawings" data-title="Your five drawings" data-layout="full">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Your five drawings · 20 points</span><h2>Photograph your drawings</h2></div><span class="idea-chip" id="st-dw">0 of 5 added</span></div>
+    <div class="hx-step-body">
+      <p class="hx-see">Photograph each paper drawing flat and straight on, in light good enough that every number on it can be read without zooming.</p>
+      <div class="st-five"><div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Base drawing</span>
+          <div class="hx-box" data-image-box="draw-base" data-empty="Paste the photo here">Paste the photo here</div>
+          <input type="file" data-field="draw-base" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="draw-base">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="draw-base" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="draw-base"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="draw-base" aria-label="Caption for base drawing" placeholder="Caption (optional)">
+        </div><div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Column drawing</span>
+          <div class="hx-box" data-image-box="draw-column" data-empty="Paste the photo here">Paste the photo here</div>
+          <input type="file" data-field="draw-column" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="draw-column">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="draw-column" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="draw-column"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="draw-column" aria-label="Caption for column drawing" placeholder="Caption (optional)">
+        </div><div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Platform drawing</span>
+          <div class="hx-box" data-image-box="draw-platform" data-empty="Paste the photo here">Paste the photo here</div>
+          <input type="file" data-field="draw-platform" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="draw-platform">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="draw-platform" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="draw-platform"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="draw-platform" aria-label="Caption for platform drawing" placeholder="Caption (optional)">
+        </div><div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Shaft drawing</span>
+          <div class="hx-box" data-image-box="draw-shaft" data-empty="Paste the photo here">Paste the photo here</div>
+          <input type="file" data-field="draw-shaft" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="draw-shaft">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="draw-shaft" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="draw-shaft"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="draw-shaft" aria-label="Caption for shaft drawing" placeholder="Caption (optional)">
+        </div><div class="hx-stack st-photo">
+          <span class="idea-eyebrow">Topper drawing</span>
+          <div class="hx-box" data-image-box="draw-topper" data-empty="Paste the photo here">Paste the photo here</div>
+          <input type="file" data-field="draw-topper" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="draw-topper">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="draw-topper" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="draw-topper"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="draw-topper" aria-label="Caption for topper drawing" placeholder="Caption (optional)">
+        </div></div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-measure" data-phase="inspect" data-day="Measure" data-title="Measure each part" data-layout="full">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Inspect what you made · 20 points</span><h2>Measure each part</h2></div></div>
+    <div class="hx-step-body">
+      <div class="st-top">
+        <p class="hx-see">Pick one feature on each part that the drawing gives a number for. Measure it. The difference calculates itself.</p>
+        <label class="st-tool">What you measured with<input type="text" class="idea-well idea-well--field" id="f-tool" data-field="meas-tool" placeholder="Caliper, micrometer, gage pin"></label>
+      </div>
+      <div data-field="measurements" data-kind="table" id="f-measurements">
+      <table class="hx-table st-table st-meas"><thead><tr><th>Part</th><th>Feature you measured</th><th>Nominal (in)</th><th>Measured (in)</th><th>Difference (in)</th></tr></thead>
+        <tbody><tr><th scope="row" data-label="Part">Base</th>
+            <td data-label="Feature you measured"><input type="text" class="idea-well idea-well--field" data-cell="base|feature" aria-label="Base: feature you measured" placeholder="e.g. overall length"></td>
+            <td data-label="Nominal (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="base|nominal" aria-label="Base: nominal in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Measured (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="base|measured" aria-label="Base: measured in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Difference (in)"><span class="hx-readout st-diff" data-diff="base">-</span></td></tr><tr><th scope="row" data-label="Part">Column</th>
+            <td data-label="Feature you measured"><input type="text" class="idea-well idea-well--field" data-cell="column|feature" aria-label="Column: feature you measured" placeholder="e.g. overall length"></td>
+            <td data-label="Nominal (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="column|nominal" aria-label="Column: nominal in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Measured (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="column|measured" aria-label="Column: measured in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Difference (in)"><span class="hx-readout st-diff" data-diff="column">-</span></td></tr><tr><th scope="row" data-label="Part">Platform</th>
+            <td data-label="Feature you measured"><input type="text" class="idea-well idea-well--field" data-cell="platform|feature" aria-label="Platform: feature you measured" placeholder="e.g. overall length"></td>
+            <td data-label="Nominal (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="platform|nominal" aria-label="Platform: nominal in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Measured (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="platform|measured" aria-label="Platform: measured in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Difference (in)"><span class="hx-readout st-diff" data-diff="platform">-</span></td></tr><tr><th scope="row" data-label="Part">Shaft</th>
+            <td data-label="Feature you measured"><input type="text" class="idea-well idea-well--field" data-cell="shaft|feature" aria-label="Shaft: feature you measured" placeholder="e.g. overall length"></td>
+            <td data-label="Nominal (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="shaft|nominal" aria-label="Shaft: nominal in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Measured (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="shaft|measured" aria-label="Shaft: measured in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Difference (in)"><span class="hx-readout st-diff" data-diff="shaft">-</span></td></tr><tr><th scope="row" data-label="Part">Topper</th>
+            <td data-label="Feature you measured"><input type="text" class="idea-well idea-well--field" data-cell="topper|feature" aria-label="Topper: feature you measured" placeholder="e.g. overall length"></td>
+            <td data-label="Nominal (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="topper|nominal" aria-label="Topper: nominal in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Measured (in)"><input type="text" class="idea-well idea-well--field" inputmode="decimal" data-cell="topper|measured" aria-label="Topper: measured in inches" placeholder="e.g. 0.000"></td>
+            <td data-label="Difference (in)"><span class="hx-readout st-diff" data-diff="topper">-</span></td></tr></tbody></table>
+      </div>
+      <p class="hx-readout" id="st-tbl" aria-live="polite"></p>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-read" data-phase="inspect" data-day="Read" data-title="Read the error">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Inspect what you made · 20 points</span><h2>Read the error</h2></div></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <p>Which part came out closest to its number, and which came out furthest off? Quote the number from your table for each. Then say why, physically: the tool or the beam, how the material behaves, how the part was held, or how the machine moves.</p>
+        <p class="hx-readout" id="st-sum" aria-live="polite"></p>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Check yourself</span>
+        <label>Read the error<textarea class="idea-well" id="f-read" data-field="meas-read" placeholder="Closest: ... at ... in. Furthest: ... at ... in, because ..."></textarea></label>
+        <p class="hx-readout" id="st-rd" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-assemble" data-phase="assemble" data-day="Trophy" data-title="Put it together">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Put it together · 10 points</span><h2>Bolt it together</h2></div></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <div class="hx-stack st-photo">
+          <span class="idea-eyebrow">The assembled trophy</span>
+          <div class="hx-box" data-image-box="trophy" data-empty="Paste the photo here, or press Choose photo">Paste the photo here, or press Choose photo</div>
+          <input type="file" data-field="trophy" accept="image/*" hidden>
+          <div class="hx-row hx-edit-only">
+            <button type="button" class="idea-key" data-edits data-choose="trophy">Choose photo</button>
+            <button type="button" class="idea-key" data-edits data-remove="trophy" hidden>Remove</button>
+          </div>
+          <p class="hx-note" data-file-note="trophy"></p>
+          <input type="text" class="idea-well idea-well--field" data-caption-for="trophy" aria-label="Caption for the assembled trophy" placeholder="Caption (optional)">
+        </div>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Check yourself</span>
+        <p>Name the part and the feature that fought the assembly, and why. If everything went together the first time, say so and name the tightest fit and what made it tight.</p>
+        <label>What the fit told you<textarea class="idea-well" id="f-fit" data-field="fit"></textarea></label>
+        <p class="hx-readout" id="st-fit" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+
+  <details class="hx-more st-src">
+    <summary>Sources</summary>
+    <ul class="hx-list">
+      <li>The five Shop Trophy station videos, IDEA shop, Don Bosco Technical Institute, 2026. Linked in each station.</li>
+      <li>The part models issued with each station, and the machine controls themselves for every speed, feed and power value.</li>
+      <li>Thread size 1/4-20 UNC, tapped at both ends of the shaft and through the column.</li>
+    </ul>
+  </details>
+</main>
+
+<script type="application/json" id="hx-plan-data">
+{"phases": [{"id": "start", "name": "Read this first", "color": "first-gray", "days": [{"label": "Start", "short": "Start"}, {"label": "Parts", "short": "Parts"}]}, {"id": "stations", "name": "The five stations", "color": "caution-yellow", "days": [{"label": "Base", "short": "Base"}, {"label": "Column", "short": "Column"}, {"label": "Platform", "short": "Platform"}, {"label": "Shaft", "short": "Shaft"}, {"label": "Topper", "short": "Topper"}]}, {"id": "drawings", "name": "Drawings", "color": "sketch-blue", "days": [{"label": "Drawings", "short": "Drawings"}]}, {"id": "inspect", "name": "Inspect", "color": "magenta", "days": [{"label": "Measure", "short": "Measure"}, {"label": "Read", "short": "Read"}]}, {"id": "assemble", "name": "Assemble", "color": "brass", "days": [{"label": "Trophy", "short": "Trophy"}]}]}
+</script>
+<script type="application/json" id="hx-glossary">
+{}
+</script>
+<!-- hx:script -->
+<script id="hx-page-js">
+/* This page's own code: the measurements table (stored as one JSON object keyed
+   "part|column", exactly as the first version stored it) and the live mirrors. */
+var ST_PARTS = ["base", "column", "platform", "shaft", "topper"];
+var ST_COLS = ["feature", "nominal", "measured"];
+var stRoot = document.getElementById('f-measurements');
+function stTxt(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
+function stNum(el) { var t = String(el.value || '').trim(); if (!t) return null; var n = Number(t); return isFinite(n) ? n : NaN; }
+function stCell(k) { return document.querySelector('[data-cell="' + k + '"]'); }
+/* The first version stored one object keyed "part|column". A stored answer in that
+   shape is read into the table here; the student's next edit saves it as rows. */
+function stOldShape() {
+  if (HX.owned.measurements) return;
+  var v = HX.values.measurements, o = null;
+  try { o = JSON.parse(String(v || '')); } catch (e) { o = null; }
+  if (!o || Array.isArray(o) || typeof o !== 'object') return;
+  ST_PARTS.forEach(function (p) { ST_COLS.forEach(function (c) { var k = p + '|' + c; stCell(k).value = Object.prototype.hasOwnProperty.call(o, k) ? String(o[k]) : ''; }); });
+}
+function stTable() {
+  var filled = 0, bad = 0, rows = [];
+  ST_PARTS.forEach(function (s) {
+    var td = document.querySelector('[data-diff="' + s + '"]');
+    var n = stNum(stCell(s + '|nominal')), m = stNum(stCell(s + '|measured'));
+    td.classList.remove('warn');
+    if (n === null || m === null) { td.textContent = '-'; return; }
+    if (isNaN(n) || isNaN(m)) { td.textContent = 'check entry'; td.classList.add('warn'); bad++; return; }
+    var dd = m - n; filled++;
+    td.textContent = (dd > 0 ? '+' : '') + dd.toFixed(3);
+    td.classList.toggle('warn', Math.abs(dd) >= 0.02);
+    rows.push([s, Math.abs(dd), dd]);
+  });
+  var note = document.getElementById('st-tbl');
+  note.textContent = bad ? 'One or more entries are not numbers. Those rows cannot calculate.'
+    : filled + ' of 5 parts have both values. A difference of 0.020 in or more is flagged; that is a result, not a failure.';
+  note.classList.toggle('warn', bad > 0);
+  var sum = document.getElementById('st-sum');
+  if (rows.length < 2) sum.textContent = 'Fill in at least two rows of the table in the step before: your closest and furthest parts appear here.';
+  else {
+    rows.sort(function (a, b) { return a[1] - b[1]; });
+    var f = function (r) { return r[0] + ' ' + (r[2] > 0 ? '+' : '') + r[2].toFixed(3) + ' in'; };
+    sum.textContent = 'From your table: closest ' + f(rows[0]) + ', furthest ' + f(rows[rows.length - 1]) + '.';
+  }
+}
+function stMirrors() {
+  var dws = 0;
+  ST_PARTS.forEach(function (s) {
+    var r = stTxt('f-rec-' + s) ? 1 : 0, p = HX.images['part-' + s] ? 1 : 0;
+    if (HX.images['draw-' + s]) dws++;
+    var el = document.querySelector('[data-rstate="' + s + '"]');
+    if (el) el.textContent = r + p === 2 ? 'Record and photo in' : r + p === 1 ? (r ? 'Record in, photo to add' : 'Photo in, record to write') : 'Not started';
+  });
+  document.getElementById('st-dw').textContent = dws === 5 ? 'All five added' : dws + ' of 5 added';
+  var t = stTxt('f-read'), rd = document.getElementById('st-rd');
+  rd.textContent = !t ? 'Name both parts, quote a number for each, then give the physical cause.'
+    : (/[0-9]*\.[0-9]+/.test(t) ? 'A number from your table is in here. Good.' : 'No decimal number in here yet. Quote the measurement that makes your case.');
+  rd.classList.toggle('warn', !!t && !/[0-9]*\.[0-9]+/.test(t));
+  document.getElementById('st-fit').textContent = stTxt('f-fit') ? 'Recorded.' : 'Name a part and a feature, not just whether it fit.';
+}
+document.addEventListener('input', function () { stTable(); stMirrors(); });
+HX.onState.push(function () { stOldShape(); stTable(); stMirrors(); });
+stTable(); stMirrors();
+</script>
+</body>
+</html>

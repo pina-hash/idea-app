@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop Safety</title>
+<script type="application/json" id="idea-manifest">{"schemaVersion": 3, "kind": "html-assignment", "title": "Shop Safety", "course": "FRC5669", "points": 3, "thumbnail": {"kind": "html", "template": "idea-thumbnail"}, "modules": [{"id": "safety-check", "title": "Check yourself", "points": 3, "criteria": [{"id": "safety-checks", "text": "Self-checks answered", "points": 3, "levels": [{"points": 3, "label": "Complete", "short": "All answered", "descriptor": "Every check on this page is answered."}, {"points": 1, "label": "Developing", "short": "Some answered", "descriptor": "Some checks are answered."}, {"points": 0, "label": "Absent", "short": "None answered", "descriptor": "No check is answered."}]}], "blocks": [{"id": "frc-safety-pass", "type": "radio", "field": "safety-pass", "prompt": "How many of the 15 to pass"}, {"id": "frc-safety-gear", "type": "radio", "field": "safety-gear", "prompt": "Gear: check yourself"}, {"id": "frc-safety-permission", "type": "radio", "field": "safety-permission", "prompt": "Permission: check yourself"}, {"id": "frc-safety-machine", "type": "radio", "field": "safety-machine", "prompt": "At the machine: check yourself"}, {"id": "frc-safety-people", "type": "radio", "field": "safety-people", "prompt": "Other people: check yourself"}, {"id": "frc-safety-room", "type": "radio", "field": "safety-room", "prompt": "The room: check yourself"}, {"id": "frc-safety-phones", "type": "radio", "field": "safety-phones", "prompt": "Phones: check yourself"}]}]}</script>
+<!-- hx:head -->
+<style>
+  /* This page's own layout only; parts and colors are the kit's. */
+  .rf-rules { display: grid; gap: var(--space-3); }
+  .rf-rule b { display: block; color: var(--plate-ink); }
+  .rf-rule span { color: var(--text-2); }
+
+</style>
+<template id="idea-thumbnail"><style>
+  :root { --t1: #1c2023; --t2: #0f1113; --tink: #eef1f3; --tdim: #9aa3aa; --fill: #EFCB00; }
+  :root[data-idea-scheme="light"] { --t1: #f4f6f8; --t2: #dbe1e6; --tink: #14181b; --tdim: #4a535a; }
+  .t { --h: var(--idea-thumb-h, 120px); --w: var(--idea-thumb-w, 120px); position: absolute; inset: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: calc(var(--h) * 0.14); padding: 0 calc(var(--h) * 0.22); background: radial-gradient(130% 150% at 18% 18%, var(--t1), var(--t2)); color: var(--tink); font-family: system-ui, sans-serif; overflow: hidden; }
+  .t::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: max(3px, calc(var(--h) * 0.045)); background: var(--fill); }
+  .b { flex: none; height: 64%; aspect-ratio: 1; border-radius: 24%; background: var(--fill); display: grid; place-items: center; box-shadow: inset 0 calc(var(--h) * 0.01) 0 rgba(255,255,255,.35), 0 calc(var(--h) * 0.02) calc(var(--h) * 0.05) rgba(0,0,0,.35); }
+  .b svg { width: 64%; height: 64%; }
+  .w { display: none; min-width: 0; gap: calc(var(--h) * 0.04); }
+  .w b { font-weight: 700; font-size: min(calc(var(--h) * 0.24), calc(var(--w) * 0.05)); line-height: 1.08; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .w small { font: 600 max(8px, min(calc(var(--h) * 0.11), calc(var(--w) * 0.024)))/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tdim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :root[data-idea-shape="wide"] .w, :root[data-idea-shape="banner"] .w { display: grid; }
+  :root[data-idea-shape="banner"] .b { height: 72%; }
+  :root[data-idea-shape="wide"] .t { gap: calc(var(--h) * 0.1); padding: 0 calc(var(--w) * 0.07); }
+  :root[data-idea-shape="wide"] .b { height: min(46%, calc(var(--w) * 0.26)); }
+  :root[data-idea-shape="wide"] .w b { font-size: min(calc(var(--h) * 0.17), calc(var(--w) * 0.062)); -webkit-line-clamp: 3; }
+  :root[data-idea-shape="wide"] .w small { font-size: max(9px, min(calc(var(--h) * 0.08), calc(var(--w) * 0.028))); white-space: normal; }
+  :root[data-idea-shape="banner"] .w b { font-size: min(calc(var(--h) * 0.32), calc(var(--w) * 0.035)); -webkit-line-clamp: 1; white-space: nowrap; }
+  :root[data-idea-shape="banner"] .w small { font-size: max(8px, calc(var(--h) * 0.15)); }
+  :root[data-idea-shape="tile"] .b, :root:not([data-idea-shape]) .b { height: 70%; }
+</style><div class="t"><div class="b"><svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="#16181a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 27c0-5 4-8 9-8h32c5 0 9 3 9 8v3c0 7-5 12-11 12-5 0-8-3-9-7h-10c-1 4-4 7-9 7-6 0-11-5-11-12z"/><path d="M27 31h10"/></svg></div><div class="w"><small>Shop Training · Step 1</small><b>Shop Safety</b></div></div></template>
+</head>
+<body class="idea-plate">
+<main id="hx-page">
+  <header class="hx-hero">
+    <div class="hx-hero-text">
+      <span class="hx-crumb">FRC 5669 · Shop Training · Step 1</span>
+      <h1>Shop Safety</h1>
+      <p class="hx-done-when"><strong>Done when:</strong> you can say all 15 rules in your own words and pass the safety exam with all 15 right.</p>
+      <div class="hx-row"><span class="idea-chip">15 rules · all 15 on the exam</span><span class="idea-chip">Not graded: the exam is</span></div>
+    </div>
+    <div class="hx-hero-art" data-color="caution-yellow" aria-hidden="true"><svg viewBox="0 0 320 170"><path d="M40 70c0-14 12-24 28-24h184c16 0 28 10 28 24v14c0 24-18 40-40 40-18 0-30-10-34-26h-60c-4 16-16 26-34 26-22 0-40-16-40-40z" fill="var(--hx-wash)" stroke="var(--hx-ink)" stroke-width="3"/><path d="M60 72c0-8 6-12 14-12h56v22c0 16-10 26-26 26-26 0-44-12-44-36zM190 60h56c8 0 14 4 14 12 0 24-18 36-44 36-16 0-26-10-26-26z" fill="var(--hx-fill)" opacity=".85"/><path d="M150 78h20" stroke="var(--plate-ink)" stroke-width="3"/><text x="160" y="160" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" fill="var(--hx-ink)">15 OF 15</text></svg></div>
+  </header>
+  <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Sections"></nav>
+  <div class="hx-bar idea-panel" id="hx-bar"></div>
+  <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
+
+  <section class="hx-step idea-panel" id="s-start" data-phase="start" data-day="Start" data-title="Three things first">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Read this first</span><h2>Three things first</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+        <div class="idea-panel hx-example" data-color="caution-yellow"><span class="idea-eyebrow">Three things first</span>
+        <ol class="hx-list"><li>You need <strong>all 15 right</strong> to pass. Miss one, you retake it.</li>
+        <li><strong>No machine</strong> until you pass this exam. Passing is what clears you for the shop.</li>
+        <li>Bring your <strong>respirator</strong> to your first shop session. Without it you are not in the shop.</li></ol></div>
+        <p class="hx-see">Follow along. Nothing on the exam is outside these 15 rules.</p></div><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="safety-pass" data-kind="radio"><legend>How many of the 15 do you need right to pass the exam?</legend><label class="hx-pick"><input type="radio" name="safety-pass" value="a">12 of 15</label><label class="hx-pick"><input type="radio" name="safety-pass" value="b">14 of 15</label><label class="hx-pick"><input type="radio" name="safety-pass" value="c">All 15</label></fieldset><p class="hx-readout" id="ro-safety-pass" aria-live="polite">Pick one.</p></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-gear" data-phase="rules" data-day="Gear" data-title="Gear">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Rules 1 to 4</span><h2>Gear</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack"><ul class="hx-list rf-rules"><li><span class="rf-rule"><b>1. Safety glasses on any time you are in the shop area.</b><span>Not just when you are running something.</span></span></li><li><span class="rf-rule"><b>2. Long hair tied back. Loose clothing tucked in. Jewelry off.</b><span>Anything that hangs can get pulled in.</span></span></li><li><span class="rf-rule"><b>3. Your respirator has to seal.</b><span>If it feels loose, it is not protecting you. Fix it before you start.</span></span></li><li><span class="rf-rule"><b>4. Every injury gets reported when it happens.</b><span>Including the small ones.</span></span></li></ul></div><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="safety-gear" data-kind="radio"><legend>Your respirator feels a little loose, and you only have two minutes of sanding left. What do you do?</legend><label class="hx-pick"><input type="radio" name="safety-gear" value="a">Finish fast, it is only two minutes</label><label class="hx-pick"><input type="radio" name="safety-gear" value="b">Fix the seal before you start</label><label class="hx-pick"><input type="radio" name="safety-gear" value="c">Hold it to your face with one hand</label></fieldset><p class="hx-readout" id="ro-safety-gear" aria-live="polite">Pick one.</p></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-permission" data-phase="rules" data-day="Permission" data-title="Permission">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Rules 5 to 7</span><h2>Permission</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack"><ul class="hx-list rf-rules"><li><span class="rf-rule"><b>5. No machine until you pass the safety exam.</b><span>Passing is what clears you for the shop. Watching a station video does not. Feeling ready is not the same as having passed.</span></span></li><li><span class="rf-rule"><b>6. Never run a machine alone.</b><span>No running machines in an empty shop, including open shop. Someone has to be there.</span></span></li><li><span class="rf-rule"><b>7. Not sure if it is safe? Ask first.</b><span>If you are not sure whether something is safe, stop and ask. Trying it slowly is still trying it.</span></span></li></ul></div><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="safety-permission" data-kind="radio"><legend>You watched the station video twice and feel ready, but you have not passed the exam yet. May you run the machine?</legend><label class="hx-pick"><input type="radio" name="safety-permission" value="a">Yes, the video covers it</label><label class="hx-pick"><input type="radio" name="safety-permission" value="b">Yes, if a friend watches</label><label class="hx-pick"><input type="radio" name="safety-permission" value="c">No, passing the exam is what clears you</label></fieldset><p class="hx-readout" id="ro-safety-permission" aria-live="polite">Pick one.</p></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-machine" data-phase="rules" data-day="At the machine" data-title="At the machine">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Rules 8 to 10</span><h2>At the machine</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack"><ul class="hx-list rf-rules"><li><span class="rf-rule"><b>8. Find the emergency stop before you turn it on.</b><span>If you cannot stop it fast, you are not ready to start it.</span></span></li><li><span class="rf-rule"><b>9. Never reach into a machine while it is running.</b><span>Stop the machine first. Every time. That includes your hands, a tool, or a rag.</span></span></li><li><span class="rf-rule"><b>10. New sound, new smell, new vibration? Stop.</b><span>Tell your instructor. Do not finish the cut first.</span></span></li></ul></div><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="safety-machine" data-kind="radio"><legend>Halfway through a cut, the lathe starts making a squeal it was not making before. What do you do?</legend><label class="hx-pick"><input type="radio" name="safety-machine" value="a">Finish the cut, then tell someone</label><label class="hx-pick"><input type="radio" name="safety-machine" value="b">Stop and tell your instructor</label><label class="hx-pick"><input type="radio" name="safety-machine" value="c">Slow the speed and keep going</label></fieldset><p class="hx-readout" id="ro-safety-machine" aria-live="polite">Pick one.</p></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-people" data-phase="rules" data-day="Other people" data-title="Other people">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Rules 11 to 13</span><h2>Other people</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack"><ul class="hx-list rf-rules"><li><span class="rf-rule"><b>11. Do not interrupt someone who is running a machine.</b><span>Wait until they are finished. One exception: their own partner reading them the station video. That partner is part of running the machine. Anyone else is an interruption.</span></span></li><li><span class="rf-rule"><b>12. See something unsafe? Say something before they start.</b><span>Any group, any machine. After they finish is too late to matter.</span></span></li><li><span class="rf-rule"><b>13. Horseplay near a machine: tell them to stop.</b><span>If they do not stop, tell your instructor.</span></span></li></ul></div><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="safety-people" data-kind="radio"><legend>A teammate is mid-cut on the mill and you need to ask about the schedule. What do you do?</legend><label class="hx-pick"><input type="radio" name="safety-people" value="a">Wait until they finish</label><label class="hx-pick"><input type="radio" name="safety-people" value="b">Tap their shoulder, it is quick</label><label class="hx-pick"><input type="radio" name="safety-people" value="c">Ask over the noise</label></fieldset><p class="hx-readout" id="ro-safety-people" aria-live="polite">Pick one.</p></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-room" data-phase="rules" data-day="The room" data-title="The room">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Rules 14 and 15</span><h2>The room</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack"><ul class="hx-list rf-rules"><li><span class="rf-rule"><b>14. Clean your station every day, even if it makes you late.</b><span>The next person has to be able to work there.</span></span></li><li><span class="rf-rule"><b>15. Finish early? Notebook, at your station.</b><span>Stay at your station and start your notebook entry. Not another group&#x27;s machine, and not a computer.</span></span></li></ul></div><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="safety-room" data-kind="radio"><legend>You finish your part with ten minutes left. Where do you go?</legend><label class="hx-pick"><input type="radio" name="safety-room" value="a">Help another group at their machine</label><label class="hx-pick"><input type="radio" name="safety-room" value="b">A computer, to look something up</label><label class="hx-pick"><input type="radio" name="safety-room" value="c">Your notebook, at your station</label></fieldset><p class="hx-readout" id="ro-safety-room" aria-live="polite">Pick one.</p></div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-exam" data-phase="exam" data-day="Exam" data-title="The exam, and phones at the machines">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Before the shop</span><h2>The exam, and phones at the machines</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+        <ul class="hx-list"><li>All 15 right to pass. Miss one and you retake it.</li>
+        <li>No devices, no notes, no talking.</li>
+        <li>Read each question all the way through. Some check whether you are paying attention.</li>
+        <li>Everything on the exam is on this page.</li></ul>
+        <details class="hx-more"><summary>Phones at the machines</summary><ul class="hx-list">
+        <li><strong>One person holds the phone. One person runs the machine. Never the same person.</strong></li>
+        <li>The person running the machine does not touch the phone at any point.</li>
+        <li>The phone stays off the machine and out of the hazard area. Never on the table, the ways, or inside the enclosure.</li>
+        <li>You should be able to turn your head and see it. If you have to lean, reach, or step to see it, move it.</li>
+        <li>Phones come out for the station video and nothing else.</li></ul></details></div><div class="hx-evidence idea-panel"><span class="idea-eyebrow">Check yourself · not graded</span><fieldset class="hx-picks" data-field="safety-phones" data-kind="radio"><legend>Who holds the phone while the station video plays?</legend><label class="hx-pick"><input type="radio" name="safety-phones" value="a">Whoever runs the machine</label><label class="hx-pick"><input type="radio" name="safety-phones" value="b">The partner, never the person running the machine</label><label class="hx-pick"><input type="radio" name="safety-phones" value="c">Nobody: it sits on the machine table</label></fieldset><p class="hx-readout" id="ro-safety-phones" aria-live="polite">Pick one.</p></div></div>
+  </section>
+</main>
+<script type="application/json" id="hx-plan-data">
+{"phases": [{"id": "start", "name": "Read this first", "color": "caution-yellow", "days": [{"label": "Start", "short": "Start"}]}, {"id": "rules", "name": "The 15 rules", "color": "danger-red", "days": [{"label": "Gear", "short": "Gear"}, {"label": "Permission", "short": "Permission"}, {"label": "At the machine", "short": "Machine"}, {"label": "Other people", "short": "People"}, {"label": "The room", "short": "The room"}]}, {"id": "exam", "name": "The exam", "color": "first-gray", "days": [{"label": "Exam", "short": "Exam"}]}]}
+</script>
+<script type="application/json" id="hx-glossary">
+{}
+</script>
+<!-- hx:script -->
+
+<script id="hx-page-js">
+var RF_CHECKS = {"safety-pass": {"a": "c", "r": "Miss one and you retake it.", "w": "It is all 15."}, "safety-gear": {"a": "b", "r": "A loose respirator is not protecting you, however short the job (rule 3).", "w": "Rule 3: if it feels loose, fix it first."}, "safety-permission": {"a": "c", "r": "Passing the exam clears you; feeling ready does not (rule 5).", "w": "Rule 5: watching a video is not passing."}, "safety-machine": {"a": "b", "r": "A new sound means stop now, not after the cut (rule 10).", "w": "Rule 10: do not finish the cut first."}, "safety-people": {"a": "a", "r": "Anyone but their partner is an interruption (rule 11).", "w": "Rule 11: wait until they are finished."}, "safety-room": {"a": "c", "r": "Notebook, at your station (rule 15).", "w": "Rule 15: stay at your station."}, "safety-phones": {"a": "b", "r": "One holds the phone, one runs the machine. Never the same person.", "w": "The person running the machine never touches the phone."}};
+function rfRefresh() {
+  Object.keys(RF_CHECKS).forEach(function (f) {
+    var el = hxRoot(f), out = document.getElementById('ro-' + f);
+    if (!el || !out) return;
+    var v = String(hxRead(el) || ''), c = RF_CHECKS[f];
+    out.classList.toggle('warn', !!v && v !== c.a);
+    out.textContent = !v ? 'Pick one.' : v === c.a ? 'Right. ' + c.r : 'Not yet. ' + c.w + ' Pick again.';
+  });
+}
+document.addEventListener('input', rfRefresh);
+HX.onState.push(rfRefresh);
+rfRefresh();
+</script>
+</body>
+</html>
