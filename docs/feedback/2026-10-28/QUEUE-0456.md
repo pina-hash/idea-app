@@ -63,3 +63,10 @@ Coverage check against the open connector gaps:
 
 Parked, long term, do not build:
 - a7766d45: a team post declares a slide (title, the fields it shows, one picture) and the class's deck view assembles one slide per team from their saved answers. Unit 4's final morning had no team slide in the shared Google Slides deck while the numbers were on each page.
+
+## Added 2026-10-28 13:30 (student reports filed since the lane started)
+
+Three students in Unit 4 hit the photo bug in class today (20:19 to 20:20 UTC, all with screenshots). The same fix (item 6 and gap 36d0596c) closes them; name them in your history entry:
+- 3116e4cf (Valentino Serbin): "i am unable to see my teammates photos and only able to see my own"
+- aac90533 (Sebastian Rosas-Garcia): "Team completion percentage is not universal. Not all photos show up as submitted in one's assignment." Also check: the team's completion percentage must read the same for every teammate (it counts the team's shared and role boxes, not only what this student saved).
+- 947a571c (Santino Pedraza): a long essay about teammates' sketches and photos not showing; same bug.

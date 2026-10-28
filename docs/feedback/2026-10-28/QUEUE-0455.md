@@ -27,3 +27,7 @@ Every report below is on the live site feedback list (ids are the first 8 charac
 ## Added 2026-10-28 11:01 by Mr. Pina (fold-in)
 
 - 3bcf3c90 (bug, coins through the connector): IDEA Coin awards through the connector stored his spoken words ("also go ahead all") as the note on all 17 tournament awards (Oct 27 to 28, IDEA 100 tournament), instead of the reason the chat passed separately. The award's note comes from the reason field; `said` is the request's own words for the connector audit log only and is never written onto a student-facing record. Fix the code path, add a test that a coin write's note is the reason and never the said text, and prepare the correction of the 17 notes (list each award: student, amount, current note, proposed note from its reason) but DO NOT write it: the correction runs only after Mr. Pina's yes, through the chat that started this lane.
+
+## Added 2026-10-28 13:30 (Mr. Pina's report filed since the lane started)
+
+- 65c46fcf (his words, Oct 28): "When I administer a custom award or fine or whatever when I have a custom transaction on the idea website. It shouldn't just say custom. It should say what it is ... I should say what the award fine or transaction was for." Same root as 3bcf3c90: a custom coin transaction shows its reason (the note he gave) wherever it is listed, never the word "custom" alone. Do it in the coin write path and the lists that render the transaction label; keep page layout changes out (lane 0468 owns coin page geometry later).
