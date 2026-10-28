@@ -200,8 +200,8 @@
 			"level": "confirm",
 			"describe": "Create a new Armory project for CAD files; it asks first because a project is only removed by Delete forever.",
 			"say": [
-				"create an Armory project called Robot 2027",
-				"make a new CAD project for the season",
+				"create an Armory project called Robot",
+				"make a new CAD project for Launcher B2 Team 1",
 				"start an Armory project for the trophy"
 			],
 			"args": {
@@ -211,7 +211,8 @@
 				},
 				"p_season": {
 					"name": "season",
-					"describe": "The season's year, like 2027."
+					"default": null,
+					"describe": "Leave it out; the site sends none, so a project has no season, as it does when made on the website."
 				},
 				"p_release": {
 					"name": "solidworks",
