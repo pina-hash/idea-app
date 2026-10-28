@@ -75,3 +75,6 @@ New items:
 - gap b4c9ae73: files listed in get_post, and a copy-files action (post to post, every file or the ones named) that asks once.
 - gap 154c8fb3: a read that lists a course's units with their ids, and get_post and grading_packet showing which unit a post is filed under (classroom_set_item_unit needs a unit id no tool returns).
 - fb08d358: (1) a CI check or commit-msg hook refusing a first line over about 90 characters or one carrying " - " joined clauses, and src/lib/site-versions.ts splitting such subjects into a title and bullets for commits already landed (two Oct 28 commits show as one long title); (2) a test holding every docs/prompt-ledger/entries number to one file, the way apply-migration-claimants holds migration numbers (0453 was taken twice on Oct 28).
+
+## Note 2026-10-28 14:15
+Lane 0456 owns the assignment frame's camera permission (src/lib/hx/ and the item page) for one fix, ed0b584e (Take photo opens a black camera on a phone). Rebase on it before touching the frame.

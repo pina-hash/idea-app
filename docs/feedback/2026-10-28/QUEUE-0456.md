@@ -70,3 +70,7 @@ Three students in Unit 4 hit the photo bug in class today (20:19 to 20:20 UTC, a
 - 3116e4cf (Valentino Serbin): "i am unable to see my teammates photos and only able to see my own"
 - aac90533 (Sebastian Rosas-Garcia): "Team completion percentage is not universal. Not all photos show up as submitted in one's assignment." Also check: the team's completion percentage must read the same for every teammate (it counts the team's shared and role boxes, not only what this student saved).
 - 947a571c (Santino Pedraza): a long essay about teammates' sketches and photos not showing; same bug.
+
+## Added 2026-10-28 14:15 (student report: Take photo)
+
+- ed0b584e (Jivan Abajian, Oct 28): "When you click take photo, it sends you to camera but it won't load. It'll be a black screen. Im not sure if its a phone issue or if its a website issue but it works again if i take a photo out of the website and then upload through my camera roll." Prototype and Build photos run this week. Find whether the assignment frame (its iframe allow and sandbox attributes in src/lib/hx/ and the item page) or the kit's capture input causes it on phones; fix the site side here. Lane 0458 has not started, so this lane owns the frame's camera permission for this fix only; name the change in your ledger entry. If the cause is in tools/hx-kit, do not edit it: write the finding in your report for the HTML standards chat.

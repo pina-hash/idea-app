@@ -31,3 +31,11 @@ Every report below is on the live site feedback list (ids are the first 8 charac
 ## Added 2026-10-28 13:30 (Mr. Pina's report filed since the lane started)
 
 - 65c46fcf (his words, Oct 28): "When I administer a custom award or fine or whatever when I have a custom transaction on the idea website. It shouldn't just say custom. It should say what it is ... I should say what the award fine or transaction was for." Same root as 3bcf3c90: a custom coin transaction shows its reason (the note he gave) wherever it is listed, never the word "custom" alone. Do it in the coin write path and the lists that render the transaction label; keep page layout changes out (lane 0468 owns coin page geometry later).
+
+## Added 2026-10-28 14:15 (Mr. Pina's reports, coin deposits)
+
+Land the copy-forward and tournament fixes first; these follow in your second push.
+- 218b6169 (his words, Oct 28): "The coin desk cannot record a physical-to-digital coin deposit. The coin tool only accepts award, fine or purchase. Needed: a deposit type that logs physical coins converted to digital. Interim: Dominic Amezola (209H Section 2 Block 3) was recorded as a 2-coin award with the physical-to-digital deposit noted by hand."
+- 636eac71 (his words): "Add a minimum deposit of 5 idea coins for students who want to deposit coins. Depositing single coins is too tedious for the coin desk." The minimum is an editable coin setting (his rule: every coin value editable from an admin page), default 5.
+- 649759fe (filed earlier today, same root): coin categories for what happens every week: Deposit (physical to digital), Donation and weekly pay as real categories with editable defaults, instead of balance corrections and the retired Contract Completion.
+- Build: a Deposit transaction type through the coin write path, the site's coin staff tools and the connector (by voice: "deposit 5 coins for Dominic"), with the minimum enforced and a clear refusal under it. Physical coins stay untracked cash (his V2 rule); a deposit only adds to the digital balance and its record says "physical to digital". Show the 4 to 6 past deposits logged as corrections or awards in your report (student, date, amount, current type) and prepare, but do not write, their re-typing: that runs after his yes.

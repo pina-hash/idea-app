@@ -27,6 +27,8 @@ Rules for every lane:
 - Questions about the HTML assignment kit go to the HTML standards chat, https://claude.ai/code/session_01AhbdScnRCcFy5idt3AfdXy. tools/hx-kit/ is that chat's; only lane 0468 may edit tools/hx-kit/kit/plate.css, for the shared plate source, and it reruns `node tools/hx-kit/test.mjs tools/hx-kit/starter.html` to 0 FAIL after.
 - These lanes start only after the feature lanes that own the same UI files have landed (0455 tournaments and copy, 0456 team units, 0457 grading, 0458 HTML program, 0463 Armory). Lane 0465 touches only token files and may start first.
 
+Note (14:15): lane 0456 may change the assignment frame's camera permission in src/lib/hx/ for ed0b584e; lane 0458 builds on it.
+
 ## Lane 0465: tokens (abb2c080)
 Re-derive src/lib/design-system/colors.css, themes/space-white.css and themes/matrix.css through solve(). Space White's warm colors become bright fills with dark text, never brown text. Teal stops being its own meaning. A test in npm test (so CI runs it) holds every token pair to WCAG 4.5:1 text and 3:1 non-text in IDEA, Space White and Matrix, no muddy fill, and dE00 of at least 8 between status tones under simulated deuteranopia and protanopia. Token names stay; values move. No component edits.
 
