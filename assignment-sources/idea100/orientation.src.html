@@ -6,30 +6,32 @@
 <title>Orientation</title>
 <!--
   BRIEF (Mr. Pina, 2026-10-28, approved with his changes; AUTHORING Part B)
-  1 Skill: find anything in IDEA 100 and on ideabosco.com alone, and know the few rules well
-    enough to apply them to a situation.
-  2 Proof: situation picks (never the rule's own words); one answer read off the live Market;
-    a phone photo of a quick sketch (teaches the photo hand-in); a screenshot of the student's
-    own folder in the class Armory project. High quality: every pick right, the Market price
-    exact, a sketch photo that reads, the folder named Last_First.
-  3 Stuck points: signing in with a personal Gmail (the site says Visitor); not finding the
-    class; looking for a Submit button; not reading; Armory empty until they are added;
-    pasting a screenshot (Win+Shift+S, then Ctrl+V in the box).
+  1 Skill: know what IDEA is, find anything in IDEA 100 and on ideabosco.com alone, and apply
+    the few rules to a situation.
+  2 Proof: situation picks (never the rule's own words); one answer read off the live class page
+    (the Music price); a photo of a quick sketch (teaches the photo hand-in); a screenshot of the
+    student's own folder in the class Armory project. High quality: every pick right, the price
+    exact, a sketch photo that reads, their own folder in the screenshot.
+  3 Stuck points: a personal Gmail (Visitor); not finding the class; looking for a Submit button;
+    not reading; the Armory setup on a shared lab sign-in; pasting a screenshot (Win+Shift+S,
+    then Ctrl+V in the box); no phone for the photo.
   4 Builds on: nothing; first post of the rotation.
-  5 Problem: read a live site page for a price; apply rules to situations they have not
-    seen. Stretch: one useful report through Send feedback (IDEA Coins, not points).
-  6 Shape: one post, one class (Day 1, run live in Step view, self-guided for anyone ahead),
-    four phases (The class, The site, Armory, The shop), nine steps, 10 points.
-  7 Facts (his answers 2026-10-28): AI free, no restrictions, not discussed; free market,
-    extra credit buyable with coins; Armory all rotation, a personal folder each, then team
-    folders; a notebook is preferred for sketches, any notebook; casual class, light rules;
-    no assigned syllabus. Shop safety and firm deadlines from the IDEA 100 syllabus; printing
-    rules from his walkthrough video (youtu.be/A2JFnsAUOSk). Market Song Request 2 i-cents,
-    read live 2026-10-28.
-  8 Look: phases from the linking set, kept 60 degrees off the last post's magenta (The class
-    marigold, The site sky, Armory indigo); The shop in ANSI caution yellow (shop safety).
-    Tools in their own identity colors (SolidWorks red, Bambu green as a badge). Header: the
-    rotation's three builds, a dogtag, a hook and an IDEA-Blade, in line.
+  5 Problem: read the live class page for a price; apply rules to situations they have not seen.
+    Stretch: one useful report through Send feedback (IDEA Coins, not points).
+  6 Shape: one post, one class (run live in Step view, self-guided for anyone ahead), four phases
+    (Meet IDEA, The site, Armory, The shop), ten steps, 10 points.
+  7 Facts: his answers 2026-10-28 (AI free and not discussed; free market with extra credit;
+    Armory all rotation, a personal folder each then team folders; any notebook for sketches;
+    casual class; no assigned syllabus; no Tie Ceremony mention). What IDEA is and the four
+    projects: his TIS deck and brochure (2026-10-08, with Mr. Cosso). Safety: the IDEA 100
+    syllabus. Printing: his walkthrough video (youtu.be/A2JFnsAUOSk). Armory check out and check
+    in: the site's own Armory copy (ArmoryHowItWorks). Music and Hall pass on the class page:
+    the site code (SongQueue, HallPass). OPEN: whether the shop line runs this rotation; class
+    Armory folders depend on the website run (fallback: project only).
+  8 Look: phases from the linking set, kept 60 degrees off the last post's magenta (Meet IDEA
+    marigold, The site sky, Armory indigo); The shop and the safety lines in ANSI caution yellow.
+    SolidWorks red and Bambu green as identity badges; metal parts in steel. Header: a dogtag,
+    a hook and an IDEA-Blade.
 -->
 <script type="application/json" id="idea-manifest">
 {
@@ -40,16 +42,16 @@
     {
       "id": "or-class", "title": "The class", "points": 3, "audience": "individual",
       "blocks": [
-        {"id": "or-class-idea", "field": "ideaPick", "type": "radio", "prompt": "Which of three projects is IDEA?"},
+        {"id": "or-class-idea", "field": "ideaPick", "type": "radio", "prompt": "Three freshmen describe a project they want to do. Which one is IDEA?"},
         {"id": "or-class-team", "field": "teamPick", "type": "radio", "prompt": "Which project are you most looking forward to?"},
-        {"id": "or-class-machine", "field": "machinePick", "type": "radio", "prompt": "Shown only the drill press, your partner reaches for the bandsaw. What now?"},
-        {"id": "or-class-absent", "field": "absentPick", "type": "radio", "prompt": "Out two days, excused, with work due. When is it due?"}
+        {"id": "or-class-machine", "field": "machinePick", "type": "radio", "prompt": "Your group learned the drill press today. Your partner grabs a part and heads for the bandsaw."},
+        {"id": "or-class-absent", "field": "absentPick", "type": "radio", "prompt": "You are out sick, excused, for two days. A hook step was due the first day."}
       ],
       "criteria": [
         {
           "id": "or-class-rules", "text": "Knows what IDEA is, picks a project, and applies the shop and deadline rules", "points": 3,
           "levels": [
-            {"points": 3, "label": "Complete", "short": "All four count", "descriptor": "The aluminum gearbox; any project picked; wait until trained; two days later."},
+            {"points": 3, "label": "Complete", "short": "All four count", "descriptor": "The aluminum phone stand; any project picked; stop them; two school days later."},
             {"points": 2, "label": "Proficient", "short": "Three of four", "descriptor": "Three of the four count."},
             {"points": 1, "label": "Developing", "short": "One or two", "descriptor": "One or two of the four count."},
             {"points": 0, "label": "Absent", "short": "None", "descriptor": "Nothing counts, or nothing picked."}
@@ -60,16 +62,16 @@
     {
       "id": "or-site", "title": "The site", "points": 3, "audience": "individual",
       "blocks": [
-        {"id": "or-site-visitor", "field": "visitorPick", "type": "radio", "prompt": "A classmate's site says Visitor and shows no class. Why?"},
-        {"id": "or-site-saved", "field": "savedPick", "type": "radio", "prompt": "You close the tab halfway through. What happened to your answers?"},
-        {"id": "or-site-song", "field": "songCost", "type": "text", "prompt": "From the IDEA Market: what a song request costs, in i-cents"},
+        {"id": "or-site-visitor", "field": "visitorPick", "type": "radio", "prompt": "Your neighbor's site calls them a Visitor and shows no classes. Why?"},
+        {"id": "or-site-saved", "field": "savedPick", "type": "radio", "prompt": "The bell rings halfway through a post and you close the tab. Tomorrow you open it again."},
+        {"id": "or-site-song", "field": "songCost", "type": "text", "prompt": "On the class page, open Music. What does a song cost, in i¢?"},
         {"id": "or-site-feedback", "field": "feedbackNote", "type": "longText", "optional": true, "prompt": "Stretch: what you reported through Send feedback"}
       ],
       "criteria": [
         {
           "id": "or-site-use", "text": "Knows how the site works and can read it for an answer", "points": 3,
           "levels": [
-            {"points": 3, "label": "Complete", "short": "All three right", "descriptor": "Signed in with a personal account; saved; 2."},
+            {"points": 3, "label": "Complete", "short": "All three right", "descriptor": "A personal Gmail; the answers are saved; the Music price on the class page (2 on 2026-10-28)."},
             {"points": 2, "label": "Proficient", "short": "Two right", "descriptor": "Two of the three are right."},
             {"points": 1, "label": "Developing", "short": "One right", "descriptor": "One of the three is right."},
             {"points": 0, "label": "Absent", "short": "None right", "descriptor": "Nothing right, or nothing answered."}
@@ -80,15 +82,15 @@
     {
       "id": "or-proof", "title": "Your sketch and your folder", "points": 2, "audience": "individual",
       "blocks": [
-        {"id": "or-proof-sketch", "field": "sketch", "type": "image", "prompt": "Photo: your quick sketch"},
+        {"id": "or-proof-sketch", "field": "sketch", "type": "image", "prompt": "Photo: your sketch"},
         {"id": "or-proof-armory", "field": "armoryShot", "type": "image", "prompt": "Screenshot: your folder in the class Armory project"}
       ],
       "criteria": [
         {
           "id": "or-proof-both", "text": "A readable sketch photo and the student's own Armory folder", "points": 2,
           "levels": [
-            {"points": 2, "label": "Complete", "short": "Both, readable", "descriptor": "The sketch can be made out, and the screenshot shows a folder named Last_First in the class project."},
-            {"points": 1, "label": "Developing", "short": "One of the two", "descriptor": "Only one is in, or the folder is misnamed or missing."},
+            {"points": 2, "label": "Complete", "short": "Both, readable", "descriptor": "The sketch can be made out, and the screenshot shows the student's own folder in the IDEA 100 project."},
+            {"points": 1, "label": "Developing", "short": "One of the two", "descriptor": "Only one is in, the sketch cannot be made out, or the screenshot shows no folder of theirs."},
             {"points": 0, "label": "Absent", "short": "Neither", "descriptor": "No photo and no screenshot."}
           ]
         }
@@ -97,14 +99,14 @@
     {
       "id": "or-files", "title": "Files and printing", "points": 2, "audience": "individual",
       "blocks": [
-        {"id": "or-files-lock", "field": "lockPick", "type": "radio", "prompt": "A teammate has the part you need checked out. What do you do?"},
-        {"id": "or-files-print", "field": "printPick", "type": "radio", "prompt": "Your part is ready to print. What goes on the printer's card or drive?"}
+        {"id": "or-files-lock", "field": "lockPick", "type": "radio", "prompt": "Armory shows your teammate has the base part open. You need to change one hole in it."},
+        {"id": "or-files-print", "field": "printPick", "type": "radio", "prompt": "Your friend sliced their hook and pressed Print plate. What should they have done?"}
       ],
       "criteria": [
         {
-          "id": "or-files-right", "text": "Handles a locked Armory file and the print hand-off", "points": 2,
+          "id": "or-files-right", "text": "Handles a file a teammate has open, and the print hand-off", "points": 2,
           "levels": [
-            {"points": 2, "label": "Complete", "short": "Both right", "descriptor": "Ask them to check it in; the exported sliced plate file."},
+            {"points": 2, "label": "Complete", "short": "Both right", "descriptor": "Ask them to save and close it, then open it; export the sliced plate file to the card or drive."},
             {"points": 1, "label": "Developing", "short": "One right", "descriptor": "One of the two picks is right."},
             {"points": 0, "label": "Absent", "short": "Neither right", "descriptor": "Neither pick is right, or none is made."}
           ]
@@ -133,7 +135,7 @@
 <template id="idea-thumbnail">
 <style>
   :root { --t1: #1d2126; --t2: #101215; --tink: #eef1f3; --tdim: #9aa3aa; --tag: #c9ced3; --hook: #e8a33a; --blade: #efcb00; }
-  :root[data-idea-scheme="light"] { --t1: #f4f6f8; --t2: #dbe1e6; --tink: #14181b; --tdim: #4a535a; --tag: #5c656d; --hook: #9a5d00; --blade: #7a6600; }
+  :root[data-idea-scheme="light"] { --t1: #f4f6f8; --t2: #dbe1e6; --tink: #14181b; --tdim: #4a535a; --tag: #14181b; --hook: #14181b; --blade: #14181b; }
   .t { --h: var(--idea-thumb-h, 120px); --w: var(--idea-thumb-w, 120px); position: absolute; inset: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: calc(var(--h) * 0.14); padding: 0 calc(var(--h) * 0.22); background: radial-gradient(130% 150% at 18% 18%, var(--t1), var(--t2)); color: var(--tink); font-family: Rajdhani, system-ui, sans-serif; overflow: hidden; }
   .t svg { flex: none; height: 66%; }
   .w { display: none; min-width: 0; gap: calc(var(--h) * 0.04); }
@@ -161,7 +163,7 @@
       <p class="hx-done-when"><strong>Done when:</strong> you know what IDEA is and how the class runs, the site and Armory are set up, and you know which tools you will use.</p>
       <div class="hx-row"><span class="idea-chip">No writing</span><span class="idea-chip">One class</span><span class="idea-chip">10 points</span></div>
     </div>
-    <div class="hx-hero-art" aria-hidden="true"><svg viewBox="0 0 320 160" role="img" aria-label="A dogtag, a hook and an IDEA-Blade"><g data-color="steel" fill="none" stroke="var(--hx-ink)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="40" width="58" height="82" rx="14"/><circle cx="43" cy="58" r="6"/><path d="M28 86h30M28 100h20"/></g><g data-color="marigold" fill="none" stroke="var(--hx-ink)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><circle cx="146" cy="40" r="16"/><path d="M146 56v42a20 20 0 1 1-20 20"/></g><g data-color="caution-yellow" fill="none" stroke="var(--hx-ink)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="258" cy="82" r="48"/><circle cx="258" cy="82" r="11"/><path d="M258 34l14 36M306 82l-36 14M258 130l-14-36M210 82l36-14"/></g></svg></div>
+    <div class="hx-hero-art" aria-hidden="true"><svg viewBox="0 0 320 160" role="img" aria-label="A dogtag, a hook and an IDEA-Blade"><g data-color="steel" fill="none" stroke="var(--hx-ink)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="40" width="58" height="82" rx="14"/><circle cx="43" cy="58" r="6"/><path d="M28 86h30M28 100h20"/></g><g fill="none" stroke="var(--plate-ink)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><circle cx="146" cy="40" r="16"/><path d="M146 56v42a20 20 0 1 1-20 20"/></g><g data-color="steel" fill="none" stroke="var(--hx-ink)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="258" cy="82" r="48"/><circle cx="258" cy="82" r="11"/><path d="M258 34l14 36M306 82l-36 14M258 130l-14-36M210 82l36-14"/></g></svg></div>
   </header>
   <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Steps"></nav>
   <div class="hx-bar idea-panel" id="hx-bar"></div>
@@ -184,9 +186,9 @@
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Check yourself</span>
         <fieldset class="hx-picks" data-field="ideaPick" data-kind="radio"><legend>Three freshmen describe a project they want to do. Which one is IDEA?</legend>
-          <label class="hx-pick"><input type="radio" name="ideaPick" value="shelf"> A wooden bookshelf with hand-cut joints</label>
-          <label class="hx-pick"><input type="radio" name="ideaPick" value="gear"> An aluminum gearbox they model, machine and test</label>
-          <label class="hx-pick"><input type="radio" name="ideaPick" value="app"> A phone app that tracks homework</label>
+          <label class="hx-pick"><input type="radio" name="ideaPick" value="board"> A wooden skateboard deck, shaped and finished by hand</label>
+          <label class="hx-pick"><input type="radio" name="ideaPick" value="stand"> An aluminum phone stand, modeled in SolidWorks, machined and tested</label>
+          <label class="hx-pick"><input type="radio" name="ideaPick" value="circuit"> A circuit board that blinks a row of LEDs</label>
         </fieldset>
         <p class="hx-readout" id="or-idea-out" aria-live="polite">Pick one.</p>
       </div>
@@ -200,9 +202,9 @@
         <p>Four projects. Each one designed, manufactured and tested.</p>
         <div class="hx-tiles or-tiles">
           <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="4"/><circle cx="12" cy="7" r="1.5"/></svg></span><span class="or-name"><small>1</small><b>Dogtag</b><span>Drawn in SolidWorks, cut and engraved on the fiber laser.</span></span></div>
-          <div class="hx-tile or-tile" data-color="marigold"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="13" cy="5" r="2.5"/><path d="M13 7.5v7a4 4 0 1 1-4-4"/></svg></span><span class="or-name"><small>2</small><b>Hook</b><span>Design a printed hook, then load it until it breaks.</span></span></div>
+          <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="13" cy="5" r="2.5"/><path d="M13 7.5v7a4 4 0 1 1-4-4"/></svg></span><span class="or-name"><small>2</small><b>Hook</b><span>Design a printed hook, then load it until it breaks.</span></span></div>
           <div class="hx-tile or-tile" data-color="steel"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="or-name"><small>3</small><b>Shop line</b><span>Mill, bandsaw, lathe, drill and tap. Every student machines a part.</span></span></div>
-          <div class="hx-tile or-tile" data-color="caution-yellow"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3l3 7M21 12l-7 3M12 21l-3-7M3 12l7-3"/></svg></span><span class="or-name"><small>4</small><b>IDEA-Blade</b><span>A combat spinning top built on the core you machined, then a tournament.</span></span></div>
+          <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3l3 7M21 12l-7 3M12 21l-3-7M3 12l7-3"/></svg></span><span class="or-name"><small>4</small><b>IDEA-Blade</b><span>A combat spinning top built on the core you machined, then a tournament.</span></span></div>
         </div>
         <p class="hx-see">Each project is its own post here, one after another.</p>
       </div>
@@ -225,7 +227,8 @@
       <div class="hx-stack">
         <p>This is a casual class. Safety in the shop is the one thing that is strict.</p>
         <ul class="hx-list">
-          <li data-color="caution-yellow"><span class="hx-lamp"></span> <strong>Safety:</strong> eye protection, closed-toe shoes, and no machine until you are trained on it.</li>
+          <li data-color="caution-yellow"><span class="hx-lamp"></span> <strong>Safety:</strong> eye protection whenever anything near you is cut, ground or machined. Closed-toe shoes. Long hair tied back, no loose clothing or jewelry.</li>
+          <li data-color="caution-yellow"><span class="hx-lamp"></span> <strong>No machine</strong> until you are trained on it. Earbuds are not hearing protection. Horseplay in the shop means you are out for the day.</li>
           <li data-color="caution-yellow"><span class="hx-lamp"></span> <strong>Tell me</strong> about any injury, near miss or broken tool, right away. Reporting one is never a problem. Hiding one is.</li>
           <li><strong>Deadlines are firm.</strong> An excused absence moves a due date by the days you were out.</li>
           <li><strong>AI:</strong> use it as much as you want.</li>
@@ -233,10 +236,10 @@
       </div>
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Check yourself</span>
-        <fieldset class="hx-picks" data-field="machinePick" data-kind="radio"><legend>Your group was trained on the drill press. Your partner grabs a part and heads for the bandsaw.</legend>
-          <label class="hx-pick"><input type="radio" name="machinePick" value="go"> Fine, it is a simple cut</label>
-          <label class="hx-pick"><input type="radio" name="machinePick" value="glasses"> Fine, once they have glasses on</label>
-          <label class="hx-pick"><input type="radio" name="machinePick" value="wait"> Stop them until they are trained on the bandsaw</label>
+        <fieldset class="hx-picks" data-field="machinePick" data-kind="radio"><legend>Your group learned the drill press today. Your partner grabs a part and heads for the bandsaw.</legend>
+          <label class="hx-pick"><input type="radio" name="machinePick" value="go"> Fine, it is one quick cut</label>
+          <label class="hx-pick"><input type="radio" name="machinePick" value="glasses"> Fine, if they have eye protection on</label>
+          <label class="hx-pick"><input type="radio" name="machinePick" value="wait"> Stop them. Nobody has shown them the bandsaw</label>
         </fieldset>
         <fieldset class="hx-picks" data-field="absentPick" data-kind="radio"><legend>You are out sick, excused, for two days. A hook step was due the first day.</legend>
           <label class="hx-pick"><input type="radio" name="absentPick" value="same"> Still the same day</label>
@@ -256,12 +259,13 @@
         <ol class="hx-do">
           <li><span>Sign in with your <strong>boscotech.net</strong> Google account.</span></li>
           <li><span>Open <strong>Classroom</strong>, then <strong>IDEA 100</strong>. This post is in it.</span></li>
-          <li><span>Top right, your picture: set an <strong>avatar</strong> and a <strong>theme</strong> you like.</span></li>
+          <li><span>Top right, your picture: open <strong>Change picture</strong>, and pick a theme you like.</span></li>
         </ol>
-        <p class="hx-see">Your name and avatar at the top right, and IDEA 100 in your classes.</p>
+        <p class="hx-see">Your name at the top right, and IDEA 100 in your classes.</p>
         <details class="hx-stuck"><summary>That is not what I see</summary><table>
           <tr><td>No IDEA 100 in my classes</td><td>Check the account at the top right. Then tell me your school email.</td></tr>
           <tr><td>It never asks me to sign in</td><td>Press <strong>Sign in</strong> on the home page.</td></tr>
+          <tr><td>My new picture does not show</td><td>New pictures are checked first. It shows once it is approved.</td></tr>
         </table></details>
       </div>
       <div class="hx-evidence idea-panel">
@@ -307,20 +311,29 @@
         <p><span class="it" data-term="coin">IDEA Coin</span> is the class money. It is a free market: spend it on what you want.</p>
         <ul class="hx-list">
           <li><strong>Earn:</strong> a weekly wage, class jobs, tournament wins, useful feedback on the site.</li>
-          <li><strong>Spend:</strong> the <strong>IDEA Market</strong>: hall pass time, printing, extra credit and more.</li>
-          <li><strong>Lose:</strong> a few things cost coins, like a very long hall pass. Your coin page always says why.</li>
-          <li><strong>Leaving the room:</strong> tap the <strong>Hall pass</strong> on the site first.</li>
+          <li><strong>Spend:</strong> the <strong>IDEA Market</strong>. Hall pass time, printing, extra credit and more.</li>
+          <li><strong>Lose:</strong> a few things cost coins. <strong>My coins</strong> always says why.</li>
         </ul>
-        <div class="hx-links">
-          <a class="hx-link-card" href="https://ideabosco.com/market" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-1.5 10h-13z"/><path d="M8 9a4 4 0 0 1 8 0"/></svg></span><span class="hx-link-text"><small>Opens in a new tab</small><b>IDEA Market</b><span>what coins buy</span></span><span class="hx-link-go">Open</span></a>
-          <a class="hx-link-card" href="https://ideabosco.com/coin-balance" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v10M9.5 9.5h4a1.75 1.75 0 0 1 0 3.5h-3a1.75 1.75 0 0 0 0 3.5h4"/></svg></span><span class="hx-link-text"><small>Opens in a new tab</small><b>My coins</b><span>your balance and every reason</span></span><span class="hx-link-go">Open</span></a>
-        </div>
+        <ol class="hx-do">
+          <li><span>Open the <strong>IDEA 100</strong> class page.</span></li>
+          <li><span>At the top, find <strong>Hall pass</strong> and <strong>Music</strong>. Tap Hall pass before you leave the room.</span></li>
+          <li><span>Open <strong>Music</strong> and read the price.</span></li>
+        </ol>
+        <p class="hx-see">Class music, with its price beside the title.</p>
+        <details class="hx-stuck"><summary>That is not what I see</summary><table>
+          <tr><td>No Hall pass or Music at the top</td><td>Open the class itself, not this post.</td></tr>
+        </table></details>
       </div>
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Find it on the site</span>
-        <label>Open the Market. What does a song request cost?
+        <label>What does a song cost?
           <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="numeric" data-field="songCost" placeholder="e.g. 00"><span>i¢</span></span>
         </label>
+        <p class="hx-readout" id="or-song-out" aria-live="polite">Type the number only.</p>
+        <div class="hx-links">
+          <a class="hx-link-card" href="https://ideabosco.com/market" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-1.5 10h-13z"/><path d="M8 9a4 4 0 0 1 8 0"/></svg></span><span class="hx-link-text"><small>Opens in a new tab</small><b>IDEA Market</b><span>spend your coins</span></span><span class="hx-link-go">Open</span></a>
+          <a class="hx-link-card" href="https://ideabosco.com/coin-balance" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v10M9.5 9.5h4a1.75 1.75 0 0 1 0 3.5h-3a1.75 1.75 0 0 0 0 3.5h4"/></svg></span><span class="hx-link-text"><small>Opens in a new tab</small><b>My coins</b><span>your balance and every reason</span></span><span class="hx-link-go">Open</span></a>
+        </div>
       </div>
     </div>
   </section>
@@ -337,6 +350,7 @@
         <p class="hx-see">Your sketch in the box, clear enough to read.</p>
         <details class="hx-stuck"><summary>That is not what I see</summary><table>
           <tr><td>No Take photo key</td><td>It shows on a phone only. On a computer, press <strong>Choose photo</strong>.</td></tr>
+          <tr><td>I do not have a phone</td><td>Tell me. You can photograph it later and press <strong>Choose photo</strong>.</td></tr>
           <tr><td>The photo is blurry</td><td>Hold still, closer, in good light. <strong>Remove</strong>, then try again.</td></tr>
         </table></details>
         <details class="hx-stretch hx-more"><summary>Stretch · IDEA Coins, not points <span class="idea-chip">Optional</span></summary>
@@ -363,13 +377,14 @@
       <div class="hx-stack">
         <p><span class="it" data-term="armory">IDEA Armory</span> holds every SolidWorks file you make here, then your team's.</p>
         <ol class="hx-do">
-          <li><span>On a lab computer, open <strong>ideabosco.com/armory/start</strong>. Follow it until Armory lists your projects.</span></li>
+          <li><span>On a lab computer, open <a href="https://ideabosco.com/armory/start" target="_blank" rel="noopener"><strong>ideabosco.com/armory/start</strong></a>. Follow it until Armory lists your projects.</span></li>
           <li><span>Open the <strong>IDEA 100</strong> project.</span></li>
           <li><span>Find your folder: <strong>Last_First</strong>, no spaces, like <strong>VanDyke_Sam</strong>.</span></li>
           <li><span>Screenshot it: <span class="or-keys">Win + Shift + S</span>, then click the box here and <span class="or-keys">Ctrl + V</span>.</span></li>
         </ol>
         <p class="hx-see">Your folder, with your name, inside the IDEA 100 project.</p>
         <details class="hx-stuck"><summary>That is not what I see</summary><table>
+          <tr><td>The setup is stuck or asks for a password</td><td>Raise your hand. Do not type another student's sign-in.</td></tr>
           <tr><td>No IDEA 100 project</td><td>Check you signed in with boscotech.net. Still none: tell me.</td></tr>
           <tr><td>No folder with my name</td><td>Tell me. Do not make your own.</td></tr>
           <tr><td>I am at home or on a phone</td><td>Do this step on a lab computer in class.</td></tr>
@@ -389,23 +404,24 @@
     </div>
   </section>
 
-  <section class="hx-step idea-panel" id="s-checkout" data-phase="armory" data-title="Check out, then check in">
-    <div class="hx-step-head"><div><span class="hx-phase-tag">Armory</span><h2>Check out, then check in</h2></div></div>
+  <section class="hx-step idea-panel" id="s-checkout" data-phase="armory" data-title="Know how Armory shares files">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Armory</span><h2>Know how Armory shares files</h2></div></div>
     <div class="hx-step-body">
       <div class="hx-stack">
         <ul class="hx-list">
-          <li><strong><span class="it" data-term="checkout">Check out</span></strong> a file to change it. Nobody else can change it while you have it.</li>
-          <li><strong><span class="it" data-term="checkin">Check in</span></strong> when you are done, so everyone gets your version and the file is free.</li>
-          <li><strong>Leaving class?</strong> Check in first, or your team is stuck until you are back.</li>
+          <li><strong>Opening</strong> a part in SolidWorks <span class="it" data-term="checkout">checks it out</span> to you. Everyone else sees who has it and can still open it to look.</li>
+          <li><strong>Saving and closing</strong> <span class="it" data-term="checkin">checks it in</span>. Your save becomes the newest version on every computer in the project.</li>
+          <li><strong>Every check in is kept</strong>, so an old version is never lost.</li>
+          <li><strong>Leaving class?</strong> Save and close first, or your team waits until you are back.</li>
         </ul>
         <p>Nothing to try yet. You will do this for real once you have files.</p>
       </div>
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Check yourself</span>
-        <fieldset class="hx-picks" data-field="lockPick" data-kind="radio"><legend>Your teammate has the Blade's base part checked out. You need to change one hole in it.</legend>
-          <label class="hx-pick"><input type="radio" name="lockPick" value="copy"> Save a copy and change that</label>
-          <label class="hx-pick"><input type="radio" name="lockPick" value="ask"> Ask them to check it in, then check it out</label>
-          <label class="hx-pick"><input type="radio" name="lockPick" value="email"> Email yourself the file</label>
+        <fieldset class="hx-picks" data-field="lockPick" data-kind="radio"><legend>Armory shows your teammate has the base part open. You need to change one hole in it.</legend>
+          <label class="hx-pick"><input type="radio" name="lockPick" value="copy"> Save a copy under a new name and change that</label>
+          <label class="hx-pick"><input type="radio" name="lockPick" value="ask"> Ask them to save and close it, then open it</label>
+          <label class="hx-pick"><input type="radio" name="lockPick" value="email"> Email yourself the file and change it at home</label>
         </fieldset>
         <p class="hx-readout" id="or-lock-out" aria-live="polite">Pick one.</p>
       </div>
@@ -420,24 +436,26 @@
           <div class="hx-tile or-tile" data-color="solidworks-red"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg></span><span class="or-name"><b>SolidWorks</b><span>Where every part is designed.</span></span></div>
           <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v7M8 14l4-4 4 4M5 20h14"/></svg></span><span class="or-name"><b>xTool Studio</b><span>Gets your dogtag ready for the laser. I run the cut.</span></span></div>
           <div class="hx-tile or-tile" data-color="bambu-green"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="5" rx="1"/><path d="M10 8h4v4l-2 3-2-3z"/><path d="M5 20h14"/></svg></span><span class="or-name"><b>Bambu Studio</b><span>Slices your part for the 3D printers. You run the printers.</span></span></div>
-          <a class="hx-tile or-tile" href="https://ideabosco.com/maps" target="_blank" rel="noopener"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/></svg></span><span class="or-name"><b>IDEA Maps</b><span>Where any tool lives. Half a name works.</span></span></a>
         </div>
         <span class="idea-eyebrow">How a print goes</span>
-          <ol class="hx-do">
-            <li><span>SolidWorks: save your part as a STEP file.</span></li>
-            <li><span>Bambu Studio: set the printer and nozzle, then slice.</span></li>
-            <li><span>Export the <strong>sliced plate file</strong> to the printer's microSD card or USB drive. Never press <strong>Print plate</strong>.</span></li>
-          </ol>
-          <p>My printing video walks every step at the real printers.</p>
+        <ol class="hx-do">
+          <li><span>SolidWorks: save your part as a <span class="it" data-term="step">STEP file</span>.</span></li>
+          <li><span>Bambu Studio: set the printer and the <span class="it" data-term="nozzle">nozzle</span>, then <span class="it" data-term="slice">slice</span>.</span></li>
+          <li><span>Export the <span class="it" data-term="plate">sliced plate file</span> to the printer's microSD card or USB drive. Never press <strong>Print plate</strong>.</span></li>
+        </ol>
       </div>
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Check yourself</span>
-        <fieldset class="hx-picks" data-field="printPick" data-kind="radio"><legend>Your hook is done in SolidWorks. What goes on the printer's card or drive?</legend>
-          <label class="hx-pick"><input type="radio" name="printPick" value="part"> The SolidWorks part file</label>
-          <label class="hx-pick"><input type="radio" name="printPick" value="sliced"> The sliced plate file from Bambu Studio</label>
-          <label class="hx-pick"><input type="radio" name="printPick" value="button"> Nothing. Press Print plate</label>
+        <fieldset class="hx-picks" data-field="printPick" data-kind="radio"><legend>Your friend sliced their hook and pressed Print plate. What should they have done?</legend>
+          <label class="hx-pick"><input type="radio" name="printPick" value="part"> Saved the SolidWorks part to the printer's card</label>
+          <label class="hx-pick"><input type="radio" name="printPick" value="sliced"> Exported the sliced plate file to the card or drive</label>
+          <label class="hx-pick"><input type="radio" name="printPick" value="fine"> Nothing. That is how it works</label>
         </fieldset>
         <p class="hx-readout" id="or-print-out" aria-live="polite">Pick one.</p>
+        <div class="hx-links">
+          <a class="hx-link-card" href="https://youtu.be/A2JFnsAUOSk" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/></svg></span><span class="hx-link-text"><small>Video</small><b>My printing walkthrough</b><span>every step, at the real printers</span></span><span class="hx-link-go">Open</span></a>
+          <a class="hx-link-card" href="https://ideabosco.com/maps" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/></svg></span><span class="hx-link-text"><small>Opens in a new tab</small><b>IDEA Maps</b><span>where any tool lives</span></span><span class="hx-link-go">Open</span></a>
+        </div>
       </div>
     </div>
   </section>
@@ -454,35 +472,40 @@
 <script type="application/json" id="hx-glossary">
 {"coin": "IDEA Coin, written i¢: class money you earn and spend on the site.",
  "notebook": "Any paper notebook. Sketches you keep are ideas you can come back to.",
- "armory": "The class file vault. It keeps every version of every file, so nothing is ever lost.",
- "checkout": "Taking a file to edit. It locks the file to you until you check it in.",
- "checkin": "Handing a file back. Your version is saved for everyone and the lock comes off."}
+ "armory": "The class file vault. It keeps every version of every file.",
+ "checkout": "Yours to change while you have it open. Others can look but not save over it.",
+ "checkin": "Your saved version goes to everyone, and the part is free for the next person.",
+ "step": "A file format other programs can read. Bambu Studio opens it.",
+ "nozzle": "The tip the plastic comes out of. Each printer has its own size, set it to match.",
+ "slice": "Turning your part into the layers and moves the printer follows.",
+ "plate": "The file Bambu Studio exports after slicing. It is what the printer runs."}
 </script>
 <!-- hx:script -->
 
 <script id="hx-page-js">
 function orVal(f) { var el = hxRoot(f); return el ? String(hxRead(el) || '') : ''; }
-function orSay(id, v, right, yes, no, none) {
+var OR_NO = 'Not quite. Read the list on the left again. Your last pick counts.';
+function orSay(id, v, right) {
   var o = document.getElementById(id); if (!o) return;
   o.classList.toggle('warn', !!v && v !== right);
-  o.textContent = !v ? (none || 'Pick one.') : v === right ? yes : no;
+  o.textContent = !v ? 'Pick one.' : v === right ? 'Right.' : OR_NO;
 }
 function orRefresh() {
-  orSay('or-idea-out', orVal('ideaPick'), 'gear', 'Right. Designed, manufactured, tested.', 'Not that one. IDEA projects are designed, manufactured in the shop and tested. Change your pick: the last one counts.');
+  orSay('or-idea-out', orVal('ideaPick'), 'stand');
   var tp = orVal('teamPick'), to = document.getElementById('or-team-out');
-  if (to) to.textContent = !tp ? 'Pick one.' : tp === 'blade' ? 'Good pick. It is the last and biggest project.' : tp === 'hook' ? 'Good pick. The record is a hook that held 436 lb.' : tp === 'shop' ? 'Good pick. Every student machines a part.' : 'Good pick. It comes first.';
+  if (to) to.textContent = !tp ? 'Pick one.' : 'Good pick.';
   var m = orVal('machinePick'), a = orVal('absentPick'), r = document.getElementById('or-rules-out');
   if (r) {
-    var bad = [];
-    if (m && m !== 'wait') bad.push('No machine until you are trained on that machine.');
-    if (a && a !== 'two') bad.push('Excused days move the due date by the days missed: two days.');
-    r.classList.toggle('warn', bad.length > 0);
-    r.textContent = !(m && a) ? (bad.length ? bad.join(' ') : 'Answer both.') : bad.length ? bad.join(' ') + ' Change your pick: the last one counts.' : 'Both right.';
+    var off = (m && m !== 'wait') || (a && a !== 'two');
+    r.classList.toggle('warn', !!off);
+    r.textContent = off ? OR_NO : (m && a) ? 'Both right.' : 'Answer both.';
   }
-  orSay('or-visitor-out', orVal('visitorPick'), 'gmail', 'Right. Sign out and back in with boscotech.net.', 'Not that. Visitor means a personal account. Change your pick: the last one counts.');
-  orSay('or-saved-out', orVal('savedPick'), 'saved', 'Right. It saves as you type.', 'Not that. Every answer saves as you go, nothing to submit. Change your pick: the last one counts.');
-  orSay('or-lock-out', orVal('lockPick'), 'ask', 'Right. One person edits a file at a time.', 'Not that. A copy splits the part in two. Ask them to check it in. Change your pick: the last one counts.');
-  orSay('or-print-out', orVal('printPick'), 'sliced', 'Right. Export the sliced plate file.', 'Not that. The printer runs the sliced plate file you export. Change your pick: the last one counts.');
+  orSay('or-visitor-out', orVal('visitorPick'), 'gmail');
+  orSay('or-saved-out', orVal('savedPick'), 'saved');
+  orSay('or-lock-out', orVal('lockPick'), 'ask');
+  orSay('or-print-out', orVal('printPick'), 'sliced');
+  var sc = orVal('songCost').trim(), so = document.getElementById('or-song-out');
+  if (so) { var bad = sc && !/^\d+$/.test(sc); so.classList.toggle('warn', !!bad); so.textContent = !sc ? 'Type the number only.' : bad ? 'Numbers only, like 7.' : 'Got it.'; }
 }
 document.addEventListener('input', orRefresh);
 document.addEventListener('change', orRefresh);
