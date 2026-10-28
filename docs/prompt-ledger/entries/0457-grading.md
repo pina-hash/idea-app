@@ -6,7 +6,7 @@
 - Repo: `pina-hash/idea-app`
 - Owns: `src/lib/classroom/GradingConsole.svelte`, `GradesPanel.svelte`, `grading-*.ts`, the grading reads and writes in `src/lib/classroom/transports.ts`, `src/routes/classroom/grading/**`, the class and item grade pages, the grading, class-matching and post-matching code in `src/lib/server/connector/` and its registry entries, answer version history for late credit, per-student due dates and the absent status, syllabus point targets; new migration files for these; `tests/*grading*`, `tests/*grade*`, `tests/*late*`, `tests/*connector-match*`, `tests/db/*grading*`, `tests/db/*grade*`, `tests/db/*late*`, `tests/db/*extension*`; `docs/subsystems/classroom-work.md` grading lines; one `classroom-updates.json` entry; `docs/history/` entry for this lane; this entry.
 - Does not touch: tournaments and copy (0455), the teams grading page and team documents (0456), the importer and replace screen (0458).
-- Migration permitted: yes, as many as needed, each under the next free migration number at landing. Claims: none yet
-- Status: issued
+- Migration permitted: yes, as many as needed, each under the next free migration number at landing. Claims: 0315
+- Status: pushed (part 1)
 - Mode: solo (beside 0455 and 0456, which own none of these files)
 - Branch: main (solo)

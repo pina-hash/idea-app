@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { createGradingExtras } from '$lib/classroom/grading-extras';
 	import { env as publicEnv } from '$env/dynamic/public';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
@@ -22,6 +23,10 @@
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+	// GRADING CATCH-UP (ledger 0457): protection, extensions, late credit,
+	// teams. One stable object per visit.
+	// svelte-ignore state_referenced_locally
+	const extras = createGradingExtras(data.supabase);
 
 	/**
 	 * THE STUDENT OPEN IS IN THE ADDRESS AS AN OPAQUE TOKEN (ledger 0380, report
@@ -175,6 +180,7 @@
 	close={closeAndTell}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
 	feedback={htmlMount === 'html' ? feedback : null}
+	{extras}
 	manifest={htmlMount === 'html' ? manifest : null}
 	{fileDownload}
 />

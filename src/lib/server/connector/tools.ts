@@ -49,6 +49,7 @@ import { lookupId, lookupKindFor, looksLikeId, lookupWords } from './lookup';
 import { decideCoin, parseVoiceCatalog } from './coin-voice';
 import { notesForExport, parseThreads } from '$lib/classroom/feedback/notes';
 import { hxIsTeamManifest } from '$lib/classroom/html-assignment/team-doc';
+import { worksheetAnswered, worksheetAnsweredWords, type AnswerFile, type AnswerRow, type WorksheetAnswered } from '$lib/classroom/grading-work';
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolOutput = Record<string, unknown>;
@@ -225,8 +226,96 @@ async function pageAll<T>(ctx: ToolContext, spec: Parameters<ToolContext['backen
 	}
 }
 
+/**
+ * WHAT NEEDS GRADING, EVERY CLASS AT ONCE (ledger 0457, gap ba704a08): his
+ * words were "catch up on grading for all my classes, except for the idea 2
+ * 9H, block 4, section 3", and it took about twenty calls. One read of
+ * `classroom_needs_grading`: every past-due assignment with saved student work
+ * and no grade yet, by class, leaving out each class he names in `except`.
+ */
+async function needsGrading(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
+	let only: MySection[] | null = null;
+	const classSaid = str(args.class);
+	if (classSaid) {
+		const c = await resolveClasses(ctx, classSaid);
+		if (c.status !== 'found') return unresolved('class', c);
+		only = c.value;
+	}
+	const leaveOut: MySection[] = [];
+	for (const said of list(args.except)) {
+		const c = await resolveClasses(ctx, said);
+		if (c.status !== 'found') return unresolved('class', c);
+		leaveOut.push(...c.value);
+	}
+	const r = await ctx.backend.rpc<NeedsGradingRead>(ctx.session, 'classroom_needs_grading', {
+		p_sections: only ? only.map((s) => s.id) : null,
+		p_exclude: leaveOut.length ? leaveOut.map((s) => s.id) : null
+	});
+	if (r.error) {
+		if (r.error.code === 'PGRST202') return { status: 'refused', message: 'The site is still being updated for this; try again in a few minutes.' };
+		return { status: 'refused', message: r.error.message };
+	}
+	const mine = await mySections(ctx);
+	const titleOf = new Map(mine.map((s) => [s.id, s.title]));
+	// Names as every other tool prints them (the roster's "Last, First" turned round).
+	const listed = (r.data?.classes ?? []).map((c) => mine.find((m) => m.id === c.section_id)).filter((x): x is MySection => !!x);
+	const nameOf = new Map((await myStudents(ctx, listed).catch(() => [] as RosterStudent[])).map((st) => [st.email, st.name]));
+	const classes = (r.data?.classes ?? []).map((c) => ({
+		class: titleOf.get(c.section_id) ?? `${c.course} ${c.label}`,
+		waiting: c.waiting,
+		assignments: c.items.map((i) => ({
+			post: i.title,
+			id: i.item_id,
+			due: i.due_at ? formatDue(i.due_at) : null,
+			points: i.points,
+			html_assignment: i.html,
+			team_assignment: i.team || undefined,
+			waiting: i.waiting,
+			students: i.students.map((st) => ({
+				student: nameOf.get(st.email) ?? st.name,
+				...(i.html ? { answers_saved: st.answers } : { turned_in: st.turned_in }),
+				files: st.files || undefined,
+				saved_after_due: st.saved_after_due || undefined
+			}))
+		}))
+	}));
+	const total = classes.reduce((n, c) => n + Number(c.waiting ?? 0), 0);
+	return {
+		status: 'ok',
+		waiting: total,
+		classes,
+		left_out: leaveOut.map((s) => s.title),
+		how_to_grade:
+			total > 0
+				? 'Each assignment is graded the usual way: grading_packet for the post and class, then grade with grades. A class that only fills empty grades keeps any grade someone else gave.'
+				: 'Nothing past due is waiting for a grade in these classes.'
+	};
+}
+
+type NeedsGradingRead = {
+	classes: Array<{
+		section_id: string;
+		course: string;
+		label: string;
+		waiting: number;
+		items: Array<{
+			item_id: string;
+			title: string;
+			points: number | null;
+			due_at: string | null;
+			html: boolean;
+			team: boolean;
+			waiting: number;
+			students: Array<{ name: string; email: string; turned_in: boolean; answers: number; files: number; saved_after_due: boolean }>;
+		}>;
+	}>;
+};
+
 async function readGrades(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
-	const p = await postFrom(ctx, { post: args.post });
+	if (!str(args.post)) return needsGrading(ctx, args);
+	// THE CLASS PICKS THE POST TOO (report 02fd45c0): a title shared by
+	// separate copies in two classes resolves to the copy in the class named.
+	const p = await postFrom(ctx, { post: args.post, class: args.class });
 	if (p.status !== 'found') return unresolved('post', p);
 	let sections: MySection[] = (await mySections(ctx)).filter((s) => p.value.sections.some((x) => x.id === s.id));
 	const classSaid = str(args.class);
@@ -247,32 +336,25 @@ async function readGrades(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput>
 		}
 	);
 	const byEmail = new Map(subs.map((s) => [s.student_email, s]));
-	let answered: Map<string, number> | null = null;
-	let blockCount: number | null = null;
-	if (p.value.assignment_schema_version === 3) {
-		const rows = await pageAll<{ student_email: string; block_id: string }>(ctx, {
-			table: 'classroom_responses',
-			columns: ['student_email', 'block_id'],
-			eq: { item_id: p.value.id },
-			order: [['student_email', 'asc'], ['block_id', 'asc']]
-		});
-		answered = new Map();
-		for (const r of rows) answered.set(r.student_email, (answered.get(r.student_email) ?? 0) + 1);
-		const manifest = await storedManifest(ctx, p.value.id);
-		blockCount = manifest ? manifestBlocks(manifest).length : null;
-	}
+	// AN HTML WORKSHEET HAS NO TURN-IN (ledger 0457, report 6aa5954d): every
+	// student read "not turned in" with every answer saved. It says how many
+	// questions each has answered and whether any answer was saved after their
+	// due date, through the grading console's own rule (`worksheetAnswered`).
+	const work = p.value.assignment_schema_version === 3 ? await worksheetWork(ctx, p.value) : null;
 	const students = roster.map((st) => {
 		const s = byEmail.get(st.email);
 		const turnedIn = !!s && s.submitted_at !== null;
+		const a = work?.answeredOf(st.email) ?? null;
 		return {
 			student: st.name,
 			classes: st.classes.map((c) => c.title),
-			turned_in: turnedIn,
-			state: s?.state ?? 'not started',
+			...(work ? {} : { turned_in: turnedIn }),
+			state: work ? workState(s, a) : (s?.state ?? 'not started'),
 			score: s?.score ?? s?.direct_score ?? null,
 			graded: !!s?.graded_at,
 			returned: !!s?.returned_at,
-			...(answered ? { answers_saved: answered.get(st.email) ?? 0, questions: blockCount } : {})
+			...(a ? answeredOut(a) : {}),
+			...(work?.dueOf(st.email) && work.dueOf(st.email) !== p.value.due_at ? { due_at: work.dueOf(st.email) } : {})
 		};
 	});
 	return {
@@ -280,13 +362,93 @@ async function readGrades(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput>
 		post: p.value.title,
 		points: p.value.points,
 		classes: sections.map((s) => s.title),
-		not_turned_in: students.filter((s) => !s.turned_in).map((s) => s.student),
+		...(work
+			? {
+					nothing_answered: students.filter((s) => (s as { answered?: number }).answered === 0).map((s) => s.student),
+					not_finished: students.filter((s) => (s as { all_answered?: boolean }).all_answered === false).map((s) => s.student),
+					saved_after_due: students.filter((s) => ((s as { saved_after_due?: number }).saved_after_due ?? 0) > 0).map((s) => s.student)
+				}
+			: { not_turned_in: students.filter((s) => !(s as { turned_in?: boolean }).turned_in).map((s) => s.student) }),
 		students,
-		note:
-			p.value.assignment_schema_version === 3
-				? 'An HTML worksheet has no turn-in; answers_saved counts the questions each student has an answer stored for.'
-				: undefined
+		note: work
+			? 'An HTML worksheet has no turn-in button. answered is how many of its questions each student has an answer saved for, out of questions; saved_after_due counts answers saved after that student\'s due date.'
+			: undefined
 	};
+}
+
+type WorkSub = { state: string; submitted_at: string | null; graded_at: string | null; returned_at: string | null } | undefined;
+
+/** One word for where an HTML worksheet stands, never "not turned in". */
+function workState(s: WorkSub, a: WorksheetAnswered | null): string {
+	if (s?.returned_at) return 'returned';
+	if (s?.graded_at) return 'graded, held';
+	if (!a || a.answered === 0) return 'nothing answered';
+	return a.allAnswered ? (a.savedAfterDue ? 'all answered, some saved after due' : 'all answered') : a.savedAfterDue ? 'in progress, some saved after due' : 'in progress';
+}
+
+function answeredOut(a: WorksheetAnswered) {
+	return {
+		answered: a.answered,
+		questions: a.of,
+		all_answered: a.allAnswered,
+		...(a.short ? { answered_too_short: a.short } : {}),
+		saved_after_due: a.savedAfterDue,
+		last_saved: a.lastSaved,
+		standing: worksheetAnsweredWords(a)
+	};
+}
+
+/**
+ * EVERY STUDENT'S ANSWERS AND FILES ON ONE WORKSHEET, read once as him, with
+ * each student's own due date, so the answered count is the console's.
+ */
+async function worksheetWork(ctx: ToolContext, p: PostRow) {
+	const manifest = await storedManifest(ctx, p.id);
+	const rows = await pageAll<{ student_email: string; block_id: string; value: unknown; updated_at: string }>(ctx, {
+		table: 'classroom_responses',
+		columns: ['student_email', 'block_id', 'value', 'updated_at'],
+		eq: { item_id: p.id },
+		order: [['student_email', 'asc'], ['block_id', 'asc']]
+	});
+	const subs = await pageAll<{ id: string; student_email: string }>(ctx, {
+		table: 'classroom_submissions',
+		columns: ['id', 'student_email'],
+		eq: { item_id: p.id },
+		order: [['student_email', 'asc']]
+	});
+	const files = await submissionFiles(ctx, subs.map((x) => x.id));
+	const emailOfSub = new Map(subs.map((x) => [x.id, x.student_email.toLowerCase()]));
+	const answersBy = new Map<string, AnswerRow[]>();
+	for (const r of rows) {
+		const e = r.student_email.toLowerCase();
+		const list = answersBy.get(e) ?? [];
+		list.push({ block_id: r.block_id, value: r.value as AnswerRow['value'], updated_at: r.updated_at });
+		answersBy.set(e, list);
+	}
+	const filesBy = new Map<string, AnswerFile[]>();
+	for (const f of files) {
+		const e = emailOfSub.get(f.submission_id);
+		if (!e) continue;
+		const list = filesBy.get(e) ?? [];
+		list.push({ ...f, mime_type: '', created_at: f.created_at } as AnswerFile);
+		filesBy.set(e, list);
+	}
+	const dues = await studentDueDates(ctx, p);
+	const dueOf = (email: string) => dues.get(email.toLowerCase()) ?? p.due_at;
+	return {
+		manifest,
+		dueOf,
+		answeredOf(email: string): WorksheetAnswered | null {
+			if (!manifest) return null;
+			const e = email.toLowerCase();
+			return worksheetAnswered(manifest, answersBy.get(e) ?? [], filesBy.get(e) ?? [], dueOf(e));
+		}
+	};
+}
+
+/** Each student's own due date on a post, where an extension moved it. Empty before 0315. */
+async function studentDueDates(_ctx: ToolContext, _p: PostRow): Promise<Map<string, string>> {
+	return new Map();
 }
 
 function pickQuestion(manifest: HtmlAssignmentManifest | null, said: string | undefined, ids: string[]): string[] | null {
@@ -306,7 +468,7 @@ function pickQuestion(manifest: HtmlAssignmentManifest | null, said: string | un
 }
 
 async function readAnswers(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
-	const p = await postFrom(ctx, { post: args.post });
+	const p = await postFrom(ctx, { post: args.post, class: args.class });
 	if (p.status !== 'found') return unresolved('post', p);
 	const manifest = p.value.assignment_schema_version === 3 ? await storedManifest(ctx, p.value.id) : null;
 	const order = manifest ? manifestBlocks(manifest) : null;
@@ -675,19 +837,24 @@ async function gradingPacket(ctx: ToolContext, args: ToolArgs): Promise<ToolOutp
 	}
 
 	const nameOf = new Map(roster.map((r) => [r.email, r]));
+	// A WORKSHEET HAS NO TURN-IN (report 6aa5954d): answered X of Y and saved
+	// after due, through the console's own rule, instead of turned_in false.
+	const work = p.value.assignment_schema_version === 3 ? await worksheetWork(ctx, p.value) : null;
 	const students = roster
 		.filter((r) => wanted(r.email))
 		.map((st) => {
 			const s = subByEmail.get(st.email);
+			const a = work?.answeredOf(st.email) ?? null;
+			const due = work?.dueOf(st.email) ?? p.value.due_at;
 			return {
 				student: st.name,
 				email: st.email,
 				classes: st.classes.map((c) => c.title),
 				...(teamOf.has(st.email) ? { team: teamOf.get(st.email) } : {}),
-				state: s?.state ?? 'not started',
-				turned_in: !!s?.submitted_at,
-				turned_in_at: s?.submitted_at ?? undefined,
-				late: !!(s?.submitted_at && p.value.due_at && Date.parse(s.submitted_at) > Date.parse(p.value.due_at)) || undefined,
+				state: work ? workState(s, a) : (s?.state ?? 'not started'),
+				...(a ? answeredOut(a) : { turned_in: !!s?.submitted_at, turned_in_at: s?.submitted_at ?? undefined }),
+				...(due && due !== p.value.due_at ? { due_at: due } : {}),
+				late: !!(s?.submitted_at && due && Date.parse(s.submitted_at) > Date.parse(due)) || undefined,
 				graded: !!s?.graded_at,
 				returned: !!s?.returned_at,
 				score: s?.score ?? null,
@@ -740,7 +907,14 @@ async function gradingPacket(ctx: ToolContext, args: ToolArgs): Promise<ToolOutp
 				}
 			: {}),
 		students,
-		counts: { students: students.length, turned_in: students.filter((s) => s.turned_in).length, graded: students.filter((s) => s.graded).length },
+		counts: work
+			? {
+					students: students.length,
+					all_answered: students.filter((s) => (s as { all_answered?: boolean }).all_answered).length,
+					saved_after_due: students.filter((s) => ((s as { saved_after_due?: number }).saved_after_due ?? 0) > 0).length,
+					graded: students.filter((s) => s.graded).length
+				}
+			: { students: students.length, turned_in: students.filter((s) => (s as { turned_in?: boolean }).turned_in).length, graded: students.filter((s) => s.graded).length },
 		links_expire_at: new Date(ctx.now() + GRADING_LINK_SECONDS * 1000).toISOString(),
 		how_to_grade: teams
 			? 'Propose each team\'s scores to him first, then grade each team as team_note says.'
@@ -1356,7 +1530,7 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 }
 
 async function grade(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
-	const p = await postFrom(ctx, { post: args.post });
+	const p = await postFrom(ctx, { post: args.post, class: args.class });
 	if (p.status !== 'found') return unresolved('post', p);
 	if (p.value.kind !== 'assignment') return { status: 'invalid', message: `${p.value.title} is not an assignment.` };
 	// A WHOLE CLASS IN ONE CALL, AND RETURNING WHAT WAS HELD (ledger 0438).
@@ -1639,7 +1813,7 @@ async function returnHeld(ctx: ToolContext, p: PostRow, args: ToolArgs): Promise
 async function sendFeedback(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	const message = str(args.message);
 	if (!message) return { status: 'invalid', message: 'Say what the note should say.' };
-	const p = await postFrom(ctx, { post: args.post });
+	const p = await postFrom(ctx, { post: args.post, class: args.class });
 	if (p.status !== 'found') return unresolved('post', p);
 	const s = await resolveStudent(ctx, str(args.student) ?? '');
 	if (s.status !== 'found') return unresolved('student', s);

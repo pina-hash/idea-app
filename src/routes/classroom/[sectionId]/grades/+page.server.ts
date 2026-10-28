@@ -29,6 +29,17 @@ import type { PageServerLoad } from './$types';
  * of once per assignment. It is a tally of policy-scoped rows, not a privileged
  * view.
  */
+interface ProtectionRefusal {
+	id: string;
+	item_id: string;
+	item_title: string;
+	student_name: string;
+	action: string;
+	kept_score: number | null;
+	kept_graded_by: string | null;
+	refused_at: string;
+}
+
 interface PostGradeRow {
 	item_id: string;
 	graded_at: string | null;
@@ -124,7 +135,31 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		: new Map<string, string>();
 	const finished = new Set([...latched.keys()].filter((k) => onRoster.has(k.slice(k.indexOf(' ') + 1))));
 
+	// FILL EMPTY GRADES ONLY (ledger 0457, 0315): the class's switch and the
+	// grades it kept. A deployment before 0315 has neither, and the panel then
+	// renders no switch at all rather than a switch that cannot save.
+	const [{ data: protectRow, error: protectError }, { data: refusals }] = await Promise.all([
+		supabase.from('classroom_sections').select('grades_fill_empty_only').eq('id', params.sectionId).maybeSingle(),
+		supabase.rpc('classroom_grade_protection_refusals', { p_section_id: params.sectionId, p_limit: 50 })
+	]);
+	const protection = protectError
+		? null
+		: {
+				on: (protectRow as { grades_fill_empty_only?: boolean } | null)?.grades_fill_empty_only === true,
+				kept: ((refusals ?? []) as ProtectionRefusal[]).map((r) => ({
+					id: r.id,
+					itemId: r.item_id,
+					itemTitle: r.item_title,
+					student: r.student_name,
+					action: r.action,
+					keptScore: r.kept_score,
+					keptBy: r.kept_graded_by,
+					at: r.refused_at
+				}))
+			};
+
 	return {
+		protection,
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage: true,
 		standings: assignmentStandings(content.items, submissions, students.length, finished),

@@ -541,6 +541,8 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			p_grades: [{ student_email: w.students.mateo, scores: { c1: 4 } }],
 			p_return: false
 		}),
+		// Ledger 0457 (0315): a class's fill empty grades only switch.
+		classroom_set_grade_protection: async () => ({ p_section_id: w.block4, p_on: true }),
 		classroom_close_assignment: async () => ({ p_item_id: await newItem('Close me'), p_student_email: w.students.mateo, p_closed: true }),
 		classroom_approve_module: async () => ({ p_item_id: await specItem('Approve me'), p_student_email: w.students.mateo, p_module_id: 'mod-1', p_approved: true }),
 		classroom_presentation_start: async () => ({ p_section_id: w.block2, p_item_id: null, p_title: 'Talks', p_order: 'roster', p_seed: 3 }),

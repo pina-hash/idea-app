@@ -187,15 +187,18 @@ replace_html_assignment:
 read_grades:
   facade: true
   level: read
-  uses: []
-  describe: Show who has turned in an assignment, who has not, and every score, for one class or all of them.
+  uses: [classroom_needs_grading]
+  describe: Show an assignment's work and scores; or, with no assignment, everything past due with saved work and no grade yet, in every class but the ones left out.
   say:
     - who hasn't turned in Shop Fix in Block 2
     - show me the grades on Tolerance Check
     - who still needs grading on the DFM worksheet
+    - I need to catch up on grading for all my classes, except for 209H Block 4
+    - what still needs grading
   args:
-    post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
+    post: {type: string, resolve: post, describe: "The assignment's title as you said it. Leave it out for everything that needs grading."}
     class: {type: string, resolve: class, describe: "Only this class, like 209H Block 2."}
+    except: {type: array, items: string, describe: "With no assignment: classes to leave out, as he said them, like 209H Block 4."}
 
 read_answers:
   facade: true
@@ -211,6 +214,7 @@ read_answers:
     post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
     student: {type: string, resolve: student, describe: "The student, as you said the name. Leave it out for every student's answers."}
     question: {type: string, describe: "One question: its number, its name, or words from its prompt. Leave it out for every answer."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one."}
 
 # FULL GRADING FROM A CHAT (ledger 0438, feedback 6db4fbe5, gap 8fd1c0bb):
 # one read carries a whole assignment and class; grade takes many at once.
@@ -263,6 +267,7 @@ grade:
     return: {type: boolean, describe: "With grades: true to return them to the students now. They are held by default."}
     returnHeld: {type: boolean, describe: "True to return every grade held on this assignment, with the score and comment it already has."}
     students: {type: array, items: string, describe: "With returnHeld: only these students."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one, like 209H Block 3."}
 
 send_feedback:
   facade: true
@@ -278,6 +283,7 @@ send_feedback:
     student: {type: string, required: true, resolve: student, describe: "The student, as you said the name."}
     message: {type: string, required: true, describe: "What the note says."}
     question: {type: string, describe: "Pin the note to one question: its number, its name, or words from its prompt."}
+    class: {type: string, describe: "The class it is in, when the same title is in more than one."}
 
 # VOICE TO ACTION (ledger 0432, feedback fba5bfcd). Measured 2026-10-23 on
 # his 222 saved requests: coin awards and fines were 69 of them (185 calls),

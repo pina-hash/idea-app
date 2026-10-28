@@ -44,6 +44,8 @@
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 	import { hxCompletion } from '$lib/classroom/html-assignment/progress';
+	import { worksheetAnswered, worksheetAnsweredWords, type WorksheetAnswered } from '$lib/classroom/grading-work';
+	import { PROTECTED_REFUSAL, type GradingExtras, type ProtectedClass } from '$lib/classroom/grading-extras';
 	import { worksheetCompletedAtAcross } from '$lib/classroom/student-work';
 	import { hxBlockPrompt, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import HtmlAnswerList from '$lib/classroom/html-assignment/HtmlAnswerList.svelte';
@@ -193,7 +195,8 @@
 		fileDownload = null,
 		initialStudent = null,
 		onstudent = null,
-		feedback = null
+		feedback = null,
+		extras = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -354,6 +357,13 @@
 		 */
 		initialStudent?: string | null;
 		onstudent?: ((token: string | null) => void) | null;
+		/**
+		 * GRADING CATCH-UP (ledger 0457), and absence is the mechanism: which
+		 * classes only fill empty grades, per-student due dates and the absent
+		 * status, on-time answer versions, rubric scaling and teams. Omitted,
+		 * the console reads exactly as it did.
+		 */
+		extras?: GradingExtras | null;
 	} = $props();
 
 	/**
@@ -1022,6 +1032,26 @@
 	 * somebody is in.
 	 */
 	const sectionOf = $derived(sectionOfStudent(data?.roster ?? []));
+
+	/**
+	 * WHICH OF THIS POST'S CLASSES ONLY FILL EMPTY GRADES (0315), read once per
+	 * post. The database refuses the overwrite whatever this says; this only
+	 * tells the grader before they try.
+	 */
+	let protectedClasses = $state<ProtectedClass[]>([]);
+	$effect(() => {
+		const t = extras;
+		const id = item.id;
+		if (!t) return;
+		untrack(() => {
+			void t.protection(id).then((rows) => (protectedClasses = rows));
+		});
+	});
+	const protectedTitles = $derived(
+		protectedClasses
+			.filter((p) => p.on)
+			.map((p) => sectionTitles.get(p.sectionId) ?? (p.sectionId === section.id ? sectionTitle(section) : 'One class'))
+	);
 
 	/**
 	 * THE FACE FOR THE STUDENT ON SCREEN, looked up on the ROSTER rather than
@@ -1746,8 +1776,39 @@
 				? { label: 'Complete, late', cls: 'late' }
 				: { label: 'Complete', cls: 'submitted' };
 		}
+		/*
+		 * A WORKSHEET HAS NO TURN-IN, SO "NOT SUBMITTED" WAS WRONG FOR EVERY
+		 * STUDENT ON ONE (ledger 0457, report 6aa5954d). It says how many
+		 * questions are answered and whether any answer was saved after the
+		 * student's due date, through the one rule the connector reads too.
+		 * The tone is the same three as before, so `workArrived` is unchanged.
+		 */
+		if (manifest) {
+			const a = answeredOf(s);
+			if (a && (a.answered > 0 || s.responses.length || s.files.length)) {
+				return { label: worksheetAnsweredWords(a), cls: a.savedAfterDue ? 'late' : 'progress' };
+			}
+			if (a && a.of > 0) return { label: worksheetAnsweredWords(a), cls: 'none' };
+		}
 		if (s.responses.length || s.files.length) return { label: 'In progress', cls: 'progress' };
 		return { label: 'Not submitted', cls: 'none' };
+	}
+
+	/**
+	 * THIS STUDENT'S DUE DATE: the post's, unless an extension moved theirs.
+	 * The one place the console asks, so every late judgment here agrees.
+	 */
+	function dueFor(s: StudentWork): string | null {
+		return extensionDue(s.email) ?? item.due_at ?? null;
+	}
+	function extensionDue(_email: string): string | null {
+		return null;
+	}
+
+	/** Answered X of Y on the worksheet, against this student's own due date. */
+	function answeredOf(s: StudentWork): WorksheetAnswered | null {
+		if (!manifest) return null;
+		return worksheetAnswered(manifest, s.responses, s.files, dueFor(s));
 	}
 
 	/**
@@ -1996,6 +2057,12 @@
 	 */
 	function refusalOutcome(res: DirectGradeResult): SaveOutcome {
 		if (res.reason === 'override_needs_comment') needComment = res.missing ?? [];
+		// A PROTECTED CLASS KEPT THE GRADE (0315): said as what happened, and it
+		// is final for this student until the class's switch changes.
+		if (res.reason === 'protected') {
+			gradeError = PROTECTED_REFUSAL;
+			return { ok: false, retryable: false, message: gradeError };
+		}
 		gradeError =
 			res.reason === 'incomplete_scores' && !directReady
 				? `Score every criterion before returning (${res.missing?.length ?? 0} left).`
@@ -3274,6 +3341,15 @@
 			{/if}
 		{/if}
 	</header>
+
+	{#if protectedTitles.length}
+		<!-- FILL EMPTY GRADES ONLY (0315): said before any grading starts, so a
+		     refused overwrite is never a surprise. -->
+		<p class="gc-protect" data-testid="grading-protected">
+			<span class="gc-protect-tag">Fill empty grades only</span>
+			{protectedTitles.join(', ')}: a grade someone else gave stays as it is. You can fill empty grades there.
+		</p>
+	{/if}
 
 	{#if loadError}
 		<p class="feedback error">{loadError}</p>
@@ -6339,6 +6415,26 @@
 		white-space: nowrap;
 	}
 	.score-value.override {
+		color: var(--amber);
+	}
+	.gc-protect {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem 0.6rem;
+		margin: 0.4rem 0 0.6rem;
+		padding: 0.45rem 0.8rem;
+		border: 1px solid var(--hairline);
+		border-left: 3px solid var(--amber);
+		border-radius: 8px;
+		font-size: 0.88rem;
+		color: var(--text-1);
+	}
+	.gc-protect-tag {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 		color: var(--amber);
 	}
 	.override-chip {

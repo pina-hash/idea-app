@@ -272,3 +272,45 @@ Undated work is never Missing and never counted; it is listed last.
   reads no clock; `formatDue` prints in America/Los_Angeles and names no
   weekday. A browser's own zone deciding "due today" is the evening bug the
   notebook grid already had.
+
+### GRADING CATCH-UP -- protected classes, one queue, honest worksheet status (ledger 0457)
+
+- **A CLASS CAN ONLY FILL EMPTY GRADES (0315, report 2044c229), AND THE RULE IS
+  ONE FUNCTION EVERY GRADE WRITE ASKS.** `classroom_sections.grades_fill_empty_only`
+  is the switch (the class's Grades page, or `classroom_set_grade_protection`);
+  `_classroom_grade_protection_check` is the rule, called by
+  `classroom_grade_submission` (so the bulk, team and typed-score doors all
+  pass through it), `classroom_grade_direct` (before it stores the typed
+  score), `classroom_revoke_grade` and `classroom_unreturn_grade`. In a
+  protected class a grade that exists (graded or returned) and that somebody
+  ELSE gave is never changed; an empty one is filled and the caller's own may
+  be corrected. A refusal answers `{ok: false, reason: 'protected'}`, writes
+  nothing else, and is recorded in `classroom_grade_protection_refusals`
+  (read through `classroom_grade_protection_refusals`, a manager of the class
+  only). It FAILS CLOSED: a student in two classes of the post is protected if
+  either class is. A new grade write must call the rule, and 0315's self-check
+  refuses to apply if any of the four does not.
+- **ONE "NEEDS GRADING" READ (gap ba704a08).** `classroom_needs_grading`
+  answers every past-due, visible assignment with saved work (an answer, a
+  file or a turn-in) and no grade, by class, for the classes the caller is
+  teacher of record for (or the ones named), leaving out `p_exclude`. Students
+  are the class's own active roster minus staff and test accounts, the people
+  the grading console lists. `/classroom/grading` is the page (a class left out
+  is kept on the device, `QUEUE_EXCLUDE_KEY`); the connector's `read_grades`
+  with no post is the same read, with `except` for the classes he leaves out.
+- **A WORKSHEET IS NEVER "NOT TURNED IN" (report 6aa5954d).** It has no turn-in
+  button. `worksheetAnswered` in `$lib/classroom/grading-work.ts` is the one
+  statement of "answered X of Y" (the progress rail's own counted blocks: the
+  header's name field and optional blocks are not questions) and "saved after
+  due" (each answer's own save time against THAT STUDENT's due date). The
+  console's roster chip and the connector's `read_grades` and `grading_packet`
+  all read it.
+- **THE CONNECTOR MATCHES THE CLASS HE NAMES (report 02fd45c0).**
+  `matchClasses` in `src/lib/server/connector/resolve.ts` reads a phrase into
+  block, section and course parts and matches each against its own field: a
+  block number only against the block, a section number only against the
+  section, and digits inside a course code ("2" in IDEA209H) are the course.
+  The exact title the site prints is that class. Every grading tool passes
+  `class` into the post lookup, so a title shared by separate posts resolves
+  to the copy in the class named. `tests/connector-match.test.ts` holds his
+  phrases.

@@ -38,7 +38,9 @@
 		standings = [],
 		basePath = '/classroom',
 		resubmittedAfterGrading = {},
-		gradebook = null
+		gradebook = null,
+		protection = null,
+		onprotection = null
 	}: {
 		section: ClassroomSection;
 		standings?: AssignmentStanding[];
@@ -57,7 +59,46 @@
 		resubmittedAfterGrading?: Record<string, number>;
 		/** Every student's score on every assignment, for Download grades (ledger 0438). Absent: no key. */
 		gradebook?: Gradebook | null;
+		/**
+		 * FILL EMPTY GRADES ONLY (ledger 0457, 0315): the class's switch and the
+		 * grades it kept. Absent (a harness, a deployment before 0315): no
+		 * switch and no list, rather than a switch that cannot save.
+		 */
+		protection?: GradeProtection | null;
+		onprotection?: ((on: boolean) => Promise<string | null>) | null;
 	} = $props();
+
+	interface GradeProtection {
+		on: boolean;
+		kept: Array<{
+			id: string;
+			itemId: string;
+			itemTitle: string;
+			student: string;
+			action: string;
+			keptScore: number | null;
+			keptBy: string | null;
+			at: string;
+		}>;
+	}
+
+	let protectBusy = $state(false);
+	let protectError = $state<string | null>(null);
+	async function toggleProtection() {
+		if (!protection || !onprotection || protectBusy) return;
+		protectBusy = true;
+		protectError = await onprotection(!protection.on);
+		protectBusy = false;
+	}
+	const ACTION_WORDS: Record<string, string> = {
+		grade: 'a new grade',
+		'typed score': 'a typed score',
+		revoke: 'taking the grade off',
+		unreturn: 'taking it back from the student'
+	};
+	function keptWhen(iso: string): string {
+		return new Date(iso).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+	}
 
 	function downloadGrades() {
 		if (!gradebook) return;
@@ -123,12 +164,61 @@
 				>
 			{/if}
 		</p>
+		<a class="btn secondary tiny tap-44 grades-queue" href={`${basePath}/grading`} data-testid="grades-queue-link"
+			>Needs grading, every class</a
+		>
 		{#if gradebook && gradebook.assignments.length}
 			<button type="button" class="btn secondary tiny tap-44 grades-download" data-testid="grades-download" onclick={downloadGrades}
 				>Download grades (CSV)</button
 			>
 		{/if}
 	</section>
+
+	{#if protection}
+		<section class="card protect-card" data-testid="grades-protection">
+			<div class="protect-row">
+				<div class="protect-text">
+					<span class="protect-title">Fill empty grades only</span>
+					<span class="protect-says">
+						{#if protection.on}
+							On. A grade someone else gave in this class is kept; you can only fill grades that are empty. Grading
+							from any screen or from Claude follows this.
+						{:else}
+							Off. Grading here can change any grade in this class.
+						{/if}
+					</span>
+				</div>
+				{#if onprotection}
+					<button
+						type="button"
+						class="btn secondary tiny tap-44 protect-toggle"
+						aria-pressed={protection.on}
+						aria-label="Fill empty grades only"
+						disabled={protectBusy}
+						onclick={toggleProtection}
+						data-testid="grades-protection-toggle"
+					>
+						{protection.on ? 'On' : 'Off'}
+					</button>
+				{/if}
+			</div>
+			{#if protectError}<p class="note" role="alert">{protectError}</p>{/if}
+			{#if protection.kept.length}
+				<details class="kept" data-testid="grades-protection-kept">
+					<summary class="tap-44">{protection.kept.length} {protection.kept.length === 1 ? 'grade' : 'grades'} kept</summary>
+					<ul class="kept-rows">
+						{#each protection.kept as k (k.id)}
+							<li>
+								<span class="kept-who">{k.student}</span>
+								<span class="kept-what">{k.itemTitle}: kept {k.keptScore ?? 'the grade'}{k.keptBy ? ` from ${k.keptBy}` : ''}, refused {ACTION_WORDS[k.action] ?? k.action}</span>
+								<span class="kept-when">{keptWhen(k.at)}</span>
+							</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
+		</section>
+	{/if}
 
 	{#if ordered.length === 0}
 		<section class="card">
@@ -397,6 +487,74 @@
 	}
 	.tone-muted {
 		color: var(--text-2);
+	}
+	.grades-queue {
+		display: inline-flex;
+		align-items: center;
+		margin-right: 0.4rem;
+	}
+	.protect-card {
+		padding: 0.9rem 1.1rem;
+	}
+	.protect-row {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+	}
+	.protect-text {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		flex: 1 1 16rem;
+		min-width: 0;
+	}
+	.protect-title {
+		font-weight: 700;
+		font-size: 0.95rem;
+	}
+	.protect-says {
+		font-size: 0.88rem;
+		color: var(--text-2);
+	}
+	.protect-toggle {
+		display: inline-flex;
+		align-items: center;
+		flex: none;
+	}
+	.kept summary {
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--amber);
+	}
+	.kept-rows {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.kept-rows li {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.2rem 0.6rem;
+		padding: 0.3rem 0;
+		border-top: 1px solid var(--hairline);
+		font-size: 0.86rem;
+	}
+	.kept-who {
+		font-weight: 700;
+		min-width: 8rem;
+	}
+	.kept-what {
+		flex: 1 1 14rem;
+		color: var(--text-2);
+	}
+	.kept-when {
+		font-family: var(--font-mono);
+		font-size: 0.64rem;
+		color: var(--cyan);
 	}
 	.page-footer {
 		margin-top: 1.4rem;

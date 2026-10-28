@@ -4772,6 +4772,99 @@
 				}
 			]
 		},
+		"classroom_set_grade_protection": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Turn on or off a class's fill empty grades only setting, which keeps every grade someone else gave and lets you fill only empty ones.",
+			"say": [
+				"only fill empty grades in 209H Block 4",
+				"protect Block 4's grades",
+				"turn off grade protection in Block 4",
+				"don't overwrite Mr. Cosso's grades"
+			],
+			"args": {
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"describe": "The class, like 209H Block 4."
+				},
+				"p_on": {
+					"name": "on",
+					"describe": "True to only fill empty grades, false to allow changing any grade."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_set_grade_protection",
+					"args": {
+						"p_section_id": "$args.p_section_id",
+						"p_on": "!$args.p_on"
+					}
+				}
+			]
+		},
+		"classroom_grade_protection_refusals": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The grades a fill empty grades only class refused to change, newest first, with what was kept and what was proposed.",
+			"say": [
+				"which grades did Block 4 keep",
+				"what grades were not overwritten",
+				"show the grades protection refused"
+			],
+			"args": {
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"default": null,
+					"describe": "One class, or leave it out for every class."
+				},
+				"p_limit": {
+					"name": "count",
+					"default": 200,
+					"describe": "How many to list."
+				}
+			}
+		},
+		"classroom_item_grade_protection": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Which classes of a post only fill empty grades.",
+			"say": [
+				"is Block 4 protected on the Shop Fix",
+				"which classes of this post keep their grades",
+				"grade protection on Hook 03"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The assignment."
+				}
+			}
+		},
+		"classroom_needs_grading": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Everything past due with saved student work and no grade yet, by class; the read grades tool with no assignment is the usual way in.",
+			"say": [
+				"what needs grading",
+				"catch up on grading in all my classes",
+				"what's ungraded in Block 2"
+			],
+			"args": {
+				"p_sections": {
+					"name": "classes",
+					"default": null,
+					"describe": "The classes to look at, by their ids; leave it out for every class you teach."
+				},
+				"p_exclude": {
+					"name": "except",
+					"default": null,
+					"describe": "Classes to leave out, by their ids."
+				}
+			}
+		},
 		"coin_log_transaction": {
 			"surface": "call",
 			"level": "undo",
@@ -11262,24 +11355,32 @@
 		"read_grades": {
 			"facade": true,
 			"level": "read",
-			"uses": [],
-			"describe": "Show who has turned in an assignment, who has not, and every score, for one class or all of them.",
+			"uses": [
+				"classroom_needs_grading"
+			],
+			"describe": "Show an assignment's work and scores; or, with no assignment, everything past due with saved work and no grade yet, in every class but the ones left out.",
 			"say": [
 				"who hasn't turned in Shop Fix in Block 2",
 				"show me the grades on Tolerance Check",
-				"who still needs grading on the DFM worksheet"
+				"who still needs grading on the DFM worksheet",
+				"I need to catch up on grading for all my classes, except for 209H Block 4",
+				"what still needs grading"
 			],
 			"args": {
 				"post": {
 					"type": "string",
-					"required": true,
 					"resolve": "post",
-					"describe": "The assignment's title as you said it."
+					"describe": "The assignment's title as you said it. Leave it out for everything that needs grading."
 				},
 				"class": {
 					"type": "string",
 					"resolve": "class",
 					"describe": "Only this class, like 209H Block 2."
+				},
+				"except": {
+					"type": "array",
+					"items": "string",
+					"describe": "With no assignment: classes to leave out, as he said them, like 209H Block 4."
 				}
 			}
 		},
@@ -11309,6 +11410,10 @@
 				"question": {
 					"type": "string",
 					"describe": "One question: its number, its name, or words from its prompt. Leave it out for every answer."
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one."
 				}
 			}
 		},
@@ -11432,6 +11537,10 @@
 					"type": "array",
 					"items": "string",
 					"describe": "With returnHeld: only these students."
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one, like 209H Block 3."
 				}
 			}
 		},
@@ -11468,6 +11577,10 @@
 				"question": {
 					"type": "string",
 					"describe": "Pin the note to one question: its number, its name, or words from its prompt."
+				},
+				"class": {
+					"type": "string",
+					"describe": "The class it is in, when the same title is in more than one."
 				}
 			}
 		},
@@ -12090,6 +12203,10 @@
 		"classroom_presentation_move": "classroom.yaml",
 		"classroom_presentation_close": "classroom.yaml",
 		"classroom_presentation_reopen": "classroom.yaml",
+		"classroom_set_grade_protection": "classroom.yaml",
+		"classroom_grade_protection_refusals": "classroom.yaml",
+		"classroom_item_grade_protection": "classroom.yaml",
+		"classroom_needs_grading": "classroom.yaml",
 		"coin_log_transaction": "coin.yaml",
 		"coin_reverse_transaction": "coin.yaml",
 		"coin_admin_lookup": "coin.yaml",

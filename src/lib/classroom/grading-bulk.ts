@@ -656,6 +656,9 @@ export function bulkRefusalSentence(row: BulkGradeRow): string {
 			? 'Not graded: one criterion was scored between levels with no note saying why.'
 			: `Not graded: ${missing.length} criteria were scored between levels with no note saying why.`;
 	}
+	if (row.reason === 'protected') {
+		return 'Kept: this class only fills empty grades, and this student already has a grade someone else gave.';
+	}
 	if (row.reason === 'incomplete_scores') {
 		return `Not graded: ${missing.length} ${missing.length === 1 ? 'criterion is' : 'criteria are'} unscored, and a grade cannot be returned unfinished.`;
 	}

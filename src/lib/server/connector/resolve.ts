@@ -159,8 +159,114 @@ async function sectionTitles(ctx: ToolContext, ids: string[]): Promise<Map<strin
 	return out;
 }
 
-function numbersIn(s: string): string[] {
-	return [...s.matchAll(/(\d+)/g)].map((m) => String(Number(m[1])));
+/**
+ * WHAT A CLASS PHRASE SAYS, PARSED (ledger 0457, report 02fd45c0). On Oct 28
+ * "IDEA209H Block 2" came back ambiguous between Block 2 and Section 2 Block 3,
+ * and on Oct 26 "209H Block 3", even the exact title, matched Section 3 Block
+ * 4: the old matcher counted a section number as a block number, and any bare
+ * number found inside a course code ("2" in IDEA209H) matched every class. So
+ * a phrase is now read into its parts and each part is matched only against
+ * the field it names: a block number against the block, a section number
+ * against the section, everything else against the course.
+ */
+export interface ClassPhrase {
+	all: boolean;
+	blocks: string[];
+	sections: string[];
+	/** Bare numbers that are not part of the course code: a block, or failing that a section. */
+	bare: string[];
+	words: string[];
+}
+
+export function parseClassPhrase(said: string): ClassPhrase {
+	const t = norm(said).replace(/[·]/g, ' ');
+	const all = /\b(all|every|each|both)\b/.test(t);
+	const blocks: string[] = [];
+	const sections: string[] = [];
+	let rest = t
+		.replace(/\b(?:block|blk|period|per|b|p)\s*(\d+)\b/g, (_m, n: string) => {
+			blocks.push(String(Number(n)));
+			return ' ';
+		})
+		.replace(/\b(?:section|sect|sec|s)\s*(\d+)\b/g, (_m, n: string) => {
+			sections.push(String(Number(n)));
+			return ' ';
+		});
+	rest = rest.replace(/\b(all|every|each|both|my|the|of|in|class|classes|section|sections|course|block|blocks|period|periods|and|for|except)\b/g, ' ');
+	const tokens = rest.split(/\s+/).filter(Boolean);
+	const bare: string[] = [];
+	const words: string[] = [];
+	for (const w of tokens) {
+		if (/^\d+$/.test(w)) bare.push(w);
+		else words.push(w);
+	}
+	return { all, blocks, sections, bare, words };
+}
+
+/** The numbers in a field, as said aloud ("03" is 3). */
+function numbersIn(s: string | null | undefined): string[] {
+	return [...(s ?? '').matchAll(/(\d+)/g)].map((m) => String(Number(m[1])));
+}
+
+/** A class's own block and section numbers, read from the fields the site prints. */
+export function classNumbers(s: Pick<MySection, 'label' | 'block'>): { block: string[]; section: string[] } {
+	const label = (s.label ?? '').trim();
+	const labelIsBlock = /^(block|period)\b/i.test(label);
+	const block = s.block && s.block.trim() ? numbersIn(s.block) : labelIsBlock ? numbersIn(label) : [];
+	const section = labelIsBlock ? [] : numbersIn(label);
+	return { block, section };
+}
+
+/**
+ * THE CLASSES A PHRASE NAMES, out of the ones given. Pure, so the whole rule
+ * is tested without a database (tests/connector-match.test.ts).
+ *
+ *   - A block number picks the class with exactly that block; a section number
+ *     the class with exactly that section.
+ *   - A bare number that is part of a course code ("100", "209") is part of the
+ *     course; any other bare number is the block, or the section when no class
+ *     has that block.
+ *   - Every other word must be in the course code or title.
+ */
+export function matchClasses(sections: MySection[], said: string): MySection[] {
+	const ph = parseClassPhrase(said);
+	const compactSaid = norm(said).replace(/[^a-z0-9]/g, '');
+	const courseOk = (s: MySection, extraNumbers: string[]): boolean => {
+		const code = s.courseCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+		const title = norm(s.courseTitle);
+		for (const w of ph.words) {
+			const bare = w.replace(/[^a-z0-9]/g, '');
+			if (!bare) continue;
+			if (code.includes(bare) || title.split(' ').some((x) => x.startsWith(w))) continue;
+			// "209h" said as "2 9h": the pieces of the code, spoken apart.
+			if (code && compactSaid.includes(code)) continue;
+			return false;
+		}
+		for (const n of extraNumbers) if (!code.includes(n) && !(code && compactSaid.includes(code))) return false;
+		return true;
+	};
+	const byParts = (blockNums: string[], sectionNums: string[], courseNums: string[]) =>
+		sections.filter((s) => {
+			const own = classNumbers(s);
+			for (const b of blockNums) if (!own.block.includes(b)) return false;
+			for (const n of sectionNums) if (!own.section.includes(n)) return false;
+			return courseOk(s, courseNums);
+		});
+	// A bare number inside every candidate course code is part of the course.
+	const codeDigits = (n: string) => sections.some((s) => s.courseCode.toLowerCase().replace(/[^a-z0-9]/g, '').includes(n));
+	const courseNums = ph.bare.filter((n) => codeDigits(n) && (ph.blocks.length > 0 || ph.bare.length > 1 || n.length > 1));
+	const loose = ph.bare.filter((n) => !courseNums.includes(n));
+	if (loose.length === 0) return byParts(ph.blocks, ph.sections, courseNums);
+	// A loose number is the block when no block was said; failing that, the section.
+	if (ph.blocks.length === 0) {
+		const asBlock = byParts(loose, ph.sections, courseNums);
+		if (asBlock.length) return asBlock;
+	}
+	if (ph.sections.length === 0) {
+		const asSection = byParts(ph.blocks, loose, courseNums);
+		if (asSection.length) return asSection;
+	}
+	return [];
 }
 
 /** The class or classes a phrase names: "209H Block 2", "Block 2", "all 209H", "every IDEA100 section". */
@@ -171,28 +277,10 @@ export async function resolveClasses(ctx: ToolContext, said: string): Promise<Re
 		const hit = sections.find((s) => s.id === raw.toLowerCase());
 		return hit ? { status: 'found', value: [hit] } : { status: 'none', said, message: 'That class is not one you teach.' };
 	}
-	const t = norm(raw);
-	const wantsAll = /\b(all|every|each|both)\b/.test(t);
-	const tokens = t
-		.replace(/\b(all|every|each|both|my|the|of|in|class|classes|section|sections|course|block|blocks|period|periods|b|p)\b/g, ' ')
-		.split(/\s+/)
-		.filter((w) => w && !/^[bp]\d+$/.test(w));
-	const blockNumbers = [...t.matchAll(/\b(?:block|period|b|p)\s*(\d+)\b/g)].map((m) => String(Number(m[1])));
-	const words = tokens.filter((w) => !/^\d+$/.test(w) || !blockNumbers.includes(String(Number(w))));
-	const matches = sections.filter((s) => {
-		const code = s.courseCode.toLowerCase().replace(/\s+/g, '');
-		const hay = `${code} ${norm(s.courseTitle)} ${norm(s.label)}`;
-		const sectionNumbers = new Set([...numbersIn(s.label), ...numbersIn(s.block ?? '')]);
-		for (const n of blockNumbers) if (!sectionNumbers.has(n)) return false;
-		for (const w of words) {
-			const bare = w.replace(/\s+/g, '');
-			if (code.includes(bare) || hay.includes(w)) continue;
-			// A bare number that is not a course number may still be the block.
-			if (/^\d+$/.test(w) && blockNumbers.length === 0 && sectionNumbers.has(String(Number(w))) && !code.includes(w)) continue;
-			return false;
-		}
-		return true;
-	});
+	// The exact title the site prints ("IDEA209H · Section 2 · Block 3") is that class.
+	const exact = sections.filter((s) => norm(s.title) === norm(raw));
+	const matches = exact.length === 1 ? exact : matchClasses(sections, raw);
+	const wantsAll = parseClassPhrase(raw).all;
 	const candidates = matches.map((s) => ({ class: s.title, id: s.id }));
 	if (matches.length === 0) {
 		return {
