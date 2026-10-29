@@ -171,23 +171,23 @@ export const roomSpec = (room, rootClass) => ({
 	tapTargets: [{ selector: '.pm-theme', label: 'theme radios', min: 44 }]
 });
 
-/* THE LAUNCHER'S GLYPHS AND DEFAULT INKS, card by card (ledger 0298,
-   decision 40 items 1 and 3). Every mark is measured at the launcher's own
-   34px against its own card: the `.app-icon`'s colour is the glyph's edge
-   stroke (the faces are translucent mixes of it), so this is the contrast the
-   drawing is carried by, held to the 3:1 a graphical object owes. The three
-   redrawn marks and the four cards that paint from the shared default are
-   named one by one, because a worst-of-all row hides a single card. */
-export const launcherRows = ({ gateWall }) => [
-	{ selector: '.launcher .app-card .app-icon', label: 'every card glyph at 34px on its card (3:1, graphical)', min: 3 },
-	...['ideacad', 'greenline', 'dashboard'].map((id) => ({
-		selector: `.launcher .app-card[data-app='${id}'] .app-icon`,
-		label: `redrawn mark: ${id} at 34px (3:1, graphical)`,
-		min: 3
-	})),
-	...['classroom', 'notebook', 'ideacad', 'coin-desk'].map((id) => ({
+/* THE LAUNCHER, CARD BY CARD (ledger 0472, decision 73). Every card is its
+   own app's surface now, so no two share a ground or an ink and a
+   worst-of-all row would hide the one card that fails: each card's title is
+   measured on its own card, one row per app, along with every glyph at the
+   launcher's own size (3:1, the floor a graphical object owes). `ids` is the
+   cards the page draws (a student sees twelve, `/dev/themes` all fourteen).
+   The contrast check walks up to the first opaque ground, which is the card's
+   own `--rm-ground`: the app's drawing sits behind the words as decoration,
+   and the browser pass in docs/history/launcher-cards-0472.md measured the
+   worst pixel under each title separately. */
+export const LAUNCHER_STUDENT_IDS = ['classroom', 'notebook', 'ideacad', 'armory', 'maps', 'coins', 'market', 'gauntlet', 'greenline', 'vanguard', 'foundry', 'tournaments'];
+export const LAUNCHER_ALL_IDS = [...LAUNCHER_STUDENT_IDS, 'frc', 'dashboard'];
+export const launcherRows = ({ gateWall, ids = LAUNCHER_ALL_IDS }) => [
+	{ selector: '.launcher .app-card .app-icon', label: 'every card glyph on its card (3:1, graphical)', min: 3 },
+	...ids.map((id) => ({
 		selector: `.launcher .app-card[data-app='${id}'] .app-title`,
-		label: `default card ${id}: title`,
+		label: `card ${id}: title on its own card`,
 		min: 4.5
 	})),
 	{
@@ -197,9 +197,27 @@ export const launcherRows = ({ gateWall }) => [
 		projector: true
 	},
 	{
-		selector: ".launcher .app-card:is([data-app='classroom'], [data-app='notebook'], [data-app='ideacad'], [data-app='coin-desk']) .app-title",
-		label: `on the wall: default card titles (3.0 washed)${gateWall ? '' : ' [recorded, not gated]'}`,
+		selector: '.launcher .app-card .app-title',
+		label: `on the wall: every card title (3.0 washed)${gateWall ? '' : ' [recorded, not gated]'}`,
 		min: gateWall ? 3 : 0,
 		projector: true
 	}
 ];
+
+/* HOW MANY LOOKS THE LAUNCHER HAS: one per card (decision 73), read as each
+   card's ground, title ink, title face, weight and case, and glyph ink
+   together, and no shared family strip. Printed and asserted by the home and
+   theme specs. */
+export const CARD_LOOKS = `() => {
+	const cards = [...document.querySelectorAll('.launcher .app-card[data-app]')];
+	const look = (c) => {
+		const t = getComputedStyle(c.querySelector('.app-title'));
+		return [getComputedStyle(c).backgroundColor, t.color, t.fontFamily, t.fontWeight, t.textTransform, getComputedStyle(c.querySelector('.app-icon')).color].join('|');
+	};
+	return [
+		'cards ' + (cards.length ? 'measured' : 'NONE'),
+		'looks ' + new Set(cards.map(look)).size,
+		'strips ' + document.querySelectorAll('.launcher .app-strip').length,
+		'drawings ' + document.querySelectorAll('.launcher .app-card .art').length
+	];
+}`;

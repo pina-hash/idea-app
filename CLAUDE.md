@@ -627,14 +627,27 @@ the source of truth; **do not invent colours or swap fonts.**
   Every value is solved by `tools/hx-kit/color.mjs` and held by
   `tests/color-tokens.test.ts`. **The semantic roles are fixed; do not reassign
   them.** Never use pure red, pure white (`#FFFFFF`), or pure yellow.
-- **Identity colours are one library, solved (ledger 0467).** A launcher family,
-  a calendar layer, a unit tint, a class palette or a section colour reads a
-  generated `--id-<entry>-*` token from `src/lib/design-system/identity.css`
-  (or `IDENTITY` in `identity.ts`), written by `tools/identity-colors.mjs` from
-  `tools/hx-kit/kit/colors.json` through `solve()`; never type an identity hex.
-  At most seven hues on one screen, each beside a word or a glyph, and no neon.
-  `tests/identity-colors.test.ts` holds it; `docs/subsystems/themes.md` has the
-  detail.
+- **Identity colours are one library, solved (ledger 0467), and the launcher is
+  not in it (ledger 0472).** A calendar layer, a unit tint, a class palette or
+  a section colour reads a generated `--id-<entry>-*` token from
+  `src/lib/design-system/identity.css` (or `IDENTITY` in `identity.ts`),
+  written by `tools/identity-colors.mjs` from `tools/hx-kit/kit/colors.json`
+  through `solve()`; never type an identity hex there. At most seven hues on
+  one screen, each beside a word or a glyph, and no neon.
+  `tests/identity-colors.test.ts` holds it.
+  - **A HOME-SCREEN CARD IS A MINIATURE OF ITS OWN APP**
+    (`docs/decisions/entries/73-launcher-cards-are-their-apps.md`, which
+    retired 0467's six colour families): its ground, ink, title face, call to
+    action and drawn shapes are its room's own, in
+    `src/lib/launcher/cards.css` and `src/lib/launcher/CardArt.svelte`, and
+    every colour there must appear in the room files `LAUNCHER_ROOMS` names
+    for that card (`tests/home-order-and-accent.test.ts` traces each one). No
+    families and no hue budget; neon only where the room itself is neon; a
+    card follows its room, not the site theme, on Space White; every word on
+    a card clears 4.5:1; the FRC mark is never altered. A card quotes its
+    room's face too, so the FRC card's Roboto and GREENLINE's Archivo Black
+    are not the shell-font exception the Fonts rule below forbids.
+    `docs/subsystems/themes.md` has the detail.
 - **`--crimson` is reserved for live / rec / error status only**, never a general
   accent and never an identity colour.
 - **`--green` is for primary actions, active navigation, focus, success and

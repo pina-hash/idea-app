@@ -11,13 +11,14 @@
  *     board is exhaustive over the pairings the app actually makes and the
  *     rows sweep it by declared floor.
  *
- *  2. THE LAUNCHER'S ACCENTS DID NOT MOVE. `--acc-primary`/`--acc-secondary`
- *     are IDENTITY (matrix.css's header states the rule): a theme that painted
+ *  2. THE LAUNCHER'S CARDS DID NOT TURN ONE GREEN. Each card is its own app's
+ *     surface (ledger 0472, `$lib/launcher/cards.css`), and its `--rm-*` paint
+ *     is IDENTITY (matrix.css's header states the rule): a theme that painted
  *     every card one green would make the grid unreadable, which is the
- *     single worst thing this feature could do. The distinct-pair count here
- *     and in `themes.mjs` are compared by a reader looking at two rows;
- *     `tests/theme-tokens.test.ts` pins the same claim off the stylesheet so
- *     it also reddens with no browser at all.
+ *     single worst thing this feature could do. A plate room's card follows
+ *     Matrix the way the room does, and the rest keep their own look;
+ *     `tests/theme-tokens.test.ts` pins that no theme declares a `--rm-*`
+ *     name, so it also reddens with no browser at all.
  *
  *  3. THE RAIN IS RUNNING, AND IT IS A CANVAS. The theme's motion is
  *     `$lib/MatrixRain.svelte`, a <canvas> `ThemeRoot` mounts inside `.bg-fx`

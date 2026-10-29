@@ -1,0 +1,619 @@
+/* ==========================================================================
+   EVERY HOME-SCREEN CARD IS A MINIATURE OF ITS OWN APP (ledger 0472,
+   decision 73).
+
+   One block per app, keyed on the card's `data-app`, declaring ONLY the
+   card's `--rm-*` custom properties (the room's paint); AppLauncher's own
+   stylesheet reads them, with site fallbacks, and `CardArt.svelte` draws the
+   app's shapes in them. Nothing here sets a property AppLauncher sets, so
+   the order the two sheets land in can never matter.
+
+   WHERE EACH COLOUR COMES FROM IS THE RULE. A value is either a site token
+   the room itself reads (the plate rooms: Classroom, Notebook, Armory, Maps,
+   Market, Admin, which repaint with the site theme on their own) or a literal
+   copied from the room's own stylesheet, named beside it. `LAUNCHER_ROOMS` in
+   ./rooms.ts lists each card's source files, and
+   tests/home-order-and-accent.test.ts refuses a literal that is not in them.
+
+   A CARD FOLLOWS ITS ROOM, NOT THE SITE THEME. GAUNTLET, GREENLINE, VANGUARD,
+   IdeaCAD and FRC look the same on every theme, so their cards have no theme
+   block. The Coin Ledger, the Foundry and Tournaments carry their own Space
+   White twins, and their cards copy them below. Where a room is neon (the
+   Ledger, VANGUARD, GAUNTLET), its card is.
+
+   THE PROPERTIES (every one optional; AppLauncher's fallback is the plate):
+     --rm-ground    the card face, the ground every word is measured on
+     --rm-edge      the card's 1px edge          --rm-radius   its corners
+     --rm-title     the title ink, and -font -weight -style -case -track -size
+     --rm-title-glow  a text-shadow the room puts on its titles
+     --rm-accent    the part of the title the room paints (rooms.ts titleAccent)
+     --rm-icon      the mark's ink               --rm-sub      the description
+     --rm-cta-*     the call to action: ink, bg, edge, font, weight, track,
+                    radius, glow, led (a lit dot before the word), dot (a
+                    screw dot in the key's corner)
+     --rm-glow      the hover halo
+     --rm-art-bg    the face's texture, as background layers
+     --rm-a1 ...    the colours CardArt draws the app in, and --rm-g1 ...
+                    the glows and gradients it lays on them
+     --rm-title-img, -fill, -filter  a wordmark that is a material, not an
+                    ink (GREENLINE's chrome, clipped to the letters)
+     WHERE THE TITLE SITS (layout, never colour): --rm-align (top, centre
+                    or foot), --rm-justify with --rm-text-flex (centred
+                    along the card), --rm-head-drop (under a drawn rail),
+                    and in the comfortable view --rm-cols with
+                    --rm-icon-col, --rm-title-col, --rm-cta-col, --rm-sub-col
+   ========================================================================== */
+
+/* ---- Classroom: My Classes, two raised class tiles under the title -------- */
+.app-card[data-app='classroom'] {
+	/* The name centred over the tiles, as the page centres MY CLASSES. */
+	--rm-align: flex-start;
+	--rm-justify: center;
+	--rm-text-flex: 0 1 auto;
+	--rm-cols: minmax(0, 1fr) auto auto minmax(0, 1fr);
+	--rm-icon-col: 2;
+	--rm-title-col: 3;
+	--rm-cta-col: 1 / -1; /* the key spans the row and sits at its end */
+	--rm-sub-col: 1 / -1;
+	--rm-sub-room: 7.5rem; /* the description stops short of the key */
+	--rm-ground: var(--plate-plate-top); /* the page the class tiles stand on */
+	--rm-edge: var(--plate-hair); /* the plate's own panel line */
+	--rm-title: var(--text-1);
+	--rm-title-font: var(--font-display);
+	--rm-title-weight: 700;
+	--rm-title-size: 1.02rem;
+	--rm-title-track: 0.01em;
+	--rm-icon: var(--hover-ink); /* MyClasses' --acc: the mortarboard, the code, Open */
+	--rm-sub: var(--text-2);
+	--rm-cta-ink: var(--hover-ink);
+	--rm-glow: color-mix(in srgb, var(--hover-ink) 22%, transparent);
+	/* A class tile is a plate panel (plate.css paints .class-card): its two
+	   faces, its line and its top light, the icon square, and its words. */
+	--rm-a1: var(--plate-panel-top);
+	--rm-a2: var(--plate-panel-bot);
+	--rm-a3: var(--plate-hair);
+	--rm-a4: var(--hover-ink);
+	--rm-a5: var(--text-1);
+	--rm-a6: var(--surface-2); /* .class-icon */
+	--rm-a7: var(--plate-bezel-hi);
+}
+
+
+/* ---- My Notebook: the camera, the not-filed tag, the two photo keys ------- */
+.app-card[data-app='notebook'] {
+	--rm-align: flex-start;
+	--rm-ground: var(--surface-1);
+	--rm-edge: var(--plate-hair); /* the plate's own panel line */
+	--rm-title: var(--text-1);
+	--rm-title-font: var(--font-display);
+	--rm-title-weight: 600;
+	--rm-title-size: 1.02rem;
+	--rm-title-track: 0.01em;
+	--rm-icon: var(--amber); /* the warning ink: the chip's own fill is too light to mark a light card */
+	--rm-sub: var(--text-2);
+	--rm-cta-ink: var(--text-1);
+	--rm-cta-bg: var(--plate-face-top);
+	--rm-cta-edge: var(--plate-hair);
+	--rm-cta-radius: var(--plate-r-control, 11px);
+	--rm-glow: color-mix(in srgb, var(--amber) 20%, transparent);
+	/* The photo surfaces are a dark island under every theme. Their tokens
+	   live on .nb-root only, so the card names the values they hold there
+	   (colors.css's --nb-* block). */
+	--rm-a1: #060807; /* --nb-shot-plate, the letterbox */
+	--rm-a2: #f1f3f2; /* --nb-shot-ink, the paper and the handles */
+	--rm-a3: #0a0c0b; /* --nb-shot-ink-deep, the ruled lines */
+	/* "Not filed yet" is the warn tone (class-check-ins.ts, StatusChip). */
+	--rm-a4: var(--status-warn-solid);
+	--rm-a5: var(--status-warn-on);
+	/* Take a photo, Choose a photo: the plate's big rounded keys. */
+	--rm-a6: var(--plate-face-top);
+	--rm-a7: var(--plate-face-bot);
+	--rm-a8: var(--plate-hair);
+	--rm-a9: var(--text-1);
+}
+
+/* ---- IdeaCAD: the head band over tree, viewport and properties ------------ */
+.app-card[data-app='ideacad'] {
+	--rm-align: flex-start;
+	--rm-ground: #22272c; /* --ic-head, the band the document's name sits in */
+	--rm-edge: #737d85; /* --ic-edge */
+	--rm-radius: 2px; /* --ic-radius */
+	--rm-title: #e6e9ec; /* --ic-text-1 */
+	--rm-title-font: var(--font-hero);
+	--rm-title-weight: 700;
+	--rm-title-case: uppercase;
+	--rm-title-track: 0.08em;
+	--rm-title-size: 0.95rem;
+	--rm-accent: #78b870; /* --ic-accent is --green, and the room is never themed, so it is IDEA's #78b870 on every theme */
+	--rm-icon: #78b870;
+	--rm-sub: #a4adb5; /* --ic-text-2 */
+	--rm-cta-ink: #0b1a0e; /* --ic-accent-ink, on the green fill */
+	--rm-cta-bg: #78b870;
+	--rm-cta-edge: #78b870;
+	--rm-cta-font: var(--font-display);
+	--rm-cta-weight: 600;
+	--rm-cta-case: none;
+	--rm-cta-track: 0.02em;
+	--rm-cta-radius: 2px;
+	--rm-glow: color-mix(in srgb, #78b870 22%, transparent);
+	--rm-a1: #191d21; /* --ic-panel, the FeatureManager and the PropertyManager */
+	--rm-a3: #a4adb5; /* --ic-text-2, a tree row */
+	--rm-a4: #123222; /* --ic-tint, the selected row */
+	--rm-a5: #78b870; /* the rail, the lit diamond, the PASS chips */
+	--rm-a6: rgba(255, 255, 255, 0.08); /* --ic-line, the panes' seams and the floor grid */
+	--rm-a8: #e6e9ec; /* --ic-text-1, a readout */
+	/* The body: machined stock (appearance.ts DEFAULT_BODY_COLOUR), lit, and
+	   the graphics area it stands in. */
+	--rm-a9: color-mix(in srgb, #91a2ad 80%, #78b870); /* lit, with the green the room throws on it */
+	--rm-a10: color-mix(in srgb, #91a2ad 45%, #0e1114);
+	--rm-a11: #0e1114; /* --ic-ground */
+}
+
+/* ---- IDEA Armory: the project's tab keys over a file row ----------------- */
+.app-card[data-app='armory'] {
+	/* The file list fills the card; the name sits at its foot. */
+	--rm-align: flex-end;
+	--rm-ground: var(--surface-0);
+	--rm-edge: var(--plate-hair); /* the plate's own panel line */
+	--rm-title: var(--text-1);
+	--rm-title-font: var(--font-display);
+	--rm-title-weight: 600;
+	--rm-title-size: 1.02rem;
+	--rm-title-track: 0.01em;
+	--rm-icon: var(--green);
+	--rm-sub: var(--text-2);
+	/* The plate key: rectangular, raised, a screw dot in its corner. */
+	--rm-cta-ink: var(--text-1);
+	--rm-cta-bg: var(--plate-face-top);
+	--rm-cta-edge: var(--plate-hair);
+	--rm-cta-radius: var(--plate-r-small, 5px);
+	--rm-cta-dot: var(--plate-screw-dot);
+	--rm-glow: color-mix(in srgb, var(--green) 20%, transparent);
+	--rm-a1: var(--green); /* the check ring and Available */
+	--rm-a4: var(--plate-hair);
+	--rm-a5: var(--text-1);
+	--rm-a8: var(--plate-panel-top); /* a file row, a plate panel (.ar-row) */
+	--rm-a9: var(--text-2); /* the folder's caret and count */
+}
+
+
+/* ---- IDEA Maps: the plan on its canvas to the card's edge, the zoom keys -- */
+.app-card[data-app='maps'] {
+	--rm-align: flex-start;
+	--rm-ground: var(--blueprint-bg); /* MapsPlan's canvas */
+	--rm-edge: color-mix(in srgb, #40e3b1 45%, transparent); /* --mv-line */
+	--rm-title: var(--text-1);
+	--rm-title-font: var(--font-mono);
+	--rm-title-weight: 400;
+	--rm-title-case: none;
+	--rm-title-size: 0.92rem;
+	--rm-title-track: 0.04em;
+	--rm-icon: #40e3b1; /* --mv-accent */
+	--rm-sub: var(--text-2);
+	--rm-cta-ink: #40e3b1;
+	--rm-cta-edge: #40e3b1;
+	--rm-cta-radius: var(--radius-control, 2px);
+	--rm-glow: color-mix(in srgb, #40e3b1 22%, transparent);
+	--rm-a1: #40e3b1;
+	--rm-a2: color-mix(in srgb, #40e3b1 10%, transparent); /* --mv-shape-fill */
+	--rm-a3: color-mix(in srgb, #40e3b1 72%, transparent); /* --mv-line */
+	--rm-a4: var(--text-1);
+	--rm-a5: var(--plate-hair); /* the viewer's zoom keys */
+	--rm-a6: var(--plate-face-top);
+}
+:root[data-theme='space-white'] .app-card[data-app='maps'] {
+	--rm-edge: color-mix(in srgb, #106b4f 45%, transparent);
+	--rm-icon: #106b4f;
+	--rm-cta-ink: #106b4f;
+	--rm-cta-edge: #106b4f;
+	--rm-glow: transparent;
+	--rm-a1: #106b4f;
+	--rm-a2: color-mix(in srgb, #106b4f 10%, transparent);
+	--rm-a3: color-mix(in srgb, #106b4f 72%, transparent);
+}
+
+/* ---- IDEA Coin Ledger: "Coin" in chartreuse, the stat tiles and tab keys -- */
+.app-card[data-app='coins'] {
+	--rm-ground: #020a04; /* --bg0 */
+	--rm-edge: #5e8b67; /* --lp-hair */
+	--rm-title: #e8ffe8; /* --white */
+	--rm-title-font: var(--font-title);
+	--rm-title-weight: 900;
+	--rm-title-size: 0.9rem;
+	--rm-title-track: 0.01em;
+	--rm-accent: #c8ff00; /* --gold */
+	--rm-accent-glow: 0 0 10px rgba(200, 255, 0, 0.8), 0 0 28px rgba(200, 255, 0, 0.3); /* --glow-gold */
+	--rm-icon: #c8ff00;
+	--rm-sub: #7aae82; /* --dim */
+	--rm-cta-ink: #c8ff00;
+	--rm-cta-bg: #111a14; /* --lp-panel-top */
+	--rm-cta-edge: #c8ff00;
+	--rm-cta-font: var(--font-mono);
+	--rm-cta-radius: 6px;
+	--rm-cta-glow: 0 0 10px rgba(200, 255, 0, 0.8), 0 0 28px rgba(200, 255, 0, 0.3);
+	--rm-glow: rgba(200, 255, 0, 0.3);
+	--rm-a1: #c8ff00;
+	--rm-a2: #00ff41; /* --green */
+	/* The name heads the card as the Ledger's heads its page. */
+	--rm-align: flex-start;
+	--rm-a3: #ff4444; /* --red, the debt dash */
+	/* The stat tiles (.stat-tile on the Ledger's plate panel) and the tab keys. */
+	--rm-a4: #5e8b67; /* --lp-hair */
+	--rm-a5: #111a14; /* --lp-panel-top */
+	--rm-a6: #0c130e; /* --lp-panel-bot */
+	--rm-a7: #7aae82; /* --dim, a stat label */
+	--rm-a8: #1d2a21; /* --lp-face-top */
+	--rm-a9: #16211a; /* --lp-face-bot */
+	--rm-a10: #e8ffe8; /* --lp-btn-ink */
+	--rm-a11: #1b3d22; /* --lp-lit-top, LEADERBOARD lit */
+	--rm-a12: #c8ff00; /* --lp-lit-ring */
+	--rm-a13: #13301a; /* --lp-lit-bot */
+	--rm-a14: #c8ff00; /* --lp-lit-ink */
+}
+/* The Ledger's own Matrix block moves only its grounds. */
+:root[data-theme='matrix'] .app-card[data-app='coins'] {
+	--rm-ground: #030503;
+	--rm-cta-bg: #101810;
+	--rm-a5: #101810;
+	--rm-a6: #0b120c;
+	--rm-a8: #1e2a20;
+	--rm-a9: #172219;
+}
+/* The Ledger's Space White twins, and no particle field (its canvas is hidden there). */
+:root[data-theme='space-white'] .app-card[data-app='coins'] {
+	--rm-ground: #e8eceb;
+	--rm-edge: #5f6d69;
+	--rm-title: #0d1311;
+	--rm-accent: #506600;
+	--rm-accent-glow: none;
+	--rm-icon: #506600;
+	--rm-sub: #406946;
+	--rm-cta-ink: #506600;
+	--rm-cta-bg: #f7f9f9;
+	--rm-cta-edge: #506600;
+	--rm-cta-glow: none;
+	--rm-glow: transparent;
+	--rm-a1: #506600;
+	--rm-a2: #00701d;
+	--rm-a3: #c20000;
+	--rm-a4: #5f6d69;
+	--rm-a5: #f7f9f9;
+	--rm-a6: #e9eeec;
+	--rm-a7: #406946;
+	--rm-a8: #d8dedc;
+	--rm-a9: #e6ebe9;
+	--rm-a10: #1f2a26;
+	--rm-a11: #00701d;
+	--rm-a12: #e8ff9a;
+	--rm-a13: #00701d;
+	--rm-a14: #f7f9f9;
+	--rm-particles: none; /* the Ledger hides its particle canvas on Space White */
+}
+
+/* ---- IDEA Market: the balance glass, two offers and a trade -------------- */
+.app-card[data-app='market'] {
+	/* The page's two columns: the name over the offers, Your trades down the right. */
+	--rm-align: flex-start;
+	--rm-ground: var(--plate-plate-top); /* the shop page */
+	--rm-edge: var(--plate-hair); /* the plate's own panel line */
+	--rm-title: var(--text-1);
+	--rm-title-font: var(--font-display);
+	--rm-title-weight: 700;
+	--rm-title-size: 1.02rem;
+	--rm-title-track: 0.01em;
+	--rm-icon: var(--text-2); /* the bag key on every shop tile */
+	--rm-sub: var(--text-2);
+	--rm-cta-ink: var(--text-1);
+	--rm-cta-bg: var(--plate-face-top);
+	--rm-cta-edge: var(--plate-hair);
+	--rm-cta-radius: var(--plate-r-control, 11px);
+	--rm-glow: color-mix(in srgb, var(--gold) 22%, transparent);
+	--rm-a1: var(--plate-panel-top); /* an offer tile, the trades panel: plate panels */
+	--rm-a2: var(--plate-hair);
+	--rm-a3: var(--gold); /* the Featured tile's ring */
+	--rm-a4: var(--text-1);
+	--rm-a5: var(--text-2);
+	/* The trade bar: held and done are green, the step it is on is cyan. */
+	--rm-a9: var(--green);
+	--rm-a10: var(--cyan);
+	/* Featured is the special tone. */
+	--rm-a11: var(--status-special-solid);
+	--rm-a12: var(--status-special-on);
+}
+
+
+/* ---- GAUNTLET: the VIEWPORT void, a run's first-clear verdict ------------ */
+.app-card[data-app='gauntlet'] {
+	--rm-align: flex-start;
+	--rm-ground: #04070a; /* --void */
+	--rm-edge: rgba(0, 255, 65, 0.4); /* --line-strong */
+	--rm-radius: 14px; /* --radius-card */
+	--rm-title: #e8fff0; /* --white */
+	--rm-title-font: var(--font-title);
+	--rm-title-weight: 700;
+	--rm-title-case: uppercase;
+	--rm-title-track: 0.06em;
+	--rm-title-size: 0.78rem;
+	--rm-icon: #00ff41; /* --green */
+	--rm-sub: #88ddff; /* --ice */
+	--rm-cta-ink: #04070a;
+	--rm-cta-bg: #00ff41; /* --green, under */
+	--rm-cta-img: linear-gradient(90deg, #00ff41, #c8ff00); /* green into --lime */
+	--rm-cta-edge: transparent;
+	--rm-cta-font: var(--font-title);
+	--rm-cta-weight: 700;
+	--rm-cta-radius: 10px; /* --radius-ctl */
+	--rm-glow: rgba(0, 255, 65, 0.4);
+	/* The verdict banner of a first clear (.verdict.pb), and the run's numbers. */
+	--rm-a4: #00ff41; /* --green: CLEARED and the readout labels */
+	--rm-a7: #c8ff00; /* --lime: the banner's edge, FIRST CLEAR */
+	--rm-a8: #00f0ff; /* --cyan: the time */
+	--rm-g1: 0 0 10px rgba(200, 255, 0, 0.75), 0 0 30px rgba(200, 255, 0, 0.28); /* --glow-lime */
+	--rm-g2: linear-gradient(100deg, rgba(0, 255, 65, 0.12), rgba(200, 255, 0, 0.12));
+	--rm-g3: rgba(200, 255, 0, 0.25);
+	--rm-g4: 0 0 10px rgba(0, 240, 255, 0.75), 0 0 30px rgba(0, 240, 255, 0.28); /* --glow-cyan */
+	--rm-art-bg:
+		radial-gradient(ellipse 70% 120% at 82% 40%, rgba(59, 110, 143, 0.32), transparent 70%),
+		radial-gradient(ellipse 50% 90% at 6% 110%, rgba(0, 255, 65, 0.14), transparent 70%);
+}
+
+/* ---- FRC Training: FIRST paper, the blue rule, the three shapes ---------- */
+.app-card[data-app='frc'] {
+	/* The page: its white header strip with the blue rule under it, and the
+	   domain cards on the FIRST paper below. */
+	--rm-align: flex-start;
+	--rm-ground: #eef1f5; /* --frc-bg, the page */
+	--rm-edge: #dde1e8; /* --frc-line */
+	--rm-radius: 6px;
+	--rm-title: #231f20; /* --frc-ink */
+	--rm-title-font: 'Roboto', sans-serif; /* --frc-font */
+	--rm-title-weight: 700;
+	--rm-title-style: italic;
+	--rm-title-size: 1rem;
+	--rm-title-track: 0;
+	--rm-icon: #0066b3; /* --frc-blue; the FIRST image ignores it, the glyph check reads it */
+	--rm-sub: #676567; /* --fb-room-ink-muted */
+	--rm-cta-ink: #0066b3; /* --frc-blue */
+	--rm-cta-font: 'Roboto', sans-serif;
+	--rm-cta-weight: 700;
+	--rm-cta-track: 0.06em;
+	--rm-glow: rgba(0, 102, 179, 0.35); /* --frc-blue-line */
+	--rm-a1: #0066b3; /* the cards' top edge, the triangle */
+	--rm-a2: #ed1c24; /* --frc-red, the circle */
+	--rm-a3: #231f20; /* the square */
+	--rm-a4: #fafbfd; /* --frc-surface, a domain card */
+	--rm-a5: #dde1e8; /* --frc-line */
+	--rm-a6: #676567; /* a card's lines of text, drawn as shapes */
+	--rm-art-bg:
+		linear-gradient(#0066b3, #0066b3) 0 40px / 100% 3px no-repeat,
+		linear-gradient(#fafbfd, #fafbfd) 0 0 / 100% 40px no-repeat;
+}
+
+
+/* ---- GREENLINE: night, floodlights, the green line, sparks -------------- */
+.app-card[data-app='greenline'] {
+	/* The title screen: the chrome wordmark centred between the floodlights. */
+	--rm-justify: center;
+	--rm-text-flex: 0 1 auto;
+	--rm-cols: minmax(0, 1fr) auto auto minmax(0, 1fr);
+	--rm-icon-col: 2;
+	--rm-title-col: 3;
+	--rm-cta-col: 1 / -1; /* the key spans the row and sits at its end */
+	--rm-sub-col: 1 / -1;
+	--rm-sub-room: 7.5rem; /* the description stops short of the key */
+	--rm-ground: #04060a; /* --glb-night */
+	--rm-edge: rgba(207, 218, 226, 0.38); /* --glb-line-strong */
+	--rm-radius: 3px;
+	--rm-title: #dfe8ee; /* --glb-ink, what every instrument reads */
+	/* GreenlineWordmark's face: the chrome recipe clipped to the letters,
+	   its dark band at 51% the horizon reflection. */
+	--rm-title-img: linear-gradient(179deg, #f7fbfe 4%, #cfdae2 26%, #93a3b0 44%, #39454f 51%, #b7c5d0 57%, #eef4f8 72%, #6b7b88 88%, #3f4b55 100%);
+	--rm-title-fill: transparent;
+	--rm-title-glow: none;
+	--rm-title-filter: drop-shadow(0 0 2px #04060a);
+	--rm-title-font: 'Archivo Black', sans-serif; /* --glb-font-display */
+	--rm-title-weight: 400;
+	--rm-title-style: italic;
+	--rm-title-case: uppercase;
+	--rm-title-track: 0.01em;
+	--rm-title-size: 1.2rem;
+	--rm-icon: #2ae57e; /* --glb-green */
+	--rm-sub: #8b99a5; /* --glb-ink-dim */
+	--rm-cta-ink: #eaf4ff; /* --glb-flood */
+	--rm-cta-bg: #0d1319; /* --glb-haze */
+	--rm-cta-edge: rgba(207, 218, 226, 0.38);
+	--rm-cta-font: 'Saira Condensed', sans-serif; /* --glb-font-ui */
+	--rm-cta-weight: 600;
+	--rm-cta-track: 0.3em;
+	--rm-cta-radius: 0;
+	--rm-glow: color-mix(in srgb, #2ae57e 30%, transparent);
+	--rm-a1: #eaf4ff; /* floodlight */
+	--rm-a2: #39454f; /* --glb-chrome-lo, the poles */
+	--rm-a3: #2ae57e; /* the streak */
+	--rm-a4: #eafff3; /* --glb-green-core */
+	--rm-a5: #ffb02e; /* --glb-amber, the burst and the sparks */
+	--rm-a6: #ffd9a0; /* --glb-amber-warm */
+	--rm-a7: #ffe7c2; /* --glb-amber-flash, the burst's core */
+	--rm-art-bg: linear-gradient(to bottom, #04060a 0%, #0d1319 72%, #10161c 100%); /* night, haze, horizon */
+}
+
+
+/* ---- VANGUARD: the playfield column on black, the pathway panel ------- */
+.app-card[data-app='vanguard'] {
+	/* The arcade page: the name over the playfield column, on the page's own black. */
+	--rm-align: flex-start;
+	--rm-justify: center;
+	--rm-text-flex: 0 1 auto;
+	--rm-cols: minmax(0, 1fr) auto auto minmax(0, 1fr);
+	--rm-icon-col: 2;
+	--rm-title-col: 3;
+	--rm-cta-col: 1 / -1; /* the key spans the row and sits at its end */
+	--rm-sub-col: 1 / -1;
+	--rm-sub-room: 7.5rem; /* the description stops short of the key */
+	--rm-ground: #000; /* body, around the stage */
+	--rm-edge: rgba(0, 255, 65, 0.4);
+	--rm-radius: 4px;
+	--rm-title: #00ff41; /* --green */
+	--rm-title-font: var(--font-hero); /* Chakra Petch, .title-wm */
+	--rm-title-weight: 700;
+	--rm-title-case: uppercase;
+	--rm-title-track: 0.14em;
+	--rm-title-size: 0.82rem;
+	--rm-title-glow: 0 0 8px rgba(0, 255, 65, 0.6);
+	--rm-icon: #00ff41;
+	--rm-sub: #e8ffe8; /* --white */
+	--rm-cta-ink: #020a04;
+	--rm-cta-bg: #00ff41;
+	--rm-cta-edge: #00ff41;
+	--rm-cta-font: var(--font-hero);
+	--rm-cta-weight: 700;
+	--rm-cta-radius: 4px;
+	--rm-cta-glow: none;
+	--rm-glow: rgba(0, 255, 65, 0.45);
+	--rm-a1: #00ff41; /* the ship */
+	--rm-a2: #c8ff00; /* --gold, the shots */
+	--rm-a3: #ff7a1a; /* --ace */
+	--rm-a4: #b24dff; /* --bmet */
+	--rm-a5: #2e9bff; /* --csee */
+	--rm-a6: #ffd21a; /* --mat */
+	--rm-a7: #ff2e2e; /* --mset */
+	--rm-a8: rgba(0, 255, 65, 0.4); /* the column's rules */
+	--rm-a9: #020a04; /* --bg0, the stage */
+	--rm-a10: #020a04; /* the RIVAL PATHWAYS panel */
+	--rm-a11: #4a7a52; /* --dim, its names as lines */
+	--rm-a12: rgba(0, 255, 65, 0.18); /* its edge */
+}
+
+
+/* ---- IDEA Foundry: iron black, the molten seam, the cover mosaic -------- */
+.app-card[data-app='foundry'] {
+	--rm-ground: #0d0c0a; /* --fg-bg */
+	--rm-edge: #80796d; /* --fg-boundary */
+	--rm-title: #ece8e0; /* --fg-ink */
+	--rm-title-font: var(--font-title);
+	--rm-title-weight: 600;
+	--rm-title-case: uppercase;
+	--rm-title-track: 0.12em;
+	--rm-title-size: 0.76rem;
+	--rm-icon: #f0a355; /* --fg-heat-ink */
+	--rm-sub: #a39d92; /* --fg-ink-2 */
+	--rm-cta-ink: #f0a355;
+	--rm-cta-bg: #14110d; /* --fg-surface */
+	--rm-cta-edge: #c65a1d; /* --fg-heat-ember */
+	--rm-cta-radius: var(--radius-control, 2px);
+	--rm-glow: rgba(246, 149, 47, 0.35); /* --fg-heat-glow */
+	--rm-seam-glow: 0 0 10px rgba(246, 149, 47, 0.35), 0 0 30px rgba(246, 149, 47, 0.16);
+}
+:root[data-theme='space-white'] .app-card[data-app='foundry'] {
+	--rm-ground: #f7f9f9;
+	--rm-edge: #6f7c78;
+	--rm-title: #0d1311;
+	--rm-icon: #914f0d;
+	--rm-sub: #384340;
+	--rm-cta-ink: #914f0d;
+	--rm-cta-bg: #edf1f0;
+	--rm-cta-edge: #6f7c78;
+	--rm-glow: transparent;
+	--rm-seam-glow: none;
+}
+
+/* ---- Tournaments: the pip strip and the bracket, on deep green-black ---- */
+.app-card[data-app='tournaments'] {
+	--rm-align: flex-start;
+	--rm-ground: #0e1412; /* --tnm-bg */
+	--rm-edge: rgba(237, 237, 232, 0.22); /* --tnm-line-strong */
+	--rm-title: #edede8; /* --tnm-ink */
+	--rm-title-font: var(--font-display);
+	--rm-title-weight: 600;
+	--rm-title-case: uppercase;
+	--rm-title-track: 0.16em;
+	--rm-title-size: 0.86rem;
+	--rm-icon: #0fbe7a; /* --tnm-accent */
+	--rm-sub: #93a09a; /* --tnm-ink-dim */
+	--rm-cta-ink: #0fbe7a; /* --tnm-accent */
+	--rm-cta-bg: rgba(15, 190, 122, 0.09); /* --tnm-accent-wash */
+	--rm-cta-edge: rgba(15, 190, 122, 0.5); /* --tnm-accent-dim */
+	--rm-cta-radius: 999px;
+	--rm-cta-led: #0fbe7a;
+	--rm-cta-led-size: 6px;
+	--rm-glow: rgba(15, 190, 122, 0.3);
+	--rm-a1: #16211c; /* --tnm-panel, a match box */
+	--rm-a2: rgba(237, 237, 232, 0.22); /* its edge, the joins, a pip to come */
+	--rm-a3: #edede8; /* an entrant */
+	--rm-a4: #0fbe7a; /* a seed */
+	--rm-a6: #93a09a; /* TBD */
+	/* Entrants' own accents (identity-style.ts ACCENT_PRESETS): violet,
+	   orange, emerald. */
+	--rm-a7: #8e5bf0;
+	--rm-a8: #f76b15;
+	--rm-a9: #0fbe7a;
+	--rm-a10: var(--crimson); /* the live match and its pip (EventRail, BracketView) */
+	--rm-a11: var(--status-danger-solid); /* the LIVE chip */
+	--rm-a12: var(--status-danger-on);
+}
+:root[data-theme='space-white'] .app-card[data-app='tournaments'] {
+	--rm-ground: #e8eceb;
+	--rm-edge: rgba(13, 19, 17, 0.3);
+	--rm-title: #0d1311;
+	--rm-icon: #086843;
+	--rm-sub: #384340;
+	--rm-cta-ink: #086843;
+	--rm-cta-bg: rgba(8, 104, 67, 0.1);
+	--rm-cta-edge: rgba(8, 104, 67, 0.5);
+	--rm-cta-led: #086843;
+	--rm-glow: transparent;
+	--rm-a1: #f7f9f9;
+	--rm-a2: rgba(13, 19, 17, 0.3);
+	--rm-a3: #0d1311;
+	--rm-a4: #086843;
+	--rm-a6: #384340;
+}
+
+/* ---- Admin: the identity plate and the queue keys ------------------------ */
+.app-card[data-app='dashboard'] {
+	/* The console: the tab rail across the top, the name centred under it,
+	   the identity strip glowing below. */
+	--rm-align: flex-start;
+	--rm-head-drop: 17px;
+	--rm-justify: center;
+	--rm-text-flex: 0 1 auto;
+	--rm-cols: minmax(0, 1fr) auto auto minmax(0, 1fr);
+	--rm-icon-col: 2;
+	--rm-title-col: 3;
+	--rm-cta-col: 1 / -1; /* the key spans the row and sits at its end */
+	--rm-sub-col: 1 / -1;
+	--rm-sub-room: 7.5rem; /* the description stops short of the key */
+	--rm-ground: var(--plate-plate-top); /* the console page */
+	--rm-edge: var(--plate-hair); /* the plate's own panel line */
+	--rm-title: var(--cyan);
+	--rm-title-font: var(--font-title);
+	--rm-title-weight: 700;
+	--rm-title-size: 0.82rem;
+	--rm-title-track: 0.04em;
+	--rm-title-glow: var(--glow-cyan);
+	--rm-icon: var(--cyan);
+	--rm-sub: var(--text-2);
+	--rm-cta-ink: var(--text-1);
+	--rm-cta-bg: var(--plate-face-top);
+	--rm-cta-edge: var(--green);
+	--rm-cta-radius: var(--plate-r-control, 11px);
+	--rm-glow: color-mix(in srgb, var(--cyan) 22%, transparent);
+	/* A tab key and the strip are the plate's: its faces and its line. */
+	--rm-a1: var(--plate-face-top);
+	--rm-a2: var(--plate-face-bot);
+	--rm-a3: var(--plate-hair);
+	--rm-a9: var(--text-1); /* a tab's word */
+	--rm-a6: var(--green); /* the lit tab's ring, the count waiting */
+	--rm-a10: var(--plate-lit-glow);
+	--rm-a11: var(--plate-panel-top); /* .hero-meta is a plate panel */
+	--rm-a12: var(--plate-panel-bot);
+	/* The identity strip (.hero-stat): who in cyan, the role in the hover
+	   role (brass), the count in app.css's green, each with its glow. */
+	--rm-a4: var(--cyan);
+	--rm-a5: var(--hover-ink);
+	--rm-a7: var(--text-2);
+	--rm-g1: var(--glow-cyan);
+	--rm-g2: var(--glow-green);
+	--rm-g3: var(--glow-gold);
+}
+

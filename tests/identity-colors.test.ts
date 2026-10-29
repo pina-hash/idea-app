@@ -2,11 +2,19 @@
  * THE SITE'S IDENTITY COLOURS ARE ONE LIBRARY, SOLVED, AND HELD TO THE RULE
  * (ledger 0467, feedback ac7d7b60).
  *
- * Mr. Pina's rule for identity colour, 2026-10-28: launcher apps, calendar
- * layers, unit tints and class colours come from the kit's colour library
+ * Mr. Pina's rule for identity colour, 2026-10-28: calendar layers, unit
+ * tints and class colours come from the kit's colour library
  * (`tools/hx-kit/kit/colors.json`) through `solve()`, per theme; at most five
  * to seven hues a reader must tell apart on one screen, each with a word or a
  * glyph beside it; green only for act and done; no neon.
+ *
+ * THE LAUNCHER IS NOT IN THIS ANY MORE (ledger 0472, decision 73). Ledger 0467
+ * put the home screen's apps into six shared colour families under this rule;
+ * Mr. Pina called the result off-brand and decided every card is a miniature
+ * of its own app, "unique visually, completely, like real apps on a
+ * computer". So a launcher card quotes its room's own colours (held by
+ * tests/home-order-and-accent.test.ts), reads no `--id-*` token, is under no
+ * hue budget, and may be neon where its room is.
  *
  * What is held here, and why each is a silent regression:
  *   1. THE GENERATED FILES ARE FRESH. `src/lib/design-system/identity.css` and
@@ -16,8 +24,8 @@
  *   2. EVERY `--id-*` NAME src/ READS IS GENERATED, AND EVERY GENERATED ONE IS
  *      READ. An undefined custom property paints nothing (a card with no
  *      strip), silently.
- *   3. EACH SCREEN'S SET: the launcher's families, the calendar's layers and
- *      the unit tints are each at most seven entries, their FILLS stay
+ *   3. EACH SCREEN'S SET: the calendar's layers and the unit tints are each
+ *      at most seven entries, their FILLS stay
  *      CIEDE2000 10 apart in normal vision and 8 apart under simulated
  *      deuteranopia and protanopia (Machado 2009, solve()'s own `simulate`) on
  *      both grounds, their inks 10 apart in normal vision, and none is within
@@ -36,7 +44,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IDENTITY, type IdentityName } from '$lib/design-system/identity';
-import { APP_FAMILIES, PORTAL_APPS } from '$lib/portal-apps';
+import { LAUNCHER_ROOMS } from '$lib/launcher/rooms';
 import { CALENDAR_LAYERS, LAYER_MARK_SHAPES } from '$lib/calendar/model';
 import { THUMB_TINT_COUNT } from '$lib/classroom/thumbnail';
 import { CLASS_THEME_PALETTES, SECTION_ACCENTS } from '$lib/classroom/class-theme';
@@ -189,22 +197,17 @@ describe('3. each screen holds at most seven hues, told apart in every vision', 
 	const entry = (body: string, prop: string) =>
 		body.match(new RegExp(`${prop}:\\s*var\\(--id-([a-z-]+?)-(?:ink|fill)\\)`))?.[1] as IdentityName | undefined;
 
-	it('the launcher: every app in a family, every family one library entry, six hues in all', () => {
-		const base = ruleBody('\t.app-card {');
-		const families = APP_FAMILIES.map((f) => {
-			const rule = ruleBody(`.app-card[data-family='${f.id}'] {`) || base;
-			const ink = entry(rule, '--acc-ink');
-			const fill = entry(rule, '--acc-primary');
-			expect(ink, `${f.id} ink`).toBeDefined();
-			expect(fill, `${f.id} fill is the same entry as its ink`).toBe(ink);
-			return ink!;
-		});
-		for (const app of PORTAL_APPS) expect(APP_FAMILIES.map((f) => f.id), app.id).toContain(app.family);
-		// One hue per family: no two families share an entry.
-		expect(new Set(families).size).toBe(families.length);
-		holdSet('launcher', families);
-		// No per-app rule paints a colour: an app's colour is its family's.
-		expect(style).not.toMatch(/\.app-card\[data-app='[a-z-]+'\]\s*\{[^}]*--acc-(primary|secondary|ink)\s*:/);
+	it('the launcher is outside the budget: no card reads a library entry, every card quotes its room (decision 73)', () => {
+		const launcher = read('src/lib/AppLauncher.svelte');
+		const cards = read('src/lib/launcher/cards.css');
+		const art = read('src/lib/launcher/CardArt.svelte');
+		// Positive control: these are the files that paint the cards.
+		expect(cards).toMatch(/\.app-card\[data-app='coins'\]/);
+		expect(art).toMatch(/app === 'greenline'/);
+		for (const [name, src] of [['AppLauncher', launcher], ['cards.css', cards], ['CardArt', art]] as const) {
+			expect(src, name).not.toMatch(/--id-[a-z]+(?:-[a-z]+)*-(ink|fill|on|line|wash)\b/);
+			expect(src, name).not.toContain('data-family');
+		}
 	});
 
 	it('the calendar: seven layers, seven entries, seven glyphs; colour and fill are one entry', () => {
@@ -293,13 +296,16 @@ const NEON_ALLOWED: Record<string, string> = {
 	'src/app.css': 'var(--green) fallbacks in two shared rules',
 	'src/routes/admin/': 'the Drive connect pages, a standalone admin response',
 	'src/routes/dashboard/': 'a comment recording a measurement',
-	'src/routes/dev/': 'dev harness fixtures'
+	'src/routes/dev/': 'dev harness fixtures',
+	'src/lib/launcher/cards.css': 'decision 73: a card quotes its room, and the Coin Ledger, VANGUARD and GAUNTLET are neon rooms (held block by block below)'
 };
 
 /** This lane's own surfaces: none may be covered by the list above. */
 const OWNED = [
 	'src/lib/AppLauncher.svelte',
 	'src/lib/portal-apps.ts',
+	'src/lib/launcher/CardArt.svelte',
+	'src/lib/launcher/rooms.ts',
 	'src/lib/marks/',
 	'src/lib/calendar/',
 	'src/lib/classroom/class-theme.ts',
@@ -327,6 +333,21 @@ describe('4. no neon literal left in src/', () => {
 	it('the list only shrinks: every entry still covers a file that carries one', () => {
 		const stale = Object.keys(NEON_ALLOWED).filter((p) => !carrying.some((f) => (p.endsWith('/') ? f.startsWith(p) : f === p)));
 		expect(stale).toEqual([]);
+	});
+
+	it('the launcher carries neon only on the cards of rooms that are neon themselves', () => {
+		const bare = read('src/lib/launcher/cards.css').replace(/\/\*[\s\S]*?\*\//g, '');
+		const neonRooms = new Set(LAUNCHER_ROOMS.filter((r) => r.neon).map((r) => r.id));
+		const carriers: string[] = [];
+		for (const m of bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+			if (!NEON.test(m[2])) continue;
+			const id = m[1].match(/data-app='([a-z-]+)'/)?.[1] ?? m[1].trim();
+			carriers.push(id);
+		}
+		// Positive control: the neon rooms' cards were found carrying it.
+		expect(carriers.length).toBeGreaterThan(2);
+		expect(carriers.filter((id) => !neonRooms.has(id))).toEqual([]);
+		expect([...neonRooms].sort()).toEqual(['coins', 'gauntlet', 'vanguard']);
 	});
 
 	it('POSITIVE CONTROL: the pattern finds each spelling the site used', () => {

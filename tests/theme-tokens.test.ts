@@ -146,12 +146,16 @@ describe('the theme layer exists and is swept', () => {
 });
 
 describe('identity and semantic colours are not themeable', () => {
-	/* KIND 1, IDENTITY. The launcher declares each app's pair on its own
-	   `[data-app='<id>']` rule; a theme that redeclared either name would
-	   repaint every card at once, because the theme sits on :root and those
-	   are inherited custom properties. The list is the FAMILY, not an app
-	   roster, which is what makes a thirteenth app need no edit here. */
+	/* KIND 1, IDENTITY. The launcher's cards take their paint from
+	   `$lib/launcher/cards.css` (ledger 0472), each card its own room's,
+	   keyed on `[data-app='<id>']`; a theme that redeclared a `--rm-*` name
+	   would repaint every card at once, because the theme sits on :root and
+	   those are inherited custom properties. The `--acc-*` names are the
+	   retired mechanism and stay refused, so they cannot come back as a
+	   theme-wide override. Matched by PREFIX, which is what makes a new app
+	   need no edit here. */
 	const IDENTITY = ['--acc-primary', '--acc-secondary', '--acc-ink', '--acc-edge', '--acc-line'];
+	const isIdentity = (name: string) => IDENTITY.includes(name) || name.startsWith('--rm-');
 
 	/* KIND 2, SEMANTIC. Six hues plus the reserved status red and the two ink
 	   corrections. These are how a reader tells success from warning from
@@ -177,7 +181,7 @@ describe('identity and semantic colours are not themeable', () => {
 		for (const [file, css] of Object.entries(themeSource)) {
 			for (const { name } of declarations(css)) {
 				swept++;
-				if (IDENTITY.includes(name)) offenders.push(`${file}: ${name}`);
+				if (isIdentity(name)) offenders.push(`${file}: ${name}`);
 			}
 		}
 		expect(swept).toBeGreaterThan(10); // the sweep read real declarations
@@ -236,26 +240,26 @@ describe('identity and semantic colours are not themeable', () => {
 		expect(names).toContain('--acc-primary');
 	});
 
-	it('the launcher still declares a distinct accent per family, and the count is real', () => {
+	it('the launcher still declares a look per app, in its own file, and the count is real', () => {
 		/* The other half of the same claim, from the launcher's own side: if
-		   the family rules ever collapsed into one, the theme rule above would
-		   still pass and the grid would still be unreadable. Since ledger 0467
-		   a card's colour is its FAMILY's (at most seven hues on one screen),
-		   so the count is of `[data-family=...]` rules, each a distinct
-		   library entry, plus the neutral default the Tools family takes. */
-		const launcher = read(new URL('../src/lib/AppLauncher.svelte', import.meta.url));
-		const bare = launcher.replace(/\/\*[\s\S]*?\*\//g, '');
-		const pairs = new Set<string>();
-		let families = 0;
-		for (const m of bare.matchAll(/\.app-card\[data-family='[a-z-]+'\][^{]*\{([\s\S]*?)\n\t\}/g)) {
-			families++;
-			const p = /--acc-primary:\s*([^;]+);/.exec(m[1]);
-			const q = /--acc-secondary:\s*([^;]+);/.exec(m[1]);
-			if (p) pairs.add(`${p[1].trim()}|${q ? q[1].trim() : ''}`);
+		   the per-app blocks ever collapsed into one, the theme rule above
+		   would still pass and every card would look alike. Since ledger 0472
+		   each app has a block of its own, keyed on `data-app`, and no two
+		   blocks give a card the same ground and title together. */
+		const cards = read(new URL('../src/lib/launcher/cards.css', import.meta.url));
+		const bare = cards.replace(/\/\*[\s\S]*?\*\//g, '');
+		const looks = new Set<string>();
+		let blocks = 0;
+		for (const m of bare.matchAll(/^\.app-card\[data-app='[a-z-]+'\]\s*\{([^}]*)\}/gm)) {
+			blocks++;
+			const g = /--rm-ground:\s*([^;]+);/.exec(m[1]);
+			const t = /--rm-title:\s*([^;]+);/.exec(m[1]);
+			const f = /--rm-title-font:\s*([^;]+);/.exec(m[1]);
+			const i = /--rm-icon:\s*([^;]+);/.exec(m[1]);
+			looks.add(`${g?.[1]}|${t?.[1]}|${f?.[1]}|${i?.[1]}`);
 		}
-		expect(families).toBeGreaterThanOrEqual(5);
-		expect(pairs.size).toBe(families);
-		expect(pairs.size + 1).toBeLessThanOrEqual(7);
+		expect(blocks).toBeGreaterThanOrEqual(14);
+		expect(looks.size).toBe(blocks);
 	});
 });
 

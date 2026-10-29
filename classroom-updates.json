@@ -20,6 +20,12 @@
 		},
 		{
 			"date": "2026-10-29",
+			"title": "Every app on the home screen looks like the app itself",
+			"body": "The app cards on the home screen are no longer grouped into six colors. Each card now looks like a small piece of its own app: your class tiles for Classroom, the photo and its Take a photo key for My Notebook, the feature tree and 3D part for IdeaCAD, the file list for the Armory, the floor plan for Maps, the shop and your trades for the Market, a first clear for GAUNTLET, a live bracket for Tournaments, and the glowing Coin, floodlights, arcade column and molten seam for the Coin Ledger, GREENLINE, VANGUARD and the Foundry. Each card uses its app's own colors, lettering and button. On the light theme a card changes only if its app does. The cards are taller and a little wider now, so on a computer you see three in a row, and each description is short enough to read in full.",
+			"tags": ["Visual"]
+		},
+		{
+			"date": "2026-10-29",
 			"title": "One look for every page title and every app's buttons along the top",
 			"body": "Coin pages, the coin desk, the Foundry, Maps, Certifications, the calendar and your notebook now open the same way as your class page: a small label naming the app, the page title between two striped blocks, and one line about the page. The links to an app's other pages are a row of square pad buttons with a small light, and the page you are on is lit. In a class, a long unit that carries on into the next column now says its name at the top of that column. The notebook's writing box opens at its full size right away instead of a cut-off line. On a phone, the Send feedback button shrinks to its speech-bubble icon once you scroll down, and comes back near the top. Signed out, the home page now offers a short tour with a Show me around button instead of starting one over the page.",
 			"tags": ["Visual"]

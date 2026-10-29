@@ -49,10 +49,11 @@ describe('one admin card in the launcher', () => {
 		const src = readFileSync(new URL('../src/lib/AppLauncher.svelte', import.meta.url), 'utf8');
 		expect(src).not.toMatch(/id === 'admin'/);
 		expect(src).not.toMatch(/data-app='admin'\]/);
-		// Ledger 0467: the card's colour is its family's (Tools, the neutral
-		// default), so the survivor is named through its registry family.
-		expect(visibleApps(true).find((a) => a.id === 'dashboard')!.family).toBe('tools');
-		expect(src).toContain('data-family={app.family}');
+		// Ledger 0472: each card's look is its own app's, in cards.css keyed on
+		// `data-app`, so the survivor has a block there and the retired id none.
+		const cards = readFileSync(new URL('../src/lib/launcher/cards.css', import.meta.url), 'utf8');
+		expect(cards).toContain(".app-card[data-app='dashboard']");
+		expect(cards).not.toContain("data-app='admin'");
 	});
 });
 

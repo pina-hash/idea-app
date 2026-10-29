@@ -21,6 +21,18 @@
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
 	import frcIcon from '$lib/frc/assets/frc-icon.png';
+	// EVERY CARD IS A MINIATURE OF ITS OWN APP (ledger 0472, decision 73): the
+	// room's paint (`cards.css`, keyed on `data-app`), its shapes (`CardArt`)
+	// and, where the room's type is not already on the page, its faces. A
+	// face downloads only when a card draws a letter in it, so the FRC card's
+	// Roboto costs nothing to anybody who is not shown that card.
+	import CardArt from '$lib/launcher/CardArt.svelte';
+	import { launcherRoom } from '$lib/launcher/rooms';
+	import '$lib/launcher/cards.css';
+	import '@fontsource/archivo-black/400.css';
+	import '@fontsource/saira-condensed/600.css';
+	import '@fontsource/roboto/700.css';
+	import '@fontsource/roboto/700-italic.css';
 	import {
 		APP_SORT_MODES,
 		arrangeApps,
@@ -209,18 +221,10 @@
 	}
 
 	/**
-	 * THE PER-CARD TEXTURE CAME BACK WITH THE PER-CARD ACCENT, and this comment
-	 * used to say the opposite. `cardTexture` once keyed a card's interior
-	 * pattern off a `PortalApp.theme` field and was deleted when that field was;
-	 * the note left behind claimed cards are told apart by name, tagline and
-	 * badge alone. They are not, and have not been since the accents were
-	 * restored as stylesheet rules: six `[data-app=...]` rules below re-declare
-	 * `--card-texture`, and `.app-card`'s own
-	 * `background-image: var(--card-texture, var(--texture-brushed))` is written
-	 * as a fallback chain precisely so they can. The brushed-metal token is the
-	 * DEFAULT, not the only value. What is still true, and is the part worth
-	 * keeping, is the MECHANISM: the pattern is a stylesheet rule keyed on
-	 * `data-app`, never an inline style read out of the registry.
+	 * A CARD'S LOOK IS ITS ROOM'S, AND IT ARRIVES THROUGH THE CASCADE (ledger
+	 * 0472). The paint is `$lib/launcher/cards.css`, keyed on `data-app`; the
+	 * shapes are `CardArt`; neither is ever an inline style read out of the
+	 * registry, for the reason `PortalApp`'s own comment gives.
 	 */
 
 	/**
@@ -348,6 +352,16 @@
 	{/if}
 {/snippet}
 
+{#snippet appTitle(app: PortalApp)}
+	{@const accent = launcherRoom(app.id)?.titleAccent}
+	{@const at = accent ? app.title.indexOf(accent) : -1}
+	{#if accent && at >= 0}
+		<span class="app-title">{app.title.slice(0, at)}<span class="app-title-accent">{accent}</span>{app.title.slice(at + accent.length)}</span>
+	{:else}
+		<span class="app-title">{app.title}</span>
+	{/if}
+{/snippet}
+
 {#snippet appCard(app: PortalApp, i: number)}
 	{@const isPinned = pinnedIds.has(app.id)}
 	{#if customizing}
@@ -360,12 +374,11 @@
 			class:put-away={hiddenIds.has(app.id)}
 			data-tour={app.id}
 			data-app={app.id}
-			data-family={app.family}
 			role="listitem"
 			ondragover={(e) => onDragOver(e, i)}
 			ondrop={(e) => onDrop(e, i)}
 		>
-			<span class="app-strip"></span>
+			<CardArt app={app.id} />
 			<!-- Only the grip is draggable: a draggable card would fight the card's
 			     own link and swallow text selection. Decorative for assistive tech --
 			     the up/down buttons beside it are the keyboard path. -->
@@ -381,7 +394,7 @@
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title-row">
-					<span class="app-title">{app.title}</span>
+					{@render appTitle(app)}
 					{#if isPinned}<span class="pin-mark" title="Pinned">&#9733;</span>{/if}
 					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
 					{#if hiddenIds.has(app.id)}<span class="hidden-badge" data-testid="app-hidden-badge">Hidden</span>{/if}
@@ -423,13 +436,12 @@
 			onclick={(e) => appClick(e, app)}
 			data-tour={app.id}
 			data-app={app.id}
-			data-family={app.family}
 		>
-			<span class="app-strip"></span>
+			<CardArt app={app.id} />
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title-row">
-					<span class="app-title">{app.title}</span>
+					{@render appTitle(app)}
 					{#if isPinned}<span class="pin-mark" title="Pinned">&#9733;</span>{/if}
 					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
 					{#if app.id === 'foundry' && foundryPending !== null && foundryPending > 0}
@@ -563,12 +575,17 @@
 	   section reads `--li-measure`, which the home page declares as a width
 	   that grows with the window above about 1440px; a page that declares
 	   none (the theme harness) keeps the old 1100px. */
+	/* THE FEEDBACK BUTTON'S CORNER (`data-corner-reserve`) is fixed over the
+	   window's bottom right: 48px tall and 24px up at 375 (72px in all),
+	   44px and 12px up at 1440. The space under the grid is more than that,
+	   so with the page scrolled to its end the button never rests on a
+	   card's key, even where the launcher is the last thing on the page. */
 	.launcher {
 		position: relative;
 		z-index: 1;
 		max-width: var(--li-measure, 1100px);
 		margin: 0 auto 2.5rem;
-		padding: 0 2rem;
+		padding: 0 2rem 5rem;
 	}
 	.launcher-bar {
 		display: flex;
@@ -683,8 +700,13 @@
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 		gap: 0.8rem;
 	}
+	/* 300px IN EVERY VIEW NOW (ledger 0472). At 210px the title took the
+	   whole compact card and the app's own drawing had nowhere to stand but
+	   under the words; at 300px a title ends by about 216px and the drawing
+	   has the card's right third. Three columns at 1440 (four at 1920), one
+	   at 375, which is what it already was. */
 	.app-grid.compact {
-		grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 		gap: 0.6rem;
 	}
 	/* Customizing adds a grip and three tool buttons to every row. At the compact
@@ -694,208 +716,79 @@
 	.app-grid.compact.customizing {
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	}
+	/* ======================================================================
+	   EVERY CARD IS A MINIATURE OF ITS OWN APP (ledger 0472, decision 73).
+
+	   Mr. Pina: "I don't want it to be like some palette. It has to be
+	   representative, perfectly representative of what is inside that page
+	   visually", and "each app should be unique visually, completely, like
+	   real apps on a computer." This replaced ledger 0467's six colour
+	   families (one hue shared by several apps), which he called off-brand.
+
+	   So the card is the app's own surface: its ground, edge, title face and
+	   ink, its accent, its call to action, and its shapes drawn by
+	   `CardArt`. Every one of those arrives as a `--rm-*` custom property
+	   from `$lib/launcher/cards.css`, keyed on `data-app`, quoting the
+	   room's own stylesheet (`$lib/launcher/rooms.ts` lists the files, and
+	   tests/home-order-and-accent.test.ts traces every colour to them). This
+	   rule only READS them, each with a fallback to the site plate, so an
+	   app that declares nothing arrives as a plain plate card rather than
+	   borrowing somebody else's look.
+
+	   THE WORDS STAND ON THE CARD'S OWN GROUND. `--rm-ground` is the card's
+	   background colour, which is what every contrast check walks up to,
+	   and the drawing fades in from its own left edge so the title keeps that
+	   ground behind it. Under the site plate this rule outranks
+	   site-plate.css's `--bg1` face (see the `:global(:root .site-plate)`
+	   rule below), which took the plate's depth and kept one ground for every
+	   card.
+	   ====================================================================== */
+	/* THE TITLE SITS WHERE THE APP'S PAGE PUTS ITS NAME, and that differs
+	   from card to card (the second review: four plate cards that all put
+	   an icon and a title top left over a row of tiles read as one chassis).
+	   cards.css places it with layout properties, never a colour:
+	   `--rm-align` (top, centre or foot of the card), `--rm-justify` with
+	   `--rm-text-flex` (centred along the card, as My Classes, the Admin
+	   console and GREENLINE's title screen centre theirs), and
+	   `--rm-head-drop` (pushed under a rail drawn across the card's top).
+	   CardArt's drawing fills the rest. Every card is 88px, so a row of the
+	   grid is one height whichever composition stands in it. */
 	.app-card {
-		/* THE DEFAULT IS THE NEUTRAL FAMILY, AND IT IS A LIVE ONE (ledger 0467).
-		   Every card's colour is its FAMILY's (`data-family`, from
-		   `PortalApp.family`), one entry of the kit's colour library
-		   (tools/hx-kit/kit/colors.json) solved per theme into the `--id-*`
-		   tokens. The Tools family declares nothing and paints from these
-		   lines, so a card with no family rule is the warm grey titanium: an
-		   app that has not been given an identity looks like one, rather than
-		   borrowing somebody else's.
-
-		   --acc-primary and --acc-secondary are IDENTITY (the strip). Nothing
-		   derived for legibility moves them; --acc-ink is what a word and a
-		   glyph read, and it is solve()'s ink for the same entry, which clears
-		   6:1 on every dark ground and 4.8:1 on every Space White one, so no
-		   card re-pins it by hand. */
-		--acc-primary: var(--id-titanium-fill);
-		--acc-secondary: var(--id-titanium-fill);
-		--acc-ink: var(--id-titanium-ink);
-		--acc: var(--acc-ink);
-		--acc-title: var(--acc);
-		--acc-glow: color-mix(in srgb, var(--acc-ink) 30%, transparent);
-		/* A LOAD-BEARING BOUNDARY AND A DECORATIVE ONE ARE TWO TOKENS, not one
-		   hairline used twice (IDEA_INTERFACE_STANDARDS 10). --acc-edge draws
-		   the CARD edge, which is the only thing separating a card from the
-		   page (--bg1 on --bg0 measures 1.18:1, one region to the eye), so it
-		   clears 3:1 -- 75% of the ink is the floor that gets every accent
-		   there, FRC at 3.35 being the worst. --acc-line is the CTA pill
-		   outline, which decorates a LABEL whose own text already clears
-		   4.5:1 and is not a control anyone can operate on its own; raising
-		   it to the edge weight would draw every card as a wireframe.
-
-		   --acc-edge IS THE --boundary CONTRACT WITH AN IDENTITY COLOUR IN IT,
-		   and it is the only place in the app that needs its own spelling of
-		   it. The shared token (design-system/colors.css) is the neutral answer
-		   every other load-bearing boundary takes; this one cannot take it,
-		   because a launcher card's edge carries the app's brand and swapping
-		   in a neutral grey would delete eleven deliberate identity decisions
-		   to satisfy a rule the accent already satisfies. Same floor, same
-		   measurement method, colour supplied by the card. */
-		--acc-edge: color-mix(in srgb, var(--acc-ink) 75%, transparent);
-		--acc-edge-strong: var(--acc-ink);
-		--acc-line: color-mix(in srgb, var(--acc-ink) 20%, transparent);
-		--acc-line-strong: color-mix(in srgb, var(--acc-ink) 50%, transparent);
-		--acc-wash: color-mix(in srgb, var(--acc-ink) 5%, transparent);
-		--acc-hover-glow: color-mix(in srgb, var(--acc-ink) 20%, transparent);
-		/* PINNED, AND THAT IS THE POINT. This was color-mix(ink 12%), a fill
-		   derived from the very ink it sits behind, so lightening the ink
-		   lightened its ground with it and the ratio barely moved: sweeping
-		   FRC from 80% to 40% brand red moved this case 3.41 -> 4.89 and cost
-		   the entire colour. Pinned to --bg2 the ground stops chasing the ink,
-		   and every accent clears 4.5:1 on it (worst 4.73, FRC). */
-		--acc-cta-hover-fill: var(--bg2);
 		position: relative;
+		isolation: isolate;
 		display: flex;
-		align-items: center;
+		align-items: var(--rm-align, center);
+		justify-content: var(--rm-justify, flex-start);
 		gap: 0.9rem;
-		/* Base surface + the card's interior texture, at <=3% opacity so it can
-		   never touch text legibility. Kept off ::before so the accent strip is
-		   untouched. Both vars are declared per app below; the fallback is the
-		   design system's brushed-metal token, which is what most cards take. */
-		background-color: var(--bg1);
-		background-image: var(--card-texture, var(--texture-brushed));
-		background-size: var(--card-texture-size, auto);
-		border: 1px solid var(--acc-edge);
-		border-radius: var(--radius-card);
+		background-color: var(--rm-ground, var(--bg1));
+		border: 1px solid var(--rm-edge, var(--boundary));
+		border-radius: var(--rm-radius, var(--radius-card));
 		box-shadow: var(--bevel-raised);
 		padding: 0.85rem 1rem;
+		min-height: 88px;
 		text-decoration: none;
 		overflow: hidden;
-		transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
+		transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 	}
-	/* ======================================================================
-	   ONE HUE PER FAMILY, KEYED ON THE CARD'S `data-family` ATTRIBUTE
-	   (ledger 0467, feedback ac7d7b60).
-
-	   Mr. Pina's rule for the whole site: at most five to seven hues a reader
-	   has to tell apart on one screen, each with a word or a glyph beside it;
-	   green only for act and done; no neon. The launcher used to give every
-	   app a colour of its own -- nine on the dark home screen, fourteen on
-	   Space White, five of them greens and two of them neon (the arcade green
-	   and the chartreuse) -- so the hues could not be told apart and the greens said
-	   "done" about a game. Now apps of one kind share one hue, six families
-	   in all, and each card still carries its own name and its own mark.
-
-	   EVERY VALUE IS AN ENTRY OF THE KIT'S LIBRARY, NEVER A HEX TYPED HERE.
-	   tools/identity-colors.mjs puts each entry through solve() for the dark
-	   themes (IDEA and Matrix together) and for Space White, so the same
-	   rule paints the right ink on every theme with no theme-keyed copy:
-
-	     class  sky         Classroom, My Notebook
-	     make   indigo      IdeaCAD, Armory, Foundry
-	     coins  marigold    Coin Ledger, Market
-	     play   magenta     GAUNTLET, GREENLINE, VANGUARD, Tournaments
-	     frc    first-red   FRC Training, FIRST blue as the strip's far stop
-	     tools  titanium    Maps, Admin (the default above, declared nowhere)
-
-	   The FILLS (the strip) of the six clear CIEDE2000 10 apart in normal
-	   vision and 8 under simulated deuteranopia and protanopia on both
-	   grounds, and none is within 10 of the brand green;
-	   tests/identity-colors.test.ts measures all of it. The FIRST logo on the
-	   FRC card is the unmodified image, as before.
-	   ====================================================================== */
-	.app-card[data-family='class'] {
-		--acc-primary: var(--id-sky-fill);
-		--acc-secondary: var(--id-sky-fill);
-		--acc-ink: var(--id-sky-ink);
+	.app-card:not(.static) .app-icon,
+	.app-card:not(.static) .app-text {
+		margin-top: var(--rm-head-drop, 0);
 	}
-	.app-card[data-family='make'] {
-		--acc-primary: var(--id-indigo-fill);
-		--acc-secondary: var(--id-indigo-fill);
-		--acc-ink: var(--id-indigo-ink);
+	/* Everything a reader uses sits above the drawing. */
+	.app-icon,
+	.app-text,
+	.app-cta,
+	.app-grip,
+	.app-tools {
+		position: relative;
+		z-index: 1;
 	}
-	.app-card[data-family='coins'] {
-		--acc-primary: var(--id-marigold-fill);
-		--acc-secondary: var(--id-marigold-fill);
-		--acc-ink: var(--id-marigold-ink);
-	}
-	.app-card[data-family='play'] {
-		--acc-primary: var(--id-magenta-fill);
-		--acc-secondary: var(--id-magenta-fill);
-		--acc-ink: var(--id-magenta-ink);
-	}
-	.app-card[data-family='frc'] {
-		--acc-primary: var(--id-first-red-fill);
-		--acc-secondary: var(--id-first-blue-fill);
-		--acc-ink: var(--id-first-red-ink);
-	}
-	/* THE TEXTURES ARE PER APP AND TAKE THE FAMILY'S OWN FILL, never a literal:
-	   they used to be the neon rgba of each app's old pair. They are drawn only
-	   with `SITE_PLATE = ''` (the plate replaces every texture), at 3% or less,
-	   where they cannot touch legibility. */
-	.app-card[data-app='gauntlet'] {
-		/* 24px blueprint grid. */
-		--card-texture:
-			linear-gradient(color-mix(in srgb, var(--acc-primary) 3%, transparent) 1px, transparent 1px),
-			linear-gradient(90deg, color-mix(in srgb, var(--acc-primary) 3%, transparent) 1px, transparent 1px);
-		--card-texture-size: 24px 24px;
-	}
-	.app-card[data-app='frc'] {
-		/* Diagonal stripes. */
-		--card-texture: repeating-linear-gradient(
-			45deg,
-			color-mix(in srgb, var(--acc-primary) 2.5%, transparent) 0px,
-			color-mix(in srgb, var(--acc-primary) 2.5%, transparent) 1px,
-			transparent 1px,
-			transparent 16px
-		);
-	}
-	.app-card[data-app='vanguard'] {
-		/* Horizontal scanlines. */
-		--card-texture: repeating-linear-gradient(
-			0deg,
-			color-mix(in srgb, var(--acc-primary) 3%, transparent) 0px,
-			color-mix(in srgb, var(--acc-primary) 3%, transparent) 1px,
-			transparent 1px,
-			transparent 4px
-		);
-	}
-	.app-card[data-app='coins'] {
-		/* The Ledger's drifting particle field: three dot layers on different
-		   tile sizes so the field does not read as a grid. */
-		--card-texture:
-			radial-gradient(circle at 18% 26%, color-mix(in srgb, var(--acc-primary) 3%, transparent) 1px, transparent 1.6px),
-			radial-gradient(circle at 71% 61%, color-mix(in srgb, var(--acc-primary) 2.8%, transparent) 1.3px, transparent 1.9px),
-			radial-gradient(circle at 43% 85%, color-mix(in srgb, var(--acc-primary) 3%, transparent) 0.9px, transparent 1.5px);
-		--card-texture-size: 47px 47px, 63px 63px, 37px 37px;
-	}
-	.app-card[data-app='notebook'] {
-		/* Ruled paper, 7px apart at 2.5%, in the room's own writing colour. */
-		--card-texture: repeating-linear-gradient(
-			0deg,
-			color-mix(in srgb, var(--text-1) 2.5%, transparent) 0px,
-			color-mix(in srgb, var(--text-1) 2.5%, transparent) 1px,
-			transparent 1px,
-			transparent 7px
-		);
-	}
-	.app-card[data-app='foundry'] {
-		/* Horizontal hairlines at 7px. */
-		--card-texture: repeating-linear-gradient(
-			to bottom,
-			color-mix(in srgb, var(--acc-primary) 3.5%, transparent) 0 1px,
-			transparent 1px 7px
-		);
-	}
-	.app-strip {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 2px;
-		border-radius: var(--radius-card) var(--radius-card) 0 0;
-		background: linear-gradient(to right, var(--acc-primary), var(--acc-secondary));
-		pointer-events: none;
+	:global(:root .site-plate) .app-card {
+		background-color: var(--rm-ground, var(--bg1));
 	}
 	a.app-card:hover {
-		border-color: var(--acc-edge-strong);
-		/* background-color (not the shorthand) so the interior texture image
-		   survives the hover wash. */
-		background-color: var(--acc-wash);
 		transform: translateY(-2px);
-		box-shadow: var(--bevel-raised), 0 0 16px var(--acc-hover-glow);
+		box-shadow: var(--bevel-raised), 0 0 16px var(--rm-glow, transparent);
 	}
 	a.app-card:active {
 		transform: translateY(0);
@@ -954,9 +847,6 @@
 		border-style: dashed;
 		opacity: 0.82;
 	}
-	.app-card.legacy .app-strip {
-		opacity: 0.55;
-	}
 	a.app-card.legacy:hover {
 		opacity: 1;
 	}
@@ -964,8 +854,8 @@
 		width: 34px;
 		height: 34px;
 		flex-shrink: 0;
-		color: var(--acc);
-		filter: drop-shadow(0 0 6px var(--acc-glow));
+		color: var(--rm-icon, var(--text-1));
+		filter: var(--rm-icon-filter, none);
 	}
 	.app-card.compact .app-icon {
 		width: 24px;
@@ -999,23 +889,42 @@
 		height: 100%;
 		width: auto;
 		display: block;
-		filter: drop-shadow(0 0 5px var(--acc-glow));
 	}
 	.app-text {
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
 		min-width: 0;
-		flex: 1;
+		flex: var(--rm-text-flex, 1);
 	}
+	/* THE TITLE IS SET THE WAY ITS ROOM SETS ITS OWN NAME: Orbitron 900 for
+	   the Ledger, Archivo Black italic for GREENLINE, Roboto bold italic for
+	   FRC, Chakra Petch for IdeaCAD and VANGUARD, Rajdhani for the plate
+	   rooms. The halo is the card's own ground, so a stroke of the drawing
+	   passing behind a letter never touches the letter's edge. */
 	.app-title {
-		font-family: 'Orbitron', sans-serif;
-		font-size: 0.66rem;
-		font-weight: 700;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-		color: var(--acc-title);
-		text-shadow: 0 0 8px var(--acc-glow);
+		font-family: var(--rm-title-font, var(--font-display));
+		font-size: var(--rm-title-size, 1rem);
+		font-weight: var(--rm-title-weight, 700);
+		font-style: var(--rm-title-style, normal);
+		letter-spacing: var(--rm-title-track, 0.02em);
+		text-transform: var(--rm-title-case, none);
+		line-height: 1.15;
+		color: var(--rm-title, var(--text-1));
+		text-shadow: var(--rm-title-glow, 0 0 3px var(--rm-ground, var(--bg1)), 0 0 6px var(--rm-ground, var(--bg1)));
+		/* A room whose wordmark is a material, not an ink (GREENLINE's chrome):
+		   the gradient is clipped to the letters, and --rm-title stays the
+		   solid ink every instrument reads and the gradient's own light. */
+		background-image: var(--rm-title-img, none);
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: var(--rm-title-fill, currentColor);
+		filter: var(--rm-title-filter, none);
+	}
+	/* "IDEA <Coin> Ledger", "IDEA<CAD>": the part the room paints in its accent. */
+	.app-title-accent {
+		color: var(--rm-accent, inherit);
+		text-shadow: var(--rm-accent-glow, inherit);
 	}
 	/* The description and the call to action are at the site's 11px label
 	   floor (`--plate-label-size`). The description was 10.9px and the call to
@@ -1024,28 +933,60 @@
 	.app-sub {
 		font-family: var(--font-mono);
 		font-size: var(--plate-label-size, 0.6875rem);
-		color: var(--dim);
+		color: var(--rm-sub, var(--text-2));
 		line-height: 1.5;
+		text-shadow: 0 0 3px var(--rm-ground, var(--bg1)), 0 0 6px var(--rm-ground, var(--bg1));
 	}
+	/* THE CALL TO ACTION IS THE ROOM'S OWN KEY: GAUNTLET's green-to-lime key,
+	   VANGUARD's filled neon, IdeaCAD's green New model key, the Armory's
+	   plate key with its screw dot, GREENLINE's START box, a link word on
+	   FRC paper. `--rm-cta-bg` is a colour, so the word is measured on it;
+	   `--rm-cta-img` lays a gradient over that colour where the room's key
+	   is one. */
 	.app-cta {
-		font-family: var(--font-mono);
+		display: inline-flex;
+		align-items: center;
+		font-family: var(--rm-cta-font, var(--font-mono));
 		font-size: var(--plate-label-size, 0.6875rem);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--acc);
-		border: 1px solid var(--acc-line);
-		border-radius: var(--radius-chip);
+		font-weight: var(--rm-cta-weight, 400);
+		letter-spacing: var(--rm-cta-track, 0.08em);
+		text-transform: var(--rm-cta-case, uppercase);
+		color: var(--rm-cta-ink, var(--text-1));
+		background-color: var(--rm-cta-bg, transparent);
+		background-image: var(--rm-cta-img, none);
+		border: 1px solid var(--rm-cta-edge, transparent);
+		border-radius: var(--rm-cta-radius, var(--radius-chip));
+		text-shadow: var(--rm-cta-glow, none);
 		padding: 0.3rem 0.6rem;
 		white-space: nowrap;
 		flex-shrink: 0;
-		transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+		transition: box-shadow 0.2s;
+	}
+	/* A lit LED before the word, where the room's key carries one. */
+	.app-cta::before {
+		content: '';
+		flex: none;
+		width: var(--rm-cta-led-size, 0px);
+		height: var(--rm-cta-led-size, 0px);
+		margin-right: calc(var(--rm-cta-led-size, 0px) * 0.8);
+		border-radius: 50%;
+		background: var(--rm-cta-led, transparent);
+		box-shadow: 0 0 6px var(--rm-cta-led, transparent);
+	}
+	/* A screw dot in the key's corner, where the room's key carries one (the
+	   Armory's plate keys). */
+	.app-cta::after {
+		content: '';
+		position: absolute;
+		right: 3px;
+		bottom: 3px;
+		width: var(--rm-cta-dot-size, 3px);
+		height: var(--rm-cta-dot-size, 3px);
+		border-radius: 50%;
+		background: var(--rm-cta-dot, transparent);
 	}
 	a.app-card:hover .app-cta {
-		border-color: var(--acc-line-strong);
-		/* See --acc-cta-hover-fill: a pinned surface, never a mix of the ink
-		   the label above it is written in. */
-		background: var(--acc-cta-hover-fill);
-		box-shadow: 0 0 10px var(--acc-wash);
+		box-shadow: 0 0 10px var(--rm-glow, transparent);
 	}
 	.app-tools {
 		display: inline-flex;
@@ -1103,8 +1044,8 @@
 	}
 	/* Where the dragged card would land. */
 	.app-card.dropinto {
-		border-color: var(--acc-edge-strong);
-		box-shadow: inset 0 0 0 1px var(--acc-hover-glow);
+		border-color: var(--rm-title, var(--text-1));
+		box-shadow: inset 0 0 0 1px var(--rm-glow, transparent);
 	}
 	/* ======================================================================
 	   THE COMFORTABLE VIEW IS A TIGHT CARD (ledger 0380, reports 4895b22f and
@@ -1113,27 +1054,36 @@
 	   and a CTA pinned to the far edge, so a card with a short description
 	   showed bands of nothing above and below and a gap before the button,
 	   and one 170-character description made every card in its row seven
-	   lines tall. Now a three-column grid: the icon spans the title and the
-	   description, the title row and the CTA share the first line, and the
-	   description runs under both clamped to two lines. Only the link card;
+	   lines tall.
+
+	   SINCE LEDGER 0472 IT IS A BANNER OVER A LINE OF TEXT: the first row is
+	   the compact card exactly (the icon, the title, the app's drawing behind
+	   them, the same 88px), and under it the description, clamped to two lines,
+	   with the call to action at its end. The drawing is confined to the banner
+	   (`--rm-band`), so it never runs under the description or the key, which
+	   is what a single row did when the drawing came back. Only the link card;
 	   the Customize card keeps its row, which carries a grip and tools. The
 	   full text is on the link's `title`. */
 	a.app-card:not(.compact) {
+		--rm-band: 5.75rem;
+		--rm-scene-top: 40px;
 		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) auto;
+		grid-template-columns: var(--rm-cols, auto minmax(0, 1fr) auto);
+		grid-template-rows: calc(var(--rm-band) - 0.6rem) auto;
 		column-gap: 0.75rem;
-		row-gap: 0.15rem;
+		row-gap: 0.55rem;
 		align-items: center;
-		/* A card stretched to its row's tallest neighbour keeps its two lines
-		   together in the middle, rather than spreading them apart with a band
-		   of nothing between the title and the description. */
-		align-content: center;
-		padding: 0.6rem 0.85rem;
+		align-content: start;
+		padding: 0.6rem 0.85rem 0.65rem;
+	}
+	a.app-card:not(.compact) :global(.art) {
+		bottom: auto;
+		height: var(--rm-band);
 	}
 	a.app-card:not(.compact) .app-icon {
-		grid-row: 1 / span 2;
-		align-self: start;
-		margin-top: 0.1rem;
+		grid-column: var(--rm-icon-col, 1);
+		grid-row: 1;
+		align-self: var(--rm-align, center);
 	}
 	a.app-card:not(.compact) .app-icon:not(.frc-icon) {
 		width: 28px;
@@ -1142,20 +1092,38 @@
 	a.app-card:not(.compact) .app-icon.frc-icon {
 		height: 28px;
 	}
+	/* `display: contents` takes the text column's box away, so its two
+	   children are positioned themselves to stay above the drawing. */
 	a.app-card:not(.compact) .app-text {
 		display: contents;
 	}
+	a.app-card:not(.compact) .app-title-row,
+	a.app-card:not(.compact) .app-sub {
+		position: relative;
+		z-index: 1;
+	}
 	a.app-card:not(.compact) .app-title-row {
-		grid-column: 2;
+		grid-column: var(--rm-title-col, 2 / -1);
 		grid-row: 1;
 		min-width: 0;
+		align-self: var(--rm-align, center);
+		margin-top: var(--rm-head-drop, 0);
+	}
+	/* The title row of a scene card is the 28px icon's height, so it lines up
+	   with the icon rather than with the row's own top. */
+	a.app-card:not(.compact) .app-icon ~ .app-text .app-title-row {
+		min-height: 28px;
+		align-items: center;
 	}
 	a.app-card:not(.compact) .app-cta {
-		grid-column: 3;
-		grid-row: 1;
+		grid-column: var(--rm-cta-col, 3);
+		grid-row: 2;
+		align-self: end;
+		justify-self: end;
 	}
 	a.app-card:not(.compact) .app-sub {
-		grid-column: 2 / -1;
+		grid-column: var(--rm-sub-col, 1 / 3);
+		padding-right: var(--rm-sub-room, 0);
 		grid-row: 2;
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
@@ -1258,48 +1226,16 @@
 	}
 
 	/* ======================================================================
-	   UNDER SPACE WHITE: LIGHT CARDS, EACH IN ITS FAMILY'S LIGHT INK (ledger
-	   0297, round 2026-10-07, ledger 0380, ledger 0467).
-
-	   No card names a Space White ink any more. The family rules above read
-	   `--id-*`, and identity.css answers those per theme: on Space White the
-	   ink is solve()'s answer over this theme's grounds (4.8:1 on every one,
-	   the card and the CTA hover fill among them), so the word, the glyph, the
-	   call to action and the strip follow the family with no theme-keyed copy.
-	   This replaces the fifteen curated inks of decision 62 ("Distinct colour
-	   per app", 2026-10-14): fourteen hues on one screen is what Mr. Pina's
-	   2026-10-28 rule (at most five to seven) retires, and every card keeps
-	   its own name and mark beside the shared hue.
-
-	   What stays theme-keyed is the card's material: its edge is the plate's
-	   hairline rather than the ink at 75%, the glow goes flat, and the hover
-	   wash is mixed into the card's own ground.
+	   UNDER SPACE WHITE A CARD DOES WHAT ITS ROOM DOES (ledger 0472, decision
+	   73). The plate rooms read site tokens, so their cards turn light with
+	   the theme on their own; the Coin Ledger, the Foundry and Tournaments
+	   carry their rooms' own Space White twins in `cards.css`; GAUNTLET,
+	   GREENLINE, VANGUARD, IdeaCAD and FRC do not change in their rooms, so
+	   their cards do not change here. Nothing in this file names a theme for
+	   a card any more: decisions 55 and 62 (one green, then one curated ink
+	   per card) and ledger 0467 (one ink per family) are all replaced by the
+	   room's own answer.
 	   ====================================================================== */
-	:global(:root[data-theme='space-white']) .app-card {
-		/* The card's edge is the plate's hairline (3.27:1 on the plate's page,
-		   the load-bearing 3:1), not the brand at 75%; the fallback is the
-		   theme's own boundary, for the `SITE_PLATE = ''` revert. */
-		--acc-edge: var(--plate-hair, var(--boundary));
-		--acc-edge-strong: var(--hover-ink);
-		--acc-line: color-mix(in srgb, var(--acc) 20%, transparent);
-		--acc-line-strong: color-mix(in srgb, var(--acc) 50%, transparent);
-		/* No glow and no blur: the halo tokens go flat, and the icon's
-		   drop-shadow filter goes with them rather than filtering nothing. */
-		--acc-glow: transparent;
-		--acc-hover-glow: transparent;
-		/* The hover wash is laid over the CARD's own ground, not left
-		   transparent over the page: a 5% veil over #e8eceb took card titles
-		   under 4.5 on hover. Mixed into --bg1 it is the same tint on the
-		   ground the ink was solved against. */
-		--acc-wash: color-mix(in srgb, var(--acc) 5%, var(--bg1));
-	}
-	:global(:root[data-theme='space-white']) .app-icon,
-	:global(:root[data-theme='space-white']) .app-icon.frc-icon :global(.frc-icon-img) {
-		filter: none;
-	}
-	:global(:root[data-theme='space-white']) a.app-card:hover .app-cta {
-		box-shadow: none;
-	}
 	/* The bar's and the tools' own controls: their outer edge is the theme's
 	   load-bearing boundary, and the neon hover and pin tints become the
 	   theme's inks. */
@@ -1329,7 +1265,7 @@
 	}
 	@media (max-width: 768px) {
 		.launcher {
-			padding: 0 1rem;
+			padding: 0 1rem 5rem;
 		}
 		.app-grid,
 		.app-grid.compact {

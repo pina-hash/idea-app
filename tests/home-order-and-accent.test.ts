@@ -7,20 +7,17 @@
 //    completely ordinary on screen -- nobody holds both roles at once, and the
 //    only symptom is a scroll distance nobody measures.
 //
-// 2. THE ACCENT MECHANISM. Launcher cards DO carry a per-app accent, and that
-//    is deliberate: GAUNTLET, GREENLINE and VANGUARD carry their product
-//    colours and the FRC card carries FIRST's brand. What is pinned here is
-//    HOW it arrives. It used to arrive as an inline style written from a
-//    `PortalApp.theme` field, and an inline custom property beats every class
-//    rule -- so `.app-card`'s shared brass/gold pair was dead code, no later
-//    rule could correct one card, and nothing said so for months. It is now a
-//    stylesheet rule keyed on the card's `data-app` attribute, which sits
-//    inside the cascade: the shared pair is a live DEFAULT for the apps that
-//    declare nothing, and one selector overrides one card.
-//
-//    Going back to inline is the regression this file exists to redden, and it
-//    is a silent one: the eleven wrong colours painted for months in front of
-//    everyone. A constant only makes the right thing available.
+// 2. EVERY LAUNCHER CARD IS A MINIATURE OF ITS OWN APP (ledger 0472,
+//    decision 73). Mr. Pina asked for it at least four times; every earlier
+//    attempt styled the cards from a palette instead of from the apps. What is
+//    pinned here is what he asked for, as far as source can say it: every card
+//    has its app's own paint, drawing and room entry; every colour on a card
+//    TRACES to its app's own files; no two cards share a look; a card follows
+//    its room (not the site theme) on Space White; and every word on a card
+//    clears 4.5:1 in every theme. The paint still arrives through the cascade
+//    (`$lib/launcher/cards.css`, keyed on `data-app`), never stamped inline,
+//    because an inline custom property beats every rule and a stamped colour
+//    is how eleven wrong accents once painted for months.
 //
 // 3. THE ACTIVE COURSES TILE. The hero's first stat is a NUMBER, which is the
 //    most silent thing a page can be wrong about: it renders, it is plausible,
@@ -36,12 +33,13 @@
 // markup, which is what a screen reader and the tab order follow and therefore
 // the thing actually worth pinning.
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { render } from 'svelte/server';
 import Home from '../src/routes/+page.svelte';
 import AppLauncher from '$lib/AppLauncher.svelte';
 import { PORTAL_APPS, visibleApps, type PortalApp } from '$lib/portal-apps';
+import { LAUNCHER_ROOMS, launcherRoom, type LauncherRoom } from '$lib/launcher/rooms';
 import { SECTIONS, activeCourseCount } from '$lib/curriculum';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 
@@ -332,57 +330,63 @@ describe('home page: which block comes first', () => {
 const LAUNCHER_SRC = readFileSync(new URL('../src/lib/AppLauncher.svelte', import.meta.url), 'utf8');
 const LAUNCHER_CSS = LAUNCHER_SRC.slice(LAUNCHER_SRC.lastIndexOf('<style>'));
 
-/** App ids with a `[data-app=...]` rule of their own, of any kind. */
-const declaringIds = () => {
-	const ids = new Set<string>();
-	for (const m of LAUNCHER_CSS.matchAll(/\.app-card\[data-app='([a-z-]+)'\]/g)) ids.add(m[1]);
-	return ids;
-};
+/* ---- the room paint, read from its own file ---------------------------- */
 
-/**
- * The five per-card custom properties a `[data-app=...]` rule exists to carry.
- * A rule that declares NONE of them is a rule that does nothing, which is the
- * thing worth reddening -- as against a rule that declares a texture and takes
- * the shared accent, which is a legitimate combination and is what the notebook
- * card is: brass is correct for it, and restating the default is how a default
- * drifts.
- */
-const PER_CARD_PROPS = [
-	'--acc-primary',
-	'--acc-secondary',
-	'--acc-ink',
-	'--card-texture',
-	'--card-texture-size'
-];
+const CARDS_CSS = readFileSync(new URL('../src/lib/launcher/cards.css', import.meta.url), 'utf8');
+const CARD_ART = readFileSync(new URL('../src/lib/launcher/CardArt.svelte', import.meta.url), 'utf8');
+type Theme = 'idea' | 'matrix' | 'space-white';
+const THEMES: Theme[] = ['idea', 'matrix', 'space-white'];
 
-/** Family ids with a `[data-family=...]` rule (ledger 0467). */
-const familyIds = () => {
-	const ids = new Set<string>();
-	for (const m of LAUNCHER_CSS.matchAll(/\.app-card\[data-family='([a-z-]+)'\]/g)) ids.add(m[1]);
-	return ids;
-};
-
-/** The body of one `[data-family=...]` rule. */
-function familyRule(id: string): string {
-	const at = LAUNCHER_CSS.indexOf(`.app-card[data-family='${id}']`);
-	if (at < 0) return '';
-	const open = LAUNCHER_CSS.indexOf('{', at);
-	return LAUNCHER_CSS.slice(open, LAUNCHER_CSS.indexOf('}', open));
+/** Every `--rm-*` declaration of one selector's block in cards.css (comments stripped). */
+function cardBlock(id: string, theme: Theme = 'idea', css = CARDS_CSS): Record<string, string> {
+	const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+	const sel = theme === 'idea' ? `.app-card[data-app='${id}']` : `:root[data-theme='${theme}'] .app-card[data-app='${id}']`;
+	const out: Record<string, string> = {};
+	for (const m of bare.matchAll(/(?<=^|\})\s*([^{}]+?)\s*\{([^{}]*)\}/g)) {
+		if (m[1].trim() !== sel) continue;
+		for (const d of m[2].matchAll(/(--rm-[a-z0-9-]+)\s*:\s*([^;]+);/g)) out[d[1]] = d[2].trim().replace(/\s+/g, ' ');
+	}
+	return out;
 }
 
-/** App ids whose rule re-pins the identity PAIR, rather than only a texture. */
-const accentIds = () => {
-	const ids = new Set<string>();
-	for (const id of declaringIds()) if (ruleFor(id).includes('--acc-primary:')) ids.add(id);
-	return ids;
-};
+/** The card's paint under one theme: its base block with that theme's block laid over it. */
+function cardPaint(id: string, theme: Theme): Record<string, string> {
+	return { ...cardBlock(id), ...(theme === 'idea' ? {} : cardBlock(id, theme)) };
+}
 
-/** The body of one `[data-app=...]` rule, so a declaration can be attributed. */
-function ruleFor(id: string): string {
-	const at = LAUNCHER_CSS.indexOf(`.app-card[data-app='${id}']`);
-	if (at < 0) return '';
-	const open = LAUNCHER_CSS.indexOf('{', at);
-	return LAUNCHER_CSS.slice(open, LAUNCHER_CSS.indexOf('}', open));
+/** The properties that carry a colour (the rest are faces, sizes and radii). */
+const COLOUR_PROPS = /^--rm-(ground|edge|edge-hover|title|title-glow|title-img|title-fill|title-filter|accent|accent-glow|icon|sub|cta-ink|cta-bg|cta-img|cta-edge|cta-glow|cta-led|cta-dot|glow|art-bg|seam-glow|a\d+|g\d+)$/;
+
+/** The text of every source file a card names, and of its ROOM files (the site token file aside). */
+const SITE_FILE = 'src/lib/design-system/colors.css';
+const sourceText = (files: readonly string[]) => files.map((f) => readFileSync(f, 'utf8')).join('\n');
+const normalTriple = (t: string) => t.split(',').slice(0, 3).map((x) => x.trim()).join(',');
+
+/**
+ * WHY A VALUE IS NOT TRACEABLE TO ITS ROOM, or null. A literal (a hex, or an
+ * rgb()/rgba() triple) must appear in one of the card's source files; a token
+ * `var(--x)` must be read or declared by one of its ROOM files (not only by
+ * the site token file, which declares every token there is and so would
+ * vouch for anything). The fallback inside a `var()` is a literal like any
+ * other. Font, size and radius tokens are not colours and are not asked.
+ */
+function untraceable(value: string, room: LauncherRoom): string | null {
+	const all = sourceText(room.sources).toLowerCase();
+	const roomText = sourceText(room.sources.filter((f) => f !== SITE_FILE));
+	for (const h of value.match(/#[0-9a-f]{3,8}\b/gi) ?? []) if (!all.includes(h.toLowerCase())) return `${h} is not in ${room.sources.join(', ')}`;
+	const triples = [...all.matchAll(/rgba?\(([^)]*)\)/g)].map((m) => normalTriple(m[1]));
+	for (const m of value.matchAll(/rgba?\(([^)]*)\)/gi)) if (!triples.includes(normalTriple(m[1]))) return `rgb(${m[1]}) is not in ${room.sources.join(', ')}`;
+	// A room may name a family of tokens through a template, as status-tone.ts
+	// does (`var(--status-${t}-solid)`): any token that fits it is read there.
+	const templates = [...roomText.matchAll(/var\((--[a-z0-9-]*)\$\{[^}]+\}([a-z0-9-]*)\)/g)].map((m) => [m[1], m[2]] as const);
+	for (const m of value.matchAll(/var\((--[a-z0-9-]+)/g)) {
+		const t = m[1];
+		if (t.startsWith('--rm-') || /^--(font|radius|plate-r)-/.test(t)) continue;
+		if (roomText.includes(`var(${t}`) || roomText.includes(`${t}:`)) continue;
+		if (templates.some(([pre, post]) => pre.length > 3 && t.startsWith(pre) && t.endsWith(post) && t.length > pre.length + post.length)) continue;
+		return `${t} is read by none of ${room.sources.filter((f) => f !== SITE_FILE).join(', ')}`;
+	}
+	return null;
 }
 
 function launcherHtml(): string {
@@ -447,104 +451,227 @@ describe('home page: the Active Courses tile', () => {
 	});
 });
 
-describe('launcher accents are stylesheet data, never an inline style', () => {
-	it('stamps NO accent custom property on any card, so the cascade still decides', () => {
-		// THE REJECTED ALTERNATIVE, and the one this whole file is aimed at. An
-		// inline custom property outranks every stylesheet rule, including the
-		// `.app-card` default and any later per-card override, so putting the pair
-		// back on the element would make both unreachable exactly as before.
+describe('launcher cards: the paint arrives through the cascade, never inline', () => {
+	it('stamps NO room property on any card, so the cascade still decides', () => {
+		// THE REJECTED ALTERNATIVE. An inline custom property outranks every
+		// stylesheet rule, so putting a card's paint back on the element would
+		// make cards.css unreachable for that card.
 		const html = launcherHtml();
 		const cards = html.split('class="app-card').length - 1;
 		// Positive control: "no card carries X" is worth nothing if no card rendered.
 		expect(cards).toBe(visibleApps(false).length);
 		expect(cards).toBeGreaterThan(5);
-		for (const prop of PER_CARD_PROPS) {
-			expect(html, `${prop} is stamped inline on a card`).not.toContain(`${prop}:`);
-		}
+		expect(html).not.toMatch(/--rm-[a-z0-9-]+\s*:/);
+		expect(html).not.toMatch(/--acc-[a-z-]+\s*:/);
 	});
 
-	it('gives every card the `data-app` attribute the rules key on', () => {
-		// A rule keyed on an attribute no card carries is a rule that never
-		// matches, and the card would silently fall back to the shared default.
+	it('gives every card the `data-app` the paint keys on, and no family', () => {
 		const html = launcherHtml();
-		for (const app of visibleApps(false)) {
-			expect(html, `${app.id}: no data-app attribute`).toContain(`data-app="${app.id}"`);
-			expect(html, `${app.id}: no data-family attribute`).toContain(`data-app="${app.id}" data-family="${app.family}"`);
-		}
+		for (const app of visibleApps(false)) expect(html, `${app.id}: no data-app attribute`).toContain(`data-app="${app.id}"`);
+		// Decision 73 retired ledger 0467's families: no card is grouped.
+		expect(html).not.toContain('data-family');
+		expect(LAUNCHER_SRC).not.toContain('data-family');
+		expect(LAUNCHER_CSS).not.toContain('[data-family');
 	});
 
-	it('declares no colour field on any PORTAL_APPS entry', () => {
-		// The paint belongs to the stylesheet. A colour field here is how it gets
-		// read back into a style attribute again.
+	it('declares no colour field and no family on any PORTAL_APPS entry', () => {
 		expect(PORTAL_APPS.length).toBeGreaterThan(5); // positive control
 		const offenders = PORTAL_APPS.filter((app) =>
-			Object.keys(app).some((k) => /theme|colou?r|accent|palette/i.test(k))
+			Object.keys(app).some((k) => /theme|colou?r|accent|palette|family/i.test(k))
 		).map((a) => a.id);
 		expect(offenders).toEqual([]);
 	});
 
-	it('keeps the shared pair as a LIVE default, not a value every app restates', () => {
-		// Both halves matter. The `.app-card` rule must declare the pair, AND some
-		// real app must be taking it -- a default every entry overrides is the dead
-		// code this replaced, wearing a stylesheet instead of a style attribute.
-		const base = LAUNCHER_CSS.slice(LAUNCHER_CSS.indexOf('.app-card {'));
-		// Ledger 0467: the default is the neutral family, an entry of the kit's
-		// library through its generated token, never a typed hex.
-		expect(base).toContain('--acc-primary: var(--id-titanium-fill);');
-		expect(base).toContain('--acc-ink: var(--id-titanium-ink);');
+	it('reads every room property with a site fallback, so an app with no paint is a plain plate card', () => {
+		// The default is LIVE: a card cards.css says nothing about still
+		// draws, on the plate, rather than borrowing another app's look.
+		const reads = [...LAUNCHER_CSS.matchAll(/var\((--rm-[a-z0-9-]+)(\s*,|\))/g)];
+		expect(reads.length).toBeGreaterThan(15); // positive control on the reader
+		const bare = reads.filter((m) => m[2] === ')' && !['--rm-band'].includes(m[1])).map((m) => m[1]);
+		expect(bare).toEqual([]);
+		// And the launcher's own stylesheet declares no room paint itself.
+		expect(LAUNCHER_CSS).not.toMatch(/\.app-card\[data-app=/);
+		expect(LAUNCHER_CSS).not.toMatch(/--id-[a-z]/);
+	});
+});
 
-		// "Takes the default" is measured against the FAMILY rule: an app whose
-		// family has no `[data-family=...]` rule paints from `.app-card`, which
-		// is what the Tools family (Maps, Admin) does.
-		const families = familyIds();
-		const takingDefault = visibleApps(true)
-			.map((a) => a.id)
-			.filter((id) => !families.has(PORTAL_APPS.find((x) => x.id === id)!.family));
-		expect(takingDefault.length, 'every family declares its own accent').toBeGreaterThan(0);
+describe('every launcher card is a miniature of its own app (ledger 0472, decision 73)', () => {
+	type Rgb = { r: number; g: number; b: number };
+	type Kit = {
+		hex: (h: string) => Rgb;
+		contrast: (a: Rgb, b: Rgb) => number;
+		deltaE2000: (a: Rgb, b: Rgb) => number;
+	};
+	type Gen = {
+		themeVars: () => Record<Theme, Record<string, string>>;
+		paint: (value: string, vars: Record<string, string>) => { rgb: Rgb; a: number };
+	};
+	let K: Kit;
+	let G: Gen;
+	let VARS: Record<Theme, Record<string, string>>;
+	/* Computed URLs, never literal specifiers: a literal import pulls the
+	   tools' JavaScript into svelte-check's program (docs/subsystems/testing.md). */
+	beforeAll(async () => {
+		K = (await import(new URL('../tools/hx-kit/color.mjs', import.meta.url).href)) as Kit;
+		G = (await import(new URL('../tools/identity-colors.mjs', import.meta.url).href)) as Gen;
+		VARS = G.themeVars();
+	});
+	const EVERY_APP = visibleApps(true);
+	const over = (fg: { rgb: Rgb; a: number }, bg: Rgb): Rgb => ({
+		r: fg.rgb.r * fg.a + bg.r * (1 - fg.a),
+		g: fg.rgb.g * fg.a + bg.g * (1 - fg.a),
+		b: fg.rgb.b * fg.a + bg.b * (1 - fg.a)
+	});
+	/** One card's paint resolved to colours under one theme, the way AppLauncher reads it. */
+	function resolved(id: string, theme: Theme) {
+		const p = cardPaint(id, theme);
+		const vars = { ...VARS[theme], ...p };
+		const col = (prop: string, fallback: string) => G.paint(p[prop] ?? fallback, vars);
+		const groundP = col('--rm-ground', 'var(--bg1)');
+		expect(groundP.a, `${id} ${theme}: the ground is opaque`).toBe(1);
+		const ground = groundP.rgb;
+		const ctaBgP = col('--rm-cta-bg', 'transparent');
+		const ctaGround = over(ctaBgP, ground);
+		const ctaStops = (p['--rm-cta-img'] ?? '').match(/#[0-9a-f]{6}\b/gi)?.map((h) => K.hex(h)) ?? [];
+		return {
+			ground,
+			title: over(col('--rm-title', 'var(--text-1)'), ground),
+			accent: p['--rm-accent'] ? over(col('--rm-accent', 'inherit'), ground) : null,
+			icon: over(col('--rm-icon', 'var(--text-1)'), ground),
+			sub: over(col('--rm-sub', 'var(--text-2)'), ground),
+			cta: over(col('--rm-cta-ink', 'var(--text-1)'), ctaGround),
+			ctaGrounds: [ctaGround, ...ctaStops],
+			// The title's whole treatment: face, weight, case and tracking.
+			titleFace: [p['--rm-title-font'] ?? 'var(--font-display)', p['--rm-title-weight'] ?? '700', p['--rm-title-case'] ?? 'none', p['--rm-title-track'] ?? '0.02em'].join(' ')
+		};
+	}
 
-		// POSITIVE CONTROL for the line above: the same check must be able to SEE a
-		// declared family, or "some app takes the default" passes because the sweep
-		// found nothing at all.
-		expect(families.size, 'no family declares an accent').toBeGreaterThan(0);
-		// And no `[data-app=...]` rule re-pins the pair any more: one card's
-		// colour is its family's (ledger 0467), so the per-app rules carry
-		// textures only.
-		expect([...accentIds()]).toEqual([]);
-
-		// And no per-card rule may be inert. This used to require --acc-primary of
-		// every declaring id, which a texture-only rule legitimately breaks; the
-		// rule that survives is the one that was actually meant -- a
-		// `[data-app=...]` block has to carry at least one of the five properties
-		// the mechanism reads, or it is a selector painting nothing.
-		for (const id of declaringIds()) {
-			const body = ruleFor(id);
-			expect(
-				PER_CARD_PROPS.some((prop) => body.includes(`${prop}:`)),
-				`${id}: rule declares none of the per-card properties`
-			).toBe(true);
-		}
+	it('gives every app the launcher can draw a room entry, a paint block and a drawing, and nothing else one', () => {
+		const ids = EVERY_APP.map((a) => a.id).sort();
+		expect(ids.length).toBeGreaterThanOrEqual(14); // positive control: an admin's whole launcher
+		expect(LAUNCHER_ROOMS.map((r) => r.id).sort()).toEqual(ids);
+		const blocks = [...CARDS_CSS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/^\.app-card\[data-app='([a-z-]+)'\]\s*\{/gm)].map((m) => m[1]).sort();
+		expect(blocks).toEqual(ids);
+		const drawings = [...CARD_ART.matchAll(/app === '([a-z-]+)'/g)].map((m) => m[1]);
+		// Every app is drawn, and the Foundry's seam is the one second branch.
+		for (const id of ids) expect(drawings, id).toContain(id);
+		expect(drawings.filter((d) => !ids.includes(d))).toEqual([]);
+		// Each paint block says something: a ground, a title and an icon at least.
+		for (const id of ids) for (const prop of ['--rm-ground', '--rm-title', '--rm-icon']) expect(cardBlock(id)[prop], `${id} ${prop}`).toBeDefined();
 	});
 
-	/**
-	 * THE FOUNDRY CARD (ledger 0467). It used to quote its room's molten pour
-	 * as two typed hex values, and the test before that pinned it off a fifth
-	 * green. Now it is in the Make family with IdeaCAD and the Armory, painted
-	 * from the kit library's indigo through the generated token, and what is
-	 * pinned is the property the old census was protecting: no card on the
-	 * launcher spends the brand green, which means act and done.
-	 */
-	it('gives Foundry its family\'s colour, and no card the brand green', () => {
-		const foundry = PORTAL_APPS.find((a) => a.id === 'foundry')!;
-		expect(foundry.family).toBe('make');
-		expect(familyRule('make')).toContain('--acc-primary: var(--id-indigo-fill);');
-		expect(familyRule('make')).toContain('--acc-ink: var(--id-indigo-ink);');
-		// No rule anywhere in the launcher paints a card from a green.
-		for (const fam of familyIds()) {
-			expect(familyRule(fam), fam).not.toMatch(/--acc-(primary|secondary|ink):\s*var\(--(green|id-idea-green)/);
+	it('traces every colour on every card to its own app\'s files', () => {
+		const offenders: string[] = [];
+		let checked = 0;
+		for (const room of LAUNCHER_ROOMS) {
+			for (const theme of THEMES) {
+				const block = theme === 'idea' ? cardBlock(room.id) : cardBlock(room.id, theme);
+				for (const [prop, value] of Object.entries(block)) {
+					if (!COLOUR_PROPS.test(prop)) continue;
+					checked++;
+					const why = untraceable(value, room);
+					if (why) offenders.push(`${room.id} ${theme} ${prop}: ${why}`);
+				}
+			}
 		}
-		expect(LAUNCHER_CSS).not.toMatch(/--acc-primary:\s*#/);
+		expect(checked).toBeGreaterThan(150); // positive control: the reader found the paint
+		expect(offenders).toEqual([]);
 	});
 
+	it('NEGATIVE CONTROL: the tracer refuses a colour the room does not use, and a token it does not read', () => {
+		const gauntlet = launcherRoom('gauntlet')!;
+		expect(untraceable('#00ff41', gauntlet)).toBeNull();
+		expect(untraceable('#123456', gauntlet)).toMatch(/not in/);
+		expect(untraceable('rgba(1, 2, 3, 0.4)', gauntlet)).toMatch(/not in/);
+		// The plate's tokens are the Armory's own; GAUNTLET's VIEWPORT reads none of them.
+		expect(untraceable('var(--plate-panel-top)', launcherRoom('armory')!)).toBeNull();
+		expect(untraceable('var(--plate-panel-top)', gauntlet)).toMatch(/read by none/);
+		// And the same planted value in a parsed block is caught by the block reader.
+		const planted = CARDS_CSS + "\n.app-card[data-app='gauntlet'] { --rm-a8: #123456; }\n";
+		expect(untraceable(cardBlock('gauntlet', 'idea', planted)['--rm-a8'], gauntlet)).toMatch(/not in/);
+	});
+
+	it('draws no colour of its own in CardArt but the Foundry pour, which is the forge\'s own', () => {
+		const foundry = sourceText(launcherRoom('foundry')!.sources).toLowerCase();
+		const literals = CARD_ART.replace(/<!--[\s\S]*?-->/g, '').match(/#[0-9a-f]{6}\b/gi) ?? [];
+		expect(literals.length).toBeGreaterThan(5); // positive control: the seam's stops were read
+		for (const h of literals) expect(foundry, h).toContain(h.toLowerCase());
+		// The cover tiles are the gallery's generated covers, at the gallery's own saturation and lightness.
+		expect(CARD_ART).toContain('34% 27%');
+		expect(CARD_ART).toContain('40% 15%');
+		expect(foundry).toContain('34% 27%');
+		expect(foundry).toContain('40% 15%');
+		// It does not move: the mark is what plays, once, gated.
+		expect(CARD_ART).not.toMatch(/@keyframes|animation\s*:/);
+	});
+
+	it('looks like no other card: under every theme each pair differs in its ground, words, mark or face', () => {
+		const near = (a: Rgb, b: Rgb) => K.deltaE2000(a, b) < 10;
+		let pairs = 0;
+		const same: string[] = [];
+		for (const theme of THEMES) {
+			const r = EVERY_APP.map((a) => [a.id, resolved(a.id, theme)] as const);
+			for (let i = 0; i < r.length; i++)
+				for (let j = i + 1; j < r.length; j++) {
+					pairs++;
+					const [a, x] = r[i];
+					const [b, y] = r[j];
+					const alike = near(x.ground, y.ground) && near(x.title, y.title) && near(x.icon, y.icon) && near(x.cta, y.cta) && x.titleFace === y.titleFace;
+					if (alike) same.push(`${theme}: ${a} / ${b}`);
+				}
+		}
+		expect(pairs).toBeGreaterThan(200); // positive control
+		expect(same).toEqual([]);
+	});
+
+	it('follows its ROOM on Space White: a room that never changes keeps its card, a room that turns light turns its card', () => {
+		const key = (x: ReturnType<typeof resolved>) => [x.ground, x.title, x.icon, x.cta].map((c) => `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`).join(' ');
+		for (const room of LAUNCHER_ROOMS) {
+			const idea = resolved(room.id, 'idea');
+			const sw = resolved(room.id, 'space-white');
+			if (room.followsTheme) {
+				// Its ground turns light, as its room's does (positive direction).
+				expect(K.contrast(sw.ground, K.hex('#0d1311')), `${room.id} turns light`).toBeGreaterThan(10);
+			} else {
+				// GAUNTLET, GREENLINE, VANGUARD, IdeaCAD, FRC: identical on every theme.
+				expect(key(sw), `${room.id} on Space White`).toBe(key(idea));
+				expect(key(resolved(room.id, 'matrix')), `${room.id} on Matrix`).toBe(key(idea));
+				expect(cardBlock(room.id, 'space-white'), room.id).toEqual({});
+				expect(cardBlock(room.id, 'matrix'), room.id).toEqual({});
+			}
+		}
+		// Both kinds exist, so neither direction above passed empty.
+		expect(LAUNCHER_ROOMS.filter((r) => r.followsTheme).length).toBeGreaterThan(3);
+		expect(LAUNCHER_ROOMS.filter((r) => !r.followsTheme).map((r) => r.id).sort()).toEqual(['frc', 'gauntlet', 'greenline', 'ideacad', 'vanguard']);
+	});
+
+	it('clears 4.5:1 for every word on every card in every theme (title, its accent, description, call to action) and 3:1 for its mark', () => {
+		const fails: string[] = [];
+		let n = 0;
+		for (const theme of THEMES)
+			for (const app of EVERY_APP) {
+				const x = resolved(app.id, theme);
+				const check = (what: string, ink: Rgb, ground: Rgb) => {
+					n++;
+					const c = K.contrast(ink, ground);
+					if (c < 4.5) fails.push(`${theme} ${app.id} ${what} ${c.toFixed(2)}`);
+				};
+				check('title', x.title, x.ground);
+				if (x.accent) check('title accent', x.accent, x.ground);
+				check('description', x.sub, x.ground);
+				for (const g of x.ctaGrounds) check('call to action', x.cta, g);
+				// The mark is a graphical object: 3:1 on its card.
+				n++;
+				const glyph = K.contrast(x.icon, x.ground);
+				if (glyph < 3) fails.push(`${theme} ${app.id} mark ${glyph.toFixed(2)}`);
+			}
+		// Positive control: 14 cards x 3 themes x (title, description, call to action), and more.
+		expect(n).toBeGreaterThanOrEqual(14 * 3 * 3);
+		expect(fails).toEqual([]);
+	});
+});
+
+describe('launcher cards: the marks', () => {
 	it('gives the Foundry card an animated mark that hides nothing at rest', () => {
 		// EVERY app mark in $lib/marks animates under
 		// prefers-reduced-motion: no-preference AND is fully visible with the
@@ -578,16 +705,6 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		expect(mark).toContain('visibilitychange');
 		expect(mark).toContain('data-paused');
 		expect(mark).toContain('animation-play-state: paused');
-	});
-
-	it('puts Maps in the neutral Tools family, the default nobody declares', () => {
-		// Ledger 0467: Maps was a jade, the fifth green on this board, and green
-		// means act and done. It is a tool, and the Tools family is the default
-		// `.app-card` pair, so the Maps card has no rule of its own at all.
-		const maps = PORTAL_APPS.find((a) => a.id === 'maps')!;
-		expect(maps.family).toBe('tools');
-		expect(familyRule('tools')).toBe('');
-		expect(ruleFor('maps')).toBe('');
 	});
 
 	/**
@@ -862,14 +979,12 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		}
 	});
 
-	it('never moves an identity colour for contrast, only the ink', () => {
-		// FRC is the one family whose brand colour cannot carry text on --bg1
-		// (FIRST red measured 3.41:1 there). The strip paints the FIRST entries'
-		// fills and the words their ink, both solve()'s answers for the library
-		// anchors (ledger 0467); nothing re-pins either by hand.
-		const frc = familyRule('frc');
-		expect(frc).toContain('--acc-primary: var(--id-first-red-fill);');
-		expect(frc).toContain('--acc-secondary: var(--id-first-blue-fill);');
-		expect(frc).toContain('--acc-ink: var(--id-first-red-ink);');
+	it('leaves the FIRST mark exactly as FIRST draws it: the unmodified image, never animated or filtered', () => {
+		const snippet = LAUNCHER_SRC.slice(LAUNCHER_SRC.indexOf('{#snippet appIcon'), LAUNCHER_SRC.indexOf('{/snippet}', LAUNCHER_SRC.indexOf('{#snippet appIcon')));
+		expect(snippet).toContain('<img class="frc-icon-img" src={frcIcon} width="516" height="309"');
+		const rule = LAUNCHER_CSS.slice(LAUNCHER_CSS.indexOf('.app-icon.frc-icon :global(.frc-icon-img) {'));
+		const body = rule.slice(0, rule.indexOf('}'));
+		expect(body).not.toMatch(/filter|animation|transform/);
+		expect(cardBlock('frc')['--rm-icon-filter']).toBeUndefined();
 	});
 });

@@ -136,7 +136,8 @@ export function themeVars() {
 	const matrix = read(join(DS, 'themes/matrix.css'));
 	const spaceWhite = read(join(DS, 'themes/space-white.css'));
 	const plate = read(join(REPO, 'src/lib/classroom/plate.css'));
-	const base = block(colors, ':root');
+	// effects.css carries the drawing canvas (--blueprint-bg) a launcher card stands on.
+	const base = { ...block(read(join(DS, 'effects.css')), ':root'), ...block(colors, ':root') };
 	const plateDark = block(plate, ':is(.cr-plate, .site-plate), body:has(:is(.cr-plate, .site-plate))');
 	const plateFor = (id) =>
 		block(plate, `:root[data-theme='${id}'] :is(.cr-plate, .site-plate), :root[data-theme='${id}'] body:has(:is(.cr-plate, .site-plate))`);

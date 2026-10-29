@@ -1,5 +1,5 @@
 import { SETTLE_ENTRANCE } from './_shared.mjs';
-import { LAUNCHER_CARDS, THEME_ROWS } from './_theme-shared.mjs';
+import { CARD_LOOKS, LAUNCHER_CARDS, LAUNCHER_STUDENT_IDS, THEME_ROWS } from './_theme-shared.mjs';
 
 /* The student's launcher: every card less the two only an admin is shown (the
    Coin Desk and the admin dashboard). Exact, for the reason LAUNCHER_CARDS is. */
@@ -35,9 +35,9 @@ const STUDENT_CARDS = LAUNCHER_CARDS - 2;
  * because the light pair is `loading="lazy"`, and the claim that it costs the
  * dark themes no bytes is a claim about the network, not about the paint.
  *
- * THE FOUR CARDS THAT DECLARE NO ACCENT are measured one by one here, because
- * under Space White their ink moved off the brown gold onto the theme's green
- * (decision 40 item 1) and a worst-of-all row would hide a single card.
+ * EVERY CARD IS MEASURED ONE BY ONE (ledger 0472, decision 73): each is its
+ * own app's surface, its own ground and ink, so a worst-of-all row would hide
+ * the one card that fails.
  */
 /* A STUDENT with one class: the viewer the home page is for, and the only
    fixture whose banner carries the class chip (staff get none). The teacher
@@ -46,10 +46,6 @@ const STUDENT_CARDS = LAUNCHER_CARDS - 2;
    thirteen. */
 export const HOME = '/dev/home-order?role=student&classes=1&rows=3';
 
-/* The student-visible cards that declare no accent of their own and so paint
-   from the launcher's shared default (the Coin Desk is the fourth, and is
-   admin-only; /dev/themes measures it). */
-const DEFAULT_CARDS = ['classroom', 'notebook', 'ideacad'];
 
 const ROW = (id) => `.pm-theme:has([data-theme-swatch="${id}"])`;
 
@@ -129,32 +125,9 @@ const FETCH_PROBE = `() => {
    rows below are the verdict. */
 const CARD_INKS = `() => [...document.querySelectorAll('.launcher .app-card[data-app]')].map((c) => c.dataset.app + ' ' + getComputedStyle(c.querySelector('.app-title')).color).join('; ')`;
 
-/* HOW MANY INKS THE LAUNCHER SPEAKS IN. Under Space White every card has an
-   ink of its own (ledger 0381, decision 62, after the 2026-10-07 round's one
-   green made every app look the same), every edge is the plate's hairline,
-   and each strip is one solid colour (the card's own light ink) rather than a
-   neon gradient; the dark themes keep a colour per app too. The distinctness
-   floor is tests/space-white-inks.test.ts's; this row prints, it never pins. */
-const CARD_PALETTE = `() => {
-	const cards = [...document.querySelectorAll('.launcher .app-card[data-app]')];
-	const distinct = (f) => new Set(cards.map(f)).size;
-	const titles = distinct((c) => getComputedStyle(c.querySelector('.app-title')).color);
-	const glyphs = distinct((c) => getComputedStyle(c.querySelector('.app-icon')).color);
-	const edges = distinct((c) => getComputedStyle(c).borderTopColor);
-	const strips = cards.map((c) => c.querySelector('.app-strip')).filter(Boolean);
-	const gradients = strips.filter((s) => getComputedStyle(s).backgroundImage !== 'none').length;
-	return [
-		'cards ' + (cards.length ? 'measured' : 'NONE'),
-		'title colours ' + titles,
-		'glyph colours ' + glyphs,
-		'edge colours ' + edges,
-		'gradient strips ' + gradients
-	];
-}`;
-const CARD_PALETTE_PRINT = `() => {
-	const cards = [...document.querySelectorAll('.launcher .app-card[data-app]')];
-	return cards.map((c) => c.dataset.app + ' edge ' + getComputedStyle(c).borderTopColor + ' strip ' + (getComputedStyle(c.querySelector('.app-strip')).backgroundImage === 'none' ? getComputedStyle(c.querySelector('.app-strip')).backgroundColor : 'gradient')).join('; ');
-}`;
+/* What every card computes, printed and never pinned: its ground, its title
+   ink and face. */
+const CARD_LOOKS_PRINT = `() => [...document.querySelectorAll('.launcher .app-card[data-app]')].map((c) => { const t = getComputedStyle(c.querySelector('.app-title')); return c.dataset.app + ' ground ' + getComputedStyle(c).backgroundColor + ' title ' + t.color + ' ' + t.fontFamily.split(',')[0]; }).join('; ')`;
 
 export const homeThemeSpec = (theme) => {
 	const gateWall = theme === 'space-white';
@@ -168,7 +141,7 @@ export const homeThemeSpec = (theme) => {
 			{ evaluate: SETTLE_ENTRANCE, waitMs: 150, label: 'settle the entrance' },
 			...reach(theme),
 			{ evaluate: CARD_INKS, label: 'what every card title computes' },
-			{ evaluate: CARD_PALETTE_PRINT, label: 'what every card edge and strip computes (printed, never pinned)' }
+			{ evaluate: CARD_LOOKS_PRINT, label: 'what every card ground and title computes (printed, never pinned)' }
 		],
 		presence: [
 			theme === 'idea'
@@ -189,7 +162,7 @@ export const homeThemeSpec = (theme) => {
 			{ selector: '.launcher .launcher-title', label: 'launcher heading', min: 4.5 },
 			{ selector: '.launcher .bar-btn', label: 'launcher bar buttons', min: 4.5 },
 			{ selector: '.launcher .app-card .app-title', label: 'every card title on its card', min: 4.5 },
-			...DEFAULT_CARDS.map((id) => ({ selector: `.launcher .app-card[data-app='${id}'] .app-title`, label: `default card ${id}: title`, min: 4.5 })),
+			...LAUNCHER_STUDENT_IDS.map((id) => ({ selector: `.launcher .app-card[data-app='${id}'] .app-title`, label: `card ${id}: title on its own card`, min: 4.5 })),
 			{ selector: '.launcher .app-card .app-icon', label: 'every card glyph at 34px on its card (3:1, graphical)', min: 3 },
 			{ selector: '.legacy-index .hero-stat .value.v-year', label: 'hero: the school year', min: 4.5 },
 			{ selector: '.launcher .app-card .app-cta', label: 'every card call to action', min: 4.5 },
@@ -233,23 +206,13 @@ export const homeThemeSpec = (theme) => {
 				evaluate: FETCH_PROBE,
 				expected: ['dark emblem fetched yes', `light emblem fetched ${theme === 'space-white' ? 'yes' : 'no'}`]
 			},
-			...(theme === 'space-white'
-				? [
-						{
-							// A COLOUR PER APP since decision 62 (ledger 0381): every title
-							// and glyph its own, one hairline edge, no gradient strip.
-							label: 'a colour for every card: as many title and glyph colours as cards, one edge colour, and no gradient strip',
-							evaluate: CARD_PALETTE,
-							expected: ['cards measured', `title colours ${STUDENT_CARDS}`, `glyph colours ${STUDENT_CARDS}`, 'edge colours 1', 'gradient strips 0']
-						}
-					]
-				: [
-						{
-							label: 'control: the dark theme keeps a colour per app (more than one title colour) and the brand gradient strips',
-							evaluate: `() => { const r = (${CARD_PALETTE})(); const cards = document.querySelectorAll('.launcher .app-card[data-app]').length; return [r[0], Number(r[1].split(' ').pop()) > 1 ? 'title colours several' : r[1], Number(r[4].split(' ').pop()) === cards ? 'every strip a gradient' : r[4]]; }`,
-							expected: ['cards measured', 'title colours several', 'every strip a gradient']
-						}
-					])
+			{
+				// A LOOK PER APP in every theme (decision 73): as many looks as
+				// cards, the app's own drawing on each, and no family strip.
+				label: 'every card its own app: as many looks as cards, a drawing on each, no strip',
+				evaluate: CARD_LOOKS,
+				expected: ['cards measured', `looks ${STUDENT_CARDS}`, 'strips 0', `drawings ${STUDENT_CARDS}`]
+			}
 		]
 	};
 };

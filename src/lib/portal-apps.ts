@@ -30,15 +30,6 @@ export interface PortalApp {
 	/** Only rendered for site admins (0067; was teachers). */
 	adminOnly?: boolean;
 	/**
-	 * WHICH FAMILY THE APP BELONGS TO, AND THAT IS IDENTITY, NOT PAINT (ledger
-	 * 0467). The launcher draws at most seven hues on one screen, so apps of
-	 * one kind share one: the family. AppLauncher stamps it as `data-family`
-	 * and its stylesheet keys the colour on that attribute, each family an entry
-	 * of the kit's colour library solved per theme (`--id-*`). This field names
-	 * the group; it never carries a colour, for the cascade reason below.
-	 */
-	family: AppFamily;
-	/**
 	 * THERE IS NO `theme` FIELD, AND ADDING ONE BACK IS STILL THE CHANGE TO
 	 * REFUSE -- but the per-app accent it used to carry is BACK, one layer down.
 	 *
@@ -53,11 +44,13 @@ export interface PortalApp {
 	 * and VANGUARD carry their own product colours and the FRC card carries
 	 * FIRST's brand.
 	 *
-	 * The pairs now live in AppLauncher's stylesheet, keyed on the `data-app`
-	 * attribute the card already carried, with the shared brass/gold pair as the
-	 * live default on `.app-card` for any app that declares nothing. A new app
-	 * therefore looks right with no entry anywhere, and a later pass overrides
-	 * one card with one selector instead of hunting through a registry.
+	 * Every card's look is its own app's now (ledger 0472, decision 73), and it
+	 * lives in `$lib/launcher/cards.css`, keyed on the `data-app` attribute the
+	 * card already carries, with the site plate as the live default for any app
+	 * that declares nothing. There is no `family` field either: ledger 0467
+	 * grouped the apps into six shared hues and decision 73 retired that. A
+	 * new app therefore arrives as a plain plate card, and gets its own look
+	 * with one block in cards.css and one entry in `$lib/launcher/rooms.ts`.
 	 *
 	 * What belongs in THIS file is the app's identity (`id`), not its paint. A
 	 * colour field here would put the value back on the losing side of the
@@ -72,21 +65,6 @@ export interface PortalApp {
 	legacy?: boolean;
 }
 
-/**
- * THE LAUNCHER'S FAMILIES (ledger 0467, feedback ac7d7b60): six hues a reader
- * tells apart on the home screen, each card still carrying its own name and
- * mark beside the hue. `tests/identity-colors.test.ts` holds every app to a
- * family, every family to a stylesheet rule, and the set to at most seven.
- */
-export type AppFamily = 'class' | 'make' | 'coins' | 'play' | 'frc' | 'tools';
-export const APP_FAMILIES: readonly { id: AppFamily; word: string }[] = [
-	{ id: 'class', word: 'Class' },
-	{ id: 'make', word: 'Make' },
-	{ id: 'coins', word: 'Coins' },
-	{ id: 'play', word: 'Play' },
-	{ id: 'frc', word: 'FRC' },
-	{ id: 'tools', word: 'Tools' }
-];
 
 /**
  * THE CURATED DEFAULT ORDER IS THIS ARRAY'S ORDER. Class work first, then the
@@ -97,9 +75,8 @@ export const APP_FAMILIES: readonly { id: AppFamily; word: string }[] = [
 export const PORTAL_APPS: PortalApp[] = [
 	{
 		id: 'classroom',
-		family: 'class',
 		title: 'Classroom',
-		sub: 'Your classes: announcements, assignments, and due dates from your teachers.',
+		sub: 'Announcements, assignments and due dates.',
 		icon: 'classroom',
 		href: '/classroom',
 		cta: 'Open',
@@ -107,9 +84,8 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'notebook',
-		family: 'class',
 		title: 'My Notebook',
-		sub: 'Photograph your engineering notebook pages and keep every entry in one place.',
+		sub: 'Photograph notebook pages and keep every entry.',
 		icon: 'notebook',
 		href: '/classroom/notebook',
 		cta: 'Open',
@@ -119,9 +95,8 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'ideacad',
-		family: 'make',
 		title: 'IdeaCAD',
-		sub: 'A full-screen 3D CAD workspace for your models, features, properties, and design rules.',
+		sub: '3D CAD for your models, features and design rules.',
 		icon: 'ideacad',
 		href: '/ideacad',
 		cta: 'Design',
@@ -129,9 +104,8 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'armory',
-		family: 'make',
 		title: 'IDEA Armory',
-		sub: 'Your team CAD files on every computer: check out, check in, and every version kept.',
+		sub: 'Team CAD files on every computer, every version kept.',
 		icon: 'armory',
 		href: '/armory',
 		cta: 'Open',
@@ -141,9 +115,8 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'maps',
-		family: 'tools',
 		title: 'IDEA Maps',
-		sub: 'Find any room, any storage unit, and any tool, down to the drawer it lives in.',
+		sub: 'Find any room, tool or drawer in the shop.',
 		icon: 'maps',
 		href: '/maps',
 		cta: 'Find',
@@ -181,13 +154,12 @@ export const PORTAL_APPS: PortalApp[] = [
 	// retired card is dropped with it, the cost report 16's answer named.
 	{
 		id: 'coins',
-		family: 'coins',
 		title: 'IDEA Coin Ledger',
 		// PARALLEL WITH COIN DESK BELOW, AND THAT IS THE WHOLE FIX. Each card
 		// says which side of the ledger it is, in the same grammar, so the
 		// question "which of these two do I want" is answered by either card on
 		// its own rather than by comparing them.
-		sub: 'Where everyone reads the coins: your balance, the leaderboard, every transaction and role applications. Nothing here changes a balance.',
+		sub: 'Where everyone reads coins. Nothing here changes a balance.',
 		icon: 'coins',
 		href: '/coins/index.html',
 		cta: 'View live'
@@ -201,9 +173,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		// where a reader already looks for coins, and it needs a session because
 		// buying, posting and sending all do.
 		id: 'market',
-		family: 'coins',
 		title: 'IDEA Market',
-		sub: 'Spend your coins: the shop, listings from classmates, jobs that pay, sending coins to a friend, and the stock market.',
+		sub: 'The shop, listings, jobs that pay, and the stock market.',
 		icon: 'market',
 		href: '/market',
 		cta: 'Shop',
@@ -211,9 +182,8 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'gauntlet',
-		family: 'play',
 		title: 'IDEA · GAUNTLET',
-		sub: 'CAD skills dojo. Read drawings, model against the clock, and climb the boards.',
+		sub: 'CAD skills dojo: read drawings, model against the clock.',
 		icon: 'gauntlet',
 		href: '/gauntlet',
 		cta: 'Enter',
@@ -221,9 +191,8 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'frc',
-		family: 'frc',
 		title: 'FRC Training',
-		sub: 'The Team 5669 training track: CAD, mechanisms, controls, strategy, and drive team.',
+		sub: 'Team 5669 training: CAD, mechanisms, controls, strategy.',
 		icon: 'frc',
 		href: '/frc',
 		cta: 'Enter',
@@ -234,9 +203,8 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'greenline',
-		family: 'play',
 		title: 'IDEA · GREENLINE',
-		sub: 'Combat racing under the floodlights. Build your machine, run Proving Ground 07, and hold the line.',
+		sub: 'Combat racing under the floodlights. Hold the line.',
 		icon: 'greenline',
 		href: '/greenline',
 		cta: 'Race',
@@ -244,18 +212,16 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'vanguard',
-		family: 'play',
 		title: 'IDEA · VANGUARD',
-		sub: 'Top-down arcade shooter. Clear the sectors, chain your combos, and chase the high score.',
+		sub: 'Top-down arcade shooter. Chase the high score.',
 		icon: 'vanguard',
 		href: '/vanguard/',
 		cta: 'Play'
 	},
 	{
 		id: 'foundry',
-		family: 'make',
 		title: 'IDEA · FOUNDRY',
-		sub: 'Web apps built and published by students. Open one, or publish your own.',
+		sub: 'Web apps built and published by students.',
 		icon: 'foundry',
 		href: '/foundry',
 		cta: 'Browse',
@@ -281,16 +247,14 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'tournaments',
-		family: 'play',
 		title: 'Tournaments',
-		sub: 'Live double-elimination brackets: register, qualify, and follow every match in real time.',
+		sub: 'Live brackets: register, qualify, follow every match.',
 		icon: 'tournament',
 		href: '/tournaments',
 		cta: 'View'
 	},
 	{
 		id: 'dashboard',
-		family: 'tools',
 		title: 'Admin',
 		// ONE ADMIN CARD, WHERE THERE USED TO BE TWO (ledger 0117, report 26:
 		// "site admins and the admin dashboard should be one app rather than
@@ -312,7 +276,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		// renaming it would drop every admin's record of this card for a tidier
 		// string. A stored `admin` id is simply never matched again, which is
 		// what a retired id has always done here.
-		sub: 'Reviews, feedback, students and pathways, the admin roster, short links, coin tools and the Drive connection. Admin tool.',
+		sub: 'Reviews, feedback, rosters and site tools. Admin only.',
 		icon: 'dashboard',
 		href: '/dashboard',
 		cta: 'Open',
