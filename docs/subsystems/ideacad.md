@@ -53,6 +53,40 @@ have since left is exactly what he wants to be able to show, so `archived_at` on
     ARCHIVED document may be shared this way, and restoring one DELETES its class
     grants in the same statement.
 
+**SHARING A DIRECT MODEL WITH PEOPLE IS ONE PANEL OVER THREE FUNCTIONS
+(ledger 0470, 0325, report 155bba3d).** `ShareModelPanel` sits in a model's
+Manage area on the launch page: who has it (Can view or Can edit, changed or
+removed in place), a picker, and one Share for everyone picked. Every change is
+confirmed in words from what the database says changed (`outcomeSentence` in
+`$lib/ideacad/solid/launch/share.ts`) with Undo for `UNDO_MS`, and Undo is the
+database's own inverse list handed back to the same function.
+  - **`ideacad_set_direct_document_access` CALLS THE SINGLE-ROW FUNCTIONS PER
+    PERSON** (`ideacad_share_direct_document`, `ideacad_unshare_document`), so
+    owner-only, not-trashed, not-yourself and has-signed-in stay stated once.
+    One call, one transaction, per-row refusals, at most 100 changes a call;
+    there is no cap on how many people a model has.
+  - **WHAT A STUDENT MAY SEARCH IS THE MINIMUM AND IS A DISCLOSURE DECISION.**
+    `ideacad_share_people` answers only the owner of the model it is asked
+    about, lists only Bosco Tech accounts that have signed in, needs two
+    letters (an empty box suggests teammates only), returns twelve at most,
+    teammates then classmates then the school, and returns a name, a picture,
+    Staff or not, the relation and the person's access, never an address. A
+    person is named by an opaque key. Neither it nor
+    `ideacad_direct_document_access` sends an email; widening either is a
+    disclosure decision (CLAUDE.md, Probing must reveal nothing).
+  - **A CHOSEN DISPLAY NAME REPLACES THE ACCOUNT IN SHARING COMPLETELY.**
+    `_ideacad_share_person_json` is the one statement: the shown name is the
+    chosen one, else the account name; a person with a chosen name is found by
+    it or by their whole address typed exactly, never by their account name or
+    a part of their address; their Google photo is sent only when they chose
+    neither a name nor a picture. `tests/db/ideacad-direct-share-people.test.ts`
+    holds both directions, mutation proved.
+  - **THE PICKER IS THE SITE'S ONE PERSON PICKER, `$lib/ui/PersonPicker.svelte`.**
+    Each surface hands in its own directory and maps its rows onto
+    `PickerPerson`; tournaments' `src/lib/tournaments/PersonPicker.svelte` is
+    an adapter over it. A new surface that picks people mounts it rather than
+    writing a second one.
+
 **THE DIRECT MODELER'S WORKSPACE STATE NEVER ENTERS ITS MANIFEST, BECAUSE
 `record()` IN `SolidWorkspace.svelte` DIFFS MANIFESTS.** Every difference
 between two manifests becomes a history row and a save, so hover, the rollback

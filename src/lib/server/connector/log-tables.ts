@@ -98,6 +98,7 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'gauntlet_rank_settings',
 	'greenline_decals',
 	'greenline_tracks',
+	'ideacad_grants',
 	'ideacad_materials',
 	'maps_editor_grants',
 	'maps_item_types',

@@ -441,8 +441,9 @@ describe('actual direct transport with real SQL receipts and authorizations',()=
 		expect((await tx.save(input)).revision).toBe(3);const reopened=await tx.open(d.id);expect(reopened.snapshot.manifest).toEqual(d.snapshot.manifest);
 		const groups=await import('../../src/lib/ideacad/solid/history');expect(groups.foldGroups(groups.groupHistory(reopened.history!)).redoTarget?.depth).toBe(1);
 	});
-	it('routes named-share removal to the authorized revoke RPC',async()=>{
-		const tx=createSolidTransports(clientFor(owner)),d=await tx.transport.create('Share revoke');await tx.share(d.id,viewer.email,'viewer');expect((await open(d.id,viewer)).role).toBe('viewer');await tx.share(d.id,viewer.email,'none');expect(await denied(viewer,'public.ideacad_open_direct_document($1::uuid)',[d.id])).toContain('does not exist');
+	// Ledger 0470 retired the launch page's one-address `share` transport; the batch share (0325) calls these same two functions per person.
+	it('revokes a named share through the authorized revoke RPC',async()=>{
+		const tx=createSolidTransports(clientFor(owner)),d=await tx.transport.create('Share revoke');await call(owner,'public.ideacad_share_direct_document($1::uuid,$2,$3)',[d.id,viewer.email,'viewer']);expect((await open(d.id,viewer)).role).toBe('viewer');await call(owner,'public.ideacad_unshare_document($1::uuid,$2)',[d.id,viewer.email]);expect(await denied(viewer,'public.ideacad_open_direct_document($1::uuid)',[d.id])).toContain('does not exist');
 	});
 	it('keeps a conflict visible when an uncertain accepted operation has a newer remote edit',async()=>{
 		let lost=false;const tx=createSolidTransports(clientFor(owner,(name,_args,result)=>{if(name==='ideacad_save_direct_document'&&!result.duplicate&&!lost){lost=true;throw Error('Lost response after accepted operation');}})).transport;

@@ -315,7 +315,7 @@ Generated from the overlay on 2026-10-28.
 | IDEA Classroom | 40 | 59 | 35 | 3 | 26 |
 | IDEA Coin | 27 | 9 | 10 | 1 | 26 |
 | IDEA Maps | 3 | 2 | 1 | 0 | 0 |
-| IdeaCAD | 5 | 2 | 0 | 0 | 1 |
+| IdeaCAD | 7 | 2 | 1 | 0 | 1 |
 | market.yaml | 6 | 0 | 9 | 1 | 0 |
 | Notebook | 4 | 14 | 5 | 1 | 9 |
 | People, feedback and the rest of the site | 13 | 9 | 9 | 0 | 6 |
@@ -323,7 +323,7 @@ Generated from the overlay on 2026-10-28.
 | The connector itself | 5 | 1 | 3 | 0 | 7 |
 | Tournaments | 4 | 7 | 11 | 1 | 11 |
 | view-as.yaml | 1 | 0 | 1 | 0 | 3 |
-| **All** | **177** | **121** | **119** | **8** | **247** |
+| **All** | **179** | **121** | **120** | **8** | **247** |
 
 <details><summary>calendar.yaml</summary>
 
@@ -408,8 +408,9 @@ Generated from the overlay on 2026-10-28.
 
 <details><summary>IdeaCAD</summary>
 
-- **Read:** `ideacad_archive`, `ideacad_assembly`, `ideacad_direct_documents`, `ideacad_direct_folders`, `ideacad_shared_with_me`
+- **Read:** `ideacad_archive`, `ideacad_assembly`, `ideacad_direct_document_access`, `ideacad_direct_documents`, `ideacad_direct_folders`, `ideacad_share_people`, `ideacad_shared_with_me`
 - **Undo:** `ideacad_material_save_global`, `ideacad_material_set_retired`
+- **Asks first:** `ideacad_set_direct_document_access`
 - **Excluded (the reason is in the YAML):** `ideacad_set_direct_document_thumbnail`
 
 </details>

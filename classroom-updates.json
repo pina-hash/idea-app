@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-28",
+			"title": "Share an IdeaCAD model by picking people",
+			"body": "Open Manage on one of your models to see everyone it is shared with, and change Can view or Can edit, or remove someone, right there. To share, click the box: your teammates show up first, and you can find classmates and anyone at Bosco Tech by name. Pick as many people as you need, choose Can view or Can edit for each, then press Share once. Every change tells you what happened and gives you a few seconds to Undo.",
+			"tags": ["IdeaCAD"]
+		},
+		{
+			"date": "2026-10-28",
 			"title": "New rotations start with their posts ready, and seeded tournaments start again",
 			"body": "When a new rotation starts, your teacher can copy the last class's assignments into your class in one step, with every due date and day-by-day plan moved to your class's own calendar, so check the dates in your own class, not the ones a friend in another rotation had. Nothing anyone else wrote, turned in or was graded on comes with it. Tournaments that use seeding matches can start their bracket again, and until the first bracket match begins your teacher can still change how many games each match is, with a longer final if they want one.",
 			"tags": ["Assignments", "Tournaments"]

@@ -6,6 +6,7 @@ import type {AdvisoryLimits,AdvisoryRules,AdvisoryTransport} from './advisory';
 import {normalizeDocument,normalizeFolder,normalizeTrashed,type LaunchDocument,type LaunchFolder,type TrashedDocument} from './launch/library';
 import type {TrashReceipt} from './launch/api';
 import {STORAGE_UNAVAILABLE} from './launch/wording';
+import {SHARING_UNAVAILABLE,parseAccess,parseOutcome,parseSharePeople,type AccessList,type ShareChange,type ShareOutcome,type SharePerson} from './launch/share';
 import {createIdeacadLive} from '../live';
 import {artifactHashes,connectIdeacadLive,readHistoryAfter,type SolidLiveTransport} from './live-sync';
 
@@ -21,6 +22,7 @@ export function createSolidTransports(supabase:SupabaseClient){
 	/* THE STORAGE CALLS DEGRADE ON `PGRST202` ALONE (CLAUDE.md, RPC degradation): a function 0217 adds is absent on a
 	   deployment sitting before it, and that is a deployment state to name in one sentence, never a crash. Any other
 	   error is the function's own refusal and is shown verbatim where the student pressed. */
+	async function sharing(name:string,args:Record<string,unknown>):Promise<any>{const {data,error}=await supabase.rpc(name,args);if(error)throw Error(error.code==='PGRST202'?SHARING_UNAVAILABLE:error.message);return data;}
 	async function storage(name:string,args?:Record<string,unknown>):Promise<any>{const {data,error}=await supabase.rpc(name,args);if(error)throw Error(error.code==='PGRST202'?STORAGE_UNAVAILABLE:error.message);return data;}
 	const payloads=new Map<string,Record<string,unknown>>(),accepted=new Map<string,number>(),observed=new Map<string,number>();
 	/** The BREP bytes for `hashes`, fetched a hundred at a time, added to `into`. Integrity is the caller's `intact` pass. */
@@ -93,7 +95,11 @@ export function createSolidTransports(supabase:SupabaseClient){
 			return {rows,head,artifacts:[...got.values()]};
 		}
 	});
-	return {transport,advisoryTransport,live,list:async():Promise<DirectSummary[]>=>((await rpc('ideacad_direct_documents')) as unknown[]).map(normalizeDocument),link:(id:string,itemId:string)=>rpc('ideacad_link_direct_document',{p_document_id:id,p_item_id:itemId}),share:(id:string,email:string,role:'viewer'|'editor'|'none')=>role==='none'?rpc('ideacad_unshare_document',{p_document_id:id,p_grantee_email:email}):rpc('ideacad_share_direct_document',{p_document_id:id,p_grantee_email:email,p_role:role}),archive:(id:string,archived:boolean)=>rpc('ideacad_set_direct_document_archived',{p_document_id:id,p_archived:archived}),
+	return {transport,advisoryTransport,live,list:async():Promise<DirectSummary[]>=>((await rpc('ideacad_direct_documents')) as unknown[]).map(normalizeDocument),link:(id:string,itemId:string)=>rpc('ideacad_link_direct_document',{p_document_id:id,p_item_id:itemId}),archive:(id:string,archived:boolean)=>rpc('ideacad_set_direct_document_archived',{p_document_id:id,p_archived:archived}),
+		/* 0325 (ledger 0470): sharing with people. Degrades on `PGRST202` alone to the one sentence the panel shows. */
+		access:async(id:string):Promise<AccessList>=>parseAccess(await sharing('ideacad_direct_document_access',{p_document_id:id})),
+		people:async(id:string,query:string):Promise<SharePerson[]>=>parseSharePeople(await sharing('ideacad_share_people',{p_document_id:id,p_query:query})),
+		setAccess:async(id:string,changes:ShareChange[]):Promise<ShareOutcome>=>parseOutcome(await sharing('ideacad_set_direct_document_access',{p_document_id:id,p_changes:changes})),
 		classShare:(id:string,sectionId:string,remove=false)=>rpc(remove?'ideacad_unshare_direct_document_from_section':'ideacad_share_direct_document_with_section',{p_document_id:id,p_section_id:sectionId}),
 		sections:async(itemId:string):Promise<{id:string;label:string}[]>=>{const {data,error}=await supabase.from('classroom_postings').select('section_id,classroom_sections!inner(id,label)').eq('item_id',itemId);if(error)throw Error(error.message);return(data??[]).map((r:any)=>({id:r.section_id,label:r.classroom_sections.label}));},
 		/* 0217: the trash, folders, tags, rename and duplicate. Names and parameter spellings are the migration's own;

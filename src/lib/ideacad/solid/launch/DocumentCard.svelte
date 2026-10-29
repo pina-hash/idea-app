@@ -10,10 +10,12 @@
   the api's; a refusal renders here, under the control that was pressed.
 
   AN OMITTED OPTIONAL TRANSPORT REMOVES ITS CONTROL: sharing, linking and the
-  class share exist only when `api.share`, `api.link`, `api.classShare` do.
+  class share exist only when `api.access` (with `people` and `setAccess`),
+  `api.link`, `api.classShare` do. Sharing with people is `ShareModelPanel`.
 -->
 <script lang="ts">
 	import type { LaunchApi } from './api';
+	import ShareModelPanel from './ShareModelPanel.svelte';
 	import { folderNameOf, parseTagLine, roleWord, type LaunchDocument, type LaunchFolder } from './library';
 	import { ARCHIVE_SENTENCE, LINKED_KEPT_SENTENCE, TRASH_SENTENCE, UNARCHIVE_SENTENCE, archiveConfirm, archivedSentence, countsSentence, duplicatedSentence, editedSentence, trashConfirm, trashedSentence, unarchiveConfirm, unarchivedSentence } from './wording';
 	import type { IdeaCadDocumentSource } from '../../app/types';
@@ -23,7 +25,7 @@
 	} = $props();
 	let expanded = $state(false), armed = $state<'' | 'trash' | 'archive' | 'unarchive'>(''), refusal = $state(''), busy = $state(false);
 	let renaming = $state(false), titleDraft = $state(''), tagsDraft = $state(''), tagsEditing = $state(false);
-	let shareEmail = $state(''), shareRole = $state<'viewer' | 'editor' | 'none'>('viewer'), assignment = $state('');
+	let assignment = $state('');
 	let sections: { id: string; label: string }[] = $state([]), sectionId = $state('');
 	const folderName = $derived(folderNameOf(row, folders));
 	const role = $derived(roleWord(row));
@@ -94,12 +96,8 @@
 						<div class="pair"><button class="accept" disabled={busy}>Save tags</button><button type="button" class="cancel" onclick={() => (tagsEditing = false)}>Cancel</button></div>
 					</form>
 				{/if}
-				{#if api.share}
-					<form class="share" onsubmit={(e) => { e.preventDefault(); void run(() => api.share!(row.id, shareEmail, shareRole)); }}>
-						<label>Share with<input type="email" required placeholder="Email address" bind:value={shareEmail} /></label>
-						<label>Permission<select bind:value={shareRole}><option value="viewer">Can view</option><option value="editor">Can edit</option><option value="none">Remove access</option></select></label>
-						<button disabled={busy}>Update sharing</button>
-					</form>
+				{#if api.access && api.people && api.setAccess}
+					<ShareModelPanel documentId={row.id} title={row.title} api={{ access: api.access, people: api.people, setAccess: api.setAccess }} />
 				{/if}
 				{#if api.link && !row.itemId && sources.length}
 					<form class="link" onsubmit={(e) => { e.preventDefault(); void run(() => api.link!(row.id, assignment)); }}>

@@ -183,7 +183,7 @@ const MIGRATION_0206 = '0206_ideacad_grant_guard.sql';
  */
 interface IdeacadFn {
 	readonly kind: 'client' | 'definer';
-	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211' | '0214' | '0216' | '0217';
+	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211' | '0214' | '0216' | '0217' | '0325';
 	readonly reason: string;
 }
 
@@ -352,6 +352,12 @@ const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	_ideacad_trash_window: {kind:'definer',migration:'0217',reason:'The one statement of the thirty-day window, read by definers.'},
 	_ideacad_purge_expired_direct_documents: {kind:'definer',migration:'0217',reason:'The lazy expiry sweep, called by the trash RPCs.'},
 	_ideacad_clean_tags: {kind:'definer',migration:'0217',reason:'Tag normalisation inside the tag writer.'},
+	// 0325 (ledger 0470), sharing a direct model with people.
+	ideacad_share_people: {kind:'client',migration:'0325',reason:'Owner searches people to share a model with; names and pictures, never an address.'},
+	ideacad_direct_document_access: {kind:'client',migration:'0325',reason:'Owner, or a teacher of record, reads who a model is shared with.'},
+	ideacad_set_direct_document_access: {kind:'client',migration:'0325',reason:'Owner shares, changes and removes many people in one call.'},
+	_ideacad_share_circle: {kind:'definer',migration:'0325',reason:'The caller\'s teammates and classmates, read by the people search.'},
+	_ideacad_share_person_json: {kind:'definer',migration:'0325',reason:'The one statement of how a sharing surface shows a person.'},
 };
 
 /**

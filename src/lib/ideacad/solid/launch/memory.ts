@@ -11,10 +11,20 @@
 import type { LaunchApi, TrashReceipt } from './api';
 import type { LaunchDocument, LaunchFolder, TrashedDocument } from './library';
 import { copyTitle, TRASH_WINDOW_DAYS } from './wording';
+import { parseOutcome, type AccessList, type ShareChange, type ShareOutcome, type SharePerson, type ShareRole } from './share';
 
-export interface MemoryLaunchSeed { documents?: LaunchDocument[]; folders?: LaunchFolder[]; trash?: TrashedDocument[]; now?: () => Date; latencyMs?: number }
+/** A person the in-memory directory knows: what 0325 returns, plus the address only the database holds. */
+export interface MemorySharePerson extends Omit<SharePerson, 'access'> { email: string }
+
+export interface MemoryLaunchSeed {
+	documents?: LaunchDocument[]; folders?: LaunchFolder[]; trash?: TrashedDocument[]; now?: () => Date; latencyMs?: number;
+	/** Hand in a directory to get the three sharing transports; leave it out and the share panel is absent. */
+	people?: MemorySharePerson[];
+	/** Grants already on file, by document id, then person key. */
+	grants?: Record<string, Record<string, ShareRole>>;
+}
 export interface MemoryLaunchApi extends LaunchApi {
-	state: { documents: LaunchDocument[]; folders: LaunchFolder[]; trash: TrashedDocument[] };
+	state: { documents: LaunchDocument[]; folders: LaunchFolder[]; trash: TrashedDocument[]; grants: Record<string, Record<string, ShareRole>> };
 	/** Every call, in order, as `name(args)`, so a test can assert what was asked. */
 	calls: string[];
 }
@@ -27,7 +37,7 @@ const nextId = (prefix: string) => `${prefix}-${(++counter).toString(36)}`;
 
 export function createMemoryLaunchApi(seed: MemoryLaunchSeed = {}): MemoryLaunchApi {
 	const now = seed.now ?? (() => new Date());
-	const state = { documents: structuredClone(seed.documents ?? []), folders: structuredClone(seed.folders ?? []), trash: structuredClone(seed.trash ?? []) };
+	const state = { documents: structuredClone(seed.documents ?? []), folders: structuredClone(seed.folders ?? []), trash: structuredClone(seed.trash ?? []), grants: structuredClone(seed.grants ?? {}) };
 	const calls: string[] = [];
 	const wait = () => (seed.latencyMs ? new Promise<void>((r) => setTimeout(r, seed.latencyMs)) : Promise.resolve());
 	const log = (name: string, ...args: unknown[]) => calls.push(`${name}(${args.map((a) => JSON.stringify(a)).join(',')})`);
@@ -123,5 +133,57 @@ export function createMemoryLaunchApi(seed: MemoryLaunchSeed = {}): MemoryLaunch
 			state.documents.unshift(copy); return { id: copy.id };
 		}
 	};
+	if (seed.people) Object.assign(api, memorySharing(seed.people, state, own, log, wait));
 	return api;
+}
+
+/*
+ * THE THREE SHARING CALLS, answered the way 0325 answers them, with its
+ * sentences byte for byte: the directory never returns an address, matches a
+ * name (or a whole address typed exactly), and ranks teammates, classmates,
+ * then everyone; the batch share acts per person and hands back the inverse.
+ */
+const SHARE_OWN_ONLY = 'You can only share your own document.';
+function memorySharing(
+	directory: MemorySharePerson[],
+	state: { documents: LaunchDocument[]; grants: Record<string, Record<string, ShareRole>> },
+	own: (id: string) => LaunchDocument,
+	log: (name: string, ...args: unknown[]) => void,
+	wait: () => Promise<void>
+): Pick<LaunchApi, 'access' | 'people' | 'setAccess'> {
+	const rank = { teammate: 2, classmate: 1, school: 0 } as const;
+	const shared = (id: string) => (state.grants[id] ??= {});
+	const mine = (id: string) => { try { return own(id); } catch { throw Error(SHARE_OWN_ONLY); } };
+	const listFor = (id: string): AccessList => {
+		const g = shared(id);
+		const people = directory.filter((p) => g[p.key]).map(({ email: _email, relation: _relation, ...p }) => ({ ...p, role: g[p.key], grantedAt: null })).sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
+		return { canChange: true, count: people.length, people };
+	};
+	return {
+		async access(id) { log('access', id); await wait(); mine(id); return listFor(id); },
+		async people(id, query) {
+			log('people', id, query); await wait(); mine(id);
+			const q = query.trim().toLowerCase(), g = shared(id);
+			if (q !== '' && q.replace(/\s+/g, '').length < 2) return [];
+			return directory
+				.filter((p) => (q === '' ? p.relation === 'teammate' : p.name.toLowerCase().includes(q) || p.email === q))
+				.sort((a, b) => rank[b.relation] - rank[a.relation] || a.name.localeCompare(b.name))
+				.slice(0, 12)
+				.map(({ email: _email, ...p }) => ({ ...p, access: g[p.key] ?? null }));
+		},
+		async setAccess(id, changes: ShareChange[]): Promise<ShareOutcome> {
+			log('setAccess', id, changes); await wait(); mine(id);
+			if (!Array.isArray(changes) || changes.length === 0) throw Error('Choose who to share with.');
+			const g = shared(id), results: unknown[] = [], undo: ShareChange[] = [];
+			changes.forEach((c, index) => {
+				const person = 'key' in c ? directory.find((p) => p.key === c.key) : directory.find((p) => p.email === c.email.trim().toLowerCase());
+				if (!person) { results.push({ index, ok: false, reason: 'key' in c ? 'That person is not available to share with.' : 'Choose the email address of someone who has signed in.' }); return; }
+				const before = g[person.key] ?? null, after = c.role === 'none' ? null : c.role;
+				if (after) g[person.key] = after; else delete g[person.key];
+				results.push({ index, ok: true, key: person.key, name: person.name, role: after, before, changed: before !== after });
+				if (before !== after) undo.push({ key: person.key, role: before ?? 'none' });
+			});
+			return parseOutcome({ total: changes.length, succeeded: results.filter((r: any) => r.ok).length, refused: results.filter((r: any) => !r.ok).length, results, undo, access: listFor(id) });
+		}
+	};
 }

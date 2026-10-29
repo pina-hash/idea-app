@@ -8196,6 +8196,63 @@
 				}
 			}
 		},
+		"ideacad_share_people": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Find people to share one of your IdeaCAD models with, by name, teammates and classmates first; each comes back with the key the share call takes.",
+			"say": [
+				"who can I share my gearbox model with",
+				"find Ana to share the bracket with",
+				"look up Daniel for the intake model"
+			],
+			"args": {
+				"p_document_id": {
+					"name": "model",
+					"describe": "The model's id, from your list of models."
+				},
+				"p_query": {
+					"name": "name",
+					"describe": "Two or more letters of their name, or their whole school email."
+				}
+			}
+		},
+		"ideacad_direct_document_access": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Who one of your IdeaCAD models is shared with, each with view or edit access.",
+			"say": [
+				"who has my gearbox model",
+				"who is the bracket shared with",
+				"list who can edit the intake model"
+			],
+			"args": {
+				"p_document_id": {
+					"name": "model",
+					"describe": "The model's id, from your list of models."
+				}
+			}
+		},
+		"ideacad_set_direct_document_access": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Share one of your IdeaCAD models with several people at once, change what each can do, or take someone off it; it asks first.",
+			"say": [
+				"share the gearbox model with Ana and Daniel as editors",
+				"let Block 2's team view my bracket",
+				"take Mateo off the intake model"
+			],
+			"args": {
+				"p_document_id": {
+					"name": "model",
+					"describe": "The model's id, from your list of models."
+				},
+				"p_changes": {
+					"name": "people",
+					"describe": "A list of changes, each a person's key from the people search (or a school email as email) with role viewer, editor or none to take them off."
+				}
+			}
+		},
 		"maps_editor_grant": {
 			"surface": "call",
 			"level": "undo",
@@ -13301,6 +13358,9 @@
 		"ideacad_material_set_retired": "ideacad.yaml",
 		"ideacad_set_direct_document_thumbnail": "ideacad.yaml",
 		"ideacad_shared_with_me": "ideacad.yaml",
+		"ideacad_share_people": "ideacad.yaml",
+		"ideacad_direct_document_access": "ideacad.yaml",
+		"ideacad_set_direct_document_access": "ideacad.yaml",
 		"maps_editor_grant": "maps.yaml",
 		"maps_editor_revoke": "maps.yaml",
 		"maps_editor_roster": "maps.yaml",

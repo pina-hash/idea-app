@@ -5,6 +5,7 @@
 // archived, one in the trash. Hand-written data, not derived from any rule
 // under test, so a test's expected value never comes from the thing it tests.
 import type { LaunchDocument, LaunchFolder, TrashedDocument } from './library';
+import type { MemorySharePerson } from './memory';
 
 export const FIXTURE_NOW = new Date('2026-09-21T17:30:00.000Z');
 const ago = (hours: number) => new Date(FIXTURE_NOW.getTime() - hours * 3_600_000).toISOString();
@@ -32,3 +33,19 @@ export const FIXTURE_DOCUMENTS: LaunchDocument[] = [
 export const FIXTURE_TRASH: TrashedDocument[] = [
 	{ id: 'doc-trashed', title: 'Wrong scale test', deletedAt: ago(48), purgeAt: new Date(FIXTURE_NOW.getTime() + 28 * 86_400_000).toISOString(), updatedAt: ago(48), folderId: null, tags: [], thumbnail: null, bodyCount: 1, featureCount: 2 }
 ];
+
+/*
+ * THE SHARING DIRECTORY the harness and the share mount test hand the
+ * in-memory api (ledger 0470): two teammates, classmates, a teacher and the
+ * rest of the school, with a picture on some and initials on the rest.
+ * `doc-spur` is already shared with one classmate.
+ */
+export const FIXTURE_PEOPLE: MemorySharePerson[] = [
+	{ key: 'p-mateo', name: 'Mateo Ruiz', email: 'mateo.ruiz@boscotech.net', avatar: 'preset:hex', avatarUrl: null, staff: false, relation: 'teammate' },
+	{ key: 'p-lena', name: 'Lena Park', email: 'lena.park@boscotech.net', avatar: null, avatarUrl: null, staff: false, relation: 'teammate' },
+	{ key: 'p-ana', name: 'Ana Reyes', email: 'ana.reyes@boscotech.net', avatar: 'preset:cube', avatarUrl: null, staff: false, relation: 'classmate' },
+	{ key: 'p-daniel', name: 'Daniel Okonkwo', email: 'daniel.okonkwo@boscotech.net', avatar: null, avatarUrl: null, staff: false, relation: 'classmate' },
+	{ key: 'p-lane', name: 'Ms. Lane', email: 'mlane@boscotech.edu', avatar: null, avatarUrl: null, staff: true, relation: 'classmate' },
+	{ key: 'p-sam', name: 'Sam Ortiz', email: 'sam.ortiz@boscotech.net', avatar: null, avatarUrl: null, staff: false, relation: 'school' }
+];
+export const FIXTURE_GRANTS: Record<string, Record<string, 'viewer' | 'editor'>> = { 'doc-spur': { 'p-ana': 'viewer' } };

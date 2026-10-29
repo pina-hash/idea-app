@@ -1,7 +1,7 @@
 <!--
   THE LAUNCH PAGE HARNESS: the REAL `LaunchPage` over an in-memory api seeded
   with own documents in folders, a shared one, a linked assignment one, an
-  archived one and a trashed one. No auth, no Supabase; 404 in production
+  archived one and a trashed one, and a sharing directory (ledger 0470). No auth, no Supabase; 404 in production
   (`+page.ts`). Opening a document records the id here rather than mounting
   the workspace, which has its own harness at `/dev/ideacad-solid`.
 -->
@@ -9,8 +9,8 @@
 	import { onMount } from 'svelte';
 	import LaunchPage from '$lib/ideacad/solid/launch/LaunchPage.svelte';
 	import { createMemoryLaunchApi } from '$lib/ideacad/solid/launch/memory';
-	import { FIXTURE_DOCUMENTS, FIXTURE_FOLDERS, FIXTURE_TRASH } from '$lib/ideacad/solid/launch/fixture';
-	const api = createMemoryLaunchApi({ documents: FIXTURE_DOCUMENTS, folders: FIXTURE_FOLDERS, trash: FIXTURE_TRASH });
+	import { FIXTURE_DOCUMENTS, FIXTURE_FOLDERS, FIXTURE_GRANTS, FIXTURE_PEOPLE, FIXTURE_TRASH } from '$lib/ideacad/solid/launch/fixture';
+	const api = createMemoryLaunchApi({ documents: FIXTURE_DOCUMENTS, folders: FIXTURE_FOLDERS, trash: FIXTURE_TRASH, people: FIXTURE_PEOPLE, grants: FIXTURE_GRANTS });
 	let opened = $state('');
 	onMount(() => { (window as unknown as { ideaCadLaunch: unknown }).ideaCadLaunch = { api, opened: () => opened }; });
 </script>
