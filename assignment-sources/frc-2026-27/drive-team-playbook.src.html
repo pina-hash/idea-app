@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en" data-post="library" data-graded="no" data-color-pairs="xbox-a/xbox-b, sky/violet, marigold/danger-red, first-blue/sky, techmen-gold/xbox-y, techmen-gold/marigold, xbox-a/marigold, xbox-a/danger-red, xbox-b/danger-red">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drive Team Playbook</title>
+<!--
+  FRC 5669 Drive Team Playbook. THE source: edit this file, rebuild with tools/hx-kit/build.mjs, re-upload over the post.
+  Kept current with the robot code (FRC-Team-5669-Techmen/2026-5669-Official: RobotContainer bindings, Haptics,
+  Robot.updateDriverRumble, CLAUDE.md). Any change a driver or operator would notice updates this page the same day
+  and adds a row to "What changed".
+  Look (AUTHORING D3): Xbox face buttons carry their real colors (xbox-a/b/x/y); phases use kit colors;
+  techmen-gold is the team mark on the thumbnail only.
+-->
+<script type="application/json" id="idea-manifest">
+{
+ "schemaVersion": 3,
+ "kind": "html-assignment",
+ "title": "Drive Team Playbook",
+ "course": "FRC 2026/27",
+ "points": 3,
+ "thumbnail": {
+  "kind": "html",
+  "template": "idea-thumbnail"
+ },
+ "modules": [
+  {
+   "id": "playbook",
+   "title": "Drive Team Playbook",
+   "points": 3,
+   "audience": "individual",
+   "blocks": [
+    {
+     "id": "dt-check-gyro",
+     "field": "dtGyro",
+     "type": "radio",
+     "prompt": "You push the stick away from you and the robot drives to the left. What do you do?"
+    },
+    {
+     "id": "dt-check-zone",
+     "field": "dtZone",
+     "type": "radio",
+     "prompt": "The robot is in the neutral zone, far from our wall, and the operator holds RT. What does it do?"
+    },
+    {
+     "id": "dt-check-ready",
+     "field": "dtReady",
+     "type": "radio",
+     "prompt": "The operator holds RT, auto-aim is on, and nothing fires. What is the first thing to do?"
+    },
+    {
+     "id": "dt-check-defense",
+     "field": "dtDefense",
+     "type": "radio",
+     "prompt": "The coach calls \"Offense\" while we are on defense. Who does what?"
+    },
+    {
+     "id": "dt-check-buzz",
+     "field": "dtBuzz",
+     "type": "radio",
+     "prompt": "The operator feels three long buzzes. What does it mean?"
+    },
+    {
+     "id": "dt-check-auto",
+     "field": "dtAuto",
+     "type": "radio",
+     "prompt": "Auto is running and the operator wants to spin up early. What should they do?"
+    },
+    {
+     "id": "dt-check-climb",
+     "field": "dtClimb",
+     "type": "radio",
+     "prompt": "The robot is hanging from the rung. What does the driver do with the drive sticks?"
+    },
+    {
+     "id": "dt-check-camera",
+     "field": "dtCamera",
+     "type": "radio",
+     "prompt": "Shot Ready keeps saying the position is unknown. What is the fastest way to score?"
+    }
+   ],
+   "criteria": [
+    {
+     "id": "playbook-checks",
+     "text": "Checks answered right",
+     "points": 3,
+     "levels": [
+      {
+       "points": 3,
+       "label": "Complete",
+       "short": "Every check right",
+       "descriptor": "Every check is answered with the right pick."
+      },
+      {
+       "points": 1,
+       "label": "Developing",
+       "short": "Some answered",
+       "descriptor": "Some checks answered, or some picks wrong."
+      },
+      {
+       "points": 0,
+       "label": "Absent",
+       "short": "None answered",
+       "descriptor": "No check answered."
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
+</script>
+<!-- hx:head -->
+<script type="application/json" id="hx-colors">
+{
+ "techmen-gold": {
+  "anchor": "#FFE629",
+  "means": "Techmen 5669, the team",
+  "source": "FRC 5669 Techmen Design System, tokens.css --gold"
+ },
+ "xbox-a": {
+  "anchor": "#3FB549",
+  "means": "The Xbox A button",
+  "source": "Xbox controller face button colors"
+ },
+ "xbox-b": {
+  "anchor": "#E2283A",
+  "means": "The Xbox B button",
+  "source": "Xbox controller face button colors"
+ },
+ "xbox-x": {
+  "anchor": "#2A7DE1",
+  "means": "The Xbox X button",
+  "source": "Xbox controller face button colors"
+ },
+ "xbox-y": {
+  "anchor": "#F2C318",
+  "means": "The Xbox Y button",
+  "source": "Xbox controller face button colors"
+ }
+}
+</script>
+<style>
+  /* This page's own layout only; parts and colors are the kit's. */
+  .dt-key { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; padding: 0 0.35em; border-radius: 999px; font-family: var(--font-mono, 'Share Tech Mono', monospace); font-size: 0.85em; background: var(--hx-fill, var(--screen-top)); color: var(--hx-on, var(--plate-ink)); border: 1px solid var(--hx-line, var(--hair)); }
+  .dt-map td:first-child { font-family: var(--font-mono, 'Share Tech Mono', monospace); }
+  .dt-how { color: var(--text-2); font-family: var(--font-mono, 'Share Tech Mono', monospace); font-size: 0.8em; white-space: nowrap; }
+  .dt-robot { display: block; color: var(--text-2); font-size: 0.9em; }
+  .dt-updated { color: var(--text-2); font-size: 0.9rem; }
+  #hx-page h3 { margin: var(--space-3, 12px) 0 0; }
+  .hx-tile > p { margin: 6px 0 0; color: var(--text-2); }
+  .hx-tile > b { display: flex; gap: 8px; align-items: center; color: var(--plate-ink); }
+</style>
+<template id="idea-thumbnail"><style>
+  :root { --t1: #1c2023; --t2: #0f1113; --tink: #eef1f3; --tdim: #9aa3aa; --fill: #FFE629; }
+  :root[data-idea-scheme="light"] { --t1: #f4f6f8; --t2: #dbe1e6; --tink: #14181b; --tdim: #4a535a; }
+  .t { --h: var(--idea-thumb-h, 120px); --w: var(--idea-thumb-w, 120px); position: absolute; inset: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: calc(var(--h) * 0.14); padding: 0 calc(var(--h) * 0.22); background: radial-gradient(130% 150% at 18% 18%, var(--t1), var(--t2)); color: var(--tink); font-family: system-ui, sans-serif; overflow: hidden; }
+  .t::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: max(3px, calc(var(--h) * 0.045)); background: var(--fill); }
+  .b { flex: none; height: 64%; aspect-ratio: 1; border-radius: 24%; background: var(--fill); display: grid; place-items: center; box-shadow: inset 0 calc(var(--h) * 0.01) 0 rgba(255,255,255,.35), 0 calc(var(--h) * 0.02) calc(var(--h) * 0.05) rgba(0,0,0,.35); }
+  .b svg { width: 64%; height: 64%; }
+  .w { display: none; min-width: 0; gap: calc(var(--h) * 0.04); }
+  .w b { font-weight: 700; font-size: min(calc(var(--h) * 0.24), calc(var(--w) * 0.05)); line-height: 1.08; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .w small { font: 600 max(8px, min(calc(var(--h) * 0.11), calc(var(--w) * 0.024)))/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tdim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :root[data-idea-shape="wide"] .w, :root[data-idea-shape="banner"] .w { display: grid; }
+  :root[data-idea-shape="banner"] .b { height: 72%; }
+  :root[data-idea-shape="wide"] .t { gap: calc(var(--h) * 0.1); padding: 0 calc(var(--w) * 0.07); }
+  :root[data-idea-shape="wide"] .b { height: min(46%, calc(var(--w) * 0.26)); }
+  :root[data-idea-shape="wide"] .w b { font-size: min(calc(var(--h) * 0.17), calc(var(--w) * 0.062)); -webkit-line-clamp: 3; }
+  :root[data-idea-shape="wide"] .w small { font-size: max(9px, min(calc(var(--h) * 0.08), calc(var(--w) * 0.028))); white-space: normal; }
+  :root[data-idea-shape="banner"] .w b { font-size: min(calc(var(--h) * 0.32), calc(var(--w) * 0.035)); -webkit-line-clamp: 1; white-space: nowrap; }
+  :root[data-idea-shape="banner"] .w small { font-size: max(8px, calc(var(--h) * 0.15)); }
+  :root[data-idea-shape="tile"] .b, :root:not([data-idea-shape]) .b { height: 70%; }
+</style><div class="t"><div class="b"><svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="#14181b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20h24c8 0 12 6 14 14l3 12c1 6-5 9-9 5l-6-7H18l-6 7c-4 4-10 1-9-5l3-12c2-8 6-14 14-14z"/><path d="M20 30v8M16 34h8"/><circle cx="44" cy="31" r="1.6" fill="#14181b"/><circle cx="48" cy="36" r="1.6" fill="#14181b"/></svg></div><div class="w"><b>Drive Team Playbook</b></div></div></template>
+</head>
+<body class="idea-plate">
+<main id="hx-page">
+  <header class="hx-hero">
+    <div class="hx-hero-text">
+      <span class="hx-crumb">FRC 5669 · Drive team · Beach Blitz</span>
+      <h1>Drive Team Playbook</h1>
+      <p class="hx-done-when"><strong>Done when:</strong> you can pick up either controller and run a whole match without asking what a button does.</p>
+      <div class="hx-row"><span class="idea-chip">15 short pages</span><span class="idea-chip">8 quick checks</span><span class="idea-chip">Updated Oct 28, 2026</span></div>
+    </div>
+    <div class="hx-hero-art" data-color="techmen-gold" aria-hidden="true"><svg viewBox="0 0 520 330" role="img" aria-label="An Xbox controller"><path d="M150 82 C110 82 78 96 62 140 C40 200 26 262 44 296 C58 322 96 318 118 292 L156 250 H364 L402 292 C424 318 462 322 476 296 C494 262 480 200 458 140 C442 96 410 82 370 82 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="3" stroke-linejoin="round"/><rect x="72" y="50" width="92" height="24" rx="12" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="356" y="50" width="92" height="24" rx="12" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="88" y="10" width="60" height="30" rx="10" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="372" y="10" width="60" height="30" rx="10" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="150" cy="150" r="30" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="150" cy="150" r="18" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/><circle cx="318" cy="214" r="30" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="318" cy="214" r="18" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/><path d="M190 184 h20 v20 h20 v20 h-20 v20 h-20 v-20 h-20 v-20 h20 Z" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5" stroke-linejoin="round"/><g data-color="xbox-a"><circle cx="372" cy="182" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="372" y="187" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">A</text></g><g data-color="xbox-b"><circle cx="404" cy="150" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="404" y="155" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">B</text></g><g data-color="xbox-x"><circle cx="340" cy="150" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="340" y="155" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">X</text></g><g data-color="xbox-y"><circle cx="372" cy="118" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="372" y="123" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">Y</text></g><rect x="209" y="130" width="26" height="16" rx="8" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2"/><rect x="285" y="130" width="26" height="16" rx="8" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2"/><text x="118" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">LT</text><text x="402" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">RT</text><text x="118" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">LB</text><text x="402" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">RB</text></svg></div>
+  </header>
+  <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Sections"></nav>
+  <div class="hx-bar idea-panel" id="hx-bar"></div>
+  <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
+
+  <section class="hx-step idea-panel" id="s-roles" data-phase="start" data-title="Your job on the drive team" data-layout="full">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Read this first</span><h2>Your job on the drive team</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<p><strong>The robot does the hard parts by itself.</strong> It knows where it is on the field, aims the turret, sets the hood and shooter speed, and only fires when the shot is lined up. Your job is to put it in the right place, at the right time, in the right mode.</p>
+<div class="hx-tiles">
+  <div class="hx-tile" data-color="sky"><b><span class="hx-lamp"></span> Driver</b><p>Moves the robot, runs the intake and the climb. Listens to the coach for <em>where</em> to go.</p></div>
+  <div class="hx-tile" data-color="violet"><b><span class="hx-lamp"></span> Operator</b><p>Shoots and picks the modes. Watches the robot and tells the driver what it is doing ("Full", "Half", "Empty").</p></div>
+  <div class="hx-tile" data-color="first-blue"><b><span class="hx-lamp"></span> Coach</b><p>Watches the clock, the hubs, partners and refs. Makes the calls: "Come home", "Climb now", "Defend".</p></div>
+  <div class="hx-tile" data-color="first-gray"><b><span class="hx-lamp"></span> Technician</b><p>Runs the pre-match checks on the laptop so the driver and operator never have to.</p></div>
+</div>
+<p class="hx-see">Three rules for every match: <strong>hands off during auto</strong>, <strong>repeat the key word of every call</strong> (no repeat means it did not land), and <strong>feel the buzzes</strong> (see Buzzes) instead of looking down at the laptop.</p>
+<p class="dt-updated">Last updated Oct 28, 2026. When the robot code changes something you use, this page changes the same day and the "What changed" list at the end says what.</p>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-before" data-phase="start" data-title="Before every match" data-layout="full">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">In the queue and on the field</span><h2>Before every match</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<ol class="hx-do">
+  <li><span><strong>Power on in the start pose</strong> (technician): turret on its HOME mark, intake pushed all the way UP, hood all the way DOWN, climber all the way DOWN. The robot counts from where it is at power on, so a wrong start pose throws off the whole match.</span></li>
+  <li><span><strong>Pick the auto</strong> on the dashboard ("Auto" chooser). Read it back to the coach.</span></li>
+  <li><span>Open Elastic, tab <strong>Drive Team</strong>. <strong>Pit Check</strong> must read <strong>ALL GO</strong>. Anything else is a list of what to fix.</span></li>
+  <li><span>Check <strong>Code Version</strong> shows today's build, and the battery is fresh (Pit Check says if it is low).</span></li>
+  <li><span>Both Xbox controllers plugged in: <strong>driver on port 0, operator on port 1</strong> (Driver Station USB tab). Wrong order = the wrong person drives.</span></li>
+  <li><span>On the field, place the robot where the auto starts, facing the way the auto expects.</span></li>
+</ol>
+<details class="hx-more"><summary>Pit Check says something other than ALL GO</summary><div class="hx-stack"><table class="hx-table "><thead><tr><th>It says</th><th>Do this</th></tr></thead><tbody><tr><td data-label="It says">Battery low or high resistance</td><td data-label="Do this">Swap the battery. Type its number in "Match Battery" on the Match tab.</td></tr><tr><td data-label="It says">No auto picked</td><td data-label="Do this">Pick one in the Auto chooser.</td></tr><tr><td data-label="It says">Auto Winner not FMS / Target mode not AUTO</td><td data-label="Do this">Set the "Auto Winner" chooser back to FMS and the "Shot Target Mode" chooser to AUTO.</td></tr><tr><td data-label="It says">A controller missing</td><td data-label="Do this">Plug it in; driver on port 0, operator on port 1.</td></tr><tr><td data-label="It says">CAN device missing</td><td data-label="Do this">Tell the pit right away. The robot may not drive or shoot.</td></tr><tr><td data-label="It says">Practice Field switch ON</td><td data-label="Do this">Turn "Practice Field: Hub Tags Only" OFF on a real field.</td></tr><tr><td data-label="It says">Robot Centric, speed limit under 100%, idle on</td><td data-label="Do this">Set Drive Mode to Field Centric, Global Speed Limit to 100%, press Driver D-pad Left once.</td></tr></tbody></table></div></details>
+<details class="hx-more"><summary>Driver Station keys everyone must know</summary><div class="hx-stack"><table class="hx-table "><thead><tr><th>Key</th><th>What it does</th></tr></thead><tbody><tr><td data-label="Key"><strong>Enter</strong></td><td data-label="What it does">Disable (stops the robot).</td></tr><tr><td data-label="Key"><strong>Space</strong></td><td data-label="What it does">Emergency stop. The robot stays dead until the roboRIO restarts. Only for real danger.</td></tr></tbody></table></div></details>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-driver" data-phase="driver" data-title="The driver controller">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Port 0</span><h2>The driver controller</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<figure class="hx-fig" data-color="sky"><svg viewBox="0 0 520 330" role="img" aria-label="Driver Xbox controller with numbered controls 1 to 10"><path d="M150 82 C110 82 78 96 62 140 C40 200 26 262 44 296 C58 322 96 318 118 292 L156 250 H364 L402 292 C424 318 462 322 476 296 C494 262 480 200 458 140 C442 96 410 82 370 82 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="3" stroke-linejoin="round"/><rect x="72" y="50" width="92" height="24" rx="12" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="356" y="50" width="92" height="24" rx="12" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="88" y="10" width="60" height="30" rx="10" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="372" y="10" width="60" height="30" rx="10" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="150" cy="150" r="30" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="150" cy="150" r="18" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/><circle cx="318" cy="214" r="30" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="318" cy="214" r="18" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/><path d="M190 184 h20 v20 h20 v20 h-20 v20 h-20 v-20 h-20 v-20 h20 Z" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5" stroke-linejoin="round"/><g data-color="xbox-a"><circle cx="372" cy="182" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="372" y="187" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">A</text></g><g data-color="xbox-b"><circle cx="404" cy="150" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="404" y="155" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">B</text></g><g data-color="xbox-x"><circle cx="340" cy="150" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="340" y="155" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">X</text></g><g data-color="xbox-y"><circle cx="372" cy="118" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="372" y="123" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">Y</text></g><rect x="209" y="130" width="26" height="16" rx="8" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2"/><rect x="285" y="130" width="26" height="16" rx="8" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2"/><text x="118" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">LT</text><text x="402" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">RT</text><text x="118" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">LB</text><text x="402" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">RB</text><circle cx="106" cy="124" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="106" y="129" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">1</text><circle cx="362" cy="240" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="362" y="245" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">2</text><circle cx="52" cy="62" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="52" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">3</text><circle cx="468" cy="62" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="468" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">4</text><circle cx="454" cy="26" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="454" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">5</text><circle cx="66" cy="26" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="66" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">6</text><circle cx="372" cy="212" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="372" y="217" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">7</text><circle cx="372" cy="88" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="372" y="93" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">8</text><circle cx="156" cy="240" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="156" y="245" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">9</text><circle cx="312" cy="112" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="312" y="117" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">10</text></svg></figure>
+<table class="hx-table dt-map"><thead><tr><th>#</th><th>Control</th><th>What it does</th></tr></thead><tbody><tr><td data-label="#">7</td><td data-label="Control"><span class="dt-key" data-color="xbox-a">A</span> <small class="dt-how">press</small></td><td data-label="What it does">Intake DOWN / UP (each press flips it).</td></tr><tr><td data-label="#">8</td><td data-label="Control"><span class="dt-key" data-color="xbox-y">Y</span> <small class="dt-how">press</small></td><td data-label="What it does">Defense mode ON / OFF (see Defense).</td></tr><tr><td data-label="#">9</td><td data-label="Control">D-pad Up / Down <small class="dt-how">hold</small></td><td data-label="What it does">Climber up / down. It stops by itself at the top and bottom.</td></tr><tr><td data-label="#">9</td><td data-label="Control">D-pad Left <small class="dt-how">press</small></td><td data-label="What it does">Shooter idle 2000 RPM on / off. Leave it OFF unless told.</td></tr><tr><td data-label="#">10</td><td data-label="Control">Start <small class="dt-how">hold</small></td><td data-label="What it does">Slow mode (same as RB).</td></tr><tr><td data-label="#"></td><td data-label="Control"><span class="dt-key" data-color="xbox-x">X</span> , D-pad Right, Back</td><td data-label="What it does">Nothing. Reserved.</td></tr></tbody></table>
+</div><div class="hx-stack"><table class="hx-table dt-map"><thead><tr><th>#</th><th>Control</th><th>What it does</th></tr></thead><tbody><tr><td data-label="#">1</td><td data-label="Control">Left stick <small class="dt-how">hold</small></td><td data-label="What it does">Drive (move). Field centric: push away from you and the robot goes away from you, whatever way it faces.</td></tr><tr><td data-label="#">1</td><td data-label="Control">Left stick CLICK <small class="dt-how">hold</small></td><td data-label="What it does">Full drive power while vacuum or dump mode is on (they soften the drive to save the battery).</td></tr><tr><td data-label="#">2</td><td data-label="Control">Right stick <small class="dt-how">hold</small></td><td data-label="What it does">Turn the robot.</td></tr><tr><td data-label="#">3</td><td data-label="Control">LB <small class="dt-how">hold 1/2 s</small></td><td data-label="What it does">Reset the gyro. <strong>Point the robot straight away from our driver station first.</strong> Hold 1/2 second until one short buzz.</td></tr><tr><td data-label="#">4</td><td data-label="Control">RB <small class="dt-how">hold</small></td><td data-label="What it does">Slow mode (keeps your right thumb on the turn stick).</td></tr><tr><td data-label="#">5</td><td data-label="Control">RT <small class="dt-how">hold</small></td><td data-label="What it does">Intake roller IN (pick up balls).</td></tr><tr><td data-label="#">6</td><td data-label="Control">LT <small class="dt-how">hold</small></td><td data-label="What it does">Intake roller OUT (spit balls).</td></tr></tbody></table>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-drive" data-phase="driver" data-title="How the robot drives">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Driver</span><h2>How the robot drives</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<div class="hx-tiles">
+  <div class="hx-tile"><b>Field centric</b><p>"Away" on the stick is always away from our driver station. If the robot suddenly drives sideways or backwards from what you push, the gyro is off: <strong>point the robot straight away from our driver station and hold LB</strong> until the buzz.</p></div>
+  <div class="hx-tile"><b>Gentle at the start of the stick</b><p>The stick is curved: the first half of the push is slow and precise, the last part is fast. Small pushes make small moves.</p></div>
+</div>
+<div class="hx-evidence idea-panel" data-graded="no">
+      <span class="idea-eyebrow">Check yourself</span>
+      <fieldset class="hx-picks" data-field="dtGyro" data-kind="radio"><legend>You push the stick away from you and the robot drives to the left. What do you do?</legend><label class="hx-pick"><input type="radio" name="dtGyro" value="a"> Turn the robot so it points straight away from our driver station, then hold LB until one buzz</label><label class="hx-pick"><input type="radio" name="dtGyro" value="b"> Tap LB right away, wherever the robot points</label><label class="hx-pick"><input type="radio" name="dtGyro" value="c"> Switch the dashboard to Robot Centric</label></fieldset>
+      <p class="hx-readout" id="ro-dtGyro" aria-live="polite">Pick one.</p>
+    </div>
+</div><div class="hx-stack"><div class="hx-tiles">
+  <div class="hx-tile"><b>It ramps, it does not jump</b><p>Speed changes are smoothed, so a full stop from top speed takes about a third of a second. Let off early before walls and robots.</p></div>
+  <div class="hx-tile"><b>Slow mode</b><p>Hold <strong>RB</strong> (or Start) for careful moves: lining up to climb, cleaning up next to a wall.</p></div>
+</div>
+<h3>The robot helps while you shoot</h3>
+<ul class="hx-list">
+  <li><strong>While the operator holds RT to score, top speed drops</strong> to about 1.35 m/s (4.4 ft/s) so it keeps firing while you creep. Passing keeps full speed. Full speed anyway: hold the <strong>left stick click</strong>.</li>
+  <li><strong>Let go of the sticks while scoring</strong> and the wheels lock in an X so a bump does not knock the shot off.</li>
+  <li>If the hub is behind the turret (it cannot turn all the way around), <strong>the robot turns itself</strong> just enough while a shot is wanted. Touch the turn stick and you take over.</li>
+</ul>
+<details class="hx-more"><summary>The turret's blind spot</summary><div class="hx-stack"><p>The turret turns about 300 degrees, not a full circle: the wires stop it. The blind spot is roughly front-left of the robot. When the hub sits there, the robot turns itself to fix it (only while shooting is wanted, never while climbing). If you are holding the turn stick, it is your job.</p></div></details>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-operator" data-phase="operator" data-title="Operator: the shooting buttons">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Port 1</span><h2>Operator: the shooting buttons</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<figure class="hx-fig" data-color="violet"><svg viewBox="0 0 520 330" role="img" aria-label="Operator Xbox controller with numbered controls 1 to 13"><path d="M150 82 C110 82 78 96 62 140 C40 200 26 262 44 296 C58 322 96 318 118 292 L156 250 H364 L402 292 C424 318 462 322 476 296 C494 262 480 200 458 140 C442 96 410 82 370 82 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="3" stroke-linejoin="round"/><rect x="72" y="50" width="92" height="24" rx="12" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="356" y="50" width="92" height="24" rx="12" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="88" y="10" width="60" height="30" rx="10" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><rect x="372" y="10" width="60" height="30" rx="10" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="150" cy="150" r="30" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="150" cy="150" r="18" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/><circle cx="318" cy="214" r="30" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5"/><circle cx="318" cy="214" r="18" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/><path d="M190 184 h20 v20 h20 v20 h-20 v20 h-20 v-20 h-20 v-20 h20 Z" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2.5" stroke-linejoin="round"/><g data-color="xbox-a"><circle cx="372" cy="182" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="372" y="187" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">A</text></g><g data-color="xbox-b"><circle cx="404" cy="150" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="404" y="155" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">B</text></g><g data-color="xbox-x"><circle cx="340" cy="150" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="340" y="155" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">X</text></g><g data-color="xbox-y"><circle cx="372" cy="118" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="2"/><text x="372" y="123" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="15" fill="var(--hx-on)">Y</text></g><rect x="209" y="130" width="26" height="16" rx="8" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2"/><rect x="285" y="130" width="26" height="16" rx="8" fill="var(--screen-top)" stroke="var(--plate-ink)" stroke-width="2"/><text x="118" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">LT</text><text x="402" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">RT</text><text x="118" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">LB</text><text x="402" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="13" fill="var(--plate-ink)">RB</text><circle cx="454" cy="26" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="454" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">1</text><circle cx="66" cy="26" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="66" y="31" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">2</text><circle cx="468" cy="62" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="468" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">3</text><circle cx="208" cy="112" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="208" y="117" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">4</text><circle cx="106" cy="124" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="106" y="129" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">5</text><circle cx="312" cy="112" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="312" y="117" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">6</text><circle cx="372" cy="88" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="372" y="93" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">7</text><circle cx="156" cy="240" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="156" y="245" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">8</text><circle cx="434" cy="150" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="434" y="155" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">9</text><circle cx="372" cy="212" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="372" y="217" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">10</text><circle cx="310" cy="150" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="310" y="155" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">11</text><circle cx="52" cy="62" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="52" y="67" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">12</text><circle cx="362" cy="240" r="12" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/><text x="362" y="245" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="14" font-weight="700" fill="var(--hx-on)">13</text></svg><figcaption>Numbers match the tables on this page and the next.</figcaption></figure>
+<p class="hx-see">The operator's whole match is mostly: <strong>hold RT</strong> when in range, <strong>Back</strong> for vacuum when collecting, and telling the driver what the robot is doing.</p>
+</div><div class="hx-stack"><table class="hx-table dt-map"><thead><tr><th>#</th><th>Control</th><th>What it does</th></tr></thead><tbody><tr><td data-label="#">1</td><td data-label="Control">RT <small class="dt-how">hold</small></td><td data-label="What it does"><strong>Shoot.</strong> With auto-aim on, it fires only when the shot is ready and pauses by itself when not. Just hold it.</td></tr><tr><td data-label="#">2</td><td data-label="Control">LT <small class="dt-how">hold</small></td><td data-label="What it does">Spin the shooter up early (to the right speed for the distance).</td></tr><tr><td data-label="#">3</td><td data-label="Control">RB <small class="dt-how">press</small></td><td data-label="What it does">Auto-aim ON / OFF. It turns ON by itself at the start of teleop. RB also turns vacuum or dump OFF.</td></tr><tr><td data-label="#">4</td><td data-label="Control">Back <small class="dt-how">press</small></td><td data-label="What it does"><strong>Vacuum mode</strong> ON / OFF: intake down, roller in, fires by itself whenever ready.</td></tr><tr><td data-label="#">5</td><td data-label="Control">Left stick CLICK <small class="dt-how">press</small></td><td data-label="What it does"><strong>Dump mode</strong> ON / OFF: roller OUT, fires by itself (passes home). Only counts with the stick centered.</td></tr><tr><td data-label="#">6</td><td data-label="Control">Start <small class="dt-how">press</small></td><td data-label="What it does">Shot target: AUTO, then SCORE only, then PASS only, then AUTO. Buzzes 1 / 2 / 3 times.</td></tr><tr><td data-label="#">9</td><td data-label="Control"><span class="dt-key" data-color="xbox-b">B</span> <small class="dt-how">hold</small></td><td data-label="What it does">Run the spindexer backwards to clear a jam. RT picks back up when you let go.</td></tr></tbody></table>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-operator2" data-phase="operator" data-title="Operator: by hand and backup shots">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Port 1</span><h2>Operator: by hand and backup shots</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<table class="hx-table dt-map"><thead><tr><th>#</th><th>Control</th><th>What it does</th></tr></thead><tbody><tr><td data-label="#">7</td><td data-label="Control"><span class="dt-key" data-color="xbox-y">Y</span> <small class="dt-how">press</small></td><td data-label="What it does">Hood stowed / deployed by hand. Also turns vacuum, dump and auto-aim OFF (you are taking over).</td></tr><tr><td data-label="#">8</td><td data-label="Control">D-pad Up / Down <small class="dt-how">hold</small></td><td data-label="What it does">Hood up / down by hand.</td></tr><tr><td data-label="#">8</td><td data-label="Control">D-pad Left / Right <small class="dt-how">hold</small></td><td data-label="What it does">Turret left / right by hand.</td></tr><tr><td data-label="#">5</td><td data-label="Control">Left stick up / down <small class="dt-how">hold</small></td><td data-label="What it does">Move the intake up / down slowly (backup if Driver A cannot).</td></tr></tbody></table>
+<p>Moving the hood or turret by hand (Y or the D-pad) turns auto-aim off. Press <strong>RB</strong> to turn it back on.</p>
+</div><div class="hx-stack"><table class="hx-table dt-map"><thead><tr><th>#</th><th>Control</th><th>What it does</th></tr></thead><tbody><tr><td data-label="#">10</td><td data-label="Control"><span class="dt-key" data-color="xbox-a">A</span> <small class="dt-how">hold 1/2 s</small></td><td data-label="What it does">Backup shot: <strong>Midshot</strong> spot. Hold 1/2 second until one buzz.</td></tr><tr><td data-label="#">11</td><td data-label="Control"><span class="dt-key" data-color="xbox-x">X</span> <small class="dt-how">hold 1/2 s</small></td><td data-label="What it does">Backup shot: <strong>Left trench</strong> spot (left as seen from our driver station).</td></tr><tr><td data-label="#">12</td><td data-label="Control">LB <small class="dt-how">hold 1/2 s</small></td><td data-label="What it does">Backup shot: <strong>Right trench</strong> spot.</td></tr><tr><td data-label="#">13</td><td data-label="Control">Right stick CLICK <small class="dt-how">press</small></td><td data-label="What it does">Trench shot: lets the hood come up while parked next to a trench. Moving ends it.</td></tr></tbody></table>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-shoot" data-phase="shoot" data-title="How shooting works">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Operator and driver</span><h2>How shooting works</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<ol class="hx-do">
+  <li><span>Teleop starts: <strong>auto-aim turns on by itself</strong> (operator feels one short buzz). The turret follows the hub, the hood stays down until a shot is wanted.</span></li>
+  <li><span>Driver gets the robot inside our alliance zone. Operator <strong>holds RT</strong>.</span></li>
+  <li><span>The robot spins up, raises the hood, and <strong>fires each ball the moment it is lined up</strong>. The operator controller buzzes steadily while it is ready.</span></li>
+  <li><span>Keep holding RT through the whole volley. It pauses and resumes by itself.</span></li>
+</ol>
+<div class="hx-evidence idea-panel" data-graded="no">
+      <span class="idea-eyebrow">Check yourself</span>
+      <fieldset class="hx-picks" data-field="dtZone" data-kind="radio"><legend>The robot is in the neutral zone, far from our wall, and the operator holds RT. What does it do?</legend><label class="hx-pick"><input type="radio" name="dtZone" value="a"> Passes the balls toward a corner of our alliance zone</label><label class="hx-pick"><input type="radio" name="dtZone" value="b"> Shoots straight at our hub</label><label class="hx-pick"><input type="radio" name="dtZone" value="c"> Nothing until it is inside the zone</label></fieldset>
+      <p class="hx-readout" id="ro-dtZone" aria-live="polite">Pick one.</p>
+    </div>
+</div><div class="hx-stack"><div class="hx-tiles">
+  <div class="hx-tile" data-color="marigold"><b>Where we may score</b><p>Into OUR hub only while the robot's center is within <strong>4.19 m (165 in) of our wall</strong>, which keeps the bumpers in our alliance zone. Outside it, a shot into our hub is a MAJOR foul (G407), so the robot will not do it.</p></div>
+  <div class="hx-tile" data-color="first-blue"><b>Passing</b><p>Farther out, the robot <strong>passes</strong>: it lobs balls to a corner of our alliance zone. Deep in their zone it lobs to a spot in the neutral zone instead. If a hub is in the way, it waits: <strong>move sideways</strong>.</p></div>
+  <div class="hx-tile" data-color="danger-red"><b>Closed hub</b><p>When the field says our hub is closed, it holds scoring shots and says "HUB CLOSED: opens in N s". It starts again a moment early so the first balls land as the hub opens. Passes are never held.</p></div>
+</div>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-ready" data-phase="shoot" data-title="RT is held and nothing fires">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Operator</span><h2>RT is held and nothing fires</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<p>The <strong>Drive Team</strong> tab's "Shot Ready" line always says what it is waiting for.</p>
+<table class="hx-table "><thead><tr><th>It says (roughly)</th><th>Do this</th></tr></thead><tbody><tr><td data-label="It says (roughly)">turret / aiming</td><td data-label="Do this">The turret is still turning. Wait. Hub out of reach: let go of the turn stick so the robot turns itself.</td></tr><tr><td data-label="It says (roughly)">shooter speed</td><td data-label="Do this">Wheel not at speed yet. Next time hold LT on the way in.</td></tr><tr><td data-label="It says (roughly)">robot moving too fast</td><td data-label="Do this">Over 1.5 m/s (4.9 ft/s). Slow down, let go of the left stick click.</td></tr><tr><td data-label="It says (roughly)">SCORE: outside our alliance zone</td><td data-label="Do this">Drive closer to our wall, or let it pass.</td></tr><tr><td data-label="It says (roughly)">HUB CLOSED</td><td data-label="Do this">Collect or pass. It fires when the hub opens.</td></tr><tr><td data-label="It says (roughly)">PASS: a hub blocks every lane</td><td data-label="Do this">Drive sideways.</td></tr><tr><td data-label="It says (roughly)">position unknown</td><td data-label="Do this">Use a backup shot (next page).</td></tr></tbody></table>
+</div><div class="hx-stack"><div class="hx-evidence idea-panel" data-graded="no">
+      <span class="idea-eyebrow">Check yourself</span>
+      <fieldset class="hx-picks" data-field="dtReady" data-kind="radio"><legend>The operator holds RT, auto-aim is on, and nothing fires. What is the first thing to do?</legend><label class="hx-pick"><input type="radio" name="dtReady" value="a"> Read "Shot Ready" on the Drive Team tab</label><label class="hx-pick"><input type="radio" name="dtReady" value="b"> Let go and press RT again and again</label><label class="hx-pick"><input type="radio" name="dtReady" value="c"> Turn auto-aim off with RB</label></fieldset>
+      <p class="hx-readout" id="ro-dtReady" aria-live="polite">Pick one.</p>
+    </div>
+
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-backup" data-phase="shoot" data-title="Backup shots, vacuum, dump and the trench">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Operator</span><h2>Backup shots, vacuum, dump and the trench</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<h3>Backup shots (when the camera is in doubt)</h3>
+<p>Park on a marked spot, the operator <strong>holds its button 1/2 second</strong> (one buzz), then holds RT as usual.</p>
+<table class="hx-table "><thead><tr><th>Button</th><th>Spot</th><th>Where</th></tr></thead><tbody><tr><td data-label="Button"><span class="dt-key" data-color="xbox-a">A</span></td><td data-label="Spot">Midshot</td><td data-label="Where">Between our hub and our climb: about 2.30 m (91 in) out from our hub toward our wall.</td></tr><tr><td data-label="Button"><span class="dt-key" data-color="xbox-x">X</span></td><td data-label="Spot">Left trench</td><td data-label="Where">About 1.05 m (41 in) out from our hub and 3.39 m (133 in) to the left, seen from our driver station.</td></tr><tr><td data-label="Button">LB</td><td data-label="Spot">Right trench</td><td data-label="Where">Same, 3.39 m (133 in) to the right.</td></tr></tbody></table>
+</div><div class="hx-stack"><details class="hx-more"><summary>Vacuum and dump modes in detail</summary><div class="hx-stack"><ul class="hx-list">
+<li><strong>Vacuum (Operator Back):</strong> intake down, roller in, auto-aim on, fires by itself whenever ready. Scores inside our zone, passes home from the neutral zone. One long buzz on both controllers when it starts, two short when it ends.</li>
+<li><strong>Dump (Operator left stick click):</strong> for the trench with a full hopper: roller pushes balls OUT the front while the robot shoots. It lowers the intake itself. In the trench the hood stays down and firing pauses; in the neutral zone it passes home.</li>
+<li>The drive team always wins: Driver RT/LT take the roller, Operator RT/B take the feeders, only while held. Vacuum picks back up after.</li>
+<li><strong>Turn them off:</strong> press the same button again, or Operator RB or Y, or Driver Y (defense).</li>
+<li>While vacuum or dump is on, the drive is softer to save the battery. Driver holds the left stick click for full power.</li>
+</ul></div></details>
+<details class="hx-more"><summary>The trench</summary><div class="hx-stack"><p>The trench bar is low (22.25 in, 56.5 cm). Near a trench <strong>the robot keeps the hood all the way down by itself</strong>. Do not jog the hood up by hand near a trench: the hand jog is not limited. To shoot while parked beside a trench, the operator presses the right stick click (trench shot).</p></div></details>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-defense" data-phase="shoot" data-title="Defense mode">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Driver</span><h2>Defense mode</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<p><strong>Driver Y</strong> turns defense on (one long buzz). The robot turns auto-aim and vacuum off, raises the intake, lowers the hood, drives with a quicker response, and locks its wheels in an X when you let go of the sticks.</p>
+<table class="hx-table "><thead><tr><th>You feel</th><th>Rule</th><th>Do this</th></tr></thead><tbody><tr><td data-label="You feel">Fast strong pulses</td><td data-label="Rule">G418: no pin over 3 s</td><td data-label="Do this">Back off 1.83 m (72 in) now.</td></tr><tr><td data-label="You feel">Steady strong, last 30 s</td><td data-label="Rule">G420: hands off robots on their tower</td><td data-label="Do this">Leave their tower.</td></tr></tbody></table>
+</div><div class="hx-stack">
+<p><strong>Ending defense:</strong> on the coach's call "Offense", the <strong>operator presses RB</strong> (auto-aim on), which ends defense. Driver Y also ends it. Either way two short buzzes, and auto-aim comes back on by itself.</p>
+<div class="hx-evidence idea-panel" data-graded="no">
+      <span class="idea-eyebrow">Check yourself</span>
+      <fieldset class="hx-picks" data-field="dtDefense" data-kind="radio"><legend>The coach calls "Offense" while we are on defense. Who does what?</legend><label class="hx-pick"><input type="radio" name="dtDefense" value="a"> The operator presses RB: aim comes on and defense ends</label><label class="hx-pick"><input type="radio" name="dtDefense" value="b"> The driver holds LB</label><label class="hx-pick"><input type="radio" name="dtDefense" value="c"> Nobody: defense times out by itself</label></fieldset>
+      <p class="hx-readout" id="ro-dtDefense" aria-live="polite">Pick one.</p>
+    </div>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-buzz" data-phase="feel" data-title="What the buzzes mean">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Both controllers</span><h2>What the buzzes mean</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<p>Every mode change can be felt, so nobody has to look down at the laptop.</p>
+<table class="hx-table "><thead><tr><th>You feel</th><th>It means</th></tr></thead><tbody><tr><td data-label="You feel">1 short</td><td data-label="It means">Something turned ON (auto-aim on, gyro reset done, backup spot set).</td></tr><tr><td data-label="You feel">2 short</td><td data-label="It means">Something turned OFF.</td></tr><tr><td data-label="You feel">1 long</td><td data-label="It means">Both: Vacuum or dump started: the robot will move the intake.</td></tr><tr><td data-label="You feel">1 / 2 / 3 short after Start</td><td data-label="It means">Operator: Shot target is AUTO / SCORE only / PASS only.</td></tr><tr><td data-label="You feel">3 long</td><td data-label="It means">Operator: The hopper looks EMPTY: go get balls.</td></tr><tr><td data-label="You feel">Steady medium</td><td data-label="It means">Operator: Ready to fire.</td></tr></tbody></table>
+</div><div class="hx-stack"><table class="hx-table "><thead><tr><th>You feel</th><th>It means</th></tr></thead><tbody><tr><td data-label="You feel">Gentle constant hum</td><td data-label="It means">Driver: Our hub is open: score now.</td></tr><tr><td data-label="You feel">Ticks in the last 5 s of a shift</td><td data-label="It means">Driver: The hubs are about to swap.</td></tr><tr><td data-label="You feel">Pulses on both, early in teleop</td><td data-label="It means">The field never said who won auto. Operator sets "Auto Winner" (Match tab), calls "Winner set".</td></tr><tr><td data-label="You feel">Fast strong pulses</td><td data-label="It means">Driver: Defense pin close to 3 s: back off.</td></tr><tr><td data-label="You feel">Steady strong</td><td data-label="It means">Driver: Last 30 s and too close to THEIR tower: leave.</td></tr></tbody></table>
+<div class="hx-evidence idea-panel" data-graded="no">
+      <span class="idea-eyebrow">Check yourself</span>
+      <fieldset class="hx-picks" data-field="dtBuzz" data-kind="radio"><legend>The operator feels three long buzzes. What does it mean?</legend><label class="hx-pick"><input type="radio" name="dtBuzz" value="a"> The hopper looks empty: go get balls</label><label class="hx-pick"><input type="radio" name="dtBuzz" value="b"> Target mode is PASS only</label><label class="hx-pick"><input type="radio" name="dtBuzz" value="c"> The battery is low</label></fieldset>
+      <p class="hx-readout" id="ro-dtBuzz" aria-live="polite">Pick one.</p>
+    </div>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-match" data-phase="match" data-title="The match, phase by phase">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">160 seconds</span><h2>The match, phase by phase</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<p>Our hub only counts balls while it is <strong>active</strong>. The alliance that scores more in auto has its hub <strong>closed first</strong> in the shifts.</p>
+<table class="hx-table "><thead><tr><th>Phase</th><th>What to do</th></tr></thead><tbody><tr><td data-label="Phase"><strong>Auto</strong> (20 s)</td><td data-label="What to do"><strong>Hands off.</strong> Buttons do nothing in auto. <span class="dt-robot">Robot: Drives its path, aims and scores.</span></td></tr><tr><td data-label="Phase"><strong>Transition</strong> (10 s, both hubs open)</td><td data-label="What to do">Stay in our zone and score. <span class="dt-robot">Robot: Auto-aim is already on; fires when ready.</span></td></tr><tr><td data-label="Phase"><strong>Our shift</strong> (25 s, our hub open)</td><td data-label="What to do">Score from inside the line. Sweep balls along our wall and behind our hub between volleys. <span class="dt-robot">Robot: Speed cap and X-lock while scoring.</span></td></tr><tr><td data-label="Phase"><strong>Their shift</strong> (25 s, our hub closed)</td><td data-label="What to do">Go out through the trench, collect (vacuum), let it pass home. Come back on "Come home". <span class="dt-robot">Robot: Passes to our zone, holds scoring shots.</span></td></tr><tr><td data-label="Phase"><strong>Endgame</strong> (last 30 s, both open)</td><td data-label="What to do">Full hopper, drive to the climb on "Climb now", climb, then <strong>hands off the drive sticks</strong>. <span class="dt-robot">Robot: Keeps shooting while hanging (operator holds RT).</span></td></tr></tbody></table>
+</div><div class="hx-stack"><div class="hx-evidence idea-panel" data-graded="no">
+      <span class="idea-eyebrow">Check yourself</span>
+      <fieldset class="hx-picks" data-field="dtAuto" data-kind="radio"><legend>Auto is running and the operator wants to spin up early. What should they do?</legend><label class="hx-pick"><input type="radio" name="dtAuto" value="a"> Nothing: hands off until teleop</label><label class="hx-pick"><input type="radio" name="dtAuto" value="b"> Hold LT to help</label><label class="hx-pick"><input type="radio" name="dtAuto" value="c"> Press RB to start aiming</label></fieldset>
+      <p class="hx-readout" id="ro-dtAuto" aria-live="polite">Pick one.</p>
+    </div>
+
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-calls" data-phase="match" data-title="Calls, climbing and fouls">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Coach, driver, operator</span><h2>Calls, climbing and fouls</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<h3>Calls (say the key word back)</h3>
+<table class="hx-table "><thead><tr><th>Call</th><th>Answer</th></tr></thead><tbody><tr><td data-label="Call">"Won auto, closed first" / "Lost auto, open first"</td><td data-label="Answer">"Closed first" / "Open first"</td></tr><tr><td data-label="Call">"Ten to open" / "Ten to close", then the countdown</td><td data-label="Answer">The key word</td></tr><tr><td data-label="Call">"Come home"</td><td data-label="Answer">"Home"</td></tr><tr><td data-label="Call">"Left trench", "Right trench", "Left bump", "Right bump"</td><td data-label="Answer">The route name</td></tr><tr><td data-label="Call">"Defend [team number]" / "Offense"</td><td data-label="Answer">"Defend" / operator: "Aim on"</td></tr><tr><td data-label="Call">"Climb now" / "Hands off"</td><td data-label="Answer">"Climbing" / "Off"</td></tr><tr><td data-label="Call">Operator: "Full", "Half", "Empty"</td><td data-label="Answer">Coach plans from it</td></tr><tr><td data-label="Call">Operator: "Midshot", "Left trench spot", "Right trench spot"</td><td data-label="Answer">"Parking"</td></tr></tbody></table>
+</div><div class="hx-stack">
+<details class="hx-more"><summary>Climbing</summary><div class="hx-stack"><ul class="hx-list">
+<li>Driver holds <strong>D-pad Up</strong> to raise the climber and <strong>D-pad Down</strong> to pull the robot up. It stops by itself at both ends.</li>
+<li>Once the climber is up, nothing automatic moves the robot or the intake.</li>
+<li><strong>While hanging, do not touch the drive sticks</strong>: the wheels spin in the air and the robot loses track of where it is.</li>
+<li>The operator keeps shooting with RT. One end of the rung may put the hub in the turret's blind spot: practice which end works.</li>
+</ul></div></details>
+<details class="hx-more"><summary>Fouls the drive team causes most</summary><div class="hx-stack"><table class="hx-table "><thead><tr><th>Rule</th><th>Do not</th></tr></thead><tbody><tr><td data-label="Rule">G407</td><td data-label="Do not">Score into our hub from outside our alliance zone (the robot blocks this itself).</td></tr><tr><td data-label="Rule">G418</td><td data-label="Do not">Pin a robot more than 3 s. Back off 1.83 m (72 in).</td></tr><tr><td data-label="Rule">G420</td><td data-label="Do not">Touch robots on THEIR tower in the last 30 s.</td></tr><tr><td data-label="Rule">G415</td><td data-label="Do not">Push into an opponent inside their frame.</td></tr><tr><td data-label="Rule">G403</td><td data-label="Do not">Fully cross the center line in auto.</td></tr></tbody></table></div></details>
+<div class="hx-evidence idea-panel" data-graded="no">
+      <span class="idea-eyebrow">Check yourself</span>
+      <fieldset class="hx-picks" data-field="dtClimb" data-kind="radio"><legend>The robot is hanging from the rung. What does the driver do with the drive sticks?</legend><label class="hx-pick"><input type="radio" name="dtClimb" value="a"> Nothing: hands off</label><label class="hx-pick"><input type="radio" name="dtClimb" value="b"> Small pushes to line up the shot</label><label class="hx-pick"><input type="radio" name="dtClimb" value="c"> Hold the turn stick to aim</label></fieldset>
+      <p class="hx-readout" id="ro-dtClimb" aria-live="polite">Pick one.</p>
+    </div>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-fix" data-phase="fix" data-title="When something goes wrong">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Stay calm, use the table</span><h2>When something goes wrong</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<table class="hx-table "><thead><tr><th>What you see</th><th>Do this</th></tr></thead><tbody><tr><td data-label="What you see">Driving is sideways or backwards from the stick</td><td data-label="Do this">Point the robot away from our driver station, hold Driver LB until the buzz.</td></tr><tr><td data-label="What you see">Nothing fires with RT held</td><td data-label="Do this">Read "Shot Ready" (see Not firing).</td></tr><tr><td data-label="What you see">Shots miss to one side every time</td><td data-label="Do this">The robot's position is off. Use a backup shot from a marked spot.</td></tr><tr><td data-label="What you see">Balls stop feeding, spindexer stuck</td><td data-label="Do this">Operator holds B a moment, then lets go. RT keeps going.</td></tr><tr><td data-label="What you see">Intake will not go down with A</td><td data-label="Do this">Operator moves the intake with the left stick. Tell the pit after the match.</td></tr><tr><td data-label="What you see">Intake roller does not spin</td><td data-label="Do this">Shoot what is in the hopper, then defend. Tell the pit (motor 22).</td></tr><tr><td data-label="What you see">Turret stopped turning</td><td data-label="Do this">Operator D-pad Left/Right moves it by hand. Then RB on again.</td></tr></tbody></table>
+</div><div class="hx-stack"><table class="hx-table "><thead><tr><th>What you see</th><th>Do this</th></tr></thead><tbody><tr><td data-label="What you see">Robot drives weak and slow</td><td data-label="Do this">Vacuum or dump softens it: hold the left stick click. Or a weak battery.</td></tr><tr><td data-label="What you see">Robot stopped for a moment and came back</td><td data-label="Do this">A brownout. Drive gentler, tell the pit which battery.</td></tr><tr><td data-label="What you see">The robot is doing something nobody asked for</td><td data-label="Do this">Operator presses RB (aim, vacuum, dump off). Danger: Enter on the laptop.</td></tr></tbody></table>
+
+<div class="hx-evidence idea-panel" data-graded="no">
+      <span class="idea-eyebrow">Check yourself</span>
+      <fieldset class="hx-picks" data-field="dtCamera" data-kind="radio"><legend>Shot Ready keeps saying the position is unknown. What is the fastest way to score?</legend><label class="hx-pick"><input type="radio" name="dtCamera" value="a"> Park on the Midshot spot, operator holds A until the buzz, then holds RT</label><label class="hx-pick"><input type="radio" name="dtCamera" value="b"> Turn auto-aim off and aim by hand with the D-pad</label><label class="hx-pick"><input type="radio" name="dtCamera" value="c"> Drive around until it fixes itself</label></fieldset>
+      <p class="hx-readout" id="ro-dtCamera" aria-live="polite">Pick one.</p>
+    </div>
+</div></div>
+  </section>
+  <section class="hx-step idea-panel" id="s-changes" data-phase="fix" data-title="What changed" data-layout="full">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Read this before every practice</span><h2>What changed</h2></div></div>
+    <div class="hx-step-body"><div class="hx-stack">
+<table class="hx-table "><thead><tr><th>Date</th><th>What changed for you</th></tr></thead><tbody><tr><td data-label="Date">Oct 28</td><td data-label="What changed for you">Auto-aim turns on by itself at the start of teleop. RB still turns it off.</td></tr><tr><td data-label="Date">Oct 28</td><td data-label="What changed for you">Driver RB is also slow mode. Driver LB and Operator A / X / LB need a 1/2 second hold, then a buzz.</td></tr><tr><td data-label="Date">Oct 28</td><td data-label="What changed for you">Small stick pushes now move the robot (the stick used to do nothing until about a third of the way).</td></tr><tr><td data-label="Date">Oct 28</td><td data-label="What changed for you">While scoring, the robot caps its speed and locks its wheels when you let go. Left stick click overrides.</td></tr><tr><td data-label="Date">Oct 28</td><td data-label="What changed for you">RT with auto-aim off waits for the wheel to spin up before feeding. RT starts again by itself after B.</td></tr><tr><td data-label="Date">Oct 28</td><td data-label="What changed for you">Buzzes for every mode change (step 7). Dump mode lowers the intake by itself.</td></tr><tr><td data-label="Date">Oct 28</td><td data-label="What changed for you">The hood was rebuilt and goes higher: shots are being re-tuned, expect misses until the shot map is redone.</td></tr></tbody></table>
+</div></div>
+  </section>
+</main>
+<script type="application/json" id="hx-plan-data">
+{"phases": [{"id": "start", "name": "Start", "color": "first-gray", "days": [{"label": "Your job", "short": "Job"}, {"label": "Before", "short": "Before"}]}, {"id": "driver", "name": "Driver", "color": "sky", "days": [{"label": "Driver controller", "short": "Driver"}, {"label": "How it drives", "short": "Drive"}]}, {"id": "operator", "name": "Operator", "color": "violet", "days": [{"label": "Shooting buttons", "short": "Shoot"}, {"label": "By hand", "short": "Hand"}]}, {"id": "shoot", "name": "Shooting and defense", "color": "marigold", "days": [{"label": "Shooting", "short": "Shoot"}, {"label": "Not firing", "short": "Ready"}, {"label": "Backup", "short": "Backup"}, {"label": "Defense", "short": "Defense"}]}, {"id": "feel", "name": "Buzzes", "color": "magenta", "days": [{"label": "Buzzes", "short": "Buzz"}]}, {"id": "match", "name": "The match", "color": "first-blue", "days": [{"label": "Phases", "short": "Phases"}, {"label": "Calls", "short": "Calls"}]}, {"id": "fix", "name": "Problems", "color": "danger-red", "days": [{"label": "Fixes", "short": "Fix"}, {"label": "What changed", "short": "New"}]}]}
+</script>
+<script type="application/json" id="hx-glossary">
+{}
+</script>
+<!-- hx:script -->
+
+<script id="hx-page-js">
+var DT_CHECKS = {"dtGyro": {"a": "a", "r": "LB tells the robot it is facing straight away from us, so point it that way first.", "w": "LB saves whatever way the robot points as 'away', so tapping it crooked makes driving worse."}, "dtZone": {"a": "a", "r": "Outside our alliance zone it passes; scoring into our hub from there would be a MAJOR foul.", "w": "Scoring from outside our zone is a MAJOR foul (G407), so the robot passes instead."}, "dtReady": {"a": "a", "r": "Shot Ready names what it is waiting for.", "w": "Pressing again changes nothing; Shot Ready names what it is waiting for."}, "dtDefense": {"a": "a", "r": "RB turns aim on, which ends defense.", "w": "LB resets the gyro. RB (or Driver Y) is what ends defense."}, "dtBuzz": {"a": "a", "r": "Three long is the empty-hopper signal.", "w": "Three SHORT after Start is PASS only; three LONG is the empty hopper."}, "dtAuto": {"a": "a", "r": "Buttons do nothing in auto; the robot runs its own plan.", "w": "Buttons are ignored in auto, and pressing them only builds a bad habit."}, "dtClimb": {"a": "a", "r": "Wheels spinning in the air ruin the robot's position.", "w": "Spinning wheels in the air make the robot lose track of where it is, and every shot after misses."}, "dtCamera": {"a": "a", "r": "A backup shot tells the robot exactly where it is.", "w": "Backup shots exist for this: park on the spot, hold its button, then RT."}};
+function dtRefresh() {
+  Object.keys(DT_CHECKS).forEach(function (f) {
+    var el = hxRoot(f), out = document.getElementById('ro-' + f);
+    if (!el || !out) return;
+    var v = String(hxRead(el) || ''), c = DT_CHECKS[f];
+    out.classList.toggle('warn', !!v && v !== c.a);
+    out.textContent = !v ? 'Pick one.' : v === c.a ? 'Right. ' + c.r : 'Not yet. ' + c.w + ' Pick again.';
+  });
+}
+document.addEventListener('input', dtRefresh);
+HX.onState.push(dtRefresh);
+dtRefresh();
+</script>
+</body>
+</html>
