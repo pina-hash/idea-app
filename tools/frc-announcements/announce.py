@@ -105,13 +105,17 @@ def content(air):
                 pm_body=now_body + f"Beach Blitz is {span(days)} away. " + AGAIN,
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
         if days == 0:
+            # 2026-10-29, Mr. Pina: the team leaves right after school at 3:10; students and parents
+            # meet in the back parking lot, where students load into their carpool cars.
             return dict(kind="FRI_BB0", days=0, flyer_extra=xf,
-                title="TODAY! Robotics at Beach Blitz",
-                body=("The Techmen robotics team competes at Beach Blitz, a major robotics competition, starting today at Capistrano Valley "
-                      "High School, through Sunday. Wish the team luck, and follow along this weekend."),
-                pm_title="NOW! Robotics Leaves for Beach Blitz",
-                pm_body=("Robotics team members going to Beach Blitz, head to the front parking lot now. "
-                         "Cars leave as they fill. Good luck, Techmen."),
+                title="TODAY! Robotics Leaves for Beach Blitz at 3:10",
+                body=("Robotics team members, we leave for Beach Blitz today at 3:10, right after school, "
+                      "from the back parking lot. Do not be late: cars leave at 3:10. "
+                      "Beach Blitz is a major robotics competition at Capistrano Valley High School, through Sunday. "
+                      "Wish the team luck. Again: robotics, 3:10, back parking lot."),
+                pm_title="NOW: Robotics Leaves for Beach Blitz",
+                pm_body=("Robotics team members, go to the back parking lot now. "
+                         "Cars leave for Beach Blitz at 3:10. Again: back parking lot, now."),
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
         return dict(kind="FRI", flyer_extra=xf,
             title="TODAY! Robotics Team Meeting at 3:10, MANDATORY",
@@ -232,10 +236,10 @@ def join():
             '</div></div>')
 
 
-def page(top_tag, body):
+def page(top_tag, body, band=None):
     return (f'<!doctype html><meta charset=utf-8><style>{CSS}</style><div class=p><div class=rail></div>'
             f'<div class=ghost>5669</div><div class=top><img src=Type-Gold.svg><div class=tag>{top_tag}</div></div>'
-            f'{body}{join()}{asset("haz.svg")}</div>')
+            f'{body}{band or join()}{asset("haz.svg")}</div>')
 
 
 G = "#FFE629"
@@ -288,6 +292,21 @@ def flyer_html(air, c):
         else:
             hero = '<div class=hero>BEACH<br>BLITZ<br><span>TODAY.</span></div>'
             third = ("", "THROUGH", "Sunday, Nov 1")
+        if c["kind"] == "FRI_BB0":
+            cells = ('<div class=grid style="grid-template-columns:repeat(3,1fr)">'
+                     '<div class="cell hot"><div class=d>TODAY · 3:10 PM</div><div class=t>Leave for Beach Blitz</div><div class=s>Back parking lot. Cars leave at 3:10.</div></div>'
+                     f'<div class=cell><div class=d>{sat}</div><div class=t>Competition</div><div class=s>Capistrano Valley HS.</div></div>'
+                     '<div class=cell><div class=d>SUN 11/1</div><div class=t>Competition</div><div class=s>Capistrano Valley HS.</div></div></div>')
+            body = (hero + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
+                    + when([("d", "DATE", long_date(air)), ("", "WE LEAVE", "3:10 PM, back parking lot"), third], 4.5)
+                    + '<div class=body style="top:5.25in"><div class=lede>Right after school. <b>Do not be late: cars leave at 3:10.</b></div>'
+                    + '<div class=k>THIS WEEKEND</div>' + cells
+                    + '<div class=k>STUDENTS AND PARENTS</div><div class=cell><div class=t>Meet in the back parking lot at 3:10.</div>'
+                      '<div class=s>Students load into their carpool cars there. Every member, every day.</div></div></div>')
+            band = ('<div class=join style="justify-content:center"><div style="text-align:center">'
+                    '<div class=jt style="font-size:54pt;line-height:.95">3:10 PM.<br>BACK PARKING LOT.</div>'
+                    '<div class=js style="font-size:15pt;font-weight:700;margin-top:.12in">Right after school. Do not be late.</div></div></div>')
+            return page(f'ROBOTICS TEAM <b>5669</b> · <b>BEACH BLITZ</b>', body, band)
         body = (hero + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
                 + when([("d", "DATE", long_date(air)), ("", "WHERE" if c["kind"] == "FRI_BB0" else "MANDATORY MEETING", "Capistrano Valley HS" if c["kind"] == "FRI_BB0" else FRI_TIME + ", IDEA Classroom"), third], 4.5)
                 + '<div class=body style="top:5.25in"><div class=lede>Our next robotics competition. <b>Every hour before it counts.</b></div>'
