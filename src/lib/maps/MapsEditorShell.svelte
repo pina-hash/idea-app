@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AppSubNav from '$lib/shell/AppSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * THE WHOLE EDITOR PAGE AS ONE COMPONENT: the bar of chrome and the
 	 * workspace under it. `/maps/edit` mounts this and so does the
@@ -59,20 +61,29 @@
 <div class="mp-root mp-shell cr-app" data-testid="maps-editor-shell">
 	<header class="mp-bar app-header">
 		<a class="wordmark logo-mark mp-logo" href="/" aria-label="IDEA home"><AnimatedLogo width={64} /></a>
-		<div class="mp-title">
-			<span class="eyebrow">IDEA · Maps</span>
-			<h1>Editor</h1>
-		</div>
-		<nav class="mp-links" aria-label="Editor pages">
-			<a class="btn secondary" href="/maps">Public map</a>
-			<a class="btn secondary" href="/maps/edit/shelf">Shelf entry</a>
+		<div class="mp-links">
 			{#if scope.admin}
 				<a class="btn secondary mp-link-wide" href="/dashboard">Dashboard</a>
 			{/if}
 			<a class="btn secondary" href="/">&lsaquo; Home</a>
 			<ProfileMenu />
-		</nav>
+		</div>
 	</header>
+	<!-- THE SITE'S ONE SUB-NAV AND PAGE HEADER (ledger 0468): the Maps app's
+	     places as pads (the public map, this editor, the shelf entry), then
+	     the title bar. -->
+	<div class="mp-head">
+		<AppSubNav
+			label="IDEA Maps"
+			testid="maps-subnav"
+			items={[
+				{ id: 'map', label: 'Public map', href: '/maps' },
+				{ id: 'editor', label: 'Editor', href: '/maps/edit', current: true },
+				{ id: 'shelf', label: 'Shelf entry', href: '/maps/edit/shelf' }
+			]}
+		/>
+		<PageHeader eyebrow="IDEA Maps" title="Editor" />
+	</div>
 
 	<main class="mp-body cr-app-body">
 		<MapsEditor {initial} {transports} {scope} {initialSelection} {editors} />
@@ -105,23 +116,15 @@
 		align-items: center;
 		min-height: 44px;
 	}
-	.mp-title {
-		display: flex;
-		flex-direction: column;
-		gap: 0;
-		min-width: 0;
+	.mp-head {
+		flex: 0 0 auto;
+		padding: 0.75rem var(--cr-gutter, 1rem) 0;
 	}
-	.eyebrow {
-		font-family: var(--font-mono);
-		font-size: 0.68rem;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-		color: var(--cyan);
+	.mp-head :global(.app-subnav) {
+		margin-bottom: 0.6rem;
 	}
-	h1 {
-		margin: 0;
-		font-size: 1.15rem;
-		line-height: 1.1;
+	.mp-head :global(.page-header) {
+		margin-bottom: 0.75rem;
 	}
 	.mp-links {
 		display: flex;

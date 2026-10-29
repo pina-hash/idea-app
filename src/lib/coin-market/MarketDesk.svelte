@@ -175,7 +175,7 @@
 				<span class="mk-sub">{disputes.length} waiting. {coins(escrow)} held in escrow{scope === 'section' ? ' for your students' : ''}.</span>
 			</header>
 			{#if disputes.length}
-				<ul class="mk-list">
+				<ul class="idea-list mk-list">
 					{#each disputes as d (d.id)}
 						<li class="mk-trade" data-testid="md-dispute">
 							<div class="mk-trade-head"><span class="mk-trade-title">{d.title}</span><span class="mk-price">{coins(d.amount)}</span></div>
@@ -202,7 +202,7 @@
 					<h2 id="md-h-cards">Every market card</h2>
 					<span class="mk-sub">{cards.filter((c) => c.featured).length} of {cards.length} featured. A featured card leads the Official zone with a Featured chip.</span>
 				</header>
-				<ul class="mk-list">
+				<ul class="idea-list mk-list">
 					{#each cards as c (c.card)}
 						<li class="mk-trade" data-testid="md-card" data-card={c.card} data-featured={c.featured}>
 							<div class="mk-trade-head">
@@ -234,7 +234,7 @@
 		<section class="card mk-panel" aria-labelledby="md-h-listings" data-testid="md-listings">
 			<header><h2 id="md-h-listings">Student listings</h2><span class="mk-sub">Feature one to pin it near the top. Hide one with a reason the student sees.</span></header>
 			{#if listings.length}
-				<ul class="mk-list">
+				<ul class="idea-list mk-list">
 					{#each listings as l (l.id)}
 						<li class="mk-trade" data-testid="md-listing">
 							<div class="mk-trade-head">
@@ -270,7 +270,7 @@
 		<section class="card mk-panel" aria-labelledby="md-h-official" data-testid="md-official">
 			<header><h2 id="md-h-official">Official cards</h2><span class="mk-sub">A card in the Official zone: a want-ad, an announcement, a door to a page.</span></header>
 			{#if official.length}
-				<ul class="mk-list">
+				<ul class="idea-list mk-list">
 					{#each official as o (o.id)}
 						<li class="mk-trade">
 							<div class="mk-trade-head"><span class="mk-trade-title">{o.title}</span><span class="mk-note">{o.section ?? 'Every class'}</span></div>
@@ -296,7 +296,7 @@
 		<section class="card mk-panel" aria-labelledby="md-h-banner" data-testid="md-banner">
 			<header><h2 id="md-h-banner">Classroom banner</h2><span class="mk-sub">Pins rotate under the IDEA Classroom header. The look is chosen in Settings.</span></header>
 			{#if pins.length}
-				<ul class="mk-list">
+				<ul class="idea-list mk-list">
 					{#each pins as p (p.id)}
 						<li class="mk-trade" data-testid="md-pin">
 							<div class="mk-trade-head"><span class="mk-trade-title">{p.title}</span><span class="mk-note">{p.section ?? 'Every class'}{p.ends_on ? `, until ${p.ends_on}` : ''}</span></div>
@@ -322,7 +322,7 @@
 		<section class="card mk-panel" aria-labelledby="md-h-reviews" data-testid="md-reviews">
 			<header><h2 id="md-h-reviews">Reviews</h2></header>
 			{#if reviews.length}
-				<ul class="mk-list">
+				<ul class="idea-list mk-list">
 					{#each reviews as r (r.id)}
 						<li class="mk-review">
 							<Stars average={r.stars} count={1} single />
@@ -369,7 +369,7 @@
 		{#if transports.stockSet && stocks.length}
 			<section class="card mk-panel" aria-labelledby="md-h-stocks" data-testid="md-stocks">
 				<header><h2 id="md-h-stocks">Stocks</h2><span class="mk-sub">Switch a stock off to stop new trades; holders can still sell. The formula's numbers are in Settings.</span></header>
-				<ul class="mk-list">
+				<ul class="idea-list mk-list">
 					{#each stocks as s (s.id)}
 						<li class="mk-trade">
 							<div class="mk-trade-head"><span class="mk-trade-title">{s.ticker}: {s.name}</span><StatusChip tone={s.active ? 'ok' : 'neutral'} label={s.active ? 'On' : 'Off'} /></div>

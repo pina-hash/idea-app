@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import CoinDeskNav from '$lib/coin-desk/CoinDeskNav.svelte';
@@ -70,10 +71,8 @@
 
 <div class="cd-root" data-testid="coin-desk-staff-harness" data-staff-hydrated={hydrated ? 'true' : undefined} data-scope={scope}>
 	<main class="coin-desk-page">
-		<section class="hero">
-			<div class="eyebrow">IDEA // Coin Desk (dev harness, {scope === 'full' ? 'full coin admin' : 'section coin staff'})</div>
-			<h1>Coin desk</h1>
-		</section>
+		<!-- The real staff layout's own header (ledger 0468), mounted, not copied. -->
+		<PageHeader eyebrow="IDEA Coins" title="Staff tools" />
 
 		<CoinDeskNav active={other ?? view} {scope} onSelect={select} />
 

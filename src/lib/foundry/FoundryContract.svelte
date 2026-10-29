@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * THE BUILD CONTRACT, rendered as one selectable block with a copy button.
 	 *
@@ -74,17 +75,8 @@
 </script>
 
 <div class="fdy-contract-page">
-	<header class="fdy-head">
-		<div class="fdy-head-text">
-			<h1>Build contract</h1>
-			<p>
-				These are the rules your app is checked against when you upload it. They are written
-				as instructions for an AI tool, because that is usually what is reading them. Pick the
-				version that matches what you are doing, copy the whole thing, and paste it in before
-				you ask for an app.
-			</p>
-		</div>
-		<div class="fdy-head-actions">
+	<PageHeader eyebrow="IDEA Foundry" title="Build contract" meta="These are the rules your app is checked against when you upload it. They are written as instructions for an AI tool, because that is usually what is reading them. Pick the version that matches what you are doing, copy the whole thing, and paste it in before you ask for an app.">
+		{#snippet actions()}
 			<button type="button" class="btn fdy-primary tap-44" onclick={copyAll}>
 				{copied ? 'Copied' : 'Copy everything'}
 			</button>
@@ -93,12 +85,12 @@
 				a tool; the starter is saved and edited. Two different actions on
 				two different things, so they read as two controls.
 			-->
-			<a class="btn tap-44" href={FOUNDRY_STARTER_PATH} download="index.html">
+			<a class="btn secondary tap-44" href={FOUNDRY_STARTER_PATH} download="index.html">
 				Download starter file
 			</a>
-			<a class="btn tap-44" href="/foundry/submit">Upload an app</a>
-		</div>
-	</header>
+			<a class="btn secondary tap-44" href="/foundry/submit">Upload an app</a>
+				{/snippet}
+	</PageHeader>
 
 	<!--
 		THE PICKER IS A RADIO GROUP, NOT A ROW OF BUTTONS AND NOT A <select>.
@@ -141,38 +133,6 @@
 	 * measure, the actions sit where a reader who already knows what this is can
 	 * reach them without scrolling past the prose.
 	 */
-	.fdy-head {
-		display: flex;
-		gap: var(--space-4, 1rem);
-		align-items: flex-start;
-		flex-wrap: wrap;
-		margin-bottom: var(--space-4, 1rem);
-	}
-
-	.fdy-head-text {
-		flex: 1;
-		min-width: min(28rem, 100%);
-	}
-
-	.fdy-head h1 {
-		margin: 0 0 0.35rem;
-		font-family: var(--font-display);
-		font-size: 1.7rem;
-	}
-
-	.fdy-head p {
-		margin: 0;
-		color: var(--text-2);
-		line-height: 1.5;
-		max-width: 62ch;
-	}
-
-	.fdy-head-actions {
-		display: flex;
-		gap: var(--space-2, 0.5rem);
-		flex-wrap: wrap;
-	}
-
 	/*
 	 * Monospace and preserved whitespace, because the copied string is the
 	 * deliverable. `pre-wrap` rather than `pre`: the contract is already

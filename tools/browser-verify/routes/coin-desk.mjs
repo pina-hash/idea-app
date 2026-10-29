@@ -56,9 +56,9 @@ export default {
 	],
 	contrast: [
 		{ selector: '.cd-root .desk-nav [aria-current="page"]', label: 'the current tab on the room plate', min: 4.5 },
-		{ selector: '.cd-root .desk-nav a:not(.active), .cd-root .desk-nav button:not(.active)', label: 'a resting tab', min: 4.5 },
-		{ selector: '.cd-root .desk-nav .blurb', label: "the area's description line", min: 4.5 },
-		{ selector: '.cd-root .coin-desk-page .hero h1', label: 'the masthead title', min: 4.5 }
+		{ selector: '.cd-root .desk-nav a:not([aria-current]), .cd-root .desk-nav button:not([aria-current])', label: 'a resting tab', min: 4.5 },
+		{ selector: '.cd-root .desk-nav .asn-blurb', label: "the area's description line", min: 4.5 },
+		{ selector: '.cd-root .coin-desk-page .page-header h1', label: 'the masthead title', min: 4.5 }
 	],
 	tapTargets: [
 		/* IT WAS 26.2px. Hit-tested on a 375px viewport before this bundle the
@@ -74,7 +74,7 @@ export default {
 		   current tab stopped being marked at all. */
 		{
 			activeSelector: '.cd-root .desk-nav [aria-current="page"]',
-			inactiveSelector: '.cd-root .desk-nav a:not(.active), .cd-root .desk-nav button:not(.active)',
+			inactiveSelector: '.cd-root .desk-nav a:not([aria-current]), .cd-root .desk-nav button:not([aria-current])',
 			label: 'the current tab renders differently from a resting one'
 		}
 	],
@@ -96,7 +96,7 @@ export default {
 			   is 46rem / 736px; below 1024 the page is narrower than the cap and
 			   the blurb is simply the page, which is the correct answer there. */
 			evaluate:
-				'() => { const b = document.querySelector(".cd-root .desk-nav .blurb"); if (!b) return ["NO BLURB"]; const w = b.getBoundingClientRect().width; const page = document.querySelector(".cd-root .coin-desk-page").getBoundingClientRect().width; return [w <= 737 && w <= page ? "capped" : "uncapped:" + Math.round(w)]; }',
+				'() => { const b = document.querySelector(".cd-root .desk-nav .asn-blurb"); if (!b) return ["NO BLURB"]; const w = b.getBoundingClientRect().width; const page = document.querySelector(".cd-root .coin-desk-page").getBoundingClientRect().width; return [w <= 737 && w <= page ? "capped" : "uncapped:" + Math.round(w)]; }',
 			expected: ['capped']
 		}
 	]

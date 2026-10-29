@@ -566,20 +566,67 @@
 				? `This page failed with a ${status}. You are not signed in, so this report carries no name. The status, the route, your browser and the build are attached automatically, so say what you were trying to do.`
 				: `This page failed with a ${status}. The status, the route, your browser and the build are attached automatically, so say what you were trying to do.`
 	);
+
+	/** How far down a phone's page the pill folds to its glyph (ledger 0468). */
+	const FEEDBACK_FOLD_AT = 160;
+	let folded = $state(false);
+	$effect(() => {
+		if (typeof window === 'undefined' || !shown) return;
+		const phone = window.matchMedia('(max-width: 30rem)');
+		const update = () => {
+			const focusIn = !!document.activeElement?.closest?.('.sfb-fold');
+			folded = phone.matches && window.scrollY > FEEDBACK_FOLD_AT && !focusIn;
+		};
+		update();
+		/* DEFERRED, NEVER WRITTEN FROM INSIDE THE EVENT. A focused element that
+		   Svelte removes fires `focusout` synchronously in the middle of
+		   Svelte's own DOM update, and a state write there throws
+		   `state_unsafe_mutation` (measured on the coin desk's tab switch). */
+		let queued = false;
+		const later = () => {
+			if (queued) return;
+			queued = true;
+			queueMicrotask(() => {
+				queued = false;
+				update();
+			});
+		};
+		window.addEventListener('scroll', later, { passive: true });
+		window.addEventListener('focusin', later);
+		window.addEventListener('focusout', later);
+		phone.addEventListener('change', later);
+		return () => {
+			window.removeEventListener('scroll', later);
+			window.removeEventListener('focusin', later);
+			window.removeEventListener('focusout', later);
+			phone.removeEventListener('change', later);
+		};
+	});
 </script>
 
 {#if shown}
-	<FeedbackTrigger
-		bind:this={trigger}
-		place={place === 'relocated' ? 'relocated' : 'shell'}
-		{label}
-		error={status !== null}
-		{loadFailed}
-		pending={open && !Box && !loadFailed}
-		onopen={openBox}
-		onpreload={preload}
-		onreload={() => location.reload()}
-	/>
+	<!-- THE PILL FOLDS TO ITS GLYPH AFTER A SCROLL ON A PHONE (ledger 0468,
+	     feedback c27b2be7; Mr. Pina's call over "every control carries a
+	     word"): at 30rem and under, once the page has scrolled past
+	     `FEEDBACK_FOLD_AT`, the word is hidden visually and stays the button's
+	     accessible name, so the key keeps its glyph and its 48px square and
+	     stops covering the content under the corner. Back near the top, or
+	     while the button has focus, the word returns. The fold lives here,
+	     never in `FeedbackTrigger`, so the button the frozen Ledger serves is
+	     untouched. -->
+	<div class="sfb-fold" class:folded={folded && place !== 'relocated'}>
+		<FeedbackTrigger
+			bind:this={trigger}
+			place={place === 'relocated' ? 'relocated' : 'shell'}
+			{label}
+			error={status !== null}
+			{loadFailed}
+			pending={open && !Box && !loadFailed}
+			onopen={openBox}
+			onpreload={preload}
+			onreload={() => location.reload()}
+		/>
+	</div>
 {/if}
 
 {#if open && submit && Box}
@@ -605,6 +652,27 @@
 {/if}
 
 <style>
+	/* The fold's wrapper takes no box: the pill inside it is fixed in the
+	   corner exactly as before. */
+	.sfb-fold {
+		display: contents;
+	}
+	/* FOLDED: the word is visually hidden and still names the button, and the
+	   key is the 48px square its glyph sits in. */
+	.sfb-fold.folded :global(.sfb-shell.sfb-shell .sfb-trigger.sfb-trigger) {
+		padding: 0;
+		width: 48px;
+	}
+	.sfb-fold.folded :global(.sfb-shell.sfb-shell .sfb-word.sfb-word) {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
 	/* THE BUTTON'S OWN RULES LIVE IN `FeedbackTrigger.svelte` (ledger 0396),
 	   so the Coin Ledger and an assignment handout, which server-render that
 	   component into the bytes they serve, are drawn by the same stylesheet as

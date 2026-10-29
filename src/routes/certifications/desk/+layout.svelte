@@ -9,6 +9,7 @@
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { DESK_TABS, deskTabFor } from '$lib/certifications/nav';
+	import AppSubNav from '$lib/shell/AppSubNav.svelte';
 	import DeskSearch from '$lib/certifications/desk/DeskSearch.svelte';
 	import type { DeskPerson } from '$lib/certifications/desk/desk';
 	import '$lib/certifications/cert.css';
@@ -22,11 +23,11 @@
 
 <div class="dk-root" data-testid="cert-desk-root">
 	<div class="dk-bar">
-		<nav class="cert-tabs" aria-label="Desk" data-testid="cert-desk-tabs">
-			{#each tabs as tab (tab.id)}
-				<a class="cert-tab" href={tab.href} aria-current={current === tab.id ? 'page' : undefined} data-testid="cert-desk-tab" data-tab={tab.id}>{tab.label}</a>
-			{/each}
-		</nav>
+		<AppSubNav
+			label="Desk"
+			testid="cert-desk-tabs"
+			items={tabs.map((tab) => ({ id: tab.id, label: tab.label, href: tab.href, current: current === tab.id, testid: 'cert-desk-tab' }))}
+		/>
 		<DeskSearch people={data.people} />
 	</div>
 	{@render children()}

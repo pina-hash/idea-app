@@ -298,7 +298,7 @@
 						Every purchase asks you to confirm and shows your balance afterwards. A purchase has to
 						leave you at {coins(0)} or more.
 					</p>
-					<div class="cp-buys">
+					<div class="idea-list cp-buys">
 						{#if transports.buyEatingPass}
 							<CoinBuy
 								testId="buy-eating-pass"
@@ -707,10 +707,11 @@
 		}
 	}
 
+	/* The things to buy are rows of the kit's list well (ledger 0468): one
+	   recessed well, etched between rows, never a box per item in the card. */
 	.cp-buys {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: 0.9rem;
 	}
 	.cp-help {
 		margin: 0;

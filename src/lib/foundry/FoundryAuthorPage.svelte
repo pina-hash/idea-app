@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * A PUBLISHER'S PAGE: who they are, and everything of theirs this viewer can
 	 * see.
@@ -98,7 +99,17 @@
 </script>
 
 <div class="fdy-author-page">
-	<header class="fdy-author-head">
+	<PageHeader eyebrow="IDEA Foundry publisher" title={name ?? 'Publisher'} titleTestid="foundry-author-name">
+		<!--
+			A NULL NAME RENDERS THE WORD "Publisher" AND NOT AN EMPTY HEADING.
+			A page has to have a title, and this is the one place in the feature
+			where "render nothing" is not available: a nameless h1 is a hole at the
+			top of the document and is what a screen reader announces the page as.
+			Everywhere a name sits BESIDE something else -- a card, a detail line --
+			it still renders as nothing. The face and the facts sit under the title
+			bar, centred with it (the site's one page header, ledger 0468).
+		-->
+		<div class="fdy-author-head">
 		<!--
 			`tintKey` IS THE OWNER UUID. See the subject above: a tint only has to
 			be stable per person, and this is the one field on this payload that
@@ -107,16 +118,7 @@
 		<div class="fdy-author-face">
 			<Avatar {subject} tintKey={card.owner} size={88} />
 		</div>
-		<div class="fdy-author-who">
-			<!--
-				A NULL NAME RENDERS THE WORD "Publisher" AND NOT AN EMPTY HEADING.
-				A page has to have a title, and this is the one place in the
-				feature where "render nothing" is not available: a nameless h1 is
-				a hole at the top of the document and is what a screen reader
-				announces the page as. Everywhere a name sits BESIDE something
-				else -- a card, a detail line -- it still renders as nothing.
-			-->
-			<h1 data-testid="foundry-author-name">{name ?? 'Publisher'}</h1>
+			<div class="fdy-author-who">
 			<div class="fdy-author-meta">
 				<!--
 					Identity, never an access gate, and never colour alone: the chip
@@ -129,8 +131,9 @@
 			<p class="fdy-author-count">
 				{countLine}{#if since}, publishing since {since}{/if}
 			</p>
+			</div>
 		</div>
-	</header>
+	</PageHeader>
 
 	<!--
 		THE SHELF. `foundryMosaicColumns` is the gallery's arithmetic and is not
@@ -178,6 +181,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
+		justify-content: center;
 		gap: var(--space-4, 1rem);
 		min-width: 0;
 	}
@@ -194,14 +198,6 @@
 		   page wider than the viewport. An item's automatic minimum is its
 		   min-content, which an ellipsis does not reduce. */
 		min-width: 0;
-	}
-
-	.fdy-author-who h1 {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: 1.6rem;
-		line-height: 1.2;
-		overflow-wrap: anywhere;
 	}
 
 	.fdy-author-meta {

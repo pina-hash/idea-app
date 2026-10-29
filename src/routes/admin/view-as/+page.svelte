@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * /admin/view-as (ledger 0422). Find anyone who has signed in, then see the
 	 * site exactly as they do (read-only) or act on their account (logged, and
@@ -33,13 +35,10 @@
 		<ProfileMenu />
 	</div>
 </div>
+<AdminSubNav current="view-as" />
 
 <main class="va-page" data-testid="view-as-admin">
-	<section class="hero">
-		<div class="eyebrow">Admin console</div>
-		<h1>View as</h1>
-		<p class="va-lede">See the site exactly as one person sees it, or act on their account. A panel you can drag anywhere is the only thing added; Exit brings you back.</p>
-	</section>
+	<PageHeader eyebrow="IDEA Admin" title="View as" meta="See the site exactly as one person sees it, or act on their account. A panel you can drag anywhere is the only thing added; Exit brings you back." />
 
 	{#if form?.message}
 		<p class="va-note" role="alert" data-testid="view-as-note">{form.message}</p>
@@ -131,11 +130,6 @@
 		max-width: 72rem;
 		margin: 0 auto;
 		padding: 0 1rem 3rem;
-	}
-	.va-lede {
-		color: var(--text-2);
-		margin: 0.3rem auto 0;
-		max-width: 46rem;
 	}
 	.va-grid {
 		display: grid;

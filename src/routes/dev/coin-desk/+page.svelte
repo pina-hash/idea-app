@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import { untrack } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import CoinDeskNav from '$lib/coin-desk/CoinDeskNav.svelte';
@@ -129,10 +130,8 @@
 
 <div class="cd-root">
 	<main class="coin-desk-page">
-		<section class="hero">
-			<div class="eyebrow">IDEA // Coin Desk (dev harness)</div>
-			<h1>Coin desk</h1>
-		</section>
+		<!-- The real staff layout's own header (ledger 0468), mounted, not copied. -->
+		<PageHeader eyebrow="IDEA Coins" title="Staff tools" />
 
 		<CoinDeskNav active={area} {scope} onSelect={(next) => (area = next)} />
 

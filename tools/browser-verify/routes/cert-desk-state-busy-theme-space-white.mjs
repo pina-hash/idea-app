@@ -16,11 +16,11 @@ export default {
 		{ selector: '[data-testid="cert-chart"] svg.cert-chart', label: 'six SVG charts', expectPresent: 6, maxPresent: 6, expectVisible: 6 }
 	],
 	tapTargets: [
-		{ selector: '[data-testid="cert-desk-tabs"] .cert-tab', label: 'the desk tabs', min: 44 },
+		{ selector: '[data-testid="cert-desk-tabs"] .idea-pad', label: 'the desk tabs', min: 44 },
 		{ selector: '[data-testid="cert-queue-review"]', label: 'Review keys', min: 44 }
 	],
 	contrast: [
-		{ selector: '[data-testid="cert-desk-tabs"] .cert-tab', label: 'tab words', min: 4.5 },
+		{ selector: '[data-testid="cert-desk-tabs"] .idea-pad', label: 'tab words', min: 4.5 },
 		{ selector: '[data-testid="cert-queue-row"] .dk-row-name', label: 'student names', min: 4.5 },
 		{ selector: '[data-testid="cert-queue-row"] .dk-row-meta', label: 'meta words', min: 4.5 },
 		{ selector: '[data-testid="cert-queue-row"] .cert-readout', label: 'the part readouts', min: 4.5 },

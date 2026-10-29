@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * Bare smoke-test form for the notebook Drive write path: one image + a
 	 * label, POSTed to the existing /api/notebook/upload as custom_label only
@@ -54,13 +56,17 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
+<AdminSubNav />
 <main class="wrap">
-	<h1>Notebook Drive upload test</h1>
-	<p class="dim">
+	<PageHeader eyebrow="IDEA Admin" title="Notebook Drive upload test">
+		{#snippet metaContent()}
+		<p class="dim">
 		Smoke test of the Drive write path: one image through the real
 		<code>/api/notebook/upload</code>, as a custom-label entry (no section or session).
 		<a href="/admin">Back to /admin</a>
-	</p>
+		</p>
+		{/snippet}
+	</PageHeader>
 
 	{#if !data.driveConfigured}
 		<p class="err">
@@ -111,9 +117,6 @@
 		padding: 0 1rem;
 		color: var(--white, #e8ffe8);
 		font-family: Rajdhani, sans-serif;
-	}
-	h1 {
-		font-size: 1.4rem;
 	}
 	.dim {
 		color: var(--dim, #7a8a7a);

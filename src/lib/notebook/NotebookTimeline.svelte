@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import { entryTitle } from '$lib/notebook';
 	import { submissionFileSrc } from '$lib/classroom/assignment-spec';
 	import { timelineDayLabel, type TimelineDay } from '$lib/notebook/timeline';
@@ -35,16 +36,17 @@
 </script>
 
 <section class="nbt" data-testid="notebook-timeline" aria-labelledby="nbt-head">
-	<header class="nbt-head">
-		<h1 id="nbt-head" class="nbt-title">Timeline</h1>
-		{#if streak > 0}
-			<span class="nbt-streak" data-testid="nbt-streak">
-				<span aria-hidden="true">▮</span>
-				{streak === 1 ? '1 class day in a row' : `${streak} class days in a row`}
-			</span>
-		{/if}
-		<a class="nbt-back tap-44" href={notebookHref}>Notebook</a>
-	</header>
+	<PageHeader eyebrow="IDEA Notebook" title="Timeline" id="nbt-head">
+		{#snippet actions()}
+			{#if streak > 0}
+				<span class="nbt-streak" data-testid="nbt-streak">
+					<span aria-hidden="true">▮</span>
+					{streak === 1 ? '1 class day in a row' : `${streak} class days in a row`}
+				</span>
+			{/if}
+			<a class="nbt-back tap-44" href={notebookHref}>Notebook</a>
+		{/snippet}
+	</PageHeader>
 	{#if !handInsReady}
 		<p class="nbt-note" role="status">Your hand-ins could not be loaded, so only notebook entries are shown.</p>
 	{/if}
@@ -109,16 +111,6 @@
 		box-sizing: border-box;
 		min-width: 0;
 	}
-	.nbt-head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
-	}
-	.nbt-title {
-		margin: 0;
-		font-size: 1.6rem;
-	}
 	.nbt-streak {
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
@@ -128,7 +120,6 @@
 		padding: 0.2rem 0.7rem;
 	}
 	.nbt-back {
-		margin-left: auto;
 		color: var(--body-link, var(--cyan));
 	}
 	.nbt-note {
@@ -159,7 +150,6 @@
 		display: grid;
 		gap: 2px;
 		padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
-		border-left: 2px solid var(--hairline);
 		min-width: 0;
 	}
 	.nbt-event + .nbt-event {

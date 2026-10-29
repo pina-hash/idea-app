@@ -30,6 +30,7 @@
 	 * thing narrowing the gallery.
 	 */
 	import type { Snippet } from 'svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 
 	let {
 		heading,
@@ -59,13 +60,13 @@
 	data-testid={testid}
 	style={measure ? `--fdy-page-measure: ${measure}` : undefined}
 >
-	<header class="fdy-page-head">
-		<h1>{heading}</h1>
-		{#if lead}<p class="fdy-page-lead">{lead}</p>{/if}
-		{#if nav}
-			<div class="fdy-page-nav">{@render nav()}</div>
-		{/if}
-	</header>
+	<div class="fdy-page-head">
+		<PageHeader eyebrow="IDEA Foundry" title={heading} meta={lead || null}>
+			{#if nav}
+				<div class="fdy-page-nav">{@render nav()}</div>
+			{/if}
+		</PageHeader>
+	</div>
 
 	{@render children()}
 </div>
@@ -89,6 +90,11 @@
 	   and the panes start on one line and the gutter is not paid twice. */
 	.fdy-page.is-split {
 		padding-inline: 0;
+		/* An application page (the gallery, the review queue) gives the split
+		   the height: the site's page header is taller than the old heading,
+		   so the space around it is tighter here (ledger 0468). */
+		padding-top: var(--space-3, 0.75rem);
+		gap: var(--space-3, 0.75rem);
 	}
 
 	.fdy-page.is-split > .fdy-page-head {
@@ -110,26 +116,18 @@
 		}
 	}
 
+	/* THE HEAD IS THE SITE'S ONE PAGE HEADER (ledger 0468); this only spaces
+	   it inside the page's column. */
 	.fdy-page-head {
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
 		min-width: 0;
 	}
-
-	.fdy-page-head h1 {
+	.fdy-page-head :global(.page-header) {
 		margin: 0;
-		font-family: var(--font-title, var(--font-display));
-	}
-
-	.fdy-page-lead {
-		margin: 0;
-		max-width: var(--measure-prose, 42rem);
-		color: var(--text-2, var(--dim));
 	}
 
 	.fdy-page-nav {
-		margin-top: 0.4rem;
+		display: flex;
+		justify-content: center;
 		min-width: 0;
 	}
 </style>

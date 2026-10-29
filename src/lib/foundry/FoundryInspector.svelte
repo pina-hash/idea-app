@@ -540,7 +540,7 @@
 			{#if downloadHref || previewHref}
 				<p class="fdy-insp-get">
 					{#if downloadHref}
-						<a class="btn tap-44" href={downloadHref} download>
+						<a class="btn secondary tap-44" href={downloadHref} download>
 							Download this build
 						</a>
 					{/if}
@@ -554,7 +554,7 @@
 					-->
 					{#if previewHref}
 						<a
-							class="btn tap-44"
+							class="btn secondary tap-44"
 							href={previewHref}
 							target="_blank"
 							rel="noopener"
@@ -590,7 +590,7 @@
 				them on the page beside this.
 			</p>
 			{#if transports.clearMetadataFlag}
-				<button type="button" class="btn tap-44" onclick={clearFlag}>
+				<button type="button" class="btn secondary tap-44" onclick={clearFlag}>
 					I have read it, clear the flag
 				</button>
 			{/if}
@@ -758,13 +758,13 @@
 							<div class="fdy-shelf-row">
 								<button
 									type="button"
-									class="btn tap-44"
+									class="btn secondary tap-44"
 									disabled={metaBusy}
 									onclick={() => saveEdit(f.field)}
 								>
 									{metaBusy ? 'Saving...' : 'Save'}
 								</button>
-								<button type="button" class="btn tap-44" onclick={() => (editing = null)}>
+								<button type="button" class="btn secondary tap-44" onclick={() => (editing = null)}>
 									Cancel
 								</button>
 							</div>
@@ -779,7 +779,7 @@
 							-->
 							<button
 								type="button"
-								class="btn tap-44"
+								class="btn secondary tap-44"
 								onclick={() => beginEdit(f.field, current)}
 							>
 								Edit
@@ -808,7 +808,7 @@
 						{:else}
 							<p class="fdy-meta-value fdy-meta-empty">Not set</p>
 						{/if}
-						<label class="btn tap-44">
+						<label class="btn secondary tap-44">
 							{app.cover_path ? 'Replace' : 'Add'}
 							<input
 								type="file"
@@ -863,7 +863,7 @@
 					</p>
 					<button
 						type="button"
-						class="btn tap-44"
+						class="btn secondary tap-44"
 						disabled={majorBusy}
 						data-testid="foundry-major-remove"
 						onclick={() => setMajor(false)}
@@ -874,7 +874,7 @@
 					<p class="fdy-insp-note">{FOUNDRY_MAJOR_OFFER}</p>
 					<button
 						type="button"
-						class="btn tap-44"
+						class="btn secondary tap-44"
 						disabled={majorBusy}
 						data-testid="foundry-major-mark"
 						onclick={() => setMajor(true)}
@@ -938,7 +938,7 @@
 						<div class="fdy-shelf-row">
 							<button
 								type="button"
-								class="btn tap-44"
+								class="btn secondary tap-44"
 								disabled={shelfBusy}
 								onclick={async () => {
 									armed = null;
@@ -947,12 +947,12 @@
 							>
 								Yes, put it back on the gallery
 							</button>
-							<button type="button" class="btn tap-44" onclick={() => (armed = null)}>
+							<button type="button" class="btn secondary tap-44" onclick={() => (armed = null)}>
 								Leave it hidden
 							</button>
 						</div>
 					{:else}
-						<button type="button" class="btn tap-44" onclick={() => (armed = 'restore')}>
+						<button type="button" class="btn secondary tap-44" onclick={() => (armed = 'restore')}>
 							Restore
 						</button>
 					{/if}
@@ -964,7 +964,7 @@
 					<div class="fdy-shelf-row">
 						<button
 							type="button"
-							class="btn fdy-shelve tap-44"
+							class="btn secondary fdy-shelve tap-44"
 							disabled={shelfBusy}
 							onclick={async () => {
 								armed = null;
@@ -973,12 +973,12 @@
 						>
 							Yes, hide &ldquo;{app.title}&rdquo;
 						</button>
-						<button type="button" class="btn tap-44" onclick={() => (armed = null)}>
+						<button type="button" class="btn secondary tap-44" onclick={() => (armed = null)}>
 							Cancel
 						</button>
 					</div>
 				{:else}
-					<button type="button" class="btn tap-44" onclick={() => (armed = 'hide')}>
+					<button type="button" class="btn secondary tap-44" onclick={() => (armed = 'hide')}>
 						Hide this app
 					</button>
 				{/if}
@@ -990,7 +990,7 @@
 					<div class="fdy-shelf-row">
 						<button
 							type="button"
-							class="btn fdy-danger tap-44"
+							class="btn secondary fdy-danger tap-44"
 							disabled={shelfBusy}
 							onclick={async () => {
 								armed = null;
@@ -999,14 +999,14 @@
 						>
 							Yes, delete &ldquo;{app.title}&rdquo; permanently
 						</button>
-						<button type="button" class="btn tap-44" onclick={() => (armed = null)}>
+						<button type="button" class="btn secondary tap-44" onclick={() => (armed = null)}>
 							Keep it
 						</button>
 					</div>
 				{:else}
 					<button
 						type="button"
-						class="btn fdy-danger-quiet tap-44"
+						class="btn secondary fdy-danger-quiet tap-44"
 						onclick={() => (armed = 'delete')}
 					>
 						Delete this app

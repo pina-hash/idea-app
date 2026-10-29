@@ -37,7 +37,7 @@ export default {
 		{ selector: '[data-state="open"] .fdy-apply-choice', label: 'each choice row', min: 44 },
 		{ selector: '[data-testid="foundry-publisher-approve"], [data-testid="foundry-publisher-decline"]', label: 'Approve and Decline', min: 44 },
 		{ selector: '.fdy-pq-row-do .btn', label: 'Up, Down and Retire', min: 44 },
-		{ selector: '.fdy-rnav a.fdy-rnav-key', label: 'the review keys', min: 44 }
+		{ selector: '.fdy-rnav a.idea-pad', label: 'the review keys', min: 44 }
 	],
 	contrast: [
 		{ selector: '[data-state="open"] .fdy-apply-q legend', label: 'a question', min: 4.5 },

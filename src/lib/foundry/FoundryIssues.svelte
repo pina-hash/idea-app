@@ -160,15 +160,6 @@
 	 * alone. "3 problems" and "2 warnings" are different headings, so a reader
 	 * who cannot separate crimson from amber still reads which is which.
 	 */
-	.fdy-issues[data-tone='failure'] {
-		border-left: 3px solid var(--crimson);
-	}
-	.fdy-issues[data-tone='warning'] {
-		border-left: 3px solid var(--amber);
-	}
-	.fdy-issues[data-tone='note'] {
-		border-left: 3px solid var(--cyan);
-	}
 
 	.fdy-issues-head {
 		display: flex;

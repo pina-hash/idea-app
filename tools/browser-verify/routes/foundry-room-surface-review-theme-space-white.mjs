@@ -50,15 +50,15 @@ export default {
 		}
 	],
 	contrast: [
-		{ selector: '.fg-tabs .fg-tab', label: 'the shell tabs', min: 4.5, all: true },
-		{ selector: '.fg-count[data-hot]', label: 'the hot review count', min: 4.5 },
+		{ selector: '.fg-subnav .idea-pad', label: 'the shell tabs', min: 4.5, all: true },
+		{ selector: '.fg-subnav .idea-pad-count[data-hot]', label: 'the hot review count', min: 4.5 },
 		{ selector: '.fg-wordmark', label: 'the Foundry wordmark', min: 4.5 },
 		{ selector: '[data-testid="foundry-review-page"] h1', label: 'the page heading', min: 4.5 },
-		{ selector: '.fdy-page-lead', label: 'the page lead', min: 4.5 },
-		{ selector: '.fdy-rnav a.fdy-rnav-key', label: 'the review keys', min: 4.5, all: true },
+		{ selector: '.fdy-page-head .ph-meta', label: 'the page lead', min: 4.5 },
+		{ selector: '.fdy-rnav a.idea-pad', label: 'the review keys', min: 4.5, all: true },
 		{ selector: '.fdy-q-title', label: 'a queue row title', min: 4.5 },
 		{ selector: '.fdy-q-by', label: 'who submitted it', min: 4.5 },
 		{ selector: '.fdy-q-wait', label: 'how long it has waited', min: 4.5 }
 	],
-	tapTargets: [{ selector: '.fdy-rnav a.fdy-rnav-key', label: 'the Apps and Publishers keys', min: 44 }]
+	tapTargets: [{ selector: '.fdy-rnav a.idea-pad', label: 'the Apps and Publishers keys', min: 44 }]
 };

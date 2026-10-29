@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * THE ROUTE'S HALF OF THE SUBMIT SURFACE: the real transports.
 	 *
@@ -164,9 +165,7 @@
      the shell's tabs are the way to My apps, so the header link that used to
      stand in for navigation is gone rather than duplicated. -->
 <div class="fdy-page">
-	<header class="fdy-page-head">
-		<h1>Publish an app</h1>
-	</header>
+	<PageHeader eyebrow="IDEA Foundry" title="Publish an app" />
 
 	<FoundrySubmit {transports} initialAppId={data.initialAppId} />
 </div>
@@ -176,17 +175,4 @@
 		padding: var(--space-4, 1rem) var(--cr-gutter, 1rem);
 	}
 
-	.fdy-page-head {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3, 0.75rem);
-		flex-wrap: wrap;
-		margin-bottom: var(--space-4, 1rem);
-	}
-
-	.fdy-page-head h1 {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: 1.7rem;
-	}
 </style>

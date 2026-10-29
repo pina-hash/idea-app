@@ -1241,7 +1241,6 @@
 		   this is the one sentence in the form that is about somebody else's
 		   work. The rule is on the reading edge, so it does not draw a box the
 		   `--boundary` contract would have to answer for. */
-		border-left: 3px solid var(--nb-warn);
 		padding-left: var(--space-3);
 	}
 	/* The standing load line on a row: metadata about the row, in the room's

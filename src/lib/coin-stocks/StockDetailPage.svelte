@@ -2,7 +2,8 @@
 	import '$lib/coin-market/market.css';
 	import './stocks.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
+	import CoinPagesNav from '$lib/coin-bar/CoinPagesNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import { coins, coinNumber } from '$lib/coin-format';
 	import StockChart from './StockChart.svelte';
@@ -66,7 +67,7 @@
 		<ProfileMenu />
 	</div>
 </div>
-<CoinBar current="stocks" desk={coinDesk} />
+<CoinPagesNav current="stocks" desk={coinDesk} />
 
 <main class="mk-page" data-testid="sk-detail" data-state={pageState}>
 	{#if pageState !== 'ready' || !detail}
@@ -77,18 +78,15 @@
 	{:else}
 		{@const s = detail.stock}
 		{@const mv = changeWords(s.last?.change_percent ?? null)}
-		<section class="mk-hero">
-			<div>
-				<div class="mk-eyebrow">{s.ticker}</div>
-				<h1>{s.name}</h1>
-				<p class="lead">{KIND_WORDS[s.kind]}</p>
-			</div>
-			<div class="sk-hero-figure">
-				<span class="sk-big">{s.last ? price(s.last.close) : 'No price yet'}</span>
-				<span class="sk-move {mv.tone}">{mv.text}</span>
+		<PageHeader eyebrow={`IDEA Stocks · ${s.ticker}`} title={s.name} meta={KIND_WORDS[s.kind]}>
+			{#snippet actions()}
+				<span class="idea-display sk-hero-figure">
+					<span class="sk-big">{s.last ? price(s.last.close) : 'No price yet'}</span>
+					<span class="sk-move {mv.tone}">{mv.text}</span>
+				</span>
 				{#if s.halt}<span class="sk-halt" data-testid="sk-halt">{haltWords(s.halt)}</span>{:else if s.phase}<span class="mk-note">{phaseWords(s.phase)}</span>{/if}
-			</div>
-		</section>
+			{/snippet}
+		</PageHeader>
 		<div class="mk-layout">
 			<div class="mk-col">
 				<section class="card mk-panel">

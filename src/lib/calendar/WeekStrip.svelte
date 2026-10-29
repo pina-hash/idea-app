@@ -185,7 +185,6 @@
 		font-size: 0.9rem;
 		line-height: 1.3;
 		padding: 0.1rem 0.35rem;
-		border-left: 3px solid var(--layer);
 		border-radius: 4px;
 		background: color-mix(in srgb, var(--layer) 12%, transparent);
 	}

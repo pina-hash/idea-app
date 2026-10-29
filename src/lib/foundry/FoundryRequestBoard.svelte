@@ -570,13 +570,11 @@
 		margin: 0;
 		color: var(--text-1);
 		padding-left: 0.6rem;
-		border-left: 3px solid var(--crimson);
 	}
 
 	.fdy-req-posted {
 		margin: 0;
 		color: var(--text-1);
 		padding-left: 0.6rem;
-		border-left: 3px solid var(--green);
 	}
 </style>

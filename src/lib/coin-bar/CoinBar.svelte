@@ -5,9 +5,12 @@
 	import { coinPagesFor, type CoinPageId } from './pages';
 
 	/**
-	 * THE IDEA COIN BAR (ledger 0422, feedback 7e4a2a15, d299d864). Every coin
-	 * page mounts it directly under the site header; the Ledger has this same
-	 * component server-rendered into its served HTML (`$lib/server/coin-bar.ts`).
+	 * THE IDEA COIN BAR (ledger 0422, feedback 7e4a2a15, d299d864). The Ledger
+	 * has this component server-rendered into its served HTML
+	 * (`$lib/server/coin-bar.ts`). Since ledger 0468 the site's own coin pages
+	 * mount `CoinPagesNav` instead, the site's one app sub-nav of pads over the
+	 * same page list; this strip is the frozen Ledger's alone, kept byte for
+	 * byte (`tests/fixtures/coin-bar-ledger-golden.json`).
 	 *
 	 * Props, never `$app/state`: the Ledger's copy is rendered by
 	 * `svelte/server` outside a SvelteKit request, where there is no page store.

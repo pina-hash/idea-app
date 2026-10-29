@@ -400,7 +400,6 @@
 		list-style: none;
 		margin: 0;
 		padding: 0 0 0 0.6rem;
-		border-left: 2px solid var(--line);
 		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--text-2, var(--dim));

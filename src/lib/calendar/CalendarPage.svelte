@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * THE IDEA CALENDAR PAGE (ledger 0439): a month, or a list of the days with
 	 * something on them, every layer the viewer left on, the chosen day's events
@@ -287,14 +288,13 @@
 {/snippet}
 
 <div class="cal" data-testid="calendar" data-view={view}>
-	<header class="cal-head">
-		<h1 class="plate-title">{scope ? `${scope.label} calendar` : 'Calendar'}</h1>
-		<p class="cal-sub">
-			{scope
-				? 'This class: posts, due dates, pacing and your team, with the school calendar.'
-				: 'Your classes, your team, IDEA, robotics and the Bosco Tech calendar in one place.'}
-		</p>
-	</header>
+	<PageHeader
+		eyebrow="IDEA Calendar"
+		title={scope ? `${scope.label} calendar` : 'Calendar'}
+		meta={scope
+			? 'This class: posts, due dates, pacing and your team, with the school calendar.'
+			: 'Your classes, your team, IDEA, robotics and the Bosco Tech calendar in one place.'}
+	/>
 
 	{#if !feed}
 		<section class="card cal-empty" data-testid="calendar-not-ready">
@@ -512,15 +512,6 @@
 		font-family: var(--font-display);
 		color: var(--white);
 	}
-	.cal-head {
-		display: grid;
-		gap: 0.35rem;
-	}
-	.cal-sub {
-		margin: 0;
-		color: var(--dim);
-		font-size: 1.02rem;
-	}
 	.cal-bar {
 		display: flex;
 		flex-wrap: wrap;
@@ -718,7 +709,6 @@
 		line-height: 1.25;
 		padding: 0.08rem 0.35rem;
 		border-radius: 4px;
-		border-left: 3px solid var(--layer);
 		background: color-mix(in srgb, var(--layer) 14%, transparent);
 		color: var(--white);
 	}

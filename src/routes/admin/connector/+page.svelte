@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * The connector's admin page: the switch, every connection, and the log of
 	 * every change made through Claude. Rendered under the site plate (it is
@@ -71,13 +73,10 @@
 		<ProfileMenu />
 	</div>
 </div>
+<AdminSubNav current="connector" />
 
 <main class="cx-page" data-testid="connector-admin">
-	<section class="hero">
-		<div class="eyebrow">Admin console</div>
-		<h1>IDEA Website connector</h1>
-		<p class="cx-lede">Claude acting as you on this site, from any chat. Every change it makes is listed below.</p>
-	</section>
+	<PageHeader eyebrow="IDEA Admin" title="IDEA Website connector" meta="Claude acting as you on this site, from any chat. Every change it makes is listed below." />
 
 	{#if form?.message}
 		<p class="cx-note" role="status" data-testid="connector-admin-note">{form.message}</p>
@@ -283,10 +282,6 @@
 		max-width: 72rem;
 		margin: 0 auto;
 		padding: 0 1rem 3rem;
-	}
-	.cx-lede {
-		color: var(--text-2);
-		margin: 0.3rem 0 0;
 	}
 	.cx-top {
 		display: grid;

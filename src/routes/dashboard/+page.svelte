@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import ViewAsButtons from '$lib/shell/ViewAsButtons.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -320,32 +322,34 @@
 		</div>
 	</header>
 
-	<section class="hero console-hero">
-		<div class="hero-eyebrow">IDEA · Administration</div>
-		<h1>Admin console<span class="accent">{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}</span>.</h1>
-		<p class="hero-sub">
-			Every review queue, the rosters and the portal settings, on one screen. Panels sit in
-			the order you use them.
-		</p>
-		<div class="hero-meta">
-			<div class="hero-stat">
-				<span class="value" style="color:var(--cyan); text-shadow:var(--glow-cyan)">{teacherName}</span>
-				<span class="label">Signed in as</span>
+	<AdminSubNav current="console" />
+
+	<section class="console-hero">
+		<PageHeader
+			eyebrow="IDEA Admin"
+			title="Admin console"
+			meta="Every review queue, the rosters and the portal settings, on one screen. Panels sit in the order you use them."
+		>
+			<div class="hero-meta">
+				<div class="hero-stat">
+					<span class="value" style="color:var(--cyan); text-shadow:var(--glow-cyan)">{teacherName}</span>
+					<span class="label">Signed in as</span>
+				</div>
+				<div class="hero-stat">
+					<!-- The role reads the HOVER ROLE, not the gold hue: --gold on Space
+					     White is the brown #715d22 decision 40 took off that theme's words,
+					     and an inline colour is the one declaration no theme rule reaches.
+					     --hover-ink is the brass on the dark themes and the green ink on
+					     Space White. -->
+					<span class="value v-role" style="animation-delay:0.8s">{role}</span>
+					<span class="label">Role</span>
+				</div>
+				<div class="hero-stat">
+					<span class="value" data-testid="console-waiting">{waiting}</span>
+					<span class="label">Waiting on you</span>
+				</div>
 			</div>
-			<div class="hero-stat">
-				<!-- The role reads the HOVER ROLE, not the gold hue: --gold on Space
-				     White is the brown #715d22 decision 40 took off that theme's words,
-				     and an inline colour is the one declaration no theme rule reaches.
-				     --hover-ink is the brass on the dark themes and the green ink on
-				     Space White. -->
-				<span class="value v-role" style="animation-delay:0.8s">{role}</span>
-				<span class="label">Role</span>
-			</div>
-			<div class="hero-stat">
-				<span class="value" data-testid="console-waiting">{waiting}</span>
-				<span class="label">Waiting on you</span>
-			</div>
-		</div>
+		</PageHeader>
 	</section>
 
 	<div class="console-bar">
@@ -615,11 +619,14 @@
 		--console-gutter: clamp(1rem, 2.5vw, 3rem);
 	}
 	.admin-console .console-hero {
-		max-width: none;
-		padding: 3.5rem var(--console-gutter) 2rem;
+		position: relative;
+		z-index: 1;
+		padding: 1.5rem var(--console-gutter) 1rem;
 	}
-	.admin-console .console-hero .hero-sub {
-		max-width: var(--measure-reading);
+	/* The stats plate sits centred under the meta line. */
+	.console-hero .hero-meta {
+		justify-self: center;
+		margin-top: 0.5rem;
 	}
 
 	/* --- The nav strip and the order control ----------------------------- */

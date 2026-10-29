@@ -375,7 +375,6 @@
 	   `--crimson` stays for errors. */
 	.fdy-pa-answer.is-flagged .fdy-pa-said-text {
 		padding-left: 0.5rem;
-		border-left: 3px solid var(--hairline);
 	}
 
 	.fdy-pa-look {
@@ -431,6 +430,5 @@
 		margin: 0;
 		color: var(--text-1);
 		padding-left: 0.6rem;
-		border-left: 3px solid var(--crimson);
 	}
 </style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import ShortLinkManager from '$lib/ShortLinkManager.svelte';
@@ -45,13 +47,10 @@
 		<ProfileMenu />
 	</div>
 </div>
+<AdminSubNav current="links" />
 
 <main class="admin-page">
-	<section class="hero">
-		<div class="eyebrow">Admin console</div>
-		<h1>Short links</h1>
-		<p class="lede">Printed QR codes point here; the targets move, the paper does not.</p>
-	</section>
+	<PageHeader eyebrow="IDEA Admin" title="Short links" meta="Printed QR codes point here; the targets move, the paper does not." />
 
 	<ShortLinkManager links={data.links} ready={data.ready} {transports} />
 
@@ -63,11 +62,6 @@
 		max-width: 48rem;
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
-	}
-	.lede {
-		color: var(--dim);
-		margin: 0.3rem 0 0;
-		font-size: 0.92rem;
 	}
 	.page-footer {
 		margin-top: 1.4rem;

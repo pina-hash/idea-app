@@ -607,7 +607,6 @@
 		gap: var(--space-4);
 	}
 	.note {
-		border-left: 2px solid var(--nb-hairline-strong);
 		padding-left: var(--space-4);
 	}
 	.note-meta {

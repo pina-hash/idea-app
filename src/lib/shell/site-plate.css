@@ -21,6 +21,14 @@
    make those grounds transparent and the rain still falls where it fell.
    ========================================================================== */
 
+/* THE PLATE'S PARTS AS CLASSES, FROM THE ONE FILE THE KIT BUILDS WITH (ledger
+   0468). `idea-key`, `idea-panel`, `idea-pad` and the rest are drawn by
+   tools/hx-kit/kit/plate.css on the site exactly as in an HTML assignment;
+   the names it reads are declared from the Plate's tokens in
+   `$lib/classroom/plate.css` (section 1b). Inlined at build time, so the
+   browser never asks for a file outside `src`. */
+@import '../../../tools/hx-kit/kit/plate.css';
+
 /* --- The page is the plate. ---------------------------------------------
    The canvas behind a short page, and each room's own opaque wrapper. The
    tournaments TV stage is its own island and keeps its own ground. */
@@ -111,15 +119,6 @@ body:has(.site-plate) {
    loses the clip here so the rounded panel shows whole. */
 :root .site-plate .legacy-index .hero-meta {
 	clip-path: none;
-}
-
-/* --- The coin desk's title bar spans its row. -------------------------------
-   The desk's hero is a row of the breadcrumb and the title; as a flex item the
-   title bar took only what the breadcrumb left and wrapped "COIN DESK" over
-   two lines at 375. A 24rem basis puts it on a row of its own whenever the
-   two do not both fit, which is every width but the widest. */
-:root .site-plate .cd-root .hero h1 {
-	flex: 1 1 24rem;
 }
 
 /* --- A tournament's masthead is centred with its title bar. ---------------

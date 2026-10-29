@@ -21,7 +21,8 @@ import {
  * Supabase. 404s in a production build.
  *
  * Modes (?mode=, full-reload links in the floating panel):
- *   anon    - signed out, no local seen-flag: phase A (sign-in step) auto-launches
+ *   anon    - signed out, no local seen-flag: the inline tour offer shows (ledger 0468;
+ *             it used to auto-launch phase A, the sign-in step, under the dim)
  *   student - signed-in first-timer (tour_completed_at null): phase B auto-launches
  *   done    - tour already completed: no auto-launch, header replay only
  *   picker  - student with no pathway: the pathway picker owns the screen first,

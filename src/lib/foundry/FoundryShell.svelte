@@ -28,6 +28,7 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 
+	import AppSubNav, { type SubNavItem } from '$lib/shell/AppSubNav.svelte';
 	import MoltenSeam from './MoltenSeam.svelte';
 	import type { FoundryPlace } from './nav.ts';
 
@@ -69,52 +70,34 @@
 		{ place: 'contract', href: '/foundry/contract', word: 'Build contract' },
 		{ place: 'submit', href: '/foundry/submit', word: 'Publish' }
 	];
+
+	/**
+	 * THE ROOM'S PLACES ARE THE SITE'S ONE APP SUB-NAV (ledger 0468): the
+	 * Plate's pads under the masthead, the current place lit. A SITE
+	 * ADMINISTRATOR GETS THE CLASSES PAD TOO (ledger 0360): the whole-Foundry
+	 * switch lives on that page, and an admin who teaches no section would
+	 * otherwise have no door to it. The Review pad's count is lit while
+	 * something waits.
+	 */
+	const places: SubNavItem[] = $derived([
+		...tabs.map((t) => ({ id: t.place, label: t.word, href: t.href, current: active === t.place })),
+		...(managesSection || isAdmin ? [{ id: 'classes', label: 'Classes', href: '/foundry/classes', current: active === 'classes' }] : []),
+		...(isAdmin
+			? [{ id: 'review', label: 'Review', href: '/foundry/review', current: active === 'review', count: reviewPending, hot: (reviewPending ?? 0) > 0 }]
+			: [])
+	]);
 </script>
 
 <header class="fg-header">
 	<div class="fg-mast">
 		<a class="fg-home" href="/" aria-label="IDEA home"><AnimatedLogo width={92} /></a>
 		<a class="fg-wordmark" href="/foundry">Foundry</a>
-		<nav class="fg-tabs" aria-label="Foundry">
-			{#each tabs as t (t.place)}
-				<a
-					class="fg-tab tap-44"
-					href={t.href}
-					aria-current={active === t.place ? 'page' : undefined}
-				>
-					{t.word}
-				</a>
-			{/each}
-			<!-- A SITE ADMINISTRATOR GETS THE TAB TOO (ledger 0360): the
-			     whole-Foundry switch lives on that page, and an admin who teaches
-			     no section would otherwise have no door to it. -->
-			{#if managesSection || isAdmin}
-				<a
-					class="fg-tab tap-44"
-					href="/foundry/classes"
-					aria-current={active === 'classes' ? 'page' : undefined}
-				>
-					Classes
-				</a>
-			{/if}
-			{#if isAdmin}
-				<a
-					class="fg-tab tap-44"
-					href="/foundry/review"
-					aria-current={active === 'review' ? 'page' : undefined}
-				>
-					Review
-					{#if reviewPending !== null}
-						<span class="fg-count" data-hot={reviewPending > 0 ? 'true' : undefined}>
-							{reviewPending}
-						</span>
-					{/if}
-				</a>
-			{/if}
-		</nav>
 		<div class="fg-mast-right">
 			<ProfileMenu />
 		</div>
+	</div>
+	<div class="fg-subnav">
+		<AppSubNav label="Foundry" testid="foundry-tabs" items={places} />
 	</div>
 	<MoltenSeam variant="seam" />
 </header>
@@ -194,68 +177,18 @@
 		text-shadow: none;
 	}
 
-	.fg-tabs {
-		display: flex;
-		align-items: stretch;
-		gap: var(--space-2, 0.5rem);
-		flex-wrap: wrap;
+	/* The pads sit on the masthead's own measure, under the logo row. */
+	.fg-subnav {
+		max-width: var(--measure-split, 92rem);
+		margin: 0 auto;
+		padding: 0 var(--cr-gutter, 1rem) 0.4rem;
 		min-width: 0;
 	}
-
-	.fg-tab {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		padding: 0.4rem 0.75rem;
-		font-family: var(--font-mono);
-		font-size: 0.82rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--text-2, var(--dim));
-		text-decoration: none;
-		border: 1px solid transparent;
-		border-radius: var(--radius-control, 3px);
+	.fg-subnav :global(.app-subnav) {
+		margin: 0;
 	}
-
-	.fg-tab:hover {
-		color: var(--text-1, var(--white));
-		text-decoration: none;
-		text-shadow: none;
-	}
-
-	/* Active navigation is green, the one role green keeps in every room. */
-	.fg-tab[aria-current='page'] {
-		color: var(--green);
-		border-color: var(--boundary);
-		background: var(--fg-surface-2, var(--bg2));
-	}
-
-	.fg-tab:focus-visible {
-		outline: 2px solid var(--green);
-		outline-offset: 2px;
-	}
-
-	/* The pending count: cold iron at zero, the ember trio while work waits.
-	   The trios are measured in forge.css; the ink-on-fill pair here is the
-	   submitted chip's own (8.05:1). */
-	.fg-count {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 1.3rem;
-		padding: 0.05rem 0.3rem;
-		border-radius: 999px;
-		border: 1px solid var(--fg-st-draft-edge, var(--hairline));
-		background: var(--fg-st-draft-fill, var(--bg2));
-		color: var(--fg-st-draft-ink, var(--dim));
-		font-size: 0.75rem;
-	}
-
-	.fg-count[data-hot] {
-		border-color: var(--fg-st-heat-edge, var(--amber));
-		background: var(--fg-st-heat-fill, var(--bg2));
-		color: var(--fg-st-heat-ink, var(--amber));
-		box-shadow: 0 0 8px var(--fg-heat-glow, rgba(246, 149, 47, 0.35));
+	.fg-subnav :global(.idea-pads) {
+		justify-content: flex-start;
 	}
 
 	.fg-mast-right {

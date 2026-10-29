@@ -756,7 +756,7 @@
 						editing, hiding and deleting controls.
 					-->
 					<p class="fdy-gal-staff">
-						<a class="btn tap-44" href={staffHref} data-testid="foundry-gallery-staff">
+						<a class="btn secondary tap-44" href={staffHref} data-testid="foundry-gallery-staff">
 							Open review controls
 						</a>
 					</p>

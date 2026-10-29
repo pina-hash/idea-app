@@ -58,7 +58,9 @@
 	 * page (self-contained like ProfileMenu: reads the session from page data).
 	 *
 	 * Auto-launch, once per mount:
-	 * - Anonymous visitor, no local seen-flag: the pre-auth 'signin' phase.
+	 * - Anonymous visitor: NOTHING starts on its own (ledger 0468). The
+	 *   landing gets `HomeTourOffer`'s inline row instead, which starts the
+	 *   whole tour (the sign-in step first) only when asked.
 	 * - Signed in with profiles.tour_completed_at STRICTLY null: the 'home'
 	 *   phase. Undefined (0045 unapplied) fails soft: no auto-launch, no write.
 	 *   If the first-login pathway picker owns the screen, the tour waits for
@@ -148,18 +150,12 @@
 	$effect(() => {
 		void pickerPing;
 		if (activeSteps || autoLaunched) return;
+		/* A SIGNED-OUT VISITOR IS OFFERED THE TOUR, NEVER DROPPED INTO IT (ledger
+		   0468, feedback c27b2be7). The public landing used to open with the
+		   spotlight's full-page dim; it now gets `HomeTourOffer`'s inline row,
+		   the classroom's "Show me around", and the tour runs only when asked. */
 		let phase: TourPhase | null = null;
-		if (claims) {
-			if (profile && homeTourPlan(profile.tour_completed_at) === 'run' && !pickerShowing()) phase = 'home';
-		} else {
-			let seen: string | null = null;
-			try {
-				seen = localStorage.getItem(TOUR_SEEN_KEY);
-			} catch {
-				seen = 'unavailable';
-			}
-			if (!seen) phase = 'signin';
-		}
+		if (claims && profile && homeTourPlan(profile.tour_completed_at) === 'run' && !pickerShowing()) phase = 'home';
 		if (!phase) return;
 		autoLaunched = true;
 		// Give the page's entrance animations a beat to settle before measuring.

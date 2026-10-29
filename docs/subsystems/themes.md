@@ -405,6 +405,23 @@ properly. That is a bundle, not a line.
     `--text-2` under 4.5:1 on real pages, so the card face is the lightest
     ground the error red still clears on. Lighten a dark face only with every
     ink re-measured.
+- **THE PLATE'S PARTS AS CLASSES ARE ONE FILE FOR THE SITE AND THE HTML KIT
+  (ledger 0468).** `idea-key`, `idea-panel`, `idea-well`, `idea-chip`,
+  `idea-titlebar`, `idea-eyebrow`, `idea-readout`, `idea-pad`, `idea-list` and
+  `idea-display` are drawn by `tools/hx-kit/kit/plate.css`, which HTML
+  assignments build in and `src/lib/shell/site-plate.css` imports. The names that
+  file reads are declared in `src/lib/classroom/plate.css` section 1b from the
+  Plate's own tokens, ON THE PART rather than the plate root (so a room that
+  re-points `--plate-accent` on one element reaches the part inside it), and
+  `--radius-control` (the site's 3px against the kit's 11px) only on the two
+  parts that read it. **A part is never restated in `src/`; a new part is added
+  to the kit file and its names to the bridge**, and
+  `tests/plate-kit-source.test.ts` fails until both have it (it also holds every
+  composed shadow to the kit's own geometry). The title bar, pad and eyebrow are
+  written with their class twice, because rooms style every `h1` and `a` inside
+  them at (0,1,1) and outranked a single class. The classroom's existing
+  selector lists in `plate.css` still paint the classroom's own markup with the
+  same tokens; moving that markup onto the part classes is open.
 - **THE REST OF THE SITE WEARS THE SAME PLATE THROUGH A SECOND SWITCH (ledger
   0346, `IDEA_INTERFACE_STANDARDS` 14).** Every rule in `plate.css` keys on
   `:is(.cr-plate, .site-plate)`, which has the specificity `.cr-plate` alone

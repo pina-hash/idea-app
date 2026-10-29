@@ -138,7 +138,7 @@
 		{:else if cells.length === 0}
 			<p class="lg-empty" data-testid="live-grid-no-students">No students on the roster</p>
 		{:else}
-			<div class="lg-groups" data-testid="live-groups">
+			<div class="lg-groups" data-testid="live-groups" style="--lg-cols: {Math.max(1, Math.min(4, groups.length))}">
 				{#each groups as g (g.state)}
 					{@const d = LIVE_CELL_DISPLAY[g.state]}
 					<section class="lg-group" data-tone={d.tone} style={toneStyle(d.tone)} data-state={g.state} data-testid="live-group-{g.state}">
@@ -272,38 +272,47 @@
 		margin: 0 0 var(--space-3);
 	}
 	/* THE GROUPS: a multi-column container, the ClassView column rule. The
-	   width is a readable name plus its evidence; the count caps the columns
-	   so two groups share the measure rather than leaving a dead third. */
+	   width is a readable name plus its evidence; the count is capped at the
+	   number of groups, so one group takes the whole panel rather than one
+	   narrow column beside a void (ledger 0468, feedback c27b2be7: the Live
+	   panel's empty space, measured as 300px of names beside 640px of nothing
+	   at 1440 with the whole class "Not known"). */
 	.lg-groups {
-		columns: 15rem 4;
-		column-gap: var(--space-3);
+		columns: 15rem var(--lg-cols, 4);
+		column-gap: var(--space-5);
 	}
+	/* A group is a heading over its names on the panel's own face: no box of
+	   its own inside the panel (the Plate's no-box-in-a-box rule), the heading
+	   etched off the names by a groove. */
 	.lg-group {
 		break-inside: avoid;
-		margin: 0 0 var(--space-3);
-		padding: var(--space-3);
-		background: var(--surface-1);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-card);
-	}
-	.lg-group[data-tone='warn'] {
-		border-left: 4px solid var(--st-ink);
+		margin: 0 0 var(--space-4);
 	}
 	.lg-group-head {
 		display: flex;
 		align-items: center;
 		gap: 0.45rem;
 		margin: 0 0 var(--space-2);
+		padding-bottom: var(--space-1);
 		font-size: 1rem;
 		line-height: 1.3;
+		box-shadow:
+			inset 0 -1px 0 0 var(--plate-groove-dk, var(--hairline)),
+			0 1px 0 0 var(--plate-groove-lt, transparent);
 	}
+	/* THE NAMES FLOW INTO COLUMNS OF THEIR OWN, so a group as wide as the panel
+	   (one group, or the last of an odd count) fills its width with names
+	   rather than one tall line of them. */
 	.lg-list {
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
+		columns: 12rem;
+		column-gap: var(--space-4);
+	}
+	.lg-list > li {
+		break-inside: avoid;
+		margin: 0 0 0.35rem;
 	}
 	.lg-row {
 		display: flex;

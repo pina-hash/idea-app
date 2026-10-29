@@ -138,7 +138,7 @@
 		</p>
 		<div class="fdy-share-row">
 			<code class="fdy-share-url" data-testid="share-url">{shareUrl}</code>
-			<button type="button" class="btn fdy-share-copy tap-44" onclick={copyShareUrl}>
+			<button type="button" class="btn secondary fdy-share-copy tap-44" onclick={copyShareUrl}>
 				Copy link
 			</button>
 		</div>

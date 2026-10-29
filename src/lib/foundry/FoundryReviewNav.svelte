@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppSubNav from '$lib/shell/AppSubNav.svelte';
 	/**
 	 * THE REVIEW LANE'S TWO PLACES (ledger 0360, report 647d1201): the apps
 	 * waiting for a decision, and the people (publisher applications and the
@@ -30,64 +31,23 @@
 	} = $props();
 </script>
 
-<nav class="fdy-rnav" aria-label="Review">
-	<a
-		class="btn fdy-rnav-key tap-44"
-		class:on={active === 'apps'}
-		href="/foundry/review"
-		aria-current={active === 'apps' ? 'page' : undefined}
-		data-testid="foundry-review-nav-apps"
-	>
-		Apps
-		{#if pendingApps !== null}
-			<span class="fdy-rnav-count">{pendingApps}</span>
-		{/if}
-	</a>
-	<a
-		class="btn fdy-rnav-key tap-44"
-		class:on={active === 'publishers'}
-		href="/foundry/review/publishers"
-		aria-current={active === 'publishers' ? 'page' : undefined}
-		data-testid="foundry-review-nav-publishers"
-	>
-		Publishers
-		{#if pendingApplications !== null}
-			<span class="fdy-rnav-count">{pendingApplications}</span>
-		{/if}
-	</a>
-	<a
-		class="btn fdy-rnav-key tap-44"
-		class:on={active === 'gallery'}
-		href="/foundry/review/gallery"
-		aria-current={active === 'gallery' ? 'page' : undefined}
-		data-testid="foundry-review-nav-gallery"
-	>
-		Curation
-	</a>
-</nav>
+<!-- THE REVIEW AREA'S PLACES ARE THE SITE'S ONE SUB-NAV (ledger 0468): pads,
+     the current one lit, a count where something waits. They were three green
+     keys side by side, three primary actions where there is no action at all. -->
+<div class="fdy-rnav">
+	<AppSubNav
+		label="Review"
+		testid="foundry-review-nav"
+		items={[
+			{ id: 'apps', label: 'Apps', href: '/foundry/review', current: active === 'apps', count: pendingApps, hot: (pendingApps ?? 0) > 0, testid: 'foundry-review-nav-apps' },
+			{ id: 'publishers', label: 'Publishers', href: '/foundry/review/publishers', current: active === 'publishers', count: pendingApplications, hot: (pendingApplications ?? 0) > 0, testid: 'foundry-review-nav-publishers' },
+			{ id: 'gallery', label: 'Curation', href: '/foundry/review/gallery', current: active === 'gallery', testid: 'foundry-review-nav-gallery' }
+		]}
+	/>
+</div>
 
 <style>
-	.fdy-rnav {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2, 0.5rem);
-	}
-
-	.fdy-rnav-key {
-		text-decoration: none;
-	}
-
-	.fdy-rnav-count {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 1.3rem;
-		padding: 0.05rem 0.35rem;
-		border-radius: 999px;
-		border: 1px solid var(--fg-st-draft-edge, var(--hairline));
-		background: var(--fg-st-draft-fill, var(--surface-2));
-		color: var(--fg-st-draft-ink, var(--text-2));
-		font-size: 0.75rem;
-		letter-spacing: 0;
+	.fdy-rnav :global(.app-subnav) {
+		margin: 0;
 	}
 </style>

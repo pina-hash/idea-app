@@ -72,6 +72,22 @@
 .sk-move.flat {
 	color: var(--text-2);
 }
+/* ON THE DISPLAY (the stock page's price in its header, ledger 0468) every
+   word takes the glass's own ink, which is the one ink measured on it in
+   every theme; the arrows keep their marker colours, the lamp's amber for a
+   fall. */
+.idea-display.sk-hero-figure {
+	align-items: center;
+}
+.idea-display :is(.sk-big, .sk-move, .sk-move.flat) {
+	color: inherit;
+}
+.idea-display .sk-big {
+	font-size: 1.6rem;
+}
+.idea-display .sk-move.down::before {
+	color: var(--plate-led-amber, var(--amber));
+}
 .sk-rows {
 	list-style: none;
 	margin: 0;

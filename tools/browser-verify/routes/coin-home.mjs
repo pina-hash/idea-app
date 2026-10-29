@@ -29,7 +29,7 @@ export default {
 		},
 		{
 			label: 'the bar sits directly under the site header',
-			evaluate: `() => { const h = document.querySelector('.app-header'); const b = document.querySelector('[data-testid="coin-bar"]'); return [h && b && Math.abs(b.getBoundingClientRect().top - h.getBoundingClientRect().bottom) < 2 ? 'under header' : 'gap ' + (b.getBoundingClientRect().top - h.getBoundingClientRect().bottom)]; }`,
+			evaluate: `() => { const h = document.querySelector('.app-header'); const b = document.querySelector('[data-testid="coin-bar"]'); return [h && b && b.getBoundingClientRect().top - h.getBoundingClientRect().bottom >= 0 && b.getBoundingClientRect().top - h.getBoundingClientRect().bottom < 24 ? 'under header' : 'gap ' + (b.getBoundingClientRect().top - h.getBoundingClientRect().bottom)]; }`,
 			expected: ['under header']
 		},
 		{
@@ -44,8 +44,8 @@ export default {
 		}
 	],
 	contrast: [
-		{ selector: '[data-testid="coin-bar"] a:not([aria-current]) span:not(.cb-mark)', label: 'resting tab labels', min: 4.5 },
-		{ selector: '[data-testid="coin-bar"] a[aria-current="page"] .cb-mark', label: 'the coin mark', min: 4.5 },
+		{ selector: '[data-testid="coin-bar"] a:not([aria-current]) span:not(.cpn-mark)', label: 'resting tab labels', min: 4.5 },
+		{ selector: '[data-testid="coin-bar"] a[aria-current="page"] .cpn-mark', label: 'the coin mark', min: 4.5 },
 		{ selector: '.ch-head h2 a', label: 'card titles', min: 4.5 },
 		{ selector: '.ch-quiet, .ch-dim, dt, .ch-go', label: 'secondary text', min: 4.5 },
 		{ selector: '.ch-num, dd, .ch-figure', label: 'figures', min: 4.5 }

@@ -292,7 +292,6 @@
 		margin: 0;
 		padding: 0.6rem 0.75rem;
 		background: var(--surface-2);
-		border-left: 3px solid var(--hairline);
 		border-radius: var(--radius-sm, 4px);
 	}
 
@@ -413,6 +412,5 @@
 		margin: 0;
 		color: var(--text-1);
 		padding-left: 0.6rem;
-		border-left: 3px solid var(--crimson);
 	}
 </style>

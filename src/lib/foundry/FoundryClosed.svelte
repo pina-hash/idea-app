@@ -125,7 +125,6 @@
 		max-width: none;
 		margin: 1rem 0 1.25rem;
 		padding: 0.85rem 1rem;
-		border-left: 3px solid var(--fg-heat-ember, var(--boundary));
 	}
 
 	.fdy-closed-kicker {
@@ -169,7 +168,6 @@
 	.fdy-closed-notes li {
 		padding: 0.6rem 0.75rem;
 		background: var(--surface-2);
-		border-left: 2px solid var(--fg-heat-ember, var(--boundary));
 		border-radius: var(--radius-sm, 4px);
 	}
 

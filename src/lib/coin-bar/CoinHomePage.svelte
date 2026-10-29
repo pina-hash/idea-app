@@ -6,7 +6,8 @@
 	import Glyph from '$lib/coin-market/Glyph.svelte';
 	import { COIN_SYMBOL, coinNumber, coins, signedCoins } from '$lib/coin-format';
 	import { changeWords, chartGeometry, price } from '$lib/coin-stocks/stocks';
-	import CoinBar from './CoinBar.svelte';
+	import CoinPagesNav from './CoinPagesNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import { COIN_PAGES, type CoinPageId } from './pages';
 	import type { CoinHome } from './home';
 
@@ -47,26 +48,21 @@
 		<ProfileMenu />
 	</div>
 </div>
-<CoinBar current="home" desk={coinDesk} />
+<CoinPagesNav current="home" desk={coinDesk} />
 
 <main class="mk-page ch-page" data-testid="coin-home">
-	<section class="mk-hero">
-		<div>
-			<div class="mk-eyebrow">IDEA Coins</div>
-			<h1>Coin home</h1>
-			<p class="lead">Every coin page at a glance. Open any card for the whole page.</p>
-		</div>
-		<div class="mk-hero-keys">
+	<PageHeader eyebrow="IDEA Coins" title="Coin home" meta="Every coin page at a glance. Open any card for the whole page.">
+		{#snippet actions()}
 			{#if !home.signedIn && onsignin}
 				<button class="btn mk-key" type="button" onclick={() => onsignin?.()} data-testid="ch-signin">Sign in to see your coins</button>
 			{:else if home.mine}
-				<span class="mk-balance" data-testid="ch-balance">
-					<span class="mk-balance-label">Balance</span>
+				<span class="idea-display mk-balance" data-testid="ch-balance">
+					<span class="idea-display-label">Balance</span>
 					<span class="mk-balance-figure" class:neg={home.mine.balance < 0}>{coins(home.mine.balance)}</span>
 				</span>
 			{/if}
-		</div>
-	</section>
+		{/snippet}
+	</PageHeader>
 
 	<div class="ch-grid" class:with-desk={!!home.desk}>
 		<!-- MY COINS -->
@@ -89,7 +85,7 @@
 					</dl>
 				</div>
 				{#if home.mine.recent.length}
-					<ul class="ch-rows" aria-label="Latest">
+					<ul class="idea-list ch-rows" aria-label="Latest">
 						{#each home.mine.recent as r, i (i)}
 							<li><span class="ch-row-name">{r.label}</span><span class="ch-num" class:neg={r.amount < 0}>{signedCoins(r.amount)}</span></li>
 						{/each}
@@ -110,7 +106,7 @@
 				<span class="ch-go" aria-hidden="true">Open &rsaquo;</span>
 			</header>
 			{#if home.ledger}
-				<ol class="ch-rows ch-board" aria-label="Top balances">
+				<ol class="idea-list ch-rows ch-board" aria-label="Top balances">
 					{#each home.ledger.top as r, i (i)}
 						<li>
 							<span class="ch-rank">{i + 1}</span>
@@ -143,7 +139,7 @@
 					<div><dt>Your open trades</dt><dd>{home.market.openTrades}</dd></div>
 				</dl>
 				{#if home.market.newest.length}
-					<ul class="ch-rows" aria-label="Newest">
+					<ul class="idea-list ch-rows" aria-label="Newest">
 						{#each home.market.newest as l (l.id)}
 							<li><span class="ch-row-name">{l.title}</span><span class="ch-num">{l.price === null ? 'Ask' : coins(l.price)}</span></li>
 						{/each}
@@ -383,13 +379,8 @@
 		gap: 0.5rem 1.25rem;
 		margin: 0;
 	}
-	.ch-stats {
-		padding: 0.6rem 0.8rem;
-		border-radius: 8px;
-		background: var(--plate-well-face, var(--bg0));
-		box-shadow: inset 0 1px 2px var(--plate-inset-shade, rgba(0, 0, 0, 0.45));
-		border: 1px solid var(--line);
-	}
+	/* THE STATS ARE A LINE OF FACTS ON THE CARD, NOT A BOX IN IT (ledger 0468:
+	   no box in a box). A rows list beside them is the list well. */
 	.ch-facts div,
 	.ch-stats div {
 		display: flex;
@@ -410,23 +401,13 @@
 		color: var(--white);
 	}
 
-	.ch-rows {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-	}
+	/* The rows are the kit's list well (`idea-list`): one recessed well, the
+	   rows divided by etched lines. Only the row's own layout is here. */
 	.ch-rows li {
 		display: flex;
 		align-items: baseline;
 		gap: 0.6rem;
-		padding: 0.4rem 0;
-		border-top: 1px solid var(--line);
 		min-width: 0;
-	}
-	.ch-rows li:first-child {
-		border-top: 0;
 	}
 	.ch-row-name {
 		flex: 1 1 auto;
@@ -485,7 +466,9 @@
 		border-radius: 50%;
 		font-family: var(--font-mono);
 		font-size: 0.75rem;
-		color: var(--gold);
+		/* The number in the well's own ink: gold as a word on a well face read
+		   4.06:1 on Space White (ledger 0468); first place keeps its gold ring. */
+		color: var(--plate-ink, var(--white));
 		background: var(--plate-well-face, var(--bg0));
 		box-shadow: 0 0 0 1px var(--line);
 		align-self: center;

@@ -172,8 +172,8 @@ export default {
 		{ selector: '[data-testid="maps-plan-child"] .drawn-name', label: 'a drawn room name over its own fill', min: 4.5 },
 		{ selector: '[data-testid="maps-plan-child"] .drawn-size', label: 'a drawn room size over its own fill', min: 4.5 },
 		{ selector: '[data-testid="maps-plan-unplaced"]', label: 'the unplaced sentence', min: 4.5 },
-		{ selector: '.mp-bar .eyebrow', label: 'the bar eyebrow', min: 4.5 },
-		{ selector: '.mp-bar h1', label: 'the bar title', min: 4.5 },
+		{ selector: '.mp-head .ph-eyebrow', label: 'the page eyebrow', min: 4.5 },
+		{ selector: '.mp-head .ph-title', label: 'the page title', min: 4.5 },
 		{ selector: '.mp-bar .mp-links .btn', label: 'the bar links', min: 4.5 }
 	],
 	tapTargets: [

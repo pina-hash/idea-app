@@ -20,6 +20,8 @@
 	import { page } from '$app/state';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import AppSubNav from '$lib/shell/AppSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import { CERT_PATHS, STUDENT_TABS, studentTabFor } from '$lib/certifications/nav';
 	import { CERT_EYEBROW, type CertCrumb } from './shell';
 
@@ -52,11 +54,6 @@
 
 <div class="app-header cert-header" data-testid="cert-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<nav class="cert-tabs cert-nav" aria-label="IDEA Certifications" data-testid="cert-tabs">
-		{#each STUDENT_TABS as tab (tab.id)}
-			<a class="cert-tab" href={tab.href} aria-current={current === tab.id ? 'page' : undefined} data-tab={tab.id}>{tab.label}</a>
-		{/each}
-	</nav>
 	<div class="header-right cert-header-right">
 		{#if isCertifier}
 			<a class="btn secondary cert-btn" href={CERT_PATHS.desk} data-testid="cert-desk-key">Desk</a>
@@ -77,6 +74,14 @@
 </div>
 
 <main class="cert-root" class:cert-console={isConsole} data-testid="cert-root">
+	<!-- THE PORTAL'S PLACES ARE THE SITE'S ONE APP SUB-NAV (ledger 0468): the
+	     four student pads, under the header rather than in it, then the page's
+	     one header (eyebrow, title bar, meta line). -->
+	<AppSubNav
+		label="IDEA Certifications"
+		testid="cert-tabs"
+		items={STUDENT_TABS.map((tab) => ({ id: tab.id, label: tab.label, href: tab.href, current: current === tab.id }))}
+	/>
 	{#if crumbs.length > 0}
 		<nav class="cert-crumbs" aria-label="Where you are">
 			{#each crumbs as crumb, i (crumb.href)}
@@ -85,25 +90,16 @@
 			{/each}
 		</nav>
 	{/if}
-	<p class="eyebrow cert-eyebrow">{eyebrow}</p>
-	<div class="cert-titlebar">
-		<h1 class="cert-title plate-title">{title}</h1>
-	</div>
-	{#if lead}<p class="cert-lead">{lead}</p>{/if}
+	<PageHeader {eyebrow} {title} meta={lead} />
 	{@render children()}
 </main>
 
 <style>
-	/* The bar's own layout: mark, tabs, keys. The tabs take the middle and wrap;
-	   below 48rem the keys drop under the mark and the tabs take a full line,
-	   two to a line at a phone's width (cert.css sizes the pads). */
+	/* The bar's own layout: the mark and the keys (the places are the pads
+	   under it, ledger 0468). Below 48rem the notifications key stacks its
+	   word over its count so the row still fits. */
 	.cert-header {
 		row-gap: 0.5rem;
-	}
-	.cert-nav {
-		margin: 0;
-		flex: 1 1 auto;
-		min-width: 0;
 	}
 	.cert-header-right {
 		gap: 0.6rem;
@@ -116,10 +112,6 @@
 		padding: 0 0.45rem;
 	}
 	@media (max-width: 47.98rem) {
-		.cert-nav {
-			order: 3;
-			flex-basis: 100%;
-		}
 		.cert-notify-key {
 			flex-direction: column;
 			gap: 0.1rem;
@@ -127,14 +119,6 @@
 		}
 	}
 	@media (max-width: 479.98px) {
-		.cert-nav {
-			display: grid;
-			grid-template-columns: 1fr 1fr;
-		}
-		.cert-nav :global(.cert-tab) {
-			justify-content: center;
-			min-width: 0;
-		}
 		.cert-notify-word {
 			font-size: 0.7rem;
 		}

@@ -73,19 +73,6 @@
 </section>
 
 <style>
-	.cert-verify-result {
-		border-left-width: 5px;
-		border-left-color: var(--text-2);
-	}
-	.cert-verify-ok {
-		border-left-color: var(--green);
-	}
-	.cert-verify-warn {
-		border-left-color: var(--amber);
-	}
-	.cert-verify-bad {
-		border-left-color: var(--crimson);
-	}
 	.cert-verify-status {
 		display: flex;
 		gap: 1rem;

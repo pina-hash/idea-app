@@ -58,8 +58,8 @@ export default {
 	],
 	contrast: [
 		{ selector: '[data-testid="chips"] .fg-chip', label: 'each status word on its own pinned fill', min: 4.5 },
-		{ selector: '.fg-tabs .fg-tab', label: 'the shell tabs', min: 4.5 },
-		{ selector: '.fg-count[data-hot]', label: 'the hot review count (the heat ink)', min: 4.5 },
+		{ selector: '.fg-subnav .idea-pad', label: 'the shell tabs', min: 4.5 },
+		{ selector: '.fg-subnav .idea-pad-count[data-hot]', label: 'the hot review count (the heat ink)', min: 4.5 },
 		{ selector: '.fg-wordmark', label: 'the Foundry wordmark', min: 4.5 },
 		{ selector: '.fdy-detail .fdy-versions a.btn[download]', label: 'FoundryMine download control', min: 4.5 }
 	],

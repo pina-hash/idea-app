@@ -80,7 +80,6 @@
 		margin: 0 0 1rem;
 		padding: 0.6rem 0.75rem;
 		background: var(--surface-2);
-		border-left: 3px solid var(--fg-heat-ember, var(--hairline));
 		border-radius: var(--radius-sm, 4px);
 	}
 
@@ -115,7 +114,6 @@
 		padding: 0.5rem 0.85rem;
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
-		border-left: 3px solid var(--fg-heat-ember, var(--hairline));
 		border-radius: var(--radius-sm, 4px);
 		color: var(--text-1);
 	}

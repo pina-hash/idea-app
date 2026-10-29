@@ -16,17 +16,17 @@ export const SPACE_WHITE_ON = { waitFor: `() => document.documentElement.getAttr
 
 /** The shell's own rows, measured on every certification harness: the tabs and the keys are 44px, the words clear 4.5. */
 export const SHELL_TAP_TARGETS = [
-	{ selector: '[data-testid="cert-tabs"] .cert-tab', label: 'the four student tabs', min: 44 },
+	{ selector: '[data-testid="cert-tabs"] .idea-pad', label: 'the four student tabs', min: 44 },
 	{ selector: '[data-testid="cert-notifications-key"]', label: 'the notifications key', min: 44 }
 ];
 export const SHELL_CONTRAST = [
-	{ selector: '[data-testid="cert-tabs"] .cert-tab', label: 'the tab words', min: 4.5 },
-	{ selector: '.cert-title', label: 'the page title', min: 4.5 },
-	{ selector: '.cert-lead', label: 'the lead', min: 4.5 },
-	{ selector: '.cert-eyebrow', label: 'the eyebrow', min: 4.5 }
+	{ selector: '[data-testid="cert-tabs"] .idea-pad', label: 'the tab words', min: 4.5 },
+	{ selector: '.cert-root .page-header .ph-title', label: 'the page title', min: 4.5 },
+	{ selector: '.cert-root .page-header .ph-meta', label: 'the lead', min: 4.5 },
+	{ selector: '.cert-root .page-header .ph-eyebrow', label: 'the eyebrow', min: 4.5 }
 ];
 export const SHELL_PRESENCE = [
 	{ selector: '[data-testid="cert-header"]', label: 'the portal header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-	{ selector: '[data-testid="cert-tabs"] .cert-tab', label: 'four student tabs', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+	{ selector: '[data-testid="cert-tabs"] .idea-pad', label: 'four student tabs', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
 	{ selector: '.sfb-shell .sfb-trigger, [data-testid="cert-header"] .sfb-trigger', label: 'a report control somewhere on the page (the shell mounts it once)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 ];

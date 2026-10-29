@@ -61,10 +61,10 @@ export default {
 	tapTargets: [
 		{ selector: '.fdy-gal-head a[href="/foundry/requests"]', label: 'Request a game', min: 44 },
 		{ selector: '.fdy-gal-head a[href="/foundry/contract"]', label: 'Build contract', min: 44 },
-		{ selector: '.fg-tabs a[href="/foundry/requests"]', label: 'the Requests tab', min: 44 }
+		{ selector: '.fg-subnav a[href="/foundry/requests"]', label: 'the Requests tab', min: 44 }
 	],
 	contrast: [
 		{ selector: '.fdy-gal-head a[href="/foundry/requests"]', label: 'Request a game', min: 4.5 },
-		{ selector: '.fg-tabs a[href="/foundry/requests"]', label: 'the Requests tab', min: 4.5 }
+		{ selector: '.fg-subnav a[href="/foundry/requests"]', label: 'the Requests tab', min: 4.5 }
 	]
 };

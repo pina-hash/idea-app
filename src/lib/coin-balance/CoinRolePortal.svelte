@@ -3,7 +3,8 @@
 	import { toneFrom, verdictGlyph } from '$lib/ui/status-tone';
 	import './coin-page.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
+	import CoinPagesNav from '$lib/coin-bar/CoinPagesNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import CoinRoleCamera from './CoinRoleCamera.svelte';
@@ -98,14 +99,10 @@
 		<ProfileMenu />
 	</div>
 </div>
-<CoinBar current="mine" desk={coinDesk} />
+<CoinPagesNav current="mine" desk={coinDesk} />
 
 <main class="rp-page" data-testid="role-portal" data-state={pageState}>
-	<section class="hero">
-		<div class="eyebrow">IDEA · Coins · Role</div>
-		<h1>My class role</h1>
-		<p class="lead">Prove each class day with a start photo and an end photo, and your role pays for the days you prove.</p>
-	</section>
+	<PageHeader eyebrow="IDEA Coins" title="My class role" meta="Prove each class day with a start photo and an end photo, and your role pays for the days you prove." />
 
 	{#if pageState === 'signed_out'}
 		<section class="card cpx-card cpx-panel" data-testid="role-signin">

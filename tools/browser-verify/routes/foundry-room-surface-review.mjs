@@ -21,8 +21,8 @@ export default {
 		{ selector: '.fg-root.cr-app', label: 'the queue is an application', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="foundry-review-work"]', label: 'the open app and its inspector', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '.fg-root [data-testid="foundry-trust-roster"]', label: 'no trust roster in the full-height column', expectPresent: 0, maxPresent: 0 },
-		{ selector: '.fdy-rnav a.fdy-rnav-key', label: 'the two review keys', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-		{ selector: '.fdy-rnav a.fdy-rnav-key.on[aria-current="page"]', label: 'the lit key is this page', expectPresent: 1, maxPresent: 1 }
+		{ selector: '.fdy-rnav a.idea-pad', label: 'the three review places', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
+		{ selector: '.fdy-rnav a.idea-pad[aria-current="page"]', label: 'the lit key is this page', expectPresent: 1, maxPresent: 1 }
 	],
 	orderResult: [
 		{
@@ -39,6 +39,6 @@ export default {
 			expected: ['split spans the window']
 		}
 	],
-	tapTargets: [{ selector: '.fdy-rnav a.fdy-rnav-key', label: 'the Apps and Publishers keys', min: 44 }],
-	contrast: [{ selector: '.fdy-rnav a.fdy-rnav-key', label: 'the review keys', min: 4.5 }]
+	tapTargets: [{ selector: '.fdy-rnav a.idea-pad', label: 'the Apps and Publishers keys', min: 44 }],
+	contrast: [{ selector: '.fdy-rnav a.idea-pad', label: 'the review keys', min: 4.5 }]
 };

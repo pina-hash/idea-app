@@ -69,6 +69,23 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Component str
   read off the window (`maxRemNow`), so `aria-valuemax` and End name the width
   this window can actually draw, not the stored ceiling. Every other split is
   unchanged and `resizable={false}` opts out.
+- **AN APP PAGE NAMES ITSELF WITH `$lib/shell/PageHeader` AND REACHES ITS
+  PLACES THROUGH `$lib/shell/AppSubNav` (ledger 0468, feedback 38516c68).**
+  The header is a cyan eyebrow naming the app, the Plate's title bar and one
+  meta line (with `actions` on their own centred row under it, so a phone never
+  squeezes the title beside a key); the sub-nav is a strip of the Plate's pads,
+  44px each, the current place lit with `aria-current`, wrapping rather than
+  scrolling. Coin pages, the coin desk, the Foundry, Maps, certifications, the
+  admin area (`$lib/shell/AdminSubNav`, whose `ADMIN_PLACES` is the one list of
+  admin places), the calendar and the notebook mount them;
+  `tests/site-geometry.test.ts` holds every listed shell to the one header and
+  no `h1` of its own. **A new app page mounts these two, never a hero of its
+  own.** The header is a `div`, not a `header`: rooms style every `header`
+  inside them as their masthead (`.legacy-index header` is sticky and flexed).
+  **The frozen Coin Ledger keeps `CoinBar`**: the site's coin pages mount
+  `CoinPagesNav` over the same page list, and
+  `tests/fixtures/coin-bar-ledger-golden.json` holds the Ledger's strip byte for
+  byte. Armory was left out on purpose (another lane owned it on the day).
 - **THE CLASSROOM'S SPLIT USES THE WHOLE WINDOW (ledger 0381, report db499adb:
   "Dead Space on full screen ... from ultra narrow to ultra wide").**
   `classroom.css` points `.cr-root`'s `--measure-split` at `--measure-console`
@@ -155,8 +172,12 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Component str
     it. So ClassView lets a unit of ten or more rows break BETWEEN rows (its
     header stays with its first row, each part keeps its frame through
     `box-decoration-break: clone`) and a short unit still never breaks
-    (ledger 0297). The continuation carries no header of its own, which is
-    recorded as open rather than solved.
+    (ledger 0297). **The continued part names its unit (ledger 0468):** the
+    card keeps a label's height of room at the top of every part, the header
+    pulls itself back up by the same amount so the first part is unchanged,
+    and `$lib/classroom/unit-continues` marks the first row of each continued
+    part with `data-continues` ("Unit 2, continued"), drawn as an absolutely
+    placed `::after` in that room, so marking can never move a column break.
   - **THE ROW GAP IS A MARGIN ON THE PANEL**, because multicol has no row gap;
     and the reading order changes from row-major to column-major, which for an
     ordered list of units is the order they are numbered in.

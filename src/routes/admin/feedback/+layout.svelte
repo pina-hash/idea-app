@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
@@ -37,6 +38,7 @@
 		<ProfileMenu />
 	</div>
 </div>
+<AdminSubNav current="feedback" />
 
 <div class="fsn-row">
 	{#if onConnector}

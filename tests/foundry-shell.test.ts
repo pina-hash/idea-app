@@ -38,8 +38,8 @@ describe('the review tab renders for admins and for nobody else', () => {
 	it('gives an admin the tab, carrying the pending count', () => {
 		const html = shell({ active: 'gallery', isAdmin: true, reviewPending: 3 });
 		expect(html).toContain('/foundry/review');
-		expect(html).toContain('fg-count');
-		expect(html).toMatch(/fg-count[^>]*>\s*3\s*</);
+		expect(html).toContain('idea-pad-count');
+		expect(html).toMatch(/idea-pad-count[^>]*>\s*3\s*</);
 		// The heat marker: the count is lit exactly while work waits.
 		expect(html).toContain('data-hot');
 	});
@@ -47,14 +47,14 @@ describe('the review tab renders for admins and for nobody else', () => {
 	it('goes cold at zero rather than staying lit', () => {
 		const html = shell({ active: 'gallery', isAdmin: true, reviewPending: 0 });
 		expect(html).toContain('/foundry/review');
-		expect(html).toContain('fg-count');
+		expect(html).toContain('idea-pad-count');
 		expect(html).not.toContain('data-hot');
 	});
 
 	it('renders NO review link and NO count for a student, on the identical fixture', () => {
 		const html = shell({ active: 'gallery', isAdmin: false, reviewPending: null });
 		expect(html).not.toContain('/foundry/review');
-		expect(html).not.toContain('fg-count');
+		expect(html).not.toContain('idea-pad-count');
 		// POSITIVE CONTROL for the two absences: the same render with the flag
 		// on contains both (asserted above), and this one still renders the
 		// three tabs every signed-in student gets -- so "absent" is a statement

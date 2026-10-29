@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
+	import CoinPagesNav from '$lib/coin-bar/CoinPagesNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import CoinPageBody from './CoinPageBody.svelte';
@@ -50,17 +51,17 @@
 		<ProfileMenu />
 	</div>
 </div>
-<CoinBar current="mine" desk={coinDesk} />
+<CoinPagesNav current="mine" desk={coinDesk} />
 
 <main class="cp-page">
-	<section class="hero cp-hero">
-		<div class="eyebrow">IDEA · Coins</div>
-		<h1>My IDEA Coins</h1>
-		<p class="lead">
-			Your balance, your history, what you can buy, and every rule for earning and losing coins.
-			<a href="/coins/index.html">See the class leaderboard</a>.
-		</p>
-	</section>
+	<PageHeader eyebrow="IDEA Coins" title="My IDEA Coins">
+		{#snippet metaContent()}
+			<p>
+				Your balance, your history, what you can buy, and every rule for earning and losing coins.
+				<a href="/coins/index.html">See the class leaderboard</a>.
+			</p>
+		{/snippet}
+	</PageHeader>
 
 	{#if market}{@render market()}{/if}
 
@@ -76,9 +77,6 @@
 		max-width: 80rem;
 		margin: 0 auto;
 		padding: 0 1rem 3rem;
-	}
-	.cp-hero .lead a {
-		color: var(--cyan);
 	}
 	.page-footer {
 		margin-top: 2rem;

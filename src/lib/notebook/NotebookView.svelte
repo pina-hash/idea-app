@@ -4126,7 +4126,6 @@
 		margin: var(--space-3) 0 0;
 		padding: 0 var(--space-3);
 		border: 1px solid var(--hairline);
-		border-left: 3px solid var(--nb-accent-ink);
 		border-radius: var(--radius-control);
 		background: var(--surface-1);
 	}
@@ -4163,7 +4162,6 @@
 		font-size: 0.85rem;
 		color: var(--text-1);
 		padding-left: var(--space-2);
-		border-left: 3px solid var(--nb-warn);
 	}
 	.hint {
 		display: block;

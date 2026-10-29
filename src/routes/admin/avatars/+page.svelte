@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -21,13 +23,10 @@
 		<ProfileMenu />
 	</div>
 </div>
+<AdminSubNav current="avatars" />
 
 <main class="admin-page">
-	<section class="hero">
-		<div class="eyebrow">Admin console</div>
-		<h1>Profile pictures</h1>
-		<p class="lede">Turn off a picture that should not be on the site, and turn it back on when it is sorted out.</p>
-	</section>
+	<PageHeader eyebrow="IDEA Admin" title="Profile pictures" meta="Turn off a picture that should not be on the site, and turn it back on when it is sorted out." />
 
 	<AvatarHoldsConsole {transports} />
 
@@ -39,11 +38,6 @@
 		max-width: 48rem;
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
-	}
-	.lede {
-		color: var(--text-2);
-		margin: 0.3rem 0 0;
-		font-size: 0.95rem;
 	}
 	.page-footer {
 		margin-top: 1.4rem;

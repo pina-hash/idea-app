@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * The material library, admin side. Add, edit, retire and restore, with no
 	 * deploy -- Mr. Pina's decision of 2026-09-12: a material is four numbers in
@@ -165,13 +167,9 @@
 
 <svelte:head><title>IdeaCAD materials</title></svelte:head>
 
+<AdminSubNav current="ideacad-materials" />
 <main class="wrap">
-	<h1>IdeaCAD materials</h1>
-	<p class="lede">
-		The shared material list every student picks from. Adding one takes effect immediately, with no deploy. Each material
-		carries the real stock thicknesses it is sold in, and a student picks a thickness from that list rather than typing a
-		number.
-	</p>
+	<PageHeader eyebrow="IDEA Admin" title="IdeaCAD materials" meta="The shared material list every student picks from. Adding one takes effect immediately, with no deploy. Each material carries the real stock thicknesses it is sold in, and a student picks a thickness from that list rather than typing a number." />
 
 	{#if !data.ready}
 		<p class="refusal" role="status">
@@ -284,13 +282,9 @@
 		padding-left: 1rem;
 		padding-right: 1rem;
 	}
-	h1 {
-		margin: 0 0 0.5rem;
-	}
 	h2 {
 		margin: 1.6rem 0 0.6rem;
 	}
-	.lede,
 	.rules,
 	.hint,
 	.note,
@@ -306,7 +300,6 @@
 		margin: 0.2rem 0 0.6rem;
 	}
 	.rules {
-		border-left: 3px solid var(--boundary);
 		padding-left: 0.8rem;
 		margin: 1rem 0;
 	}

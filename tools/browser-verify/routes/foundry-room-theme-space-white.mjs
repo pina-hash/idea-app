@@ -59,6 +59,6 @@ export default {
 	contrast: [
 		{ selector: '.fdy-gal-head a[href="/foundry/requests"]', label: 'Request a game on the light plate', min: 4.5 },
 		{ selector: '[data-testid="foundry-gallery-page"] h1', label: 'the gallery heading', min: 4.5 },
-		{ selector: '.fdy-page-lead', label: 'the gallery lead', min: 4.5 }
+		{ selector: '.fdy-page-head .ph-meta', label: 'the gallery lead', min: 4.5 }
 	]
 };

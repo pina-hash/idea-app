@@ -231,12 +231,10 @@
 	}
 	.dup-note {
 		padding: 0.5rem 0.7rem;
-		border-left: 3px solid var(--green);
 		color: var(--text-1);
 	}
 	.dup-fail {
 		padding: 0.5rem 0.7rem;
-		border-left: 3px solid var(--crimson);
 		color: var(--text-1);
 	}
 	.dup-groups {
@@ -330,7 +328,6 @@
 	.dup-confirm {
 		flex-basis: 100%;
 		padding: 0.5rem 0.6rem;
-		border-left: 3px solid var(--crimson);
 	}
 	.dup-confirm p {
 		margin: 0 0 0.5rem;

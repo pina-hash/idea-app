@@ -1201,7 +1201,6 @@
 	 */
 	.fdy-before {
 		border: 1px solid var(--boundary);
-		border-left: 3px solid var(--cyan);
 		border-radius: var(--radius-md, 8px);
 		background: var(--bg1);
 		padding: var(--space-3, 0.75rem);
@@ -1261,7 +1260,6 @@
 		gap: var(--space-3, 0.75rem);
 		flex-wrap: wrap;
 		border: 1px solid var(--boundary);
-		border-left: 3px solid var(--crimson);
 		border-radius: var(--radius-md, 8px);
 		background: var(--bg1);
 		padding: var(--space-3, 0.75rem);

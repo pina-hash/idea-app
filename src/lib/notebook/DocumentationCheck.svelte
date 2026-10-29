@@ -668,7 +668,6 @@
 		gap: var(--space-1);
 	}
 	.criterion.needs {
-		border-left: 3px solid var(--nb-error);
 		padding-left: var(--space-2);
 	}
 	.crit-head {

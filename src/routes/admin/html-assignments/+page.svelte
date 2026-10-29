@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { enhance } from '$app/forms';
 
@@ -25,26 +27,28 @@
 
 <svelte:head><title>HTML assignments health</title></svelte:head>
 
+<AdminSubNav current="html-assignments" />
 <main class="hh" data-testid="html-health">
-	<header class="hh-head">
-		<h1>HTML assignments</h1>
-		<p class="hh-sub">
-			Every HTML post in every class, oldest kit first.
-			{#if data.kitNow}
-				The kit on the site is {data.kitNow.sha} of {data.kitNow.date}.
-			{:else}
-				The site could not read which kit is current, so every page is listed as needing a check.
+	<PageHeader eyebrow="IDEA Admin" title="HTML assignments">
+		{#snippet metaContent()}
+			<p class="hh-sub">
+				Every HTML post in every class, oldest kit first.
+				{#if data.kitNow}
+					The kit on the site is {data.kitNow.sha} of {data.kitNow.date}.
+				{:else}
+					The site could not read which kit is current, so every page is listed as needing a check.
+				{/if}
+			</p>
+		{/snippet}
+			{#if !data.unavailable}
+				<ul class="hh-tally" aria-label="Totals">
+					<li><strong>{data.entries.length}</strong> posts</li>
+					<li><strong>{behind}</strong> on an older kit or built by hand</li>
+					<li><strong>{noSource}</strong> with no source stored</li>
+					<li><strong>{data.committed}</strong> sources in the repository</li>
+				</ul>
 			{/if}
-		</p>
-		{#if !data.unavailable}
-			<ul class="hh-tally" aria-label="Totals">
-				<li><strong>{data.entries.length}</strong> posts</li>
-				<li><strong>{behind}</strong> on an older kit or built by hand</li>
-				<li><strong>{noSource}</strong> with no source stored</li>
-				<li><strong>{data.committed}</strong> sources in the repository</li>
-			</ul>
-		{/if}
-	</header>
+	</PageHeader>
 
 	{#if form?.message}
 		<p class="hh-error" role="alert">{form.message}</p>
@@ -126,10 +130,6 @@
 		flex-direction: column;
 		gap: var(--space-3);
 	}
-	.hh-head h1 {
-		margin: 0 0 var(--space-1);
-		font-family: var(--font-display);
-	}
 	.hh-sub,
 	.hh-note {
 		margin: 0;
@@ -138,6 +138,7 @@
 	.hh-tally {
 		display: flex;
 		flex-wrap: wrap;
+		justify-content: center;
 		gap: var(--space-2) var(--space-4);
 		margin: var(--space-2) 0 0;
 		padding: 0;
@@ -169,9 +170,6 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		background: var(--surface-1);
-	}
-	.hh-row.is-behind {
-		border-left: 4px solid var(--amber);
 	}
 	@media (min-width: 900px) {
 		.hh-row {

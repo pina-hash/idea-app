@@ -2,7 +2,16 @@
    Recreated from the live Plate (src/lib/classroom/plate.css). Every color,
    shadow, radius and size is a token from tokens.json, read through its
    custom property; this file carries geometry only. Geometry is the same in
-   both themes: a theme changes paint, never a box. */
+   both themes: a theme changes paint, never a box.
+
+   ONE SOURCE FOR THE SITE AND THE KIT (ledger 0468). ideabosco.com loads this
+   same file (src/lib/shell/site-plate.css imports it), so an `idea-*` part on
+   a site page and in an HTML assignment is one recipe. In the kit the tokens
+   come from tokens.json (build.mjs); on the site they come from the Plate's
+   own tokens, through the name bridge in src/lib/classroom/plate.css, in
+   every site theme. So a name this file reads is a name both sides declare:
+   add a token here and add it to the bridge (tests/plate-kit-source.test.ts
+   fails until both have it). */
 
 /* ---- The ground: the page is the plate. ---------------------------------- */
 .idea-plate {
@@ -17,8 +26,14 @@
 	-webkit-font-smoothing: antialiased;
 }
 
-/* ---- Eyebrow: the mono label that names a section, above it. ------------- */
-.idea-eyebrow {
+/* ---- Eyebrow: the mono label that names a section, above it. -------------
+   THE THREE PARTS THAT ARE ELEMENTS A ROOM ALREADY STYLES (a heading, a
+   label paragraph, a link) are written with their class twice (ledger 0468):
+   on the site, rooms style every `h1` and `a` inside them at (0,1,1)
+   (`.nb-root h1`, `.fg-root a`), which outranked a single class and turned the
+   title bar into the room's own heading and the pads' words cyan. Doubled,
+   the part is (0,2,0) and the room's element rule cannot reach it. */
+.idea-eyebrow.idea-eyebrow {
 	display: block;
 	margin: 0;
 	font-family: var(--font-mono);
@@ -29,7 +44,7 @@
 	text-transform: uppercase;
 	color: var(--caption);
 }
-.idea-eyebrow--info {
+.idea-eyebrow.idea-eyebrow--info {
 	color: var(--cyan);
 }
 
@@ -224,7 +239,7 @@ a.idea-panel:hover {
 }
 
 /* ---- Title bar: the page title between two hazard blocks. ---------------- */
-.idea-titlebar {
+.idea-titlebar.idea-titlebar {
 	--idea-hazard-w: min(18%, 132px);
 	--idea-hazard-h: var(--hazard-h);
 	--idea-hazard-pitch: 10px;
@@ -246,8 +261,8 @@ a.idea-panel:hover {
 	background: linear-gradient(to bottom, var(--plate-hi), transparent 3px);
 	box-shadow: var(--shadow-groove);
 }
-.idea-titlebar::before,
-.idea-titlebar::after {
+.idea-titlebar.idea-titlebar::before,
+.idea-titlebar.idea-titlebar::after {
 	content: '';
 	position: absolute;
 	top: 50%;
@@ -259,15 +274,15 @@ a.idea-panel:hover {
 	background: var(--hazard);
 	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 203 15' width='203' height='15'%3E%3Cpolygon points='0,15 5,15 13,0 8,0'/%3E%3Cpolygon points='10,15 15,15 23,0 18,0'/%3E%3Cpolygon points='20,15 25,15 33,0 28,0'/%3E%3Cpolygon points='30,15 35,15 43,0 38,0'/%3E%3Cpolygon points='40,15 45,15 53,0 48,0'/%3E%3Cpolygon points='50,15 55,15 63,0 58,0'/%3E%3Cpolygon points='60,15 65,15 73,0 68,0'/%3E%3Cpolygon points='70,15 75,15 83,0 78,0'/%3E%3Cpolygon points='80,15 85,15 93,0 88,0'/%3E%3Cpolygon points='90,15 95,15 103,0 98,0'/%3E%3Cpolygon points='100,15 105,15 113,0 108,0'/%3E%3Cpolygon points='110,15 115,15 123,0 118,0'/%3E%3Cpolygon points='120,15 125,15 133,0 128,0'/%3E%3Cpolygon points='130,15 135,15 143,0 138,0'/%3E%3C/svg%3E") left center / auto 100% no-repeat;
 }
-.idea-titlebar::before {
+.idea-titlebar.idea-titlebar::before {
 	left: 0;
 }
-.idea-titlebar::after {
+.idea-titlebar.idea-titlebar::after {
 	right: 0;
 	transform: scaleX(-1);
 }
 @media (max-width: 480px) {
-	.idea-titlebar {
+	.idea-titlebar.idea-titlebar {
 		--idea-hazard-w: 24px;
 		--idea-hazard-h: 10px;
 		--idea-hazard-pitch: 6.667px;
@@ -415,4 +430,204 @@ a.idea-panel:hover {
 	.idea-readout-screen {
 		font-size: 0.8125rem;
 	}
+}
+
+/* ---- Pad: a place in an app's sub-nav (ledger 0468). --------------------
+   The classroom's section tab, as a class: a thick composite bezel (the
+   hairline, a band with its own gradient, a bright inner lip, the face) and a
+   recessed LED in a lane of its own at the bottom right. The CURRENT place is
+   the LIT pad: a near-white face, a bright inner rim glow, the LED in the
+   accent, the heavier word and aria-current, so the glow is never the only
+   signal. A strip of pads is `.idea-pads`; it wraps, it never scrolls away. */
+.idea-pads {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	margin: 0;
+	padding: 4px;
+	list-style: none;
+}
+.idea-pads > li {
+	margin: 0;
+	padding: 0;
+	max-width: none;
+}
+.idea-pad.idea-pad {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.45rem;
+	box-sizing: border-box;
+	min-height: var(--tap-min);
+	min-width: var(--tap-min);
+	padding: 0 calc(0.85rem + 7px) 0 0.85rem;
+	margin: 0;
+	font-family: var(--font-mono);
+	font-size: 0.6875rem;
+	font-weight: 400;
+	line-height: 1.2;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	text-decoration: none;
+	white-space: nowrap;
+	cursor: pointer;
+	border: 3px solid transparent;
+	border-radius: var(--radius-pad);
+	background:
+		linear-gradient(to bottom, var(--key-face-top), var(--key-face-bot)) padding-box,
+		linear-gradient(to bottom, var(--band-top), var(--band-bot)) border-box;
+	background-color: var(--key-face-top);
+	box-shadow:
+		0 0 0 1px var(--hair),
+		inset 0 0 0 1px var(--pad-lip),
+		inset 0 0 3px 1px var(--tube-lo),
+		0 0 1px 2px var(--rim-out),
+		0 2px 3px 1px var(--drop),
+		0 5px 8px -3px var(--drop-far);
+	color: var(--plate-ink);
+	text-shadow: none;
+}
+.idea-pad.idea-pad::after {
+	content: '';
+	position: absolute;
+	right: 2px;
+	bottom: 3px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	pointer-events: none;
+	background:
+		radial-gradient(circle, var(--led-off-hi) 0 0.7px, var(--led-off) 1.6px, var(--led-ring) 2.1px 2.4px, transparent 2.8px),
+		radial-gradient(circle at 50% 30%, var(--led-cup-in) 0 2.1px, var(--led-cup) 3.5px);
+	box-shadow: 0 1px 0 0 var(--bezel-hi);
+}
+.idea-pad.idea-pad:hover {
+	border-color: var(--hover-ink);
+	color: var(--plate-ink);
+}
+.idea-pad.idea-pad:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+}
+.idea-pad.idea-pad:is([aria-current='page'], [aria-current='true'], [aria-selected='true'], .is-lit) {
+	background:
+		linear-gradient(to bottom, var(--key-lit-top), var(--key-lit-bot)) padding-box,
+		linear-gradient(to bottom, var(--band-top), var(--band-bot)) border-box;
+	background-color: var(--key-lit-top);
+	box-shadow:
+		0 0 0 1px var(--hair),
+		inset 0 0 0 1px var(--lit-glow),
+		inset 0 0 0 3px var(--lit-glow),
+		inset 0 0 6px 4px var(--lit-core),
+		0 0 1px 2px var(--rim-out),
+		0 0 10px 1px var(--bloom),
+		0 2px 3px 1px var(--drop),
+		0 5px 8px -3px var(--drop-far);
+	font-weight: 700;
+}
+.idea-pad.idea-pad:is([aria-current='page'], [aria-current='true'], [aria-selected='true'], .is-lit)::after {
+	background:
+		radial-gradient(circle, var(--accent-glow) 0 0.5px, var(--accent) 1.5px, var(--led-ring) 2.1px 2.4px, transparent 2.8px),
+		radial-gradient(circle at 50% 30%, var(--led-cup-in) 0 2.1px, var(--led-cup) 3.5px);
+	box-shadow:
+		0 1px 0 0 var(--bezel-hi),
+		0 0 4px 1px var(--led-halo);
+}
+/* A count on a pad is part of its word, in the second ink. */
+.idea-pad-count {
+	color: var(--ink-2);
+	font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: no-preference) {
+	.idea-pad.idea-pad {
+		transition:
+			color 120ms ease-out,
+			border-color 120ms ease-out,
+			box-shadow 120ms ease-out,
+			background-color 120ms ease-out;
+	}
+}
+
+/* ---- List: the list well with etched rows (ledger 0468). ---------------
+   Anything in rows sits in one recessed well; a row is divided from the next
+   by an ETCHED line (the dark divider, the only separator between two rows,
+   with a light line under it) that stops 12px short of each edge. Rows carry
+   no box of their own: no stripe, no wash, no card in the well. */
+.idea-list {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border: 1px solid var(--hair);
+	border-radius: var(--radius-panel);
+	background-color: var(--list-face);
+	box-shadow:
+		inset 0 1px 0 0 var(--groove-dk),
+		inset 0 6px 8px -4px var(--inset-shade),
+		inset 8px 0 10px -8px var(--inset-shade),
+		inset -1px 0 0 0 var(--well-lip),
+		inset 0 -1px 0 0 var(--well-lip),
+		0 1px 0 0 var(--well-lip);
+	color: var(--plate-ink);
+	overflow: hidden;
+}
+.idea-list > * {
+	margin: 0;
+	padding: var(--space-2) var(--space-3);
+	max-width: none;
+}
+.idea-list > * + * {
+	background-image:
+		linear-gradient(to right, transparent 0, var(--divider) 12px, var(--divider) calc(100% - 12px), transparent 100%),
+		linear-gradient(to right, transparent 0, var(--well-lip) 12px, var(--well-lip) calc(100% - 12px), transparent 100%);
+	background-size: 100% 1px, 100% 1px;
+	background-position: 0 0, 0 1px;
+	background-repeat: no-repeat;
+}
+
+/* ---- Display: a small readout (ledger 0468). ---------------------------
+   A number that is read, never typed (a balance, a price, a count that is
+   the point of a card), on the display's dark glass: the screen of the
+   readout without its housing, for a line of a card. */
+.idea-display {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0.45rem 0.9rem 0.45rem 1.75rem;
+	border-radius: 7px 7px var(--radius-pad) var(--radius-pad);
+	background-color: var(--screen-top);
+	background-image:
+		linear-gradient(165deg, var(--glass) 0 38%, transparent 62%),
+		linear-gradient(to bottom, var(--screen-top), var(--screen-bot));
+	box-shadow: var(--shadow-screen);
+	color: var(--screen-ink);
+	text-shadow: 0 0 6px var(--screen-glow);
+	font-family: var(--font-mono);
+	font-size: 0.95rem;
+	line-height: 1.35;
+	letter-spacing: 0.02em;
+	font-variant-numeric: tabular-nums;
+}
+.idea-display::before {
+	content: '';
+	position: absolute;
+	left: 0.7rem;
+	top: 50%;
+	width: 7px;
+	height: 7px;
+	margin-top: -4px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 45% 40%, #ffffffaa 0 0.8px, var(--screen-ink) 2.2px);
+	box-shadow: 0 0 6px 1px var(--screen-glow);
+	pointer-events: none;
+}
+/* The words on the glass that name the number: the caption face, dimmer. */
+.idea-display-label {
+	font-size: 0.6875rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
 }

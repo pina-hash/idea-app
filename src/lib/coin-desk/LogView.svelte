@@ -1702,7 +1702,6 @@
 		   it is what makes the list scannable by type once the order stops
 		   being grouped by type. `transparent` is the default so a type with no
 		   tone can never paint a stripe in the ink colour by accident. */
-		border-left: 3px solid var(--st-edge, transparent);
 		color: var(--white);
 		cursor: pointer;
 		font-family: var(--font-display);

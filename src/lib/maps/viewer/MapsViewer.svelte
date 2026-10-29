@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * THE WHOLE PUBLIC MAP, as one component the route mounts and the dev
 	 * harness mounts identically. Anonymous, published only, no sign-in
@@ -306,18 +307,19 @@
 						wayHref={cardWayHref}
 					/>
 				{:else}
-					<header class="mv-head" data-testid="maps-viewer-head">
-						<h1>{heading}</h1>
-						{#if here}
-							<p class="mv-kind">{mapsKindWord(here)}</p>
-							{#if here.description}<p class="mv-desc">{here.description}</p>{/if}
-						{:else}
-							<p class="mv-desc">
-								Every building, room, toolbox and drawer the IDEA shop has catalogued. Open one, or
-								search for the thing you need.
-							</p>
-						{/if}
-					</header>
+					<PageHeader eyebrow="IDEA Maps" title={heading} testid="maps-viewer-head">
+						{#snippet metaContent()}
+							{#if here}
+								<p class="mv-kind">{mapsKindWord(here)}</p>
+								{#if here.description}<p class="mv-desc">{here.description}</p>{/if}
+							{:else}
+								<p class="mv-desc">
+									Every building, room, toolbox and drawer the IDEA shop has catalogued. Open one, or
+									search for the thing you need.
+								</p>
+							{/if}
+						{/snippet}
+					</PageHeader>
 
 					{#if isEmpty}
 						<p class="mv-empty">
@@ -644,15 +646,6 @@
 			max-width: none;
 		}
 	}
-	.mv-head {
-		margin-bottom: var(--space-4);
-	}
-	h1 {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: 1.75rem;
-		color: var(--mv-accent-ink);
-	}
 	.mv-kind {
 		margin: 0.1rem 0 0;
 		font-family: var(--font-mono);
@@ -662,7 +655,7 @@
 		color: var(--text-2, #9aa49d);
 	}
 	.mv-desc {
-		margin: var(--space-2) 0 0;
+		margin: var(--space-2) auto 0;
 		max-width: 62ch;
 		color: var(--text-1, #e7eae8);
 	}

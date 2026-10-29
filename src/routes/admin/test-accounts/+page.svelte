@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AdminSubNav from '$lib/shell/AdminSubNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * /admin/test-accounts (ledger 0422). Make a test student, put it in a class,
 	 * then view or act as it. A test account is in no roster, grade view, count,
@@ -28,13 +30,10 @@
 		<ProfileMenu />
 	</div>
 </div>
+<AdminSubNav current="test-accounts" />
 
 <main class="ta-page" data-testid="test-accounts-admin">
-	<section class="hero">
-		<div class="eyebrow">Admin console</div>
-		<h1>Test accounts</h1>
-		<p class="ta-lede">Student accounts for trying a class the way a student would. Nobody else ever sees them: not in a roster, a grade, a count, a leaderboard, a stock board or a badge.</p>
-	</section>
+	<PageHeader eyebrow="IDEA Admin" title="Test accounts" meta="Student accounts for trying a class the way a student would. Nobody else ever sees them: not in a roster, a grade, a count, a leaderboard, a stock board or a badge." />
 
 	{#if form?.message}
 		<p class="ta-note" role="status" data-testid="test-accounts-note">{form.message}</p>
@@ -118,11 +117,6 @@
 		max-width: 72rem;
 		margin: 0 auto;
 		padding: 0 1rem 3rem;
-	}
-	.ta-lede {
-		color: var(--text-2);
-		margin: 0.3rem auto 0;
-		max-width: 46rem;
 	}
 	.ta-card {
 		padding: 1.1rem 1.2rem;

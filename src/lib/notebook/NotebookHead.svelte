@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import { STATUS_GLYPHS, toneStyle } from '$lib/ui/status-tone';
 	import CheckInState from '$lib/notebook/CheckInState.svelte';
 	import { sessionMeta } from '$lib/notebook';
@@ -53,13 +54,18 @@
 	} = $props();
 </script>
 
+<!-- THE SITE'S ONE PAGE HEADER (ledger 0468): the eyebrow, the title bar
+     and, as its meta line, who can see this notebook. -->
 <div class="head-title">
-	<h1>{readOnly ? 'Notebook' : 'My notebook'}</h1>
-	<p class="privacy" data-testid="nb-privacy">
-		{readOnly
-			? 'Only this student, their section instructor and the department chair can see this notebook.'
-			: 'Only you, your section instructor and the department chair can see this notebook.'}
-	</p>
+	<PageHeader eyebrow="IDEA Notebook" title={readOnly ? 'Notebook' : 'My notebook'}>
+		{#snippet metaContent()}
+			<p class="privacy" data-testid="nb-privacy">
+				{readOnly
+					? 'Only this student, their section instructor and the department chair can see this notebook.'
+					: 'Only you, your section instructor and the department chair can see this notebook.'}
+			</p>
+		{/snippet}
+	</PageHeader>
 </div>
 <!--
 	ACTIONABLE FIRST, IDENTITY LAST. The check-in and the drafts are what need
@@ -118,17 +124,13 @@
 </div>
 
 <style>
+	/* The header takes its whole row, and what needs doing sits under it. */
 	.head-title {
 		min-width: 0;
-		flex: 1 1 20rem;
-		display: flex;
-		align-items: baseline;
-		flex-wrap: wrap;
-		gap: 0 var(--space-4);
+		flex: 1 1 100%;
 	}
-	h1 {
+	.head-title :global(.page-header) {
 		margin: 0;
-		font-size: 1.3rem;
 	}
 	/* One line, the room's secondary tier: it is the fact worth keeping from
 	   the paragraph it replaces, and it is not the work. */
@@ -136,14 +138,14 @@
 		margin: 0;
 		font-size: 0.9rem;
 		color: var(--text-2);
-		max-width: 40rem;
 	}
 	.head-status {
 		display: flex;
 		flex-wrap: wrap;
+		justify-content: center;
 		align-items: center;
 		gap: var(--space-2);
-		flex: 0 1 auto;
+		flex: 1 1 100%;
 	}
 	.chip {
 		display: inline-flex;

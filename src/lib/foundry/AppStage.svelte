@@ -573,7 +573,7 @@
 						<button type="button" class="btn fdy-launch tap-44" onclick={start}>Launch app</button>
 						<button
 							type="button"
-							class="btn fdy-launch-full tap-44"
+							class="btn secondary fdy-launch-full tap-44"
 							data-testid="foundry-launch-full"
 							onclick={startFull}
 						>

@@ -1162,7 +1162,6 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-wrap: wrap;
-		border-left: 3px solid var(--fg-st-shelf-edge, var(--hairline));
 		background: var(--bg1);
 		padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
 		margin: 0 0 var(--space-3, 0.75rem);
@@ -1171,7 +1170,6 @@
 	}
 
 	.fdy-flagged {
-		border-left: 3px solid var(--amber);
 		background: var(--bg1);
 		padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
 		margin: 0 0 var(--space-3, 0.75rem);

@@ -13,8 +13,8 @@ export default {
 	label: 'IDEA Certifications desk: queue, requests, tiles and telemetry (busy)',
 	prepare: certHydrated('desk'),
 	presence: [
-		{ selector: '[data-testid="cert-desk-tabs"] .cert-tab', label: 'an admin gets seven desk tabs', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
-		{ selector: '[data-testid="cert-desk-tabs"] .cert-tab[aria-current="page"]', label: 'no tab is current on the harness address (the real route marks one)', expectPresent: 0, maxPresent: 0 },
+		{ selector: '[data-testid="cert-desk-tabs"] .idea-pad', label: 'an admin gets seven desk tabs', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
+		{ selector: '[data-testid="cert-desk-tabs"] .idea-pad[aria-current="page"]', label: 'no tab is current on the harness address (the real route marks one)', expectPresent: 0, maxPresent: 0 },
 		{ selector: '[data-testid="cert-desk-search"] input', label: 'the student search box', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="cert-queue-row"]', label: 'two submissions waiting', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="cert-queue-review"]', label: 'one Review key a row', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
@@ -34,7 +34,7 @@ export default {
 		{ selector: '[data-testid="cert-chart"][data-chart="pass-rates"] .dk-legend', label: 'a legend in words beside the bars', must: ['Green: passed', 'Red: failed'] }
 	],
 	tapTargets: [
-		{ selector: '[data-testid="cert-desk-tabs"] .cert-tab', label: 'the desk tabs', min: 44 },
+		{ selector: '[data-testid="cert-desk-tabs"] .idea-pad', label: 'the desk tabs', min: 44 },
 		{ selector: '[data-testid="cert-desk-search"] input', label: 'the search box', min: 44 },
 		{ selector: '[data-testid="cert-desk-search-go"]', label: 'the search key', min: 44 },
 		{ selector: '[data-testid="cert-queue-review"]', label: 'Review keys', min: 44 },
@@ -42,7 +42,7 @@ export default {
 		{ selector: '[data-testid="cert-queue-row"]', label: 'queue rows', min: 44 }
 	],
 	contrast: [
-		{ selector: '[data-testid="cert-desk-tabs"] .cert-tab', label: 'tab words', min: 4.5 },
+		{ selector: '[data-testid="cert-desk-tabs"] .idea-pad', label: 'tab words', min: 4.5 },
 		{ selector: '[data-testid="cert-queue-row"] .dk-row-name', label: 'student names', min: 4.5 },
 		{ selector: '[data-testid="cert-queue-row"] .dk-row-meta', label: 'certification and wait words', min: 4.5 },
 		{ selector: '[data-testid="cert-tile-figure"]', label: 'tile figures', min: 4.5 },

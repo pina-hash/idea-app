@@ -114,6 +114,7 @@
 	import { createCopyForwardTransports, type CopyForwardTransports } from '$lib/classroom/copy-forward';
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import { unitContinues } from '$lib/classroom/unit-continues';
 
 	/**
 	 * ONE view of a class's content, grouped by the units its teacher authored.
@@ -2935,6 +2936,7 @@
 		style={streamColumns === null ? undefined : `columns: var(--cr-stream-col) ${streamColumns}`}
 		data-thumbs={thumbShape === 'off' ? undefined : thumbShape}
 		bind:this={menuHost}
+		use:unitContinues
 	>
 		{#each shownGroups as group (group.id)}
 			{@const entries = entriesFor(group.id, group.items)}
@@ -3297,6 +3299,39 @@
 		break-inside: auto;
 		-webkit-box-decoration-break: clone;
 		box-decoration-break: clone;
+		/* THE CONTINUED PART NAMES ITS UNIT (ledger 0468, feedback c27b2be7).
+		   Every part of a breaking card is drawn with the card's padding at its
+		   top (`clone`), so the card keeps a label's height of room there; the
+		   header pulls itself back up by the same amount, so the FIRST part
+		   looks exactly as it did, and the continued part's first row draws
+		   "<unit>, continued" in that room (`$lib/classroom/unit-continues`,
+		   which marks the row without moving anything). */
+		--cr-cont-room: 1.35rem;
+		padding-top: calc(var(--space-2) + var(--cr-cont-room));
+	}
+	.stream > :global(.group-card:has(.rows > li:nth-child(10))) > :global(.group-bar),
+	.stream > :global(.group-card:has(.rows > li:nth-child(10))) > :global(:first-child) {
+		margin-top: calc(-1 * var(--cr-cont-room));
+	}
+	.stream :global(.row-wrap[data-continues]) {
+		position: relative;
+	}
+	.stream :global(.row-wrap[data-continues])::after {
+		content: attr(data-continues) / '';
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: calc(100% + 0.25rem);
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		font-family: var(--font-mono);
+		font-size: var(--plate-label-size, 0.6875rem);
+		letter-spacing: var(--plate-label-track, 0.14em);
+		line-height: 1;
+		text-transform: uppercase;
+		color: var(--plate-caption, var(--text-2));
+		pointer-events: none;
 	}
 	.stream :global(.group-bar) {
 		break-after: avoid;

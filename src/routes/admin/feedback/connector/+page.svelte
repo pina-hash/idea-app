@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	/**
 	 * THE CONNECTOR'S GAPS, as one of the feedback console's tabs: what was asked
 	 * of Claude that the site cannot do yet, open first. Each gap shows his words
@@ -43,14 +44,7 @@
 <svelte:head><title>Connector feedback · IDEA</title></svelte:head>
 
 <main class="cg-page" data-testid="connector-gaps">
-	<section class="hero">
-		<div class="eyebrow">Feedback</div>
-		<h1>Asked of Claude, not built yet</h1>
-		<p class="cg-lede">
-			Everything you asked the IDEA Website connector that the site could not do. Mark one built with the ledger that built it, or
-			declined.
-		</p>
-	</section>
+	<PageHeader eyebrow="IDEA Admin · Feedback" title="Asked of Claude, not built yet" meta="Everything you asked the IDEA Website connector that the site could not do. Mark one built with the ledger that built it, or declined." />
 
 	{#if data.unavailable}
 		<section class="card cg-card"><p data-testid="connector-gaps-unavailable">{data.unavailable}</p></section>
@@ -141,11 +135,6 @@
 		max-width: 60rem;
 		margin: 0 auto;
 		padding: 0 1rem 3rem;
-	}
-	.cg-lede {
-		color: var(--text-2);
-		margin: 0.3rem 0 0;
-		max-width: var(--measure-reading, 42rem);
 	}
 	.cg-views {
 		display: flex;

@@ -187,7 +187,7 @@
 					<Stars average={profile.rating.average} count={profile.rating.count} />
 				</header>
 				{#if profile.reviews.length}
-					<ul class="mk-list">
+					<ul class="idea-list mk-list">
 						{#each profile.reviews as r (r.id)}
 							<li class="mk-review">
 								<Stars average={r.stars} count={1} single />

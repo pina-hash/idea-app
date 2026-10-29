@@ -2,7 +2,8 @@
 	import '$lib/coin-market/market.css';
 	import './stocks.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
+	import CoinPagesNav from '$lib/coin-bar/CoinPagesNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { coins } from '$lib/coin-format';
@@ -76,28 +77,23 @@
 		<ProfileMenu />
 	</div>
 </div>
-<CoinBar current="stocks" desk={coinDesk} />
+<CoinPagesNav current="stocks" desk={coinDesk} />
 
 <main class="mk-page" data-testid="sk-page" data-state={pageState}>
-	<section class="mk-hero">
-		<div>
-			<div class="mk-eyebrow">IDEA Coins</div>
-			<h1>IDEA Stocks</h1>
-			<p class="lead">Prices made from what really happens on the site: grades, the Foundry, GAUNTLET, the Market, Tournaments and every other part of it. They update about every minute on class days.</p>
-		</div>
-		{#if board}
-			<div class="mk-hero-keys">
-				<span class="mk-balance">
-					<span class="mk-balance-label">Balance</span>
+	<PageHeader eyebrow="IDEA Coins" title="IDEA Stocks" meta="Prices made from what really happens on the site: grades, the Foundry, GAUNTLET, the Market, Tournaments and every other part of it. They update about every minute on class days.">
+		{#snippet actions()}
+			{#if board}
+				<span class="idea-display mk-balance">
+					<span class="idea-display-label">Balance</span>
 					<span class="mk-balance-figure" class:neg={board.balance < 0}>{coins(board.balance)}</span>
 				</span>
-				<span class="mk-balance" data-testid="sk-portfolio-value">
-					<span class="mk-balance-label">In stocks</span>
+				<span class="idea-display mk-balance" data-testid="sk-portfolio-value">
+					<span class="idea-display-label">In stocks</span>
 					<span class="mk-balance-figure">{coins(board.portfolio.value)}</span>
 				</span>
-			</div>
-		{/if}
-	</section>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	{#if pageState === 'signed_out'}
 		<section class="card mk-panel"><p class="mk-body">Sign in to see the stock market.</p></section>

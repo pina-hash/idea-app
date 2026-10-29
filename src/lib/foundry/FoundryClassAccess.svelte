@@ -286,7 +286,6 @@
 		padding: 0.6rem 0.75rem;
 		color: var(--text-1);
 		background: var(--surface-2);
-		border-left: 3px solid var(--fg-heat-ember, var(--boundary));
 		border-radius: var(--radius-sm, 4px);
 	}
 

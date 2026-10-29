@@ -688,8 +688,14 @@
 		background: var(--nb-accent-wash);
 		color: var(--nb-accent-ink);
 	}
+	/* THE TOOLBAR DOES NOT GREY OUT WHILE THE EDITOR LOADS (ledger 0468,
+	   feedback c27b2be7). Its buttons are `disabled` for the moment before the
+	   editor arrives (it is imported on mount), and they used to be drawn at
+	   45% then, so every notebook opened on a greyed toolbar that came alive a
+	   beat later. They keep their own look; a click in that moment does
+	   nothing, which is what `disabled` already says to assistive tech. A
+	   DISABLED EDITOR (a save in flight) is still dimmed whole, above. */
 	.note-toolbar button:disabled {
-		opacity: 0.45;
 		cursor: default;
 	}
 	.sep {
@@ -698,8 +704,15 @@
 		background: var(--nb-hairline-strong);
 		margin: 0 var(--space-1);
 	}
+	/* THE BOX HAS ITS HEIGHT BEFORE THE EDITOR ARRIVES (ledger 0468). The
+	   writing area's 6.5rem lived only on ProseMirror's own element, which does
+	   not exist until the editor is imported, so for that moment the surface
+	   was its padding alone and the placeholder, drawn at its top, was cut in
+	   half by the editor's clip. The surface holds the same height itself. */
 	.note-surface {
 		position: relative;
+		min-height: calc(6.5rem + 2 * var(--space-3));
+		box-sizing: border-box;
 		padding: var(--space-3);
 		font-size: 0.98rem;
 		line-height: 1.6;

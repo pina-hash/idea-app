@@ -35,7 +35,7 @@ export default {
 		{ selector: '[data-view="by-cert"] [data-testid="cert-holders-total"]', label: 'the count', must: ['6 holders'] },
 		{ selector: '[data-view="by-person"] [data-testid="cert-holder-person"]', label: 'the searched person with her codes', must: ['Ana Reyes', 'SAFE-1', 'SCOUT-1'] },
 		{ selector: '[data-testid="cert-root"]', label: 'names only, never an address', mustNot: ['@boscotech', '@gmail'] },
-		{ selector: '.cert-lead', label: 'the holders sentence', must: ['Names only; proof is on the verify page.'] }
+		{ selector: '.cert-root .page-header .ph-meta', label: 'the holders sentence', must: ['Names only; proof is on the verify page.'] }
 	],
 	tapTargets: [
 		...SHELL_TAP_TARGETS,

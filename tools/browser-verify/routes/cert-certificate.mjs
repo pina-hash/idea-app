@@ -104,7 +104,7 @@ export default {
 	],
 	contrast: [
 		// The certificate page has no lead paragraph: the sheet is the content.
-		...SHELL_CONTRAST.filter((c) => c.selector !== '.cert-lead'),
+		...SHELL_CONTRAST.filter((c) => c.selector !== '.cert-root .page-header .ph-meta'),
 		{ selector: '[data-testid="cert-holder-name"]', label: 'the name against the paper', min: 4.5 },
 		{ selector: '[data-testid="cert-serial"]', label: 'the serial against the paper', min: 4.5 },
 		{ selector: '.certificate-cert-name', label: 'the certification name (green on paper)', min: 4.5 },

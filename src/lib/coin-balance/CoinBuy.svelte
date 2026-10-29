@@ -244,11 +244,10 @@
 </section>
 
 <style>
+	/* A row of the list well its page puts it in (ledger 0468): no box of its
+	   own inside the card. */
 	.cb-buy {
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-card, 8px);
 		padding: 0.9rem 1rem;
-		background: var(--bg2);
 		display: flex;
 		flex-direction: column;
 		gap: 0.55rem;
@@ -307,7 +306,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
-		border-left: 3px solid var(--green);
 		padding-left: 0.75rem;
 	}
 	.cb-confirm-text {

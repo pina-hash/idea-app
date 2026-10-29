@@ -67,7 +67,7 @@ describe('the Coin Desk folded into the coin home (ledger 0432)', () => {
 });
 
 describe('every coin page mounts the bar, naming itself current', () => {
-	it('each page component and the desk layout carry CoinBar with its own page', () => {
+	it('each page component and the desk layout carry the pads nav with its own page (ledger 0468)', () => {
 		const mounts: Array<[string, string]> = [
 			['src/lib/coin-balance/CoinPageView.svelte', 'mine'],
 			['src/lib/coin-balance/CoinRolePortal.svelte', 'mine'],
@@ -77,7 +77,11 @@ describe('every coin page mounts the bar, naming itself current', () => {
 			['src/routes/coin/(staff)/+layout.svelte', 'desk'],
 			['src/lib/coin-bar/CoinHomePage.svelte', 'home']
 		];
-		for (const [file, id] of mounts) expect(read(file), file).toMatch(new RegExp(`<CoinBar current="${id}"`));
+		for (const [file, id] of mounts) {
+			expect(read(file), file).toMatch(new RegExp(`<CoinPagesNav current="${id}"`));
+			// The Ledger's strip is the Ledger's alone now: no site page draws it.
+			expect(read(file), file).not.toMatch(/<CoinBar\b/);
+		}
 		// Every page in the list is one of them, or the Ledger (below).
 		expect(new Set([...mounts.map((m) => m[1]), 'ledger'])).toEqual(new Set(COIN_PAGES.map((p) => p.id)));
 	});
@@ -113,6 +117,15 @@ describe('the Ledger carries the real bar', () => {
 		// The frozen file is untouched outside the two insertions.
 		expect(out.length).toBeGreaterThan(LEDGER.length);
 		expect(out.startsWith(LEDGER.slice(0, LEDGER.indexOf('</head>')))).toBe(true);
+	});
+
+	it('the strip the Ledger shows is byte for byte what it was before ledger 0468 (the freeze)', async () => {
+		const { ledgerCoinBarHtml } = await import('../src/lib/server/coin-bar');
+		const golden = JSON.parse(read('tests/fixtures/coin-bar-ledger-golden.json')) as { staff: string; student: string };
+		expect(ledgerCoinBarHtml(true)).toBe(golden.staff);
+		expect(ledgerCoinBarHtml(false)).toBe(golden.student);
+		// Control: the site's pads nav is a different drawing.
+		expect(golden.staff).not.toContain('idea-pad');
 	});
 
 	it('a page with no header comes back unchanged (control: nothing half-added)', () => {

@@ -140,24 +140,10 @@
 	padding: 0.55rem 0.75rem;
 }
 
-/* --- The ledger's card signature ------------------------------------------
-   `.coin-card` in `src/lib/legacy/coins/index.html` is a `--bg1` panel with a plain
-   hairline on three sides and a 3px ACCENT STRIPE down its left edge. It is
-   the single most recognisable thing about that page, it costs one rule, and
-   it is the difference between the desk reading as part of the coin economy
-   and reading as a generic admin console.
-
-   `--green` and not the ledger's per-section colour: the stripe is one accent
-   here because a coin desk card is not a student, and green is this register's
-   active/primary. The portal's `--boundary` contract is unaffected -- the
-   card's own edge is still `.card`'s hairline, and this paints over the left
-   1px of it rather than replacing the boundary.
-
-   The stripe is on the ROOM's cards only, so nothing outside `/coin-desk`
-   changes. --------------------------------------------------------------- */
-.cd-root .coin-desk-page > .card {
-	border-left: 3px solid var(--green);
-}
+/* --- No stripe on a desk card (ledger 0468) -------------------------------
+   The desk's cards used to wear the Ledger's 3px accent stripe down their left
+   edge. The site's plate has no stripes: a card is the panel recipe and the
+   page says it is the coin desk through its page header and sub-nav. ------ */
 
 /* The ledger sets every piece of chrome in Orbitron; `--font-title` is that
    face, named through its token. The eyebrow is the desk's masthead label and

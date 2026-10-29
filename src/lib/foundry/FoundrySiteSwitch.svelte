@@ -234,7 +234,6 @@
 		padding: 0.6rem 0.75rem;
 		color: var(--text-1);
 		background: var(--surface-2);
-		border-left: 3px solid var(--fg-heat-ember, var(--hairline));
 		border-radius: var(--radius-sm, 4px);
 	}
 
@@ -301,6 +300,5 @@
 		margin: 0;
 		color: var(--text-1);
 		padding-left: 0.6rem;
-		border-left: 3px solid var(--crimson);
 	}
 </style>

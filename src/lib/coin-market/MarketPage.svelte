@@ -2,7 +2,8 @@
 	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import './market.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
+	import CoinPagesNav from '$lib/coin-bar/CoinPagesNav.svelte';
+	import PageHeader from '$lib/shell/PageHeader.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { coins } from '$lib/coin-format';
@@ -90,28 +91,23 @@
 		<ProfileMenu />
 	</div>
 </div>
-<CoinBar current="market" desk={coinDesk} />
+<CoinPagesNav current="market" desk={coinDesk} />
 
 <main class="mk-page" data-testid="mk-page" data-state={pageState}>
-	<section class="mk-hero">
-		<div>
-			<div class="mk-eyebrow">IDEA Coins</div>
-			<h1>IDEA Market</h1>
-			<p class="lead">Buy, sell and trade with coins. Every trade goes through escrow, so nobody gets scammed.</p>
-		</div>
-		{#if board}
-			<div class="mk-hero-keys">
+	<PageHeader eyebrow="IDEA Coins" title="IDEA Market" meta="Buy, sell and trade with coins. Every trade goes through escrow, so nobody gets scammed.">
+		{#snippet actions()}
+			{#if board}
 				<a class="btn secondary mk-key" href="/market/stocks" data-testid="mk-stocks-link"><Glyph name="stocks" size={16} /> Stocks</a>
 				{#if transfers && board.in_economy}
 					<button type="button" class="btn secondary mk-key" onclick={() => (sending = true)} data-testid="mk-send-open"><Glyph name="transfer" size={16} /> Send coins</button>
 				{/if}
-				<span class="mk-balance" data-testid="mk-balance">
-					<span class="mk-balance-label">Balance</span>
+				<span class="idea-display mk-balance" data-testid="mk-balance">
+					<span class="idea-display-label">Balance</span>
 					<span class="mk-balance-figure" class:neg={inDebt}>{coins(board.me.balance)}</span>
 				</span>
-			</div>
-		{/if}
-	</section>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	{#if pageState === 'signed_out'}
 		<section class="card mk-panel" data-testid="mk-signin">
@@ -250,7 +246,7 @@
 						<span class="mk-sub">{openTrades.length} open</span>
 					</header>
 					{#if openTrades.length}
-						<ul class="mk-list">
+						<ul class="idea-list mk-list">
 							{#each openTrades as o (o.id)}<TradeCard order={o} rules={board.rules} {transports} ondone={done} />{/each}
 						</ul>
 					{:else}
@@ -258,7 +254,7 @@
 					{/if}
 					{#if pastTrades.length}
 						<h3>Finished</h3>
-						<ul class="mk-list">
+						<ul class="idea-list mk-list">
 							{#each pastTrades as o (o.id)}<TradeCard order={o} rules={board.rules} {transports} ondone={done} />{/each}
 						</ul>
 					{/if}

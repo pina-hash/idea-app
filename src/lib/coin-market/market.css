@@ -13,61 +13,22 @@
 	padding: 0 1rem 3rem;
 	min-width: 0;
 }
-.mk-hero {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: flex-end;
-	justify-content: space-between;
-	gap: 1rem 2rem;
-	margin: 0.5rem 0 1.25rem;
-}
-.mk-hero h1 {
-	margin: 0.15rem 0 0.35rem;
-}
-.mk-hero .lead {
-	margin: 0;
-	max-width: 46rem;
-	color: var(--text-2);
-}
-.mk-eyebrow {
-	font-family: var(--font-mono);
-	font-size: 0.72rem;
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
-	color: var(--text-2);
-}
-.mk-hero-keys {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.5rem;
-	align-items: center;
-}
+/* THE PAGE'S HEAD IS `$lib/shell/PageHeader` (ledger 0468): the eyebrow, the
+   title bar and the meta line are the site's one header, and a balance in it
+   is the kit's display (`idea-display`). What is left here is the figure's
+   own face on that glass. */
 .mk-balance {
-	display: inline-flex;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: 0.1rem;
-	padding: 0.35rem 0.8rem;
-	border-radius: var(--plate-r-small, 6px);
-	border: 1px solid var(--plate-hair, var(--boundary));
-	background: var(--plate-inset-top, var(--bg0));
 	min-height: 44px;
-	justify-content: center;
-}
-.mk-balance-label {
-	font-family: var(--font-mono);
-	font-size: 0.66rem;
-	letter-spacing: 0.1em;
-	text-transform: uppercase;
-	color: var(--text-2);
 }
 .mk-balance-figure {
 	font-family: var(--font-mono);
 	font-size: 1.2rem;
-	color: var(--text-1);
+	color: inherit;
 }
+/* A balance below zero is the amber lamp's ink on the glass, the way an
+   assignment's warning readout is; the minus sign says it too. */
 .mk-balance-figure.neg {
-	color: var(--amber);
+	color: var(--plate-led-amber, var(--amber));
 }
 
 .mk-layout {
@@ -346,23 +307,18 @@ button.mk-tile {
 	grid-column: 1 / -1;
 }
 
-/* ---- Trades ---- */
+/* ---- Trades ----
+   A list of trades is the kit's list well (`idea-list` on the `ul`): one
+   recessed well with etched rows, never a box per trade inside the card
+   (ledger 0468). A trade row keeps only its own layout. */
 .mk-list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 0.6rem;
 }
 .mk-trade {
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
-	padding: 0.75rem 0.85rem;
-	border-radius: var(--plate-r-panel, 10px);
-	border: 1px solid var(--plate-hair, var(--boundary));
-	background: var(--plate-inset-top, var(--bg1));
 	min-width: 0;
 }
 .mk-trade-head {
@@ -552,7 +508,6 @@ button.mk-tile {
 	overflow-wrap: anywhere;
 }
 .mk-review {
-	border-left: 3px solid var(--plate-hair, var(--hairline));
 	padding-left: 0.7rem;
 	display: flex;
 	flex-direction: column;
@@ -586,7 +541,6 @@ button.mk-tile {
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
-	border-left: 3px solid var(--green);
 	padding-left: 0.75rem;
 }
 .mk-body {

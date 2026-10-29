@@ -60,7 +60,6 @@
 		gap: var(--space-1);
 		padding: var(--space-2) var(--space-3);
 		margin: 0 0 var(--space-3);
-		border-left: 2px solid var(--nb-accent);
 		background: var(--nb-accent-wash);
 		border-radius: 0 var(--radius-control) var(--radius-control) 0;
 		font-size: 0.88rem;

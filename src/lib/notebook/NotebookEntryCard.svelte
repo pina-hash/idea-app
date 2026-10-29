@@ -1477,7 +1477,6 @@
 		max-width: 8.5rem;
 		padding: var(--space-1);
 		border: 1px solid var(--nb-hairline-strong);
-		border-left: 3px solid var(--dot, var(--nb-folder-none));
 		border-radius: var(--radius-control);
 		background: var(--surface-1);
 		color: var(--text-2);
@@ -1595,7 +1594,6 @@
 	   this edge says it from across a scrolling feed without adding a chip to
 	   an already-dense meta row. */
 	.entry.pinned {
-		border-left: 3px solid var(--nb-accent);
 		border-radius: var(--radius-card);
 		padding-left: var(--space-1);
 	}
@@ -1636,7 +1634,6 @@
 		margin: 0 0 var(--space-3);
 		padding: 0 var(--space-3);
 		border: 1px solid var(--hairline);
-		border-left: 3px solid var(--nb-accent-ink);
 		border-radius: var(--radius-control);
 		background: var(--surface-1);
 	}
