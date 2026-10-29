@@ -48,3 +48,16 @@ Ledger 0463, built 2026-10-28 evening for IDEA 100 Section 3 (21 students, first
 ### 0320: the WHERE pg-safeupdate demands
 
 After 0319 applied (01:40Z), a connector preview of `armory_link_section` on production answered 21000 "DELETE requires a WHERE clause": `_armory_sync_section` empties its temporary roster with a bare delete, and the hosted project loads pg-safeupdate for API requests (0317 met the same thing for tournaments). The test database does not load it, so 0319's suite could not see it. 0320 re-creates that one body with `where true`; `tests/db/armory-class-projects.test.ts` now scans every Armory function body on the chain for an UPDATE or DELETE with no top-level WHERE (0317's rule), with 0319's own bare delete as the planted control. Nothing had been linked before it (0319's notice: 0 projects linked), so nothing needs repair. Undo: none needed; 0319's body refuses on production.
+
+### Landed, applied and verified live (2026-10-28 evening)
+
+- idea-app `4523646` (0319 and the feature), `a203a6e` (0320), `fcba354` (0320's record, committed by hand from the Migrate run's log because that run's own record push lost a race with main; the run applied and verified 0320 and recorded its history row), `ab7b4b6` (the website's version download stores a placeholder on first ask too). `docs/migrations-applied/0319-main.md` and `0320-main.md`.
+- Live through the IDEA Website connector at 18:46 PT: the six tools are listed; `armory_project_class` and `armory_folder_list` answer; a `dry_run` of `armory_link_section` on the archived project "test" with IDEA 100 Section 3 previewed 21 students added, 21 folders (Andrade_Audrey through Zuniga_Isaiah, VandenDries_Emma among them), 21 placeholders, and wrote nothing. Before 0320 the same preview answered 21000 "DELETE requires a WHERE clause".
+- idea-armory `df2151f` and `effab45`: Armory 0.5.2, the PT403 refusal said in the server's words; Agent installers, Armory tests (Windows) and Core tests green on `effab45`, the new client test passing.
+- **0.5.2 was NOT published.** This container is refused release creation ("Creating, editing, or deleting releases is not permitted for this session type") and its tag push was cut off; `release.yml`'s header already says the chat's container cannot push tags. Publishing is the README's manual steps with tag `v0.5.2`. Nothing tomorrow needs it: 0.5.1 shows the folders through the placeholders and the database refuses a classmate's folder either way.
+
+### Not verified
+
+- The first real R2 PUT of a placeholder (a member's computer asking for the note). The fake fetch in `tests/armory-endpoints.test.ts` stands in; the presigner is the one every upload already uses.
+- A lab computer running 0.5.1 showing a student's folder.
+- The full `npm test` ran once before the 0320 and download commits: 11 files red, 10 of them red on a clean `origin/main` worktree in this container too (time zone, browser-verify counts, a standards header, shallow git history), and the eleventh (`tests/db/armory-proposed.test.ts`, the Armory series list) fixed here.
