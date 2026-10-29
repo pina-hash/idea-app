@@ -1,0 +1,773 @@
+{
+  "kind": "html-assignment",
+  "team": {
+    "roles": [
+      {
+        "id": "frame",
+        "title": "Frame and mount"
+      },
+      {
+        "id": "energy",
+        "title": "Energy store"
+      },
+      {
+        "id": "drive",
+        "title": "Drive"
+      },
+      {
+        "id": "ballpath",
+        "title": "Ball path"
+      }
+    ],
+    "checkpoints": [
+      {
+        "id": "design",
+        "date": "2026-11-03",
+        "gate": "No metal is cut before this sign-off.",
+        "items": [
+          {
+            "id": "complete-detail",
+            "kind": "auto",
+            "text": "Every box of Prototype and Detail Design is filled in",
+            "check": "assignment-complete"
+          },
+          {
+            "id": "assembly",
+            "kind": "tap",
+            "role": "frame",
+            "text": "The four parts are assembled in CAD and meet where the interfaces said"
+          },
+          {
+            "id": "drawings",
+            "kind": "tap",
+            "text": "Every drawing has the dimensions and the process to make the part"
+          },
+          {
+            "id": "speed",
+            "kind": "tap",
+            "text": "The numbers show the launcher reaches the speed its target distance needs"
+          }
+        ],
+        "title": "Design"
+      }
+    ]
+  },
+  "title": "Launcher: Prototype and Detail Design",
+  "course": "IDEA209H",
+  "points": 64,
+  "modules": [
+    {
+      "id": "u4p-frame",
+      "role": "frame",
+      "title": "Frame and mount",
+      "blocks": [
+        {
+          "id": "frame-proto",
+          "task": "Frame and mount: prototype",
+          "type": "longText",
+          "field": "frameProto",
+          "prompt": "Frame and mount: the prototype question, what you built, the result with a number, and what it changes",
+          "taskPoints": 4,
+          "minSentences": 2
+        },
+        {
+          "id": "frame-calc",
+          "task": "Frame and mount: numbers and parts",
+          "type": "longText",
+          "field": "frameCalc",
+          "prompt": "Frame and mount: its key numbers and the parts it takes from shop stock",
+          "taskPoints": 4,
+          "minSentences": 1
+        },
+        {
+          "id": "frame-cad",
+          "task": "Frame and mount: CAD",
+          "type": "image",
+          "field": "frameCad",
+          "prompt": "Frame and mount: a screenshot of the CAD model",
+          "taskPoints": 4
+        },
+        {
+          "id": "frame-drawing",
+          "task": "Frame and mount: drawing",
+          "type": "image",
+          "field": "frameDrawing",
+          "prompt": "Frame and mount: the drawing someone could make it from",
+          "taskPoints": 3
+        },
+        {
+          "id": "frame-machine",
+          "task": "Frame and mount: machine plan",
+          "type": "text",
+          "field": "frameMachine",
+          "prompt": "Frame and mount: machine plan, which machine, who and which day",
+          "taskPoints": 1
+        }
+      ],
+      "points": 16,
+      "audience": "role",
+      "criteria": [
+        {
+          "id": "frame-proto",
+          "text": "Prototype: one question answered with a measured number",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Question, number, decision",
+              "points": 4,
+              "descriptor": "One question, what was built, a measured result with a number and unit, and the decision it changes."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "No number",
+              "points": 2,
+              "descriptor": "A result with no number, no decision, or a rig that tried to answer several questions."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "frame-calc",
+          "text": "Numbers and parts: the part's key numbers with units and every part from shop stock",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Numbers and full parts list",
+              "points": 4,
+              "descriptor": "The part's key numbers with units, each from the calculator, a measurement or a spec, and every part listed with size and quantity from shop stock."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Numbers or parts missing",
+              "points": 2,
+              "descriptor": "Numbers with no units or no source, or the parts list is missing pieces."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "frame-cad",
+          "text": "CAD: the part modeled at its real sizes",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Modeled to size",
+              "points": 4,
+              "descriptor": "Every piece of the part modeled at its real sizes, including the holes and faces where it meets the other parts."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Partly modeled",
+              "points": 2,
+              "descriptor": "Pieces missing, or sizes clearly off from the numbers."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "frame-drawing",
+          "text": "Drawing and machine plan: someone else could make the part",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Makeable drawing, planned",
+              "points": 4,
+              "descriptor": "Views with every dimension needed to make it, stock and process named, and a machine plan line: which machine, who, which day."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Dimensions or plan missing",
+              "points": 2,
+              "descriptor": "Dimensions missing, or no machine plan."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    },
+    {
+      "id": "u4p-energy",
+      "role": "energy",
+      "title": "Energy store",
+      "blocks": [
+        {
+          "id": "energy-proto",
+          "task": "Energy store: prototype",
+          "type": "longText",
+          "field": "energyProto",
+          "prompt": "Energy store: the prototype question, what you built, the result with a number, and what it changes",
+          "taskPoints": 4,
+          "minSentences": 2
+        },
+        {
+          "id": "energy-calc",
+          "task": "Energy store: numbers and parts",
+          "type": "longText",
+          "field": "energyCalc",
+          "prompt": "Energy store: its key numbers and the parts it takes from shop stock",
+          "taskPoints": 4,
+          "minSentences": 1
+        },
+        {
+          "id": "energy-cad",
+          "task": "Energy store: CAD",
+          "type": "image",
+          "field": "energyCad",
+          "prompt": "Energy store: a screenshot of the CAD model",
+          "taskPoints": 4
+        },
+        {
+          "id": "energy-drawing",
+          "task": "Energy store: drawing",
+          "type": "image",
+          "field": "energyDrawing",
+          "prompt": "Energy store: the drawing someone could make it from",
+          "taskPoints": 3
+        },
+        {
+          "id": "energy-machine",
+          "task": "Energy store: machine plan",
+          "type": "text",
+          "field": "energyMachine",
+          "prompt": "Energy store: machine plan, which machine, who and which day",
+          "taskPoints": 1
+        }
+      ],
+      "points": 16,
+      "audience": "role",
+      "criteria": [
+        {
+          "id": "energy-proto",
+          "text": "Prototype: one question answered with a measured number",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Question, number, decision",
+              "points": 4,
+              "descriptor": "One question, what was built, a measured result with a number and unit, and the decision it changes."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "No number",
+              "points": 2,
+              "descriptor": "A result with no number, no decision, or a rig that tried to answer several questions."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "energy-calc",
+          "text": "Numbers and parts: the part's key numbers with units and every part from shop stock",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Numbers and full parts list",
+              "points": 4,
+              "descriptor": "The part's key numbers with units, each from the calculator, a measurement or a spec, and every part listed with size and quantity from shop stock."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Numbers or parts missing",
+              "points": 2,
+              "descriptor": "Numbers with no units or no source, or the parts list is missing pieces."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "energy-cad",
+          "text": "CAD: the part modeled at its real sizes",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Modeled to size",
+              "points": 4,
+              "descriptor": "Every piece of the part modeled at its real sizes, including the holes and faces where it meets the other parts."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Partly modeled",
+              "points": 2,
+              "descriptor": "Pieces missing, or sizes clearly off from the numbers."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "energy-drawing",
+          "text": "Drawing and machine plan: someone else could make the part",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Makeable drawing, planned",
+              "points": 4,
+              "descriptor": "Views with every dimension needed to make it, stock and process named, and a machine plan line: which machine, who, which day."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Dimensions or plan missing",
+              "points": 2,
+              "descriptor": "Dimensions missing, or no machine plan."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    },
+    {
+      "id": "u4p-drive",
+      "role": "drive",
+      "title": "Drive",
+      "blocks": [
+        {
+          "id": "drive-proto",
+          "task": "Drive: prototype",
+          "type": "longText",
+          "field": "driveProto",
+          "prompt": "Drive: the prototype question, what you built, the result with a number, and what it changes",
+          "taskPoints": 4,
+          "minSentences": 2
+        },
+        {
+          "id": "drive-calc",
+          "task": "Drive: numbers and parts",
+          "type": "longText",
+          "field": "driveCalc",
+          "prompt": "Drive: its key numbers and the parts it takes from shop stock",
+          "taskPoints": 4,
+          "minSentences": 1
+        },
+        {
+          "id": "drive-cad",
+          "task": "Drive: CAD",
+          "type": "image",
+          "field": "driveCad",
+          "prompt": "Drive: a screenshot of the CAD model",
+          "taskPoints": 4
+        },
+        {
+          "id": "drive-drawing",
+          "task": "Drive: drawing",
+          "type": "image",
+          "field": "driveDrawing",
+          "prompt": "Drive: the drawing someone could make it from",
+          "taskPoints": 3
+        },
+        {
+          "id": "drive-machine",
+          "task": "Drive: machine plan",
+          "type": "text",
+          "field": "driveMachine",
+          "prompt": "Drive: machine plan, which machine, who and which day",
+          "taskPoints": 1
+        }
+      ],
+      "points": 16,
+      "audience": "role",
+      "criteria": [
+        {
+          "id": "drive-proto",
+          "text": "Prototype: one question answered with a measured number",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Question, number, decision",
+              "points": 4,
+              "descriptor": "One question, what was built, a measured result with a number and unit, and the decision it changes."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "No number",
+              "points": 2,
+              "descriptor": "A result with no number, no decision, or a rig that tried to answer several questions."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "drive-calc",
+          "text": "Numbers and parts: the part's key numbers with units and every part from shop stock",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Numbers and full parts list",
+              "points": 4,
+              "descriptor": "The part's key numbers with units, each from the calculator, a measurement or a spec, and every part listed with size and quantity from shop stock."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Numbers or parts missing",
+              "points": 2,
+              "descriptor": "Numbers with no units or no source, or the parts list is missing pieces."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "drive-cad",
+          "text": "CAD: the part modeled at its real sizes",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Modeled to size",
+              "points": 4,
+              "descriptor": "Every piece of the part modeled at its real sizes, including the holes and faces where it meets the other parts."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Partly modeled",
+              "points": 2,
+              "descriptor": "Pieces missing, or sizes clearly off from the numbers."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "drive-drawing",
+          "text": "Drawing and machine plan: someone else could make the part",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Makeable drawing, planned",
+              "points": 4,
+              "descriptor": "Views with every dimension needed to make it, stock and process named, and a machine plan line: which machine, who, which day."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Dimensions or plan missing",
+              "points": 2,
+              "descriptor": "Dimensions missing, or no machine plan."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    },
+    {
+      "id": "u4p-ballpath",
+      "role": "ballpath",
+      "title": "Ball path",
+      "blocks": [
+        {
+          "id": "ballpath-proto",
+          "task": "Ball path: prototype",
+          "type": "longText",
+          "field": "ballpathProto",
+          "prompt": "Ball path: the prototype question, what you built, the result with a number, and what it changes",
+          "taskPoints": 4,
+          "minSentences": 2
+        },
+        {
+          "id": "ballpath-calc",
+          "task": "Ball path: numbers and parts",
+          "type": "longText",
+          "field": "ballpathCalc",
+          "prompt": "Ball path: its key numbers and the parts it takes from shop stock",
+          "taskPoints": 4,
+          "minSentences": 1
+        },
+        {
+          "id": "ballpath-cad",
+          "task": "Ball path: CAD",
+          "type": "image",
+          "field": "ballpathCad",
+          "prompt": "Ball path: a screenshot of the CAD model",
+          "taskPoints": 4
+        },
+        {
+          "id": "ballpath-drawing",
+          "task": "Ball path: drawing",
+          "type": "image",
+          "field": "ballpathDrawing",
+          "prompt": "Ball path: the drawing someone could make it from",
+          "taskPoints": 3
+        },
+        {
+          "id": "ballpath-machine",
+          "task": "Ball path: machine plan",
+          "type": "text",
+          "field": "ballpathMachine",
+          "prompt": "Ball path: machine plan, which machine, who and which day",
+          "taskPoints": 1
+        }
+      ],
+      "points": 16,
+      "audience": "role",
+      "criteria": [
+        {
+          "id": "ballpath-proto",
+          "text": "Prototype: one question answered with a measured number",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Question, number, decision",
+              "points": 4,
+              "descriptor": "One question, what was built, a measured result with a number and unit, and the decision it changes."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "No number",
+              "points": 2,
+              "descriptor": "A result with no number, no decision, or a rig that tried to answer several questions."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "ballpath-calc",
+          "text": "Numbers and parts: the part's key numbers with units and every part from shop stock",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Numbers and full parts list",
+              "points": 4,
+              "descriptor": "The part's key numbers with units, each from the calculator, a measurement or a spec, and every part listed with size and quantity from shop stock."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Numbers or parts missing",
+              "points": 2,
+              "descriptor": "Numbers with no units or no source, or the parts list is missing pieces."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "ballpath-cad",
+          "text": "CAD: the part modeled at its real sizes",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Modeled to size",
+              "points": 4,
+              "descriptor": "Every piece of the part modeled at its real sizes, including the holes and faces where it meets the other parts."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Partly modeled",
+              "points": 2,
+              "descriptor": "Pieces missing, or sizes clearly off from the numbers."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "ballpath-drawing",
+          "text": "Drawing and machine plan: someone else could make the part",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Makeable drawing, planned",
+              "points": 4,
+              "descriptor": "Views with every dimension needed to make it, stock and process named, and a machine plan line: which machine, who, which day."
+            },
+            {
+              "label": "Proficient",
+              "short": "One part thin",
+              "points": 3,
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "label": "Developing",
+              "short": "Dimensions or plan missing",
+              "points": 2,
+              "descriptor": "Dimensions missing, or no machine plan."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing",
+              "points": 0,
+              "descriptor": "Nothing handed in."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    }
+  ],
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
+  "schemaVersion": 3
+}
