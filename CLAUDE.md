@@ -202,8 +202,9 @@ it is not required to browse.
   is PUBLIC per the maps spec, has shipped, and must never be prefix-guarded) and GAUNTLET's ranked-run review
   (`/gauntlet/run-review`, `gauntlet_run_review`, `0152`), and IDEA Armory's
   Delete forever and storage cleanup (`POST /api/armory/purge`,
-  `POST /api/armory/sweep`, 0233), and profile picture moderation
-  (`/admin/avatars`, 0267) -- all of which answer
+  `POST /api/armory/sweep`, 0233), profile picture moderation
+  (`/admin/avatars`, 0267), and the HTML assignment health list
+  (`/admin/html-assignments`, 0328) -- all of which answer
   404 to everyone else, because the existence of a review lane is not public.
   **GAUNTLET authoring and room hosting are NOT admin-tier any more** -- see the
   GAUNTLET AUTHOR TIER below.
