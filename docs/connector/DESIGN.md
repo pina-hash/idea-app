@@ -311,7 +311,7 @@ Generated from the overlay on 2026-10-28.
 | Foundry | 20 | 6 | 6 | 0 | 10 |
 | GAUNTLET | 8 | 3 | 1 | 1 | 11 |
 | GREENLINE | 2 | 3 | 1 | 0 | 6 |
-| IDEA Armory | 17 | 6 | 5 | 0 | 11 |
+| IDEA Armory | 19 | 6 | 9 | 0 | 11 |
 | IDEA Classroom | 31 | 54 | 33 | 3 | 25 |
 | IDEA Coin | 27 | 8 | 9 | 1 | 26 |
 | IDEA Maps | 3 | 2 | 1 | 0 | 0 |
@@ -323,7 +323,7 @@ Generated from the overlay on 2026-10-28.
 | The connector itself | 5 | 1 | 3 | 0 | 7 |
 | Tournaments | 4 | 7 | 11 | 1 | 11 |
 | view-as.yaml | 1 | 0 | 1 | 0 | 3 |
-| **All** | **166** | **115** | **112** | **8** | **246** |
+| **All** | **168** | **115** | **116** | **8** | **246** |
 
 <details><summary>calendar.yaml</summary>
 
@@ -371,9 +371,9 @@ Generated from the overlay on 2026-10-28.
 
 <details><summary>IDEA Armory</summary>
 
-- **Read:** `armory_app_feedback_admin_list`, `armory_app_incident_report`, `armory_app_incidents_admin_list`, `armory_can_take_back`, `armory_cots_list`, `armory_file_history`, `armory_is_member`, `armory_list_changes`, `armory_my_projects`, `armory_orphans_count`, `armory_people_search`, `armory_project_checkouts`, `armory_project_files`, `armory_project_part_numbers`, `armory_project_summaries`, `armory_purge_preview`, `armory_team_status`
+- **Read:** `armory_app_feedback_admin_list`, `armory_app_incident_report`, `armory_app_incidents_admin_list`, `armory_can_take_back`, `armory_cots_list`, `armory_file_history`, `armory_folder_list`, `armory_is_member`, `armory_list_changes`, `armory_my_projects`, `armory_orphans_count`, `armory_people_search`, `armory_project_checkouts`, `armory_project_class`, `armory_project_files`, `armory_project_part_numbers`, `armory_project_summaries`, `armory_purge_preview`, `armory_team_status`
 - **Undo:** `armory_app_feedback_restore_statuses`, `armory_app_feedback_set_status_many`, `armory_app_feedback_set_status`, `armory_app_incident_set_status`, `armory_app_incidents_restore_statuses`, `armory_app_incidents_set_status_many`
-- **Asks first:** `armory_add_member`, `armory_break_lock`, `armory_break_locks`, `armory_create_project`, `armory_remove_member`
+- **Asks first:** `armory_add_member`, `armory_break_lock`, `armory_break_locks`, `armory_create_project`, `armory_link_section`, `armory_make_personal_folders`, `armory_make_team_folders`, `armory_remove_member`, `armory_unlink_section`
 - **Excluded (the reason is in the YAML):** `armory_cots_add`, `armory_cots_correct`, `armory_cots_retire`, `armory_orphans_pending`, `armory_orphans_swept`, `armory_part_number_take`, `armory_part_subsystem_retire`, `armory_part_subsystem_save`, `armory_purge_project`, `armory_register_device`, `armory_set_part_prefix`
 
 </details>

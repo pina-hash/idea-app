@@ -29,7 +29,8 @@ import { armoryNotReady } from '$lib/armory/view';
 import { CONNECT_CODE_LIFETIME_MS, loopbackCallbackUrl, validateConnect } from '$lib/armory/connect';
 import { ArmoryBackendUnavailable, type ArmoryUser } from './backend';
 import type { ArmoryDeps } from './deps';
-import { blobExists, MAX_PUT_BYTES, signBlob } from './storage';
+import { PLACEHOLDERS, placeholderBytes, placeholderKindForHash } from '$lib/armory/placeholders';
+import { blobExists, MAX_PUT_BYTES, putBlob, signBlob } from './storage';
 import { ArmorySweepRefused, sweepArmoryOrphans, type ArmorySweepDeps } from './sweep';
 
 const NO_STORE = { 'cache-control': 'no-store' };
@@ -122,7 +123,13 @@ export async function handleBlobUrl(request: Request, deps: ArmoryDeps): Promise
 
 		const now = new Date(deps.now());
 		const signed = signBlob(storage, hash, method, bytes, now);
-		const exists = await blobExists(storage, hash, now, deps.fetch);
+		let exists = await blobExists(storage, hash, now, deps.fetch);
+		// Ledger 0463: a class folder's placeholder text is the website's own
+		// bytes, stored the first time a computer asks for them.
+		const placeholder = method === 'GET' && !exists ? placeholderKindForHash(hash) : null;
+		if (placeholder && bytes === PLACEHOLDERS[placeholder].bytes) {
+			exists = await putBlob(storage, hash, placeholderBytes(placeholder), now, deps.fetch);
+		}
 		return json(200, { url: signed.url, headers: signed.headers, expiresAt: signed.expiresAt, exists });
 	} catch (e) {
 		if (e instanceof ArmoryBackendUnavailable) return UNAVAILABLE();

@@ -637,6 +637,130 @@
 				}
 			}
 		},
+		"armory_link_section": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Link an IDEA Armory project to a class, so its roster becomes the team and each student gets a Last_First folder; it asks first, once for the whole roster.",
+			"say": [
+				"link the IDEA 100 project to Section 3",
+				"make the Armory project follow the class roster",
+				"connect the Armory project to Block 1"
+			],
+			"args": {
+				"p_project": {
+					"name": "project",
+					"describe": "The Armory project: its name as he says it, or its id; the site looks it up."
+				},
+				"p_section_id": {
+					"name": "class",
+					"describe": "The class: its name as he says it, like IDEA 100 Section 3, or its id; the site looks it up."
+				},
+				"p_operation": {
+					"name": "operation",
+					"fill": "uuid",
+					"describe": "Leave it out; the server fills it."
+				}
+			}
+		},
+		"armory_unlink_section": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Stop an IDEA Armory project following its class roster; nobody is added or removed and every folder stays; it asks first.",
+			"say": [
+				"unlink the Armory project from its class",
+				"stop the IDEA 100 project following the roster",
+				"disconnect the Armory project from Section 3"
+			],
+			"args": {
+				"p_project": {
+					"name": "project",
+					"describe": "The Armory project: its name as he says it, or its id; the site looks it up."
+				},
+				"p_operation": {
+					"name": "operation",
+					"fill": "uuid",
+					"describe": "Leave it out; the server fills it."
+				}
+			}
+		},
+		"armory_make_personal_folders": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Bring a class-linked IDEA Armory project up to its roster now, making any missing Last_First folder for each student; it asks first.",
+			"say": [
+				"make the personal folders on the IDEA 100 project",
+				"give every student their own Armory folder",
+				"update the Armory project from the roster"
+			],
+			"args": {
+				"p_project": {
+					"name": "project",
+					"describe": "The Armory project: its name as he says it, or its id; the site looks it up."
+				},
+				"p_operation": {
+					"name": "operation",
+					"fill": "uuid",
+					"describe": "Leave it out; the server fills it."
+				}
+			}
+		},
+		"armory_make_team_folders": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Make Teams/<team name> folders from a linked class's posted teams, each written only by its team; re-running updates writers and moves no file; it asks first.",
+			"say": [
+				"make team folders from the class teams",
+				"make the Armory team folders for Section 3",
+				"update the team folders after the team change"
+			],
+			"args": {
+				"p_project": {
+					"name": "project",
+					"describe": "The Armory project: its name as he says it, or its id; the site looks it up."
+				},
+				"p_operation": {
+					"name": "operation",
+					"fill": "uuid",
+					"describe": "Leave it out; the server fills it."
+				}
+			}
+		},
+		"armory_folder_list": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Every class folder of an IDEA Armory project, personal and team, with who can write in each and how many files it holds.",
+			"say": [
+				"list the Armory folders and who can write",
+				"who can save in the team folders",
+				"show the students' Armory folders"
+			],
+			"args": {
+				"p_project": {
+					"name": "project",
+					"describe": "The Armory project: its name as he says it, or its id; the site looks it up."
+				}
+			}
+		},
+		"armory_project_class": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Which class an IDEA Armory project follows, with its roster size and how many class folders it has.",
+			"say": [
+				"which class is the Armory project linked to",
+				"is the IDEA 100 project linked",
+				"what class does the Armory project follow"
+			],
+			"args": {
+				"p_project": {
+					"name": "project",
+					"describe": "The Armory project: its name as he says it, or its id; the site looks it up."
+				}
+			}
+		},
 		"calendar_feed": {
 			"surface": "call",
 			"level": "read",
@@ -12179,6 +12303,12 @@
 		"armory_app_incidents_set_status_many": "armory.yaml",
 		"armory_app_incidents_restore_statuses": "armory.yaml",
 		"armory_app_incident_report": "armory.yaml",
+		"armory_link_section": "armory.yaml",
+		"armory_unlink_section": "armory.yaml",
+		"armory_make_personal_folders": "armory.yaml",
+		"armory_make_team_folders": "armory.yaml",
+		"armory_folder_list": "armory.yaml",
+		"armory_project_class": "armory.yaml",
 		"calendar_feed": "calendar.yaml",
 		"calendar_feed_for": "calendar.yaml",
 		"calendar_events_list": "calendar.yaml",

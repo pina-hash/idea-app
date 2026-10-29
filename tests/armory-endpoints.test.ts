@@ -24,6 +24,7 @@ import type { ArmoryBackend, StoredConnectCode } from '../src/lib/server/armory/
 import { ArmoryBackendUnavailable } from '../src/lib/server/armory/backend';
 import type { ArmoryDeps } from '../src/lib/server/armory/deps';
 import { MAX_PUT_BYTES } from '../src/lib/server/armory/storage';
+import { PLACEHOLDERS } from '../src/lib/armory/placeholders';
 
 let deps: ArmoryDeps;
 vi.mock('$lib/server/armory/deps', async (original) => ({
@@ -57,6 +58,7 @@ interface World {
 	devices: Array<{ id: string; owner: string; name: string }>;
 	stored: Set<string>;
 	heads: number;
+	puts: Array<{ key: string; bytes: number; signed: string }>;
 	down: boolean;
 	storageOn: boolean;
 }
@@ -128,6 +130,7 @@ beforeEach(() => {
 		devices: [],
 		stored: new Set(),
 		heads: 0,
+		puts: [],
 		down: false,
 		storageOn: true
 	};
@@ -141,10 +144,16 @@ beforeEach(() => {
 		limiter: createRateLimiter(60_000),
 		limits: { startPerIp: 10, startPerUser: 10, exchangePerIp: 10, exchangePerUser: 10 },
 		fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
-			w.heads += 1;
-			expect(init?.method).toBe('HEAD');
 			const url = new URL(String(input));
 			const key = url.pathname.replace(`/${BUCKET}/`, '');
+			// Ledger 0463: the website stores a class folder's placeholder text itself.
+			if (init?.method === 'PUT') {
+				w.puts.push({ key, bytes: (init.body as Blob).size, signed: url.searchParams.get('X-Amz-SignedHeaders') ?? '' });
+				w.stored.add(key);
+				return new Response(null, { status: 200 });
+			}
+			w.heads += 1;
+			expect(init?.method).toBe('HEAD');
 			return new Response(null, { status: w.stored.has(key) ? 200 : 404 });
 		}) as typeof fetch,
 		randomBytes: (n) => randomBytes(n),
@@ -249,6 +258,28 @@ describe('blob-url (FakeIdeaBoscoTests: BlobUrl*)', () => {
 		expect((await blobJson(project, randomHash(), 3, 'GET', token)).status).toBe(403);
 		expect((await blobJson(project, elsewhere, 3, 'GET', token)).status).toBe(403);
 		expect((await blobJson(other.project, elsewhere, 3, 'GET', issue(other.mentor))).status).toBe(200);
+	});
+
+	test('ledger 0463: a placeholder the project holds is stored by the website on its first GET, and nothing else ever is', async () => {
+		const { project, student } = seedProject();
+		const token = issue(student);
+		const p = PLACEHOLDERS.personal;
+		w.hashes.get(project)!.add(p.hash);
+		const first = await (await blobJson(project, p.hash, p.bytes, 'GET', token)).json();
+		expect(first.exists).toBe(true);
+		expect(w.puts).toEqual([{ key: keyOf(p.hash), bytes: p.bytes, signed: 'content-length;host' }]);
+		expect((await (await blobJson(project, p.hash, p.bytes, 'GET', token)).json()).exists).toBe(true);
+		expect(w.puts).toHaveLength(1);
+		// Not in this project: refused before storage; another hash: never stored.
+		const other = seedProject();
+		expect((await blobJson(other.project, PLACEHOLDERS.team.hash, PLACEHOLDERS.team.bytes, 'GET', issue(other.student))).status).toBe(403);
+		const plain = randomHash();
+		w.hashes.get(project)!.add(plain);
+		expect((await (await blobJson(project, plain, 3, 'GET', token)).json()).exists).toBe(false);
+		// The right hash with the wrong length is not the placeholder.
+		w.hashes.get(project)!.add(PLACEHOLDERS.team.hash);
+		expect((await (await blobJson(project, PLACEHOLDERS.team.hash, 9, 'GET', token)).json()).exists).toBe(false);
+		expect(w.puts).toHaveLength(1);
 	});
 
 	test('bad bodies are 400, and a GET over 2 GiB fails only the project check', async () => {

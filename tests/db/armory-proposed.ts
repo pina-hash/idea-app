@@ -86,4 +86,10 @@ if (FILES_COMPUTER_KEY.length !== 1) {
 	throw new Error(`expected exactly one armory_computer_key migration, found ${FILES_COMPUTER_KEY.length}`);
 }
 export const COMPUTER_KEY_NAME = FILES_COMPUTER_KEY[0];
-export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME, NEWER_RELEASE_NAME, COMPUTER_KEY_NAME];
+// Ledger 0463: an Armory project linked to a class. Found by name, so a renumber at landing keeps it.
+const FILES_CLASS_PROJECTS = ALL_MIGRATIONS.filter((f) => /^\d{4}_armory_class_projects\.sql$/.test(f));
+if (FILES_CLASS_PROJECTS.length !== 1) {
+	throw new Error(`expected exactly one armory_class_projects migration, found ${FILES_CLASS_PROJECTS.length}`);
+}
+export const CLASS_PROJECTS_NAME = FILES_CLASS_PROJECTS[0];
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME, NEWER_RELEASE_NAME, COMPUTER_KEY_NAME, CLASS_PROJECTS_NAME];

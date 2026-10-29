@@ -1080,6 +1080,12 @@ second opens the same assembly; two people on one project with nothing checked o
 should start); a switch while SolidWorks has a part open; a computer with an existing
 `Armory-<name>` folder updating in place; Fast User Switching between two Windows accounts.
 
+## Class projects (ledger 0463, migration 0319)
+
+An Armory project can follow one classroom section. Link it on the project's Project view ("Link to a class") or through the IDEA Website connector (`armory_link_section`). The section's active roster becomes the team, students as Student and the teacher as Instructor, in one confirmation; anyone already a member keeps their role. Each student gets a top-level folder named Last_First from the roster ("Vanden Dries, Emma Maria" is VandenDries_Emma; a clash adds the middle initial). Only that student adds or checks in files there; everyone in the project reads it; mentors, CAD leads, instructors and site admins keep Force check in and write anywhere. "Make team folders from class teams" makes Teams/<team name> for the class's posted teams, written only by each team. A student who leaves the class loses access and their files stay.
+
+Every class folder holds a note, "README - <folder>.txt", so the folder shows in Armory 0.5.1 on a lab computer before any work is in it: 0.5.1 makes a folder only when it downloads a file into it. The rule is enforced in the database's write functions, so it holds for every Armory version and for the website.
+
 ## Decisions owed
 
 Answered by Mr. Pina on 2026-10-18, all nine items; `docs/decisions/entries/41-armory-file-vault-scope.md` carries his words.

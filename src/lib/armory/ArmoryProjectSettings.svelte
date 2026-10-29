@@ -27,6 +27,8 @@
 	 * inside `untrack` (CLAUDE.md, the injected-code trap).
 	 */
 	import { untrack } from 'svelte';
+	import ArmoryClassLink from './ArmoryClassLink.svelte';
+	import type { ArmoryClassTransports } from './class-link';
 	import {
 		purgeBlockedWords,
 		purgeCanSend,
@@ -58,6 +60,7 @@
 		purgePreview = null,
 		onpurged = null,
 		raiseRelease = null,
+		classLink = null,
 		now = Date.now()
 	}: {
 		project: ArmoryProjectSummary;
@@ -71,6 +74,8 @@
 		onpurged?: ((name: string, storageProblem: string | null) => void) | null;
 		/** Moves the project up to a newer SolidWorks (a mentor or a site admin, ledger 0404). */
 		raiseRelease?: ((release: number) => Promise<Outcome>) | null;
+		/** Ledger 0463: the class this project follows, and the keys to change it. */
+		classLink?: ArmoryClassTransports | null;
 		now?: number;
 	} = $props();
 
@@ -228,6 +233,9 @@
 <section class="ar-view-panel" aria-labelledby="ar-project-h" data-testid="armory-project-settings">
 	<h2 class="ar-visually-hidden" id="ar-project-h">Project</h2>
 	<div class="ar-settings">
+		{#if classLink}
+			<ArmoryClassLink {...classLink} />
+		{/if}
 		{#if pinned !== null}
 			<div class="ar-panel ar-setting" data-testid="armory-release">
 				<h3 class="section-label">SolidWorks version</h3>

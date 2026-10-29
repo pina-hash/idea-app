@@ -21,6 +21,7 @@
 		type PurgeAnswer
 	} from '$lib/armory/team';
 	import { armoryNotReady, type ArmoryMember, type ArmoryRole } from '$lib/armory/view';
+	import type { ArmoryClassFolder, ArmoryClassInfo, ArmoryClassTransports, ClassAnswer } from '$lib/armory/class-link';
 	import { isSignedOutFailure, PollSignedOut } from '$lib/classroom/poll';
 	import { trackInFlight } from '$lib/shell/deploy-safety';
 	import type { PageData } from './$types';
@@ -60,6 +61,47 @@
 	 * what the Windows app does. Every call carries its own operation id, so a
 	 * replayed call answers the same.
 	 */
+	/**
+	 * LEDGER 0463: the Class panel. Offered to a site admin and to a mentor or
+	 * instructor of the project; the database decides who may change the link
+	 * (the class's teacher or a site admin) and its refusal is said in words.
+	 */
+	async function classCall(name: string, args: Record<string, unknown>): Promise<ClassAnswer> {
+		const { data: answer, error } = await data.supabase.rpc(name, { ...args, p_operation: crypto.randomUUID() });
+		if (error) return { ok: false, message: error.message, code: error.code, detail: error.details };
+		await invalidate('armory:project');
+		return { ok: true, result: (answer ?? {}) as Record<string, unknown> };
+	}
+	const classLink = $derived.by((): ArmoryClassTransports | null => {
+		const role = view?.project?.role;
+		if (!view?.project || !(isAdmin || role === 'mentor' || role === 'instructor')) return null;
+		const p = view.project.id;
+		return {
+			loadClass: async () => {
+				const { data: c, error } = await data.supabase.rpc('armory_project_class', { p_project: p });
+				return error ? null : ((c ?? null) as ArmoryClassInfo | null);
+			},
+			loadSections: async () => {
+				const { data: rows, error } = await data.supabase
+					.from('classroom_sections')
+					.select('id, label, active, classroom_courses(code)')
+					.eq('active', true)
+					.limit(500);
+				if (error || !rows) return [];
+				return (rows as unknown as Array<{ id: string; label: string; classroom_courses: { code: string } | null }>)
+					.map((r) => ({ id: r.id, label: r.label, course_code: r.classroom_courses?.code ?? '' }))
+					.sort((a, b) => `${a.course_code} ${a.label}`.localeCompare(`${b.course_code} ${b.label}`, undefined, { numeric: true }));
+			},
+			link: (sectionId: string) => classCall('armory_link_section', { p_project: p, p_section_id: sectionId }),
+			unlink: () => classCall('armory_unlink_section', { p_project: p }),
+			makeTeamFolders: () => classCall('armory_make_team_folders', { p_project: p }),
+			loadFolders: async () => {
+				const { data: f, error } = await data.supabase.rpc('armory_folder_list', { p_project: p });
+				return error ? null : ((f ?? []) as ArmoryClassFolder[]);
+			}
+		};
+	});
+
 	async function breakMany(fileIds: string[], device: string | null): Promise<BulkForceOutcome> {
 		const tally = emptyTally();
 		for (const ids of chunkIds(fileIds)) {
@@ -265,6 +307,7 @@
 			raiseRelease={isMentor || isAdmin
 				? (release: number) => rpc('armory_raise_pinned_release', { p_project: view.project.id, p_release: release })
 				: null}
+			{classLink}
 			{searchPeople}
 			{loadTeam}
 			refresh={() => invalidate('armory:project')}

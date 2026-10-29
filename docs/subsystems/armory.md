@@ -155,3 +155,9 @@ out | Team | Activity | Project; `$lib/armory/nav.ts` is the router.
   Unset secrets are a GREEN "not set up" summary, not a red run.
 
 ---
+
+### CLASS PROJECTS: THE ROSTER, PERSONAL AND TEAM FOLDERS (ledger 0463, migration 0319)
+
+- **A CLASS FOLDER IS A ROW, AND THE WRITE FUNCTIONS ASK IT.** `armory_folders` and `armory_folder_writers` hold each personal (`Last_First`) and team (`Teams/<name>`) folder and who may write under it; `_armory_may_write_folder` is the one statement of the rule (no rule, a lead per `armory_can_take_back`, or a writer), asked by `armory_create_file`, `armory_acquire_lock`, `armory_move_file`, `armory_rename_folder`, `armory_delete_folder` and `armory_commit_version`. A new Armory write that puts bytes or a name under a folder asks it too, or the folder is open again. The refusal is `PT403` with DETAIL `{reason: not_your_folder}`, never 42501, because the Windows app reads 42501 with "not a project member" as a membership that ended.
+- **THE LINK NEVER CHANGES A ROLE.** `armory_link_section` and the roster trigger insert only people who are not members, and remove only people `armory_section_members` says the link added; never call `armory_add_member` from them.
+- **A FOLDER EXISTS ON A LAB COMPUTER ONLY THROUGH A FILE WITH A VERSION** (Armory 0.5.1 and earlier). Each class folder carries `README - <folder>.txt`, one version of a fixed text (`$lib/armory/placeholders`, its SHA-256 a literal in 0319), stored in R2 by `handleBlobUrl` on its first GET; `armory_folders.placeholder_file_id` marks it, and it is never counted as work. Changing either text is a migration and a website change together.

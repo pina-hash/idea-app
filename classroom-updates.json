@@ -20,6 +20,12 @@
 		},
 		{
 			"date": "2026-10-28",
+			"title": "Your own folder in IDEA Armory",
+			"body": "When your class uses IDEA Armory, you now have a folder of your own in the class project, named with your last and first name, like Reyes_Ana. Save your work there: only you can add files to it or check them in, and everyone in the class can open your files to look. The note inside it keeps the folder in place, so leave it there. Team projects get a folder for each team under Teams, and only that team can save there.",
+			"tags": ["Armory"]
+		},
+		{
+			"date": "2026-10-28",
 			"title": "Worksheets show how much you have answered",
 			"body": "On assignments you fill in right on the page, your teacher now sees how many questions you have answered and whether any answer was saved after the due date, instead of \"not turned in\". There is still no turn-in button on these: saving your answers is how you hand them in. Answers saved after the due date are marked late, so finish on time.",
 			"tags": ["Assignments"]

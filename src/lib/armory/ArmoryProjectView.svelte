@@ -86,6 +86,7 @@
 		rename = null,
 		setArchived = null,
 		raiseRelease = null,
+		classLink = null,
 		searchPeople = null,
 		loadTeam = null,
 		refresh = null,
@@ -134,6 +135,8 @@
 		setArchived?: ((archived: boolean) => Promise<Outcome>) | null;
 		/** Moves the project up to a newer SolidWorks (ledger 0404); absent removes the control. */
 		raiseRelease?: ((release: number) => Promise<Outcome>) | null;
+		/** Ledger 0463: the class panel's transports. */
+		classLink?: import('./class-link').ArmoryClassTransports | null;
 		searchPeople?: ((query: string) => Promise<PeopleSearchAnswer>) | null;
 		loadTeam?: (() => Promise<ArmoryMember[] | null>) | null;
 		refresh?: (() => Promise<void>) | null;
@@ -161,7 +164,7 @@
 	const live_ = $derived(files.filter((f) => !f.deleted));
 	const counts = $derived(checkoutCounts(live_, me));
 
-	const settings = $derived(!!rename || !!setArchived || !!raiseRelease || (isAdmin && !!purge));
+	const settings = $derived(!!rename || !!setArchived || !!raiseRelease || !!classLink || (isAdmin && !!purge));
 	/** The people search's gate, asked once (`peopleSearchOffered`): it also says why the paste box is the way in. */
 	const searchOffered = $derived(peopleSearchOffered({ isAdmin, role: project.role, email: me }));
 	const tabs = $derived(projectViewsFor({ settings }));
@@ -313,6 +316,6 @@
 	{:else if shown === 'activity'}
 		<ArmoryActivity {activity} {fileName} {names} {now} />
 	{:else}
-		<ArmoryProjectSettings {project} {storage} {isAdmin} {rename} {setArchived} {purge} {purgePreview} {onpurged} {raiseRelease} {now} />
+		<ArmoryProjectSettings {project} {storage} {isAdmin} {rename} {setArchived} {purge} {purgePreview} {onpurged} {raiseRelease} {classLink} {now} />
 	{/if}
 </div>

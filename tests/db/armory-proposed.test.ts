@@ -33,6 +33,7 @@ import {
 	ALL_MIGRATIONS,
 	ARMORY_MIGRATIONS,
 	COMPUTER_KEY_NAME,
+	CLASS_PROJECTS_NAME,
 	MIGRATIONS_DIR,
 	PRE_ARMORY,
 	PROPOSED_ENTRY,
@@ -110,7 +111,7 @@ describe('the Armory schema is the Armory series (0231 to 0236, 0273, 0274, 0293
 		expect(ALL_MIGRATIONS).toContain('0231_armory.sql');
 	});
 	test('no migration but the Armory series names armory_ in its filename or body', () => {
-		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql', V3_NAME, '0234_armory_break_locks.sql', '0235_armory_app_feedback_v2.sql', '0236_armory_v033.sql', '0273_armory_release_choice.sql', '0274_armory_part_numbers.sql', '0293_armory_newer_release_uploads.sql', COMPUTER_KEY_NAME]);
+		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql', V3_NAME, '0234_armory_break_locks.sql', '0235_armory_app_feedback_v2.sql', '0236_armory_v033.sql', '0273_armory_release_choice.sql', '0274_armory_part_numbers.sql', '0293_armory_newer_release_uploads.sql', COMPUTER_KEY_NAME, CLASS_PROJECTS_NAME]);
 		expect(COMPUTER_KEY_NAME).toMatch(/^\d{4}_armory_computer_key\.sql$/);
 		expect(ALL_MIGRATIONS).toContain('0234_armory_break_locks.sql');
 		expect(ALL_MIGRATIONS).toContain('0273_armory_release_choice.sql');

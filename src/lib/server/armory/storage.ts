@@ -207,3 +207,40 @@ export async function blobStatus(
 		return 'unknown';
 	}
 }
+
+/**
+ * Stores a small object the WEBSITE owns the bytes of (ledger 0463: a class
+ * folder's placeholder text, `$lib/armory/placeholders`), by a presigned PUT.
+ * True only on a 2xx. The key is content-addressed, so a second store of the
+ * same bytes writes the same object.
+ */
+export async function putBlob(
+	config: ArmoryStorageConfig,
+	hash: string,
+	body: Uint8Array,
+	now: Date,
+	fetcher: typeof fetch = fetch,
+	timeoutMs = 5000
+): Promise<boolean> {
+	const url = presignUrl({
+		accessKey: config.accessKeyId,
+		secretKey: config.secretAccessKey,
+		region: 'auto',
+		url: objectUrl(config, contentObjectKey(hash)),
+		method: 'PUT',
+		now,
+		lifetimeSeconds: 60,
+		signedHeaders: { 'content-length': String(body.byteLength) }
+	});
+	try {
+		const response = await fetcher(url, {
+			method: 'PUT',
+			// A Blob has a known size, so fetch sends the signed content-length itself.
+			body: new Blob([body as BlobPart]),
+			signal: AbortSignal.timeout(timeoutMs)
+		});
+		return response.status >= 200 && response.status < 300;
+	} catch {
+		return false;
+	}
+}
