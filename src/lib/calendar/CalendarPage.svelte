@@ -256,7 +256,7 @@
 
 {#snippet eventRow(e: CalendarEvent, withDay: boolean)}
 	{@const info = layerInfo(e.layer)}
-	{@const href = eventHref(e, basePath)}
+	{@const href = eventHref(e, basePath, scope?.id ?? null)}
 	{@const time = eventTimeWords(e)}
 	{@const state = eventStateWords(e)}
 	{@const where = !scope && e.sectionIds.length ? sectionName(e.sectionIds[0]) : null}

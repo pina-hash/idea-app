@@ -408,10 +408,12 @@ export function schoolWeek(today: string): string[] {
 
 /**
  * WHERE AN EVENT OPENS, or null when it is not a page: a post's item page in
- * a class the viewer has it in, and a team event's plan page.
+ * a class the viewer has it in, and a team event's plan page. A shared post is
+ * one event across several classes, so on one class's own page (`scope`) the
+ * link opens that class's copy, never whichever class the post lists first.
  */
-export function eventHref(e: CalendarEvent, basePath = '/classroom'): string | null {
-	const section = e.sectionIds[0];
+export function eventHref(e: CalendarEvent, basePath = '/classroom', scope: string | null = null): string | null {
+	const section = scope && e.sectionIds.includes(scope) ? scope : e.sectionIds[0];
 	if (!section) return null;
 	if (e.kind === 'task' || e.kind === 'signoff') return `${basePath}/${section}/plan`;
 	if (e.itemId) return `${basePath}/${section}/item/${e.itemId}`;

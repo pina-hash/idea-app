@@ -96,7 +96,7 @@
 						{#if d.events.length}
 							<ul class="wd-events">
 								{#each d.events.slice(0, 3) as e (e.id)}
-									{@const href = eventHref(e, basePath)}
+									{@const href = eventHref(e, basePath, scope)}
 									{@const li = layerInfo(e.layer)}
 									<li class="wd-ev" style:--layer={li.color} data-kind={e.kind} data-layer={e.layer}>
 										<LayerMark layer={li} size={9} />

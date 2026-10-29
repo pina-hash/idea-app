@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+	eventHref,
 	eventsOnDay,
 	monthGrid,
 	monthGridBounds,
@@ -57,6 +58,15 @@ describe('the feed and the choices', () => {
 		expect(visibleEvents(feed.events, { hidden: [], hiddenSections: [] })).toHaveLength(5);
 		// One class's calendar: only that class's class events, and everyone's program events.
 		expect(visibleEvents(feed.events, { hidden: [], hiddenSections: [] }, B).map((e) => e.id)).toEqual(['due:2', 'event:1', 'event:2', 'pace:1']);
+	});
+
+	it("a shared post's link opens the class whose page it is on, not the post's first class", () => {
+		const shared = { ...feed.events[0], itemId: 'item-1', sectionIds: [A, B] } as CalendarEvent;
+		expect(eventHref(shared, '/classroom', B)).toBe(`/classroom/${B}/item/item-1`);
+		expect(eventHref({ ...shared, kind: 'signoff' }, '/classroom', B)).toBe(`/classroom/${B}/plan`);
+		// With no class page, or a class the post is not in, the first class as before.
+		expect(eventHref(shared)).toBe(`/classroom/${A}/item/item-1`);
+		expect(eventHref(shared, '/classroom', 'elsewhere')).toBe(`/classroom/${A}/item/item-1`);
 	});
 
 	it("a day's events put what is owed first, and a multi-day event is on every day it spans", () => {

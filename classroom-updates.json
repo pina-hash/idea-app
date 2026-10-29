@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-29",
+			"title": "Calendar links open your own class",
+			"body": "On your class page, clicking a post on the calendar or the week strip now opens it in your class, not another block's copy.",
+			"tags": ["calendar"]
+		},
+		{
+			"date": "2026-10-29",
 			"title": "One look for every page title and every app's buttons along the top",
 			"body": "Coin pages, the coin desk, the Foundry, Maps, Certifications, the calendar and your notebook now open the same way as your class page: a small label naming the app, the page title between two striped blocks, and one line about the page. The links to an app's other pages are a row of square pad buttons with a small light, and the page you are on is lit. In a class, a long unit that carries on into the next column now says its name at the top of that column. The notebook's writing box opens at its full size right away instead of a cut-off line. On a phone, the Send feedback button shrinks to its speech-bubble icon once you scroll down, and comes back near the top. Signed out, the home page now offers a short tour with a Show me around button instead of starting one over the page.",
 			"tags": ["Visual"]
