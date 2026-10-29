@@ -65,7 +65,7 @@
 		item: { id: string; thumbnail?: ItemThumbnail | null; published?: boolean; publish_at?: string | null };
 		shape: 'tile' | 'wide' | 'banner' | string;
 		glyph: ThumbGlyph;
-		/** The unit's tint, 0 to 7, or null for a post in no unit. */
+		/** The unit's tint, 0 to 3, or null for a post in no unit. */
 		tint?: number | null;
 		/** Where a click goes. Null draws no link (the editor's preview). */
 		href?: string | null;
@@ -346,56 +346,44 @@
 
 	/*
 	 * THE GENERATED IDENTITY: a plate face, a wash of the unit's tint, and the
-	 * glyph in the tint's ink. The tints are identity colors, eight of them,
-	 * per theme; each ink clears 3:1 on its own washed face (a glyph is a
-	 * graphical object), measured in the browser pass and recorded in the
-	 * history entry.
+	 * glyph in the tint's ink. The tints are identity colors, four of them
+	 * (ledger 0467: eight hand-picked pastels before, a green among them), each
+	 * an entry of the kit's colour library solved per theme into `--id-*`: the
+	 * glyph takes the entry's ink (6:1 on every dark ground, 4.8:1 on every
+	 * Space White one) and the wash and the banner take its fill, which is what
+	 * keeps the four apart under colour-vision deficiency. A fifth (coral) was
+	 * measured and refused: on Space White its ink sat 6.8 CIEDE2000 from
+	 * marigold's, two warm words at one lightness.
+	 * `tests/identity-colors.test.ts` holds the list to THUMB_TINT_COUNT.
 	 */
 	.pt {
 		--pt-face-top: var(--plate-face-top, var(--surface-2, #2f3431));
 		--pt-face-bot: var(--plate-face-bot, var(--surface-1, #252a27));
 		--pt-tint: var(--text-2);
-		--pt-wash-a: color-mix(in srgb, var(--pt-tint) 20%, transparent);
-		--pt-wash-b: color-mix(in srgb, var(--pt-tint) 7%, transparent);
+		--pt-fill: var(--pt-tint);
+		--pt-wash-a: color-mix(in srgb, var(--pt-fill) 20%, transparent);
+		--pt-wash-b: color-mix(in srgb, var(--pt-fill) 7%, transparent);
 		--pt-edge: color-mix(in srgb, var(--pt-tint) 32%, var(--plate-hair, var(--hairline, #3a413c)));
 		--pt-ink: var(--pt-tint);
-		--thumb-tint-0: #8fe08a;
-		--thumb-tint-1: #e8b765;
-		--thumb-tint-2: #7cc8f0;
-		--thumb-tint-3: #b9a8f2;
-		--thumb-tint-4: #f2a3bb;
-		--thumb-tint-5: #d8cb8f;
-		--thumb-tint-6: #62d8c2;
-		--thumb-tint-7: #f6a67e;
 	}
 	:global(:root[data-theme='space-white']) .pt {
-		--thumb-tint-0: #2b7a30;
-		--thumb-tint-1: #855508;
-		--thumb-tint-2: #1b6a93;
-		--thumb-tint-3: #5a43ad;
-		--thumb-tint-4: #9e3760;
-		--thumb-tint-5: #675d14;
-		--thumb-tint-6: #0c6f61;
-		--thumb-tint-7: #9b441a;
-		--pt-wash-a: color-mix(in srgb, var(--pt-tint) 16%, transparent);
-		--pt-wash-b: color-mix(in srgb, var(--pt-tint) 5%, transparent);
+		--pt-wash-a: color-mix(in srgb, var(--pt-fill) 16%, transparent);
+		--pt-wash-b: color-mix(in srgb, var(--pt-fill) 5%, transparent);
 		/* The plate's key face is a mid grey here (#b8bdc5 to #cdd2d9), which
 		   held every tint's glyph under 3:1 (2.42 at worst, measured); the tile
 		   takes a light face instead, a step off the card it sits on. */
 		--pt-face-top: #f4f6f9;
 		--pt-face-bot: #e3e7ed;
 	}
-	.pt[data-tint='0'] { --pt-tint: var(--thumb-tint-0); }
-	.pt[data-tint='1'] { --pt-tint: var(--thumb-tint-1); }
-	.pt[data-tint='2'] { --pt-tint: var(--thumb-tint-2); }
-	.pt[data-tint='3'] { --pt-tint: var(--thumb-tint-3); }
-	.pt[data-tint='4'] { --pt-tint: var(--thumb-tint-4); }
-	.pt[data-tint='5'] { --pt-tint: var(--thumb-tint-5); }
-	.pt[data-tint='6'] { --pt-tint: var(--thumb-tint-6); }
-	.pt[data-tint='7'] { --pt-tint: var(--thumb-tint-7); }
+	/* THE UNIT TINTS, in unit order: sky, marigold, magenta, indigo. */
+	.pt[data-tint='0'] { --pt-tint: var(--id-sky-ink); --pt-fill: var(--id-sky-fill); }
+	.pt[data-tint='1'] { --pt-tint: var(--id-marigold-ink); --pt-fill: var(--id-marigold-fill); }
+	.pt[data-tint='2'] { --pt-tint: var(--id-magenta-ink); --pt-fill: var(--id-magenta-fill); }
+	.pt[data-tint='3'] { --pt-tint: var(--id-indigo-ink); --pt-fill: var(--id-indigo-fill); }
 	/* A notebook check-in in no unit wears the cyan its row's glyph always has. */
 	.pt[data-glyph='checkin'][data-tint='none']:not(.muted) {
 		--pt-tint: var(--cyan);
+		--pt-fill: var(--cyan);
 	}
 	.pt.muted {
 		--pt-tint: var(--text-2);
@@ -417,7 +405,7 @@
 		background:
 			repeating-linear-gradient(0deg, transparent 0 11px, color-mix(in srgb, var(--pt-tint) 9%, transparent) 11px 12px),
 			repeating-linear-gradient(90deg, transparent 0 11px, color-mix(in srgb, var(--pt-tint) 9%, transparent) 11px 12px),
-			linear-gradient(90deg, color-mix(in srgb, var(--pt-tint) 30%, transparent), color-mix(in srgb, var(--pt-tint) 8%, transparent));
+			linear-gradient(90deg, color-mix(in srgb, var(--pt-fill) 30%, transparent), color-mix(in srgb, var(--pt-fill) 8%, transparent));
 	}
 	.pt[data-shape='banner'] .pt-gen {
 		display: flex;

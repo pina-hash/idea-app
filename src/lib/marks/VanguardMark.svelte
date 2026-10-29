@@ -10,8 +10,8 @@
 
 <!--
 	VANGUARD homepage mark: the delta interceptor climbing through starfall,
-	with a flickering thruster. Strokes inherit currentColor; the thrust reads
-	the gold token. Animation only under prefers-reduced-motion: no-preference.
+	with a flickering thruster. Every stroke, the thrust too, inherits
+	currentColor (the card's family ink, ledger 0467). Animation only under prefers-reduced-motion: no-preference.
 -->
 <svg class:once viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 	<!-- Starfall: field lines streaming past the climbing ship -->
@@ -29,7 +29,7 @@
 		<circle cx="20" cy="14" r="1.7" opacity="0.65" />
 	</g>
 	<!-- Thruster -->
-	<g class="thrust" stroke="var(--gold, #c8ff00)">
+	<g class="thrust" stroke="currentColor">
 		<path d="M17.5 29l-1.4 4.2M20 30v5M22.5 29l1.4 4.2" />
 	</g>
 </svg>

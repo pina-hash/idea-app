@@ -34,7 +34,8 @@ import { readFileSync } from 'node:fs';
 import { PATHWAYS } from '$lib/pathways';
 import { AVATAR_PRESETS } from '$lib/profile';
 import { AVATAR_TINTS, AVATAR_TINTS_ON_LIGHT, avatarTint, avatarTintOnLight } from '$lib/avatars';
-import { visibleApps } from '$lib/portal-apps';
+import { APP_FAMILIES, visibleApps } from '$lib/portal-apps';
+import { IDENTITY, type IdentityName } from '$lib/design-system/identity';
 
 type Rgb = [number, number, number]; // 0..1
 
@@ -216,40 +217,19 @@ describe('an avatar tile on a light ground', () => {
 });
 
 describe('a launcher card on a light ground (AppLauncher under Space White)', () => {
-	/* EVERY CARD HAS A COLOUR OF ITS OWN (Mr. Pina, 2026-10-14; decision 60).
-	   This block used to hold the launcher to the lightness-only rule the rest
-	   of this file holds the pathway chips and the avatars to: each card's
-	   Space White ink was its dark identity moved in lightness alone. Measured,
-	   that put eleven of fourteen cards in one dark-green band (the five cards
-	   with no accent of their own took the theme green, GAUNTLET and VANGUARD
-	   share one brand green and so shared one twin, and GREENLINE, Tournaments,
-	   Maps and the admin card were four more greens), and the report was "all my
-	   apps look the same in white mode". The decision reverses the rule FOR THE
-	   LAUNCHER ON SPACE WHITE ONLY: each card names a curated ink, and what is
-	   held now is that every card has one, every one clears the same floors,
-	   and no two are near neighbours. The dark themes are untouched. */
+	/* ONE INK PER FAMILY (ledger 0467, feedback ac7d7b60). Decision 62 gave
+	   every card a curated Space White ink of its own, fourteen hues on one
+	   screen; Mr. Pina's 2026-10-28 rule is at most five to seven a reader must
+	   tell apart, each beside a word or a glyph. So a card's colour is its
+	   FAMILY's (`PortalApp.family`, `data-family`), one entry of the kit's
+	   colour library, and the ink on this theme is the value solve() gives that
+	   entry over Space White's grounds, read by the family rule through the
+	   generated `--id-*` token. No card names a Space White ink by hand. What
+	   is held: every family has a rule or takes the default, every family ink
+	   clears the same floors as words, no two family inks are near neighbours,
+	   and no Space White rule re-pins a card. */
 	const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 	const style = launcher.slice(launcher.indexOf('<style>'));
-	// The identity each card is BRANDED with: its base rule's --acc-primary.
-	const identity = new Map<string, string>();
-	const secondary = new Map<string, string>();
-	for (const m of style.matchAll(/(?:^|\n)\t\.app-card\[data-app='([a-z-]+)'\]\s*\{([^}]*)\}/g)) {
-		const primary = m[2].match(/--acc-primary:\s*(#[0-9a-fA-F]{6})/)?.[1];
-		if (primary) identity.set(m[1], primary);
-		const second = m[2].match(/--acc-secondary:\s*(#[0-9a-fA-F]{6})/)?.[1];
-		if (second) secondary.set(m[1], second);
-	}
-	// The light ink each card re-pins when the theme attribute is present, and
-	// every declaration a per-card Space White rule makes.
-	const light = new Map<string, string>();
-	const perCardDecls: string[] = [];
-	for (const m of style.matchAll(/((?::global\(:root\[data-theme='space-white'\]\) \.app-card\[data-app='[a-z-]+'\],?\s*)+)\{([^}]*)\}/g)) {
-		perCardDecls.push(m[2]);
-		const ink = m[2].match(/--acc-ink:\s*([^;]+);/)?.[1];
-		if (!ink) continue;
-		for (const id of m[1].matchAll(/data-app='([a-z-]+)'/g)) light.set(id[1], ink.trim());
-	}
-	// The one Space White rule every card takes, and the dark default it overrides.
 	const ruleBody = (selector: string) => {
 		const at = style.indexOf(selector);
 		if (at < 0) return '';
@@ -258,9 +238,17 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 	};
 	const swCard = ruleBody(":global(:root[data-theme='space-white']) .app-card {");
 	const darkCard = ruleBody('\t.app-card {');
-	const swStrip = ruleBody(":global(:root[data-theme='space-white']) .app-strip {");
+	/** The library entry each family's ink reads; the default rule is the families nobody declares. */
+	const entryOf = (body: string) => body.match(/--acc-ink:\s*var\(--id-([a-z-]+)-ink\)/)?.[1];
+	const familyEntry = new Map<string, string>();
+	for (const fam of APP_FAMILIES) {
+		const rule = ruleBody(`.app-card[data-family='${fam.id}'] {`);
+		familyEntry.set(fam.id, entryOf(rule || darkCard)!);
+	}
+	/** The Space White value of each family's ink, from the generated file. */
+	const light = new Map<string, string>([...familyEntry].map(([fam, e]) => [fam, IDENTITY[e as IdentityName].light.ink]));
 	/** Every app the launcher can draw, an admin's view included. */
-	const everyApp = visibleApps(true).map((a) => a.id);
+	const everyApp = visibleApps(true);
 
 	/* CIEDE2000, the perceptual difference the distinctness floor is stated in.
 	   The standard formulation (Sharma, Wu and Dalal 2005), over D65 Lab. */
@@ -303,61 +291,48 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		const [dL, dC, dH] = [(L2 - L1) / Sl, (C2p - C1p) / Sc, dHp / Sh];
 		return Math.sqrt(dL ** 2 + dC ** 2 + dH ** 2 + Rt * dC * dH);
 	};
-	/** The floor two card inks may not come closer than. The shipped palette's closest pair measures 12.0 (classroom against Maps). */
+	/** The floor two family inks may not come closer than. */
 	const DISTINCT_FLOOR = 10;
 
-	it('reads both sets and both card rules (positive control on the reader)', () => {
-		expect(identity.size).toBeGreaterThanOrEqual(9);
-		expect(light.size).toBeGreaterThanOrEqual(14);
+	it('reads every family and the default rule (positive control on the reader)', () => {
+		expect(APP_FAMILIES.length).toBeGreaterThanOrEqual(5);
+		expect([...familyEntry.values()].every(Boolean)).toBe(true);
+		expect(darkCard).toContain('--acc-ink: var(--id-titanium-ink);');
 		expect(everyApp.length).toBeGreaterThanOrEqual(14);
-		expect(swCard).toContain('--acc-ink:');
-		expect(darkCard).toContain('--acc-primary: var(--gold);');
 	});
 
-	it('gives EVERY app the launcher can draw an ink of its own, so a new app cannot arrive without one', () => {
-		const missing = everyApp.filter((id) => !light.has(id));
-		expect(missing).toEqual([]);
-		// And no rule names an app the registry does not have (an inert selector paints nothing and says nothing).
-		const ghosts = [...light.keys()].filter((id) => !everyApp.includes(id));
-		expect(ghosts).toEqual([]);
+	it('gives EVERY app the launcher can draw a family, and at most seven families', () => {
+		const fams = new Set(APP_FAMILIES.map((f) => f.id));
+		expect(everyApp.filter((a) => !fams.has(a.family)).map((a) => a.id)).toEqual([]);
+		expect(fams.size).toBeLessThanOrEqual(7);
+		// Every family a card is in is drawn: no family list entry with no app.
+		expect([...fams].filter((f) => !everyApp.some((a) => a.family === f))).toEqual([]);
 	});
 
-	it('no two cards are near neighbours: every pair of inks is at least the floor apart in CIEDE2000', () => {
+	it('no two families are near neighbours: every pair of Space White inks is at least the floor apart', () => {
 		const ids = [...light.keys()];
 		const close: string[] = [];
 		let pairs = 0;
-		let tightest = Infinity;
 		for (let i = 0; i < ids.length; i++) {
 			for (let j = i + 1; j < ids.length; j++) {
 				const d = deltaE00(light.get(ids[i])!, light.get(ids[j])!);
 				pairs++;
-				tightest = Math.min(tightest, d);
 				if (d < DISTINCT_FLOOR) close.push(`${ids[i]}/${ids[j]} ${d.toFixed(1)}`);
 			}
 		}
-		// The sweep generated every pair (14 cards is 91), so a reader that found nothing cannot pass.
 		expect(pairs).toBe((ids.length * (ids.length - 1)) / 2);
-		expect(pairs).toBeGreaterThanOrEqual(91);
+		expect(pairs).toBeGreaterThanOrEqual(10);
 		expect(close).toEqual([]);
-		expect(tightest).toBeGreaterThanOrEqual(DISTINCT_FLOOR);
-		// One value per card, written out: no two cards share an ink by value either.
-		expect(new Set(light.values()).size).toBe(light.size);
 	});
 
-	it('NEGATIVE CONTROL: the lightness-only twins this replaced fail the same floor', () => {
-		/* The board the decision reversed, as it shipped on 2026-10-07 and in
-		   ledger 0380: GAUNTLET and VANGUARD shared one twin, and the admin
-		   card's twin sat beside the theme green the five accent-less cards took.
-		   If these cleared the floor, the floor would be measuring nothing. */
-		const oldGauntlet = 'hsl(135.3 100% 24.5%)';
-		const oldVanguard = 'hsl(135.3 100% 24.5%)';
-		expect(deltaE00(oldGauntlet, oldVanguard)).toBeLessThan(DISTINCT_FLOOR);
-		const themeGreen = `#${token('--green').map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('')}`;
-		expect(deltaE00(themeGreen, 'hsl(113.3 33.6% 33.5%)')).toBeLessThan(DISTINCT_FLOOR);
-		expect(deltaE00('hsl(147 78.2% 26.5%)', 'hsl(156.7 85.4% 25.5%)')).toBeLessThan(DISTINCT_FLOOR);
+	it('NEGATIVE CONTROL: the per-card board this replaced drew more than seven hues', () => {
+		/* Decision 62's fourteen curated inks, as shipped: distinct, and twice
+		   the number a reader can tell apart at a glance. */
+		const old = ['#1f55d0', '#845000', '#3a5068', '#3e2f9c', '#006aa0', '#00737a', '#c20a9d', '#4f6f00', '#d91119', '#0f7a35', '#8a2fc4', '#ad4f19', '#005e4b', '#7d2a64'];
+		expect(new Set(old).size).toBeGreaterThan(7);
 	});
 
-	it('every ink clears as WORDS: 4.5 on the card, its own hover wash and the CTA hover fill; 3:1 at 75% on the page; 3.0 washed', () => {
+	it('every family ink clears as WORDS: 4.5 on the card, its own hover wash and the CTA hover fill; 3:1 at 75% on the page; 3.0 washed', () => {
 		let checked = 0;
 		for (const [id, value] of light) {
 			const ink = parse(value).rgb;
@@ -371,67 +346,34 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		expect(checked).toBe(light.size);
 	});
 
-	it('no card wears the olive-brown decision 40 took off this theme\'s words', () => {
-		/* --gold on Space White is #715d22, the brown a gold or amber becomes
-		   when it is taken dark enough to read on white; decision 40 item 1
-		   moved it off this theme's words and the 2026-10-07 round refused two
-		   twins for landing on it. The notebook's amber is the card nearest it,
-		   on purpose redder and stronger; every ink is held at least the
-		   distinctness floor away from it. */
-		/* LEDGER 0465 TOOK THE BROWN OFF THE THEME ITSELF: --gold here is now
-		   solve()'s ochre (#965600), so the brown is held as the value decision
-		   40 retired rather than read off the theme, and no card may drift
-		   back onto it. */
+	it('no family wears the olive-brown decision 40 took off this theme\'s words', () => {
 		const gold = '#715d22';
-		const [goldHue] = rgbToHsl([0x71 / 255, 0x5d / 255, 0x22 / 255]);
-		expect(goldHue).toBeGreaterThan(35); // positive control: it is the brown, read off the theme
-		expect(goldHue).toBeLessThan(60);
 		for (const [id, value] of light) {
-			expect(deltaE00(value, gold), `${id} against --gold`).toBeGreaterThanOrEqual(DISTINCT_FLOOR);
+			expect(deltaE00(value, gold), `${id} against the retired brown`).toBeGreaterThanOrEqual(DISTINCT_FLOOR);
 		}
 	});
 
-	it('the three cards that were already told apart keep their inks: FIRST red, the Ledger\'s and the Foundry\'s second colours', () => {
-		// Mr. Pina's decision kept these; each is still its identity colour moved in lightness only.
-		expectLightnessOnly(identity.get('frc')!, light.get('frc')!, 'frc');
-		expectLightnessOnly(secondary.get('coins')!, light.get('coins')!, 'coins');
-		expectLightnessOnly(secondary.get('foundry')!, light.get('foundry')!, 'foundry');
-	});
-
-	it('on Space White a card\'s word, glyph and call to action follow ITS OWN ink, and its edge is the plate hairline', () => {
-		// PRESENT: the one rule keeps a green fallback for a card with no ink,
-		// moves the edge, the lines and the wash, and does NOT re-pin `--acc`,
-		// so the per-card `--acc-ink` reaches the word, the glyph and the call
-		// to action through the base rule.
-		expect(swCard).not.toMatch(/--acc:\s*var\(--green\)/);
-		expect(swCard).toContain('--acc-ink: var(--green);');
+	it('on Space White a card\'s word, glyph and call to action follow its family ink, and its edge is the plate hairline', () => {
+		// PRESENT: the one rule moves the edge, the lines and the wash, and
+		// re-pins neither `--acc` nor `--acc-ink`, so the family's own ink
+		// reaches the word, the glyph and the call to action.
+		expect(swCard).not.toMatch(/--acc(-ink)?:/);
 		expect(swCard).toContain('--acc-edge: var(--plate-hair, var(--boundary));');
 		expect(swCard).toContain('--acc-wash: color-mix(in srgb, var(--acc) 5%, var(--bg1));');
-		expect(swStrip).toContain('background: var(--acc-ink);');
 		expect(style).toMatch(/\.app-title \{[^}]*color: var\(--acc-title\);/);
 		expect(style).toMatch(/\.app-icon \{[^}]*color: var\(--acc\);/);
 		expect(style).toMatch(/\.app-cta \{[^}]*color: var\(--acc\);/);
-		// ABSENT: no per-card Space White rule re-pins the derived tokens, which
-		// would put a second ink back on one of the three places by hand.
-		expect(perCardDecls.length).toBeGreaterThanOrEqual(14); // positive control on the reader
-		const offenders = perCardDecls.filter((d) => /--acc(-title|-edge(-strong)?|-line(-strong)?|-wash)?\s*:/.test(d));
-		expect(offenders).toEqual([]);
-		// AND THE DARK THEMES ARE UNTOUCHED: the default rule still derives the
-		// word from the card's own ink and the edge from its brand at 75%.
+		// ABSENT: no per-card or per-family Space White rule (the --id tokens
+		// already answer per theme).
+		expect(style).not.toMatch(/:global\(:root\[data-theme='space-white'\]\) \.app-card\[data-(app|family)=/);
+		// AND THE DARK THEMES DERIVE THE SAME WAY: the word from the ink, the
+		// edge from the ink at 75%, the strip from the pair.
 		expect(darkCard).toContain('--acc: var(--acc-ink);');
 		expect(darkCard).toContain('--acc-edge: color-mix(in srgb, var(--acc-ink) 75%, transparent);');
 		expect(style).toMatch(/\t\.app-strip \{[^}]*background: linear-gradient\(to right, var\(--acc-primary\), var\(--acc-secondary\)\);/);
 	});
 
-	it('the green clears 4.5 on the card, its own hover wash and the CTA hover fill, and 3.0 washed; the edge clears 3:1 against the page', () => {
-		const green = token('--green');
-		expect(ratio(green, PANEL)).toBeGreaterThanOrEqual(4.5);
-		expect(ratio(green, over(green, 0.05, PANEL))).toBeGreaterThanOrEqual(4.5);
-		expect(ratio(green, INSET)).toBeGreaterThanOrEqual(4.5);
-		expect(washed(green, PANEL)).toBeGreaterThanOrEqual(3);
-		// The edge under the site plate: the plate's own hairline, read out of
-		// plate.css's Space White block, against the page grounds it separates
-		// a card from (the plate's page gradient runs from its top to its foot).
+	it('the plate hairline clears 3:1 against the page; the theme boundary does on the revert', () => {
 		const plate = readFileSync('src/lib/classroom/plate.css', 'utf8');
 		const swAt = plate.indexOf(":root[data-theme='space-white'] :is(.cr-plate, .site-plate)");
 		const swBlock = plate.slice(plate.indexOf('{', swAt) + 1, plate.indexOf('}', swAt));
@@ -444,36 +386,30 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		for (const ground of ['--plate-plate-top', '--plate-plate-bot']) {
 			expect(ratio(hair, plateToken(ground)), `the hairline on ${ground}`).toBeGreaterThanOrEqual(3);
 		}
-		// And on the `SITE_PLATE = ''` revert the fallback is the theme's own boundary.
 		expect(ratio(token('--boundary'), PAGE)).toBeGreaterThanOrEqual(3);
 	});
 
 	it('no launcher mark paints a literal colour, so the card ink reaches every stroke with no theme rule', () => {
-		// GREENLINE's old mark drew its start line and its lapping machine in a
-		// literal #eafff3, 1.05:1 on the light card, and the launcher carried a
-		// Space White rule to re-stroke them. The mark was redrawn on
-		// currentColor (ledger 0298), so the rule is gone -- and the property
-		// that replaces it is this one, over every mark the launcher imports: a
-		// hex outside a `var(--x, #fallback)` would paint the same on both
-		// themes and could not be re-inked by the card.
 		const imported = [...launcher.matchAll(/import ([A-Z][A-Za-z]*Mark) from '\$lib\/marks\//g)].map((m) => m[1]);
 		expect(imported.length).toBeGreaterThanOrEqual(12); // positive control on the reader
 		const offenders: string[] = [];
 		for (const name of imported) {
 			const src = readFileSync(`src/lib/marks/${name}.svelte`, 'utf8')
 				.replace(/<!--[\s\S]*?-->/g, '')
-				.replace(/\/\*[\s\S]*?\*\//g, '')
-				.replace(/var\(--[a-z0-9-]+,\s*#[0-9a-fA-F]{3,8}\)/g, '');
+				.replace(/\/\*[\s\S]*?\*\//g, '');
+			// Ledger 0467: no hex at all, not even as a var() fallback (the game
+			// marks' fallback was the neon chartreuse).
 			if (/#[0-9a-fA-F]{3,8}\b/.test(src)) offenders.push(name);
 		}
 		expect(offenders).toEqual([]);
-		// NEGATIVE CONTROL: the literal the old mark carried really was invisible here.
 		expect(ratio(parse('#eafff3').rgb, PANEL)).toBeLessThan(1.5);
-		// And the retired rule is not left behind, re-stroking classes nothing draws.
 		expect(style).not.toContain('.gl-marker');
 	});
 
-	it('NEGATIVE CONTROL: every identity as authored fails as text on the light card', () => {
-		for (const [id, primary] of identity) expect(ratio(parse(primary).rgb, PANEL), id).toBeLessThan(4.5);
+	it('NEGATIVE CONTROL: every family fill, as a word, fails or nearly fails on the light card where its ink clears', () => {
+		// Why the ink exists: the fills are the strip and are not drawn as words.
+		let under = 0;
+		for (const e of familyEntry.values()) if (ratio(parse(IDENTITY[e as IdentityName].light.fill).rgb, PANEL) < 4.5) under++;
+		expect(under).toBeGreaterThanOrEqual(4);
 	});
 });

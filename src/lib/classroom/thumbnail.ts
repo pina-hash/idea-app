@@ -308,13 +308,17 @@ export function nudgeFocal(x: number, y: number, dx: number, dy: number): { x: n
 /**
  * HOW MANY UNIT TINTS THERE ARE. A unit's tint is its position in the class's
  * own unit order, wrapped, so the first unit of every class reads the same
- * color and a ninth unit repeats the first rather than inventing a hue. The
- * colors themselves are tokens in `PostThumbnail.svelte`, measured per theme.
+ * color and a fifth unit repeats the first rather than inventing a hue. FOUR,
+ * not eight (ledger 0467): a class page also draws its palette, its section
+ * color and the status chips, and the site's rule is at most five to seven
+ * hues a reader must tell apart on one screen; a fifth warm tint could not be
+ * told from marigold as a word on Space White. The colors are the kit
+ * library's entries `PostThumbnail.svelte` names, solved per theme.
  */
-export const THUMB_TINT_COUNT = 8;
+export const THUMB_TINT_COUNT = 4;
 
 /**
- * A post's tint: its unit's place among the class's units (0 to 7), or null for
+ * A post's tint: its unit's place among the class's units (0 to 3), or null for
  * a post in no unit, which draws in the room's own neutral ink.
  */
 export function unitTint(unitId: string | null | undefined, orderedUnitIds: readonly string[]): number | null {

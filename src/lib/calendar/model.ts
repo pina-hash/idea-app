@@ -29,27 +29,52 @@ export interface CalendarLayerInfo {
 	/** One line on what the layer holds, for the toggle's title and the legend. */
 	describe: string;
 	/**
-	 * ITS IDENTITY COLOUR, each anchored to a meaning the site already gives it
-	 * (idea-design skill, "Color by content"): the school's own calendar is the
-	 * neutral base (`--ice`); a deadline is a warning (`--amber`); pacing is work
-	 * in progress (`--teal`); a team is the special group (`--violet`); a day
-	 * with no school is quiet (`--dim`); an IDEA event is a special callout
-	 * (`--gold`); robotics is FIRST's own blue, the `--frc-blue` the FRC room
-	 * already carries (`src/lib/frc/frc-theme.css`). It marks identity only, on
-	 * a stripe or a swatch; status keeps the site's meanings.
+	 * ITS IDENTITY COLOUR (ledger 0467): an entry of the kit's colour library
+	 * (tools/hx-kit/kit/colors.json) solved per theme by
+	 * tools/identity-colors.mjs, read as its `line`, the value solve() gives a
+	 * mark that has to clear 3:1 on every ground. Seven layers, five hues and
+	 * two neutral metals; the five hues are the kit's linking set plus FIRST's
+	 * red for Team 5669, and none is green (green means act and done) or a
+	 * semantic status hue (a due date says "Due" in words instead).
+	 * `tests/identity-colors.test.ts` holds the seven apart: CIEDE2000 10 in
+	 * normal vision and 8 under simulated deuteranopia and protanopia, on both
+	 * grounds. It marks identity only, on a stripe, a swatch or a dot.
 	 */
 	color: string;
+	/** The same entry's `fill`: the inside of the glyph, which is what keeps
+	    the seven apart under colour-vision deficiency (the fills differ in
+	    lightness; the lines on Space White cannot, at 3:1 on near-white). */
+	fill: string;
+	/**
+	 * ITS GLYPH, so a layer is never told by colour alone: the swatch on its
+	 * filter key and the dot on a phone's month grid are drawn in this shape.
+	 */
+	mark: CalendarLayerMark;
 }
 
+/** The shapes a layer's swatch and dot are cut to (CalendarPage's stylesheet). */
+export type CalendarLayerMark = 'circle' | 'triangle' | 'diamond' | 'square' | 'bar' | 'star' | 'hexagon';
+
 export const CALENDAR_LAYERS: readonly CalendarLayerInfo[] = [
-	{ id: 'classes', label: 'Classes', describe: 'Posts and due dates in your classes', color: 'var(--amber)' },
-	{ id: 'pacing', label: 'Pacing', describe: 'What to have done by each class day', color: 'var(--teal)' },
-	{ id: 'team', label: 'Team', describe: "Your team's tasks and sign-offs", color: 'var(--violet)' },
-	{ id: 'school', label: 'Bosco Tech', describe: 'The school calendar', color: 'var(--ice)' },
-	{ id: 'no_school', label: 'No school', describe: 'Days with no classes', color: 'var(--dim)' },
-	{ id: 'idea', label: 'IDEA', describe: 'IDEA program events', color: 'var(--gold)' },
-	{ id: 'robotics', label: 'Robotics', describe: 'FRC Team 5669 events', color: 'var(--frc-blue, #0066b3)' }
+	{ id: 'classes', label: 'Classes', describe: 'Posts and due dates in your classes', color: 'var(--id-sky-line)', fill: 'var(--id-sky-fill)', mark: 'circle' },
+	{ id: 'pacing', label: 'Pacing', describe: 'What to have done by each class day', color: 'var(--id-indigo-line)', fill: 'var(--id-indigo-fill)', mark: 'triangle' },
+	{ id: 'team', label: 'Team', describe: "Your team's tasks and sign-offs", color: 'var(--id-magenta-line)', fill: 'var(--id-magenta-fill)', mark: 'diamond' },
+	{ id: 'school', label: 'Bosco Tech', describe: 'The school calendar', color: 'var(--id-titanium-line)', fill: 'var(--id-titanium-fill)', mark: 'square' },
+	{ id: 'no_school', label: 'No school', describe: 'Days with no classes', color: 'var(--id-aluminum-line)', fill: 'var(--id-aluminum-fill)', mark: 'bar' },
+	{ id: 'idea', label: 'IDEA', describe: 'IDEA program events', color: 'var(--id-marigold-line)', fill: 'var(--id-marigold-fill)', mark: 'star' },
+	{ id: 'robotics', label: 'Robotics', describe: 'FRC Team 5669 events', color: 'var(--id-first-red-line)', fill: 'var(--id-first-red-fill)', mark: 'hexagon' }
 ];
+
+/** Each glyph as SVG geometry in a 12 by 12 box (LayerMark draws it). */
+export const LAYER_MARK_SHAPES: Readonly<Record<CalendarLayerMark, string>> = {
+	circle: 'M6 1.2a4.8 4.8 0 1 1 0 9.6a4.8 4.8 0 1 1 0-9.6Z',
+	triangle: 'M6 1 L11.2 10.6 H0.8 Z',
+	diamond: 'M6 0.6 L11.4 6 L6 11.4 L0.6 6 Z',
+	square: 'M1.6 1.6 H10.4 V10.4 H1.6 Z',
+	bar: 'M0.8 3.6 H11.2 V8.4 H0.8 Z',
+	star: 'M6 0.6 L7.6 4.2 L11.5 4.5 L8.6 7.1 L9.4 11 L6 9 L2.6 11 L3.4 7.1 L0.5 4.5 L4.4 4.2 Z',
+	hexagon: 'M6 0.6 L10.8 3.3 V8.7 L6 11.4 L1.2 8.7 V3.3 Z'
+};
 
 export const CALENDAR_LAYER_IDS: readonly CalendarLayer[] = CALENDAR_LAYERS.map((l) => l.id);
 

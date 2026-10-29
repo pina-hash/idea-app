@@ -236,34 +236,26 @@ describe('identity and semantic colours are not themeable', () => {
 		expect(names).toContain('--acc-primary');
 	});
 
-	it('the launcher still declares a distinct accent per app, and the count is real', () => {
+	it('the launcher still declares a distinct accent per family, and the count is real', () => {
 		/* The other half of the same claim, from the launcher's own side: if
-		   the per-app rules ever collapsed into one, the theme rule above would
-		   still pass and the grid would still be unreadable. */
+		   the family rules ever collapsed into one, the theme rule above would
+		   still pass and the grid would still be unreadable. Since ledger 0467
+		   a card's colour is its FAMILY's (at most seven hues on one screen),
+		   so the count is of `[data-family=...]` rules, each a distinct
+		   library entry, plus the neutral default the Tools family takes. */
 		const launcher = read(new URL('../src/lib/AppLauncher.svelte', import.meta.url));
 		const bare = launcher.replace(/\/\*[\s\S]*?\*\//g, '');
-		const apps = new Set<string>();
-		for (const m of bare.matchAll(/\.app-card\[data-app='([a-z-]+)'\]/g)) apps.add(m[1]);
-		expect(apps.size).toBeGreaterThanOrEqual(9);
-
-		/* THE PAIR IS THE IDENTITY, NOT THE PRIMARY -- and asserting the primary
-		   alone would have understated it by one. GAUNTLET and VANGUARD share
-		   #00ff41 as their primary and are told apart by their SECONDARY (cyan
-		   against acid yellow), which is exactly the case a primary-only count
-		   would have called a collision. Measured in Chromium over the rendered
-		   grid: 13 cards, 10 distinct (primary, secondary) pairs -- the nine
-		   declared here plus the shared default the unlisted cards take. */
 		const pairs = new Set<string>();
-		for (const m of bare.matchAll(
-			/\.app-card\[data-app='[a-z-]+'\][^{]*\{([\s\S]*?)\n\t\}/g
-		)) {
+		let families = 0;
+		for (const m of bare.matchAll(/\.app-card\[data-family='[a-z-]+'\][^{]*\{([\s\S]*?)\n\t\}/g)) {
+			families++;
 			const p = /--acc-primary:\s*([^;]+);/.exec(m[1]);
 			const q = /--acc-secondary:\s*([^;]+);/.exec(m[1]);
 			if (p) pairs.add(`${p[1].trim()}|${q ? q[1].trim() : ''}`);
 		}
-		// A floor, because a tenth declared pair is a legitimate change and a
-		// ceiling here would redden on the next app anybody adds.
-		expect(pairs.size).toBeGreaterThanOrEqual(9);
+		expect(families).toBeGreaterThanOrEqual(5);
+		expect(pairs.size).toBe(families);
+		expect(pairs.size + 1).toBeLessThanOrEqual(7);
 	});
 });
 

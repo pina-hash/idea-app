@@ -37,6 +37,7 @@
 		type CalendarPrefs
 	} from './model';
 	import { subscriptionUrls, type CalendarEventDraft, type CalendarTransports } from './transports';
+	import LayerMark from './LayerMark.svelte';
 
 	type FeedState = { events: CalendarEvent[]; status: 'ok' | 'stale' | 'off' | 'failed' };
 
@@ -73,6 +74,11 @@
 	let prefs = $state<CalendarPrefs>(feed?.prefs ?? { hidden: [], hiddenSections: [] });
 	let prefsNote = $state<string | null>(null);
 	let view = $state<'month' | 'list'>('month');
+	/* THE FILTERS SIT BEHIND ONE KEY ON A PHONE (ledger 0467): seven layer keys
+	   and the class list took 205px of a 375px screen before the month began.
+	   Wider than a phone the key is not drawn and the filters always show. */
+	let filtersOpen = $state(false);
+	const layersOn = $derived(CALENDAR_LAYERS.filter((l) => !prefs.hidden.includes(l.id)).length);
 	// svelte-ignore state_referenced_locally
 	let selected = $state<string>(monthOf(today) === month ? today : `${month}-01`);
 
@@ -260,7 +266,7 @@
 				{#if href}<a {href}>{e.title}</a>{:else}{e.title}{/if}
 			</p>
 			<p class="ev-meta">
-				<span class="ev-layer">{info.label}</span>
+				<span class="ev-layer"><LayerMark layer={info} size={10} />{info.label}</span>
 				{#if e.kind === 'pacing' && e.itemTitle}<span>{e.itemTitle}</span>{/if}
 				{#if withDay}<span>{spanWords(e, thisYear)}</span>{:else if e.endDay}<span>{spanWords(e, thisYear)}</span>{/if}
 				{#if time}<span class:ev-due={e.kind === 'due'}>{time}</span>{/if}
@@ -316,33 +322,51 @@
 		</div>
 	</div>
 
-	<div class="cal-layers" role="group" aria-label="Show on the calendar" data-testid="calendar-layers">
-		{#each CALENDAR_LAYERS as layer (layer.id)}
-			<button
-				type="button"
-				class="btn secondary layer-key"
-				style:--layer={layer.color}
-				aria-pressed={!prefs.hidden.includes(layer.id)}
-				title={layer.describe}
-				data-layer={layer.id}
-				onclick={() => toggleLayer(layer.id)}
-			>
-				<span class="swatch" aria-hidden="true"></span>{layer.label}
-			</button>
-		{/each}
-	</div>
-	{#if !scope && sections.length > 1}
-		<details class="cal-classes">
-			<summary>Classes ({sections.length - prefs.hiddenSections.filter((s) => sections.some((x) => x.id === s)).length} of {sections.length} shown)</summary>
-			<div class="cal-class-keys" role="group" aria-label="Classes on the calendar">
-				{#each sections as s (s.id)}
-					<button type="button" class="btn secondary tiny" aria-pressed={!prefs.hiddenSections.includes(s.id)} onclick={() => toggleSection(s.id)}>
-						{sectionLabel(s)}
+	<div class="cal-filters" class:open={filtersOpen}>
+		<button
+			type="button"
+			class="btn secondary cal-filters-toggle"
+			aria-expanded={filtersOpen}
+			aria-controls="cal-filters-panel"
+			data-testid="calendar-filters-toggle"
+			onclick={() => (filtersOpen = !filtersOpen)}
+		>
+			Layers: {layersOn} of {CALENDAR_LAYERS.length} on<span class="cal-filters-caret" aria-hidden="true"></span>
+		</button>
+		<div class="cal-filters-panel" id="cal-filters-panel">
+			<!-- A key that is ON is lit in its OWN layer's colour, never in the
+			     site green (green means act and done), and its glyph is solid; a
+			     key that is off is a plain key with a hollow glyph. The word and
+			     `aria-pressed` say it too. -->
+			<div class="cal-layers" role="group" aria-label="Show on the calendar" data-testid="calendar-layers">
+				{#each CALENDAR_LAYERS as layer (layer.id)}
+					<button
+						type="button"
+						class="btn secondary layer-key"
+						style:--layer={layer.color}
+						aria-pressed={!prefs.hidden.includes(layer.id)}
+						title={layer.describe}
+						data-layer={layer.id}
+						onclick={() => toggleLayer(layer.id)}
+					>
+						<LayerMark {layer} off={prefs.hidden.includes(layer.id)} />{layer.label}
 					</button>
 				{/each}
 			</div>
-		</details>
-	{/if}
+			{#if !scope && sections.length > 1}
+				<details class="cal-classes">
+					<summary>Classes ({sections.length - prefs.hiddenSections.filter((s) => sections.some((x) => x.id === s)).length} of {sections.length} shown)</summary>
+					<div class="cal-class-keys" role="group" aria-label="Classes on the calendar">
+						{#each sections as s (s.id)}
+							<button type="button" class="btn secondary tiny" aria-pressed={!prefs.hiddenSections.includes(s.id)} onclick={() => toggleSection(s.id)}>
+								{sectionLabel(s)}
+							</button>
+						{/each}
+					</div>
+				</details>
+			{/if}
+		</div>
+	</div>
 	{#if prefsNote}<p class="note cal-warn" role="status">{prefsNote}</p>{/if}
 	{#each statusLine as line (line)}<p class="note cal-warn" role="status">{line}</p>{/each}
 
@@ -372,14 +396,15 @@
 								<span class="cal-date">{Number(day.slice(8))}</span>
 								<span class="cal-chips">
 									{#each items.slice(0, 3) as e (e.id)}
-										<span class="chip-ev" style:--layer={layerInfo(e.layer).color} data-kind={e.kind} data-layer={e.layer}
-											>{#if e.kind === 'due'}<b>Due</b> {/if}{e.title}</span
+										{@const li = layerInfo(e.layer)}
+										<span class="chip-ev" style:--layer={li.color} data-kind={e.kind} data-layer={e.layer}
+											><LayerMark layer={li} size={9} />{#if e.kind === 'due'}<b>Due</b>{/if}<span class="chip-t">{e.title}</span></span
 										>
 									{/each}
 									{#if items.length > 3}<span class="chip-more">+{items.length - 3}</span>{/if}
 								</span>
 								<span class="cal-dots" aria-hidden="true">
-									{#each items.slice(0, 4) as e (e.id)}<span class="dot" style:--layer={layerInfo(e.layer).color}></span>{/each}
+									{#each items.slice(0, 4) as e (e.id)}<span class="dot" data-layer={e.layer}><LayerMark layer={layerInfo(e.layer)} size={9} /></span>{/each}
 								</span>
 							</button>
 						{/each}
@@ -537,21 +562,51 @@
 	}
 	.layer-key {
 		gap: 0.45rem;
-	}
-	.swatch {
-		display: inline-block;
-		width: 0.7rem;
-		height: 0.7rem;
-		border-radius: 3px;
-		background: var(--layer);
-		box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.35);
+		/* LIT IN ITS OWN LAYER'S COLOUR, NOT THE SITE GREEN (ledger 0467). The
+		   plate draws a lit key's ring from --plate-accent and its inner tint
+		   and glow from the two beside it; declared on the key itself, they
+		   beat the plate's inherited green without touching plate.css. */
+		--plate-accent: var(--layer);
+		--plate-accent-tint: color-mix(in srgb, var(--layer) 35%, transparent);
+		--plate-accent-glow: color-mix(in srgb, var(--layer) 45%, transparent);
 	}
 	.layer-key[aria-pressed='false'] {
-		opacity: 0.62;
+		opacity: 0.72;
 	}
-	.layer-key[aria-pressed='false'] .swatch {
-		background: transparent;
-		box-shadow: inset 0 0 0 2px var(--layer);
+	/* ONE KEY ON A PHONE. */
+	.cal-filters {
+		display: grid;
+		gap: 0.45rem;
+	}
+	.cal-filters-panel {
+		display: grid;
+		gap: 0.45rem;
+	}
+	.cal-filters-toggle {
+		display: none;
+		min-height: 44px;
+		justify-self: start;
+		gap: 0.5rem;
+	}
+	.cal-filters-caret {
+		display: inline-block;
+		width: 0.45rem;
+		height: 0.45rem;
+		border-right: 2px solid currentColor;
+		border-bottom: 2px solid currentColor;
+		transform: translateY(-0.12rem) rotate(45deg);
+	}
+	.cal-filters.open .cal-filters-caret {
+		transform: translateY(0.12rem) rotate(225deg);
+	}
+	@media (max-width: 719px) {
+		.cal-filters-toggle {
+			display: inline-flex;
+			align-items: center;
+		}
+		.cal-filters:not(.open) .cal-filters-panel {
+			display: none;
+		}
 	}
 	.cal-classes summary,
 	.cal-sub-panel summary {
@@ -653,7 +708,9 @@
 		min-width: 0;
 	}
 	.chip-ev {
-		display: block;
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
@@ -665,11 +722,16 @@
 		background: color-mix(in srgb, var(--layer) 14%, transparent);
 		color: var(--white);
 	}
+	.chip-t {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
 	.chip-ev[data-layer='school'] {
 		color: var(--dim);
 	}
 	.chip-ev b {
-		margin-right: 0.3em;
+		flex-shrink: 0;
 		font-family: var(--font-mono);
 		font-weight: 400;
 		font-size: 0.72rem;
@@ -688,10 +750,8 @@
 		flex-wrap: wrap;
 	}
 	.dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: var(--layer);
+		display: inline-flex;
+		line-height: 0;
 	}
 	@media (max-width: 719px) {
 		.cal-grid {
@@ -775,6 +835,9 @@
 		color: var(--cyan);
 	}
 	.ev-layer {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 		color: var(--dim);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;

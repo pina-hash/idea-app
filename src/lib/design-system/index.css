@@ -7,6 +7,9 @@
 
 @import './fonts.css';
 @import './colors.css';
+/* Identity colours (ledger 0467): generated from the kit's colour library by
+   tools/identity-colors.mjs, never edited by hand. */
+@import './identity.css';
 @import './typography.css';
 @import './effects.css';
 @import './surfaces.css';

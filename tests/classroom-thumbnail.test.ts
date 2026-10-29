@@ -158,11 +158,12 @@ describe('what a slot shows', () => {
 		expect(thumbnailPlan({ id: 'i', thumbnail: row(), published: false }).kind).toBe('image');
 	});
 
-	it("a unit's tint is its place among the class's units, wrapped at eight; no unit is no tint", () => {
-		const units = ['u0', 'u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8'];
+	it("a unit's tint is its place among the class's units, wrapped at four (ledger 0467); no unit is no tint", () => {
+		const units = ['u0', 'u1', 'u2', 'u3', 'u4', 'u5'];
 		expect(unitTint('u0', units)).toBe(0);
-		expect(unitTint('u7', units)).toBe(7);
-		expect(unitTint('u8', units)).toBe(0);
+		expect(unitTint('u3', units)).toBe(3);
+		expect(unitTint('u4', units)).toBe(0);
+		expect(unitTint('u5', units)).toBe(1);
 		expect(unitTint(null, units)).toBeNull();
 		expect(unitTint('gone', units)).toBeNull();
 	});

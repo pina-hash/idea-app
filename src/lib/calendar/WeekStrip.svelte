@@ -13,6 +13,7 @@
 	 */
 	import { onMount, untrack } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import LayerMark from './LayerMark.svelte';
 	import {
 		dayWords,
 		eventHref,
@@ -96,7 +97,9 @@
 							<ul class="wd-events">
 								{#each d.events.slice(0, 3) as e (e.id)}
 									{@const href = eventHref(e, basePath)}
-									<li class="wd-ev" style:--layer={layerInfo(e.layer).color} data-kind={e.kind}>
+									{@const li = layerInfo(e.layer)}
+									<li class="wd-ev" style:--layer={li.color} data-kind={e.kind} data-layer={e.layer}>
+										<LayerMark layer={li} size={9} />
 										{#if e.kind === 'due'}<b>Due</b>{/if}
 										{#if href}<a {href}>{e.title}</a>{:else}<span>{e.title}</span>{/if}
 									</li>
@@ -177,7 +180,7 @@
 	.wd-ev {
 		display: flex;
 		gap: 0.3rem;
-		align-items: baseline;
+		align-items: center;
 		min-width: 0;
 		font-size: 0.9rem;
 		line-height: 1.3;

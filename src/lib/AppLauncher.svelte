@@ -214,7 +214,7 @@
 	 * pattern off a `PortalApp.theme` field and was deleted when that field was;
 	 * the note left behind claimed cards are told apart by name, tagline and
 	 * badge alone. They are not, and have not been since the accents were
-	 * restored as stylesheet rules: five `[data-app=...]` rules below re-declare
+	 * restored as stylesheet rules: six `[data-app=...]` rules below re-declare
 	 * `--card-texture`, and `.app-card`'s own
 	 * `background-image: var(--card-texture, var(--texture-brushed))` is written
 	 * as a fallback chain precisely so they can. The brushed-metal token is the
@@ -360,6 +360,7 @@
 			class:put-away={hiddenIds.has(app.id)}
 			data-tour={app.id}
 			data-app={app.id}
+			data-family={app.family}
 			role="listitem"
 			ondragover={(e) => onDragOver(e, i)}
 			ondrop={(e) => onDrop(e, i)}
@@ -422,6 +423,7 @@
 			onclick={(e) => appClick(e, app)}
 			data-tour={app.id}
 			data-app={app.id}
+			data-family={app.family}
 		>
 			<span class="app-strip"></span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
@@ -693,23 +695,23 @@
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	}
 	.app-card {
-		/* THE SHARED BRASS/GOLD PAIR IS THE DEFAULT, NOT THE ONLY VALUE, and it
-		   is a real default: four of the eleven cards declare nothing and paint
-		   from exactly these two lines. A per-app pair, where one exists, is
-		   declared below on `[data-app=...]`, a plain class-level rule that this
-		   one loses to on specificity and wins against for anybody who declares
-		   nothing. The pair used to arrive as an INLINE style instead, which beat
-		   this rule on all eleven cards and made it dead code.
+		/* THE DEFAULT IS THE NEUTRAL FAMILY, AND IT IS A LIVE ONE (ledger 0467).
+		   Every card's colour is its FAMILY's (`data-family`, from
+		   `PortalApp.family`), one entry of the kit's colour library
+		   (tools/hx-kit/kit/colors.json) solved per theme into the `--id-*`
+		   tokens. The Tools family declares nothing and paints from these
+		   lines, so a card with no family rule is the warm grey titanium: an
+		   app that has not been given an identity looks like one, rather than
+		   borrowing somebody else's.
 
-		   --acc-primary and --acc-secondary are IDENTITY (the strip, the brand).
-		   Nothing derived for legibility may move them; --acc-ink is what moves.
-		   See the contrast note above the per-app block. */
-		--acc-primary: var(--gold);
-		--acc-secondary: var(--green);
-		/* THE GLYPH COLOUR, and the one an app re-pins when its identity colour
-		   cannot carry text. Defaults to the identity colour, which every accent
-		   but one clears 4.5:1 with, measured on --bg1. */
-		--acc-ink: var(--acc-primary);
+		   --acc-primary and --acc-secondary are IDENTITY (the strip). Nothing
+		   derived for legibility moves them; --acc-ink is what a word and a
+		   glyph read, and it is solve()'s ink for the same entry, which clears
+		   6:1 on every dark ground and 4.8:1 on every Space White one, so no
+		   card re-pins it by hand. */
+		--acc-primary: var(--id-titanium-fill);
+		--acc-secondary: var(--id-titanium-fill);
+		--acc-ink: var(--id-titanium-ink);
 		--acc: var(--acc-ink);
 		--acc-title: var(--acc);
 		--acc-glow: color-mix(in srgb, var(--acc-ink) 30%, transparent);
@@ -764,124 +766,103 @@
 		transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
 	}
 	/* ======================================================================
-	   PER-APP IDENTITY, KEYED ON THE CARD'S OWN `data-app` ATTRIBUTE.
+	   ONE HUE PER FAMILY, KEYED ON THE CARD'S `data-family` ATTRIBUTE
+	   (ledger 0467, feedback ac7d7b60).
 
-	   These pairs painted for months, as an inline style written from a
-	   `PortalApp.theme` field, and the identity was always deliberate: GAUNTLET
-	   and GREENLINE carry their product colours, VANGUARD its arcade green, and
-	   the FRC card carries FIRST's own red and blue. What was wrong was the
-	   MECHANISM. An inline custom property beats every class rule, so the shared
-	   default was unreachable, no later rule could correct a single card, and
-	   the value was discoverable only by reading the registry.
+	   Mr. Pina's rule for the whole site: at most five to seven hues a reader
+	   has to tell apart on one screen, each with a word or a glyph beside it;
+	   green only for act and done; no neon. The launcher used to give every
+	   app a colour of its own -- nine on the dark home screen, fourteen on
+	   Space White, five of them greens and two of them neon (the arcade green
+	   and the chartreuse) -- so the hues could not be told apart and the greens said
+	   "done" about a game. Now apps of one kind share one hue, six families
+	   in all, and each card still carries its own name and its own mark.
 
-	   As a stylesheet rule keyed on an attribute, the same data sits INSIDE the
-	   cascade: the default above is live for the four cards that declare nothing
-	   (classroom, notebook, ideacad), a new app needs no entry anywhere
-	   to look right, and overriding one card is one selector rather than a
-	   registry edit. The attribute is `data-app`, which both card branches
-	   already carried for the tour and for drag-and-drop.
+	   EVERY VALUE IS AN ENTRY OF THE KIT'S LIBRARY, NEVER A HEX TYPED HERE.
+	   tools/identity-colors.mjs puts each entry through solve() for the dark
+	   themes (IDEA and Matrix together) and for Space White, so the same
+	   rule paints the right ink on every theme with no theme-keyed copy:
 
-	   THE PAIR IS IDENTITY AND IS NEVER MOVED FOR CONTRAST. Where a brand
-	   colour cannot carry text at 4.5:1 on --bg1, the card re-pins --acc-ink
-	   ONLY and --acc-primary keeps painting the strip. FRC is the one case; the
-	   measured table is in docs/HISTORY.md.
+	     class  sky         Classroom, My Notebook
+	     make   indigo      IdeaCAD, Armory, Foundry
+	     coins  marigold    Coin Ledger, Market
+	     play   magenta     GAUNTLET, GREENLINE, VANGUARD, Tournaments
+	     frc    first-red   FRC Training, FIRST blue as the strip's far stop
+	     tools  titanium    Maps, Admin (the default above, declared nowhere)
+
+	   The FILLS (the strip) of the six clear CIEDE2000 10 apart in normal
+	   vision and 8 under simulated deuteranopia and protanopia on both
+	   grounds, and none is within 10 of the brand green;
+	   tests/identity-colors.test.ts measures all of it. The FIRST logo on the
+	   FRC card is the unmodified image, as before.
 	   ====================================================================== */
+	.app-card[data-family='class'] {
+		--acc-primary: var(--id-sky-fill);
+		--acc-secondary: var(--id-sky-fill);
+		--acc-ink: var(--id-sky-ink);
+	}
+	.app-card[data-family='make'] {
+		--acc-primary: var(--id-indigo-fill);
+		--acc-secondary: var(--id-indigo-fill);
+		--acc-ink: var(--id-indigo-ink);
+	}
+	.app-card[data-family='coins'] {
+		--acc-primary: var(--id-marigold-fill);
+		--acc-secondary: var(--id-marigold-fill);
+		--acc-ink: var(--id-marigold-ink);
+	}
+	.app-card[data-family='play'] {
+		--acc-primary: var(--id-magenta-fill);
+		--acc-secondary: var(--id-magenta-fill);
+		--acc-ink: var(--id-magenta-ink);
+	}
+	.app-card[data-family='frc'] {
+		--acc-primary: var(--id-first-red-fill);
+		--acc-secondary: var(--id-first-blue-fill);
+		--acc-ink: var(--id-first-red-ink);
+	}
+	/* THE TEXTURES ARE PER APP AND TAKE THE FAMILY'S OWN FILL, never a literal:
+	   they used to be the neon rgba of each app's old pair. They are drawn only
+	   with `SITE_PLATE = ''` (the plate replaces every texture), at 3% or less,
+	   where they cannot touch legibility. */
 	.app-card[data-app='gauntlet'] {
-		--acc-primary: #00ff41;
-		--acc-secondary: #00f0ff;
 		/* 24px blueprint grid. */
 		--card-texture:
-			linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
-			linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+			linear-gradient(color-mix(in srgb, var(--acc-primary) 3%, transparent) 1px, transparent 1px),
+			linear-gradient(90deg, color-mix(in srgb, var(--acc-primary) 3%, transparent) 1px, transparent 1px);
 		--card-texture-size: 24px 24px;
 	}
 	.app-card[data-app='frc'] {
-		/* FIRST red and FIRST blue, unmodified: a trademark colour used as the
-		   mark, not as a colour we picked. Neither moves, and the strip, the
-		   texture and the FIRST logo itself all still paint from them. */
-		--acc-primary: #ed1c24;
-		--acc-secondary: #0066b3;
-		/* THE ONE RE-PINNED INK ON THE LAUNCHER. #ed1c24 carries text at
-		   3.41:1 on this card, measured -- it is a mid-luminance red made for
-		   white paper, and .frc-root uses it on #eef1f5 where it works. Here
-		   it fails, so the GLYPH moves and the identity does not.
-
-		   The move is LIGHTNESS ONLY: #ed1c24 is hsl(357.7 85.3% 52.0%) and
-		   this is the same hue and the same saturation at 68% lightness. It is
-		   not a desaturation, which is the thing that would quietly stop it
-		   being FIRST red. Measured 4.99 resting, 4.76 on the card hover wash,
-		   4.73 on the CTA hover fill. Written as hsl() so the next reader can
-		   see the one number that changed; #f3686d is the same colour. */
-		--acc-ink: hsl(357.7 85.3% 68%);
 		/* Diagonal stripes. */
-		--card-texture:
-			repeating-linear-gradient(
-				45deg,
-				rgba(237, 28, 36, 0.025) 0px,
-				rgba(237, 28, 36, 0.025) 1px,
-				transparent 1px,
-				transparent 16px
-			);
-	}
-	.app-card[data-app='greenline'] {
-		--acc-primary: #2ae57e;
-		--acc-secondary: #cfdae2;
+		--card-texture: repeating-linear-gradient(
+			45deg,
+			color-mix(in srgb, var(--acc-primary) 2.5%, transparent) 0px,
+			color-mix(in srgb, var(--acc-primary) 2.5%, transparent) 1px,
+			transparent 1px,
+			transparent 16px
+		);
 	}
 	.app-card[data-app='vanguard'] {
-		--acc-primary: #00ff41;
-		--acc-secondary: #c8ff00;
 		/* Horizontal scanlines. */
 		--card-texture: repeating-linear-gradient(
 			0deg,
-			rgba(0, 255, 65, 0.03) 0px,
-			rgba(0, 255, 65, 0.03) 1px,
+			color-mix(in srgb, var(--acc-primary) 3%, transparent) 0px,
+			color-mix(in srgb, var(--acc-primary) 3%, transparent) 1px,
 			transparent 1px,
 			transparent 4px
 		);
 	}
 	.app-card[data-app='coins'] {
-		/* THE LEDGER HAS A REAL SURFACE AND THIS CARD WAS NOT QUOTING IT. The
-		   Coin Ledger is a standalone neon-terminal page (src/lib/legacy/coins/index.html)
-		   whose own palette is green #00FF41, gold #C8FF00 and cyan #00F0FF on a
-		   near-black base; the card fell to the shared brass/mint default, so the
-		   one app on the launcher with a fully designed room of its own was the
-		   one showing none of it.
-
-		   GOLD LEADS because gold leads there: it is the page's most-used colour
-		   (50 references against green's 31), it is the legendary rank and payout
-		   treatment, and it is the colour the particle field is drawn in. Cyan is
-		   the second stop because gold-to-cyan is literally how that page's own
-		   legendary gradient opens. Green is the page's ambient border colour and
-		   is deliberately NOT one of the two slots here: paired with gold it would
-		   make this card a mirror of VANGUARD's, which is the opposite of an
-		   identity. Measured on the card: #C8FF00 carries text at 12.78:1 and its
-		   edge reads 9.11:1 against the page, so neither value moves. */
-		--acc-primary: #c8ff00;
-		--acc-secondary: #00f0ff;
-		/* The page's background particle field, quoted rather than the brushed
-		   default: 90 drifting gold specks, 0.7-2.0px, over near-black. Three
-		   dot layers on different tile sizes so the field does not read as a
-		   grid, all at <=3% so it can never touch text legibility. */
+		/* The Ledger's drifting particle field: three dot layers on different
+		   tile sizes so the field does not read as a grid. */
 		--card-texture:
-			radial-gradient(circle at 18% 26%, rgba(200, 255, 0, 0.03) 1px, transparent 1.6px),
-			radial-gradient(circle at 71% 61%, rgba(200, 255, 0, 0.028) 1.3px, transparent 1.9px),
-			radial-gradient(circle at 43% 85%, rgba(200, 255, 0, 0.03) 0.9px, transparent 1.5px);
+			radial-gradient(circle at 18% 26%, color-mix(in srgb, var(--acc-primary) 3%, transparent) 1px, transparent 1.6px),
+			radial-gradient(circle at 71% 61%, color-mix(in srgb, var(--acc-primary) 2.8%, transparent) 1.3px, transparent 1.9px),
+			radial-gradient(circle at 43% 85%, color-mix(in srgb, var(--acc-primary) 3%, transparent) 0.9px, transparent 1.5px);
 		--card-texture-size: 47px 47px, 63px 63px, 37px 37px;
 	}
 	.app-card[data-app='notebook'] {
-		/* NO ACCENT RULE, DELIBERATELY: brass is right for this card and brass is
-		   the shared default, so declaring it would only put a second copy of the
-		   default somewhere it can drift. What the notebook does declare is a
-		   TEXTURE, because ruled paper is the one thing that room is about --
-		   7px apart, at 2.5%.
-
-		   THE RULE'S INK QUOTES THE CLASSROOM NOW, NOT THE RETIRED PAPER PLATE
-		   (ledger 0297, package F1b). It was the light plate's own off-white
-		   (#fafaf7), and the notebook is moving inside the classroom, whose plate
-		   the light one no longer is. The lines take the classroom register's
-		   primary ink, `--text-1`, so they are the room's own writing color on
-		   every theme -- near-white rules on the dark card, near-black rules on
-		   Space White's light one -- and they never need a second value. */
+		/* Ruled paper, 7px apart at 2.5%, in the room's own writing colour. */
 		--card-texture: repeating-linear-gradient(
 			0deg,
 			color-mix(in srgb, var(--text-1) 2.5%, transparent) 0px,
@@ -890,151 +871,13 @@
 			transparent 7px
 		);
 	}
-	.app-card[data-app='tournaments'] {
-		/* THE ROOM'S OWN TWO TOKENS, where this card previously quoted neither:
-		   #00ff41 is VANGUARD's arcade green and #c8a848 the portal's brass, and
-		   nothing on /tournaments paints either. --tnm-accent and --tnm-gold
-		   (tournaments-theme.css) are what a student actually sees there.
-
-		   AND THE ROOM'S RULE COMES WITH THEM. At most ONE dominant emerald
-		   element per screen is a hard rule in that theme, so the card spends its
-		   emerald once -- on the mark, via --acc-ink, which defaults to the
-		   primary -- and gold appears nowhere but the 2px strip along the card's
-		   top edge. Measured on the card: emerald carries text at 6.23:1 and its
-		   edge (75% of it) reads 4.81:1 against the page, so nothing has to move
-		   for legibility and the identity stays exactly the room's. */
-		--acc-primary: #0fbe7a;
-		--acc-secondary: #e0ac4e;
-	}
-	/* THE FORGE, IN THE FORGE'S OWN COLOUR -- and this rule used to be green.
-	   /foundry IS a designed room: src/lib/foundry/forge.css opens by saying so
-	   in words -- "near-black with a faint WARM cast, worked metal under a
-	   banked fire ... THE WARMTH IS THE ROOM'S IDENTITY" -- against a portal
-	   plate that is green and a classroom register that is green-neutral. So
-	   the Foundry was the one app on this launcher with a room of its own and a
-	   card showing none of it, which is the defect the Coin Ledger card two
-	   rules up was fixed for.
-
-	   WHAT THIS REPLACES, AND WHY THE OLD ARGUMENT WAS WRONG RATHER THAN
-	   MERELY OUTVOTED. The card read --green / --cyan on the grounds that
-	   /foundry is built on the portal console register, so those two "ARE its
-	   colours". Two things are wrong with that. Green in this room is not the
-	   room, it is a STATE -- forge.css spends it on `--fg-st-done-ink`
-	   (approved: struck and cooled to green) and `--fg-st-live-ink`, which is
-	   the FINISHED state and nothing else. And on this page green is not an
-	   identity at all: GAUNTLET #00ff41, VANGUARD #00ff41, GREENLINE #2ae57e
-	   and dashboard/admin #78b870 are already spending it, and --green
-	   resolves to #78b870, so the Foundry card and the admin card were
-	   painting the SAME hex. A fifth green is not a way of telling five things
-	   apart.
-
-	   AND THE "HEAT MEANS IN PROGRESS" OBJECTION DOES NOT REACH THIS SURFACE,
-	   which is what the comment this replaces got wrong. That rule is
-	   forge.css's and it governs `.fg-root` -- inside the room, where a chip
-	   wearing heat has to mean "submitted" and nothing else. A launcher card is
-	   not in the room and cannot even read `--fg-*`. This launcher ALREADY
-	   quotes two in-room state colours as out-of-room identity: #2ae57e is
-	   GREENLINE's surgical player thread and #c8ff00 is the Ledger's legendary
-	   rank treatment, and on a card each simply means "that app". A colour is a
-	   state where the state language is defined; out here it is a name.
-
-	   SO THE PAIR IS THE POUR, TAKEN FROM forge.css's OWN SCALE: `--fg-heat`
-	   #f6952f, the working molten amber, cooling to `--fg-heat-ember` #c65a1d
-	   along the strip. AS RE-TYPED HEX, NOT AS var(), and that is forced rather
-	   than sloppy -- the `--fg-*` tokens are declared on `.fg-root` and this
-	   card is not inside it, so var(--fg-heat) here resolves to nothing at all.
-	   Every other card that quotes a room does the same for the same reason.
-
-	   MEASURED, on this page's real grounds rather than described. #f6952f as
-	   text: 7.83 on --bg0, 6.66 on --bg1, 6.25 on --bg2 -- so --acc-ink is NOT
-	   re-pinned, because the identity already carries text and the FRC case is
-	   the only one that does not. The card edge (--acc-edge, the identity at
-	   75%) reads 4.89:1 against the page, comfortably past the 3:1 a boundary
-	   carries and slightly better than the green it replaces at 4.81.
-	   #c65a1d is the far stop of the gradient strip and paints no text and no
-	   boundary: --acc-secondary is read at exactly one place in this file, the
-	   strip's linear-gradient. */
 	.app-card[data-app='foundry'] {
-		--acc-primary: #f6952f;
-		--acc-secondary: #c65a1d;
-		/* Horizontal hairlines at 7px -- the same rhythm as before, moved off
-		   cyan onto the card's own accent so the texture keeps quoting the pair
-		   two lines up rather than the pair it used to. Still distinct from
-		   GAUNTLET's blueprint grid and GREENLINE's diagonals, so the three do
-		   not read as one family, and still at 3.5% where it cannot touch
-		   legibility. */
+		/* Horizontal hairlines at 7px. */
 		--card-texture: repeating-linear-gradient(
 			to bottom,
-			rgba(246, 149, 47, 0.035) 0 1px,
+			color-mix(in srgb, var(--acc-primary) 3.5%, transparent) 0 1px,
 			transparent 1px 7px
 		);
-	}
-	/* IDEA MAPS -- JADE, AND THE ONE HUE ON THIS PAGE NOBODY ELSE IS SPENDING.
-	   Mr. Pina closed spec section 10's undecided accent on 2026-09-02: Maps
-	   takes a GREEN, because green is the pathway's brand identity and an IDEA
-	   product should read as one. This rule is the implementation of that
-	   decision, not a re-litigation of it; what was open was WHICH green.
-
-	   THE PROBLEM WAS THAT FOUR CARDS ALREADY SPEND ONE, and a fifth chosen by
-	   eye would have been a fifth thing nobody can tell apart at a glance.
-	   Measured in oklch, every incumbent green sits between hue 141.7 and
-	   158.6 -- admin/dashboard #78b870 at 141.7, GAUNTLET and VANGUARD #00ff41
-	   at 144.5, GREENLINE #2ae57e at 152.5, Tournaments #0fbe7a at 158.6 --
-	   with the Coin Ledger's chartreuse #c8ff00 below them at 124.0 and the
-	   --cyan token above at 177.6. The gap between the emerald and the cyan is
-	   the only green nothing on this page is using. This is oklch(0.820 0.150
-	   168), the middle of it: a jade, unambiguously green (its green channel
-	   leads its blue by 50 of 255) and unambiguously not one of the four.
-
-	   MEASURED, BECAUSE A FIFTH GREEN IS EXACTLY THE CLAIM THAT HAS TO BE.
-	   CIEDE2000 against every colour already on the launcher: GREENLINE 9.8,
-	   Tournaments 10.8, admin/dashboard 15.1, GAUNTLET and VANGUARD 18.6, the
-	   Coin Ledger 27.5, the shared brass default 34.7, the Foundry 50.1, FRC
-	   75.9 -- and 11.4 against --cyan, which is the token it is nearest in hue
-	   and which is nowhere near it in chroma. The worst of those, 9.8, is
-	   WIDER than the closest pair this page already ships (Tournaments against
-	   admin/dashboard, 9.0), so the board is not made tighter by adding to it.
-
-	   THE INK DOES NOT MOVE, unlike FRC's. As text it measures 10.86 / 9.24 /
-	   8.66 on --bg0 / --bg1 / --bg2, so the identity carries the glyph itself
-	   and there is nothing to re-pin; the 75% edge reads 6.89:1 against the
-	   page, past the 3:1 a load-bearing boundary owes.
-
-	   THE SECOND STOP IS THE PORTAL'S BRASS, AND IT IS THE ROOM QUOTED RATHER
-	   THAN A COLOUR PICKED. /maps paints its chrome in this jade and marks the
-	   thing you were looking for in --gold -- gold is a STATE on that surface,
-	   the way crimson is reserved for live and error -- so the card's 2px strip
-	   running jade to brass is the two roles the room actually has. It is the
-	   one strip on this launcher whose stops are a surface's own semantics
-	   rather than two colours that go together.
-
-	   THIS RULE PAINTS A REAL CARD NOW, AND THIS PARAGRAPH USED TO SAY IT DID
-	   NOT. It read "THERE IS NO `maps` ENTRY IN `PORTAL_APPS` YET AND THIS
-	   RULE PAINTS NOTHING UNTIL THERE IS", which was true the day 0020 wrote
-	   it and was made false by the very next bundle: `ca5d950` added the
-	   `maps` entry to the registry and `MapsMark.svelte` beside it, so the
-	   selector below has matched a mounted card ever since. 0021 was right not
-	   to revise another bundle's prose while landing that entry; the sentence
-	   is corrected here by the bundle that owns this file.
-
-	   The reason it mattered is the reason the sentence was written: a
-	   stylesheet rule keyed on an attribute no card carries is INERT AND
-	   NOTHING ON SCREEN REPORTS IT -- there is no wrong colour to notice, only
-	   a card that is not there. A comment claiming that state after it has
-	   passed is the same failure one layer up: it tells the next reader the
-	   rule is unreachable, which is exactly the thing that stops anybody
-	   measuring it. `tests/home-order-and-accent.test.ts` is what closes the
-	   loop in code, asserting the registry entry exists and that the launcher
-	   draws MapsMark for it rather than the fallback glyph. */
-	.app-card[data-app='maps'] {
-		--acc-primary: #40e3b1;
-		--acc-secondary: var(--gold);
-	}
-	/* One admin card since ledger 0117 (the Site Admins card merged into it);
-	   the pair is unchanged. */
-	.app-card[data-app='dashboard'] {
-		--acc-primary: #78b870;
-		--acc-secondary: #5abda8;
 	}
 	.app-strip {
 		position: absolute;
@@ -1223,13 +1066,13 @@
 		transition: color 0.2s, border-color 0.2s;
 	}
 	.app-tools button:hover {
-		color: var(--green);
-		border-color: rgba(0, 255, 65, 0.4);
+		color: var(--hover-ink);
+		border-color: color-mix(in srgb, var(--hover-ink) 40%, transparent);
 	}
 	.app-tools .pin.pinned {
 		color: var(--gold);
-		border-color: rgba(200, 255, 0, 0.5);
-		text-shadow: 0 0 6px rgba(200, 255, 0, 0.6);
+		border-color: color-mix(in srgb, var(--gold) 50%, transparent);
+		text-shadow: 0 0 6px color-mix(in srgb, var(--gold) 60%, transparent);
 	}
 	/* A pinned app now appears ONCE, in place, marked -- rather than a second
 	   time in a separate pinned row. */
@@ -1415,58 +1258,24 @@
 	}
 
 	/* ======================================================================
-	   UNDER SPACE WHITE: LIGHT CARDS, EACH IN A COLOUR OF ITS OWN (ledger
-	   0297, package F1b; round 2026-10-07; ledger 0380, report 48bdb5be; and
-	   Mr. Pina's decision of 2026-10-14, which decision 60 records).
+	   UNDER SPACE WHITE: LIGHT CARDS, EACH IN ITS FAMILY'S LIGHT INK (ledger
+	   0297, round 2026-10-07, ledger 0380, ledger 0467).
 
-	   THIS REVERSES DECISION 55's LIGHTNESS-ONLY RULE FOR SPACE WHITE, AND
-	   ONLY FOR SPACE WHITE. Until 2026-10-14 every card's light ink was its
-	   dark identity moved in lightness alone, hue and saturation held. Measured
-	   on this theme that put eleven of the fourteen cards in one dark-green
-	   band: the five cards that declare no accent (classroom, notebook,
-	   IdeaCAD, Armory, Coin Desk) took the theme's own green #3b6c36, the admin
-	   card's lightness twin was #3f7239, GAUNTLET and VANGUARD share the brand
-	   #00ff41 and so shared one twin #007d20, and GREENLINE, Tournaments and
-	   Maps are three more greens a hue step apart (#0f783e, #09794d, #117657).
-	   Only FRC red, the Foundry's burnt orange and the Coin Ledger's teal
-	   could be told apart, and Mr. Pina's report was "all my apps look the same
-	   in white mode, this sucks". His answer: a DISTINCT colour per app on
-	   Space White, while the dark themes keep their brand colours exactly.
+	   No card names a Space White ink any more. The family rules above read
+	   `--id-*`, and identity.css answers those per theme: on Space White the
+	   ink is solve()'s answer over this theme's grounds (4.8:1 on every one,
+	   the card and the CTA hover fill among them), so the word, the glyph, the
+	   call to action and the strip follow the family with no theme-keyed copy.
+	   This replaces the fifteen curated inks of decision 62 ("Distinct colour
+	   per app", 2026-10-14): fourteen hues on one screen is what Mr. Pina's
+	   2026-10-28 rule (at most five to seven) retires, and every card keeps
+	   its own name and mark beside the shared hue.
 
-	   SO EACH CARD HERE NAMES A CURATED INK, NOT A DERIVED ONE. The palette is
-	   spread round the hue wheel and across lightness so no two cards are near
-	   neighbours: FRC keeps FIRST red, the Foundry its burnt orange and the
-	   Coin Ledger its teal (those three were already distinct); the notebook is
-	   a warm amber, deliberately redder and stronger than the olive-brown
-	   --gold (#715d22) decision 40 took off this theme's words; GAUNTLET takes
-	   the lime its own room re-points --gold to, GREENLINE a true green and
-	   Tournaments a deep emerald; Maps a cyan blue, IdeaCAD a steel slate, the
-	   classroom a royal blue and Armory an indigo; VANGUARD a violet, the admin
-	   card a plum and the Coin Desk a raspberry. The closest pair is the
-	   classroom against Maps at a CIEDE2000 difference of 12.0, and no ink
-	   comes within 10 of --gold.
-
-	   WHAT DID NOT MOVE. Every ink still clears 4.5 as words on the card
-	   (#f7f9f9), on its own hover wash and on the CTA hover fill (#edf1f0),
-	   3:1 at 75% against the page, and 3.0 under the projector-washout model;
-	   tests/space-white-inks.test.ts measures all of it and the pairwise
-	   difference. The identity pair (--acc-primary, --acc-secondary) is not
-	   moved, and nothing here reaches IDEA or Matrix: every declaration sits
-	   under the theme attribute. The card's EDGE is still the plate's hairline
-	   rather than the ink at 75%, and its strip is the ink, solid.
-
-	   Nothing here is a theme file's: the theme may not declare an identity
-	   token (tests/theme-tokens.test.ts), so the card re-pins its OWN ink,
-	   keyed on the attribute, exactly where its dark ink is declared.
+	   What stays theme-keyed is the card's material: its edge is the plate's
+	   hairline rather than the ink at 75%, the glow goes flat, and the hover
+	   wash is mixed into the card's own ground.
 	   ====================================================================== */
 	:global(:root[data-theme='space-white']) .app-card {
-		/* THE FALLBACK FOR A CARD NOBODY HAS GIVEN AN INK YET: the theme's
-		   green (#3b6c36, 5.87 on the card). Every card the launcher draws
-		   today names its own below; a new app lands here until it does. */
-		--acc-ink: var(--green);
-		/* `--acc` is NOT re-pinned here (ledger 0380): it derives from the
-		   card's own `--acc-ink` in the base rule, which is what lets each
-		   card's ink below reach its word, glyph and call to action. */
 		/* The card's edge is the plate's hairline (3.27:1 on the plate's page,
 		   the load-bearing 3:1), not the brand at 75%; the fallback is the
 		   theme's own boundary, for the `SITE_PLATE = ''` revert. */
@@ -1479,18 +1288,10 @@
 		--acc-glow: transparent;
 		--acc-hover-glow: transparent;
 		/* The hover wash is laid over the CARD's own ground, not left
-		   transparent over the page. On the dark default the page is darker
-		   than the card and a see-through wash only adds contrast; here it is
-		   the other way round, and a 5% veil over #e8eceb took card titles
+		   transparent over the page: a 5% veil over #e8eceb took card titles
 		   under 4.5 on hover. Mixed into --bg1 it is the same tint on the
-		   ground the ink was pinned against. */
+		   ground the ink was solved against. */
 		--acc-wash: color-mix(in srgb, var(--acc) 5%, var(--bg1));
-	}
-	/* The strip is the card's own light ink, solid: the brand pair is neon
-	   (#00ff41, #c8ff00, #00f0ff) and a neon gradient on near-white is the
-	   look this theme exists not to have. */
-	:global(:root[data-theme='space-white']) .app-strip {
-		background: var(--acc-ink);
 	}
 	:global(:root[data-theme='space-white']) .app-icon,
 	:global(:root[data-theme='space-white']) .app-icon.frc-icon :global(.frc-icon-img) {
@@ -1498,87 +1299,6 @@
 	}
 	:global(:root[data-theme='space-white']) a.app-card:hover .app-cta {
 		box-shadow: none;
-	}
-	/* THE FIFTEEN INKS, one rule per card, each a single colour that paints
-	   the card's word, glyph, call to action and strip. The figures are
-	   WCAG ratios on the card / on the CTA hover fill. */
-	:global(:root[data-theme='space-white']) .app-card[data-app='classroom'] {
-		/* Royal blue: 6.08 / 5.64. */
-		--acc-ink: #1f55d0;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='notebook'] {
-		/* Warm amber, the brass of the dark card taken toward orange and kept
-		   saturated, so it reads as amber rather than the olive-brown --gold
-		   (CIEDE2000 10.8 from it): 6.35 / 5.89. */
-		--acc-ink: #845000;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='ideacad'] {
-		/* Steel slate, the one low-chroma ink, which is what sets it apart from
-		   the classroom's and Maps' blues: 7.86 / 7.30. */
-		--acc-ink: #3a5068;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='armory'] {
-		/* Deep indigo: 9.50 / 8.82. */
-		--acc-ink: #3e2f9c;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='maps'] {
-		/* Cyan blue, the map's water rather than the jade Tournaments'
-		   emerald would crowd: 5.57 / 5.17. */
-		--acc-ink: #006aa0;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='coins'] {
-		/* KEPT: the Coin Ledger's teal, its second identity colour (cyan
-		   #00f0ff) at a lightness that carries text: 5.30 / 4.92. */
-		--acc-ink: hsl(183.5 100% 24%);
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='market'] {
-		/* Fuchsia, the one magenta on the board, picked as the ink farthest
-		   from every other card (CIEDE2000 13.5 from the nearest, VANGUARD's
-		   violet and the desk's raspberry) that clears as words: 5.20 / 4.82. */
-		--acc-ink: #c20a9d;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'] {
-		/* Lime, the colour the GAUNTLET room re-points --gold to, taken dark
-		   enough to read: 5.51 / 5.11. */
-		--acc-ink: #4f6f00;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='frc'] {
-		/* KEPT: FIRST red at the lightness that carries text here (FIRST red
-		   itself measures 4.15 on the card): 4.90 / 4.55. */
-		--acc-ink: hsl(357.7 85.3% 46%);
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='greenline'] {
-		/* A true green, the one green left on this board: 5.15 / 4.78. */
-		--acc-ink: #0f7a35;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] {
-		/* Arcade violet, which also parts VANGUARD from GAUNTLET, whose brand
-		   green it shares on the dark themes: 6.05 / 5.61. */
-		--acc-ink: #8a2fc4;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='foundry'] {
-		/* KEPT: the Foundry's burnt orange, its second identity colour (the
-		   ember #c65a1d) at a lightness that carries text: 5.07 / 4.71. */
-		--acc-ink: hsl(21.7 74.4% 39%);
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='tournaments'] {
-		/* Deep emerald, darker than GREENLINE's green so the two part on
-		   lightness as well as hue: 7.35 / 6.82. */
-		--acc-ink: #005e4b;
-	}
-	:global(:root[data-theme='space-white']) .app-card[data-app='dashboard'] {
-		/* Plum, for the admin console: 8.32 / 7.73. */
-		--acc-ink: #7d2a64;
-	}
-	/* GAUNTLET's and VANGUARD's marks paint their accent strokes from
-	   `var(--gold, ...)` -- the sketch and scan line, the thruster -- which on
-	   this theme is #715d22, brown, beside a lime or violet glyph. Inside the
-	   icon only, --gold points at the card's one ink, the way the GAUNTLET room
-	   re-points it at its lime; the marks are not edited and the dark cards
-	   paint exactly what they did. */
-	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'] .app-icon,
-	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] .app-icon {
-		--gold: var(--acc);
 	}
 	/* The bar's and the tools' own controls: their outer edge is the theme's
 	   load-bearing boundary, and the neon hover and pin tints become the

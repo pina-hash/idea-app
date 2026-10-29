@@ -30,6 +30,15 @@ export interface PortalApp {
 	/** Only rendered for site admins (0067; was teachers). */
 	adminOnly?: boolean;
 	/**
+	 * WHICH FAMILY THE APP BELONGS TO, AND THAT IS IDENTITY, NOT PAINT (ledger
+	 * 0467). The launcher draws at most seven hues on one screen, so apps of
+	 * one kind share one: the family. AppLauncher stamps it as `data-family`
+	 * and its stylesheet keys the colour on that attribute, each family an entry
+	 * of the kit's colour library solved per theme (`--id-*`). This field names
+	 * the group; it never carries a colour, for the cascade reason below.
+	 */
+	family: AppFamily;
+	/**
 	 * THERE IS NO `theme` FIELD, AND ADDING ONE BACK IS STILL THE CHANGE TO
 	 * REFUSE -- but the per-app accent it used to carry is BACK, one layer down.
 	 *
@@ -64,6 +73,22 @@ export interface PortalApp {
 }
 
 /**
+ * THE LAUNCHER'S FAMILIES (ledger 0467, feedback ac7d7b60): six hues a reader
+ * tells apart on the home screen, each card still carrying its own name and
+ * mark beside the hue. `tests/identity-colors.test.ts` holds every app to a
+ * family, every family to a stylesheet rule, and the set to at most seven.
+ */
+export type AppFamily = 'class' | 'make' | 'coins' | 'play' | 'frc' | 'tools';
+export const APP_FAMILIES: readonly { id: AppFamily; word: string }[] = [
+	{ id: 'class', word: 'Class' },
+	{ id: 'make', word: 'Make' },
+	{ id: 'coins', word: 'Coins' },
+	{ id: 'play', word: 'Play' },
+	{ id: 'frc', word: 'FRC' },
+	{ id: 'tools', word: 'Tools' }
+];
+
+/**
  * THE CURATED DEFAULT ORDER IS THIS ARRAY'S ORDER. Class work first, then the
  * personal record, then the economy, then training and games; admin tools last.
  * `visibleApps` additionally guarantees the admin block sorts after every
@@ -72,6 +97,7 @@ export interface PortalApp {
 export const PORTAL_APPS: PortalApp[] = [
 	{
 		id: 'classroom',
+		family: 'class',
 		title: 'Classroom',
 		sub: 'Your classes: announcements, assignments, and due dates from your teachers.',
 		icon: 'classroom',
@@ -81,6 +107,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'notebook',
+		family: 'class',
 		title: 'My Notebook',
 		sub: 'Photograph your engineering notebook pages and keep every entry in one place.',
 		icon: 'notebook',
@@ -92,6 +119,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'ideacad',
+		family: 'make',
 		title: 'IdeaCAD',
 		sub: 'A full-screen 3D CAD workspace for your models, features, properties, and design rules.',
 		icon: 'ideacad',
@@ -101,6 +129,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'armory',
+		family: 'make',
 		title: 'IDEA Armory',
 		sub: 'Your team CAD files on every computer: check out, check in, and every version kept.',
 		icon: 'armory',
@@ -112,6 +141,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'maps',
+		family: 'tools',
 		title: 'IDEA Maps',
 		sub: 'Find any room, any storage unit, and any tool, down to the drawer it lives in.',
 		icon: 'maps',
@@ -151,6 +181,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	// retired card is dropped with it, the cost report 16's answer named.
 	{
 		id: 'coins',
+		family: 'coins',
 		title: 'IDEA Coin Ledger',
 		// PARALLEL WITH COIN DESK BELOW, AND THAT IS THE WHOLE FIX. Each card
 		// says which side of the ledger it is, in the same grammar, so the
@@ -170,6 +201,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		// where a reader already looks for coins, and it needs a session because
 		// buying, posting and sending all do.
 		id: 'market',
+		family: 'coins',
 		title: 'IDEA Market',
 		sub: 'Spend your coins: the shop, listings from classmates, jobs that pay, sending coins to a friend, and the stock market.',
 		icon: 'market',
@@ -179,6 +211,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'gauntlet',
+		family: 'play',
 		title: 'IDEA · GAUNTLET',
 		sub: 'CAD skills dojo. Read drawings, model against the clock, and climb the boards.',
 		icon: 'gauntlet',
@@ -188,6 +221,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'frc',
+		family: 'frc',
 		title: 'FRC Training',
 		sub: 'The Team 5669 training track: CAD, mechanisms, controls, strategy, and drive team.',
 		icon: 'frc',
@@ -200,6 +234,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'greenline',
+		family: 'play',
 		title: 'IDEA · GREENLINE',
 		sub: 'Combat racing under the floodlights. Build your machine, run Proving Ground 07, and hold the line.',
 		icon: 'greenline',
@@ -209,6 +244,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'vanguard',
+		family: 'play',
 		title: 'IDEA · VANGUARD',
 		sub: 'Top-down arcade shooter. Clear the sectors, chain your combos, and chase the high score.',
 		icon: 'vanguard',
@@ -217,6 +253,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'foundry',
+		family: 'make',
 		title: 'IDEA · FOUNDRY',
 		sub: 'Web apps built and published by students. Open one, or publish your own.',
 		icon: 'foundry',
@@ -244,6 +281,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'tournaments',
+		family: 'play',
 		title: 'Tournaments',
 		sub: 'Live double-elimination brackets: register, qualify, and follow every match in real time.',
 		icon: 'tournament',
@@ -252,6 +290,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'dashboard',
+		family: 'tools',
 		title: 'Admin',
 		// ONE ADMIN CARD, WHERE THERE USED TO BE TWO (ledger 0117, report 26:
 		// "site admins and the admin dashboard should be one app rather than

@@ -51,14 +51,33 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
     real ground. Composite the colour over its ground and read the composited
     value; an alpha rule's ratio depends on what is behind it.
 
-- **Launcher cards carry a PER-APP accent AND an optional per-app TEXTURE, both
-  declared in the stylesheet and keyed on `data-app`, with the shared brass/gold
-  pair and the brushed-metal token as the live defaults.** The identity is
-  deliberate: GAUNTLET and GREENLINE carry their product colours, VANGUARD its
-  arcade green, the FRC card FIRST's red and blue, Tournaments its room's
-  `--tnm-accent`/`--tnm-gold`, and the Coin Ledger the neon-terminal palette its
-  own page is built from. An app that declares nothing takes the shared pair, so
-  a NEW card looks right with no entry anywhere.
+- **IDENTITY COLOUR IS ONE LIBRARY, SOLVED PER THEME (ledger 0467, feedback
+  ac7d7b60, Mr. Pina's spec in `docs/feedback/2026-10-28/QUEUE-site-ui-pass.md`).**
+  Launcher families, calendar layers, unit tints, class palettes and section
+  colours are entries of the kit's library (`tools/hx-kit/kit/colors.json`) put
+  through `solve()` by `tools/identity-colors.mjs`, which writes
+  `src/lib/design-system/identity.css` (`--id-<entry>-ink|fill|on|line|wash` on
+  `:root` for IDEA and Matrix, again for Space White, dark values restored on its
+  dark islands) and `src/lib/design-system/identity.ts` (`IDENTITY`, the same
+  answers as data). **Never type an identity hex anywhere; add the entry to
+  `USED` and regenerate.** The rules `tests/identity-colors.test.ts` holds: at
+  most seven hues a reader must tell apart on one screen, each beside a word or
+  a glyph; fills CIEDE2000 10 apart in normal vision and 8 under simulated
+  deuteranopia and protanopia on both grounds (inks 10 apart in normal vision
+  only, because 4.8:1 on near-white pins every ink to one lightness; two
+  neutral metals are held to 8); nothing within 10 of the brand green, which
+  means act and done (only the IDEA class palette is green, because it is
+  named for the brand); no neon literal in `src/` outside a named, shrink-only
+  list of rooms the lane did not own.
+- **Launcher cards carry a FAMILY accent (ledger 0467) AND an optional per-app
+  TEXTURE.** `PortalApp.family` names the group (identity, never paint),
+  `AppLauncher` stamps it as `data-family`, and the stylesheet keys the pair on
+  it: class (sky), make (indigo), coins (marigold), play (magenta), frc (FIRST
+  red, FIRST blue as the strip's far stop) and tools (titanium, the `.app-card`
+  default, so a new app arrives neutral). This replaced one colour per app
+  (decision 62, fourteen hues on Space White, two of them neon). Each card keeps
+  its own name and mark beside the shared hue. Textures stay per app and take
+  the family fill, never a literal.
   - **UNDER THE SITE PLATE THE TEXTURE IS NOT DRAWN AND THE ACCENT IS (ledger
     0346).** Six of the textures are ruled fills or grids, which the no-grid rule
     removes, so `site-plate.css` replaces every texture rather than sorting them;
@@ -66,16 +85,12 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
     Space White ink was measured on) and takes only the plate's depth; what those
     are on Space White is AppLauncher's own theme-keyed rule. A texture
     is still worth declaring for `SITE_PLATE = ''`, and costs nothing otherwise.
-  - **A CARD QUOTES ITS OWN ROOM OR IT DECLARES NOTHING.** Those are the only two
-    honest answers. A pair invented for a card whose app has no colours of its own
-    is inventing an identity for the app -- classroom, coin-desk, dashboard and
-    admin take the default for exactly that reason. And a card whose room DOES have
-    a rule inherits the rule with the colours: Tournaments spends its emerald once,
-    on the mark, because "at most one dominant emerald element per screen" is that
-    theme's own hard constraint.
-  - **A rule may declare a TEXTURE and still take the shared accent** (the notebook
-    card: brass is correct for it, and restating a default is how a default
-    drifts). What a `[data-app=...]` rule may not be is inert -- it has to carry at
+  - **A CARD TAKES ITS FAMILY OR THE DEFAULT, NEVER A COLOUR OF ITS OWN (ledger
+    0467).** The older rule here, that a card quotes its own room's colours,
+    produced one hue per app; a room's own palette still governs inside the
+    room, and the launcher card shows the family.
+  - **A `[data-app=...]` rule declares a TEXTURE only** (ledger 0467: the
+    colour is the family's). What a `[data-app=...]` rule may not be is inert -- it has to carry at
     least one of the five per-card properties, which
     `tests/home-order-and-accent.test.ts` asserts.
   - **THE FRC MARK IS NEVER ANIMATED, and that outranks matching the cards either
@@ -92,8 +107,9 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
     rule** -- so `.app-card`'s shared pair was dead code that could not paint,
     no later rule could correct a single card, and the value was discoverable
     only by reading the registry. They are now plain rules on
-    `.app-card[data-app='<id>']` in `AppLauncher.svelte`, which sit INSIDE the
-    cascade: the default is reachable, and overriding one card is one selector.
+    `.app-card[data-family='<family>']` in `AppLauncher.svelte` (ledger 0467;
+    per-app `[data-app]` rules carry textures only), which sit INSIDE the
+    cascade: the default is reachable, and overriding one family is one selector.
     **There is still no colour field on `PortalApp`** -- `src/lib/portal-apps.ts`
     carries an app's identity, never its paint, because a field there is how the
     value gets read back onto the element again.
@@ -101,7 +117,8 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
     value moves.** `--acc-primary`/`--acc-secondary` are the brand. `--acc-ink`
     is the glyph colour every text, icon and edge derives from, defaulting to
     the identity, and it is what a card re-pins when the brand cannot carry
-    text. FRC is the only case: #ED1C24 measures 3.41:1 on `--bg1` (it is made
+    text. On the launcher solve() makes the ink for every family (ledger 0467);
+    FRC was the hand-made case: #ED1C24 measures 3.41:1 on `--bg1` (it is made
     for the white paper `.frc-root` puts it on), so the ink is the same hue and
     the same saturation at 68% lightness instead of 52%. **Lightness only --
     desaturating is how a brand quietly stops being itself.** If a colour cannot
@@ -177,23 +194,14 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
     transparent, or it disappears on white. A theme difference inside a
     component is a theme-keyed override there, never a new token in the theme
     file: theme files hold tokens only.
-    - **ON SPACE WHITE EACH BRANDED CARD PAINTS ITS OWN LIGHT TWIN AGAIN
-      (ledger 0380, report 48bdb5be, REVERSING the 2026-10-07 round's one
-      green).** Collapsing every word, glyph and call to action into one green
-      made every app the same colour, and Mr. Pina said so ("all my apps look
-      the same in white mode"). The theme's `.app-card` rule no longer
-      re-pins `--acc`, so each card's light ink reaches its word, its glyph,
-      its CTA and its strip, and the edge stays the plate hairline. **AND EVERY
-      APP IS A DIFFERENT COLOUR (ledger 0381, decision 62, Mr. Pina's
-      "Distinct colour per app").** Lightness-only twins still left near
-      neighbours (GAUNTLET beside VANGUARD, the accent-less cards beside the
-      theme green), so each Space White ink is chosen for the card rather than
-      derived: on its own brand's hue where it has one, and EVERY pair of cards
-      at least `DISTINCT_FLOOR` (10) apart in CIEDE2000, every one clearing 4.5:1
-      on the card. `tests/space-white-inks.test.ts` pins the clearance, the
-      floor over every pair, that every app the launcher can draw has an ink
-      (so a new app cannot arrive without one), and, as the negative control,
-      that the twins this replaced fail the floor.
+    - **ON SPACE WHITE A CARD PAINTS ITS FAMILY'S LIGHT INK (ledger 0467,
+      superseding ledger 0381's one curated ink per card, decision 62).** The
+      family rule reads `--id-*`, which identity.css answers per theme, so no
+      card or family names a Space White ink; the theme's `.app-card` rule
+      moves only the material (the plate hairline edge, no glow, the hover wash
+      mixed into `--bg1`). `tests/space-white-inks.test.ts` holds every family
+      ink to 4.5:1 on the card, its hover wash and the CTA fill, 10 apart from
+      every other family, and that no Space White rule re-pins a card.
   - **A PHONE AT 30 FPS IS NOT A SLOW DEVICE (report R09).** The Matrix rain
     degrades only when the median of a 90-frame window is 45ms or longer
     (`judgeFrame` in `$lib/design-system/themes/matrix-rain.ts`), after a 3s

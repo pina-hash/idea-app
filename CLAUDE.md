@@ -627,6 +627,14 @@ the source of truth; **do not invent colours or swap fonts.**
   Every value is solved by `tools/hx-kit/color.mjs` and held by
   `tests/color-tokens.test.ts`. **The semantic roles are fixed; do not reassign
   them.** Never use pure red, pure white (`#FFFFFF`), or pure yellow.
+- **Identity colours are one library, solved (ledger 0467).** A launcher family,
+  a calendar layer, a unit tint, a class palette or a section colour reads a
+  generated `--id-<entry>-*` token from `src/lib/design-system/identity.css`
+  (or `IDENTITY` in `identity.ts`), written by `tools/identity-colors.mjs` from
+  `tools/hx-kit/kit/colors.json` through `solve()`; never type an identity hex.
+  At most seven hues on one screen, each beside a word or a glyph, and no neon.
+  `tests/identity-colors.test.ts` holds it; `docs/subsystems/themes.md` has the
+  detail.
 - **`--crimson` is reserved for live / rec / error status only**, never a general
   accent and never an identity colour.
 - **`--green` is for primary actions, active navigation, focus, success and

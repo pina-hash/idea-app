@@ -8,7 +8,10 @@
 	 */
 	import type { HxSchedule } from '$lib/classroom/html-assignment/bridge';
 	import { PACING_STATE_WORDS } from './item-schedule';
-	import { dayWords } from './model';
+	import { dayWords, layerInfo } from './model';
+
+	/** The pacing layer's own colour, read from the calendar's one list. */
+	const PACING_LINE = layerInfo('pacing').color;
 
 	let { schedule }: { schedule: HxSchedule } = $props();
 	const year = $derived(schedule.today.slice(0, 4));
@@ -27,7 +30,7 @@
 
 {#if schedule.pacing.length}
 	<section class="pace card" aria-labelledby="pace-title" data-testid="pacing-strip">
-		<span class="pace-stripe" aria-hidden="true"></span>
+		<span class="pace-stripe" aria-hidden="true" style:--pace-line={PACING_LINE}></span>
 		<div class="pace-head">
 			<h2 class="section-label" id="pace-title">Day-by-day plan</h2>
 			<p class="pace-sum">
@@ -62,7 +65,9 @@
 		display: grid;
 		gap: 0.45rem;
 	}
-	/* The pacing layer's identity colour, the calendar's own stripe. */
+	/* The pacing layer's identity colour, the calendar's own stripe (ledger
+	   0467: the kit library's indigo, read through CALENDAR_LAYERS, where it
+	   was the retired --teal). */
 	.pace-stripe {
 		position: absolute;
 		left: 0;
@@ -70,7 +75,7 @@
 		bottom: 0.9rem;
 		width: 3px;
 		border-radius: 0 3px 3px 0;
-		background: var(--teal);
+		background: var(--pace-line);
 	}
 	.pace-head {
 		display: flex;
@@ -104,7 +109,9 @@
 		font-size: 0.75rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		color: var(--teal);
+		/* A state word ("Today", "Next") is information: --cyan, where it read
+		   the retired --teal (ledger 0465). */
+		color: var(--cyan);
 	}
 	[data-state='behind'] .pace-word {
 		color: var(--amber);

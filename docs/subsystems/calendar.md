@@ -23,7 +23,17 @@ _Ledger 0439 (report 0ccf7bff, with d0041188 folded in), migrations 0308 and 030
 
 `CALENDAR_LAYERS` in `src/lib/calendar/model.ts` is the list (classes, pacing,
 team, school, no_school, idea, robotics), each on by default with an identity
-colour anchored to a meaning the site already gives it. **Every layer except
+colour and a glyph (ledger 0467): `color` is a kit-library entry's `line` and
+`fill` its `fill`, both through the generated `--id-*` tokens (see
+`docs/subsystems/themes.md`), and `mark` is its shape, which `LayerMark.svelte`
+draws filled with the fill and edged in the line on every filter key, month
+chip, phone dot, list row and week strip row, so a layer is never colour alone.
+Five hues (sky, indigo, magenta, marigold, FIRST red) and two neutral metals;
+none is green and none is a status hue. **A selected filter key is lit in its
+own layer's colour, never the site green**: the key re-points the plate's
+`--plate-accent` on itself, so `plate.css` is untouched. **On a phone (under
+720px) the filters and the class list sit behind one key**, "Layers: N of 7
+on" (measured 205px of filters before, 44px after, at 375). **Every layer except
 the school calendar and the Techmen feed comes from the database, through ONE
 rule: `_calendar_feed_email`** (0308). It is keyed on an email so the phone link
 (no session) and an admin's read of one viewer can ask it; every caller-facing

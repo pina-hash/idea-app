@@ -18,6 +18,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BADGE_BY_ID } from '$lib/identity-style';
+import { IDENTITY } from '$lib/design-system/identity';
 import {
 	CLASS_THEME_BADGES,
 	CLASS_THEME_DEFAULTS,
@@ -118,6 +119,11 @@ function parse(value: string): Rgba & { hsl: [number, number, number] } {
 	if (hex) {
 		const rgb = [0, 2, 4].map((i) => parseInt(hex[1].slice(i, i + 2), 16)) as Rgb;
 		return { rgb, alpha: 1, hsl: rgbToHsl(rgb) };
+	}
+	const rgbm = v.match(/^rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\)$/);
+	if (rgbm) {
+		const rgb = rgbm.slice(1, 4).map(Number) as Rgb;
+		return { rgb, alpha: Number(rgbm[4]), hsl: rgbToHsl(rgb) };
 	}
 	const hsl = v.match(/^hsl\(([\d.]+) ([\d.]+)% ([\d.]+)%(?: \/ ([\d.]+))?\)$/);
 	if (hsl) {
@@ -325,7 +331,7 @@ describe('the catalogue', () => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* Every colour is a lightness-only pair, seeded where it says it is          */
+/* Every colour is a solved pair from the kit's library (ledger 0467)         */
 /* -------------------------------------------------------------------------- */
 
 const COLOURS: [string, ThemeColour][] = [
@@ -336,39 +342,33 @@ const COLOURS: [string, ThemeColour][] = [
 	...SECTION_ACCENTS.map((a): [string, ThemeColour] => [`${a.id} accent`, a.colour])
 ];
 
-describe('every colour is a pair', () => {
-	it('moves in lightness only between its two twins, and deeper on the light ground', () => {
+describe('every colour is a pair solve() made from one library entry', () => {
+	it('carries exactly the generated values of its entry, for both themes', () => {
 		expect(COLOURS.length).toBe(CLASS_THEME_PALETTES.length * 2 + SECTION_ACCENTS.length);
 		for (const [name, c] of COLOURS) {
+			const entry = IDENTITY[c.lib];
+			expect(entry, name).toBeDefined();
+			const role = name.endsWith(' wash') ? 'fill' : 'ink';
+			expect(c.dark, name).toBe(entry.dark[role]);
+			expect(c.light, name).toBe(entry.light[role]);
+			// The twin keeps the entry's hue family and is deeper on the light ground.
 			const dark = parse(themeColourCss(c, 'dark')).hsl;
 			const light = parse(themeColourCss(c, 'light')).hsl;
-			expect(dark[0], name).toBe(light[0]);
-			expect(dark[1], name).toBe(light[1]);
-			expect(light[2], name).toBeLessThan(dark[2]);
+			expect(light[2], name).toBeLessThanOrEqual(dark[2]);
 		}
 	});
 
-	it('seeds IDEA from --green and --teal and FRC from --frc-blue and --frc-red', () => {
-		const frc = blockAfter(readFileSync('src/lib/frc/frc-theme.css', 'utf8'), '.frc-root {');
+	it('seeds IDEA from --green and FRC from FIRST blue and red, through the library', () => {
 		const palette = (id: string) => CLASS_THEME_PALETTES.find((p) => p.id === id)!;
-		const seeds: [ThemeColour, string][] = [
-			[palette('idea').wash, hexIn(SITE.idea, '--green')!],
-			/* The edge was seeded from --teal's #3ea368. Ledger 0465 retired teal as
-			   a token meaning (it now resolves to --cyan), so the seed is held as
-			   the value it was; lane 0467 re-derives class colours from the kit's
-			   colour library. */
-			[palette('idea').edge, '#3ea368'],
-			[palette('frc').wash, hexIn(frc, '--frc-blue')!],
-			[palette('frc').edge, hexIn(frc, '--frc-red')!]
-		];
-		for (const [c, source] of seeds) {
-			const [h, s] = parse(source).hsl;
-			expect(hueDistance(c.h, h), source).toBeLessThanOrEqual(0.1);
-			expect(Math.abs(c.s - s), source).toBeLessThanOrEqual(0.1);
-		}
-		// On Space White the FRC wash is FIRST's blue itself, not a neighbour of it.
-		const frcLight = parse(themeColourCss(palette('frc').wash, 'light')).rgb.map(Math.round);
-		expect(frcLight).toEqual(parse(hexIn(frc, '--frc-blue')!).rgb);
+		expect(palette('idea').wash.lib).toBe('idea-green');
+		expect(palette('idea').edge.lib).toBe('idea-green');
+		// The brand entry's anchor is read off --green, never typed.
+		expect(IDENTITY['idea-green'].anchor).toBe(hexIn(SITE.idea, '--green')!.toLowerCase());
+		expect(palette('frc').wash.lib).toBe('first-blue');
+		expect(palette('frc').edge.lib).toBe('first-red');
+		// No colour here is green but the IDEA palette's (green means act and done).
+		const green = [...COLOURS].filter(([, c]) => c.lib === 'idea-green').map(([n]) => n);
+		expect(green.sort()).toEqual(['idea edge', 'idea wash']);
 	});
 
 	it('never paints pure red, white or yellow, and no wash or accent reads as the error red', () => {
@@ -380,11 +380,12 @@ describe('every colour is a pair', () => {
 			}
 		}
 		const crimson = parse(hexIn(SITE.idea, '--crimson')!).hsl[0];
+		const hueOf = (c: ThemeColour) => parse(c.dark).hsl[0];
 		for (const p of CLASS_THEME_PALETTES) {
-			expect(hueDistance(p.wash.h, crimson), `${p.id} wash`).toBeGreaterThanOrEqual(20);
+			expect(hueDistance(hueOf(p.wash), crimson), `${p.id} wash`).toBeGreaterThanOrEqual(20);
 		}
 		for (const a of SECTION_ACCENTS) {
-			expect(hueDistance(a.colour.h, crimson), `${a.id} accent`).toBeGreaterThanOrEqual(20);
+			expect(hueDistance(hueOf(a.colour), crimson), `${a.id} accent`).toBeGreaterThanOrEqual(20);
 		}
 	});
 });
@@ -435,7 +436,7 @@ describe('THE CONTRAST SWEEP: every palette and accent on every ground of all th
 				const css = classThemeCss(resolveClassTheme({ winners })!, side);
 				const wash = parse(css.wash);
 				const edge = parse(css.edge).rgb;
-				const stroke = parse(css.pattern.match(/hsl\([^)]*\)/)![0]);
+				const stroke = parse(css.pattern.match(/rgb\([^)]*\)/)![0]);
 				expect(wash.alpha).toBe(CLASS_THEME_WASH_ALPHA);
 				expect(stroke.alpha).toBe(CLASS_THEME_PATTERN_ALPHA);
 				for (const [gName, g] of banner) {
@@ -589,8 +590,9 @@ describe('painting and saying a theme', () => {
 				`--ct-accent-light:${light.accent}`
 			].join(';')
 		);
-		expect(dark.wash).toBe('hsl(265 55% 60% / 0.22)');
-		expect(light.edge).toBe('hsl(320 60% 35%)');
+		const [r, g, b] = [1, 3, 5].map((i) => parseInt(IDENTITY.violet.dark.fill.slice(i, i + 2), 16));
+		expect(dark.wash).toBe(`rgb(${r} ${g} ${b} / 0.22)`);
+		expect(light.edge).toBe(IDENTITY.magenta.light.ink);
 	});
 
 	it('says the theme in words, naming only what is on screen', () => {

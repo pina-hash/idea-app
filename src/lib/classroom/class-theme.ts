@@ -37,13 +37,17 @@
  * ----------------------------------------------------------------------------
  * All three site themes occur on a class page (Space White is route-scoped TO
  * the classroom; IDEA and Matrix are dark), so every colour a palette or an
- * accent contributes is a `ThemeColour`: ONE hue and ONE saturation, and two
- * lightnesses -- `dark` for IDEA and Matrix, `light` for Space White. The twin
- * moves in LIGHTNESS ONLY, which is CLAUDE.md's ink rule (`--acc-ink`,
- * `Pathway.inkOnLight`): an identity keeps its hue and saturation on both
- * grounds and only gets lighter or deeper to stay readable. Writing the pair
- * as one hue with two lightnesses makes that true by construction rather than
- * by review.
+ * accent contributes is a `ThemeColour`: ONE entry of the kit's colour library
+ * (`tools/hx-kit/kit/colors.json`, the `lib` field) and the two values
+ * `solve()` gives it, `dark` for IDEA and Matrix and `light` for Space White
+ * (ledger 0467). They are read out of the generated `$lib/design-system/identity`
+ * and never typed here: a wash takes the entry's `fill`, and an edge and an
+ * accent take its `ink`, the strongest value solve() gives an entry (6:1 on
+ * every dark ground, 4.8:1 on every Space White one), because both sit on a
+ * palette's wash under a pattern stroke, where the `line` of FIRST red read
+ * 2.91 and of magenta 2.49. solve() keeps the entry's hue and moves lightness, which is
+ * CLAUDE.md's ink rule (`--acc-ink`, `Pathway.inkOnLight`) made by the solver
+ * rather than by review. Until ledger 0467 these were hand-picked HSL pairs.
  *
  * WHAT PAINTS WHAT (the same construction `IdentityBanner` measured):
  *
@@ -69,15 +73,14 @@
  *
  *                     text-1 on the wash      edge          accent
  *                     WCAG   projector       WCAG  proj    WCAG  proj
- *     IDEA            6.65   5.00            3.77  2.85    3.29  2.62
- *     Matrix          6.37   4.80            3.77  2.85    3.29  2.62
- *     Space White     8.25   4.70            3.41  2.75    3.53  2.80
+ *     IDEA            6.65   5.00            3.83  3.00    3.84  3.01
+ *     Matrix          6.41   4.83            3.85  3.02    3.86  3.03
+ *     Space White     8.06   4.60            3.91  2.99    3.93  2.99
  *
- * against floors of 4.5 (text), 3.0 (graphical) and, under `PROJECTOR_MODEL`,
- * 4.5 (body text) and 2.0 (a boundary). On a strip key's bare face the edge
- * measures at least 4.12 (IDEA), 4.26 (Matrix) and 3.74 (Space White).
- * `--text-2` does NOT clear on the washed ground of the dark themes (3.13
- * IDEA, 3.32 Matrix; 4.51 on Space White), which is the `IdentityBanner`
+ * (ledger 0467, the library's solved values) against floors of 4.5 (text),
+ * 3.0 (graphical) and, under `PROJECTOR_MODEL`, 4.5 (body text) and 2.0 (a
+ * boundary). `--text-2` does NOT clear on the washed ground of the dark
+ * themes (3.13 IDEA, 3.34 Matrix; 4.41 on Space White), which is the `IdentityBanner`
  * tagline finding again: nothing on the banner is painted in `--text-2`; a
  * second line on it takes `--text-1` and differs by size or face.
  *
@@ -116,6 +119,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BADGE_BY_ID } from '$lib/identity-style';
+import { IDENTITY, type IdentityName } from '$lib/design-system/identity';
 import { isSignedOutFailure } from './poll';
 
 /* ========================================================================== */
@@ -149,23 +153,29 @@ export const CLASS_THEME_FEATURE_HINTS: Record<ClassThemeFeature, string> = {
  */
 export const CLASS_THEME_ID = /^[a-z0-9-]{1,40}$/;
 
-/** One colour as a lightness-only pair: see the header. Numbers in degrees and percent. */
+/** One colour as a pair of solved values: see the header. */
 export interface ThemeColour {
-	h: number;
-	s: number;
-	/** Lightness on the dark themes (IDEA, Matrix). */
-	dark: number;
-	/** Lightness on Space White. */
-	light: number;
+	/** The kit library entry it is solved from. */
+	lib: IdentityName;
+	/** On the dark themes (IDEA, Matrix): `#rrggbb`. */
+	dark: string;
+	/** On Space White: `#rrggbb`. */
+	light: string;
 }
 
 export type ThemeSide = 'dark' | 'light';
 
+/** One role of one library entry, as both twins. */
+function solved(lib: IdentityName, role: 'fill' | 'ink'): ThemeColour {
+	return { lib, dark: IDENTITY[lib].dark[role], light: IDENTITY[lib].light[role] };
+}
+
 /** The CSS for one side of a pair, with an alpha when one is given. */
 export function themeColourCss(colour: ThemeColour, side: ThemeSide, alpha?: number): string {
-	const l = side === 'dark' ? colour.dark : colour.light;
-	const body = `${colour.h} ${colour.s}% ${l}%`;
-	return alpha === undefined ? `hsl(${body})` : `hsl(${body} / ${alpha})`;
+	const hex = side === 'dark' ? colour.dark : colour.light;
+	if (alpha === undefined) return hex;
+	const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+	return `rgb(${r} ${g} ${b} / ${alpha})`;
 }
 
 /**
@@ -189,61 +199,24 @@ export interface PaletteOption {
 }
 
 /**
- * THE PALETTES. Two are seeded from brands this repository already carries;
- * the rest are distinct hue families chosen so no two palettes read alike on
- * a dark card and none reads as `--crimson`'s live/error red on its own (the
- * test holds every WASH at least 20 degrees of hue off crimson's; FRC's red is
- * an edge, beside a blue wash).
+ * THE PALETTES (ledger 0467: each wash and edge an entry of the kit's colour
+ * library, solved per theme). Two quote brands the site already carries; the
+ * rest are the library's linking set and its neutral steel, chosen so no two
+ * palettes read alike and none reads as `--crimson`'s live/error red on its
+ * own (the test holds every WASH at least 20 degrees of hue off crimson's;
+ * FIRST red is an edge, beside a blue wash).
  *
- * - `idea`: the brand greens. The wash is `--green` (#78b870, hue 113.3 and
- *   33.6% saturation) and the edge is `--teal` (#3ea368, 145 and 44.9%), each
- *   moved in lightness only; the test reads both tokens out of colors.css.
- * - `frc`: FIRST's blue and red. Report R07 linked FRC team 5669's branding
- *   page (frcteam5669.com/outreach/branding) to seed this; the build session
- *   had no route to it (the egress proxy refused the host), so the seed is the
- *   FIRST blue and red this repository already carries as `--frc-blue`
- *   (#0066b3) and `--frc-red` (#ed1c24) in src/lib/frc/frc-theme.css, which the
- *   test reads. A correction from the team's own page is a lightness-and-hue
- *   edit here, and the id stays `frc`.
+ * - `idea`: the brand green, the one palette that is green, because it is
+ *   named for the brand (`idea-green`, read off `--green` by the generator).
+ * - `frc`: FIRST's blue wash and red edge (`first-blue`, `first-red`).
  */
 export const CLASS_THEME_PALETTES: readonly PaletteOption[] = [
-	{
-		id: 'idea',
-		label: 'IDEA',
-		wash: { h: 113.3, s: 33.6, dark: 58, light: 32 },
-		edge: { h: 145, s: 44.9, dark: 62, light: 26 }
-	},
-	{
-		id: 'frc',
-		label: 'FRC',
-		// On Space White the wash is FIRST's blue itself (35.1% is #0066b3).
-		wash: { h: 205.8, s: 100, dark: 50, light: 35.1 },
-		edge: { h: 357.7, s: 85.3, dark: 72, light: 35 }
-	},
-	{
-		id: 'ocean',
-		label: 'Ocean',
-		wash: { h: 185, s: 60, dark: 45, light: 30 },
-		edge: { h: 200, s: 70, dark: 62, light: 30 }
-	},
-	{
-		id: 'ember',
-		label: 'Ember',
-		wash: { h: 24, s: 85, dark: 50, light: 38 },
-		edge: { h: 42, s: 80, dark: 55, light: 23 }
-	},
-	{
-		id: 'violet',
-		label: 'Violet',
-		wash: { h: 265, s: 55, dark: 60, light: 45 },
-		edge: { h: 320, s: 60, dark: 72, light: 35 }
-	},
-	{
-		id: 'steel',
-		label: 'Steel',
-		wash: { h: 215, s: 15, dark: 55, light: 38 },
-		edge: { h: 200, s: 35, dark: 64, light: 32 }
-	}
+	{ id: 'idea', label: 'IDEA', wash: solved('idea-green', 'fill'), edge: solved('idea-green', 'ink') },
+	{ id: 'frc', label: 'FRC', wash: solved('first-blue', 'fill'), edge: solved('first-red', 'ink') },
+	{ id: 'ocean', label: 'Ocean', wash: solved('sky', 'fill'), edge: solved('sky', 'ink') },
+	{ id: 'ember', label: 'Ember', wash: solved('marigold', 'fill'), edge: solved('coral', 'ink') },
+	{ id: 'violet', label: 'Violet', wash: solved('violet', 'fill'), edge: solved('magenta', 'ink') },
+	{ id: 'steel', label: 'Steel', wash: solved('steel', 'fill'), edge: solved('steel', 'ink') }
 ];
 
 export interface PatternOption {
@@ -318,20 +291,21 @@ export interface AccentOption {
 }
 
 /**
- * THE ONE COLOUR A TEACHER SETS PER SECTION. Six hues spread round the wheel
- * so two blocks of one course never share a near colour, each measured on
- * every palette's wash (a stripe sits on the washed banner) and on the bare
- * card and key faces. None is a red: the nearest is tangerine, 28 degrees off
- * crimson's hue, because a stripe that reads as the error red says something
- * the class did not do.
+ * THE ONE COLOUR A TEACHER SETS PER SECTION. Six entries of the kit's colour
+ * library, each read as its `ink` (see the header), so two blocks of one course never share a near
+ * colour. None is a red: the nearest is the orange of `filament-orange`, 28
+ * degrees off crimson's hue, because a stripe that reads as the error red says
+ * something the class did not do. None is green either (green means act and done): the
+ * `mint` id, which a section may have stored, is the library's indigo since
+ * ledger 0467 and says so in its label, so its words match its colour.
  */
 export const SECTION_ACCENTS: readonly AccentOption[] = [
-	{ id: 'gold', label: 'Gold', colour: { h: 45, s: 80, dark: 58, light: 21 } },
-	{ id: 'tangerine', label: 'Tangerine', colour: { h: 28, s: 90, dark: 60, light: 26 } },
-	{ id: 'rose', label: 'Rose', colour: { h: 330, s: 70, dark: 74, light: 34 } },
-	{ id: 'violet', label: 'Violet', colour: { h: 270, s: 60, dark: 74, light: 40 } },
-	{ id: 'sky', label: 'Sky', colour: { h: 200, s: 70, dark: 62, light: 27 } },
-	{ id: 'mint', label: 'Mint', colour: { h: 155, s: 55, dark: 55, light: 23 } }
+	{ id: 'gold', label: 'Gold', colour: solved('marigold', 'ink') },
+	{ id: 'tangerine', label: 'Tangerine', colour: solved('filament-orange', 'ink') },
+	{ id: 'rose', label: 'Rose', colour: solved('magenta', 'ink') },
+	{ id: 'violet', label: 'Violet', colour: solved('violet', 'ink') },
+	{ id: 'sky', label: 'Sky', colour: solved('sky', 'ink') },
+	{ id: 'mint', label: 'Indigo', colour: solved('indigo', 'ink') }
 ];
 
 /** What a feature takes when the class has voted on other features but not this one. */

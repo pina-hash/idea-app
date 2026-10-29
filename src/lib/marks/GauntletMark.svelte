@@ -13,7 +13,8 @@
 	a dashed sketch profile) with a feature-tree motif and an animated machining
 	scan line. Deliberately generic interface language; it must never resemble
 	the SolidWORKS logo or its red-on-white scheme (see docs/GAUNTLET-DESIGN.md).
-	Strokes inherit currentColor; accents read the gold/lime token. Animation
+	Every stroke, the accents too, inherits currentColor (the card's family ink,
+	ledger 0467: the accents were a neon fallback behind the brass token). Animation
 	only runs under prefers-reduced-motion: no-preference.
 -->
 <svg class:once viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -26,7 +27,7 @@
 		<path d="M6.5 10h3M6.5 20h3M6.5 30h3" opacity="0.4" />
 	</g>
 	<!-- Dashed sketch profile under the part -->
-	<g class="sketch" stroke="var(--gold, #c8ff00)" stroke-width="1" opacity="0.55">
+	<g class="sketch" stroke="currentColor" stroke-width="1" opacity="0.55">
 		<path class="sketch-ring" d="M24 37.5l-9-3 0-3.5 9-3 9 3 0 3.5z" stroke-dasharray="3 2.6" />
 	</g>
 	<!-- Extruded hex boss (isometric wireframe) -->
@@ -38,7 +39,7 @@
 		<circle cx="24" cy="12.6" r="1.9" opacity="0.65" />
 	</g>
 	<!-- Machining scan line sweeping the part -->
-	<path class="scan" d="M14.5 12h19" stroke="var(--gold, #c8ff00)" stroke-width="0.9" stroke-dasharray="2 2" opacity="0.8" />
+	<path class="scan" d="M14.5 12h19" stroke="currentColor" stroke-width="0.9" stroke-dasharray="2 2" opacity="0.8" />
 </svg>
 
 <style>

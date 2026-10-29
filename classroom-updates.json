@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-10-29",
+			"title": "Calmer colors for apps, the calendar and unit tiles",
+			"body": "The home screen groups apps into six colors instead of one per app: Class, Make, Coins, Play, FRC and Tools. Each card still has its own name and icon. On the calendar, every layer has its own shape (circle, triangle, diamond and so on) next to its color, a layer that is on lights up in its own color, and on a phone the layer buttons fold behind one Layers button so the month shows right away. Post tiles in the class stream use four unit colors that are easier to tell apart, and class banner colors were tuned to read on every theme. If your section color was Mint, it now shows as Indigo.",
+			"tags": ["Visual", "Calendar"]
+		},
+		{
 			"date": "2026-10-28",
 			"title": "IdeaCAD sharing shows names and emails, and names that call out a classmate wait for an OK",
 			"body": "When you share an IdeaCAD model, everyone in the list now shows their name and their school email, and you can find someone by any part of either. A model someone shared with you now says who owns it by name and email. Tournament entry names, roster names and taglines, and IDEA Market listings, that name a classmate now wait for a teacher's OK before anyone sees them, just like team names. Until then your entry shows \"Name waiting for an OK\" and your listing stays hidden.",
