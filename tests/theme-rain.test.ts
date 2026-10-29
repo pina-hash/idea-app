@@ -273,6 +273,10 @@ const themeCss = readFileSync(
 	fileURLToPath(new URL('../src/lib/design-system/themes/matrix.css', import.meta.url)),
 	'utf8'
 ).replace(/\/\*[\s\S]*?\*\//g, '');
+const baseCss = readFileSync(
+	fileURLToPath(new URL('../src/lib/design-system/colors.css', import.meta.url)),
+	'utf8'
+).replace(/\/\*[\s\S]*?\*\//g, '');
 const themeToken = (name: string): string => {
 	const m = new RegExp(`${name}\\s*:\\s*(#[0-9a-f]{6})\\s*;`, 'i').exec(themeCss);
 	if (!m) throw new Error(`matrix.css declares no hex for ${name}`);
@@ -314,7 +318,12 @@ describe('THE WORST FRAME: every text tier the theme paints on the bare page gro
 		expect(headColour(1)).toBe(RAIN.head);
 		// And the same statement for the one SEMANTIC token that sits bare on
 		// the landing page: --teal, the hero eyebrow, which this theme never
-		// repaints and which measured 3.92 under a bright head.
+		// repaints and which measured 3.92 under a bright head. Since ledger
+		// 0465 --teal is an alias of --cyan, so the eyebrow paints the patina,
+		// read here off colors.css; the retired #3ea368 is held too, as before.
+		const cyan = /--cyan\s*:\s*(#[0-9a-f]{6})\s*;/i.exec(baseCss)![1];
+		expect(/--teal\s*:\s*var\(--cyan\)\s*;/.test(baseCss)).toBe(true);
+		expect(worstFrame(cyan, ground, RAIN.contentGain).head).toBeGreaterThanOrEqual(4.5);
 		expect(worstFrame('#3ea368', ground, RAIN.contentGain).head).toBeGreaterThanOrEqual(4.5);
 	});
 
@@ -500,7 +509,7 @@ describe('R09: at phone width the rain drags a longer streak, and no pixel behin
 		const tiers: (readonly [string, string])[] = ['--white', '--text-1', '--ice', '--text-2', '--dim'].map(
 			(t) => [t, themeToken(t)] as const
 		);
-		tiers.push(['--teal (hero eyebrow)', '#3ea368']);
+		tiers.push(['--teal (hero eyebrow, the --cyan alias since 0465)', /--cyan\s*:\s*(#[0-9a-f]{6})\s*;/i.exec(baseCss)![1]]);
 		let cells = 0;
 		for (let x = 0; x <= 375; x += RAIN.cell / 2) {
 			const g = bandGain(x, 375, narrow);

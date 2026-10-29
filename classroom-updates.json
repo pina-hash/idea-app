@@ -2679,6 +2679,12 @@
 			"title": "Two teammates can work in one table at once",
 			"body": "In a team table, like the weighted objectives matrix, each row is held by whoever is typing in it, so teammates can fill different rows at the same time; a row a teammate is in shows their name. Your class home shows what your team does today: your tasks due, who checked in, anything blocked and the next sign-off. Under a team post, Team box history shows a shared box's last versions and lets you put one back. A team name or tagline that names a classmate waits for your teacher's OK before it shows.",
 			"tags": ["Classroom", "Teams"]
+		},
+		{
+			"date": "2026-10-28",
+			"title": "Clearer status colors in every theme",
+			"body": "Status colors were retuned so they are easier to read and easier to tell apart, including for students who are colorblind. In the white theme, status badges and banners are now bright fills with dark text instead of pale tints, and orange and gold words no longer look brown. In the dark themes, red and orange words are a little brighter so they read on every panel. In progress now shows in the same blue-green as other information instead of a second green that looked like done. Status badges keep their words, so read the word if two colors look alike to you.",
+			"tags": ["Classroom", "Themes"]
 		}
 	]
 }

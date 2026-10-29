@@ -21,8 +21,9 @@
 
      2. SEMANTIC -- a colour that names a STATE inside one vocabulary:
         --green success/active, --gold special, --cyan metadata, --amber
-        warning, --teal in progress, --violet special, --crimson live/error,
-        and the -ink corrections beside them. A THEME NEVER TOUCHES IT EITHER,
+        warning, --violet special, --crimson live/error, and the -ink
+        corrections beside them (--teal, once in progress, is an alias of
+        --cyan since ledger 0465 and names no state of its own). A THEME NEVER TOUCHES IT EITHER,
         for the same reason: six hues are how a reader tells six states apart
         on one screen. Collapsing them into the theme's own hue is the
         launcher failure one level down, where it is harder to see.

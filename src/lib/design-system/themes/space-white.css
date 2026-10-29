@@ -21,10 +21,15 @@
        (#6f7c78) does the separating: 3.65 on the page, 4.11 on a panel.
      - THE IDEA GREEN IS DARKENED INTO INK for words, icons and the selection
        mark, and kept at full brightness only as a large field
-       (`--accent-field`, the brand #78b870). Every semantic hue takes the same
-       move -- hue and saturation held, lightness only, the house rule for a
-       derived ink (--acc-ink, --violet-ink, Pathway.ink) -- so green is still
-       green, copper is still copper and a reader still tells six states apart.
+       (`--accent-field`, the brand #78b870). Every semantic hue is what
+       solve() in tools/hx-kit/color.mjs makes of its anchor on these grounds
+       (ledger 0465): lightness moves and the hue holds, except that a WARM
+       word also leans toward orange and keeps its chroma, because a yellow
+       or copper darkened in lightness alone is brown (#715d22 and #77491b
+       were). A reader tells the states apart by the chip FILLS, which are
+       spread in lightness, and by the word and glyph each always carries;
+       at 4.5:1 on a near-white panel every ink sits near OKLCH L 0.5, so
+       the inks alone cannot do it for a colorblind reader.
      - NO GLOW AND NO BLUR ANYWHERE. A glow has no light-ground equivalent; the
        glow, bevel and texture tokens are zero-size transparent shadows and
        `none` here, and the lifted elevation is a hard, blur-free edge.
@@ -73,18 +78,27 @@
      --dim            5.36 plate      4.21 plate
      --gear           4.60 plate      3.76 plate
      --boundary       3.34 plate      2.92 plate   (3.50 / 3.05 on the tint)
-     --green          4.77 plate      3.86 plate
-     --gold           4.91 plate      3.95 plate
-     --cyan           4.86 plate      3.92 plate   (also the focus ring)
-     --amber          5.87 plate      4.50 plate
-     --teal           5.89 plate      4.51 plate
-     --violet-ink     5.68 plate      4.40 plate
-     --crimson        4.86 plate      3.92 plate
-     --signal-hot     4.50 plate      3.69 plate
+     THE SEMANTIC INKS (ledger 0465) are solve()'s, over page, panel,
+     inset, raised and the Plate's word grounds (src/lib/classroom/plate.css:
+     its plate, panel, inset, chip and list faces); the board puts only copy
+     on --plate. Worst ground of all of those and the tint:
+     --green          4.80            3.86
+     --gold           4.84            3.88    (an ochre, OKLCH C 0.11)
+     --cyan           4.85            3.89    (also the focus ring, and --teal)
+     --amber          5.85            4.46    (also the hot signal)
+     --violet-ink     4.84            3.88
+     --crimson        4.84            3.88
+   A word in one of these on a Plate KEY FACE or WELL (#b8bdc5 to #c8ccd5)
+   reads about 3.45 and is not a pairing these tokens can make: a key's
+   label is --plate-btn-ink.
 
-   The accent and status fills carry their inks at 5.01 (ok), 6.06 (warn),
-   4.87 (danger) and 5.07 (info); --edge, the label on a gold or green plate,
-   reads 6.04 on --gold; the page against a panel is 1.13 (1.12 washed).
+   THE STATUS FILLS are bright fills with dark text: --text-1 reads 4.61
+   (ok), 7.86 (warn), 5.62 (danger), 6.34 (info) and 12.28 (special) on
+   them. A tone's ink is not drawn on its own fill on this theme. --edge,
+   the label on a gold or green plate, reads 6.18 on --gold and 6.13 on
+   --green; the page against a panel is 1.13 (1.12 washed).
+   tests/color-tokens.test.ts holds the floor under every figure in this
+   block (4.5:1 for a word, 3:1 for an edge) and the values to solve().
    ========================================================================== */
 
 :root[data-theme='space-white'] {
@@ -119,34 +133,65 @@
 	--line: rgba(13, 19, 17, 0.22);
 	--line-strong: rgba(59, 108, 54, 0.6);
 
-	/* --- The semantic inks, lightness only (see the header). -------------- */
-	--green: #3b6c36;
-	--gold: #715d22;
-	--cyan: #2b6a5d;
-	--amber: #77491b;
-	--teal: #245e3c;
-	--violet: #6e4fa5;
-	--violet-ink: #624697;
-	--crimson: #b42b2b;
+	/* --- The semantic inks: solve()'s ink for each role's anchor over these
+	   grounds (ledger 0465; see the header). The warm two keep their chroma
+	   and lean toward orange, so a word is an ochre or a burnt orange and
+	   never the muted brown #715d22 and #77491b were. THE GROUNDS INCLUDE
+	   THE PLATE'S: a word on this theme sits on the classroom and site plate
+	   as often as on these tokens, and its chips, panels and insets
+	   (src/lib/classroom/plate.css, #dadee6 the darkest) are a step darker
+	   than --bg0, so each ink is solved over both sets. Copper is solved
+	   over one more: the Plate lays the copper word on a 14% wash of
+	   itself (its missing count and its needs-attention flag), so that wash
+	   is a ground too, and the ink is the fixed point solve() reaches with
+	   it, #8c3700 (4.82 on the wash). Teal is not
+	   declared: it is retired as a meaning and resolves to --cyan from
+	   colors.css. Violet's anchor already clears 3:1 as a mark, so the mark
+	   is the anchor itself. ------------------------ */
+	--green: #2d6b26;
+	--gold: #8b4f00;
+	--cyan: #006a5a;
+	--amber: #8c3700;
+	--violet: #7050a8;
+	--violet-ink: #6d4ca4;
+	--crimson: #a93338;
 
 	/* --- The roles that part company from --green on a light ground. The
 	   ink, fill and on-fill roles are aliases in colors.css and follow the
-	   inks above with no line here: the ink IS the fill (#3b6c36 under a
-	   --bg0 label reads 5.21), which is how a primary button stays one
+	   inks above with no line here: the ink IS the fill (#2d6b26 under a
+	   --bg0 label reads 5.44), which is how a primary button stays one
 	   colour. The field is the brand at full brightness, for a large area
 	   only -- it is 2.24:1 on a panel and must never carry a word. The status
 	   fills are PINNED, never mixed from the ink above them. ------------- */
 	--accent-field: #78b870;
-	--status-ok-fill: #ddebda;
-	--status-warn-fill: #f2e3d0;
-	--status-danger-fill: #f6dcdc;
-	--status-info-fill: #d8eae6;
-	--signal-hot: #a64918;
+	/* THE STATUS FILLS ARE BRIGHT FILLS WITH DARK TEXT (ledger 0465). The
+	   pale tints they replaced (#ddebda, #f2e3d0, #f6dcdc, #d8eae6) sat
+	   within 0.06 of each other in lightness and fell under 8 CIEDE2000 of
+	   each other under simulated deuteranopia. Each is now solve()'s fill
+	   for its tone, spread from OKLCH L 0.58 (ok) to 0.86 (special), and on
+	   this theme the band and the chip are the same fill: --text-1 and the
+	   tone's -on word read 4.61 to 12.28 on them. The tone's INK is no longer
+	   painted on its own fill here (it measures 1.4 to 3.8); a word on a
+	   status fill is --text-1 or --status-<tone>-on. -on is the base value,
+	   the near-black, and is not redeclared. */
+	--status-ok-fill: #4d8c46;
+	--status-warn-fill: #e79548;
+	--status-danger-fill: #e16665;
+	--status-info-fill: #41a692;
+	--status-special-fill: #efce6f;
+	--status-ok-solid: #4d8c46;
+	--status-warn-solid: #e79548;
+	--status-danger-solid: #e16665;
+	--status-info-solid: #41a692;
+	--status-special-solid: #efce6f;
 	/* THE HOVER INK IS GREEN HERE (ledger 0298, decision 40 item 1), not the
-	   brass it is on the dark themes: --gold on this ground is #715d22, the
+	   brass it is on the dark themes: --gold on this ground was #715d22, the
 	   brown a lightness-only yellow always lands on, and a hover is where a
-	   person sees it most. 4.77 on the plate, 3.86 washed (the --green row
-	   above); gold stays for the special-callout chips it is named for. */
+	   person sees it most. Since ledger 0465 --gold here is solve()'s ochre,
+	   #8b4f00, which is not brown, but it sits 9.9 CIEDE2000 from the copper
+	   word, so a hover in it would read as a warning; the hover stays green.
+	   4.80 on its worst ground, 3.86 washed (the --green row above); gold
+	   stays for the special-callout chips it is named for. */
 	--hover-ink: var(--green);
 
 	/* --- No glow and no blur. A zero-size transparent shadow rather than
@@ -231,16 +276,16 @@
 	--green: #78b870;
 	--gold: #c8a848;
 	--cyan: #5abda8;
-	--amber: #d08030;
-	--teal: #3ea368;
-	--violet: #7050a8;
-	--violet-ink: #a08ac7;
+	--amber: #ea984b;
+	--teal: var(--cyan);
+	--violet: #8d6dc8;
+	--violet-ink: #b899f8;
 	--white: #eae6d8;
 	--dim: #849080;
 	--ice: #a9bcab;
 	--gear: #75846f;
 	--edge: #0d120c;
-	--crimson: #d95f5f;
+	--crimson: #ff8683;
 	--line: rgba(145, 165, 130, 0.27);
 	--line-strong: rgba(120, 184, 112, 0.58);
 	--surface-page: var(--bg0);
@@ -257,7 +302,7 @@
 	--surface-1: #101312;
 	--surface-2: #161a18;
 	--hairline: rgba(255, 255, 255, 0.08);
-	--boundary: #6f7b73;
+	--boundary: #78847c;
 	--text-1: #e7eae8;
 	--text-2: #9aa49d;
 	--text-3: #5c665f;
@@ -271,10 +316,17 @@
 	--status-warn: var(--amber);
 	--status-danger: var(--crimson);
 	--status-info: var(--cyan);
-	--status-ok-fill: color-mix(in srgb, var(--green) 12%, transparent);
-	--status-warn-fill: color-mix(in srgb, var(--amber) 12%, transparent);
-	--status-danger-fill: color-mix(in srgb, var(--crimson) 12%, transparent);
-	--status-info-fill: color-mix(in srgb, var(--cyan) 12%, transparent);
+	--status-special: var(--gold);
+	--status-ok-fill: #263326;
+	--status-warn-fill: #2f2417;
+	--status-danger-fill: #301f1e;
+	--status-info-fill: #1b2e29;
+	--status-special-fill: #2f2d1d;
+	--status-ok-solid: #97d88e;
+	--status-warn-solid: #cf7f30;
+	--status-danger-solid: #da6060;
+	--status-info-solid: #56b9a4;
+	--status-special-solid: #d4b455;
 	--signal-hot: var(--amber);
 	--hover-ink: var(--gold);
 	--glow-green: 0 0 6px rgba(120, 184, 112, 0.48), 0 0 18px rgba(120, 184, 112, 0.2);

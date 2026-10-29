@@ -557,7 +557,7 @@ describe("Space White's dark islands: the block is DERIVED from the stylesheets,
 		expect(Object.keys(base).length).toBeGreaterThan(80);
 		expect(base['--bg0']).toBe('#121a12');
 		expect(Object.keys(moved).length).toBeGreaterThan(30);
-		expect(moved['--green']).toBe('#3b6c36');
+		expect(moved['--green']).toBe('#2d6b26');
 		expect(island['--green']).toBe('#78b870');
 	});
 

@@ -378,8 +378,12 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		   twins for landing on it. The notebook's amber is the card nearest it,
 		   on purpose redder and stronger; every ink is held at least the
 		   distinctness floor away from it. */
-		const gold = `#${token('--gold').map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('')}`;
-		const [goldHue] = rgbToHsl(token('--gold'));
+		/* LEDGER 0465 TOOK THE BROWN OFF THE THEME ITSELF: --gold here is now
+		   solve()'s ochre (#965600), so the brown is held as the value decision
+		   40 retired rather than read off the theme, and no card may drift
+		   back onto it. */
+		const gold = '#715d22';
+		const [goldHue] = rgbToHsl([0x71 / 255, 0x5d / 255, 0x22 / 255]);
 		expect(goldHue).toBeGreaterThan(35); // positive control: it is the brown, read off the theme
 		expect(goldHue).toBeLessThan(60);
 		for (const [id, value] of light) {

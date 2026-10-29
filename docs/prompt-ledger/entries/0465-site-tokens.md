@@ -7,6 +7,6 @@
 - Owns: `src/lib/design-system/colors.css`, `src/lib/design-system/themes/space-white.css`, `src/lib/design-system/themes/matrix.css`, `src/lib/design-system/themes/index.css`, the token block of `src/app.css` if tokens are still set there, a new token test under `tests/`; no component files; the lane's tests; one `classroom-updates.json` entry where students see a change; its `docs/history/` entry; this entry.
 - Starts: first, before 0466 to 0469
 - Migration permitted: no. Claims: none
-- Status: issued
+- Status: pushed
 - Mode: solo
 - Branch: main (solo)

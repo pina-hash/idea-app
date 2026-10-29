@@ -12,31 +12,58 @@
 	--bg2: #222e22; /* header bars, input fields */
 	--plate: #2c3c2c; /* raised emblem plate: hero panels, featured surfaces */
 
-	/* --- Semantic colors (fixed roles). Lightness reduced ~10-13 points and
-	   richness restored so accents read on dark surfaces; the logo's measured
-	   rim-light green sits at L ~= 57% (#72ab6d). --- */
+	/* --- Semantic colors (fixed roles). ---------------------------------------
+	   EVERY HUE HERE IS SOLVED, NOT CHOSEN (ledger 0465). Each role keeps one
+	   ANCHOR, its brand value (green #78b870, brass #c8a848, patina #5abda8,
+	   copper #d08030, violet #7050a8, crimson #d95f5f), and the token is what
+	   `solve()` in tools/hx-kit/color.mjs makes of that anchor for this
+	   ground set: the IDEA and Matrix pages, panels and insets together,
+	   because both dark themes read this one :root value. solve() keeps the
+	   hue and the chroma and moves lightness until a WORD clears 6:1 on every
+	   one of those grounds, so a hue that already did (green, brass, patina)
+	   comes back as its anchor and a hue that did not moves:
+
+	     copper   #d08030 -> #ea984b   was 4.60 on --bg2, 3.81 on the plate
+	     crimson  #d95f5f -> #ff8683   was 4.14 on --bg1, 3.88 on --bg2
+	     violet   #7050a8 -> #8d6dc8   the mark: was 2.45 on --bg1, now 3.71
+	     violet-ink #a08ac7 -> #b899f8 the word: was 4.69 on --bg2, now 6.04
+
+	   tests/color-tokens.test.ts re-runs solve() over the same anchors and
+	   grounds and holds every value here to it, so a hex typed into this
+	   block by hand reddens the suite. It also holds the pairs the app makes
+	   (4.5:1 for words, 3:1 for marks and edges, on every ground including
+	   the selected-row tint), no muddy fill, and the status tones apart under
+	   simulated deuteranopia and protanopia. --- */
 	--green: #78b870; /* PRIMARY: mint rim-light — key labels, glows, success, active */
 	--gold: #c8a848; /* secondary accent: aged brass — special callouts */
-	--cyan: #5abda8; /* informational: patina — timestamps, version, metadata */
-	--amber: #d08030; /* warning: copper */
-	--teal: #3ea368; /* in-progress */
-	--violet: #7050a8; /* special, sparingly */
-	/* THE INK --violet CANNOT CARRY ITSELF. As a fill or an edge #7050a8 is the
-	   accent and does not move; as TEXT it measures 2.88 / 2.45 / 2.30 on
-	   --bg0 / --bg1 / --bg2, which is not a near-miss, it is unreadable. This
-	   is the --acc-ink contract in its other costume: same hue (261.8deg),
-	   same saturation (35.5%), LIGHTNESS ONLY, 48.6% -> 66%. 5.88 / 5.00 /
-	   4.69. Anything that paints a WORD in violet reads this; anything that
-	   paints a fill or a border keeps --violet. */
-	--violet-ink: #a08ac7;
+	--cyan: #5abda8; /* informational: patina, for timestamps, version, metadata and in progress */
+	--amber: #ea984b; /* warning: copper, solved to 6:1 on every dark ground */
+	/* TEAL IS RETIRED AS A MEANING (ledger 0465). It sat 9.4 CIEDE2000 from
+	   --green on this plate and 7.5 on Space White, inside green's own name
+	   category, so a reader could not tell "in progress" from "done" by colour
+	   at all (docs/design/site-ui-audit-2026-10-26). In progress is
+	   information, so the name now resolves to --cyan in every theme and no
+	   theme declares it. It is kept as a NAME so the 75 places that still read
+	   it keep painting; lanes 0466 to 0469 move them onto the status tones. */
+	--teal: var(--cyan);
+	/* violet: special, sparingly. A FILL OR AN EDGE, never a word: solve()'s
+	   fill for the anchor, 3.71 on --bg1 and 3.10 on the selected-row tint,
+	   clear of the 3:1 a mark needs. */
+	--violet: #8d6dc8;
+	/* THE WORD IN VIOLET. As TEXT the fill cannot carry itself, so anything
+	   that paints a word or a glyph in violet reads this, solve()'s ink for
+	   the same anchor: 6.44 on --bg1, 6.04 on --bg2. */
+	--violet-ink: #b899f8;
 	--white: #eae6d8; /* body text: bone — the letterform ivory, NOT pure white */
 	--dim: #849080; /* dim text, placeholders, secondary labels (gear sage) */
 	--ice: #a9bcab; /* disabled / not-yet-started */
 	--gear: #75846f; /* sage metal: structural chrome, inactive strokes */
 	--edge: #0d120c; /* near-black outline — the emblem's dark linework */
 
-	/* Reserved status red: LIVE / REC / error. Never used for identity. */
-	--crimson: #d95f5f;
+	/* Reserved status red: LIVE / REC / error. Never used for identity.
+	   solve()'s ink for the #d95f5f anchor: 6.47 on --bg1, 6.07 on --bg2
+	   (the anchor itself measured 4.14 and 3.88, under the text floor). */
+	--crimson: #ff8683;
 
 	/* --- Hairlines (sage at rest, mint rim-light when active) --- */
 	--line: rgba(145, 165, 130, 0.27);
@@ -105,15 +132,19 @@
 	   resolve to color(srgb ...) and a regex over computed styles reports the
 	   plate instead of the real ground:
 
-	     surface-0 4.44  surface-1 4.23  surface-2 3.98
-	     bg0 4.02        bg1 3.42        bg2 3.21
+	     surface-0 5.04  surface-1 4.80  surface-2 4.51
+	     bg0 4.56        bg1 3.88        bg2 3.64
+	     green-tint 3.24 (the selected row)
 
-	   Worst case 3.21 against a 3:1 floor. --plate is not in that list because
-	   nothing in the app renders on it; a boundary that lands there needs its
-	   own measurement (#2c3c2c would put this at 2.66). --text-3 itself was the
-	   obvious candidate and does NOT clear: 2.95 on --surface-2, which is where
-	   the grading console's option controls sit. */
-	--boundary: #6f7b73;
+	   Worst case 3.24 against a 3:1 floor. LEDGER 0465 MOVED IT, LIGHTNESS
+	   ONLY (45.9% -> 49.4%, hue 140 and 5% saturation held): the previous
+	   #6f7b73 measured 2.86 on --green-tint, so the edge of a selected row was
+	   under the floor. The value is solve()'s line for that anchor over this
+	   theme's grounds and the tint. --plate is not in that list because
+	   nothing in the app renders on it (3.01 there now). --text-3 itself was
+	   the obvious candidate and does NOT clear: 2.95 on --surface-2, which is
+	   where the grading console's option controls sit. */
+	--boundary: #78847c;
 	--text-1: #e7eae8; /* body copy and headings */
 	--text-2: #9aa49d; /* secondary text, labels, meta */
 	--text-3: #5c665f; /* tertiary: separators, disabled, decorative */
@@ -163,20 +194,41 @@
 	             on    the label ON that plate             --accent-on-fill
 	             field full-brightness brand green, large  --accent-field
 	                   areas only (a banner, a hero band)
-	     status  inks as TEXT, 4.5:1 on every ground; fills behind a chip or a
-	             line, never mixed from the ink under a light theme (the
-	             "fill is pinned" rule, colors.css's --nb-cell-* block):
-	                   success --status-ok     / --status-ok-fill
-	                   warning --status-warn   / --status-warn-fill
-	                   danger  --status-danger / --status-danger-fill  (live and error)
-	                   info    --status-info   / --status-info-fill
+	     status  FOUR TOKENS PER TONE (ledger 0465), all PINNED hexes, never a
+	             mix of the ink (the "fill is pinned" rule, the --nb-cell-*
+	             block below):
+	               --status-<tone>        the INK: a word or a glyph, 4.5:1 on
+	                                      every ground
+	               --status-<tone>-fill   the BAND behind a row, a banner or a
+	                                      soft chip. It carries --text-1 at
+	                                      4.5:1 in every theme. Dark: a quiet
+	                                      tint that also carries the ink.
+	                                      Space White: the bright chip fill
+	                                      itself, with dark text on it, never
+	                                      a word in the warm ink.
+	               --status-<tone>-solid  the CHIP: a solid fill, spread in
+	                                      lightness so every pair of tones is
+	                                      12 CIEDE2000 apart and 8 under
+	                                      simulated deuteranopia and
+	                                      protanopia. Use it where a reader
+	                                      must tell tones apart at a glance.
+	               --status-<tone>-on     the word ON the solid, 4.5:1
+	             tones: ok (done, success), warn (late, needs a look), danger
+	             (live, recording and error ONLY), info (information, in
+	             progress), special (brass: instructor-only, pinned). Every
+	             value is solve()'s, from the hue's anchor at the lightness
+	             tests/color-tokens.test.ts names; the ink is still the hue.
+	             A chip whose solid is under 3:1 on its ground draws its edge in
+	             the ink, which is solve()'s own `line` rule.
 	     signal  the ONE hot mark, "now / you are here"      --signal-hot
 
 	   On this dark plate the accent's ink, fill and field are all the one
 	   --green, and the hot signal borrows copper (--amber) because the dark
 	   palette has no fourth warm hue to give it. That makes hot and warning one
 	   colour HERE, which is why a hot mark always carries a glyph and a word.
-	   Under Space White the four accent roles and the signal part company.
+	   Since ledger 0465 that is true under Space White as well: its copper
+	   word is solve()'s burnt orange, and a second warm word beside it would
+	   be one more hue that simulated deuteranopia flattens into the first.
 
 	   A MONO MICRO-LABEL ABOVE A VALUE is --font-mono at --fs-label, uppercase,
 	   --track-label, in --text-2 (typography.css); it is a recipe, not a token.
@@ -190,12 +242,29 @@
 	--status-warn: var(--amber);
 	--status-danger: var(--crimson);
 	--status-info: var(--cyan);
-	/* The classroom's own fill: 12% of the ink over whatever is behind it, the
-	   mix classroom components already write out by hand. */
-	--status-ok-fill: color-mix(in srgb, var(--green) 12%, transparent);
-	--status-warn-fill: color-mix(in srgb, var(--amber) 12%, transparent);
-	--status-danger-fill: color-mix(in srgb, var(--crimson) 12%, transparent);
-	--status-info-fill: color-mix(in srgb, var(--cyan) 12%, transparent);
+	--status-special: var(--gold);
+	/* THE BAND: solve()'s wash of each chip fill, pinned over the neutral
+	   --surface-1. It used to be 12% of the ink over whatever was behind it,
+	   which over the green --bg1 plate read the danger tint as olive (#313022)
+	   and the warning tint inside the muddy box (#373824 over --bg2). Pinned,
+	   each keeps its hue on every ground and carries --text-1 at 10.9 or
+	   better and its own ink at 5.6 or better. */
+	--status-ok-fill: #263326;
+	--status-warn-fill: #2f2417;
+	--status-danger-fill: #301f1e;
+	--status-info-fill: #1b2e29;
+	--status-special-fill: #2f2d1d;
+	/* THE CHIP: solid, dark word on it (11.20 / 6.02 / 5.21 / 7.93 / 9.35). */
+	--status-ok-solid: #97d88e;
+	--status-warn-solid: #cf7f30;
+	--status-danger-solid: #da6060;
+	--status-info-solid: #56b9a4;
+	--status-special-solid: #d4b455;
+	--status-ok-on: #0d1311;
+	--status-warn-on: #0d1311;
+	--status-danger-on: #0d1311;
+	--status-info-on: #0d1311;
+	--status-special-on: #0d1311;
 	--signal-hot: var(--amber);
 	/* THE HOVER INK (ledger 0298, decision 40 item 1): the colour a control's
 	   word, glyph or edge turns to under the pointer. On the dark themes it is
@@ -294,7 +363,9 @@
 	--nb-accent-wash: rgba(200, 168, 72, 0.18);
 	/* The meta line above a heading; IDEA's own brass. */
 	--nb-meta-accent: var(--nb-accent-ink);
-	--nb-ok: color-mix(in srgb, var(--teal) 62%, #dff5e6);
+	/* ok is success, so it mixes the green; it read --teal until ledger 0465
+	   retired teal as a meaning. */
+	--nb-ok: color-mix(in srgb, var(--green) 62%, #dff5e6);
 	--nb-error: color-mix(in srgb, var(--crimson) 66%, #ffe0e0);
 	--nb-warn: color-mix(in srgb, var(--amber) 68%, #ffeccf);
 
@@ -343,7 +414,10 @@
 	   color-mix(<ink> 26%) moves whenever the ink does and hands most of the
 	   contrast straight back (measured on paper: 4.79 vs 3.84). */
 	--nb-cell-ontime-fill: #2b452d;
-	--nb-cell-late-fill: #42361d;
+	/* LATE's pinned fill is the warning band (ledger 0465): the #42361d it
+	   replaced sat inside the muddy box (OKLCH H 85, L 0.34). The late glyph
+	   reads 6.50 on it. */
+	--nb-cell-late-fill: #2f2417;
 	--nb-cell-await-fill: #1f3c33;
 	--nb-cell-flagged-fill: #4c302c;
 	/* The hover / focus-visible ring, the room's own ink at 0.55: 5.24:1 on the
@@ -391,13 +465,15 @@
    held to (a 300:1 projector with ambient light at 10% of white).
 
      token             bg     panel  inset   wash/bg  wash/panel  wash/inset
-     --nb-accent-ink  5.36    6.04   5.60     4.79      5.31        4.98
-       (brass: the theme's own darkened --gold, #715d22)
+     --nb-accent-ink  5.48    6.18   5.73     4.90      5.43        5.09
+       (brass: the theme's own --gold, solve()'s ochre #8b4f00 since ledger
+       0465; tests/color-tokens.test.ts re-solves it over these grounds AND
+       the accent's own wash and holds the room to the same answer)
      --nb-ink-faint   5.34    6.01   5.58    (the theme's --text-3, which is
                                               real copy on these grounds)
-     --nb-ok          8.75    9.87   9.16
-     --nb-error       7.31    8.24   7.64
-     --nb-warn        8.84    9.96   9.24
+     --nb-ok          7.89    8.90   8.26   (mixes the green since 0465)
+     --nb-error       7.45    8.40   7.79
+     --nb-warn        9.10   10.25   9.51
 
    The ink button's hover (#26302d) carries its --nb-bg label at 11.42. The
    second rule weight is decoration at 1.88 on the panel. The wash is the IDEA
@@ -405,8 +481,8 @@
    and not a surface anybody reads text off without the inks above clearing it.
 
    FOLDERS, on the panel (washed in brackets): slate 5.54 (4.49), sage 5.22
-   (4.29), clay 5.37 (4.39), sky 5.73 (4.61), plum 6.68 (5.17), gold 6.04
-   (4.80), none 6.01 (4.78). These are the retired paper plate's folder hexes,
+   (4.29), clay 5.37 (4.39), sky 5.73 (4.61), plum 6.68 (5.17), gold 6.18
+   (4.88), none 6.01 (4.78). These are the retired paper plate's folder hexes,
    which were already tuned for a white card and re-measure clear here.
 
    THE REVIEW GRID, ink on its pinned fill (washed): on time 4.79 (3.91), late
@@ -421,7 +497,7 @@
 	--nb-ink-faint: #56625e;
 	--nb-ink-hover: #26302d;
 	--nb-hairline-strong: rgba(13, 19, 17, 0.28);
-	--nb-ok: color-mix(in srgb, var(--teal) 62%, #0e2417);
+	--nb-ok: color-mix(in srgb, var(--green) 62%, #0e2417);
 	--nb-error: color-mix(in srgb, var(--crimson) 72%, #2b100d);
 	--nb-warn: color-mix(in srgb, var(--amber) 62%, #2b1a08);
 	--nb-folder-slate: #5b6672;

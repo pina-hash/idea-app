@@ -353,7 +353,11 @@ describe('every colour is a pair', () => {
 		const palette = (id: string) => CLASS_THEME_PALETTES.find((p) => p.id === id)!;
 		const seeds: [ThemeColour, string][] = [
 			[palette('idea').wash, hexIn(SITE.idea, '--green')!],
-			[palette('idea').edge, hexIn(SITE.idea, '--teal')!],
+			/* The edge was seeded from --teal's #3ea368. Ledger 0465 retired teal as
+			   a token meaning (it now resolves to --cyan), so the seed is held as
+			   the value it was; lane 0467 re-derives class colours from the kit's
+			   colour library. */
+			[palette('idea').edge, '#3ea368'],
 			[palette('frc').wash, hexIn(frc, '--frc-blue')!],
 			[palette('frc').edge, hexIn(frc, '--frc-red')!]
 		];
