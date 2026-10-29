@@ -109,17 +109,28 @@ set_points:
 set_due:
   facade: true
   level: undo
-  uses: [classroom_update_item]
-  describe: Change when an assignment is due, in school time.
+  uses: [classroom_update_item, classroom_set_student_due]
+  describe: Change when an assignment is due, for everyone or only some students, by school days out, and mark a student absent with time left.
   say:
     - move the due date to Monday
     - make Tolerance Check due Friday at 3
     - push the Shop Fix to next Wednesday
-    - take the due date off the reflection
+    - Mateo was out two days with an excused absence, move his Shop Fix due date
+    - put an A for absent on Leo and Ana, they still have time
   args:
     post: {type: string, required: true, resolve: post, describe: "The assignment's title as you said it."}
-    due: {type: string, required: true, resolve: due, describe: "The new due time: Monday, Friday 3pm, Oct 24 11:59pm, or none to remove it."}
+    due: {type: string, resolve: due, describe: "The new due time: Monday, Friday 3pm, Oct 24 11:59pm, or none to remove it. With students, only theirs moves."}
     class: {type: string, describe: "The class it is in, when the same title is in more than one."}
+    students:
+      type: array
+      describe: "Only these students: each with the student and any of daysOut (school days out, which moves their due date), absent (true for an A, still has time), or clear (back to the post's date)."
+      items:
+        type: object
+        properties:
+          student: {type: string, describe: "The student, as you said the name."}
+          daysOut: {type: integer, describe: "School days out with an excused absence; their due date moves by that many school days."}
+          absent: {type: boolean, describe: "True for absent and still has time, the A in FACTS; false to take it off."}
+          clear: {type: boolean, describe: "True to put them back on the post's own due date."}
 
 set_rubric:
   facade: true

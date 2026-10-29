@@ -314,3 +314,51 @@ Undated work is never Missing and never counted; it is listed last.
   `class` into the post lookup, so a title shared by separate posts resolves
   to the copy in the class named. `tests/connector-match.test.ts` holds his
   phrases.
+- **A STUDENT'S OWN DUE DATE IS ONE FUNCTION (0321, gap 12d29c40).**
+  `classroom_student_due` holds one student's own date on one post and an
+  `absent` flag that is the A in FACTS and never a grade;
+  `_classroom_student_due_at` is the one answer to "when is this student's
+  work due", read by the on-time trigger and `classroom_needs_grading`, and
+  the console's `dueFor`. `classroom_set_student_due` takes many students at
+  once (school days out, skipping weekends and `classroom_no_school_days`; a
+  date; absent; clear), one reviewer check per row, the bulk report shape.
+- **THE ON-TIME VERSION OF AN ANSWER IS KEPT FROM 0321 ON, AND NOTHING BEFORE
+  IT CAN BE RECOVERED (gap d8aded45).** `classroom_responses` keeps one row per
+  question, overwritten by every save; the `classroom_responses_keep_on_time`
+  trigger keeps, per question, the last version saved on or before THAT
+  student's due date in `classroom_response_versions` when a later save would
+  overwrite it. It never refuses a save. `classroom_grade_late_credit` credits
+  on time + the post's late rate (`classroom_item_grading.late_rate`, 0.5) x
+  the improvement per rubric line, through `classroom_grade_submission`, with
+  a note on every line it credits, and refuses a final below its on-time score.
+  **A line `_classroom_late_criteria` names (a step with an answer or a
+  picture saved after the student's own due date) must carry an on-time
+  score**, or the function answers `on_time_needed` and saves nothing, because
+  a line with no on-time score counts as all on time and leaving one out would
+  score a late-only change as on time.
+  `$lib/classroom/grading-late.ts` shows the same arithmetic in the console
+  first (`lateCreditLines`, `lateLinesFor`).
+- **A RUBRIC SCALED TO THE POST'S POINTS (0321, gap 5b1693c1).** With
+  `classroom_item_grading.scale_to_points` on, `classroom_grade_submission`
+  scales the rubric sum to the post's points (two places) and
+  `classroom_grade_direct` takes a typed score out of the post's points; off,
+  the console and the connector say the two totals disagree.
+- **GRADE AS TEAMS FOR INDIVIDUAL COPIES (report 62eded18)** is a view and the
+  ordinary batch: `classroom_item_team_draw` answers each class's posted draw,
+  `mergeTeamAnswers` shows each box's newest answer with who wrote it, and
+  "Grade this team together" ticks the teammates for the existing batch. A true
+  team post is graded on its Teams page.
+- **A RUBRIC LINE THE PAGE HIDES (report c9d7efc3)** is marked in the console
+  by `hiddenRubricLines` over the worksheet's own HTML: a line whose key words
+  are mostly absent from its step's visible text and present in a tooltip, a
+  closed disclosure or hidden text. The upload-time check is the importer's.
+- **SYLLABUS POINT TARGETS (0321, report c622b97a)** are
+  `classroom_course_grade_targets`, seeded once from the two syllabi committed
+  under `materials/` and edited on a class's Grades page
+  (`classroom_set_grade_targets`); `postedVsTarget` in
+  `$lib/classroom/grading-targets.ts` is the one tally. Blind grading is a
+  device setting in the console that hides each stored score until the
+  grader changes it or presses Show; `blindCrit` and `blindTotal` are the one
+  question every surface asks (each criterion, the picked level, the total, the
+  rubric rail, a typed score, the roster chip, the batch line), and
+  `tests/dom/grading-blind-mount.test.ts` holds both directions.

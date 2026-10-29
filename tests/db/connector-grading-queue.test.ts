@@ -141,3 +141,52 @@ describe('item 11: a protected class keeps a grade someone else gave', () => {
 		expect(JSON.stringify(out)).toContain('only fills empty grades');
 	});
 });
+
+describe('item 15: some students\' own due dates and the absent mark, in bulk, from his words', () => {
+	it('moves one student by school days, marks another absent, and undo puts both back', async () => {
+		const own = async () =>
+			(
+				await w.db.sql<{ student_email: string; absent: boolean; days_out: number | null }>(
+					`select student_email, absent, days_out from public.classroom_student_due where item_id = $1 order by 1`,
+					[worksheet]
+				)
+			).rows;
+		const out = await run('set_due', {
+			post: 'Hook 03',
+			class: '209H Block 2',
+			students: [{ student: 'Mateo', daysOut: 2 }, { student: 'Daniel R', absent: true }],
+			request_id: 'due-1'
+		});
+		expect(out.status, JSON.stringify(out)).toBe('done');
+		expect(await own()).toEqual([
+			{ student_email: w.students.danielR, absent: true, days_out: null },
+			{ student_email: w.students.mateo, absent: false, days_out: 2 }
+		]);
+		// The post's own due date did not move.
+		const post = (await w.db.sql<{ due_at: string }>(`select due_at::text from public.classroom_items where id = $1`, [worksheet])).rows[0];
+		expect(post.due_at).not.toBeNull();
+		expect((await run('undo_last', {})).status).toBe('done');
+		expect(await own()).toEqual([]);
+	});
+
+	it('a student in a class he does not teach is not found and nothing is written', async () => {
+		const out = await run('set_due', { post: 'Hook 03', students: [{ student: 'Ana Reyes', absent: true }] });
+		expect(out.status).toBe('not_found');
+		expect((await w.db.sql(`select 1 from public.classroom_student_due where item_id = $1`, [worksheet])).rows).toHaveLength(0);
+	});
+});
+
+describe('item 16: the grading packet carries the on-time version of a late answer', () => {
+	it('an answer edited after the due date shows what was saved on time', async () => {
+		await w.db.sql(
+			`update public.classroom_responses set value = '{"text":"late rewrite"}'::jsonb, updated_at = now()
+			 where item_id = $1 and student_email = $2 and block_id = $3`,
+			[worksheet, w.students.leo, blocks[0]]
+		);
+		const packet = (await run('grading_packet', { post: 'Hook 03', class: '209H Block 4' })) as Record<string, unknown>;
+		const leo = (packet.students as Array<Record<string, unknown>>).find((s) => s.student === 'Leo Lee')!;
+		expect((leo.on_time_versions as Array<{ on_time_answer: unknown }>).map((v) => v.on_time_answer)).toEqual([{ text: 'leo' }]);
+		expect((packet.grading as Record<string, unknown>).late_rate).toBe(0.5);
+	});
+});
+

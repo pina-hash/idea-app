@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "grading-queue-view-grades.mjs",
+	"date": "2026-10-29T01:40:41.238Z",
+	"sha": "ecbd555c60455cd5560fe986a8c5cffb399b0766",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 28,
+	"outsideRows": [],
+	"ms": 6542
+}

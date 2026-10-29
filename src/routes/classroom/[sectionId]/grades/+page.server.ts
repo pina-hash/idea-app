@@ -13,6 +13,7 @@ import {
 	readWorksheetLatches
 } from '$lib/classroom/transports';
 import { gradebookFor, type GradebookScore } from '$lib/classroom/gradebook-export';
+import { postedVsTarget, readGradeTargets } from '$lib/classroom/grading-targets';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -158,8 +159,15 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 				}))
 			};
 
+	// SYLLABUS POINT TARGETS (ledger 0457, 0321): posted points against the
+	// course's categories. Null before 0321, which renders no table.
+	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
+	const targets = await readGradeTargets(supabase, section.course_id);
+	const targetTally = targets ? { targets, ...postedVsTarget(content.items, targets) } : null;
+
 	return {
 		protection,
+		targetTally,
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage: true,
 		standings: assignmentStandings(content.items, submissions, students.length, finished),

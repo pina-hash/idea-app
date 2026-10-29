@@ -1589,3 +1589,105 @@ classroom_needs_grading:
   args:
     p_sections: {name: classes, default: null, describe: "The classes to look at, by their ids; leave it out for every class you teach."}
     p_exclude: {name: except, default: null, describe: "Classes to leave out, by their ids."}
+
+# ---------------------------------------------------------------------------
+# Ledger 0457: grading catch-up, part 2 (queue 0457 items 15 to 20, 0321).
+# ---------------------------------------------------------------------------
+
+classroom_set_student_due:
+  surface: call
+  level: undo
+  describe: Set some students' own due dates on an assignment, by school days out or a date, or mark them absent with time left; the set due tool is the usual way in.
+  say: ["move Mateo's due date two school days", "mark Leo absent on the Shop Fix", "put Ana back on the class due date"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_entries: {name: students, describe: "Each student's address with school days out, a due date, absent, or clear."}
+  undo:
+    - function: classroom_set_student_due
+      args: {p_item_id: $args.p_item_id, p_entries: $result.undo}
+
+classroom_student_due_dates:
+  surface: call
+  level: read
+  describe: Every student's own due date and absent mark on an assignment.
+  say: ["who has an extension on the Shop Fix", "which students are marked absent on Hook 03", "show the moved due dates"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+
+classroom_item_grading_settings:
+  surface: call
+  level: read
+  describe: An assignment's late rate, whether it is graded as teams, and whether its rubric is scaled to its points.
+  say: ["what's the late rate on Hook 03", "is the Blade worksheet graded as teams", "is Hook 03's rubric scaled"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+
+classroom_set_item_grading:
+  surface: call
+  level: undo
+  describe: Set an assignment's late credit rate, turn Grade as teams on or off, or scale its rubric to its points.
+  say: ["late work on Hook 03 gets half credit", "grade IDEA-Blade 01 as teams", "scale Hook 03's rubric to 20 points"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_late_rate: {name: lateRate, default: null, describe: "The share late work earns, from 0 to 1, like 0.5 for half."}
+    p_grade_as_teams: {name: teams, default: null, describe: "True to grade it once per team from the posted team draw."}
+    p_scale_to_points: {name: scale, default: null, describe: "True to scale the rubric total to the post's points."}
+  undo:
+    - function: classroom_set_item_grading
+      args:
+        p_item_id: $args.p_item_id
+        p_late_rate: $result.before.late_rate
+        p_grade_as_teams: $result.before.grade_as_teams
+        p_scale_to_points: $result.before.scale_to_points
+
+classroom_grade_late_credit:
+  surface: call
+  level: undo
+  describe: Grade a student's late work with partial credit, full for each rubric line done on time and the late rate for what improved after the due date.
+  say: ["give Mateo late credit on Hook 03", "grade Leo's late answers at half", "late credit for Ana, accuracy was 20 on time and 40 now"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_student_email: {name: student, resolve: student, describe: "The student."}
+    p_on_time: {name: onTime, describe: "Each rubric line's score as it stood on time, by criterion id."}
+    p_final: {name: final, describe: "Each rubric line's score now, by criterion id."}
+    p_rate: {name: rate, default: null, describe: "The late rate, or leave it out for the post's own (50% unless changed)."}
+    p_comment: {name: comment, default: null, describe: "A comment the student reads."}
+    p_return: {name: return, default: false, describe: "True to return it now, false to hold it."}
+  before:
+    table: classroom_submissions
+    columns: [rubric_scores, teacher_comment, returned_at, graded_at, criterion_comments, extra_credit]
+    eq: {item_id: $args.p_item_id, student_email: $args.p_student_email}
+  undo:
+    - when: $before.rubric_scores
+      function: classroom_grade_submission
+      args:
+        p_item_id: $args.p_item_id
+        p_student_email: $args.p_student_email
+        p_scores: $before.rubric_scores
+        p_comment: $before.teacher_comment
+        p_return: "!!$before.returned_at"
+        p_criterion_comments: $before.criterion_comments
+        p_extra_credit: $before.extra_credit
+    - when: "!$before.graded_at"
+      function: classroom_revoke_grade
+      args: {p_item_id: $args.p_item_id, p_student_email: $args.p_student_email}
+
+classroom_item_team_draw:
+  surface: call
+  level: read
+  describe: The posted team draw in each class of an assignment, with every team's members, for grading a post as teams.
+  say: ["what are the Blade teams for this post", "who's on each team for IDEA-Blade 01", "show the team draw for grading"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+
+classroom_set_grade_targets:
+  surface: call
+  level: undo
+  describe: Set a course's syllabus grading categories and their point targets, the whole list at once.
+  say: ["set IDEA100's syllabus categories", "Unit Assignments are 400 points in 209H", "add the final exam category"]
+  args:
+    p_course_id: {name: course, describe: "The course's id, from your list of classes."}
+    p_targets: {name: categories, describe: "Each category with its target points, in order; one left out is removed."}
+  undo:
+    - function: classroom_set_grade_targets
+      args: {p_course_id: $args.p_course_id, p_targets: $result.before}

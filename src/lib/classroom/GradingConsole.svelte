@@ -38,6 +38,7 @@
 	}	from '$lib/classroom/assignment-spec';
 	import {
 		completionIsLate,
+		formatDue,
 		itemTitle,
 		sectionTitle,
 		type ClassroomItem,
@@ -45,7 +46,26 @@
 	} from '$lib/classroom/classroom';
 	import { hxCompletion } from '$lib/classroom/html-assignment/progress';
 	import { worksheetAnswered, worksheetAnsweredWords, type WorksheetAnswered } from '$lib/classroom/grading-work';
-	import { PROTECTED_REFUSAL, type GradingExtras, type ProtectedClass } from '$lib/classroom/grading-extras';
+	import {
+		PROTECTED_REFUSAL,
+		ratePercent,
+		type GradingExtras,
+		type ItemGrading,
+		type OnTimeVersion,
+		type ProtectedClass,
+		type StudentDue,
+		type TeamDrawSection
+	} from '$lib/classroom/grading-extras';
+	import {
+		hiddenRubricLines,
+		lateCreditLines,
+		lateLinesFor,
+		mergeTeamAnswers,
+		rubricScale,
+		scaledScore,
+		teamOfStudent,
+		type HiddenLine
+	} from '$lib/classroom/grading-late';
 	import { worksheetCompletedAtAcross } from '$lib/classroom/student-work';
 	import { hxBlockPrompt, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import HtmlAnswerList from '$lib/classroom/html-assignment/HtmlAnswerList.svelte';
@@ -647,7 +667,22 @@
 	 * criteria, the item's own points otherwise -- `_classroom_item_out_of`'s
 	 * order (0241), so the field, the header and the refusal agree.
 	 */
-	const outOf = $derived(rubric?.length ? rubricTotal(rubric) : (item.points ?? 0));
+	const rubricOutOf = $derived(rubric?.length ? rubricTotal(rubric) : (item.points ?? 0));
+	/** The post's grading settings (0321), read by `loadExtras` below. */
+	let itemGrading = $state<ItemGrading | null>(null);
+	/**
+	 * A RUBRIC SCALED TO THE POST'S POINTS (ledger 0457, item 17): with the
+	 * post's switch on, every score is out of the post's points and the rubric
+	 * sum is scaled to it, as the database saves it (0321).
+	 */
+	const scale = $derived(
+		rubric?.length && itemGrading
+			? rubricScale(itemGrading.rubricTotal ?? rubricTotal(rubric), itemGrading.points ?? item.points ?? null, itemGrading.scaleToPoints)
+			: rubric?.length
+				? rubricScale(rubricTotal(rubric), item.points ?? null, false)
+				: null
+	);
+	const outOf = $derived(scale?.on ? scale.to : rubricOutOf);
 	const liveTotal = $derived(
 		rubric ? scoresTotal(rubric, scores as Record<string, number>) : 0
 	);
@@ -853,7 +888,9 @@
 	const scoreCardShown = $derived(!!rubric?.length || directReady);
 
 	/** The score of record plus whatever is typed -- what the server will stamp. */
-	const liveAwarded = $derived((directValue ?? liveTotal) + (extraCreditNumber ?? 0));
+	const liveAwarded = $derived(
+		Math.round(((directValue ?? scaledScore(liveTotal, scale)) + (extraCreditNumber ?? 0)) * 100) / 100
+	);
 
 	// -----------------------------------------------------------------------
 	// THE PERFECT SCORE AWARD (0242): one switch per class posting the caller
@@ -1052,6 +1089,183 @@
 			.filter((p) => p.on)
 			.map((p) => sectionTitles.get(p.sectionId) ?? (p.sectionId === section.id ? sectionTitle(section) : 'One class'))
 	);
+
+	// -----------------------------------------------------------------------
+	// GRADING CATCH-UP, PART 2 (ledger 0457, 0321): each student's own due date
+	// and absent mark, the post's late rate, scaling and Grade as teams, the
+	// on-time versions of late answers, and the posted team draw. Every read is
+	// optional and degrades to nothing; every write re-checks the caller.
+	// -----------------------------------------------------------------------
+	let dueRows = $state<StudentDue[]>([]);
+	let onTimeRows = $state<OnTimeVersion[]>([]);
+	let teamDraw = $state<TeamDrawSection[]>([]);
+	async function loadExtras() {
+		const t = extras;
+		if (!t) return;
+		const [d, g, o, td] = await Promise.all([
+			t.dueDates?.(item.id) ?? Promise.resolve([]),
+			t.settings?.(item.id) ?? Promise.resolve(null),
+			t.onTime?.(item.id) ?? Promise.resolve([]),
+			t.teamDraw?.(item.id) ?? Promise.resolve([])
+		]);
+		dueRows = d;
+		itemGrading = g;
+		onTimeRows = o;
+		teamDraw = td;
+	}
+	$effect(() => {
+		if (!extras) return;
+		void item.id;
+		untrack(() => void loadExtras());
+	});
+	const dueByEmail = $derived(new Map(dueRows.map((d) => [d.email, d] as const)));
+	/** The student's own due-date row, when one is set. */
+	function dueRowOf(s: StudentWork | null): StudentDue | null {
+		return s ? (dueByEmail.get((s.email ?? '').toLowerCase()) ?? null) : null;
+	}
+
+	/** RUBRIC TOTAL VS POST POINTS (item 17): scaled when the post says so, said either way. */
+	const lateRate = $derived(itemGrading?.lateRate ?? 0.5);
+
+	/** RUBRIC LINES THE PAGE HIDES (item 19), read from the worksheet itself. */
+	let documentHtml = $state<string | null>(null);
+	const hiddenLines = $derived<Map<string, HiddenLine>>(
+		new Map(hiddenRubricLines(documentHtml, manifest).map((h) => [h.id, h] as const))
+	);
+	$effect(() => {
+		const t = extras;
+		const id = item.id;
+		if (!t?.documentHtml || !manifest) return;
+		untrack(() => {
+			void t.documentHtml?.(id).then((html) => (documentHtml = html));
+		});
+	});
+
+	/** THE RUBRIC LINES WITH A LATE ANSWER BEHIND THEM, for the open student (item 16). */
+	const lateLines = $derived(
+		selected && manifest ? lateLinesFor(manifest, selected.responses, dueFor(selected), selected.files) : new Set<string>()
+	);
+	/** The open student's answers that have an on-time version kept. */
+	const selectedOnTime = $derived(
+		selected ? onTimeRows.filter((o) => o.email === (selected.email ?? '').toLowerCase()) : []
+	);
+
+	let daysOutInput = $state<number | string>('');
+	let dueBusy = $state(false);
+	let dueError = $state<string | null>(null);
+	async function changeDue(entry: Record<string, unknown>) {
+		if (!extras?.setDue || !selected) return;
+		dueBusy = true;
+		dueError = null;
+		try {
+			const res = await extras.setDue(item.id, [{ student_email: selected.email, ...entry }]);
+			if (!res.ok) dueError = res.message ?? 'The due date was not changed.';
+			await loadExtras();
+		} finally {
+			dueBusy = false;
+		}
+	}
+	async function moveDue() {
+		const n = Number(daysOutInput);
+		if (!Number.isInteger(n) || n < 0 || n > 60) {
+			dueError = 'Days out is a whole number of school days, 0 to 60.';
+			return;
+		}
+		await changeDue({ days_out: n });
+		daysOutInput = '';
+	}
+	const markAbsent = (on: boolean) => changeDue({ absent: on });
+	const clearDue = () => changeDue({ clear: true });
+
+	async function toggleScale() {
+		if (!extras?.setSettings || !scale) return;
+		const res = await extras.setSettings(item.id, { scaleToPoints: !scale.on });
+		if (!res.ok) gradeError = res.message ?? 'The setting was not saved.';
+		await loadExtras();
+	}
+
+	/**
+	 * LATE CREDIT FOR THE OPEN STUDENT (item 16). Shown when any rubric line has
+	 * an answer saved after this student's own due date. The rubric as scored is
+	 * the FINAL score; the grader enters what each late line earned on time (the
+	 * kept on-time answers are listed to judge it by), and the save sends both
+	 * to the database, which credits on time + rate x the improvement.
+	 */
+	let onTimeScores = $state<Record<string, number | null>>({});
+	$effect(() => {
+		void selectedEmail;
+		untrack(() => (onTimeScores = {}));
+	});
+	function setOnTime(id: string, raw: string) {
+		const t = raw.trim();
+		const n = Number(t);
+		onTimeScores = { ...onTimeScores, [id]: t === '' || !Number.isFinite(n) ? null : n };
+	}
+	const lateCredit = $derived.by(() => {
+		if (!extras?.lateCredit || !selected || !rubric?.length || lateLines.size === 0) return null;
+		if (directTyped) return null;
+		return lateCreditLines(rubric, onTimeScores, scores, lateRate, lateLines);
+	});
+	async function saveLateCredit() {
+		if (!extras?.lateCredit || !selected || !lateCredit) return;
+		const final: Record<string, number> = {};
+		for (const c of rubric ?? []) if (scores[c.id] != null) final[c.id] = Number(scores[c.id]);
+		const onTime: Record<string, number> = {};
+		for (const [k, v] of Object.entries(onTimeScores)) if (v != null) onTime[k] = v;
+		busy = true;
+		gradeError = null;
+		try {
+			const res = await extras.lateCredit(item.id, selected.email, onTime, final, comment.trim() || null, false);
+			if (!res.ok) {
+				gradeError =
+					res.reason === 'protected'
+						? PROTECTED_REFUSAL
+						: res.reason === 'on_time_needed'
+							? `Give the on-time score for every late line first (${res.missing?.length ?? 0} left). Nothing was saved.`
+							: (res.message ?? 'The late credit was not saved.');
+				return;
+			}
+			gradeNotice = `Saved as a draft with late credit: ${res.score ?? lateCredit.total}. Nothing is released until you return it.`;
+			await load();
+			const fresh = students.find((x) => x.email === selected?.email) ?? null;
+			if (fresh) applySelect(fresh);
+		} finally {
+			busy = false;
+		}
+	}
+	function versionText(v: unknown): string {
+		if (v && typeof v === 'object' && 'text' in v) return String((v as { text?: unknown }).text ?? '');
+		if (v && typeof v === 'object' && 'checked' in v) return JSON.stringify((v as { checked?: unknown }).checked);
+		return typeof v === 'string' ? v : JSON.stringify(v);
+	}
+
+	/** BLIND GRADING (item 20): the existing score is hidden until revealed. Kept on this device. */
+	const BLIND_KEY = 'idea.grading.blind';
+	let blind = $state(false);
+	onMount(() => {
+		try {
+			blind = localStorage.getItem(BLIND_KEY) === '1';
+		} catch {
+			/* a view preference */
+		}
+	});
+	function setBlind(on: boolean) {
+		blind = on;
+		try {
+			localStorage.setItem(BLIND_KEY, on ? '1' : '0');
+		} catch {
+			/* a view preference */
+		}
+	}
+	/**
+	 * WHAT BLIND HIDES, ASKED IN ONE PLACE so no surface of the console prints a
+	 * stored score while it is on: a criterion's stored score until the grader
+	 * changes it, and the open student's stored total until the form is dirty.
+	 * The roster chip and the batch line ask the same two questions.
+	 */
+	function blindCrit(id: string): boolean {
+		return blind && !changed.criteria.includes(id) && scores[id] != null;
+	}
 
 	/**
 	 * THE FACE FOR THE STUDENT ON SCREEN, looked up on the ROSTER rather than
@@ -1474,6 +1688,9 @@
 	const dirty = $derived(
 		changed.criteria.length > 0 || changed.comment || changed.extraCredit || changed.direct
 	);
+	/** Blind (item 20): the open student's stored total, and a stored typed score, until changed. */
+	const blindTotal = $derived(blind && !dirty && selectedHasGrade);
+	const blindDirect = $derived(blind && !changed.direct && String(directScore ?? '').trim() !== '');
 
 	/** What the confirm has to name, in the grader's terms and with real counts. */
 	const dirtyCost = $derived.by(() => {
@@ -1752,7 +1969,10 @@
 	function statusChip(s: StudentWork): { label: string; cls: string } {
 		const state = s.submission?.state ?? null;
 		if (state === 'returned') {
-			return { label: `Returned · ${s.submission?.score ?? '—'}/${outOf}`, cls: 'returned' };
+			// Blind hides every stored score, the roster's included.
+			return blind
+				? { label: 'Returned', cls: 'returned' }
+				: { label: `Returned · ${s.submission?.score ?? '—'}/${outOf}`, cls: 'returned' };
 		}
 		if (state === 'submitted') {
 			// TWO WORDS FOR TWO FACTS. Printing "Submitted" over a row the
@@ -1801,8 +2021,8 @@
 	function dueFor(s: StudentWork): string | null {
 		return extensionDue(s.email) ?? item.due_at ?? null;
 	}
-	function extensionDue(_email: string): string | null {
-		return null;
+	function extensionDue(email: string): string | null {
+		return dueByEmail.get((email ?? '').toLowerCase())?.dueAt ?? null;
 	}
 
 	/** Answered X of Y on the worksheet, against this student's own due date. */
@@ -2360,6 +2580,7 @@
 		if (scoredCount === 0) {
 			return `Score the rubric for ${selected.displayName} first. Those scores, notes and comment then go to everyone ticked.`;
 		}
+		if (blindTotal) return `Uses the rubric as scored for ${selected.displayName}, with its notes and comment. Blind is on, so the total is hidden.`;
 		return `Uses the rubric as scored for ${selected.displayName}: ${liveAwarded} / ${outOf} pts, with its notes and comment.`;
 	});
 
@@ -2370,6 +2591,40 @@
 		picked = applyPreset(preset, visibleStudents);
 		armedRelease = null;
 		outcome = null;
+	}
+
+	/**
+	 * GRADE AS TEAMS (item 18, report 62eded18): a post handed out as one copy
+	 * per student, graded once per team from the posted team draw. On, the open
+	 * student's team is named with its merged answers (newest per box, who wrote
+	 * it), and one press ticks every teammate, so the batch below saves the one
+	 * score to each of them through the ordinary grading rule. A true team post
+	 * is graded on its Teams page instead.
+	 */
+	const teamsOn = $derived(!!itemGrading?.gradeAsTeams && !!bulk);
+	const teamOf = $derived(teamOfStudent(teamDraw));
+	const selectedTeam = $derived(selected ? (teamOf.get((selected.email ?? '').toLowerCase()) ?? null) : null);
+	const mergedTeam = $derived.by(() => {
+		if (!teamsOn || !selectedTeam) return [];
+		const rows = students
+			.filter((x) => selectedTeam.members.includes((x.email ?? '').toLowerCase()))
+			.flatMap((x) => x.responses.map((r) => ({ ...r, student_email: x.email })));
+		return mergeTeamAnswers(rows, selectedTeam.members);
+	});
+	const nameOfEmail = $derived(new Map(students.map((x) => [(x.email ?? '').toLowerCase(), x.displayName] as const)));
+	function pickTeam() {
+		if (!selectedTeam) return;
+		if (!selecting) selecting = true;
+		const shown = new Set(visibleStudents.map((x) => x.email.toLowerCase()));
+		picked = visibleStudents.filter((x) => selectedTeam.members.includes(x.email.toLowerCase()) && shown.has(x.email.toLowerCase())).map((x) => x.email);
+		armedRelease = null;
+		outcome = null;
+	}
+	async function setTeams(on: boolean) {
+		if (!extras?.setSettings) return;
+		const res = await extras.setSettings(item.id, { gradeAsTeams: on });
+		if (!res.ok) gradeError = res.message ?? 'The setting was not saved.';
+		await loadExtras();
 	}
 
 	function togglePick(email: string) {
@@ -3452,6 +3707,29 @@
 									{selecting ? 'Done' : 'Select'}
 								</button>
 							{/if}
+							{#if batchReady && extras?.setSettings && teamDraw.some((d) => d.teams.length)}
+								<!-- GRADE AS TEAMS (item 18): a post handed out as individual copies,
+								     graded once per team from the posted draw. -->
+								<button
+									type="button"
+									class="btn secondary tiny"
+									aria-pressed={teamsOn}
+									data-testid="grade-as-teams"
+									onclick={() => void setTeams(!teamsOn)}
+								>
+									Grade as teams
+								</button>
+							{/if}
+							<button
+								type="button"
+								class="btn secondary tiny"
+								aria-pressed={blind}
+								data-testid="blind-mode"
+								title="Hide each student's existing score while you grade"
+								onclick={() => setBlind(!blind)}
+							>
+								Blind
+							</button>
 						</div>
 					</div>
 					{#if batchReady && !rubric?.length && !directReady}
@@ -4031,6 +4309,34 @@
 								{/if}
 								· {submissionStateLabel(selected.submission?.state)}
 							</p>
+							{#if extras?.setDue && item.due_at}
+								{@const own = dueRowOf(selected)}
+								<!-- THIS STUDENT'S OWN DUE DATE AND THE ABSENT MARK (item 15).
+								     The mark is the A in FACTS, never a grade. -->
+								<div class="due-line" data-testid="student-due">
+									<span class="due-says">
+										Due {formatDue(dueFor(selected) ?? item.due_at)}{own?.daysOut != null ? ` (moved ${own.daysOut} school ${own.daysOut === 1 ? 'day' : 'days'})` : own?.dueAt ? ' (own date)' : ''}
+									</span>
+									{#if own?.absent}<span class="mark-chip absent" data-testid="student-absent">Absent, still has time</span>{/if}
+									<label class="due-days">
+										Days out
+										<input class="ec-input tap-44" type="number" min="0" max="60" step="1" bind:value={daysOutInput} data-testid="student-days-out" />
+									</label>
+									<button type="button" class="btn secondary tiny tap-44" disabled={dueBusy} onclick={() => void moveDue()} data-testid="student-move-due">Move due date</button>
+									<button
+										type="button"
+										class="btn secondary tiny tap-44"
+										aria-pressed={!!own?.absent}
+										disabled={dueBusy}
+										onclick={() => void markAbsent(!own?.absent)}
+										data-testid="student-mark-absent">{own?.absent ? 'Clear absent' : 'Mark absent'}</button
+									>
+									{#if own}
+										<button type="button" class="btn secondary tiny tap-44" disabled={dueBusy} onclick={() => void clearDue()}>Back to the post's date</button>
+									{/if}
+									{#if dueError}<span class="score-flag">{dueError}</span>{/if}
+								</div>
+							{/if}
 							{#if selected.submission?.acted_by}
 								<p class="acted-line" data-testid="acted-by-admin">
 									<span class="acted-lamp" aria-hidden="true"></span>
@@ -4057,6 +4363,33 @@
 								line above, because a photograph added after grading is a block
 								change the line does not count.
 							-->
+							{#if teamsOn && selectedTeam}
+								<section class="team-merge" data-testid="team-merge">
+									<p class="team-head">
+										<span class="mark-chip team">{selectedTeam.name}</span>
+										{selectedTeam.members.map((m) => nameOfEmail.get(m) ?? m.split('@')[0]).join(', ')}
+										<button type="button" class="btn tiny tap-44" onclick={pickTeam} data-testid="team-pick">Grade this team together</button>
+									</p>
+									{#if mergedTeam.length}
+										<details class="team-answers" open>
+											<summary class="tap-44">The team's answers, newest in each box ({mergedTeam.length})</summary>
+											<ul>
+												{#each mergedTeam as m (m.blockId)}
+													<li>
+														<span class="late-crit">{blockName(m.blockId)}</span>
+														<span class="late-val">{versionText(m.value)}</span>
+														<span class="team-by">{nameOfEmail.get(m.by) ?? m.by.split('@')[0]}{m.answeredBy > 1 ? `, ${m.answeredBy} answered` : ''}</span>
+													</li>
+												{/each}
+											</ul>
+										</details>
+									{:else}
+										<p class="note">Nobody on this team has saved an answer yet.</p>
+									{/if}
+								</section>
+							{:else if teamsOn}
+								<p class="note" data-testid="team-none">{selected.displayName} is not on a team in the posted draw.</p>
+							{/if}
 							{#if selectedBlockChanges.length}
 								<ul class="changed-blocks" data-testid="changed-blocks">
 									{#each selectedBlockChanges as change (change.blockId)}
@@ -4345,7 +4678,7 @@
 							<div class="work-col work-right" role="region" aria-label="Rubric">
 								{#if rubricMode === 'hidden'}
 									<div class="rubric-rail" data-testid="grade-rubric-rail">
-										<span class="rubric-rail-total" title="Score">{directValue ?? liveTotal}/{outOf}</span>
+										<span class="rubric-rail-total" title="Score">{#if blindTotal}<span class="blind-mark">Hidden</span>{:else}{directValue ?? liveTotal}{/if}/{outOf}</span>
 										<button
 											type="button"
 											class="btn secondary rubric-rail-show"
@@ -4414,10 +4747,26 @@
 												<div class="score-head">
 													<span class="score-crit">{c.criterion}</span>
 													<span class="score-value" class:override>
-														{scores[c.id] ?? '—'} / {max}
+														{#if blindCrit(c.id)}
+															<span class="blind-mark" data-testid="blind-score">Hidden</span> / {max}
+														{:else}
+															{scores[c.id] ?? '—'} / {max}
+														{/if}
 														{#if override}<span class="override-chip">Override</span>{/if}
 													</span>
 												</div>
+												{#if lateLines.has(c.id) || hiddenLines.has(c.id)}
+													<p class="score-marks">
+														{#if lateLines.has(c.id)}
+															<span class="mark-chip late" data-testid="rubric-late">Answered after due</span>
+														{/if}
+														{#if hiddenLines.has(c.id)}
+															<span class="mark-chip hidden-req" data-testid="rubric-hidden"
+																>Only in {hiddenLines.get(c.id)?.where}: check the student could see it</span
+															>
+														{/if}
+													</p>
+												{/if}
 												{#if criterionIncomplete(c)}
 													<p class="score-unfinished">
 														This criterion’s levels are unfinished, so most scores need an override.
@@ -4434,8 +4783,8 @@
 															<button
 																type="button"
 																class="level-btn"
-																class:picked={li === chosen}
-																aria-pressed={li === chosen}
+																class:picked={li === chosen && !blindCrit(c.id)}
+																aria-pressed={li === chosen && !blindCrit(c.id)}
 																aria-describedby={hasTip ? tipId : undefined}
 																tabindex={li === rove ? 0 : -1}
 																data-grade-level={key}
@@ -4484,7 +4833,9 @@
 												<button type="button" class="override-toggle" onclick={() => toggleOverride(c)}>
 													{overrideOpen[c.id] ? 'Use a level instead' : 'Score between levels'}
 												</button>
-												{#if overrideOpen[c.id]}
+												{#if overrideOpen[c.id] && blindCrit(c.id)}
+													<p class="score-note"><span class="blind-mark">Hidden</span> score between levels. Pick a level, or press Show to see it.</p>
+												{:else if overrideOpen[c.id]}
 													<div class="override-box">
 														<span class="score-input">
 															<input
@@ -4559,10 +4910,12 @@
 														min="0"
 														max={outOf}
 														step="0.5"
-														placeholder={rubric?.length ? String(liveTotal) : ''}
+														placeholder={rubric?.length && !blindTotal ? String(liveTotal) : ''}
 														data-testid="direct-score-input"
+														class:blind-input={blindDirect}
 														bind:value={directScore}
 													/>
+													{#if blindDirect}<span class="blind-mark" data-testid="blind-direct">Hidden</span>{/if}
 													<span class="ec-note" data-testid="direct-score-note">
 														{#if !rubric?.length}
 															This assignment has no rubric, so the score you type is the grade.
@@ -4652,12 +5005,93 @@
 												</span>
 											</div>
 										{/if}
+										{#if scale?.mismatch}
+											<p class="scale-note" class:on={scale.on} data-testid="rubric-scale">
+												{#if scale.on}
+													The rubric adds up to {scale.from}; scores are scaled to this post's {scale.to} points.
+												{:else}
+													The rubric adds up to {scale.from} but this post is worth {scale.to} points.
+												{/if}
+												{#if extras?.setSettings}
+													<button type="button" class="btn secondary tiny tap-44" data-testid="rubric-scale-toggle" onclick={() => void toggleScale()}>
+														{scale.on ? 'Grade out of the rubric total' : `Scale to ${scale.to}`}
+													</button>
+												{/if}
+											</p>
+										{/if}
+										{#if lateCredit}
+											<div class="late-credit" data-testid="late-credit">
+												<p class="late-head">
+													<span class="mark-chip late">Late credit</span>
+													On time earns full credit; what improved after {selected?.displayName}'s due date earns {ratePercent(lateRate)}.
+												</p>
+												<ul class="late-lines">
+													{#each criteria.filter((c) => lateLines.has(c.id) && scores[c.id] == null) as c (c.id)}
+														<li class="late-pending">
+															<span class="late-crit">{c.criterion}</span>
+															<span class="late-math">Score this line on the rubric above first: that is its final score.</span>
+														</li>
+													{/each}
+													{#each lateCredit.lines.filter((l) => l.late || lateLines.has(l.id)) as l (l.id)}
+														<li>
+															<span class="late-crit">{criteria.find((c) => c.id === l.id)?.criterion ?? l.id}</span>
+															<label class="late-on">On time
+																<input
+																	class="ec-input tap-44"
+																	type="number"
+																	min="0"
+																	step="0.5"
+																	value={onTimeScores[l.id] ?? ''}
+																	oninput={(e) => setOnTime(l.id, (e.currentTarget as HTMLInputElement).value)}
+																	data-testid="late-on-time"
+																/>
+															</label>
+															{#if lateCredit.needOnTime.includes(l.id)}
+																<span class="late-math" data-testid="late-needs-on-time">Give its on-time score: an answer behind it was saved after the due date.</span>
+															{:else if blindCrit(l.id)}
+																<span class="late-math"><span class="blind-mark">Hidden</span> until you score this line or press Show.</span>
+															{:else}
+																<span class="late-math">{l.onTime} + {ratePercent(lateRate)} x {Math.round((l.final - l.onTime) * 100) / 100} = <strong>{l.credited}</strong></span>
+															{/if}
+														</li>
+													{/each}
+												</ul>
+												{#if lateCredit.invalid.length}
+													<p class="score-flag">An on-time score is more than the final score. Late work never lowers a grade.</p>
+												{/if}
+												{#if selectedOnTime.length}
+													<details class="late-versions">
+														<summary class="tap-44">What was saved on time ({selectedOnTime.length})</summary>
+														<ul>
+															{#each selectedOnTime as v (v.blockId)}
+																<li><span class="late-crit">{blockName(v.blockId)}</span> <span class="late-val">{versionText(v.value)}</span></li>
+															{/each}
+														</ul>
+													</details>
+												{/if}
+												<button
+													type="button"
+													class="btn tiny tap-44"
+													data-testid="late-credit-save"
+													disabled={busy || lateCredit.invalid.length > 0 || lateCredit.needOnTime.length > 0 || criteria.some((c) => lateLines.has(c.id) && scores[c.id] == null)}
+													onclick={() => void saveLateCredit()}
+												>
+													{#if lateCredit.needOnTime.length || blindTotal}Save with late credit{:else}Save with late credit: {lateCredit.total}{scale?.on ? ` (scaled to ${scaledScore(lateCredit.total, scale)} / ${scale.to})` : ''}{/if}
+												</button>
+											</div>
+										{/if}
 										<div class="score-total" data-testid="score-total">
+											{#if blindTotal}
+												Total: <span class="blind-mark">Hidden</span> / {outOf} pts
+												<button type="button" class="btn secondary tiny" onclick={() => setBlind(false)} data-testid="blind-reveal">Show</button>
+											{:else}
 											Total: {liveAwarded} / {outOf} pts{#if extraCreditReady && (extraCreditNumber ?? 0) > 0}
 												&nbsp;<span class="ec-part"
 													>({directValue ?? liveTotal} {directValue != null ? 'typed' : 'rubric'} + {extraCreditNumber} extra credit)</span
 												>{:else if directValue != null && rubric?.length}
-												&nbsp;<span class="ec-part">(typed score, rubric not counted)</span>{/if}
+												&nbsp;<span class="ec-part">(typed score, rubric not counted)</span>{:else if scale?.on}
+												&nbsp;<span class="ec-part">(rubric {liveTotal} of {scale.from}, scaled)</span>{/if}
+											{/if}
 										</div>
 										<div class="comment-head">
 											<label class="comment-label" for="grade-comment">Comment to the student</label>
@@ -4788,7 +5222,7 @@
 														data-testid="grade-restore"
 														onclick={() => void runUndo('restore')}
 													>
-														Restore taken-back grade{revocation.score != null ? ` (${revocation.score})` : ''}
+														Restore taken-back grade{revocation.score != null && !blind ? ` (${revocation.score})` : ''}
 													</button>
 													<span class="grade-undo-note">Taken back {revocationWhen(revocation.revoked_at)}</span>
 												{/if}
@@ -6416,6 +6850,146 @@
 	}
 	.score-value.override {
 		color: var(--amber);
+	}
+	.score-marks {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		margin: 0.15rem 0 0.25rem;
+	}
+	.mark-chip {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.04em;
+		border: 1px solid var(--hairline);
+		border-radius: 999px;
+		padding: 0.06rem 0.45rem;
+		color: var(--text-2);
+	}
+	.mark-chip.late,
+	.mark-chip.absent {
+		color: var(--amber);
+		border-color: var(--amber);
+	}
+	.mark-chip.hidden-req {
+		color: var(--gold);
+		border-color: var(--gold);
+	}
+	.mark-chip.team {
+		color: var(--teal);
+		border-color: var(--teal);
+	}
+	/* Blind: the typed score stays in the box (so a save keeps it) but is not readable. */
+	.blind-input {
+		color: transparent;
+		caret-color: var(--white);
+	}
+	.blind-mark {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.scale-note,
+	.due-line,
+	.team-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.35rem 0.6rem;
+		font-size: 0.86rem;
+		color: var(--text-2);
+		margin: 0.35rem 0;
+	}
+	.scale-note {
+		border-left: 3px solid var(--amber);
+		padding-left: 0.6rem;
+	}
+	.scale-note.on {
+		border-left-color: var(--teal);
+	}
+	.due-days {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+	}
+	.due-days .ec-input {
+		width: 4.2rem;
+	}
+	.late-credit,
+	.team-merge {
+		border: 1px solid var(--hairline);
+		border-left: 3px solid var(--amber);
+		border-radius: 8px;
+		padding: 0.55rem 0.75rem;
+		margin: 0.5rem 0;
+	}
+	.team-merge {
+		border-left-color: var(--teal);
+	}
+	.late-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0 0 0.4rem;
+		font-size: 0.86rem;
+		color: var(--text-2);
+	}
+	.late-lines,
+	.late-versions ul,
+	.team-answers ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.late-lines li,
+	.late-versions li,
+	.team-answers li {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem 0.7rem;
+		padding: 0.25rem 0;
+		border-top: 1px solid var(--hairline);
+		font-size: 0.86rem;
+	}
+	.late-crit {
+		font-weight: 700;
+		min-width: 8rem;
+	}
+	.late-on {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		color: var(--text-2);
+	}
+	.late-on .ec-input {
+		width: 4.6rem;
+	}
+	.late-math,
+	.team-by {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.late-val {
+		flex: 1 1 14rem;
+		color: var(--text-1);
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+	.late-versions summary,
+	.team-answers summary {
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2);
 	}
 	.gc-protect {
 		display: flex;

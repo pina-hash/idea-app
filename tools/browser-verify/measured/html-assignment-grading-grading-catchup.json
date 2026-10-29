@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "html-assignment-grading-grading-catchup.mjs",
+	"date": "2026-10-29T01:42:32.398Z",
+	"sha": "ecbd555c60455cd5560fe986a8c5cffb399b0766",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 42,
+	"outsideRows": [],
+	"ms": 16815
+}

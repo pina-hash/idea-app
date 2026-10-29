@@ -21,7 +21,7 @@ export default {
 			evaluate: `() => [...document.querySelectorAll('[data-testid="changed-block"]')].map((li) => / at \\S/.test(li.textContent))`,
 			expected: [true, true]
 		},
-		{ label: 'the row keeps its state and gains the existing chip', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete', 'Bruno Baptiste: Not submitted'] }
+		{ label: 'the row keeps its state and gains the existing chip', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete', 'Bruno Baptiste: None of 3 answered'] }
 	],
 	presence: [
 		{ selector: '[data-testid="changed-block"]', label: 'changed blocks', expectPresent: 2, maxPresent: 2, expectVisible: 2 },

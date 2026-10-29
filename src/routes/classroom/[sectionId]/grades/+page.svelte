@@ -16,6 +16,17 @@
 		return null;
 	}
 
+	// THE COURSE'S SYLLABUS CATEGORIES AND TARGETS (0321), re-checked by its RPC.
+	async function setTargets(rows: Array<{ category: string; target_points: number | null }>): Promise<string | null> {
+		const { error } = await data.supabase.rpc('classroom_set_grade_targets', {
+			p_course_id: data.section.course_id,
+			p_targets: rows
+		});
+		if (error) return error.message;
+		await invalidateAll();
+		return null;
+	}
+
 </script>
 
 <GradesPanel
@@ -25,4 +36,6 @@
 	gradebook={data.gradebook}
 	protection={data.protection}
 	onprotection={setProtection}
+	targetTally={data.targetTally}
+	ontargets={setTargets}
 />

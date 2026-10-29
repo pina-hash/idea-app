@@ -20,6 +20,7 @@
 		type GradingOrderKey
 	} from '$lib/classroom/grading-order';
 	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { parseTargetLines, postedVsTarget, targetLines, type GradeTarget } from '$lib/classroom/grading-targets';
 
 	/**
 	 * Every assignment in one class, with where its grading stands and a direct
@@ -40,7 +41,9 @@
 		resubmittedAfterGrading = {},
 		gradebook = null,
 		protection = null,
-		onprotection = null
+		onprotection = null,
+		targetTally = null,
+		ontargets = null
 	}: {
 		section: ClassroomSection;
 		standings?: AssignmentStanding[];
@@ -66,7 +69,31 @@
 		 */
 		protection?: GradeProtection | null;
 		onprotection?: ((on: boolean) => Promise<string | null>) | null;
+		/**
+		 * SYLLABUS POINT TARGETS (ledger 0457, 0321): posted points per category
+		 * against the course's targets. Absent before 0321: no table.
+		 */
+		targetTally?: (ReturnType<typeof postedVsTarget> & { targets: GradeTarget[] }) | null;
+		ontargets?: ((rows: Array<{ category: string; target_points: number | null }>) => Promise<string | null>) | null;
 	} = $props();
+
+	let editingTargets = $state(false);
+	let targetText = $state('');
+	let targetError = $state<string | null>(null);
+	let targetBusy = $state(false);
+	function startTargets() {
+		targetText = targetLines(targetTally?.targets ?? []);
+		targetError = null;
+		editingTargets = true;
+	}
+	async function saveTargets() {
+		if (!ontargets) return;
+		targetBusy = true;
+		targetError = await ontargets(parseTargetLines(targetText));
+		targetBusy = false;
+		if (!targetError) editingTargets = false;
+	}
+	const fmt = (n: number) => String(Math.round(n * 100) / 100);
 
 	interface GradeProtection {
 		on: boolean;
@@ -216,6 +243,56 @@
 						{/each}
 					</ul>
 				</details>
+			{/if}
+		</section>
+	{/if}
+
+	{#if targetTally}
+		<section class="card targets-card" data-testid="grades-targets">
+			<div class="targets-head">
+				<span class="protect-title">Points posted against the syllabus</span>
+				{#if ontargets && !editingTargets}
+					<button type="button" class="btn secondary tiny tap-44" onclick={startTargets} data-testid="grades-targets-edit">Edit categories</button>
+				{/if}
+			</div>
+			{#if editingTargets}
+				<p class="protect-says">One category per line, with its points from the syllabus. Leave the number off to set it later.</p>
+				<textarea class="targets-input" rows={Math.max(5, (targetTally.targets.length || 4) + 1)} bind:value={targetText} data-testid="grades-targets-text"></textarea>
+				<div class="targets-actions">
+					<button type="button" class="btn tiny tap-44" disabled={targetBusy} onclick={saveTargets}>Save categories</button>
+					<button type="button" class="btn secondary tiny tap-44" onclick={() => (editingTargets = false)}>Cancel</button>
+				</div>
+				{#if targetError}<p class="note" role="alert">{targetError}</p>{/if}
+			{:else if targetTally.targets.length === 0}
+				<p class="protect-says">No syllabus categories for this course yet. Add them with their point targets to see what is still to post.</p>
+			{:else}
+				<table class="targets-table">
+					<thead><tr><th scope="col">Category</th><th scope="col">Posted</th><th scope="col">Target</th><th scope="col">Gap</th></tr></thead>
+					<tbody>
+						{#each targetTally.rows as r (r.category)}
+							<tr data-testid="grades-target-row">
+								<th scope="row">{r.category}<span class="targets-posts">{r.posts} {r.posts === 1 ? 'post' : 'posts'}</span></th>
+								<td>{fmt(r.posted)}</td>
+								<td>{r.target == null ? 'Not set' : fmt(r.target)}</td>
+								<td class:short={r.gap != null && r.gap < 0} class:over={r.gap != null && r.gap > 0}>
+									{r.gap == null ? '' : r.gap === 0 ? 'On target' : r.gap < 0 ? `${fmt(-r.gap)} short` : `${fmt(r.gap)} over`}
+								</td>
+							</tr>
+						{/each}
+						{#if targetTally.unfiled.posts}
+							<tr class="unfiled" data-testid="grades-target-unfiled">
+								<th scope="row">Not in a syllabus category<span class="targets-posts">{targetTally.unfiled.posts} {targetTally.unfiled.posts === 1 ? 'post' : 'posts'}</span></th>
+								<td>{fmt(targetTally.unfiled.posted)}</td>
+								<td></td>
+								<td></td>
+							</tr>
+						{/if}
+					</tbody>
+					<tfoot>
+						<tr><th scope="row">Total</th><td>{fmt(targetTally.total.posted)}</td><td>{targetTally.total.target == null ? '' : fmt(targetTally.total.target)}</td><td></td></tr>
+					</tfoot>
+				</table>
+				{#if targetTally.targets[0]?.source}<p class="targets-source">From the {targetTally.targets[0].source}.</p>{/if}
 			{/if}
 		</section>
 	{/if}
@@ -487,6 +564,87 @@
 	}
 	.tone-muted {
 		color: var(--text-2);
+	}
+	.targets-card {
+		padding: 0.9rem 1.1rem;
+	}
+	.targets-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.4rem;
+	}
+	.targets-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.9rem;
+	}
+	.targets-table th,
+	.targets-table td {
+		text-align: left;
+		padding: 0.35rem 0.4rem;
+		border-top: 1px solid var(--hairline);
+	}
+	.targets-table td {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		white-space: nowrap;
+	}
+	.targets-table thead th {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-2);
+		border-top: none;
+	}
+	.targets-table tbody th {
+		font-weight: 700;
+	}
+	.targets-table tfoot th,
+	.targets-table tfoot td {
+		border-top: 1px solid var(--boundary);
+		font-weight: 700;
+	}
+	.targets-posts {
+		display: block;
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		font-weight: 400;
+		color: var(--text-2);
+	}
+	.targets-table td.short {
+		color: var(--amber);
+	}
+	.targets-table td.over {
+		color: var(--cyan);
+	}
+	.targets-table tr.unfiled th,
+	.targets-table tr.unfiled td {
+		color: var(--text-2);
+	}
+	.targets-source {
+		margin: 0.4rem 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		color: var(--text-2);
+	}
+	.targets-input {
+		width: 100%;
+		box-sizing: border-box;
+		font: inherit;
+		color: var(--text-1);
+		background: var(--bg0);
+		border: 1px solid var(--boundary);
+		border-radius: 8px;
+		padding: 0.5rem 0.6rem;
+	}
+	.targets-actions {
+		display: flex;
+		gap: 0.4rem;
+		margin-top: 0.4rem;
 	}
 	.grades-queue {
 		display: inline-flex;

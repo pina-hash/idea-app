@@ -64,6 +64,13 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'classroom_team_tasks',
 	'classroom_teams',
 	'classroom_units',
+	// Ledger 0457 (0315, 0321): protection, own due dates, grading settings,
+	// late credit and syllabus targets, which the grading tools write.
+	'classroom_course_grade_targets',
+	'classroom_grade_protection_refusals',
+	'classroom_item_grading',
+	'classroom_late_credit',
+	'classroom_student_due',
 	'coin_banner_pins',
 	'coin_categories',
 	'coin_contract_claims',

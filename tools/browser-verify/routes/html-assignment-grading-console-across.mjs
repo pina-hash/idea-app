@@ -16,7 +16,7 @@
  *     of this harness is its positive control, where it is present);
  *   - Bruno, who has nothing stored, gets the empty worksheet in the read-only
  *     frame and the Responses heading, and NOT "Nothing handed in yet";
- *   - the roster still reads Alice Complete and Bruno Not submitted.
+ *   - the roster still reads Alice Complete and Bruno None of 3 answered (ledger 0457: a worksheet has no turn-in).
  */
 import { ROSTER_STATES } from './_html-assignment-roster.mjs';
 
@@ -33,7 +33,7 @@ export default {
 		}
 	],
 	orderResult: [
-		{ label: 'Alice finished, Bruno has nothing', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete', 'Bruno Baptiste: Not submitted'] },
+		{ label: 'Alice finished, Bruno has nothing', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete', 'Bruno Baptiste: None of 3 answered'] },
 		{
 			label: 'the work pane is Bruno\'s, and it is the document',
 			evaluate: `() => [document.querySelector('.work-name')?.textContent.trim(), document.querySelectorAll('.hx-frame-wrap').length]`,

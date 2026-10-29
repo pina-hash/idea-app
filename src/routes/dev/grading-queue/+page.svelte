@@ -5,6 +5,7 @@
 	import GradingQueue from '$lib/classroom/GradingQueue.svelte';
 	import GradesPanel from '$lib/classroom/GradesPanel.svelte';
 	import { parseNeedsGrading } from '$lib/classroom/grading-queue';
+	import { postedVsTarget, type GradeTarget } from '$lib/classroom/grading-targets';
 	import type { ClassroomSection } from '$lib/classroom/classroom';
 
 	/** Fixed instants: a fixture that moves cannot be asserted. */
@@ -60,7 +61,29 @@
 			{ id: 'k2', itemId: 'i-shop4', itemTitle: 'Shop Fix: Design', student: 'Cruz, Sam', action: 'typed score', keptScore: 25, keptBy: 'wcosso@boscotech.edu', at: '2026-10-28T19:12:00Z' }
 		]
 	});
-	async function onprotection(on: boolean) {
+	/** IDEA209H's syllabus categories (its committed syllabus) against a Unit 3 that is 25 short. */
+	let targets = $state<GradeTarget[]>([
+		{ category: 'Unit Labs', target: 200, source: 'IDEA209H Fall 2026 syllabus, Grading (semester total 1,050)' },
+		{ category: 'Unit Assignments', target: 400, source: null },
+		{ category: 'Engineering Documentation', target: 100, source: null },
+		{ category: 'Integrated Design Challenge', target: 250, source: null },
+		{ category: 'Final Exam', target: 100, source: null }
+	]);
+	const POSTS = [
+		{ kind: 'assignment', points: 50, category: 'Unit Labs' },
+		{ kind: 'assignment', points: 50, category: 'Unit Labs' },
+		{ kind: 'assignment', points: 100, category: 'Unit Assignment' },
+		{ kind: 'assignment', points: 100, category: 'Unit Assignments' },
+		{ kind: 'assignment', points: 75, category: 'Unit Assignments' },
+		{ kind: 'assignment', points: 25, category: 'Engineering Documentation' },
+		{ kind: 'assignment', points: 10, category: null }
+	] as const;
+	const targetTally = $derived({ targets, ...postedVsTarget(POSTS as never, targets) });
+	async function ontargets(rows: Array<{ category: string; target_points: number | null }>) {
+		targets = rows.map((r) => ({ category: r.category, target: r.target_points, source: null }));
+		return null;
+	}
+		async function onprotection(on: boolean) {
 		protection = { ...protection, on };
 		return null;
 	}
@@ -68,7 +91,7 @@
 
 <div class="cr-root {CLASSROOM_PLATE}">
 	{#if view === 'grades'}
-		<GradesPanel {section} standings={[]} {protection} {onprotection} basePath="/dev" />
+		<GradesPanel {section} standings={[]} {protection} {onprotection} {targetTally} {ontargets} basePath="/dev" />
 	{:else}
 		<GradingQueue read={async (exclude) => ({ ok: true, data: answer(exclude) })} classes={names} basePath="/dev" />
 	{/if}

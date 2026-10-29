@@ -11,7 +11,7 @@ export default {
 	label: 'Grading console: a worksheet finished after its deadline reads Complete, late',
 	prepare: OPEN_ALICE,
 	orderResult: [
-		{ label: 'late says so in words', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete, late', 'Bruno Baptiste: Not submitted'] }
+		{ label: 'late says so in words', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete, late', 'Bruno Baptiste: None of 3 answered'] }
 	],
 	presence: [
 		{ selector: '.roster-chip.late', label: 'the late chip', expectPresent: 1, maxPresent: 1, expectVisible: 1 },

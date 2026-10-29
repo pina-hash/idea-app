@@ -170,6 +170,21 @@ async function listPosts(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> 
 	return { status: 'ok', class: c.value.title, count: posts.length, posts: posts.slice(0, 100).map((p) => postSummary(p, today)) };
 }
 
+/**
+ * WHAT A GRADE ON THIS POST IS OUT OF (ledger 0457, item 17): the post's
+ * points when its rubric is scaled to them (0321), otherwise the rubric total,
+ * otherwise the post's points. The database's own order, so a score-only
+ * grade never reads "out of 70" on a post scaled to 20.
+ */
+async function outOfFor(ctx: ToolContext, p: PostRow, rubric: RubricCriterion[] | null): Promise<number | null> {
+	const sum = rubric?.length ? rubric.reduce((n, c) => n + Number(c.points ?? 0), 0) : null;
+	if (sum !== null && p.points != null && p.points > 0 && sum !== p.points) {
+		const r = await ctx.backend.rpc<{ scale_to_points?: boolean } | null>(ctx.session, 'classroom_item_grading_settings', { p_item_id: p.id });
+		if (!r.error && r.data?.scale_to_points) return p.points;
+	}
+	return sum ?? p.points;
+}
+
 async function rubricOf(ctx: ToolContext, itemId: string): Promise<RubricCriterion[] | null> {
 	const r = await ctx.backend.select<{ criteria: RubricCriterion[] }>(ctx.session, {
 		table: 'classroom_rubrics',
@@ -446,9 +461,16 @@ async function worksheetWork(ctx: ToolContext, p: PostRow) {
 	};
 }
 
-/** Each student's own due date on a post, where an extension moved it. Empty before 0315. */
-async function studentDueDates(_ctx: ToolContext, _p: PostRow): Promise<Map<string, string>> {
-	return new Map();
+/** Each student's own due date on a post, where an extension moved it. Empty before 0321. */
+async function studentDueDates(ctx: ToolContext, p: PostRow): Promise<Map<string, string>> {
+	const r = await ctx.backend.select<{ student_email: string; due_at: string | null }>(ctx.session, {
+		table: 'classroom_student_due',
+		columns: ['student_email', 'due_at'],
+		eq: { item_id: p.id },
+		limit: 1000
+	});
+	if (r.error) return new Map();
+	return new Map(r.data.filter((d) => d.due_at).map((d) => [d.student_email.toLowerCase(), d.due_at as string]));
 }
 
 function pickQuestion(manifest: HtmlAssignmentManifest | null, said: string | undefined, ids: string[]): string[] | null {
@@ -836,6 +858,35 @@ async function gradingPacket(ctx: ToolContext, args: ToolArgs): Promise<ToolOutp
 		}
 	}
 
+	// LATE CREDIT, ABSENT MARKS AND TEAMS (ledger 0457, 0321): each student's
+	// own date and mark, the on-time version of every answer edited after it,
+	// the post's late rate, and its posted team draw. Each read is best effort.
+	const [marks, versions, settings, draw] = await Promise.all([
+		ctx.backend.rpc<Array<{ email: string; absent: boolean; days_out: number | null }>>(ctx.session, 'classroom_student_due_dates', { p_item_id: p.value.id }).then((r) => (r.error ? [] : (r.data ?? []))),
+		ctx.backend
+			.select<{ student_email: string; block_id: string; value: unknown; saved_at: string }>(ctx.session, {
+				table: 'classroom_response_versions',
+				columns: ['student_email', 'block_id', 'value', 'saved_at'],
+				eq: { item_id: p.value.id },
+				limit: 1000
+			})
+			.then((r) => (r.error ? [] : r.data)),
+		ctx.backend.rpc<{ late_rate: number; grade_as_teams: boolean; scale_to_points: boolean; rubric_total: number | null; points: number | null } | null>(ctx.session, 'classroom_item_grading_settings', { p_item_id: p.value.id }).then((r) => (r.error ? null : r.data)),
+		ctx.backend.rpc<{ sections?: Array<{ section_id: string; teams: Array<{ id: string; name: string; members: string[] }> }> }>(ctx.session, 'classroom_item_team_draw', { p_item_id: p.value.id }).then((r) => (r.error ? null : r.data))
+	]);
+	const markOf = new Map(marks.map((m) => [m.email.toLowerCase(), m]));
+	const versionsOf = new Map<string, Array<{ question: number | null; prompt: string | null; on_time_answer: unknown; saved: string }>>();
+	for (const v of versions) {
+		const e = v.student_email.toLowerCase();
+		const q = question(v.block_id);
+		const list = versionsOf.get(e) ?? [];
+		list.push({ question: q.number, prompt: q.prompt, on_time_answer: v.value, saved: v.saved_at });
+		versionsOf.set(e, list);
+	}
+	const drawTeams = (draw?.sections ?? []).filter((d) => sections.some((x) => x.id === d.section_id)).flatMap((d) => d.teams);
+	const drawTeamOf = new Map<string, string>();
+	for (const t of drawTeams) for (const m of t.members) drawTeamOf.set(m.toLowerCase(), t.name);
+
 	const nameOf = new Map(roster.map((r) => [r.email, r]));
 	// A WORKSHEET HAS NO TURN-IN (report 6aa5954d): answered X of Y and saved
 	// after due, through the console's own rule, instead of turned_in false.
@@ -854,6 +905,9 @@ async function gradingPacket(ctx: ToolContext, args: ToolArgs): Promise<ToolOutp
 				state: work ? workState(s, a) : (s?.state ?? 'not started'),
 				...(a ? answeredOut(a) : { turned_in: !!s?.submitted_at, turned_in_at: s?.submitted_at ?? undefined }),
 				...(due && due !== p.value.due_at ? { due_at: due } : {}),
+				...(markOf.get(st.email)?.absent ? { absent: 'Absent, still has time (the A in FACTS); not a grade.' } : {}),
+				...(versionsOf.get(st.email)?.length ? { on_time_versions: versionsOf.get(st.email) } : {}),
+				...(!teamOf.has(st.email) && drawTeamOf.has(st.email) ? { posted_team: drawTeamOf.get(st.email) } : {}),
 				late: !!(s?.submitted_at && due && Date.parse(s.submitted_at) > Date.parse(due)) || undefined,
 				graded: !!s?.graded_at,
 				returned: !!s?.returned_at,
@@ -886,7 +940,7 @@ async function gradingPacket(ctx: ToolContext, args: ToolArgs): Promise<ToolOutp
 			: undefined;
 	}
 
-	const outOf = rubric?.length ? rubric.reduce((sum, c) => sum + Number(c.points ?? 0), 0) : p.value.points;
+	const outOf = await outOfFor(ctx, p.value, rubric);
 	return {
 		status: 'ok',
 		...postSummary(p.value, today),
@@ -907,6 +961,25 @@ async function gradingPacket(ctx: ToolContext, args: ToolArgs): Promise<ToolOutp
 				}
 			: {}),
 		students,
+		grading: settings
+			? {
+					late_rate: settings.late_rate,
+					late_credit:
+						'An answer saved after a student\'s own due date has its on-time version in on_time_versions. Score each rubric line twice, as it stood on time and as it stands, and send both through site_call classroom_grade_late_credit; it credits on time + late_rate x the improvement.',
+					...(settings.rubric_total != null && settings.points != null && Number(settings.rubric_total) !== Number(settings.points)
+						? {
+								rubric_vs_points: settings.scale_to_points
+									? `The rubric adds up to ${settings.rubric_total}; grades are scaled to the post's ${settings.points} points.`
+									: `The rubric adds up to ${settings.rubric_total} but the post is worth ${settings.points}. A rubric grade saves the rubric sum unless the post's scale setting is on (site_call classroom_set_item_grading with scale true).`
+							}
+						: {}),
+					...(settings.grade_as_teams
+						? {
+								grade_as_teams: 'Graded as teams from the posted draw: give every member of a team the same score in one grade call (each student\'s posted_team says which).'
+							}
+						: {})
+				}
+			: undefined,
 		counts: work
 			? {
 					students: students.length,
@@ -1328,10 +1401,73 @@ async function setDue(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	const p = await postFrom(ctx, args);
 	if (p.status !== 'found') return unresolved('post', p);
 	if (p.value.kind !== 'assignment') return { status: 'invalid', message: `${p.value.title} is not an assignment, so it has no due date.` };
+	if (Array.isArray(args.students) && args.students.length) return setStudentDue(ctx, p.value, args);
 	const d = resolveDue(str(args.due) ?? '', new Date(ctx.now()));
 	if (!d.ok) return { status: 'invalid', message: d.refusal };
 	const o = await updateItem(ctx, 'set_due', p.value, { due: d.iso }, writeOptions(args));
 	return { ...outcomeWords(o), post: p.value.title, due: d.words, due_before: p.value.due_at ? formatDue(p.value.due_at) : 'no due date' };
+}
+
+/**
+ * SOME STUDENTS' OWN DUE DATES AND THE ABSENT MARK, IN ONE CALL (ledger 0457,
+ * gap 12d29c40). His words: "if so, please adjust their late date status
+ * appropriately. Or if I still have time to complete the assignment and have
+ * not turned it in, you must put a A for absent." days_out moves the post's due
+ * date by that many school days (weekends and no-school days skipped), due sets
+ * one outright, absent is the A and is never a grade. One write, one undo: the
+ * reverse puts every named student's own date and mark back as they were.
+ */
+async function setStudentDue(ctx: ToolContext, p: PostRow, args: ToolArgs): Promise<ToolOutput> {
+	const entries: Array<Record<string, unknown>> = [];
+	const names: string[] = [];
+	const seen = new Set<string>();
+	let shared: string | null = null;
+	const dueSaid = str(args.due);
+	if (dueSaid) {
+		const d = resolveDue(dueSaid, new Date(ctx.now()));
+		if (!d.ok) return { status: 'invalid', message: d.refusal };
+		shared = d.iso;
+	}
+	for (const raw of args.students as unknown[]) {
+		const e = (typeof raw === 'string' ? { student: raw } : (raw ?? {})) as Record<string, unknown>;
+		const s = await resolveStudent(ctx, str(e.student) ?? '', str(args.class));
+		if (s.status !== 'found') return unresolved('student', s);
+		if (seen.has(s.value.email)) return { status: 'invalid', message: `${s.value.name} is named twice. Nothing was changed.` };
+		seen.add(s.value.email);
+		const entry: Record<string, unknown> = { student_email: s.value.email };
+		const days = num(e.daysOut ?? e.days_out);
+		if (bool(e.clear)) entry.clear = true;
+		else {
+			if (days !== undefined) {
+				if (!Number.isInteger(days) || days < 0 || days > 60) return { status: 'invalid', message: 'Days out is a whole number of school days, 0 to 60. Nothing was changed.' };
+				entry.days_out = days;
+			} else if (shared) entry.due_at = shared;
+			if (bool(e.absent) !== undefined) entry.absent = bool(e.absent);
+			if (entry.days_out === undefined && entry.due_at === undefined && entry.absent === undefined) {
+				return { status: 'invalid', message: `Say days out, a due date, absent, or clear for ${s.value.name}. Nothing was changed.` };
+			}
+		}
+		entries.push(entry);
+		names.push(s.value.name);
+	}
+	// The reverse is the function's own answer (`undo`): every named student's
+	// date and mark as they stood, or clear.
+	const o = await write(ctx, { tool: 'set_due', fn: 'classroom_set_student_due', args: { p_item_id: p.id, p_entries: entries } }, writeOptions(args));
+	const result = (o as { result?: { results?: Array<Record<string, unknown>> } }).result;
+	const today = laCalendarDay(new Date(ctx.now()));
+	return {
+		...outcomeWords(o),
+		post: p.title,
+		post_due: p.due_at ? formatDue(p.due_at, today) : 'no due date',
+		students: (result?.results ?? []).map((r, i) => ({
+			student: names[i],
+			ok: r.ok,
+			...(r.ok
+				? { due: r.due_at ? formatDue(String(r.due_at), today) : null, days_out: r.days_out ?? undefined, absent: r.absent || undefined, cleared: r.cleared || undefined }
+				: { message: r.message })
+		})),
+		note: 'Absent is the A for a student who still has time; it is not a grade. A student\'s own due date decides what counts as late for them.'
+	};
 }
 
 function criterionId(name: string, taken: Set<string>): string {
@@ -1539,7 +1675,7 @@ async function grade(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	const s = await resolveStudent(ctx, str(args.student) ?? '');
 	if (s.status !== 'found') return unresolved('student', s);
 	const rubric = await rubricOf(ctx, p.value.id);
-	const outOf = rubric?.length ? rubric.reduce((sum, c) => sum + Number(c.points ?? 0), 0) : p.value.points;
+	const outOf = await outOfFor(ctx, p.value, rubric);
 	let score = num(args.score);
 	if (bool(args.perfect)) {
 		if (outOf === null || outOf === undefined) return { status: 'invalid', message: `${p.value.title} has no total, so there is no perfect score.` };
@@ -1629,7 +1765,7 @@ async function gradeMany(ctx: ToolContext, p: PostRow, args: ToolArgs): Promise<
 	const rubric = (await rubricOf(ctx, p.id)) ?? [];
 	const manifest = p.assignment_schema_version === 3 ? await storedManifest(ctx, p.id) : null;
 	const team = !!manifest && hxIsTeamManifest(manifest);
-	const outOf = rubric.length ? rubric.reduce((sum, c) => sum + Number(c.points ?? 0), 0) : p.points;
+	const outOf = await outOfFor(ctx, p, rubric);
 	const groupKey = `grade:${p.id}:${opts.requestId ?? opaqueToken(ctx.random).slice(0, 16)}`;
 	const entries = (args.grades as unknown[]).filter((e): e is Record<string, unknown> => !!e && typeof e === 'object');
 	if (entries.length === 0) return { status: 'invalid', message: 'Give at least one grade.' };

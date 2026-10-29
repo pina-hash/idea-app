@@ -133,7 +133,11 @@ const REVERSED_BY_MEANING: Record<string, { why: string; check: (args: Record<st
 		why: 'As above, for a rubric grade.',
 		check: async (a) => (await w.db.sql(`select 1 from public.classroom_submissions where item_id = $1 and student_email = $2 and score is null and returned_at is null`, [a.p_item_id, a.p_student_email])).rows.length === 1
 	},
-	classroom_restore_grade: {
+	classroom_grade_late_credit: {
+		why: 'A late credit is a rubric grade (0321 writes it through classroom_grade_submission); a first one is taken back by revoking it, as above.',
+		check: async (a) => (await w.db.sql(`select 1 from public.classroom_submissions where item_id = $1 and student_email = $2 and score is null and returned_at is null`, [a.p_item_id, a.p_student_email])).rows.length === 1
+	},
+		classroom_restore_grade: {
 		why: 'A restored grade is revoked again; every revocation is kept.',
 		check: async (a) => (await w.db.sql(`select 1 from public.classroom_submissions where item_id = $1 and student_email = $2 and score is null`, [a.p_item_id, a.p_student_email])).rows.length === 1
 	},

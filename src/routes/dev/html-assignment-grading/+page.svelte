@@ -5,6 +5,7 @@
 	import HtmlGradingWork from '$lib/classroom/html-assignment/HtmlGradingWork.svelte';
 	import type { HtmlAssignmentData } from '$lib/classroom/html-assignment/mount';
 	import type { BulkGradingTransports } from '$lib/classroom/grading-bulk';
+	import type { GradingExtras, ItemGrading, StudentDue } from '$lib/classroom/grading-extras';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import {
 		registerLocalSubmissionFileUrl,
@@ -62,6 +63,52 @@
 	 * photo away, which is the one block still unmet, so it reads In progress.
 	 */
 	const late = $derived(viewState === 'late');
+	/**
+	 * GRADING CATCH-UP (`?grading=catchup`, ledger 0457): the console with its
+	 * `extras` handed in. The post is due between Alice's answers, so her
+	 * reflection is late; one class only fills empty grades; the rubric (10)
+	 * disagrees with the post's points (20); the criterion's wording is only in
+	 * a tooltip in the worksheet; and a posted draw puts Alice and Bruno on a
+	 * team. Every write is kept in memory so pressing a control is observable.
+	 */
+	const catchup = $derived(page.url.searchParams.get('grading') === 'catchup');
+	let catchupDue = $state<StudentDue[]>([]);
+	let catchupGrading = $state<ItemGrading>({ lateRate: 0.5, gradeAsTeams: false, scaleToPoints: false, rubricTotal: 10, points: 20 });
+	const extras: GradingExtras = {
+		async protection() {
+			return [{ sectionId: SECTION_ID, on: true }];
+		},
+		async dueDates() {
+			return catchupDue;
+		},
+		async setDue(_item, entries) {
+			for (const e of entries) {
+				const email = String(e.student_email);
+				catchupDue = catchupDue.filter((d) => d.email !== email);
+				if (!e.clear) catchupDue = [...catchupDue, { email, dueAt: e.days_out != null ? iso(-Number(e.days_out)) : null, daysOut: (e.days_out as number) ?? null, absent: e.absent === true, note: null }];
+			}
+			return { ok: true };
+		},
+		async settings() {
+			return catchupGrading;
+		},
+		async setSettings(_item, change) {
+			catchupGrading = { ...catchupGrading, ...change };
+			return { ok: true };
+		},
+		async onTime() {
+			return [{ email: 'alice@boscotech.net', blockId: 'hxw-reflection', value: { text: 'I modelled the blade root.' }, savedAt: iso(1.5), dueAt: iso(1.1) }];
+		},
+		async lateCredit(_item, _email, _on, final) {
+			return { ok: true, credited: final, score: 7.5 };
+		},
+		async teamDraw() {
+			return [{ sectionId: SECTION_ID, label: 'A', teams: [{ id: 't1', number: 1, name: 'Team Meridian', members: ['alice@boscotech.net', 'bruno@boscotech.net'] }] }];
+		},
+		async documentHtml() {
+			return `<section data-module="hxw-work"><h2>Work</h2><p>Reflect on your build.</p><span data-tip="Everything answered, every box">rules</span></section>`;
+		}
+	};
 	const graded = $derived(viewState === 'graded');
 	const partial = $derived(viewState === 'partial');
 	/**
@@ -227,7 +274,8 @@
 	const ITEM = $derived({
 		...ITEM_BASE,
 		published: !unpublished,
-		due_at: late || exporting ? iso(1.1) : null
+		due_at: late || exporting || catchup ? iso(1.1) : null,
+		points: catchup ? 20 : ITEM_BASE.points
 	} as unknown as ClassroomItem);
 
 	/**
@@ -275,6 +323,8 @@
 	} as unknown as HtmlAssignmentManifest;
 
 	const RUBRIC: RubricCriterion[] = MANIFEST.modules[0].criteria as unknown as RubricCriterion[];
+	/** The rubric as an upload stores it (`manifestToRubric`): ids namespaced by module. */
+	const CATCHUP_RUBRIC: RubricCriterion[] = RUBRIC.map((c) => ({ ...c, id: `hxw-work-${c.id}`, criterion: (c as unknown as { text: string }).text }));
 
 	/**
 	 * THE EXPORT STATE'S MANIFEST: the fixture's own, plus a module holding the
@@ -976,16 +1026,17 @@
 		{/if}
 	</header>
 
-	{#key `${viewState}|${liveStalled}|${across}|${roster30}`}
+	{#key `${viewState}|${liveStalled}|${across}|${roster30}|${catchup}`}
 		<GradingConsole
 			section={SECTION}
 			item={ITEM}
 			spec={null}
-			rubric={RUBRIC}
+			rubric={catchup ? CATCHUP_RUBRIC : RUBRIC}
 			{transports}
 			live={across ? null : live}
 			close={across ? null : closeAssignment}
-			bulk={across ? acrossBulk : null}
+			bulk={across || catchup ? acrossBulk : null}
+			extras={catchup ? extras : null}
 			presence={roster30 ? presence30 : null}
 			fileDownload={roster30 || linksState ? fileSource : null}
 			{htmlWork}

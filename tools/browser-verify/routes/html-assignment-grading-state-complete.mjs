@@ -4,7 +4,7 @@
  * Alice has answered every counted block of the ported worksheet -- the
  * two-sentence reflection, the checkbox and the photo -- and a schema-3
  * document has no turn-in, so this row used to read "In progress" forever.
- * Bruno has nothing and still reads "Not submitted". No grade, so no block is
+ * Bruno has nothing and reads "None of 3 answered" (ledger 0457). No grade, so no block is
  * listed as changed after grading.
  */
 import { CHANGED_BLOCKS, OPEN_ALICE, ROSTER_STATES } from './_html-assignment-roster.mjs';
@@ -14,7 +14,7 @@ export default {
 	label: 'Grading console: a finished ported worksheet reads Complete',
 	prepare: OPEN_ALICE,
 	orderResult: [
-		{ label: 'Alice finished, Bruno has nothing', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete', 'Bruno Baptiste: Not submitted'] },
+		{ label: 'Alice finished, Bruno has nothing', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete', 'Bruno Baptiste: None of 3 answered'] },
 		{ label: 'no grade, so nothing changed after one', evaluate: CHANGED_BLOCKS, expected: [] }
 	],
 	presence: [

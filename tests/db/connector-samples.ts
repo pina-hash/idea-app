@@ -552,6 +552,23 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 		}),
 		// Ledger 0457 (0315): a class's fill empty grades only switch.
 		classroom_set_grade_protection: async () => ({ p_section_id: w.block4, p_on: true }),
+		// Ledger 0457 (0321): own due dates, grading settings, late credit, targets.
+		classroom_set_student_due: async () => {
+			const id = await newItem('Due me');
+			await sql(`update public.classroom_items set due_at = now() - interval '1 day' where id = $1`, [id]);
+			return { p_item_id: id, p_entries: [{ student_email: w.students.mateo, days_out: 2 }] };
+		},
+		classroom_set_item_grading: async () => ({ p_item_id: await rubricItem('Settings me'), p_late_rate: 0.25, p_grade_as_teams: true, p_scale_to_points: null }),
+		classroom_grade_late_credit: async () => ({
+			p_item_id: await rubricItem('Late me'),
+			p_student_email: w.students.mateo,
+			p_on_time: { c1: 2 },
+			p_final: { c1: 4 },
+			p_rate: null,
+			p_comment: null,
+			p_return: false
+		}),
+		classroom_set_grade_targets: async () => ({ p_course_id: await courseId(), p_targets: [{ category: 'Unit Labs', target_points: 200 }] }),
 		classroom_close_assignment: async () => ({ p_item_id: await newItem('Close me'), p_student_email: w.students.mateo, p_closed: true }),
 		classroom_approve_module: async () => ({ p_item_id: await specItem('Approve me'), p_student_email: w.students.mateo, p_module_id: 'mod-1', p_approved: true }),
 		classroom_presentation_start: async () => ({ p_section_id: w.block2, p_item_id: null, p_title: 'Talks', p_order: 'roster', p_seed: 3 }),
