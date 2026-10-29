@@ -122,51 +122,6 @@
         "u4d-drive",
         "u4d-ballpath"
       ]
-    },
-    {
-      "id": "d4",
-      "day": 4,
-      "title": "Prototype: one question, one class"
-    },
-    {
-      "id": "d5",
-      "day": 5,
-      "title": "Calculations, CAD, drawings, machine plan"
-    },
-    {
-      "id": "d7",
-      "day": 7,
-      "title": "Sign-off 2: Design. No metal is cut before it"
-    },
-    {
-      "id": "d8",
-      "day": 8,
-      "title": "Build starts"
-    },
-    {
-      "id": "d12",
-      "day": 12,
-      "title": "Sign-off 3: Safe to test"
-    },
-    {
-      "id": "d13",
-      "day": 13,
-      "title": "Test and tune"
-    },
-    {
-      "id": "d14",
-      "day": 14,
-      "title": "Sign-off 4: Competition ready"
-    },
-    {
-      "id": "d15",
-      "day": 15,
-      "title": "Competition on the football field"
-    },
-    {
-      "id": "d16",
-      "day": 16,
-      "title": "Design Review"
     }
   ],
   "points": 28,
