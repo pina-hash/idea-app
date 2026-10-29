@@ -44,7 +44,7 @@ list_posts:
   facade: true
   level: read
   uses: []
-  describe: List what is posted in one of your classes, with each post's kind, due date and whether students can see it.
+  describe: List what is posted in one of your classes, with each post's kind, due date, unit and whether students can see it, and the class's units with their ids.
   say:
     - what's posted in 209H Block 1
     - what's due this week in IDEA100
@@ -70,6 +70,7 @@ get_post:
     class: {type: string, describe: "The class it is in, when the same title is in more than one."}
     document: {type: boolean, describe: "True to include an HTML assignment's stored HTML itself, drafts included."}
     version: {type: integer, describe: "An earlier version number of an HTML assignment's document to read instead of the live one."}
+    source: {type: boolean, describe: "True to include the kit source stored with an HTML assignment."}
 
 create_post:
   facade: true
@@ -184,7 +185,7 @@ set_published:
 replace_html_assignment:
   facade: true
   level: undo
-  uses: [classroom_set_html_assignment, classroom_set_rubric, classroom_html_retire_blocks]
+  uses: [classroom_set_html_assignment, classroom_set_rubric, classroom_html_retire_blocks, classroom_html_set_source]
   describe: Replace an HTML assignment's document with a new file made from the live copy it names; an answered question it drops is refused, or retired with retire set.
   say:
     - replace the Shop Fix HTML in Block 1 with the file I'm sending
@@ -195,6 +196,8 @@ replace_html_assignment:
     html: {type: string, describe: "The whole new HTML document, exactly as the file holds it. For a big file, use upload instead."}
     upload: {type: string, describe: "An upload holding the file, from start upload, for a file too big to send whole."}
     retire: {type: boolean, describe: "True to retire any answered question the new file drops, instead of refusing."}
+    source: {type: string, describe: "The kit source the page was built from, the whole .src.html file, stored with the post so it can be rebuilt on a newer kit."}
+    sourceUpload: {type: string, describe: "An upload holding the source file, for a source too big to send whole."}
     basis: {type: string, describe: "Which live copy this file was made from: the sha256 that reading the post returns for its document, or its saved time. Required once the post has a document; a replace made from an older copy is refused."}
     filename: {type: string, describe: "The file's name, like shop-fix.html."}
     class: {type: string, describe: "The class it is in, when the same title is in more than one."}

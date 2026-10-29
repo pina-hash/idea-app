@@ -1,0 +1,43 @@
+name: Commit first lines
+
+# THE FIRST LINE OF EVERY COMMIT IS A TITLE ON THE SITE'S UPDATE LIST (ledger
+# 0458, report fb08d358). On 2026-10-28 two commits carried their whole message
+# on the first line, clauses joined with " - ", and the list showed one long
+# title. This checks every commit a push to main brings with
+# tools/commit-subjects.mjs (the rule is src/lib/commit-subject.ts): over 100
+# characters, or clauses joined with " - ", turns this run red and names the
+# commit. Main has already moved by then, so it says what to fix next time;
+# src/lib/site-versions.ts splits such a line on the update list either way.
+
+on:
+  push:
+    branches: [main]
+
+# contents: read -- it reads commit messages and nothing else.
+permissions:
+  contents: read
+
+jobs:
+  subjects:
+    name: Check commit first lines
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 100
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Check the pushed commits
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            RANGE="$AFTER~1..$AFTER"
+          else
+            RANGE="$BEFORE..$AFTER"
+          fi
+          node tools/commit-subjects.mjs "$RANGE"

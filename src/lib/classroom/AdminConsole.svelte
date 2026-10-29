@@ -301,6 +301,7 @@
 				<p class="note">Things that span every class rather than living in one.</p>
 				<div class="tool-links">
 					<a class="btn secondary" href="/admin/feedback">Feedback console</a>
+					<a class="btn secondary" href="/admin/html-assignments">HTML assignments</a>
 					<a class="btn secondary" href="/classroom/view-as">Student notebooks</a>
 				</div>
 			</section>

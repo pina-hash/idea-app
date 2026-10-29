@@ -433,6 +433,41 @@ asks `readSavedAt` before anything is retired or written (`htmlReplaceStillCurre
 against the saved time the page loaded or its own last save). A refusal is
 `HTML_REPLACE_STALE`.
 
+**A POST KEEPS ITS KIT SOURCE (0328, report 013c83d0).** `classroom_html_sources`
+holds the `.src.html` a kit page was built from, one per post, read under a
+policy by whoever manages a class it is posted to (instructor materials' rule)
+and written only by `classroom_html_set_source` (admin this season, as the
+document is). The connector's `replace_html_assignment` stores one sent beside
+the page; the export writes it to `sourceExportPath` (`assignment-sources/<course>/<name>.src.html`,
+the IDEA courses without the hyphen). **There is no site-side Rebuild key**:
+`tools/hx-kit/build.mjs` reads the kit off disk and runs `git`, so it cannot
+run inside the site; the health list flags a page the current kit has not
+reached and a chat rebuilds it from the stored source.
+
+**THE HEALTH LIST IS `/admin/html-assignments` (report 3bf69806).**
+`classroom_html_health` (admin) reads every post's `hx-kit` and `hx-standard`
+meta tags, an older page's `hx-kit-css` comment, size, saved time and source
+in SQL, so no document crosses the wire; `htmlHealth` in
+`src/lib/classroom/html-assignment/health.ts` sorts it oldest kit first and
+compares it with `virtual:hx-kit-stamp` (the last commit that touched the kit,
+gathered at build). A post whose manifest names the same title and course as
+exactly one committed source can take it with one key.
+`htmlPointsMismatch` is the one rule for points that disagree with the page's
+rubric (report ccecb3b9), read by the replace screen, the list and the
+connector's replace.
+
+**THE THUMBNAIL SHELL DRAWS IN THE SITE'S FACES AND THE KIT'S TOKENS (report
+f3a3a687).** `thumbnailDocument` inlines `THUMB_SHELL_CSS`, which
+`tools/hx-thumb-shell.mjs` generates from the kit's own `tokensCss` (switched by
+the shim's `data-idea-scheme`) and two `@fontsource` faces;
+`tests/html-thumbnail-shell.test.ts` fails when it is stale. Rerun the tool
+after a kit token change.
+
+**A RUBRIC LINE SAID ONLY IN A TOOLTIP OR A FOLD IS FLAGGED AT UPLOAD (report
+c9d7efc3).** `rubricVisibilityWarnings` is a warning over the whole page: fewer
+than half of a line's content words in visible text, some in a `<details>`,
+`data-tip` or `title`.
+
 ### LEDGER 0436: A TEAM ASSIGNMENT IS ONE SHARED DOCUMENT PER TEAM, PINNED TO THE DRAW IT IS WRITTEN UNDER
 
 **A MANIFEST WITH A TOP-LEVEL `team` IS A TEAM ASSIGNMENT (0301, 0302; spec section 16,

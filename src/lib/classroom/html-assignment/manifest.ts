@@ -1129,8 +1129,54 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 	// wrong one is said here and opens the module for everyone; never an error.
 	warnings.push(...manifestPhaseWarnings(m));
 
+	// WHAT IS SCORED MUST BE SAID WHERE A STUDENT SEES IT (ledger 0458, report
+	// c9d7efc3): a rubric line said only in a tooltip or a closed disclosure.
+	if (typeof html === 'string' && html.length > 0) warnings.push(...rubricVisibilityWarnings(m, html));
+
 	if (errors.length) return fail();
 	return { manifest: raw as HtmlAssignmentManifest, errors: [], warnings };
+}
+
+/** Words too common to say whether a requirement is on the page. */
+const RUBRIC_STOPWORDS = new Set(
+	'about above after again against their there these those which while where would could should every other under until being having doing'.split(' ')
+);
+
+/** A criterion's content words: five letters or more, lowercased, each once. */
+function requirementWords(text: string): string[] {
+	return [...new Set((text.toLowerCase().match(/[a-z][a-z'-]{4,}/g) ?? []).filter((w) => !RUBRIC_STOPWORDS.has(w)))];
+}
+
+/**
+ * RUBRIC LINES A STUDENT CANNOT SEE WITHOUT OPENING SOMETHING (ledger 0458,
+ * report c9d7efc3: an Oct 28 audit found 18 of 61 lines whose requirement
+ * appeared only in a tooltip or hidden text, and his rule is no points off for
+ * what was not clearly asked). A line is flagged when fewer than half of its
+ * content words are in the page's visible text but some are in a `<details>`
+ * fold, a `data-tip` or a `title`. Read over the whole page with the
+ * importer's own regex projections, so it is a WARNING: a page may say the
+ * same thing in other words, and only a person can tell.
+ */
+export function rubricVisibilityWarnings(m: Record<string, unknown>, html: string): string[] {
+	const folds = [...html.matchAll(/<details\b[^>]*>([\s\S]*?)<\/details\s*>/gi)].map((x) => x[1]);
+	const tips = [...html.matchAll(/\b(?:data-tip|title)\s*=\s*"([^"]*)"/gi)].map((x) => x[1]);
+	const visible = documentText(html.replace(/<details\b[^>]*>[\s\S]*?<\/details\s*>/gi, ' ')).toLowerCase();
+	const hidden = `${folds.map((f) => documentText(f)).join(' ')} ${tips.join(' ')}`.toLowerCase();
+	const out: string[] = [];
+	for (const mod of Array.isArray(m.modules) ? m.modules : []) {
+		const name = String((mod as { title?: unknown; id?: unknown }).title ?? (mod as { id?: unknown }).id ?? '');
+		for (const c of Array.isArray((mod as { criteria?: unknown }).criteria) ? ((mod as { criteria: unknown[] }).criteria) : []) {
+			const text = String((c as { text?: unknown })?.text ?? '').trim();
+			const words = requirementWords(text);
+			if (words.length < 2) continue;
+			const seen = words.filter((w) => visible.includes(w)).length;
+			const tucked = words.filter((w) => !visible.includes(w) && hidden.includes(w)).length;
+			if (seen * 2 < words.length && tucked > 0) {
+				out.push(`Rubric line "${text}" in "${name}" is said mostly inside a tooltip or a closed fold. A student must see what is scored without opening anything; say it in the step.`);
+			}
+		}
+	}
+	return out;
 }
 
 /** The `opensAfter` keys a reader cannot use, as warnings (SPEC 16.10). */

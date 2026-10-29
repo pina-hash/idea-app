@@ -130,6 +130,32 @@ classroom_set_html_assignment:
     - function: classroom_set_html_assignment
       args: {p_item_id: $args.p_item_id, p_document: null, p_manifest: null, p_filename: null}
 
+classroom_html_set_source:
+  surface: call
+  level: undo
+  describe: Store the kit source an HTML assignment was built from, so it can be rebuilt on a newer kit; the replace html assignment tool stores one sent with the page.
+  say: ["keep the source with the Shop Fix", "store this source file with Launcher Design", "attach the source to the DFM worksheet"]
+  args:
+    p_item_id: {name: post, resolve: post, describe: "The assignment."}
+    p_source: {name: source, describe: "The whole source file, or nothing to remove it."}
+    p_filename: {name: filename, describe: "The source file's name, like shop-fix.src.html."}
+  before:
+    table: classroom_html_sources
+    columns: [source, filename]
+    eq: {item_id: $args.p_item_id}
+  undo:
+    - when: $before.found
+      function: classroom_html_set_source
+      args: {p_item_id: $args.p_item_id, p_source: $before.source, p_filename: $before.filename}
+    - function: classroom_html_set_source
+      args: {p_item_id: $args.p_item_id, p_source: null, p_filename: null}
+
+classroom_html_health:
+  surface: call
+  level: read
+  describe: List every HTML assignment in every class with the kit it was built on, whether its source is stored, its size and when it was saved.
+  say: ["which HTML assignments are on an old kit", "show the HTML assignments health list", "which posts have no source stored"]
+
 classroom_item_revisions:
   surface: call
   level: read

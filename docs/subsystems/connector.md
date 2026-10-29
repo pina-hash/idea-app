@@ -161,6 +161,12 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
     displaced document is kept as (0110's revisions; "revision 1" on a first
     replace is the EARLIER document, report 84cf8690), and re-exports the post
     (gap cdb5eb34).
+  - **THE SOURCE, THE FILES AND THE UNIT ARE READ BACK TOO (ledger 0458).**
+    `replace_html_assignment` takes `source` or `sourceUpload` and stores it
+    with `classroom_html_set_source`; `get_post` names the stored source
+    (`source` true returns it), the post's files and its unit; `list_posts`
+    names each post's unit and the class's units with their ids (gap
+    154c8fb3); `grading_packet` names the unit.
 - **A GAP IS DEDUPED ON ITS REQUEST, NEVER ON HIS WORDS ALONE (0327, report
   0a569932).** `connector_report_gap` folds a report into an open gap only for
   the same `request_id` or the same words with the same missing sentence.

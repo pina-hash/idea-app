@@ -307,8 +307,36 @@ function stripDevRoutesPlugin(): Plugin {
 	};
 }
 
+/**
+ * THE KIT ON MAIN: `virtual:hx-kit-stamp` (ledger 0458), the last commit that
+ * touched `tools/hx-kit` as "<sha> <YYYY-MM-DD>", the stamp
+ * `tools/hx-kit/build.mjs` writes into every page it builds. The HTML
+ * assignments health list compares each post's stamp with it. Gathered only;
+ * `parseKitStamp` in `src/lib/classroom/html-assignment/health.ts` reads it,
+ * and a build with no git history exports null.
+ */
+function hxKitStampPlugin(): Plugin {
+	const VIRTUAL = 'virtual:hx-kit-stamp';
+	return {
+		name: 'idea-hx-kit-stamp',
+		resolveId(id) {
+			if (id === VIRTUAL) return '\0' + VIRTUAL;
+		},
+		load(id) {
+			if (id !== '\0' + VIRTUAL) return;
+			let stamp: string | null = null;
+			try {
+				stamp = execSync('git log -1 --format="%h %cs" -- tools/hx-kit', { encoding: 'utf8' }).trim() || null;
+			} catch {
+				stamp = null;
+			}
+			return `export const stamp = ${JSON.stringify(stamp)};`;
+		}
+	};
+}
+
 export default defineConfig({
-	plugins: [siteVersionsPlugin(), siteCodePlugin(), stripDevRoutesPlugin(), sveltekit()],
+	plugins: [siteVersionsPlugin(), siteCodePlugin(), hxKitStampPlugin(), stripDevRoutesPlugin(), sveltekit()],
 	server: {
 		port: process.env.PORT ? Number(process.env.PORT) : 5173
 	}

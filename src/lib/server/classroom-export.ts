@@ -150,6 +150,8 @@ export interface ExportSubject {
 	filename?: string | null;
 	/** For `html` only: when the stored document last changed (its cache version). */
 	documentUpdatedAt?: string | null;
+	/** For `html` only: the kit source stored with the post (ledger 0458), or null. */
+	source?: { text: string; filename: string } | null;
 	rubric: unknown | null;
 	sectionIds: string[];
 	courseDir: string;
@@ -206,12 +208,32 @@ export function buildExportFiles(subject: ExportSubject): ExportFile[] {
 			})
 		];
 		if (subject.rubric != null) files.push(jsonFile(`${dir}/rubric.json`, subject.rubric));
+		// THE SOURCE BESIDE ITS SIBLINGS (ledger 0458, report 013c83d0): where
+		// the authoring chats keep every source, verbatim, under its own name.
+		if (subject.source) files.push({ path: sourceExportPath(subject.courseDir, subject.slug, subject.source.filename), content: subject.source.text });
 		return files;
 	}
 	const specName = subject.specKind === 'reference' ? 'reference.json' : 'assignment.json';
 	const files: ExportFile[] = [jsonFile(`${dir}/${specName}`, subject.spec), jsonFile(`${dir}/material.json`, meta)];
 	if (subject.rubric != null) files.push(jsonFile(`${dir}/rubric.json`, subject.rubric));
 	return files;
+}
+
+/** Where a post's kit source is exported: `assignment-sources/<course>/<name>.src.html`. */
+export const SOURCE_EXPORT_ROOT = 'assignment-sources';
+
+/**
+ * A SOURCE'S PATH IN THE REPO (ledger 0458). The course folder is the one the
+ * authoring chats use, which writes the IDEA courses without the hyphen
+ * (`idea100`, `idea209h`) where the materials export writes `idea-100`; every
+ * other course folder is the materials one. The file keeps the name it was
+ * uploaded as when that is a `.src.html` name, else the post's slug.
+ */
+export function sourceExportPath(courseDir: string, slug: string, filename: string): string {
+	const course = courseDir.replace(/^idea-(?=\d)/, 'idea');
+	const base = (filename.split(/[\\/]/).pop() ?? '').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+	const name = /^[a-z0-9][a-z0-9._-]*\.src\.html$/.test(base) ? base : `${slug}.src.html`;
+	return `${SOURCE_EXPORT_ROOT}/${course}/${name}`;
 }
 
 /** The one folder an item's export writes: `materials/<course>/<slug>`. */
@@ -499,6 +521,13 @@ export async function readExportSubject(
 					.maybeSingle()
 			: Promise.resolve({ data: null })
 	]);
+	// ledger 0458: the kit source, a rung of its own, so a deployment without
+	// 0328 (no such table) exports exactly what it did.
+	const sourceRes =
+		item.assignment_schema_version === 3
+			? await supabase.from('classroom_html_sources').select('source, filename').eq('item_id', itemId).maybeSingle()
+			: { data: null };
+	const sourceRow = (sourceRes.data as { source?: string; filename?: string } | null) ?? null;
 
 	const html =
 		(htmlRes.data as { document?: string; manifest?: unknown; filename?: string; updated_at?: string } | null) ??
@@ -541,6 +570,7 @@ export async function readExportSubject(
 		document: hasHtml ? html.document : null,
 		filename: hasHtml ? (html.filename ?? null) : null,
 		documentUpdatedAt: hasHtml ? (html.updated_at ?? null) : null,
+		source: hasHtml && typeof sourceRow?.source === 'string' ? { text: sourceRow.source, filename: sourceRow.filename ?? '' } : null,
 		rubric: (rubricRes.data as { criteria?: unknown } | null)?.criteria ?? null,
 		sectionIds,
 		courseDir,

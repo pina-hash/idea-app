@@ -56,3 +56,8 @@ declare module 'virtual:site-code' {
 	export type { CodeCensus };
 	export const census: CodeCensus;
 }
+
+/** The last commit that touched tools/hx-kit, "<sha> <YYYY-MM-DD>", or null (ledger 0458). */
+declare module 'virtual:hx-kit-stamp' {
+	export const stamp: string | null;
+}

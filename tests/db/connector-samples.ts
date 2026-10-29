@@ -621,6 +621,11 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 
 		// ---- quick posts ----
 		classroom_quick_post_create: async () => ({ p_section_ids: [w.block2], p_body: 'Shop closed.', p_expires_at: new Date(Date.now() + 86_400_000).toISOString() }),
+		// Ledger 0458: the kit source kept with an HTML post.
+		classroom_html_set_source: async () => {
+			const h = await htmlItem('Keep my source');
+			return { p_item_id: h.id, p_source: '<!doctype html><html><head><!-- hx:head --></head><body><!-- hx:script --></body></html>', p_filename: 'keep.src.html' };
+		},
 		classroom_html_retire_blocks: async () => {
 			const h = await htmlItem('Retire from me');
 			return { p_item_id: h.id, p_blocks: [{ block_id: h.block, block: { id: h.block, field: 'old', type: 'text' }, module_title: 'Day 1' }] };

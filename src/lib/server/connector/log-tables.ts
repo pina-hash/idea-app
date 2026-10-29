@@ -41,6 +41,8 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	'classroom_enrollments',
 	'classroom_hall_passes',
 	'classroom_html_retired_blocks',
+	// Ledger 0458: the kit source kept with an HTML post (0328).
+	'classroom_html_sources',
 	'classroom_instructor_attachments',
 	'classroom_instructor_keys',
 	'classroom_instructor_resources',

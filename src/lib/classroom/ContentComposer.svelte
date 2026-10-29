@@ -89,6 +89,7 @@
 		type HtmlReuploadRisk,
 		type StagedHtmlAssignment
 	} from '$lib/classroom/html-assignment/store';
+	import { htmlPointsMismatch, htmlPointsMismatchLine } from '$lib/classroom/html-assignment/health';
 	import {
 		manifestRubricIsDerived,
 		manifestRubricTotal,
@@ -3185,6 +3186,17 @@
 					A rubric you build yourself here is left alone. Correcting it later means uploading
 					the document again, which keeps the old one as a revision.
 				</p>
+				{#if htmlPointsMismatch(points === '' ? null : Number(points), Number(stagedHtml.manifest.points))}
+					<!-- POINTS THAT DISAGREE WITH THE PAGE'S RUBRIC (ledger 0458, report
+					     ccecb3b9), said before Post with the one key that fixes it. -->
+					<p class="hint points-mismatch" role="status" data-testid="staged-html-points">
+						{htmlPointsMismatchLine(points === '' ? null : Number(points), Number(stagedHtml.manifest.points))}
+						<button type="button" class="btn tiny" data-testid="staged-html-set-points" onclick={() => (points = String(stagedHtml?.manifest.points ?? ''))}
+							>Set points to {stagedHtml.manifest.points}</button
+						>
+						or keep {points === '' ? 'no points' : points}.
+					</p>
+				{/if}
 				{#if canReplaceHtml}
 					<!--
 						=========================================================
@@ -4169,6 +4181,10 @@
 		grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 2fr) auto;
 		gap: 0.4rem;
 		align-items: center;
+	}
+	.points-mismatch {
+		padding-left: var(--space-2);
+		border-left: 3px solid var(--amber);
 	}
 	.hint {
 		margin: 0;

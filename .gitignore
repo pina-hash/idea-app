@@ -51,3 +51,5 @@ docs/history/_generated/
 assignment-sources/**/*.html
 !assignment-sources/**/*.src.html
 assignment-sources/**/*-test/
+# Kit retest scratch output (tools/hx-retest/retest.mjs, ledger 0458)
+.hx-retest/

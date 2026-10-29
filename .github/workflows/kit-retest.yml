@@ -1,0 +1,53 @@
+name: Retest assignments
+
+# EVERY COMMITTED ASSIGNMENT SOURCE IS REBUILT ON THE KIT AND RETESTED WHENEVER
+# THE KIT OR A SOURCE CHANGES (ledger 0458, report 23b3776c). On 2026-10-27 a
+# one-line kit change moved a live page 14px and pushed a step past the
+# screen, and only a manual rerun caught it. This builds each
+# assignment-sources/**/*.src.html with tools/hx-kit/build.mjs, runs
+# tools/hx-kit/test.mjs on it in Chromium, and writes the table (page, FAIL,
+# WARN, the failing checks) to the job summary.
+#
+# IT REPORTS AND DOES NOT GATE: a source failing the kit's own test is authoring
+# work for its course chat (tools/hx-retest/retest.mjs says why). The job is
+# red only when a source could not be built or tested at all.
+
+on:
+  push:
+    paths:
+      - 'tools/hx-kit/**'
+      - 'assignment-sources/**'
+      - 'tools/hx-retest/**'
+  workflow_dispatch:
+
+concurrency:
+  group: kit-retest-${{ github.ref }}
+  cancel-in-progress: true
+
+# contents: read -- it reads the tree and writes only its own job summary.
+permissions:
+  contents: read
+
+jobs:
+  retest:
+    name: Rebuild and test every committed source
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # tools/browser-verify/browser.mjs finds Chromium wherever Playwright
+      # installed it (~/.cache/ms-playwright on a runner).
+      - name: Install Chromium
+        run: npx playwright-core install --with-deps chromium
+
+      - name: Rebuild and test
+        run: node tools/hx-retest/retest.mjs --out "$RUNNER_TEMP/hx-retest" --summary "$GITHUB_STEP_SUMMARY"

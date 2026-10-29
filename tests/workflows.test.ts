@@ -1505,6 +1505,8 @@ describe('the invariants these particular workflows have to hold', () => {
 			// `cert-jobs.yml` (ledger 0391) only curls the site, like autopay.
 			'cert-jobs.yml': 0,
 			'ci.yml': 0,
+			// `commit-subjects.yml` (ledger 0458) reads commit messages, nothing more.
+			'commit-subjects.yml': 0,
 			// `connector.yml` (ledger 0416) pushes its regenerated registry, and
 			// once more after one rebase when main moved; never a force.
 			'connector.yml': 2,
@@ -1514,6 +1516,8 @@ describe('the invariants these particular workflows have to hold', () => {
 			// set against that one directory before it runs. The look this map
 			// exists to force has been taken; the number is what it found.
 			'integrate.yml': 3,
+			// `kit-retest.yml` (ledger 0458) writes only its job summary.
+			'kit-retest.yml': 0,
 			'migrate.yml': 1,
 			// `prune.yml`'s ONE push is the lease-pinned DELETE of an agent ref
 			// the cut `contained_delete_gate` said is contained (ledger 0376).

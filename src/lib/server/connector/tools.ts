@@ -14,6 +14,7 @@ import { hxBlockPrompt, manifestBlocks, type HtmlAssignmentManifest } from '$lib
 import { manifestRubricIsDerived, stagedRubricAfterManifest } from '$lib/classroom/html-assignment/rubric';
 import { HTML_REPLACE_STALE, htmlBasedOnMatches, htmlManifestDiff, stageHtmlDocument } from '$lib/classroom/html-assignment/store';
 import { exportClassroomItem } from '$lib/server/classroom-export';
+import { htmlPointsMismatch, htmlPointsMismatchLine } from '$lib/classroom/html-assignment/health';
 import type { RubricCriterion } from '$lib/classroom/assignment-spec';
 import type { ToolContext } from './context';
 import { resolveDue, resolveNoticeEnd } from './dates';
@@ -169,7 +170,39 @@ async function listPosts(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> 
 	const posts = (await myPosts(ctx, [c.value]))
 		.filter((p) => !kind || p.kind === kind)
 		.filter((p) => inWindow(p, str(args.due), ctx.now()));
-	return { status: 'ok', class: c.value.title, count: posts.length, posts: posts.slice(0, 100).map((p) => postSummary(p, today)) };
+	// THE CLASS'S UNITS AND WHERE EACH POST IS FILED (gap 154c8fb3): filing a
+	// post needs a unit id, and no tool returned one.
+	const units = await classUnits(ctx, c.value.id);
+	const shown = posts.slice(0, 100);
+	const filed = shown.length
+		? await ctx.backend.select<{ id: string; unit_id: string | null }>(ctx.session, { table: 'classroom_items', columns: ['id', 'unit_id'], in: { id: shown.map((p) => p.id) } })
+		: { data: [] as Array<{ id: string; unit_id: string | null }>, error: null };
+	const unitOf = new Map((filed.error ? [] : filed.data).map((r) => [r.id, r.unit_id] as const));
+	const nameOf = new Map(units.map((u) => [u.id, u.name] as const));
+	return {
+		status: 'ok',
+		class: c.value.title,
+		count: posts.length,
+		units,
+		posts: shown.map((p) => {
+			const unitId = unitOf.get(p.id) ?? null;
+			return { ...postSummary(p, today), unit: unitId ? { id: unitId, name: nameOf.get(unitId) ?? null } : null };
+		})
+	};
+}
+
+/** A class's course units in their order, with their ids. Empty when they cannot be read. */
+async function classUnits(ctx: ToolContext, sectionId: string): Promise<Array<{ id: string; name: string }>> {
+	const sec = await ctx.backend.select<{ course_id: string }>(ctx.session, { table: 'classroom_sections', columns: ['course_id'], eq: { id: sectionId } });
+	const courseId = sec.error ? null : (sec.data[0]?.course_id ?? null);
+	if (!courseId) return [];
+	const u = await ctx.backend.select<{ id: string; name: string; sort_order: number }>(ctx.session, {
+		table: 'classroom_units',
+		columns: ['id', 'name', 'sort_order'],
+		eq: { course_id: courseId },
+		order: [['sort_order', 'asc'], ['name', 'asc']]
+	});
+	return u.error ? [] : u.data.map((x) => ({ id: x.id, name: x.name }));
 }
 
 /**
@@ -258,8 +291,25 @@ async function htmlDocumentRead(ctx: ToolContext, itemId: string, args: ToolArgs
 				? { bytes: Buffer.byteLength(k.payload.document, 'utf8'), sha256: sha256Hex(k.payload.document) }
 				: { removed: true })
 		})),
-		how: 'Pass sha256 as basis when replacing it. document true returns the HTML; version N returns an earlier version.'
+		how: 'Pass sha256 as basis when replacing it. document true returns the HTML; version N returns an earlier version; source true returns the stored kit source.'
 	};
+	// THE KIT SOURCE STORED WITH IT (ledger 0458), a rung of its own: a database
+	// without 0328 has no such table and the read simply says none.
+	const src = await ctx.backend.select<{ source: string; filename: string; updated_at: string }>(ctx.session, {
+		table: 'classroom_html_sources',
+		columns: ['source', 'filename', 'updated_at'],
+		eq: { item_id: itemId }
+	});
+	const srcRow = src.error ? null : (src.data[0] ?? null);
+	out.source = srcRow
+		? {
+				filename: srcRow.filename,
+				bytes: Buffer.byteLength(srcRow.source, 'utf8'),
+				sha256: sha256Hex(srcRow.source),
+				saved: srcRow.updated_at,
+				...(bool(args.source) ? { text: srcRow.source } : {})
+			}
+		: null;
 	if (want !== undefined && want !== live) {
 		const old = kept.find((k) => k.revision === want);
 		if (!old || typeof old.payload?.document !== 'string') return { ...out, version_asked: want, html: null, message: `There is no version ${want} with a document on this post.` };
@@ -1007,10 +1057,13 @@ async function gradingPacket(ctx: ToolContext, args: ToolArgs): Promise<ToolOutp
 	}
 
 	const outOf = await outOfFor(ctx, p.value, rubric);
+	// The unit it is filed under (gap 154c8fb3).
+	const { unit } = await postFilesAndUnit(ctx, p.value.id);
 	return {
 		status: 'ok',
 		...postSummary(p.value, today),
 		classes: sections.map((s) => s.title),
+		unit,
 		out_of: outOf,
 		assignment: {
 			text: p.value.body.length > 6000 ? `${p.value.body.slice(0, 6000)}...` : p.value.body,
@@ -1624,6 +1677,19 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		if (!args.filename) args = { ...args, filename: got.slot.filename };
 	}
 	if (!html.trim()) return { status: 'invalid', message: 'Send the whole HTML document, or name an upload that holds it.' };
+	// THE SOURCE BESIDE IT (ledger 0458, report 013c83d0), sent whole or as an upload.
+	let source = typeof args.source === 'string' && args.source.trim() ? args.source : null;
+	let sourceName: string | null = null;
+	const sourceUploadId = str(args.sourceUpload);
+	if (!source && sourceUploadId) {
+		const got = await ctx.backend.readUpload(ctx.session.user.id, sourceUploadId);
+		if (!got) return { status: 'invalid', message: 'That source upload has no file yet. Send the bytes first, then call again.' };
+		source = new TextDecoder('utf-8').decode(got.bytes);
+		sourceName = got.slot.filename;
+	}
+	if (source && (!source.includes('<!-- hx:head -->') || !source.includes('<!-- hx:script -->'))) {
+		return { status: 'invalid', message: 'That source is not a kit source: it needs the hx:head and hx:script markers. Send the .src.html file the page was built from.' };
+	}
 	const p = await postFrom(ctx, args);
 	if (p.status !== 'found') return unresolved('post', p);
 	if (p.value.kind !== 'assignment') return { status: 'invalid', message: `${p.value.title} is not an assignment.` };
@@ -1744,6 +1810,16 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 			);
 		}
 	}
+	// THE SOURCE IS STORED ONCE THE PAGE IT BUILT HAS LANDED, in the same group.
+	let sourceOut: WriteOutcome | null = null;
+	if (source && (document.status === 'done' || document.status === 'preview')) {
+		const named = str(args.filename)?.replace(/(\.src)?\.html?$/i, '.src.html') ?? 'assignment.src.html';
+		sourceOut = await write(
+			ctx,
+			{ tool: 'replace_html_assignment', fn: 'classroom_html_set_source', args: { p_item_id: p.value.id, p_source: source, p_filename: sourceName && /\.src\.html$/i.test(sourceName) ? sourceName : named }, groupKey },
+			opts
+		);
+	}
 	// WHAT WAS STORED, AND WHERE THE EARLIER COPY WENT (ledger 0458, reports
 	// 0a569932 and 84cf8690): the stored bytes' SHA-256 to compare with what was
 	// sent, the live version number, and the number the displaced document is
@@ -1780,6 +1856,11 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		rubric: rubric ? outcomeWords(rubric) : 'left as it is',
 		...(retired ? { retired } : {}),
 		...(stored ? { stored } : {}),
+		...(sourceOut ? { source: outcomeWords(sourceOut) } : {}),
+		// POINTS THAT DISAGREE WITH THE PAGE'S RUBRIC (report ccecb3b9).
+		...(htmlPointsMismatch(p.value.points, Number(manifest.points))
+			? { points: { post: p.value.points, rubric_total: Number(manifest.points), message: `${htmlPointsMismatchLine(p.value.points, Number(manifest.points))} Ask him whether to set the post to ${manifest.points} with set points, or keep it.` } }
+			: {}),
 		...(exported ? { exported } : {}),
 		warnings: staged.warnings
 	};

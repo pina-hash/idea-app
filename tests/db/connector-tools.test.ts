@@ -226,6 +226,32 @@ describe('replace_html_assignment', () => {
 	});
 });
 
+describe('replace_html_assignment converts a post in place (ledger 0458, report 3147afb1)', () => {
+	it('an ordinary assignment becomes an HTML assignment keeping its id, classes, due date and place', async () => {
+		await run('create_post', { classes: ['209H Block 2'], kind: 'assignment', title: 'Old Reading', points: 10, due: 'Oct 30 11:59pm' });
+		const before = (await w.db.sql<{ id: string; due_at: string; sort_order: number; sections: string[] }>(
+			`select i.id, i.due_at::text, i.sort_order, array_agg(p.section_id::text order by p.section_id) as sections
+			 from public.classroom_items i join public.classroom_postings p on p.item_id = i.id where i.title = 'Old Reading' group by i.id`
+		)).rows[0];
+		await w.db.sql(`update public.classroom_items set sort_order = 7 where id = $1`, [before.id]);
+		const SOURCE = '<!doctype html><html><head><!-- hx:head --></head><body><!-- hx:script --></body></html>';
+		const out = await run('replace_html_assignment', { post: 'Old Reading', html: HTML, filename: 'old-reading.html', source: SOURCE });
+		expect(out.status).toBe('done');
+		// THE SOURCE IS KEPT WITH IT (013c83d0) and read back by name and sha256.
+		const read = (await run('get_post', { post: 'Old Reading', source: true })).document as { source: { filename: string; sha256: string; text: string } };
+		expect(read.source).toMatchObject({ filename: 'old-reading.src.html', text: SOURCE });
+		expect(((await run('get_post', { post: 'Old Reading' })).document as { source: { text?: string } }).source.text).toBeUndefined();
+		const notKit = await run('replace_html_assignment', { post: 'Old Reading', html: HTML, source: '<html></html>' });
+		expect(notKit.status).toBe('invalid');
+		const after = (await w.db.sql<{ id: string; due_at: string; sort_order: number; v: number; sections: string[] }>(
+			`select i.id, i.due_at::text, i.sort_order, i.assignment_schema_version as v, array_agg(p.section_id::text order by p.section_id) as sections
+			 from public.classroom_items i join public.classroom_postings p on p.item_id = i.id where i.title = 'Old Reading' group by i.id`
+		)).rows;
+		expect(after).toHaveLength(1);
+		expect(after[0]).toMatchObject({ id: before.id, due_at: before.due_at, sort_order: 7, v: 3, sections: before.sections });
+	});
+});
+
 describe('the confirm level and the connection', () => {
 	it('connector_disconnect previews first, and only the confirm token disconnects', async () => {
 		const ctx = await w.ctx(w.admin);

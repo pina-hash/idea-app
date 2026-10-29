@@ -32,6 +32,7 @@
  * `VERCEL_DEEP_CLONE=true` on the project to get the version back.
  */
 import { appLabel, appsForCommit, classifyNote, isBookkeepingNote, APPS } from './site-manifest';
+import { splitJoinedSubject } from './commit-subject';
 
 /**
  * Record and field separators. ASCII RS/US: neither can occur in a commit
@@ -129,9 +130,11 @@ export interface VersionEntry {
 	internal?: true;
 	/**
 	 * The bullet lines of the commit's body, in order, capped by
-	 * `CHANGELOG_DETAIL_LINES` and `CHANGELOG_DETAIL_CHARS`. Only the lazy
-	 * module's body walk attaches them, and only to an entry a reader is shown;
-	 * absent, never empty, when there are none.
+	 * `CHANGELOG_DETAIL_LINES` and `CHANGELOG_DETAIL_CHARS`. The lazy module's
+	 * body walk attaches them, to an entry a reader is shown; and a first line
+	 * that carried a whole message joined with " - " (`splitJoinedSubject`,
+	 * ledger 0458) brings its own clauses, in either module. Absent, never
+	 * empty, when there are none.
 	 */
 	details?: string[];
 }
@@ -200,14 +203,18 @@ export function parseGitLog(raw: string, opts: { complete: boolean }): VersionEn
 				.slice(1)
 				.map((l) => l.trim())
 				.filter(Boolean);
+			// A WHOLE MESSAGE ON ONE LINE (ledger 0458, report fb08d358) reads as
+			// its first clause, with the rest as its details.
+			const split = splitJoinedSubject(note ?? '');
 			const entry: VersionEntry = {
 				sha: (sha ?? '').trim(),
 				date: (date ?? '').trim().replace(/\s+/g, ' '),
 				iso: (iso ?? '').trim().slice(0, 10),
-				note: (note ?? '').trim(),
+				note: split.title,
 				type: classifyNote(note ?? ''),
 				apps: appsForCommit(files)
 			};
+			if (split.details.length) entry.details = split.details.slice(0, CHANGELOG_DETAIL_LINES).map((d) => clipDetail(d, CHANGELOG_DETAIL_CHARS));
 			// The flag is ADDED, never written false: every other entry keeps the
 			// exact shape it always had.
 			if (isBookkeepingNote(entry.note)) entry.internal = true;
@@ -478,7 +485,9 @@ export function parseBodies(raw: string): Map<string, string[]> {
 export function withDetails(entries: VersionEntry[], bodies: Map<string, string[]>): VersionEntry[] {
 	return entries.map((e) => {
 		const d = e.internal ? undefined : bodies.get(e.sha);
-		return d && d.length ? { ...e, details: d } : e;
+		// A first line already split (ledger 0458) keeps its clauses ahead of any body bullets.
+		const lines = [...(e.details ?? []), ...(d ?? [])].slice(0, CHANGELOG_DETAIL_LINES);
+		return d && d.length ? { ...e, details: lines } : e;
 	});
 }
 

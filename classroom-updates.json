@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-28",
+			"title": "Assignment pictures use the classroom's own lettering",
+			"body": "The live pictures on the cards of page-by-page assignments now use the same lettering and colors as the rest of the classroom, in both the light and the dark look.",
+			"tags": ["Assignments"]
+		},
+		{
+			"date": "2026-10-28",
 			"title": "Share an IdeaCAD model by picking people",
 			"body": "Open Manage on one of your models to see everyone it is shared with, and change Can view or Can edit, or remove someone, right there. To share, click the box: your teammates show up first, and you can find classmates and anyone at Bosco Tech by name. Pick as many people as you need, choose Can view or Can edit for each, then press Share once. Every change tells you what happened and gives you a few seconds to Undo.",
 			"tags": ["IdeaCAD"]

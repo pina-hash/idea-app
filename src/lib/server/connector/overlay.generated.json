@@ -1618,6 +1618,70 @@
 				}
 			]
 		},
+		"classroom_html_set_source": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Store the kit source an HTML assignment was built from, so it can be rebuilt on a newer kit; the replace html assignment tool stores one sent with the page.",
+			"say": [
+				"keep the source with the Shop Fix",
+				"store this source file with Launcher Design",
+				"attach the source to the DFM worksheet"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"resolve": "post",
+					"describe": "The assignment."
+				},
+				"p_source": {
+					"name": "source",
+					"describe": "The whole source file, or nothing to remove it."
+				},
+				"p_filename": {
+					"name": "filename",
+					"describe": "The source file's name, like shop-fix.src.html."
+				}
+			},
+			"before": {
+				"table": "classroom_html_sources",
+				"columns": [
+					"source",
+					"filename"
+				],
+				"eq": {
+					"item_id": "$args.p_item_id"
+				}
+			},
+			"undo": [
+				{
+					"when": "$before.found",
+					"function": "classroom_html_set_source",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_source": "$before.source",
+						"p_filename": "$before.filename"
+					}
+				},
+				{
+					"function": "classroom_html_set_source",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_source": null,
+						"p_filename": null
+					}
+				}
+			]
+		},
+		"classroom_html_health": {
+			"surface": "call",
+			"level": "read",
+			"describe": "List every HTML assignment in every class with the kit it was built on, whether its source is stored, its size and when it was saved.",
+			"say": [
+				"which HTML assignments are on an old kit",
+				"show the HTML assignments health list",
+				"which posts have no source stored"
+			]
+		},
 		"classroom_item_revisions": {
 			"surface": "call",
 			"level": "read",
@@ -11825,7 +11889,7 @@
 			"facade": true,
 			"level": "read",
 			"uses": [],
-			"describe": "List what is posted in one of your classes, with each post's kind, due date and whether students can see it.",
+			"describe": "List what is posted in one of your classes, with each post's kind, due date, unit and whether students can see it, and the class's units with their ids.",
 			"say": [
 				"what's posted in 209H Block 1",
 				"what's due this week in IDEA100",
@@ -11878,6 +11942,10 @@
 				"version": {
 					"type": "integer",
 					"describe": "An earlier version number of an HTML assignment's document to read instead of the live one."
+				},
+				"source": {
+					"type": "boolean",
+					"describe": "True to include the kit source stored with an HTML assignment."
 				}
 			}
 		},
@@ -12148,7 +12216,8 @@
 			"uses": [
 				"classroom_set_html_assignment",
 				"classroom_set_rubric",
-				"classroom_html_retire_blocks"
+				"classroom_html_retire_blocks",
+				"classroom_html_set_source"
 			],
 			"describe": "Replace an HTML assignment's document with a new file made from the live copy it names; an answered question it drops is refused, or retired with retire set.",
 			"say": [
@@ -12174,6 +12243,14 @@
 				"retire": {
 					"type": "boolean",
 					"describe": "True to retire any answered question the new file drops, instead of refusing."
+				},
+				"source": {
+					"type": "string",
+					"describe": "The kit source the page was built from, the whole .src.html file, stored with the post so it can be rebuilt on a newer kit."
+				},
+				"sourceUpload": {
+					"type": "string",
+					"describe": "An upload holding the source file, for a source too big to send whole."
 				},
 				"basis": {
 					"type": "string",
@@ -12920,6 +12997,8 @@
 		"classroom_set_item_pinned": "classroom.yaml",
 		"classroom_set_rubric": "classroom.yaml",
 		"classroom_set_html_assignment": "classroom.yaml",
+		"classroom_html_set_source": "classroom.yaml",
+		"classroom_html_health": "classroom.yaml",
 		"classroom_item_revisions": "classroom.yaml",
 		"classroom_restore_revision": "classroom.yaml",
 		"classroom_grade_direct": "classroom.yaml",
