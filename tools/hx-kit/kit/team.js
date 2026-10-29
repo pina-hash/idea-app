@@ -52,6 +52,7 @@ var TEAM_WORDS = {
   owned: function (t) { return 'Belongs to ' + (t.by || 'a teammate'); },
   unowned: function () { return 'No owner yet: pick roles in your Team plan'; },
   closed: function () { return 'Past due, read only'; },
+  later: function (t) { return 'Opens after your team\u2019s ' + (t.by || 'next') + ' sign-off'; },
   mine: function () { return 'You are editing'; },
   free: function () { return ''; }
 };

@@ -63,6 +63,12 @@ export interface TeamDocument {
 	pastDue: boolean;
 	/** The server's clock when it answered, so a lock's end is judged on its clock. */
 	serverNow: string | null;
+	/**
+	 * The phases this team's post waits on (0323, `opensAfter`): checkpoint key
+	 * to whether it is open for this team, its title and its date. Empty before
+	 * 0323 and for a post with no phases.
+	 */
+	phases: Record<string, { open: boolean; title: string; date: string | null }>;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -114,7 +120,14 @@ export function parseTeamDocument(raw: unknown): TeamDocument | null {
 			)
 		),
 		pastDue: raw.past_due === true,
-		serverNow: typeof raw.now === 'string' ? raw.now : null
+		serverNow: typeof raw.now === 'string' ? raw.now : null,
+		phases: Object.fromEntries(
+			Object.entries(obj(raw.phases)).flatMap(([k, v]) =>
+				isRecord(v)
+					? [[k, { open: v.open === true, title: String(v.title ?? k), date: typeof v.date === 'string' ? v.date : null }]]
+					: []
+			)
+		)
 	};
 }
 
@@ -129,7 +142,8 @@ export const TEAM_DOC_WORDS = {
 	pastDue: "This post is past its due date, so your team's answers are read only.",
 	ownedBy: (role: string, who: string) => `${role} belongs to ${who}. You can read it as they work.`,
 	noOwner: (role: string) => `${role} has no owner yet. Choose who owns it in your team plan, then they can write here.`,
-	editing: (who: string) => `${who} is editing`
+	editing: (who: string) => `${who} is editing`,
+	later: (checkpoint: string) => `Opens when your team's ${checkpoint} sign-off is approved, or on its date.`
 } as const;
 
 /** What a refused team save says, in the student's terms. `by` is a first name when the server gave one. */
@@ -149,6 +163,8 @@ export function teamRefusalWords(reason: string | undefined, by?: string | null)
 			return TEAM_DOC_WORDS.pastDue;
 		case 'locked':
 			return HX_REFUSALS.locked;
+		case 'not_open':
+			return TEAM_DOC_WORDS.later(by || 'next');
 		default:
 			return null;
 	}
@@ -158,7 +174,7 @@ export function teamRefusalWords(reason: string | undefined, by?: string | null)
  * ONE FIELD'S STATE, AS THE DOCUMENT IS TOLD IT. `free` and `mine` may be
  * typed into; the rest are read only, and `by` names who to wait for.
  */
-export type HxTeamFieldStateKind = 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed';
+export type HxTeamFieldStateKind = 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed' | 'later';
 export interface HxTeamFieldState {
 	state: HxTeamFieldStateKind;
 	/** A first name: who is editing, or who owns the part. */
@@ -186,11 +202,28 @@ export function teamFieldStates(
 	for (const mod of manifest.modules ?? []) for (const b of mod.blocks ?? []) fieldOf.set(b.id, b.field);
 	const roles = new Map(doc.roles.map((r) => [r.id, r]));
 	const serverNow = nowMs + skewMs;
+	// 0323: a module that opens after a checkpoint this team has not passed is
+	// read only, shared or individual, with the checkpoint's title as `by`.
+	const laterOf = new Map<string, string>();
+	for (const mod of manifest.modules ?? []) {
+		const key = (mod as { opensAfter?: unknown }).opensAfter;
+		const phase = typeof key === 'string' ? doc.phases[key] : undefined;
+		if (!phase || phase.open) continue;
+		for (const b of mod.blocks ?? []) laterOf.set(b.id, phase.title);
+	}
+	for (const [blockId, title] of laterOf) {
+		const field = fieldOf.get(blockId);
+		if (field && !blocks.has(blockId) && !doc.pastDue) out[field] = { state: 'later', by: title };
+	}
 	for (const [blockId, who] of blocks) {
 		const field = fieldOf.get(blockId);
 		if (!field) continue;
 		if (doc.pastDue) {
 			out[field] = { state: 'closed' };
+			continue;
+		}
+		if (laterOf.has(blockId)) {
+			out[field] = { state: 'later', by: laterOf.get(blockId) };
 			continue;
 		}
 		if (who.audience === 'role') {
@@ -286,6 +319,16 @@ export interface TeamDocumentsTransports {
 	listTeams(itemId: string): Promise<unknown>;
 	readTeam(itemId: string, teamId: string): Promise<unknown>;
 	history(itemId: string, teamId: string, blockId: string): Promise<unknown>;
+	/** The teams panel's read (`classroom_item_signoff_board`, 0323); absent in an older harness. */
+	board?(itemId: string): Promise<unknown>;
+	/** Decide one team's checkpoint (`classroom_signoff_teacher_decide`, 0323). */
+	decide?(
+		teamId: string,
+		key: string,
+		results: Record<string, boolean>,
+		approve: boolean,
+		note: string | null
+	): Promise<{ ok: boolean; reason?: string } | null>;
 }
 
 /**

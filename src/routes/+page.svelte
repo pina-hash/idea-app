@@ -764,6 +764,15 @@
 	{#snippet yourClasses()}
 		<div class="courses" style="margin-top:2.5rem" data-tour="classes">
 			<div class="year-label">Your Classes</div>
+			{#if signedIn && (data.signoffsWaiting ?? 0) > 0}
+				<!-- Team sign-offs waiting for this teacher (ledger 0456): one line,
+				     straight to the queue, only when there is something to decide. -->
+				<a class="signoff-line" href="/classroom/signoffs" data-testid="home-signoffs">
+					<span class="signoff-line-n">{data.signoffsWaiting}</span>
+					{data.signoffsWaiting === 1 ? 'team sign-off is waiting for you' : 'team sign-offs are waiting for you'}
+					<span class="signoff-line-go" aria-hidden="true">›</span>
+				</a>
+			{/if}
 			{#if signedIn}
 				<ClassroomFeed
 					feeds={classroomFeeds}
@@ -939,6 +948,38 @@
 
 
 <style>
+	/* The home feed's sign-off line (ledger 0456): one 44px key above the classes. */
+	.signoff-line {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		min-height: 44px;
+		margin: 0 0 0.75rem;
+		padding: 0.4rem 0.9rem;
+		border: 1px solid var(--boundary, var(--bg2));
+		border-radius: var(--radius-card, 6px);
+		background: var(--surface-1, var(--bg1));
+		color: var(--text-1, var(--white));
+		font-family: var(--font-display);
+		font-size: 1.02rem;
+		text-decoration: none;
+	}
+	.signoff-line:hover {
+		border-color: var(--green);
+	}
+	.signoff-line-n {
+		min-width: 1.6rem;
+		padding: 0.05rem 0.45rem;
+		border: 1px solid var(--green);
+		border-radius: 999px;
+		color: var(--green);
+		font-family: var(--font-mono);
+		text-align: center;
+	}
+	.signoff-line-go {
+		margin-left: auto;
+		color: var(--text-2, var(--dim));
+	}
 	/* THE HOME PAGE USES A WIDE WINDOW (reports "a lot of dead space" at
 	   1258px and "too much dead space" at 3840px). Every section of the page
 	   -- the hero, the to-do door, Your Classes, the launcher and Portal

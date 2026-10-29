@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.14 - 2026-10-28**
+**Version 1.15 - 2026-10-28**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -1777,9 +1777,16 @@ copy it and grow it.
 ### 16.1 Declaring a team assignment
 
 A manifest with a top-level `team` object is a team assignment. Nothing else is needed:
-the post is not bound to a draw at upload and is never linked by hand. Each class the
-post is shared with resolves its own teams AT EVERY READ: that class's current posted
-team draw from the People tab (the most recently posted when two are showing). Before a
+the post is never linked to a draw by hand. Each class the post is shared with **pins the
+draw it is written under** (1.15, migration 0323): the class's current posted team draw
+from the People tab (the most recently posted when two are showing) at the moment the
+post and a posted draw first meet. A newer draw posted later moves the post only while
+nobody has worked on it (no team answer, no team picture, no sign-off request, no grade);
+once the team has started, the post stays with its teams and every answer, whatever else
+is drawn in the class. A pinned draw past its end time keeps the post open; taken down or
+retired it closes the post for students, and the People tab warns first while any of its
+students is ungraded. The instructor and the Teams grading screen always read the pinned
+teams, so a post can be graded whatever became of its draw. Before a
 draw is posted a student opening the post sees exactly "Teams are drawn in class. Your
 team's document opens here the moment teams are posted." and no form; the moment the
 teacher posts, every student with the post open lands in their own team's document
@@ -1906,6 +1913,14 @@ A team assignment may declare the sign-offs its blocks feed:
 - The site copies a checkpoint into its own records the first time a team's plan reads
   it; after that the checklist is admin-editable data, and a re-upload never overwrites
   an edited checklist.
+- **Who is missing what** (1.15): a field check that fails names each empty box and who
+  owes it (the role's owner, "Team", or each member with an empty box of their own), in the
+  team plan, the sign-off queue and the teams panel.
+- **Deciding** (1.15): the instructor decides from the sign-off queue (`/classroom/signoffs`,
+  reachable from the classroom header and the home page with the number waiting) or from the
+  teams panel on the post itself, request or no request. **Approve anyway** approves over a
+  failed item with a short note, kept with the sign-off; each student's own grade still
+  reflects their own empty boxes.
 
 **The IDEA209H Unit 4 checklists, as Mr. Pina set them (with his power-source change of
 2026-10-26):**
@@ -1924,7 +1939,14 @@ gear ratio is optional.
 ### 16.6 The team plan, as the document sees it
 
 One plan per team. A task carries its title, owner, due date, linked field (post and
-block), points, optional machine tag and status. The team adds its own tasks at 0 points
+block), points, optional machine tag and status. **A seeded task takes its due date from the
+post** (1.15): the checkpoint whose checklist names the box, else the pacing step that holds
+its module, else a checkpoint that checks the whole post, else the post's due date. Only a
+task the team adds needs a typed date. **The split** (`plan-balanced`) judges each member
+against their own share: an even share of the planned points, or, on a team with fewer
+members than roles, the points of the roles they own plus an even share of the rest, so the
+student holding two roles is not "uneven" for it. The plan says who is over or under and by
+how much. The team adds its own tasks at 0 points
 (they count toward Behind, never toward the share). Status is never typed into the
 document: **Done** is automatic (the linked field passes the completion rule), **On it**
 comes from the start-of-class check-in, **Blocked** is the one status a student sets,
@@ -1953,7 +1975,8 @@ Parent to frame (advisory: a document must never wait on one):
 
 `state` in `idea:team-state` is one of `free` and `mine` (the student may type), `held`
 (`by` is editing it), `owned` (it belongs to `by`), `unowned` (its role has no owner yet:
-choose one in the team plan) and `closed` (past due). A document draws a field that is not
+choose one in the team plan), `closed` (past due) and `later` (a phase not open for this
+team yet, `by` the checkpoint's title; 16.10). A document draws a field that is not
 `free` or `mine` read only with the words beside it, and on `idea:state` it never
 overwrites the field the student has focus in. `idea:state`'s `values` already carry the
 team's answers for shared fields, so nothing else carries an answer down.
@@ -2001,8 +2024,24 @@ has an answer for is never touched.
   an `individual` module when each student must hand in their own.
 - Converting changes grading to the Teams screen (16.8). Grade nothing on the post before
   converting, or regrade it there.
-- The draw must stay posted through the due date: a draw past its `visible_until` is no
-  draw, and the page closes for the class (16.1).
+- The draw it pins keeps the post open past its end time; taking the draw down closes the
+  page for the class (16.1).
+
+### 16.10 Phases that open per team
+
+1.15, migration 0323 (report 653c3ff6). One post can hold every phase of a unit. A module may
+carry `opensAfter`, a `team.checkpoints` id:
+
+```json
+{ "id": "proto", "title": "Prototype", "audience": "team", "opensAfter": "design", ... }
+```
+
+- Its boxes, team, role or individual, open for a team the moment that team's sign-off for
+  the checkpoint is approved, or on the checkpoint's date, whichever comes first. Until then
+  they are read only (`idea:team-state` state `later`, `by` the checkpoint's title) and a save
+  into one is refused as `not_open`.
+- A display key: 0195 and 0301 never read it, `validateHtmlManifest` warns about an id the
+  post does not declare, and such a module is always open.
 
 ## 17. Day-by-day pacing and the due date
 
@@ -2100,6 +2139,11 @@ has its plan on screen.
 
 ## Changelog
 
+- **1.15 (2026-10-28).** Ledger 0456, migration 0323. 16.1: a team post pins the draw it is
+  written under, and a newer draw moves only an unused post. 16.5: who is missing what, the
+  teams panel and Approve anyway with a note. 16.6: seeded tasks take their date from the
+  post; the split allows a team smaller than its roles. 16.7: team-state `later`. 16.10:
+  `opensAfter`, phases that open per team.
 - **1.14 (2026-10-28).** Ledger 0456, migration 0316. Section 16.3: a picture in a team or role
   box shows to the whole team (read only for non-owners) and counts in every member's progress;
   teammates are named by first name, "First L." where two share one. 16.9 updated to match.

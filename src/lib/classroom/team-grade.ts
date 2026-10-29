@@ -32,6 +32,8 @@ export interface TeamGradingMember {
 	state: string | null;
 	score: number | null;
 	scores: Record<string, number>;
+	/** The per-criterion notes stored with this member's grade. */
+	criterionComments: Record<string, string>;
 	comment: string | null;
 	gradedAt: string | null;
 }
@@ -84,6 +86,9 @@ export function parseTeamGrading(raw: unknown): { grading: TeamGrading | null; r
 					state: typeof m.state === 'string' ? m.state : null,
 					score: num(m.score),
 					scores,
+					criterionComments: isRecord(m.criterion_comments)
+						? Object.fromEntries(Object.entries(m.criterion_comments).filter((e): e is [string, string] => typeof e[1] === 'string'))
+						: {},
 					comment: typeof m.comment === 'string' ? m.comment : null,
 					gradedAt: typeof m.graded_at === 'string' ? m.graded_at : null
 				};
@@ -106,10 +111,28 @@ export function teamCriterionGroups(g: TeamGrading): {
 	return { team, roles, individual };
 }
 
+/** What the team grading page reads the team's work through (ledger 0456, `TeamGradeWork`). */
+export interface TeamWorkTransports {
+	readTeam(itemId: string, teamId: string): Promise<unknown>;
+	/** Rows of `classroom_responses` for these members. */
+	readAnswers(itemId: string, emails: string[]): Promise<{ student_email: string; block_id: string; value: unknown }[]>;
+	/** Their pictures in the post's boxes. */
+	readFiles(
+		itemId: string,
+		emails: string[]
+	): Promise<{ id: string; student_email: string; block_id: string | null; filename: string; caption: string | null; created_at: string }[]>;
+}
+
 /** Scores in hand on the screen: shared (team and role criteria) and per member (individual). */
 export interface TeamGradeDraft {
 	shared: Record<string, number | null>;
 	member: Record<string, Record<string, number | null>>;
+	/**
+	 * A note per criterion, copied to every member (ledger 0456). A score typed
+	 * between two levels needs one: the database will not return a grade with an
+	 * off-level score and no note.
+	 */
+	notes: Record<string, string>;
 	comment: string;
 }
 
@@ -134,7 +157,9 @@ export function teamGradeStart(g: TeamGrading): TeamGradeDraft {
 	const individual = g.rubric.filter((c) => !g.teamCriteria.includes(c.id) && !g.roleOf[c.id]);
 	const member: Record<string, Record<string, number | null>> = {};
 	for (const m of g.members) member[m.email] = Object.fromEntries(individual.map((c) => [c.id, m.scores[c.id] ?? null]));
-	return { shared, member, comment: latest[0]?.comment ?? '' };
+	const notes: Record<string, string> = {};
+	for (const m of [...latest].reverse()) Object.assign(notes, m.criterionComments);
+	return { shared, member, notes, comment: latest[0]?.comment ?? '' };
 }
 
 /** One member's total by the database's rule, or null while anything they need is unscored. */
@@ -171,17 +196,30 @@ export function teamUnownedRoles(g: TeamGrading, draft: TeamGradeDraft): TeamGra
 	);
 }
 
-/** The two score arguments of `classroom_grade_team`, unscored criteria left out. */
+/** The score and note arguments of `classroom_grade_team`, unscored criteria and blank notes left out. */
 export function teamGradeArgs(draft: TeamGradeDraft): {
 	p_scores: Record<string, number>;
 	p_member_scores: Record<string, Record<string, number>>;
+	p_criterion_comments: Record<string, string>;
 } {
 	const keep = (o: Record<string, number | null>) =>
 		Object.fromEntries(Object.entries(o).filter((e): e is [string, number] => typeof e[1] === 'number'));
 	return {
 		p_scores: keep(draft.shared),
-		p_member_scores: Object.fromEntries(Object.entries(draft.member).map(([email, s]) => [email, keep(s)]))
+		p_member_scores: Object.fromEntries(Object.entries(draft.member).map(([email, s]) => [email, keep(s)])),
+		p_criterion_comments: Object.fromEntries(
+			Object.entries(draft.notes ?? {})
+				.map(([k, v]) => [k, v.trim()] as const)
+				.filter(([, v]) => v !== '')
+		)
 	};
+}
+
+/** True when a score is not exactly one of the criterion's levels: a typed score, which needs a note. */
+export function teamScoreOffLevel(c: RubricCriterion, value: number | null | undefined): boolean {
+	if (value === null || value === undefined) return false;
+	const levels = c.levels ?? [];
+	return levels.length > 0 && !levels.some((l) => l.points === value);
 }
 
 // The role arithmetic a surface holding the manifest needs lives beside the

@@ -383,7 +383,7 @@ responders are `bridgeClient()` in `src/routes/hx/_documents.ts` and the kit's
 and re-uploaded.** `tools/browser-verify/routes/html-assignment-live*.mjs`
 measures all three at 375 and 1440 on `/dev/html-assignment-live`.
 
-### LEDGER 0436: A TEAM ASSIGNMENT IS ONE SHARED DOCUMENT PER TEAM, AND POSTING A DRAW IS THE SWITCH
+### LEDGER 0436: A TEAM ASSIGNMENT IS ONE SHARED DOCUMENT PER TEAM, PINNED TO THE DRAW IT IS WRITTEN UNDER
 
 **A MANIFEST WITH A TOP-LEVEL `team` IS A TEAM ASSIGNMENT (0301, 0302; spec section 16,
 decision 71).** `team` modules hold one answer per block per team, `role` modules belong to
@@ -391,11 +391,20 @@ the member who owns the role in the team plan, and every other module is the stu
 a manifest without `team` is per student whatever `audience` says, so every stored worksheet
 answers as before (`tests/db/html-manifest-team-roles.test.ts` puts every exported manifest
 under `materials/` through the deployed gate and then 0301).
-- **NOTHING IS BOUND AT UPLOAD.** `_classroom_section_team_set` is the one answer to "which
-  teams": the section's current posted draw, asked at every call, so Post, Unpost, a redraw
-  that is posted and a hand move are each the switch. Do not add a binding table or a pin:
-  a later draw must never re-team a unit by itself, and a post shared by three sections
-  resolves three draws.
+- **A TEAM POST PINS ITS DRAW, PER CLASS (0323, ledger 0456, Mr. Pina's report b27e9544;
+  this bullet said "do not add a pin" until then, and the measured cost of that rule was a
+  presentation-groups draw silently re-teaming Launcher: Design mid-unit).**
+  `classroom_team_post_draws` holds one draw per post per class, taken when a post and a
+  posted draw first meet (`_classroom_team_post_pin`, called by the draw-posted and
+  manifest-stored triggers and by `classroom_postings_team_pin`). A newer draw moves a post
+  ONLY while `_classroom_team_post_used` says nobody worked on it. `_classroom_item_team_set`
+  is the student's answer (the pin while posted and not retired, its end time ignored) and
+  `_classroom_item_team_set_any` the instructor's and grading's (the pin, whatever its
+  state); `_classroom_team_ctx` asks the first, or the second inside a team grade.
+  **A NEW READ OF "WHICH TEAMS" FOR A POST ASKS ONE OF THOSE TWO, never
+  `_classroom_section_team_set`**, which is the class page's current draw and nothing more.
+  The People tab warns before a draw a post still uses comes down (`classroom_team_set_uses`).
+  `tests/db/classroom-team-signoffs-0323.test.ts` is mutation-proven on "a used post stays".
 - **THE TEAM'S ANSWER IS `classroom_team_answers`, AND THE MEMBER ROWS ARE ITS COPIES.**
   `classroom_save_response` (still the one student write, widened by 0302 with one branch
   before its insert) writes the team row and every current member's `classroom_responses`
@@ -444,6 +453,20 @@ under `materials/` through the deployed gate and then 0301).
   `_classroom_team_block_refusal`). **A picture in an individual block stays its uploader's**:
   it is that student's own graded answer. `tests/db/classroom-team-photos.test.ts` is
   mutation-proven on the rule.
+- **SIGN-OFFS ARE DECIDED IN THREE PLACES THROUGH ONE WRITE (0323).** The queue
+  (`/classroom/signoffs`, the classroom header's Sign-offs door and the home line, counted by
+  `classroom_signoff_waiting`), the teams panel on a team post (`TeamSignoffPanel`, read by
+  `classroom_item_signoff_board`), and the connector. Every decision writes through
+  `_classroom_signoff_close`; `classroom_signoff_teacher_decide` opens a request when there is
+  none and approves over a failed item only with a note. Both pages mount `SignoffCard`, the
+  one checklist. A field check's pass and its "who is missing what" are one rule
+  (`_classroom_signoff_missing` over `_classroom_team_block_done`); never test a box's
+  completion a second way.
+- **SEEDED TASK DATES, THE SPLIT AND PHASES (0323).** `_classroom_team_seed_due` gives a
+  seeded task its date from the post (spec 16.6), `_classroom_team_balance` judges each member
+  against their own share (`rule` "roles" on a team smaller than its roles), and a module's
+  `opensAfter` holds its boxes shut per team (`_classroom_team_phase_refusal` in the save and
+  the file record, `phases` on the team document, team-state `later`; spec 16.10).
 - **NAMES.** `_classroom_first_name` reads the given name ("Last, First" or "First Last"),
   and `_classroom_team_display_name(team, email)` is "First L." where two members of one team
   share a first name; every team payload names members through it (0316).

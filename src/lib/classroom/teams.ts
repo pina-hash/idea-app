@@ -168,6 +168,21 @@ export type TeamMoveResult =
 	| { ok: false; reason: 'unavailable' }
 	| { ok: false; reason: 'error'; message: string };
 
+/** One team post a draw holds, and how many of its students are not graded yet (0323). */
+export interface TeamSetUse {
+	itemId: string;
+	title: string;
+	ungraded: number;
+}
+
+/** The warning before a draw a team post still uses comes down, or null when nothing is waiting. */
+export function teamSetUseWarning(uses: readonly TeamSetUse[]): string | null {
+	const open = uses.filter((u) => u.ungraded > 0);
+	if (!open.length) return null;
+	const names = open.map((u) => `${u.title} (${u.ungraded} not graded yet)`).join(', ');
+	return `${open.length === 1 ? 'A team post uses' : 'Team posts use'} these teams: ${names}. Taking them down closes ${open.length === 1 ? 'it' : 'them'} for students; you can still grade from the Teams screen.`;
+}
+
 /** Everything a surface needs the server for. Injected, never imported by a component. */
 export interface TeamTransports {
 	board(sectionId: string): Promise<TeamBoardResult>;
@@ -175,6 +190,12 @@ export interface TeamTransports {
 	post?(setId: string, visibleUntil: string | null): Promise<{ ok: boolean; message?: string }>;
 	unpost?(setId: string): Promise<{ ok: boolean; message?: string }>;
 	archive?(setId: string): Promise<{ ok: boolean; message?: string }>;
+	/**
+	 * The team posts this draw holds (0323, `classroom_team_set_uses`), so taking
+	 * it down or retiring it warns first when one is not fully graded. Absent or
+	 * failing: no warning, the action works as before.
+	 */
+	uses?(setId: string): Promise<TeamSetUse[]>;
 	/**
 	 * OPTIONAL, AND THE ABSENCE IS THE MECHANISM. A surface handed no `style`
 	 * transport renders no style controls at all, down through every child --
@@ -716,6 +737,17 @@ export function createTeamTransports(supabase: SupabaseClient): TeamTransports {
 				p_team_set_id: setId
 			});
 			return error ? failed(error) : { ok: true };
+		},
+
+		async uses(setId) {
+			const { data, error } = await supabase.rpc('classroom_team_set_uses', { p_team_set_id: setId });
+			const posts = (data as { posts?: unknown } | null)?.posts;
+			if (error || !Array.isArray(posts)) return [];
+			return posts.map((p: Record<string, unknown>) => ({
+				itemId: String(p.item_id ?? ''),
+				title: String(p.title ?? ''),
+				ungraded: Number(p.ungraded ?? 0)
+			}));
 		},
 
 		async style(input) {

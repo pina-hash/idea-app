@@ -49,7 +49,8 @@ export interface TeamDocTransports {
 	/** `classroom_team_box_lock(item, block, take)`'s raw answer, or null on a failed call. */
 	lock(itemId: string, blockId: string, take: boolean): Promise<unknown>;
 	/** `classroom_team_plan(section)`'s raw answer, for the tracker inside the document. Optional. */
-	readPlan?(sectionId: string): Promise<unknown>;
+	/** The team plan for the tracker; `teamId` is the post's own team (0323 pins a post to its draw). */
+	readPlan?(sectionId: string, teamId?: string): Promise<unknown>;
 	/**
 	 * `classroom_team_files(item)`'s raw answer (0316): the team's newest picture
 	 * per team or role box. Optional; absent, or a database without 0316, is no
@@ -183,7 +184,7 @@ export class TeamDocSession {
 			}
 			const section = doc?.team?.section_id;
 			if (section && this.#opts.transports.readPlan) {
-				const plan = parseTeamPlan(await this.#opts.transports.readPlan(section).catch(() => null)).plan;
+				const plan = parseTeamPlan(await this.#opts.transports.readPlan(section, doc?.team?.id).catch(() => null)).plan;
 				if (!this.#stopped) this.#tracker = plan ? teamTrackerMessage(plan) : null;
 			} else if (!doc?.team) {
 				this.#tracker = null;

@@ -16,12 +16,12 @@
 	if (browser) (window as unknown as { __teamGrades: unknown[] }).__teamGrades = saves;
 
 	async function save(
-		args: { p_scores: Record<string, number>; p_member_scores: Record<string, Record<string, number>> },
+		args: { p_scores: Record<string, number>; p_member_scores: Record<string, Record<string, number>>; p_criterion_comments: Record<string, string> },
 		comment: string,
 		ret: boolean
 	) {
 		saves.push({ ...args, comment, ret });
-		const draft = { shared: args.p_scores, member: args.p_member_scores, comment };
+		const draft = { shared: args.p_scores, member: args.p_member_scores, notes: args.p_criterion_comments, comment };
 		const at = new Date().toISOString();
 		const members = grading.members.map((m) => {
 			const scores: Record<string, number> = { ...(args.p_member_scores[m.email] ?? {}) };

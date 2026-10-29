@@ -722,7 +722,8 @@ describe('the shipped transports and layout load reach the real functions', () =
 			locals: { supabase: createPostgrestShim(db, fks, sam.id), claims: { sub: sam.id, email: sam.email } },
 			depends: (...keys: string[]) => deps.push(...keys)
 		} as never)) as { navSections: { id: string }[]; navThemes: Record<string, { palette: { id: string }; accent: { id: string } | null }> };
-		expect(deps).toEqual(['classroom:themes']);
+		// And the sign-off door's count (ledger 0456), re-run after a decision.
+		expect(deps).toEqual(['classroom:themes', 'classroom:signoffs']);
 		expect(data.navSections.map((s) => s.id)).toContain(sectionA1);
 		expect(data.navThemes[sectionA1]?.palette.id).toBe('ember');
 		expect(data.navThemes[sectionA1]?.accent?.id).toBe('sky');

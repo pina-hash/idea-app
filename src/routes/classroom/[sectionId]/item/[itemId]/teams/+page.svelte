@@ -8,6 +8,11 @@
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import TeamGrader from '$lib/classroom/TeamGrader.svelte';
+	import TeamGradeWork from '$lib/classroom/TeamGradeWork.svelte';
+	import { env as publicEnv } from '$env/dynamic/public';
+	import { htmlAssignmentSrc, htmlFieldToBlockId } from '$lib/classroom/html-assignment/mount';
+	import { htmlManifestShaped } from '$lib/classroom/transports';
+	import type { TeamWorkTransports } from '$lib/classroom/team-grade';
 	import { parseTeamGrading, type TeamGrading } from '$lib/classroom/team-grade';
 	import type { PageData } from './$types';
 
@@ -31,6 +36,47 @@
 	});
 
 	let grading = $state<TeamGrading | null>(null);
+
+	/** The document beside the rubric (ledger 0456, report 956f6664). */
+	const doc = $derived.by(() => {
+		const hx = data.htmlAssignment as { documentId: string; manifest: unknown } | null;
+		if (!hx || !htmlManifestShaped(hx.manifest)) return null;
+		return {
+			manifest: hx.manifest,
+			src: htmlAssignmentSrc(publicEnv.PUBLIC_HX_SANDBOX_ORIGIN, hx.documentId),
+			fields: htmlFieldToBlockId(hx.manifest)
+		};
+	});
+	const work: TeamWorkTransports = {
+		readTeam: async (itemId, teamId) => {
+			const { data: raw, error } = await supabase.rpc('classroom_team_document_for', { p_item_id: itemId, p_team_id: teamId });
+			return error ? null : raw;
+		},
+		readAnswers: async (itemId, emails) => {
+			const { data: rows, error } = await supabase
+				.from('classroom_responses')
+				.select('student_email, block_id, value')
+				.eq('item_id', itemId)
+				.in('student_email', emails);
+			return error ? [] : ((rows ?? []) as { student_email: string; block_id: string; value: unknown }[]);
+		},
+		readFiles: async (itemId, emails) => {
+			const { data: rows, error } = await supabase
+				.from('classroom_submission_files')
+				.select('id, block_id, filename, caption, created_at, classroom_submissions!inner(item_id, student_email)')
+				.eq('classroom_submissions.item_id', itemId)
+				.in('classroom_submissions.student_email', emails);
+			if (error) return [];
+			return ((rows ?? []) as Record<string, unknown>[]).map((r) => ({
+				id: String(r.id),
+				student_email: String((r.classroom_submissions as { student_email?: string } | null)?.student_email ?? ''),
+				block_id: typeof r.block_id === 'string' ? r.block_id : null,
+				filename: String(r.filename ?? ''),
+				caption: typeof r.caption === 'string' ? r.caption : null,
+				created_at: String(r.created_at ?? '')
+			}));
+		}
+	};
 	let failed = $state(false);
 
 	async function read(teamId: string) {
@@ -48,14 +94,17 @@
 		untrack(() => void read(id));
 	});
 
-	async function save(args: { p_scores: Record<string, number>; p_member_scores: Record<string, Record<string, number>> }, comment: string, ret: boolean) {
+	async function save(
+		args: { p_scores: Record<string, number>; p_member_scores: Record<string, Record<string, number>>; p_criterion_comments: Record<string, string> },
+		comment: string,
+		ret: boolean
+	) {
 		if (!picked) return null;
 		const { data: out, error } = await supabase.rpc('classroom_grade_team', {
 			p_item_id: data.itemId,
 			p_team_id: picked.id,
 			...args,
 			p_comment: comment.trim() || null,
-			p_criterion_comments: {},
 			p_return: ret
 		});
 		if (error) throw new Error(error.message);
@@ -92,12 +141,30 @@
 		{#if failed}
 			<p class="card tgp-note">This team could not be read. Reload the page to try again.</p>
 		{:else if grading}
-			<TeamGrader
-				{grading}
-				onsave={save}
-				{next}
-				documentHref={`/classroom/${grading.team.sectionId}/item/${data.itemId}`}
-			/>
+			<div class="tgp-split" class:solo={!doc}>
+				{#if doc}
+					<div class="tgp-work">
+						<TeamGradeWork
+							itemId={data.itemId}
+							teamId={grading.team.id}
+							members={grading.members.map((m) => ({ email: m.email, name: m.name }))}
+							manifest={doc.manifest}
+							src={doc.src}
+							title={data.itemTitle}
+							fieldToBlockId={doc.fields}
+							transports={work}
+						/>
+					</div>
+				{/if}
+				<div class="tgp-rubric">
+					<TeamGrader
+						{grading}
+						onsave={save}
+						{next}
+						documentHref={`/classroom/${grading.team.sectionId}/item/${data.itemId}`}
+					/>
+				</div>
+			</div>
 		{:else}
 			<p class="card tgp-note">Reading the team.</p>
 		{/if}
@@ -110,7 +177,28 @@
 		gap: 0.8rem;
 		padding: 0.25rem 0 2rem;
 		min-width: 0;
-		max-width: 52rem;
+		max-width: 96rem;
+	}
+	/* THE WORK BESIDE THE RUBRIC (ledger 0456): side by side on a desktop, the
+	   document first on a phone. Each column scrolls with the page. */
+	.tgp-split {
+		display: grid;
+		gap: 0.8rem;
+		min-width: 0;
+	}
+	@media (min-width: 1100px) {
+		.tgp-split:not(.solo) {
+			grid-template-columns: minmax(0, 1.25fr) minmax(24rem, 1fr);
+			align-items: start;
+		}
+		.tgp-work {
+			position: sticky;
+			top: 0.5rem;
+		}
+	}
+	.tgp-work,
+	.tgp-rubric {
+		min-width: 0;
 	}
 	.tgp-back {
 		margin: 0;

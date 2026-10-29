@@ -5,6 +5,7 @@
 	 * and on the poller's floor; a decision re-reads at once.
 	 */
 	import { untrack } from 'svelte';
+	import { invalidate } from '$app/navigation';
 	import SignoffQueue from '$lib/classroom/SignoffQueue.svelte';
 	import { parseSignoffQueue, type SignoffRequest } from '$lib/classroom/signoffs';
 	import { createClassroomLive, TEAM_NOTICE_JITTER_MS } from '$lib/classroom/live';
@@ -59,6 +60,21 @@
 			p_approve: approve
 		});
 		await read();
+		void invalidate('classroom:signoffs');
+		return error ? null : (out as { ok: boolean; reason?: string });
+	}
+
+	/** Approve over a failed item, with the instructor's note (0323's teams-panel decide). */
+	async function override(req: SignoffRequest, results: Record<string, boolean>, note: string) {
+		const { data: out, error } = await supabase.rpc('classroom_signoff_teacher_decide', {
+			p_team_id: req.team.id,
+			p_checkpoint_key: req.checkpoint.key,
+			p_results: results,
+			p_approve: true,
+			p_note: note
+		});
+		await read();
+		void invalidate('classroom:signoffs');
 		return error ? null : (out as { ok: boolean; reason?: string });
 	}
 </script>
@@ -76,7 +92,7 @@
 	{:else if !requests}
 		<p class="card so-wait">Reading the queue.</p>
 	{:else}
-		<SignoffQueue {requests} ondecide={decide} {now} />
+		<SignoffQueue {requests} ondecide={decide} onoverride={override} {now} />
 	{/if}
 </div>
 

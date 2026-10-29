@@ -34,7 +34,14 @@
 		req('r1', 'Team Torque', ['Ana', 'Ben', 'Cara', 'Dev'], PLAN, planItems, 14, true),
 		req('r2', 'Team Arc', ['Eli', 'Fay', 'Gus'], PLAN, planItems, 9, true),
 		req('r3', 'Team Volt', ['Hal', 'Ivy', 'Jay', 'Kai'], { key: 'design', title: 'Design', date: '2026-11-02', gate: 'No metal is cut before this sign-off.' }, [
-			item('fields', 'auto', "The Design post's fields are complete"),
+			item('fields', 'auto', "The Design post's fields are complete", {
+				auto_ok: false,
+				missing: [
+					{ block: 'u4d-rule-test', label: 'Rule test', who: 'Jay', kind: 'individual' },
+					{ block: 'u4d-idea-sketch', label: 'Idea sketch', who: 'Jay', kind: 'individual' },
+					{ block: 'drive-sketch', label: 'Drive sketch', who: 'Ivy', kind: 'role' }
+				]
+			}),
 			item('aluminum', 'tap', 'The structure is aluminum, with wood only for a minor part'),
 			item('process', 'tap', 'A process is named for every part'),
 			item('bearings', 'tap', 'The team uses 6 or fewer 1/2 in hex bearings'),
@@ -42,7 +49,7 @@
 		], 3)
 	]);
 	const requests = $derived(parseSignoffQueue({ ok: true, requests: raw }) ?? []);
-	const decisions: { id: string; approve: boolean; results: Record<string, boolean> }[] = [];
+	const decisions: { id: string; approve: boolean; results: Record<string, boolean>; note?: string }[] = [];
 	async function ondecide(id: string, results: Record<string, boolean>, approve: boolean) {
 		decisions.push({ id, approve, results });
 		raw = raw.filter((r) => r.id !== id);
@@ -54,7 +61,17 @@
 <svelte:head><title>Sign-off queue harness</title></svelte:head>
 
 <main class="cr-root cr-plate sqh">
-	<SignoffQueue {requests} {ondecide} now={Date.parse('2026-10-28T16:00:00Z')} />
+	<SignoffQueue
+		{requests}
+		{ondecide}
+		onoverride={async (r, results, note) => {
+			decisions.push({ id: r.id, approve: true, results, note } as (typeof decisions)[number]);
+			raw = raw.filter((x) => x.id !== r.id);
+			if (browser) (window as unknown as { __signoffs: unknown }).__signoffs = [...decisions];
+			return { ok: true };
+		}}
+		now={Date.parse('2026-10-28T16:00:00Z')}
+	/>
 </main>
 
 <style>

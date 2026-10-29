@@ -1457,6 +1457,41 @@ classroom_signoff_decide:
     p_results: {name: items, describe: "Every tap item's id with true for pass or false for fail; send back needs at least one false."}
     p_approve: {name: approve, describe: "True to approve, false to send back."}
 
+classroom_signoff_waiting:
+  surface: call
+  level: read
+  describe: How many team sign-off requests are waiting for him, and since when.
+  say: ["how many sign-offs are waiting", "any teams waiting on me", "sign-off count"]
+
+classroom_signoff_teacher_decide:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Approve one team's checkpoint or send it back, with or without a request from the team; approving over a failed item needs a short note, kept with the sign-off. It asks first.
+  say: ["approve Team Torque's design sign-off anyway, Ben was out", "sign off Team Arc's plan", "send team 3's design back"]
+  args:
+    p_team_id: {name: team, describe: "The team's id, from the teams panel or the team board."}
+    p_checkpoint_key: {name: checkpoint, describe: "The checkpoint's key, like plan or design."}
+    p_results: {name: items, describe: "Every tap item's id with true for pass or false for fail."}
+    p_approve: {name: approve, describe: "True to approve, false to send back."}
+    p_note: {name: note, describe: "Why it is approved over a failed item, or a note for the team; needed to approve over a failure."}
+
+classroom_item_signoff_board:
+  surface: call
+  level: read
+  describe: Every team on one team post, class by class, with who owns each part, how far it is, who checked in today, what is blocked, and each sign-off with who is missing what.
+  say: ["how are the Launcher teams doing", "show the teams on Launcher Design", "who is missing what for sign-off 2"]
+  args:
+    p_item_id: {name: post, describe: "The post: its name as he says it, or its id."}
+
+classroom_team_set_uses:
+  surface: call
+  level: read
+  describe: The team posts a saved team draw still holds, and how many of their students are not graded yet.
+  say: ["which posts use the Block 2 teams", "is anything still using this team draw", "what would taking these teams down close"]
+  args:
+    p_team_set_id: {name: teams, describe: "The team draw's id, from the class's team board."}
+
 classroom_machine_tag_set:
   surface: call
   level: confirm

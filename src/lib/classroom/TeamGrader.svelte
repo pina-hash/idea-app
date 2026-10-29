@@ -20,6 +20,7 @@
 		teamGradeStart,
 		teamGradeWords,
 		teamMemberPreview,
+		teamScoreOffLevel,
 		teamUnownedRoles,
 		type TeamGradeDraft,
 		type TeamGrading
@@ -61,6 +62,14 @@
 		const mine = draft.member[email] ?? (draft.member[email] = {});
 		mine[c.id] = mine[c.id] === points ? null : points;
 	}
+	/** A typed score (ledger 0456, report 956f6664): any value from 0 to the criterion's points, or blank. */
+	function typed(c: RubricCriterion, raw: string): number | null {
+		const n = Number(raw);
+		if (raw.trim() === '' || !Number.isFinite(n)) return null;
+		const top = c.levels?.[0]?.points ?? c.points ?? 0;
+		return Math.min(Math.max(0, Math.round(n * 2) / 2), top);
+	}
+	const top = (c: RubricCriterion) => c.levels?.[0]?.points ?? c.points ?? 0;
 	async function save(ret: boolean) {
 		busy = true;
 		said = null;
@@ -87,13 +96,36 @@
 	</div>
 {/snippet}
 
+{#snippet scoreBox(c: RubricCriterion, value: number | null | undefined, set: (v: number | null) => void, label: string)}
+	<label class="tg-type">
+		<span>Score</span>
+		<input
+			type="number"
+			inputmode="decimal"
+			min="0"
+			max={top(c)}
+			step="0.5"
+			aria-label={`${label}, typed score out of ${top(c)}`}
+			value={value ?? ''}
+			onchange={(e) => set(typed(c, (e.currentTarget as HTMLInputElement).value))}
+		/>
+		<span class="tg-of">/ {top(c)}</span>
+	</label>
+{/snippet}
+
 {#snippet criterion(c: RubricCriterion, value: number | null | undefined, pick: (points: number) => void)}
 	<div class="tg-crit" class:scored={value != null}>
 		<p class="tg-crit-name">
 			<span>{c.criterion}</span>
-			<span class="tg-crit-score">{value ?? '–'} / {c.levels?.[0]?.points ?? c.points}</span>
+			{@render scoreBox(c, value, (v) => (draft.shared[c.id] = v), c.criterion)}
 		</p>
 		{@render levels(c, value, pick, c.criterion)}
+		{#if teamScoreOffLevel(c, value) || draft.notes[c.id]}
+			<label class="tg-crit-note">
+				<span>{teamScoreOffLevel(c, value) ? 'Why this score (needed for a score between levels)' : 'Note on this part'}</span>
+				<input maxlength="500" value={draft.notes[c.id] ?? ''} oninput={(e) => (draft.notes[c.id] = (e.currentTarget as HTMLInputElement).value)} />
+			</label>
+		{/if}
 		<details class="tg-desc">
 			<summary>What each level means</summary>
 			<ul>
@@ -136,7 +168,7 @@
 
 	{#each groups.roles as g (g.role.id)}
 		<section class="card tg-group" aria-label={g.role.title}>
-			<h3 class="section-label">{g.role.title}, {g.role.ownerName ?? 'no owner yet'}</h3>
+			<h3 class="section-label">{g.role.title}, {g.role.ownerName || 'no owner yet'}</h3>
 			{#each g.criteria as c (c.id)}
 				{@render criterion(c, draft.shared[c.id], (p) => pickShared(c, p))}
 			{/each}
@@ -151,7 +183,18 @@
 					<p class="tg-crit-name"><span>{c.criterion}</span></p>
 					{#each grading.members as m (m.email)}
 						<div class="tg-person">
-							<span class="tg-person-name">{m.name}</span>
+							<span class="tg-person-name">
+								{m.name}
+								{@render scoreBox(
+									c,
+									draft.member[m.email]?.[c.id],
+									(v) => {
+										const mine = draft.member[m.email] ?? (draft.member[m.email] = {});
+										mine[c.id] = v;
+									},
+									`${c.criterion}, ${m.name}`
+								)}
+							</span>
 							{@render levels(c, draft.member[m.email]?.[c.id], (p) => pickMember(m.email, c, p), `${c.criterion}, ${m.name}`)}
 						</div>
 					{/each}
@@ -268,15 +311,6 @@
 		font-size: 1.05rem;
 		color: var(--text-1, var(--white));
 	}
-	.tg-crit-score {
-		font-family: var(--font-mono);
-		font-size: 0.85rem;
-		color: var(--text-2, var(--dim));
-		white-space: nowrap;
-	}
-	.tg-crit.scored .tg-crit-score {
-		color: var(--text-1, var(--white));
-	}
 	.tg-levels {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -332,6 +366,10 @@
 		gap: 0.3rem;
 	}
 	.tg-person-name {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 0.6rem;
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--text-2, var(--dim));
@@ -347,22 +385,67 @@
 		font-family: var(--font-display);
 		font-size: 1rem;
 	}
+	/* THE SAVE BAR (report eb053e4e): one card that rests above the floating
+	   feedback key, the two keys at the right at their own width, on the
+	   theme's own card surface, so it never reads as a band over the rubric. */
 	.tg-act {
 		position: sticky;
-		/* Rests above the site's floating feedback key, never under it. */
 		bottom: var(--feedback-clear-block, 0px);
 		z-index: 1;
-		display: grid;
-		grid-template-columns: 1fr 1fr;
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		align-items: center;
 		gap: 0.5rem;
-		padding: 0.6rem 0;
-		background: var(--bg1, #1b2026);
+		padding: 0.6rem 0.75rem;
+		background: var(--surface-1, var(--bg1));
+		border: 1px solid var(--boundary, color-mix(in srgb, var(--dim) 35%, transparent));
+		border-radius: var(--radius-card, 8px);
+		box-shadow: 0 -6px 18px color-mix(in srgb, var(--bg0) 35%, transparent);
 	}
 	.tg-act .btn {
-		min-height: 52px;
+		min-height: 48px;
+		min-width: 9.5rem;
+	}
+	@media (max-width: 479.98px) {
+		.tg-act .btn {
+			flex: 1 1 0;
+			min-width: 0;
+		}
+	}
+	.tg-type {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-2, var(--dim));
+		white-space: nowrap;
+	}
+	.tg-type input {
+		width: 4.2rem;
+		min-height: 36px;
+		font-family: var(--font-mono);
+		font-size: 0.95rem;
+		text-align: right;
+	}
+	.tg-of {
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+	}
+	.tg-crit-note {
+		display: grid;
+		gap: 0.25rem;
+		font-family: var(--font-display);
+		font-size: 0.9rem;
+		color: var(--text-2, var(--dim));
+	}
+	.tg-crit-note input {
+		width: 100%;
+		min-height: 44px;
 	}
 	.tg-said {
-		grid-column: 1 / -1;
+		flex: 1 1 100%;
 		margin: 0;
 		font-family: var(--font-display);
 		color: var(--green);

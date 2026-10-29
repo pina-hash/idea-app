@@ -56,6 +56,7 @@
 		teamDriftNote,
 		teamLabel,
 		teamSetEditedWords,
+		teamSetUseWarning,
 		TEAM_EDITED_NOTE,
 		teamStyle,
 		teamStyleVars,
@@ -327,6 +328,17 @@
 	let teamsBusy = $state(false);
 	/** Which saved set has its Retire armed. Only ever one. */
 	let armedRetire = $state<string | null>(null);
+	/** A take-down waiting on its warning (0323): the draw, and what its team posts still need. */
+	let armedUnpost = $state<string | null>(null);
+	let setWarning = $state<Record<string, string | null>>({});
+
+	/** Read which team posts a draw holds before it comes down; true when there is something to warn about. */
+	async function warnFor(setId: string): Promise<boolean> {
+		const uses = (await teamTransports?.uses?.(setId).catch(() => [])) ?? [];
+		const words = teamSetUseWarning(uses);
+		setWarning = { ...setWarning, [setId]: words };
+		return words !== null;
+	}
 	/** Days to post for, per set. null is the "no end" option. */
 	let postDays = $state<Record<string, number | null>>({});
 
@@ -1787,14 +1799,24 @@
 										class="btn tiny tap-44"
 										data-testid="team-unpost"
 										disabled={teamsBusy}
-										onclick={() =>
-											runTeamAction(
+										onclick={async () => {
+											if (armedUnpost !== set.id && (await warnFor(set.id))) {
+												armedUnpost = set.id;
+												return;
+											}
+											armedUnpost = null;
+											await runTeamAction(
 												() => teamTransports.unpost!(set.id),
 												'Taken down. The class can no longer see these teams.'
-											)}
+											);
+										}}
 									>
-										Take down
+										{armedUnpost === set.id ? 'Take down anyway' : 'Take down'}
 									</button>
+									{#if armedUnpost === set.id && setWarning[set.id]}
+										<span class="note team-retire-note" data-testid="team-unpost-warning">{setWarning[set.id]}</span>
+										<button type="button" class="btn tiny tap-44" onclick={() => (armedUnpost = null)}>Keep posted</button>
+									{/if}
 								{:else}
 									<label class="tool-field narrow">
 										<span>Post for</span>
@@ -1848,6 +1870,7 @@
 									<span class="note team-retire-note" data-testid="team-retire-note">
 										Retire "{set.label}"? It comes off this page and off the class's
 										view. The record of who was on which team is kept.
+										{#if setWarning[set.id]}{setWarning[set.id]}{/if}
 									</span>
 									<button
 										type="button"
@@ -1872,7 +1895,10 @@
 										type="button"
 										class="btn tiny tap-44"
 										data-testid="team-retire"
-										onclick={() => (armedRetire = set.id)}
+										onclick={() => {
+											armedRetire = set.id;
+											void warnFor(set.id);
+										}}
 									>
 										Retire
 									</button>

@@ -248,6 +248,7 @@
 		preferences={loc.place === 'view-as' ? null : preferences}
 		loadStudents={page.data.canManage === true ? loadStudents : null}
 		todoHref={data.navIsStaff === true ? null : '/classroom/todo'}
+		signoffs={loc.place === 'view-as' ? null : (data.navSignoffs ?? null)}
 	>
 		{#if loc.place !== 'view-as' && !isConsole}
 			<CoinHeaderBanner sectionId={loc.sectionId ?? null} load={loadBanner} day={bannerDay} />

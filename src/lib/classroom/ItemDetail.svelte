@@ -154,6 +154,7 @@
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
 	import TeamDocGate from '$lib/classroom/html-assignment/TeamDocGate.svelte';
 	import TeamDocuments from '$lib/classroom/html-assignment/TeamDocuments.svelte';
+	import TeamSignoffPanel from '$lib/classroom/TeamSignoffPanel.svelte';
 	import type { TeamDocumentsTransports } from '$lib/classroom/html-assignment/team-doc';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import type { TeamDocSession } from '$lib/classroom/html-assignment/team-doc-session.svelte';
@@ -3031,6 +3032,13 @@
 						data={htmlWorkingCopy.data}
 						transports={htmlWorkingCopy.transports}
 					/>
+					{#if htmlTeamDocuments?.transports.board && htmlTeamDocuments.transports.decide}
+						<TeamSignoffPanel
+							itemId={item.id}
+							read={htmlTeamDocuments.transports.board}
+							decide={htmlTeamDocuments.transports.decide}
+						/>
+					{/if}
 					{#if htmlTeamDocuments}
 						<TeamDocuments
 							itemId={item.id}

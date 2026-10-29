@@ -38,6 +38,23 @@ async function foundryReviewPending(
 }
 
 /**
+ * HOW MANY TEAM SIGN-OFFS WAIT FOR THIS PERSON (ledger 0456, gap 87b6bd95), for
+ * the home feed's line above Your Classes. Staff only (an admin, or a staff
+ * address); a student is never asked, so their home load pays nothing for it.
+ * A failed or missing read is no line, never a broken page.
+ */
+async function signoffsWaiting(supabase: SupabaseClient, email: string, admin: boolean): Promise<number | null> {
+	if (!admin && !email.endsWith('@boscotech.edu')) return null;
+	try {
+		const { data, error } = await supabase.rpc('classroom_signoff_waiting');
+		if (error) return null;
+		return Number((data as { count?: number } | null)?.count ?? 0);
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Homepage data for a signed-in user.
  *
  * CLASSROOM FEED. Every read runs as the CALLER'S OWN session with no role
@@ -72,7 +89,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 			feedCheckIns: [] as ClassCheckIn[],
 			feedManagerEmails: {} as Record<string, string[]>,
 			feedClock: null as ClassroomClock | null,
-			foundryReviewPending: null as number | null
+			foundryReviewPending: null as number | null,
+			signoffsWaiting: null as number | null
 		};
 	}
 
@@ -80,6 +98,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	// Kicked off beside the feed reads rather than after them; every return
 	// below awaits it, so an early return cannot leave it dangling.
 	const pending = layout.then(({ isAdmin }) => foundryReviewPending(supabase, isAdmin));
+	const waiting = layout.then(({ isAdmin }) =>
+		signoffsWaiting(supabase, ((claims.email as string | undefined) ?? '').trim().toLowerCase(), isAdmin === true)
+	);
 
 	/**
 	 * THE CLASSES, THEIR ITEMS AND THE SUBMISSIONS BEHIND THEM are the shared
@@ -113,7 +134,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 			feedRosterEmails: {} as Record<string, string[]>,
 			feedUnitOrder: {} as Record<string, string[]>,
 			feedClock: work.clock as ClassroomClock | null,
-			foundryReviewPending: await pending
+			foundryReviewPending: await pending,
+			signoffsWaiting: await waiting
 		};
 	}
 
@@ -180,6 +202,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 		 * hydration alike -- rather than each reading a clock of its own.
 		 */
 		feedClock: work.clock as ClassroomClock | null,
-		foundryReviewPending: await pending
+		foundryReviewPending: await pending,
+		signoffsWaiting: await waiting
 	};
 };

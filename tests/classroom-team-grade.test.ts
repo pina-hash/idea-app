@@ -105,8 +105,13 @@ describe('team grading screen', () => {
 		d.member[FAY]['reflect-c1'] = 18;
 		expect(teamGradeArgs(d)).toEqual({
 			p_scores: { 'review-talk': 50 },
-			p_member_scores: { [ELI]: {}, [FAY]: { 'reflect-c1': 18 }, [GUS]: {} }
+			p_member_scores: { [ELI]: {}, [FAY]: { 'reflect-c1': 18 }, [GUS]: {} },
+			p_criterion_comments: {}
 		});
+		// A note on a criterion travels with it (ledger 0456); a blank one never does.
+		d.notes['review-talk'] = '  Between two levels ';
+		d.notes['reflect-c1'] = '   ';
+		expect(teamGradeArgs(d).p_criterion_comments).toEqual({ 'review-talk': 'Between two levels' });
 	});
 
 	it('starts from what is stored: team from the latest grade, a role from its owner, individual from each member', () => {

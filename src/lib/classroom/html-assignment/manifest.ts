@@ -182,6 +182,14 @@ export interface HtmlModule {
 	audience?: 'team' | 'individual' | 'role';
 	/** The `team.roles` id that owns this module. Required iff `audience` is `role`. */
 	role?: string;
+	/**
+	 * A PHASE THAT OPENS PER TEAM (ledger 0456, migration 0323, SPEC 16.10): a
+	 * `team.checkpoints` id. The module's boxes open for a team when that team's
+	 * sign-off is approved, or on the checkpoint's date. A display key the
+	 * manifest gates never read; an id the manifest does not declare is a
+	 * warning, and holds nothing shut.
+	 */
+	opensAfter?: string;
 	blocks: HtmlBlock[];
 	criteria: HtmlCriterion[];
 }
@@ -1061,8 +1069,32 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 	// is said here and left off the plan; it never stops an import.
 	warnings.push(...manifestPacingWarnings(m));
 
+	// PHASES (ledger 0456): `opensAfter` names a checkpoint of this post. A
+	// wrong one is said here and opens the module for everyone; never an error.
+	warnings.push(...manifestPhaseWarnings(m));
+
 	if (errors.length) return fail();
 	return { manifest: raw as HtmlAssignmentManifest, errors: [], warnings };
+}
+
+/** The `opensAfter` keys a reader cannot use, as warnings (SPEC 16.10). */
+export function manifestPhaseWarnings(m: Record<string, unknown>): string[] {
+	const out: string[] = [];
+	const team = m.team as { checkpoints?: unknown } | undefined;
+	const ids = new Set(
+		Array.isArray(team?.checkpoints)
+			? team.checkpoints.flatMap((c) => (c && typeof c === 'object' && typeof (c as { id?: unknown }).id === 'string' ? [(c as { id: string }).id] : []))
+			: []
+	);
+	for (const mod of Array.isArray(m.modules) ? m.modules : []) {
+		const key = (mod as { opensAfter?: unknown }).opensAfter;
+		if (key === undefined || key === null) continue;
+		const name = String((mod as { id?: unknown }).id ?? '(module)');
+		if (!team || typeof team !== 'object') out.push(`Module "${name}" opens after a sign-off, but this is not a team post, so it is always open.`);
+		else if (typeof key !== 'string' || !ids.has(key))
+			out.push(`Module "${name}" opens after "${String(key)}", which is not one of this post's checkpoints, so it is always open.`);
+	}
+	return out;
 }
 
 // ---------------------------------------------------------------------------

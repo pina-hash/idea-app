@@ -21,6 +21,7 @@ import { hxBridgeValue, hxIncompleteBlocks } from './html-assignment/answers';
 import type { HtmlAssignmentManifest, HtmlBlock } from './html-assignment/manifest';
 import type { ResponseValue } from './assignment-spec';
 import { dayIndex, schoolDayPlus, schoolWeekday } from './school-calendar';
+import { parseSignoffMissing, type SignoffMissing } from './signoffs';
 
 export type TeamTaskStatus = 'done' | 'blocked' | 'behind' | 'on-it' | 'todo';
 
@@ -58,7 +59,16 @@ export interface TeamPlan {
 	items: { id: string; title: string; dueAt: string | null }[];
 	tasks: TeamPlanTask[];
 	checkedIn: string[];
-	balance: { total: number; unowned: number; even: number; balanced: boolean; members: { key: string; points: number }[] };
+	balance: {
+		total: number;
+		unowned: number;
+		even: number;
+		balanced: boolean;
+		/** 'roles' on a team smaller than its roles (0323): each share is their roles plus an even part of the rest. */
+		rule: 'even' | 'roles';
+		/** `expected` is the member's own share by that rule (0323); absent before it, read as the even share. */
+		members: { key: string; points: number; expected: number }[];
+	};
 	machines: { id: string; label: string }[];
 	noSchool: { day: string; label: string }[];
 	/** The sign-off layer's checkpoints (0304), or empty before it. */
@@ -77,6 +87,8 @@ export interface TeamCheckpoint {
 	items: { id: string; kind: 'auto' | 'tap'; text: string }[];
 	/** The database's answer for each auto item. */
 	auto: Record<string, boolean>;
+	/** Who is missing what, per field-check item (0323); empty before it. */
+	missing: Record<string, SignoffMissing[]>;
 	/** The latest decision: who and when, and the note of a send-back. */
 	decision: { status: string; at: string | null; by: string; note: string | null } | null;
 }
@@ -147,7 +159,12 @@ export function parseTeamPlan(raw: unknown): { plan: TeamPlan | null; reason: st
 				unowned: Number(balance.unowned ?? 0),
 				even: Number(balance.even ?? 0),
 				balanced: balance.balanced === true,
-				members: arr(balance.members).map((m) => ({ key: String(m.key), points: Number(m.points ?? 0) }))
+				rule: balance.rule === 'roles' ? 'roles' : 'even',
+				members: arr(balance.members).map((m) => ({
+					key: String(m.key),
+					points: Number(m.points ?? 0),
+					expected: typeof m.expected === 'number' ? m.expected : Number(balance.even ?? 0)
+				}))
 			},
 			machines: arr(raw.machines).map((m) => ({ id: String(m.id), label: String(m.label ?? m.id) })),
 			noSchool: arr(raw.no_school).map((d) => ({ day: String(d.day), label: String(d.label ?? '') })),
@@ -163,6 +180,9 @@ export function parseTeamPlan(raw: unknown): { plan: TeamPlan | null; reason: st
 					text: String(i.text ?? '')
 				})),
 				auto: isRecord(c.auto) ? Object.fromEntries(Object.entries(c.auto).map(([k, v]) => [k, v === true])) : {},
+				missing: isRecord(c.missing)
+					? Object.fromEntries(Object.entries(c.missing).map(([k, v]) => [k, parseSignoffMissing(v)]))
+					: {},
 				decision: isRecord(c.decision)
 					? {
 							status: String(c.decision.status ?? ''),
@@ -306,13 +326,40 @@ export function teamDayWords(day: string): string {
 	return `${months[Number(m[2]) - 1]} ${Number(m[3])}`;
 }
 
-/** Each member's planned points against the even share, for the share bar. */
-export function teamShares(plan: TeamPlan): { key: string; name: string; points: number; ratio: number }[] {
-	const even = plan.balance.even || 0;
+/**
+ * Each member's planned points against THEIR OWN share, for the share bar: the
+ * even share, or on a team smaller than its roles (0323) their roles' points
+ * plus an even part of the rest. `ratio` 1 is exactly their share.
+ */
+export function teamShares(plan: TeamPlan): { key: string; name: string; points: number; expected: number; ratio: number }[] {
 	return plan.members.map((m) => {
-		const points = plan.balance.members.find((b) => b.key === m.key)?.points ?? 0;
-		return { key: m.key, name: m.name, points, ratio: even > 0 ? points / even : 0 };
+		const row = plan.balance.members.find((b) => b.key === m.key);
+		const points = row?.points ?? 0;
+		const expected = row?.expected ?? plan.balance.even ?? 0;
+		return { key: m.key, name: m.name, points, expected, ratio: expected > 0 ? points / expected : 0 };
 	});
+}
+
+/**
+ * HOW TO EVEN OUT THE SPLIT (report 653c3ff6.2), one line per member outside
+ * 0.75 to 1.25 of their share, in plain words: who has too much, who too
+ * little, and by how many points, so the team knows which team tasks to move.
+ * Empty when the plan balances or nothing is planned.
+ */
+export function teamBalanceHints(plan: TeamPlan): string[] {
+	if (plan.balance.balanced || plan.balance.total <= 0) return [];
+	const out: string[] = [];
+	if (plan.balance.unowned > 0) out.push(`${plan.balance.unowned} points have no owner yet. Give each unowned task to someone.`);
+	for (const s of teamShares(plan)) {
+		if (s.expected <= 0) continue;
+		const gap = Math.round(s.expected - s.points);
+		if (s.ratio < 0.75) out.push(`${s.name} is ${gap} points under their share. Give ${s.name} a team task.`);
+		else if (s.ratio > 1.25) out.push(`${s.name} is ${-gap} points over their share. Move one of ${s.name}'s team tasks to a teammate.`);
+	}
+	if (plan.balance.rule === 'roles' && out.length) {
+		out.push('Your team has fewer people than roles, so whoever owns two roles carries less of the team tasks.');
+	}
+	return out;
 }
 
 /** The tracker message the document receives (`idea:team-tracker`, spec 16.7). */

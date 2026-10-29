@@ -436,8 +436,8 @@
 						const { data: raw, error } = await supabase.rpc('classroom_team_files', { p_item_id: itemId });
 						return error ? null : raw;
 					},
-					readPlan: async (sectionId) => {
-						const { data: raw, error } = await supabase.rpc('classroom_team_plan', { p_section_id: sectionId, p_team_id: null });
+					readPlan: async (sectionId, teamId) => {
+						const { data: raw, error } = await supabase.rpc('classroom_team_plan', { p_section_id: sectionId, p_team_id: teamId ?? null });
 						return error ? null : raw;
 					},
 					lock: async (itemId, blockId, take) => {
@@ -475,7 +475,19 @@
 				readTeam: (itemId: string, teamId: string) =>
 					call('classroom_team_document_for', { p_item_id: itemId, p_team_id: teamId }),
 				history: (itemId: string, teamId: string, blockId: string) =>
-					call('classroom_team_box_history', { p_item_id: itemId, p_team_id: teamId, p_block_id: blockId })
+					call('classroom_team_box_history', { p_item_id: itemId, p_team_id: teamId, p_block_id: blockId }),
+				// The teams panel (ledger 0456, 0323): every team's sign-offs and progress, decided here.
+				board: (itemId: string) => call('classroom_item_signoff_board', { p_item_id: itemId }),
+				decide: async (teamId: string, key: string, results: Record<string, boolean>, approve: boolean, note: string | null) => {
+					const { data: raw, error } = await supabase.rpc('classroom_signoff_teacher_decide', {
+						p_team_id: teamId,
+						p_checkpoint_key: key,
+						p_results: results,
+						p_approve: approve,
+						p_note: note
+					});
+					return error ? null : (raw as { ok: boolean; reason?: string });
+				}
 			}
 		};
 	});

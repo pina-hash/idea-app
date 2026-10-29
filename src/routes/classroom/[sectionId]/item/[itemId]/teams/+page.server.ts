@@ -1,4 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
+import { loadHtmlAssignment } from '$lib/classroom/html-assignment/load';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -15,7 +16,7 @@ export const load: PageServerLoad = async ({ params, url, locals: { supabase, cl
 		supabase.from('classroom_sections').select('id, label').eq('id', params.sectionId).maybeSingle(),
 		supabase
 			.from('classroom_items')
-			.select('id, title, posted_in:classroom_postings!inner(section_id)')
+			.select('id, title, kind, posted_in:classroom_postings!inner(section_id)')
 			.eq('id', params.itemId)
 			.eq('posted_in.section_id', params.sectionId)
 			.maybeSingle(),
@@ -28,7 +29,11 @@ export const load: PageServerLoad = async ({ params, url, locals: { supabase, cl
 		redirect(303, `/classroom/${params.sectionId}/item/${params.itemId}/grade`);
 	}
 	const team = url.searchParams.get('team');
+	// The document the grader reads beside the rubric (ledger 0456): the one
+	// ladder every surface uses, so the frame shows what students see.
+	const { htmlAssignment } = await loadHtmlAssignment(supabase, item as { id: string; kind: string }, 'assignment');
 	return {
+		htmlAssignment,
 		sectionId: params.sectionId,
 		itemId: params.itemId,
 		itemTitle: String((item as { title?: string }).title ?? ''),

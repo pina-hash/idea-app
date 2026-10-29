@@ -72,6 +72,7 @@
 		preferences = null,
 		loadStudents = null,
 		todoHref = null,
+		signoffs = null,
 		children
 	}: {
 		sections?: ClassroomSection[];
@@ -117,6 +118,12 @@
 		 * staff, which is who the page lists work for.
 		 */
 		todoHref?: string | null;
+		/**
+		 * The sign-off door for staff (ledger 0456, gap 87b6bd95): how many team
+		 * sign-off requests wait for this person (`classroom_signoff_waiting`).
+		 * Null hides the door: a student, or a database without the count.
+		 */
+		signoffs?: { count: number } | null;
 		children: import('svelte').Snippet;
 	} = $props();
 
@@ -268,8 +275,9 @@
 	 * THE WALKTHROUGH (ledger 0297, LEARN). Which tour is `classroomTourFor`'s
 	 * answer from the same facts the palette's role reads: inside a class, the
 	 * server's `canManage`; outside one, the staff flag. It is offered once,
-	 * never in somebody else's classroom (view-as) and never on a deck, which
-	 * may be on the wall.
+	 * never in somebody else's classroom (view-as), never on a deck, which
+	 * may be on the wall, and never to staff (report cd54d2ee): the offer is
+	 * for a student's first visit, and a teacher runs the tour from its control.
 	 */
 	let tourEl = $state<ReturnType<typeof ClassroomTour> | null>(null);
 	let tourTrigger = $state<HTMLElement | null>(null);
@@ -666,6 +674,22 @@
 					<span class="shell-tool-word">To-do</span>
 				</a>
 			{/if}
+			{#if signoffs && !minimal}
+				<!-- The sign-off door (ledger 0456): staff only, with the number
+				     waiting, so a team's request is never somewhere he cannot find. -->
+				<a
+					class="shell-tool todo-door signoff-door"
+					href="/classroom/signoffs"
+					aria-current={page.url.pathname.startsWith('/classroom/signoffs') ? 'page' : undefined}
+					aria-label={signoffs.count > 0 ? `Sign-offs, ${signoffs.count} waiting` : 'Sign-offs'}
+					data-testid="signoff-door"
+					onclick={closeMenu}
+				>
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" /></svg>
+					<span class="shell-tool-word">Sign-offs</span>
+					{#if signoffs.count > 0}<span class="signoff-count" data-testid="signoff-count">{signoffs.count}</span>{/if}
+				</a>
+			{/if}
 			{#if !minimal}
 				<!-- The Certifications door (ledger 0391): the IDEA Certification
 				     Portal stands on its own at /certifications and is linked from
@@ -754,7 +778,7 @@
 		bind:this={tourEl}
 		tour={classroomTour}
 		{preferences}
-		canOffer={loc.place !== 'item-deck'}
+		canOffer={loc.place !== 'item-deck' && !isStaff && !isAdmin}
 		returnFocus={tourReturnFocus}
 		onstart={closeMenu}
 	/>
@@ -1308,6 +1332,16 @@
 	}
 	.todo-door {
 		text-decoration: none;
+	}
+	.signoff-count {
+		min-width: 1.5rem;
+		padding: 0.05rem 0.4rem;
+		border-radius: 999px;
+		border: 1px solid var(--green);
+		color: var(--green);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		text-align: center;
 	}
 	.todo-door[aria-current='page'] {
 		border-color: var(--green);

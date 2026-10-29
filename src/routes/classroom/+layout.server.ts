@@ -33,7 +33,9 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, dep
 	// A vote on the class page re-runs this read (and only this one) when the
 	// winner changes, so the strip and My Classes repaint with the banner.
 	depends('classroom:themes');
-	if (!claims) return { navSections: [], navSectionsReady: false, navThemes: {}, navIsStaff: false, navIsAdmin: false };
+	// A decision on the sign-off page re-runs this read so the door's number follows.
+	depends('classroom:signoffs');
+	if (!claims) return { navSections: [], navSectionsReady: false, navThemes: {}, navIsStaff: false, navIsAdmin: false, navSignoffs: null };
 
 	const [{ data: profile }, { data: sections, error: sectionsError }, admin] = await Promise.all([
 		supabase.from('profiles').select('role').eq('id', claims.sub).maybeSingle(),
@@ -67,7 +69,19 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, dep
 		Object.assign(navThemes, classThemesBySection(res.themes));
 	}
 
+	/*
+	 * THE SIGN-OFF DOOR'S NUMBER (ledger 0456): staff only, one count read. A
+	 * database without the read, or a failed call, hides the door's number but
+	 * keeps the door for an admin or a teacher of record.
+	 */
+	let navSignoffs: { count: number } | null = null;
+	if (admin || profile?.role === 'teacher') {
+		const { data: waiting, error: waitingError } = await supabase.rpc('classroom_signoff_waiting');
+		navSignoffs = { count: waitingError ? 0 : Number((waiting as { count?: number } | null)?.count ?? 0) };
+	}
+
 	return {
+		navSignoffs,
 		navSections,
 		/*
 		 * WHETHER THAT READ ANSWERED AT ALL, for the one page that renders the

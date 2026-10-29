@@ -23,6 +23,7 @@
 		teamDayWords,
 		teamDueChoices,
 		teamPlanSummary,
+		teamBalanceHints,
 		teamShares,
 		teamTaskColumn,
 		teamTaskStatus,
@@ -31,6 +32,7 @@
 		type TeamPlanTask,
 		type TeamPlanWrites
 	} from './team-plan';
+	import { signoffMissingLines } from './signoffs';
 
 
 	let {
@@ -173,8 +175,11 @@
 				</li>
 			{/each}
 		</ul>
-		{#if plan.balance.unowned > 0}
-			<p class="tp-hint">{plan.balance.unowned} points have no owner yet. Every task needs an owner before the plan can go to sign-off.</p>
+		{#if teamBalanceHints(plan).length}
+			<!-- How to even out the split (report 653c3ff6.2), in points and names. -->
+			<ul class="tp-hints" data-testid="team-balance-hints">
+				{#each teamBalanceHints(plan) as line (line)}<li>{line}</li>{/each}
+			</ul>
 		{/if}
 		{#if note}<p class="tp-note" role="status">{note}</p>{/if}
 	</header>
@@ -253,6 +258,11 @@
 										<span class="tp-cp-mark" aria-hidden="true">{item.kind === 'auto' ? (cp.auto[item.id] ? '✓' : '·') : '○'}</span>
 										{item.text}
 										<span class="tp-cp-kind">{item.kind === 'auto' ? (cp.auto[item.id] ? 'passes' : 'not yet') : 'your teacher checks'}</span>
+										{#if item.kind === 'auto' && !cp.auto[item.id] && cp.missing[item.id]?.length}
+											<span class="tp-cp-missing" data-testid="team-checkpoint-missing">
+												Still empty: {signoffMissingLines(cp.missing[item.id]).join('. ')}
+											</span>
+										{/if}
 									</li>
 								{/each}
 							</ul>
@@ -856,6 +866,20 @@
 	}
 	.tp-cp-items li.ok .tp-cp-mark {
 		color: var(--green);
+	}
+	.tp-hints {
+		margin: 0;
+		padding-left: 1.1rem;
+		font-family: var(--font-display);
+		font-size: 0.95rem;
+		color: var(--amber);
+	}
+	.tp-cp-missing {
+		display: block;
+		margin-top: 0.2rem;
+		font-family: var(--font-display);
+		font-size: 0.92rem;
+		color: var(--text-1, var(--white));
 	}
 	.tp-cp-kind {
 		margin-left: 0.4rem;

@@ -2643,6 +2643,12 @@
 			"title": "Presentation notes from your teacher",
 			"body": "When you present, your teacher can now check you off and write notes from a phone while you talk. Those notes show up on your work for that assignment, the same place other feedback appears, so read them after you present.",
 			"tags": ["Classroom", "Assignments"]
+		},
+		{
+			"date": "2026-10-28",
+			"title": "Team posts keep your team, and sign-offs say who is missing what",
+			"body": "A team assignment now stays with the team you started it with, even when your teacher draws new teams for something else, so nothing you wrote moves. Your Team plan lists exactly which boxes are still empty and whose they are before you request a sign-off. The tasks the site makes for you come with their dates already filled in, so you only date the tasks you add. On a team of three, the person with two roles is no longer counted as uneven, and the plan tells you which team tasks to move if your split is off. Later parts of a team post open for your team as soon as your sign-off is approved.",
+			"tags": ["Classroom", "Teams"]
 		}
 	]
 }

@@ -488,7 +488,7 @@ export type HxParentMessage =
 			team: string;
 			me: string;
 			roles: { id: string; title: string; owner: string | null; mine: boolean }[];
-			fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed'; by?: string }>;
+			fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed' | 'later'; by?: string }>;
 	  }
 	| {
 			/** The student's own team, teammate by teammate. See `HX_TEAM_PROGRESS_TYPE`. */
@@ -1031,7 +1031,7 @@ export function hxTeamStateMessage(state: {
 	team: string;
 	me: string;
 	roles: { id: string; title: string; owner: string | null; mine: boolean }[];
-	fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed'; by?: string }>;
+	fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed' | 'later'; by?: string }>;
 }): HxParentMessage {
 	const fields = Object.fromEntries(
 		Object.keys(state.fields)
