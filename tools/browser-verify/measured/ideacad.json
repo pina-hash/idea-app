@@ -1,15 +1,16 @@
 {
 	"schema": 1,
 	"spec": "ideacad.mjs",
-	"date": "2026-10-01T17:03:53.166Z",
-	"sha": "9e6407b18cfd662d948e2f38c7216c137a83720b",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 88,
+	"runs": 3,
+	"measurements": 141,
 	"outsideRows": [
 		{
 			"path": "/dev/ideacad",
@@ -79,6 +80,48 @@
 		},
 		{
 			"path": "/dev/ideacad",
+			"width": 1152,
+			"check": "contrast",
+			"label": "the sentence saying what the tree does not offer"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1152,
+			"check": "presence",
+			"label": "FeatureManager rows and the body’s expander"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1152,
+			"check": "presence",
+			"label": "the body’s expander"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1152,
+			"check": "text-contains",
+			"label": "the rail names the physics and prints a real figure"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1152,
+			"check": "order-result",
+			"label": "the console, the viewport and the view toolbar are where they claim to be"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1152,
+			"check": "layout-sanity",
+			"label": "the IdeaCAD console"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1152,
+			"check": "distinguishable",
+			"label": "the IDEACAD eyebrow against the saved-state word"
+		},
+		{
+			"path": "/dev/ideacad",
 			"width": 1440,
 			"check": "contrast",
 			"label": "the sentence saying what the tree does not offer"
@@ -120,5 +163,5 @@
 			"label": "the IDEACAD eyebrow against the saved-state word"
 		}
 	],
-	"ms": 6747
+	"ms": 14519
 }

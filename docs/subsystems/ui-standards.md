@@ -121,6 +121,45 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Layout, previ
     the pair. A 22px input inside a 44px label is fine; a 22px input inside a 44px
     label that something else overlaps is not, and only the hit test tells them
     apart.
+- **TEXT STANDS ON AN 11px FLOOR, NAMED FROM ONE SCALE (ledger 0469, feedback
+  8a928045).** A font size is a step of `--fs-*` in
+  `src/lib/design-system/typography.css`, never a literal; `--fs-micro` is the
+  floor (0.6875rem) and the Plate's `--plate-label-size` reads it, as the HTML
+  kit's label parts read `--plate-label-size`. `tests/type-scale.test.ts` holds
+  the scale, `lib/classroom`'s use of it and the swept plate-scope source to no
+  size under 11px; `npm run verify:browser`'s `type-floor` measures what renders
+  on every page. Display numerals at 1.75rem and up are sized to their own
+  component.
+- **AN INLINE LINK TAKES THE 24px FLOOR, AT ITS LINE.** A link inside a line of
+  text is measured at the larger of its box and its line-height, and clears
+  24px there (WCAG 2.5.8 exempts it for the reason the bullet on authored prose
+  above gives). Every other control clears 44px in both dimensions;
+  `control-floor` measures both on every page. **A control below 44px on one
+  axis says so on itself**, `data-tap-floor="24"`, with the reason in the
+  source beside it (the class list's row checkbox, arrow and menu, 30px wide
+  so they never overlap the grip and the row link), and **a scale drawing says
+  so on its root**, `data-scale-drawing` (the Maps plan and elevation, whose
+  shapes are drawn at the size they are). The plate's own floor rule, a
+  zero-specificity 44px minimum height on every button, select and one-line
+  field and 44px minimum width on every button in
+  `src/lib/classroom/plate.css`, leaves both alone. **It is written as
+  `calc-size()`, never a bare length**: a length replaces a flex item's
+  automatic minimum, so a key in a flex row could shrink below its own words,
+  and a bare `min-width: 44px` did exactly that to the home header's Take the
+  tour and broke the Install app key's fit. The height is
+  `calc-size(auto, max(44px, size))`; the width is
+  `calc-size(min-content, max(44px, size))`, because Chromium does not hold a
+  shrinking flex item to an `auto` basis (swatches measured 25.6px). A
+  full-width button that has to narrow below its words declares
+  `min-width: auto` itself, as `Disclosure.svelte`'s trigger does.
+- **A LINE OF RUNNING TEXT IS AT MOST 72 CHARACTERS (`--measure-prose`, ledger
+  0469, feedback dd897391).** The cap sits on the paragraph or the list, never
+  on the card or pane around it, so the panel keeps the page's one right edge
+  while the sentence stays readable.
+- **A CARD LAYS ITSELF OUT BY ITS OWN WIDTH, NOT THE WINDOW'S.** A card or row
+  whose columns change is a size container and steps with `@container`, so a
+  laptop at 125% zoom (1152 CSS px, the third width the visual pass runs) never
+  squeezes a card's words into a column a word wide; `squeeze` measures it.
 - **A destructive action names what it costs**, with the real counts, before the
   confirm. Two-step inline confirm (arm, then confirm) for anything irreversible;
   a server-side typed-name confirmation for anything that destroys a term of work.

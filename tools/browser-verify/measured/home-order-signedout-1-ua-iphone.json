@@ -1,15 +1,35 @@
 {
 	"schema": 1,
 	"spec": "home-order-signedout-1-ua-iphone.mjs",
-	"date": "2026-10-18T01:09:10.446Z",
-	"sha": "bdd1f4956d89bb92cf74ce9424127f326cadf196",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 74,
-	"outsideRows": [],
-	"ms": 9784
+	"runs": 3,
+	"measurements": 120,
+	"outsideRows": [
+		{
+			"path": "/dev/home-order?signedout=1&ua=iphone",
+			"width": 375,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/home-order?signedout=1&ua=iphone",
+			"width": 1152,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/home-order?signedout=1&ua=iphone",
+			"width": 1440,
+			"check": "type-floor",
+			"label": ""
+		}
+	],
+	"ms": 14519
 }

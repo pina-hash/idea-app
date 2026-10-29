@@ -1,15 +1,23 @@
 {
 	"schema": 1,
 	"spec": "class-header-role-teacher-posts-0-compose-1.mjs",
-	"date": "2026-10-08T03:16:23.646Z",
-	"sha": "6708f114d0233ad9c3126f05b88ffa1b85edf13b",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 16,
-	"outsideRows": [],
-	"ms": 9128
+	"runs": 3,
+	"measurements": 33,
+	"outsideRows": [
+		{
+			"path": "/dev/class-header?role=teacher&posts=0&compose=1",
+			"width": 1440,
+			"check": "order-result",
+			"label": "one create, two uploads land, the refused file stays, and Attach the rest goes to the same notice"
+		}
+	],
+	"ms": 14519
 }

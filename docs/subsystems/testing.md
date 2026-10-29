@@ -56,7 +56,7 @@ This is the **only** automated suite, and it is deliberately narrow.
     cascade runs even though layout does not. So a computed-style read that
     works is not evidence that the next one will.
   - **THOSE CLAIMS BELONG TO `npm run verify:browser` AND NOWHERE ELSE.** It
-    drives a real Chromium at 375px and 1440px and reports measured values.
+    drives a real Chromium at 375px, 1152px and 1440px and reports measured values.
     What `tests/dom/` is for is structure, events, effects and storage: a real
     `dispatchEvent` reaching a real handler, `preventDefault` readable
     afterwards, `localStorage` surviving an unmount.

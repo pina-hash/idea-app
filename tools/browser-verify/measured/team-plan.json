@@ -1,15 +1,16 @@
 {
 	"schema": 1,
 	"spec": "team-plan.mjs",
-	"date": "2026-10-26T12:00:35.821Z",
-	"sha": "b75c58d9dfa8b3a990686e88165acb0357016816",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 8,
+	"runs": 3,
+	"measurements": 21,
 	"outsideRows": [],
-	"ms": 3476
+	"ms": 14519
 }

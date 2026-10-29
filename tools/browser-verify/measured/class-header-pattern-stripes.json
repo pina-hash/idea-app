@@ -1,15 +1,41 @@
 {
 	"schema": 1,
 	"spec": "class-header-pattern-stripes.mjs",
-	"date": "2026-10-01T18:02:22.351Z",
-	"sha": "b1882503546b58c90dc8f9a0250a6ea4973fd7c0",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 12,
-	"outsideRows": [],
-	"ms": 6560
+	"runs": 3,
+	"measurements": 27,
+	"outsideRows": [
+		{
+			"path": "/dev/class-header?pattern=stripes",
+			"width": 375,
+			"check": "order-result",
+			"label": "the stripes flow: one running infinite loop of one period, moving, phase-locked to the clock, untransformed and filling the banner"
+		},
+		{
+			"path": "/dev/class-header?pattern=stripes",
+			"width": 375,
+			"check": "motion",
+			"label": "the stripes flow, gated behind no-preference"
+		},
+		{
+			"path": "/dev/class-header?pattern=stripes",
+			"width": 1152,
+			"check": "order-result",
+			"label": "the stripes flow: one running infinite loop of one period, moving, phase-locked to the clock, untransformed and filling the banner"
+		},
+		{
+			"path": "/dev/class-header?pattern=stripes",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the stripes flow: one running infinite loop of one period, moving, phase-locked to the clock, untransformed and filling the banner"
+		}
+	],
+	"ms": 14519
 }

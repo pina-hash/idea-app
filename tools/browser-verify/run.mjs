@@ -6,7 +6,7 @@
  *   npm run verify:browser -- --probe      environment capability probe only
  *   npm run verify:browser -- --selftest   negative controls (exits 1 if a check is broken)
  *   npm run verify:browser -- --break overflow|tiny-taps|low-contrast|invisible|console-error|blank-text|motion|readout-away|
- *                                        blank-canvas|zero-box|same-style
+ *                                        blank-canvas|zero-box|same-style|small-text|squeeze
  *                                          inject that defect into the REAL page and confirm the
  *                                          matching check reddens on this surface
  *   npm run verify:browser -- --route pathways --route spec-table
@@ -40,6 +40,7 @@ import {
 	prepareEvalResult
 } from './checks.mjs';
 import { canvasContent, layoutSanity, controlFit, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
+import { floorChecks } from './checks-floor.mjs';
 import { probeEnvironment } from './probe.mjs';
 import { runSelfTest } from './selftest.mjs';
 import { WIDTHS, selectRoutes, urlFor } from './routes.mjs';
@@ -68,6 +69,13 @@ export const BREAKAGE = {
 		'.harness, main, .cr-root, .fg-root, .nb-root, .frc-root, .glb, .tnm-root, .gt-root, .ideacad, body > div { min-width: 1600px !important; }',
 	/* Drop every control below the 44px floor. */
 	'tiny-taps': 'button, [role="button"], a.btn { min-height: 0 !important; height: 18px !important; min-width: 0 !important; padding: 0 !important; line-height: 18px !important; }',
+	/* The live control for `type-floor` (ledger 0469): every word on the plate
+	   at 9px, the size the 2026-10-26 audit found on the home page's labels. */
+	'small-text': ':is(.cr-plate, .site-plate) :is(p, span, a, button, label, li, h2, h3, dt, dd, td, th) { font-size: 9px !important; }',
+	/* The live control for `squeeze`: every paragraph and list item on the plate
+	   in a column five of its own letters wide, the one-word column Mr. Pina
+	   saw at 125% zoom. */
+	squeeze: ':is(.cr-plate, .site-plate) :is(p, li, dd) { max-width: 5em !important; }',
 	/* Wash the ink out until it cannot clear 4.5:1 on its own ground. */
 	'low-contrast': '* { color: color-mix(in srgb, currentColor 22%, transparent) !important; }',
 	/* Present in the DOM, painted nowhere -- the case the presence check exists
@@ -220,6 +228,14 @@ function printDetail(r, indent = '        ') {
 				}
 			}
 		}
+	}
+	if (r.check === 'type-floor' || r.check === 'control-floor' || r.check === 'squeeze') {
+		for (const x of (r.data?.found ?? []).slice(0, 8)) {
+			if (r.check === 'type-floor') console.log(`${indent}${x.fontSize}px "${x.text}"  ${x.path}`);
+			else if (r.check === 'control-floor') console.log(`${indent}${x.w}x${x.h} under ${x.floor}px (${x.kind}, at ${x.measuredAt}) "${x.text}"  ${x.path}`);
+			else console.log(`${indent}${x.line}  ${x.path}`);
+		}
+		if ((r.data?.foundCount ?? 0) > 8) console.log(`${indent}... and ${r.data.foundCount - 8} more`);
 	}
 	if (r.check === 'presence') {
 		for (const x of r.data.results.filter((v) => !v.visible).slice(0, 8)) {
@@ -540,6 +556,14 @@ async function runRoute(browser, origin, spec, width, opts) {
 		for (const l of spec.layoutSanity ?? []) results.push(await layoutSanity(page, l));
 		for (const c of spec.controlFit ?? []) results.push(await controlFit(page, c));
 		for (const d of spec.distinguishable ?? []) results.push(await distinguishable(page, d));
+		/* THE FLOORS (ledger 0469): text under 11px, a control under its tap
+		   floor, text squeezed into a narrow column. On every page, inside the
+		   plate; see checks-floor.mjs for the population and why. AFTER the
+		   spec's own reads, never before them: three sweeps of every element
+		   take time, and a spec that reads inside a window (the GAUNTLET
+		   countdown tears itself down at 3.7s) lost its numeral when they ran
+		   first. Before the drag below, which moves the model. */
+		results.push(...(await floorChecks(page)));
 		/* A real drag, after everything static has been read: it moves the model. */
 		for (const r of spec.readoutNearPointer ?? []) results.push(await readoutNearPointer(page, r));
 		/* ONE call for every motion entry, not one per entry: the check flips

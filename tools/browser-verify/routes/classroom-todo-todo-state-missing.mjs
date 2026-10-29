@@ -48,9 +48,12 @@ export default {
 			expected: ['Missing', 'Missing, draft saved', 'Not filed yet', 'Draft, not turned in', 'Missing', 'Missing']
 		},
 		{
-			label: 'every missing row wears the missing tone',
+			/* The one tone map (ledger 0466) says a missing row in the status
+			   tones' own word: `warn`, the alert mark beside "Missing". The row's
+			   `data-tone` is that word since then; this read the old vocabulary. */
+			label: 'every missing row wears the warning tone',
 			evaluate: `() => [...new Set([...document.querySelectorAll('[data-testid="todo-row"]')].map((r) => r.getAttribute('data-tone')))]`,
-			expected: ['missing']
+			expected: ['warn']
 		},
 		{ label: 'the counts do not move with the view', evaluate: TODO_COUNTS, expected: ['9', '6', '4'] },
 		{ label: 'Missing is the pressed view, and only Missing', evaluate: TODO_PRESSED, expected: ['missing'] },

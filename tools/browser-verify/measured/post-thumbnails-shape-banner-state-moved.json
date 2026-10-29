@@ -1,15 +1,29 @@
 {
 	"schema": 1,
 	"spec": "post-thumbnails-shape-banner-state-moved.mjs",
-	"date": "2026-10-19T21:21:09.145Z",
-	"sha": "3a477f5f1b775a1523450b4267b4bf5ea42370d7",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 18,
-	"outsideRows": [],
-	"ms": 24733
+	"runs": 3,
+	"measurements": 36,
+	"outsideRows": [
+		{
+			"path": "/dev/post-thumbnails?shape=banner&state=moved",
+			"width": 1152,
+			"check": "prepare-wait",
+			"label": "() => document.querySelectorAll('[data-testid=\"html-thumbnai"
+		},
+		{
+			"path": "/dev/post-thumbnails?shape=banner&state=moved",
+			"width": 1152,
+			"check": "presence",
+			"label": "all three live banners ready, the moved one included"
+		}
+	],
+	"ms": 14519
 }

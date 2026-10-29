@@ -1,15 +1,35 @@
 {
 	"schema": 1,
 	"spec": "home-feed-state-teacher-header.mjs",
-	"date": "2026-10-17T10:24:13.974Z",
-	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 26,
-	"outsideRows": [],
-	"ms": 10411
+	"runs": 3,
+	"measurements": 48,
+	"outsideRows": [
+		{
+			"path": "/dev/home-feed?state=teacher-header",
+			"width": 375,
+			"check": "order-result",
+			"label": "every grid point of every header lands on the link or the fold, and the fold answers its whole column"
+		},
+		{
+			"path": "/dev/home-feed?state=teacher-header",
+			"width": 1152,
+			"check": "order-result",
+			"label": "every grid point of every header lands on the link or the fold, and the fold answers its whole column"
+		},
+		{
+			"path": "/dev/home-feed?state=teacher-header",
+			"width": 1440,
+			"check": "order-result",
+			"label": "every grid point of every header lands on the link or the fold, and the fold answers its whole column"
+		}
+	],
+	"ms": 14519
 }

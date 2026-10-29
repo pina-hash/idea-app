@@ -1,15 +1,305 @@
 {
 	"schema": 1,
 	"spec": "tour-mode-student-role-teacher-admin-1.mjs",
-	"date": "2026-10-16T06:49:50.437Z",
-	"sha": "6e1c4af888d50c9b76fb9faf1802b78e47020dc0",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 44,
-	"outsideRows": [],
-	"ms": 10226
+	"runs": 3,
+	"measurements": 75,
+	"outsideRows": [
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "prepare-wait",
+			"label": "() => !!document.querySelector('[data-testid=\"tour-callout\"]"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "presence",
+			"label": "the admin-only Coin Desk card, rendered for an admin"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 19 steps"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "order-result",
+			"label": "opens on the welcome, ends on Take the tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "order-result",
+			"label": "the admin cards are steps, with the rest of the page"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "order-result",
+			"label": "the staff words, not the student words (moves the tour back; runs last)"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 375,
+			"check": "console-errors",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "prepare-wait",
+			"label": "() => !!document.querySelector('[data-testid=\"tour-callout\"]"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "presence",
+			"label": "the admin-only Coin Desk card, rendered for an admin"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 19 steps"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "order-result",
+			"label": "opens on the welcome, ends on Take the tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "order-result",
+			"label": "the admin cards are steps, with the rest of the page"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "order-result",
+			"label": "the staff words, not the student words (moves the tour back; runs last)"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1152,
+			"check": "console-errors",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "prepare-wait",
+			"label": "() => !!document.querySelector('[data-testid=\"tour-callout\"]"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "presence",
+			"label": "the admin-only Coin Desk card, rendered for an admin"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 19 steps"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "order-result",
+			"label": "opens on the welcome, ends on Take the tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the admin cards are steps, with the rest of the page"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the staff words, not the student words (moves the tour back; runs last)"
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&role=teacher&admin=1",
+			"width": 1440,
+			"check": "console-errors",
+			"label": ""
+		}
+	],
+	"ms": 14519
 }

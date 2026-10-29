@@ -1,15 +1,16 @@
 {
 	"schema": 1,
 	"spec": "class-header-view-class-layout-find-hidden-opens-todo.mjs",
-	"date": "2026-10-01T18:02:22.351Z",
-	"sha": "b1882503546b58c90dc8f9a0250a6ea4973fd7c0",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 20,
+	"runs": 3,
+	"measurements": 39,
 	"outsideRows": [],
-	"ms": 6560
+	"ms": 14519
 }

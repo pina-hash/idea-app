@@ -1,15 +1,323 @@
 {
 	"schema": 1,
 	"spec": "tour-mode-student-state-walk.mjs",
-	"date": "2026-10-01T17:03:53.166Z",
-	"sha": "9e6407b18cfd662d948e2f38c7216c137a83720b",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 56,
-	"outsideRows": [],
-	"ms": 6747
+	"runs": 3,
+	"measurements": 93,
+	"outsideRows": [
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "prepare-wait",
+			"label": "() => !!document.querySelector('[data-testid=\"tour-callout\"]"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 18 steps"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "order-result",
+			"label": "opens on the welcome, ends on Take the tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "order-result",
+			"label": "the steps a student can see are all walked"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "order-result",
+			"label": "page order: the to-do before the apps"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "order-result",
+			"label": "page order: a student gets the apps before the classes"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "order-result",
+			"label": "the student words, not the staff words (moves the tour back; runs last)"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 375,
+			"check": "console-errors",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "prepare-wait",
+			"label": "() => !!document.querySelector('[data-testid=\"tour-callout\"]"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 18 steps"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "order-result",
+			"label": "opens on the welcome, ends on Take the tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "order-result",
+			"label": "the steps a student can see are all walked"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "order-result",
+			"label": "page order: the to-do before the apps"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "order-result",
+			"label": "page order: a student gets the apps before the classes"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "order-result",
+			"label": "the student words, not the staff words (moves the tour back; runs last)"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1152,
+			"check": "console-errors",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "prepare-wait",
+			"label": "() => !!document.querySelector('[data-testid=\"tour-callout\"]"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 18 steps"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "order-result",
+			"label": "opens on the welcome, ends on Take the tour"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the steps a student can see are all walked"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "order-result",
+			"label": "page order: the to-do before the apps"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "order-result",
+			"label": "page order: a student gets the apps before the classes"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the student words, not the staff words (moves the tour back; runs last)"
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student&state=walk",
+			"width": 1440,
+			"check": "console-errors",
+			"label": ""
+		}
+	],
+	"ms": 14519
 }

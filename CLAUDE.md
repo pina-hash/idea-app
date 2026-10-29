@@ -100,7 +100,7 @@ npm run check                           # svelte-kit sync && svelte-check, in on
 npx svelte-check                        # the same check without the sync (see the stale-types trap)
 npm test                                # full suite (see the parallelism trap)
 node tools/claude-md-check.mjs          # does THIS file still agree with the tree
-npm run verify:browser                  # the visual pass: /dev routes at 375 and 1440
+npm run verify:browser                  # the visual pass: /dev routes at 375, 1152 and 1440
 npm run verify:browser -- --probe       # what this machine's browser can actually do
 npm run verify:browser -- --selftest    # negative controls for every check
 npm run tab-icon:build                  # writes the tab and home-screen icons in static/IDEA/ from src/lib/tab-icon/geometry.ts, the ONLY place their geometry is edited (ledger 0396, docs/design/tab-icon/README.md)
@@ -648,6 +648,14 @@ the source of truth; **do not invent colours or swap fonts.**
   `--font-display`, `--font-mono`, `--font-title` (Orbitron), `--font-hero`. Each
   resolves to exactly the string it replaced, so pointing a rule at one is a
   rename, not a restyle.
+
+- **Type is one scale with an 11px floor (ledger 0469).** A font size is a step
+  of the `--fs-*` scale in `src/lib/design-system/typography.css`, never a
+  literal, and nothing on screen is set below `--fs-micro` (11px; the Plate's
+  `--plate-label-size` reads it). `tests/type-scale.test.ts` holds the source,
+  `npm run verify:browser`'s `type-floor` what renders; the 44px control floor,
+  the 72-character prose measure (`--measure-prose`) and `@container` cards
+  are in `docs/subsystems/ui-standards.md`.
 
 - **Shared classes** live in `src/app.css`. The `.legacy-index` theme is scoped
   under that wrapper so it never affects the app shell.

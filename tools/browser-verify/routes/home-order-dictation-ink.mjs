@@ -66,10 +66,11 @@ export default {
 			evaluate: PROBE,
 			/* MEASURED, written down so a regression moves it rather than merely
 			   staying above the floor: each theme's lightest gradient stop is the
-			   ground that governs. */
+			   ground that governs. The dark themes' guess is --text-2, lifted by
+			   ledger 0469 (6.82 and 7.29 before). */
 			expected: [
-				'idea: 3 ground(s), worst 6.82:1 clears 4.5',
-				'matrix: 3 ground(s), worst 7.29:1 clears 4.5',
+				'idea: 3 ground(s), worst 9.11:1 clears 4.5',
+				'matrix: 3 ground(s), worst 9.31:1 clears 4.5',
 				'space-white: 3 ground(s), worst 7.76:1 clears 4.5'
 			]
 		}

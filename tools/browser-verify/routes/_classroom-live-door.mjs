@@ -125,7 +125,12 @@ export const TYPE_PAIRING = `() => {
 	return [
 		word.fontFamily === t.fontFamily && word.textTransform === t.textTransform && word.fontSize === t.fontSize && word.fontWeight === t.fontWeight
 			? 'word matches the tool word' : 'WORD DIFFERS: ' + [word.fontFamily, word.textTransform, word.fontSize, word.fontWeight].join(' / ') + ' vs ' + [t.fontFamily, t.textTransform, t.fontSize, t.fontWeight].join(' / '),
-		status.fontFamily === c.fontFamily && status.fontSize === c.fontSize && status.textTransform === c.textTransform
-			? 'status matches the tool chip' : 'STATUS DIFFERS: ' + [status.fontFamily, status.fontSize, status.textTransform].join(' / ') + ' vs ' + [c.fontFamily, c.fontSize, c.textTransform].join(' / ')
+		/* THE STATUS IS A SENTENCE IN THE CHIP'S FACE, NOT A SECOND CHIP (ledger
+		   0469). The tool's chip became the one StatusChip in ledger 0466 (11px
+		   mono caps, a tag), while the door's status reads "27 on Truss sketch"
+		   in lower case by design; so the pairing is the face and the floor, the
+		   chip's family at 11px or more, never its case. */
+		status.fontFamily === c.fontFamily && parseFloat(status.fontSize) >= 11 && parseFloat(c.fontSize) >= 11
+			? 'status in the tool chip face, at the floor' : 'STATUS DIFFERS: ' + [status.fontFamily, status.fontSize, status.textTransform].join(' / ') + ' vs ' + [c.fontFamily, c.fontSize, c.textTransform].join(' / ')
 	];
 }`;

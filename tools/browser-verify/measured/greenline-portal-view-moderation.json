@@ -1,15 +1,197 @@
 {
 	"schema": 1,
 	"spec": "greenline-portal-view-moderation.mjs",
-	"date": "2026-10-17T10:19:20.859Z",
-	"sha": "3b9ba3e9f7064ec360bc0a37f443792a3503597c",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 34,
-	"outsideRows": [],
-	"ms": 11730
+	"runs": 3,
+	"measurements": 60,
+	"outsideRows": [
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "contrast",
+			"label": "empty-queue lead line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "contrast",
+			"label": "empty decal-queue lead line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "contrast",
+			"label": "empty decal-queue sentence"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "contrast",
+			"label": "the count line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "tap-target",
+			"label": "queue sort controls"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "presence",
+			"label": "track queue says it is empty, deliberately"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "presence",
+			"label": "and leads with the sentence, not a fragment"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "presence",
+			"label": "decal queue says it is empty, deliberately"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "presence",
+			"label": "and leads with the sentence too"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "presence",
+			"label": "tracks section heading"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "presence",
+			"label": "decals section heading"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "text-contains",
+			"label": "the count line, which must read at zero as well"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 375,
+			"check": "text-contains",
+			"label": "the decal empty sentence says what approval is FOR"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1152,
+			"check": "contrast",
+			"label": "empty-queue lead line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1152,
+			"check": "contrast",
+			"label": "empty decal-queue lead line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1152,
+			"check": "contrast",
+			"label": "empty decal-queue sentence"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1152,
+			"check": "contrast",
+			"label": "the count line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "contrast",
+			"label": "empty-queue lead line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "contrast",
+			"label": "empty decal-queue lead line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "contrast",
+			"label": "empty decal-queue sentence"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "contrast",
+			"label": "the count line"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "queue sort controls"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "presence",
+			"label": "track queue says it is empty, deliberately"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "presence",
+			"label": "and leads with the sentence, not a fragment"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "presence",
+			"label": "decal queue says it is empty, deliberately"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "presence",
+			"label": "and leads with the sentence too"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "presence",
+			"label": "tracks section heading"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "presence",
+			"label": "decals section heading"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "text-contains",
+			"label": "the count line, which must read at zero as well"
+		},
+		{
+			"path": "/dev/greenline-portal?view=moderation",
+			"width": 1440,
+			"check": "text-contains",
+			"label": "the decal empty sentence says what approval is FOR"
+		}
+	],
+	"ms": 14519
 }

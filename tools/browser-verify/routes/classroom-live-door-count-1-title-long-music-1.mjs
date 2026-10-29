@@ -16,7 +16,7 @@ export default {
 	prepare: [doorReady(1), { evaluate: DOOR_GEOMETRY }],
 	orderResult: [
 		{ label: 'the count holds together and only the title gives', evaluate: doorVerdicts(1), expected: doorExpected(1) },
-		{ label: 'the door wears the tools\' type', evaluate: TYPE_PAIRING, expected: ['word matches the tool word', 'status matches the tool chip'] }
+		{ label: 'the door wears the tools\' type', evaluate: TYPE_PAIRING, expected: ['word matches the tool word', 'status in the tool chip face, at the floor'] }
 	],
 	presence: [
 		{ selector: '[data-testid="class-tools"] > *', label: 'three tools in the row', expectPresent: 3, maxPresent: 3, expectVisible: 3 },

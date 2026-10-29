@@ -1,15 +1,16 @@
 {
 	"schema": 1,
 	"spec": "feedback-view-console-spam-1.mjs",
-	"date": "2026-10-24T06:22:51.312Z",
-	"sha": "56921317a07a84881a0fe580085e7505278fb78d",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 24,
+	"runs": 3,
+	"measurements": 45,
 	"outsideRows": [],
-	"ms": 9308
+	"ms": 14519
 }

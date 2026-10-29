@@ -8,7 +8,10 @@
  * export (CLAUDE.md: "anything whose key starts with `_`"). A route file
  * imports from here with `./_shared.mjs`; nothing outside `routes/` needs to.
  */
-export const WIDTHS = [375, 1440];
+/* 1152 is a 1440 laptop at 125% zoom, Mr. Pina's own setting (ledger 0469,
+   feedback dd897391): resource cards squeezed their words into a column one
+   word wide there, which neither 375 nor 1440 shows. */
+export const WIDTHS = [375, 1152, 1440];
 
 /**
  * SETTLE THE ENTRANCE CHROME, the way the components' own cleanup does.

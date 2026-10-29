@@ -51,11 +51,25 @@ export default {
 				if (!marked || !other || !h) return ['no marked slot, neighbour or height field'];
 				const before = (marked.getBoundingClientRect().height / other.getBoundingClientRect().height).toFixed(3);
 				const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-				setter.call(h, '6');
-				h.dispatchEvent(new Event('input', { bubbles: true }));
-				await new Promise((r) => setTimeout(r, 120));
-				const after = (marked.getBoundingClientRect().height / other.getBoundingClientRect().height).toFixed(3);
-				return ['before ' + before, 'after ' + after, (marked.textContent || '').replace(/\\s+/g, ' ').includes('6″') ? 'label reads 6″' : 'label: ' + marked.textContent];
+				/* THE TYPING RETRIES AGAINST ITS OWN EFFECT (ledger 0469). One input
+				   event, read 120ms later, was the whole step, and on a cold dev
+				   server it landed before hydration had attached the handler: the
+				   field showed 6, nothing heard it, and the row read "after 0.600"
+				   on a tree whose sketch was fine (it passed on the next run).
+				   Paint is not interactivity (docs/subsystems/verification.md), so
+				   the step types until the label says 6 or twelve tries pass. */
+				const said = () => (q('[data-testid="maps-elevation-sketch-marked"]')?.textContent || '').replace(/\\s+/g, ' ').includes('6″');
+				for (let i = 0; i < 12 && !said(); i++) {
+					setter.call(h, i % 2 ? '7' : '6');
+					h.dispatchEvent(new Event('input', { bubbles: true }));
+					setter.call(h, '6');
+					h.dispatchEvent(new Event('input', { bubbles: true }));
+					await new Promise((r) => setTimeout(r, 250));
+				}
+				const now = q('[data-testid="maps-elevation-sketch-marked"]') || marked;
+				const other2 = Array.from(document.querySelectorAll('[data-testid="maps-elevation-sketch-stack"] .slot')).find((el) => el !== now) || other;
+				const after = (now.getBoundingClientRect().height / other2.getBoundingClientRect().height).toFixed(3);
+				return ['before ' + before, 'after ' + after, said() ? 'label reads 6″' : 'label: ' + now.textContent];
 			}`,
 			// Drawer 1 is 3in and Drawer 2 is 5in: 0.600 before, 1.200 after.
 			expected: ['before 0.600', 'after 1.200', 'label reads 6″']

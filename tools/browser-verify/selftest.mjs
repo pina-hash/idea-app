@@ -44,6 +44,11 @@ import {
 	prepareEvalResult
 } from './checks.mjs';
 import { canvasContent, layoutSanity, controlFit, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
+import { typeFloor, controlFloor, squeeze } from './checks-floor.mjs';
+
+/* The floor checks look only inside the Plate (checks-floor.mjs), so their
+   fixtures stand in a `.site-plate` the way every site page does. */
+const plate = (body) => shell(`<div class="site-plate" style="padding:16px">${body}</div>`);
 
 const shell = (body, head = '') =>
 	`<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>
@@ -98,6 +103,124 @@ const glShell = (draw) =>
 
 /* Each case: what to load, which check to run, and which way it must come out. */
 const CASES = [
+	{
+		group: 'type-floor',
+		bad: {
+			name: 'three stat labels at 10.56px, the coin home\'s',
+			html: plate('<dl><dt style="font-size:10.56px">Students</dt><dd>12</dd><dt style="font-size:10.56px">In debt</dt><dd>2</dd></dl><p>The rest of the card at body size.</p>'),
+			run: (p) => typeFloor(p),
+			expect: 'outside',
+			assert: (r) => (r.data.foundCount === 2 ? null : `found ${r.data.foundCount} under 11px, expected the 2 labels`)
+		},
+		good: {
+			name: 'the same labels at the 11px floor',
+			html: plate('<dl><dt style="font-size:11px">Students</dt><dd>12</dd><dt style="font-size:11px">In debt</dt><dd>2</dd></dl><p>The rest of the card at body size.</p>'),
+			run: (p) => typeFloor(p),
+			expect: 'within',
+			assert: (r) => (r.data.measured >= 5 ? null : `measured ${r.data.measured} text element(s); the population is empty`)
+		}
+	},
+	{
+		group: 'type-floor (population: the plate, minus its islands)',
+		bad: {
+			name: '9px text on the plate beside an island',
+			html: plate('<p style="font-size:9px">A caption on the plate</p><div class="item-body"><p style="font-size:9px">Somebody else\'s writing</p></div>'),
+			run: (p) => typeFloor(p),
+			expect: 'outside',
+			assert: (r) => (r.data.foundCount === 1 ? null : `found ${r.data.foundCount}; the island's text is not the plate's`)
+		},
+		good: {
+			name: 'the 9px text only inside the island, and off the plate entirely',
+			html: shell('<p style="font-size:9px">A room with its own design</p><div class="site-plate"><p>A plate caption at body size</p><div class="item-body"><p style="font-size:9px">Somebody else\'s writing</p></div></div>'),
+			run: (p) => typeFloor(p),
+			expect: 'within',
+			assert: (r) => (r.data.measured === 1 ? null : `measured ${r.data.measured}, expected exactly the one plate caption`)
+		}
+	},
+	{
+		group: 'control-floor',
+		bad: {
+			name: 'a 15px link on a card header, the coin home\'s',
+			html: plate('<h2 style="margin:0"><a href="#x" style="font-size:12px;line-height:15px;display:inline">My coins</a></h2><button style="min-height:44px;min-width:44px">Open</button>'),
+			run: (p) => controlFloor(p),
+			expect: 'outside',
+			assert: (r) => (r.data.foundCount === 1 && r.data.found[0].floor === 44 ? null : `found ${r.data.foundCount}; the lone link on a heading is a control, at 44px`)
+		},
+		good: {
+			name: 'the same link and key at 44px',
+			html: plate('<h2 style="margin:0"><a href="#x" style="display:inline-flex;align-items:center;min-height:44px;min-width:44px">My coins</a></h2><button style="min-height:44px;min-width:44px">Open</button>'),
+			run: (p) => controlFloor(p),
+			expect: 'within',
+			assert: (r) => (r.data.measured === 2 ? null : `measured ${r.data.measured}, expected 2`)
+		}
+	},
+	{
+		group: 'control-floor (a stretched link is measured at its pseudo-element)',
+		bad: {
+			name: 'the same 15px title link with no stretch',
+			html: plate('<article style="position:relative;width:300px;height:120px;padding:12px;border:1px solid #555"><h2 style="margin:0;font-size:12px"><a class="open" href="#x">Market</a></h2></article>'),
+			run: (p) => controlFloor(p),
+			expect: 'outside'
+		},
+		good: {
+			name: "a card's title link whose ::after covers the card",
+			html: plate(
+				'<style>.open::after{content:"";position:absolute;inset:0}</style><article style="position:relative;width:300px;height:120px;padding:12px;border:1px solid #555"><h2 style="margin:0;font-size:12px"><a class="open" href="#x">Market</a></h2></article>'
+			),
+			run: (p) => controlFloor(p),
+			expect: 'within',
+			assert: (r) => (r.data.smallest && r.data.smallest.w >= 300 ? null : `measured ${r.data.smallest?.w}x${r.data.smallest?.h}, expected the card's 326px box`)
+		}
+	},
+	{
+		group: 'control-floor (an exception is read off the control that declares it)',
+		bad: {
+			name: 'a 30px-wide row arrow that declares nothing',
+			html: plate('<div style="display:flex"><button style="width:30px;min-height:44px">x</button><a href="#r" style="flex:1;min-height:44px;display:flex">Row</a></div>'),
+			run: (p) => controlFloor(p),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same arrow declaring data-tap-floor="24"',
+			html: plate('<div style="display:flex"><button data-tap-floor="24" style="width:30px;min-height:44px">x</button><a href="#r" style="flex:1;min-height:44px;display:flex">Row</a></div>'),
+			run: (p) => controlFloor(p),
+			expect: 'within',
+			assert: (r) => (r.data.declared === 1 ? null : `classified ${r.data.declared} declared control(s), expected 1`)
+		}
+	},
+	{
+		group: 'control-floor (an inline link takes 24px, at its line)',
+		bad: {
+			name: 'a link in a 12px line set at 1.2',
+			html: plate('<p style="font-size:12px;line-height:1.2">Read <a href="#x">the rules</a> before you start.</p>'),
+			run: (p) => controlFloor(p),
+			expect: 'outside',
+			assert: (r) => (r.data.inline === 1 ? null : `classified ${r.data.inline} inline link(s), expected 1`)
+		},
+		good: {
+			name: 'the same link in a 16px line set at 1.6',
+			html: plate('<p style="font-size:16px;line-height:1.6">Read <a href="#x">the rules</a> before you start.</p>'),
+			run: (p) => controlFloor(p),
+			expect: 'within',
+			assert: (r) => (r.data.inline === 1 ? null : `classified ${r.data.inline} inline link(s), expected 1`)
+		}
+	},
+	{
+		group: 'squeeze',
+		bad: {
+			name: 'a card\'s sentence in a 70px column',
+			html: plate('<div style="display:grid;grid-template-columns:70px 1fr"><p style="margin:0">Bring your safety glasses to every shop day</p><span>x</span></div>'),
+			run: (p) => squeeze(p),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same sentence in a 300px column',
+			html: plate('<div style="display:grid;grid-template-columns:300px 1fr"><p style="margin:0">Bring your safety glasses to every shop day</p><span>x</span></div>'),
+			run: (p) => squeeze(p),
+			expect: 'within',
+			assert: (r) => (r.data.measured === 1 ? null : `measured ${r.data.measured} block(s), expected the 1 sentence`)
+		}
+	},
 	{
 		group: 'readout-near-pointer',
 		bad: {

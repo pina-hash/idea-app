@@ -56,7 +56,7 @@ const TEXT = [
 	{ sel: '.pl-list .row-name', label: 'list row names', wash: 4.5 },
 	{ sel: '.pl-list .row-meta', label: 'list row meta', wash: 3 },
 	{ sel: '.pl-list .row-wrap.selected .row-name, .pl-list .row-wrap.selected .row-meta', label: 'the SELECTED list row', wash: 3 },
-	{ sel: '.pl-list .row-wrap.selected .chip', label: 'the chip inside the selected row', wash: 3 },
+	{ sel: '.pl-list .row-wrap.selected .status-chip', label: 'the chip inside the selected row', wash: 3 },
 	{ sel: '.pl-list .find-input', label: 'the class search field', wash: 4.5 },
 	{ sec: 'header', sel: '.cr-header .cls-code, .cr-header .shell-tool-word, .cr-header .sw-name', label: 'header labels', wash: 3 },
 	{ sec: 'header', sel: '.cr-header .cls-code, .cr-header .cls-sub', label: 'the period tiles (pads), unlit and lit', wash: 3 },

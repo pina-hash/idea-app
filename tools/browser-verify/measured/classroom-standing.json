@@ -1,15 +1,35 @@
 {
 	"schema": 1,
 	"spec": "classroom-standing.mjs",
-	"date": "2026-10-17T12:16:34.098Z",
-	"sha": "cf8fff007a01324cf5ced63d8ed3a2ae3fcff920",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 34,
-	"outsideRows": [],
-	"ms": 10173
+	"runs": 3,
+	"measurements": 60,
+	"outsideRows": [
+		{
+			"path": "/dev/classroom-standing",
+			"width": 375,
+			"check": "presence",
+			"label": "a mark beside the missing check-in word"
+		},
+		{
+			"path": "/dev/classroom-standing",
+			"width": 1152,
+			"check": "presence",
+			"label": "a mark beside the missing check-in word"
+		},
+		{
+			"path": "/dev/classroom-standing",
+			"width": 1440,
+			"check": "presence",
+			"label": "a mark beside the missing check-in word"
+		}
+	],
+	"ms": 14519
 }

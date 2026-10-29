@@ -1,15 +1,125 @@
 {
 	"schema": 1,
 	"spec": "home-order-role-teacher-classes-1-rows-3-admin-1.mjs",
-	"date": "2026-10-18T01:09:10.446Z",
-	"sha": "bdd1f4956d89bb92cf74ce9424127f326cadf196",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 52,
-	"outsideRows": [],
-	"ms": 9784
+	"runs": 3,
+	"measurements": 87,
+	"outsideRows": [
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 375,
+			"check": "contrast",
+			"label": "the Coin Desk card copy"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 375,
+			"check": "presence",
+			"label": "the admin Coin Desk card"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 375,
+			"check": "text-contains",
+			"label": "the Coin Desk card says it is the writing side, and names the Ledger"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 375,
+			"check": "order-result",
+			"label": "both coin cards are on the grid, with both ids intact"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 375,
+			"check": "order-result",
+			"label": "the two coin cards offer different verbs"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 375,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1152,
+			"check": "contrast",
+			"label": "the Coin Desk card copy"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1152,
+			"check": "presence",
+			"label": "the admin Coin Desk card"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1152,
+			"check": "text-contains",
+			"label": "the Coin Desk card says it is the writing side, and names the Ledger"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1152,
+			"check": "order-result",
+			"label": "both coin cards are on the grid, with both ids intact"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1152,
+			"check": "order-result",
+			"label": "the two coin cards offer different verbs"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1152,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1440,
+			"check": "contrast",
+			"label": "the Coin Desk card copy"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1440,
+			"check": "presence",
+			"label": "the admin Coin Desk card"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1440,
+			"check": "text-contains",
+			"label": "the Coin Desk card says it is the writing side, and names the Ledger"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1440,
+			"check": "order-result",
+			"label": "both coin cards are on the grid, with both ids intact"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the two coin cards offer different verbs"
+		},
+		{
+			"path": "/dev/home-order?role=teacher&classes=1&rows=3&admin=1",
+			"width": 1440,
+			"check": "type-floor",
+			"label": ""
+		}
+	],
+	"ms": 14519
 }

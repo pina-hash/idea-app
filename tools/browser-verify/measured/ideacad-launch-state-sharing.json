@@ -1,15 +1,16 @@
 {
 	"schema": 1,
 	"spec": "ideacad-launch-state-sharing.mjs",
-	"date": "2026-10-29T04:30:29.809Z",
-	"sha": "9e8d28d08d16cdf509a9e3294c489361821776c8",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 40,
+	"runs": 3,
+	"measurements": 69,
 	"outsideRows": [],
-	"ms": 13867
+	"ms": 14519
 }

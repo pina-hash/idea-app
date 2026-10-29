@@ -17,7 +17,7 @@ export default {
 	],
 	orderResult: [
 		{ label: 'the count holds together and only the title gives', evaluate: doorVerdicts(27), expected: doorExpected(27) },
-		{ label: 'the door wears the tools\' type', evaluate: TYPE_PAIRING, expected: ['word matches the tool word', 'status matches the tool chip'] }
+		{ label: 'the door wears the tools\' type', evaluate: TYPE_PAIRING, expected: ['word matches the tool word', 'status in the tool chip face, at the floor'] }
 	],
 	presence: [
 		{ selector: 'html[data-theme="space-white"]', label: 'Space White is on', expectPresent: 1, maxPresent: 1 },

@@ -1,15 +1,89 @@
 {
 	"schema": 1,
 	"spec": "tour-mode-old.mjs",
-	"date": "2026-10-01T17:03:53.166Z",
-	"sha": "9e6407b18cfd662d948e2f38c7216c137a83720b",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 30,
-	"outsideRows": [],
-	"ms": 6747
+	"runs": 3,
+	"measurements": 54,
+	"outsideRows": [
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 375,
+			"check": "prepare-eval",
+			"label": "() => { const cv = document.createElement('canvas'); cv.width = cv.hei"
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 375,
+			"check": "order-result",
+			"label": "the offer stamped the profile when it showed, never older than the version"
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 375,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 375,
+			"check": "console-errors",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 1152,
+			"check": "prepare-eval",
+			"label": "() => { const cv = document.createElement('canvas'); cv.width = cv.hei"
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 1152,
+			"check": "order-result",
+			"label": "the offer stamped the profile when it showed, never older than the version"
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 1152,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 1152,
+			"check": "console-errors",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 1440,
+			"check": "prepare-eval",
+			"label": "() => { const cv = document.createElement('canvas'); cv.width = cv.hei"
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the offer stamped the profile when it showed, never older than the version"
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 1440,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=old",
+			"width": 1440,
+			"check": "console-errors",
+			"label": ""
+		}
+	],
+	"ms": 14519
 }

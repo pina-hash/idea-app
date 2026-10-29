@@ -1,15 +1,16 @@
 {
 	"schema": 1,
 	"spec": "classroom-teams-style-1-state-saved.mjs",
-	"date": "2026-10-24T05:07:59.311Z",
-	"sha": "ec674ea9a24b3e2b76bce1dd1d544d3038bc9fe7",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 28,
+	"runs": 3,
+	"measurements": 51,
 	"outsideRows": [],
-	"ms": 6662
+	"ms": 14519
 }

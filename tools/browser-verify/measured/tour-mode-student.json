@@ -1,15 +1,359 @@
 {
 	"schema": 1,
 	"spec": "tour-mode-student.mjs",
-	"date": "2026-10-01T17:03:53.166Z",
-	"sha": "9e6407b18cfd662d948e2f38c7216c137a83720b",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 40,
-	"outsideRows": [],
-	"ms": 6747
+	"runs": 3,
+	"measurements": 69,
+	"outsideRows": [
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "prepare-eval",
+			"label": "() => { const callout = document.querySelector('.tour-callout'); const"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "prepare-eval",
+			"label": "() => { const count = ((document.querySelector('.tour-count') || {}).t"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "prepare-eval",
+			"label": "() => { const cv = document.createElement('canvas'); cv.width = cv.hei"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "contrast",
+			"label": "close X on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "contrast",
+			"label": "Skip tour on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "contrast",
+			"label": "Back on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "contrast",
+			"label": "Next / Done on its own gold wash"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "contrast",
+			"label": "the step body"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "contrast",
+			"label": "the step counter"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "tap-target",
+			"label": "close X"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "tap-target",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "tap-target",
+			"label": "Back and Next together"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "presence",
+			"label": "the callout itself"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "presence",
+			"label": "close X"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "presence",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "presence",
+			"label": "Back"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "presence",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 375,
+			"check": "console-errors",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "prepare-eval",
+			"label": "() => { const callout = document.querySelector('.tour-callout'); const"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "prepare-eval",
+			"label": "() => { const count = ((document.querySelector('.tour-count') || {}).t"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "prepare-eval",
+			"label": "() => { const cv = document.createElement('canvas'); cv.width = cv.hei"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "contrast",
+			"label": "close X on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Skip tour on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Back on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Next / Done on its own gold wash"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "contrast",
+			"label": "the step body"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "contrast",
+			"label": "the step counter"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "tap-target",
+			"label": "close X"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "tap-target",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "tap-target",
+			"label": "Back and Next together"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "presence",
+			"label": "the callout itself"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "presence",
+			"label": "close X"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "presence",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "presence",
+			"label": "Back"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "presence",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1152,
+			"check": "console-errors",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "prepare-eval",
+			"label": "() => { const callout = document.querySelector('.tour-callout'); const"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "prepare-eval",
+			"label": "() => { const count = ((document.querySelector('.tour-count') || {}).t"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "prepare-eval",
+			"label": "() => { const cv = document.createElement('canvas'); cv.width = cv.hei"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "contrast",
+			"label": "close X on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Skip tour on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Back on the callout plate"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Next / Done on its own gold wash"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "contrast",
+			"label": "the step body"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "contrast",
+			"label": "the step counter"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "close X"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "Back and Next together"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "presence",
+			"label": "the callout itself"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "presence",
+			"label": "close X"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "presence",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "presence",
+			"label": "Back"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "presence",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "type-floor",
+			"label": ""
+		},
+		{
+			"path": "/dev/tour?mode=student",
+			"width": 1440,
+			"check": "console-errors",
+			"label": ""
+		}
+	],
+	"ms": 14519
 }

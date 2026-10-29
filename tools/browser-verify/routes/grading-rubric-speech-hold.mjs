@@ -76,8 +76,9 @@ export default {
 			label: 'the guess ink clears the comment box ground',
 			evaluate: INK,
 			/* MEASURED: the classroom plate paints the comment box with a gradient
-			   over a colour, three grounds, and the lightest stop governs. */
-			expected: ['examined 3 ground(s) under the guess', 'worst 6.82:1 clears 4.5']
+			   over a colour, three grounds, and the lightest stop governs. The
+			   guess is --text-2, lifted by ledger 0469 (6.82 before). */
+			expected: ['examined 3 ground(s) under the guess', 'worst 9.11:1 clears 4.5']
 		}
 	],
 	tapTargets: [{ selector: '[data-testid="dictate-comment"]', label: 'the comment STOP control', min: 44 }],

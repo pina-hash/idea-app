@@ -32,6 +32,7 @@ import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { launch } from '../browser-verify/browser.mjs';
+import { squeezedText } from '../browser-verify/checks-floor.mjs';
 import * as C from './color.mjs';
 import { themes as kitThemes } from './build.mjs';
 
@@ -752,34 +753,14 @@ for (const [w, h, label] of [[1440, 900, 'laptop'], [1152, 720, 'laptop at 125% 
 		/* Text squeezed into a column a few words wide: every step shown, any block
 		   of three or more words narrower than 9 of its own letters' em and three
 		   lines or taller. Layout keyed on the page width instead of the box's own
-		   width is the usual cause; the fix is a container query or a stack. */
+		   width is the usual cause; the fix is a container query or a stack. The
+		   rule is `squeezedText` in tools/browser-verify/checks-floor.mjs, which
+		   `npm run verify:browser` runs on every site page too (ledger 0469). */
 		const squeezed = await v.frame.evaluate(() => {
 			if (typeof kitSetView === 'function') kitSetView('list');
 			document.querySelectorAll('details').forEach((d) => { d.open = true; });
-			const out = [];
-			for (const el of document.querySelectorAll('#hx-page *')) {
-				if (!el.getClientRects().length || el.closest('[hidden]') || el.closest('svg')) continue;
-				const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' ').trim();
-				if (own.split(/\s+/).filter(Boolean).length < 3) continue;
-				const cs = getComputedStyle(el);
-				const fs = parseFloat(cs.fontSize) || 16;
-				const words = own.split(/\s+/).filter(Boolean).length;
-				/* Count the text's own line boxes, never the element's height: a table cell is
-				   as tall as its row, so a one-line date beside a two-line note read as 3 lines. */
-				const tops = new Set();
-				let left = Infinity, right = -Infinity;
-				for (const n of el.childNodes) {
-					if (n.nodeType !== 3 || !n.textContent.trim()) continue;
-					const rg = document.createRange(); rg.selectNodeContents(n);
-					for (const q of rg.getClientRects()) { if (q.width < 1) continue; tops.add(Math.round(q.top / 4)); left = Math.min(left, q.left); right = Math.max(right, q.right); }
-				}
-				const lines = tops.size;
-				const w = el.getBoundingClientRect().width;
-				if (w < 9 * fs && lines >= 3 && words >= 3) out.push(`${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} "${own.slice(0, 28)}" ${Math.round(w)}px wide, ${lines} lines`);
-			}
-			if (typeof kitSetView === 'function') kitSetView('step');
-			return out;
-		});
+		}).then(() => v.frame.evaluate(squeezedText, { root: '#hx-page' })).then((r) => r.found.map((x) => x.line));
+		await v.frame.evaluate(() => { if (typeof kitSetView === 'function') kitSetView('step'); });
 		(squeezed.length ? FAIL : PASS)('layout', `No text squeezed into a narrow column at ${w}px (${label})`, squeezed.length ? squeezed.slice(0, 5).join('; ') + (squeezed.length > 5 ? `; ${squeezed.length - 5} more` : '') : '');
 		shots.push(await shot(v.page, `04-in-classroom-${w}.png`));
 		shots.push(await docShot(v.frame, `05-document-${w}.png`));

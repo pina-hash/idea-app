@@ -1,15 +1,16 @@
 {
 	"schema": 1,
 	"spec": "html-assignment-grading-state-graded.mjs",
-	"date": "2026-10-08T03:31:00.335Z",
-	"sha": "18c2be8c72326cfb7db3024f517149356992ddd7",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 20,
+	"runs": 3,
+	"measurements": 39,
 	"outsideRows": [],
-	"ms": 6109
+	"ms": 14519
 }

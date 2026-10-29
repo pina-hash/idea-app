@@ -262,8 +262,9 @@ export default {
 			/* MEASURED, written down so a regression moves it. This harness is not
 			   plated (the box's own --fb-field ground, one ground); the plated
 			   field, gradient and all, in every theme, is
-			   home-order-dictation-ink.mjs. */
-			expected: ['examined 1 ground(s) under the guess', 'worst 5.51:1 clears 4.5']
+			   home-order-dictation-ink.mjs. The guess is --text-2, lifted by
+			   ledger 0469 (5.51 before). */
+			expected: ['examined 1 ground(s) under the guess', 'worst 7.36:1 clears 4.5']
 		}
 	],
 	contrast: [

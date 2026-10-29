@@ -107,16 +107,24 @@ idea a mutation script exists.
   days on end while a Chromium sat at `/opt/pw-browsers`, starting headless on
   demand, and while this file cited Chromium measurements as established fact.
   `npm run verify:browser` (`tools/browser-verify/`, and its README is the
-  reference) drives the `/dev` routes at **375px and 1440px** through
+  reference) drives the `/dev` routes at **375px, 1152px and 1440px** (1152
+  is a 1440 laptop at 125% zoom, ledger 0469) through
   playwright-core and the preinstalled binary. **A session either runs it and
   reports the numbers, or names precisely what stopped it** -- the binary it
   looked for and did not find, the error the launch returned. `--probe` answers
   the "is there a browser" question on its own and prints what that browser can
   do.
   - **EVERY CHECK REPORTS A MEASURED VALUE, NEVER A PASS.** No horizontal scroll
-    at either width, contrast against the REAL rendered ground, tap-target
+    at any width, contrast against the REAL rendered ground, tap-target
     geometry against 44px, present-vs-visible-vs-aria-hidden, and console errors
-    during the run. A number is auditable by the next reader and a green tick is
+    during the run. **THREE FLOORS RUN ON EVERY PAGE, NOT PER SPEC (ledger
+    0469):** `type-floor` (text under 11px), `control-floor` (a control under
+    44px, 24px for an inline link at its line or a declared compact instructor
+    surface) and `squeeze` (three or more words narrower than 9em and three
+    lines tall, the HTML kit's rule, which `tools/hx-kit/test.mjs` imports from
+    the same file). They look inside the Plate only, minus the islands
+    `src/lib/classroom/plate.css` scopes itself away from, which
+    `tools/browser-verify/checks-floor.mjs` reads off that file. A number is auditable by the next reader and a green tick is
     not, which is the whole reason the claims this replaces went unchecked for
     so long.
   - **IT COVERS `/dev` ROUTES ONLY, AND THAT IS A BOUNDARY RATHER THAN A

@@ -1,15 +1,197 @@
 {
 	"schema": 1,
 	"spec": "classroom-tour-s-1-manage-1-state-walk-space-white.mjs",
-	"date": "2026-10-01T17:03:53.166Z",
-	"sha": "9e6407b18cfd662d948e2f38c7216c137a83720b",
-	"dirty": false,
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
+	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 34,
-	"outsideRows": [],
-	"ms": 6747
+	"runs": 3,
+	"measurements": 60,
+	"outsideRows": [
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "prepare-click",
+			"label": "[data-testid=\"tour-offer-start\"]"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 375,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 6 steps"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "prepare-click",
+			"label": "[data-testid=\"tour-offer-start\"]"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1152,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 6 steps"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "prepare-click",
+			"label": "[data-testid=\"tour-offer-start\"]"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step title"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step words"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "contrast",
+			"label": "step count"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Skip tour"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "contrast",
+			"label": "Next / Done"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "contrast",
+			"label": "close"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "the callout controls"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "presence",
+			"label": "the callout, on its last step"
+		},
+		{
+			"path": "/dev/classroom-tour/s-1?manage=1&state=walk-space-white",
+			"width": 1440,
+			"check": "order-result",
+			"label": "every step: target present, on screen, clear of the callout; at least 6 steps"
+		}
+	],
+	"ms": 14519
 }

@@ -1,15 +1,16 @@
 {
 	"schema": 1,
 	"spec": "view-as-mode-act-long-1.mjs",
-	"date": "2026-10-21T07:05:06.638Z",
-	"sha": "d7c5fb43c8ca7825c90bd50d8c7eec326801dafd",
+	"date": "2026-10-30T06:01:45.910Z",
+	"sha": "bf560a7022e979ad3c1cd63d10ab29dd3b7be223",
 	"dirty": true,
 	"widths": [
 		375,
+		1152,
 		1440
 	],
-	"runs": 2,
-	"measurements": 18,
+	"runs": 3,
+	"measurements": 36,
 	"outsideRows": [],
-	"ms": 6848
+	"ms": 14519
 }
