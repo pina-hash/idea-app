@@ -199,18 +199,18 @@
 	.sq-where,
 	.sq-people {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.sq-team {
 		font-family: var(--font-display);
-		font-size: 1.45rem;
+		font-size: var(--fs-h2);
 		color: var(--text-1, var(--white));
 	}
 	.sq-cp {
 		margin-top: 0.3rem !important;
 		font-family: var(--font-display);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		color: var(--text-1, var(--white));
 		display: flex;
 		gap: 0.5rem;
@@ -245,19 +245,19 @@
 	.sq-text {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 1.02rem;
+		font-size: var(--fs-base);
 		color: var(--text-1, var(--white));
 	}
 	.sq-role {
 		margin-left: 0.4rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2, var(--dim));
 	}
 	.sq-auto {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.sq-item.fail .sq-auto {
@@ -267,7 +267,7 @@
 		margin: 0;
 		padding-left: 1.1rem;
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-1, var(--white));
 	}
 	.sq-keys {
@@ -291,7 +291,7 @@
 	.sq-autos {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2, var(--dim));
 	}
 	.sq-tick {
@@ -328,7 +328,7 @@
 		display: grid;
 		gap: 0.3rem;
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2, var(--dim));
 	}
 	.sq-note-input {

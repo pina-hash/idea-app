@@ -126,7 +126,7 @@
 		border-radius: 8px;
 		padding: 0.7rem 0.8rem;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #4a7a52);
 		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 	}

@@ -1130,20 +1130,20 @@
 	}
 	.lc-title {
 		margin: 0;
-		font-size: 1.5rem;
+		font-size: var(--fs-xl);
 		line-height: 1.2;
 		flex: 1 1 auto;
 	}
 	.lc-clock {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 1.6rem;
+		font-size: var(--fs-xl);
 		line-height: 1;
 		color: var(--text-1);
 		font-variant-numeric: tabular-nums;
 	}
 	.lc-period {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		margin-left: 0.25rem;
 		color: var(--text-2);
 	}
@@ -1152,7 +1152,7 @@
 		align-items: center;
 		gap: 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1203,7 +1203,7 @@
 		align-items: center;
 		gap: var(--space-2);
 		margin: 0 0 var(--space-3);
-		font-size: 1.15rem;
+		font-size: var(--fs-h4);
 		line-height: 1.3;
 	}
 	.lc-quiet {
@@ -1229,7 +1229,7 @@
 	}
 	.lc-noshop-why {
 		color: var(--text-2);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		white-space: nowrap;
 	}
 	.lc-row {
@@ -1299,7 +1299,7 @@
 	}
 	.lc-word {
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1311,7 +1311,7 @@
 	.lc-over {
 		flex-basis: 100%;
 		color: var(--status-warn);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.lc-field {
 		display: flex;
@@ -1372,7 +1372,7 @@
 	}
 	.lc-wall-help {
 		margin: var(--space-2) 0 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2);
 	}
 	.lc-lines {
@@ -1405,7 +1405,7 @@
 	.lc-line-when {
 		margin-left: 0.5rem;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.lc-line-actions {
@@ -1426,7 +1426,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		font: inherit;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
 	}
 	.lc-mini[aria-pressed='true'],
@@ -1440,7 +1440,7 @@
 	}
 	.lc-count {
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		min-width: 1.4em;
 		padding: 0.05rem 0.35rem;
 		border: 1px solid var(--hairline);
@@ -1460,14 +1460,14 @@
 		border-radius: var(--radius-card);
 	}
 	.lc-drawn-name {
-		font-size: 1.5rem;
+		font-size: var(--fs-xl);
 		font-weight: 700;
 		color: var(--text-1);
 		flex: 1 1 auto;
 	}
 	.lc-seed {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.lc-link {

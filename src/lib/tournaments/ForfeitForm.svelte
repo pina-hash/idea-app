@@ -143,7 +143,7 @@
 	}
 	.ff-tag {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--gold, #c8a848);
@@ -249,7 +249,7 @@
 		border-radius: 4px;
 		color: var(--dim, #7a8a7a);
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		padding: 0.25rem 0.8rem;
 		min-height: 44px;
 		cursor: pointer;

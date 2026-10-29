@@ -103,7 +103,7 @@
 	}
 	.filter span {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -153,14 +153,14 @@
 	}
 	.student-email {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
 	.student-count {
 		margin-left: auto;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--cyan);
 		white-space: nowrap;
 	}

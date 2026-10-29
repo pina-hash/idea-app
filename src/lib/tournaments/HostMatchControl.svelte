@@ -333,7 +333,7 @@
 	}
 	.mc-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 		min-width: 11rem;
 	}
@@ -407,7 +407,7 @@
 		border-radius: 4px;
 		color: var(--dim);
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		padding: 0.15rem 0.8rem;
 		/* Measured about 20px before prompt 0077; a thumb on a phone. */
 		min-height: 44px;
@@ -433,7 +433,7 @@
 	}
 	.ff-tag {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--gold);

@@ -161,7 +161,7 @@
 	}
 	.round-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--cyan, #00f0ff);
@@ -215,7 +215,7 @@
 		align-items: center;
 		gap: 0.5rem;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #7a8a7a);
 	}
 	.best-of {
@@ -253,7 +253,7 @@
 	.win-mark {
 		margin-left: auto;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--green, #00ff41);
 	}
 	.champion {

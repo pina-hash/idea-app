@@ -240,7 +240,7 @@
 		padding: 0.15rem 0.5rem;
 		border-radius: 4px;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: #ece8e0;

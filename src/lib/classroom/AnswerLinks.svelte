@@ -75,7 +75,7 @@
 	.al-head {
 		margin: 0 0 var(--space-1);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: var(--text-2);
@@ -98,12 +98,12 @@
 	.al-label {
 		min-width: 0;
 		overflow-wrap: anywhere;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 	.al-host {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
@@ -112,7 +112,7 @@
 		text-decoration: none;
 	}
 	.al-raw {
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}

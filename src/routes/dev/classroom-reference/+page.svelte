@@ -312,7 +312,7 @@
 	}
 	.dev-tag {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 	}
 	.views {
@@ -322,7 +322,7 @@
 		margin: 0.8rem 0;
 	}
 	.btn.secondary.tiny {
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		padding: 0.28rem 0.6rem;
 	}
 	.btn.on {

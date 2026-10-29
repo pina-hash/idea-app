@@ -185,7 +185,7 @@
 	}
 	.lg-title {
 		margin: 0;
-		font-size: 1.15rem;
+		font-size: var(--fs-h4);
 		line-height: 1.3;
 		flex: 1 1 auto;
 	}
@@ -236,7 +236,7 @@
 		background: var(--surface-1);
 		color: var(--text-1);
 		font: inherit;
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
 	}
 	.lg-key[aria-pressed='true'] {
@@ -249,7 +249,7 @@
 	}
 	.lg-count {
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		min-width: 1.4em;
 		padding: 0.05rem 0.35rem;
 		border: 1px solid var(--hairline);
@@ -294,7 +294,7 @@
 		gap: 0.45rem;
 		margin: 0 0 var(--space-2);
 		padding-bottom: var(--space-1);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		line-height: 1.3;
 		box-shadow:
 			inset 0 -1px 0 0 var(--plate-groove-dk, var(--hairline)),
@@ -327,7 +327,7 @@
 	}
 	.lg-detail {
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 	.lg-signal {
 		margin: 0;

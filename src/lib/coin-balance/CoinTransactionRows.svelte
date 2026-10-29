@@ -149,7 +149,7 @@
 	}
 	.since {
 		font-family: var(--font-mono);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 	}
 	.actions {

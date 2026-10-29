@@ -80,7 +80,7 @@
 	}
 	.td-word {
 		font-weight: 700;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		letter-spacing: 0.02em;
 	}
 	.td-counts {
@@ -91,13 +91,13 @@
 	}
 	.td-quiet {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.td-all {
 		margin-left: auto;
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 		white-space: nowrap;
 	}

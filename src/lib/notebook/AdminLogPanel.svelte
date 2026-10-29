@@ -210,7 +210,7 @@
 	th {
 		text-align: left;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		font-weight: 400;
 		padding: 0 var(--space-2) var(--space-1);
@@ -249,7 +249,7 @@
 	}
 	.id {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--text-3);
 		overflow-wrap: anywhere;
 	}

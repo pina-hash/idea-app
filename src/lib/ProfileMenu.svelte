@@ -1296,7 +1296,7 @@
 		background: var(--green);
 		color: var(--bg0);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		font-weight: 700;
 		line-height: 16px;
 		text-align: center;
@@ -1316,7 +1316,7 @@
 		text-align: center;
 	}
 	.pm-caret {
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 		transition: transform 0.2s ease;
 	}
@@ -1556,7 +1556,7 @@
 	}
 	.pm-preset-word {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		line-height: 1.15;
 		text-align: center;
@@ -1695,13 +1695,13 @@
 	}
 	.pm-tier-name {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2, #9ab);
 	}
 	.pm-tier-note {
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-3, #7a8a7a);
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1792,7 +1792,7 @@
 		border: 1px solid var(--boundary, rgba(255, 255, 255, 0.2));
 		background: var(--bg2, #101610);
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2, #9ab);
 		cursor: pointer;
 	}

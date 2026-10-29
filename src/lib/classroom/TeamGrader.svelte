@@ -238,12 +238,12 @@
 	}
 	.tg-where {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.tg-team {
 		font-family: var(--font-display);
-		font-size: 1.45rem;
+		font-size: var(--fs-h2);
 		color: var(--text-1, var(--white));
 	}
 	.tg-members {
@@ -261,7 +261,7 @@
 	}
 	.tg-name {
 		font-family: var(--font-display);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		color: var(--text-1, var(--white));
 	}
 	.tg-roles {
@@ -273,19 +273,19 @@
 	}
 	.tg-mean {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2, var(--dim));
 	}
 	.tg-total {
 		grid-column: 2;
 		grid-row: 1 / span 2;
 		font-family: var(--font-mono);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-1, var(--white));
 	}
 	.tg-doc {
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--cyan);
 	}
 	.tg-group {
@@ -308,7 +308,7 @@
 		justify-content: space-between;
 		gap: 0.6rem;
 		font-family: var(--font-display);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		color: var(--text-1, var(--white));
 	}
 	.tg-levels {
@@ -337,17 +337,17 @@
 	}
 	.tg-short {
 		font-family: var(--font-display);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		line-height: 1.1;
 		text-align: center;
 	}
 	.tg-pts {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 	}
 	.tg-desc summary {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 		cursor: pointer;
 		min-height: 32px;
@@ -358,7 +358,7 @@
 		margin: 0.3rem 0 0;
 		padding-left: 1rem;
 		font-family: var(--font-display);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2, var(--dim));
 	}
 	.tg-person {
@@ -371,7 +371,7 @@
 		align-items: center;
 		gap: 0.6rem;
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.tg-comment {
@@ -383,7 +383,7 @@
 		width: 100%;
 		box-sizing: border-box;
 		font-family: var(--font-display);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	/* THE SAVE BAR (report eb053e4e): one card that rests above the floating
 	   feedback key, the two keys at the right at their own width, on the
@@ -418,7 +418,7 @@
 		align-items: center;
 		gap: 0.3rem;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 		white-space: nowrap;
 	}
@@ -426,18 +426,18 @@
 		width: 4.2rem;
 		min-height: 36px;
 		font-family: var(--font-mono);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		text-align: right;
 	}
 	.tg-of {
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 	.tg-crit-note {
 		display: grid;
 		gap: 0.25rem;
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2, var(--dim));
 	}
 	.tg-crit-note input {

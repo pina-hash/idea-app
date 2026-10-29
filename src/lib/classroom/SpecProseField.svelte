@@ -247,7 +247,7 @@
 
 	.spx-src-label {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
@@ -257,7 +257,7 @@
 		width: 100%;
 		min-width: 0;
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 		color: var(--text-1);
 		background: var(--surface-0, var(--bg0));
@@ -269,24 +269,24 @@
 
 	.spx-note {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 
 	.spx-drop-hint {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 	}
 
 	.spx-warn {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--amber);
 	}
 
 	.spx-error {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--crimson);
 	}
 </style>

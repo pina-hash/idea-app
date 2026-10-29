@@ -755,7 +755,7 @@
 		background: color-mix(in srgb, var(--green) 12%, transparent);
 		border-radius: var(--radius-2, 6px);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.04em;
 		color: var(--text-1, var(--white));
 		pointer-events: none;
@@ -763,14 +763,14 @@
 	}
 	.fup-label {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2, var(--dim));
 	}
 	.fup-hint {
 		margin: 0.15rem 0 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2, var(--dim));
 	}
 	/* THE ZONE. A dashed rule at rest (the shape every drop zone wears), a
@@ -808,7 +808,7 @@
 	   classroom plate by verify:browser (classroom-upload.mjs). */
 	.fup-zone-text {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1, var(--white));
 	}
 	.fup-actions {
@@ -825,7 +825,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-2, 6px);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		cursor: pointer;
 		background: var(--surface-2, var(--bg2));
 		color: var(--text-1, var(--white));
@@ -881,7 +881,7 @@
 	}
 	.fup-size {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 		white-space: nowrap;
 	}
@@ -897,7 +897,7 @@
 	}
 	.fup-rename-word {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2, var(--dim));
@@ -912,7 +912,7 @@
 		background: var(--surface-2, var(--bg2));
 		color: var(--text-1, var(--white));
 		font-family: var(--font-display, inherit);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.fup-rename-input:focus-visible {
 		outline: 2px solid var(--green);
@@ -920,7 +920,7 @@
 	}
 	.fup-rename-preview {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 	}
 	.fup-progress {
 		display: flex;
@@ -928,7 +928,7 @@
 		gap: 0.5rem;
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 	}
 	.fup-bar {
 		flex: 1;
@@ -960,7 +960,7 @@
 		background: var(--surface-2, var(--bg2));
 		color: var(--text-1, var(--white));
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		/* The 44px floor is the SMALLER side; `.tap-44` on each of these gives
 		   the height, and this gives a short word the width. */
 		min-width: 44px;
@@ -1007,7 +1007,7 @@
 	}
 	.fup-error {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.4;
 		color: var(--nb-error, var(--crimson));
 	}

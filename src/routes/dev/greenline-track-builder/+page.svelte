@@ -41,7 +41,7 @@
 		border: 1px solid rgba(0, 255, 65, 0.35);
 		color: #7fbf8f;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		padding: 0.3rem 0.5rem;
 	}
 </style>

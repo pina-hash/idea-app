@@ -86,7 +86,7 @@
 		border: 1px solid #24333f;
 		color: #cfe2ef;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		padding: 0.3rem 0.6rem;
 		text-decoration: none;

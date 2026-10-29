@@ -39,7 +39,7 @@
 	.team-doc-wait-text {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		color: var(--text-1, var(--white));
 	}
 </style>

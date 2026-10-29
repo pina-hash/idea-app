@@ -41,7 +41,7 @@
 		gap: var(--space-1) var(--space-2);
 		margin: var(--space-3) 0 0;
 		min-width: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		/* `--text-2`: muted, and measured at 4.5:1 or better on every classroom
 	   ground this line can land on (the page, a card, the pane). */
 		color: var(--text-2);

@@ -688,7 +688,7 @@
 	.te-hint {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 		line-height: 1.4;
 	}
 	.te-now {
@@ -739,7 +739,7 @@
 	}
 	.te-shape figcaption {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -763,7 +763,7 @@
 		min-width: 0;
 		font-family: var(--font-display);
 		font-weight: 600;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		line-height: 1.25;
 		color: var(--text-1);
 		overflow-wrap: break-word;
@@ -808,7 +808,7 @@
 	}
 	.te-pick-label {
 		display: block;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		margin-bottom: 0.25rem;
 	}
@@ -845,7 +845,7 @@
 		padding: 0.25rem;
 	}
 	.te-pick-name {
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 		max-height: 100%;
@@ -896,7 +896,7 @@
 	}
 	.te-focus-read {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.te-problem {

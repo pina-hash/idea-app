@@ -182,7 +182,7 @@
 	}
 	.cths-title {
 		min-width: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1);
 	}
 	.cths-msg {

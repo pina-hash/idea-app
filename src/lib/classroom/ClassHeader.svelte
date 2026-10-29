@@ -197,7 +197,7 @@
 		margin: 0;
 		font-family: var(--font-display);
 		font-weight: 600;
-		font-size: 1.15rem;
+		font-size: var(--fs-h4);
 		line-height: 1.25;
 		letter-spacing: 0;
 		color: var(--text-1);
@@ -247,7 +247,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		font-family: var(--font-mono);
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		/* --text-1 on the banner, whatever the plate does: the wash lightens the
 		   ground under it, and --text-2 measured 3.13:1 there on IDEA. */
@@ -256,7 +256,7 @@
 	/* Every key in the row, the class view's own included, reads at the 11px
 	   label floor rather than the room's 10.4px chip size. */
 	.pane-head .ch-row :global(.btn.tiny) {
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro);
 	}
 	.ch-key {
 		max-width: 100%;
@@ -275,7 +275,7 @@
 		text-transform: none;
 		letter-spacing: 0.02em;
 		font-family: var(--font-display);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		font-weight: 600;
 	}
 	.ch-when {
@@ -353,7 +353,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card, 6px);
 		background: var(--surface-1);
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro);
 	}
 	.ch-theme :global(.disc-body) {
 		order: 99;

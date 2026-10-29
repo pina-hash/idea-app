@@ -146,7 +146,7 @@
 		margin: 0;
 		padding: 1.1rem;
 		font-family: var(--font-display);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 	}
 	.tb-grid {
 		display: grid;
@@ -165,12 +165,12 @@
 	}
 	.tb-where {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.tb-name {
 		font-family: var(--font-display);
-		font-size: 1.35rem;
+		font-size: var(--fs-h2);
 	}
 	.tb-name a {
 		color: var(--text-1, var(--white));
@@ -181,7 +181,7 @@
 	}
 	.tb-pct strong {
 		color: var(--text-1, var(--white));
-		font-size: 1.15rem;
+		font-size: var(--fs-h4);
 	}
 	.tb-flags {
 		list-style: none;
@@ -193,7 +193,7 @@
 	}
 	.tb-flags li {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		padding: 0.2rem 0.55rem;
 		border-radius: 999px;
 		border: 1px solid color-mix(in srgb, var(--dim) 45%, transparent);
@@ -234,7 +234,7 @@
 		flex-wrap: wrap;
 		gap: 0.25rem 0.8rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2, var(--dim));
 	}
 	.tb-key {
@@ -257,7 +257,7 @@
 	.tb-gate {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-1, var(--white));
 	}
 	.tb-gate {
@@ -286,7 +286,7 @@
 	table {
 		border-collapse: collapse;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 	}
 	th,
 	td {
@@ -298,7 +298,7 @@
 	th[scope='row'] {
 		text-align: left;
 		font-family: var(--font-display);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 	}
 	.today {
 		background: color-mix(in srgb, var(--cyan) 12%, transparent);

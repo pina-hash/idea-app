@@ -1054,7 +1054,7 @@
 	}
 	.picker-path {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2, var(--dim));
 		overflow-wrap: anywhere;
 	}
@@ -1285,7 +1285,7 @@
 	.receipt-photo,
 	.receipt-warn {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
@@ -1315,7 +1315,7 @@
 		border-radius: 3px;
 		border: 1px dashed var(--boundary);
 		font-family: var(--font-mono);
-		font-size: 0.5rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 	}

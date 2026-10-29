@@ -385,7 +385,7 @@
 	.hxp-steps-count {
 		font-family: var(--font-mono);
 		font-weight: 400;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.hxp-step-keys {
@@ -408,7 +408,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	button.hxp-step {
 		cursor: pointer;
@@ -453,11 +453,11 @@
 		font-variant-numeric: tabular-nums;
 	}
 	.hxp-sign {
-		font-size: 1.3rem;
+		font-size: var(--fs-h2);
 		color: var(--text-2);
 	}
 	.hxp-pct-word {
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -478,7 +478,7 @@
 		gap: 0.4rem;
 		font-family: var(--font-display);
 		font-weight: 700;
-		font-size: 1.15rem;
+		font-size: var(--fs-h4);
 		letter-spacing: 0.02em;
 	}
 	.hxp-glyph {
@@ -488,7 +488,7 @@
 	}
 	.hxp-next {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2);
 	}
 	/* THE SAVING AND NOT-SAVED LINES take the text tier, never a status hue on
@@ -508,7 +508,7 @@
 		border-radius: 50%;
 		font-family: var(--font-mono);
 		font-weight: 700;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		line-height: 1;
 		vertical-align: 0.1em;
 	}
@@ -531,12 +531,12 @@
 	.hxp-conflict-label,
 	.hxp-conflict-text {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	.hxp-conflict-label {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.03em;
 		color: var(--text-2);
 	}
@@ -554,13 +554,13 @@
 		border-radius: var(--radius-sm, 4px);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.05em;
 		cursor: pointer;
 	}
 	.hxp-mirror-off {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 
@@ -621,7 +621,7 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-chip, 999px);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.03em;
 		color: var(--text-2);
 		background: var(--surface-2);
@@ -670,7 +670,7 @@
 
 	.hxp-note {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 

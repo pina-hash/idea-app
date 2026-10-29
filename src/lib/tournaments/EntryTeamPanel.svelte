@@ -442,7 +442,7 @@
 	}
 	.tag {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
@@ -512,7 +512,7 @@
 	}
 	.f-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);

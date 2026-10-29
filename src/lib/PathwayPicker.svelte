@@ -429,7 +429,7 @@
 	}
 	.pwp-eyebrow {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.28em;
 		text-transform: uppercase;
 		color: var(--cyan, #00f0ff);
@@ -562,7 +562,7 @@
 	.pwp-error {
 		margin: 0.8rem 0 0;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--amber, #ff8c00);
 	}
 	.pwp-actions {

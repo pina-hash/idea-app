@@ -206,7 +206,7 @@
 		flex-direction: column;
 		gap: 0.25rem;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--dim, #7a8a7a);
@@ -229,7 +229,7 @@
 	}
 	.rr-rounds-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--dim, #7a8a7a);
@@ -248,7 +248,7 @@
 		border-radius: 4px;
 		color: var(--dim, #7a8a7a);
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		padding: 0.18rem 0.5rem;
 		cursor: pointer;
 	}

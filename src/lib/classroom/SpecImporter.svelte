@@ -917,7 +917,7 @@
 		gap: var(--space-2);
 		flex-wrap: wrap;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.import-body {
@@ -951,7 +951,7 @@
 		background: var(--surface-0);
 		padding: 0.6rem 0.7rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		line-height: 1.55;
 		color: var(--text-2);
 		/* Selecting the whole document by dragging is the fallback the refusal
@@ -981,7 +981,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		pointer-events: none;
 	}
 	.import-hint {
@@ -993,7 +993,7 @@
 	}
 	.valid-line {
 		margin: 0;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--green);
 	}
 
@@ -1026,7 +1026,7 @@
 	}
 	.public-state {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 		display: flex;
 		align-items: baseline;
@@ -1035,7 +1035,7 @@
 	}
 	.state-tag {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		border: 1px solid var(--hairline);
@@ -1059,12 +1059,12 @@
 	}
 	.confirm-head {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--gold);
 	}
 	.confirm-body {
 		margin: 0;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		line-height: 1.5;
 		color: var(--text-2);
 	}

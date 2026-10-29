@@ -1575,7 +1575,7 @@
 	.roster-email {
 		color: var(--dim);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		margin-left: auto;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1592,7 +1592,7 @@
 	.off-roster-head {
 		color: var(--dim);
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		margin: 0 0 0.15rem;
@@ -1724,7 +1724,7 @@
 	.combo-price {
 		color: var(--cyan);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 	}
 
 	.combo-empty {
@@ -1741,7 +1741,7 @@
 	.field-row label {
 		color: var(--dim);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 	}
@@ -1781,7 +1781,7 @@
 	.pending-hint {
 		color: var(--dim);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 	}
 
 	.feedback {

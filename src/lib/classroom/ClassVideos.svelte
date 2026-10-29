@@ -156,7 +156,7 @@
 		padding: 0 0.8rem;
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card, 6px);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 	}
 	/* On a key face every word is the key's ink: Disclosure's caret, count and
 	   Show word read `--text-2`, measured for a flat trigger on a card. */
@@ -188,7 +188,7 @@
 	}
 	.cvid-count {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	/*
@@ -275,7 +275,7 @@
 	}
 	.cvid-meta {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 	}
@@ -289,7 +289,7 @@
 		min-width: 0;
 		color: var(--body-link, var(--cyan));
 		text-decoration: none;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		line-height: 1.3;
 	}
 	.cvid-from:hover .cvid-from-title {
@@ -298,7 +298,7 @@
 	.cvid-from-word {
 		flex: none;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -310,7 +310,7 @@
 	.cvid-also-label {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -322,7 +322,7 @@
 	}
 	.cvid-held {
 		margin: var(--space-2) 0 0;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 </style>

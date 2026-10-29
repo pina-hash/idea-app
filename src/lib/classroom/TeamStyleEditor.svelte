@@ -348,7 +348,7 @@
 	}
 	.tse-note {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1);
 	}
 	.tse-fields {
@@ -381,7 +381,7 @@
 	   on every classroom card ground. */
 	.tse-label {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 		padding: 0;
@@ -447,7 +447,7 @@
 	}
 	.tse-why {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	.tse-why:not(:empty) {

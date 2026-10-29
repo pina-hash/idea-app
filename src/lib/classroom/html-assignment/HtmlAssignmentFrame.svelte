@@ -1338,13 +1338,13 @@
 		border: 1px solid var(--boundary);
 	}
 	.hx-image-over-name {
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1);
 		overflow-wrap: anywhere;
 		max-width: 100%;
 	}
 	.hx-image-over-note {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.hx-file-glyph,
@@ -1362,7 +1362,7 @@
 	.hx-file-glyph {
 		min-height: 1.6rem;
 		padding: 0 0.5rem;
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 	}
 	/*
 		A WORDED DOWNLOAD, 44px IN EVERY DENSITY. It is the frame's own rule and
@@ -1378,7 +1378,7 @@
 		min-height: 44px;
 		padding: 0 0.9rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-1);
@@ -1412,7 +1412,7 @@
 		border-radius: var(--radius-card);
 		background: var(--surface-2);
 		color: var(--text-2);
-		font-size: 0.9375rem;
+		font-size: var(--fs-sm);
 		line-height: 1.45;
 	}
 
@@ -1443,7 +1443,7 @@
 		min-height: 44px;
 		padding: 0 0.95rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-1);
@@ -1470,7 +1470,7 @@
 		min-width: 0;
 		font-family: var(--font-display);
 		font-weight: 700;
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		color: var(--text-1);
 		white-space: nowrap;
 		overflow: hidden;
@@ -1562,7 +1562,7 @@
 
 	.hx-images-head {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1629,7 +1629,7 @@
 		width: 6rem;
 		height: 6rem;
 		flex: none;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 
 	.hx-image-missing {
@@ -1640,7 +1640,7 @@
 		align-items: center;
 		justify-content: center;
 		font-family: var(--font-mono);
-		font-size: 1.4rem;
+		font-size: var(--fs-h2);
 		color: var(--amber);
 		border: 1px dashed var(--boundary);
 		border-radius: var(--radius-sm, 4px);
@@ -1655,19 +1655,19 @@
 
 	.hx-image-field {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
 
 	.hx-image-name {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 		overflow-wrap: anywhere;
 	}
 
 	.hx-image-caption {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
@@ -1702,7 +1702,7 @@
 		max-width: 7rem;
 		padding: 0 0.7rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		white-space: nowrap;
@@ -1738,7 +1738,7 @@
 		min-height: 44px;
 		padding: 0 0.9rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-1);

@@ -223,7 +223,7 @@
 	.answers-label {
 		margin: 0 0 var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: var(--text-2);
@@ -237,7 +237,7 @@
 	.answers-member-name {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.answers-group + .answers-group {
@@ -245,7 +245,7 @@
 	}
 	.answers-group-head {
 		margin: 0 0 var(--space-2);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -278,7 +278,7 @@
 		min-width: 0;
 		overflow-wrap: anywhere;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.answers-field.prompted {
@@ -288,13 +288,13 @@
 	}
 	.answers-prompt {
 		font-family: var(--font-display);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		line-height: 1.35;
 		color: var(--text-1);
 	}
 	.answers-field-name {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.answers-value {
@@ -305,7 +305,7 @@
 		   the student did not write. */
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		line-height: 1.5;
 		color: var(--text-1);
 	}
@@ -313,14 +313,14 @@
 	   WORD ("No answer saved"), and this only tilts the tier it is read at. */
 	.answers-none {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.answers-image {
 		display: block;
 		margin-top: var(--space-1);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	/* `white-space: normal` because the answer cell above is `pre-wrap`, and
@@ -367,7 +367,7 @@
 		min-height: 44px;
 		padding: 0 0.9rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-1);

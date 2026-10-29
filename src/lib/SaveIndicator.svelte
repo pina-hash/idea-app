@@ -95,7 +95,7 @@
 		border: 1px solid currentColor;
 		border-radius: 50%;
 		font-weight: 700;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		line-height: 1;
 	}
 

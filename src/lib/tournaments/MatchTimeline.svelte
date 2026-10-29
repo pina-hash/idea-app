@@ -192,7 +192,7 @@
 	}
 	.fig-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.16em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim, var(--dim, #7a8a7a));
@@ -219,7 +219,7 @@
 	}
 	.ff-tag {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.16em;
 		text-transform: uppercase;
 		color: var(--tnm-gold, #e0ac4e);
@@ -232,7 +232,7 @@
 	.sub {
 		margin: 0 0 0.45rem;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.16em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim, var(--dim, #7a8a7a));
@@ -249,7 +249,7 @@
 	}
 	.corr-when {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim, var(--dim, #7a8a7a));
 	}
 	.corr-change {
@@ -299,7 +299,7 @@
 	.ev-stamp,
 	.ev-offset {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim, var(--dim, #7a8a7a));
 		flex: none;
 	}

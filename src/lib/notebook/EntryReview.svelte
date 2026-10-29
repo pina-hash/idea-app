@@ -735,7 +735,7 @@
 		border: 1px solid currentColor;
 		border-radius: 3px;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		opacity: 0.75;
 	}
 

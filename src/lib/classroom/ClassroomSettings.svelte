@@ -323,7 +323,7 @@
 	.cs-title {
 		flex: 1 1 auto;
 		margin: 0;
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 	}
 	.cs-body {
 		display: grid;
@@ -348,7 +348,7 @@
 	}
 	.cs-group-title {
 		margin: 0;
-		font-size: 0.98rem;
+		font-size: var(--fs-ui);
 	}
 	.cs-group-title:focus-visible {
 		outline: 2px solid var(--focus-ring);
@@ -370,7 +370,7 @@
 	}
 	.cs-setting-title {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 	}
@@ -390,7 +390,7 @@
 		align-items: center;
 		gap: 0.3rem;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 	}
@@ -406,14 +406,14 @@
 	.cs-default {
 		margin-left: auto;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.cs-btn {
 		min-height: 44px;
 		padding: 0 var(--space-3);
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		color: var(--text-1);
 		background: var(--surface-2);
@@ -457,6 +457,6 @@
 		margin: 0;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 	}
 </style>

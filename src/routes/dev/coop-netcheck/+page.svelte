@@ -664,7 +664,7 @@
 		gap: 0.2rem;
 	}
 	.stat .label {
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--dim, #4a7a52);
@@ -675,7 +675,7 @@
 		color: var(--white, #e8ffe8);
 	}
 	.thresholds {
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #4a7a52);
 		margin-top: 1.5rem;
 		line-height: 1.6;

@@ -263,7 +263,7 @@
 			{/each}
 		</svg>
 	{:else}
-			<span class="initials" style="font-size:{Math.round(size * 0.4)}px">{fallbackText}</span>
+			<span class="initials" style="font-size:{Math.max(11, Math.round(size * 0.4))}px">{fallbackText}</span>
 	{/if}
 </span>
 

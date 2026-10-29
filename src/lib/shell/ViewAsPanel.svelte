@@ -241,7 +241,7 @@
 		align-items: center;
 		gap: 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--va-lamp);
@@ -272,7 +272,7 @@
 	}
 	.va-sub {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: #9aa49d;
 		white-space: nowrap;
 		overflow: hidden;

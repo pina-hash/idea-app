@@ -932,7 +932,7 @@
 	}
 	.roster-set-label {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.16em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -966,7 +966,7 @@
 	}
 	.frc-sum-label {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--cyan);

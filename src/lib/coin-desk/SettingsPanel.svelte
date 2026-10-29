@@ -973,7 +973,7 @@
 	}
 	.section-teacher {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2, var(--dim));
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1046,7 +1046,7 @@
 	}
 	.audit-who {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2, var(--dim));
 	}
 </style>

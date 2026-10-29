@@ -328,7 +328,7 @@
 	}
 	.classroom-page h3 {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -342,7 +342,7 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 	}
 	.empty-state {
@@ -384,7 +384,7 @@
 		text-decoration: none;
 		color: var(--text-1);
 		font-weight: 700;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.section-link:hover .section-name {
 		color: var(--hover-ink);
@@ -424,11 +424,11 @@
 	}
 	.course-code {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 	}
 	.course-title {
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 	}
 	.course-row button {
 		margin-left: auto;
@@ -443,7 +443,7 @@
 	}
 	label > span {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -454,7 +454,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		padding: 0.45rem 0.6rem;
 		width: 100%;
 		min-width: 0;

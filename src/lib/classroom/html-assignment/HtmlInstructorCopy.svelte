@@ -264,14 +264,14 @@
 	.banner-head {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--gold);
 	}
 	.banner-note {
 		margin: 0.2rem 0 0;
-		font-size: 0.84rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.key-row {
@@ -283,7 +283,7 @@
 	}
 	.key-chip {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		padding: 0.15rem 0.6rem;
@@ -298,12 +298,12 @@
 	}
 	.key-hint {
 		margin: 0 0 var(--space-2);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.upload-note {
 		margin: 0 0 var(--space-2);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.feedback {

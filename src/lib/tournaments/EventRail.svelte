@@ -113,7 +113,7 @@
 		color: var(--tnm-ink-dim, var(--dim));
 	}
 	.dense .figures {
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 	}
 	.figures strong {
 		color: var(--tnm-ink, var(--white));

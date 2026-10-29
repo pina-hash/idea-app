@@ -164,7 +164,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1.4;
 		box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 		/* A TOOLTIP NEVER TAKES A CLICK. It opens over the work pane, beside the
@@ -178,13 +178,13 @@
 	.rc-name {
 		margin: 0 0 0.2rem;
 		font-weight: 600;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		overflow-wrap: anywhere;
 	}
 	.rc-section {
 		margin: 0 0 0.3rem;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.rc-line {
@@ -197,7 +197,7 @@
 	.rc-hint {
 		margin: 0.45rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 </style>

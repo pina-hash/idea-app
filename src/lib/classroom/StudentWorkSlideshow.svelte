@@ -460,13 +460,13 @@
 	}
 	.sws-source {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: #b9d7b4;
 	}
 	.sws-title {
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		font-weight: 600;
 		min-width: 0;
 		overflow-wrap: anywhere;
@@ -474,7 +474,7 @@
 	.sws-when {
 		margin-left: auto;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: #d4dbd1;
 	}
 	.sws-controls {
@@ -498,7 +498,7 @@
 	}
 	.sws-count {
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 		min-width: 4.5rem;
 		text-align: center;
@@ -562,10 +562,10 @@
 	}
 	.sws-empty p {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.sws-empty .sws-empty-sub {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 		max-width: 26rem;
 	}

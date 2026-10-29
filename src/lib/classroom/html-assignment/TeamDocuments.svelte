@@ -227,7 +227,7 @@
 	}
 	.tds-set {
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.tds-teams {
@@ -244,7 +244,7 @@
 	}
 	.tds-team-people {
 		font-family: var(--font-display);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		text-transform: none;
 		letter-spacing: 0;
 		opacity: 0.85;
@@ -276,7 +276,7 @@
 	}
 	.tds-box-mod {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2, var(--dim));
 	}
 	.tds-box-label {
@@ -308,7 +308,7 @@
 	.tds-when,
 	.tds-k {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 </style>

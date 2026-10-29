@@ -1494,7 +1494,7 @@
 		min-width: min(7rem, 100%);
 	}
 	.field span {
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		font-weight: 600;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
@@ -1629,7 +1629,7 @@
 		border-radius: 3px;
 		background: var(--surface-2);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 

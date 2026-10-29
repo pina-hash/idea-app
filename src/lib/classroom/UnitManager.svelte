@@ -357,11 +357,11 @@
 	}
 	.unit-title {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 	}
 	.empty-state {
@@ -408,7 +408,7 @@
 		color: var(--text-2);
 		cursor: grab;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		user-select: none;
@@ -434,11 +434,11 @@
 		cursor: default;
 	}
 	.unit-grip-glyph {
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.unit-name {
 		font-weight: 700;
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		min-width: 0;
 		overflow-wrap: anywhere;
 	}

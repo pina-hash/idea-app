@@ -334,7 +334,7 @@
 	}
 	.ann-title {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.ann-tools {
 		display: flex;
@@ -444,7 +444,7 @@
 	.ann-count {
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 	}
 	@media (max-width: 760px) {
 		.ann {

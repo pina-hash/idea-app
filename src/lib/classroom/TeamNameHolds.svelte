@@ -108,13 +108,13 @@
 	.tnh-hits {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.tnh-text {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 1.1rem;
+		font-size: var(--fs-h4);
 		color: var(--text-1, var(--white));
 		overflow-wrap: anywhere;
 	}

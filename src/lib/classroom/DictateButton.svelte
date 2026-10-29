@@ -185,7 +185,7 @@
 	}
 	.dictate-error {
 		margin: var(--space-1) 0 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--nb-error, var(--crimson));
 	}
 </style>

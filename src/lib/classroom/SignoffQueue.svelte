@@ -77,7 +77,7 @@
 		margin: 0;
 		padding: 1.1rem;
 		font-family: var(--font-display);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 	}
 	.sq-next {
 		margin: 0.4rem 0 0;
@@ -101,7 +101,7 @@
 	}
 	.sq-rest-meta {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 </style>

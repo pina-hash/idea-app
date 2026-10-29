@@ -172,7 +172,7 @@
 	}
 	.f-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);

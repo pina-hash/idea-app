@@ -441,7 +441,7 @@
 	.tp-name {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 1.5rem;
+		font-size: var(--fs-xl);
 		color: var(--text-1, var(--white));
 	}
 	.tp-stats {
@@ -458,7 +458,7 @@
 	}
 	.tp-stat dt {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2, var(--dim));
@@ -466,7 +466,7 @@
 	.tp-stat dd {
 		margin: 0.15rem 0 0;
 		font-family: var(--font-display);
-		font-size: 1.25rem;
+		font-size: var(--fs-h3);
 		font-weight: 600;
 		color: var(--text-1, var(--white));
 	}
@@ -504,7 +504,7 @@
 	}
 	.tp-share-pts {
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.tp-share-bar {
@@ -570,7 +570,7 @@
 	.tp-role-title,
 	.tp-k {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 		color: var(--text-2, var(--dim));
@@ -614,7 +614,7 @@
 	}
 	.tp-day {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		padding: 0.3rem 0.25rem;
 		color: var(--text-2, var(--dim));
 		text-align: center;
@@ -653,7 +653,7 @@
 	.tp-block {
 		font: inherit;
 		font-family: var(--font-display);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		line-height: 1.15;
 		text-align: left;
 		padding: 0.25rem 0.35rem;
@@ -721,7 +721,7 @@
 	.tp-task-meta {
 		grid-column: 2;
 		font-family: var(--font-display);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2, var(--dim));
 	}
 	.tp-task-row :global(.tp-status) {
@@ -796,12 +796,12 @@
 	}
 	.tp-cp-title {
 		font-family: var(--font-display);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		color: var(--text-1, var(--white));
 	}
 	.tp-cp-date {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 		margin-right: auto;
 	}
@@ -841,20 +841,20 @@
 		margin: 0;
 		padding-left: 1.1rem;
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--amber);
 	}
 	.tp-cp-missing {
 		display: block;
 		margin-top: 0.2rem;
 		font-family: var(--font-display);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1, var(--white));
 	}
 	.tp-cp-kind {
 		margin-left: 0.4rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2, var(--dim));
 	}
 	.tp-cp-items li.no .tp-cp-kind {

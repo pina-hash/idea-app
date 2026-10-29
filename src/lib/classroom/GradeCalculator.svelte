@@ -103,7 +103,7 @@
 	.calc-table th[scope='col'] {
 		text-align: left;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -114,13 +114,13 @@
 	.calc-table th[scope='row'] {
 		text-align: left;
 		font-weight: 600;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.calc-table td,
 	.calc-table th[scope='row'] {
 		border-bottom: 1px solid var(--hairline);
 		padding: 0.3rem 0.4rem;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.num {
 		text-align: right;
@@ -138,7 +138,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		padding: 0.28rem 0.4rem;
 		text-align: right;
 	}
@@ -157,7 +157,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.45rem;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		cursor: pointer;
 		min-height: 44px;
 	}
@@ -175,24 +175,24 @@
 	}
 	.overall-label {
 		font-family: var(--font-mono);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
 	.overall-value {
 		font-family: var(--font-mono);
-		font-size: 1.3rem;
+		font-size: var(--fs-h2);
 		color: var(--text-1);
 	}
 	.overall-meta {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.disclaimer {
 		margin: 0;
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		line-height: 1.45;
 	}

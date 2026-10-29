@@ -174,6 +174,9 @@
 	   painted on its own fill here (it measures 1.4 to 3.8); a word on a
 	   status fill is --text-1 or --status-<tone>-on. -on is the base value,
 	   the near-black, and is not redeclared. */
+	/* The dark themes pin --status-ok to the notebook grid's lifted green
+	   (ledger 0469); here the word is the theme's own green. */
+	--status-ok: var(--green);
 	--status-ok-fill: #4d8c46;
 	--status-warn-fill: #e79548;
 	--status-danger-fill: #e16665;
@@ -304,7 +307,7 @@
 	--hairline: rgba(255, 255, 255, 0.08);
 	--boundary: #78847c;
 	--text-1: #e7eae8;
-	--text-2: #9aa49d;
+	--text-2: #b4bdb7;
 	--text-3: #5c665f;
 	--green-tint: #0e3b1f;
 	--surface-raised: #161a18;
@@ -312,7 +315,7 @@
 	--accent-fill: var(--green);
 	--accent-on-fill: var(--bg0);
 	--accent-field: var(--green);
-	--status-ok: var(--green);
+	--status-ok: #86bf7e;
 	--status-warn: var(--amber);
 	--status-danger: var(--crimson);
 	--status-info: var(--cyan);

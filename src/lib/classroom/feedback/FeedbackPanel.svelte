@@ -262,13 +262,13 @@
 	.fb-panel-title {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-1);
 	}
 	.fb-panel-count {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		font-weight: 700;
 		color: var(--text-1);
 	}
@@ -277,12 +277,12 @@
 		align-items: center;
 		min-height: 44px;
 		margin-left: auto;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 	.fb-panel-note {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.fb-compose {
 		display: flex;
@@ -300,7 +300,7 @@
 		min-width: 0;
 	}
 	.fb-compose-label {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.fb-compose select,

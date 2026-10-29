@@ -226,7 +226,7 @@
 		border-radius: 999px;
 		color: var(--green);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 	}
 	.tsp-said {
 		margin: 0;
@@ -252,7 +252,7 @@
 	}
 	.tsp-set {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--cyan);
 	}
 	.tsp-late {
@@ -261,7 +261,7 @@
 		align-items: center;
 		gap: 0.4rem 0.8rem;
 		font-family: var(--font-display);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2, var(--dim));
 	}
 	.tsp-late label {
@@ -314,7 +314,7 @@
 	}
 	.tsp-name {
 		font-family: var(--font-display);
-		font-size: 1.15rem;
+		font-size: var(--fs-h4);
 		color: var(--text-1, var(--white));
 	}
 	.tsp-people {
@@ -348,7 +348,7 @@
 		gap: 0.5rem;
 		align-items: center;
 		font-family: var(--font-display);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1, var(--white));
 	}
 	.tsp-part.own,
@@ -374,7 +374,7 @@
 	}
 	.tsp-part-n {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.tsp-blocked {

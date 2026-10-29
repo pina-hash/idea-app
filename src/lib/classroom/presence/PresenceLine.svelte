@@ -118,7 +118,7 @@
 	}
 	.pmeta {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		/* `--text-2` AND NOT `--dim`: this line sits on `--surface-1` and on
 		   `--surface-2` depending on whether the row is selected, and `--dim`
 		   clears only the darkest of the three grounds in this register. */
@@ -141,6 +141,6 @@
 	   drawn AS content. */
 	.psep {
 		color: var(--boundary);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 	}
 </style>

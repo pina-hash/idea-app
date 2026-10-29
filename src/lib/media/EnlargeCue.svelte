@@ -36,7 +36,7 @@
 		background: rgba(8, 10, 8, 0.78);
 		color: #f2f1ea;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		line-height: 1.2;

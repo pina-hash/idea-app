@@ -1173,11 +1173,11 @@
 	.lp-btn {
 		gap: 0.5rem;
 		padding: 0 0.9rem;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 	}
 	.lp-btn kbd {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		padding: 0.05rem 0.35rem;
 		border: 1px solid var(--hairline);
 		border-radius: 4px;

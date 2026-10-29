@@ -711,19 +711,19 @@
 	}
 	.ref-title {
 		margin: 0;
-		font-size: 1.6rem;
+		font-size: var(--fs-xl);
 		line-height: 1.15;
 	}
 	.ref-sub {
 		margin: var(--space-1) 0 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		color: var(--text-2);
 		max-width: var(--rb-measure);
 	}
 	.ref-meta {
 		margin: 0.3rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--cyan);
 	}
 	.ref-meta:empty {
@@ -800,7 +800,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 1.1rem;
+		font-size: var(--fs-h4);
 		line-height: 1;
 		cursor: pointer;
 		transition: opacity 120ms ease;
@@ -832,7 +832,7 @@
 		border-radius: var(--radius-card) var(--radius-card) 0 0;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		padding: 0.6rem 0.85rem;
@@ -916,13 +916,13 @@
 	}
 	.section-heading {
 		margin: 0;
-		font-size: 1.25rem;
+		font-size: var(--fs-h3);
 		line-height: 1.2;
 	}
 	.section-blurb {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		line-height: 1.55;
 		max-width: var(--rb-measure);
 	}
@@ -957,7 +957,7 @@
 
 	@media (max-width: 40rem) {
 		.ref-title {
-			font-size: 1.35rem;
+			font-size: var(--fs-h2);
 		}
 		.tab-rail {
 			display: none;
@@ -979,7 +979,7 @@
 		}
 		.picker-label {
 			font-family: var(--font-mono);
-			font-size: 0.68rem;
+			font-size: var(--fs-micro);
 			letter-spacing: 0.06em;
 			text-transform: uppercase;
 			color: var(--text-2);
@@ -994,7 +994,7 @@
 			border-radius: var(--radius-card);
 			color: var(--green);
 			font-family: var(--font-mono);
-			font-size: 0.78rem;
+			font-size: var(--fs-meta);
 			font-weight: 700;
 			padding: 0.4rem 0.5rem;
 		}

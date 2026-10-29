@@ -146,7 +146,14 @@
 	   where the grading console's option controls sit. */
 	--boundary: #78847c;
 	--text-1: #e7eae8; /* body copy and headings */
-	--text-2: #9aa49d; /* secondary text, labels, meta */
+	/* --text-2 and --status-ok are LIFTED to the notebook's grid inks (ledger
+	   0469, feedback 8a928045): the 2026-10-26 audit read small dark labels at
+	   APCA Lc 51 (text-2) and 38 to 44 (the status inks) at 10 to 11px. Each
+	   moves in lightness only (text-2 OKLCH L 0.71 to 0.79, hue and chroma
+	   held, 5.88 to 7.84 on --bg1; status-ok is --nb-cell-ontime, the brand
+	   green's own hue at L 0.75, 6.39 to 7.03). The warning and danger inks
+	   needed nothing more: 0465 solved them to 6:1, past the grid's own. */
+	--text-2: #b4bdb7; /* secondary text, labels, meta */
 	--text-3: #5c665f; /* tertiary: separators, disabled, decorative */
 	--green-tint: #0e3b1f; /* selected-row and emphasis fills */
 
@@ -238,7 +245,7 @@
 	--accent-fill: var(--green);
 	--accent-on-fill: var(--bg0);
 	--accent-field: var(--green);
-	--status-ok: var(--green);
+	--status-ok: #86bf7e;
 	--status-warn: var(--amber);
 	--status-danger: var(--crimson);
 	--status-info: var(--cyan);

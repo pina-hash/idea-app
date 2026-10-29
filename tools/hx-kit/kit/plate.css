@@ -14,7 +14,14 @@
    fails until both have it). */
 
 /* ---- The ground: the page is the plate. ---------------------------------- */
+/* THE 11px LABEL FLOOR, SAID ONCE (ledger 0469). Every mono label part (the
+   eyebrow, the chip, the select's word, the pad and the display's label)
+   reads `--plate-label-size`; an assignment gets it here, and the site from
+   the Plate's own token (src/lib/classroom/plate.css, which reads the site's
+   type scale `--fs-micro`). The fallback is the same 11px, so a part used
+   outside `.idea-plate` still stands on the floor. */
 .idea-plate {
+	--plate-label-size: 0.6875rem;
 	background-color: var(--page-bot);
 	background-image: linear-gradient(to bottom, var(--page-top), var(--page-bot) 28rem);
 	background-repeat: no-repeat;
@@ -37,7 +44,7 @@
 	display: block;
 	margin: 0;
 	font-family: var(--font-mono);
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	font-weight: 400;
 	line-height: 1.6;
 	letter-spacing: 0.14em;
@@ -201,7 +208,7 @@ a.idea-panel:hover {
 	border: 0;
 	border-radius: var(--radius-small);
 	font-family: var(--font-mono);
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	font-weight: 400;
 	line-height: 1;
 	letter-spacing: 0.02em;
@@ -327,7 +334,7 @@ a.idea-panel:hover {
 .idea-well--select {
 	padding-right: 2.2rem;
 	font-family: var(--font-mono);
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
 	cursor: pointer;
@@ -464,7 +471,7 @@ a.idea-panel:hover {
 	padding: 0 calc(0.85rem + 7px) 0 0.85rem;
 	margin: 0;
 	font-family: var(--font-mono);
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	font-weight: 400;
 	line-height: 1.2;
 	letter-spacing: 0.08em;
@@ -627,7 +634,7 @@ a.idea-panel:hover {
 }
 /* The words on the glass that name the number: the caption face, dimmer. */
 .idea-display-label {
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
 }

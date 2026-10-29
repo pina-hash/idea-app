@@ -222,13 +222,13 @@
 	}
 	.cf-title {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.cf-note,
 	.cf-span {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 		max-width: 60ch;
 	}
@@ -245,7 +245,7 @@
 		flex-direction: column;
 		gap: 0.3rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 	}
@@ -257,7 +257,7 @@
 	.cf-field input {
 		min-height: 44px;
 		font-family: var(--font-display);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.cf-actions,
 	.cf-confirm {
@@ -273,7 +273,7 @@
 	}
 	.cf-summary {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.cf-table-wrap {
 		overflow-x: auto;
@@ -283,7 +283,7 @@
 	.cf-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.cf-table th,
 	.cf-table td {
@@ -298,7 +298,7 @@
 	}
 	.cf-table thead th {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		font-weight: 400;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -311,12 +311,12 @@
 	.cf-meta,
 	.cf-action {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.cf-date {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		white-space: nowrap;
 		color: var(--text-2);
 	}
@@ -332,7 +332,7 @@
 		align-items: center;
 		gap: 0.5rem;
 		min-height: 44px;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.cf-toggle input {
 		width: 1.1rem;

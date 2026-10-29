@@ -219,7 +219,7 @@
 		align-items: center;
 		gap: 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-2);

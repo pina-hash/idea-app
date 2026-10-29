@@ -142,7 +142,7 @@
 		min-height: 44px;
 		padding: 0 0.95rem;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-1);
@@ -161,7 +161,7 @@
 	}
 	.hxl-count {
 		font-weight: 700;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		font-variant-numeric: tabular-nums;
 	}
 	.hxl-chev {
@@ -203,7 +203,7 @@
 	.hxl-group-title {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -226,7 +226,7 @@
 		padding: 0.45rem 0.75rem;
 		text-align: left;
 		font: inherit;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-1);
 		background: var(--surface-1);
 		border: 1px solid var(--hairline);
@@ -243,7 +243,7 @@
 	.hxl-want {
 		flex: none;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -251,7 +251,7 @@
 	}
 	.hxl-note {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	@media (max-width: 480px) {

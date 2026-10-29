@@ -1276,7 +1276,7 @@
 	}
 	.linked-tag {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.18));
 		border-radius: 999px;
@@ -1293,7 +1293,7 @@
 		border-radius: 4px;
 		color: var(--dim);
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		padding: 0.15rem 0.8rem;
 		/* A phone in a host's hand: 44px floor (prompt 0077), min-height never
 		   a height. Measured about 20px before. */
@@ -1331,7 +1331,7 @@
 	}
 	.inv-status {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 	}

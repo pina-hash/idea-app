@@ -423,7 +423,7 @@
 	}
 	.ct-count {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	/* Cards of unequal height side by side: a multi-column container, capped,
@@ -480,7 +480,7 @@
 		align-items: center;
 		gap: 0.35rem;
 		margin: 0 0 0.2rem;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		line-height: 1.3;
 		color: var(--text-1);
 	}
@@ -497,7 +497,7 @@
 	.ct-tagline {
 		margin: 0 0 0.3rem;
 		font-style: italic;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	.ct-card-tools {

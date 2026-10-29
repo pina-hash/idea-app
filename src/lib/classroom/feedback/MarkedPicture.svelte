@@ -63,7 +63,7 @@
 		height: 100%;
 		padding: 0.5rem;
 		color: var(--text-2);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		text-align: center;
 	}
 </style>

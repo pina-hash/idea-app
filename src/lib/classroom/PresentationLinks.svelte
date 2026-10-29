@@ -273,7 +273,7 @@
 	.pl-title {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -336,7 +336,7 @@
 		gap: 0.5rem;
 	}
 	.pl-more-label {
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-2);
 	}
 	.pl-nav {
@@ -353,7 +353,7 @@
 	.pl-missing {
 		margin: 0;
 		text-align: center;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		color: var(--text-2);
 	}
 	.pl-queue {

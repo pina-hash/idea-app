@@ -267,7 +267,7 @@
 	.tag {
 		display: inline-block;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		padding: 0.1rem 0.4rem;

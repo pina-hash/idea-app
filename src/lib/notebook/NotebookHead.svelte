@@ -222,7 +222,7 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 	}
 	.chip-val {
 		font-weight: 600;

@@ -512,7 +512,7 @@
 	}
 	.state {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #5f8a78);
 	}
 	/* Mirror the play page's drawing frame: a definite 16/9 box for the viewer. */

@@ -1248,7 +1248,7 @@
 	   check-in, not a refusal. */
 	.session-load {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.btn.danger {

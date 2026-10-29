@@ -375,12 +375,12 @@
 		color: var(--text-1);
 	}
 	.fb-item {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.fb-place {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.03em;
 		color: var(--text-2);
 		overflow-wrap: anywhere;
@@ -394,7 +394,7 @@
 	.fb-new,
 	.fb-status {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 		padding: 0.2rem 0.55rem;
@@ -430,7 +430,7 @@
 		bottom: 0.4rem;
 		padding: 0.15rem 0.5rem;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--text-1);
@@ -468,7 +468,7 @@
 	}
 	.fb-gone {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.fb-messages {
@@ -494,7 +494,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.5rem;
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.fb-name {
@@ -518,14 +518,14 @@
 		border: 0;
 		background: none;
 		font: inherit;
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		text-decoration: underline;
 		cursor: pointer;
 	}
 	.fb-receipt {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.fb-field {
@@ -534,7 +534,7 @@
 		gap: 0.25rem;
 	}
 	.fb-label {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.fb-field textarea {
@@ -566,6 +566,6 @@
 	.fb-problem {
 		margin: 0;
 		color: var(--amber);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 </style>

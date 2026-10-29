@@ -874,7 +874,7 @@
 	}
 	.status-meta {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.card {
@@ -882,7 +882,7 @@
 	}
 	.section-label {
 		margin: 0 0 var(--space-2);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -897,7 +897,7 @@
 	}
 	.locked-line {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.declaration-card {
 		border-color: var(--gold);
@@ -906,7 +906,7 @@
 		display: flex;
 		align-items: flex-start;
 		gap: var(--space-2);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		cursor: pointer;
 	}
 	.check-item input {
@@ -921,7 +921,7 @@
 	}
 	.mirror-line {
 		margin: 0;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	.conflict-list {
@@ -946,7 +946,7 @@
 	.conflict-where {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--cyan);
 	}
@@ -967,7 +967,7 @@
 	}
 	.conflict-text {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 		/* `min-width: 0` is not enough on its own for an unbroken paste. */
@@ -978,7 +978,7 @@
 	}
 	.preflight-note {
 		margin: 0 0 var(--space-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	.unmet-list {
@@ -989,7 +989,7 @@
 		gap: var(--space-1);
 	}
 	.unmet-list li {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--amber);
 	}
 	.submit-row {
@@ -1001,12 +1001,12 @@
 	}
 	.submit-hint {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		margin: 0 0 0.4rem;
 	}
 </style>

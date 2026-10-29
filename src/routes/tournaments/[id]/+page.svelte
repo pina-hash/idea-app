@@ -800,7 +800,7 @@
 	}
 	.upnext-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
@@ -849,7 +849,7 @@
 		gap: 0.7rem;
 		margin-bottom: 0.55rem;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--dim);
@@ -883,7 +883,7 @@
 	.bracket-hint {
 		margin: 0.5rem 0 0;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 	}
 	/* Sits closer to the bracket than a normal block: it belongs to it. */

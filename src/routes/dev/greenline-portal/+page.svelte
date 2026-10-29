@@ -1367,7 +1367,7 @@
 	}
 	.dh-audio-log {
 		color: #8fbf9a;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		max-width: 32rem;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1403,7 +1403,7 @@
 		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 	}
 	.dh-decal-queue-head {
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: #7fbf8f;
 		letter-spacing: 0.08em;
 		margin-bottom: 0.2rem;

@@ -139,7 +139,7 @@
 	}
 	.zip-meta {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.zip-actions {
@@ -158,7 +158,7 @@
 	.zip-reading,
 	.zip-why {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.feedback {

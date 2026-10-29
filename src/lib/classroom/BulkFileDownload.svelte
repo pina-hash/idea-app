@@ -343,14 +343,14 @@
 	.bfd-label {
 		margin: 0 0 var(--space-1);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: var(--text-2);
 	}
 	.bfd-count {
 		margin: 0 0 var(--space-1);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1.4;
 		color: var(--text-1);
 		overflow-wrap: anywhere;
@@ -358,7 +358,7 @@
 	.bfd-note,
 	.bfd-about {
 		margin: 0 0 var(--space-1);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		line-height: 1.45;
 		color: var(--text-2);
 		overflow-wrap: anywhere;
@@ -383,7 +383,7 @@
 	.bfd-done {
 		margin: var(--space-2) 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		line-height: 1.45;
 		color: var(--green);
 	}

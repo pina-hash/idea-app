@@ -254,7 +254,7 @@
 	}
 	.ci-field span {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -279,11 +279,11 @@
 		flex-wrap: wrap;
 		gap: 0.4rem;
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.ci-meta {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.ok-dot {

@@ -231,13 +231,13 @@
 	.history-title {
 		font-family: var(--font-display);
 		font-weight: 600;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.chev {
 		display: inline-block;
 		transition: transform 0.12s ease;
 		color: var(--text-2);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 	}
 	.chev.on {
 		transform: rotate(90deg);
@@ -293,7 +293,7 @@
 		flex-wrap: wrap;
 	}
 	.rev-summary {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 	.rev-meta {
 		display: block;
@@ -329,7 +329,7 @@
 		border-radius: var(--radius-card);
 		padding: 0.5rem 0.6rem;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		line-height: 1.5;
 		color: var(--text-2);
 		max-height: 22rem;

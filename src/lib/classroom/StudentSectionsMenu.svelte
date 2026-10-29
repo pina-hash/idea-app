@@ -399,7 +399,7 @@
 	}
 	.ssm-count {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		padding: 0.05rem 0.4rem;
 		border: 1px solid currentColor;
@@ -427,7 +427,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card, 10px);
 		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		line-height: 1.4;
 	}
 	.ssm-panel[hidden] {
@@ -436,7 +436,7 @@
 	.ssm-head {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-1);
@@ -452,7 +452,7 @@
 	}
 	.ssm-note {
 		margin: 0 0 0.25rem;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	/* A short window: out of sight but still in the panel, so a screen reader
@@ -499,7 +499,7 @@
 		gap: 0.3rem;
 		margin-right: auto;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.02em;
 		color: var(--text-2);
 	}

@@ -140,11 +140,15 @@
 		{ token: '--bg1', label: 'bg1' },
 		{ token: '--bg2', label: 'bg2' }
 	];
+	/* WHAT THE APP DRAWS ON A STATUS FILL (ledgers 0465 and 0466): a chip's word
+	   is the tone's `-on` on its `-solid`. The tone's INK on its own fill is
+	   drawn nowhere (on Space White it measures 1.4 to 3.8), so the board no
+	   longer measures it. Four cells, as before, so ROLE_CELLS holds. */
 	const SFILLS = [
-		{ ink: '--status-ok', fill: '--status-ok-fill', label: 'ok on its fill' },
-		{ ink: '--status-warn', fill: '--status-warn-fill', label: 'warning on its fill' },
-		{ ink: '--status-danger', fill: '--status-danger-fill', label: 'danger on its fill' },
-		{ ink: '--status-info', fill: '--status-info-fill', label: 'info on its fill' }
+		{ ink: '--status-ok-on', fill: '--status-ok-solid', label: 'ok chip word' },
+		{ ink: '--status-warn-on', fill: '--status-warn-solid', label: 'warning chip word' },
+		{ ink: '--status-danger-on', fill: '--status-danger-solid', label: 'danger chip word' },
+		{ ink: '--status-info-on', fill: '--status-info-solid', label: 'info chip word' }
 	];
 	/* A GROUND STEP, measured as "text" in the upper ground's colour on the
 	   lower one, so the ordinary contrast instrument reads the step. On a
@@ -246,7 +250,7 @@
 			</div>
 		{/each}
 		<div class="ground" style="background: var(--surface-1)" data-ground="fills">
-			<span class="gname" style="color: var(--text-2)">each status ink on its own fill, on a panel</span>
+			<span class="gname" style="color: var(--text-2)">each status word on what it is drawn on, on a panel</span>
 			<div class="roles">
 				{#each SFILLS as f (f.fill)}
 					<span
@@ -364,7 +368,7 @@
 	.gname {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		margin-bottom: 0.35rem;

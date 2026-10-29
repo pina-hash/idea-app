@@ -585,8 +585,22 @@ describe('the fixed rules CLAUDE.md states for colour', () => {
 	it('green stays the primary key, crimson stays live and error, on every theme', () => {
 		for (const theme of THEMES) {
 			expect(THEME_VARS[theme]['--accent-fill'], theme).toBe('var(--green)');
-			expect(THEME_VARS[theme]['--status-ok'], theme).toBe('var(--green)');
 			expect(THEME_VARS[theme]['--status-danger'], theme).toBe('var(--crimson)');
+			/* THE OK WORD IS GREEN, AND ON THE DARK THEMES IT IS THE BRAND GREEN
+			   LIFTED (ledger 0469): the notebook grid's on-time ink, the same hue
+			   and no more chroma, lighter only. Space White's is the theme's own
+			   green. */
+			if (theme === 'space-white') expect(THEME_VARS[theme]['--status-ok'], theme).toBe('var(--green)');
+			else {
+				const ok = K.rgbToOklch(tok(theme, '--status-ok').rgb);
+				const green = K.rgbToOklch(tok(theme, '--green').rgb);
+				expect(Math.abs(ok.H - green.H), theme).toBeLessThan(1);
+				expect(ok.C, theme).toBeLessThanOrEqual(green.C);
+				expect(ok.L, theme).toBeGreaterThan(green.L);
+			}
 		}
+		// POSITIVE CONTROL: the warning hue is not a lifted green.
+		const warn = K.rgbToOklch(tok('idea', '--amber').rgb);
+		expect(Math.abs(warn.H - K.rgbToOklch(tok('idea', '--green').rgb).H)).toBeGreaterThan(1);
 	});
 });

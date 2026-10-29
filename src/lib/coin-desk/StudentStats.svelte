@@ -332,7 +332,7 @@
 	}
 	.nums th {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		font-weight: 400;
 		letter-spacing: 0.05em;
 		color: var(--text-2, var(--dim));
@@ -370,7 +370,7 @@
 	}
 	.event-when {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2, var(--dim));
 	}
 </style>

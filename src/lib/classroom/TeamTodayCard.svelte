@@ -86,7 +86,7 @@
 		align-items: center;
 		min-height: 44px;
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--cyan);
 	}
 	.ttc-list {
@@ -101,7 +101,7 @@
 		justify-content: space-between;
 		gap: 0.8rem;
 		font-family: var(--font-display);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		color: var(--text-1, var(--white));
 	}
 	.ttc-list li.behind .ttc-meta {
@@ -109,7 +109,7 @@
 	}
 	.ttc-meta {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 		white-space: nowrap;
 	}

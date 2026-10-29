@@ -611,7 +611,7 @@
 		padding: 0 0.3rem;
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 3px;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-3);
@@ -808,7 +808,7 @@
 		/* Was --bg0 (the dark page); the badge floats on the light card now. */
 		background: var(--surface-1);
 		border: 1px solid currentColor;
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		line-height: 0.95rem;
 	}
 

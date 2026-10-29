@@ -122,7 +122,7 @@
 	--surface-1: #080e09;
 	--surface-2: #0c150d;
 	--text-1: #dce8dc;
-	--text-2: #8fae94;
+	--text-2: #a4c4a9; /* lifted in lightness only (ledger 0469), L 0.72 to 0.79 */
 	--text-3: #4f6853;
 	--boundary: #64826b;
 	--green-tint: #093619;

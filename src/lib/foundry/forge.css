@@ -33,8 +33,9 @@
    mounted OUTSIDE the room (SSR tests, harnesses without the wrapper) render
    on the portal tokens exactly as before.
 
-   THE SEMANTIC ACCENTS DO NOT MOVE. `--green`, `--cyan`, `--amber`, `--teal`,
-   `--crimson`, `--ice` keep their platform values and their platform roles;
+   THE SEMANTIC ACCENTS DO NOT MOVE. `--green`, `--cyan`, `--amber`,
+   `--crimson`, `--ice` keep their platform values and their platform roles
+   (`--teal` is retired as a meaning since ledger 0465 and reads `--cyan`);
    the forge's heat scale is a NEW namespaced set beside them, not a
    re-pointing of `--amber`. Re-pointing a semantic token inside a room is how
    a component mounted in two rooms stops meaning the same thing in both.

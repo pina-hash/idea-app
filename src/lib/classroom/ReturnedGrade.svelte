@@ -130,11 +130,11 @@
 	.grade-head {
 		margin: 0;
 		color: var(--green);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.grade-comment {
 		margin: 0;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		line-height: 1.5;
 		overflow-wrap: anywhere;
 	}
@@ -145,7 +145,7 @@
 	.comment-label {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -153,7 +153,7 @@
 	}
 	.grade-note {
 		color: var(--text-2);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		margin: 0;
 	}
 </style>

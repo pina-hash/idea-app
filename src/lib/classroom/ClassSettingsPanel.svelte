@@ -341,7 +341,7 @@
 	}
 	.section-line {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.feedback {
@@ -349,7 +349,7 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 		max-width: var(--measure-reading);
 	}
@@ -386,7 +386,7 @@
 	.details dt {
 		flex: 0 0 9.5rem;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -419,7 +419,7 @@
 	}
 	label > span {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -429,7 +429,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		padding: 0.45rem 0.6rem;
 		width: 100%;
 		min-width: 0;

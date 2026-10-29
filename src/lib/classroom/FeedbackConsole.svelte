@@ -1480,7 +1480,7 @@
 	.feedback {
 		margin: 0 0 0.8rem;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		line-height: 1.5;
 		padding: var(--space-2) 0.65rem;
 		border-radius: var(--radius-card);
@@ -1525,7 +1525,7 @@
 		border-radius: 999px;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		padding: 0 0.9rem;
 		cursor: pointer;
 	}
@@ -1551,7 +1551,7 @@
 	.fbc-group-title {
 		margin: var(--space-3) 0 var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		font-weight: 400;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
@@ -1583,7 +1583,7 @@
 	}
 	.facet-label {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1597,7 +1597,7 @@
 		border-radius: var(--radius-sm, 4px);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.fbc-input:focus-visible {
 		outline: 1px solid var(--green);
@@ -1614,7 +1614,7 @@
 	.export-count {
 		flex: 1;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.export-note {
@@ -1637,7 +1637,7 @@
 	}
 	.bulk-count {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		margin-right: var(--space-1);
 	}
@@ -1669,7 +1669,7 @@
 		align-items: center;
 		gap: 0.4rem;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		cursor: pointer;
 	}
@@ -1689,7 +1689,7 @@
 	}
 	.fb-kind {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		border: 1px solid var(--hairline);
@@ -1706,7 +1706,7 @@
 	/* Ledger 0432: the reward for a report that led to a change. */
 	.fb-rewarded {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--gold);
 		align-self: center;
 	}
@@ -1722,7 +1722,7 @@
 	}
 	.fb-reward-label {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		flex-basis: 100%;
 	}
@@ -1735,14 +1735,14 @@
 	}
 	.fb-route {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--gold);
 		min-width: 0;
 		overflow-wrap: anywhere;
 	}
 	.fb-when {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		margin-left: auto;
 	}
@@ -1750,7 +1750,7 @@
 		margin: 0 0 var(--space-2);
 		white-space: pre-wrap;
 		line-height: 1.55;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	/* WHAT THEY TRIED. Set apart from the message with a label and a rule, so two
 	   pieces of prose answering two questions do not read as one. */
@@ -1762,7 +1762,7 @@
 	.fb-tried-label {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1771,7 +1771,7 @@
 		margin: 0.15rem 0 0;
 		white-space: pre-wrap;
 		line-height: 1.5;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	/* AN ADMIN'S CORRECTION: who and when, in the meta voice, and the
 	   reporter's own words one press away. --text-2, never --text-3, because
@@ -1779,7 +1779,7 @@
 	.fb-edited {
 		margin: 0 0 var(--space-1, 0.25rem);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.fb-as-sent {
@@ -1791,7 +1791,7 @@
 	.fb-edit-hold {
 		margin: var(--space-1, 0.25rem) 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.fbc-editing .fbc-editing-note {
@@ -1805,7 +1805,7 @@
 	}
 	.fb-as-sent-list dt {
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1813,7 +1813,7 @@
 	.fb-as-sent-list dd {
 		margin: 0;
 		min-width: 0;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.fb-as-sent-text {
 		white-space: pre-wrap;
@@ -1833,7 +1833,7 @@
 		   a sentence, so it takes the target rather than the prose exemption. */
 		min-height: 44px;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.fb-shot-thumb {
@@ -1848,7 +1848,7 @@
 	.fb-shot-missing {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 
@@ -1860,7 +1860,7 @@
 		margin: 0 0 var(--space-2);
 		padding: 0;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.fb-context li {
@@ -1871,7 +1871,7 @@
 	}
 	.fb-build {
 		margin: 0 0 var(--space-2);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.fb-build-value {
@@ -1891,11 +1891,11 @@
 	.fb-who {
 		display: flex;
 		flex-direction: column;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 	}
 	.fb-email {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	/* THE WORD CARRIES IT, not the colour: --text-2 is the same tone the row's
@@ -1904,11 +1904,11 @@
 		font-family: var(--font-mono);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.fb-contact {
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		/* A reporter's own words, so they get the reading face the message has. */
 		color: var(--text-1);
 	}
@@ -1919,7 +1919,7 @@
 	   5.88:1 on the same two. */
 	.fb-contact-warn {
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.fb-actions {
@@ -1931,12 +1931,12 @@
 	.fb-review {
 		margin: var(--space-2) 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		margin: 0;
 	}
 	.page-footer {

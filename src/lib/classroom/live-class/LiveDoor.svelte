@@ -145,7 +145,7 @@
 		border-radius: var(--radius-card, 10px);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		text-decoration: none;
@@ -184,7 +184,7 @@
 		justify-content: flex-end;
 		gap: 0.45em;
 		min-width: 0;
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: none;
 		color: var(--text-2);

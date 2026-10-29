@@ -93,7 +93,7 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-1) var(--space-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.45;
 		color: var(--text-1);
 	}

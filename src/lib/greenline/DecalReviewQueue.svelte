@@ -168,7 +168,7 @@
 		align-items: center;
 		justify-content: center;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.58rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #4a7a52);
 		text-align: center;
 	}
@@ -192,12 +192,12 @@
 	}
 	.gdq-email {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #4a7a52);
 	}
 	.gdq-time {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #4a7a52);
 	}
 	.gdq-actions {
@@ -207,7 +207,7 @@
 	}
 	.gdq-btn {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--green, #00ff41);
 		background: none;
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));

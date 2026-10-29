@@ -92,13 +92,13 @@
 	}
 	.fuo-n {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--cyan, #00f0ff);
 		flex-shrink: 0;
 	}
 	.fuo-title {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

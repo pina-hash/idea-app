@@ -1044,7 +1044,7 @@
 	.hp-title {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1052,7 +1052,7 @@
 	.hp-status {
 		margin: 0;
 		color: var(--text-1);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		line-height: 1.4;
 	}
 	.hp-actions {
@@ -1084,7 +1084,7 @@
 		margin: 0;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 	}
 	/* The stalled-channel sentence: the same quiet register as the usage line.
 	   Not `--amber` -- a stalled socket is not a warning about the pass. */
@@ -1092,7 +1092,7 @@
 		margin: 0;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		line-height: 1.4;
 	}
 	.hp-override {
@@ -1106,7 +1106,7 @@
 	.hp-override-label {
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
@@ -1126,7 +1126,7 @@
 		border-radius: var(--radius-sm, 4px);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.hp-override-go {
 		flex: 0 0 auto;
@@ -1145,7 +1145,7 @@
 		flex: 1 1 100%;
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.4;
 	}
 	.hp-sent {
@@ -1165,7 +1165,7 @@
 		height: 1.05rem;
 		border: 1px solid currentColor;
 		border-radius: 50%;
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		line-height: 1;
 	}
 	/* A warning and a fine are both the warn tone (ledger 0466): a fine is a
@@ -1175,18 +1175,18 @@
 		color: var(--st-ink);
 	}
 	.hp-rule {
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.hp-notice {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		line-height: 1.4;
 	}
 	.hp-empty {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.hp-history {
 		list-style: none;
@@ -1205,12 +1205,12 @@
 	}
 	.hp-who {
 		color: var(--text-1);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 	}
 	.hp-when {
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.04em;
 	}
 
@@ -1251,7 +1251,7 @@
 		background: var(--surface-1);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		text-align: left;
@@ -1288,7 +1288,7 @@
 		padding-inline: 0.2rem;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		line-height: 1.4;
 	}
 	.ctool-dialog {
@@ -1326,7 +1326,7 @@
 	}
 	.ctool-title {
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-2);

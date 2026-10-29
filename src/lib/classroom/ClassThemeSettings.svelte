@@ -297,7 +297,7 @@
 	}
 	.cts-label {
 		margin: 0 0 0.4rem;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.cts-keys {
 		display: flex;

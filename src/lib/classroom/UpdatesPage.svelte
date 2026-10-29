@@ -109,7 +109,7 @@
 	.update-when {
 		margin: 0 0 var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		color: var(--cyan);
 	}
@@ -137,7 +137,7 @@
 	}
 	.update-title {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.update-tags {
 		display: inline-flex;
@@ -146,7 +146,7 @@
 	}
 	.chip {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
@@ -156,19 +156,19 @@
 		flex-basis: 100%;
 		margin: 0;
 		line-height: 1.55;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.update-month {
 		margin-bottom: var(--space-3);
 	}
 	.month-count {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		margin: 0;
 	}
 	.page-footer {

@@ -377,7 +377,7 @@
 	}
 	.deck-title {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--dim);
 		white-space: nowrap;
 		overflow: hidden;
@@ -391,7 +391,7 @@
 		border-radius: 999px;
 		color: var(--white);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		padding: 0 0.9rem;
 		cursor: pointer;
 		text-decoration: none;
@@ -432,7 +432,7 @@
 	}
 	.deck-index-note {
 		margin: 0 0 0.5rem;
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--dim);
 	}
 	.deck-index ol {
@@ -446,14 +446,14 @@
 	.deck-index li {
 		display: flex;
 		gap: 0.5rem;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--white);
 		overflow-wrap: anywhere;
 	}
 	.deck-index-n {
 		flex: none;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--gold);
 		min-width: 1.4rem;
 	}
@@ -464,7 +464,7 @@
 	}
 	.deck-pos {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--white);
 		min-width: 3.2rem;
 		text-align: center;
@@ -484,7 +484,7 @@
 		background: none;
 		color: var(--white);
 		font: inherit;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		text-align: left;
 		cursor: pointer;
 		overflow-wrap: anywhere;
@@ -505,7 +505,7 @@
 	.deck-index-here {
 		flex: none;
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--gold);

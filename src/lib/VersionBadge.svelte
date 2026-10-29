@@ -33,7 +33,7 @@
 <style>
 	.version-badge {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		/* A ROOM HOOK, PORTAL TOKEN AS THE FALLBACK. --dim is measured against a

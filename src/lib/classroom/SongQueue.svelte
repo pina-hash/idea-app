@@ -838,7 +838,7 @@
 		margin: 0;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		line-height: 1.4;
 	}
 	.sq-head {
@@ -852,14 +852,14 @@
 	.sq-title {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
 	.sq-price {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		color: var(--cyan);
 		white-space: nowrap;
@@ -867,13 +867,13 @@
 	.sq-note {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		line-height: 1.45;
 	}
 	.sq-sub {
 		margin: var(--space-2) 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -882,7 +882,7 @@
 		gap: var(--space-2);
 	}
 	.sq-tally {
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-1);
 	}
 	.sq-compose {
@@ -898,7 +898,7 @@
 	}
 	.sq-label {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -921,7 +921,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.sq-input:focus-visible {
 		outline: 2px solid var(--green);
@@ -936,7 +936,7 @@
 	}
 	.sq-count {
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -969,13 +969,13 @@
 	.sq-notice {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		line-height: 1.4;
 	}
 	.sq-empty {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.sq-list {
 		list-style: none;
@@ -1000,7 +1000,7 @@
 	}
 	.sq-link {
 		color: var(--body-link, var(--cyan));
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		overflow-wrap: anywhere;
 		min-width: 0;
 		/* Grows the HIT AREA in height only: the chip and the name sit closer than
@@ -1010,12 +1010,12 @@
 	}
 	.sq-who {
 		color: var(--text-1);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.sq-meta {
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 	}
 	.sq-mine {
@@ -1025,7 +1025,7 @@
 	.sq-rownote,
 	.sq-reason {
 		color: var(--text-2);
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 		line-height: 1.4;
 		overflow-wrap: anywhere;
 	}
@@ -1067,7 +1067,7 @@
 		background: var(--surface-1);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		text-align: left;
@@ -1104,7 +1104,7 @@
 		padding-inline: 0.2rem;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		line-height: 1.4;
 	}
 	.ctool-dialog {
@@ -1142,7 +1142,7 @@
 	}
 	.ctool-title {
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-2);

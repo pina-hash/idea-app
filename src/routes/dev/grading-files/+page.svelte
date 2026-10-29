@@ -440,7 +440,7 @@
 		overflow-wrap: anywhere;
 	}
 	.gf-capture pre {
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;

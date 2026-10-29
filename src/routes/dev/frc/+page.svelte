@@ -417,7 +417,7 @@
 	}
 	.harness-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--cyan, #00f0ff);
@@ -426,7 +426,7 @@
 	.harness-bar button,
 	.sim-row button {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--green, #00ff41);
 		background: none;
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
@@ -444,7 +444,7 @@
 		gap: 0.35rem;
 		margin-left: auto;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--cyan, #00f0ff);
@@ -466,12 +466,12 @@
 	}
 	.sim-row strong {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--white, #e8ffe8);
 	}
 	.sim-count {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--cyan, #00f0ff);
 		margin-left: auto;
 	}

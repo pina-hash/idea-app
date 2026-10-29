@@ -3047,7 +3047,7 @@
 	}
 	.harness-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		color: var(--amber);
 		margin-right: 0.4rem;
@@ -3059,13 +3059,13 @@
 		border-radius: 999px;
 		color: var(--dim);
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		padding: 0.22rem 0.6rem;
 		cursor: pointer;
 	}
 	.harness-toggle {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 		display: inline-flex;
 		align-items: center;
@@ -3087,7 +3087,7 @@
 	}
 	.harness-log code {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 		overflow-wrap: anywhere;
 	}

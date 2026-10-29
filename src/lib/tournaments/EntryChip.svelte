@@ -251,7 +251,7 @@
 	}
 	.seed {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		color: var(--cyan, #00f0ff);
 		opacity: 0.8;
 		flex: none;

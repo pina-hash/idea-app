@@ -173,7 +173,7 @@
 	/* SPACING TIER 2: inside a block, between its label and its content. */
 	.rb-title {
 		margin: 0 0 var(--space-2);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		font-family: var(--font-mono);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
@@ -212,7 +212,7 @@
 	}
 	.rb-kv dt {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -221,7 +221,7 @@
 	}
 	.rb-kv dd {
 		margin: 0;
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		line-height: 1.45;
 		overflow-wrap: anywhere;
 		padding: 0.35rem 0;
@@ -254,7 +254,7 @@
 	.rb-dt th {
 		text-align: left;
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -275,7 +275,7 @@
 	.rb-dt td {
 		border-bottom: 1px solid var(--hairline);
 		padding: var(--space-2) var(--space-3);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 		vertical-align: top;
 	}
@@ -284,7 +284,7 @@
 	}
 	.rb-dt-caption {
 		margin: var(--space-2) 0 0;
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		line-height: 1.45;
 	}
@@ -325,7 +325,7 @@
 	.rb-callout-tag {
 		display: inline-block;
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -343,7 +343,7 @@
 	}
 	.rb-callout-title {
 		margin: 0 0 var(--space-2);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		line-height: 1.25;
 	}
 
@@ -378,13 +378,13 @@
 		color: var(--hover-ink);
 	}
 	.rb-card-title {
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		font-weight: 700;
 		line-height: 1.3;
 		overflow-wrap: anywhere;
 	}
 	.rb-card-body {
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		line-height: 1.45;
 	}
@@ -411,14 +411,14 @@
 		gap: 0.15rem;
 	}
 	.rb-links :global(.lp-title) {
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		line-height: 1.3;
 	}
 	/* The fallback label is the durable half of a link: when a retailer listing
 	   dies, the part number is what is left. It reads as a spec line under the
 	   title, always, not as an error state. */
 	.rb-links :global(.lp-fallback) {
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.02em;
 		margin-top: 0.1rem;
 	}
@@ -437,7 +437,7 @@
 		border: 1px dashed var(--line-strong);
 		border-radius: var(--radius-card);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--amber);
 	}
 
@@ -504,7 +504,7 @@
 		.rb-dt td::before {
 			content: attr(data-label);
 			font-family: var(--font-mono);
-			font-size: 0.6rem;
+			font-size: var(--fs-micro);
 			letter-spacing: 0.08em;
 			text-transform: uppercase;
 			color: var(--text-2);

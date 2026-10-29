@@ -109,7 +109,7 @@
 		display: flex;
 		align-items: center;
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2, var(--dim));
 		cursor: pointer;
 	}
@@ -149,7 +149,7 @@
 	.tbh-meta {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--cyan);
 	}
 	.tbh-text {

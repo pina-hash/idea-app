@@ -382,7 +382,7 @@
 	}
 	.since {
 		font-family: var(--font-mono);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2, var(--dim));
 	}
 	.actions {
@@ -401,7 +401,7 @@
 		margin: 0;
 		padding: 0 0 0 0.6rem;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2, var(--dim));
 	}
 	.edits .undone-edit {

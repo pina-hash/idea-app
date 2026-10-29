@@ -654,7 +654,7 @@
 		color: var(--nb-accent-ink);
 	}
 	.chip.left {
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 	}
 	.editor {
 		display: grid;

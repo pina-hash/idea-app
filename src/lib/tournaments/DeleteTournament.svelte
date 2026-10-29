@@ -218,7 +218,7 @@
 		border-color: var(--crimson, #ff3355);
 	}
 	.compact .trigger {
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		padding: 0.15rem 0.5rem;
 	}
 	.hint {
@@ -263,7 +263,7 @@
 		flex-direction: column;
 		gap: 0.25rem;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #7a8a7a);
 	}
 	.confirm input {

@@ -267,7 +267,7 @@
 		flex-direction: column;
 		gap: 0.2rem;
 		min-width: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.fb-filter select,
@@ -275,7 +275,7 @@
 		min-height: 44px;
 		width: 100%;
 		font: inherit;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-1);
 		background: var(--surface-0, var(--bg0));
 		border: 1px solid var(--boundary);
@@ -334,21 +334,21 @@
 	}
 	.fb-row-top time {
 		flex: none;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.fb-row-item {
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	.fb-row-place {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
 	.fb-row-last {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
@@ -362,7 +362,7 @@
 		gap: 0.4rem;
 		align-items: center;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 		color: var(--text-1);

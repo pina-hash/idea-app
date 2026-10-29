@@ -109,14 +109,14 @@
 	}
 	.rubric-title {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
 	}
 	.rubric-total {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 		white-space: nowrap;
 	}
@@ -134,11 +134,11 @@
 		gap: 0.6rem;
 	}
 	.criterion-text {
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.criterion-points {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		white-space: nowrap;
 	}
@@ -175,27 +175,27 @@
 	}
 	.tick {
 		color: var(--green);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 	}
 	.level-points {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 		min-width: 1.6rem;
 	}
 	.level-label {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 	.level-desc {
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.override-line,
 	.crit-note,
 	.unfinished-line {
 		margin: 0.35rem 0 0;
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 	}
 	.override-line,
 	.unfinished-line {
@@ -206,7 +206,7 @@
 	}
 	.note-label {
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);

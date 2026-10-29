@@ -887,7 +887,7 @@
 		white-space: nowrap;
 		font: inherit;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
@@ -947,7 +947,7 @@
 	}
 	.feed-need-what {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--st-ink);
@@ -956,12 +956,12 @@
 	.feed-need-title {
 		min-width: 0;
 		overflow-wrap: anywhere;
-		font-size: 0.98rem;
+		font-size: var(--fs-ui);
 		color: var(--white);
 	}
 	.feed-need-go {
 		color: var(--dim);
-		font-size: 1.1rem;
+		font-size: var(--fs-h4);
 	}
 	@media (max-width: 768px) {
 		.feed-needs {
@@ -1055,7 +1055,7 @@
 		min-height: 44px;
 		margin: -0.4rem 0 0.4rem auto;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--hover-ink);

@@ -64,7 +64,7 @@
 		vertical-align: middle;
 	}
 	.pathway-chip.sm {
-		font-size: 0.58rem;
+		font-size: var(--fs-micro);
 		padding: 0.14rem 0.45rem 0.14rem 0.35rem;
 	}
 	.pathway-chip.md {

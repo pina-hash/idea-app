@@ -966,7 +966,7 @@
 		background: var(--surface-1);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		text-decoration: none;
 		white-space: nowrap;
 	}
@@ -1054,12 +1054,12 @@
 		color: var(--text-1);
 	}
 	.cls-code {
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.03em;
 		white-space: nowrap;
 	}
 	.cls-sub {
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		white-space: nowrap;
 	}
@@ -1144,7 +1144,7 @@
 		color: var(--text-1);
 		cursor: pointer;
 		font: inherit;
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 		white-space: nowrap;
 	}
 	.sw-trigger:hover,
@@ -1157,7 +1157,7 @@
 		white-space: nowrap;
 	}
 	.sw-caret {
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	/* The Menu button exists only below the fold breakpoint. */
@@ -1255,7 +1255,7 @@
 	}
 	.sw-item-code {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 		white-space: nowrap;
@@ -1263,7 +1263,7 @@
 		text-overflow: ellipsis;
 	}
 	.sw-item-name {
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1286,7 +1286,7 @@
 	}
 	.sw-group-label {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1312,7 +1312,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font: inherit;
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 		cursor: pointer;
 		white-space: nowrap;
 	}
@@ -1340,7 +1340,7 @@
 		border: 1px solid var(--green);
 		color: var(--green);
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		text-align: center;
 	}
 	.todo-door[aria-current='page'] {
@@ -1349,7 +1349,7 @@
 	}
 	.shell-tool-keys {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		padding: 0.05rem 0.35rem;
 		color: var(--text-2);
 		border: 1px solid var(--boundary);
@@ -1445,7 +1445,7 @@
 			padding: 0 0.3rem;
 		}
 		.menu-trigger .shell-tool-word {
-			font-size: 0.7rem;
+			font-size: var(--fs-label);
 			line-height: 1;
 		}
 		.cr-header :global(.header-right) {
@@ -1529,7 +1529,7 @@
 		margin: 0;
 		padding: 0;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		min-width: 0;
 	}
 	.crumbs li {
@@ -1584,7 +1584,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		cursor: pointer;
 	}
@@ -1632,7 +1632,7 @@
 		border-bottom: 2px solid transparent;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		text-decoration: none;
 		min-height: 44px;
 		box-sizing: border-box;
@@ -1688,7 +1688,7 @@
 		   two at 0.78rem with 0.9rem sides). */
 		.sec-tab {
 			padding: 0.5rem 0.45rem;
-			font-size: 0.72rem;
+			font-size: var(--fs-label);
 		}
 	}
 </style>

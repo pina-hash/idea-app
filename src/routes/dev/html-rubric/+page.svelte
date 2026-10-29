@@ -386,7 +386,7 @@
 	.hx-note {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		text-transform: none;
 		letter-spacing: 0;
 		color: var(--text-2);

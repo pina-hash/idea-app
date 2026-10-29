@@ -686,7 +686,7 @@
 		left: 0.3rem;
 		right: 0.3rem;
 		text-align: center;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		font-weight: 700;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;

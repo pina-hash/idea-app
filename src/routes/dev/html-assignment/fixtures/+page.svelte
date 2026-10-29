@@ -139,6 +139,6 @@
 	.log ol { list-style: none; margin: 0; padding: 0; max-height: 78vh; overflow: auto; }
 	.log li { display: grid; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--hairline, #ddd); }
 	.log li.in { background: rgba(0, 240, 255, 0.06); }
-	.log .dir { font-family: var(--font-mono, monospace); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-2, #666); }
+	.log .dir { font-family: var(--font-mono, monospace); font-size: var(--fs-micro); letter-spacing: 1px; text-transform: uppercase; color: var(--text-2, #666); }
 	.log code { font-family: var(--font-mono, monospace); font-size: 11px; overflow-wrap: anywhere; }
 </style>

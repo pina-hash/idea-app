@@ -308,7 +308,7 @@
 		gap: 0.75rem;
 	}
 	.pq-title {
-		font-size: 1.5rem;
+		font-size: var(--fs-xl);
 		margin: 0.15rem 0 0;
 	}
 	.pq-sub,
@@ -316,12 +316,12 @@
 	.pq-note,
 	.pq-members {
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		margin: 0.2rem 0 0;
 	}
 	.pq-msg {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.pq-error {
 		color: var(--amber);
@@ -335,12 +335,12 @@
 	}
 	.pq-kicker {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--cyan);
 		margin: 0;
 	}
 	.pq-name {
-		font-size: 1.6rem;
+		font-size: var(--fs-xl);
 		margin: 0;
 		color: var(--text-1);
 	}
@@ -349,7 +349,7 @@
 	}
 	.pq-tag {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		font-style: normal;
 		color: var(--amber);
 		margin: 0;
@@ -373,7 +373,7 @@
 	.pq-field > span,
 	.pq-field > legend {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.pq-field textarea,
@@ -402,7 +402,7 @@
 		display: flex;
 		align-items: center;
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 	}
 	.pq-crit {
 		margin: 0.5rem 0;
@@ -422,7 +422,7 @@
 		min-width: 44px;
 		padding: 0 0.8rem;
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);

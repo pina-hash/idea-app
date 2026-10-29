@@ -270,7 +270,7 @@
 	}
 	.controls button {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--green, #00ff41);
 		background: none;
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
@@ -321,13 +321,13 @@
 	}
 	.chip-meta {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #5f8a78);
 	}
 	.mini {
 		margin: 0.9rem 0 0;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #5f8a78);
 	}
 	.id-row {
@@ -343,7 +343,7 @@
 	.id-note {
 		margin-left: auto;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #5f8a78);
 	}
 	.discipline {
@@ -358,7 +358,7 @@
 	}
 	.disc-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #5f8a78);
 	}
 	.live-badge {

@@ -108,7 +108,7 @@
 	.row-kind {
 		flex: 0 0 auto;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--cyan);

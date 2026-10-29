@@ -133,29 +133,29 @@
 		min-width: 0;
 	}
 	.lp-title {
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		font-weight: 700;
 		overflow-wrap: anywhere;
 	}
 	.lp-host {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--cyan);
 		overflow-wrap: anywhere;
 	}
 	.lp-fallback {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 		overflow-wrap: anywhere;
 	}
 	.lp-note {
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		line-height: 1.4;
 	}
 	.lp-desc {
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		line-height: 1.4;
 		/* Two lines is a summary; more is the article, which they can open. */

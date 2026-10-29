@@ -272,7 +272,7 @@
 	}
 	.todo-head h1 {
 		margin: 0;
-		font-size: 1.5rem;
+		font-size: var(--fs-xl);
 		line-height: 1.2;
 	}
 	.todo-controls {
@@ -302,7 +302,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font: inherit;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
 	}
 	.todo-view:hover {
@@ -326,7 +326,7 @@
 	}
 	.todo-view-count {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		min-width: 1.4em;
 		padding: 0.05rem 0.35rem;
 		border: 1px solid var(--hairline);
@@ -349,7 +349,7 @@
 	}
 	.todo-class-word {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -364,12 +364,12 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font: inherit;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.todo-none {
 		margin: var(--space-5) 0;
 		color: var(--text-2);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.note {
 		color: var(--text-2);
@@ -400,7 +400,7 @@
 		margin: 0;
 		padding: 0.65rem 0.9rem 0.55rem;
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		font-weight: 400;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -469,7 +469,7 @@
 	}
 	.todo-title {
 		font-weight: 600;
-		font-size: 0.98rem;
+		font-size: var(--fs-ui);
 		line-height: 1.3;
 		overflow-wrap: anywhere;
 	}
@@ -478,7 +478,7 @@
 		flex-wrap: wrap;
 		column-gap: 0.1rem;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.todo-meta-bit {
@@ -498,7 +498,7 @@
 	}
 	.todo-flag {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--gold);
 		white-space: nowrap;
 	}

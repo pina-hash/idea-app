@@ -263,7 +263,7 @@
 	}
 	.updates-head h2 {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.updates-all {
 		/* 17.9px measured, on the student home page. 44px floor (IDEA_INTERFACE_STANDARDS 10). */
@@ -271,7 +271,7 @@
 		align-items: center;
 		min-height: 44px;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 		text-decoration: none;
 	}
@@ -291,12 +291,12 @@
 	}
 	.update-when {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--cyan);
 		white-space: nowrap;
 	}
 	.update-title {
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-page));
@@ -311,7 +311,7 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		line-height: 1.5;
 	}
 	.note a {
@@ -431,18 +431,18 @@
 	}
 	.class-code {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		color: var(--acc);
 	}
 	.class-title {
 		font-weight: 700;
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		line-height: 1.25;
 	}
 	.class-meta {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	/* WHAT A CLASS OWES (ledger 0297): words, not a bare number, and the
@@ -486,7 +486,7 @@
 	.class-cta {
 		margin-top: auto;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--acc);
 	}
 	.page-footer {

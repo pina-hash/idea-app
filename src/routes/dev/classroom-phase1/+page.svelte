@@ -1505,7 +1505,7 @@
 		color: var(--text-1);
 	}
 	.content-when {
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.mono {

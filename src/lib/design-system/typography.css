@@ -26,16 +26,29 @@
 	--fw-bold: 700; /* @kind font */
 	--fw-black: 700; /* @kind font */ /* Chakra Petch caps at 700 — the heavy voice */
 
-	/* --- Type scale (rem) --- */
+	/* --- Type scale (rem) ---
+	   ONE SCALE, AND ITS FLOOR IS 11px (ledger 0469, feedback 8a928045). A
+	   component names a step, never a literal: the classroom carried about fifty
+	   distinct sizes (0.6rem to 1.6rem) before it moved onto these twelve, and
+	   `tests/type-scale.test.ts` holds it there. `--fs-micro` is the floor every
+	   label, badge and caption stands on; the Plate's `--plate-label-size` reads
+	   it, so the floor is said once. Nothing on screen is set below it. Display
+	   numerals at 1.75rem and up are sized to their own component. */
 	--fs-hero: clamp(3.5rem, 12vw, 7rem); /* @kind font */ /* wordmark hero */
 	--fs-h1: 2.4rem;
+	--fs-xl: 1.5rem; /* a readout's number, a dialog's title */
 	--fs-h2: 1.4rem;
 	--fs-h3: 1.2rem;
+	--fs-h4: 1.125rem; /* a card's title */
 	--fs-lead: 1.05rem;
 	--fs-body: 1.05rem;
+	--fs-base: 1rem; /* a field's value, a list row */
+	--fs-ui: 0.95rem; /* a key's word, a row's secondary line */
 	--fs-sm: 0.9rem;
+	--fs-caption: 0.85rem; /* captions and helper copy */
+	--fs-meta: 0.8rem; /* metadata: dates, counts, who */
 	--fs-label: 0.72rem; /* mono uppercase labels */
-	--fs-micro: 0.6rem; /* mono micro labels, badges */
+	--fs-micro: 0.6875rem; /* the 11px floor: mono micro labels, badges */
 
 	/* --- Line heights --- */
 	--lh-tight: 1.15; /* @kind font */

@@ -524,7 +524,7 @@
 	}
 	.qp-label {
 		font-family: var(--font-mono);
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-1);
@@ -541,7 +541,7 @@
 		color: var(--text-1);
 		font: inherit;
 		font-family: var(--font-display);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.qp-text {
 		resize: vertical;
@@ -554,7 +554,7 @@
 	}
 	.qp-hint {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.qp-hint.over {
@@ -574,7 +574,7 @@
 		min-width: 0;
 	}
 	.qp-compose :global(.btn.tiny) {
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro);
 	}
 	.qp-key {
 		flex-direction: column;
@@ -588,7 +588,7 @@
 		white-space: normal;
 	}
 	.qp-key-hint {
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.02em;
 		text-transform: none;
 		opacity: 1;
@@ -637,6 +637,6 @@
 		margin: 0;
 		padding-left: 1.1rem;
 		color: var(--text-1);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 </style>

@@ -52,7 +52,7 @@
 	/* Verbatim from SpecRenderer -- see the component note. */
 	.chip {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.08rem 0.5rem;
@@ -64,7 +64,7 @@
 		border-color: var(--cyan);
 	}
 	.ai-blurb {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 </style>

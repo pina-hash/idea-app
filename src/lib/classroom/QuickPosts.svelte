@@ -573,7 +573,7 @@
 	}
 	.qp-word {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		font-weight: 600;
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
@@ -581,13 +581,13 @@
 	}
 	.qp-until {
 		font-family: var(--font-mono);
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro);
 		color: var(--text-1);
 	}
 	.qp-body {
 		margin: 0;
 		color: var(--text-1);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		line-height: 1.45;
 		white-space: pre-line;
 		overflow-wrap: break-word;
@@ -617,7 +617,7 @@
 	}
 	.qp-flag {
 		font-family: var(--font-mono);
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro);
 		font-weight: 700;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -629,16 +629,16 @@
 		background: var(--amber);
 	}
 	.qp :global(.btn.tiny) {
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro);
 	}
 	.qp-reach {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.qp-ack,
 	.qp-problem {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1);
 	}
 	.qp-problem {

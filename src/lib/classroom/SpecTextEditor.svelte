@@ -321,14 +321,14 @@
 	.spx-title {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		color: var(--text-1);
 	}
 
 	.spx-sub,
 	.spx-empty {
 		margin: 0.25rem 0 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 		max-width: 60ch;
 	}
@@ -344,7 +344,7 @@
 	.spx-group-name {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -363,7 +363,7 @@
 	}
 
 	.spx-label {
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 
@@ -372,7 +372,7 @@
 		min-width: 0;
 		min-height: 44px;
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-1);
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
@@ -395,14 +395,14 @@
 	.spx-refusal-head,
 	.spx-refusal-foot {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 
 	.spx-refusal ul {
 		margin: 0.4rem 0;
 		padding-left: 1.1rem;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 
@@ -413,7 +413,7 @@
 
 	.spx-saved {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--green);
 	}
 
@@ -428,7 +428,7 @@
 
 	.spx-count {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 </style>

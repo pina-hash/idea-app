@@ -181,7 +181,7 @@
 	}
 	.state {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #5f8a78);
 	}
 </style>

@@ -353,7 +353,7 @@
 	}
 	.ctp-meta {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.ctp-lead,
@@ -385,7 +385,7 @@
 	.ctp-hint {
 		display: block;
 		font-weight: 400;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.ctp-options {
@@ -421,12 +421,12 @@
 	}
 	.ctp-count {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 	}
 	.ctp-mine,
 	.ctp-leading {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 	}

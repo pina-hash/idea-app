@@ -119,8 +119,9 @@
      gold #e0ac4e       9.03 /  8.03 /  7.24
      --green #78b870    7.88 /  7.01 /  6.32
      --cyan #5abda8     8.23 /  7.32 /  6.60
-     --amber #d08030    6.04 /  5.37 /  4.85
-     --crimson #d95f5f  5.10 /  4.54 /  4.09   (text only on bg and panel)
+     --amber #ea984b    8.06 /  7.17 /  6.47   (solved by ledger 0465; was #d08030 6.04 / 5.37 / 4.85)
+     --crimson #ff8683  7.97 /  7.09 /  6.39   (solved by ledger 0465; was #d95f5f 5.10 / 4.54 / 4.09)
+     --text-2 #b4bdb7   9.67 /  8.60 /  7.75   (lifted by ledger 0469)
    So every word the room paints clears 4.5:1, and the aliasing RAISES the
    secondary tier rather than costing it.
 

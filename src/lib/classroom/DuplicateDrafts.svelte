@@ -416,14 +416,14 @@ function num(v: unknown, fallback: number): number {
 	.dd-head h2 {
 		margin: 0 0 var(--space-2, 0.5rem);
 		font-family: var(--font-display);
-		font-size: 1.35rem;
+		font-size: var(--fs-h2);
 		color: var(--text-1);
 	}
 
 	.dd-sum {
 		margin: 0 0 var(--space-2, 0.5rem);
 		font-family: var(--font-mono);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-1);
 	}
 
@@ -433,7 +433,7 @@ function num(v: unknown, fallback: number): number {
 		margin: 0;
 		max-width: var(--measure-reading, 60ch);
 		color: var(--text-2);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 		line-height: 1.5;
 	}
 
@@ -451,7 +451,7 @@ function num(v: unknown, fallback: number): number {
 		padding: var(--space-3, 0.75rem);
 		border-radius: var(--radius-2, 8px);
 		border: 1px solid var(--boundary);
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 	}
 
 	.dd-note {
@@ -491,7 +491,7 @@ function num(v: unknown, fallback: number): number {
 	.dd-g-title {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		color: var(--text-1);
 		min-width: 0;
 		overflow-wrap: anywhere;
@@ -500,7 +500,7 @@ function num(v: unknown, fallback: number): number {
 	.dd-chip,
 	.dd-count {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--cyan);
@@ -516,7 +516,7 @@ function num(v: unknown, fallback: number): number {
 	.dd-g-meta,
 	.dd-keep {
 		margin: var(--space-2, 0.5rem) 0 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 
@@ -528,7 +528,7 @@ function num(v: unknown, fallback: number): number {
 	.dd-keep {
 		color: var(--green);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 	}
 
 	.dd-copies {
@@ -558,12 +558,12 @@ function num(v: unknown, fallback: number): number {
 
 	.dd-c-when {
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 
 	.dd-c-facts {
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		min-width: 0;
 		overflow-wrap: anywhere;
@@ -581,7 +581,7 @@ function num(v: unknown, fallback: number): number {
 
 	.dd-c-cost {
 		margin: 0 0 var(--space-2, 0.5rem);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 		line-height: 1.45;
 	}
@@ -601,7 +601,7 @@ function num(v: unknown, fallback: number): number {
 	.dd-b-title {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--amber);
@@ -609,7 +609,7 @@ function num(v: unknown, fallback: number): number {
 
 	.dd-b-reason {
 		margin: var(--space-2, 0.5rem) 0 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 		line-height: 1.45;
 	}

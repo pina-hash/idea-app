@@ -63,7 +63,7 @@
 	}
 	.picker-label {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -77,7 +77,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		padding: 0.45rem 0.6rem;
 		min-height: 44px;
 	}
@@ -100,7 +100,7 @@
 	}
 	h4 {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	dl {
 		margin: 0;
@@ -110,7 +110,7 @@
 	}
 	dt {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -124,7 +124,7 @@
 	}
 	dd {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		line-height: 1.5;
 	}
 	.example {

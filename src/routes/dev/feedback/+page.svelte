@@ -1018,7 +1018,7 @@
 		min-width: 11rem;
 		color: var(--dim);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 	}
 	.hx-facts dd {
 		margin: 0;

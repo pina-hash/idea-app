@@ -56,7 +56,7 @@
 	}
 	.tdb-name {
 		font-family: var(--font-display);
-		font-size: 1.1rem;
+		font-size: var(--fs-h4);
 		font-weight: 600;
 		color: var(--text-1, var(--white));
 	}
@@ -99,7 +99,7 @@
 	}
 	.tdb-role-title {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--text-2, var(--dim));

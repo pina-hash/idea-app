@@ -349,7 +349,7 @@
 	}
 	.tour-count {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.18em;
 		text-transform: uppercase;
 		color: var(--cyan, #00f0ff);
@@ -428,7 +428,7 @@
 	 */
 	.tour-btn {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--dim, #4a7a52);
@@ -468,7 +468,7 @@
 	}
 	.tour-skip {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		color: var(--dim, #4a7a52);
 		background: none;

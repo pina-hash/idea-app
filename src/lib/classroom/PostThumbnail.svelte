@@ -431,7 +431,7 @@
 	.pt-gen-kind {
 		flex: none;
 		font-family: var(--font-mono);
-		font-size: clamp(0.6rem, 16cqh, 0.78rem);
+		font-size: clamp(var(--fs-micro), 16cqh, var(--fs-meta));
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		opacity: 0.85;

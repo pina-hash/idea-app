@@ -3716,7 +3716,7 @@
 	.reupload-lines {
 		margin: 0;
 		padding-left: 1.1rem;
-		font-size: 0.84rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.reupload-lines li + li {
@@ -3743,7 +3743,7 @@
 		margin-top: 0.6rem;
 		margin-bottom: 0;
 		min-height: 44px;
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	.reupload-confirm input {
@@ -3806,7 +3806,7 @@
 		outline-offset: -2px;
 		background: color-mix(in srgb, var(--green) 14%, var(--surface-1));
 		font-family: var(--font-mono);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		letter-spacing: 0.06em;
 		color: var(--text-1, var(--white));
 		pointer-events: none;
@@ -3840,7 +3840,7 @@
 	}
 	.composer-screen-title {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -3882,7 +3882,7 @@
 	}
 	.place-label {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -3895,7 +3895,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		cursor: pointer;
 	}
@@ -3942,7 +3942,7 @@
 	.order-tools > .order-btn,
 	.row-tools > .order-btn {
 		min-height: 44px;
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		padding: 0.28rem 0.7rem;
 	}
 	.order-tools > .order-grip {
@@ -3961,7 +3961,7 @@
 	.paste-cue {
 		margin: 0;
 		color: var(--text-1);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		line-height: 1.45;
 	}
 	.composer.compact {
@@ -3981,7 +3981,7 @@
 	   having to carry the class. */
 	label > span {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -3991,7 +3991,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		padding: 0.45rem 0.6rem;
 		width: 100%;
 		min-width: 0;
@@ -4028,7 +4028,7 @@
 	}
 	.due-legend {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -4054,7 +4054,7 @@
 		   are the two words that say which box is which, so they are real copy
 		   and take the 4.5 floor like every other label here. The tier is carried
 		   by SIZE alone, which costs nothing and is measured. */
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.kind-row {
@@ -4071,7 +4071,7 @@
 	}
 	.kind-help {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.kind {
@@ -4081,7 +4081,7 @@
 		border-radius: 999px;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		padding: 0.3rem 0.9rem;
 		cursor: pointer;
 		/* 25px measured before ledger 0297, on a surface whose own comment claims
@@ -4137,7 +4137,7 @@
 		background: color-mix(in srgb, var(--green) 12%, transparent);
 		border-radius: var(--radius-card);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.04em;
 		color: var(--text-1, var(--white));
 		pointer-events: none;
@@ -4189,19 +4189,19 @@
 	.hint {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 	}
 	kbd {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-control);
 		padding: 0 var(--space-1);
 		color: var(--cyan);
 	}
 	.file-input {
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		padding: 0.3rem 0;
 		border: none;
 		background: none;
@@ -4289,7 +4289,7 @@
 	}
 	.posted-name {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 	.posted-name.muted {
@@ -4319,7 +4319,7 @@
 	}
 	.target-check span {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 		letter-spacing: 0;
 	}

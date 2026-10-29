@@ -255,7 +255,7 @@
 	.award-count {
 		margin-left: auto;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #7a8a7a);
 		flex: none;
 	}
@@ -263,7 +263,7 @@
 	   qualifies the figure beside it rather than competing with it. */
 	.each {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #7a8a7a);
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
 		border-radius: 999px;
@@ -280,7 +280,7 @@
 	   hue alone. */
 	.unpaid {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		color: var(--amber, #ffb020);
 		border: 1px solid var(--amber, #ffb020);
@@ -316,7 +316,7 @@
 	.ledger-when {
 		margin-left: auto;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		color: var(--dim, #7a8a7a);
 		flex: none;
 	}

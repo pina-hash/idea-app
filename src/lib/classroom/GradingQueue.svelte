@@ -203,7 +203,7 @@
 	}
 	.section-line {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.waiting-total {
@@ -211,7 +211,7 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.quiet {
 		margin: 0.4rem 0.2rem;
@@ -225,7 +225,7 @@
 	}
 	.left-out-label {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -235,7 +235,7 @@
 		align-items: center;
 		gap: 0.4rem;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		background: none;
 		color: var(--text-1);
 		border: 1px solid var(--boundary);
@@ -261,7 +261,7 @@
 		border-bottom: 1px solid var(--boundary);
 	}
 	.class-title {
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		margin: 0;
 		flex: 1 1 12rem;
 		min-width: 0;
@@ -295,12 +295,12 @@
 	}
 	.queue-title {
 		font-weight: 700;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		overflow-wrap: anywhere;
 	}
 	.queue-meta {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.queue-keys {
@@ -327,7 +327,7 @@
 		flex-wrap: wrap;
 		gap: 0.2rem 0.6rem;
 		padding: 0.15rem 0;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.who-name {
 		color: var(--text-1);
@@ -335,7 +335,7 @@
 	}
 	.who-saved {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		align-self: center;
 	}

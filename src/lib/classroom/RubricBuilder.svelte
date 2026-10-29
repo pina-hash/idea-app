@@ -508,7 +508,7 @@
 	.from-spec-line {
 		margin: 0.3rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		line-height: 1.5;
 		color: var(--gold);
 		max-width: 62ch;
@@ -521,19 +521,19 @@
 	}
 	.line {
 		margin: 0;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.line.none {
 		color: var(--text-2);
 	}
 	.rule {
 		margin: 0;
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.warn-line {
 		margin: 0;
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--amber);
 	}
 	.actions {
@@ -572,12 +572,12 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		padding: 0.3rem 0.45rem;
 	}
 	.crit-max {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--hover-ink);
 		white-space: nowrap;
 	}
@@ -591,7 +591,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-2);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		width: 1.75rem;
 		height: 1.75rem;
 		cursor: pointer;
@@ -636,7 +636,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		padding: 0.3rem 0.4rem;
 	}
 	.level-remove {
@@ -646,7 +646,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-2);
 		cursor: pointer;
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		width: 1.75rem;
 		height: 1.75rem;
 	}
@@ -659,28 +659,28 @@
 		border: none;
 		color: var(--cyan);
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		text-align: left;
 		cursor: pointer;
 		padding: 0.2rem 0;
 	}
 	.issues {
 		margin: 0;
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--amber);
 	}
 	/* --amber, the register's warning: the pair genuinely disagrees now and a
 	   grader is reading the stale half. Not --gold, which is a callout. */
 	.level-stale {
 		margin: 0 0 0 0.2rem;
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		line-height: 1.45;
 		color: var(--amber);
 		max-width: 62ch;
 	}
 	.total {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 	}
 	@media (max-width: 640px) {

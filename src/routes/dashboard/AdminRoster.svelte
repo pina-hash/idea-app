@@ -216,7 +216,7 @@
 	}
 	.ar-tag {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		padding: 0.15rem 0.45rem;

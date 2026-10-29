@@ -834,6 +834,6 @@
 	}
 	.log {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 	}
 </style>
