@@ -22,7 +22,7 @@
     "checkpoints": [
       {
         "id": "design",
-        "date": "2026-11-03",
+        "date": "2026-11-04",
         "gate": "No metal is cut before this sign-off.",
         "items": [
           {
@@ -57,22 +57,22 @@
   "pacing": [
     {
       "id": "p1",
-      "date": "2026-10-29",
+      "date": "2026-10-30",
       "title": "Prototype: one question, a rough rig, a number"
     },
     {
       "id": "p2",
-      "date": "2026-10-30",
+      "date": "2026-11-02",
       "title": "Run the numbers: speed, parts from shop stock"
     },
     {
       "id": "p3",
-      "date": "2026-11-02",
+      "date": "2026-11-03",
       "title": "Model your part in CAD"
     },
     {
       "id": "p4",
-      "date": "2026-11-03",
+      "date": "2026-11-04",
       "title": "Drawings, machine plan, Sign-off 2"
     }
   ],
