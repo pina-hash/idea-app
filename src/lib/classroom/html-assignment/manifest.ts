@@ -133,6 +133,17 @@ export interface HtmlBlock {
 	optional?: boolean;
 	prompt?: string;
 	link?: HtmlLinkKind;
+	/**
+	 * "ANY ONE OF THESE" (ledger 0458, report 3d205727; the kit's
+	 * `data-any-one`, standard 2.11): a group id shared by two or more
+	 * `optional` blocks of one module. The group is ONE requirement, met when
+	 * any member holds an answer, so progress, completion and Answers count it
+	 * once; each member alone stays optional. Read by `hxBlockAnyOf`; checked by
+	 * `validateHtmlManifest` (every member optional, at least two, one module).
+	 * The database gates never read it, so a manifest carrying it stores as one
+	 * without it.
+	 */
+	anyOf?: string;
 }
 
 /** The kinds of link a `text` block may declare. Append-only: ids may be stored. */
@@ -149,6 +160,13 @@ export const HTML_PROMPT_MAX = 500;
 /** May this block be left empty without holding back completion. */
 export function hxBlockIsOptional(block: unknown): boolean {
 	return !!block && typeof block === 'object' && (block as { optional?: unknown }).optional === true;
+}
+
+/** The "any one of these" group a block belongs to, or null. Only a well-formed id counts. */
+export function hxBlockAnyOf(block: unknown): string | null {
+	if (!block || typeof block !== 'object') return null;
+	const raw = (block as { anyOf?: unknown }).anyOf;
+	return typeof raw === 'string' && HTML_ID_RE.test(raw) ? raw : null;
 }
 
 /** The block's grader-facing question, trimmed, or null when none is declared. */
@@ -698,6 +716,8 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 	const blockIds = new Set<string>();
 	/** field -> the block that claimed it, so a repeat can name both. */
 	const fieldOwner = new Map<string, string>();
+	/** "any one of these" group id -> the module that holds it. */
+	const groupModule = new Map<string, string>();
 	let blockCount = 0;
 	let modulePointsSum = 0;
 
@@ -775,6 +795,11 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 			// A header block never counts toward completion, so `optional` there
 			// is redundant: said, not refused.
 			header.forEach((b, i) => {
+				if ((b as Record<string, unknown>)?.anyOf !== undefined) {
+					warnings.push(
+						`Header block ${i + 1} sets anyOf, which changes nothing: header blocks never count toward completion.`
+					);
+				}
 				if (hxBlockIsOptional(b)) {
 					warnings.push(
 						`Header block ${i + 1} is marked optional, which changes nothing: header blocks never count toward completion.`
@@ -842,7 +867,32 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 					`Module "${name}" has ${photos.length} photo blocks and none is optional: every one must hold a photo before the bar reaches 100%.`
 				);
 			}
-			if (blocks.length > 0 && blocks.every((b) => hxBlockIsOptional(b))) {
+			// "ANY ONE OF THESE" GROUPS (ledger 0458, report 3d205727). A group is
+			// one requirement met by any member, so a member that is not optional
+			// would be owed twice, and a group of one is just a required box.
+			const groups = new Map<string, number>();
+			blocks.forEach((rawBlock, bi) => {
+				const b = rawBlock as Record<string, unknown>;
+				if (b?.anyOf === undefined) return;
+				const bWhere = `Module "${name}" block ${bi + 1}`;
+				const gid = hxBlockAnyOf(b);
+				if (gid === null) {
+					errors.push(`${bWhere} sets anyOf to ${JSON.stringify(b.anyOf)}; it must be a group id of letters, digits, - and _ (up to 40 characters).`);
+					return;
+				}
+				if (!hxBlockIsOptional(b)) {
+					errors.push(`${bWhere} is in the "any one of these" group "${gid}" but is not optional. Mark every box in the group optional: the group itself is what counts.`);
+				}
+				if (groupModule.has(gid) && groupModule.get(gid) !== name) {
+					errors.push(`The "any one of these" group "${gid}" is used in modules "${groupModule.get(gid)}" and "${name}". A group lives in one module.`);
+				}
+				groupModule.set(gid, name);
+				groups.set(gid, (groups.get(gid) ?? 0) + 1);
+			});
+			for (const [gid, n] of groups) {
+				if (n < 2) errors.push(`Module "${name}" has an "any one of these" group "${gid}" with one box. A group needs at least two.`);
+			}
+			if (blocks.length > 0 && blocks.every((b) => hxBlockIsOptional(b)) && groups.size === 0) {
 				warnings.push(
 					`Module "${name}" marks every block optional, so it can never move the progress bar.`
 				);
@@ -852,12 +902,18 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 		// --- criteria -------------------------------------------------------
 		const criteria = mod.criteria;
 		const declared = isWholeNumber(modPoints) ? (modPoints as number) : 0;
-		if (!Array.isArray(criteria) || criteria.length === 0) {
+		if (criteria === undefined || criteria === null || (Array.isArray(criteria) && criteria.length === 0)) {
+			// A 0-POINT MODULE MAY CARRY NO CRITERIA (ledger 0458, reports
+			// 6c5c7cc8 and 569a1891): optional "go deeper" material, or a whole
+			// ungraded post. Nothing in it is scored, so it adds no rubric row
+			// and, on the points basis, no weight on the progress bar.
 			if (declared > 0) {
 				errors.push(`Module "${name}" carries ${declared} points but has no criteria.`);
-			} else {
-				errors.push(`Module "${name}" needs a criteria array.`);
+			} else if (isWholeNumber(modPoints) && Array.isArray(mod.blocks) && mod.blocks.length > 0) {
+				warnings.push(`Module "${name}" is worth 0 points and has no criteria, so nothing in it is graded.`);
 			}
+		} else if (!Array.isArray(criteria)) {
+			errors.push(`Module "${name}" needs a criteria array.`);
 		} else {
 			const critIds = new Set<string>();
 			let criteriaSum = 0;

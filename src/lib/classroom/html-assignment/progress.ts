@@ -110,6 +110,7 @@
  */
 
 import {
+	hxBlockAnyOf,
 	hxBlockIsOptional,
 	type HtmlAssignmentManifest,
 	type HtmlBlock,
@@ -214,6 +215,14 @@ export interface HxProgressBlock {
 	met: boolean;
 	/** Why it is not met, or null when it is. */
 	reason: 'empty' | 'short' | null;
+	/**
+	 * AN "ANY ONE OF THESE" GROUP (ledger 0458), counted as ONE requirement:
+	 * present only on the group's row, which stands for the group and carries
+	 * its first member's field and block id (its first answered member's once
+	 * met), so a jump lands on a box that can take the answer. Its members are
+	 * listed separately as optional rows at weight 0.
+	 */
+	group?: { id: string; fields: string[]; blockIds: string[]; met: string[] };
 	/** `minSentences` and the count so far, from `hxIncompleteBlocks`. */
 	need: number;
 	have: number;
@@ -316,6 +325,34 @@ export function hxBlockHasResponse(
 	return value.trim().length > 0;
 }
 
+/**
+ * A MODULE'S REQUIRED UNITS, in manifest order: every block an `optional: true`
+ * does not excuse, and every "any one of these" group (ledger 0458) as ONE
+ * unit, placed where its first member sits. A group needs two or more members
+ * (the validator refuses fewer); a lone member is left optional, never owed.
+ */
+export function requiredUnits(list: readonly HtmlBlock[]): Array<HtmlBlock | HtmlBlock[]> {
+	const groups = new Map<string, HtmlBlock[]>();
+	for (const b of list) {
+		const g = hxBlockIsOptional(b) ? hxBlockAnyOf(b) : null;
+		if (g) groups.set(g, [...(groups.get(g) ?? []), b]);
+	}
+	const out: Array<HtmlBlock | HtmlBlock[]> = [];
+	const placed = new Set<string>();
+	for (const b of list) {
+		if (!hxBlockIsOptional(b)) {
+			out.push(b);
+			continue;
+		}
+		const g = hxBlockAnyOf(b);
+		const members = g ? groups.get(g) : undefined;
+		if (!g || !members || members.length < 2 || placed.has(g)) continue;
+		placed.add(g);
+		out.push(members);
+	}
+	return out;
+}
+
 /** The options `hxProgress` takes beyond the two records. */
 export interface HxProgressOptions {
 	/**
@@ -381,13 +418,11 @@ export function hxProgress(
 	}
 
 	const modules = manifest.modules ?? [];
-	/** A module's REQUIRED blocks: everything an `optional: true` does not excuse. */
-	const required = (blocks: readonly HtmlBlock[] | undefined) =>
-		(blocks ?? []).filter((b) => !hxBlockIsOptional(b));
 
-	// Points spread evenly over a module's REQUIRED blocks. A module with none
-	// has no per-block weight and contributes nothing.
-	const weighted = modules.some((m) => required(m.blocks).length > 0 && Number(m.points) > 0);
+	// Points spread evenly over a module's REQUIRED units (blocks and "any one
+	// of these" groups). A module with none has no per-unit weight and
+	// contributes nothing.
+	const weighted = modules.some((m) => requiredUnits(m.blocks ?? []).length > 0 && Number(m.points) > 0);
 	const basis: HxProgressBasis = weighted ? 'points' : 'count';
 
 	const perBlock = (points: number, count: number): number => {
@@ -434,41 +469,68 @@ export function hxProgress(
 	const moduleRows: HxProgressModule[] = [];
 	for (const mod of modules) {
 		const list = mod.blocks ?? [];
-		const need = required(list);
-		const photos = need.filter((b) => b.type === 'image');
-		const w = perBlock(mod.points, need.length);
+		const units = requiredUnits(list);
+		const photos = units.filter((u): u is HtmlBlock => !Array.isArray(u) && u.type === 'image');
+		const w = perBlock(mod.points, units.length);
 		let earned = 0;
 		let met = 0;
+		const unitRow = (unit: HtmlBlock | HtmlBlock[], i: number): HxProgressBlock => {
+			const place = {
+				position: i + 1,
+				of: units.length,
+				photoPosition: !Array.isArray(unit) && unit.type === 'image' ? photos.indexOf(unit) + 1 : 0,
+				photosOf: !Array.isArray(unit) && unit.type === 'image' ? photos.length : 0
+			};
+			if (!Array.isArray(unit)) return judge(unit, mod.id, mod.title, w, place);
+			// ONE REQUIREMENT FOR THE WHOLE GROUP: met when any member is.
+			const members = unit.map((b) => judge(b, mod.id, mod.title, 0, NOWHERE));
+			const metMembers = members.filter((m) => m.met);
+			const lead = metMembers[0] ?? members[0];
+			return {
+				...lead,
+				weight: w,
+				optional: false,
+				...place,
+				unsaved: metMembers.some((m) => m.unsaved),
+				met: metMembers.length > 0,
+				reason: metMembers.length > 0 ? null : 'empty',
+				need: 0,
+				have: 0,
+				group: {
+					id: hxBlockAnyOf(unit[0]) as string,
+					fields: unit.map((b) => b.field),
+					blockIds: unit.map((b) => b.id),
+					met: metMembers.map((m) => m.field)
+				}
+			};
+		};
+		// MANIFEST ORDER: a required block's row where it sits, a group's row
+		// just before its first member, and every optional block (a group's
+		// members included) judged at ZERO WEIGHT, exactly as the header is: it
+		// shows whether it holds something and never holds the bar back.
 		for (const block of list) {
-			// AN OPTIONAL BLOCK IS JUDGED WITH ZERO WEIGHT, exactly as the header
-			// is: it shows whether it holds something and never holds the bar back.
-			if (hxBlockIsOptional(block)) {
-				blocks.push(judge(block, mod.id, mod.title, 0, NOWHERE));
-				continue;
+			const at = units.findIndex((u) => (Array.isArray(u) ? u[0] === block : u === block));
+			if (at >= 0) {
+				const row = unitRow(units[at], at);
+				blocks.push(row);
+				if (row.met) {
+					earned += w;
+					met += 1;
+				}
 			}
-			const row = judge(block, mod.id, mod.title, w, {
-				position: need.indexOf(block) + 1,
-				of: need.length,
-				photoPosition: block.type === 'image' ? photos.indexOf(block) + 1 : 0,
-				photosOf: block.type === 'image' ? photos.length : 0
-			});
-			blocks.push(row);
-			if (row.met) {
-				earned += w;
-				met += 1;
-			}
+			if (hxBlockIsOptional(block)) blocks.push(judge(block, mod.id, mod.title, 0, NOWHERE));
 		}
-		const weight = w * need.length;
+		const weight = w * units.length;
 		moduleRows.push({
 			id: mod.id,
 			title: mod.title,
 			points: Number(mod.points) || 0,
 			weight,
 			earned,
-			blocks: need.length,
+			blocks: units.length,
 			met,
 			fraction: weight > 0 ? earned / weight : 0,
-			done: weight > 0 && met === need.length
+			done: weight > 0 && met === units.length
 		});
 	}
 
@@ -529,6 +591,10 @@ export function hxProgressNextLine(progress: HxProgress): string | null {
 	const next = progress.next;
 	if (!next) return null;
 	const where = next.moduleTitle ? `"${next.moduleTitle}"` : 'the top of the page';
+	if (next.group) {
+		const which = next.of > 1 ? `${where}, answer ${next.position} of ${next.of},` : where;
+		return `Next up: ${which} needs any one of ${next.group.fields.length} boxes filled.`;
+	}
 	if (next.type === 'image') {
 		return next.photosOf > 1
 			? `Next up: ${where} is waiting for photo ${next.photoPosition} of ${next.photosOf}.`
@@ -647,8 +713,21 @@ export function hxCompletion(
 		latest = ms;
 		latestIso = new Date(ms).toISOString();
 	};
+	const byField = new Map(progress.blocks.filter((b) => b.weight <= 0).map((b) => [b.field, b] as const));
 	for (const block of progress.blocks) {
 		if (block.weight <= 0) continue;
+		if (block.group) {
+			// A group finished when the latest of its answered members did.
+			for (const field of block.group.met) {
+				const member = byField.get(field);
+				if (!member) continue;
+				if (member.type === 'image') {
+					const id = fileIds.get(member.field);
+					consider(id ? fileById.get(id)?.created_at : null);
+				} else consider(rowByBlock.get(member.blockId)?.updated_at);
+			}
+			continue;
+		}
 		if (block.type === 'image') {
 			const id = fileIds.get(block.field);
 			consider(id ? fileById.get(id)?.created_at : null);

@@ -28,6 +28,8 @@
 
 import {
 	fieldBlockMap,
+	hxBlockAnyOf,
+	hxBlockIsOptional,
 	hxBlockLinkKind,
 	hxBlockPrompt,
 	type HtmlAssignmentManifest,
@@ -391,6 +393,12 @@ export interface HtmlAnswerCell {
 	value: string | boolean | null;
 	/** An image the student attached to this block, if any. */
 	image: HxImageState | null;
+	/**
+	 * THE "ANY ONE OF THESE" GROUP this optional block belongs to (ledger 0458),
+	 * or null. A renderer shows a group as ONE question, as the progress rail
+	 * counts it. Absent reads as null.
+	 */
+	anyOf?: string | null;
 }
 
 export interface HtmlAnswerGroup {
@@ -431,7 +439,8 @@ export function htmlAnswerSheet(
 		prompt: hxBlockPrompt(b),
 		link: hxBlockLinkKind(b),
 		value: Object.prototype.hasOwnProperty.call(values, b.field) ? values[b.field] : null,
-		image: images[b.field] ?? null
+		image: images[b.field] ?? null,
+		anyOf: hxBlockIsOptional(b) ? hxBlockAnyOf(b) : null
 	});
 	const groups: HtmlAnswerGroup[] = [];
 	const header = manifest.header ?? [];

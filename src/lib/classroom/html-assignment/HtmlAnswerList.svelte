@@ -27,7 +27,7 @@
 	 * a thumbnail that will not decode falls back to the Download alone.
 	 */
 	import { hxFrameSeed } from './answers';
-	import { htmlAnswerSheet, htmlAnswerText } from './mount';
+	import { htmlAnswerSheet, htmlAnswerText, type HtmlAnswerCell } from './mount';
 	import type { HtmlAssignmentManifest } from './manifest';
 	import type { StudentWork } from '$lib/classroom/assignment-spec';
 	import AnswerLinks from '$lib/classroom/AnswerLinks.svelte';
@@ -94,7 +94,65 @@
 		}
 		return htmlAnswerText(value);
 	}
+	/** A member of an "any one of these" group the student filled (ledger 0458). */
+	function hasAnswer(cell: HtmlAnswerCell): boolean {
+		const t = answerOf(cell.type, cell.value);
+		return (t !== null && t !== '') || !!cell.image;
+	}
 </script>
+
+{#snippet cellAnswer(cell: HtmlAnswerCell, groupTitle: string)}
+	{@const text = answerOf(cell.type, cell.value)}
+	{@const links = cellLinks(cell, groupTitle)}
+	<!-- A BLOCK THE STUDENT LEFT ALONE SAYS SO, and it is a
+	     different sentence from one they opened and cleared:
+	     "skipped question 4" and "question 4 is not on this
+	     worksheet" are what a grader is telling apart here, so
+	     an empty block is reported rather than dropped. -->
+	{#if text === null}
+		<span class="answers-none">No answer saved</span>
+	{:else if text === ''}
+		<span class="answers-none">Left blank</span>
+	{:else}
+		{text}
+	{/if}
+	{#if cell.image}
+		{@const image = cell.image}
+		<span class="answers-image" data-testid="answers-image">
+			Photo: {image.name}{image.caption ? `, ${image.caption}` : ''}
+		</span>
+		<span class="answers-image-actions">
+			{#if isPicture(image)}
+				<button
+					type="button"
+					class="answers-image-open"
+					aria-label="Open {image.caption || image.name} larger"
+					data-testid="answers-image-open"
+					onclick={() => openPicture(image)}
+				>
+					<img
+						src={image.url}
+						alt={image.caption || image.name}
+						loading="eager"
+						onerror={() => (broken = { ...broken, [image.url]: true })}
+					/>
+					<EnlargeCue />
+				</button>
+			{/if}
+			<a
+				class="answers-image-download"
+				href={image.url}
+				download={image.name}
+				data-testid="answers-image-download">Download</a
+			>
+		</span>
+	{/if}
+	{#if links.length}
+		<span class="answers-links">
+			<AnswerLinks {links} showLabel={false} testId="answers-cell-links" />
+		</span>
+	{/if}
+{/snippet}
 
 {#if sheet.length}
 	<div class="answers card" data-testid={testId}>
@@ -106,66 +164,41 @@
 				<h3 class="answers-group-head">{group.title}</h3>
 				<dl class="answers-list">
 					{#each group.cells as cell (cell.blockId)}
-						{@const text = answerOf(cell.type, cell.value)}
-						{@const links = cellLinks(cell, group.title)}
-						<dt class="answers-field" class:prompted={!!cell.prompt}>
-							{#if cell.prompt}
-								<span class="answers-prompt">{cell.prompt}</span>
-								<span class="answers-field-name">{cell.field}</span>
-							{:else}
-								{cell.field}
-							{/if}
-						</dt>
-						<dd class="answers-value" class:empty={text === null || text === ''}>
-							<!-- A BLOCK THE STUDENT LEFT ALONE SAYS SO, and it is a
-							     different sentence from one they opened and cleared:
-							     "skipped question 4" and "question 4 is not on this
-							     worksheet" are what a grader is telling apart here, so
-							     an empty block is reported rather than dropped. -->
-							{#if text === null}
-								<span class="answers-none">No answer saved</span>
-							{:else if text === ''}
-								<span class="answers-none">Left blank</span>
-							{:else}
-								{text}
-							{/if}
-							{#if cell.image}
-								{@const image = cell.image}
-								<span class="answers-image" data-testid="answers-image">
-									Photo: {image.name}{image.caption ? `, ${image.caption}` : ''}
-								</span>
-								<span class="answers-image-actions">
-									{#if isPicture(image)}
-										<button
-											type="button"
-											class="answers-image-open"
-											aria-label="Open {image.caption || image.name} larger"
-											data-testid="answers-image-open"
-											onclick={() => openPicture(image)}
-										>
-											<img
-												src={image.url}
-												alt={image.caption || image.name}
-												loading="eager"
-												onerror={() => (broken = { ...broken, [image.url]: true })}
-											/>
-											<EnlargeCue />
-										</button>
-									{/if}
-									<a
-										class="answers-image-download"
-										href={image.url}
-										download={image.name}
-										data-testid="answers-image-download">Download</a
-									>
-								</span>
-							{/if}
-							{#if links.length}
-								<span class="answers-links">
-									<AnswerLinks {links} showLabel={false} testId="answers-cell-links" />
-								</span>
-							{/if}
-						</dd>
+						{@const members = cell.anyOf ? group.cells.filter((c) => c.anyOf === cell.anyOf) : null}
+						{#if !members}
+							{@const text = answerOf(cell.type, cell.value)}
+							<dt class="answers-field" class:prompted={!!cell.prompt}>
+								{#if cell.prompt}
+									<span class="answers-prompt">{cell.prompt}</span>
+									<span class="answers-field-name">{cell.field}</span>
+								{:else}
+									{cell.field}
+								{/if}
+							</dt>
+							<dd class="answers-value" class:empty={text === null || text === ''}>
+								{@render cellAnswer(cell, group.title)}
+							</dd>
+						{:else if members[0] === cell}
+							<!-- "ANY ONE OF THESE" (ledger 0458): one question, one row,
+							     every member the student filled shown under it. -->
+							{@const filled = members.filter(hasAnswer)}
+							<dt class="answers-field prompted" data-testid="answers-any-one">
+								<span class="answers-prompt">Any one of these {members.length}</span>
+								<span class="answers-field-name">{members.map((m) => m.prompt ?? m.field).join(' / ')}</span>
+							</dt>
+							<dd class="answers-value" class:empty={filled.length === 0}>
+								{#if filled.length === 0}
+									<span class="answers-none">None of the {members.length} answered</span>
+								{:else}
+									{#each filled as m (m.blockId)}
+										<span class="answers-member">
+											<span class="answers-member-name">{m.prompt ?? m.field}</span>
+											{@render cellAnswer(m, group.title)}
+										</span>
+									{/each}
+								{/if}
+							</dd>
+						{/if}
 					{/each}
 				</dl>
 			</section>
@@ -193,6 +226,18 @@
 		font-size: 0.7rem;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
+		color: var(--text-2);
+	}
+	.answers-member {
+		display: block;
+	}
+	.answers-member + .answers-member {
+		margin-top: var(--space-1);
+	}
+	.answers-member-name {
+		display: block;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
 		color: var(--text-2);
 	}
 	.answers-group + .answers-group {

@@ -49,12 +49,15 @@ function promptsByField(manifest: HtmlAssignmentManifest): Map<string, string> {
 
 /** Where a block sits among its module's required answers, in words. */
 function placeOf(block: HxProgressBlock): string {
+	if (block.group) return block.of > 1 ? `Answer ${block.position} of ${block.of}, any one of ${block.group.fields.length}` : `Any one of ${block.group.fields.length}`;
 	if (block.type === 'image') return block.photosOf > 1 ? `Photo ${block.photoPosition} of ${block.photosOf}` : 'Photo';
 	return block.of > 1 ? `Answer ${block.position} of ${block.of}` : 'Answer';
 }
 
 /** What an unmet block still wants. Short: the row is a link, not a paragraph. */
 export function hxAnswerWant(block: HxProgressBlock): string {
+	// ONE OF A GROUP (ledger 0458): any member answers it, so say so.
+	if (block.group) return `Fill any one of ${block.group.fields.length}`;
 	if (block.type === 'image') return 'Needs a photo';
 	if (block.reason === 'short') {
 		const left = Math.max(1, block.need - block.have);

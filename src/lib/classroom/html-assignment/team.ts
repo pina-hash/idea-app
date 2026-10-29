@@ -70,7 +70,7 @@ export function teamProgressFor(manifest: HtmlAssignmentManifest, raw: TeamProgr
 				me: m.me,
 				handedIn: m.state === 'submitted' || m.state === 'returned',
 				percent: p.percent,
-				done: p.blocks.filter((b) => b.met).map((b) => b.field),
+				done: [...new Set(p.blocks.filter((b) => b.met).map((b) => b.field))],
 				modules: p.modules.map((mod) => ({ id: mod.id, title: mod.title, met: mod.met, of: mod.blocks }))
 			};
 		})
