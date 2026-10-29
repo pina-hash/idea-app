@@ -19,7 +19,7 @@
   5 Problem: read the live class page for a price; apply rules to situations they have not seen.
     Stretch: one useful report through Send feedback (IDEA Coins, not points).
   6 Shape: one post, one class (run live in Step view, self-guided for anyone ahead), four phases
-    (Meet IDEA, The site, Armory, The shop), ten steps, 10 points.
+    (Meet IDEA, The site, Armory, The shop, Dogtag), eleven steps, 12 points.
   7 Facts: his answers 2026-10-28 (AI free and not discussed; free market with extra credit;
     Armory all rotation, a personal folder each then team folders; any notebook for sketches;
     casual class; no assigned syllabus; no Tie Ceremony mention). What IDEA is and the four
@@ -36,7 +36,7 @@
 <script type="application/json" id="idea-manifest">
 {
   "schemaVersion": 3, "kind": "html-assignment",
-  "title": "Orientation", "course": "IDEA 100", "points": 10,
+  "title": "Orientation", "course": "IDEA 100", "points": 12,
   "thumbnail": { "kind": "html", "template": "idea-thumbnail" },
   "modules": [
     {
@@ -64,14 +64,14 @@
       "blocks": [
         {"id": "or-site-visitor", "field": "visitorPick", "type": "radio", "prompt": "Your neighbor's site calls them a Visitor and shows no classes. Why?"},
         {"id": "or-site-saved", "field": "savedPick", "type": "radio", "prompt": "The bell rings halfway through a post and you close the tab. Tomorrow you open it again."},
-        {"id": "or-site-song", "field": "songCost", "type": "text", "prompt": "On the class page, open Music. What does a song cost, in i¢?"},
+        {"id": "or-site-song", "field": "songCost", "type": "text", "prompt": "In the IDEA Market, what do 5 more minutes of hall pass cost, in i¢?"},
         {"id": "or-site-feedback", "field": "feedbackNote", "type": "longText", "optional": true, "prompt": "Stretch: what you reported through Send feedback"}
       ],
       "criteria": [
         {
           "id": "or-site-use", "text": "Knows how the site works and can read it for an answer", "points": 3,
           "levels": [
-            {"points": 3, "label": "Complete", "short": "All three right", "descriptor": "A personal Gmail; the answers are saved; the Music price on the class page (2 on 2026-10-28)."},
+            {"points": 3, "label": "Complete", "short": "All three right", "descriptor": "A personal Gmail; the answers are saved; the Market price for 5 more hall pass minutes (1 on 2026-10-28)."},
             {"points": 2, "label": "Proficient", "short": "Two right", "descriptor": "Two of the three are right."},
             {"points": 1, "label": "Developing", "short": "One right", "descriptor": "One of the three is right."},
             {"points": 0, "label": "Absent", "short": "None right", "descriptor": "Nothing right, or nothing answered."}
@@ -109,6 +109,22 @@
             {"points": 2, "label": "Complete", "short": "Both right", "descriptor": "Ask them to save and close it, then open it; export the sliced plate file to the card or drive."},
             {"points": 1, "label": "Developing", "short": "One right", "descriptor": "One of the two picks is right."},
             {"points": 0, "label": "Absent", "short": "Neither right", "descriptor": "Neither pick is right, or none is made."}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "or-dogtag", "title": "Dogtag start", "points": 2, "audience": "individual",
+      "blocks": [
+        {"id": "or-dogtag-shot", "field": "dogtagShot", "type": "image", "prompt": "Screenshot: your dogtag design in xTool Studio"}
+      ],
+      "criteria": [
+        {
+          "id": "or-dogtag-start", "text": "A dogtag design started in xTool Studio and saved to Armory", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Started and shown", "descriptor": "The screenshot shows a dogtag outline with the student's name in xTool Studio."},
+            {"points": 1, "label": "Developing", "short": "Barely started", "descriptor": "The screenshot shows xTool Studio with little or no dogtag in it."},
+            {"points": 0, "label": "Absent", "short": "None", "descriptor": "No screenshot."}
           ]
         }
       ]
@@ -1302,8 +1318,10 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 :root[data-theme="light"] [data-color="sky"]{--hx-ink:#006692;--hx-fill:#2f9fd8;--hx-on:#0d1311;--hx-line:#006692;--hx-wash:rgba(47,159,216,0.22);--trk:#2f9fd8;--trk-ink:#006692}
 [data-color="indigo"]{--hx-ink:#7d95ff;--hx-fill:#5e74ed;--hx-on:#0d1311;--hx-line:#5e74ed;--hx-wash:rgba(94,116,237,0.16);--trk:#5e74ed;--trk-ink:#7d95ff}
 :root[data-theme="light"] [data-color="indigo"]{--hx-ink:#4454ca;--hx-fill:#5164dc;--hx-on:#f6f7f4;--hx-line:#5164dc;--hx-wash:rgba(81,100,220,0.22);--trk:#5164dc;--trk-ink:#4454ca}
+[data-color="magenta"]{--hx-ink:#eb71c2;--hx-fill:#c851a2;--hx-on:#0d1311;--hx-line:#c851a2;--hx-wash:rgba(200,81,162,0.16);--trk:#c851a2;--trk-ink:#eb71c2}
+:root[data-theme="light"] [data-color="magenta"]{--hx-ink:#a53083;--hx-fill:#c851a2;--hx-on:#0d1311;--hx-line:#c851a2;--hx-wash:rgba(200,81,162,0.22);--trk:#c851a2;--trk-ink:#a53083}
 </style>
-<script type="application/json" id="hx-palette-data">{"arc":null,"colors":{"steel":{"anchor":"#8A9199","means":"steel stock and parts","status":"approx","dark":{"ink":"#969da5","fill":"#8a9199","on":"#0d1311","line":"#8a9199","wash":"rgba(138,145,153,0.16)","washOver":"#2e3131","notes":[]},"light":{"ink":"#5b6269","fill":"#8a9199","on":"#0d1311","line":"#5b6269","wash":"rgba(138,145,153,0.22)","washOver":"#dde1e4","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"solidworks-red":{"anchor":"#DA291C","means":"SolidWorks","status":"approx","dark":{"ink":"#ff6d5b","fill":"#ea3c2c","on":"#0d1311","line":"#ea3c2c","wash":"rgba(234,60,44,0.16)","washOver":"#3d241f","notes":[]},"light":{"ink":"#c50500","fill":"#d82619","on":"#f6f7f4","line":"#d82619","wash":"rgba(216,38,25,0.22)","washOver":"#efc9c8","notes":[]}},"caution-yellow":{"anchor":"#EFCB00","means":"caution, physical hazard (ANSI CAUTION)","status":"approx","dark":{"ink":"#efcb00","fill":"#ecc900","on":"#0d1311","line":"#ecc900","wash":"rgba(236,201,0,0.16)","washOver":"#3d3a18","notes":[]},"light":{"ink":"#8b5500","fill":"#efcb00","on":"#0d1311","line":"#8b5500","wash":"rgba(239,203,0,0.22)","washOver":"#f4edc2","notes":["ink hue moved 96 to 68 toward orange, so text is an ochre, never olive","the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"bambu-green":{"anchor":"#00AE42","means":"Bambu Lab printers","status":"approx","dark":{"ink":"#17b448","fill":"#00ae42","on":"#0d1311","line":"#00ae42","wash":"rgba(0,174,66,0.16)","washOver":"#183623","notes":[]},"light":{"ink":"#007028","fill":"#00ae42","on":"#0d1311","line":"#007028","wash":"rgba(0,174,66,0.22)","washOver":"#bfe7d1","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"marigold":{"anchor":"#E8A33A","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#e8a33a","fill":"#e8a33a","on":"#0d1311","line":"#e8a33a","wash":"rgba(232,163,58,0.16)","washOver":"#3d3422","notes":[]},"light":{"ink":"#a34200","fill":"#e8a33a","on":"#0d1311","line":"#a34200","wash":"rgba(232,163,58,0.22)","washOver":"#f2e5cf","notes":["ink hue moved 73 to 45 toward orange, so text is an ochre, never olive","warm text kept saturated, a muted dark orange or yellow is brown","the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"sky":{"anchor":"#2F9FD8","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#37a5df","fill":"#2f9fd8","on":"#0d1311","line":"#2f9fd8","wash":"rgba(47,159,216,0.16)","washOver":"#1f333b","notes":[]},"light":{"ink":"#006692","fill":"#2f9fd8","on":"#0d1311","line":"#006692","wash":"rgba(47,159,216,0.22)","washOver":"#c9e4f2","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"indigo":{"anchor":"#5468E0","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#7d95ff","fill":"#5e74ed","on":"#0d1311","line":"#5e74ed","wash":"rgba(94,116,237,0.16)","washOver":"#272d3e","notes":[]},"light":{"ink":"#4454ca","fill":"#5164dc","on":"#f6f7f4","line":"#5164dc","wash":"rgba(81,100,220,0.22)","washOver":"#d1d7f3","notes":[]}}}}</script>
+<script type="application/json" id="hx-palette-data">{"arc":null,"colors":{"steel":{"anchor":"#8A9199","means":"steel stock and parts","status":"approx","dark":{"ink":"#969da5","fill":"#8a9199","on":"#0d1311","line":"#8a9199","wash":"rgba(138,145,153,0.16)","washOver":"#2e3131","notes":[]},"light":{"ink":"#5b6269","fill":"#8a9199","on":"#0d1311","line":"#5b6269","wash":"rgba(138,145,153,0.22)","washOver":"#dde1e4","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"solidworks-red":{"anchor":"#DA291C","means":"SolidWorks","status":"approx","dark":{"ink":"#ff6d5b","fill":"#ea3c2c","on":"#0d1311","line":"#ea3c2c","wash":"rgba(234,60,44,0.16)","washOver":"#3d241f","notes":[]},"light":{"ink":"#c50500","fill":"#d82619","on":"#f6f7f4","line":"#d82619","wash":"rgba(216,38,25,0.22)","washOver":"#efc9c8","notes":[]}},"caution-yellow":{"anchor":"#EFCB00","means":"caution, physical hazard (ANSI CAUTION)","status":"approx","dark":{"ink":"#efcb00","fill":"#ecc900","on":"#0d1311","line":"#ecc900","wash":"rgba(236,201,0,0.16)","washOver":"#3d3a18","notes":[]},"light":{"ink":"#8b5500","fill":"#efcb00","on":"#0d1311","line":"#8b5500","wash":"rgba(239,203,0,0.22)","washOver":"#f4edc2","notes":["ink hue moved 96 to 68 toward orange, so text is an ochre, never olive","the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"bambu-green":{"anchor":"#00AE42","means":"Bambu Lab printers","status":"approx","dark":{"ink":"#17b448","fill":"#00ae42","on":"#0d1311","line":"#00ae42","wash":"rgba(0,174,66,0.16)","washOver":"#183623","notes":[]},"light":{"ink":"#007028","fill":"#00ae42","on":"#0d1311","line":"#007028","wash":"rgba(0,174,66,0.22)","washOver":"#bfe7d1","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"marigold":{"anchor":"#E8A33A","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#e8a33a","fill":"#e8a33a","on":"#0d1311","line":"#e8a33a","wash":"rgba(232,163,58,0.16)","washOver":"#3d3422","notes":[]},"light":{"ink":"#a34200","fill":"#e8a33a","on":"#0d1311","line":"#a34200","wash":"rgba(232,163,58,0.22)","washOver":"#f2e5cf","notes":["ink hue moved 73 to 45 toward orange, so text is an ochre, never olive","warm text kept saturated, a muted dark orange or yellow is brown","the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"sky":{"anchor":"#2F9FD8","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#37a5df","fill":"#2f9fd8","on":"#0d1311","line":"#2f9fd8","wash":"rgba(47,159,216,0.16)","washOver":"#1f333b","notes":[]},"light":{"ink":"#006692","fill":"#2f9fd8","on":"#0d1311","line":"#006692","wash":"rgba(47,159,216,0.22)","washOver":"#c9e4f2","notes":["the fill alone is under 3:1 on the panel, so its edge is drawn in the ink"]}},"indigo":{"anchor":"#5468E0","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#7d95ff","fill":"#5e74ed","on":"#0d1311","line":"#5e74ed","wash":"rgba(94,116,237,0.16)","washOver":"#272d3e","notes":[]},"light":{"ink":"#4454ca","fill":"#5164dc","on":"#f6f7f4","line":"#5164dc","wash":"rgba(81,100,220,0.22)","washOver":"#d1d7f3","notes":[]}},"magenta":{"anchor":"#C64FA0","means":"a phase or link color: no real-world meaning","status":"linking","dark":{"ink":"#eb71c2","fill":"#c851a2","on":"#0d1311","line":"#c851a2","wash":"rgba(200,81,162,0.16)","washOver":"#382732","notes":[]},"light":{"ink":"#a53083","fill":"#c851a2","on":"#0d1311","line":"#c851a2","wash":"rgba(200,81,162,0.22)","washOver":"#ebd2e6","notes":[]}}}}</script>
 <style>
   /* Orientation's own pieces. Colors are names (hx-plan-data and data-color); the rest is the kit. */
   .or-name { display: grid; gap: 2px; min-width: 0; font-family: var(--font-display); }
@@ -1360,15 +1378,14 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
     <div class="hx-step-head"><div><span class="hx-phase-tag">Meet IDEA</span><h2>Meet IDEA</h2></div></div>
     <div class="hx-step-body">
       <div class="hx-stack">
-        <p><strong>IDEA is engineering design and manufacturing.</strong> It stands for Integrated Design, Engineering and Art. Every project goes through the same four stages:</p>
+        <p>Everything you use was an idea in somebody's head first. <strong>Engineering</strong> designs it so it works. <strong>Manufacturing</strong> makes it real. It's not magic, it's a process. <strong>IDEA is engineering design and manufacturing.</strong> It stands for Integrated Design, Engineering and Art. Every project goes through the same four stages:</p>
         <ul class="hx-list">
-          <li><strong>Conceive:</strong> a need or a problem, a rough design, sketched by hand.</li>
+          <li><strong>Conceive:</strong> a need or a problem, a rough design, sketched by hand. That is the art.</li>
           <li data-color="solidworks-red"><span class="hx-lamp"></span> <strong>Design:</strong> refined in SolidWorks, the industry standard.</li>
           <li data-color="steel"><span class="hx-lamp"></span> <strong>Manufacture:</strong> in the shop. 3D printing, mill, lathe, CNC, laser, sheet metal.</li>
           <li><strong>Test:</strong> a real trial. If it fails, back to the drawing board.</li>
         </ul>
-        <p>The art is still here: you sketch by hand, and you design things that look right.</p>
-        <p>During robot season, the IDEA classes and the Techmen robotics team, Team 5669, build the competition robot together.</p>
+                <p>During robot season, the IDEA classes and the Techmen robotics team, Team 5669, build the competition robot together.</p>
       </div>
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Check yourself</span>
@@ -1378,6 +1395,9 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
           <label class="hx-pick"><input type="radio" name="ideaPick" value="circuit"> A circuit board that blinks a row of LEDs</label>
         </fieldset>
         <p class="hx-readout" id="or-idea-out" aria-live="polite">Pick one.</p>
+        <div class="hx-links">
+          <a class="hx-link-card" href="https://www.youtube.com/watch?v=btGYcizV0iI" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/></svg></span><span class="hx-link-text"><small>Video</small><b>What is Engineering?</b><span>Crash Course Engineering #1</span></span><span class="hx-link-go">Open</span></a>
+        </div>
       </div>
     </div>
   </section>
@@ -1388,9 +1408,9 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
       <div class="hx-stack">
         <p>Four projects. Each one designed, manufactured and tested.</p>
         <div class="hx-tiles or-tiles">
-          <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="4"/><circle cx="12" cy="7" r="1.5"/></svg></span><span class="or-name"><small>1</small><b>Dogtag</b><span>Drawn in SolidWorks, cut and engraved on the fiber laser.</span></span></div>
+          <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="4"/><circle cx="12" cy="7" r="1.5"/></svg></span><span class="or-name"><small>1</small><b>Dogtag</b><span>Designed in xTool Studio, cut and engraved on the fiber laser. You start it today.</span></span></div>
           <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="13" cy="5" r="2.5"/><path d="M13 7.5v7a4 4 0 1 1-4-4"/></svg></span><span class="or-name"><small>2</small><b>Hook</b><span>Design a printed hook, then load it until it breaks.</span></span></div>
-          <div class="hx-tile or-tile" data-color="steel"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="or-name"><small>3</small><b>Shop line</b><span>Mill, bandsaw, lathe, drill and tap. Every student machines a part.</span></span></div>
+          <div class="hx-tile or-tile" data-color="steel"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="or-name"><small>3</small><b>Shop line + Scrap sculpture</b><span>Same weeks, separate groups. Machine a part on the mill, lathe, bandsaw and drill, or build a mechanical assembly sculpture from scrap.</span></span></div>
           <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3l3 7M21 12l-7 3M12 21l-3-7M3 12l7-3"/></svg></span><span class="or-name"><small>4</small><b>IDEA-Blade</b><span>A combat spinning top built on the core you machined, then a tournament.</span></span></div>
         </div>
         <p class="hx-see">Each project is its own post here, one after another.</p>
@@ -1400,7 +1420,7 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
         <fieldset class="hx-picks" data-field="teamPick" data-kind="radio"><legend>Which project are you most looking forward to? Any answer counts.</legend>
           <label class="hx-pick"><input type="radio" name="teamPick" value="dogtag"> Dogtag</label>
           <label class="hx-pick"><input type="radio" name="teamPick" value="hook"> Hook</label>
-          <label class="hx-pick"><input type="radio" name="teamPick" value="shop"> Shop line</label>
+          <label class="hx-pick"><input type="radio" name="teamPick" value="shop"> Shop line or scrap sculpture</label>
           <label class="hx-pick"><input type="radio" name="teamPick" value="blade"> IDEA-Blade</label>
         </fieldset>
         <p class="hx-readout" id="or-team-out" aria-live="polite">Pick one.</p>
@@ -1412,13 +1432,12 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
     <div class="hx-step-head"><div><span class="hx-phase-tag">Meet IDEA</span><h2>Know the few rules</h2></div></div>
     <div class="hx-step-body">
       <div class="hx-stack">
-        <p>This is a casual class. Safety in the shop is the one thing that is strict.</p>
         <ul class="hx-list">
           <li data-color="caution-yellow"><span class="hx-lamp"></span> <strong>Safety:</strong> eye protection whenever anything near you is cut, ground or machined. Closed-toe shoes. Long hair tied back, no loose clothing or jewelry.</li>
           <li data-color="caution-yellow"><span class="hx-lamp"></span> <strong>No machine</strong> until you are trained on it. Earbuds are not hearing protection. Horseplay in the shop means you are out for the day.</li>
           <li data-color="caution-yellow"><span class="hx-lamp"></span> <strong>Tell me</strong> about any injury, near miss or broken tool, right away. Reporting one is never a problem. Hiding one is.</li>
           <li><strong>Deadlines are firm.</strong> An excused absence moves a due date by the days you were out.</li>
-          <li><strong>AI:</strong> use it as much as you want.</li>
+          <li><strong>AI:</strong> use as much as you want, responsibly and with the right intentions. It is a tool to augment your work, not a replacement for it.</li>
         </ul>
       </div>
       <div class="hx-evidence idea-panel">
@@ -1491,8 +1510,8 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
     </div>
   </section>
 
-  <section class="hx-step idea-panel" id="s-coins" data-phase="site" data-title="Find your way around IDEA Coin">
-    <div class="hx-step-head"><div><span class="hx-phase-tag">The site</span><h2>Find your way around IDEA Coin</h2></div></div>
+  <section class="hx-step idea-panel" id="s-coins" data-phase="site" data-title="Coins and the hall pass">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">The site</span><h2>Coins and the hall pass</h2></div></div>
     <div class="hx-step-body">
       <div class="hx-stack">
         <p><span class="it" data-term="coin">IDEA Coin</span> is the class money. It is a free market: spend it on what you want.</p>
@@ -1503,17 +1522,17 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
         </ul>
         <ol class="hx-do">
           <li><span>Open the <strong>IDEA 100</strong> class page.</span></li>
-          <li><span>At the top, find <strong>Hall pass</strong> and <strong>Music</strong>. Tap Hall pass before you leave the room.</span></li>
-          <li><span>Open <strong>Music</strong> and read the price.</span></li>
+          <li><span>At the top, find <strong>Hall pass</strong>. Leaving the room? Tap it on the way out, and check back in when you're back. No asking needed.</span></li>
+          <li><span>You get 10 minutes a day. Open the <strong>IDEA Market</strong> and find what more hall pass time costs.</span></li>
         </ol>
-        <p class="hx-see">Class music, with its price beside the title.</p>
+        <p class="hx-see">The Market, with a price on every item.</p>
         <details class="hx-stuck"><summary>That is not what I see</summary><table>
-          <tr><td>No Hall pass or Music at the top</td><td>Open the class itself, not this post.</td></tr>
+          <tr><td>No Hall pass at the top</td><td>Open the class itself, not this post.</td></tr>
         </table></details>
       </div>
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Find it on the site</span>
-        <label>What does a song cost?
+        <label>What do 5 more hall pass minutes cost?
           <span class="hx-unit"><input class="idea-well idea-well--field" type="text" inputmode="numeric" data-field="songCost" placeholder="e.g. 00"><span>i¢</span></span>
         </label>
         <p class="hx-readout" id="or-song-out" aria-live="polite">Type the number only.</p>
@@ -1531,7 +1550,7 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
       <div class="hx-stack">
         <p>We sketch before we model. Keep a <span class="it" data-term="notebook">notebook</span> for it, any notebook.</p>
         <ol class="hx-do">
-          <li><span>One minute: sketch anything you would build if you had the whole shop.</span></li>
+          <li><span>Sketch something you would like to build in real life.</span></li>
           <li><span>Phones are fine for this. Open this post on your phone, signed in, and press <strong>Take photo</strong>.</span></li>
         </ol>
         <p class="hx-see">Your sketch in the box, clear enough to read.</p>
@@ -1615,15 +1634,16 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
     </div>
   </section>
 
-  <section class="hx-step idea-panel" id="s-tools" data-phase="shop" data-title="Meet the tools">
-    <div class="hx-step-head"><div><span class="hx-phase-tag">The shop</span><h2>Meet the tools</h2></div></div>
+  <section class="hx-step idea-panel" id="s-tools" data-phase="shop" data-title="Meet the tools and the shop">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">The shop</span><h2>Meet the tools and the shop</h2></div></div>
     <div class="hx-step-body">
       <div class="hx-stack">
         <div class="hx-tiles or-tiles">
-          <div class="hx-tile or-tile" data-color="solidworks-red"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 20 7.5v9L12 21 4 16.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg></span><span class="or-name"><b>SolidWorks</b><span>Where every part is designed.</span></span></div>
-          <div class="hx-tile or-tile"><span class="or-badge or-plain"><svg viewBox="0 0 24 24" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v7M8 14l4-4 4 4M5 20h14"/></svg></span><span class="or-name"><b>xTool Studio</b><span>Gets your dogtag ready for the laser. I run the cut.</span></span></div>
-          <div class="hx-tile or-tile" data-color="bambu-green"><span class="or-badge"><svg viewBox="0 0 24 24" fill="none" stroke="var(--hx-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="5" rx="1"/><path d="M10 8h4v4l-2 3-2-3z"/><path d="M5 20h14"/></svg></span><span class="or-name"><b>Bambu Studio</b><span>Slices your part for the 3D printers. You run the printers.</span></span></div>
+          <div class="hx-tile or-tile" data-color="solidworks-red"><span class="or-name"><b>SolidWorks</b><span>Where every part is designed.</span></span></div>
+          <div class="hx-tile or-tile"><span class="or-name"><b>xTool Studio</b><span>Where you design your dogtag. I run the laser.</span></span></div>
+          <div class="hx-tile or-tile" data-color="bambu-green"><span class="or-name"><b>Bambu Studio</b><span>Slices your part for the 3D printers. You run the printers.</span></span></div>
         </div>
+        <p><strong>The shop:</strong> 3D printers, fiber laser, mill, lathe, CNC, bandsaw, drill press and sheet metal. You get trained on each machine before you touch it.</p>
         <span class="idea-eyebrow">How a print goes</span>
         <ol class="hx-do">
           <li><span>SolidWorks: save your part as a <span class="it" data-term="step">STEP file</span>.</span></li>
@@ -1641,8 +1661,36 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
         <p class="hx-readout" id="or-print-out" aria-live="polite">Pick one.</p>
         <div class="hx-links">
           <a class="hx-link-card" href="https://youtu.be/A2JFnsAUOSk" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/></svg></span><span class="hx-link-text"><small>Video</small><b>My printing walkthrough</b><span>every step, at the real printers</span></span><span class="hx-link-go">Open</span></a>
-          <a class="hx-link-card" href="https://ideabosco.com/maps" target="_blank" rel="noopener"><span class="hx-link-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/></svg></span><span class="hx-link-text"><small>Opens in a new tab</small><b>IDEA Maps</b><span>where any tool lives</span></span><span class="hx-link-go">Open</span></a>
         </div>
+      </div>
+    </div>
+  </section>
+  <section class="hx-step idea-panel" id="s-dogtag" data-phase="dogtag" data-title="Start your dogtag">
+    <div class="hx-step-head"><div><span class="hx-phase-tag">Dogtag</span><h2>Start your dogtag</h2></div></div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <p>Your first project. This is the whole flow you'll use all rotation: design it, save it to Armory, hand it in here.</p>
+        <ol class="hx-do">
+          <li><span>On the lab computer, open <strong>xTool Studio</strong> and start a new project.</span></li>
+          <li><span>Design your dogtag: the outline, your name, and something that's yours.</span></li>
+          <li><span>Save it into <strong>your Armory folder</strong>, the one from the Armory step.</span></li>
+          <li><span>Screenshot it: <span class="or-keys">Win + Shift + S</span>, then click the box here and <span class="or-keys">Ctrl + V</span>.</span></li>
+        </ol>
+        <p class="hx-see">Your dogtag in xTool Studio, with your name on it.</p>
+        <details class="hx-stuck"><summary>That is not what I see</summary><table>
+          <tr><td>I can't find my Armory folder in Save</td><td>Raise your hand. Save it to the desktop for now.</td></tr>
+          <tr><td>Paste does nothing</td><td>Click the box first, then <span class="or-keys">Ctrl + V</span>.</td></tr>
+        </table></details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Your dogtag</span>
+        <div class="hx-box" data-image-box="dogtagShot" data-empty="Click here, then Ctrl+V the screenshot">Click here, then Ctrl+V the screenshot</div>
+        <input type="file" data-field="dogtagShot" accept="image/*" hidden>
+        <div class="hx-row hx-edit-only">
+          <button type="button" class="idea-key" data-edits data-choose="dogtagShot">Choose file</button>
+          <button type="button" class="idea-key" data-edits data-remove="dogtagShot" hidden>Remove</button>
+        </div>
+        <p class="hx-note" data-file-note="dogtagShot"></p>
       </div>
     </div>
   </section>
@@ -1653,7 +1701,8 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
   {"id": "class", "name": "Meet IDEA", "color": "marigold", "days": [{"label": "Part 1", "short": "Meet IDEA"}]},
   {"id": "site", "name": "The site", "color": "sky", "days": [{"label": "Part 2", "short": "The site"}]},
   {"id": "armory", "name": "Armory", "color": "indigo", "days": [{"label": "Part 3", "short": "Armory"}]},
-  {"id": "shop", "name": "The shop", "color": "caution-yellow", "days": [{"label": "Part 4", "short": "The shop"}]}
+  {"id": "shop", "name": "The shop", "color": "caution-yellow", "days": [{"label": "Part 4", "short": "The shop"}]},
+  {"id": "dogtag", "name": "Dogtag", "color": "magenta", "days": [{"label": "Part 5", "short": "Dogtag"}]}
 ]}
 </script>
 <script type="application/json" id="hx-glossary">

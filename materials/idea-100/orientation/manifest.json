@@ -2,7 +2,7 @@
   "kind": "html-assignment",
   "title": "Orientation",
   "course": "IDEA 100",
-  "points": 10,
+  "points": 12,
   "modules": [
     {
       "id": "or-class",
@@ -89,7 +89,7 @@
           "id": "or-site-song",
           "type": "text",
           "field": "songCost",
-          "prompt": "On the class page, open Music. What does a song cost, in i¢?"
+          "prompt": "In the IDEA Market, what do 5 more minutes of hall pass cost, in i¢?"
         },
         {
           "id": "or-site-feedback",
@@ -110,7 +110,7 @@
               "label": "Complete",
               "short": "All three right",
               "points": 3,
-              "descriptor": "A personal Gmail; the answers are saved; the Music price on the class page (2 on 2026-10-28)."
+              "descriptor": "A personal Gmail; the answers are saved; the Market price for 5 more hall pass minutes (1 on 2026-10-28)."
             },
             {
               "label": "Proficient",
@@ -223,6 +223,47 @@
               "short": "Neither right",
               "points": 0,
               "descriptor": "Neither pick is right, or none is made."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "or-dogtag",
+      "title": "Dogtag start",
+      "blocks": [
+        {
+          "id": "or-dogtag-shot",
+          "type": "image",
+          "field": "dogtagShot",
+          "prompt": "Screenshot: your dogtag design in xTool Studio"
+        }
+      ],
+      "points": 2,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "or-dogtag-start",
+          "text": "A dogtag design started in xTool Studio and saved to Armory",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Started and shown",
+              "points": 2,
+              "descriptor": "The screenshot shows a dogtag outline with the student's name in xTool Studio."
+            },
+            {
+              "label": "Developing",
+              "short": "Barely started",
+              "points": 1,
+              "descriptor": "The screenshot shows xTool Studio with little or no dogtag in it."
+            },
+            {
+              "label": "Absent",
+              "short": "None",
+              "points": 0,
+              "descriptor": "No screenshot."
             }
           ],
           "points": 2

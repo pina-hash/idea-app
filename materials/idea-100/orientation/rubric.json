@@ -38,7 +38,7 @@
         "label": "Complete",
         "short": "All three right",
         "points": 3,
-        "descriptor": "A personal Gmail; the answers are saved; the Music price on the class page (2 on 2026-10-28)."
+        "descriptor": "A personal Gmail; the answers are saved; the Market price for 5 more hall pass minutes (1 on 2026-10-28)."
       },
       {
         "label": "Proficient",
@@ -113,6 +113,32 @@
     ],
     "points": 2,
     "criterion": "Files and printing: Handles a file a teammate has open, and the print hand-off",
+    "incomplete": false
+  },
+  {
+    "id": "or-dogtag-or-dogtag-start",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Started and shown",
+        "points": 2,
+        "descriptor": "The screenshot shows a dogtag outline with the student's name in xTool Studio."
+      },
+      {
+        "label": "Developing",
+        "short": "Barely started",
+        "points": 1,
+        "descriptor": "The screenshot shows xTool Studio with little or no dogtag in it."
+      },
+      {
+        "label": "Absent",
+        "short": "None",
+        "points": 0,
+        "descriptor": "No screenshot."
+      }
+    ],
+    "points": 2,
+    "criterion": "Dogtag start: A dogtag design started in xTool Studio and saved to Armory",
     "incomplete": false
   }
 ]
