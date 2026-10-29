@@ -22,6 +22,8 @@
 
 export interface LaunchDocument {
 	id: string; title: string; itemId: string | null; ownerEmail: string; isOwn: boolean;
+	/** The owner's name on a model that is not yours (0329); absent or null on your own and before 0329. */
+	ownerName?: string | null;
 	updatedAt: string; createdAt: string; archivedAt: string | null;
 	canWrite: boolean; canArchive: boolean; canTrash: boolean;
 	bodyCount: number; featureCount: number; role: string;
@@ -48,7 +50,9 @@ export function normalizeDocument(raw: unknown): LaunchDocument {
 		isOwn: bool(r.isOwn), updatedAt, createdAt: str(r.createdAt, updatedAt), archivedAt: strOrNull(r.archivedAt),
 		canWrite: bool(r.canWrite), canArchive: bool(r.canArchive), canTrash: bool(r.canTrash),
 		bodyCount: num(r.bodyCount), featureCount: num(r.featureCount), role: str(r.role, 'viewer'),
-		folderId: strOrNull(r.folderId), tags: tags(r.tags), thumbnail: strOrNull(r.thumbnail), format: strOrNull(r.format)
+		folderId: strOrNull(r.folderId), tags: tags(r.tags), thumbnail: strOrNull(r.thumbnail), format: strOrNull(r.format),
+		// 0329's key, carried only when sent, so a row from before it reads exactly as it did.
+		...(strOrNull(r.ownerName) ? { ownerName: strOrNull(r.ownerName) } : {})
 	};
 }
 /** One row of `ideacad_direct_trash`. */
@@ -67,16 +71,17 @@ export function normalizeFolder(raw: unknown): LaunchFolder {
 
 // ---------------------------------------------------------------------------
 // Search: every whitespace-separated token must appear in the title, the
-// owner's address or a tag, case-insensitively. An empty query matches all.
+// owner's name or address, or a tag, case-insensitively. An empty query
+// matches all.
 // ---------------------------------------------------------------------------
-export interface Searchable { title: string; ownerEmail?: string; tags?: string[] }
+export interface Searchable { title: string; ownerEmail?: string; ownerName?: string | null; tags?: string[] }
 export function queryTokens(query: string): string[] {
 	return query.toLowerCase().split(/\s+/).filter((t) => t !== '');
 }
 export function matchesQuery(row: Searchable, query: string): boolean {
 	const tokens = queryTokens(query);
 	if (tokens.length === 0) return true;
-	const hay = [row.title, row.ownerEmail ?? '', ...(row.tags ?? [])].join('\n').toLowerCase();
+	const hay = [row.title, row.ownerName ?? '', row.ownerEmail ?? '', ...(row.tags ?? [])].join('\n').toLowerCase();
 	return tokens.every((t) => hay.includes(t));
 }
 export const searchDocuments = <T extends Searchable>(rows: readonly T[], query: string): T[] => rows.filter((r) => matchesQuery(r, query));

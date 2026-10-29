@@ -41,6 +41,21 @@ coin_transactions_relabel:
   args:
     p_changes: {name: changes, describe: "Each record's id with its new note, its new category's short name, or both."}
 
+# Ledger 0471: find past records by category, school days and note, with
+# their ids, so coin_transactions_relabel can correct them. Reads only.
+coin_records_search:
+  surface: call
+  level: read
+  describe: Find past coin records by category, school days and words in the note, newest first, each with its id, student, amount, note and whether it was reversed, ready to relabel.
+  say: ["find the contract completion records from October 19", "show the weekly pay records logged last week", "which coin records say weekly pay, week of Oct 19"]
+  args:
+    p_category: {name: category, default: null, describe: "The category, by its name like Contract Completion or its short name; leave it out for every category."}
+    p_from: {name: from, default: null, describe: "The first school day, as YYYY-MM-DD; leave it out for no first day."}
+    p_to: {name: to, default: null, describe: "The last school day, as YYYY-MM-DD, counted in full; the same as from for one day."}
+    p_note: {name: note, default: null, describe: "Words anywhere in the note, any case."}
+    p_limit: {name: limit, default: 100, describe: "How many records a page, 1 to 500."}
+    p_offset: {name: offset, default: 0, describe: "How many to skip, from the last answer's next offset."}
+
 coin_reverse_transaction:
   surface: call
   level: confirm

@@ -4,7 +4,8 @@
   simple. smooth experience. and ensure many users per file").
 
   Three parts, top to bottom:
-    1. WHO HAS IT. Everyone the model is shared with, by name and picture,
+    1. WHO HAS IT. Everyone the model is shared with, by name, email and
+       picture (email since ledger 0471, decision 72),
        each with Can view or Can edit changeable in place and a Remove.
     2. PICK PEOPLE. The one shared picker (`$lib/ui/PersonPicker`), teammates
        suggested the moment the box takes focus, then classmates and the
@@ -58,7 +59,7 @@
 		};
 	} = $props();
 
-	interface Staged { id: string; key: string | null; email: string | null; name: string; picture: AvatarSubject | null; detail: string; role: ShareRole; refusal: string }
+	interface Staged { id: string; key: string | null; email: string | null; address: string | null; name: string; picture: AvatarSubject | null; detail: string; role: ShareRole; refusal: string }
 
 	let list = $state<AccessList | null>(null);
 	let loadRefusal = $state('');
@@ -96,7 +97,7 @@
 	function stage(p: PickerPerson | null) {
 		if (!p || staged.some((s) => s.key === p.key)) return;
 		problem = '';
-		staged = [...staged, { id: `s${++counter}`, key: p.key, email: null, name: p.name, picture: p.picture ?? null, detail: p.detail ?? '', role: 'viewer', refusal: '' }];
+		staged = [...staged, { id: `s${++counter}`, key: p.key, email: null, address: p.email ?? null, name: p.name, picture: p.picture ?? null, detail: p.detail ?? '', role: 'viewer', refusal: '' }];
 	}
 
 	function stageTyped() {
@@ -104,7 +105,7 @@
 		if (!looksLikeAddress(typed)) return false;
 		const email = typed.toLowerCase();
 		if (!staged.some((s) => s.email === email)) {
-			staged = [...staged, { id: `s${++counter}`, key: null, email, name: email, picture: null, detail: 'Typed address', role: 'viewer', refusal: '' }];
+			staged = [...staged, { id: `s${++counter}`, key: null, email, address: null, name: email, picture: null, detail: 'Typed address', role: 'viewer', refusal: '' }];
 		}
 		box = '';
 		return true;
@@ -173,7 +174,7 @@
 				{#each list.people as person (person.key)}
 					<li class="person" data-testid="share-access-row" data-key={person.key}>
 						<Avatar subject={pictureOf(person)} tintKey={person.key} size={32} />
-						<span class="who"><span class="name">{person.name}</span>{#if person.staff}<span class="chip mine">Staff</span>{/if}</span>
+						<span class="who"><span class="name">{person.name}</span>{#if person.staff}<span class="chip mine">Staff</span>{/if}{#if person.email}<span class="email" data-testid="share-access-email">{person.email}</span>{/if}</span>
 						{#if canChange}
 							<label class="role-field"><span class="sr">Access for {person.name}</span>
 								<select value={person.role} disabled={busy} data-testid="share-role" onchange={(e) => void send([{ key: person.key, role: (e.currentTarget as HTMLSelectElement).value as ShareRole }])}>
@@ -213,7 +214,7 @@
 						{#each staged as s (s.id)}
 							<li class="person" class:refused={s.refusal !== ''} data-testid="share-staged-row">
 								{#if s.picture}<Avatar subject={s.picture} tintKey={s.key ?? s.email} size={32} />{:else}<span class="typed" aria-hidden="true">@</span>{/if}
-								<span class="who"><span class="name">{s.name}</span><span class="detail">{s.detail}</span>{#if s.refusal}<span class="why" role="alert">{s.refusal}</span>{/if}</span>
+								<span class="who"><span class="name">{s.name}</span>{#if s.address}<span class="email">{s.address}</span>{/if}<span class="detail">{s.detail}</span>{#if s.refusal}<span class="why" role="alert">{s.refusal}</span>{/if}</span>
 								<label class="role-field"><span class="sr">Access for {s.name}</span>
 									<select value={s.role} disabled={busy} data-testid="share-staged-role" onchange={(e) => { const role = (e.currentTarget as HTMLSelectElement).value as ShareRole; staged = staged.map((x) => (x.id === s.id ? { ...x, role } : x)); }}>
 										<option value="viewer">{SHARE_ROLE_WORDS.viewer}</option>
@@ -251,6 +252,7 @@
 	.person.refused { border-left: var(--ic-rail) solid var(--ic-warn); padding-left: 0.4rem; }
 	.who { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.4rem; min-width: 0; }
 	.name { font: 600 var(--ic-fs-ui) / 1.25 var(--font-display); color: var(--ic-text-1); overflow-wrap: anywhere; min-width: 0; }
+	.email { flex-basis: 100%; min-width: 0; font: var(--ic-fs-prose) / 1.3 var(--font-display); color: var(--ic-text-2); overflow-wrap: anywhere; }
 	.detail { flex-basis: 100%; font: var(--ic-fs-label) / 1.3 var(--font-mono); color: var(--ic-text-2); }
 	.why { flex-basis: 100%; font: var(--ic-fs-prose) / 1.35 var(--font-display); color: var(--ic-warn); }
 	.typed { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--ic-edge); border-radius: 50%; font: var(--ic-fs-label) var(--font-mono); color: var(--ic-text-2); }

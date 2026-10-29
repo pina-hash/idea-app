@@ -1,0 +1,12 @@
+# 72 IdeaCAD sharing shows a person's name and email, and finds them by either
+
+- Raised: 2026-10-28  By: ledger 0470 (IdeaCAD sharing you can pick, see and confirm, migration 0325), which asked two questions in its report: may a student search the whole school while sharing, and should the picker and the "who has it" list show an email.
+- Status: DECIDED 2026-10-28 by Mr. Pina, in the IDEA & FRC chat "IDEA Website Feedback Pass Ranked List" (queue `docs/feedback/2026-10-28/QUEUE-0471.md`, part 1). Not to be reopened.
+- His words: "Idea can search is fine. You can already search for anyone using the Gmail. Since it's an organization, you can search by anyone, for anyone by name or by their email. So that is completely fine. I think it should show name and email in any case. I really don't know why you would hide the email. Everyone knows everyone's email already."
+- Decision:
+  - **School-wide search stays as lane 0470 built it**: any signed-in Bosco Tech account, only while sharing a model of your own, two letters first, twelve results, teammates then classmates then the school. A visitor (an account outside boscotech.net and boscotech.edu) is never listed.
+  - **Search matches a name or an email, any part of either, for everyone**, including a person who chose a display name: their chosen name, their account name and their address all find them.
+  - **Every person shows their name and their school email**, everywhere IdeaCAD sharing shows a person: the picker's results, the "who has it" list, and a shared model's owner line on the launch card.
+  - **This is an exception to CLAUDE.md "A chosen public identity replaces the account identity completely"**, for IdeaCAD sharing only and for the email only. A chosen picture still replaces the Google photo. No other surface's payload widens because of it.
+- Context: lane 0470 withheld the email and limited matches behind a chosen display name to follow the CLAUDE.md rule; that was the conservative default, written into 0325's header and `docs/history/ideacad-sharing-0470.md`.
+- Built as: ledger 0471 (`docs/prompt-ledger/entries/0471-sharing-emails-coin-search-name-checks.md`), migration 0329 (`supabase/migrations/0329_ideacad_sharing_names_and_emails.sql`, whose header corrects 0325's notes); `docs/subsystems/ideacad.md` and the CLAUDE.md rule point here; `docs/history/sharing-emails-coin-search-0471.md` says what was built and measured.

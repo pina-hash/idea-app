@@ -6,6 +6,10 @@
 // that read them, and every sentence the share panel says, so the panel, the
 // in-memory api and the tests read one vocabulary.
 //
+// NAME AND EMAIL, EVERYWHERE (ledger 0471, Mr. Pina 2026-10-28, decision 72
+// ideacad-sharing-shows-name-and-email): every person a sharing surface shows
+// carries their school email beside their name, from 0329.
+//
 // NOTHING HERE IS A RULE. Who may be found, who may share and how many people
 // a model may have are the database's (0325 over 0217 and 0205); this module
 // decides only what a surface renders and says.
@@ -14,10 +18,12 @@ import type { PickerPerson } from '$lib/ui/person-picker';
 export type ShareRole = 'viewer' | 'editor';
 export type ShareRelation = 'teammate' | 'classmate' | 'school';
 
-/** One row of `ideacad_share_people`: a person, never their address. */
+/** One row of `ideacad_share_people`: a person, by name and email. */
 export interface SharePerson {
 	key: string;
 	name: string;
+	/** Their school email; null only on a deployment before 0329. */
+	email: string | null;
 	avatar: string | null;
 	avatarUrl: string | null;
 	staff: boolean;
@@ -30,6 +36,8 @@ export interface SharePerson {
 export interface AccessPerson {
 	key: string;
 	name: string;
+	/** The address the model is shared with; null only on a deployment before 0329. */
+	email: string | null;
 	avatar: string | null;
 	avatarUrl: string | null;
 	staff: boolean;
@@ -97,14 +105,14 @@ export function parseSharePeople(raw: unknown): SharePerson[] {
 	for (const r of raw) {
 		if (!isRecord(r) || !str(r.key) || !str(r.name)) continue;
 		const relation = r.relation === 'teammate' || r.relation === 'classmate' ? r.relation : 'school';
-		out.push({ key: r.key as string, name: r.name as string, avatar: str(r.avatar), avatarUrl: str(r.avatarUrl), staff: r.staff === true, relation, access: role(r.access) });
+		out.push({ key: r.key as string, name: r.name as string, email: str(r.email), avatar: str(r.avatar), avatarUrl: str(r.avatarUrl), staff: r.staff === true, relation, access: role(r.access) });
 	}
 	return out;
 }
 
 function parsePerson(r: unknown): AccessPerson | null {
 	if (!isRecord(r) || !str(r.key) || !str(r.name) || !role(r.role)) return null;
-	return { key: r.key as string, name: r.name as string, avatar: str(r.avatar), avatarUrl: str(r.avatarUrl), staff: r.staff === true, role: role(r.role)!, grantedAt: str(r.grantedAt) };
+	return { key: r.key as string, name: r.name as string, email: str(r.email), avatar: str(r.avatar), avatarUrl: str(r.avatarUrl), staff: r.staff === true, role: role(r.role)!, grantedAt: str(r.grantedAt) };
 }
 
 export function parseAccess(raw: unknown): AccessList {
@@ -141,12 +149,12 @@ export function parseOutcome(raw: unknown): ShareOutcome {
 	};
 }
 
-/** A directory row as the shared picker draws it: picture, name, and how they relate to you. */
+/** A directory row as the shared picker draws it: picture, name, email, and how they relate to you. */
 export function pickerRow(p: SharePerson): PickerPerson {
 	const bits = [p.staff ? 'Staff' : RELATION_WORDS[p.relation]];
 	if (p.staff && p.relation !== 'school') bits.push(RELATION_WORDS[p.relation]);
 	if (p.access) bits.push(`Has it: ${SHARE_ROLE_WORDS[p.access]}`);
-	return { key: p.key, name: p.name, detail: bits.join(' · '), picture: pictureOf(p), muted: false };
+	return { key: p.key, name: p.name, email: p.email ?? undefined, detail: bits.join(' · '), picture: pictureOf(p), muted: false };
 }
 
 /** The `Avatar.svelte` subject for a sharing row, which carries only what 0325 sent. */

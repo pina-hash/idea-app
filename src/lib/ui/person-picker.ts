@@ -9,7 +9,8 @@
  * `ideacad_share_people`), and maps its rows onto `PickerPerson`. So the picker
  * holds no disclosure decision of its own: it shows exactly what the row
  * carries, and a surface that keeps addresses out of its rows keeps them out
- * of the list.
+ * of the list. IdeaCAD sharing's rows carry an email (ledger 0471, decision
+ * 72 ideacad-sharing-shows-name-and-email); the tournament rows do not.
  */
 import type { AvatarSubject } from '$lib/avatars';
 
@@ -18,6 +19,8 @@ export interface PickerPerson {
 	key: string;
 	/** The name the person shows. */
 	name: string;
+	/** Their email, drawn on its own line under the name when the surface's rows carry it. */
+	email?: string;
 	/** The quieter line under the name (role, relation, access). */
 	detail?: string;
 	/** Drawn beside the name through `Avatar.svelte` when present. */

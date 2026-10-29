@@ -4928,6 +4928,37 @@
 				}
 			}
 		},
+		"idea_text_holds_list": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The tournament entry names, taglines and IDEA Market listings students wrote that name a classmate, held for his OK before they show.",
+			"say": [
+				"any tournament names waiting for me",
+				"held market listings",
+				"which tournament entries name a student"
+			]
+		},
+		"idea_text_hold_decide": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Allow a held tournament entry name, tagline or market listing, which then shows, or turn it down. It asks first.",
+			"say": [
+				"allow that tournament entry name",
+				"turn down the held market listing",
+				"reject the held tagline on the bracket"
+			],
+			"args": {
+				"p_hold_id": {
+					"name": "hold",
+					"describe": "The held text's id, from the list of held tournament and market names."
+				},
+				"p_approve": {
+					"name": "allow",
+					"describe": "True to allow it, false to turn it down."
+				}
+			}
+		},
 		"classroom_machine_week": {
 			"surface": "call",
 			"level": "read",
@@ -5633,6 +5664,48 @@
 				"p_changes": {
 					"name": "changes",
 					"describe": "Each record's id with its new note, its new category's short name, or both."
+				}
+			}
+		},
+		"coin_records_search": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Find past coin records by category, school days and words in the note, newest first, each with its id, student, amount, note and whether it was reversed, ready to relabel.",
+			"say": [
+				"find the contract completion records from October 19",
+				"show the weekly pay records logged last week",
+				"which coin records say weekly pay, week of Oct 19"
+			],
+			"args": {
+				"p_category": {
+					"name": "category",
+					"default": null,
+					"describe": "The category, by its name like Contract Completion or its short name; leave it out for every category."
+				},
+				"p_from": {
+					"name": "from",
+					"default": null,
+					"describe": "The first school day, as YYYY-MM-DD; leave it out for no first day."
+				},
+				"p_to": {
+					"name": "to",
+					"default": null,
+					"describe": "The last school day, as YYYY-MM-DD, counted in full; the same as from for one day."
+				},
+				"p_note": {
+					"name": "note",
+					"default": null,
+					"describe": "Words anywhere in the note, any case."
+				},
+				"p_limit": {
+					"name": "limit",
+					"default": 100,
+					"describe": "How many records a page, 1 to 500."
+				},
+				"p_offset": {
+					"name": "offset",
+					"default": 0,
+					"describe": "How many to skip, from the last answer's next offset."
 				}
 			}
 		},
@@ -13131,6 +13204,8 @@
 		"classroom_team_set_uses": "classroom.yaml",
 		"classroom_team_text_holds_list": "classroom.yaml",
 		"classroom_team_text_hold_decide": "classroom.yaml",
+		"idea_text_holds_list": "classroom.yaml",
+		"idea_text_hold_decide": "classroom.yaml",
 		"classroom_machine_week": "classroom.yaml",
 		"classroom_item_section_shift_set": "classroom.yaml",
 		"classroom_item_section_shifts": "classroom.yaml",
@@ -13157,6 +13232,7 @@
 		"coin_log_transaction": "coin.yaml",
 		"coin_log_deposit": "coin.yaml",
 		"coin_transactions_relabel": "coin.yaml",
+		"coin_records_search": "coin.yaml",
 		"coin_reverse_transaction": "coin.yaml",
 		"coin_admin_lookup": "coin.yaml",
 		"coin_settings_get": "coin.yaml",

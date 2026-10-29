@@ -309,6 +309,10 @@ for that tier; everything in this section still governs admin.
 - **A chosen public identity replaces the account identity completely.** Where a
   feature lets someone pick a display name and picture, NO surface -- including a host
   or admin console -- shows the Google account name or avatar behind it.
+  The one exception is IdeaCAD sharing, which shows a person's school email beside
+  their chosen name and finds them by either, by Mr. Pina's decision
+  (`docs/decisions/entries/72-ideacad-sharing-shows-name-and-email.md`); a chosen
+  picture still replaces the photo there.
 - **An access helper FAILS CLOSED on any error**, never falling through to a weaker
   check.
 

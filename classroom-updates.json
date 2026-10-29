@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-10-28",
+			"title": "IdeaCAD sharing shows names and emails, and names that call out a classmate wait for an OK",
+			"body": "When you share an IdeaCAD model, everyone in the list now shows their name and their school email, and you can find someone by any part of either. A model someone shared with you now says who owns it by name and email. Tournament entry names, roster names and taglines, and IDEA Market listings, that name a classmate now wait for a teacher's OK before anyone sees them, just like team names. Until then your entry shows \"Name waiting for an OK\" and your listing stays hidden.",
+			"tags": ["IdeaCAD", "Tournaments", "IDEA Market"]
+		},
+		{
+			"date": "2026-10-28",
 			"title": "Assignment pictures use the classroom's own lettering",
 			"body": "The live pictures on the cards of page-by-page assignments now use the same lettering and colors as the rest of the classroom, in both the light and the dark look.",
 			"tags": ["Assignments"]

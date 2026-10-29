@@ -1,8 +1,11 @@
 // tests/dom/ideacad-share-panel-mount.test.ts
 //
 // LEDGER 0470: the share panel on a model's card, MOUNTED FOR REAL inside the
-// real `LaunchPage` over the in-memory api the dev harness uses. What a person
-// can see and press, both directions:
+// real `LaunchPage` over the in-memory api the dev harness uses. LEDGER 0471:
+// every person shows their name AND their school email (decision 72,
+// ideacad-sharing-shows-name-and-email), in the picker, in who has it and on
+// a shared model's owner line. What a person can see and press, both
+// directions:
 //
 //   * the panel is on your own model and absent on one shared with you, and
 //     absent everywhere when the api carries no sharing transports;
@@ -67,10 +70,23 @@ describe('who has it', () => {
 		expect((rows[0].querySelector('[data-testid="share-role"]') as HTMLSelectElement).value).toBe('viewer');
 		expect(rows[0].querySelectorAll('[data-testid="share-remove"]')).toHaveLength(1);
 		expect(text(spur.querySelector('[data-testid="share-count"]'))).toBe('Shared with 1 person');
-		expect(text(spur)).not.toContain('@boscotech');
+		// Name and email on the one row; the owner's own card names no owner.
+		expect(Array.from(spur.querySelectorAll('[data-testid="share-access-email"]')).map(text)).toEqual(['ana.reyes@boscotech.net']);
+		expect(spur.querySelectorAll('[data-testid="model-owner"]')).toHaveLength(0);
 		const bracket = await manage(m, 'doc-bracket');
 		expect(text(bracket.querySelector('[data-testid="share-count"]'))).toBe(NOBODY_YET);
 		expect(bracket.querySelectorAll('[data-testid="share-access-row"]')).toHaveLength(0);
+	});
+});
+
+describe("a shared model's owner line", () => {
+	it('names the owner and their email on a model shared with you, and on none of your own', async () => {
+		const { m } = seeded();
+		expect(text(card(m, 'doc-shared').querySelector('[data-testid="model-owner"]'))).toBe('by Ana Reyes ana.reyes@boscotech.net');
+		expect(text(card(m, 'doc-managed').querySelector('[data-testid="model-owner"]'))).toBe('by Daniel Okonkwo daniel.okonkwo@boscotech.net');
+		const owned = FIXTURE_DOCUMENTS.filter((d) => d.isOwn).length;
+		expect(owned).toBeGreaterThan(0);
+		expect(m.target.querySelectorAll('[data-testid="model-owner"]')).toHaveLength(FIXTURE_DOCUMENTS.length - owned);
 	});
 });
 
@@ -82,10 +98,14 @@ describe('pick and share', () => {
 		box.dispatchEvent(new FocusEvent('focus'));
 		await settled(m);
 		expect(options(spur).map(text)).toEqual([expect.stringContaining('Lena Park'), expect.stringContaining('Mateo Ruiz')]);
+		expect(Array.from(spur.querySelectorAll('[data-testid="person-email"]')).map(text)).toEqual(['lena.park@boscotech.net', 'mateo.ruiz@boscotech.net']);
 		press(options(spur).find((o) => text(o).includes('Mateo Ruiz'))!);
 		await settled(m);
 		// The list comes straight back, less the person just picked.
 		expect(options(spur).map(text)).toEqual([expect.stringContaining('Lena Park')]);
+		// Found by part of an email as well as part of a name.
+		await search(m, box, 'okonkwo@');
+		expect(options(spur).map(text)).toEqual([expect.stringContaining('daniel.okonkwo@boscotech.net')]);
 		await search(m, box, 'dan');
 		expect(options(spur).map(text)).toEqual([expect.stringContaining('Daniel Okonkwo')]);
 		press(options(spur)[0]);
@@ -93,6 +113,7 @@ describe('pick and share', () => {
 		const staged = spur.querySelectorAll('[data-testid="share-staged-row"]');
 		expect(staged).toHaveLength(2);
 		const daniel = Array.from(staged).find((r) => text(r).includes('Daniel'))!;
+		expect(text(daniel)).toContain('daniel.okonkwo@boscotech.net');
 		const role = daniel.querySelector('[data-testid="share-staged-role"]') as HTMLSelectElement;
 		role.value = 'editor'; role.dispatchEvent(new Event('change', { bubbles: true }));
 		await settled(m);

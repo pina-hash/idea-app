@@ -96,16 +96,30 @@
 	{:else}
 		<SignoffQueue {requests} ondecide={decide} onoverride={override} {now} />
 	{/if}
-	<!-- Team names and taglines that name a classmate, held for an OK (ledger 0456). -->
+	<!-- Team names and taglines (ledger 0456), tournament entries and market listings (ledger 0471) that name a classmate, held for an OK. -->
 	<TeamNameHolds
-		read={async () => {
-			const { data: raw, error } = await supabase.rpc('classroom_team_text_holds_list');
-			return error ? null : raw;
-		}}
-		decide={async (id, approve) => {
-			const { data: out, error } = await supabase.rpc('classroom_team_text_hold_decide', { p_hold_id: id, p_approve: approve });
-			return error ? null : (out as { ok?: boolean });
-		}}
+		sources={[
+			{
+				read: async () => {
+					const { data: raw, error } = await supabase.rpc('classroom_team_text_holds_list');
+					return error ? null : raw;
+				},
+				decide: async (id, approve) => {
+					const { data: out, error } = await supabase.rpc('classroom_team_text_hold_decide', { p_hold_id: id, p_approve: approve });
+					return error ? null : (out as { ok?: boolean });
+				}
+			},
+			{
+				read: async () => {
+					const { data: raw, error } = await supabase.rpc('idea_text_holds_list');
+					return error ? null : raw;
+				},
+				decide: async (id, approve) => {
+					const { data: out, error } = await supabase.rpc('idea_text_hold_decide', { p_hold_id: id, p_approve: approve });
+					return error ? null : (out as { ok?: boolean });
+				}
+			}
+		]}
 	/>
 </div>
 

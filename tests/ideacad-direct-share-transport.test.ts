@@ -58,9 +58,11 @@ describe('what the panel says', () => {
 		expect(said([ok(0, 'Ana', 'editor', null)])).toBe('Removed Ana.');
 		expect(said([ok(0, 'Ana', 'viewer', 'viewer')])).toBe('Nothing changed. They already had that access.');
 	});
-	it('a directory row carries no address and says how the person relates to you', () => {
-		const row = pickerRow({ key: 'k', name: 'Ms. Lane', avatar: null, avatarUrl: null, staff: true, relation: 'classmate', access: 'editor' });
+	it('a directory row carries the name and email (ledger 0471) and says how the person relates to you', () => {
+		const row = pickerRow({ key: 'k', name: 'Ms. Lane', email: 'mlane@boscotech.edu', avatar: null, avatarUrl: null, staff: true, relation: 'classmate', access: 'editor' });
 		expect(row.detail).toBe('Staff · In your class · Has it: Can edit');
-		expect(JSON.stringify(row)).not.toContain('@');
+		expect(row).toMatchObject({ name: 'Ms. Lane', email: 'mlane@boscotech.edu' });
+		// A row from a deployment before 0329 has no email and draws no email line.
+		expect(pickerRow({ key: 'k', name: 'Ms. Lane', email: null, avatar: null, avatarUrl: null, staff: true, relation: 'classmate', access: null }).email).toBeUndefined();
 	});
 });

@@ -1,63 +1,79 @@
 <script lang="ts">
 	/**
-	 * TEAM NAMES WAITING FOR AN OK (ledger 0456, report 3d4d8b76). A student's
-	 * team name or tagline that names a classmate is held, not shown; here an
-	 * instructor reads it with the names it matched and allows it or turns it
-	 * down. Reads `classroom_team_text_holds_list`, decides through
-	 * `classroom_team_text_hold_decide`; both answer only the classes the caller
-	 * manages. Renders nothing while nothing is held.
+	 * NAMES WAITING FOR AN OK (ledger 0456, report 3d4d8b76; ledger 0471 added
+	 * tournament entries and IDEA Market listings). A student's team name or
+	 * tagline, tournament entry name, roster name or tagline, or market listing
+	 * that names a classmate is held, not shown; here an instructor reads it
+	 * with the names it matched and allows it or turns it down.
+	 *
+	 * Each SOURCE is one pair of database calls: team text reads
+	 * `classroom_team_text_holds_list` and decides through
+	 * `classroom_team_text_hold_decide`; tournament and market text reads
+	 * `idea_text_holds_list` and decides through `idea_text_hold_decide`. Every
+	 * one answers only what the caller may decide. A source that fails to read
+	 * shows nothing, so a deployment without one still shows the other. Renders
+	 * nothing while nothing is held.
 	 */
 	import { untrack } from 'svelte';
 
-	type Hold = { id: string; field: string; text: string; hits: string[]; by: string; team: string; section: string };
-	let {
-		read,
-		decide
-	}: {
+	type Source = {
 		read: () => Promise<unknown>;
 		decide: (id: string, approve: boolean) => Promise<{ ok?: boolean } | null>;
-	} = $props();
+	};
+	type Hold = { key: string; id: string; source: number; where: string; what: string; text: string; hits: string[]; by: string };
+	let { sources }: { sources: Source[] } = $props();
 
 	let holds = $state<Hold[]>([]);
 	let busy = $state(false);
 
+	/** Where a held text sits and what it is, in words, from either list's row. */
+	function place(h: Record<string, unknown>): { where: string; what: string } {
+		if (typeof h.where === 'string') return { where: h.where, what: String(h.field ?? 'name') };
+		return { where: `${String(h.section ?? '')} · ${String(h.team ?? '')}`, what: h.field === 'tagline' ? 'tagline' : 'team name' };
+	}
+
 	async function load() {
-		const raw = (await read().catch(() => null)) as { ok?: boolean; holds?: unknown } | null;
-		holds = raw?.ok && Array.isArray(raw.holds)
-			? (raw.holds as Record<string, unknown>[]).map((h) => ({
-					id: String(h.id),
-					field: h.field === 'tagline' ? 'tagline' : 'name',
-					text: String(h.text ?? ''),
-					hits: Array.isArray(h.hits) ? h.hits.map(String) : [],
-					by: String(h.by ?? ''),
-					team: String(h.team ?? ''),
-					section: String(h.section ?? '')
-				}))
-			: [];
+		const lists = await Promise.all(
+			sources.map(async (s, source) => {
+				const raw = (await s.read().catch(() => null)) as { ok?: boolean; holds?: unknown } | null;
+				return raw?.ok && Array.isArray(raw.holds)
+					? (raw.holds as Record<string, unknown>[]).map((h): Hold => ({
+							key: `${source}:${String(h.id)}`,
+							id: String(h.id),
+							source,
+							...place(h),
+							text: String(h.text ?? ''),
+							hits: Array.isArray(h.hits) ? h.hits.map(String) : [],
+							by: String(h.by ?? '')
+						}))
+					: [];
+			})
+		);
+		holds = lists.flat();
 	}
 	$effect(() => {
 		untrack(() => void load());
 	});
-	async function act(id: string, approve: boolean) {
+	async function act(h: Hold, approve: boolean) {
 		busy = true;
-		await decide(id, approve).catch(() => null);
+		await sources[h.source].decide(h.id, approve).catch(() => null);
 		busy = false;
 		await load();
 	}
 </script>
 
 {#if holds.length}
-	<section class="card tnh" data-testid="team-name-holds" aria-label="Team names waiting for your OK">
-		<h2 class="section-label">Team names waiting for your OK</h2>
+	<section class="card tnh" data-testid="team-name-holds" aria-label="Names waiting for your OK">
+		<h2 class="section-label">Names waiting for your OK</h2>
 		<ul class="tnh-list">
-			{#each holds as h (h.id)}
-				<li>
-					<p class="tnh-where">{h.section} · {h.team} · {h.field === 'tagline' ? 'tagline' : 'team name'} by {h.by}</p>
+			{#each holds as h (h.key)}
+				<li data-testid="name-hold" data-source={h.source}>
+					<p class="tnh-where">{h.where} · {h.what} by {h.by}</p>
 					<p class="tnh-text">“{h.text}”</p>
 					<p class="tnh-hits">Matches a classmate: {h.hits.join(', ')}</p>
 					<div class="tnh-keys">
-						<button type="button" class="btn secondary" disabled={busy} onclick={() => act(h.id, true)}>Allow</button>
-						<button type="button" class="btn secondary" disabled={busy} onclick={() => act(h.id, false)}>Turn down</button>
+						<button type="button" class="btn secondary" disabled={busy} onclick={() => act(h, true)}>Allow</button>
+						<button type="button" class="btn secondary" disabled={busy} onclick={() => act(h, false)}>Turn down</button>
 					</div>
 				</li>
 			{/each}

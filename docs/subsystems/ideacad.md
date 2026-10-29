@@ -65,22 +65,29 @@ database's own inverse list handed back to the same function.
     owner-only, not-trashed, not-yourself and has-signed-in stay stated once.
     One call, one transaction, per-row refusals, at most 100 changes a call;
     there is no cap on how many people a model has.
-  - **WHAT A STUDENT MAY SEARCH IS THE MINIMUM AND IS A DISCLOSURE DECISION.**
-    `ideacad_share_people` answers only the owner of the model it is asked
-    about, lists only Bosco Tech accounts that have signed in, needs two
-    letters (an empty box suggests teammates only), returns twelve at most,
-    teammates then classmates then the school, and returns a name, a picture,
-    Staff or not, the relation and the person's access, never an address. A
-    person is named by an opaque key. Neither it nor
-    `ideacad_direct_document_access` sends an email; widening either is a
-    disclosure decision (CLAUDE.md, Probing must reveal nothing).
-  - **A CHOSEN DISPLAY NAME REPLACES THE ACCOUNT IN SHARING COMPLETELY.**
-    `_ideacad_share_person_json` is the one statement: the shown name is the
-    chosen one, else the account name; a person with a chosen name is found by
-    it or by their whole address typed exactly, never by their account name or
-    a part of their address; their Google photo is sent only when they chose
-    neither a name nor a picture. `tests/db/ideacad-direct-share-people.test.ts`
-    holds both directions, mutation proved.
+  - **WHO A STUDENT MAY FIND IS 0325'S, AND WHAT THEY SEE OF A PERSON IS MR.
+    PINA'S DECISION 72 (`ideacad-sharing-shows-name-and-email`, 0329, ledger
+    0471): A NAME AND AN EMAIL, EVERYWHERE.** `ideacad_share_people` answers
+    only the owner of the model it is asked about, lists only Bosco Tech
+    accounts that have signed in (never a visitor), needs two letters (an
+    empty box suggests teammates only), returns twelve at most, teammates
+    then classmates then the school, and matches any part of the shown name,
+    the account name or the address. Every person it, `ideacad_direct_document_access`
+    and the batch share's results return carries `email`; the launch list
+    (`ideacad_direct_documents`) names a shared model's owner with
+    `ownerName` beside `ownerEmail`. A person is still keyed by an opaque key.
+  - **THIS IS THE ONE EXCEPTION TO "A CHOSEN PUBLIC IDENTITY REPLACES THE
+    ACCOUNT IDENTITY COMPLETELY", AND ONLY FOR THE EMAIL.** His words: "I
+    think it should show name and email in any case. I really don't know why
+    you would hide the email. Everyone knows everyone's email already."
+    `_ideacad_share_person_json` is still the one statement: the shown name is
+    the chosen one, else the account name, the email is beside it, and the
+    Google photo is sent only when the person chose neither a name nor a
+    picture. No other surface's payload widened with it.
+    `tests/db/ideacad-direct-share-people.test.ts` holds both directions:
+    email present for every school account, nothing to a caller who does not
+    own the model, no visitor by name or address, no photo behind a chosen
+    name, mutation proved.
   - **THE PICKER IS THE SITE'S ONE PERSON PICKER, `$lib/ui/PersonPicker.svelte`.**
     Each surface hands in its own directory and maps its rows onto
     `PickerPerson`; tournaments' `src/lib/tournaments/PersonPicker.svelte` is

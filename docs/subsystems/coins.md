@@ -131,6 +131,14 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
   `coin_transactions_relabel` (full coin admin, all or nothing, amounts
   untouched, every change kept in `coin_relabel_log`), never by a reversal
   and a new record.
+  - **THE RECORDS TO CORRECT ARE FOUND WITH `coin_records_search` (ledger
+    0471, 0330), A READ FOR A FULL COIN ADMIN ONLY.** Category (short name or
+    name, retired ones included), school days in school time, words in the
+    note; paged, newest first, each record with its id, the student's roster
+    name and address, the effective amount, its category, note and reversed
+    state. It writes nothing and states none of the relabel's rules: the
+    relabel re-checks the tier and refuses a reversed record itself. Through
+    the connector it is `site_call` on `coin_records_search`.
   - **COLOUR IS NEVER THE ONLY SIGNAL AND NEVER THE ONLY THING THAT MOVED.**
     Every place a type is rendered carries the glyph, the tone AND the type's
     own word; the glyph is `aria-hidden` precisely because the word is always

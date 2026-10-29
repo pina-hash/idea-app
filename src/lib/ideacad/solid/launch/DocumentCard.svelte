@@ -1,6 +1,6 @@
 <!--
   ONE MODEL ON THE LAUNCH PAGE: what it IS (title, picture, counts, last edit,
-  owner when not yours, role, assignment, folder, tags, Archived) and what can
+  owner when not yours (name and email, ledger 0471), role, assignment, folder, tags, Archived) and what can
   be done to it, behind one Manage disclosure.
 
   ARCHIVE AND MOVE TO TRASH ARE VISIBLY DIFFERENT CONTROLS WITH DIFFERENT
@@ -63,7 +63,7 @@
 			<h3 id={`title-${row.id}`}><button class="title" onclick={() => onopen(row.id)} aria-disabled={opening ? 'true' : undefined}>{row.title}</button></h3>
 		{/if}
 		<p class="facts"><span class="num">{countsSentence(row.featureCount, row.bodyCount)}</span><span class="sep" aria-hidden="true">·</span><span>{editedSentence(row.updatedAt, now())}</span></p>
-		{#if !row.isOwn}<p class="owner">by {row.ownerEmail}</p>{/if}
+		{#if !row.isOwn}<p class="owner" data-testid="model-owner">by {#if row.ownerName}<span class="owner-name">{row.ownerName}</span> <span class="owner-email">{row.ownerEmail}</span>{:else}{row.ownerEmail}{/if}</p>{/if}
 		<ul class="chips" aria-label="Status">
 			{#if row.archivedAt !== null}<li class="chip">Archived</li>{/if}
 			{#if role}<li class="chip mine">{role}</li>{/if}
@@ -162,6 +162,7 @@
 	.facts .num { color: var(--ic-text-1); }
 	.sep { color: var(--ic-edge); }
 	.owner { margin: 0; font: var(--ic-fs-prose) / 1.3 var(--font-display); color: var(--ic-meta); overflow-wrap: anywhere; }
+	.owner-name { font-weight: 600; color: var(--ic-text-1); }
 	.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
 	/* Two pixels of air above and below the word, which the room's 18px chip leaves at 1.5. Only here: the Blade rules
 	   rail wears the same chip and has no height to give (CLAUDE.md, the materials rule). */

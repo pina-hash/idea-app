@@ -68,6 +68,8 @@ export const SYNCED_LOG_TABLES: readonly string[] = [
 	// Ledger 0456 (0324): a class running a shared post late, and held team names.
 	'classroom_item_section_shifts',
 	'classroom_team_text_holds',
+	// Ledger 0471 (0331): tournament and market text held for an OK.
+	'idea_text_holds',
 	'classroom_units',
 	// Ledger 0457 (0315, 0321): protection, own due dates, grading settings,
 	// late credit and syllabus targets, which the grading tools write.

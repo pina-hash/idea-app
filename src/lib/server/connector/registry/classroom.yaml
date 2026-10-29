@@ -1534,6 +1534,24 @@ classroom_team_text_hold_decide:
     p_hold_id: {name: hold, describe: "The held name's id, from the list of held team names."}
     p_approve: {name: allow, describe: "True to allow it, false to turn it down."}
 
+# Ledger 0471 (0331, report 3d4d8b76): tournament entry names, roster names
+# and taglines and IDEA Market listings that name a classmate, held the same way.
+idea_text_holds_list:
+  surface: call
+  level: read
+  describe: The tournament entry names, taglines and IDEA Market listings students wrote that name a classmate, held for his OK before they show.
+  say: ["any tournament names waiting for me", "held market listings", "which tournament entries name a student"]
+
+idea_text_hold_decide:
+  surface: call
+  level: confirm
+  proof: generic
+  describe: Allow a held tournament entry name, tagline or market listing, which then shows, or turn it down. It asks first.
+  say: ["allow that tournament entry name", "turn down the held market listing", "reject the held tagline on the bracket"]
+  args:
+    p_hold_id: {name: hold, describe: "The held text's id, from the list of held tournament and market names."}
+    p_approve: {name: allow, describe: "True to allow it, false to turn it down."}
+
 classroom_machine_week:
   surface: call
   level: read

@@ -235,6 +235,7 @@
 					{/if}
 					<span class="pp-words">
 						<span class="pp-name">{p.name}</span>
+						{#if p.email}<span class="pp-email" data-testid="person-email">{p.email}</span>{/if}
 						{#if p.detail}<span class="pp-detail">{p.detail}</span>{/if}
 					</span>
 				</li>
@@ -336,6 +337,12 @@
 		font-size: 1rem;
 		font-weight: 600;
 		color: var(--pp-ink, var(--white));
+		overflow-wrap: anywhere;
+	}
+	.pp-email {
+		font-family: var(--font-display);
+		font-size: 0.9rem;
+		color: var(--pp-ink-dim, var(--dim));
 		overflow-wrap: anywhere;
 	}
 	.pp-detail,
