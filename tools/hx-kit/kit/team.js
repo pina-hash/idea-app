@@ -13,27 +13,70 @@
      which is right for a worksheet and wrong for a shared one);
    - marks the student's own role panels ([data-role]) and names every owner
      ([data-role-owner]);
-   - draws the team plan's tracker into #hx-team-tracker when the page has one. */
+   - draws the team plan's tracker into #hx-team-tracker when the page has one;
+   - in a table, names the ROW the student is in, so the portal locks that row and
+     not the whole table, shuts only the rows a teammate holds, and lays a
+     teammate's saved rows down around the one being typed in (ledger 0456). */
 var TEAM = { on: false, fields: {}, roles: [], me: '', name: '', tracker: null };
 function teamRootOf(el) { return el && el.closest ? el.closest('[data-field]') : null; }
 function teamFocusedField() {
   var r = teamRootOf(document.activeElement);
   return r ? r.getAttribute('data-field') : null;
 }
+/* The row of a table an element sits in (tbody rows, from 0), or -1. */
+function teamRowOf(root, el) {
+  if (!root || hxKind(root) !== 'table' || !el || !el.closest) return -1;
+  var tr = el.closest('tr');
+  return tr ? Array.prototype.indexOf.call(root.querySelectorAll('tbody tr'), tr) : -1;
+}
+function teamFocusMessage(type, root, el) {
+  var msg = { type: type, field: root.getAttribute('data-field') };
+  var row = teamRowOf(root, el);
+  if (row >= 0) msg.row = row;
+  return msg;
+}
 document.addEventListener('focusin', function (e) {
   var r = teamRootOf(e.target);
   if (!r || HX.readOnly) return;
-  send({ type: 'idea:field-focus', field: r.getAttribute('data-field') });
+  send(teamFocusMessage('idea:field-focus', r, e.target));
 });
 document.addEventListener('focusout', function (e) {
   var r = teamRootOf(e.target);
   if (!r) return;
   var field = r.getAttribute('data-field');
+  var left = teamRowOf(r, e.target);
   setTimeout(function () {
-    if (teamFocusedField() === field) return; /* moved within the same box (a table) */
-    send({ type: 'idea:field-blur', field: field });
+    if (teamFocusedField() === field && teamRowOf(r, document.activeElement) === left) return; /* same box, same row */
+    send(teamFocusMessage('idea:field-blur', r, e.target));
   }, 0);
 });
+function teamRows(v) {
+  if (typeof v !== 'string') return null;
+  try { var rows = JSON.parse(v); return Array.isArray(rows) ? rows : null; } catch (err) { return null; }
+}
+/* A TABLE FOLLOWS ITS TEAM ROW BY ROW: every row but the one being typed in,
+   and any row this page changed that has not come back yet, takes the team's
+   saved words. */
+function teamAdoptRows(root, field, focused) {
+  var remote = teamRows(HX.values[field]);
+  if (!remote) return;
+  var sent = teamRows(HX.sent[field]) || [];
+  var here = teamRows(hxRead(root)) || [];
+  var skip = field === focused ? teamRowOf(root, document.activeElement) : -1;
+  var body = root.querySelector('tbody');
+  while (body && body.rows.length < remote.length) hxAddRow(root);
+  var changed = false;
+  Array.prototype.forEach.call(body ? body.rows : [], function (tr, i) {
+    if (i === skip || i >= remote.length) return;
+    if (JSON.stringify(here[i] || null) !== JSON.stringify(sent[i] || null) && HX.owned[field]) return;
+    Array.prototype.forEach.call(hxCells(tr), function (c, j) {
+      var cell = remote[i] && remote[i][j];
+      var next = cell == null ? '' : String(cell);
+      if (c.value !== next) { c.value = next; changed = true; }
+    });
+  });
+  if (changed || HX.sent[field] === undefined) HX.sent[field] = hxRead(root);
+}
 function teamWho(root) {
   var field = root.getAttribute('data-field');
   var who = document.querySelector('[data-who="' + CSS.escape(field) + '"]');
@@ -66,6 +109,16 @@ function teamApply() {
     var locked = t.state !== 'free' && t.state !== 'mine';
     var controls = [root].concat(Array.prototype.slice.call(root.querySelectorAll('input, textarea, select, button')));
     controls.forEach(function (c) { if ('disabled' in c) c.disabled = HX.readOnly || locked; });
+    /* A table's rows a teammate holds (ledger 0456): only those rows shut. */
+    if (hxKind(root) === 'table') {
+      var held = t.rows || {};
+      Array.prototype.forEach.call(root.querySelectorAll('tbody tr'), function (tr, i) {
+        var by = Object.prototype.hasOwnProperty.call(held, String(i)) ? held[String(i)] : null;
+        tr.classList.toggle('hx-row-held', !!by);
+        if (by) tr.setAttribute('title', by + ' is editing this row'); else tr.removeAttribute('title');
+        Array.prototype.forEach.call(hxCells(tr), function (c) { c.disabled = HX.readOnly || locked || !!by; });
+      });
+    }
     document.querySelectorAll('[data-choose="' + CSS.escape(field) + '"], [data-remove="' + CSS.escape(field) + '"]')
       .forEach(function (k) { k.disabled = HX.readOnly || locked; });
     root.classList.toggle('hx-locked', locked);
@@ -74,6 +127,11 @@ function teamApply() {
     who.className = 'hx-who' + (t.state === 'mine' ? ' mine' : locked ? ' locked' : '');
     /* A shared box this page typed in follows the team again once its own save has
        landed (the portal's value is what this page last sent) or someone else has it. */
+    if (hxKind(root) === 'table' && Object.prototype.hasOwnProperty.call(HX.values, field)) {
+      teamAdoptRows(root, field, focused);
+      if (HX.sent[field] === HX.values[field]) delete HX.owned[field];
+      return;
+    }
     if (field !== focused && HX.owned[field] && (locked || HX.sent[field] === HX.values[field])) {
       delete HX.owned[field];
     }

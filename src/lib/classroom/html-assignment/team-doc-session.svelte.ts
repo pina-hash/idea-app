@@ -32,6 +32,7 @@ import {
 	teamImagesFrom,
 	teamLiveKey,
 	teamNextLockChange,
+	teamRowKey,
 	teamStatePayload,
 	teamValuesFor,
 	teamWaitingWords,
@@ -258,16 +259,18 @@ export class TeamDocSession {
 	 * A field gained focus: take its lock. A refusal (a teammate got there
 	 * first) re-reads, so the field draws read only with their name on it.
 	 */
-	async focus(blockId: string, field: string): Promise<void> {
+	async focus(blockId: string, field: string, row?: number): Promise<void> {
 		if (!this.#blocks.has(blockId) || !this.#doc?.team || !this.mayWrite(field)) return;
-		const raw = (await this.#opts.transports.lock(this.#opts.itemId, blockId, true).catch(() => null)) as
-			| { ok?: boolean; value?: unknown; until?: string }
+		// 0318: in a table the lock is the row the student is in.
+		const key = row === undefined ? blockId : teamRowKey(blockId, row);
+		const raw = (await this.#opts.transports.lock(this.#opts.itemId, key, true).catch(() => null)) as
+			| { ok?: boolean; value?: unknown; until?: string | null }
 			| null;
 		if (raw?.ok) {
-			this.#held.add(blockId);
+			this.#held.add(key);
 			const doc = this.#doc;
 			if (doc?.team) {
-				const locks = { ...doc.locks, [blockId]: { by: '', mine: true, until: String(raw.until ?? '') } };
+				const locks = raw.until ? { ...doc.locks, [key]: { by: '', mine: true, until: String(raw.until) } } : doc.locks;
 				const next = { ...doc, locks };
 				if (raw.value !== undefined && raw.value !== null) {
 					next.values = { ...doc.values, [blockId]: { value: raw.value, by: doc.values[blockId]?.by ?? null, at: null } };
@@ -284,15 +287,16 @@ export class TeamDocSession {
 		await this.refresh();
 	}
 
-	/** A field lost focus: let its write land, then release the lock. */
-	async blur(blockId: string): Promise<void> {
-		if (!this.#held.has(blockId)) return;
-		this.#held.delete(blockId);
+	/** A field (or a table's row) lost focus: let its write land, then release the lock. */
+	async blur(blockId: string, row?: number): Promise<void> {
+		const key = row === undefined ? blockId : teamRowKey(blockId, row);
+		if (!this.#held.has(key)) return;
+		this.#held.delete(key);
 		await this.#opts.answers.flush().catch(() => {});
-		await this.#opts.transports.lock(this.#opts.itemId, blockId, false).catch(() => null);
+		await this.#opts.transports.lock(this.#opts.itemId, key, false).catch(() => null);
 		const doc = this.#doc;
 		if (doc?.team) {
-			const { [blockId]: _gone, ...locks } = doc.locks;
+			const { [key]: _gone, ...locks } = doc.locks;
 			this.#adopt({ ...doc, locks }, undefined, false);
 			this.#opts.live?.announce(teamLiveKey(doc.team.id), 'team-doc');
 		}

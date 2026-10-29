@@ -462,6 +462,19 @@ under `materials/` through the deployed gate and then 0301).
   one checklist. A field check's pass and its "who is missing what" are one rule
   (`_classroom_signoff_missing` over `_classroom_team_block_done`); never test a box's
   completion a second way.
+- **A TEAM TABLE LOCKS BY ROW (0324, gap 2d621bcc).** A lock key `<block>#r<n>` names one
+  row of a `table` block; `classroom_team_box_lock` never locks a whole table, and
+  `_classroom_save_team_response` merges a table row by row (`_classroom_table_rows`,
+  `_classroom_table_text`, which writes the kit's own compact spelling), taking each changed
+  row's lock and keeping a row a teammate holds. Every other box still locks whole. A
+  document built before the kit sent `row` still gets concurrent rows (the save takes the
+  row locks), but only a rebuilt one lays a teammate's rows down while the student is in the
+  table (`teamAdoptRows` in `tools/hx-kit/kit/team.js`).
+- **NAMES THAT TARGET A CLASSMATE (0324, report 3d4d8b76).** `_idea_roster_name_hits` is the
+  one check, and `classroom_teams_name_hold` holds a student's team name or tagline that
+  matches into `classroom_team_text_holds`; a manager's write is never held. Another lane's
+  student-typed text (tournament entries, market listings) calls the same function rather
+  than writing a second matcher.
 - **SEEDED TASK DATES, THE SPLIT AND PHASES (0323).** `_classroom_team_seed_due` gives a
   seeded task its date from the post (spec 16.6), `_classroom_team_balance` judges each member
   against their own share (`rule` "roles" on a team smaller than its roles), and a module's

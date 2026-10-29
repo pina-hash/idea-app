@@ -488,7 +488,7 @@ export type HxParentMessage =
 			team: string;
 			me: string;
 			roles: { id: string; title: string; owner: string | null; mine: boolean }[];
-			fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed' | 'later'; by?: string }>;
+			fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed' | 'later'; by?: string; rows?: Record<string, string> }>;
 	  }
 	| {
 			/** The student's own team, teammate by teammate. See `HX_TEAM_PROGRESS_TYPE`. */
@@ -522,9 +522,13 @@ export type HxAccepted =
 	| { kind: 'image-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number }
 	/** Where an answer sits (0238). The same shape as a picture box. */
 	| { kind: 'field-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number }
-	/** A field gained or lost focus (ledger 0436), resolved through the parent's map. */
-	| { kind: 'field-focus'; blockId: string; field: string }
-	| { kind: 'field-blur'; blockId: string; field: string };
+	/**
+	 * A field gained or lost focus (ledger 0436), resolved through the parent's
+	 * map. `row` (ledger 0456) is the row of a table the student is in, so the
+	 * parent locks that row and not the whole table.
+	 */
+	| { kind: 'field-focus'; blockId: string; field: string; row?: number }
+	| { kind: 'field-blur'; blockId: string; field: string; row?: number };
 
 /**
  * Why a message was dropped. These are DISTINCT on purpose: "a message from
@@ -888,9 +892,16 @@ export function hxReceive(incoming: HxIncoming, gate: HxGate): HxVerdict {
 			if (blockId === null) {
 				return { ok: false, reason: 'field', detail: `no block declares the field ${JSON.stringify(field)}` };
 			}
+			// A table row (ledger 0456): a whole number under 1000, or nothing.
+			const row = typeof data.row === 'number' && Number.isInteger(data.row) && data.row >= 0 && data.row < 1000 ? data.row : undefined;
 			return {
 				ok: true,
-				message: { kind: data.type === HX_FIELD_FOCUS_TYPE ? 'field-focus' : 'field-blur', blockId, field }
+				message: {
+					kind: data.type === HX_FIELD_FOCUS_TYPE ? 'field-focus' : 'field-blur',
+					blockId,
+					field,
+					...(row === undefined ? {} : { row })
+				}
 			};
 		}
 
@@ -1031,7 +1042,7 @@ export function hxTeamStateMessage(state: {
 	team: string;
 	me: string;
 	roles: { id: string; title: string; owner: string | null; mine: boolean }[];
-	fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed' | 'later'; by?: string }>;
+	fields: Record<string, { state: 'free' | 'mine' | 'held' | 'owned' | 'unowned' | 'closed' | 'later'; by?: string; rows?: Record<string, string> }>;
 }): HxParentMessage {
 	const fields = Object.fromEntries(
 		Object.keys(state.fields)

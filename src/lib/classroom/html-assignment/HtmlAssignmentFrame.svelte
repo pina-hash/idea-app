@@ -216,8 +216,8 @@
 		teamTracker?: HxTeamTracker | null;
 		/** The post's due date and its pacing, sent on every `idea:state` (ledger 0439, SPEC 17.4). */
 		schedule?: HxSchedule | null;
-		onfieldfocus?: (field: { blockId: string; field: string }) => void;
-		onfieldblur?: (field: { blockId: string; field: string }) => void;
+		onfieldfocus?: (field: { blockId: string; field: string; row?: number }) => void;
+		onfieldblur?: (field: { blockId: string; field: string; row?: number }) => void;
 		expandable?: boolean;
 		chrome?: Snippet | null;
 		onexpand?: (expanded: boolean) => void;
@@ -371,10 +371,10 @@
 				break;
 			}
 			case 'field-focus':
-				onfieldfocus?.({ blockId: message.blockId, field: message.field });
+				onfieldfocus?.({ blockId: message.blockId, field: message.field, row: message.row });
 				break;
 			case 'field-blur':
-				onfieldblur?.({ blockId: message.blockId, field: message.field });
+				onfieldblur?.({ blockId: message.blockId, field: message.field, row: message.row });
 				break;
 			case 'field-box': {
 				const { [message.field]: _gone, ...others } = fieldBoxes;

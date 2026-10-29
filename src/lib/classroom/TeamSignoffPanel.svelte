@@ -21,12 +21,34 @@
 	let {
 		itemId,
 		read,
-		decide
+		decide,
+		shifts = null,
+		setShift = null
 	}: {
 		itemId: string;
 		read: (itemId: string) => Promise<unknown>;
 		decide: (teamId: string, key: string, results: Record<string, boolean>, approve: boolean, note: string | null) => Promise<Out>;
+		/** The classes that run this post late (0324); null hides the control. */
+		shifts?: ((itemId: string) => Promise<unknown>) | null;
+		setShift?: ((itemId: string, sectionId: string, days: number) => Promise<Out>) | null;
 	} = $props();
+
+	/** School days each class runs this post late (report d23bc63d.2). */
+	let late = $state<Record<string, number>>({});
+	let lateSaid = $state<Record<string, string>>({});
+	async function readShifts() {
+		if (!shifts) return;
+		const raw = (await shifts(itemId).catch(() => null)) as { ok?: boolean; shifts?: { section_id: string; days: number }[] } | null;
+		if (raw?.ok && Array.isArray(raw.shifts)) late = Object.fromEntries(raw.shifts.map((x) => [String(x.section_id), Number(x.days) || 0]));
+	}
+	async function saveShift(sectionId: string, days: number) {
+		if (!setShift) return;
+		const n = Math.max(0, Math.min(30, Math.round(days) || 0));
+		const out = await setShift(itemId, sectionId, n).catch(() => null);
+		lateSaid = { ...lateSaid, [sectionId]: out?.ok ? (n ? `Moved ${n} school ${n === 1 ? 'day' : 'days'} later for this class.` : 'On the post’s own dates.') : 'That did not save.' };
+		await readShifts();
+		await load();
+	}
 
 	let board = $state<SignoffBoard | null>(null);
 	let failed = $state(false);
@@ -44,6 +66,7 @@
 	}
 	$effect(() => {
 		const poller = untrack(() => startPoller({ intervalMs: 60_000, immediate: true, run: load }));
+		untrack(() => void readShifts());
 		return () => poller.stop();
 	});
 
@@ -78,6 +101,24 @@
 			<div class="tsp-section">
 				{#if board.sections.length > 1 || s.setLabel}
 					<p class="tsp-section-head"><strong>{s.label}</strong>{#if s.setLabel}<span class="tsp-set">{s.setLabel}</span>{/if}</p>
+				{/if}
+				{#if setShift}
+					<div class="tsp-late">
+						<label>
+							<span>This class runs it</span>
+							<input
+								type="number"
+								min="0"
+								max="30"
+								step="1"
+								value={late[s.id] ?? 0}
+								onchange={(e) => saveShift(s.id, Number((e.currentTarget as HTMLInputElement).value))}
+								aria-label={`School days ${s.label} runs this post late`}
+							/>
+							<span>school days late (plan steps and sign-off dates move for this class only)</span>
+						</label>
+						{#if lateSaid[s.id]}<span class="tsp-late-said" role="status">{lateSaid[s.id]}</span>{/if}
+					</div>
 				{/if}
 				{#if !s.teams.length}
 					<p class="tsp-note">No team draw is posted in this class. Draw and post teams on the People tab.</p>
@@ -209,6 +250,30 @@
 		font-family: var(--font-mono);
 		font-size: 0.75rem;
 		color: var(--cyan);
+	}
+	.tsp-late {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem 0.8rem;
+		font-family: var(--font-display);
+		font-size: 0.92rem;
+		color: var(--text-2, var(--dim));
+	}
+	.tsp-late label {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.tsp-late input {
+		width: 4rem;
+		min-height: 44px;
+		font-family: var(--font-mono);
+		text-align: right;
+	}
+	.tsp-late-said {
+		color: var(--green);
 	}
 	.tsp-teams {
 		list-style: none;

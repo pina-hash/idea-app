@@ -9,6 +9,7 @@
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import SongQueue from '$lib/classroom/SongQueue.svelte';
 	import ClassTeams from '$lib/classroom/ClassTeams.svelte';
+	import TeamTodayCard from '$lib/classroom/TeamTodayCard.svelte';
 	import ClassThemePanel from '$lib/classroom/ClassThemePanel.svelte';
 	import {
 		createClassThemeTransports,
@@ -629,6 +630,18 @@
 		style={(input) => saveTeamStyle(data.supabase, input)}
 		details={(input) => saveTeamDetails(data.supabase, input)}
 	/>
+	{#if data.canManage !== true}
+		<!-- WHAT MY TEAM DOES TODAY (ledger 0456): a student on a team sees their
+		     own tasks for today, check-ins, blocks and the next sign-off. It
+		     renders nothing for a student on no team. -->
+		<TeamTodayCard
+			sectionId={data.section.id}
+			read={async (id) => {
+				const { data: raw, error } = await data.supabase.rpc('classroom_team_plan', { p_section_id: id, p_team_id: null });
+				return error ? null : raw;
+			}}
+		/>
+	{/if}
 	<!-- THIS WEEK IN THIS CLASS (ledger 0439): due dates, pacing, the team's
 	     tasks and the school's days, under the header where a student looks,
 	     with the door to the class's calendar. It loads itself. -->

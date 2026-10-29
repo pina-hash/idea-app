@@ -151,3 +151,78 @@ export function machineCounts(board: TeamBoard, days: readonly string[]): { id: 
 		return { id: m.id, label: m.label, byDay, total };
 	});
 }
+
+/**
+ * THE MACHINE WEEK (ledger 0456, 0318 `classroom_machine_week`), as data: every
+ * team task with a machine and a day in one week, and whether another team has
+ * that machine that day.
+ */
+export interface MachineBooking {
+	day: string;
+	machine: string;
+	section: string;
+	team: string;
+	task: string;
+	owner: string | null;
+	blocked: boolean;
+	clash: boolean;
+}
+export interface MachineWeek {
+	from: string;
+	to: string;
+	machines: { id: string; label: string }[];
+	bookings: MachineBooking[];
+}
+
+export function parseMachineWeek(raw: unknown): MachineWeek | null {
+	if (!isRecord(raw) || raw.ok !== true || typeof raw.from !== 'string') return null;
+	const arr = (v: unknown) => (Array.isArray(v) ? v.filter(isRecord) : []);
+	return {
+		from: raw.from,
+		to: String(raw.to ?? raw.from),
+		machines: arr(raw.machines).map((m) => ({ id: String(m.id), label: String(m.label ?? m.id) })),
+		bookings: arr(raw.bookings).map((b) => ({
+			day: String(b.day ?? ''),
+			machine: String(b.machine ?? ''),
+			section: String(b.section ?? ''),
+			team: String(b.team ?? ''),
+			task: String(b.task ?? ''),
+			owner: typeof b.owner === 'string' && b.owner ? b.owner : null,
+			blocked: b.blocked === true,
+			clash: b.clash === true
+		}))
+	};
+}
+
+/**
+ * The week as a grid: the five school days from `from`, a row per machine (the
+ * active list, then any machine a booking names that the list does not), each
+ * cell its bookings and whether they clash; and how many cells clash.
+ */
+export function machineWeekGrid(week: MachineWeek): {
+	days: string[];
+	rows: { machine: { id: string; label: string }; cells: { bookings: MachineBooking[]; clash: boolean }[] }[];
+	clashes: number;
+} {
+	const days: string[] = [];
+	const start = new Date(`${week.from}T12:00:00Z`);
+	for (let i = 0; i < 7 && days.length < 5; i++) {
+		const d = new Date(start);
+		d.setUTCDate(start.getUTCDate() + i);
+		const w = d.getUTCDay();
+		if (w !== 0 && w !== 6) days.push(d.toISOString().slice(0, 10));
+	}
+	const machines = [...week.machines];
+	for (const b of week.bookings) if (!machines.some((m) => m.id === b.machine)) machines.push({ id: b.machine, label: b.machine });
+	let clashes = 0;
+	const rows = machines.map((machine) => ({
+		machine,
+		cells: days.map((day) => {
+			const bookings = week.bookings.filter((b) => b.machine === machine.id && b.day === day);
+			const clash = bookings.some((b) => b.clash);
+			if (clash) clashes += 1;
+			return { bookings, clash };
+		})
+	}));
+	return { days, rows, clashes };
+}

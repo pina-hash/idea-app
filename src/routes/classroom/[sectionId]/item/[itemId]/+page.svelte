@@ -459,6 +459,23 @@
 		return untrack(() => session.start());
 	});
 	/** EVERY TEAM'S DOCUMENT, for a manager of a team assignment (ledger 0436). */
+	/** A student's team box history (ledger 0456, 0324): their own team's boxes only, put back by the ordinary save. */
+	const htmlTeamHistory = $derived.by(() => {
+		if (!htmlTeamDoc) return null;
+		const supabase = data.supabase;
+		const itemId = data.item.id;
+		return {
+			read: async (blockId: string) => {
+				const { data: raw, error } = await supabase.rpc('classroom_team_box_history_mine', { p_item_id: itemId, p_block_id: blockId });
+				return error ? null : raw;
+			},
+			restore: async (blockId: string, value: unknown) => {
+				const { data: out, error } = await supabase.rpc('classroom_save_response', { p_item_id: itemId, p_block_id: blockId, p_value: value });
+				if (!error) htmlTeamDoc?.noticed();
+				return error ? null : (out as { ok?: boolean; reason?: string });
+			}
+		};
+	});
 	const htmlTeamDocuments = $derived.by(() => {
 		const doc = data.htmlAssignment;
 		const manifest = doc && htmlManifestShaped(doc.manifest) ? doc.manifest : null;
@@ -478,6 +495,15 @@
 					call('classroom_team_box_history', { p_item_id: itemId, p_team_id: teamId, p_block_id: blockId }),
 				// The teams panel (ledger 0456, 0323): every team's sign-offs and progress, decided here.
 				board: (itemId: string) => call('classroom_item_signoff_board', { p_item_id: itemId }),
+				shifts: (itemId: string) => call('classroom_item_section_shifts', { p_item_id: itemId }),
+				setShift: async (itemId: string, sectionId: string, days: number) => {
+					const { data: raw, error } = await supabase.rpc('classroom_item_section_shift_set', {
+						p_item_id: itemId,
+						p_section_id: sectionId,
+						p_days: days
+					});
+					return error ? null : (raw as { ok: boolean; reason?: string });
+				},
 				decide: async (teamId: string, key: string, results: Record<string, boolean>, approve: boolean, note: string | null) => {
 					const { data: raw, error } = await supabase.rpc('classroom_signoff_teacher_decide', {
 						p_team_id: teamId,
@@ -1412,6 +1438,7 @@
 	{htmlTeam}
 	{htmlTeamDoc}
 	{htmlTeamDocuments}
+	{htmlTeamHistory}
 	htmlLock={data.canManage ? undefined : htmlLock}
 	feedback={feedbackSession}
 	{htmlInstructorAnswers}

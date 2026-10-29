@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.15 - 2026-10-28**
+**Version 1.16 - 2026-10-28**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -1840,8 +1840,10 @@ move on the People tab take effect the same way.
 
 ### 16.3 One box at a time, and live
 
-- **Per-box lock.** When a student focuses a shared box it is theirs; teammates see
-  "<first name> is editing" and cannot type there. The lock is released when the student
+- **Per-box lock, per-row for a table** (1.16, migration 0324). When a student focuses a
+  shared box it is theirs; teammates see "<first name> is editing" and cannot type there. A
+  `table` block locks by ROW instead: a teammate can type in any row nobody holds, and a
+  save writes only the rows it changed, keeping a row a teammate holds. The lock is released when the student
   leaves the box, or two minutes after they last typed in it, so a closed laptop never
   freezes a box.
 - **Live.** A saved change reaches every teammate within about two seconds. Answers are
@@ -1960,8 +1962,8 @@ map, section 6.4):
 
 | Type | Payload | When |
 |---|---|---|
-| `idea:field-focus` | `field` | a field gains focus: the parent takes that box's lock |
-| `idea:field-blur` | `field` | it loses focus: the parent lets the box's save land, then releases the lock |
+| `idea:field-focus` | `field`, `row`? | a field gains focus: the parent takes that box's lock; in a `table`, `row` (the tbody row, from 0) names the row to lock (1.16) |
+| `idea:field-blur` | `field`, `row`? | it loses focus (or moves to another row of a table): the parent lets the save land, then releases that lock |
 
 A document that never sends them still works: the first save takes the lock, and the lock
 lapses two minutes after the last save.
@@ -1976,7 +1978,9 @@ Parent to frame (advisory: a document must never wait on one):
 `state` in `idea:team-state` is one of `free` and `mine` (the student may type), `held`
 (`by` is editing it), `owned` (it belongs to `by`), `unowned` (its role has no owner yet:
 choose one in the team plan), `closed` (past due) and `later` (a phase not open for this
-team yet, `by` the checkpoint's title; 16.10). A document draws a field that is not
+team yet, `by` the checkpoint's title; 16.10). A `table` field also carries `rows`, row index
+to the first name of the teammate holding it (1.16): the document shuts those rows only, and
+lays a teammate's saved rows down around the row being typed in. `tools/hx-kit` does both. A document draws a field that is not
 `free` or `mine` read only with the words beside it, and on `idea:state` it never
 overwrites the field the student has focus in. `idea:state`'s `values` already carry the
 team's answers for shared fields, so nothing else carries an answer down.
@@ -2139,6 +2143,9 @@ has its plan on screen.
 
 ## Changelog
 
+- **1.16 (2026-10-28).** Ledger 0456, migration 0324. 16.3: a team `table` locks by row and a
+  save merges row by row. 16.7: `row` on `idea:field-focus` and `idea:field-blur`, `rows` on a
+  table's team-state.
 - **1.15 (2026-10-28).** Ledger 0456, migration 0323. 16.1: a team post pins the draw it is
   written under, and a newer draw moves only an unused post. 16.5: who is missing what, the
   teams panel and Approve anyway with a note. 16.6: seeded tasks take their date from the

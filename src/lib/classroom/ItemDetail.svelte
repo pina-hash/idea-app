@@ -155,8 +155,10 @@
 	import TeamDocGate from '$lib/classroom/html-assignment/TeamDocGate.svelte';
 	import TeamDocuments from '$lib/classroom/html-assignment/TeamDocuments.svelte';
 	import TeamSignoffPanel from '$lib/classroom/TeamSignoffPanel.svelte';
+	import TeamBoxHistory from '$lib/classroom/TeamBoxHistory.svelte';
+	import { hxTeamBlocks } from '$lib/classroom/html-assignment/team-doc';
 	import type { TeamDocumentsTransports } from '$lib/classroom/html-assignment/team-doc';
-	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
+	import { hxBlockPrompt, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import type { TeamDocSession } from '$lib/classroom/html-assignment/team-doc-session.svelte';
 	import FeedbackPanel from '$lib/classroom/feedback/FeedbackPanel.svelte';
 	import type { FeedbackSession } from '$lib/classroom/feedback/session.svelte';
@@ -318,6 +320,7 @@
 		htmlTeam = null,
 		htmlTeamDoc = null,
 		htmlTeamDocuments = null,
+		htmlTeamHistory = null,
 		htmlLock = undefined,
 		feedback = null,
 		htmlInstructorAnswers = null,
@@ -439,6 +442,8 @@
 		htmlTeamDoc?: TeamDocSession | null;
 		/** EVERY TEAM'S DOCUMENT, for a manager of a team assignment (ledger 0436); null shows nothing. */
 		htmlTeamDocuments?: { manifest: HtmlAssignmentManifest; transports: TeamDocumentsTransports } | null;
+		/** A student's team box history (ledger 0456, 0324): read a box's versions, put one back. */
+		htmlTeamHistory?: { read: (blockId: string) => Promise<unknown>; restore: (blockId: string, value: unknown) => Promise<{ ok?: boolean; reason?: string } | null> } | null;
 		/**
 		 * THE LOCK AS THE PAGE KNOWS IT NOW (ledger 0431), from the heartbeat, the
 		 * class's live notice or a save refused as shut, so an assignment closed
@@ -712,6 +717,17 @@
 	 * newest per box is what everyone sees. Every other post is the student's
 	 * own pictures, unchanged.
 	 */
+	/** The post's team and role boxes, in document order, for the box history (ledger 0456). */
+	const htmlTeamBoxes = $derived.by(() => {
+		const manifest = htmlAssignment?.manifest as HtmlAssignmentManifest | undefined;
+		if (!manifest || !htmlTeamHistory || !Array.isArray(manifest.modules)) return [];
+		const shared = hxTeamBlocks(manifest);
+		return manifest.modules.flatMap((mod) =>
+			(mod.blocks ?? [])
+				.filter((b) => shared.has(b.id) && b.type !== 'image')
+				.map((b) => ({ blockId: b.id, label: `${mod.title}: ${hxBlockPrompt(b) ?? b.field}` }))
+		);
+	});
 	const htmlImages = $derived.by(() => {
 		const own = htmlAnswers?.images ?? {};
 		const team = htmlTeamDoc?.images ?? {};
@@ -3037,6 +3053,8 @@
 							itemId={item.id}
 							read={htmlTeamDocuments.transports.board}
 							decide={htmlTeamDocuments.transports.decide}
+							shifts={htmlTeamDocuments.transports.shifts ?? null}
+							setShift={htmlTeamDocuments.transports.setShift ?? null}
 						/>
 					{/if}
 					{#if htmlTeamDocuments}
@@ -3100,13 +3118,17 @@
 						teamState={htmlTeamDoc?.statePayload ?? null}
 						teamTracker={htmlTeamDoc?.tracker ?? null}
 						schedule={htmlSchedule}
-						onfieldfocus={htmlTeamDoc ? (f) => void htmlTeamDoc?.focus(f.blockId, f.field) : undefined}
-						onfieldblur={htmlTeamDoc ? (f) => void htmlTeamDoc?.blur(f.blockId) : undefined}
+						onfieldfocus={htmlTeamDoc ? (f) => void htmlTeamDoc?.focus(f.blockId, f.field, f.row) : undefined}
+						onfieldblur={htmlTeamDoc ? (f) => void htmlTeamDoc?.blur(f.blockId, f.row) : undefined}
 						onnote={feedback ? (_field, threadId) => feedback?.show(threadId) : null}
 					/>
 					{/snippet}
 					{#if htmlTeamDoc}
 						<TeamDocGate session={htmlTeamDoc}>{@render htmlFrameMount()}</TeamDocGate>
+						{#if htmlTeamHistory && htmlTeamDoc.statePayload && htmlTeamBoxes.length}
+							<!-- The team's box history (ledger 0456): a student's own team only. -->
+							<TeamBoxHistory boxes={htmlTeamBoxes} read={htmlTeamHistory.read} restore={htmlTeamHistory.restore} />
+						{/if}
 					{:else}
 						{@render htmlFrameMount()}
 					{/if}

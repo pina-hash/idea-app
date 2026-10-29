@@ -179,6 +179,16 @@ export interface HxTeamFieldState {
 	state: HxTeamFieldStateKind;
 	/** A first name: who is editing, or who owns the part. */
 	by?: string;
+	/**
+	 * A table's rows a teammate holds (ledger 0456, 0318): row index to their
+	 * first name. The rest of the table is free; the document shuts only these.
+	 */
+	rows?: Record<string, string>;
+}
+
+/** A row lock's key, `<block>#r<n>` (0318). */
+export function teamRowKey(blockId: string, row: number): string {
+	return `${blockId}#r${row}`;
 }
 
 export function teamFieldWritable(state: HxTeamFieldState | undefined): boolean {
@@ -242,6 +252,14 @@ export function teamFieldStates(
 		if (fresh && lock.mine) out[field] = { state: 'mine' };
 		else if (fresh) out[field] = { state: 'held', by: lock.by };
 		else out[field] = { state: 'free' };
+		// 0318: a table locks by row. Rows a teammate holds go down with the field.
+		const rows: Record<string, string> = {};
+		for (const [key, l] of Object.entries(doc.locks)) {
+			const m = /^(.*)#r(\d{1,3})$/.exec(key);
+			if (!m || m[1] !== blockId || l.mine || !(Date.parse(l.until) > serverNow)) continue;
+			rows[m[2]] = l.by;
+		}
+		if (Object.keys(rows).length) out[field] = { ...out[field], rows };
 	}
 	return out;
 }
@@ -321,6 +339,10 @@ export interface TeamDocumentsTransports {
 	history(itemId: string, teamId: string, blockId: string): Promise<unknown>;
 	/** The teams panel's read (`classroom_item_signoff_board`, 0323); absent in an older harness. */
 	board?(itemId: string): Promise<unknown>;
+	/** The post's late classes (`classroom_item_section_shifts`, 0324). */
+	shifts?(itemId: string): Promise<unknown>;
+	/** One class runs the post N school days late (`classroom_item_section_shift_set`, 0324). */
+	setShift?(itemId: string, sectionId: string, days: number): Promise<{ ok: boolean; reason?: string } | null>;
 	/** Decide one team's checkpoint (`classroom_signoff_teacher_decide`, 0323). */
 	decide?(
 		teamId: string,

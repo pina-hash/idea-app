@@ -672,6 +672,8 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			return { p_team_set_id: id, p_first: w.students.mateo, p_second: w.students.danielR };
 		},
 		classroom_add_team: async () => ({ p_team_set_id: await teamSet(), p_name: 'Volt' }),
+		// ledger 0456, 0324: one class runs a shared post late.
+		classroom_item_section_shift_set: async () => ({ p_item_id: await newItem('Run me late'), p_section_id: w.block2, p_days: 2 }),
 		classroom_rename_team: async () => {
 			const id = await teamSet();
 			const [t] = await sql<{ id: string }>(`select id from public.classroom_teams where team_set_id = $1 and team_number = 1`, [id]);

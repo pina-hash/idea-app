@@ -407,3 +407,36 @@ export interface TeamPlanWrites {
 	/** Request a checkpoint's sign-off (0304). */
 	request(teamId: string, checkpointKey: string): Promise<unknown>;
 }
+
+/**
+ * WHAT MY TEAM DOES TODAY (ledger 0456, report d23bc63d.5), for the class
+ * home's card: the viewer's own open tasks that are due today or behind, or
+ * that they checked in on; who on the team checked in; what is blocked; and
+ * the next sign-off not yet approved. Null for a viewer who is not on the team
+ * (an instructor reading the plan).
+ */
+export function teamToday(plan: TeamPlan): {
+	mine: (TeamPlanTask & { status: TeamTaskStatus })[];
+	onIt: string[];
+	blocked: string[];
+	next: { title: string; date: string | null; state: string } | null;
+} | null {
+	if (!plan.me) return null;
+	const name = (key: string | null) => plan.members.find((m) => m.key === key)?.name ?? null;
+	const mine = plan.tasks
+		.filter((t) => t.owner === plan.me)
+		.map((t) => ({ ...t, status: teamTaskStatus(t, plan.today) }))
+		.filter((t) => t.status !== 'done' && ((t.dueOn !== null && t.dueOn <= plan.today) || t.onIt.includes(plan.me)))
+		.sort((a, b) => (a.dueOn ?? '').localeCompare(b.dueOn ?? ''))
+		.slice(0, 6);
+	const blocked = plan.tasks
+		.filter((t) => t.blocked && !teamTaskDone(t))
+		.map((t) => `${t.title}${name(t.owner) ? ` (${name(t.owner)})` : ''}`);
+	const cp = plan.checkpoints.find((c) => c.state !== 'approved') ?? null;
+	return {
+		mine,
+		onIt: plan.checkedIn.map((k) => name(k)).filter((n): n is string => !!n),
+		blocked,
+		next: cp ? { title: cp.title, date: cp.date, state: cp.state } : null
+	};
+}

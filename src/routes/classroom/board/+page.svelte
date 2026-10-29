@@ -59,6 +59,7 @@
 	<header class="tbp-head">
 		<h1 class="tbp-title">Team board</h1>
 		<a class="btn ghost" href="/classroom/signoffs">Sign-off queue</a>
+		<a class="btn ghost" href="/classroom/board/machines">Machine week</a>
 	</header>
 	{#if failed && !board}
 		<p class="card tbp-note">The board could not be read. It tries again on its own.</p>

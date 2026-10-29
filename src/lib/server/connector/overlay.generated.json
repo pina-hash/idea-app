@@ -4833,6 +4833,108 @@
 				}
 			}
 		},
+		"classroom_team_text_holds_list": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The team names and taglines students wrote that name a classmate, held for his OK before they show.",
+			"say": [
+				"any team names waiting for me",
+				"held team names",
+				"which team names name a student"
+			]
+		},
+		"classroom_team_text_hold_decide": {
+			"surface": "call",
+			"level": "confirm",
+			"proof": "generic",
+			"describe": "Allow a held team name or tagline, which then shows, or turn it down. It asks first.",
+			"say": [
+				"allow the Moss Bosses name",
+				"turn down that team name",
+				"reject the held tagline"
+			],
+			"args": {
+				"p_hold_id": {
+					"name": "hold",
+					"describe": "The held name's id, from the list of held team names."
+				},
+				"p_approve": {
+					"name": "allow",
+					"describe": "True to allow it, false to turn it down."
+				}
+			}
+		},
+		"classroom_machine_week": {
+			"surface": "call",
+			"level": "read",
+			"describe": "Every team's machine tasks for one school week across his classes, with clashes where two teams have one machine on one day.",
+			"say": [
+				"who has the laser this week",
+				"machine bookings for build week",
+				"any machine clashes next week"
+			],
+			"args": {
+				"p_from": {
+					"name": "week",
+					"resolve": "due",
+					"describe": "Any day of the week, like next Monday; leave it out for this week."
+				}
+			}
+		},
+		"classroom_item_section_shift_set": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Make one class run a shared post some school days late, so its plan steps and sign-off dates move for that class only; 0 puts it back on the post's own dates.",
+			"say": [
+				"Block 4 runs Launcher two days late",
+				"move the launcher dates two days for Mr. Cosso's class",
+				"put Block 4 back on the post's dates"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"describe": "The post: its name as he says it, or its id."
+				},
+				"p_section_id": {
+					"name": "class",
+					"resolve": "class",
+					"describe": "The class, like 209H Block 4."
+				},
+				"p_days": {
+					"name": "days",
+					"describe": "School days late, 0 to 30."
+				}
+			},
+			"undo": [
+				{
+					"function": "classroom_item_section_shift_set",
+					"args": {
+						"p_item_id": "$args.p_item_id",
+						"p_section_id": "$args.p_section_id",
+						"p_days": 0
+					}
+				}
+			]
+		},
+		"classroom_item_section_shifts": {
+			"surface": "call",
+			"level": "read",
+			"describe": "The classes that run one shared post late, and by how many school days.",
+			"say": [
+				"which classes run Launcher late",
+				"is Block 4 shifted on this post",
+				"how late is Block 4 on Launcher Design"
+			],
+			"args": {
+				"p_item_id": {
+					"name": "post",
+					"describe": "The post: its name as he says it, or its id."
+				}
+			}
+		},
+		"classroom_team_box_history_mine": {
+			"exclude": "A student's own team read; the instructor reads a box's history through classroom_team_box_history."
+		},
 		"classroom_machine_tag_set": {
 			"surface": "call",
 			"level": "confirm",
@@ -12878,6 +12980,12 @@
 		"classroom_signoff_teacher_decide": "classroom.yaml",
 		"classroom_item_signoff_board": "classroom.yaml",
 		"classroom_team_set_uses": "classroom.yaml",
+		"classroom_team_text_holds_list": "classroom.yaml",
+		"classroom_team_text_hold_decide": "classroom.yaml",
+		"classroom_machine_week": "classroom.yaml",
+		"classroom_item_section_shift_set": "classroom.yaml",
+		"classroom_item_section_shifts": "classroom.yaml",
+		"classroom_team_box_history_mine": "classroom.yaml",
 		"classroom_machine_tag_set": "classroom.yaml",
 		"classroom_no_school_day_set": "classroom.yaml",
 		"classroom_presentation_queue": "classroom.yaml",

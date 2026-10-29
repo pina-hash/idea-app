@@ -7,6 +7,7 @@
 	import { untrack } from 'svelte';
 	import { invalidate } from '$app/navigation';
 	import SignoffQueue from '$lib/classroom/SignoffQueue.svelte';
+	import TeamNameHolds from '$lib/classroom/TeamNameHolds.svelte';
 	import { parseSignoffQueue, type SignoffRequest } from '$lib/classroom/signoffs';
 	import { createClassroomLive, TEAM_NOTICE_JITTER_MS } from '$lib/classroom/live';
 	import { startPoller } from '$lib/classroom/poll';
@@ -86,6 +87,7 @@
 		<h1 class="so-title">Sign-offs</h1>
 		{#if data.isAdmin}<a class="btn ghost" href="/classroom/signoffs/checklists">Checklists</a>{/if}
 		<a class="btn ghost" href="/classroom/board">Board</a>
+		<a class="btn ghost" href="/classroom/board/machines">Machines</a>
 	</header>
 	{#if failed && !requests}
 		<p class="card so-wait">The queue could not be read. It tries again on its own.</p>
@@ -94,6 +96,17 @@
 	{:else}
 		<SignoffQueue {requests} ondecide={decide} onoverride={override} {now} />
 	{/if}
+	<!-- Team names and taglines that name a classmate, held for an OK (ledger 0456). -->
+	<TeamNameHolds
+		read={async () => {
+			const { data: raw, error } = await supabase.rpc('classroom_team_text_holds_list');
+			return error ? null : raw;
+		}}
+		decide={async (id, approve) => {
+			const { data: out, error } = await supabase.rpc('classroom_team_text_hold_decide', { p_hold_id: id, p_approve: approve });
+			return error ? null : (out as { ok?: boolean });
+		}}
+	/>
 </div>
 
 <style>
