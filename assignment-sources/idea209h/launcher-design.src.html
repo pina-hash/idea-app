@@ -51,16 +51,7 @@
   "pacing": [
     {"id": "d1", "day": 1, "title": "Rules, research and your concept sketch", "modules": ["u4d-rules", "u4d-idea"]},
     {"id": "d2", "day": 2, "title": "Score every idea, pick one, set roles", "modules": ["u4d-select"]},
-    {"id": "d3", "day": 3, "title": "Your part's requirement and sketch, Sign-off 1", "modules": ["u4d-frame", "u4d-energy", "u4d-drive", "u4d-ballpath"]},
-    {"id": "d4", "day": 4, "title": "Prototype: one question, one class"},
-    {"id": "d5", "day": 5, "title": "Calculations, CAD, drawings, machine plan"},
-    {"id": "d7", "day": 7, "title": "Sign-off 2: Design. No metal is cut before it"},
-    {"id": "d8", "day": 8, "title": "Build starts"},
-    {"id": "d12", "day": 12, "title": "Sign-off 3: Safe to test"},
-    {"id": "d13", "day": 13, "title": "Test and tune"},
-    {"id": "d14", "day": 14, "title": "Sign-off 4: Competition ready"},
-    {"id": "d15", "day": 15, "title": "Competition on the football field"},
-    {"id": "d16", "day": 16, "title": "Design Review"}
+    {"id": "d3", "day": 3, "title": "Your part's requirement and sketch, Sign-off 1", "modules": ["u4d-frame", "u4d-energy", "u4d-drive", "u4d-ballpath"]}
   ],
   "team": {
     "roles": [
@@ -478,12 +469,12 @@
             <tr><td><span data-pace-date="d1">Oct 26</span></td><td>Teams of 3 or 4, drawn at random. Research, then <strong>one concept sketch per person</strong>, not per team. <span class="idea-chip hx-who-badge" data-audience="individual">Just you</span></td></tr>
             <tr><td><span data-pace-date="d2">Oct 27</span></td><td>Score every idea, pick one, split it into four <span class="it" data-term="role">roles</span>. <span class="idea-chip hx-who-badge" data-audience="team">Whole team</span></td></tr>
             <tr><td><span data-pace-date="d3">Oct 28</span></td><td>Your part's requirement and sketch. <span class="u4-so">Sign-off 1: Plan.</span> <span class="idea-chip hx-who-badge" data-audience="role">Your role only</span></td></tr>
-            <tr><td><span data-pace-date="d4">Oct 29</span></td><td><span class="it" data-term="prototype">Prototype</span>: cardboard, scrap, tape, clamps. One question, one class, then it goes in the bin.</td></tr>
-            <tr><td><span data-pace-date="d5">Oct 30</span> to <span data-pace-date="d7">Nov 3</span></td><td>Calculations, CAD, drawings, machine plan. <span class="u4-so">Sign-off 2: Design, <span data-pace-date="d7">Nov 3</span>. No metal is cut before it.</span></td></tr>
-            <tr><td><span data-pace-date="d8">Nov 4</span> to <span data-pace-date="d12">Nov 10</span></td><td>Build. <span class="u4-so">Sign-off 3: Safe to test, <span data-pace-date="d12">Nov 10</span>. No full-power firing of the real launcher before it.</span></td></tr>
-            <tr><td><span data-pace-date="d13">Nov 12</span> and <span data-pace-date="d14">Nov 13</span></td><td>Test and tune. <span class="u4-so">Sign-off 4: Competition ready, <span data-pace-date="d14">Nov 13</span>.</span></td></tr>
-            <tr><td><span data-pace-date="d15">Nov 16</span></td><td><span class="u4-ev">Competition</span> on the football field.</td></tr>
-            <tr><td><span data-pace-date="d16">Nov 17</span></td><td><span class="u4-ev">Design Review</span>: your team presents.</td></tr>
+            <tr><td>Class 4</td><td><span class="it" data-term="prototype">Prototype</span>: cardboard, scrap, tape, clamps. One question, one class, then it goes in the bin.</td></tr>
+            <tr><td>Classes 5 to 7</td><td>Calculations, CAD, drawings, machine plan. <span class="u4-so">Sign-off 2: Design, Class 7. No metal is cut before it.</span></td></tr>
+            <tr><td>Classes 8 to 12</td><td>Build. <span class="u4-so">Sign-off 3: Safe to test, Class 12. No full-power firing of the real launcher before it.</span></td></tr>
+            <tr><td>Classes 13 and 14</td><td>Test and tune. <span class="u4-so">Sign-off 4: Competition ready, Class 14.</span></td></tr>
+            <tr><td>Class 15</td><td><span class="u4-ev">Competition</span> on the football field.</td></tr>
+            <tr><td>Class 16</td><td><span class="u4-ev">Design Review</span>: your team presents.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1009,7 +1000,7 @@ HX.onState.push(function (d) {
   u4PaceFill();
 });
 /* Phase 1 of the post: the finish line says what comes next, not that the post is over. */
-(function () { var f = document.querySelector('.hx-finish'); if (f) f.innerHTML = '<strong>Concept is in.</strong> Nothing to turn in: your work saves as you go. Next: Launcher: Prototype and Detail Design, <span data-pace-date="d4">Oct 29</span>.'; u4PaceFill(); })();
+(function () { var f = document.querySelector('.hx-finish'); if (f) f.innerHTML = '<strong>Concept is in.</strong> Nothing to turn in: your work saves as you go. Next: Launcher: Prototype and Detail Design.'; u4PaceFill(); })();
 </script>
 </body>
 </html>
