@@ -25,6 +25,8 @@ import { armoryRpc, hash, person } from './armory-v3-helpers';
 
 const N = '0319';
 const SQL = migrationSql(N);
+/** 0320: the WHERE pg-safeupdate demands, on 0319's roster sync. */
+const FIX = migrationSql('0320');
 
 type Outcome = { ok: true; r: unknown } | { ok: false; code: string; message: string };
 
@@ -149,6 +151,7 @@ beforeAll(async () => {
 	corpusBefore = await runCorpus();
 	preFingerprint = await catalogFingerprint(db);
 	await db.sql(SQL);
+	await db.sql(FIX);
 }, 900_000);
 
 afterAll(async () => {
@@ -177,6 +180,7 @@ describe(`${N} as a file`, () => {
 		const after = await catalogFingerprint(db);
 		expect(after).not.toEqual(preFingerprint);
 		await db.sql(SQL);
+		await db.sql(FIX);
 		expect(await catalogFingerprint(db)).toEqual(after);
 	});
 
@@ -397,5 +401,38 @@ describe('team folders', () => {
 		const t = (await folders(admin, P)).filter((f) => f.kind === 'team');
 		expect(t[0].writers).toEqual([ana.email]);
 		expect(t[1].writers).toEqual([ben.email, emma.email, emma2.email].sort());
+	});
+});
+
+describe('0320: no Armory body writes with no WHERE, which pg-safeupdate refuses on production', () => {
+	/** pg-safeupdate's rule, as tests/db/tournament-bracket-seeded-0317.test.ts states it: an UPDATE or DELETE needs a top-level WHERE. */
+	function unqualified(body: string): string[] {
+		const s = body.replace(/--[^\n]*/g, '').replace(/'(?:''|[^'])*'/g, "''");
+		const out: string[] = [];
+		const re = /\b(update\s+(only\s+)?([a-z_]+\.)?[a-z_]+(\s+(as\s+)?[a-z_]+)?\s+set\b|delete\s+from\s+(only\s+)?([a-z_]+\.)?[a-z_]+)/gi;
+		for (let m = re.exec(s); m; m = re.exec(s)) {
+			const end = s.indexOf(';', m.index);
+			const stmt = s.slice(m.index, end < 0 ? undefined : end);
+			let depth = 0;
+			let top = '';
+			for (const ch of stmt) {
+				if (ch === '(') depth += 1;
+				else if (ch === ')') depth -= 1;
+				else if (depth === 0) top += ch;
+			}
+			if (!/\bwhere\b/i.test(top)) out.push(stmt.replace(/\s+/g, ' ').slice(0, 80));
+		}
+		return out;
+	}
+	test('every armory function on the chain carries its WHERE; 0319 alone did not', async () => {
+		const { rows } = await db.sql<{ name: string; def: string }>(
+			`select p.proname as name, p.prosrc as def from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+			 where n.nspname = 'public' and p.proname like '%armory%'`
+		);
+		const bad = rows.flatMap((r) => unqualified(r.def).map((x) => `${r.name}: ${x}`));
+		expect(bad).toEqual([]);
+		// Control: the scanner sees 0319's bare delete.
+		expect(unqualified(SQL).some((x) => x.startsWith('delete from pg_temp.armory_roster'))).toBe(true);
+		expect(unqualified(FIX)).toEqual([]);
 	});
 });

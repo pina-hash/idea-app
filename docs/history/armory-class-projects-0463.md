@@ -2,7 +2,7 @@
 title: "IDEA Armory projects linked to a class: the roster becomes the team, each student a Last_First folder only they write in, team folders from the class teams, all enforced in the write functions, and a placeholder file per folder so Armory 0.5.1 shows it (ledger 0463, migration 0319)"
 date: 2026-10-28
 branches: [main]
-migrations: ["0319"]
+migrations: ["0319", "0320"]
 subsystems: ["Armory", "Connector", "Migrations"]
 ---
 
@@ -44,3 +44,7 @@ Ledger 0463, built 2026-10-28 evening for IDEA 100 Section 3 (21 students, first
 ### Not verified, and why
 
 - The live apply, and a real lab computer running 0.5.1 showing the folder: this container cannot reach the database or a Windows lab machine. The first R2 PUT of the placeholder is untested against real R2 (the fake fetch in `tests/armory-endpoints.test.ts` stands in).
+
+### 0320: the WHERE pg-safeupdate demands
+
+After 0319 applied (01:40Z), a connector preview of `armory_link_section` on production answered 21000 "DELETE requires a WHERE clause": `_armory_sync_section` empties its temporary roster with a bare delete, and the hosted project loads pg-safeupdate for API requests (0317 met the same thing for tournaments). The test database does not load it, so 0319's suite could not see it. 0320 re-creates that one body with `where true`; `tests/db/armory-class-projects.test.ts` now scans every Armory function body on the chain for an UPDATE or DELETE with no top-level WHERE (0317's rule), with 0319's own bare delete as the planted control. Nothing had been linked before it (0319's notice: 0 projects linked), so nothing needs repair. Undo: none needed; 0319's body refuses on production.

@@ -92,4 +92,9 @@ if (FILES_CLASS_PROJECTS.length !== 1) {
 	throw new Error(`expected exactly one armory_class_projects migration, found ${FILES_CLASS_PROJECTS.length}`);
 }
 export const CLASS_PROJECTS_NAME = FILES_CLASS_PROJECTS[0];
-export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME, NEWER_RELEASE_NAME, COMPUTER_KEY_NAME, CLASS_PROJECTS_NAME];
+const FILES_CLASS_SAFEUPDATE = ALL_MIGRATIONS.filter((f) => /^\d{4}_armory_class_projects_safeupdate\.sql$/.test(f));
+if (FILES_CLASS_SAFEUPDATE.length !== 1) {
+	throw new Error(`expected exactly one armory_class_projects_safeupdate migration, found ${FILES_CLASS_SAFEUPDATE.length}`);
+}
+export const CLASS_SAFEUPDATE_NAME = FILES_CLASS_SAFEUPDATE[0];
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME, V3_NAME, V031_NAME, V032_NAME, V033_NAME, RELEASE_CHOICE_NAME, PART_NUMBERS_NAME, NEWER_RELEASE_NAME, COMPUTER_KEY_NAME, CLASS_PROJECTS_NAME, CLASS_SAFEUPDATE_NAME];
