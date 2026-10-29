@@ -212,6 +212,7 @@
 							<div class="actions">
 								<button
 									class="mini"
+									data-tap-floor="24"
 									disabled={toggleBusy[c.id]}
 									onclick={() => toggleActive(c)}
 								>
@@ -405,7 +406,7 @@
 	}
 	.tag {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		border-radius: 999px;
@@ -423,7 +424,7 @@
 	}
 	.since {
 		font-family: var(--font-mono);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		/* `--text-2`, NOT `--dim`. CLAUDE.md names this exact case: --dim clears
 		   only the darkest of the three portal grounds (5.31 on --bg0, 4.46 on
 		   --bg1, 4.24 on --bg2) and this line sits on a card, which is --bg1.
@@ -446,13 +447,15 @@
 		border-radius: var(--radius-control);
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		/* Measured at 53.3x19.8 -- under the 24px ABSOLUTE floor, not merely
 		   under the 44px one, on 38 controls at once. This is a row control in
 		   a dense list rather than a standalone action, so it takes the
 		   absolute floor rather than 44: inflating every row of a 38-row price
 		   list to 44px would add ~900px of height to the surface this bundle
-		   exists to shorten. `min-height`, never `height`. */
+		   exists to shorten. `min-height`, never `height`. The markup says so
+		   with `data-tap-floor="24"`, which is where the visual pass's
+		   `control-floor` reads the exception (ledger 0469). */
 		min-height: 24px;
 		padding: 0.15rem 0.5rem;
 		cursor: pointer;

@@ -330,7 +330,7 @@
 			through the shipping <code>postDeckZip</code> transport. No auth, no Supabase, no Drive.
 		</p>
 
-		<div class="controls">
+		<div class="controls" data-harness-chrome>
 			<label>
 				zip shape
 				<select bind:value={mode}>
@@ -424,7 +424,7 @@
 		flex-direction: column;
 		gap: 0.3rem;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 		/* `.controls` wraps, but a flex child's automatic minimum is still its
 		   own min-content -- here the <select>'s widest OPTION text ("normal
@@ -451,7 +451,7 @@
 		margin: 0.5rem 0 0;
 		padding: 0;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--dim);
 		display: flex;
 		flex-direction: column;
@@ -467,7 +467,7 @@
 		border: 1px solid var(--line);
 		border-radius: 999px;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		padding: 0.6rem 0.9rem;
 		cursor: pointer;
 	}

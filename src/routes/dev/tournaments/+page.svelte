@@ -925,7 +925,7 @@
 		components. No auth, no Supabase.
 	</p>
 
-	<div class="controls">
+	<div class="controls" data-harness-chrome>
 		<span>Field:</span>
 		{#each [2, 4, 5, 6, 8, 11, 16] as n (n)}
 			<button class="ctl" class:on={fieldSize === n} onclick={() => rebuild(n)}>{n}</button>
@@ -958,7 +958,7 @@
 			<code>?view=team&amp;state=open</code> for the panel alone,
 			<code>?view=register&amp;team=2</code> for the form alone.
 		</p>
-		<div class="controls">
+		<div class="controls" data-harness-chrome>
 			<span>Status:</span>
 			{#each ['registration_open', 'seeding', 'live', 'complete'] as st (st)}
 				<button class="ctl" class:on={teamStatus === st} onclick={() => (teamStatus = st as TournamentStatus)}>
@@ -1047,7 +1047,7 @@
 			across the wheel); the rest carry none, so the default treatment sits beside them. A
 			forfeited match shows a dashed gold frame and an FF chip; a bye stays dimmed.
 		</p>
-		<div class="controls">
+		<div class="controls" data-harness-chrome>
 			<label class="chk">
 				<input type="checkbox" bind:checked={linkMatches} /> link nodes to match detail
 			</label>
@@ -1091,7 +1091,7 @@
 
 	<section>
 		<h2>MatchDetail · the real page body</h2>
-		<div class="controls">
+		<div class="controls" data-harness-chrome>
 			<label class="chk">
 				<input type="checkbox" bind:checked={qualDetail} /> qualifying match instead
 			</label>
@@ -1156,7 +1156,7 @@
 
 	<section>
 		<h2>EntryDetail · the real page body</h2>
-		<div class="controls">
+		<div class="controls" data-harness-chrome>
 			<span>Entry:</span>
 			{#each sim.entries as e (e.id)}
 				<button
@@ -1233,7 +1233,7 @@
 			ledger currently totals {deleteRewardCoins}{COIN_SYMBOL} across {deleteRewardEntries} entries ({deleteRewardCount}
 			rows) -- play a bracket forward (below) to grow it.
 		</p>
-		<div class="controls">
+		<div class="controls" data-harness-chrome>
 			<span>Caller:</span>
 			{#each ['host', 'admin', 'student'] as r (r)}
 				<button
@@ -1304,7 +1304,7 @@
 
 	<section>
 		<h2>EntryStyleEditor · live save into the sim</h2>
-		<div class="controls">
+		<div class="controls" data-harness-chrome>
 			<span>Entry:</span>
 			{#each sim.entries.slice(0, 7) as e (e.id)}
 				<button
@@ -1330,7 +1330,7 @@
 
 	<section>
 		<h2>TvStage · the real projector component</h2>
-		<div class="controls">
+		<div class="controls" data-harness-chrome>
 			<span>Status:</span>
 			{#each ['registration_open', 'seeding', 'live', 'complete'] as s (s)}
 				<button
@@ -1536,7 +1536,7 @@
 	}
 	.cell-tag {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--dim, #7a8a7a);

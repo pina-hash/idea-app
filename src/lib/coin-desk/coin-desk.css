@@ -98,7 +98,9 @@
 .cd-root .coin-desk-page .blurb,
 .cd-root .coin-desk-page .card > .note,
 .cd-root .coin-desk-page .card > p {
-	max-width: var(--measure-reading);
+	/* The sentence's own measure since ledger 0469 (72 characters), never wider
+	   than the reading column it had. */
+	max-width: min(var(--measure-reading), var(--measure-prose, 72ch));
 }
 
 /* --- Columns ---------------------------------------------------------------
@@ -151,7 +153,7 @@
    tab bar now does. `.eyebrow`'s own colour, tracking and glow are untouched. */
 .cd-root .coin-desk-page .hero .eyebrow {
 	font-family: var(--font-title);
-	font-size: 0.66rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.2em;
 }
 .cd-root .coin-desk-page .hero h1 {

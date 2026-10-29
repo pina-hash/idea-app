@@ -283,7 +283,8 @@
 }
 .certificate-label {
 	font-family: var(--cert-mono);
-	font-size: 0.11in;
+	/* 11px on screen, the floor (ledger 0469): 0.11in read 10.56px. */
+	font-size: 0.115in;
 	letter-spacing: 0.18em;
 	text-transform: uppercase;
 	color: var(--cert-muted);
@@ -322,7 +323,7 @@
 .certificate-verify-url {
 	margin-top: 0.03in;
 	font-family: var(--cert-mono);
-	font-size: 0.1in;
+	font-size: 0.115in;
 	line-height: 1.3;
 	letter-spacing: 0.02em;
 	color: var(--cert-muted);

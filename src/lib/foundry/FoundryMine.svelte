@@ -1105,7 +1105,10 @@
 	}
 
 	.fdy-version-main {
-		flex: 1;
+		/* An 18rem basis, so a narrow card puts the version's keys on a line
+		   under it instead of squeezing its words into a column (ledger 0469:
+		   the review note was 115px wide, three lines, beside its keys). */
+		flex: 1 1 18rem;
 		min-width: 0;
 	}
 
@@ -1127,6 +1130,9 @@
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--text-2);
+		/* It wraps under the version as a whole line rather than squeezing its
+		   words into a column beside it (ledger 0469: 63px wide, three lines). */
+		min-width: min(100%, 14rem);
 	}
 
 	.fdy-review-note {

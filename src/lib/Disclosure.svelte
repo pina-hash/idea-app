@@ -254,6 +254,11 @@
 		align-items: center;
 		gap: var(--space-2);
 		width: 100%;
+		/* A full-width row narrows with its box, below its words if it must
+		   (its parts ellipsise): the Plate's button floor takes a key's own
+		   words as its minimum width, which pushed My coins' rule list 89px
+		   off a phone (ledger 0469). */
+		min-width: auto;
 		/* 44px: this is a student-facing control on a surface a phone reaches
 		   (IDEA_INTERFACE_STANDARDS 10). */
 		min-height: 44px;

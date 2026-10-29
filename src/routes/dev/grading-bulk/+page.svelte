@@ -666,7 +666,7 @@
 		<a href="/dev/grading-bulk?state=pre-0242">pre-0242 (no typed score, no Coins panel)</a>
 	</p>
 
-	<section class="oracle-box">
+	<section class="oracle-box" data-harness-chrome>
 		<h2>Oracle</h2>
 		<p data-testid="oracle-total">
 			{sections.length} classes, {totalStudents} students{leak ? ' (CLAUSE OPEN)' : ''}

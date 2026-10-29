@@ -168,7 +168,7 @@
 	}
 	.qa-title {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -177,7 +177,7 @@
 	.qa-sub {
 		margin: 0;
 		flex: 1 1 16rem;
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.qa-empty {
@@ -233,7 +233,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -247,7 +247,7 @@
 	.qa-num,
 	.qa-count {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: inherit;
 		white-space: nowrap;
 	}
@@ -260,14 +260,14 @@
 	}
 	.qa-chosen {
 		margin: 0;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		line-height: 1.35;
 		color: var(--text-1);
 	}
 	.qa-field {
 		margin: 0.15rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.qa-list {
@@ -276,6 +276,11 @@
 		padding: 0;
 		display: flex;
 		flex-direction: column;
+		/* THE LIST LAYS ITS ROWS OUT BY ITS OWN WIDTH (ledger 0469). The rows
+		   used to stack under a 40rem WINDOW, so in the grading console's
+		   panel at 1152 (a laptop at 125%) a name column of 8rem left the
+		   answer 104px wide, nine lines of a word or two each. */
+		container: qa-list / inline-size;
 	}
 	.qa-row {
 		display: grid;
@@ -285,7 +290,7 @@
 		padding: var(--space-2) 0;
 		border-top: 1px solid var(--hairline);
 	}
-	@media (max-width: 40rem) {
+	@container qa-list (max-width: 28rem) {
 		.qa-row {
 			grid-template-columns: minmax(0, 1fr);
 		}
@@ -308,7 +313,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		overflow-wrap: anywhere;
 		text-align: left;
 		cursor: pointer;
@@ -323,14 +328,14 @@
 	.qa-value {
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 		color: var(--text-1);
 	}
 	.qa-none,
 	.qa-image {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 </style>

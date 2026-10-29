@@ -52,6 +52,12 @@
 	   which is what keeps the breadcrumbs and tabs on the same measure as
 	   whatever is beneath them. --------------------------------------------- */
 	--measure-reading: 46rem; /* one column of prose: an item, a changelog */
+	/* ONE LINE OF RUNNING TEXT, at most 72 of its own characters (ledger 0469,
+	   feedback dd897391). A width for SENTENCES, set on the paragraph and the
+	   list, never on the card or the pane they sit in: a column of prose stays
+	   readable however wide its panel is, and the panel keeps the page's one
+	   right edge. `ch` is the element's own, so it follows its font size. */
+	--measure-prose: 72ch;
 	--measure-form: 48rem; /* a form or a short console */
 	--measure-panel: 52rem; /* stacked panels of settings */
 	--measure-page: 60rem; /* the standard listing page, and the default */

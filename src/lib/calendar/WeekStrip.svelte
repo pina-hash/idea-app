@@ -94,17 +94,22 @@
 					<li class="wd" class:today={d.day === feed.today} class:closed={d.closed} class:empty={!d.events.length} data-day={d.day}>
 						<p class="wd-date">{dayWords(d.day, thisYear)}{d.day === feed.today ? ' · today' : ''}</p>
 						{#if d.events.length}
-							<ul class="wd-events">
+							<!-- A DENSE STRIP, DECLARED (ledger 0469): three events a day, 3px
+							     apart, each a 24px line. 44px each would make a week three
+							     times as tall, and the full calendar one tap away has the 44px
+							     rows; so the strip stands on the 24px absolute floor and says
+							     so where the visual pass reads it. -->
+							<ul class="wd-events" data-tap-floor="24">
 								{#each d.events.slice(0, 3) as e (e.id)}
 									{@const href = eventHref(e, basePath, scope)}
 									{@const li = layerInfo(e.layer)}
 									<li class="wd-ev" style:--layer={li.color} data-kind={e.kind} data-layer={e.layer}>
 										<LayerMark layer={li} size={9} />
 										{#if e.kind === 'due'}<b>Due</b>{/if}
-										{#if href}<a {href}>{e.title}</a>{:else}<span>{e.title}</span>{/if}
+										{#if href}<a class="wd-ev-link" {href}>{e.title}</a>{:else}<span>{e.title}</span>{/if}
 									</li>
 								{/each}
-								{#if d.events.length > 3}<li class="wd-more"><a href={calendarHref}>{d.events.length - 3} more</a></li>{/if}
+								{#if d.events.length > 3}<li class="wd-more"><a class="wd-more-link" href={calendarHref}>{d.events.length - 3} more</a></li>{/if}
 							</ul>
 						{:else}
 							<p class="wd-none">Nothing</p>
@@ -184,7 +189,7 @@
 		min-width: 0;
 		font-size: 0.9rem;
 		line-height: 1.3;
-		padding: 0.1rem 0.35rem;
+		padding: 0 0.35rem;
 		border-radius: 4px;
 		background: color-mix(in srgb, var(--layer) 12%, transparent);
 	}
@@ -196,6 +201,8 @@
 	}
 	.wd-ev a {
 		text-decoration: none;
+		/* The 24px line the strip declares (it read 18.7). */
+		line-height: 24px;
 	}
 	.wd-ev a:hover {
 		text-decoration: underline;
@@ -217,6 +224,8 @@
 		color: var(--dim);
 	}
 	.wd-more a {
+		display: inline-block;
+		line-height: 24px;
 		color: inherit;
 	}
 	/* A phone: one day per line, and a day with nothing on takes no room. */

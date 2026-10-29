@@ -130,8 +130,9 @@
 	--plate-r-plate: 6px;
 	/* The chamfer size on the display screen, the one large chamfered shape. */
 	--plate-cut-screen: 26px;
-	/* The mono label floor (11px on screen) and its tracking. */
-	--plate-label-size: 0.6875rem;
+	/* The mono label floor (11px on screen) and its tracking. The floor is the
+	   type scale's (`--fs-micro`, ledger 0469), said once. */
+	--plate-label-size: var(--fs-micro, 0.6875rem);
 	--plate-label-track: 0.14em;
 	--plate-chip-h: 22px;
 	--plate-chip-track: 0.02em;
@@ -180,7 +181,9 @@
    ONLY THE NAMES THE SITE DOES NOT ALREADY MEAN THE SAME WAY. `--text-2`,
    `--cyan`, `--hover-ink`, `--focus-ring`, `--plate-ink`, `--space-*` and
    the font tokens are the site's own and mean the same thing, so they are
-   read as they are. `--radius-control` is the one collision: the site's is
+   read as they are; so is `--plate-label-size`, the 11px label floor every
+   mono label part reads (ledger 0469), which is section 1's own token on the
+   plate root and the kit's on `.idea-plate`. `--radius-control` is the one collision: the site's is
    3px (effects.css) and the kit's 11px, so it is declared only on the two
    parts that read it, never on a panel whose contents would inherit it.
    tests/plate-kit-source.test.ts holds every name the kit file reads to a
@@ -858,6 +861,77 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
    island of content (see the header).
    -------------------------------------------------------------------------- */
 @scope (.cr-plate, .site-plate) to (.ic-root, .deck-stage, .nb-island, .item-body, .md, .ProseMirror, .hx-frame-box, .note-content, .lb-stage, .grid-card, .tnm-root.tv, .mv-plan, .mv-elev-sheet, .fdy-frame-wrap, .pt-media) {
+	/* --- The tap floor (ledger 0469, feedback 8a928045). --------------------
+	   THE ONE RULE HERE THAT MOVES A CONTROL, AND IT ONLY EVER GROWS ONE: a
+	   button, a select and a one-line field on the plate stand at least 44px
+	   tall (IDEA_INTERFACE_STANDARDS 10). `min-height`, never a height, so
+	   nothing is rounded down. ZERO SPECIFICITY ON PURPOSE, unlike every other
+	   rule in this block: a surface that declares its own floor (the
+	   classroom's compact instructor density at 24px, a `.tap-reach-44`
+	   control that reaches rather than grows) is a component rule and wins;
+	   a control that declares its exception (`data-tap-floor`) is left alone,
+	   and a shape in a scale drawing (`[data-scale-drawing]`, the Maps plan
+	   and elevation) is left at the size it is drawn, and so is a button
+	   inside a sentence (a link-styled button in a paragraph is an inline
+	   link, measured at its line). What it measures on every page is `npm run verify:browser`'s
+	   `control-floor`. */
+	:where(button:not(.tap-reach-44, [data-tap-floor], [data-scale-drawing] *, :is(p, dd, figcaption, blockquote) *), select, input:is(:not([type]), [type='text'], [type='search'], [type='email'], [type='number'], [type='url'], [type='password'], [type='tel'], [type='date'], [type='time'], [type='datetime-local'], [type='month'], [type='file'])) {
+		min-height: 44px;
+		/* THE AUTOMATIC MINIMUM, RAISED TO 44px, never a bare length in its
+		   place: a length replaces a flex item's automatic minimum, so a key in
+		   a flex row could shrink below its words. `calc-size(auto, ...)` keeps
+		   that minimum (a flex item's content, 0 for anything else) and lifts
+		   it to 44px. A browser without `calc-size` keeps the line above. */
+		min-height: calc-size(auto, max(44px, size));
+	}
+	/* A LINK IN A SENTENCE TAKES THE 24px FLOOR AT ITS LINE, and on a line of
+	   small print it gets there by block padding: an inline box's padding
+	   grows what a finger hits without moving a single line of the text
+	   around it. Only a plain `<a>` in running text: bare, or carrying no
+	   class but the one Svelte adds when its component styles `a` (a link a
+	   component names itself carries a class and its own rule). */
+	:where(p, dd, figcaption) :where(a:not([class]), a[class^='svelte-']:not([class*=' '])) {
+		padding-block: max(0.1em, calc((24px - 1em) / 2));
+	}
+	/* And 44px across for a button, so a one-letter key (B, I, H1 on the
+	   text toolbar) or a short word (Edit) is a target and not a sliver. */
+	:where(:scope.cr-plate, :scope.site-plate) :where(button:not(.tap-reach-44, [data-tap-floor], [data-scale-drawing] *, :is(p, dd, figcaption, blockquote) *)) {
+		/* `calc-size(min-content, ...)`, never a bare 44px, for the reason
+		   above: a bare `min-width` let "Take the tour" shrink to 93px of its
+		   122 in the home header's measured row, so the header's fit thought
+		   the Install app key's word fitted at 375 and the row wrapped when it
+		   arrived. NOT `auto` as the height takes it: measured in this
+		   Chromium, `calc-size(auto, ...)` as a flex item's minimum width let
+		   eight colour swatches shrink to 25.6px and "Edit" to 22.6px. A
+		   full-width button that must narrow below its words says so itself
+		   with `min-width: auto` (Disclosure's trigger: My coins' rule list ran
+		   89px off a phone). A browser without `calc-size` keeps a flex item's
+		   own minimum, as before this floor. */
+		min-width: calc-size(min-content, max(44px, size));
+	}
+	/* --- The prose measure (ledger 0469, feedback dd897391). ---------------
+	   A paragraph on the plate stops at 72 of its own characters
+	   (`--measure-prose`) however wide its card or pane is: the audit read
+	   150 characters a line at 1440. The cap sits on the SENTENCE, so the card
+	   around it keeps the page's one right edge. Zero specificity, like the
+	   tap floor above: a paragraph a component sizes itself (a banner, a
+	   centred empty state that sets its own margins) keeps its own rule. A
+	   page's title block (`.hero`, `.page-header`) is left out: its lines are
+	   centred one-liners, and PageHeader caps its own meta line. A /dev
+	   harness's own notes (a paragraph straight inside `.harness`, or marked
+	   `data-harness-chrome`) are left out too: they are not the page, and
+	   wrapping them moved the component under test down the viewport.
+	   THE PLATE ROOT IS NAMED AGAIN in these two selectors, as `:scope` with
+	   its class: the same zero specificity, and a selector that names a
+	   class, which is how tests/no-global-document-lock tells a rule that
+	   stays on its page from one that outlives it. NEVER the bare class: a
+	   selector inside `@scope` is relative to the scope root, so
+	   `.cr-plate button` there asks for a SECOND plate inside the first and
+	   matched no button on any page (measured: the notebook's Edit keys back
+	   to 19.2px wide). */
+	:where(:scope.cr-plate, :scope.site-plate) :where(p, dd, blockquote, figcaption):not(:where(.hero *, .page-header *, [data-harness-chrome], [data-harness-chrome] *, .harness > *)) {
+		max-width: var(--measure-prose, 72ch);
+	}
 	/* --- Mono labels: the 11px floor, uppercase, tracked. -------------------
 	   A label is always caps: wide tracking on lower case reads as spaced-out
 	   letters. `.section-label` and `.eyebrow` name a section of content and
@@ -1205,7 +1279,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 		padding: 0 0.7rem;
 		box-sizing: border-box;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		line-height: 1;

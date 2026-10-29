@@ -961,7 +961,10 @@
 		font-family: var(--fb-font);
 	}
 	.fb-box {
-		width: min(94vw, 30rem);
+		/* 32rem (ledger 0469): at the 11px floor the helper lines are a little
+		   longer, and at 30rem the contact note took a second line and pushed
+		   Send under the box's edge at 1440x900. */
+		width: min(94vw, 32rem);
 		max-height: 92vh;
 		/* The small viewport on a phone, so the Send row clears Safari's toolbar. */
 		max-height: 92dvh;
@@ -987,6 +990,13 @@
 			inset 0 1px 0 rgba(247, 251, 254, 0.07),
 			0 30px 80px rgba(0, 0, 0, 0.6);
 		color: var(--fb-ink);
+	}
+	/* THE BOX IS ITS OWN MEASURE (ledger 0469). Its helper lines are short
+	   notes in a 28rem dialog, never running prose, and the plate's 72ch cap
+	   set in the mono face wrapped two of them a line early and pushed SEND
+	   out of the box at 1440. */
+	.fb-box :global(p) {
+		max-width: none;
 	}
 	.fb-box:focus-visible {
 		outline: none;
@@ -1116,7 +1126,7 @@
 		margin-bottom: 0.28rem;
 		color: var(--fb-ink-faint);
 		font-family: var(--fb-font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 	}
 	.fb-area {
@@ -1163,7 +1173,7 @@
 	.fb-contact-note {
 		margin: 0;
 		color: var(--fb-ink-faint);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		line-height: 1.45;
 	}
 
@@ -1213,7 +1223,7 @@
 	.fb-dictate-note,
 	.fb-dictate-keys {
 		margin: 0.3rem 0 0;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		line-height: 1.45;
 	}
 	.fb-dictate-status {
@@ -1229,7 +1239,7 @@
 	}
 	.fb-dictate-keys kbd {
 		font-family: var(--fb-font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--fb-ink-dim);
 	}
 	.fb-dictate-error {
@@ -1324,7 +1334,7 @@
 	.fb-shot-note {
 		margin: 0.3rem 0 0;
 		color: var(--fb-ink-faint);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		line-height: 1.45;
 	}
 	.fb-shot-hint {
@@ -1365,7 +1375,7 @@
 		flex: 1;
 		color: var(--fb-ink-faint);
 		font-family: var(--fb-font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 	}
 	.fb-count.low {

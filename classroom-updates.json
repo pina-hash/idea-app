@@ -2709,6 +2709,12 @@
 			"title": "Clearer status colors in every theme",
 			"body": "Status colors were retuned so they are easier to read and easier to tell apart, including for students who are colorblind. In the white theme, status badges and banners are now bright fills with dark text instead of pale tints, and orange and gold words no longer look brown. In the dark themes, red and orange words are a little brighter so they read on every panel. In progress now shows in the same blue-green as other information instead of a second green that looked like done. Status badges keep their words, so read the word if two colors look alike to you.",
 			"tags": ["Classroom", "Themes"]
+		},
+		{
+			"date": "2026-10-29",
+			"title": "Bigger small print, easier taps and shorter lines",
+			"body": "In your classes and on the coin, Foundry, Maps, notebook and calendar pages, no word is smaller than 11 pixels now: labels, badges and captions that were tiny grew a little, and gray words in the dark themes are a little brighter. Buttons are at least 44 pixels tall, and a link inside a sentence has room to tap. Long paragraphs stop at about 72 characters a line, so they are easier to read on a wide screen. On a laptop zoomed in, cards keep their words on full lines instead of squeezing them into a narrow column.",
+			"tags": ["Classroom", "Themes"]
 		}
 	]
 }

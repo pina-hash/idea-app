@@ -130,7 +130,7 @@
 			<p class="eyebrow cert-eyebrow">Award</p>
 			<h1 class="cert-title plate-title">{attempt.certification.code} {attempt.certification.name}</h1>
 			<p class="dk-row-meta">
-				<a href={deskStudentHref(student.email)} data-testid="cert-award-student">{personWords(student)}</a>, Level {attempt.certification.level}, {attempt.certification.category}
+				<a class="tap-reach-44 dk-inline-name" href={deskStudentHref(student.email)} data-testid="cert-award-student">{personWords(student)}</a>, Level {attempt.certification.level}, {attempt.certification.category}
 			</p>
 		</div>
 	</header>

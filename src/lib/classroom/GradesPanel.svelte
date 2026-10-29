@@ -404,7 +404,7 @@
 	}
 	.section-line {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.awaiting-total {
@@ -412,7 +412,7 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.empty-state {
 		padding: 0.4rem 0;
@@ -428,7 +428,7 @@
 	}
 	.order-says {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.order-controls {
@@ -445,7 +445,7 @@
 		display: inline-flex;
 		align-items: center;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		background: none;
 		color: var(--text-2);
 		border: 1px solid var(--boundary);
@@ -466,7 +466,7 @@
 	   a line would be a separator, and a separator does not say "no due date". */
 	.group-head {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -489,6 +489,8 @@
 		flex: 1 1 auto;
 		min-width: 0;
 		flex-wrap: wrap;
+		/* The floor, not the padding (ledger 0469: 41.6 measured). */
+		min-height: 44px;
 		padding: 0.5rem 0.2rem;
 		text-decoration: none;
 		color: var(--text-1);
@@ -509,11 +511,11 @@
 		gap: 0.4rem;
 		flex-wrap: wrap;
 		font-weight: 700;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.grade-meta {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.grade-chips {
@@ -544,7 +546,7 @@
 	.targets-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.targets-table th,
 	.targets-table td {
@@ -554,12 +556,12 @@
 	}
 	.targets-table td {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		white-space: nowrap;
 	}
 	.targets-table thead th {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -576,7 +578,7 @@
 	.targets-posts {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		font-weight: 400;
 		color: var(--text-2);
 	}
@@ -593,7 +595,7 @@
 	.targets-source {
 		margin: 0.4rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.targets-input {
@@ -634,13 +636,16 @@
 	}
 	.protect-title {
 		font-weight: 700;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.protect-says {
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.protect-toggle {
+		/* 44px across too (ledger 0469: "On" measured 34.8 wide; `.tap-44` lets a
+		   control shrink, which a one-word key must not). */
+		min-width: 44px;
 		display: inline-flex;
 		align-items: center;
 		flex: none;
@@ -650,7 +655,7 @@
 		align-items: center;
 		cursor: pointer;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--amber);
 	}
 	.kept-rows {
@@ -664,7 +669,7 @@
 		gap: 0.2rem 0.6rem;
 		padding: 0.3rem 0;
 		border-top: 1px solid var(--hairline);
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 	}
 	.kept-who {
 		font-weight: 700;
@@ -676,7 +681,7 @@
 	}
 	.kept-when {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--cyan);
 	}
 	.page-footer {

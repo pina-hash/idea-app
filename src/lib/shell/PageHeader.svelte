@@ -81,10 +81,10 @@
 	/* The meta line is prose, so it keeps a reading measure even when the
 	   header spans a wide page. */
 	.ph-meta {
-		max-width: 72ch;
+		max-width: var(--measure-prose, 72ch);
 		margin: 0 auto;
 		color: var(--text-2);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		line-height: 1.5;
 	}
 	.ph-meta :global(p) {

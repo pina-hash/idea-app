@@ -180,12 +180,13 @@
 		flex: none;
 		align-items: center;
 		justify-content: center;
-		width: 0.82rem;
-		height: 0.82rem;
+		width: 1rem;
+		height: 1rem;
 		border-radius: 50%;
 		border: 1px solid currentColor;
 		font-family: var(--font-mono);
-		font-size: 0.56rem;
+		/* The 11px floor (ledger 0469): the "i" was 9px in a 13px ring. */
+		font-size: var(--fs-micro);
 		line-height: 1;
 		opacity: 0.7;
 	}
@@ -207,7 +208,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		font-weight: 400;
 		text-transform: none;
 		letter-spacing: normal;
@@ -257,7 +258,7 @@
 			background: none;
 			box-shadow: none;
 			color: #333;
-			font-size: 0.72rem;
+			font-size: var(--fs-label);
 			opacity: 1 !important;
 			visibility: visible !important;
 		}

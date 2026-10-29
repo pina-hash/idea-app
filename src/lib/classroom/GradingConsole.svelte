@@ -5350,7 +5350,7 @@
 		flex: 1 0 100%;
 		min-width: 0;
 		margin: 0;
-		font-size: 1.5rem;
+		font-size: var(--fs-xl);
 		line-height: 1.15;
 		overflow-wrap: anywhere;
 	}
@@ -5385,14 +5385,14 @@
 		min-width: 5.5rem;
 		text-align: center;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		white-space: nowrap;
 	}
 	.pager-note {
 		flex-basis: 100%;
 		margin: 0;
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	/* THE PANELS' TWO PARTS, PLACED SEPARATELY (see the header's own comment).
@@ -5410,7 +5410,7 @@
 		padding: 0 0.8rem;
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card, 6px);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 	}
 	.gc-head :global(.disc-body) {
 		order: 1;
@@ -5452,7 +5452,7 @@
 	.gc-group-head {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -5501,7 +5501,7 @@
 	}
 	.coins-off {
 		flex-basis: 100%;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	/* ON A KEY FACE THE WHOLE TRIGGER TAKES THE KEY'S OWN INK. Disclosure's
@@ -5522,7 +5522,7 @@
 	}
 	.gc-views-note {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.responses-head {
@@ -5544,12 +5544,12 @@
 		margin-top: 0.35rem;
 	}
 	.gc-notebook-link {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--body-link, var(--cyan));
 	}
 	.meta-line {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		margin: 0.2rem 0 0;
 	}
@@ -5569,7 +5569,7 @@
 	}
 	.section-label {
 		margin: 0 0 var(--space-2);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -5588,7 +5588,7 @@
 	}
 	.csv-hint {
 		margin: 0;
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-2);
 	}
@@ -5624,7 +5624,7 @@
 	}
 	.select-note {
 		margin: 0 0 var(--space-2);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-2);
 	}
@@ -5645,7 +5645,7 @@
 		gap: var(--space-2);
 		min-height: 44px;
 		margin-top: var(--space-2);
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		line-height: 1.4;
 		color: var(--text-1);
 		cursor: pointer;
@@ -5658,14 +5658,14 @@
 	}
 	.identity-note {
 		margin: var(--space-1) 0 0;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		line-height: 1.45;
 		color: var(--text-2);
 	}
 	.export-note {
 		margin: var(--space-2) 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		line-height: 1.45;
 		color: var(--green);
 	}
@@ -5676,7 +5676,7 @@
 		padding: var(--space-2);
 		border: 1px solid var(--amber);
 		border-radius: var(--radius-card);
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-1);
 	}
@@ -5690,14 +5690,14 @@
 		padding: var(--space-2);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-2);
 	}
 	.presence-head {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		/* `--text-2`, the register's own secondary-copy tier, and not `--dim`,
 		   which clears only the darkest of the three portal grounds and this card
 		   is not on it. */
@@ -5711,7 +5711,7 @@
 	   answering. */
 	.presence-warn {
 		margin: 0 0 0.6rem;
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		line-height: 1.45;
 		color: var(--amber);
 	}
@@ -5757,7 +5757,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		/* 44px, and the padding is what carries it rather than a token that
 		   happens to land near: a roster row is the most-clicked control on the
 		   surface and it measured 35px. */
@@ -5910,7 +5910,7 @@
 	   since grading the wrong class's student is the silent failure. */
 	.roster-section {
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		padding: 0.06rem 0.45rem;
@@ -5929,7 +5929,7 @@
 		gap: var(--space-2);
 		margin: 0 0 var(--space-1);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
@@ -5951,12 +5951,12 @@
 	}
 	.pick-presets-label {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.cross-class-link {
 		margin: var(--space-2) 0 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 	.cross-class-link a {
 		/* `.tap-44` gives the height; this gives the box something to be tall
@@ -5972,7 +5972,7 @@
 	}
 	.export-section-label {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.export-section select {
@@ -5981,7 +5981,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		font-family: var(--font-display);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		padding: 0 0.5rem;
 	}
 	/* THE SELECTION BAR, above the names it acts on. STICKY to the top of the
@@ -6003,21 +6003,21 @@
 	}
 	.batch-source {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-1);
 	}
 	.batch-count {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 	.batch-hint,
 	.batch-skipped,
 	.batch-regrade {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.batch-regrade {
@@ -6026,7 +6026,7 @@
 	.batch-problems {
 		margin: 0;
 		padding-left: 1.1rem;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--amber);
 		display: grid;
 		gap: 0.3rem;
@@ -6048,7 +6048,7 @@
 	.batch-plan-head {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 	/* Its own scroller: a plan with a class column is wider than a narrow pane,
@@ -6058,7 +6058,7 @@
 		max-width: 100%;
 		overflow-x: auto;
 		border-collapse: collapse;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 	}
 	.plan-table th,
 	.plan-table td {
@@ -6069,7 +6069,7 @@
 	}
 	.plan-table th {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--text-2);
@@ -6083,7 +6083,7 @@
 	}
 	.plan-section {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-1);
 	}
 	.plan-ec {
@@ -6098,7 +6098,7 @@
 	.batch-headline {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--green);
 	}
 	.batch-headline.bad {
@@ -6110,7 +6110,7 @@
 		padding: 0;
 		display: grid;
 		gap: 0.25rem;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 	}
 	.outcome-list li {
 		display: flex;
@@ -6124,7 +6124,7 @@
 	}
 	.outcome-section {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	/* THE REFUSALS ARE THE ONES TO READ, and they sort first as well as
@@ -6143,7 +6143,7 @@
 		padding: var(--space-2) 0 0;
 	}
 	.close-counts {
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		text-transform: none;
 		letter-spacing: 0;
 		color: var(--text-2);
@@ -6166,7 +6166,7 @@
 	.close-order,
 	.close-confirm {
 		margin: 0;
-		font-size: 0.8125rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-2);
 	}
@@ -6181,7 +6181,7 @@
 	.live-note {
 		margin: 0 0 var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	/* --gold, and the two tokens it is NOT are the argument.
@@ -6210,7 +6210,7 @@
 	.changed-blocks {
 		margin: 0.25rem 0 0;
 		padding-left: 1.1rem;
-		font-size: 0.8125rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-2);
 	}
@@ -6229,7 +6229,7 @@
 		gap: 0.15rem;
 		padding: 0.06rem 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		border: 1px solid var(--st-edge);
 		border-radius: 999px;
 		color: var(--st-ink);
@@ -6247,7 +6247,7 @@
 	   chip's tokens, `PresenceChip`'s measured set). */
 	.roster-presence {
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1;
 		min-width: 1em;
 		text-align: center;
@@ -6274,7 +6274,7 @@
 	}
 	.incomplete-note {
 		margin: 0 0 var(--space-2);
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-1);
 	}
@@ -6283,7 +6283,7 @@
 		padding-left: 1.1rem;
 		display: grid;
 		gap: 0.3rem;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		color: var(--text-1);
 	}
@@ -6304,6 +6304,21 @@
 		align-items: flex-start;
 		gap: 0.6rem;
 	}
+	/* Close keeps its word's width (ledger 0469): at 375 the name column took
+	   the row and squeezed the key until "Close" ran 1px past its edge. */
+	.work-head > .btn {
+		flex: none;
+	}
+	/* And the student's column takes the rest of the row, 14rem at least, with
+	   Close under it when the two do not fit: its list of changed answers was
+	   110px and three lines a name at 375 once Close kept its width. */
+	.work-head {
+		flex-wrap: wrap;
+	}
+	.work-head > .work-who {
+		flex: 1 1 14rem;
+		min-width: 0;
+	}
 	/* THE AVATAR AND THE NAME ARE ONE ROW, and the name is the half that
 	   gives. `align-items: start` rather than centre because the block beside
 	   the picture is three lines deep on a graded submission and centring it
@@ -6321,12 +6336,12 @@
 	}
 	.work-name {
 		margin: 0;
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 	}
 	.work-meta {
 		margin: 0.15rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.dirty-bar {
@@ -6339,7 +6354,7 @@
 	}
 	.dirty-line {
 		margin: 0;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--amber);
 	}
 	.dirty-actions {
@@ -6466,14 +6481,14 @@
 		}
 		.rubric-rail-total {
 			font-family: var(--font-mono);
-			font-size: 0.8rem;
+			font-size: var(--fs-meta);
 			color: var(--text-1);
 		}
 		.rubric-rail-show {
 			min-height: 44px;
 			min-width: 44px;
 			padding-inline: 0.3rem;
-			font-size: 0.7rem;
+			font-size: var(--fs-label);
 			white-space: normal;
 			overflow-wrap: anywhere;
 		}
@@ -6759,7 +6774,7 @@
 		border-color: var(--line-strong);
 	}
 	.gate-text {
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.responses-label {
 		margin: 0.2rem 0 0.5rem;
@@ -6776,7 +6791,7 @@
 		margin: 0 0 var(--space-3);
 		padding: 0;
 		font-family: var(--font-display);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.key-legend li {
@@ -6790,13 +6805,13 @@
 		border-radius: 3px;
 		background: var(--surface-2);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-1);
 	}
 	.key-note {
 		margin: 0 0 var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--amber);
 	}
 	.score-row {
@@ -6828,12 +6843,12 @@
 		gap: 0.6rem;
 	}
 	.score-crit {
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		min-width: 0;
 	}
 	.score-value {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 		white-space: nowrap;
 	}
@@ -6850,7 +6865,7 @@
 	   load-bearing edge, the roster's section tag's own argument. */
 	.team-tag {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		border: 1px solid var(--boundary);
 		border-radius: 999px;
@@ -6864,7 +6879,7 @@
 	}
 	.blind-mark {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.scale-note,
@@ -6874,7 +6889,7 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.35rem 0.6rem;
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 		margin: 0.35rem 0;
 	}
@@ -6890,7 +6905,7 @@
 		align-items: center;
 		gap: 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 	}
 	.due-days .ec-input {
 		width: 4.2rem;
@@ -6912,7 +6927,7 @@
 		align-items: center;
 		gap: 0.4rem;
 		margin: 0 0 0.4rem;
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.late-lines,
@@ -6931,7 +6946,7 @@
 		gap: 0.3rem 0.7rem;
 		padding: 0.25rem 0;
 		border-top: 1px solid var(--hairline);
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 	}
 	.late-crit {
 		font-weight: 700;
@@ -6942,7 +6957,7 @@
 		align-items: center;
 		gap: 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.late-on .ec-input {
@@ -6951,7 +6966,7 @@
 	.late-math,
 	.team-by {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.late-val {
@@ -6966,7 +6981,7 @@
 		align-items: center;
 		cursor: pointer;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.gc-protect {
@@ -6979,12 +6994,12 @@
 		border: 1px solid var(--hairline);
 		border-left: 3px solid var(--amber);
 		border-radius: 8px;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 	}
 	.gc-protect-tag {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--amber);
@@ -7037,15 +7052,15 @@
 	}
 	.level-points {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--gold);
 		min-width: 1.6rem;
 	}
 	.level-label {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 	.level-short {
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	/* The full descriptor, positioned against the viewport so the rubric
@@ -7064,7 +7079,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 		white-space: normal;
 		box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
@@ -7111,7 +7126,7 @@
 		border: none;
 		color: var(--cyan);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		text-align: left;
 		padding: var(--space-2) 0;
 		/* 44px: it measured 21px, which is a real control on a surface that is
@@ -7132,22 +7147,22 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		padding: 0.35rem 0.5rem;
 	}
 	.score-note {
 		margin: 0;
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.score-flag {
 		margin: 0;
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		color: var(--crimson);
 	}
 	.score-unfinished {
 		margin: 0;
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		color: var(--amber);
 	}
 	.score-input {
@@ -7163,7 +7178,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		min-height: 44px;
 		padding: 0.25rem 0.35rem;
 	}
@@ -7173,7 +7188,7 @@
 	}
 	.score-out {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	/* THE ZERO CONTROL. A row of its own above the total, so the button and the
@@ -7189,14 +7204,14 @@
 	}
 	.zero-note {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 
 	.score-total {
 		margin: 0.6rem 0;
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--gold);
 	}
 	/* THE LABEL AND ITS DICTATE CONTROL SHARE A ROW (0288). Stacked, the
@@ -7219,7 +7234,7 @@
 	.comment-label {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -7233,7 +7248,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		padding: 0.4rem 0.55rem;
 		margin-bottom: var(--space-2);
 	}
@@ -7264,7 +7279,7 @@
 	}
 	.grade-undo-note {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.grade-undo-confirm {
@@ -7385,11 +7400,11 @@
 	.warn-line {
 		margin: 0;
 		color: var(--amber);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 	.page-footer {
 		margin-top: var(--space-3);
@@ -7400,7 +7415,7 @@
 	.changed-line {
 		margin: 0.35rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		line-height: 1.5;
 		color: var(--amber);
 		max-width: 60ch;
@@ -7418,7 +7433,7 @@
 	}
 	.ec-label {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--text-2);
@@ -7438,7 +7453,7 @@
 	.ec-note,
 	.ec-unavailable {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.ec-unavailable {
@@ -7446,7 +7461,7 @@
 		margin: 0.6rem 0 0.2rem;
 	}
 	.ec-part {
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	/* Ledger 0422: a hand-in made by an admin acting as the student. */
@@ -7456,7 +7471,7 @@
 		gap: 0.45rem;
 		margin: 0.25rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.acted-lamp {

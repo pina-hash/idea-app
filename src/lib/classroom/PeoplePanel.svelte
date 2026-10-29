@@ -2062,7 +2062,7 @@
 	}
 	.classroom-page h3 {
 		margin: 1rem 0 0.4rem;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -2070,7 +2070,7 @@
 	}
 	.section-line {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.feedback {
@@ -2078,7 +2078,7 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 	}
 	.empty-state {
@@ -2099,7 +2099,7 @@
 	   52rem panel is not where a wide scrolling grid belongs. */
 	.nb-line {
 		color: var(--text-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		margin: 0 0 var(--space-2);
 	}
 	.nb-line strong {
@@ -2116,7 +2116,7 @@
 		align-items: baseline;
 		gap: 0.3rem;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
@@ -2127,7 +2127,7 @@
 		color: var(--text-1);
 	}
 	.nb-glyph {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 	}
 	.nb-on_time .nb-glyph {
 		color: var(--green);
@@ -2161,7 +2161,7 @@
 	.nb-attention summary {
 		cursor: pointer;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--amber);
 	}
 	.nb-student {
@@ -2173,11 +2173,11 @@
 		padding-left: 0.6rem;
 	}
 	.nb-student-name {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 	.nb-student-meta {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 
@@ -2191,7 +2191,7 @@
 	}
 	label > span {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -2202,7 +2202,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		padding: 0.45rem 0.6rem;
 		width: 100%;
 		min-width: 0;
@@ -2256,7 +2256,7 @@
 	}
 	.roster-name {
 		font-weight: 700;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		/* A NAME TOO LONG FOR ITS ROW WRAPS RATHER THAN PUSHING THE PICTURE.
 		   The row is `flex-wrap: wrap`, so without a min-width of 0 a long
 		   unbroken name sets the flex item's automatic minimum to its
@@ -2277,7 +2277,7 @@
 	   it is a fact about the student, not a control. */
 	.roster-role {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-1);
@@ -2287,7 +2287,7 @@
 	}
 	.roster-email {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
@@ -2302,7 +2302,7 @@
 	   here still says nothing, which is the test that it is decoration. */
 	.roster-status {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		padding: 0.1rem var(--space-2);
@@ -2379,19 +2379,23 @@
 		padding: 0.5rem 0.7rem;
 	}
 	.csv-import summary {
+		/* A 44px row (ledger 0469: 20.5 measured). */
+		display: flex;
+		align-items: center;
+		min-height: 44px;
 		cursor: pointer;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--hover-ink);
 	}
 	.csv-import textarea {
 		margin: 0.4rem 0;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 	}
 	.csv-import input[type='file'] {
 		margin-top: 0.4rem;
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 	}
 	.csv-import code {
 		color: var(--cyan);
@@ -2435,7 +2439,7 @@
 	.tool-field > span {
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
@@ -2461,7 +2465,7 @@
 		background: var(--surface-2, var(--bg2));
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.tool-addresses {
 		margin: 0;
@@ -2470,7 +2474,7 @@
 		overflow-wrap: anywhere;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1.5;
 		user-select: all;
 	}
@@ -2484,7 +2488,7 @@
 		padding: 0 0.4rem;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
@@ -2505,7 +2509,7 @@
 		   the checkbox inside it. */
 		min-height: 44px;
 		color: var(--text-1);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.absent-item > span {
 		min-width: 0;
@@ -2516,13 +2520,13 @@
 	.picker-one {
 		margin: 0;
 		color: var(--text-1);
-		font-size: 1.1rem;
+		font-size: var(--fs-h4);
 	}
 	.picker-label {
 		margin-right: 0.5rem;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
@@ -2547,7 +2551,7 @@
 		margin: 0 0 0.3rem;
 		color: var(--cyan);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
@@ -2572,7 +2576,7 @@
 
 	.team-mode legend {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		padding: 0 0.3rem;
 	}
@@ -2616,7 +2620,7 @@
 	 */
 	.team-state {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 
@@ -2630,7 +2634,7 @@
 
 	.team-seed {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 	}
 
 	.team-drift {
@@ -2706,7 +2710,7 @@
 	.team-tagline {
 		margin: 0 0 0.3rem;
 		font-style: italic;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 	}
 
 	.team-card-head {
@@ -2780,7 +2784,7 @@
 		border-radius: var(--radius-card, 6px);
 		color: inherit;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		cursor: grab;
 		user-select: none;
 	}
@@ -2830,7 +2834,7 @@
 	.team-edited,
 	.team-move-hint {
 		margin: 0.2rem 0 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 
@@ -2859,7 +2863,7 @@
 	 */
 	.team-left {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--amber);
 		white-space: nowrap;
 	}
@@ -2868,7 +2872,7 @@
 	.team-style-hint {
 		margin: 0.3rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 

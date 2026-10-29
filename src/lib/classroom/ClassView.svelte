@@ -1901,7 +1901,7 @@
 			data-testid="item-row"
 			data-selected={selectedItemId === item.id ? 'true' : undefined}>
 			{#if editable}
-				<label class="row-select-hit">
+				<label class="row-select-hit" data-tap-floor="24">
 					<input
 						type="checkbox"
 						class="row-select cr-check"
@@ -1934,6 +1934,7 @@
 			<button
 				type="button"
 				class="row-expand"
+				data-tap-floor="24"
 				aria-expanded={!!expanded[item.id]}
 				aria-label={expanded[item.id] ? `Collapse ${itemTitle(item)}` : `Expand ${itemTitle(item)}`}
 				data-testid="row-expand"
@@ -2110,6 +2111,7 @@
 					<button
 						type="button"
 						class="menu-trigger"
+						data-tap-floor="24"
 						class:on={openMenu === item.id}
 						aria-expanded={openMenu === item.id}
 						aria-haspopup="menu"
@@ -3205,7 +3207,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		text-align: center;
 	}
 
@@ -3438,7 +3440,7 @@
 		align-items: center;
 		margin-right: var(--space-1);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		line-height: 1.15;
 		color: var(--text-2);
 	}
@@ -3530,7 +3532,7 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 	}
 	.empty-state {
@@ -3602,7 +3604,7 @@
 	}
 	.group-caret {
 		flex: none;
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	/* A UNIT'S NAME WRAPS RATHER THAN TRUNCATING (ledger 0297). It was one line
@@ -3616,7 +3618,7 @@
 		overflow-wrap: anywhere;
 		line-height: 1.35;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -3625,7 +3627,7 @@
 		flex: none;
 		margin-left: auto;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 
@@ -3728,7 +3730,7 @@
 		color: var(--text-2);
 		cursor: grab;
 		font: inherit;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		user-select: none;
 	}
 	.row-grip:hover {
@@ -3759,7 +3761,7 @@
 		border: none;
 		color: var(--text-2);
 		cursor: pointer;
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 	}
 	.row-expand:hover {
 		color: var(--hover-ink);
@@ -3855,7 +3857,7 @@
 		flex-wrap: wrap;
 		min-width: 0;
 		font-weight: 700;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		line-height: 1.3;
 	}
 	.row-name {
@@ -3900,7 +3902,7 @@
 		row-gap: 0.05rem;
 		min-width: 0;
 		font-family: var(--font-mono);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	/* A field breaks at its own spaces only when it is genuinely wider than the
@@ -3935,7 +3937,7 @@
 		align-items: center;
 		gap: 0.1rem;
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		font-weight: 400;
 		color: var(--text-2);
 	}
@@ -3962,7 +3964,7 @@
 		align-items: center;
 		gap: 0.2rem;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		white-space: nowrap;
 	}
@@ -4005,7 +4007,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-2);
 		cursor: pointer;
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		line-height: 1;
 	}
 	.menu-trigger:hover,
@@ -4077,9 +4079,10 @@
 		color: var(--text-1);
 		cursor: pointer;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		padding: 0.5rem 0.55rem;
-		min-height: 36px;
+		/* A menu item is a control like any other: 44px (ledger 0469; 36). */
+		min-height: 44px;
 		text-decoration: none;
 	}
 	.menu button:hover:not(:disabled),
@@ -4109,7 +4112,7 @@
 	}
 	.menu-unit-label {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -4143,7 +4146,7 @@
 		gap: 0.35rem;
 		color: var(--gold);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 	}
 	.lock-glyph {
@@ -4158,7 +4161,7 @@
 	.also-line {
 		margin: var(--space-2) 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.export-line {
@@ -4169,7 +4172,7 @@
 		margin: var(--space-2) 0 0;
 	}
 	.export-why {
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		min-width: 0;
 		overflow-wrap: anywhere;
@@ -4177,7 +4180,7 @@
 	.detail-open {
 		margin: 0.6rem 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 	}
 	.detail-open a {
 		color: var(--hover-ink);
@@ -4226,6 +4229,57 @@
 		}
 		.classroom-page.as-pane .group-head {
 			flex: 1 1 11rem;
+		}
+	}
+	/* A MANAGER'S ROW IN A NARROW STREAM PUTS ITS TITLE ON A LINE OF ITS OWN
+	   (ledger 0469, feedback dd897391). On a phone the row carries the
+	   checkbox (30), the grip (44), the expand arrow (30) and the menu (32) for
+	   a manager, and the title was left 105px: "Truss bridge analysis" broke
+	   into a column a word or two wide (the visual pass's `squeeze`, at 375).
+	   At a stream of 24rem or less the controls take the first line, the menu
+	   at its end, and the title and its meta the whole second line. A
+	   student's row has none of those controls and is unchanged. */
+	@container class-stream (max-width: 24rem) {
+		.row:has(> .row-select-hit) {
+			flex-wrap: wrap;
+		}
+		/* Wide's `.row-body` (the slot over the link) is the row's words too, so
+		   the check-in row, which holds the controls' room open with spacers,
+		   wraps the same way and its slot stays over the posts' slots. */
+		.row:has(> .row-select-hit) > :is(.row-main, .row-body) {
+			order: 1;
+			flex: 1 0 100%;
+		}
+		.row:has(> .row-select-hit) > .row-menu {
+			margin-left: auto;
+		}
+		/* A check-in row has no controls, only their spacers; on its own line
+		   its words already start where the posts' do, so the spacers go
+		   rather than drawing an empty first line. */
+		.check-in-row:has(> .row-select-hit) > .spacer {
+			display: none;
+		}
+		/* The unit header does the same on any page, not only in the pane:
+		   its Select all and File here keys take a line of their own under
+		   the name, and inside the name's own button the progress and item
+		   count drop under the name, which keeps 8rem ("UNIT 1 · SKETCHING"
+		   was 51px and four lines at 375 for a manager). The keys' line is
+		   there from the first paint, so File here, which arrives with the
+		   first tick, joins Select all on it rather than wrapping the header
+		   and moving the list under the finger (52px at 375 when the head
+		   only wrapped as needed). */
+		.group-bar {
+			flex-wrap: wrap;
+		}
+		.group-head {
+			flex: 1 1 11rem;
+			flex-wrap: wrap;
+		}
+		.group-bar:has(> .btn) > .group-head {
+			flex: 1 0 100%;
+		}
+		.group-label {
+			flex: 1 1 8rem;
 		}
 	}
 	/* BELOW A 22rem PANE (the stream at 20rem or less: 294px at 20rem, 326px
@@ -4343,7 +4397,7 @@
 	.units-prompt-title {
 		margin: 0 0 var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -4666,7 +4720,7 @@
 	}
 	.find-count {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	/* THE DUPLICATES DOOR: a link, so no chip edge and no pressed state -- the
@@ -4680,7 +4734,7 @@
 		padding: 0 0.4rem;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		text-decoration: underline;
 		text-underline-offset: 0.2em;
 	}
@@ -4702,7 +4756,7 @@
 		align-items: center;
 		gap: var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.find-clear {
@@ -4713,7 +4767,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		cursor: pointer;
 	}

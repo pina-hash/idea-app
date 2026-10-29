@@ -54,6 +54,11 @@
 .dk-row-name {
 	font-weight: 700;
 }
+/* A name that is a link reaches 44px in height (ledger 0469: it measured
+   26.9); `.tap-reach-44` in app.css, height only. */
+a.dk-row-name {
+	--tap-reach-w: 0px;
+}
 .dk-row-meta {
 	font-family: var(--font-mono);
 	font-size: 0.78rem;
@@ -339,6 +344,11 @@
 	border-top: 1px solid var(--hairline);
 	min-height: 44px;
 }
+/* A name column keeps 10rem (ledger 0469): beside eight short columns it
+   was 84px and three lines on a phone; the wrap scrolls sideways instead. */
+.dk-table td.dk-name {
+	min-width: 10rem;
+}
 .dk-table td.dk-mono {
 	font-family: var(--font-mono);
 	font-size: 0.8rem;
@@ -409,6 +419,9 @@
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 	max-width: 24rem;
+	/* 12rem at least (ledger 0469): on a phone the before and after columns
+	   were 55px wide and twenty lines tall; the wrap scrolls sideways. */
+	min-width: 12rem;
 }
 
 /* Lit tab keys on the logs page. */
@@ -443,4 +456,9 @@
 	overflow: hidden;
 	clip: rect(0 0 0 0);
 	white-space: nowrap;
+}
+/* A student's name linked inside a sentence of the desk's title line reaches
+   44px in height, the only link in its line (ledger 0469: 20px at its line). */
+a.dk-inline-name {
+	--tap-reach-w: 0px;
 }

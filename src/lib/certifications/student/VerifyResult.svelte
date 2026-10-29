@@ -56,7 +56,7 @@
 		<Disclosure label="Check it yourself" collapseWhen={true} testId="cert-verify-self-check">
 			<p class="cert-help">
 				The record below is signed with Ed25519. Verify the signature over these exact bytes (the JSON with its keys in this order and no whitespace) against the public key at
-				<a href={CERT_PATHS.publicKey}>{CERT_PATHS.publicKey}</a>. A made-up serial, or a real one with any field altered, fails.
+				<a class="tap-reach-44 cert-inline-key" href={CERT_PATHS.publicKey}>{CERT_PATHS.publicKey}</a>. A made-up serial, or a real one with any field altered, fails.
 			</p>
 			<h4 class="cert-section-h">Signed payload</h4>
 			<pre class="cert-verify-pre plate-well" data-testid="cert-verify-payload">{payloadPretty(record.signed_payload)}</pre>
@@ -66,7 +66,7 @@
 				<dt>Key id</dt>
 				<dd><span class="cert-serial">{record.key_id}</span></dd>
 				<dt>Public key</dt>
-				<dd><a class="cert-verify-key-link" href={CERT_PATHS.publicKey} data-testid="cert-verify-public-key">{CERT_PATHS.publicKey}</a> <span class="cert-help">(PEM; add ?format=json for JSON)</span></dd>
+				<dd><a class="cert-verify-key-link" data-tap-floor="24" href={CERT_PATHS.publicKey} data-testid="cert-verify-public-key">{CERT_PATHS.publicKey}</a> <span class="cert-help">(PEM; add ?format=json for JSON)</span></dd>
 			</dl>
 		</Disclosure>
 	{/if}
@@ -130,6 +130,12 @@
 	}
 	/* The key link sits on its own line, not inside a sentence, so it takes the
 	   24px floor (measured 22px as a bare inline anchor). */
+	/* The key named inside the sentence above reaches 44px in height, the
+	   only link in its paragraph, so the lines it reaches over hold nothing
+	   else to tap (ledger 0469: 20.9px at its line). */
+	.cert-inline-key {
+		--tap-reach-w: 0px;
+	}
 	.cert-verify-key-link {
 		display: inline-flex;
 		align-items: center;

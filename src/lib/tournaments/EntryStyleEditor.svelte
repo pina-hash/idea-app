@@ -319,7 +319,7 @@
 	}
 	.prev-label,
 	.style-editor :global(.tnm-label) {
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 	}
 	.field {
 		display: flex;
@@ -390,6 +390,8 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
+		/* The label is the field's target: 44px (ledger 0469: 27.2 measured). */
+		min-height: 44px;
 	}
 	.inline.custom {
 		margin-left: 0.3rem;
@@ -424,12 +426,12 @@
 		flex-direction: column;
 		gap: 0.2rem;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim);
 	}
 	.mono {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim);
 	}
 	.hint,

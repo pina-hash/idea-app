@@ -997,7 +997,7 @@
 		/* READ ACROSS A DESK (ledger 0392, Mr. Pina: "the text is way too small
 		   to see for a parent-teacher conference"). Every size below is relative
 		   to this one. */
-		font-size: 1.125rem;
+		font-size: var(--fs-h4);
 		line-height: 1.5;
 	}
 	.so-root :global(.card) {
@@ -1033,7 +1033,7 @@
 	.so-class {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
@@ -1062,7 +1062,7 @@
 	}
 	.so-meta {
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.so-quiet {
@@ -1101,7 +1101,7 @@
 	}
 	.so-tile-label {
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1117,7 +1117,7 @@
 		font-variant-numeric: tabular-nums;
 	}
 	.so-tile-sub {
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2);
 	}
 
@@ -1230,7 +1230,7 @@
 	}
 	.so-gallery-title {
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1313,7 +1313,7 @@
 		border: 1px solid color-mix(in srgb, var(--so-band) 55%, transparent);
 		border-radius: 999px;
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--so-band-ink);
@@ -1362,7 +1362,7 @@
 	}
 	.so-grade-label {
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1375,11 +1375,11 @@
 		font-variant-numeric: tabular-nums;
 	}
 	.so-grade-sub {
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		color: var(--text-1);
 	}
 	.so-grade-note {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 	.so-upcoming {
@@ -1409,7 +1409,7 @@
 	.so-upcoming-title {
 		display: inline-flex;
 		align-items: center;
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 		min-width: 0;
 	}
 	.so-upcoming-none {
@@ -1547,11 +1547,11 @@
 	}
 	.so-card-head h2 {
 		margin: 0;
-		font-size: 1.35rem;
+		font-size: var(--fs-h2);
 	}
 	.so-h3 {
 		margin: 0.4rem 0 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1);
 	}
 	.so-print-toggle {
@@ -1560,7 +1560,7 @@
 		gap: 0.4rem;
 		min-height: 44px;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		cursor: pointer;
 	}
@@ -1576,7 +1576,7 @@
 	.so-coverage {
 		margin: 0;
 		color: var(--text-2);
-		max-width: var(--measure-reading);
+		max-width: min(var(--measure-reading), var(--measure-prose, 72ch));
 	}
 	.so-source-note {
 		color: var(--amber);
@@ -1753,7 +1753,7 @@
 	}
 	.so-word {
 		font-family: var(--font-mono);
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 		min-width: 7.5rem;
 	}
@@ -1794,7 +1794,7 @@
 	.so-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.so-table th,
 	.so-table td {
@@ -1806,7 +1806,7 @@
 	}
 	.so-table thead th {
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -1837,16 +1837,16 @@
 		align-items: center;
 		gap: 0.4rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
 	.so-sort-select {
-		min-height: 2rem;
+		min-height: 44px;
 		font: inherit;
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		text-transform: none;
 		letter-spacing: 0;
 		color: var(--text-1);
@@ -1860,7 +1860,10 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;
-		min-height: 24px;
+		/* 44px at the default density (ledger 0469: a column heading's sort key
+		   measured 25px); a teacher's compact density takes it to 24 below. */
+		min-height: 44px;
+		min-width: 44px;
 		cursor: pointer;
 		font: inherit;
 		color: inherit;
@@ -1874,6 +1877,9 @@
 	.so-sort-key:focus-visible {
 		outline: 2px solid var(--green);
 		outline-offset: 2px;
+	}
+	:global(.cr-root[data-density='compact'] .cr-instructor-surface) .so-sort-key {
+		min-height: 24px;
 	}
 	.so-sort-key.on {
 		color: var(--text-1);
@@ -1904,7 +1910,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		font-weight: 400;
@@ -1943,7 +1949,7 @@
 		.so-table td::before {
 			content: attr(data-label) ': ';
 			font-family: var(--font-mono);
-			font-size: 0.66rem;
+			font-size: var(--fs-micro);
 			text-transform: uppercase;
 			color: var(--text-2);
 		}
@@ -1970,7 +1976,7 @@
 	.so-print-line {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 

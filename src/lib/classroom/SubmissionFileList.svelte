@@ -185,10 +185,12 @@
 	.file-name {
 		display: inline-flex;
 		align-items: center;
+		/* 44px (ledger 0469: 22 measured). */
+		min-height: 44px;
 		gap: 0.4rem;
 		color: var(--text-1);
 		text-decoration: none;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		overflow-wrap: anywhere;
 		min-width: 0;
 	}
@@ -202,7 +204,7 @@
 		height: 1.3rem;
 		padding: 0 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		font-weight: 600;
 		letter-spacing: 0.03em;
 		color: var(--hover-ink);
@@ -211,7 +213,7 @@
 	}
 	.file-size {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		white-space: nowrap;
 	}
@@ -222,7 +224,7 @@
 		border-radius: 999px;
 		color: var(--crimson);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		padding: 0.1rem 0.5rem;
 		cursor: pointer;
 	}
@@ -232,7 +234,7 @@
 	}
 	.note {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 </style>

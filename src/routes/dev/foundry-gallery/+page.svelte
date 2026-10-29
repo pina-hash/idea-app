@@ -366,6 +366,7 @@
 			<button
 				type="button"
 				class="hbtn"
+				data-harness-chrome
 				data-testid="gallery-deselect"
 				onclick={() => (gallerySlug = null)}
 			>
@@ -374,6 +375,7 @@
 			<button
 				type="button"
 				class="hbtn"
+				data-harness-chrome
 				data-testid="gallery-admin"
 				aria-pressed={galleryIsAdmin}
 				onclick={() => (galleryIsAdmin = !galleryIsAdmin)}
@@ -383,6 +385,7 @@
 			<button
 				type="button"
 				class="hbtn"
+				data-harness-chrome
 				data-testid="gallery-mine"
 				aria-pressed={galleryHasMine}
 				onclick={() => (galleryHasMine = !galleryHasMine)}
@@ -412,6 +415,7 @@
 			<button
 				type="button"
 				class="hbtn"
+				data-harness-chrome
 				data-testid="review-deselect"
 				onclick={() => (reviewSlug = null)}
 			>

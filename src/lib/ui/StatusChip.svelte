@@ -55,7 +55,7 @@
 	const spec = $derived(STATUS_TONES[tone] ?? STATUS_TONES.neutral);
 	const mark = $derived(STATUS_GLYPHS[glyph ?? spec.glyph]);
 	const cls = $derived(
-		`status-chip${wrap ? ' wrap' : ''}${spec.dashed ? ' dashed' : ''}${href || onclick ? ' is-key' : ''}${extra ? ` ${extra}` : ''}`
+		`status-chip${wrap ? ' wrap' : ''}${spec.dashed ? ' dashed' : ''}${href || onclick ? ' is-key tap-reach-44' : ''}${extra ? ` ${extra}` : ''}`
 	);
 </script>
 
@@ -94,7 +94,8 @@
 		box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.18);
 		color: var(--st-on);
 		font-family: var(--font-mono);
-		font-size: 0.6875rem;
+		/* The 11px floor, from the one scale (ledger 0469). */
+		font-size: var(--fs-micro, 0.6875rem);
 		font-weight: 400;
 		line-height: 1.1;
 		letter-spacing: 0.02em;
@@ -135,12 +136,16 @@
 		stroke: none;
 	}
 	/* Pressable: the key's drop, and a hover that lifts the face. */
+	/* A PRESSABLE CHIP KEEPS ITS 22px TAG AND REACHES 44px (ledger 0469): the
+	   global `.tap-reach-44` grows its hit area with a centred pseudo-element,
+	   in height only, so a row of chips does not hand a tap to its neighbour. */
 	.status-chip.is-key {
+		--tap-reach-w: 0px;
 		cursor: pointer;
 		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 		font: inherit;
 		font-family: var(--font-mono);
-		font-size: 0.6875rem;
+		font-size: var(--fs-micro, 0.6875rem);
 		text-transform: uppercase;
 	}
 	.status-chip.is-key:hover {

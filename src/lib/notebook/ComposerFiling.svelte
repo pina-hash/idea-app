@@ -217,7 +217,14 @@
 	   meta, which is right for a count; here the meta is WHERE the work goes
 	   and the state of the check-in it answers, and a phone would cut the chip
 	   off the end of the line. */
+	/* And it takes a line of its own before it is squeezed (ledger 0469):
+	   beside the label and the action on a phone it was 124px and three
+	   lines. */
+	.filing :global(.disc-trigger) {
+		flex-wrap: wrap;
+	}
 	.filing :global(.disc-meta) {
+		flex: 1 1 12rem;
 		white-space: normal;
 		overflow: visible;
 		text-overflow: clip;

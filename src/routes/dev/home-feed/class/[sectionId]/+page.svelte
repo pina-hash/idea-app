@@ -26,7 +26,7 @@
 			{#each folds as line, i (line + i)}<li>{line}</li>{/each}
 		</ol>
 	{/if}
-	<p><a href="/dev/home-feed?base=dev">Back to the feed harness</a></p>
+	<p data-harness-chrome><a href="/dev/home-feed?base=dev">Back to the feed harness</a></p>
 </main>
 
 <style>

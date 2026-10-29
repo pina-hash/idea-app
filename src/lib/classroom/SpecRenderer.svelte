@@ -868,14 +868,14 @@
 	.module-eyebrow {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
 	.module-title {
 		margin: 0.1rem 0 0;
-		font-size: 1.05rem;
+		font-size: var(--fs-body);
 	}
 	.module-chips {
 		display: flex;
@@ -884,7 +884,7 @@
 	}
 	.chip {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.08rem 0.5rem;
@@ -901,7 +901,7 @@
 		border: 1px dashed var(--line-strong);
 		border-radius: var(--radius-card);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--amber);
 	}
 	/* PROSE KEEPS ITS MEASURE WHEREVER THE SPEC IS RENDERED. Every surface that
@@ -919,13 +919,13 @@
 	.module-intro {
 		margin: 0 0 0.6rem;
 		color: var(--text-2);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 	}
 	.gate-lock {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: var(--fs-meta);
 		color: var(--amber);
 	}
 	.block {
@@ -936,7 +936,7 @@
 	}
 	.prompt {
 		display: block;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		margin-bottom: 0.3rem;
 	}
 	.answer {
@@ -947,7 +947,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		line-height: 1.5;
 		padding: 0.45rem 0.6rem;
 		resize: none;
@@ -987,8 +987,14 @@
 	.readonly-text,
 	.cell-text {
 		white-space: pre-wrap;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		margin: 0;
+	}
+	/* A READ-ONLY CELL KEEPS 9.5 OF ITS OWN LETTERS (ledger 0469): on a phone a
+	   five-column table split a sentence over five lines 82px wide; the table
+	   scrolls sideways in `.table-scroll` instead. */
+	.entry-table td:has(> .cell-text) {
+		min-width: 9.5em;
 	}
 	.counter {
 		display: inline-flex;
@@ -1000,7 +1006,7 @@
 		border: 1px solid var(--hairline);
 		background: var(--surface-0);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		font-weight: 600;
 		color: var(--text-2);
 	}
@@ -1057,7 +1063,7 @@
 	.entry-table th {
 		text-align: left;
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -1071,7 +1077,7 @@
 	}
 	.empty-cell {
 		color: var(--text-2);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		padding: 0.5rem 0.4rem;
 	}
 	.cell {
@@ -1083,7 +1089,7 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		line-height: 1.5;
 		padding: 0.3rem 0.4rem;
 		min-width: 6rem;
@@ -1203,7 +1209,7 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		color: var(--text-2);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		width: 44px;
 		min-height: 44px;
 		cursor: pointer;
@@ -1345,7 +1351,7 @@
 		border-radius: var(--radius-card);
 	}
 	.zone-file {
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		overflow-wrap: anywhere;
 	}
 	.caption {
@@ -1356,11 +1362,11 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		padding: 0.25rem 0.4rem;
 	}
 	.caption-text {
-		font-size: 0.76rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 	}
 	.zone-remove {
@@ -1369,7 +1375,7 @@
 		border: none;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		text-align: left;
 		cursor: pointer;
 		padding: 0;
@@ -1413,7 +1419,7 @@
 		display: flex;
 		align-items: flex-start;
 		gap: var(--space-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
 		padding-block: 0.65rem;
 		min-height: 44px;
@@ -1425,12 +1431,12 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		margin: 0.3rem 0 0;
 	}
 	.paste-notice {
 		color: var(--text-2);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		margin: 0.5rem 0 0;
 	}
 	.gate-card {
@@ -1445,7 +1451,7 @@
 	}
 	.gate-label {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--gold);
@@ -1454,7 +1460,7 @@
 		color: var(--green);
 	}
 	.gate-state {
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--text-2);
 	}
 </style>

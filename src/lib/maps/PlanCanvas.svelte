@@ -786,7 +786,9 @@
 			bind:clientHeight={paneHeight}
 			use:wheelZoom
 		>
-			<div class="sheet" style="width: {sheetW}px; height: {sheetH}px">
+			<!-- A SCALE DRAWING (ledger 0469): its shapes are drawn at the size they
+			     are, so the tap floor and the floor check leave them alone. -->
+			<div class="sheet" data-scale-drawing style="width: {sheetW}px; height: {sheetH}px">
 				<svg class="dims" width={sheetW} height={sheetH} viewBox="0 0 {sheetW} {sheetH}" aria-hidden="true">
 					<!-- The grid, in inches: a foot at a workable zoom. -->
 					{#each gridLines.x as gx (gx)}
@@ -1272,7 +1274,7 @@
 	}
 	.drawn-name {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		white-space: nowrap;
 		overflow: hidden;
@@ -1284,7 +1286,7 @@
 	}
 	.drawn-size {
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		white-space: nowrap;
 		color: var(--cyan);
 	}
@@ -1320,7 +1322,7 @@
 		color: var(--cyan);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		margin-left: 0.5rem;
 	}
 	.readout-key:first-child {
@@ -1341,7 +1343,7 @@
 	}
 	legend {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--text-2, var(--dim));

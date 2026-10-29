@@ -309,7 +309,7 @@
 	}
 	.state {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
@@ -380,7 +380,7 @@
 	}
 	.g-n {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim);
 	}
 	.g-side {
@@ -448,13 +448,17 @@
 	}
 	.adv-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
 		min-width: 8.5rem;
 	}
 	.adv-link {
+		/* 44px (ledger 0469: 26.9 measured). */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		color: var(--tnm-ink);
 	}
 	.adv-out {

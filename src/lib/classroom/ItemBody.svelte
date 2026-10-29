@@ -280,20 +280,27 @@
 
 <style>
 	.item-body {
-		font-size: 0.98rem;
+		font-size: var(--fs-ui);
 		line-height: 1.6;
 		color: var(--text-1);
 		/* A pasted URL with no spaces must not widen the column it sits in. */
 		overflow-wrap: anywhere;
 	}
 	.item-body.compact {
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		line-height: 1.55;
 	}
 	.item-body p,
 	.item-body ul,
 	.item-body ol {
 		margin: 0 0 0.7rem;
+	}
+	/* THE PROSE MEASURE (ledger 0469): a sentence stops at 72 characters
+	   however wide the item pane is; the audit read 150 to a line at 1440. */
+	.item-body p,
+	.item-body ul,
+	.item-body ol {
+		max-width: var(--measure-prose);
 	}
 	.item-body ul,
 	.item-body ol {
@@ -354,7 +361,7 @@
 	   sentence is the signal and the tone only agrees with it. */
 	.item-body .item-figure-missing {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--body-figure-missing, var(--amber));
@@ -363,7 +370,7 @@
 		padding: 0.85rem 1rem;
 	}
 	.item-body .item-figure figcaption {
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		margin-top: 0.35rem;
 	}
@@ -382,11 +389,11 @@
 		margin-top: 0.9rem;
 	}
 	.item-body h3 {
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		text-transform: uppercase;
 	}
 	.item-body h4 {
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 	}
 	.item-body > :global(:first-child) {
 		margin-top: 0;
@@ -477,7 +484,7 @@
 	}
 	.item-video-meta {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 	}

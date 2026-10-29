@@ -1081,9 +1081,11 @@
 		flex-wrap: wrap;
 	}
 
+	/* 12rem before the key wraps under it (ledger 0469): at a basis of 0 the
+	   row never wrapped and the file's line was 91px and three lines. */
 	.fdy-picked-main {
 		min-width: 0;
-		flex: 1;
+		flex: 1 1 12rem;
 	}
 
 	.fdy-picked-name {

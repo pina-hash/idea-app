@@ -27,7 +27,7 @@
 			{#each queue as row (row.submission_id)}
 				<li class="dk-row" data-testid="cert-queue-row" data-part={row.part}>
 					<div class="dk-row-main">
-						<a class="dk-row-name" href={deskStudentHref(row.student.email)}>{personWords(row.student)}</a>
+						<a class="dk-row-name tap-reach-44" href={deskStudentHref(row.student.email)}>{personWords(row.student)}</a>
 						<span class="dk-row-meta">{row.certification.code} {row.certification.name}</span>
 						<span class="cert-readout"><span aria-hidden="true">{row.in_person ? '•' : '>'}</span>{partWord(row.part)}{row.in_person ? ', in person' : ''}</span>
 						<span class="dk-row-meta" data-testid="cert-queue-waited">{waitedSentence(row.waited_seconds)}</span>
@@ -50,7 +50,7 @@
 			{#each requests as row (row.seat_id)}
 				<li class="dk-row" data-testid="cert-request-row">
 					<div class="dk-row-main">
-						<a class="dk-row-name" href={deskStudentHref(row.student.email)}>{personWords(row.student)}</a>
+						<a class="dk-row-name tap-reach-44" href={deskStudentHref(row.student.email)}>{personWords(row.student)}</a>
 						<span class="dk-row-meta">{row.certification.code} {row.certification.name}</span>
 						<span class="dk-row-meta">requested {formatCertDateTime(row.requested_at)}</span>
 						{#if row.note}<span class="dk-row-note">{row.note}</span>{/if}

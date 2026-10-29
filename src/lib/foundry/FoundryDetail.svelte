@@ -126,7 +126,7 @@
 					can already see everything on this screen.
 				-->
 				{#if author}
-					<a class="fdy-author" href="/foundry/author/{app.owner}">{author}</a>
+					<a class="fdy-author tap-reach-44" href="/foundry/author/{app.owner}">{author}</a>
 				{/if}
 				{#if authorClass}<span class="fdy-class">{authorClass}</span>{/if}
 			</p>
@@ -240,7 +240,10 @@
 		font-size: 0.85rem;
 	}
 
+	/* The name reaches 44px in height (ledger 0469: 21.8 measured);
+	   `.tap-reach-44` in app.css, height only, so the by-line does not grow. */
 	.fdy-author {
+		--tap-reach-w: 0px;
 		color: var(--cyan);
 	}
 

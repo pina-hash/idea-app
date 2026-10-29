@@ -47,7 +47,7 @@
 	}
 	.imp-tag {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.12em;
 		color: var(--amber);
 		border: 1px solid var(--amber);
@@ -62,24 +62,29 @@
 		min-width: 0;
 	}
 	.imp-who strong {
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-1);
 	}
 	.imp-email {
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
 	.imp-note {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.imp-exit {
+		/* 44px (ledger 0469: 18.4 measured). */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		min-width: 44px;
 		margin-left: auto;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 	}
 	@media (max-width: 560px) {

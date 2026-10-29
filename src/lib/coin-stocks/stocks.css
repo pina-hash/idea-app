@@ -30,7 +30,7 @@
 	display: flex;
 	justify-content: space-between;
 	font-family: var(--font-mono);
-	font-size: 0.68rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.05em;
 	color: var(--text-2);
 }
@@ -133,7 +133,7 @@
 }
 .sk-table th {
 	font-family: var(--font-mono);
-	font-size: 0.68rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	color: var(--text-2);
@@ -147,10 +147,14 @@
 	overflow-x: auto;
 	min-width: 0;
 }
+/* The sentence column keeps 14rem (ledger 0469): beside four figures that
+   never wrap it was 42px and fourteen lines on a phone. The table sits in
+   `.sk-scroll`, so on a phone it scrolls sideways instead. */
 .sk-inputs {
 	font-size: 0.85rem;
 	color: var(--text-2);
 	overflow-wrap: anywhere;
+	min-width: 14rem;
 }
 /* A trading pause (0283): a sentence in the text ink, which clears every
    plate, with the amber on a marker beside it. Measured: the amber as the
@@ -219,12 +223,18 @@
 	min-height: 2.75rem;
 	align-items: center;
 }
+/* The two lists sit side by side when THE CARD has room for both, not the
+   window (ledger 0469): a card is a size container, so a laptop at 125% zoom
+   lays it out by its own width. */
+.mk-panel:has(> .sk-movers) {
+	container: sk-movers / inline-size;
+}
 .sk-movers {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: var(--space-3, 1rem);
 }
-@media (max-width: 520px) {
+@container sk-movers (max-width: 30rem) {
 	.sk-movers {
 		grid-template-columns: 1fr;
 	}
@@ -239,7 +249,16 @@
 .sk-movers li {
 	display: flex;
 	justify-content: space-between;
+	align-items: center;
 	gap: 0.5rem;
+}
+/* A ticker that is a link is a 44px target (ledger 0469: it measured 26.9). */
+.sk-movers li > a {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	min-width: 44px;
 }
 .sk-range {
 	font-family: var(--font-mono);

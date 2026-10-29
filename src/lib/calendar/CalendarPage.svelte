@@ -264,7 +264,7 @@
 		<span class="ev-stripe" aria-hidden="true"></span>
 		<div class="ev-main">
 			<p class="ev-title">
-				{#if href}<a {href}>{e.title}</a>{:else}{e.title}{/if}
+				{#if href}<a class="tap-reach-44" {href}>{e.title}</a>{:else}{e.title}{/if}
 			</p>
 			<p class="ev-meta">
 				<span class="ev-layer"><LayerMark layer={info} size={10} />{info.label}</span>
@@ -809,7 +809,11 @@
 		font-weight: 600;
 		overflow-wrap: anywhere;
 	}
+	/* A 22px title link reaches 44px in height (ledger 0469): `.tap-reach-44`
+	   in app.css, height only, so the row does not grow and the meta line
+	   under it holds no control to steal from. */
 	.ev-title a {
+		--tap-reach-w: 0px;
 		color: inherit;
 		text-decoration: underline;
 		text-decoration-color: color-mix(in srgb, var(--white) 35%, transparent);

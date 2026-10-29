@@ -316,7 +316,7 @@
 	}
 	.rc-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
@@ -372,6 +372,8 @@
 		grid-template-columns: 11rem 1fr auto auto;
 		align-items: center;
 		gap: 0.8rem;
+		/* A 44px row (ledger 0469: 35.6 measured). */
+		min-height: 44px;
 		padding: 0.5rem 0.75rem;
 		text-decoration: none;
 		color: inherit;
@@ -382,7 +384,7 @@
 	}
 	.m-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim);
 	}
 	.m-opp {
@@ -393,7 +395,7 @@
 	}
 	.vs {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim);
 		flex: none;
 	}
@@ -405,7 +407,7 @@
 	}
 	.m-outcome {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--tnm-ink-dim);
@@ -459,7 +461,7 @@
 	}
 	.l-link {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim);
 	}
 	.l-link.muted {
@@ -467,7 +469,7 @@
 	}
 	.l-when {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--tnm-ink-dim);
 	}
 	.l-amount,

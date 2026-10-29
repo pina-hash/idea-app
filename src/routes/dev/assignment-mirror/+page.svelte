@@ -256,7 +256,7 @@
 				<li class="slot"><code>{s.key}</code> <span class="slot-text">{s.text}</span></li>
 			{/each}
 		</ul>
-		<p class="viewer-links">
+		<p class="viewer-links" data-harness-chrome>
 			Two students, one machine:
 			<a href="/dev/assignment-mirror?viewer=a">student-a</a> ·
 			<a href="/dev/assignment-mirror?viewer=b">student-b</a>

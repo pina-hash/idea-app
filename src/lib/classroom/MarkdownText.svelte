@@ -240,7 +240,14 @@
 	}
 	.md :global(p) {
 		line-height: 1.6;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
+	}
+	/* THE PROSE MEASURE (ledger 0469): 72 characters to a line at most. */
+	.md :global(p),
+	.md :global(ul),
+	.md :global(ol),
+	.md :global(blockquote) {
+		max-width: var(--measure-prose);
 	}
 
 	/* Subordinate to the section's own h2 by construction: smaller, mono,
@@ -255,12 +262,12 @@
 		line-height: 1.3;
 	}
 	.md :global(.md-h3) {
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 	.md :global(.md-h4) {
 		margin-top: var(--space-3);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--cyan);
 	}
 	/* No leading gap when a heading opens the block. */
@@ -278,7 +285,7 @@
 	}
 	.md :global(li) {
 		line-height: 1.55;
-		font-size: 0.93rem;
+		font-size: var(--fs-sm);
 	}
 	.md :global(li)::marker {
 		color: var(--text-2);
@@ -334,7 +341,7 @@
 		border: none;
 		padding: 0;
 		color: var(--text-1);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1.5;
 		white-space: pre;
 	}
@@ -356,7 +363,7 @@
 	.md :global(.md-table th) {
 		text-align: left;
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -369,7 +376,7 @@
 	.md :global(.md-table td) {
 		border-bottom: 1px solid var(--hairline);
 		padding: var(--space-2) var(--space-3);
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		line-height: 1.5;
 		vertical-align: top;
 	}
@@ -438,7 +445,7 @@
 	   which sits below any text threshold. Measured against the ground it
 	   actually composites over, per IDEA_INTERFACE_STANDARDS 10. */
 	.md :global(.md-figure figcaption) {
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		line-height: 1.5;
 		color: var(--text-2);
 	}
@@ -452,7 +459,7 @@
 		border-radius: var(--radius-card);
 		background: var(--surface-2);
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--amber);
@@ -460,7 +467,7 @@
 	}
 	.md :global(.md-unknown) {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--amber);
 	}
 

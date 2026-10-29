@@ -89,7 +89,7 @@
 			<p class="td-tourn" data-testid="class-team-tournaments">
 				<span class="td-label">In the bracket</span>
 				{#each tournaments as t (t.id)}
-					<a class="td-link" href="/tournaments/{t.id}">{t.name}</a>
+					<a class="td-link tap-reach-44" href="/tournaments/{t.id}">{t.name}</a>
 				{/each}
 			</p>
 		{/if}
@@ -144,7 +144,7 @@
 	}
 	.td-desc {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		line-height: 1.35;
 		color: var(--text-1);
 		overflow-wrap: anywhere;
@@ -158,13 +158,15 @@
 	}
 	.td-label {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--text-2, var(--dim));
 	}
+	/* A 44px reach in height (ledger 0469: 23px measured). */
 	.td-link {
-		font-size: 0.9rem;
+		--tap-reach-w: 0px;
+		font-size: var(--fs-sm);
 		color: var(--text-1);
 		text-decoration: underline;
 		text-underline-offset: 2px;
@@ -187,7 +189,7 @@
 		min-height: 44px;
 		padding: 0.4rem 0.55rem;
 		font-family: var(--font-display);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 		color: var(--text-1);
 		background: var(--surface-2, var(--bg2));
 		border: 1px solid var(--boundary);
@@ -195,12 +197,12 @@
 	}
 	.td-hint {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2, var(--dim));
 	}
 	.td-error {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		color: var(--amber);
 	}
 	.td-actions {

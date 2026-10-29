@@ -58,7 +58,7 @@
 			<p class="eyebrow cert-eyebrow">Review</p>
 			<h1 class="cert-title plate-title">{partWord(submission.part)}</h1>
 			<p class="dk-row-meta">
-				<a href={deskStudentHref(student.email)} data-testid="cert-review-student">{personWords(student)}</a>, {certification.code} {certification.name}, submitted {formatCertDateTime(submission.submitted_at)}{#if submission.in_person}, recorded in person{/if}
+				<a class="tap-reach-44 dk-inline-name" href={deskStudentHref(student.email)} data-testid="cert-review-student">{personWords(student)}</a>, {certification.code} {certification.name}, submitted {formatCertDateTime(submission.submitted_at)}{#if submission.in_person}, recorded in person{/if}
 			</p>
 		</div>
 		<Readout readout={SUBMISSION_READOUTS[submission.state]} testId="cert-review-state" />

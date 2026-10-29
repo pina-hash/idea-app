@@ -3336,7 +3336,7 @@
 	}
 	.hx-unsaved-head {
 		margin: 0;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		color: var(--text-1);
 	}
 	.hx-unsaved-more summary {
@@ -3345,7 +3345,7 @@
 		align-items: center;
 		cursor: pointer;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-1);
@@ -3370,7 +3370,7 @@
 	.hx-unsaved-where {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.hx-unsaved-text {
@@ -3384,7 +3384,7 @@
 		min-height: 44px;
 		padding: 0 0.9rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-1);
@@ -3505,7 +3505,7 @@
 		cursor: pointer;
 	}
 	.insp-caret {
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		flex: none;
 	}
 	.insp-glyph {
@@ -3520,7 +3520,7 @@
 	}
 	.insp-label {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		flex: none;
@@ -3538,7 +3538,7 @@
 	.insp-hint {
 		flex: none;
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.insp-body {
@@ -3564,7 +3564,7 @@
 	.insp-group-label {
 		margin: 0 0 var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--gold);
@@ -3587,7 +3587,7 @@
 
 	.meta-line {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		margin: 0.2rem 0 0;
 	}
@@ -3615,7 +3615,7 @@
 		margin: 0;
 	}
 	.title-error {
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--amber);
 	}
 	/* Kept in the outline for assistive technology, out of the layout. */
@@ -3663,17 +3663,17 @@
 	}
 	.ci-name {
 		font-weight: 700;
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.ci-meta {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.ci-link {
 		margin-left: auto;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--hover-ink);
 		white-space: nowrap;
 		/* A phone touches this. */
@@ -3731,10 +3731,12 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
+		/* The label is the checkbox's target: 44px (ledger 0469: 24 measured). */
+		min-height: 44px;
 		gap: var(--space-2);
 		margin-top: var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.attach-confirm input {
@@ -3742,7 +3744,7 @@
 		min-width: 0;
 		flex: 0 1 10rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--white);
@@ -3771,11 +3773,11 @@
 		align-items: baseline;
 		gap: var(--space-2);
 		margin: 0 0 var(--space-1);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 	.section-label {
 		margin: 0 0 var(--space-2);
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		font-family: var(--font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -3815,7 +3817,7 @@
 	.also-line {
 		margin: var(--space-2) 0 0;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.engine-slot {
@@ -3863,7 +3865,7 @@
 	}
 	.ic-return {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		color: var(--green);
 		background: transparent;
@@ -3877,7 +3879,7 @@
 	}
 	.ic-return-absent {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 	}
 	.engine-tools .btn.tiny {
@@ -3885,7 +3887,7 @@
 	}
 	.note {
 		color: var(--text-2);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		margin: 0;
 	}
 	.page-footer {

@@ -777,7 +777,7 @@
 		background: var(--surface-1);
 	}
 	.rt-toolbar button {
-		min-width: 2.2rem;
+		min-width: 2.75rem;
 		/* 44px, the touch target this codebase standardised on. */
 		min-height: 2.75rem;
 		padding: 0.2rem 0.5rem;
@@ -786,7 +786,7 @@
 		background: none;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		cursor: pointer;
 	}
 	.rt-toolbar button:hover:not(:disabled) {
@@ -875,7 +875,7 @@
 		border-radius: var(--radius-control);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		padding: 0.3rem 0.45rem;
 	}
 	.link-input:focus {
@@ -932,7 +932,7 @@
 		border-radius: var(--radius-control);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
 	}
 	.image-choice:hover {
@@ -972,20 +972,20 @@
 	.image-choice-state {
 		flex: 0 0 auto;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.03em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
 	.image-empty {
 		flex: 1 0 100%;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		line-height: 1.35;
 		color: var(--text-2);
 	}
 	.image-hint {
 		flex: 1 0 100%;
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		line-height: 1.35;
 		color: var(--text-2);
 	}
@@ -1011,12 +1011,12 @@
 	.rt-surface :global(.rt-figure .rt-figure-ref) {
 		display: block;
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.03em;
 		color: var(--text-2);
 	}
 	.rt-surface :global(.rt-figure figcaption) {
-		font-size: 0.86rem;
+		font-size: var(--fs-caption);
 		color: var(--text-1);
 		margin-top: 0.2rem;
 	}
@@ -1054,7 +1054,7 @@
 		position: relative;
 		padding: 0.55rem 0.7rem;
 		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 		line-height: 1.6;
 		color: var(--text-1);
 		/* Generous by default: an instructions field that shows three lines is
@@ -1093,11 +1093,11 @@
 		margin: 1.1rem 0 0.4rem;
 	}
 	.rt-surface :global(.rt-input h3) {
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		text-transform: uppercase;
 	}
 	.rt-surface :global(.rt-input h4) {
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		margin-top: 0.9rem;
 	}
@@ -1130,6 +1130,6 @@
 		margin: 0;
 		padding: 0.35rem 0.7rem 0.5rem;
 		color: var(--amber);
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 	}
 </style>

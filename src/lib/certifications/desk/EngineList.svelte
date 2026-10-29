@@ -53,7 +53,7 @@
 						{#each rows as r (r.id)}
 							<tr data-testid="cert-engine-row" data-state={r.state}>
 								<td class="dk-mono"><strong>{r.code}</strong></td>
-								<td>{r.name}<div class="dk-row-meta">Level {r.level}, {r.category}</div></td>
+								<td class="dk-name">{r.name}<div class="dk-row-meta">Level {r.level}, {r.category}</div></td>
 								<td><Readout readout={CERT_STATE_READOUTS[r.state]} /></td>
 								<td class="dk-mono">{r.revision ?? '0'}</td>
 								<td class="dk-mono">{r.holders_count}</td>

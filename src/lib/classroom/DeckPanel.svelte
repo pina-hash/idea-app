@@ -378,7 +378,7 @@
 		{#if showManage && deck}
 			<p class="deck-sub">
 				{deckSizeLine(deck)}
-				{#if mode === 'manage'}&middot; <a class="deck-inline-open" {href}>Open presentation</a>{/if}
+				{#if mode === 'manage'}&middot; <a class="deck-inline-open tap-reach-44" {href}>Open presentation</a>{/if}
 			</p>
 			{#if !deck.has_state_file}
 				<p class="deck-warn">
@@ -545,7 +545,7 @@
 		background: color-mix(in srgb, var(--green) 12%, transparent);
 		border-radius: var(--radius-card);
 		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		letter-spacing: 0.04em;
 		color: var(--text-1, var(--white));
 		pointer-events: none;
@@ -559,14 +559,17 @@
 	.deck-manage-label {
 		margin: 0 0 var(--space-2);
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: var(--fs-label);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
 	/* The open link a manager keeps when the big student-facing one lives in the
 	   content flow instead of here. */
+	/* It reaches 44px in height (ledger 0469: 17.6 at its line), the one
+	   control on its line. */
 	.deck-inline-open {
+		--tap-reach-w: 0px;
 		color: var(--cyan);
 	}
 	.deck-open {
@@ -609,13 +612,13 @@
 	}
 	.deck-name {
 		color: var(--text-1);
-		font-size: 0.98rem;
+		font-size: var(--fs-ui);
 		overflow-wrap: anywhere;
 	}
 	.deck-meta,
 	.deck-sub {
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.deck-sub {
@@ -646,7 +649,7 @@
 		border-radius: 999px;
 		color: var(--crimson);
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		padding: 0 0.9rem;
 		cursor: pointer;
 		/* Stated as a box: padding plus a 0.66rem line box lands at 33px. */
@@ -701,7 +704,7 @@
 		gap: 0.6rem;
 		margin-top: 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.66rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.deck-cancel {
@@ -726,7 +729,7 @@
 	.deck-error,
 	.deck-notice {
 		margin: 0.6rem 0 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-meta);
 		line-height: 1.45;
 	}
 	.deck-hint {
@@ -740,7 +743,7 @@
 	}
 	.deck-code {
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 		color: var(--text-2);
 		white-space: nowrap;
 	}
@@ -749,7 +752,7 @@
 	}
 	.deck-warn code {
 		font-family: var(--font-mono);
-		font-size: 0.74rem;
+		font-size: var(--fs-label);
 	}
 	.deck-choose {
 		margin-top: 0.7rem;
@@ -760,14 +763,14 @@
 	}
 	.deck-choose p {
 		margin: 0;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 	}
 	.deck-choice {
 		display: flex;
 		gap: var(--space-2);
 		align-items: center;
-		font-size: 0.82rem;
+		font-size: var(--fs-meta);
 		color: var(--text-1);
 		overflow-wrap: anywhere;
 		/* Comfortable on a phone without a second rule for touch. */

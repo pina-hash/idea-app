@@ -67,7 +67,7 @@
 		<!-- The note's own opening words, set as a miniature page. aria-hidden
 		     because the collapsed row already names the entry and previews the
 		     same text in readable size; this is a picture of it. -->
-		<span class="note-tile" aria-hidden="true">{thumb.text}</span>
+		<span class="note-tile" aria-hidden="true" data-miniature>{thumb.text}</span>
 	{:else}
 		<span class="mark" aria-hidden="true">
 			{#if broken}
@@ -115,7 +115,7 @@
 		position: absolute;
 		right: 2px;
 		bottom: 2px;
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		font-weight: 700;
 		line-height: 1;
 		padding: 0.15em 0.3em;

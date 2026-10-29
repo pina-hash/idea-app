@@ -159,9 +159,14 @@
 	.fg-home {
 		display: inline-flex;
 		align-items: center;
+		min-height: 44px;
 	}
 
 	.fg-wordmark {
+		/* 44px tall (ledger 0469): it measured 26.9. */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		font-family: var(--font-title, var(--font-display));
 		font-weight: 700;
 		font-size: 1.05rem;

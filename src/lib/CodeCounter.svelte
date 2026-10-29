@@ -391,7 +391,7 @@
 		align-items: center;
 		gap: 0.4rem;
 		font-family: var(--font-title, 'Orbitron', sans-serif);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		font-weight: 600;
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
@@ -427,7 +427,9 @@
 	   `--text-2` is 6.91 / 5.88 / 5.51 on the same three grounds. */
 	.loc-key {
 		color: var(--text-2);
-		font-size: 0.85em;
+		/* The floor, not a fraction of it (ledger 0469): 0.85em of the 11px
+		   chip read 9.35px. */
+		font-size: var(--fs-micro);
 	}
 	/* Right-aligned so a count that is still growing into the width `countUp`
 	   held for it fills from the right, the way an odometer does. */
@@ -471,7 +473,7 @@
 		border-radius: 2px;
 		padding: 0.35rem 0.55rem;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		line-height: 1.4;
 		color: var(--white);
 		white-space: normal;
@@ -535,7 +537,7 @@
 		border-radius: 2px;
 		color: var(--text-2);
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		cursor: pointer;
@@ -597,7 +599,7 @@
 	.loc-sec-label {
 		margin: 0 0 0.5rem;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		font-weight: 400;
 		line-height: 1.3;
 		letter-spacing: 0.14em;
@@ -629,7 +631,7 @@
 		border-bottom: 1px solid var(--hairline, #2a332a);
 	}
 	.loc-upd-cols span {
-		font-size: 0.58rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -663,7 +665,7 @@
 		overflow-wrap: anywhere;
 	}
 	.loc-upd-date {
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 	.loc-upd-add,
@@ -727,7 +729,7 @@
 	}
 	.loc-total-l {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.58rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -742,7 +744,7 @@
 	.loc-axis-head {
 		display: block;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -804,7 +806,7 @@
 	.loc-row-sub {
 		display: block;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 	}
 
@@ -829,7 +831,7 @@
 	.loc-ex-n {
 		display: block;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		color: var(--hover-ink, var(--gold));
 	}
 	.loc-ex-why {

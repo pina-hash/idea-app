@@ -121,7 +121,8 @@
 		it moves as the slot order is typed. Slot 1 is the top. The stack itself is edited on the
 		unit.
 	</p>
-	<div class="stack" data-testid="maps-elevation-sketch-stack">
+	<!-- A SCALE DRAWING (ledger 0469): a 3in drawer is drawn 36px tall. -->
+	<div class="stack" data-scale-drawing data-testid="maps-elevation-sketch-stack">
 		{#each slots as slot, i (slot.id ?? 'new')}
 			{@const widthPct = widest && slot.widthIn ? Math.max(30, (slot.widthIn / widest) * 100) : 100}
 			<div class="row">
@@ -207,7 +208,7 @@
 		align-items: center;
 		justify-content: flex-end;
 		font-family: var(--font-mono);
-		font-size: 0.68rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2, var(--dim));
 	}
 	.slot {

@@ -2100,6 +2100,10 @@ a:hover {
 	gap: 1rem;
 }
 .legacy-index .logo {
+	/* The emblem link is a 44px target at every width (ledger 0469: 33.9 at 375). */
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
 	font-family: 'Orbitron', sans-serif;
 	font-weight: 900;
 	font-size: 1.5rem;
@@ -2144,7 +2148,7 @@ a:hover {
 }
 .legacy-index .class-chip {
 	font-family: 'Orbitron', sans-serif;
-	font-size: 0.6rem;
+	font-size: var(--fs-micro);
 	font-weight: 600;
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
@@ -2170,8 +2174,16 @@ a:hover {
 	gap: 0.75rem;
 }
 .legacy-index .auth-link {
+	/* THE 44px FLOOR (ledger 0469): a header key grows its own box rather
+	   than reaching, because nothing sits close enough above or below it to
+	   steal a tap and a reach on a wrapped phone row would. */
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-height: 44px;
 	font-family: 'Orbitron', sans-serif;
-	font-size: 0.6rem;
+	font-size: var(--fs-micro);
 	font-weight: 600;
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
@@ -2288,7 +2300,8 @@ a:hover {
    IN ON THE LOGO'S ROW. Measured at 375: the row had 44.9px spare and the icon
    key with its gap needs 53.6px. So from 400px down the two text keys' side
    padding comes in from 11.2px to 7.2px, which is what a 360px Android phone
-   needs, and the gaps close a little. It is one step, not two (review polish
+   needs, and the gaps close a little (since ledger 0469's 11px floor, the
+   two keys' tracking closes too). It is one step, not two (review polish
    D): a second at 370px gave the row room back a second time, one more width
    the fit would have had to read past.
    THIS HOLDS FROM THE FIRST PAINT, KEY OR NO KEY (review round 1). The key
@@ -2305,7 +2318,12 @@ a:hover {
 		gap: 0.4rem;
 	}
 	.legacy-index header.home-header:not(:has(.pm-root)):not([data-fit-probe]) .header-right .auth-link:not(.install-key) {
-		padding-inline: 0.45rem;
+		padding-inline: 0.35rem;
+		/* The 11px floor (ledger 0469) made the two words wider than the
+		   9.6px they were; a third of the tracking and a little side padding
+		   give it back, so the key still fits on the logo's row (Take the
+		   tour starts at 169.9px at 375, where it started at 168.1). */
+		letter-spacing: 0.04em;
 	}
 }
 /* WHAT THE FIT READS (review round 2, rebuilt in review polish D).
@@ -2404,7 +2422,7 @@ a:hover {
 	margin: 0 auto;
 }
 .legacy-index .hero-eyebrow {
-	font-size: 0.65rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.25em;
 	color: var(--cyan);
 	text-transform: uppercase;
@@ -2482,7 +2500,7 @@ a:hover {
 	animation: breathe 3s ease-in-out infinite;
 }
 .legacy-index .hero-stat .label {
-	font-size: 0.58rem;
+	font-size: var(--fs-micro);
 	/* --dim ON --bg2 IS 4.24:1, and this is a label rather than decoration.
 	   The TOKEN is not moved: --dim is also read inside .frc-root, whose page
 	   is paper, where it already measures 2.95 / 3.23 and lightening it makes
@@ -2641,7 +2659,7 @@ a:hover {
 }
 .legacy-index .nextlive .promo-eyebrow {
 	font-family: var(--font-mono);
-	font-size: 0.65rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.18em;
 	text-transform: uppercase;
 	color: var(--cyan);
@@ -2664,7 +2682,7 @@ a:hover {
 }
 .legacy-index .promo-cta {
 	font-family: 'Orbitron', sans-serif;
-	font-size: 0.58rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.18em;
 	color: var(--gold);
 	border: 1px solid color-mix(in srgb, var(--li-brass) 40%, transparent);
@@ -2701,7 +2719,7 @@ a:hover {
 }
 .legacy-index .divider-label {
 	font-family: 'Orbitron', sans-serif;
-	font-size: 0.6rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.2em;
 	color: var(--dim);
 	text-transform: uppercase;
@@ -2802,7 +2820,7 @@ a:hover {
 	flex-wrap: wrap;
 }
 .legacy-index .section-meta {
-	font-size: 0.62rem;
+	font-size: var(--fs-micro);
 	color: var(--dim);
 	letter-spacing: 0.06em;
 	font-family: 'Share Tech Mono', monospace;
@@ -2811,7 +2829,7 @@ a:hover {
 	overflow-wrap: anywhere;
 }
 .legacy-index .course-badge {
-	font-size: 0.58rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.15em;
 	text-transform: uppercase;
 	padding: 0.22rem 0.55rem;
@@ -2835,7 +2853,7 @@ a:hover {
 }
 .legacy-index .gc-link {
 	font-family: 'Orbitron', sans-serif;
-	font-size: 0.55rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
 	/* --dim on --bg2 is 4.24:1; see .hero-stat .label above for why the token
@@ -2952,7 +2970,7 @@ a:hover {
 }
 .legacy-index .badge-new {
 	font-family: 'Orbitron', sans-serif;
-	font-size: 0.5rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.15em;
 	color: var(--bg0);
 	background: var(--green);
@@ -2971,7 +2989,7 @@ a:hover {
 	flex-wrap: wrap;
 }
 .legacy-index .assignment-status {
-	font-size: 0.6rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
 	font-family: 'Orbitron', sans-serif;
@@ -3016,7 +3034,7 @@ a:hover {
    ranked work above it. */
 .legacy-index .feed-shelf-label {
 	padding: 0.7rem 1.5rem 0.2rem;
-	font-size: 0.56rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.18em;
 	text-transform: uppercase;
 	font-family: 'Share Tech Mono', monospace;
@@ -3026,7 +3044,7 @@ a:hover {
 .legacy-index .feed-more {
 	display: block;
 	padding: 0.75rem 1.5rem;
-	font-size: 0.62rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
 	font-family: 'Share Tech Mono', monospace;
@@ -3065,7 +3083,7 @@ a:hover {
 }
 .legacy-index .yourclass-eyebrow {
 	font-family: 'Orbitron', sans-serif;
-	font-size: 0.62rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.2em;
 	text-transform: uppercase;
 	color: var(--gold);
@@ -3430,7 +3448,7 @@ a:hover {
 	margin-bottom: 0.5rem;
 }
 .legacy-index .footer-sub {
-	font-size: 0.58rem;
+	font-size: var(--fs-micro);
 	/* Was a raw rgba at 0.6 alpha, which composited to 2.81:1 on the page --
 	   the least readable line on the homepage, and spelled as a literal so no
 	   token move could ever have found it. 6.91:1. */
@@ -3438,10 +3456,13 @@ a:hover {
 	letter-spacing: 0.1em;
 }
 .legacy-index .footer-archive {
-	display: inline-block;
+	/* 44px tall (ledger 0469): it measured 15.9. */
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
 	margin-top: 1rem;
 	font-family: 'Share Tech Mono', monospace;
-	font-size: 0.62rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.1em;
 	color: var(--dim);
 	text-decoration: none;
@@ -3844,7 +3865,7 @@ a:hover {
 }
 .float-title {
 	font-family: var(--font-mono);
-	font-size: 0.62rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.14em;
 	text-transform: uppercase;
 	color: var(--cyan);

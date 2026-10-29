@@ -230,7 +230,7 @@ button.mk-tile {
 	align-items: center;
 	gap: 0.3rem;
 	font-family: var(--font-mono);
-	font-size: 0.66rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	white-space: nowrap;
@@ -320,6 +320,10 @@ button.mk-tile {
 	flex-direction: column;
 	gap: 0.5rem;
 	min-width: 0;
+	/* The trade lays its steps out by its OWN width (ledger 0469): three
+	   columns squeezed each step's words into a column a word wide on a
+	   phone. */
+	container: mk-trade / inline-size;
 }
 .mk-trade-head {
 	display: flex;
@@ -340,12 +344,17 @@ button.mk-tile {
 	margin: 0;
 	padding: 0;
 }
+@container mk-trade (max-width: 26rem) {
+	.mk-steps {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
 .mk-step {
 	display: flex;
 	align-items: center;
 	gap: 0.35rem;
 	font-family: var(--font-mono);
-	font-size: 0.68rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.05em;
 	text-transform: uppercase;
 	color: var(--text-2);
@@ -443,7 +452,7 @@ button.mk-tile {
 .mk-feed-when {
 	grid-column: 1 / -1;
 	font-family: var(--font-mono);
-	font-size: 0.66rem;
+	font-size: var(--fs-micro);
 	letter-spacing: 0.05em;
 	color: var(--text-2);
 }

@@ -162,7 +162,7 @@
 								<td class="mono target">{row.target}</td>
 								<td>{row.label ?? ''}</td>
 								<td class="mono">{row.active ? 'active' : 'off'}</td>
-								<td class="ops">
+								<td class="ops" data-tap-floor="24">
 									<button type="button" class="btn secondary tiny" onclick={() => edit(row)}>
 										Edit
 									</button>
@@ -211,7 +211,7 @@
 	}
 	code {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.8em;
+		font-size: max(0.8em, var(--fs-micro));
 		color: var(--gold);
 	}
 	.form {
@@ -230,7 +230,7 @@
 	}
 	.field-label {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--dim);
@@ -281,7 +281,7 @@
 	th {
 		text-align: left;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--cyan);
@@ -310,7 +310,9 @@
 		gap: 0.25rem;
 		flex-wrap: wrap;
 	}
-	/* These are the row-ops chips -- Edit, Delete, Cancel beside a short link
+	/* `data-tap-floor="24"` on the cell is this decision, written where the
+	   visual pass's `control-floor` reads it (ledger 0469).
+	   These are the row-ops chips -- Edit, Delete, Cancel beside a short link
 	   in a table, on an admin-only surface nobody phone-taps -- so
 	   IDEA_INTERFACE_STANDARDS 10's 24px floor applies, not the 44px one,
 	   exactly as `.cr-root .btn.tiny` already decides for the classroom's
@@ -328,7 +330,7 @@
 	   and 1440px, under even the 24px chip floor. */
 	.btn.tiny,
 	.btn.secondary.tiny {
-		font-size: 0.65rem;
+		font-size: var(--fs-micro);
 		padding: 0.28rem 0.6rem;
 		min-height: 24px;
 	}

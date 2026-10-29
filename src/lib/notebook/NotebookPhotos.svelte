@@ -378,7 +378,7 @@
 		background: rgba(38, 34, 27, 0.72);
 		color: #fff;
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		line-height: 1.1;
 	}
 
@@ -441,6 +441,10 @@
 		flex-wrap: wrap;
 	}
 	.drive-link {
+		/* 44px (ledger 0469: 19.4 measured). */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		font-size: 0.76rem;
 		color: var(--text-3);
 	}

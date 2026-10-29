@@ -578,6 +578,9 @@
 		display: block;
 		align-self: flex-start;
 		max-width: 100%;
+		/* A picture that has not painted yet is still a 44px target (ledger 0469). */
+		min-width: 44px;
+		min-height: 44px;
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		overflow: hidden;
@@ -625,7 +628,7 @@
 		aspect-ratio: 1;
 	}
 	.attach-gallery.strip .gallery-name {
-		font-size: 0.7rem;
+		font-size: var(--fs-label);
 	}
 	.gallery-open {
 		appearance: none;
@@ -654,7 +657,7 @@
 		object-fit: contain;
 	}
 	.gallery-name {
-		font-size: 0.78rem;
+		font-size: var(--fs-meta);
 		color: var(--text-2);
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -710,7 +713,7 @@
 		gap: 0.4rem;
 		color: var(--text-1);
 		text-decoration: none;
-		font-size: 0.88rem;
+		font-size: var(--fs-caption);
 		overflow-wrap: anywhere;
 		min-width: 0;
 	}
@@ -724,7 +727,7 @@
 		height: 1.3rem;
 		padding: 0 0.35rem;
 		font-family: var(--font-mono);
-		font-size: 0.6rem;
+		font-size: var(--fs-micro);
 		font-weight: 600;
 		letter-spacing: 0.03em;
 		color: var(--hover-ink);
@@ -733,7 +736,7 @@
 	}
 	.attach-size {
 		font-family: var(--font-mono);
-		font-size: 0.64rem;
+		font-size: var(--fs-micro);
 		color: var(--text-2);
 		white-space: nowrap;
 	}
@@ -749,7 +752,7 @@
 		border-radius: 999px;
 		color: var(--text-2);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		padding: 0.1rem 0.75rem;
 		min-height: 44px;
 		cursor: pointer;
@@ -769,7 +772,7 @@
 		border-radius: 999px;
 		color: var(--crimson);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		padding: 0.1rem 0.75rem;
 		min-height: 44px;
 		cursor: pointer;
@@ -788,7 +791,7 @@
 		border-radius: 999px;
 		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		padding: 0.1rem 0.75rem;
 		min-height: 44px;
 		/* BOTH dimensions: the floor is the smaller side, and a two-letter
@@ -850,7 +853,7 @@
 	}
 	.attach-rename-word {
 		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		font-size: var(--fs-micro);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--text-2);
@@ -865,7 +868,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		font-family: var(--font-display, inherit);
-		font-size: 0.95rem;
+		font-size: var(--fs-ui);
 	}
 	.attach-rename-input:focus-visible {
 		outline: 2px solid var(--green);
@@ -881,7 +884,7 @@
 	   otherwise -- crimson is the error status colour and this is an error. */
 	.attach-refusal {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.4;
 		color: var(--nb-error, var(--crimson));
 	}
@@ -893,7 +896,7 @@
 		align-items: center;
 		gap: var(--space-2);
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-caption);
 		line-height: 1.4;
 		color: var(--text-1);
 	}
