@@ -30,7 +30,7 @@ import { CONNECT_CODE_LIFETIME_MS, loopbackCallbackUrl, validateConnect } from '
 import { ArmoryBackendUnavailable, type ArmoryUser } from './backend';
 import type { ArmoryDeps } from './deps';
 import { PLACEHOLDERS, placeholderBytes, placeholderKindForHash } from '$lib/armory/placeholders';
-import { blobExists, MAX_PUT_BYTES, putBlob, signBlob } from './storage';
+import { blobExists, MAX_PUT_BYTES, putBlob, signBlob, type ArmoryStorageConfig } from './storage';
 import { ArmorySweepRefused, sweepArmoryOrphans, type ArmorySweepDeps } from './sweep';
 
 const NO_STORE = { 'cache-control': 'no-store' };
@@ -89,6 +89,27 @@ function bearer(request: Request): string | null {
 	return match ? match[1] : null;
 }
 
+/**
+ * LEDGER 0463: stores a class folder's placeholder text when this hash and
+ * length are one of the two (`$lib/armory/placeholders`), answering whether
+ * the object is now stored. Any other hash is never touched and answers false.
+ * `checkFirst` asks storage before writing (the version download route); the
+ * blob-url handler has just asked, so it passes false.
+ */
+export async function ensurePlaceholderStored(
+	storage: ArmoryStorageConfig,
+	hash: string,
+	bytes: number,
+	now: Date,
+	fetcher: typeof fetch = fetch,
+	checkFirst = true
+): Promise<boolean> {
+	const kind = placeholderKindForHash(hash);
+	if (!kind || bytes !== PLACEHOLDERS[kind].bytes) return false;
+	if (checkFirst && (await blobExists(storage, hash, now, fetcher))) return true;
+	return putBlob(storage, hash, placeholderBytes(kind), now, fetcher);
+}
+
 // ---- Contract section 2: POST /api/armory/blob-url ----
 
 export async function handleBlobUrl(request: Request, deps: ArmoryDeps): Promise<Response> {
@@ -126,10 +147,7 @@ export async function handleBlobUrl(request: Request, deps: ArmoryDeps): Promise
 		let exists = await blobExists(storage, hash, now, deps.fetch);
 		// Ledger 0463: a class folder's placeholder text is the website's own
 		// bytes, stored the first time a computer asks for them.
-		const placeholder = method === 'GET' && !exists ? placeholderKindForHash(hash) : null;
-		if (placeholder && bytes === PLACEHOLDERS[placeholder].bytes) {
-			exists = await putBlob(storage, hash, placeholderBytes(placeholder), now, deps.fetch);
-		}
+		if (method === 'GET' && !exists) exists = await ensurePlaceholderStored(storage, hash, bytes, now, deps.fetch, false);
 		return json(200, { url: signed.url, headers: signed.headers, expiresAt: signed.expiresAt, exists });
 	} catch (e) {
 		if (e instanceof ArmoryBackendUnavailable) return UNAVAILABLE();

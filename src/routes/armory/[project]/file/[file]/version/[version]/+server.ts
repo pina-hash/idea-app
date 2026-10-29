@@ -2,6 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { findVersion, signedInEmail } from '$lib/server/armory/page-loads';
 import { armoryStorageConfig, signBlob } from '$lib/server/armory/storage';
+import { ensurePlaceholderStored } from '$lib/server/armory/handlers';
 
 /**
  * DOWNLOAD ONE PAST VERSION (ledger 0366): a signed GET for that version's
@@ -25,6 +26,8 @@ export const GET: RequestHandler = async ({ locals, params, setHeaders }) => {
 		dot > 0
 			? `${found.file.name.slice(0, dot)} (${found.entry.kind === 'side_version' ? 'side ' : ''}${stamp})${found.file.name.slice(dot)}`
 			: `${found.file.name} (${stamp})`;
+	// Ledger 0463: a class folder's note is the website's own bytes, stored on first ask.
+	await ensurePlaceholderStored(storage, found.entry.hash!, found.entry.bytes, new Date());
 	const signed = signBlob(storage, found.entry.hash!, 'GET', found.entry.bytes, new Date(), name);
 	setHeaders({ 'cache-control': 'private, no-store', 'referrer-policy': 'no-referrer' });
 	redirect(302, signed.url);
