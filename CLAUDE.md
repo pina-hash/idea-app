@@ -617,12 +617,16 @@ commit is the update.
 The app shell uses the **IDEA Green** aesthetic. The token set and font stack are
 the source of truth; **do not invent colours or swap fonts.**
 
-- **Tokens** are CSS variables in `src/app.css` (`:root`): backgrounds
+- **Tokens** are CSS variables in `src/lib/design-system/colors.css` (`:root`) with
+  per-theme overrides in `src/lib/design-system/themes/`: backgrounds
   `--bg0`/`--bg1`/`--bg2`; `--green` (primary), `--gold` (special callouts),
-  `--cyan` (metadata: role, timestamps, version), `--amber` (warning), `--teal`
-  (in progress), `--violet` (special, sparingly), `--white` (body text), `--dim`
-  (secondary/placeholder), `--ice` (disabled). **The semantic roles are fixed; do
-  not reassign them.** Never use pure red, pure white (`#FFFFFF`), or pure yellow.
+  `--cyan` (metadata: role, timestamps, version), `--amber` (warning), `--violet`
+  (special, sparingly), `--white` (body text), `--dim` (secondary/placeholder),
+  `--ice` (disabled). `--teal` is retired as a meaning (ledger 0465) and resolves
+  to `--cyan`; a status chip is `--status-<tone>-solid` with `--status-<tone>-on`.
+  Every value is solved by `tools/hx-kit/color.mjs` and held by
+  `tests/color-tokens.test.ts`. **The semantic roles are fixed; do not reassign
+  them.** Never use pure red, pure white (`#FFFFFF`), or pure yellow.
 - **`--crimson` is reserved for live / rec / error status only**, never a general
   accent and never an identity colour.
 - **`--green` is for primary actions, active navigation, focus, success and
