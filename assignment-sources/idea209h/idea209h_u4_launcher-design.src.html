@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launcher: Design</title>
+<!--
+  IDEA209H Unit 4, post 1 of 5: Launcher: Design (40 points when complete, Unit Assignments).
+  This upload carries Phase 1 (Concept, Oct 26 to 28). Prototype (Oct 29) and Detail design
+  (Oct 30 to Nov 3) arrive by re-upload under new permanent ids (AUTHORING C, L16).
+
+  BRIEF (AUTHORING Part B; Mr. Pina's decisions of 2026-10-20 to 2026-10-26, chats
+  "IDEA209H Unit 4 architecture" and "IDEA Classroom team docs scoping")
+  1 Skill: turn a requirement into competing concepts, choose one with a weighted objectives
+    table, and split it into four subsystems with one measurable requirement each.
+  2 Proof: one paper concept sketch per student (top and side view, sizes, how each part is
+    made); a team weighted objectives table with 5 criteria, weights summing to 50 and a reason
+    per criterion; the pick explained against the totals; where the four parts meet; a
+    requirement with a number and a sketch for each subsystem. High quality: a sketch someone
+    else could build from; a table whose winner is not obvious before scoring; requirements a
+    tape measure or a scale can check.
+  3 Stuck points: sketches with no sizes; picking the coolest idea and scoring backward;
+    requirements with no number ("shoots far"); not knowing who types where in a team document;
+    building a prototype into a product (warned now, taught Oct 29).
+  4 Builds on: Unit 1 (forces, torque, hardware selection), Unit 3 (design for the shop, process
+    choice), his weighted objectives table workbook.
+  5 Problem they solve: the launch concept itself, and which idea wins on numbers the team set.
+    Stretch: a second concept from a different launch method, scored too (IDEA Coins).
+  6 Shape: one team post, Phase 1 = 3 classes, 6 steps; 28 manifest points now (a student is
+    graded on 16: rules 2, sketch 4, team 6, one role 4). Final 40.
+  7 Facts (all Mr. Pina's): FUEL ball 5.91 in, 0.448 to 0.5 lb (AndyMark); 3-speed DeWalt drills by
+    default, impact driver or other shop power tools or a team-built source allowed, gearing
+    optional; aluminum structure, wood only with the teacher's OK (it is a mechanism,
+    not a woodshop project); shop gears, pulleys, belts and hardware may be used, anything else is
+    made from shop stock (printed, routed, lasered), no purchases; six 1/2 in hex bearings per team, returned after; balls unlimited; full power
+    on the football field only, indoors low power aimed flat, never upward; safety is common sense
+    (2026-10-28: stay out of the ball's path, hands out of moving parts; no clamp or guard rules); prototypes are
+    scrap, cardboard, tape, clamps and hand tools; competition three shots each in rotation,
+    best distance, another team reads the yard line; the best one or two launchers stay built.
+    Confirmed 2026-10-26: Sign-off 2 Nov 3, competition Nov 16, Design Review Nov 17.
+  8 Look: polycarbonate-hood blue to anodized-aluminum steel blue (hue 205 to 250, chroma 0.9),
+    matching the class-list banner Mr. Pina liked; the FUEL ball keeps its own yellow in figures
+    (2026-10-26: the amber palette read brown in light mode);
+    header: a flywheel launcher throwing a FUEL ball along its arc.
+-->
+<script type="application/json" id="idea-manifest">
+{
+  "schemaVersion": 3, "kind": "html-assignment",
+  "title": "Launcher: Design", "course": "IDEA209H", "points": 28,
+  "thumbnail": { "kind": "html", "template": "idea-thumbnail" },
+  "pacing": [
+    {"id": "d1", "day": 1, "title": "Rules, research and your concept sketch", "modules": ["u4d-rules", "u4d-idea"]},
+    {"id": "d2", "day": 2, "title": "Score every idea, pick one, set roles", "modules": ["u4d-select"]},
+    {"id": "d3", "day": 3, "title": "Your part's requirement and sketch, Sign-off 1", "modules": ["u4d-frame", "u4d-energy", "u4d-drive", "u4d-ballpath"]},
+    {"id": "d4", "day": 4, "title": "Prototype: one question, one class"},
+    {"id": "d5", "day": 5, "title": "Calculations, CAD, drawings, machine plan"},
+    {"id": "d7", "day": 7, "title": "Sign-off 2: Design. No metal is cut before it"},
+    {"id": "d8", "day": 8, "title": "Build starts"},
+    {"id": "d12", "day": 12, "title": "Sign-off 3: Safe to test"},
+    {"id": "d13", "day": 13, "title": "Test and tune"},
+    {"id": "d14", "day": 14, "title": "Sign-off 4: Competition ready"},
+    {"id": "d15", "day": 15, "title": "Competition on the football field"},
+    {"id": "d16", "day": 16, "title": "Design Review"}
+  ],
+  "team": {
+    "roles": [
+      { "id": "frame", "title": "Frame and mount" },
+      { "id": "energy", "title": "Energy store" },
+      { "id": "drive", "title": "Drive" },
+      { "id": "ballpath", "title": "Ball path" }
+    ],
+    "checkpoints": [
+      { "id": "plan", "title": "Plan", "date": "2026-10-28",
+        "items": [
+          { "id": "roles", "kind": "auto", "check": "roles-owned", "text": "Every role has an owner" },
+          { "id": "fields", "kind": "auto", "check": "blocks-complete",
+            "blocks": ["frame-req", "frame-sketch", "energy-req", "energy-sketch", "drive-req", "drive-sketch", "ballpath-req", "ballpath-sketch"],
+            "text": "Each role's requirement and sketch fields are complete" },
+          { "id": "interfaces", "kind": "tap", "text": "The sketches meet at the named interfaces" },
+          { "id": "method", "kind": "tap", "ownerOnly": true, "text": "The launch method is a flywheel or a catapult" }
+        ] },
+      { "id": "design", "title": "Design", "date": "2026-11-03", "gate": "No metal is cut before this sign-off.",
+        "items": [
+          { "id": "complete", "kind": "auto", "check": "assignment-complete", "text": "Every box of Launcher: Design is filled in" },
+          { "id": "aluminum", "kind": "tap", "role": "frame", "text": "The launcher is metal, made on IDEA machines; any wood has the teacher's OK" },
+          { "id": "process", "kind": "tap", "text": "A process is named for every part" },
+          { "id": "bearings", "kind": "tap", "text": "The team uses 6 or fewer 1/2 in hex bearings" }
+        ] }
+    ]
+  },
+  "modules": [
+    {
+      "id": "u4d-rules", "title": "The rules", "points": 2, "audience": "individual",
+      "blocks": [
+        {"id": "u4d-rule-test", "field": "ruleTest", "type": "radio", "task": "Rules check: testing", "prompt": "Your team wants a quick prototype test in the IDEA hallway. Which is allowed?"},
+        {"id": "u4d-rule-box", "field": "ruleBox", "type": "radio", "task": "Rules check: the team document", "prompt": "Ana owns Drive. Who can type in the Drive boxes?"}
+      ],
+      "criteria": [
+        {
+          "id": "rules-check", "text": "Knows where to test and who types where", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Both right", "descriptor": "Low power aimed flat, and only the Drive owner."},
+            {"points": 1, "label": "Developing", "short": "One right", "descriptor": "One of the two picks is right."},
+            {"points": 0, "label": "Absent", "short": "Neither right", "descriptor": "Both wrong, or no picks."}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u4d-idea", "title": "Your concept sketch", "points": 4, "audience": "individual",
+      "blocks": [
+        {"id": "u4d-idea-method", "field": "ideaMethod", "type": "radio", "task": "Your idea: launch method", "prompt": "How does your idea throw the ball?"},
+        {"id": "u4d-idea-research", "field": "ideaResearch", "type": "longText", "minSentences": 2, "task": "Research: two launchers and what you took", "prompt": "Two real launchers you studied, and what you will copy or avoid from each"},
+        {"id": "u4d-idea-line", "field": "ideaLine", "type": "text", "task": "Your idea in one line", "prompt": "Your idea in one line"},
+        {"id": "u4d-idea-sketch", "field": "ideaSketch", "type": "image", "task": "Your concept sketch", "prompt": "Photo of your concept sketch"},
+        {"id": "u4d-idea-sketch-2", "field": "ideaSketch2", "type": "image", "optional": true, "prompt": "Another page of your sketch (optional)"},
+        {"id": "u4d-idea-stretch", "field": "ideaStretch", "type": "image", "optional": true, "prompt": "Stretch: a second concept with a different launch method"}
+      ],
+      "criteria": [
+        {
+          "id": "idea-research", "text": "Research: two real launchers named (a team, product or build that can be found), with what the student will copy or avoid from each", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Two named, both used", "descriptor": "Two named launchers (a team number, product name or linked build), each with one specific feature to copy or avoid."},
+            {"points": 1, "label": "Developing", "short": "One, or vague", "descriptor": "One named launcher, or a general type (\"a pitching machine\") with no name, or nothing specific taken."},
+            {"points": 0, "label": "Absent", "short": "No research", "descriptor": "No launchers named."}
+          ]
+        },
+        {
+          "id": "idea-sketch", "text": "Sketch: top and side view, the ball's path, the power source, sizes and how each part is made", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Buildable sketch", "descriptor": "Top and side view; the ball's path drawn; the frame, the wheel or arm, the drive and the ball path each have a size and a process."},
+            {"points": 1, "label": "Developing", "short": "Views or labels missing", "descriptor": "One view only, or the path missing, or any of those four parts without a size or a process."},
+            {"points": 0, "label": "Absent", "short": "No sketch", "descriptor": "No sketch, or not a launcher."}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u4d-select", "title": "Score and pick (team)", "points": 6, "audience": "team",
+      "blocks": [
+        {"id": "u4d-wot-ideas", "field": "wotIdeas", "type": "table", "task": "Name ideas A to D", "prompt": "Ideas A to D: whose sketch, and what it is"},
+        {"id": "u4d-wot", "field": "wot", "type": "table", "task": "Weighted objectives table", "prompt": "Weighted objectives table: criteria, weights, scores and what decided each"},
+        {"id": "u4d-pick", "field": "pick", "type": "radio", "task": "Pick the winning idea", "prompt": "Which idea is the team building?"},
+        {"id": "u4d-pick-why", "field": "pickWhy", "type": "longText", "minSentences": 1, "task": "Why it won", "prompt": "Why it won, with its total"},
+        {"id": "u4d-interfaces", "field": "interfaces", "type": "longText", "minSentences": 2, "task": "Where the four parts meet", "prompt": "Where the four parts meet"}
+      ],
+      "criteria": [
+        {
+          "id": "select-wot", "text": "Weighted objectives table: 5 criteria, weights summing to 50, every idea scored, a reason on every criterion", "points": 3,
+          "levels": [
+            {"points": 3, "label": "Complete", "short": "Full table, every reason", "descriptor": "Five criteria, weights total 50, every idea scored 1 to 5, and every criterion says what decided it."},
+            {"points": 2, "label": "Proficient", "short": "One gap", "descriptor": "Exactly one gap: one missing reason, one missing score, only four criteria, or weights that do not total 50."},
+            {"points": 1, "label": "Developing", "short": "Several gaps", "descriptor": "Two or more of those gaps."},
+            {"points": 0, "label": "Absent", "short": "No table", "descriptor": "No table."}
+          ]
+        },
+        {
+          "id": "select-pick", "text": "The pick is explained by the table, and at least 3 interfaces name two parts and how they join", "points": 3,
+          "levels": [
+            {"points": 3, "label": "Complete", "short": "Pick backed, interfaces named", "descriptor": "The reason names the winning total, or why the team overrode it; at least 3 interfaces, each naming two parts and the joint."},
+            {"points": 2, "label": "Proficient", "short": "One part thin", "descriptor": "One of: no total in the reason, or fewer than 3 interfaces, or an interface with no joint."},
+            {"points": 1, "label": "Developing", "short": "Both thin", "descriptor": "Both: no total in the reason and fewer than 3 complete interfaces."},
+            {"points": 0, "label": "Absent", "short": "No pick", "descriptor": "No pick."}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u4d-frame", "title": "Frame and mount", "points": 4, "audience": "role", "role": "frame",
+      "blocks": [
+        {"id": "frame-req", "field": "frameReq", "type": "text", "task": "Frame requirement", "prompt": "Frame and mount: the one requirement it must meet, with its number"},
+        {"id": "frame-sketch", "field": "frameSketch", "type": "image", "task": "Frame sketch", "prompt": "Frame and mount: sketch with sizes"}
+      ],
+      "criteria": [
+        {"id": "frame-req", "text": "One requirement a measurement can check", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Number, unit, check", "descriptor": "One requirement with a number and a unit that a tape measure, scale or test can check."},
+            {"points": 1, "label": "Developing", "short": "No number", "descriptor": "A requirement with no number, or more than one mixed together."},
+            {"points": 0, "label": "Absent", "short": "Missing", "descriptor": "No requirement."}
+          ]},
+        {"id": "frame-sketch", "text": "Subsystem sketch with sizes and how each part is made", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Sizes and processes", "descriptor": "The subsystem drawn with its sizes, its stock or process, and where it meets the others."},
+            {"points": 1, "label": "Developing", "short": "Sizes or processes missing", "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."},
+            {"points": 0, "label": "Absent", "short": "No sketch", "descriptor": "No sketch."}
+          ]}
+      ]
+    },
+    {
+      "id": "u4d-energy", "title": "Energy store", "points": 4, "audience": "role", "role": "energy",
+      "blocks": [
+        {"id": "energy-req", "field": "energyReq", "type": "text", "task": "Energy store requirement", "prompt": "Energy store: the one requirement it must meet, with its number"},
+        {"id": "energy-sketch", "field": "energySketch", "type": "image", "task": "Energy store sketch", "prompt": "Energy store: sketch with sizes"}
+      ],
+      "criteria": [
+        {"id": "energy-req", "text": "One requirement a measurement can check", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Number, unit, check", "descriptor": "One requirement with a number and a unit that a tape measure, scale or test can check."},
+            {"points": 1, "label": "Developing", "short": "No number", "descriptor": "A requirement with no number, or more than one mixed together."},
+            {"points": 0, "label": "Absent", "short": "Missing", "descriptor": "No requirement."}
+          ]},
+        {"id": "energy-sketch", "text": "Subsystem sketch with sizes and how each part is made", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Sizes and processes", "descriptor": "The subsystem drawn with its sizes, its stock or process, and where it meets the others."},
+            {"points": 1, "label": "Developing", "short": "Sizes or processes missing", "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."},
+            {"points": 0, "label": "Absent", "short": "No sketch", "descriptor": "No sketch."}
+          ]}
+      ]
+    },
+    {
+      "id": "u4d-drive", "title": "Drive", "points": 4, "audience": "role", "role": "drive",
+      "blocks": [
+        {"id": "drive-req", "field": "driveReq", "type": "text", "task": "Drive requirement", "prompt": "Drive: the one requirement it must meet, with its number"},
+        {"id": "drive-sketch", "field": "driveSketch", "type": "image", "task": "Drive sketch", "prompt": "Drive: sketch with sizes"}
+      ],
+      "criteria": [
+        {"id": "drive-req", "text": "One requirement a measurement can check", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Number, unit, check", "descriptor": "One requirement with a number and a unit that a tape measure, scale or test can check."},
+            {"points": 1, "label": "Developing", "short": "No number", "descriptor": "A requirement with no number, or more than one mixed together."},
+            {"points": 0, "label": "Absent", "short": "Missing", "descriptor": "No requirement."}
+          ]},
+        {"id": "drive-sketch", "text": "Subsystem sketch with sizes and how each part is made", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Sizes and processes", "descriptor": "The subsystem drawn with its sizes, its stock or process, and where it meets the others."},
+            {"points": 1, "label": "Developing", "short": "Sizes or processes missing", "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."},
+            {"points": 0, "label": "Absent", "short": "No sketch", "descriptor": "No sketch."}
+          ]}
+      ]
+    },
+    {
+      "id": "u4d-ballpath", "title": "Ball path", "points": 4, "audience": "role", "role": "ballpath",
+      "blocks": [
+        {"id": "ballpath-req", "field": "ballpathReq", "type": "text", "task": "Ball path requirement", "prompt": "Ball path: the one requirement it must meet, with its number"},
+        {"id": "ballpath-sketch", "field": "ballpathSketch", "type": "image", "task": "Ball path sketch", "prompt": "Ball path: sketch with sizes"}
+      ],
+      "criteria": [
+        {"id": "ballpath-req", "text": "One requirement a measurement can check", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Number, unit, check", "descriptor": "One requirement with a number and a unit that a tape measure, scale or test can check."},
+            {"points": 1, "label": "Developing", "short": "No number", "descriptor": "A requirement with no number, or more than one mixed together."},
+            {"points": 0, "label": "Absent", "short": "Missing", "descriptor": "No requirement."}
+          ]},
+        {"id": "ballpath-sketch", "text": "Subsystem sketch with sizes and how each part is made", "points": 2,
+          "levels": [
+            {"points": 2, "label": "Complete", "short": "Sizes and processes", "descriptor": "The subsystem drawn with its sizes, its stock or process, and where it meets the others."},
+            {"points": 1, "label": "Developing", "short": "Sizes or processes missing", "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."},
+            {"points": 0, "label": "Absent", "short": "No sketch", "descriptor": "No sketch."}
+          ]}
+      ]
+    }
+  ]
+}
+</script>
+<script type="application/json" id="hx-colors">
+{
+  "fuel-yellow": {"anchor": "#F2CF2E", "means": "the FUEL ball, the 2026 FRC game piece every idea is built to throw (Concept)", "source": "approx, from photos of the FUEL ball"},
+  "cardboard": {"anchor": "#C4A27A", "means": "corrugated cardboard, what the prototype is made of (Prototype)", "source": "approx, from photos of kraft corrugated board"},
+  "painters-tape": {"anchor": "#3B8FD6", "means": "blue painter's tape, what holds a prototype together (Prototype, candidate)", "source": "approx, from photos of blue painter's tape"}
+}
+</script>
+<!-- hx:head -->
+<style>
+  /* Launcher: Design. Phase colors are in hx-plan-data (FUEL yellow, cardboard, SolidWorks red);
+     the hero's aluminum and FUEL yellow are data-color. Everything drawn comes from the kit:
+     tiles, tables, lists, keys, chips. What is left here is type and layout. */
+  .u4-big { font-size: 1.05rem; color: var(--plate-ink); margin: 0; }
+  .u4-note { margin: 0; font-size: 0.92rem; color: var(--text-2); }
+
+  /* The rules, as tiles with an icon. */
+  .u4-rules { grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); }
+  #hx-page .u4-rule { grid-template-columns: 34px minmax(0, 1fr); gap: 2px 10px; padding: 10px 12px; }
+  .u4-rule svg { width: 34px; height: 34px; grid-row: span 2; color: var(--text-2); }
+  .u4-rule b { color: var(--plate-ink); font-size: 1rem; line-height: 1.2; }
+  .u4-rule > span { color: var(--text-2); font-size: 0.92rem; line-height: 1.3; }
+
+  /* The unit, day by day. */
+  .u4-days { font-size: 0.95rem; }
+  .u4-days td:first-child { white-space: nowrap; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-2); }
+  .u4-days .u4-so, .u4-days .u4-ev { font-weight: 600; color: var(--plate-ink); }
+  .u4-late td:first-child { white-space: nowrap; }
+
+  /* The four roles. */
+  .u4-roles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 520px) { .u4-roles { grid-template-columns: 1fr; } }
+  #hx-page .u4-role { padding: 10px 12px; gap: 2px; }
+  .u4-role b { color: var(--plate-ink); }
+  .u4-role span { color: var(--text-2); font-size: 0.92rem; }
+
+  /* Research: links in a list well, searches as keys. */
+  #hx-page .u4-research h3 { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caption); font-weight: 400; margin: 4px 0 0; }
+  .u4-links > li { padding: 0 var(--space-3); }
+  #hx-page .u4-link { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 44px; padding: 4px 0; text-decoration: none; }
+  .u4-link svg, .u4-search svg { width: 20px; height: 20px; flex: none; color: var(--text-2); }
+  .u4-link span { display: grid; min-width: 0; }
+  .u4-link b { color: var(--plate-ink); font-size: 0.98rem; }
+  .u4-link small { color: var(--text-2); font-size: 0.86rem; line-height: 1.25; }
+  .u4-link:hover b { color: var(--accent); }
+  .u4-searches { gap: 6px; }
+  #hx-page a.u4-search { gap: 8px; text-decoration: none; }
+
+  /* The sketch picks and boxes. */
+  #s-sketch .hx-pick svg { height: 30px; width: auto; }
+  #s-sketch-photo .hx-box[data-image-box="ideaSketch"] { aspect-ratio: 16 / 8; }
+  .u4-box-sm { aspect-ratio: 16 / 5; min-height: 120px; }
+
+  /* Scoring: the example and the team's table, kit tables with number columns centered. */
+  .u4-ex { font-size: 0.88rem; }
+  .u4-ex th, .u4-ex td { text-align: center; }
+  .u4-ex th:first-child, .u4-ex td:first-child { text-align: left; }
+  .u4-ex tfoot td { font-weight: 600; color: var(--plate-ink); padding-top: 6px; }
+  .u4-wotwrap { overflow-x: auto; }
+  .u4-wot th { white-space: nowrap; padding-right: 4px; }
+  .u4-wot td { padding: 2px 4px 2px 0; }
+  .u4-wot td.n input { width: 3.6rem; padding-left: 4px; padding-right: 4px; text-align: center; } /* the kit pads a line box 0.85rem a side, which clipped "1-5" */
+  .u4-wot td.c input { min-width: 8rem; }
+  .u4-wot td.c:last-child input { min-width: 14rem; }
+  .u4-wot tfoot td { font-family: var(--font-mono); font-weight: 600; color: var(--plate-ink); padding-top: 8px; text-align: center; }
+  .u4-wot tfoot td:first-child { text-align: left; }
+  .u4-ideas tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
+  .u4-ideas tr { display: flex; align-items: center; gap: 8px; }
+  .u4-ideas td:first-child { font-family: var(--font-mono); font-weight: 600; color: var(--plate-ink); width: 2rem; }
+  .u4-ideas td:last-child { flex: 1; }
+  .u4-ideas td input { width: 100%; }
+  @media (max-width: 700px) { .u4-ideas tbody { grid-template-columns: 1fr; } }
+
+  /* Each role's boxes: a tile per role. The kit rings the student's own (AUTHORING D1a, 2.11). */
+  .u4-rolepanels { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: var(--space-3); }
+  #hx-page .u4-rp { gap: 8px; padding: 10px 12px; }
+  .u4-rp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .u4-rp-head b { color: var(--plate-ink); font-size: 1.05rem; }
+  .u4-rp-head [data-role-owner] { font-size: 0.88rem; color: var(--text-2); }
+  .u4-rp .hx-box { aspect-ratio: 16 / 9; min-height: 120px; }
+  .u4-rp-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .u4-rp-2 .hx-box { aspect-ratio: auto; height: 120px; min-height: 120px; }
+  #hx-page .u4-rp-2 .u4-rp { gap: 6px; padding: 8px 10px; }
+  /* The section above each role tile already carries its badge; the tile names its owner. */
+  .u4-rp > .hx-who-badges { display: none; }
+  /* Mr. Pina 2026-10-28: no key on the last step that jumps students backward. The bar's
+     own key and the step track already show what is missing. */
+  #s-role .hx-step-foot [data-kit-next], #s-draw .hx-step-foot [data-kit-next] { display: none !important; }
+  .u4-rp-2 .u4-rp-head .hx-row { margin: 0; }
+  @media (max-width: 700px) { .u4-rp-2 { grid-template-columns: 1fr; } }
+
+  .u4-legend { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.9rem; color: var(--text-2); }
+  @media (max-width: 520px) {
+    .hx-step-head { grid-template-columns: auto minmax(0, 1fr); }
+    .u4-days thead { display: none; }
+    .u4-days tr { display: grid; }
+    .u4-days td:first-child { padding-bottom: 0; }
+  }
+</style>
+<template id="idea-thumbnail">
+<style>
+  :root { --a: #262a2e; --b: #141618; --plate: #3a4148; --line: #dfe4e8; --hood: #8fd0ff; --ball: #f2cf2e; --drill: #2a2d30; --accent: #e0a526; --ink: #f2f4f6; }
+  :root[data-idea-scheme="light"] { --a: #f1f3f5; --b: #d9dee3; --plate: #c9d0d6; --line: #2a3036; --hood: #2f7fb8; --ball: #e2b60c; --drill: #3a3f44; --accent: #c98a12; --ink: #1d2226; }
+  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 4%; padding: 0 4%; background: radial-gradient(circle at 30% 40%, var(--a), var(--b) 85%); color: var(--ink); overflow: hidden; }
+  .t svg { flex: none; width: 94%; max-height: 94%; }
+  .t span { display: none; font: 700 calc(var(--idea-thumb-h, 56px) * 0.12)/1.05 system-ui, sans-serif; }
+  .t span small { display: block; font-weight: 500; font-size: 0.55em; opacity: 0.75; letter-spacing: 0.04em; margin-top: 0.3em; }
+  :root[data-idea-shape="wide"] .t svg { width: 54%; }
+  :root[data-idea-shape="wide"] .t span { display: block; width: 38%; }
+  :root[data-idea-shape="banner"] .t { gap: 3%; }
+  :root[data-idea-shape="banner"] .t svg { width: auto; height: 92%; }
+  :root[data-idea-shape="banner"] .t span { display: block; white-space: nowrap; font-size: min(calc(var(--idea-thumb-h, 56px) * 0.36), 30px); }
+  :root[data-idea-shape="banner"] .t span small { display: none; }
+</style>
+<div class="t">
+  <svg viewBox="0 0 240 130" aria-hidden="true">
+  <path d="M158 34 Q 196 6 236 40" fill="none" stroke="var(--line)" stroke-width="2" stroke-dasharray="4 5" opacity="0.7"/>
+  <rect x="10" y="108" width="150" height="9" rx="2" fill="var(--plate)" stroke="var(--line)" stroke-width="2"/>
+  <rect x="18" y="117" width="10" height="9" fill="var(--plate)" stroke="var(--line)" stroke-width="2"/><rect x="142" y="117" width="10" height="9" fill="var(--plate)" stroke="var(--line)" stroke-width="2"/>
+  <path d="M40 108 L58 50 L136 40 L150 108 Z" fill="var(--plate)" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="100" cy="72" r="25" fill="none" stroke="var(--line)" stroke-width="5"/>
+  <circle cx="100" cy="72" r="6" fill="var(--line)"/>
+  <path d="M100 50 V94 M78 72 H122" stroke="var(--line)" stroke-width="2"/>
+  <path d="M66 62 Q 94 22 160 30" fill="none" stroke="var(--hood)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M60 68 L100 66 M60 80 L100 78" stroke="var(--line)" stroke-width="2.5"/>
+  <rect x="6" y="64" width="44" height="18" rx="5" fill="var(--drill)" stroke="var(--line)" stroke-width="2"/>
+  <rect x="50" y="68" width="10" height="10" rx="2" fill="var(--plate)" stroke="var(--line)" stroke-width="2"/>
+  <circle cx="60" cy="74" r="6" fill="none" stroke="var(--line)" stroke-width="2"/>
+  <path d="M16 82 H32 L34 100 H18 Z" fill="var(--drill)" stroke="var(--line)" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="12" y="100" width="28" height="7" rx="2" fill="var(--accent)" stroke="var(--line)" stroke-width="2"/>
+  <circle cx="192" cy="22" r="15" fill="var(--ball)"/>
+  <path d="M179 18 Q 192 28 205 18" fill="none" stroke="var(--line)" stroke-width="1.4" opacity="0.6"/>
+  </svg>
+  <span>Launcher: Design<small>Unit 4 · Concept</small></span>
+</div>
+</template>
+</head>
+<body class="idea-plate">
+<main id="hx-page">
+
+  <header class="hx-hero">
+    <div class="hx-hero-text">
+      <span class="hx-crumb">IDEA209H · Unit 4 · Mechanism Design · Post 1 of 6</span>
+      <h1>Launcher: Design</h1>
+      <p class="hx-done-when"><strong>The challenge:</strong> your team designs and builds a launcher that throws one FUEL ball as far as it can. Competition is on the football field. Design comes first, on paper, as a team.</p>
+      <div class="hx-row">
+        <span class="idea-chip">Writing: 5 sentences in all</span>
+        <span class="idea-chip">Everything else: a pick, a number, a sketch</span>
+      </div>
+    </div>
+    <div class="hx-hero-art" data-color="aluminum" aria-hidden="true">
+      <svg viewBox="0 0 240 130">
+  <path d="M158 34 Q 196 6 236 40" fill="none" stroke="var(--plate-ink)" stroke-width="2" stroke-dasharray="4 5" opacity="0.7"/>
+  <rect x="10" y="108" width="150" height="9" rx="2" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/>
+  <rect x="18" y="117" width="10" height="9" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/><rect x="142" y="117" width="10" height="9" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/>
+  <path d="M40 108 L58 50 L136 40 L150 108 Z" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="100" cy="72" r="25" fill="none" stroke="var(--plate-ink)" stroke-width="5"/>
+  <circle cx="100" cy="72" r="6" fill="var(--plate-ink)"/>
+  <path d="M100 50 V94 M78 72 H122" stroke="var(--plate-ink)" stroke-width="2"/>
+  <path d="M66 62 Q 94 22 160 30" fill="none" stroke="var(--hx-line)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M60 68 L100 66 M60 80 L100 78" stroke="var(--plate-ink)" stroke-width="2.5"/>
+  <rect x="6" y="64" width="44" height="18" rx="5" fill="var(--well-face)" stroke="var(--plate-ink)" stroke-width="2"/>
+  <rect x="50" y="68" width="10" height="10" rx="2" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="2"/>
+  <circle cx="60" cy="74" r="6" fill="none" stroke="var(--plate-ink)" stroke-width="2"/>
+  <path d="M16 82 H32 L34 100 H18 Z" fill="var(--well-face)" stroke="var(--plate-ink)" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="12" y="100" width="28" height="7" rx="2" fill="var(--plate-ink)" stroke="var(--plate-ink)" stroke-width="2"/>
+  <g data-color="fuel-yellow"><circle cx="192" cy="22" r="15" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/></g>
+  <path d="M179 18 Q 192 28 205 18" fill="none" stroke="var(--plate-ink)" stroke-width="1.4" opacity="0.6"/>
+      </svg>
+    </div>
+  </header>
+
+  <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Classes in this post"></nav>
+  <div class="hx-bar idea-panel" id="hx-bar"></div>
+  <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
+
+  <!-- STEP 1: before you start, the challenge and the rules. -->
+  <section class="hx-step idea-panel" id="s-challenge" data-phase="concept" data-day="Class 1" data-title="The challenge and the rules">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Before you start</span><h2>The challenge and the rules</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <p class="u4-big">Throw one <span class="it" data-term="FUEL">FUEL</span> ball as far as you can. Three shots, the best one counts.</p>
+        <ul class="hx-tiles u4-rules" aria-label="The rules">
+          <li class="hx-tile u4-rule"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="13" fill="none" stroke="currentColor" stroke-width="3"/><path d="M6 14 Q17 22 28 14" fill="none" stroke="currentColor" stroke-width="2"/></svg><b>Any launch method</b><span>A <span class="it" data-term="flywheel">flywheel</span> or a <span class="it" data-term="catapult">catapult</span>. Anything else needs your teacher's OK at Sign-off 1.</span></li>
+          <li class="hx-tile u4-rule"><svg viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="11" width="20" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="3"/><path d="M23 15 H31 M23 19 H31 M9 23 L11 31 H17 L16 23" fill="none" stroke="currentColor" stroke-width="3"/></svg><b>Power: a drill</b><span>The shop's 3-speed DeWalt drills by default. The impact driver, another shop power tool, or a power source you build also work. Gearing is your call.</span></li>
+          <li class="hx-tile u4-rule"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M4 26 H30 M8 26 V12 H26 V26 M8 12 L26 26" fill="none" stroke="currentColor" stroke-width="3"/></svg><b>Built from metal</b><span>Aluminum extrusion and stock, made on IDEA machines. Wood only with your teacher's OK: this is a mechanism, not a woodshop project.</span></li>
+          <li class="hx-tile u4-rule"><svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="12" fill="none" stroke="currentColor" stroke-width="3"/><path d="M17 5 V9 M17 25 V29 M5 17 H9 M25 17 H29" stroke="currentColor" stroke-width="3"/><circle cx="17" cy="17" r="4" fill="currentColor"/></svg><b>Use what the shop has</b><span>Any gears, pulleys, belts and hardware already in the shop. Need something else? Make it from shop stock: printed, routed or lasered. Nothing is bought.</span></li>
+          <li class="hx-tile u4-rule"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M17 4 L28 10 V24 L17 30 L6 24 V10 Z" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="17" cy="17" r="4" fill="none" stroke="currentColor" stroke-width="3"/></svg><b>Six bearings, tops</b><span>Six 1/2 in hex bearings per team, signed out and returned after the competition.</span></li>
+          <li class="hx-tile u4-rule"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M4 28 H30 M10 28 V8 M10 8 L26 14 L10 20" fill="none" stroke="currentColor" stroke-width="3"/></svg><b>Full power outdoors</b><span>Full-power shots on the football field only. Indoors: low power, aimed flat, never upward.</span></li>
+        </ul>
+        <details class="hx-stuck">
+          <summary>More rules: testing, the competition</summary>
+          <table>
+            <tr><td>Common sense</td><td>Never stand in front of a loaded launcher. Hands out of a spinning wheel or a cocked arm.</td></tr>
+            <tr><td>Test balls</td><td>Take as many as you need.</td></tr>
+            <tr><td>Competition</td><td>One team fires at a time, in rotation, three rounds. Another team reads where the ball lands on the yard lines. Best shot wins.</td></tr>
+            <tr><td>After</td><td>The best one or two launchers stay built. Everyone else returns bearings and parts.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Rules check</span>
+        <fieldset class="hx-picks" data-field="ruleTest" data-kind="radio">
+          <legend>Your team wants a quick prototype test in the IDEA hallway. Which is allowed?</legend>
+          <label class="hx-pick"><input type="radio" name="ruleTest" value="low-flat"> Low power, aimed flat down the hall</label>
+          <label class="hx-pick"><input type="radio" name="ruleTest" value="full-up"> Full power, aimed up to see the arc</label>
+          <label class="hx-pick"><input type="radio" name="ruleTest" value="none"> Nothing indoors, ever</label>
+        </fieldset>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: before you start, how the unit runs. -->
+  <section class="hx-step idea-panel" id="s-howitruns" data-phase="concept" data-day="Class 1" data-title="How the unit runs">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Before you start</span><h2>How the unit runs</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <table class="hx-table u4-days" aria-label="Day by day">
+          <thead><tr><th>When</th><th>What</th></tr></thead>
+          <tbody>
+            <tr><td><span data-pace-date="d1">Oct 26</span></td><td>Teams of 3 or 4, drawn at random. Research, then <strong>one concept sketch per person</strong>, not per team. <span class="idea-chip hx-who-badge" data-audience="individual">Just you</span></td></tr>
+            <tr><td><span data-pace-date="d2">Oct 27</span></td><td>Score every idea, pick one, split it into four <span class="it" data-term="role">roles</span>. <span class="idea-chip hx-who-badge" data-audience="team">Whole team</span></td></tr>
+            <tr><td><span data-pace-date="d3">Oct 28</span></td><td>Your part's requirement and sketch. <span class="u4-so">Sign-off 1: Plan.</span> <span class="idea-chip hx-who-badge" data-audience="role">Your role only</span></td></tr>
+            <tr><td><span data-pace-date="d4">Oct 29</span></td><td><span class="it" data-term="prototype">Prototype</span>: cardboard, scrap, tape, clamps. One question, one class, then it goes in the bin.</td></tr>
+            <tr><td><span data-pace-date="d5">Oct 30</span> to <span data-pace-date="d7">Nov 3</span></td><td>Calculations, CAD, drawings, machine plan. <span class="u4-so">Sign-off 2: Design, <span data-pace-date="d7">Nov 3</span>. No metal is cut before it.</span></td></tr>
+            <tr><td><span data-pace-date="d8">Nov 4</span> to <span data-pace-date="d12">Nov 10</span></td><td>Build. <span class="u4-so">Sign-off 3: Safe to test, <span data-pace-date="d12">Nov 10</span>. No full-power firing of the real launcher before it.</span></td></tr>
+            <tr><td><span data-pace-date="d13">Nov 12</span> and <span data-pace-date="d14">Nov 13</span></td><td>Test and tune. <span class="u4-so">Sign-off 4: Competition ready, <span data-pace-date="d14">Nov 13</span>.</span></td></tr>
+            <tr><td><span data-pace-date="d15">Nov 16</span></td><td><span class="u4-ev">Competition</span> on the football field.</td></tr>
+            <tr><td><span data-pace-date="d16">Nov 17</span></td><td><span class="u4-ev">Design Review</span>: your team presents.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="hx-stack">
+        <p class="u4-legend"><span>Every step is marked:</span><span class="idea-chip hx-who-badge" data-audience="individual">Just you</span><span class="idea-chip hx-who-badge" data-audience="team">Whole team</span><span class="idea-chip hx-who-badge" data-audience="role">Your role only</span></p>
+        <div class="hx-tiles u4-roles" aria-label="The four roles">
+          <div class="hx-tile u4-role"><b><span class="it" data-term="frame and mount">Frame and mount</span></b><span>The structure, and how the drill and every part attach to it.</span></div>
+          <div class="hx-tile u4-role"><b><span class="it" data-term="energy store">Energy store</span></b><span>The flywheel, or the catapult arm and its springs or bands.</span></div>
+          <div class="hx-tile u4-role"><b><span class="it" data-term="drive">Drive</span></b><span>How power reaches the wheel or arm: the drill, coupling or gears, and the trigger or release.</span></div>
+          <div class="hx-tile u4-role"><b><span class="it" data-term="ball path">Ball path</span></b><span>Loading the ball, holding it, guiding it out.</span></div>
+        </div>
+        <details class="hx-stuck">
+          <summary>How your team document works</summary>
+          <table>
+            <tr><td>One document per team</td><td>Everyone sees the same page, live. One person types in a box at a time; the others see who.</td></tr>
+            <tr><td>Your role's boxes</td><td>Only the role's owner types there. A team of three: one person owns two roles.</td></tr>
+            <tr><td>Team plan</td><td>The <strong>Team plan</strong> button above this page. Set roles there, and tap <strong>Check in</strong> at the start of every class.</td></tr>
+            <tr><td>Stuck on a machine or a part</td><td>Mark the task <strong>Blocked</strong> in the Team plan with one line saying why.</td></tr>
+            <tr><td>Grading</td><td>Team boxes: one score for everyone. Role boxes: only the owner. Own two roles: your role score is the average of the two. Your research, sketch and rules check: only you.</td></tr>
+          </table>
+        </details>
+        <div class="hx-evidence idea-panel">
+          <span class="idea-eyebrow">Check</span>
+          <fieldset class="hx-picks" data-field="ruleBox" data-kind="radio">
+            <legend>Ana owns Drive. Who can type in the Drive boxes?</legend>
+            <label class="hx-pick"><input type="radio" name="ruleBox" value="anyone"> Anyone on the team</label>
+            <label class="hx-pick"><input type="radio" name="ruleBox" value="ana"> Only Ana</label>
+            <label class="hx-pick"><input type="radio" name="ruleBox" value="first"> Whoever opens it first</label>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: research before sketching. -->
+  <section class="hx-step idea-panel" id="s-research" data-phase="concept" data-day="Class 1" data-title="Research how far things fly">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Concept · <span data-pace-date="d1">Oct 26</span> · About 25 minutes</span><h2>Research how far things fly</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Before you draw anything, open at least two links. Watch the machines work.</span></li>
+          <li><span>Look for: the squeeze on the ball, wheel or arm size, launch angle, the energy source.</span></li>
+          <li><span>Pick two to learn from, by name (a team number, a product). Write what you will copy or avoid.</span></li>
+        </ol>
+        <p class="hx-see">Two real launchers you could explain to a teammate. <strong>Done in 5 minutes? You skipped the research.</strong></p>
+        <div class="hx-evidence idea-panel">
+          <span class="idea-eyebrow">Your research</span>
+          <label>Two named launchers you studied, and what you will copy or avoid from each
+            <textarea class="idea-well" rows="3" data-field="ideaResearch" data-min-sentences="2" placeholder="e.g. Team ... squeezes the ball ..., so mine will ... The ... pitching machine ..."></textarea>
+          </label>
+          <p class="idea-chip" data-count-for="ideaResearch" data-min="2">0 of 2 sentences</p>
+        </div>
+      </div>
+      <div class="hx-stack u4-research">
+        <h3>FRC shooters built for FUEL</h3>
+        <ul class="hx-list u4-links">
+          <li><a class="u4-link" href="https://docs.revrobotics.com/frc-kickoff-concepts/" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2 H12 L16 6 V18 H5 Z M12 2 V6 H16" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span><b>REV 2026 Starter Bot</b><small>A flywheel, a curved hood and adjustable squeeze, made for FUEL</small></span></a></li>
+          <li><a class="u4-link" href="https://www.chiefdelphi.com/t/508460" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4 H17 V13 H9 L5 17 V13 H3 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span><b>Team 2826 build thread</b><small>Shooter prototype videos; they settled on 3/8 in of squeeze</small></span></a></li>
+          <li><a class="u4-link" href="https://www.chiefdelphi.com/t/ideal-compression-for-flywheel/116787" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4 H17 V13 H9 L5 17 V13 H3 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span><b>How much to squeeze the ball</b><small>A Chief Delphi discussion of flywheel compression</small></span></a></li>
+        </ul>
+        <h3>Pitching machines and catapults</h3>
+        <ul class="hx-list u4-links">
+          <li><a class="u4-link" href="https://www.asme.org/topics-resources/content/pitch-perfect" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7 H14 M6 10 H14 M6 13 H11" stroke="currentColor" stroke-width="1.6"/></svg><span><b>Pitch Perfect (ASME)</b><small>Two wheels spinning opposite ways throw a baseball up to 105 mph</small></span></a></li>
+          <li><a class="u4-link" href="https://en.wikipedia.org/wiki/Pitching_machine" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7 H14 M6 10 H14 M6 13 H11" stroke="currentColor" stroke-width="1.6"/></svg><span><b>Pitching machine</b><small>Wheel machines and arm machines, side by side</small></span></a></li>
+          <li><a class="u4-link" href="https://www.sciencebuddies.org/blog/mini-trebuchet-science" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 7 H14 M6 10 H14 M6 13 H11" stroke="currentColor" stroke-width="1.6"/></svg><span><b>Trebuchet science</b><small>How the energy of a falling weight becomes a thrown ball</small></span></a></li>
+        </ul>
+        <h3>Search for more · Flywheel math is a stretch</h3>
+        <div class="hx-row u4-searches">
+          <a class="idea-key u4-search" href="https://www.google.com/search?tbm=isch&amp;q=FRC+2026+REBUILT+shooter" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="8" r="1.8" fill="currentColor"/><path d="M3 15 L8 11 L11 13 L14 10 L17 14" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>REBUILT shooters</span></a>
+          <a class="idea-key u4-search" href="https://www.youtube.com/results?search_query=REBUILT+shooter+prototype" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 7 L13 10 L8 13 Z" fill="currentColor"/></svg><span>Shooter prototypes</span></a>
+          <a class="idea-key u4-search" href="https://www.google.com/search?tbm=isch&amp;q=two+wheel+pitching+machine" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="8" r="1.8" fill="currentColor"/><path d="M3 15 L8 11 L11 13 L14 10 L17 14" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>Pitching machines</span></a>
+          <a class="idea-key u4-search" href="https://www.youtube.com/results?search_query=bungee+catapult+build+ball" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 7 L13 10 L8 13 Z" fill="currentColor"/></svg><span>Band catapults</span></a>
+          <a class="idea-key u4-search" href="https://www.youtube.com/results?search_query=floating+arm+trebuchet" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 7 L13 10 L8 13 Z" fill="currentColor"/></svg><span>Trebuchets</span></a>
+          <a class="idea-key u4-search" href="https://robot.mbhs.edu/media/whitepapers/2026/flywheel-calculations-latest.pdf" target="_blank"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2 H12 L16 6 V18 H5 Z M12 2 V6 H16" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>Flywheel math</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: the concept sketch, on paper, one per student. -->
+  <section class="hx-step idea-panel" id="s-sketch" data-phase="concept" data-day="Class 1" data-title="Sketch your launcher">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Concept · <span data-pace-date="d1">Oct 26</span> · About 35 minutes</span><h2>Sketch your launcher</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span><strong>One sketch per person, not per team.</strong> Your own idea, on paper, in pencil.</span></li>
+          <li><span>Draw a <strong>top view</strong> and a <strong>side view</strong>.</span></li>
+          <li><span>Show the ball from loading to leaving, and the drill.</span></li>
+          <li><span>Label the frame, wheel or arm, drive and ball path: a size and a process each.</span></li>
+        </ol>
+        <p class="hx-see">A sketch a teammate could build from without asking you a question.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>No idea what size</td><td>Start from the ball: FUEL is 5.91 in across. Write your best guess with a ?; the team checks sizes in Detail design.</td></tr>
+            <tr><td>My idea is the same as a link</td><td>Fine, if you say which and change one thing you think will throw farther.</td></tr>
+          </table>
+        </details>
+        <div class="idea-panel hx-example">
+          <span class="idea-eyebrow">Example</span>
+          <figure class="hx-fig">
+            <svg viewBox="0 0 520 170" role="img" aria-label="Example sketch of a lever can crusher, top and side view, with sizes and processes">
+            <g fill="none" stroke="var(--plate-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <text x="4" y="14" font-size="13" fill="var(--text-2)" stroke="none">TOP</text>
+              <rect x="6" y="24" width="190" height="60" rx="3"/>
+              <rect x="120" y="36" width="56" height="36"/>
+              <path d="M18 54 H120" stroke-width="4"/>
+              <circle cx="18" cy="54" r="5"/>
+              <text x="6" y="104" font-size="13" fill="var(--text-2)" stroke="none">12 x 4 in base, 1/4 in plate, laser</text>
+              <text x="6" y="122" font-size="13" fill="var(--text-2)" stroke="none">pivot: 1/4-20 bolt, drill press</text>
+              <text x="270" y="14" font-size="13" fill="var(--text-2)" stroke="none">SIDE</text>
+              <rect x="270" y="122" width="200" height="10"/>
+              <path d="M284 122 V96 L300 96 V122"/>
+              <path d="M292 100 L480 40" stroke-width="4"/>
+              <rect x="388" y="98" width="52" height="24"/>
+              <path d="M410 84 V96"/>
+              <text x="290" y="38" font-size="13" fill="var(--text-2)" stroke="none">18 in arm, 1 in</text>
+              <text x="290" y="54" font-size="13" fill="var(--text-2)" stroke="none">extrusion, bandsaw</text>
+              <text x="270" y="152" font-size="13" fill="var(--text-2)" stroke="none">crusher plate, mill</text>
+            </g>
+          </svg>
+          <figcaption>A can crusher, not a launcher: two views, a size and a process on every part.</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Your idea</span>
+        <fieldset class="hx-picks" data-field="ideaMethod" data-kind="radio">
+          <legend>How does it throw the ball?</legend>
+          <label class="hx-pick"><input type="radio" name="ideaMethod" value="flywheel"><svg viewBox="0 0 120 60" aria-hidden="true"><circle cx="44" cy="34" r="20" fill="var(--panel-top)" stroke="var(--plate-ink)" stroke-width="3"/><path d="M26 22 Q 50 2 88 10" fill="none" stroke="var(--plate-ink)" stroke-width="3"/><circle cx="102" cy="14" r="9" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5" data-color="fuel-yellow"/></svg> Flywheel</label>
+          <label class="hx-pick"><input type="radio" name="ideaMethod" value="catapult"><svg viewBox="0 0 120 60" aria-hidden="true"><path d="M10 52 H90 M40 52 L50 30" stroke="var(--plate-ink)" stroke-width="3"/><path d="M50 30 L22 12" stroke="var(--plate-ink)" stroke-width="4"/><path d="M50 30 L70 46" stroke="var(--plate-ink)" stroke-width="2" stroke-dasharray="3 3"/><circle cx="20" cy="9" r="7" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5" data-color="fuel-yellow"/><path d="M28 6 Q 70 -6 112 20" fill="none" stroke="var(--text-2)" stroke-width="1.5" stroke-dasharray="3 4"/></svg> Catapult</label>
+          <label class="hx-pick"><input type="radio" name="ideaMethod" value="other"><svg viewBox="0 0 120 60" aria-hidden="true"><text x="60" y="40" text-anchor="middle" font-size="30" fill="var(--text-2)" font-family="Rajdhani, sans-serif">?</text></svg> Something else (needs your teacher's OK)</label>
+        </fieldset>
+        <label>Your idea in one line
+          <input class="idea-well idea-well--field" type="text" data-field="ideaLine" placeholder="e.g. Two wheels on one drill pinch the ball and ...">
+        </label>
+        <p class="u4-note">Next step: photograph the sketch and hand it in.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: hand in the sketch photo. -->
+  <section class="hx-step idea-panel" id="s-sketch-photo" data-phase="concept" data-day="Class 1" data-title="Hand in your sketch">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Concept · <span data-pace-date="d1">Oct 26</span></span><h2>Hand in your sketch</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>On a phone: open this post and press <strong>Take photo</strong>. It goes straight in.</span></li>
+          <li><span>On a computer: paste the photo into the box, or press <strong>Choose photo</strong>.</span></li>
+          <li><span>Two pages? Use the second box.</span></li>
+          <li><span>Every teammate hands in their own sketch here. Keep the paper: your team scores them all next class.</span></li>
+        </ol>
+        <p class="hx-see">Your sketch in the box, every label readable.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>No Take photo key</td><td>You are on a computer. Open this post on your phone, signed in with your boscotech.net account.</td></tr>
+            <tr><td>The photo is already on my phone</td><td>On the phone, press <strong>Choose photo</strong> and pick it.</td></tr>
+            <tr><td>Paste does nothing</td><td>Click the box first, then paste. Or press <strong>Choose photo</strong>.</td></tr>
+            <tr><td>The labels are too faint</td><td>Go over them in pen or a darker pencil and shoot again.</td></tr>
+          </table>
+        </details>
+        <details class="hx-more">
+          <summary>Stretch <span class="idea-chip idea-chip--gold">IDEA Coins, not points</span></summary>
+          <div class="idea-panel hx-stretch">
+            <p>Sketch a second concept that throws with a different method. Your team scores it next class too.</p>
+            <div class="hx-box" data-image-box="ideaStretch" data-optional data-empty="Your second concept">Your second concept</div>
+            <input type="file" data-field="ideaStretch" data-optional accept="image/*" hidden>
+            <div class="hx-row hx-edit-only">
+              <button type="button" class="idea-key" data-edits data-choose="ideaStretch">Choose photo</button>
+              <button type="button" class="idea-key" data-edits data-remove="ideaStretch" hidden>Remove</button>
+            </div>
+            <p class="hx-note" data-file-note="ideaStretch"></p>
+          </div>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Your sketch</span>
+        <div class="hx-box" data-image-box="ideaSketch" data-empty="Paste your sketch here, or press Choose photo">Paste your sketch here, or press Choose photo</div>
+        <input type="file" data-field="ideaSketch" accept="image/*" hidden>
+        <div class="hx-row hx-edit-only">
+          <button type="button" class="idea-key" data-edits data-choose="ideaSketch">Choose photo</button>
+          <button type="button" class="idea-key" data-edits data-remove="ideaSketch" hidden>Remove</button>
+        </div>
+        <p class="hx-note" data-file-note="ideaSketch"></p>
+        <div class="hx-box u4-box-sm" data-image-box="ideaSketch2" data-optional data-empty="Optional: a second page">Optional: a second page</div>
+        <input type="file" data-field="ideaSketch2" data-optional accept="image/*" hidden>
+        <div class="hx-row hx-edit-only">
+          <button type="button" class="idea-key" data-edits data-choose="ideaSketch2">Choose photo</button>
+          <button type="button" class="idea-key" data-edits data-remove="ideaSketch2" hidden>Remove</button>
+        </div>
+        <p class="hx-note" data-file-note="ideaSketch2"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: the weighted objectives table, as a team. -->
+  <section class="hx-step idea-panel" id="s-score" data-phase="concept" data-day="Class 2" data-title="Score every idea">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Concept · <span data-pace-date="d2">Oct 27</span></span><h2>Score every idea</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>One table for the team. Each sketch gets a letter, A to D, and a column.</span></li>
+          <li><span>Agree on 5 <span class="it" data-term="criteria">criteria</span> before anyone scores. Distance should be one.</span></li>
+          <li><span>Give each a <span class="it" data-term="weight">weight</span>. The weights must add up to 50.</span></li>
+          <li><span>Score every idea 1 to 5 (5 is best) on each. Everyone decides; teammates can type in different rows at once.</span></li>
+        </ol>
+        <p class="hx-see">Totals under each idea, and a winner you could defend to another team.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>I missed the first class</td><td>Do steps 1 to 5 first, about 40 minutes. Your team scores your sketch as the next letter when it is in.</td></tr>
+            <tr><td>Two ideas tie</td><td>Pick the one that is simpler to build in five days, and say so.</td></tr>
+          </table>
+        </details>
+        <details class="hx-more">
+          <summary>See an example table</summary>
+          <div class="idea-panel hx-example">
+          <span class="idea-eyebrow">Example</span>
+          <table class="hx-table u4-ex" aria-label="Example weighted objectives table for an FRC intake">
+            <thead><tr><th>Intake</th><th>Weight</th><th>Roller</th><th>Pinch</th><th>Scoop</th></tr></thead>
+            <tbody>
+              <tr><td>Driver precision</td><td>15</td><td>5</td><td>3</td><td>2</td></tr>
+              <tr><td>Simplicity</td><td>10</td><td>3</td><td>2</td><td>5</td></tr>
+              <tr><td>Speed of grab</td><td>10</td><td>4</td><td>3</td><td>4</td></tr>
+              <tr><td>Grip</td><td>10</td><td>3</td><td>5</td><td>2</td></tr>
+              <tr><td>Mass</td><td>5</td><td>4</td><td>2</td><td>5</td></tr>
+            </tbody>
+            <tfoot><tr><td>Total</td><td>50</td><td>195</td><td>155</td><td>165</td></tr></tfoot>
+          </table>
+          <p class="u4-note">An FRC intake, not a launcher. Each column is one idea. Weight times score, added up; the biggest total wins.</p>
+          </div>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Team table</span>
+        <div data-field="wotIdeas" data-kind="table">
+          <table class="u4-wot u4-ideas" aria-label="Ideas A to D">
+            <tbody>
+              <tr><td>A</td><td><input class="idea-well idea-well--field" type="text" aria-label="Idea A" placeholder="e.g. Name, two-wheel flywheel"></td></tr>
+              <tr><td>B</td><td><input class="idea-well idea-well--field" type="text" aria-label="Idea B" placeholder="e.g. Name, catapult"></td></tr>
+              <tr><td>C</td><td><input class="idea-well idea-well--field" type="text" aria-label="Idea C" placeholder="e.g. Name, ..."></td></tr>
+              <tr><td>D</td><td><input class="idea-well idea-well--field" type="text" aria-label="Idea D, team of four" placeholder="Team of four only"></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="u4-wotwrap">
+          <div data-field="wot" data-kind="table">
+            <table class="hx-table u4-wot" aria-label="Weighted objectives table">
+              <thead><tr><th>Criterion</th><th>Weight</th><th>A</th><th>B</th><th>C</th><th>D</th><th>What decided it</th></tr></thead>
+              <tbody>
+                <tr><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 1" placeholder="e.g. Distance"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Weight 1" placeholder="00"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 1, idea A score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 1, idea B score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 1, idea C score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 1, idea D score" placeholder="1-5"></td><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 1, what decided it" placeholder="e.g. A's wheel is ..."></td></tr>
+                <tr><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 2" placeholder="e.g. ..."></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Weight 2" placeholder="00"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 2, idea A score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 2, idea B score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 2, idea C score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 2, idea D score" placeholder="1-5"></td><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 2, what decided it" placeholder="e.g. ..."></td></tr>
+                <tr><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 3" placeholder="e.g. ..."></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Weight 3" placeholder="00"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 3, idea A score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 3, idea B score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 3, idea C score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 3, idea D score" placeholder="1-5"></td><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 3, what decided it" placeholder="e.g. ..."></td></tr>
+                <tr><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 4" placeholder="e.g. ..."></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Weight 4" placeholder="00"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 4, idea A score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 4, idea B score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 4, idea C score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 4, idea D score" placeholder="1-5"></td><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 4, what decided it" placeholder="e.g. ..."></td></tr>
+                <tr><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 5" placeholder="e.g. ..."></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Weight 5" placeholder="00"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 5, idea A score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 5, idea B score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 5, idea C score" placeholder="1-5"></td><td class="n"><input class="idea-well idea-well--field" type="text" inputmode="numeric" aria-label="Criterion 5, idea D score" placeholder="1-5"></td><td class="c"><input class="idea-well idea-well--field" type="text" aria-label="Criterion 5, what decided it" placeholder="e.g. ..."></td></tr>
+              </tbody>
+              <tfoot><tr><td>Total</td><td id="u4-wsum">0</td><td id="u4-tA">0</td><td id="u4-tB">0</td><td id="u4-tC">0</td><td id="u4-tD">0</td><td></td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+        <p class="hx-readout" id="u4-wot-note" aria-live="polite">Weights and scores add up here as you type.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 6: the pick, as a team. -->
+  <section class="hx-step idea-panel" id="s-pick" data-phase="concept" data-day="Class 2" data-title="Pick one and set roles">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Concept · <span data-pace-date="d2">Oct 27</span></span><h2>Pick one and set roles</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Pick the idea you will build. Usually the top total; if not, say why.</span></li>
+          <li><span>Open <strong>Team plan</strong> (above this page). Under <strong>Roles</strong>, give every <span class="it" data-term="role">role</span> an owner.</span></li>
+          <li><span>In the Team plan, give every task with no owner an owner and a due date. <strong>Split</strong> must read even: no one carries much more than the others.</span></li>
+          <li><span>Tap <strong>Check in</strong> on what you are doing today. Do it at the start of every class from now on.</span></li>
+        </ol>
+        <p class="hx-see">Four names under Roles, every task owned and dated, the Split even.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>We cannot agree</td><td>The table decides. Re-score only if a teammate shows a score was wrong.</td></tr>
+            <tr><td>Two of us want the same role</td><td>Whoever's sketch did not win picks first.</td></tr>
+            <tr><td>We are a team of three</td><td>One person owns two roles that touch, like Drive and Energy store. The other two take the team tasks, so the Split reads even.</td></tr>
+            <tr><td>A box says someone is editing</td><td>Wait, or talk to them. One person per box.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Team pick</span>
+        <p class="hx-readout" id="u4-pick-note" aria-live="polite">Fill in the table first: the totals appear here.</p>
+        <fieldset class="hx-picks" data-field="pick" data-kind="radio">
+          <legend>Which idea is your team building?</legend>
+          <label class="hx-pick"><input type="radio" name="pick" value="A"> A</label>
+          <label class="hx-pick"><input type="radio" name="pick" value="B"> B</label>
+          <label class="hx-pick"><input type="radio" name="pick" value="C"> C</label>
+          <label class="hx-pick"><input type="radio" name="pick" value="D"> D</label>
+        </fieldset>
+        <label>Why it won, with its total
+          <textarea class="idea-well" data-field="pickWhy" data-min-sentences="1" placeholder="e.g. Idea ... scored ..., ahead on ..."></textarea>
+        </label>
+        <p class="idea-chip" data-count-for="pickWhy" data-min="1">0 of 1 sentence</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 7: requirements per role, and the interfaces (team). -->
+  <section class="hx-step idea-panel" id="s-req" data-phase="concept" data-day="Class 3" data-title="Requirements and interfaces">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Concept · <span data-pace-date="d3">Oct 28</span></span><h2>Requirements and interfaces</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Write one <span class="it" data-term="requirement">requirement</span> for your part: a number with a unit that a tape measure, scale or test can check.</span></li>
+          <li><span>Type it in your role's box. The green edge marks yours.</span></li>
+          <li><span>As a team, name at least 3 <span class="it" data-term="interface">interfaces</span>: the two parts that meet and how they join.</span></li>
+        </ol>
+        <p class="hx-see">Four requirements, each with a number, and every meeting point written down.</p>
+        <div class="idea-panel hx-example">
+          <span class="idea-eyebrow">Example</span>
+          <p class="u4-note">From a bike rack, not a launcher: "Holds 30 lb (13,600 g) with less than 1/8 in of sag, checked with a tape measure." One number, one unit, one way to check it.</p>
+        </div>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>My box says No owner yet</td><td>Roles are not set. Open <strong>Team plan</strong> and pick yours under <strong>Roles</strong>.</td></tr>
+            <tr><td>I cannot type in a box</td><td>It belongs to a teammate, or someone is typing in it. The line under it says which.</td></tr>
+            <tr><td>A teammate is absent</td><td>Only they can type in their role's box. They fill it next class; request Sign-off 1 once it is in.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Each role</span>
+        <div class="hx-tiles u4-rolepanels">
+          <label class="hx-tile u4-rp" data-role="frame"><span class="u4-rp-head"><b><span class="it" data-term="frame and mount">Frame and mount</span></b><span data-role-owner="frame"></span></span>
+            <input class="idea-well idea-well--field" type="text" data-field="frameReq" placeholder="e.g. Holds the drill with less than ... of play">
+          </label>
+          <label class="hx-tile u4-rp" data-role="energy"><span class="u4-rp-head"><b><span class="it" data-term="energy store">Energy store</span></b><span data-role-owner="energy"></span></span>
+            <input class="idea-well idea-well--field" type="text" data-field="energyReq" placeholder="e.g. Throws at least ... ft at full power, measured on the field">
+          </label>
+          <label class="hx-tile u4-rp" data-role="drive"><span class="u4-rp-head"><b><span class="it" data-term="drive">Drive</span></b><span data-role-owner="drive"></span></span>
+            <input class="idea-well idea-well--field" type="text" data-field="driveReq" placeholder="e.g. Back to speed in under ... s between shots">
+          </label>
+          <label class="hx-tile u4-rp" data-role="ballpath"><span class="u4-rp-head"><b><span class="it" data-term="ball path">Ball path</span></b><span data-role-owner="ballpath"></span></span>
+            <input class="idea-well idea-well--field" type="text" data-field="ballpathReq" placeholder="e.g. Loads in under ... s, no jam in ... tries">
+          </label>
+        </div>
+        <label>Where the four parts meet
+          <textarea class="idea-well" data-field="interfaces" data-min-sentences="2" placeholder="e.g. The drill clamps to the frame at ... The wheel shaft runs in ... The ball path hands the ball to the wheel at ..."></textarea>
+        </label>
+        <p class="idea-chip" data-count-for="interfaces" data-min="2">0 of 2 sentences</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 8: each role's sketch; Sign-off 1. -->
+  <section class="hx-step idea-panel" id="s-role" data-phase="concept" data-day="Class 3" data-title="Sketch your part, request Sign-off 1">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Concept · <span data-pace-date="d3">Oct 28</span></span><h2>Sketch your part, request Sign-off 1</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>On paper: your part with sizes, stock, process, and where it meets the others.</span></li>
+          <li><span>Photograph it and paste it in your role's box.</span></li>
+          <li><span>Every box filled? Open <strong>Team plan</strong>, find <strong>Sign-offs</strong>, and press <strong>Request sign-off</strong> on Plan.</span></li>
+          <li><span>Approved: next class, open <strong>Launcher: Prototype and Detail Design</strong>. Sent back: fix what it names and request again.</span></li>
+        </ol>
+        <p class="hx-see">All four sketches in, and Plan shows Requested in your Team plan.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>Request sign-off is grayed out</td><td>A box is still empty. The plan says which.</td></tr>
+            <tr><td>My team cannot see my sketch</td><td>Only your teacher sees pictures for now. Show your team on your screen.</td></tr>
+            <tr><td>My sketch is a copy of the team sketch</td><td>Draw only your part, bigger, with its sizes.</td></tr>
+            <tr><td>Taking it on a phone</td><td>Open this post on your phone and press <strong>Take photo</strong> in your role's box.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Each role</span>
+        <div class="hx-tiles u4-rolepanels u4-rp-2">
+          <div class="hx-tile u4-rp" data-role="frame">
+            <div class="u4-rp-head"><b><span class="it" data-term="frame and mount">Frame and mount</span></b><span data-role-owner="frame"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="frameSketch">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="frameSketch" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="frameSketch" data-empty="Frame and mount sketch">Frame and mount sketch</div>
+            <input type="file" data-field="frameSketch" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="frameSketch"></p>
+          </div>
+          <div class="hx-tile u4-rp" data-role="energy">
+            <div class="u4-rp-head"><b><span class="it" data-term="energy store">Energy store</span></b><span data-role-owner="energy"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="energySketch">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="energySketch" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="energySketch" data-empty="Energy store sketch">Energy store sketch</div>
+            <input type="file" data-field="energySketch" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="energySketch"></p>
+          </div>
+          <div class="hx-tile u4-rp" data-role="drive">
+            <div class="u4-rp-head"><b><span class="it" data-term="drive">Drive</span></b><span data-role-owner="drive"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="driveSketch">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="driveSketch" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="driveSketch" data-empty="Drive sketch">Drive sketch</div>
+            <input type="file" data-field="driveSketch" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="driveSketch"></p>
+          </div>
+          <div class="hx-tile u4-rp" data-role="ballpath">
+            <div class="u4-rp-head"><b><span class="it" data-term="ball path">Ball path</span></b><span data-role-owner="ballpath"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="ballpathSketch">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="ballpathSketch" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="ballpathSketch" data-empty="Ball path sketch">Ball path sketch</div>
+            <input type="file" data-field="ballpathSketch" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="ballpathSketch"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script type="application/json" id="hx-plan-data">
+{
+  "phases": [
+    {"id": "concept", "name": "Concept", "color": "fuel-yellow", "days": [
+      {"label": "Class 1", "short": "Rules, sketch", "date": "2026-10-26", "pace": "d1"},
+      {"label": "Class 2", "short": "Score, pick", "date": "2026-10-27", "pace": "d2"},
+      {"label": "Class 3", "short": "Your part, Sign-off 1", "date": "2026-10-28", "pace": "d3"}
+    ]}
+  ]
+}
+</script>
+<script type="application/json" id="hx-glossary">
+{
+  "frame and mount": "The structure everything bolts to, and what holds the launcher at its angle and height. Yours: the base, the side plates, the drill mount. Flywheel: the plates that carry the wheel's shaft. Catapult: the base and the posts the arm pivots on.",
+  "energy store": "The part that stores the energy that throws the ball, and sets how fast it leaves. Yours: the flywheel with its hub and shaft, or the catapult arm with its bands or springs.",
+  "drive": "How power gets from the drill to the wheel or arm, and how a shot starts. Yours: the drill coupling, any gears, pulleys or belts, and the trigger or release. Catapult: what pulls the arm back and lets it go.",
+  "ball path": "How the ball goes in, is held, and is guided out. Yours: the loader or hopper, the hood or cup, and the exit. Flywheel: the hood that presses the ball onto the wheel. Catapult: the cup on the arm.",
+  "FUEL": "The yellow foam ball from the 2026 FRC game: 5.91 in across, 0.448 to 0.5 lb (203 to 227 g).",
+  "flywheel": "A heavy wheel spun up to speed; the ball is pinched against it and leaves with some of the wheel's energy.",
+  "catapult": "An arm that stores energy in springs or bands, then swings and releases the ball.",
+  "role": "One of the four parts of the launcher. Its owner designs, draws, builds and tests it.",
+  "prototype": "A quick, rough build that answers one question. It is thrown away, not improved.",
+  "criteria": "The things your launcher must be good at, used to compare ideas: distance, simplicity, build time, safety, and so on.",
+  "weight": "How much a criterion matters. Bigger weight, bigger effect on the total.",
+  "interface": "Where two parts of the launcher meet and how they are joined: bolts, a shaft, a clamp.",
+  "requirement": "One thing a part must do, written as a number with a unit that a measurement can check."
+}
+</script>
+<!-- hx:script -->
+<script id="hx-page-js">
+/* Launcher: Design. Live mirrors, never gates (AUTHORING F9). */
+function u4Num(s) { var n = parseFloat(String(s == null ? '' : s).trim()); return isFinite(n) ? n : null; }
+function u4Table(field) {
+  try { return JSON.parse(hxRead(hxRoot(field))) || []; } catch (e) { return []; }
+}
+function u4Radio(field) { return String(hxRead(hxRoot(field)) || ''); }
+function u4Refresh() {
+  var rows = u4Table('wot');
+  var wsum = 0, tot = [0, 0, 0, 0], bad = [], used = [false, false, false, false], reasons = 0, crits = 0;
+  rows.forEach(function (r, i) {
+    var name = String(r[0] || '').trim();
+    var w = u4Num(r[1]);
+    if (name) crits++;
+    if (String(r[6] || '').trim()) reasons++;
+    if (w !== null) wsum += w;
+    for (var k = 0; k < 4; k++) {
+      var raw = String(r[2 + k] || '').trim();
+      if (!raw) continue;
+      var s = u4Num(raw);
+      used[k] = true;
+      if (s === null || s < 1 || s > 5 || Math.round(s) !== s) { bad.push('row ' + (i + 1) + ' ' + 'ABCD'[k]); continue; }
+      if (w !== null) tot[k] += w * s;
+    }
+  });
+  document.getElementById('u4-wsum').textContent = String(wsum);
+  ['A', 'B', 'C', 'D'].forEach(function (L, k) { document.getElementById('u4-t' + L).textContent = used[k] ? String(tot[k]) : '-'; });
+  var note = document.getElementById('u4-wot-note');
+  var parts = [];
+  if (!crits) parts.push('Weights and scores add up here as you type.');
+  else {
+    parts.push(crits + ' of 5 criteria');
+    parts.push('weights total ' + wsum + (wsum === 50 ? '' : ' (they must total 50: ' + (wsum < 50 ? 'add ' + (50 - wsum) : 'take off ' + (wsum - 50)) + ')'));
+    parts.push(reasons + ' of 5 reasons');
+    if (bad.length) parts.push('scores are whole numbers 1 to 5: check ' + bad.slice(0, 3).join(', '));
+  }
+  note.textContent = parts.join(' · ');
+  note.classList.toggle('warn', !!crits && (wsum !== 50 || bad.length > 0));
+
+  var best = -1, bestK = -1;
+  for (var k = 0; k < 4; k++) if (used[k] && tot[k] > best) { best = tot[k]; bestK = k; }
+  var pn = document.getElementById('u4-pick-note');
+  if (bestK < 0) pn.textContent = 'Fill in the table first: the totals appear here.';
+  else {
+    var line = ['A', 'B', 'C', 'D'].map(function (L, k) { return used[k] ? L + ' ' + tot[k] : null; }).filter(Boolean).join(' · ');
+    var p = u4Radio('pick');
+    pn.textContent = 'Totals: ' + line + '. Top: ' + 'ABCD'[bestK] + '.' + (p && p !== 'ABCD'[bestK] ? ' You picked ' + p + ': say why the table is not the whole story.' : '');
+  }
+}
+document.addEventListener('input', u4Refresh);
+document.addEventListener('change', u4Refresh);
+HX.onState.push(u4Refresh);
+u4Refresh();
+/* Every date in the page comes from the class calendar (ledger 0458): a span with
+   data-pace-date names a pacing step and shows that step's day for this class, so a
+   class that runs late sees its own dates. The typed text is the fallback. */
+var U4_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var U4_PACE = {};
+function u4PaceFill() {
+  document.querySelectorAll('[data-pace-date]').forEach(function (el) {
+    var day = U4_PACE[el.getAttribute('data-pace-date')];
+    if (!day) return;
+    var q = day.split('-');
+    el.textContent = U4_MONTHS[Number(q[1]) - 1] + ' ' + Number(q[2]);
+  });
+}
+HX.onState.push(function (d) {
+  var steps = d && d.schedule && Array.isArray(d.schedule.pacing) ? d.schedule.pacing : [];
+  steps.forEach(function (p) { if (p && typeof p.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.day || '')) U4_PACE[p.id] = p.day; });
+  u4PaceFill();
+});
+/* Phase 1 of the post: the finish line says what comes next, not that the post is over. */
+(function () { var f = document.querySelector('.hx-finish'); if (f) f.innerHTML = '<strong>Concept is in.</strong> Nothing to turn in: your work saves as you go. Next: Launcher: Prototype and Detail Design, <span data-pace-date="d4">Oct 29</span>.'; u4PaceFill(); })();
+</script>
+</body>
+</html>

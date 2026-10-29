@@ -25,22 +25,10 @@
         "date": "2026-10-28",
         "items": [
           {
-            "id": "owners",
-            "kind": "auto",
-            "text": "Every task has an owner and a due date",
-            "check": "plan-owners"
-          },
-          {
             "id": "roles",
             "kind": "auto",
             "text": "Every role has an owner",
             "check": "roles-owned"
-          },
-          {
-            "id": "balance",
-            "kind": "auto",
-            "text": "The plan balances",
-            "check": "plan-balanced"
           },
           {
             "id": "fields",
@@ -80,14 +68,14 @@
           {
             "id": "complete",
             "kind": "auto",
-            "text": "Every part of the Design post is filled in, including each role's prototype and calculations",
+            "text": "Every box of Launcher: Design is filled in",
             "check": "assignment-complete"
           },
           {
             "id": "aluminum",
             "kind": "tap",
             "role": "frame",
-            "text": "The structure is aluminum, with wood only for a minor part"
+            "text": "The launcher is metal, made on IDEA machines; any wood has the teacher's OK"
           },
           {
             "id": "process",
@@ -98,12 +86,6 @@
             "id": "bearings",
             "kind": "tap",
             "text": "The team uses 6 or fewer 1/2 in hex bearings"
-          },
-          {
-            "id": "clamped",
-            "kind": "tap",
-            "role": "drive",
-            "text": "The drill or power tool is clamped or mounted to the launcher, never hand-held while firing"
           }
         ],
         "title": "Design"
@@ -112,6 +94,81 @@
   },
   "title": "Launcher: Design",
   "course": "IDEA209H",
+  "pacing": [
+    {
+      "id": "d1",
+      "day": 1,
+      "title": "Rules, research and your concept sketch",
+      "modules": [
+        "u4d-rules",
+        "u4d-idea"
+      ]
+    },
+    {
+      "id": "d2",
+      "day": 2,
+      "title": "Score every idea, pick one, set roles",
+      "modules": [
+        "u4d-select"
+      ]
+    },
+    {
+      "id": "d3",
+      "day": 3,
+      "title": "Your part's requirement and sketch, Sign-off 1",
+      "modules": [
+        "u4d-frame",
+        "u4d-energy",
+        "u4d-drive",
+        "u4d-ballpath"
+      ]
+    },
+    {
+      "id": "d4",
+      "day": 4,
+      "title": "Prototype: one question, one class"
+    },
+    {
+      "id": "d5",
+      "day": 5,
+      "title": "Calculations, CAD, drawings, machine plan"
+    },
+    {
+      "id": "d7",
+      "day": 7,
+      "title": "Sign-off 2: Design. No metal is cut before it"
+    },
+    {
+      "id": "d8",
+      "day": 8,
+      "title": "Build starts"
+    },
+    {
+      "id": "d12",
+      "day": 12,
+      "title": "Sign-off 3: Safe to test"
+    },
+    {
+      "id": "d13",
+      "day": 13,
+      "title": "Test and tune"
+    },
+    {
+      "id": "d14",
+      "day": 14,
+      "title": "Sign-off 4: Competition ready"
+    },
+    {
+      "id": "d15",
+      "day": 15,
+      "title": "Competition on the football field"
+    },
+    {
+      "id": "d16",
+      "day": 16,
+      "title": "Design Review"
+    }
+  ],
   "points": 28,
   "modules": [
     {
@@ -123,7 +180,7 @@
           "task": "Rules check: testing",
           "type": "radio",
           "field": "ruleTest",
-          "prompt": "Your launcher is ready for its first full-power shot. Where?"
+          "prompt": "Your team wants a quick prototype test in the IDEA hallway. Which is allowed?"
         },
         {
           "id": "u4d-rule-box",
@@ -144,7 +201,7 @@
               "label": "Complete",
               "short": "Both right",
               "points": 2,
-              "descriptor": "Football field, and only the Drive owner."
+              "descriptor": "Low power aimed flat, and only the Drive owner."
             },
             {
               "label": "Developing",
@@ -173,6 +230,14 @@
           "type": "radio",
           "field": "ideaMethod",
           "prompt": "How does your idea throw the ball?"
+        },
+        {
+          "id": "u4d-idea-research",
+          "task": "Research: two launchers and what you took",
+          "type": "longText",
+          "field": "ideaResearch",
+          "prompt": "Two real launchers you studied, and what you will copy or avoid from each",
+          "minSentences": 2
         },
         {
           "id": "u4d-idea-line",
@@ -207,51 +272,51 @@
       "audience": "individual",
       "criteria": [
         {
-          "id": "idea-views",
-          "text": "The sketch shows how the launcher holds, powers and throws the ball, in a top and a side view",
+          "id": "idea-research",
+          "text": "Research: two real launchers named (a team, product or build that can be found), with what the student will copy or avoid from each",
           "levels": [
             {
               "label": "Complete",
-              "short": "Two views, whole path",
+              "short": "Two named, both used",
               "points": 2,
-              "descriptor": "Top and side view; the ball's path from loading to leaving and the power source are both drawn."
+              "descriptor": "Two named launchers (a team number, product name or linked build), each with one specific feature to copy or avoid."
             },
             {
               "label": "Developing",
-              "short": "One view or gaps",
+              "short": "One, or vague",
               "points": 1,
-              "descriptor": "One view only, or the power source or the ball's path is missing."
+              "descriptor": "One named launcher, or a general type (\"a pitching machine\") with no name, or nothing specific taken."
+            },
+            {
+              "label": "Absent",
+              "short": "No research",
+              "points": 0,
+              "descriptor": "No launchers named."
+            }
+          ],
+          "points": 2
+        },
+        {
+          "id": "idea-sketch",
+          "text": "Sketch: top and side view, the ball's path, the power source, sizes and how each part is made",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Buildable sketch",
+              "points": 2,
+              "descriptor": "Top and side view; the ball's path drawn; the frame, the wheel or arm, the drive and the ball path each have a size and a process."
+            },
+            {
+              "label": "Developing",
+              "short": "Views or labels missing",
+              "points": 1,
+              "descriptor": "One view only, or the path missing, or any of those four parts without a size or a process."
             },
             {
               "label": "Absent",
               "short": "No sketch",
               "points": 0,
               "descriptor": "No sketch, or not a launcher."
-            }
-          ],
-          "points": 2
-        },
-        {
-          "id": "idea-labels",
-          "text": "Parts are labeled with sizes and how each is made",
-          "levels": [
-            {
-              "label": "Complete",
-              "short": "Sizes and processes",
-              "points": 2,
-              "descriptor": "Every major part has a size and a process or stock item."
-            },
-            {
-              "label": "Developing",
-              "short": "Some labels",
-              "points": 1,
-              "descriptor": "Some parts are labeled; sizes or processes are missing on others."
-            },
-            {
-              "label": "Absent",
-              "short": "No labels",
-              "points": 0,
-              "descriptor": "No sizes or processes."
             }
           ],
           "points": 2
@@ -317,13 +382,13 @@
               "label": "Proficient",
               "short": "One gap",
               "points": 2,
-              "descriptor": "One of those is missing: a reason, a score, or the weights do not total 50."
+              "descriptor": "Exactly one gap: one missing reason, one missing score, only four criteria, or weights that do not total 50."
             },
             {
               "label": "Developing",
               "short": "Several gaps",
               "points": 1,
-              "descriptor": "Fewer than five criteria, or several scores or reasons missing."
+              "descriptor": "Two or more of those gaps."
             },
             {
               "label": "Absent",
@@ -336,25 +401,25 @@
         },
         {
           "id": "select-pick",
-          "text": "The pick is explained by the table, and the interfaces between the four parts are named",
+          "text": "The pick is explained by the table, and at least 3 interfaces name two parts and how they join",
           "levels": [
             {
               "label": "Complete",
               "short": "Pick backed, interfaces named",
               "points": 3,
-              "descriptor": "The reason names the total, or says why the team overrode it; every subsystem's meeting point is named with how they join."
+              "descriptor": "The reason names the winning total, or why the team overrode it; at least 3 interfaces, each naming two parts and the joint."
             },
             {
               "label": "Proficient",
               "short": "One part thin",
               "points": 2,
-              "descriptor": "The reason or the interfaces are vague (no total, or a meeting point missing)."
+              "descriptor": "One of: no total in the reason, or fewer than 3 interfaces, or an interface with no joint."
             },
             {
               "label": "Developing",
               "short": "Both thin",
               "points": 1,
-              "descriptor": "A pick with no reason from the table, and interfaces barely named."
+              "descriptor": "Both: no total in the reason and fewer than 3 complete interfaces."
             },
             {
               "label": "Absent",
@@ -429,7 +494,7 @@
               "label": "Developing",
               "short": "Sizes or processes missing",
               "points": 1,
-              "descriptor": "Drawn, but sizes or processes are missing."
+              "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."
             },
             {
               "label": "Absent",
@@ -504,7 +569,7 @@
               "label": "Developing",
               "short": "Sizes or processes missing",
               "points": 1,
-              "descriptor": "Drawn, but sizes or processes are missing."
+              "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."
             },
             {
               "label": "Absent",
@@ -579,7 +644,7 @@
               "label": "Developing",
               "short": "Sizes or processes missing",
               "points": 1,
-              "descriptor": "Drawn, but sizes or processes are missing."
+              "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."
             },
             {
               "label": "Absent",
@@ -654,7 +719,7 @@
               "label": "Developing",
               "short": "Sizes or processes missing",
               "points": 1,
-              "descriptor": "Drawn, but sizes or processes are missing."
+              "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."
             },
             {
               "label": "Absent",

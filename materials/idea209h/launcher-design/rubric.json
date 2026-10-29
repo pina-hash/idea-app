@@ -6,7 +6,7 @@
         "label": "Complete",
         "short": "Both right",
         "points": 2,
-        "descriptor": "Football field, and only the Drive owner."
+        "descriptor": "Low power aimed flat, and only the Drive owner."
       },
       {
         "label": "Developing",
@@ -26,19 +26,45 @@
     "incomplete": false
   },
   {
-    "id": "u4d-idea-idea-views",
+    "id": "u4d-idea-idea-research",
     "levels": [
       {
         "label": "Complete",
-        "short": "Two views, whole path",
+        "short": "Two named, both used",
         "points": 2,
-        "descriptor": "Top and side view; the ball's path from loading to leaving and the power source are both drawn."
+        "descriptor": "Two named launchers (a team number, product name or linked build), each with one specific feature to copy or avoid."
       },
       {
         "label": "Developing",
-        "short": "One view or gaps",
+        "short": "One, or vague",
         "points": 1,
-        "descriptor": "One view only, or the power source or the ball's path is missing."
+        "descriptor": "One named launcher, or a general type (\"a pitching machine\") with no name, or nothing specific taken."
+      },
+      {
+        "label": "Absent",
+        "short": "No research",
+        "points": 0,
+        "descriptor": "No launchers named."
+      }
+    ],
+    "points": 2,
+    "criterion": "Your concept sketch: Research: two real launchers named (a team, product or build that can be found), with what the student will copy or avoid from each",
+    "incomplete": false
+  },
+  {
+    "id": "u4d-idea-idea-sketch",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Buildable sketch",
+        "points": 2,
+        "descriptor": "Top and side view; the ball's path drawn; the frame, the wheel or arm, the drive and the ball path each have a size and a process."
+      },
+      {
+        "label": "Developing",
+        "short": "Views or labels missing",
+        "points": 1,
+        "descriptor": "One view only, or the path missing, or any of those four parts without a size or a process."
       },
       {
         "label": "Absent",
@@ -48,33 +74,7 @@
       }
     ],
     "points": 2,
-    "criterion": "Your concept sketch: The sketch shows how the launcher holds, powers and throws the ball, in a top and a side view",
-    "incomplete": false
-  },
-  {
-    "id": "u4d-idea-idea-labels",
-    "levels": [
-      {
-        "label": "Complete",
-        "short": "Sizes and processes",
-        "points": 2,
-        "descriptor": "Every major part has a size and a process or stock item."
-      },
-      {
-        "label": "Developing",
-        "short": "Some labels",
-        "points": 1,
-        "descriptor": "Some parts are labeled; sizes or processes are missing on others."
-      },
-      {
-        "label": "Absent",
-        "short": "No labels",
-        "points": 0,
-        "descriptor": "No sizes or processes."
-      }
-    ],
-    "points": 2,
-    "criterion": "Your concept sketch: Parts are labeled with sizes and how each is made",
+    "criterion": "Your concept sketch: Sketch: top and side view, the ball's path, the power source, sizes and how each part is made",
     "incomplete": false
   },
   {
@@ -90,13 +90,13 @@
         "label": "Proficient",
         "short": "One gap",
         "points": 2,
-        "descriptor": "One of those is missing: a reason, a score, or the weights do not total 50."
+        "descriptor": "Exactly one gap: one missing reason, one missing score, only four criteria, or weights that do not total 50."
       },
       {
         "label": "Developing",
         "short": "Several gaps",
         "points": 1,
-        "descriptor": "Fewer than five criteria, or several scores or reasons missing."
+        "descriptor": "Two or more of those gaps."
       },
       {
         "label": "Absent",
@@ -116,19 +116,19 @@
         "label": "Complete",
         "short": "Pick backed, interfaces named",
         "points": 3,
-        "descriptor": "The reason names the total, or says why the team overrode it; every subsystem's meeting point is named with how they join."
+        "descriptor": "The reason names the winning total, or why the team overrode it; at least 3 interfaces, each naming two parts and the joint."
       },
       {
         "label": "Proficient",
         "short": "One part thin",
         "points": 2,
-        "descriptor": "The reason or the interfaces are vague (no total, or a meeting point missing)."
+        "descriptor": "One of: no total in the reason, or fewer than 3 interfaces, or an interface with no joint."
       },
       {
         "label": "Developing",
         "short": "Both thin",
         "points": 1,
-        "descriptor": "A pick with no reason from the table, and interfaces barely named."
+        "descriptor": "Both: no total in the reason and fewer than 3 complete interfaces."
       },
       {
         "label": "Absent",
@@ -138,7 +138,7 @@
       }
     ],
     "points": 3,
-    "criterion": "Score and pick (team): The pick is explained by the table, and the interfaces between the four parts are named",
+    "criterion": "Score and pick (team): The pick is explained by the table, and at least 3 interfaces name two parts and how they join",
     "incomplete": false
   },
   {
@@ -180,7 +180,7 @@
         "label": "Developing",
         "short": "Sizes or processes missing",
         "points": 1,
-        "descriptor": "Drawn, but sizes or processes are missing."
+        "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."
       },
       {
         "label": "Absent",
@@ -232,7 +232,7 @@
         "label": "Developing",
         "short": "Sizes or processes missing",
         "points": 1,
-        "descriptor": "Drawn, but sizes or processes are missing."
+        "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."
       },
       {
         "label": "Absent",
@@ -284,7 +284,7 @@
         "label": "Developing",
         "short": "Sizes or processes missing",
         "points": 1,
-        "descriptor": "Drawn, but sizes or processes are missing."
+        "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."
       },
       {
         "label": "Absent",
@@ -336,7 +336,7 @@
         "label": "Developing",
         "short": "Sizes or processes missing",
         "points": 1,
-        "descriptor": "Drawn, but sizes or processes are missing."
+        "descriptor": "Drawn, but sizes, processes or where it meets the others are missing."
       },
       {
         "label": "Absent",
