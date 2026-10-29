@@ -108,14 +108,14 @@ def content(air):
             # 2026-10-29, Mr. Pina: the team leaves right after school at 3:10; students and parents
             # meet in the back parking lot, where students load into their carpool cars.
             return dict(kind="FRI_BB0", days=0, flyer_extra=xf,
-                title="TODAY! Robotics Leaves for Beach Blitz at 3:10",
-                body=("Robotics team members, we leave for Beach Blitz today at 3:10, right after school, "
-                      "from the back parking lot. Do not be late: cars leave at 3:10. "
+                title="TODAY! Robotics Leaves for Beach Blitz at 3:15",
+                body=("Robotics team members, we leave for Beach Blitz today right after school. "
+                      "Go to the IDEA building first, then be at the back parking lot by 3:15. Do not be late. "
                       "Beach Blitz is a major robotics competition at Capistrano Valley High School, through Sunday. "
-                      "Wish the team luck. Again: robotics, 3:10, back parking lot."),
+                      "Wish the team luck. Again: robotics, IDEA building, then the back parking lot by 3:15."),
                 pm_title="NOW: Robotics Leaves for Beach Blitz",
-                pm_body=("Robotics team members, go to the back parking lot now. "
-                         "Cars leave for Beach Blitz at 3:10. Again: back parking lot, now."),
+                pm_body=("Robotics team members, go to the IDEA building now, then to the back parking lot by 3:15. "
+                         "Again: IDEA building, then the back parking lot, 3:15."),
                 file="Flyer_Techmen Robotics Beach Blitz.pdf")
         return dict(kind="FRI", flyer_extra=xf,
             title="TODAY! Robotics Team Meeting at 3:10, MANDATORY",
@@ -294,17 +294,17 @@ def flyer_html(air, c):
             third = ("", "THROUGH", "Sunday, Nov 1")
         if c["kind"] == "FRI_BB0":
             cells = ('<div class=grid style="grid-template-columns:repeat(3,1fr)">'
-                     '<div class="cell hot"><div class=d>TODAY · 3:10 PM</div><div class=t>Leave for Beach Blitz</div><div class=s>Back parking lot. Cars leave at 3:10.</div></div>'
+                     '<div class="cell hot"><div class=d>TODAY · 3:15 PM</div><div class=t>Leave for Beach Blitz</div><div class=s>IDEA building first, then the back parking lot.</div></div>'
                      f'<div class=cell><div class=d>{sat}</div><div class=t>Competition</div><div class=s>Capistrano Valley HS.</div></div>'
                      '<div class=cell><div class=d>SUN 11/1</div><div class=t>Competition</div><div class=s>Capistrano Valley HS.</div></div></div>')
             body = (hero + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
-                    + when([("d", "DATE", long_date(air)), ("", "WE LEAVE", "3:10 PM, back parking lot"), third], 4.5)
-                    + '<div class=body style="top:5.25in"><div class=lede>Right after school. <b>Do not be late: cars leave at 3:10.</b></div>'
+                    + when([("d", "DATE", long_date(air)), ("", "BACK PARKING LOT", "By 3:15 PM"), third], 4.5)
+                    + '<div class=body style="top:5.25in"><div class=lede><b>IDEA building first, then the back lot by 3:15.</b> Leave bags in IDEA.</div>'
                     + '<div class=k>THIS WEEKEND</div>' + cells
-                    + '<div class=k>STUDENTS AND PARENTS</div><div class=cell><div class=t>Meet in the back parking lot at 3:10.</div>'
-                      '<div class=s>Students load into their carpool cars there. Every member, every day.</div></div></div>')
+                    + '<div class=k>STUDENTS AND PARENTS</div><div class=cell><div class=t>Parents wait in the back parking lot. Students arrive by 3:15.</div>'
+                      '<div class=s>Students load into their carpool cars there. Costumes welcome.</div></div></div>')
             band = ('<div class=join style="justify-content:center"><div style="text-align:center">'
-                    '<div class=jt style="font-size:54pt;line-height:.95">3:10 PM.<br>BACK PARKING LOT.</div>'
+                    '<div class=jt style="font-size:54pt;line-height:.95">3:15 PM.<br>BACK PARKING LOT.</div>'
                     '<div class=js style="font-size:15pt;font-weight:700;margin-top:.12in">Right after school. Do not be late.</div></div></div>')
             return page(f'ROBOTICS TEAM <b>5669</b> · <b>BEACH BLITZ</b>', body, band)
         body = (hero + robot(4.2, 1.6, 3.95) + CTX.format(top=3.42, w=3.3)
