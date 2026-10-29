@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launcher: Prototype and Detail Design</title>
+<!--
+  IDEA209H Unit 4, post 2 of 6: Launcher: Prototype and Detail Design (Unit Assignments).
+  Split from post 1 at Sign-off 1 (AUTHORING C: at most 20 required blocks per post).
+
+  BLOCK 4 COPY (Mr. Pina 2026-10-28): IDEA209H Block 4 runs one school day behind Blocks 2
+  and 3 (Oct 28 was its day 2), on its own dates; future Block 4 posts stay separate.
+
+  BRIEF (Mr. Pina, 2026-10-20 to 2026-10-28)
+  1 Skill: answer one design question with a throwaway rig and a measured number; turn a
+    concept into numbers, CAD, drawings and a machine plan someone else could build from.
+  2 Proof per role: the prototype question, result with a number and decision; the part's key
+    numbers and stock list; a CAD screenshot at real sizes; a drawing with every dimension,
+    stock and process; a machine plan line. Sign-off 2 (Design, Nov 4) gates any metal.
+  3 Stuck points: prototypes that grow into products (one question, one class, the bin);
+    results with no number; ignoring drag (a foam ball tops out fast); CAD that skips the
+    interfaces; drawings missing dimensions.
+  4 Builds on post 1 (sketch, requirement, interfaces) and Units 1 and 3 (forces, process choice).
+  5 Problem: does the design reach the speed its target needs, from looked-up drill specs.
+  6 Shape: 4 steps over 4 classes (Oct 30, Nov 2 short day, Nov 3, Nov 4); 20 role blocks;
+    64 manifest points, a member graded on 16 (one role; the mean of two on a team of three).
+  7 Facts: FUEL 5.91 in, 0.448 to 0.5 lb; shop gears, pulleys, belts and hardware allowed,
+    anything else made from stock, nothing bought; 6 bearings per team; common-sense safety.
+    Estimates: drag coefficient 0.5; 80% of no-load drill speed under load; one wheel and a hood
+    about half the rim speed, two wheels about 90% (FRC rule of thumb); catapult half the band
+    energy, a third of the arm's weight. Measured numbers beat them.
+  8 Look: its own identity, a drawing sheet: Prototype cardboard, Detail design SolidWorks red;
+    hero and thumbnail are a dimensioned drawing of the wheel and hood (SolidWorks red
+    dimensions, a cardboard rig, the FUEL ball), so it never reads as post 1's launcher.
+-->
+<script type="application/json" id="idea-manifest">
+{
+  "schemaVersion": 3,
+  "kind": "html-assignment",
+  "title": "Launcher: Prototype and Detail Design",
+  "course": "IDEA209H",
+  "points": 64,
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
+  "team": {
+    "roles": [
+      {
+        "id": "frame",
+        "title": "Frame and mount"
+      },
+      {
+        "id": "energy",
+        "title": "Energy store"
+      },
+      {
+        "id": "drive",
+        "title": "Drive"
+      },
+      {
+        "id": "ballpath",
+        "title": "Ball path"
+      }
+    ],
+    "checkpoints": [
+      {
+        "id": "design",
+        "title": "Design",
+        "date": "2026-11-04",
+        "gate": "No metal is cut before this sign-off.",
+        "items": [
+          {
+            "id": "complete-detail",
+            "kind": "auto",
+            "check": "assignment-complete",
+            "text": "Every box of Prototype and Detail Design is filled in"
+          },
+          {
+            "id": "assembly",
+            "kind": "tap",
+            "role": "frame",
+            "text": "The four parts are assembled in CAD and meet where the interfaces said"
+          },
+          {
+            "id": "drawings",
+            "kind": "tap",
+            "text": "Every drawing has the dimensions and the process to make the part"
+          },
+          {
+            "id": "speed",
+            "kind": "tap",
+            "text": "The numbers show the launcher reaches the speed its target distance needs"
+          }
+        ]
+      }
+    ]
+  },
+  "modules": [
+    {
+      "id": "u4p-frame",
+      "title": "Frame and mount",
+      "points": 16,
+      "audience": "role",
+      "role": "frame",
+      "blocks": [
+        {
+          "id": "frame-proto",
+          "field": "frameProto",
+          "type": "longText",
+          "minSentences": 2,
+          "taskPoints": 4,
+          "task": "Frame and mount: prototype",
+          "prompt": "Frame and mount: the prototype question, what you built, the result with a number, and what it changes"
+        },
+        {
+          "id": "frame-calc",
+          "field": "frameCalc",
+          "type": "longText",
+          "minSentences": 1,
+          "taskPoints": 4,
+          "task": "Frame and mount: numbers and parts",
+          "prompt": "Frame and mount: its key numbers and the parts it takes from shop stock"
+        },
+        {
+          "id": "frame-cad",
+          "field": "frameCad",
+          "type": "image",
+          "taskPoints": 4,
+          "task": "Frame and mount: CAD",
+          "prompt": "Frame and mount: a screenshot of the CAD model"
+        },
+        {
+          "id": "frame-drawing",
+          "field": "frameDrawing",
+          "type": "image",
+          "taskPoints": 3,
+          "task": "Frame and mount: drawing",
+          "prompt": "Frame and mount: the drawing someone could make it from"
+        },
+        {
+          "id": "frame-machine",
+          "field": "frameMachine",
+          "type": "text",
+          "taskPoints": 1,
+          "task": "Frame and mount: machine plan",
+          "prompt": "Frame and mount: machine plan, which machine, who and which day"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "frame-proto",
+          "text": "Prototype: one question answered with a measured number",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Question, number, decision",
+              "descriptor": "One question, what was built, a measured result with a number and unit, and the decision it changes."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "No number",
+              "descriptor": "A result with no number, no decision, or a rig that tried to answer several questions."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "frame-calc",
+          "text": "Numbers and parts: the part's key numbers with units and every part from shop stock",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Numbers and full parts list",
+              "descriptor": "The part's key numbers with units, each from the calculator, a measurement or a spec, and every part listed with size and quantity from shop stock."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Numbers or parts missing",
+              "descriptor": "Numbers with no units or no source, or the parts list is missing pieces."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "frame-cad",
+          "text": "CAD: the part modeled at its real sizes",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Modeled to size",
+              "descriptor": "Every piece of the part modeled at its real sizes, including the holes and faces where it meets the other parts."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Partly modeled",
+              "descriptor": "Pieces missing, or sizes clearly off from the numbers."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "frame-drawing",
+          "text": "Drawing and machine plan: someone else could make the part",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Makeable drawing, planned",
+              "descriptor": "Views with every dimension needed to make it, stock and process named, and a machine plan line: which machine, who, which day."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Dimensions or plan missing",
+              "descriptor": "Dimensions missing, or no machine plan."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u4p-energy",
+      "title": "Energy store",
+      "points": 16,
+      "audience": "role",
+      "role": "energy",
+      "blocks": [
+        {
+          "id": "energy-proto",
+          "field": "energyProto",
+          "type": "longText",
+          "minSentences": 2,
+          "taskPoints": 4,
+          "task": "Energy store: prototype",
+          "prompt": "Energy store: the prototype question, what you built, the result with a number, and what it changes"
+        },
+        {
+          "id": "energy-calc",
+          "field": "energyCalc",
+          "type": "longText",
+          "minSentences": 1,
+          "taskPoints": 4,
+          "task": "Energy store: numbers and parts",
+          "prompt": "Energy store: its key numbers and the parts it takes from shop stock"
+        },
+        {
+          "id": "energy-cad",
+          "field": "energyCad",
+          "type": "image",
+          "taskPoints": 4,
+          "task": "Energy store: CAD",
+          "prompt": "Energy store: a screenshot of the CAD model"
+        },
+        {
+          "id": "energy-drawing",
+          "field": "energyDrawing",
+          "type": "image",
+          "taskPoints": 3,
+          "task": "Energy store: drawing",
+          "prompt": "Energy store: the drawing someone could make it from"
+        },
+        {
+          "id": "energy-machine",
+          "field": "energyMachine",
+          "type": "text",
+          "taskPoints": 1,
+          "task": "Energy store: machine plan",
+          "prompt": "Energy store: machine plan, which machine, who and which day"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "energy-proto",
+          "text": "Prototype: one question answered with a measured number",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Question, number, decision",
+              "descriptor": "One question, what was built, a measured result with a number and unit, and the decision it changes."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "No number",
+              "descriptor": "A result with no number, no decision, or a rig that tried to answer several questions."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "energy-calc",
+          "text": "Numbers and parts: the part's key numbers with units and every part from shop stock",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Numbers and full parts list",
+              "descriptor": "The part's key numbers with units, each from the calculator, a measurement or a spec, and every part listed with size and quantity from shop stock."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Numbers or parts missing",
+              "descriptor": "Numbers with no units or no source, or the parts list is missing pieces."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "energy-cad",
+          "text": "CAD: the part modeled at its real sizes",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Modeled to size",
+              "descriptor": "Every piece of the part modeled at its real sizes, including the holes and faces where it meets the other parts."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Partly modeled",
+              "descriptor": "Pieces missing, or sizes clearly off from the numbers."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "energy-drawing",
+          "text": "Drawing and machine plan: someone else could make the part",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Makeable drawing, planned",
+              "descriptor": "Views with every dimension needed to make it, stock and process named, and a machine plan line: which machine, who, which day."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Dimensions or plan missing",
+              "descriptor": "Dimensions missing, or no machine plan."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u4p-drive",
+      "title": "Drive",
+      "points": 16,
+      "audience": "role",
+      "role": "drive",
+      "blocks": [
+        {
+          "id": "drive-proto",
+          "field": "driveProto",
+          "type": "longText",
+          "minSentences": 2,
+          "taskPoints": 4,
+          "task": "Drive: prototype",
+          "prompt": "Drive: the prototype question, what you built, the result with a number, and what it changes"
+        },
+        {
+          "id": "drive-calc",
+          "field": "driveCalc",
+          "type": "longText",
+          "minSentences": 1,
+          "taskPoints": 4,
+          "task": "Drive: numbers and parts",
+          "prompt": "Drive: its key numbers and the parts it takes from shop stock"
+        },
+        {
+          "id": "drive-cad",
+          "field": "driveCad",
+          "type": "image",
+          "taskPoints": 4,
+          "task": "Drive: CAD",
+          "prompt": "Drive: a screenshot of the CAD model"
+        },
+        {
+          "id": "drive-drawing",
+          "field": "driveDrawing",
+          "type": "image",
+          "taskPoints": 3,
+          "task": "Drive: drawing",
+          "prompt": "Drive: the drawing someone could make it from"
+        },
+        {
+          "id": "drive-machine",
+          "field": "driveMachine",
+          "type": "text",
+          "taskPoints": 1,
+          "task": "Drive: machine plan",
+          "prompt": "Drive: machine plan, which machine, who and which day"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "drive-proto",
+          "text": "Prototype: one question answered with a measured number",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Question, number, decision",
+              "descriptor": "One question, what was built, a measured result with a number and unit, and the decision it changes."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "No number",
+              "descriptor": "A result with no number, no decision, or a rig that tried to answer several questions."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "drive-calc",
+          "text": "Numbers and parts: the part's key numbers with units and every part from shop stock",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Numbers and full parts list",
+              "descriptor": "The part's key numbers with units, each from the calculator, a measurement or a spec, and every part listed with size and quantity from shop stock."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Numbers or parts missing",
+              "descriptor": "Numbers with no units or no source, or the parts list is missing pieces."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "drive-cad",
+          "text": "CAD: the part modeled at its real sizes",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Modeled to size",
+              "descriptor": "Every piece of the part modeled at its real sizes, including the holes and faces where it meets the other parts."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Partly modeled",
+              "descriptor": "Pieces missing, or sizes clearly off from the numbers."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "drive-drawing",
+          "text": "Drawing and machine plan: someone else could make the part",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Makeable drawing, planned",
+              "descriptor": "Views with every dimension needed to make it, stock and process named, and a machine plan line: which machine, who, which day."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Dimensions or plan missing",
+              "descriptor": "Dimensions missing, or no machine plan."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u4p-ballpath",
+      "title": "Ball path",
+      "points": 16,
+      "audience": "role",
+      "role": "ballpath",
+      "blocks": [
+        {
+          "id": "ballpath-proto",
+          "field": "ballpathProto",
+          "type": "longText",
+          "minSentences": 2,
+          "taskPoints": 4,
+          "task": "Ball path: prototype",
+          "prompt": "Ball path: the prototype question, what you built, the result with a number, and what it changes"
+        },
+        {
+          "id": "ballpath-calc",
+          "field": "ballpathCalc",
+          "type": "longText",
+          "minSentences": 1,
+          "taskPoints": 4,
+          "task": "Ball path: numbers and parts",
+          "prompt": "Ball path: its key numbers and the parts it takes from shop stock"
+        },
+        {
+          "id": "ballpath-cad",
+          "field": "ballpathCad",
+          "type": "image",
+          "taskPoints": 4,
+          "task": "Ball path: CAD",
+          "prompt": "Ball path: a screenshot of the CAD model"
+        },
+        {
+          "id": "ballpath-drawing",
+          "field": "ballpathDrawing",
+          "type": "image",
+          "taskPoints": 3,
+          "task": "Ball path: drawing",
+          "prompt": "Ball path: the drawing someone could make it from"
+        },
+        {
+          "id": "ballpath-machine",
+          "field": "ballpathMachine",
+          "type": "text",
+          "taskPoints": 1,
+          "task": "Ball path: machine plan",
+          "prompt": "Ball path: machine plan, which machine, who and which day"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "ballpath-proto",
+          "text": "Prototype: one question answered with a measured number",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Question, number, decision",
+              "descriptor": "One question, what was built, a measured result with a number and unit, and the decision it changes."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "No number",
+              "descriptor": "A result with no number, no decision, or a rig that tried to answer several questions."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "ballpath-calc",
+          "text": "Numbers and parts: the part's key numbers with units and every part from shop stock",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Numbers and full parts list",
+              "descriptor": "The part's key numbers with units, each from the calculator, a measurement or a spec, and every part listed with size and quantity from shop stock."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Numbers or parts missing",
+              "descriptor": "Numbers with no units or no source, or the parts list is missing pieces."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "ballpath-cad",
+          "text": "CAD: the part modeled at its real sizes",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Modeled to size",
+              "descriptor": "Every piece of the part modeled at its real sizes, including the holes and faces where it meets the other parts."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Partly modeled",
+              "descriptor": "Pieces missing, or sizes clearly off from the numbers."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        },
+        {
+          "id": "ballpath-drawing",
+          "text": "Drawing and machine plan: someone else could make the part",
+          "points": 4,
+          "levels": [
+            {
+              "points": 4,
+              "label": "Complete",
+              "short": "Makeable drawing, planned",
+              "descriptor": "Views with every dimension needed to make it, stock and process named, and a machine plan line: which machine, who, which day."
+            },
+            {
+              "points": 3,
+              "label": "Proficient",
+              "short": "One part thin",
+              "descriptor": "One thing missing from the Complete line."
+            },
+            {
+              "points": 2,
+              "label": "Developing",
+              "short": "Dimensions or plan missing",
+              "descriptor": "Dimensions missing, or no machine plan."
+            },
+            {
+              "points": 0,
+              "label": "Absent",
+              "short": "Missing",
+              "descriptor": "Nothing handed in."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+</script>
+<script type="application/json" id="hx-colors">
+{
+  "fuel-yellow": {"anchor": "#F2CF2E", "means": "the FUEL ball, the 2026 FRC game piece every idea is built to throw", "source": "approx, from photos of the FUEL ball"},
+  "cardboard": {"anchor": "#C4A27A", "means": "corrugated cardboard, what the prototype is made of (Prototype)", "source": "approx, from photos of kraft corrugated board"}
+}
+</script>
+<!-- hx:head -->
+<style>
+  /* Launcher: Prototype and Detail Design (post 2). Phase colors are in hx-plan-data (FUEL yellow, cardboard, SolidWorks red);
+     the hero's aluminum and FUEL yellow are data-color. Everything drawn comes from the kit:
+     tiles, tables, lists, keys, chips. What is left here is type and layout. */
+  .u4-big { font-size: 1.05rem; color: var(--plate-ink); margin: 0; }
+  .u4-note { margin: 0; font-size: 0.92rem; color: var(--text-2); }
+
+  /* The rules, as tiles with an icon. */
+  .u4-rules { grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); }
+  #hx-page .u4-rule { grid-template-columns: 34px minmax(0, 1fr); gap: 2px 10px; padding: 10px 12px; }
+  .u4-rule svg { width: 34px; height: 34px; grid-row: span 2; color: var(--text-2); }
+  .u4-rule b { color: var(--plate-ink); font-size: 1rem; line-height: 1.2; }
+  .u4-rule > span { color: var(--text-2); font-size: 0.92rem; line-height: 1.3; }
+
+  /* The unit, day by day. */
+  .u4-days { font-size: 0.95rem; }
+  .u4-days td:first-child { white-space: nowrap; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-2); }
+  .u4-days .u4-so, .u4-days .u4-ev { font-weight: 600; color: var(--plate-ink); }
+  .u4-late td:first-child { white-space: nowrap; }
+
+  /* The four roles. */
+  .u4-roles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 520px) { .u4-roles { grid-template-columns: 1fr; } }
+  #hx-page .u4-role { padding: 10px 12px; gap: 2px; }
+  .u4-role b { color: var(--plate-ink); }
+  .u4-role span { color: var(--text-2); font-size: 0.92rem; }
+
+  /* Research: links in a list well, searches as keys. */
+  #hx-page .u4-research h3 { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caption); font-weight: 400; margin: 4px 0 0; }
+  .u4-links > li { padding: 0 var(--space-3); }
+  #hx-page .u4-link { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 44px; padding: 4px 0; text-decoration: none; }
+  .u4-link svg, .u4-search svg { width: 20px; height: 20px; flex: none; color: var(--text-2); }
+  .u4-link span { display: grid; min-width: 0; }
+  .u4-link b { color: var(--plate-ink); font-size: 0.98rem; }
+  .u4-link small { color: var(--text-2); font-size: 0.86rem; line-height: 1.25; }
+  .u4-link:hover b { color: var(--accent); }
+  .u4-searches { gap: 6px; }
+  #hx-page a.u4-search { gap: 8px; text-decoration: none; }
+
+  /* The sketch picks and boxes. */
+  #s-sketch .hx-pick svg { height: 30px; width: auto; }
+  #s-sketch-photo .hx-box[data-image-box="ideaSketch"] { aspect-ratio: 16 / 8; }
+  .u4-box-sm { aspect-ratio: 16 / 5; min-height: 120px; }
+
+  /* Scoring: the example and the team's table, kit tables with number columns centered. */
+  .u4-ex { font-size: 0.88rem; }
+  .u4-ex th, .u4-ex td { text-align: center; }
+  .u4-ex th:first-child, .u4-ex td:first-child { text-align: left; }
+  .u4-ex tfoot td { font-weight: 600; color: var(--plate-ink); padding-top: 6px; }
+  .u4-wotwrap { overflow-x: auto; }
+  .u4-wot th { white-space: nowrap; padding-right: 4px; }
+  .u4-wot td { padding: 2px 4px 2px 0; }
+  .u4-wot td.n input { width: 3.6rem; padding-left: 4px; padding-right: 4px; text-align: center; } /* the kit pads a line box 0.85rem a side, which clipped "1-5" */
+  .u4-wot td.c input { min-width: 8rem; }
+  .u4-wot td.c:last-child input { min-width: 14rem; }
+  .u4-wot tfoot td { font-family: var(--font-mono); font-weight: 600; color: var(--plate-ink); padding-top: 8px; text-align: center; }
+  .u4-wot tfoot td:first-child { text-align: left; }
+  .u4-ideas tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
+  .u4-ideas tr { display: flex; align-items: center; gap: 8px; }
+  .u4-ideas td:first-child { font-family: var(--font-mono); font-weight: 600; color: var(--plate-ink); width: 2rem; }
+  .u4-ideas td:last-child { flex: 1; }
+  .u4-ideas td input { width: 100%; }
+  @media (max-width: 700px) { .u4-ideas tbody { grid-template-columns: 1fr; } }
+
+  /* Each role's boxes: a tile per role. The kit rings the student's own (AUTHORING D1a, 2.11). */
+  .u4-rolepanels { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: var(--space-3); }
+  #hx-page .u4-rp { gap: 8px; padding: 10px 12px; }
+  .u4-rp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .u4-rp-head b { color: var(--plate-ink); font-size: 1.05rem; }
+  .u4-rp-head [data-role-owner] { font-size: 0.88rem; color: var(--text-2); }
+  .u4-rp .hx-box { aspect-ratio: 16 / 9; min-height: 120px; }
+  .u4-rp-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .u4-rp-2 .hx-box { aspect-ratio: auto; height: 120px; min-height: 120px; }
+  #hx-page .u4-rp-2 .u4-rp { gap: 6px; padding: 8px 10px; }
+  /* The section above each role tile already carries its badge; the tile names its owner. */
+  .u4-rp > .hx-who-badges { display: none; }
+  /* Mr. Pina 2026-10-28: no key on the last step that jumps students backward. The bar's
+     own key and the step track already show what is missing. */
+  #s-role .hx-step-foot [data-kit-next], #s-draw .hx-step-foot [data-kit-next] { display: none !important; }
+  .u4-rp-2 .u4-rp-head .hx-row { margin: 0; }
+  @media (max-width: 700px) { .u4-rp-2 { grid-template-columns: 1fr; } }
+
+  .u4-legend { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.9rem; color: var(--text-2); }
+  @media (max-width: 520px) {
+    .hx-step-head { grid-template-columns: auto minmax(0, 1fr); }
+    .u4-days thead { display: none; }
+    .u4-days tr { display: grid; }
+    .u4-days td:first-child { padding-bottom: 0; }
+  }
+
+  /* Single-column role tiles for text boxes. */
+  .u4-rp-1 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  @media (max-width: 700px) { .u4-rp-1 { grid-template-columns: 1fr; } }
+  #hx-page .u4-rp-1 .u4-rp { gap: 4px; padding: 8px 10px; }
+  .u4-rp-1 textarea { min-height: 84px; }
+  .u4-rp-2 .u4-rp > input { width: 100%; }
+
+  /* The launch calculator: kit wells and readouts, laid out in rows. */
+  .u4-calc { display: grid; gap: var(--space-2); }
+  .u4-calc-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: var(--space-2); }
+  .u4-calc-row label { display: grid; gap: 2px; font-size: 0.88rem; color: var(--text-2); }
+  #s-draw .u4-rp-2 .hx-box { height: 92px; min-height: 92px; }
+  @media (max-width: 520px) { .u4-how tr { display: grid; } .u4-how td:first-child { padding-bottom: 0; } }
+  .u4-calc-row input, .u4-calc-row select { width: 100%; }
+  .u4-unit { font-family: var(--font-mono); font-size: 0.75rem; }
+  .u4-how td:first-child { white-space: nowrap; color: var(--plate-ink); font-weight: 600; }
+</style>
+<template id="idea-thumbnail">
+<style>
+  :root { --a: #2b2020; --b: #151112; --line: #efe6dc; --dim: #ff6a5c; --ball: #f2cf2e; --card: #c9a477; --ink: #f6efe8; }
+  :root[data-idea-scheme="light"] { --a: #faf6ef; --b: #ebe3d6; --line: #2b2523; --dim: #c42a1c; --ball: #e2b60c; --card: #a5784a; --ink: #241e1c; }
+  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 4%; padding: 0 4%; background: radial-gradient(circle at 30% 40%, var(--a), var(--b) 85%); color: var(--ink); overflow: hidden; }
+  .t svg { flex: none; width: 94%; max-height: 94%; }
+  .t span { display: none; font: 700 calc(var(--idea-thumb-h, 56px) * 0.12)/1.05 system-ui, sans-serif; }
+  .t span small { display: block; font-weight: 500; font-size: 0.55em; opacity: 0.75; letter-spacing: 0.04em; margin-top: 0.3em; }
+  :root[data-idea-shape="wide"] .t svg { width: 54%; }
+  :root[data-idea-shape="wide"] .t span { display: block; width: 38%; }
+  :root[data-idea-shape="banner"] .t { gap: 3%; }
+  :root[data-idea-shape="banner"] .t svg { width: auto; height: 92%; }
+  :root[data-idea-shape="banner"] .t span { display: block; white-space: nowrap; font-size: min(calc(var(--idea-thumb-h, 56px) * 0.36), 30px); }
+  :root[data-idea-shape="banner"] .t span small { display: none; }
+</style>
+<div class="t">
+  <svg viewBox="0 0 240 130" aria-hidden="true">
+  <rect x="4" y="4" width="232" height="122" rx="3" fill="none" stroke="var(--line)" stroke-width="1.2" opacity="0.5"/>
+  <rect x="168" y="100" width="68" height="26" fill="none" stroke="var(--line)" stroke-width="1.2" opacity="0.7"/>
+  <path d="M168 113 H236" stroke="var(--line)" stroke-width="1" opacity="0.7"/>
+  <path d="M26 98 L44 70 L52 70 L34 98 Z" fill="var(--card)" opacity="0.85"/>
+  <path d="M20 98 H70" stroke="var(--card)" stroke-width="3"/>
+  <circle cx="110" cy="62" r="30" fill="none" stroke="var(--line)" stroke-width="3"/>
+  <circle cx="110" cy="62" r="5" fill="var(--line)"/>
+  <path d="M110 22 V102 M70 62 H150" stroke="var(--line)" stroke-width="1" stroke-dasharray="8 3 2 3"/>
+  <path d="M84 30 Q 120 8 160 26" fill="none" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M80 112 H140 M80 107 V117 M140 107 V117 M80 112 l6 -3 v6 Z M140 112 l-6 -3 v6 Z" stroke="var(--dim)" stroke-width="1.6" fill="var(--dim)"/>
+  <text x="110" y="124" text-anchor="middle" font-family="monospace" font-size="10" fill="var(--dim)">&#216;4.00</text>
+  <path d="M154 40 L176 32" stroke="var(--dim)" stroke-width="1.4"/>
+  <circle cx="192" cy="28" r="13" fill="var(--ball)"/>
+  </svg>
+  <span>Launcher: Detail<small>Unit 4 · Prototype and CAD</small></span>
+</div>
+</template>
+</head>
+<body class="idea-plate">
+<main id="hx-page">
+
+  <header class="hx-hero">
+    <div class="hx-hero-text">
+      <span class="hx-crumb">IDEA209H · Unit 4 · Mechanism Design · Post 2 of 6</span>
+      <h1>Launcher: Prototype and Detail Design</h1>
+      <p class="hx-done-when"><strong>Done when:</strong> your part's question is answered with a number, its numbers say it reaches the speed your target needs, and its CAD, drawing and machine plan are ready for Sign-off 2. No metal is cut before it.</p>
+      <div class="hx-row">
+        <span class="idea-chip">Your role's boxes only</span>
+        <span class="idea-chip">Writing: 3 sentences in all</span>
+        <span class="idea-chip">16 points: 4 for each part of your role</span>
+      </div>
+    </div>
+    <div class="hx-hero-art" data-color="solidworks-red" aria-hidden="true">
+      <svg viewBox="0 0 240 130">
+  <rect x="4" y="4" width="232" height="122" rx="3" fill="none" stroke="var(--hair)" stroke-width="1.2"/>
+  <rect x="168" y="100" width="68" height="26" fill="none" stroke="var(--hair)" stroke-width="1.2"/>
+  <path d="M168 113 H236" stroke="var(--hair)" stroke-width="1"/>
+  <g data-color="cardboard"><path d="M26 98 L44 70 L52 70 L34 98 Z" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1"/><path d="M20 98 H70" stroke="var(--hx-line)" stroke-width="3"/></g>
+  <circle cx="110" cy="62" r="30" fill="none" stroke="var(--plate-ink)" stroke-width="3"/>
+  <circle cx="110" cy="62" r="5" fill="var(--plate-ink)"/>
+  <path d="M110 22 V102 M70 62 H150" stroke="var(--text-2)" stroke-width="1" stroke-dasharray="8 3 2 3"/>
+  <path d="M84 30 Q 120 8 160 26" fill="none" stroke="var(--plate-ink)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M80 112 H140 M80 107 V117 M140 107 V117" stroke="var(--hx-ink)" stroke-width="1.6"/>
+  <path d="M80 112 l6 -3 v6 Z M140 112 l-6 -3 v6 Z" fill="var(--hx-ink)"/>
+  <text x="110" y="125" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="10" fill="var(--hx-ink)">&#216;4.00</text>
+  <path d="M154 40 L176 32" stroke="var(--hx-ink)" stroke-width="1.4"/>
+  <g data-color="fuel-yellow"><circle cx="192" cy="28" r="13" fill="var(--hx-fill)" stroke="var(--hx-line)" stroke-width="1.5"/></g>
+      </svg>
+    </div>
+  </header>
+
+  <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Classes in this post"></nav>
+  <div class="hx-bar idea-panel" id="hx-bar"></div>
+  <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
+
+  <!-- STEP 1: the prototype, one question per role, built rough and thrown away. -->
+  <section class="hx-step idea-panel" id="s-proto" data-phase="prototype" data-day="Oct 30" data-title="Answer one question with a rough rig">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Prototype · Oct 30 · One class</span><h2>Answer one question with a rough rig</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Each role owner writes the <strong>one question</strong> their part must answer.</span></li>
+          <li><span>As a team, build a rig or two: cardboard, scrap, tape, clamps, hand tools.</span></li>
+          <li><span>Test at low power, aimed flat. <strong>Measure a number</strong>: feet, jams, the gear.</span></li>
+          <li><span>Write the result and what it changes. Then the rig goes in the bin.</span></li>
+        </ol>
+        <p class="hx-see">Four questions, each answered with a number. <strong>Still building at the end of class? It was too big.</strong></p>
+        <div class="idea-panel hx-example">
+          <span class="idea-eyebrow">Example</span>
+          <p class="u4-note">From a drawer, not a launcher: "Does a 1/4 in gap stop the rubbing? Cardboard spacers at 1/8, 1/4, 3/8 in; 1/4 in had no rub in 20 pushes, so the plates sit 1/4 in apart."</p>
+        </div>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>We want to keep the rig</td><td>No. It answered its question. The real part is designed in CAD, then made from metal.</td></tr>
+            <tr><td>Nothing to measure</td><td>Count it: feet to where the ball lands, jams in 10 tries, seconds back to speed.</td></tr>
+            <tr><td>No question for my part</td><td>Ask what you would guess at in CAD: a gap, a size, a speed, an angle.</td></tr>
+            <tr><td>Our class started late</td><td>Do this the class after Sign-off 1. The due date is the same for every class.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Each role</span>
+        <div class="hx-tiles u4-rolepanels u4-rp-1">
+          <label class="hx-tile u4-rp" data-role="frame"><span class="u4-rp-head"><b><span class="it" data-term="frame and mount">Frame and mount</span></b><span data-role-owner="frame"></span></span>
+            <textarea class="idea-well" rows="2" data-field="frameProto" data-min-sentences="2" placeholder="e.g. Does the drill stay put at full speed? Clamped it to a scrap board; it moved ... in 10 s, so ..."></textarea>
+          </label>
+          <label class="hx-tile u4-rp" data-role="energy"><span class="u4-rp-head"><b><span class="it" data-term="energy store">Energy store</span></b><span data-role-owner="energy"></span></span>
+            <textarea class="idea-well" rows="2" data-field="energyProto" data-min-sentences="2" placeholder="e.g. How much squeeze throws farthest? Cardboard hood at three gaps; ... in threw ... ft, so ..."></textarea>
+          </label>
+          <label class="hx-tile u4-rp" data-role="drive"><span class="u4-rp-head"><b><span class="it" data-term="drive">Drive</span></b><span data-role-owner="drive"></span></span>
+            <textarea class="idea-well" rows="2" data-field="driveProto" data-min-sentences="2" placeholder="e.g. Which drill gear throws farthest? Same wheel in gears 1, 2 and 3; gear ... threw ... ft, so ..."></textarea>
+          </label>
+          <label class="hx-tile u4-rp" data-role="ballpath"><span class="u4-rp-head"><b><span class="it" data-term="ball path">Ball path</span></b><span data-role-owner="ballpath"></span></span>
+            <textarea class="idea-well" rows="2" data-field="ballpathProto" data-min-sentences="2" placeholder="e.g. Does the ball feed without jamming? Cardboard chute, ... jams in 10 tries, so ..."></textarea>
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: the numbers, from the launch calculator, and each part's stock. -->
+  <section class="hx-step idea-panel" id="s-calc" data-phase="detail" data-day="Nov 2" data-title="Run the numbers">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Detail design · Nov 2 · Short day</span><h2>Run the numbers</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>As a team, set the target and angle. The calculator gives the speed you need.</span></li>
+          <li><span>Put in your design. Drill speed: its model number plus "no load speed".</span></li>
+          <li><span>Write your part's numbers and its parts from shop stock. 6 bearings, tops.</span></li>
+        </ol>
+        <div class="u4-calc" aria-label="Launch calculator">
+          <div class="u4-calc-row">
+            <label><span>Target distance <span class="u4-unit">ft</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-dist" value="90"></label>
+            <label><span>Launch angle <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-ang" value="35"></label>
+            <label><span>Launch height <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-h" value="24"></label>
+          </div>
+          <p class="hx-readout" id="c-need" aria-live="polite">Speed needed appears here.</p>
+          <div class="u4-calc-row">
+            <label><span>Your design </span><select class="idea-well idea-well--field" id="c-kind"><option value="fw1">Flywheel, one wheel and a hood</option><option value="fw2">Flywheel, two wheels</option><option value="cat">Catapult with bands or springs</option></select></label>
+          </div>
+          <div class="u4-calc-row" id="c-fw">
+            <label><span>Drill speed, no load <span class="u4-unit">rpm</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rpm" placeholder="from its spec"></label>
+            <label><span>Wheel turns per drill turn</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-ratio" value="1"></label>
+            <label><span>Wheel diameter <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-wd" value="4"></label>
+          </div>
+          <div class="u4-calc-row" id="c-cat" hidden>
+            <label><span>Pull per band, fully stretched <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-pull" placeholder="measured"></label>
+            <label><span>Stretch <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-str" placeholder="measured"></label>
+            <label><span>Bands</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-n" value="2"></label>
+            <label><span>Arm weight <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-arm" value="1"></label>
+          </div>
+          <p class="hx-readout" id="c-got" aria-live="polite">Your design's estimate appears here.</p>
+        </div>
+        <details class="hx-more">
+          <summary>How the calculator works</summary>
+          <table class="hx-table u4-how">
+            <tbody>
+              <tr><td>Drag</td><td>A foam ball slows fast. The calculator flies it in small time steps with air drag (FUEL: 5.91 in, about 0.47 lb, drag coefficient taken as 0.5).</td></tr>
+              <tr><td>Drill speed</td><td>The model number is on the drill's label. Search it with "no load speed" for each gear. The calculator assumes 80% of that under load.</td></tr>
+              <tr><td>Flywheel</td><td>Rule of thumb from FRC teams: one wheel and a hood throws at about half the wheel's rim speed, two wheels at about 90%.</td></tr>
+              <tr><td>Catapult</td><td>Band energy is half the pull times the stretch. The calculator assumes half of it reaches the ball, and a third of the arm's weight moves with it.</td></tr>
+              <tr><td>Your prototype</td><td>A number you measured beats every estimate here.</td></tr>
+            </tbody>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Each role</span>
+        <div class="hx-tiles u4-rolepanels u4-rp-1">
+          <label class="hx-tile u4-rp" data-role="frame"><span class="u4-rp-head"><b><span class="it" data-term="frame and mount">Frame and mount</span></b><span data-role-owner="frame"></span></span>
+            <textarea class="idea-well" rows="2" data-field="frameCalc" data-min-sentences="1" placeholder="e.g. 1 in extrusion: 2 at ... in, 2 at ... in. Drill held by ... Base plate 1/4 in, ... by ... in."></textarea>
+          </label>
+          <label class="hx-tile u4-rp" data-role="energy"><span class="u4-rp-head"><b><span class="it" data-term="energy store">Energy store</span></b><span data-role-owner="energy"></span></span>
+            <textarea class="idea-well" rows="2" data-field="energyCalc" data-min-sentences="1" placeholder="e.g. Two ... in wheels, ... ft/s estimated against ... ft/s needed. Squeeze ... in from the prototype."></textarea>
+          </label>
+          <label class="hx-tile u4-rp" data-role="drive"><span class="u4-rp-head"><b><span class="it" data-term="drive">Drive</span></b><span data-role-owner="drive"></span></span>
+            <textarea class="idea-well" rows="2" data-field="driveCalc" data-min-sentences="1" placeholder="e.g. Drill model ..., gear ..., ... rpm no load, ... wheel turns per drill turn, hex coupler from ..."></textarea>
+          </label>
+          <label class="hx-tile u4-rp" data-role="ballpath"><span class="u4-rp-head"><b><span class="it" data-term="ball path">Ball path</span></b><span data-role-owner="ballpath"></span></span>
+            <textarea class="idea-well" rows="2" data-field="ballpathCalc" data-min-sentences="1" placeholder="e.g. Hood radius ... in at ... degrees, holds ... balls, gap ... in, from ..."></textarea>
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: CAD of each part; the frame owner assembles. -->
+  <section class="hx-step idea-panel" id="s-cad" data-phase="detail" data-day="Nov 3" data-title="Model your part in CAD">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Detail design · Nov 3</span><h2>Model your part in CAD</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>In SolidWorks, model your part at the sizes in your numbers box.</span></li>
+          <li><span>Model the faces and holes where it meets the other parts first. Those are the <span class="it" data-term="interface">interfaces</span>.</span></li>
+          <li><span>Screenshot the model and paste it in your box.</span></li>
+          <li><span><strong>Frame and mount owner:</strong> put every part into one assembly as they come in.</span></li>
+        </ol>
+        <p class="hx-see">Four parts at their real sizes that meet where your interfaces said.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>No CAD of the drill</td><td>Measure it with calipers and model a simple block with the chuck where it really is.</td></tr>
+            <tr><td>My part is too detailed</td><td>Model what touches other parts and every hole. Skip looks.</td></tr>
+            <tr><td>A size changed</td><td>Change it in your numbers box too, and tell the owner of the part it meets.</td></tr>
+            <tr><td>Taking the screenshot</td><td>Win+Shift+S, then paste in the box. On a phone: <strong>Take photo</strong> of the screen.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Each role</span>
+        <div class="hx-tiles u4-rolepanels u4-rp-2">
+          <div class="hx-tile u4-rp" data-role="frame">
+            <div class="u4-rp-head"><b><span class="it" data-term="frame and mount">Frame and mount</span></b><span data-role-owner="frame"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="frameCad">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="frameCad" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="frameCad" data-empty="Frame and mount CAD screenshot">Frame and mount CAD screenshot</div>
+            <input type="file" data-field="frameCad" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="frameCad"></p>
+          </div>
+          <div class="hx-tile u4-rp" data-role="energy">
+            <div class="u4-rp-head"><b><span class="it" data-term="energy store">Energy store</span></b><span data-role-owner="energy"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="energyCad">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="energyCad" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="energyCad" data-empty="Energy store CAD screenshot">Energy store CAD screenshot</div>
+            <input type="file" data-field="energyCad" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="energyCad"></p>
+          </div>
+          <div class="hx-tile u4-rp" data-role="drive">
+            <div class="u4-rp-head"><b><span class="it" data-term="drive">Drive</span></b><span data-role-owner="drive"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="driveCad">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="driveCad" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="driveCad" data-empty="Drive CAD screenshot">Drive CAD screenshot</div>
+            <input type="file" data-field="driveCad" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="driveCad"></p>
+          </div>
+          <div class="hx-tile u4-rp" data-role="ballpath">
+            <div class="u4-rp-head"><b><span class="it" data-term="ball path">Ball path</span></b><span data-role-owner="ballpath"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="ballpathCad">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="ballpathCad" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="ballpathCad" data-empty="Ball path CAD screenshot">Ball path CAD screenshot</div>
+            <input type="file" data-field="ballpathCad" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="ballpathCad"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: drawings, the machine plan, Sign-off 2. -->
+  <section class="hx-step idea-panel" id="s-draw" data-phase="detail" data-day="Nov 4" data-title="Drawings, machine plan, Sign-off 2">
+    <div class="hx-step-head">
+      <div><span class="hx-phase-tag">Detail design · Nov 4</span><h2>Drawings, machine plan, Sign-off 2</h2></div>
+    </div>
+    <div class="hx-step-body">
+      <div class="hx-stack">
+        <ol class="hx-do">
+          <li><span>Make a drawing of your part: the views, every dimension needed to make it, the stock and the process.</span></li>
+          <li><span>Write your machine plan: which machine, who runs it, which day from Nov 5 to 12.</span></li>
+          <li><span>Every box filled? Open <strong>Team plan</strong>, find <strong>Sign-offs</strong>, and press <strong>Request sign-off</strong> on Design.</span></li>
+          <li><span>No metal is cut before it is approved. Sent back: fix what it names and request again.</span></li>
+        </ol>
+        <p class="hx-see">Four drawings someone else could make the parts from, and Design shows Requested.</p>
+        <details class="hx-stuck">
+          <summary>That is not what I see</summary>
+          <table>
+            <tr><td>Which machine?</td><td>Flat plate: laser or router. Round stock: lathe. Pockets and slots: mill. Plastic parts: printer.</td></tr>
+            <tr><td>Two of us need one machine</td><td>Pick different days in your plan, or one person runs both parts.</td></tr>
+            <tr><td>Request sign-off is grayed out</td><td>A box is empty, or a task has no owner or date. The plan says which.</td></tr>
+            <tr><td>My team cannot see my picture</td><td>Only your teacher sees pictures for now. Show your team on your screen.</td></tr>
+          </table>
+        </details>
+      </div>
+      <div class="hx-evidence idea-panel">
+        <span class="idea-eyebrow">Each role</span>
+        <div class="hx-tiles u4-rolepanels u4-rp-2">
+          <div class="hx-tile u4-rp" data-role="frame">
+            <div class="u4-rp-head"><b><span class="it" data-term="frame and mount">Frame and mount</span></b><span data-role-owner="frame"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="frameDrawing">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="frameDrawing" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="frameDrawing" data-empty="Frame and mount drawing">Frame and mount drawing</div>
+            <input type="file" data-field="frameDrawing" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="frameDrawing"></p>
+            <input class="idea-well idea-well--field" type="text" data-field="frameMachine" aria-label="Frame and mount machine plan" placeholder="e.g. Router, ..., Nov 6: base plate">
+          </div>
+          <div class="hx-tile u4-rp" data-role="energy">
+            <div class="u4-rp-head"><b><span class="it" data-term="energy store">Energy store</span></b><span data-role-owner="energy"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="energyDrawing">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="energyDrawing" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="energyDrawing" data-empty="Energy store drawing">Energy store drawing</div>
+            <input type="file" data-field="energyDrawing" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="energyDrawing"></p>
+            <input class="idea-well idea-well--field" type="text" data-field="energyMachine" aria-label="Energy store machine plan" placeholder="e.g. Lathe, ..., Nov 9: wheel hubs">
+          </div>
+          <div class="hx-tile u4-rp" data-role="drive">
+            <div class="u4-rp-head"><b><span class="it" data-term="drive">Drive</span></b><span data-role-owner="drive"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="driveDrawing">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="driveDrawing" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="driveDrawing" data-empty="Drive drawing">Drive drawing</div>
+            <input type="file" data-field="driveDrawing" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="driveDrawing"></p>
+            <input class="idea-well idea-well--field" type="text" data-field="driveMachine" aria-label="Drive machine plan" placeholder="e.g. Printer, ..., Nov 5: drill coupler">
+          </div>
+          <div class="hx-tile u4-rp" data-role="ballpath">
+            <div class="u4-rp-head"><b><span class="it" data-term="ball path">Ball path</span></b><span data-role-owner="ballpath"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="ballpathDrawing">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="ballpathDrawing" hidden>Remove</button></span></div>
+            <div class="hx-box" data-image-box="ballpathDrawing" data-empty="Ball path drawing">Ball path drawing</div>
+            <input type="file" data-field="ballpathDrawing" accept="image/*" hidden>
+            <p class="hx-note" data-file-note="ballpathDrawing"></p>
+            <input class="idea-well idea-well--field" type="text" data-field="ballpathMachine" aria-label="Ball path machine plan" placeholder="e.g. Laser, ..., Nov 6: hood sides">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script type="application/json" id="hx-plan-data">
+{
+  "phases": [
+    {"id": "prototype", "name": "Prototype", "color": "cardboard", "days": [
+      {"label": "Oct 30", "short": "One question, a rough rig", "date": "2026-10-30"}
+    ]},
+    {"id": "detail", "name": "Detail design", "color": "solidworks-red", "days": [
+      {"label": "Nov 2", "short": "Run the numbers", "date": "2026-11-02"},
+      {"label": "Nov 3", "short": "CAD", "date": "2026-11-03"},
+      {"label": "Nov 4", "short": "Drawings, Sign-off 2", "date": "2026-11-04"}
+    ]}
+  ]
+}
+</script>
+<script type="application/json" id="hx-glossary">
+{
+  "frame and mount": "The structure everything bolts to, and what holds the launcher at its angle and height. Yours: the base, the side plates, the drill mount. Flywheel: the plates that carry the wheel's shaft. Catapult: the base and the posts the arm pivots on.",
+  "energy store": "The part that stores the energy that throws the ball, and sets how fast it leaves. Yours: the flywheel with its hub and shaft, or the catapult arm with its bands or springs.",
+  "drive": "How power gets from the drill to the wheel or arm, and how a shot starts. Yours: the drill coupling, any gears, pulleys or belts, and the trigger or release. Catapult: what pulls the arm back and lets it go.",
+  "ball path": "How the ball goes in, is held, and is guided out. Yours: the loader or hopper, the hood or cup, and the exit. Flywheel: the hood that presses the ball onto the wheel. Catapult: the cup on the arm.",
+  "interface": "Where two parts of the launcher meet and how they are joined: bolts, a shaft, a clamp."
+}
+</script>
+<!-- hx:script -->
+<script id="hx-page-js">
+/* Launcher: Prototype and Detail Design. The launch calculator is a live mirror, never a
+   gate (AUTHORING F9); its inputs are not graded and are not saved. */
+var U4 = { g: 9.81, d: 0.1501, m: 0.215, cd: 0.5, rho: 1.2 };
+U4.k = 0.5 * U4.rho * U4.cd * Math.PI * Math.pow(U4.d / 2, 2) / U4.m;
+function u4n(id) { var el = document.getElementById(id); var n = parseFloat(String(el && el.value || '').replace(/,/g, '')); return isFinite(n) ? n : null; }
+/* Distance in m for a ball leaving at v m/s, ang degrees, h m up; k is the drag constant. */
+function u4Range(v, ang, h, k) {
+  var a = ang * Math.PI / 180, vx = v * Math.cos(a), vy = v * Math.sin(a), x = 0, y = h, dt = 0.002, px = 0, py = h;
+  for (var i = 0; i < 30000; i++) {
+    var s = Math.sqrt(vx * vx + vy * vy);
+    vx -= k * s * vx * dt;
+    vy -= (U4.g + k * s * vy) * dt;
+    px = x; py = y; x += vx * dt; y += vy * dt;
+    if (y < 0) return px + (x - px) * (py / (py - y));
+  }
+  return x;
+}
+function u4Need(dist, ang, h, k) {
+  var lo = 0.2, hi = 150;
+  if (u4Range(hi, ang, h, k) < dist) return null;
+  for (var i = 0; i < 40; i++) { var mid = (lo + hi) / 2; if (u4Range(mid, ang, h, k) < dist) lo = mid; else hi = mid; }
+  return hi;
+}
+function u4Best(v, h) {
+  var best = 0, ba = 0;
+  for (var a = 10; a <= 60; a += 1) { var r = u4Range(v, a, h, U4.k); if (r > best) { best = r; ba = a; } }
+  return { a: ba, r: best };
+}
+function u4fps(v) { return Math.round(v / 0.3048); }
+function u4mph(v) { return Math.round(v * 2.23694); }
+function u4ft(m) { return Math.round(m / 0.3048); }
+function u4CalcRefresh() {
+  var need = document.getElementById('c-need'), got = document.getElementById('c-got'), kindEl = document.getElementById('c-kind');
+  if (!need || !got || !kindEl) return;
+  var kind = kindEl.value;
+  document.getElementById('c-fw').hidden = kind === 'cat';
+  document.getElementById('c-cat').hidden = kind !== 'cat';
+  if (typeof hxQueueLayout === 'function') hxQueueLayout();
+  var dist = u4n('c-dist'), ang = u4n('c-ang'), h = (u4n('c-h') || 0) * 0.0254, vNeed = null;
+  if (dist && ang !== null && ang > 0 && ang < 90) {
+    vNeed = u4Need(dist * 0.3048, ang, h, U4.k);
+    if (vNeed === null) {
+      need.textContent = 'Too far for a foam ball at ' + ang + ' degrees: drag stops it short. Try a shorter target or a lower angle.';
+      need.classList.add('warn');
+    } else {
+      var vAir = u4Need(dist * 0.3048, ang, h, 0);
+      need.textContent = 'Needed: ' + u4fps(vNeed) + ' ft/s (' + u4mph(vNeed) + ' mph) at ' + ang + ' degrees. With no air it would be ' + u4fps(vAir) + ' ft/s: drag costs ' + (u4fps(vNeed) - u4fps(vAir)) + ' ft/s.';
+      need.classList.remove('warn');
+    }
+  } else {
+    need.textContent = 'Put in a distance and an angle between 0 and 90 degrees.';
+    need.classList.remove('warn');
+  }
+  var v = null;
+  if (kind === 'cat') {
+    var pull = u4n('c-pull'), str = u4n('c-str'), n = u4n('c-n'), arm = u4n('c-arm') || 0;
+    if (pull && str && n) {
+      var energy = n * 0.5 * pull * 4.448 * str * 0.0254;
+      v = Math.sqrt(energy / (U4.m + arm * 0.4536 / 3));
+    }
+  } else {
+    var rpm = u4n('c-rpm'), ratio = u4n('c-ratio'), wd = u4n('c-wd');
+    if (rpm && ratio && wd) {
+      var rim = Math.PI * wd * 0.0254 * rpm * 0.8 * ratio / 60;
+      v = rim * (kind === 'fw2' ? 0.9 : 0.5);
+    }
+  }
+  if (v === null) {
+    got.textContent = kind === 'cat' ? 'Put in the pull and stretch you measured, and the bands.' : 'Put in the drill speed for your gear and the wheel size.';
+    got.classList.remove('warn');
+    return;
+  }
+  var a = ang && ang > 0 && ang < 90 ? ang : 35, throwFt = u4ft(u4Range(v, a, h, U4.k)), best = u4Best(v, h);
+  var line = 'Your design: about ' + u4fps(v) + ' ft/s (' + u4mph(v) + ' mph), about ' + throwFt + ' ft at ' + a + ' degrees. Best angle for that speed: ' + best.a + ' degrees, about ' + u4ft(best.r) + ' ft.';
+  if (vNeed !== null) line += v >= vNeed ? ' Enough for your target.' : ' Short of the ' + u4fps(vNeed) + ' ft/s your target needs.';
+  got.textContent = line;
+  got.classList.toggle('warn', vNeed !== null && v < vNeed);
+}
+document.addEventListener('input', u4CalcRefresh);
+document.addEventListener('change', u4CalcRefresh);
+u4CalcRefresh();
+/* The finish line says what comes next. */
+(function () { var f = document.querySelector('.hx-finish'); if (f) f.innerHTML = '<strong>Design is in.</strong> Nothing to turn in: your work saves as you go. Build starts Nov 5, after Sign-off 2.'; })();
+</script>
+</body>
+</html>
