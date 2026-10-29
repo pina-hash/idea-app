@@ -59,14 +59,17 @@ get_post:
   facade: true
   level: read
   uses: []
-  describe: Show one post in full, with its points, due date, rubric, which classes it is in and whether students can see it.
+  describe: Show one post in full, with its points, due date, rubric, files, unit and classes; an HTML assignment's stored document too (sha256, saved time, versions), drafts included.
   say:
     - show me Tolerance Check
     - what's on the Shop Fix post
     - read me the DFM worksheet's rubric
+    - read the live HTML of IDEA-Blade 01
   args:
     post: {type: string, required: true, resolve: post, describe: "The post's title as you said it, or part of it."}
     class: {type: string, describe: "The class it is in, when the same title is in more than one."}
+    document: {type: boolean, describe: "True to include an HTML assignment's stored HTML itself, drafts included."}
+    version: {type: integer, describe: "An earlier version number of an HTML assignment's document to read instead of the live one."}
 
 create_post:
   facade: true
@@ -182,7 +185,7 @@ replace_html_assignment:
   facade: true
   level: undo
   uses: [classroom_set_html_assignment, classroom_set_rubric, classroom_html_retire_blocks]
-  describe: Replace an HTML assignment's document with a new file, sent whole or as an upload; an answered question it drops is refused, or retired with retire set.
+  describe: Replace an HTML assignment's document with a new file made from the live copy it names; an answered question it drops is refused, or retired with retire set.
   say:
     - replace the Shop Fix HTML in Block 1 with the file I'm sending
     - take that question out, some students already answered it, deal with that
@@ -192,6 +195,7 @@ replace_html_assignment:
     html: {type: string, describe: "The whole new HTML document, exactly as the file holds it. For a big file, use upload instead."}
     upload: {type: string, describe: "An upload holding the file, from start upload, for a file too big to send whole."}
     retire: {type: boolean, describe: "True to retire any answered question the new file drops, instead of refusing."}
+    basis: {type: string, describe: "Which live copy this file was made from: the sha256 that reading the post returns for its document, or its saved time. Required once the post has a document; a replace made from an older copy is refused."}
     filename: {type: string, describe: "The file's name, like shop-fix.html."}
     class: {type: string, describe: "The class it is in, when the same title is in more than one."}
 

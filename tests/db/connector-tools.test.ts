@@ -181,17 +181,48 @@ describe('replace_html_assignment', () => {
 		);
 		const renamed = HTML.replace('"smoke-writing-line"', '"smoke-writing-line-2"');
 		const before = (await w.db.sql(`select count(*)::int as n from public.classroom_content_revisions where item_id = $1`, [itemId])).rows[0].n;
-		const refused = await run('replace_html_assignment', { post: 'Shop Fix', html: renamed });
+		// LEDGER 0458: a replace names the live copy it was made from.
+		const read = await run('get_post', { post: 'Shop Fix' });
+		const live = read.document as { sha256: string; saved: string; version: number; bytes: number; html?: string };
+		expect(live.version).toBe(1);
+		expect(live.html).toBeUndefined();
+		const basis = live.sha256;
+		const unsaid = await run('replace_html_assignment', { post: 'Shop Fix', html: renamed });
+		expect(unsaid).toMatchObject({ status: 'invalid', reason: 'needs_basis' });
+		const stale = await run('replace_html_assignment', { post: 'Shop Fix', html: renamed, basis: '0'.repeat(64) });
+		expect(stale).toMatchObject({ status: 'refused', reason: 'changed_since' });
+		expect((await w.db.sql(`select count(*)::int as n from public.classroom_content_revisions where item_id = $1`, [itemId])).rows[0].n).toBe(before);
+		const refused = await run('replace_html_assignment', { post: 'Shop Fix', html: renamed, basis });
 		expect(refused.status).toBe('refused');
 		expect(refused.missing_blocks).toEqual([{ block: 'smoke-writing-line', students_with_answers: 1 }]);
 		expect((await w.db.sql(`select count(*)::int as n from public.classroom_content_revisions where item_id = $1`, [itemId])).rows[0].n).toBe(before);
 
 		const kept = HTML.replace('"smoke-writing-reflection", "field"', '"smoke-writing-reflection", "prompt": "Two sentences.", "field"');
-		const preview = await run('replace_html_assignment', { post: 'Shop Fix', html: kept, dry_run: true });
+		const preview = await run('replace_html_assignment', { post: 'Shop Fix', html: kept, dry_run: true, basis });
 		expect(preview.status).toBe('preview');
 		expect((preview.diff as { removed: string[] }).removed).toEqual([]);
-		const ok = await run('replace_html_assignment', { post: 'Shop Fix', html: kept });
+		const ok = await run('replace_html_assignment', { post: 'Shop Fix', html: kept, basis });
 		expect(ok.status).toBe('done');
+		// WHAT WAS STORED, AND WHERE THE EARLIER COPY WENT (0a569932, 84cf8690).
+		const stored = ok.stored as { sha256: string; matches_what_was_sent: boolean; version: number; earlier_kept_as_version: number };
+		expect(stored.matches_what_was_sent).toBe(true);
+		expect(stored.version).toBe(2);
+		expect(stored.earlier_kept_as_version).toBe(1);
+		// The old copy now fails, the new one is live, and version 1 reads back the first document.
+		expect((await run('replace_html_assignment', { post: 'Shop Fix', html: kept, basis })).reason).toBe('changed_since');
+		const again = await run('get_post', { post: 'Shop Fix', version: 1 });
+		const doc = again.document as { sha256: string; version: number; html: string; earlier_versions: Array<{ version: number; sha256: string }> };
+		expect(doc.sha256).toBe(stored.sha256);
+		expect(doc.version).toBe(2);
+		expect(doc.html).toBe(HTML);
+		expect(doc.earlier_versions.map((v) => v.version)).toEqual([1]);
+		expect(doc.earlier_versions[0].sha256).toBe(basis);
+		const whole = await run('get_post', { post: 'Shop Fix', document: true });
+		expect((whole.document as { html: string }).html).toBe(kept);
+		// A draft reads back too.
+		await w.db.sql(`update public.classroom_items set published = false where id = $1`, [itemId]);
+		expect(((await run('get_post', { post: 'Shop Fix', document: true })).document as { html: string }).html).toBe(kept);
+		await w.db.sql(`update public.classroom_items set published = true where id = $1`, [itemId]);
 	});
 });
 

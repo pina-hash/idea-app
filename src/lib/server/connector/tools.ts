@@ -12,7 +12,8 @@ import { FEEDBACK_MEDIA_BUCKET } from '$lib/feedback/screenshot';
 import { laCalendarDay, schoolDayOf, weekOffset } from '$lib/classroom/school-calendar';
 import { hxBlockPrompt, manifestBlocks, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 import { manifestRubricIsDerived, stagedRubricAfterManifest } from '$lib/classroom/html-assignment/rubric';
-import { htmlManifestDiff, stageHtmlDocument } from '$lib/classroom/html-assignment/store';
+import { HTML_REPLACE_STALE, htmlBasedOnMatches, htmlManifestDiff, stageHtmlDocument } from '$lib/classroom/html-assignment/store';
+import { exportClassroomItem } from '$lib/server/classroom-export';
 import type { RubricCriterion } from '$lib/classroom/assignment-spec';
 import type { ToolContext } from './context';
 import { resolveDue, resolveNoticeEnd } from './dates';
@@ -44,7 +45,7 @@ import {
 	type Resolution,
 	type RosterStudent
 } from './resolve';
-import { opaqueToken } from './crypto';
+import { opaqueToken, sha256Hex } from './crypto';
 import { lookupId, lookupKindFor, looksLikeId, lookupWords } from './lookup';
 import { decideCoin, parseVoiceCatalog } from './coin-voice';
 import { coinRowLabel } from '$lib/coin-format';
@@ -224,7 +225,71 @@ async function getPost(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 		text: p.value.body.length > 3000 ? `${p.value.body.slice(0, 3000)}...` : p.value.body,
 		category: p.value.category,
 		rubric: rubric?.map((c) => ({ criterion: c.criterion, points: c.points, levels: (c.levels ?? []).map((l) => `${l.label} ${l.points}`) })) ?? null,
-		questions: manifest ? questionList(manifest) : null
+		questions: manifest ? questionList(manifest) : null,
+		...(await postFilesAndUnit(ctx, p.value.id)),
+		...(p.value.assignment_schema_version === 3 ? { document: await htmlDocumentRead(ctx, p.value.id, args) } : {})
+	};
+}
+
+/**
+ * THE STORED DOCUMENT, READ BACK AS HIM (ledger 0458, reports 0a569932 and
+ * aa9ce822): its size, SHA-256 and saved time always, so a chat can compare
+ * what it uploaded byte for byte and name the copy a replace is built from;
+ * the HTML itself with `document` true; an earlier version's HTML with
+ * `version`. Drafts included: the table's read follows the item, and a manager
+ * reads his own drafts.
+ */
+async function htmlDocumentRead(ctx: ToolContext, itemId: string, args: ToolArgs): Promise<ToolOutput | null> {
+	const head = await htmlHead(ctx, itemId);
+	if (!head) return null;
+	const kept = await htmlVersions(ctx, itemId);
+	const live = kept.length ? Math.max(...kept.map((k) => k.revision)) + 1 : 1;
+	const want = num(args.version);
+	const out: ToolOutput = {
+		filename: head.filename,
+		bytes: Buffer.byteLength(head.document, 'utf8'),
+		sha256: sha256Hex(head.document),
+		saved: head.updated_at,
+		version: live,
+		earlier_versions: kept.map((k) => ({
+			version: k.revision,
+			kept_at: k.created_at,
+			...(typeof k.payload?.document === 'string'
+				? { bytes: Buffer.byteLength(k.payload.document, 'utf8'), sha256: sha256Hex(k.payload.document) }
+				: { removed: true })
+		})),
+		how: 'Pass sha256 as basis when replacing it. document true returns the HTML; version N returns an earlier version.'
+	};
+	if (want !== undefined && want !== live) {
+		const old = kept.find((k) => k.revision === want);
+		if (!old || typeof old.payload?.document !== 'string') return { ...out, version_asked: want, html: null, message: `There is no version ${want} with a document on this post.` };
+		return { ...out, version_asked: want, html: old.payload.document };
+	}
+	return bool(args.document) || want === live ? { ...out, html: head.document } : out;
+}
+
+/**
+ * THE POST'S FILES AND ITS UNIT (gaps b4c9ae73 and 154c8fb3): every file on
+ * the post as students see it, and the unit it is filed under with its id, so
+ * a chat can copy files or file a post without a lookup no tool returned.
+ */
+async function postFilesAndUnit(ctx: ToolContext, itemId: string): Promise<ToolOutput> {
+	const files = await ctx.backend.select<{ id: string; filename: string; mime_type: string; size_bytes: number | null; sort_order: number }>(ctx.session, {
+		table: 'classroom_attachments',
+		columns: ['id', 'filename', 'mime_type', 'size_bytes', 'sort_order'],
+		eq: { item_id: itemId },
+		order: [['sort_order', 'asc']]
+	});
+	const item = await ctx.backend.select<{ unit_id: string | null }>(ctx.session, { table: 'classroom_items', columns: ['unit_id'], eq: { id: itemId } });
+	const unitId = item.data?.[0]?.unit_id ?? null;
+	let unit: ToolOutput | null = null;
+	if (unitId) {
+		const u = await ctx.backend.select<{ id: string; name: string }>(ctx.session, { table: 'classroom_units', columns: ['id', 'name'], eq: { id: unitId } });
+		unit = { id: unitId, name: u.data?.[0]?.name ?? null };
+	}
+	return {
+		files: files.error ? null : files.data.map((f) => ({ id: f.id, name: f.filename, type: f.mime_type, bytes: f.size_bytes })),
+		unit
 	};
 }
 
@@ -1563,6 +1628,26 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 	if (p.status !== 'found') return unresolved('post', p);
 	if (p.value.kind !== 'assignment') return { status: 'invalid', message: `${p.value.title} is not an assignment.` };
 	const filename = str(args.filename) ?? `${(p.value.title ?? 'assignment').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.html`;
+	// THE LIVE COPY FIRST (ledger 0458, report aa9ce822): a replace built from
+	// an older copy is refused, so newer edits are never undone in silence.
+	const head = await htmlHead(ctx, p.value.id);
+	if (head) {
+		const basedOn = str(args.basis);
+		const live = { sha256: sha256Hex(head.document), saved: head.updated_at };
+		if (!basedOn) {
+			return {
+				status: 'invalid',
+				reason: 'needs_basis',
+				post: p.value.title,
+				live,
+				message:
+					'Say which copy this file was made from: pass basis as the live document\'s sha256 (get_post with document true reads it, drafts included) or the saved time the copy carries. A replace built from an older copy would undo newer edits.'
+			};
+		}
+		if (!htmlBasedOnMatches(basedOn, { sha256: live.sha256, updatedAt: head.updated_at })) {
+			return { status: 'refused', reason: 'changed_since', post: p.value.title, live, basis: basedOn, message: HTML_REPLACE_STALE };
+		}
+	}
 	// THE IMPORTER'S OWN PARSER, never a second one.
 	const staged = stageHtmlDocument(filename, html);
 	if (!staged.staged) return { status: 'refused', message: 'The document did not pass the importer.', problems: staged.errors, warnings: staged.warnings };
@@ -1659,6 +1744,34 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 			);
 		}
 	}
+	// WHAT WAS STORED, AND WHERE THE EARLIER COPY WENT (ledger 0458, reports
+	// 0a569932 and 84cf8690): the stored bytes' SHA-256 to compare with what was
+	// sent, the live version number, and the number the displaced document is
+	// kept under, readable with get_post and restorable from its versions.
+	let stored: ToolOutput | undefined;
+	let exported: ToolOutput | undefined;
+	if (document.status === 'done') {
+		const after = await htmlHead(ctx, p.value.id).catch(() => null);
+		const kept = (document as { result?: { revision?: number | null } }).result?.revision ?? null;
+		stored = after
+			? {
+					sha256: sha256Hex(after.document),
+					bytes: Buffer.byteLength(after.document, 'utf8'),
+					matches_what_was_sent: after.document === html,
+					saved: after.updated_at,
+					version: await htmlLiveVersion(ctx, p.value.id),
+					earlier_kept_as_version: kept,
+					note:
+						kept === null
+							? 'Nothing was displaced: this is the first document on this post, or the same bytes were sent again.'
+							: `The document it replaced is kept as version ${kept}. get_post with document true and version ${kept} reads it; restore it from the post's versions to roll back.`
+				}
+			: undefined;
+		// RE-EXPORTED TO THE REPO (gap cdb5eb34), as the site's own upload does.
+		exported = await exportClassroomItem(ctx.backend.routeClient(ctx.session) as never, p.value.id)
+			.then((o) => ({ status: o.status, ...('reason' in o && o.reason ? { reason: o.reason } : {}) }) as ToolOutput)
+			.catch((e) => ({ status: 'failed', message: (e as Error).message }) as ToolOutput);
+	}
 	return {
 		status: document.status,
 		post: p.value.title,
@@ -1666,8 +1779,38 @@ async function replaceHtml(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		document: outcomeWords(document),
 		rubric: rubric ? outcomeWords(rubric) : 'left as it is',
 		...(retired ? { retired } : {}),
+		...(stored ? { stored } : {}),
+		...(exported ? { exported } : {}),
 		warnings: staged.warnings
 	};
+}
+
+/** The stored document as him (drafts included: the table's policy is the item's own read). */
+async function htmlHead(ctx: ToolContext, itemId: string): Promise<{ document: string; updated_at: string | null; filename: string | null } | null> {
+	const r = await ctx.backend.select<{ document: string; updated_at: string | null; filename: string | null }>(ctx.session, {
+		table: 'classroom_html_assignments',
+		columns: ['document', 'updated_at', 'filename'],
+		eq: { item_id: itemId }
+	});
+	if (r.error) throw new ResolveFailure(`The HTML assignment could not be read: ${r.error.message}`);
+	return r.data[0] ?? null;
+}
+
+/** The live document's version number (0110: one more than the highest kept). */
+async function htmlLiveVersion(ctx: ToolContext, itemId: string): Promise<number> {
+	const kept = await htmlVersions(ctx, itemId);
+	return kept.length ? Math.max(...kept.map((k) => k.revision)) + 1 : 1;
+}
+
+/** The earlier documents kept for a post, newest first. */
+async function htmlVersions(ctx: ToolContext, itemId: string): Promise<Array<{ id: string; revision: number; created_at: string; payload: { document?: string | null; filename?: string | null } | null }>> {
+	const r = await ctx.backend.rpc<{ revisions?: Array<{ id: string; target: string; revision: number; created_at: string; payload: { document?: string | null; filename?: string | null } | null }> }>(
+		ctx.session,
+		'classroom_item_revisions',
+		{ p_item_id: itemId }
+	);
+	if (r.error) return [];
+	return (r.data?.revisions ?? []).filter((x) => x.target === 'html_assignment');
 }
 
 async function grade(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
@@ -2357,12 +2500,20 @@ async function siteCallEntry(ctx: ToolContext, entry: FunctionEntry, args: ToolA
 // Requests, gaps and the replay of saved requests (DESIGN.md section 9)
 // ---------------------------------------------------------------------------
 
-async function recordGap(ctx: ToolContext, missing: string, tried: string[]): Promise<string | null> {
+/**
+ * ONE GAP PER REPORT (ledger 0458, report 0a569932): the database dedupes on
+ * the chat's request id (a retry) or on the same words saying the same missing
+ * thing, never on the words alone. The request id is named only when there is
+ * one, and a database that predates 0327 is asked again without it.
+ */
+async function recordGap(ctx: ToolContext, missing: string, tried: string[], requestId?: string): Promise<string | null> {
 	const said = ctx.said ?? '';
 	if (!said.trim()) return null;
-	const r = await ctx.backend
-		.rpc<{ gap_id: string }>(ctx.session, 'connector_report_gap', { p_said: said, p_missing: missing, p_tried: tried, p_model: ctx.model ?? null })
-		.catch(() => null);
+	const base = { p_said: said, p_missing: missing, p_tried: tried, p_model: ctx.model ?? null };
+	const ask = (args: Record<string, unknown>) =>
+		ctx.backend.rpc<{ gap_id: string }>(ctx.session, 'connector_report_gap', args).catch(() => null);
+	let r = await ask(requestId ? { ...base, p_request_id: requestId } : base);
+	if (requestId && r?.error && (r.error as { code?: string }).code === 'PGRST202') r = await ask(base);
 	return r && !r.error ? (r.data?.gap_id ?? null) : null;
 }
 
@@ -2373,7 +2524,7 @@ async function reportGap(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> 
 	if (ctx.practice || bool(args.dry_run)) {
 		return { status: 'preview', message: ctx.practice ? 'This is the practice connector: no gap was recorded.' : 'Preview only: no gap was recorded.', missing, tried };
 	}
-	const id = await recordGap(ctx, missing, tried);
+	const id = await recordGap(ctx, missing, tried, str(args.request_id));
 	if (!id) return { status: 'refused', message: 'The gap could not be recorded. Nothing else was changed.' };
 	return {
 		status: 'done',

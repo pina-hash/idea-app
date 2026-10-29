@@ -8,7 +8,7 @@
  *   read     a direct call as him; no audit row, no preview
  *   undo     runs and is logged; `dry_run` previews; the entry names its reverse
  *   confirm  the first call ALWAYS previews and hands back a confirm token;
- *            only a second call carrying that token, within ten minutes, with
+ *            only a second call carrying that token, within thirty minutes, with
  *            the same arguments, writes
  *
  * THE CONFIRM TOKEN IS STORED, NOT DERIVED. The design sketched a hash over
@@ -23,7 +23,8 @@ import type { ToolContext } from './context';
 import { levelFor, liveFunction, type BeforeSpec, type FunctionEntry, type UndoAlternative } from './registry';
 import type { DbError, Level, Scalar, UndoCall } from './types';
 
-export const CONFIRM_WINDOW_MS = 10 * 60_000;
+/** Thirty minutes (ledger 0458, report 4d0ddefe): a preview read to him and answered later is not redone. */
+export const CONFIRM_WINDOW_MS = 30 * 60_000;
 export const PREVIEW_PREFIX = 'CONNECTOR_PREVIEW:';
 
 export interface WriteOptions {
@@ -390,7 +391,7 @@ export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOption
 				confirm_token: token,
 				expires_at: new Date(expiresAt).toISOString(),
 				message:
-					'Nothing has changed yet. Read this preview to him and ask; if he says yes, call again with the same arguments and this confirm_token within ten minutes.'
+					'Nothing has changed yet. Read this preview to him and ask; if he says yes, call again with the same arguments and this confirm_token within thirty minutes.'
 			};
 		}
 		return { status: 'preview', level, ...payload, message: 'Preview only: nothing was written.' };
@@ -408,7 +409,7 @@ export async function write(ctx: ToolContext, plan: WritePlan, opts: WriteOption
 				status: 'needs_confirmation',
 				level,
 				message:
-					'That confirmation is missing, already used, more than ten minutes old, or was for different arguments. Nothing was written. Preview it again and ask him.'
+					'That confirmation is missing, already used, more than thirty minutes old, or was for different arguments. Nothing was written. Preview it again and ask him.'
 			};
 		}
 		// The values the server filled for the preview he said yes to.

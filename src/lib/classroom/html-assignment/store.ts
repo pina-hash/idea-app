@@ -184,6 +184,32 @@ export function stageHtmlDocument(filename: string, html: string): HtmlImportRes
 }
 
 /**
+ * WAS THIS REPLACEMENT BUILT FROM THE DOCUMENT THAT IS LIVE NOW (ledger 0458,
+ * report aa9ce822)? A replace built from an older copy (a repo export behind
+ * the live page, a second chat's edit landing first) would silently undo the
+ * newer edits, so the replace is refused unless the copy it started from is
+ * the live one. `basedOn` names that copy either by the SHA-256 of its bytes
+ * (64 hex characters, what the connector's read returns) or by the instant it
+ * was saved (`documentUpdatedAt` in the export's material.json, or the saved
+ * time the replace screen read). One rule for the replace screen and the
+ * connector.
+ */
+export function htmlBasedOnMatches(
+	basedOn: string,
+	head: { sha256: string; updatedAt: string | null }
+): boolean {
+	const said = basedOn.trim();
+	if (/^[0-9a-f]{64}$/i.test(said)) return said.toLowerCase() === head.sha256.toLowerCase();
+	const at = Date.parse(said);
+	const live = head.updatedAt ? Date.parse(head.updatedAt) : NaN;
+	return Number.isFinite(at) && Number.isFinite(live) && at === live;
+}
+
+/** The sentence a stale replace is refused with, in the teacher's terms. */
+export const HTML_REPLACE_STALE =
+	'Not replaced: this assignment changed after the copy this file was made from, so replacing it would undo those newer edits. Start again from the live page.';
+
+/**
  * The one-line summary the composer shows once a document is staged. Here
  * rather than in the markup so the numbers a teacher reads before Post are the
  * numbers the validator actually counted.
@@ -264,6 +290,35 @@ export interface HtmlAssignmentTransports {
 	 * under the question they were. Absent removes the choice.
 	 */
 	retireBlocks?: ((itemId: string, blocks: HtmlRetiredBlock[]) => Promise<{ ok: boolean; message?: string }>) | null;
+	/**
+	 * WHEN THE STORED DOCUMENT WAS LAST SAVED (ledger 0458, report aa9ce822),
+	 * read fresh just before a replace, so a replace made on a page that loaded
+	 * an older copy is refused (`htmlBasedOnMatches`) rather than undoing a
+	 * newer save. Absent skips the check.
+	 */
+	readSavedAt?: ((itemId: string) => Promise<string | null>) | null;
+}
+
+/**
+ * IS THE COPY THIS PAGE LOADED STILL THE LIVE ONE: the replace screen's half
+ * of the rule, asked before anything is retired or written. True when there is
+ * nothing to compare (no stored copy, no transport, a read that failed: the
+ * database's own gates still stand).
+ */
+export async function htmlReplaceStillCurrent(
+	itemId: string,
+	loadedSavedAt: string | null,
+	transports: Pick<HtmlAssignmentTransports, 'readSavedAt'>
+): Promise<boolean> {
+	if (!loadedSavedAt || !transports.readSavedAt) return true;
+	let now: string | null;
+	try {
+		now = await transports.readSavedAt(itemId);
+	} catch {
+		return true;
+	}
+	if (!now) return true;
+	return htmlBasedOnMatches(loadedSavedAt, { sha256: '', updatedAt: now });
 }
 
 /** One question being retired: its id and its entry from the document it leaves. */

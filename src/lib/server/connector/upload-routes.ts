@@ -38,7 +38,14 @@ export async function idByName(supabase: Rpc, kind: string, said: string): Promi
 
 /** The project's global storage upload limit (0185), which the bucket states too. */
 const UPLOAD_MAX_BYTES = SUPABASE_PROJECT_FILE_SIZE_LIMIT_BYTES;
-const UPLOAD_WINDOW_MS = 30 * 60_000;
+/**
+ * A STAGED UPLOAD LIVES A DAY (ledger 0458, report 4d0ddefe): an upload that
+ * waits on his yes (a replace screen read to him, a before and after) used to
+ * expire after 30 minutes and was sent twice. The signed address the bytes go
+ * to is the storage service's own and stays good for two hours; pieces may be
+ * sent for the whole day.
+ */
+const UPLOAD_WINDOW_MS = 24 * 60 * 60_000;
 
 /**
  * A ONE-TIME UPLOAD FOR THE SIGNED-IN ADMIN: a slot, and a signed address the
@@ -64,6 +71,7 @@ export async function openChatUpload(userId: string, filename: string, type: str
 		filename: clean,
 		max_bytes: maxBytes,
 		expires_in_minutes: UPLOAD_WINDOW_MS / 60_000,
+		put_url_good_for_minutes: 120,
 		put_url: slot.uploadUrl,
 		how: [
 			`With a shell: curl -X PUT -H "content-type: ${type ?? 'application/octet-stream'}" --data-binary @${JSON.stringify(clean)} "${slot.uploadUrl}"`,

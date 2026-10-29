@@ -174,7 +174,7 @@ Levels, enforced by the server from the registry, never by the prompt:
   newest connector write that has one.
 - **confirm**: the first call always returns the preview and a `confirm_token`
   (sha256 of user, tool, canonical args, preview payload, minute); nothing is
-  written. The second call must carry that token, within 10 minutes, with the
+  written. The second call must carry that token, within 30 minutes (ledger 0458; it was 10), with the
   same arguments, or it is refused. Claude reads the preview to him and asks;
   "yes" is the second call. The gate is structural.
 

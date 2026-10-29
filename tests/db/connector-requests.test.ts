@@ -179,6 +179,19 @@ describe('gaps: what the site cannot do yet', () => {
 		expect([...rows[0].tried].sort()).toEqual(['send_feedback', 'site_find_tool']);
 	});
 
+	it('0327: one request with several gaps keeps every one; a retry of one request is one gap', async () => {
+		const said = 'Unit 4 needs four things the connector cannot do';
+		for (const [i, missing] of ['Copy files.', 'List units.', 'Read drafts.', 'Move posts.'].entries()) {
+			const out = await runTool(await adminCtx(), 'report_gap', { said, missing, request_id: `req-0458-${i}` });
+			expect(out.status).toBe('done');
+		}
+		const rows = (await w.db.sql<{ missing: string; request_id: string }>(`select missing, request_id from public.connector_gaps where said = $1 order by missing`, [said])).rows;
+		expect(rows.map((r) => r.missing)).toEqual(['Copy files.', 'List units.', 'Move posts.', 'Read drafts.']);
+		// The same request id again is a retry, whatever the sentence says now.
+		await runTool(await adminCtx(), 'report_gap', { said, missing: 'Copy files, every one.', request_id: 'req-0458-0' });
+		expect((await w.db.sql(`select count(*)::int n from public.connector_gaps where said = $1`, [said])).rows[0].n).toBe(4);
+	});
+
 	it('site_find_tool for something the site cannot do says to report a gap, and finds nothing', async () => {
 		const out = await runTool(await adminCtx(), 'site_find_tool', { query: 'qwertyuiop zxcvbnm', said: 'qwertyuiop zxcvbnm' });
 		expect(out.status).toBe('none');

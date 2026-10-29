@@ -3030,6 +3030,14 @@ export function createHtmlAssignmentTransports(supabase: SupabaseClient): HtmlAs
 			const res = await teacher.setRubric(itemId, criteria);
 			return res.ok ? { ok: true } : { ok: false, message: res.message };
 		},
+		async readSavedAt(itemId) {
+			const { data } = await supabase
+				.from('classroom_html_assignments')
+				.select('updated_at')
+				.eq('item_id', itemId)
+				.maybeSingle<{ updated_at: string | null }>();
+			return data?.updated_at ?? null;
+		},
 		async setShowTitle(itemId, show) {
 			const { error } = await supabase.rpc('classroom_html_set_show_title', {
 				p_item_id: itemId,

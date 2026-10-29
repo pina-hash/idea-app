@@ -80,10 +80,11 @@ describe('retire instead of orphan (gap 03246300)', () => {
 		const item = (await w.db.sql<{ id: string }>(`select id from public.classroom_items where title = 'Retire Me'`)).rows[0].id;
 		await w.db.sql(`insert into public.classroom_responses (item_id, student_email, block_id, value) values ($1, $2, 'smoke-writing-line', '"kept"'::jsonb)`, [item, w.students.mateo]);
 		const dropped = HTML.replace('"smoke-writing-line"', '"smoke-writing-line-2"');
-		const refused = await run('replace_html_assignment', { post: 'Retire Me', html: dropped });
+		const basis = ((await run('get_post', { post: 'Retire Me' })).document as { sha256: string }).sha256;
+		const refused = await run('replace_html_assignment', { post: 'Retire Me', html: dropped, basis });
 		expect(refused.status).toBe('refused');
 		// Retiring is undoable (its reverse is un-retire), so it runs at once, logged.
-		const yes = await run('replace_html_assignment', { post: 'Retire Me', html: dropped, retire: true });
+		const yes = await run('replace_html_assignment', { post: 'Retire Me', html: dropped, retire: true, basis });
 		expect(yes.status).toBe('done');
 		expect(yes.retired).toBeTruthy();
 		expect((await w.db.sql(`select block_id from public.classroom_html_retired_blocks where item_id = $1`, [item])).rows.map((r) => r.block_id)).toEqual(['smoke-writing-line']);

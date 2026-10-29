@@ -81,6 +81,8 @@
 		applyStagedHtmlAssignment,
 		assessHtmlReupload,
 		htmlBlocksToRetire,
+		htmlReplaceStillCurrent,
+		HTML_REPLACE_STALE,
 		readStagedHtml,
 		stagedHtmlSummary,
 		type HtmlAssignmentTransports,
@@ -522,6 +524,8 @@
 	 * problem, never re-toned.
 	 */
 	let stagedHtml = $state<StagedHtmlAssignment | null>(null);
+	/** The saved time of this page's own last replace (ledger 0458): the copy the next one starts from. */
+	let htmlOwnSavedAt = $state<string | null>(null);
 	let htmlIssues = $state<string[]>([]);
 	let htmlWarnings = $state<string[]>([]);
 	let htmlReading = $state(false);
@@ -2304,7 +2308,13 @@
 		// RETIRED FIRST, so a document that drops an answered question never
 		// lands while its answers sit unclaimed (ledger 0422).
 		let retireRefused = false;
-		if (stagedHtml && htmlAssignmentTransports?.retireBlocks && htmlRetireDropped && htmlRisk?.diff?.removed.length) {
+		// NEVER OVER A NEWER SAVE (ledger 0458, report aa9ce822): a replace made
+		// on a page that loaded an older copy is refused before anything moves.
+		if (stagedHtml && htmlAssignment && htmlAssignmentTransports && !(await htmlReplaceStillCurrent(itemId, htmlOwnSavedAt ?? htmlAssignment.updatedAt ?? null, htmlAssignmentTransports))) {
+			retireRefused = true;
+			failures.push(HTML_REPLACE_STALE);
+		}
+		if (!retireRefused && stagedHtml && htmlAssignmentTransports?.retireBlocks && htmlRetireDropped && htmlRisk?.diff?.removed.length) {
 			const retiring = htmlBlocksToRetire(htmlStoredManifest, htmlRisk.diff.removed);
 			const retired = retiring.length ? await htmlAssignmentTransports.retireBlocks(itemId, retiring) : { ok: true };
 			if (!retired.ok) {
@@ -2363,6 +2373,8 @@
 			if (applied.staged == null) {
 				htmlIssues = [];
 				htmlWarnings = [];
+				// This page's own save is the copy the next replace starts from.
+				htmlOwnSavedAt = (await htmlAssignmentTransports.readSavedAt?.(itemId).catch(() => null)) ?? htmlOwnSavedAt;
 			}
 			// A RUBRIC THAT DID NOT LAND IS STAGED, not lost. The document itself
 			// DID land, so retrying it would mint a second revision of a document

@@ -11853,11 +11853,12 @@
 			"facade": true,
 			"level": "read",
 			"uses": [],
-			"describe": "Show one post in full, with its points, due date, rubric, which classes it is in and whether students can see it.",
+			"describe": "Show one post in full, with its points, due date, rubric, files, unit and classes; an HTML assignment's stored document too (sha256, saved time, versions), drafts included.",
 			"say": [
 				"show me Tolerance Check",
 				"what's on the Shop Fix post",
-				"read me the DFM worksheet's rubric"
+				"read me the DFM worksheet's rubric",
+				"read the live HTML of IDEA-Blade 01"
 			],
 			"args": {
 				"post": {
@@ -11869,6 +11870,14 @@
 				"class": {
 					"type": "string",
 					"describe": "The class it is in, when the same title is in more than one."
+				},
+				"document": {
+					"type": "boolean",
+					"describe": "True to include an HTML assignment's stored HTML itself, drafts included."
+				},
+				"version": {
+					"type": "integer",
+					"describe": "An earlier version number of an HTML assignment's document to read instead of the live one."
 				}
 			}
 		},
@@ -12141,7 +12150,7 @@
 				"classroom_set_rubric",
 				"classroom_html_retire_blocks"
 			],
-			"describe": "Replace an HTML assignment's document with a new file, sent whole or as an upload; an answered question it drops is refused, or retired with retire set.",
+			"describe": "Replace an HTML assignment's document with a new file made from the live copy it names; an answered question it drops is refused, or retired with retire set.",
 			"say": [
 				"replace the Shop Fix HTML in Block 1 with the file I'm sending",
 				"take that question out, some students already answered it, deal with that",
@@ -12165,6 +12174,10 @@
 				"retire": {
 					"type": "boolean",
 					"describe": "True to retire any answered question the new file drops, instead of refusing."
+				},
+				"basis": {
+					"type": "string",
+					"describe": "Which live copy this file was made from: the sha256 that reading the post returns for its document, or its saved time. Required once the post has a document; a replace made from an older copy is refused."
 				},
 				"filename": {
 					"type": "string",

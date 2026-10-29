@@ -225,7 +225,7 @@ export async function runEndpoint(ctx: ToolContext, entry: EndpointEntry, given:
 			confirm_token: token,
 			expires_at: new Date(expiresAt).toISOString(),
 			message:
-				'Nothing has changed yet. Read this preview to him and ask; if he says yes, call again with the same arguments and this confirm_token within ten minutes.'
+				'Nothing has changed yet. Read this preview to him and ask; if he says yes, call again with the same arguments and this confirm_token within thirty minutes.'
 		};
 	}
 	if (entry.level === 'confirm') {
@@ -235,7 +235,7 @@ export async function runEndpoint(ctx: ToolContext, entry: EndpointEntry, given:
 				status: 'needs_confirmation',
 				level: entry.level,
 				message:
-					'That confirmation is missing, already used, more than ten minutes old, or was for different arguments. Nothing was changed. Preview it again and ask him.'
+					'That confirmation is missing, already used, more than thirty minutes old, or was for different arguments. Nothing was changed. Preview it again and ask him.'
 			};
 		}
 	}

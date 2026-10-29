@@ -383,6 +383,56 @@ responders are `bridgeClient()` in `src/routes/hx/_documents.ts` and the kit's
 and re-uploaded.** `tools/browser-verify/routes/html-assignment-live*.mjs`
 measures all three at 375 and 1440 on `/dev/html-assignment-live`.
 
+### LEDGER 0458: ANY ONE OF THESE, ONE HEADER AND ONE RAIL, AND A REPLACE THAT NEVER UNDOES A NEWER SAVE
+
+**"ANY ONE OF THESE" IS A GROUP OF OPTIONAL BLOCKS COUNTED AS ONE REQUIREMENT
+(report 3d205727).** A block key `anyOf: "<group id>"` (read by `hxBlockAnyOf`,
+the one reader) on two or more `optional` blocks of one module is the kit's
+`data-any-one` in the manifest. `requiredUnits` in `progress.ts` is the one
+statement of a module's units (required blocks, and each group as one unit at
+its first member), so the rail, `hxCompletion`, Answers left and the grading
+counts read the group once, met by any member; its row carries `group`.
+`validateHtmlManifest` refuses a member that is not optional, a group of one, a
+malformed id and a group in two modules. The database gates never read the key,
+so it needed no migration; the team SQL that counts boxes (`_classroom_team_block_done`,
+`classroom_team_progress`) still reads each member as optional. `HtmlAnswerList`
+shows a group as one question.
+
+**A 0-POINT MODULE MAY CARRY NO CRITERIA (0326, reports 6c5c7cc8 and
+569a1891).** `_classroom_html_module_ungraded` is the gate's one test, and the
+client validator says the same; such a module adds no rubric row and, on the
+points basis, no weight on the bar, so a whole post of them is ungraded.
+
+**ONE HEADER AND ONE RAIL (report 4930ba0e).** The frame sends `idea:host`
+(`hxHostMessage`) when the page draws the steps (`hostSteps`: the rail is on
+screen and full page is shut) or the title (`hostTitle`: the item page shows
+the post title, 0284). A kit document then hides its own step track, its "You
+are here" line and, when asked, its title, and reports `idea:steps` after every
+refresh; `hxReceive` judges it (titles cut, a colour only through
+`hxStepColor`, which keeps anything that could leave a `style` attribute out),
+`Progress` draws one 44px key per step, counted over REQUIRED steps only
+(`hxStepsCount`, report 88ad281b), and a key sends `idea:go-step`. The kit
+reports nothing until it hears `idea:host`, so a document never sends the
+message to a portal that did not ask, and a document that never answers keeps
+its own track and title. `tools/browser-verify/_hx-steps.mjs` measures both
+halves at 375 and 1440 on `/dev/html-assignment-live?doc=kit-starter` (the kit
+starter built on the kit in this tree, dev only, `hxKitFixture`).
+
+**A PLAN DAY MAY NAME A PACING STEP (report f8c1b1d8).** A day in `hx-plan-data`
+carrying `"pace": "<pacing step id>"` takes its date from the `schedule` the
+portal sends (the class calendar's resolution of the manifest's `pacing`), and
+shows "<label> · <date>"; the kit also takes the school's `today` from it. No
+date is typed into the page. Without a portal, or a matching step, it shows its
+label alone.
+
+**A REPLACE NEVER UNDOES A NEWER SAVE (report aa9ce822).** `htmlBasedOnMatches`
+in `store.ts` is the one rule: the copy a replace was made from, named by the
+stored bytes' SHA-256 or by its saved time, must be the live one. The
+connector requires it (`basis`) once a post has a document; the replace screen
+asks `readSavedAt` before anything is retired or written (`htmlReplaceStillCurrent`,
+against the saved time the page loaded or its own last save). A refusal is
+`HTML_REPLACE_STALE`.
+
 ### LEDGER 0436: A TEAM ASSIGNMENT IS ONE SHARED DOCUMENT PER TEAM, PINNED TO THE DRAW IT IS WRITTEN UNDER
 
 **A MANIFEST WITH A TOP-LEVEL `team` IS A TEAM ASSIGNMENT (0301, 0302; spec section 16,

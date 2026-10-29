@@ -40,7 +40,7 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
   `read` runs at once with no audit row; `undo` runs, is logged, previews on
   `dry_run`, and names its reverse (`undo_last` runs it); `confirm` always
   previews first and writes only on a second call carrying the stored,
-  single-use `confirm_token` within ten minutes with identical arguments
+  single-use `confirm_token` within thirty minutes (ledger 0458; it was ten) with identical arguments
   (`src/lib/server/connector/engine.ts`). A preview is the write rolled back by
   a `CONNECTOR_PREVIEW:` raise. Repeats never double: Claude's `request_id`, or
   a derived key matched within 120 seconds, answers the stored result with
@@ -149,6 +149,21 @@ None is under `authedPrefixes`; the MCP route answers its own 401 with the
 - **`replace_html_assignment` REFUSES WHEN AN ANSWERED BLOCK WOULD DISAPPEAR**,
   naming the ids, using the importer's own `stageHtmlDocument`; 0195's setter
   does not check this itself.
+  - **AND WHEN IT WAS MADE FROM AN OLDER COPY (ledger 0458, report aa9ce822).**
+    Once a post has a document, a replace names the live copy it started from
+    in `basis` (the stored bytes' SHA-256, or the saved time an export's
+    `material.json` carries); `htmlBasedOnMatches` in
+    `src/lib/classroom/html-assignment/store.ts` is the one rule, and a
+    mismatch is `HTML_REPLACE_STALE`. `get_post` reads the stored document back
+    as him, drafts included (size, SHA-256, saved time, the live version and
+    every earlier one; the HTML with `document`, an earlier version with
+    `version`). A landed replace answers the stored SHA-256, the version the
+    displaced document is kept as (0110's revisions; "revision 1" on a first
+    replace is the EARLIER document, report 84cf8690), and re-exports the post
+    (gap cdb5eb34).
+- **A GAP IS DEDUPED ON ITS REQUEST, NEVER ON HIS WORDS ALONE (0327, report
+  0a569932).** `connector_report_gap` folds a report into an open gap only for
+  the same `request_id` or the same words with the same missing sentence.
 - **THE TOKEN AND REVOCATION ENDPOINTS TAKE CROSS-SITE FORM POSTS WITH NO
   ORIGIN, SO SVELTEKIT'S BUILT-IN CHECK IS OFF AND `connectorCsrfGuard`
   RESTATES IT.** `svelte.config.js` sets `csrf.trustedOrigins` to `['*']` only
