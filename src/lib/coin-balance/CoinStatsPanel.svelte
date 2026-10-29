@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import './coin-page.css';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import { coinNumber, coins, signedCoins } from '$lib/coin-format';
@@ -187,8 +188,8 @@
 							<span class="cpx-meta">{signedCoins(e.amount)}</span>
 						</div>
 						<div class="cpx-row">
-							<span class="cpx-chip">{kindWord(e.kind)}</span>
-							{#if e.edited}<span class="cpx-chip">Edited</span>{/if}
+							<StatusChip tone="neutral" label={kindWord(e.kind)} />
+							{#if e.edited}<StatusChip tone="neutral" label="Edited" />{/if}
 							<span class="cpx-meta">{coinWhen(e.at)}</span>
 						</div>
 					</li>

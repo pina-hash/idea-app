@@ -41,7 +41,7 @@ export default {
 		{ selector: '[data-testid="nb-compose"] .save-ind.saved', label: 'the one save state says Saved, with its time', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="nb-new-entry"]', label: 'New entry, once this composer holds a draft', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="nb-turn-in"][aria-disabled="false"]', label: 'Turn in, ready', expectPresent: 1, maxPresent: 1 },
-		{ selector: '[data-testid="nb-filed-state"][data-tone="attention"]', label: 'the filed check-in, still owed (a draft is not turned in)', expectPresent: 1, maxPresent: 1 }
+		{ selector: '[data-testid="nb-filed-state"][data-tone="draft"]', label: 'the filed check-in, still owed (a draft is not turned in)', expectPresent: 1, maxPresent: 1 }
 	],
 	contrast: [
 		{ selector: '[data-testid="nb-compose"] .note-input strong', label: 'template headings in the box', min: 4.5 },

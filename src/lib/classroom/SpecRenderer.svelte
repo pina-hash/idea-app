@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { dev } from '$app/environment';
 	import AiLevelBadge from '$lib/classroom/AiLevelBadge.svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
@@ -458,7 +459,7 @@
 	}
 
 	/**
-	 * IS THIS MODULE DONE. The same `moduleCompletion` tally the done-chip
+	 * IS THIS MODULE DONE. The same `moduleCompletion` tally the done chip
 	 * already reads (`done`/`total` over the module's own constrained blocks),
 	 * so there is no second definition of "complete" for the collapse to drift
 	 * from. `total === 0` (an instructions-only module with nothing to enter)
@@ -496,9 +497,13 @@
 					<AiLevelBadge level={mod.aiLevel} note={mod.aiNote} />
 				<span class="chip points-chip">{mod.points} pts</span>
 				{#if !readonly && completion.total > 0 && !gated}
-					<span class="chip done-chip" class:complete={completion.done === completion.total}>
-						{completion.done}/{completion.total} done
-					</span>
+					<StatusChip
+						tone={completion.done === completion.total ? 'ok' : 'info'}
+						glyph={completion.done === completion.total ? 'check' : 'progress'}
+						label="{completion.done}/{completion.total} done"
+						data-complete={completion.done === completion.total ? 'true' : undefined}
+						data-testid="module-done"
+					/>
 				{/if}
 			</div>
 		</header>
@@ -898,10 +903,6 @@
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--amber);
-	}
-	.done-chip.complete {
-		color: var(--green);
-		border-color: var(--line-strong);
 	}
 	/* PROSE KEEPS ITS MEASURE WHEREVER THE SPEC IS RENDERED. Every surface that
 	   mounted this used to be a reading column narrower than the measure, so

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneStyle } from '$lib/ui/status-tone';
 	import { untrack } from 'svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import HallPassMinutes from '$lib/coin-market/HallPassMinutes.svelte';
@@ -6,6 +8,7 @@
 		CLASSROOM_LIVE_DEBOUNCE_MS,
 		HALL_PASS_POLL_MS,
 		classroomLivePausedLine,
+		classToolTone,
 		hallPassBlockedReason,
 		hallPassCanClose,
 		hallPassCanOpen,
@@ -652,9 +655,7 @@
 	<section class="hp-card" class:hp-in-dialog={tool} data-testid="hall-pass" data-scope={view.scope} data-live={liveStatus}>
 		<div class="hp-head">
 			<h2 class="hp-title">Hall pass</h2>
-			<span class="hp-chip" data-tone={chip.tone} data-testid="hall-pass-chip">
-				<span class="hp-glyph" aria-hidden="true">{chip.glyph}</span>{chip.word}
-			</span>
+			<StatusChip {...classToolTone(chip.tone)} label={chip.word} data-hall={chip.tone} data-testid="hall-pass-chip" />
 		</div>
 
 		<p class="hp-status" data-testid="hall-pass-status">{hallPassStatusLine(view, now)}</p>
@@ -924,7 +925,7 @@
 					<span class="hp-who person-name" title={ev.student_name}>{ev.student_name}</span>
 				{/if}
 				<span class="hp-when">
-					<span class="hp-event" data-tone={words.tone}><span class="hp-event-glyph" aria-hidden="true">{words.glyph}</span>{words.word}</span>
+					<span class="hp-event" data-kind={words.tone} style={toneStyle('warn')}><span class="hp-event-glyph" aria-hidden="true">{words.glyph}</span>{words.word}</span>
 					&middot; {hallPassDateLabel(ev.opened_at)} {hallPassClockLabel(ev.opened_at)}
 				</span>
 			</li>
@@ -961,9 +962,7 @@
 				<circle cx="10" cy="10.2" r="1.15" fill="currentColor" />
 			</svg>
 			<span class="ctool-word">Hall pass</span>
-			<span class="ctool-chip" data-tone={toolChip.tone} data-testid="hall-pass-tool-chip"
-				>{toolChip.word}</span
-			>
+			<StatusChip {...classToolTone(toolChip.tone)} class="ctool-status" label={toolChip.word} data-hall={toolChip.tone} data-testid="hall-pass-tool-chip" />
 		</button>
 		{#if liveStatus === 'stalled'}
 			<!--
@@ -1049,33 +1048,6 @@
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--text-2);
-	}
-	.hp-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-family: var(--font-mono);
-		font-size: 0.78rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		white-space: nowrap;
-	}
-	.hp-glyph {
-		font-size: 0.9rem;
-		line-height: 1;
-	}
-	/* COLOUR IS NEVER THE ONLY SIGNAL: every chip carries a glyph and a word,
-	   and the words differ. The hue is the third signal, not the first. */
-	.hp-chip[data-tone='free'] {
-		color: var(--green);
-	}
-	.hp-chip[data-tone='taken'],
-	.hp-chip[data-tone='mine'] {
-		/* `--teal` is this palette's "in progress", which is exactly what an open
-		   pass is. Not `--amber` (a warning) and not `--crimson`, which is
-		   reserved for live/rec/error: somebody being out is neither a fault nor
-		   an alarm, and nothing here enforces a time limit. */
-		color: var(--teal);
 	}
 	.hp-status {
 		margin: 0;
@@ -1196,11 +1168,11 @@
 		font-size: 0.75rem;
 		line-height: 1;
 	}
-	.hp-event[data-tone='warning'] {
-		color: var(--status-warn, var(--amber));
-	}
-	.hp-event[data-tone='fine'] {
-		color: var(--status-danger, var(--crimson));
+	/* A warning and a fine are both the warn tone (ledger 0466): a fine is a
+	   penalty, not an error, so it is never crimson (the coin desk's own call);
+	   the glyph and the word tell the two apart. */
+	.hp-event {
+		color: var(--st-ink);
 	}
 	.hp-rule {
 		font-size: 0.88rem;
@@ -1302,29 +1274,11 @@
 	.ctool-word {
 		flex: none;
 	}
-	.ctool-chip {
-		/* The chip carries a WORD in every state and a hue in most; the word is
-		   the signal and the hue is the second one. Pushed to the trailing edge
-		   so the word and the status read as two columns across both tools. */
+	/* The status chip sits at the trigger's trailing edge, so the word and the
+	   status read as two columns across both tools. */
+	.ctool :global(.ctool-status) {
 		margin-left: auto;
 		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 0.74rem;
-		letter-spacing: 0.06em;
-		text-transform: none;
-		color: var(--text-2);
-	}
-	.ctool-chip[data-tone='free'],
-	.ctool-chip[data-tone='approved'] {
-		color: var(--green);
-	}
-	.ctool-chip[data-tone='taken'],
-	.ctool-chip[data-tone='mine'],
-	.ctool-chip[data-tone='out'],
-	.ctool-chip[data-tone='pending'] {
-		color: var(--teal);
 	}
 	.ctool-live {
 		/* The stalled-channel sentence beneath the trigger: the quiet metadata

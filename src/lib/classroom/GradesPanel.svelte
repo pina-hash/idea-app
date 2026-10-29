@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import {
 		formatDue,
@@ -347,9 +348,9 @@
 								<span class="grade-title">
 									{itemTitle(s.item)}
 									{#if !s.item.published}
-										<span class="draft-chip">Draft</span>
+										<StatusChip tone="draft" label="Draft" />
 									{:else if isScheduled(s.item)}
-										<span class="sched-chip">Scheduled &middot; {scheduleLabel(s.item)}</span>
+										<StatusChip tone="neutral" glyph="clock" wrap>Scheduled &middot; {scheduleLabel(s.item)}</StatusChip>
 									{/if}
 								</span>
 								<span class="grade-meta">
@@ -364,25 +365,21 @@
 							</span>
 							<span class="grade-chips">
 								{#if s.awaiting}
-									<span class="chip tone-attention" data-testid="chip-awaiting">
-										{s.awaiting} to mark
-									</span>
+									<StatusChip tone="warn" label="{s.awaiting} to mark" data-testid="chip-awaiting" />
 								{/if}
 								{#if resubmittedAfterGrading[s.item.id]}
-									<span class="chip tone-changed" data-testid="chip-resubmitted">
-										{resubmittedAfterGrading[s.item.id]} resubmitted after grading
-									</span>
+									<StatusChip tone="special" glyph="undo" label="{resubmittedAfterGrading[s.item.id]} resubmitted after grading" data-testid="chip-resubmitted" />
 								{/if}
 								{#if s.returned}
-									<span class="chip tone-good">{s.returned} returned</span>
+									<StatusChip tone="ok" label="{s.returned} returned" />
 								{/if}
 								{#if s.inProgress}
-									<span class="chip tone-muted">{s.inProgress} started</span>
+									<StatusChip tone="info" glyph="progress" label="{s.inProgress} started" />
 								{/if}
 								{#if !s.awaiting && !s.returned && !s.inProgress}
-									<span class="chip tone-muted">Nothing handed in</span>
+									<StatusChip tone="neutral" label="Nothing handed in" />
 								{/if}
-								<span class="chip tone-muted">{s.roster} enrolled</span>
+								<StatusChip tone="neutral" label="{s.roster} enrolled" />
 							</span>
 						</a>
 						<a class="btn secondary tiny grade-open" href={`${basePath}/${section.id}/item/${s.item.id}/grade`}>
@@ -532,38 +529,6 @@
 		align-items: center;
 		min-height: 44px;
 		flex: none;
-	}
-	.chip {
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		border: 1px solid var(--hairline);
-		border-radius: 999px;
-		padding: 0.06rem 0.45rem;
-		white-space: nowrap;
-		color: var(--text-2);
-	}
-	.tone-attention {
-		color: var(--amber);
-		border-color: var(--amber);
-	}
-	/* --gold, not --amber, and only because amber is ALREADY SPOKEN FOR on this
-	   panel: `tone-attention` is the routine "to mark" count, which sits on the
-	   same row. Two amber chips side by side would flatten the difference
-	   between a normal queue and a grade that may no longer describe the work.
-	   Gold is the register's special-callout token, which is exactly the claim.
-	   The console uses amber for this same fact because there amber is free and
-	   gold is taken by "incomplete" -- colour is never the only signal on either
-	   surface, and the chip carries the whole sentence. */
-	.tone-changed {
-		color: var(--gold);
-		border-color: var(--gold);
-	}
-	.tone-good {
-		color: var(--green);
-		border-color: var(--green);
-	}
-	.tone-muted {
-		color: var(--text-2);
 	}
 	.targets-card {
 		padding: 0.9rem 1.1rem;

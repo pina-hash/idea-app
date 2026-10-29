@@ -214,8 +214,8 @@
 		color: var(--dim);
 	}
 	.status-pending {
-		color: var(--teal);
-		border-color: var(--teal);
+		color: var(--status-info);
+		border-color: var(--status-info);
 	}
 	.status-hidden {
 		color: var(--amber);

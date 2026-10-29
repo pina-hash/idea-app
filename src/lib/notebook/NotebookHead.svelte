@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { STATUS_GLYPHS, toneStyle } from '$lib/ui/status-tone';
 	import CheckInState from '$lib/notebook/CheckInState.svelte';
 	import { sessionMeta } from '$lib/notebook';
 	import type { LogCheckIn } from '$lib/notebook/log';
@@ -90,10 +91,12 @@
 		<button
 			type="button"
 			class="chip chip-drafts"
+			style={toneStyle('draft')}
 			data-testid="nb-drafts-chip"
 			aria-pressed={draftsPressed}
 			onclick={() => onDrafts?.()}
 		>
+			<svg class="chip-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={STATUS_GLYPHS.draft.d} /></svg>
 			<span class="chip-val">{draftCount === 1 ? '1 draft' : `${draftCount} drafts`}</span>
 			<span class="chip-meta">{readOnly ? 'not turned in' : 'to turn in'}</span>
 		</button>
@@ -190,14 +193,27 @@
 	.chip-due:hover {
 		background: var(--nb-accent-wash);
 	}
+	/* THE DRAFT TONE, NEVER A WARNING (ledger 0466, 2c3cacb2): a dashed edge
+	   and the pencil, the draft chip's own two signals, and the body ink. */
 	.chip-drafts {
-		border-color: color-mix(in srgb, var(--nb-warn) 55%, transparent);
-		color: var(--text-1);
+		border-style: dashed;
+		border-color: var(--st-edge);
+		color: var(--st-ink);
 	}
 	.chip-drafts:hover,
 	.chip-drafts[aria-pressed='true'] {
-		background: color-mix(in srgb, var(--nb-warn) 10%, transparent);
-		border-color: var(--nb-warn);
+		background: var(--surface-2);
+		border-color: var(--st-ink);
+	}
+	.chip-glyph {
+		flex: none;
+		width: 12px;
+		height: 12px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 	.chip-key {
 		color: var(--nb-accent-ink);
@@ -210,7 +226,7 @@
 		font-weight: 600;
 	}
 	.chip-drafts .chip-val {
-		color: var(--nb-warn);
+		color: var(--st-ink);
 	}
 	/* MUTED COPY ON A CHIP TAKES --text-2, NEVER --text-3: the chip's own
 	   hover fill is a wash over the card, which is the ground the tertiary

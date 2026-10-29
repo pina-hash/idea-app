@@ -22,6 +22,7 @@ import type { HtmlAssignmentManifest, HtmlBlock } from './html-assignment/manife
 import type { ResponseValue } from './assignment-spec';
 import { dayIndex, schoolDayPlus, schoolWeekday } from './school-calendar';
 import { parseSignoffMissing, type SignoffMissing } from './signoffs';
+import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 
 export type TeamTaskStatus = 'done' | 'blocked' | 'behind' | 'on-it' | 'todo';
 
@@ -104,6 +105,20 @@ export const TEAM_CHECKPOINT_WORDS: Record<string, string> = {
 	'sent-back': 'Sent back',
 	open: 'Not requested'
 };
+
+/** A checkpoint's tone and mark in the one tone map (ledger 0466). */
+export function teamCheckpointTone(state: string): { tone: StatusTone; glyph: StatusGlyph } {
+	switch (state) {
+		case 'approved':
+			return { tone: 'ok', glyph: 'check' };
+		case 'requested':
+			return { tone: 'info', glyph: 'clock' };
+		case 'sent-back':
+			return { tone: 'warn', glyph: 'undo' };
+		default:
+			return { tone: 'neutral', glyph: 'dash' };
+	}
+}
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
@@ -229,6 +244,18 @@ export const TEAM_STATUS_WORDS: Record<TeamTaskStatus, string> = {
 	behind: 'Behind',
 	'on-it': 'On it',
 	todo: 'To do'
+};
+
+/**
+ * A task's tone and mark in the one tone map (ledger 0466): On it is info,
+ * work under way, never the warning hue; Behind and Blocked are warn.
+ */
+export const TEAM_STATUS_TONES: Record<TeamTaskStatus, { tone: StatusTone; glyph: StatusGlyph }> = {
+	done: { tone: 'ok', glyph: 'check' },
+	blocked: { tone: 'warn', glyph: 'alert' },
+	behind: { tone: 'warn', glyph: 'clock' },
+	'on-it': { tone: 'info', glyph: 'progress' },
+	todo: { tone: 'neutral', glyph: 'dash' }
 };
 
 /** The share of planned points that must be done by now, below which a team is Slipping. */

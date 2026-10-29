@@ -19,6 +19,12 @@
 			"tags": ["Visual", "Calendar"]
 		},
 		{
+			"date": "2026-10-29",
+			"title": "Every status tag looks the same everywhere, with a word and a mark",
+			"body": "Status tags on your class page, to-do, notebook, grades and coin pages are now one kind of tag: a solid color, a small mark and the same words as before. In progress is now a blue-green tag with a half-filled circle, not the orange warning color. Drafts have their own gray tag with a pencil, never a warning sign. Missing and late work is orange with a warning mark, work you turned in or finished is blue-green with a check, returned work is green with a check, and a grade is never shown in red. The words did not change, so read them the same way you always have.",
+			"tags": ["classroom"]
+		},
+		{
 			"date": "2026-10-28",
 			"title": "IdeaCAD sharing shows names and emails, and names that call out a classmate wait for an OK",
 			"body": "When you share an IdeaCAD model, everyone in the list now shows their name and their school email, and you can find someone by any part of either. A model someone shared with you now says who owns it by name and email. Tournament entry names, roster names and taglines, and IDEA Market listings, that name a classmate now wait for a teacher's OK before anyone sees them, just like team names. Until then your entry shows \"Name waiting for an OK\" and your listing stays hidden.",

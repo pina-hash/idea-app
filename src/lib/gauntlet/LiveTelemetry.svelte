@@ -299,7 +299,7 @@
 		background: var(--green, #00ff41);
 	}
 	.lt-fill.band-close {
-		background: var(--teal, #2ec4a6);
+		background: var(--status-info-solid, #2ec4a6);
 	}
 	.lt-fill.band-near,
 	.lt-fill.band-far {

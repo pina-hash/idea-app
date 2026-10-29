@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 	// THE EAGER HALF OF THE VERSION SUBSTRATE ONLY. `deploy` is a handful of
 	// fields and is already on every route through the root layout; the commit
 	// LOG it is compared against is `virtual:site-changelog`, which is imported
@@ -374,6 +376,24 @@
 
 	function statusOf(row: FeedbackRow) {
 		return moved[row.id] ?? row.status;
+	}
+
+	/*
+	 * A report's state in the one tone map (ledger 0466). Spam is warn, never
+	 * danger: crimson is live, recording and error only, and a spam report is a
+	 * warning about the row's contents. Resolved is the quiet one.
+	 */
+	function statusTone(status: string): { tone: StatusTone; glyph: StatusGlyph } {
+		switch (status) {
+			case 'new':
+				return { tone: 'info', glyph: 'info' };
+			case 'seen':
+				return { tone: 'info', glyph: 'ring' };
+			case 'spam':
+				return { tone: 'warn', glyph: 'alert' };
+			default:
+				return { tone: 'neutral', glyph: 'check' };
+		}
 	}
 
 	/** Optimistic horizon, the `moved` shape: a switch lands before the reload. */
@@ -1126,17 +1146,17 @@
 					<span class="fb-kind">{rowKind(row)}</span>
 					<span class="fb-route">{rowRoute(row)}</span>
 					<span class="fb-when">{whenLabel(row.created_at)}</span>
-					<span class="fb-status status-{statusOf(row)}">{statusOf(row)}</span>
+					<StatusChip {...statusTone(statusOf(row))} label={statusOf(row)} data-status={statusOf(row)} />
 					{#if horizonOf(row) === 'long_term'}
 						<!-- A RECESSED TAG with the word in it, on every long-term row in
 						     every view: the list heading is not on screen once a long
 						     list has scrolled. -->
-						<span class="chip fb-horizon-chip" data-testid="fbc-long-term-chip">Long-term</span>
+						<StatusChip tone="neutral" glyph="clock" label="Long-term" data-testid="fbc-long-term-chip" />
 					{/if}
 					{#if rowEdit(row)}
 						<!-- THE WORD, NOT A COLOUR: a corrected report says it is one on
 						     its own card, in every view, whatever list it sits in. -->
-						<span class="chip fb-horizon-chip fb-edited-chip" data-testid="fbc-edited-chip">Edited</span>
+						<StatusChip tone="neutral" label="Edited" data-testid="fbc-edited-chip" />
 					{/if}
 				</div>
 				{#if editFeedback && editingId === row.id}
@@ -1540,19 +1560,6 @@
 	.fbc-group-title::before {
 		content: none;
 	}
-	/* THE LONG-TERM TAG. Under the plate it is the shared recessed `.chip`;
-	   unplated it is an outlined tag. Its word is the signal, in the body ink,
-	   so it reads on every ground the card can be (`--text-1`, not a hue). */
-	.fb-horizon-chip {
-		font-family: var(--font-mono);
-		font-size: 0.6875rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--text-1);
-		border: 1px solid var(--boundary);
-		border-radius: 999px;
-		padding: 0.05rem 0.5rem;
-	}
 
 	.facets {
 		display: flex;
@@ -1680,8 +1687,7 @@
 		flex-wrap: wrap;
 		margin-bottom: 0.4rem;
 	}
-	.fb-kind,
-	.fb-status {
+	.fb-kind {
 		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		text-transform: uppercase;
@@ -1690,27 +1696,6 @@
 		border-radius: 999px;
 		padding: 0.02rem 0.5rem;
 		color: var(--text-2);
-	}
-	.fb-status.status-new {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
-	.fb-status.status-seen {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
-	/*
-	   SPAM IS AMBER, NOT CRIMSON. `--crimson` is reserved for live/rec/error and
-	   a spam report is neither an error nor an identity -- it is a warning about
-	   the row's contents, which is exactly what `--amber` means in this register.
-	   THE HUE IS NEVER THE ONLY SIGNAL: the chip prints the word, as every other
-	   status chip does, and the row's own buttons say which state it is in.
-	   `resolved` deliberately keeps no rule and falls to the base `--text-2`,
-	   which is what makes a worked-through row the quiet one.
-	*/
-	.fb-status.status-spam {
-		color: var(--amber);
-		border-color: var(--amber);
 	}
 	/* THE ROUTE A REPORT CAME FROM. This was `.fb-page`, the same class as the
 	   page's own `<main>`, and a scoped rule matches every element carrying its

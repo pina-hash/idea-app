@@ -41,7 +41,8 @@ import {
 	type WorkChipTone,
 	type WorkStanding
 } from '$lib/classroom/classroom';
-import { checkInHref, checkInStatusLabel, checkInTone, type ClassCheckIn } from '$lib/classroom/class-check-ins';
+import { checkInGlyph, checkInHref, checkInStatusLabel, checkInTone, type ClassCheckIn } from '$lib/classroom/class-check-ins';
+import type { StatusGlyph } from '$lib/ui/status-tone';
 import { isUnseenReturn, sectionManagedBy, type FeedSubmission } from '$lib/classroom/feed';
 import {
 	SCHOOL_LOCALE,
@@ -97,6 +98,8 @@ export interface TodoRow {
 	/** The row's chip: the same words and tone the class page prints for it. */
 	state: string;
 	tone: WorkChipTone;
+	/** The chip's mark, the class page's own for the same row. */
+	glyph: StatusGlyph;
 	/** Finished: the row carries a checkmark. */
 	done: boolean;
 	/** Handed back with a grade or a comment the student has not opened since. */
@@ -188,6 +191,7 @@ export function buildTodo(input: TodoInput): TodoRow[] {
 			createdAt: item.created_at ?? null,
 			state: chip.label,
 			tone: chip.tone,
+			glyph: chip.glyph,
 			done: chip.done,
 			feedbackUnread: isUnseenReturn(sub, item),
 			points: item.points,
@@ -215,7 +219,8 @@ export function buildTodo(input: TodoInput): TodoRow[] {
 			// A check-in past its day and not filed wears the SAME missing tone an
 			// assignment does in the same list, so the Missing view reads as one
 			// kind of thing; everywhere else it keeps the class page's own tone.
-			tone: standing === 'missing' ? 'missing' : checkInTone(checkIn.status),
+			tone: standing === 'missing' ? 'warn' : checkInTone(checkIn.status),
+			glyph: standing === 'missing' ? 'alert' : standing === 'done' ? 'check' : checkInGlyph(checkIn.status),
 			done: standing === 'done',
 			feedbackUnread: false,
 			points: null,

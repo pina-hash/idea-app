@@ -13,13 +13,13 @@ export default {
 			expectVisible: 7
 		},
 		{
-			selector: '[data-testid="maps-node-tree"] .mp-chip[data-state="pending"]',
+			selector: '[data-testid="maps-node-tree"] .status-chip[data-state="pending"]',
 			label: 'pending-edit chip on Mill Room, visible from the list',
 			expectPresent: 1,
 			expectVisible: 1
 		},
 		{
-			selector: '[data-testid="maps-node-tree"] .mp-chip[data-state="draft"]',
+			selector: '[data-testid="maps-node-tree"] .status-chip[data-state="draft"]',
 			label: 'draft chips on Drawer 2 and Prototype Lab',
 			expectPresent: 2,
 			expectVisible: 2
@@ -46,7 +46,7 @@ export default {
 	contrast: [
 		{ selector: '[data-testid="maps-node-tree"] .row-name', label: 'tree row name', min: 4.5 },
 		{ selector: '[data-testid="maps-node-tree"] .row-kind', label: 'tree row kind word', min: 4.5 },
-		{ selector: '[data-testid="maps-editor"] .mp-chip', label: 'status chip word', min: 4.5 },
+		{ selector: '[data-testid="maps-editor"] .status-chip', label: 'status chip word', min: 4.5 },
 		{ selector: '[data-testid="maps-add-root"] .hint', label: 'nesting-rule hint copy', min: 4.5 },
 		{ selector: '[data-testid="maps-editor"] .section-tabs .tab', label: 'section tab label', min: 4.5 }
 	],

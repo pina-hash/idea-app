@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { coins } from '$lib/coin-format';
@@ -214,8 +215,8 @@
 					<li class="item" class:off={!i.active} data-testid="cd-donation-item">
 						<div class="item-head">
 							<span class="name">{i.name}</span>
-							<span class="cdx-chip">{rateWords(i)}</span>
-							{#if !i.active}<span class="cdx-chip warn">Off the list</span>{/if}
+							<StatusChip tone="neutral" label={rateWords(i)} />
+							{#if !i.active}<StatusChip tone="warn" label="Off the list" />{/if}
 						</div>
 						{@render itemForm(i.id, i)}
 					</li>

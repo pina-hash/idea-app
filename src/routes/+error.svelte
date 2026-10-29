@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { page } from '$app/state';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -107,7 +108,7 @@
 		<div class="err-lead-row">
 			<span class="err-code" aria-hidden="true">{page.status}</span>
 			<div class="err-words">
-				<span class="err-chip" data-tone={page.status === 404 ? 'amber' : 'crimson'}>{statusWord}</span>
+				<StatusChip class="err-status" tone={page.status === 404 ? 'warn' : 'danger'} glyph={page.status === 404 ? 'alert' : 'error'} label={statusWord} />
 				<p id="err-what" class="err-lead">{lead}</p>
 			</div>
 		</div>
@@ -199,36 +200,8 @@
 		gap: 0.5rem;
 		min-width: 0;
 	}
-	.err-chip {
+	.err-words :global(.err-status) {
 		justify-self: start;
-		display: inline-flex;
-		align-items: center;
-		gap: 0.45rem;
-		min-height: 1.6rem;
-		padding: 0 0.7rem 0 0.55rem;
-		border-radius: var(--plate-r-small, 7px);
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--plate-ink, var(--white));
-		background: var(--plate-well-face, var(--bg0));
-		box-shadow:
-			inset 0 1px 2px 0 var(--plate-well-shade, rgba(0, 0, 0, 0.5)),
-			inset 0 -1px 0 0 var(--plate-well-lip, rgba(255, 255, 255, 0.12));
-	}
-	.err-chip::before {
-		content: '';
-		flex: none;
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: var(--amber);
-		box-shadow: 0 0 4px 1px color-mix(in srgb, var(--amber) 70%, transparent);
-	}
-	.err-chip[data-tone='crimson']::before {
-		background: var(--crimson);
-		box-shadow: 0 0 4px 1px color-mix(in srgb, var(--crimson) 70%, transparent);
 	}
 	.err-lead {
 		margin: 0;

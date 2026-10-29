@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneFrom, verdictGlyph, type LegacyTone } from '$lib/ui/status-tone';
 	import './coin-page.css';
 	import type { CoinPageHistoryRow } from '$lib/coin-balance';
 	import { disputeRefusalWords, disputeWords, type CoinActionResult } from './extras';
@@ -49,13 +51,19 @@
 		}
 	}
 
-	function tone(s: string): string {
+	function tone(s: string): LegacyTone {
 		return s === 'approved' ? 'good' : s === 'denied' ? 'bad' : s === 'pending' ? 'wait' : '';
 	}
 </script>
 
 {#if row.dispute}
-	<span class="cpx-chip wrap {tone(row.dispute.status)}" data-testid="coin-dispute-state">{disputeWords(row.dispute)}</span>
+	<StatusChip
+		tone={toneFrom(tone(row.dispute.status))}
+		glyph={verdictGlyph(tone(row.dispute.status))}
+		wrap
+		label={disputeWords(row.dispute)}
+		data-testid="coin-dispute-state"
+	/>
 {/if}
 {#if canAsk}
 	{#if !open}

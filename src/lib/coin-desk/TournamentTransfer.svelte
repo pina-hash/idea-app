@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import { coins } from '$lib/coin-format';
 	import { V2_UNAVAILABLE } from './v2';
@@ -242,7 +243,7 @@
 						<li class="t-entry" data-testid="cd-tournament-entry">
 							<div class="t-entry-head">
 								<span class="t-entry-name">{e.name}</span>
-								{#if place}<span class="cdx-chip ok">{place}</span>{/if}
+								{#if place}<StatusChip tone="ok" label={place} />{/if}
 								<label class="cdx-field t-total">
 									<span>Team total (coins)</span>
 									<input
@@ -282,7 +283,7 @@
 												/>
 											</label>
 										{:else}
-											<span class="cdx-chip warn" data-testid="cd-tournament-walkup">No account, skipped</span>
+											<StatusChip tone="warn" label="No account, skipped" data-testid="cd-tournament-walkup" />
 										{/if}
 									</li>
 								{/each}

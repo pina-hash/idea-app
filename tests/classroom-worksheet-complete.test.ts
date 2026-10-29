@@ -156,7 +156,7 @@ describe('complete is done, late says so, and nothing else moves', () => {
 	it('finished before the due instant: done, "Complete", the info tone, a checkmark', () => {
 		const work = { state: 'in-progress' as const, score: null, completedAt: '2026-09-20T15:20:00.000Z' };
 		expect(assignmentStanding(ITEM, work, NOW)).toBe('done');
-		expect(studentWorkChip(ITEM, work, NOW)).toEqual({ label: 'Complete', tone: 'info', done: true, missing: false });
+		expect(studentWorkChip(ITEM, work, NOW)).toEqual({ label: 'Complete', tone: 'info', glyph: 'check', done: true, missing: false });
 	});
 
 	it('finished after it: still done, but "Complete, late" in amber, never a silent Done', () => {
@@ -164,7 +164,8 @@ describe('complete is done, late says so, and nothing else moves', () => {
 		expect(assignmentStanding(ITEM, work, NOW)).toBe('done');
 		expect(studentWorkChip(ITEM, work, NOW)).toEqual({
 			label: 'Complete, late',
-			tone: 'attention',
+			tone: 'warn',
+			glyph: 'check',
 			done: true,
 			missing: false
 		});
@@ -310,7 +311,7 @@ describe("the to-do lists a finished worksheet under Done, dated when it was fin
 		expect(todoSummary(before, clock.today).missing).toBe(2);
 		expect(todoSummary(after, clock.today).missing).toBe(1);
 		const w = after.find((r) => r.key === 'item:w')!;
-		expect(w).toMatchObject({ view: 'done', state: 'Complete, late', tone: 'attention', done: true });
+		expect(w).toMatchObject({ view: 'done', state: 'Complete, late', tone: 'warn', done: true });
 		expect(todoWhen(w, clock.today)).toBe('Completed Sep 22');
 	});
 });
@@ -603,7 +604,7 @@ describe('finished work never reads Missing (ledger 0360)', () => {
 	it('every REQUIRED block stored and the optional photo slot EMPTY: done, "Complete, late"', async () => {
 		const out = await standingOf([why, checked('a-done', { checked: [true] })], [storedPhoto('p1', 'a-photo-1')]);
 		expect(out.standing).toBe('done');
-		expect(out.chip).toEqual({ label: 'Complete, late', tone: 'attention', done: true, missing: false });
+		expect(out.chip).toEqual({ label: 'Complete, late', tone: 'warn', glyph: 'check', done: true, missing: false });
 	});
 
 	it('THE CONTROL: a REQUIRED block empty (no photo at all) still reads Missing', async () => {

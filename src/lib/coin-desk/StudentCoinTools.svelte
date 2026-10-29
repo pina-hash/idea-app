@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { coins } from '$lib/coin-format';
 	import { payRaisePreview, threeDPrintingPreview, type CoinCategory } from '$lib/coin-desk';
@@ -163,9 +164,9 @@
 					<span class="cdx-note">{V2_UNAVAILABLE}</span>
 				{:else}
 					{#if noShopToday}
-						<span class="cdx-chip warn">No shop today</span>
+						<StatusChip tone="warn" label="No shop today" />
 					{:else}
-						<span class="cdx-chip ok">Allowed</span>
+						<StatusChip tone="ok" label="Allowed" />
 					{/if}
 					<button
 						type="button"

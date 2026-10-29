@@ -278,7 +278,7 @@
 	/* Colour is never the only signal: the word inside the tag says the same
 	   thing the hue does, on every row. */
 	.tag[data-tag='kept'] {
-		color: var(--teal);
+		color: var(--status-info);
 	}
 	.tag[data-tag='converted'] {
 		color: var(--green);

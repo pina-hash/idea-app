@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { ICONS } from '$lib/shell/commands';
 	import PostThumbnail from '$lib/classroom/PostThumbnail.svelte';
@@ -233,18 +234,7 @@
 										</span>
 									</span>
 									<span class="todo-state">
-										<span class="todo-chip tone-{row.tone}" data-testid="todo-state">
-											{#if row.tone === 'missing'}
-												<svg class="todo-chip-mark" viewBox="0 0 24 24" aria-hidden="true"
-													><path d={ICONS.missing} /></svg
-												>
-											{:else if row.done}
-												<svg class="todo-chip-mark" viewBox="0 0 24 24" aria-hidden="true"
-													><path d={ICONS.done} /></svg
-												>
-											{/if}
-											{row.state}
-										</span>
+										<StatusChip tone={row.tone} glyph={row.glyph} label={row.state} data-testid="todo-state" />
 										{#if row.feedbackUnread && g.id !== 'feedback'}
 											<span class="todo-flag" data-testid="todo-feedback-flag">Feedback to read</span>
 										{/if}
@@ -505,47 +495,6 @@
 		flex-direction: column;
 		align-items: flex-end;
 		gap: 0.25rem;
-	}
-	.todo-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		font-family: var(--font-mono);
-		font-size: 0.66rem;
-		white-space: nowrap;
-		padding: 0.12rem 0.5rem;
-		border: 1px solid var(--hairline);
-		border-radius: 999px;
-		color: var(--text-2);
-	}
-	.todo-chip-mark {
-		width: 11px;
-		height: 11px;
-		fill: none;
-		stroke: currentColor;
-		stroke-width: 2.2;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	.todo-chip.tone-good {
-		color: var(--green);
-		border-color: var(--green);
-	}
-	.todo-chip.tone-attention {
-		color: var(--amber);
-		border-color: var(--amber);
-	}
-	.todo-chip.tone-info {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
-	/* MISSING IS ITS OWN TONE (studentWorkChip): the word, a mark, a fill and a
-	   heavier weight, where "In progress" is the same hue as an outline only. */
-	.todo-chip.tone-missing {
-		color: var(--amber);
-		border-color: var(--amber);
-		background: color-mix(in srgb, var(--amber) 14%, transparent);
-		font-weight: 700;
 	}
 	.todo-flag {
 		font-family: var(--font-mono);

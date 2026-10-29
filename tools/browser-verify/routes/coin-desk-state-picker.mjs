@@ -61,17 +61,17 @@ export default {
 		/* THE POSITIVE CONTROL for every absence and every count below: a glyph
 		   on every row. A run where the component rendered no glyphs at all
 		   would satisfy "no two glyphs are the same" perfectly. */
-		{ selector: '.cd-root [data-testid="cd-category-list"] .coin-glyph', label: 'one glyph per row', expectPresent: 30 },
+		{ selector: '.cd-root [data-testid="cd-category-list"] .status-chip-glyph', label: 'one glyph per row', expectPresent: 30 },
 		/* A DECORATIVE GLYPH IS aria-hidden, ALL OF THEM. It never appears
 		   without the type's word beside it, so announcing it would read the
 		   type twice. */
-		{ selector: '.cd-root [data-testid="cd-category-list"] .coin-glyph:not([aria-hidden="true"])', label: 'no glyph announces itself', expectPresent: 0, expectVisible: 0, maxVisible: 0 }
+		{ selector: '.cd-root [data-testid="cd-category-list"] .status-chip-glyph:not([aria-hidden="true"])', label: 'no glyph announces itself', expectPresent: 0, expectVisible: 0, maxVisible: 0 }
 	],
 	contrast: [
-		{ selector: '.cd-root .combo-option.tone-award .combo-kind', label: 'AWARD chip (--green)', min: 4.5 },
-		{ selector: '.cd-root .combo-option.tone-fine .combo-kind', label: 'FINE chip (--amber)', min: 4.5 },
-		{ selector: '.cd-root .combo-option.tone-purchase .combo-kind', label: 'PURCHASE chip (--gold)', min: 4.5 },
-		{ selector: '.cd-root .combo-option.tone-adjustment .combo-kind', label: 'ADJUSTMENT chip (--violet-ink)', min: 4.5 },
+		{ selector: '.cd-root .combo-option[data-type="award"] .status-chip', label: 'AWARD chip (ok)', min: 4.5 },
+		{ selector: '.cd-root .combo-option[data-type="fine"] .status-chip', label: 'FINE chip (warn)', min: 4.5 },
+		{ selector: '.cd-root .combo-option[data-type="purchase"] .status-chip', label: 'PURCHASE chip (neutral)', min: 4.5 },
+		{ selector: '.cd-root .combo-option[data-type="adjustment"] .status-chip', label: 'ADJUSTMENT chip (special)', min: 4.5 },
 		/* No PAYOUT chip since IDEA Coin V2 (ledger 0384): Coin Payout is not
 		   loggable, so the picker carries four types; the payout transfer is the
 		   Economy page's. */
@@ -83,12 +83,12 @@ export default {
 	],
 	textContains: [
 		{
-			selector: '.cd-root .combo-option.tone-fine .combo-kind',
+			selector: '.cd-root .combo-option[data-type="fine"] .status-chip',
 			label: 'a fine chip says the word, not only the colour',
 			must: ['Fines']
 		},
 		{
-			selector: '.cd-root .combo-option.tone-award .combo-kind',
+			selector: '.cd-root .combo-option[data-type="award"] .status-chip',
 			label: 'an award chip says the word',
 			must: ['Awards']
 		}
@@ -107,13 +107,13 @@ export default {
 		{
 			label: 'the count of distinct glyphs equals the count of distinct types',
 			evaluate:
-				'() => { const rows = [...document.querySelectorAll("[data-testid=\\"cd-category-list\\"] .combo-option")]; if (!rows.length) return ["NO ROWS"]; const types = new Set(rows.map((r) => r.dataset.type)); const glyphs = new Set(rows.map((r) => { const g = r.querySelector(".coin-glyph"); return g && g.dataset.glyph; })); if (glyphs.has(null) || glyphs.has(undefined)) return ["A ROW HAS NO GLYPH"]; return [types.size + " types / " + glyphs.size + " glyphs"]; }',
+				'() => { const rows = [...document.querySelectorAll("[data-testid=\\"cd-category-list\\"] .combo-option")]; if (!rows.length) return ["NO ROWS"]; const types = new Set(rows.map((r) => r.dataset.type)); const glyphs = new Set(rows.map((r) => { const g = r.querySelector(".status-chip-glyph"); return g && g.dataset.glyph; })); if (glyphs.has(null) || glyphs.has(undefined)) return ["A ROW HAS NO GLYPH"]; return [types.size + " types / " + glyphs.size + " glyphs"]; }',
 			expected: ['4 types / 4 glyphs']
 		},
 		{
-			label: 'every row carries a tone class, so none falls through uncoloured',
+			label: 'every row carries a tone, so none falls through uncoloured',
 			evaluate:
-				'() => { const rows = [...document.querySelectorAll("[data-testid=\\"cd-category-list\\"] .combo-option")]; if (!rows.length) return ["NO ROWS"]; const untoned = rows.filter((r) => ![...r.classList].some((c) => c.startsWith("tone-"))); return [untoned.length === 0 ? "all toned (" + rows.length + " rows)" : untoned.length + " untoned"]; }',
+				'() => { const rows = [...document.querySelectorAll("[data-testid=\\"cd-category-list\\"] .combo-option")]; if (!rows.length) return ["NO ROWS"]; const untoned = rows.filter((r) => !(r.getAttribute("style") || "").includes("--st-ink") || !r.querySelector(".status-chip[data-tone]")); return [untoned.length === 0 ? "all toned (" + rows.length + " rows)" : untoned.length + " untoned"]; }',
 			expected: ['all toned (33 rows)']
 		}
 	]

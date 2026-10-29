@@ -19,7 +19,7 @@ export const OPEN_ALICE = [
 /** Every roster row as "<name>: <state chip>", in roster order. */
 export const ROSTER_STATES = `() => [...document.querySelectorAll('.roster-row')].map((r) =>
 	r.querySelector('.roster-name')?.textContent.trim() + ': ' +
-	([...r.querySelectorAll('.roster-chip')].filter((c) => !c.classList.contains('section') && !c.classList.contains('incomplete') && !c.classList.contains('changed')).map((c) => c.textContent.trim()).join(', '))
+	([...r.querySelectorAll('[data-roster-state]')].map((c) => c.textContent.trim()).join(', '))
 )`;
 
 /** The blocks the work pane lists as changed after grading. */

@@ -120,7 +120,7 @@
 	<div class="mk-dialog-body">
 		<div class="mk-dialog-head">
 			<div>
-				<span class="mk-chip plain"
+				<span class="mk-kind"
 					><Glyph name={isRequest ? 'request' : 'offer'} size={12} />{isRequest ? 'Request' : 'Offer'} · {categoryLabel(listing.category)}</span
 				>
 				<h2 id="mk-listing-title">{listing.title}</h2>

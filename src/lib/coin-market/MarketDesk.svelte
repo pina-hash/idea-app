@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import Pending from '$lib/Pending.svelte';
 	import './market.css';
 	import { untrack } from 'svelte';
@@ -207,8 +208,8 @@
 							<div class="mk-trade-head">
 								<span class="mk-trade-title">{c.title}</span>
 								<span class="mk-row">
-									{#if c.featured}<span class="mk-chip gold">Featured</span>{/if}
-									{#if c.hidden}<span class="mk-chip bad">Hidden</span>{/if}
+									{#if c.featured}<StatusChip tone="special" label="Featured" />{/if}
+									{#if c.hidden}<StatusChip tone="warn" glyph="hidden" label="Hidden" />{/if}
 								</span>
 							</div>
 							<span class="mk-note">{CARD_KIND_WORDS[c.kind]}{c.detail ? `. ${c.detail}` : ''}</span>
@@ -240,9 +241,9 @@
 								<span class="mk-trade-title">{l.title}</span>
 								<span class="mk-row">
 									<span class="mk-price">{l.price !== null ? coins(l.price) : ''}</span>
-									{#if l.featured}<span class="mk-chip gold">Featured</span>{/if}
-									{#if l.hidden}<span class="mk-chip bad">Hidden</span>{/if}
-									{#if l.closed}<span class="mk-chip plain">Closed</span>{:else if l.expired}<span class="mk-chip plain">Expired</span>{/if}
+									{#if l.featured}<StatusChip tone="special" label="Featured" />{/if}
+									{#if l.hidden}<StatusChip tone="warn" glyph="hidden" label="Hidden" />{/if}
+									{#if l.closed}<StatusChip tone="neutral" label="Closed" />{:else if l.expired}<StatusChip tone="neutral" label="Expired" />{/if}
 								</span>
 							</div>
 							<span class="mk-note">{l.kind === 'request' ? 'Request' : 'Offer'} by {l.owner.name}{l.hidden && l.hidden_reason ? `. Hidden: ${l.hidden_reason}` : ''}</span>
@@ -347,7 +348,7 @@
 				<ul class="mk-feed">
 					{#each transfers as t (t.id)}
 						<li>
-							<span class="mk-feed-who">{t.from.name} to {t.to.name} {#if t.private}<span class="mk-chip plain">Private</span>{/if}</span>
+							<span class="mk-feed-who">{t.from.name} to {t.to.name} {#if t.private}<StatusChip tone="neutral" label="Private" />{/if}</span>
 							<span class="mk-feed-amt">{coins(t.amount)}</span>
 							{#if t.raw_message}
 								<span class="mk-feed-msg">“{t.raw_message}”{t.message_removed ? ' (removed from the feed)' : ''}</span>
@@ -371,7 +372,7 @@
 				<ul class="mk-list">
 					{#each stocks as s (s.id)}
 						<li class="mk-trade">
-							<div class="mk-trade-head"><span class="mk-trade-title">{s.ticker}: {s.name}</span><span class="mk-chip {s.active ? 'good' : 'plain'}">{s.active ? 'On' : 'Off'}</span></div>
+							<div class="mk-trade-head"><span class="mk-trade-title">{s.ticker}: {s.name}</span><StatusChip tone={s.active ? 'ok' : 'neutral'} label={s.active ? 'On' : 'Off'} /></div>
 							<button type="button" class="btn secondary mk-key" disabled={busy} onclick={() => run(transports.stockSet!(s.id, !s.active), s.active ? 'Switched off.' : 'Switched on.')}>{s.active ? 'Switch off' : 'Switch on'}</button>
 						</li>
 					{/each}

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneFrom } from '$lib/ui/status-tone';
 	import { coins } from '$lib/coin-format';
 	import Glyph from './Glyph.svelte';
 	import { ORDER_STATUS_WORDS, orderNextStep, type MarketRules, type Order } from './market';
@@ -91,7 +93,7 @@
 		<span class="mk-trade-title">{order.title}</span>
 		<span class="mk-row">
 			<span class="mk-price">{coins(order.amount)}</span>
-			<span class="mk-chip {status.tone}" data-testid="mk-trade-status">{status.label}</span>
+			<StatusChip tone={toneFrom(status.tone)} label={status.label} data-testid="mk-trade-status" />
 		</span>
 	</div>
 	<span class="mk-note">

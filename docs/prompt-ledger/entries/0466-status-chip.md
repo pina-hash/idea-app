@@ -7,6 +7,6 @@
 - Owns: a new StatusChip component and tone map in `src/lib/ui/`, every `.tone-*` definition and status `*-chip` class in `src/` and their call sites, except files lane 0467 owns; the lane's tests; one `classroom-updates.json` entry where students see a change; its `docs/history/` entry; this entry.
 - Starts: after 0465 lands and after 0455, 0456, 0457, 0458 and 0463 land; alongside 0467
 - Migration permitted: no. Claims: none
-- Status: issued
+- Status: pushed
 - Mode: solo
 - Branch: main (solo)

@@ -51,7 +51,7 @@ export default {
 		   between-levels path must be silent -- which is what says the derived
 		   levels really do carry the points the grade was recorded against. */
 		{ selector: '[data-testid="hx-view-manifest"] .override-line', label: 'a between-levels notice', expectPresent: 0 },
-		{ selector: '[data-testid="hx-console-manifest"] .override-chip', label: 'an override chip', expectPresent: 0 },
+		{ selector: '[data-testid="hx-console-manifest"] .override-mark', label: 'an override chip', expectPresent: 0 },
 		{ selector: '[data-testid="hx-view-manifest"] .crit-note', label: "the grader's comment on one criterion", expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	contrast: [

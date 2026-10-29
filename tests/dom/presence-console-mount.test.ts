@@ -225,7 +225,7 @@ async function sweepCards(m: Mounted): Promise<CardRead[]> {
 		const card = m.target.querySelector('[data-testid="roster-card"]');
 		out.push({
 			name: row.querySelector('.roster-name')?.textContent?.trim() ?? '',
-			chip: row.querySelector('.roster-chip')?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
+			chip: row.querySelector('[data-roster-state]')?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
 			card: card ? (card.cloneNode(true) as Element) : null
 		});
 		row.blur();
@@ -297,12 +297,12 @@ describe('with a presence transport', () => {
 		// COLOUR IS NEVER THE ONLY SIGNAL. Every chip carries a word AND a glyph,
 		// and the words are distinct -- a chip that had lost its word would leave
 		// the hue doing the whole job.
-		const words = chips.map((c) => c.querySelector('.pword')?.textContent?.trim());
+		const words = chips.map((c) => c.querySelector('.status-chip-word')?.textContent?.trim());
 		expect(words).toEqual(['Working', 'Viewing', 'Open elsewhere', 'Away']);
 		expect(new Set(words).size).toBe(4);
 		for (const chip of chips) {
-			const glyph = chip.querySelector('.pglyph');
-			expect(glyph?.textContent?.trim().length).toBeGreaterThan(0);
+			const glyph = chip.querySelector('.status-chip-glyph');
+			expect(glyph?.querySelector('path')?.getAttribute('d')?.length ?? 0).toBeGreaterThan(0);
 			// The word is always beside it, which is exactly why the mark is hidden
 			// from assistive tech rather than labelled.
 			expect(glyph?.getAttribute('aria-hidden')).toBe('true');

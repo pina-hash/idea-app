@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import { coins } from '$lib/coin-format';
 	import { num, V2_UNAVAILABLE } from './v2';
@@ -274,7 +275,7 @@
 							<span class="p-bal">
 								Balance <span class="cdx-balance" class:negative={num(r.balance) < 0}>{coins(num(r.balance))}</span>
 							</span>
-							{#if ticks[r.id] === false}<span class="cdx-chip warn">Next payday</span>{/if}
+							{#if ticks[r.id] === false}<StatusChip tone="warn" label="Next payday" />{/if}
 						</label>
 					</li>
 				{/each}

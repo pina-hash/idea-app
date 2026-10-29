@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneStyle } from '$lib/ui/status-tone';
 	import Pending from '$lib/Pending.svelte';
 	import { PRESENCE_STALE_NOTE } from '$lib/classroom/presence/state';
 	import {
@@ -106,8 +108,9 @@
 					{@const d = LIVE_CELL_DISPLAY[state]}
 					<button
 						type="button"
-						class="lg-chip"
+						class="lg-key"
 						data-tone={d.tone}
+						style={toneStyle(d.tone)}
 						data-state={state}
 						aria-pressed={only === state}
 						data-testid="live-tally-{state}"
@@ -120,14 +123,10 @@
 				{/if}
 			{/each}
 			{#if missingCount > 0}
-				<span class="lg-chip lg-missing-chip" data-testid="live-missing-count">
-					<span class="lg-glyph" aria-hidden="true">!</span>
-					<span>Missing</span>
-					<span class="lg-count">{missingCount}</span>
-				</span>
+				<StatusChip tone="warn" label="Missing {missingCount}" data-testid="live-missing-count" />
 			{/if}
 			{#if only}
-				<button type="button" class="lg-chip lg-clear" onclick={() => (picked = null)}>Show everyone</button>
+				<button type="button" class="lg-key lg-clear" onclick={() => (picked = null)}>Show everyone</button>
 			{/if}
 		</div>
 
@@ -142,7 +141,7 @@
 			<div class="lg-groups" data-testid="live-groups">
 				{#each groups as g (g.state)}
 					{@const d = LIVE_CELL_DISPLAY[g.state]}
-					<section class="lg-group" data-tone={d.tone} data-state={g.state} data-testid="live-group-{g.state}">
+					<section class="lg-group" data-tone={d.tone} style={toneStyle(d.tone)} data-state={g.state} data-testid="live-group-{g.state}">
 						<h3 class="lg-group-head">
 							<span class="lg-glyph" aria-hidden="true">{d.glyph}</span>
 							<span>{d.label}</span>
@@ -154,9 +153,7 @@
 									<span class="lg-name person-name" title={c.name}>{c.name}</span>
 									{#if c.detail}<span class="lg-detail">{c.detail}</span>{/if}
 									{#if c.missing}
-										<span class="lg-missing" data-testid="live-cell-missing">
-											<span aria-hidden="true">!</span> Missing
-										</span>
+										<StatusChip tone="warn" label="Missing" data-testid="live-cell-missing" />
 									{/if}
 								</li>
 							{/each}
@@ -169,8 +166,8 @@
 	{#if chosen && !chosen.signal}
 		<!-- A column state rather than a paragraph: the students above already read
 		     "No signal", and this names why in two words beside the item it is about. -->
-		<p class="lg-signal-chip" data-testid="live-no-signal">
-			<span aria-hidden="true">⌀</span> Materials send no presence
+		<p class="lg-signal" data-testid="live-no-signal">
+			<StatusChip tone="neutral" label="Materials send no presence" />
 		</p>
 	{/if}
 </section>
@@ -227,7 +224,7 @@
 		gap: var(--space-2);
 		margin-bottom: var(--space-3);
 	}
-	.lg-chip {
+	.lg-key {
 		appearance: none;
 		display: inline-flex;
 		align-items: center;
@@ -242,14 +239,10 @@
 		font-size: 0.92rem;
 		cursor: pointer;
 	}
-	.lg-chip[aria-pressed='true'] {
+	.lg-key[aria-pressed='true'] {
 		background: var(--surface-2);
 		border-color: var(--accent-ink);
 		box-shadow: inset 0 -3px 0 var(--accent-ink);
-	}
-	.lg-missing-chip {
-		cursor: default;
-		color: var(--status-warn);
 	}
 	.lg-clear {
 		color: var(--text-2);
@@ -269,21 +262,9 @@
 		width: 1.1em;
 		text-align: center;
 	}
-	[data-tone='ok'] .lg-glyph,
-	.lg-chip[data-tone='ok'] .lg-glyph {
-		color: var(--status-ok);
-	}
-	[data-tone='warn'] .lg-glyph,
-	.lg-chip[data-tone='warn'] .lg-glyph {
-		color: var(--status-warn);
-	}
-	[data-tone='info'] .lg-glyph,
-	.lg-chip[data-tone='info'] .lg-glyph {
-		color: var(--status-info);
-	}
-	[data-tone='quiet'] .lg-glyph,
-	[data-tone='done'] .lg-glyph {
-		color: var(--text-2);
+	/* The state's mark in its tone's ink (the one tone map, ledger 0466). */
+	[data-tone] .lg-glyph {
+		color: var(--st-ink);
 	}
 	.lg-note,
 	.lg-empty {
@@ -306,7 +287,7 @@
 		border-radius: var(--radius-card);
 	}
 	.lg-group[data-tone='warn'] {
-		border-left: 4px solid var(--status-warn);
+		border-left: 4px solid var(--st-ink);
 	}
 	.lg-group-head {
 		display: flex;
@@ -339,25 +320,7 @@
 		color: var(--text-2);
 		font-size: 0.85rem;
 	}
-	.lg-missing {
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--status-warn);
-		border: 1px solid currentColor;
-		border-radius: var(--radius-chip);
-		padding: 0 0.35rem;
-	}
-	.lg-signal-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
+	.lg-signal {
 		margin: 0;
-		padding: 0.3rem 0.6rem;
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-chip);
-		color: var(--text-2);
-		font-size: 0.88rem;
 	}
 </style>

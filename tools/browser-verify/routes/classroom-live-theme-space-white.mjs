@@ -25,7 +25,7 @@ export default {
 		{ selector: '.lc-root .lc-panel-title', label: 'panel title', min: 4.5 },
 		{ selector: '.lc-root .lg-name', label: 'student name', min: 4.5 },
 		{ selector: '.lc-root .lg-detail', label: 'row detail', min: 4.5 },
-		{ selector: '.lc-root .lg-chip', label: 'tally chip', min: 4.5 },
+		{ selector: '.lc-root .lg-key', label: 'tally chip', min: 4.5 },
 		{ selector: '.lc-root .lc-line-text', label: 'agenda line', min: 4.5 },
 		{ selector: '.lc-root .lc-wall-state', label: 'projector state', min: 4.5 }
 	],

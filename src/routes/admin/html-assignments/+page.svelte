@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { enhance } from '$app/forms';
 
 	/**
@@ -64,7 +65,7 @@
 							{:else}
 								{e.row.title ?? e.row.manifest_title ?? 'Untitled'}
 							{/if}
-							{#if !e.row.published}<span class="hh-chip">Draft</span>{/if}
+							{#if !e.row.published}<StatusChip tone="draft" class="hh-draft" label="Draft" />{/if}
 						</p>
 						<p class="hh-classes">{e.row.classes.map((c) => `${c.course} ${c.label}`).join(', ') || 'Not posted to a class'}</p>
 					</div>
@@ -189,11 +190,8 @@
 		font-size: 0.8rem;
 		color: var(--text-2);
 	}
-	.hh-chip {
+	:global(.hh-draft) {
 		margin-left: var(--space-1);
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		color: var(--text-2);
 	}
 	.hh-facts {
 		margin: 0;

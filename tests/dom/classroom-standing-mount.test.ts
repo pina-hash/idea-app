@@ -141,7 +141,9 @@ describe('an unfiled check-in hanging off a material (R14)', () => {
 		const m = mountStudent([checkIn('missing')], {});
 		expect(chips(m)).toEqual(['Check-in: Not filed yet']);
 		const chip = m.one('[data-testid="item-check-in-status"]');
-		expect(chip.classList.contains('tone-missing')).toBe(true);
+		// The missing tone and its alert mark, the one status chip's (ledger 0466).
+		expect(chip.getAttribute('data-tone')).toBe('warn');
+		expect(chip.querySelector('.status-chip-glyph path')?.getAttribute('d')).toContain('M12 8.5v4.5');
 		expect(chip.getAttribute('data-missing')).toBe('true');
 	});
 

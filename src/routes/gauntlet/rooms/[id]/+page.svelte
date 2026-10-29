@@ -595,7 +595,7 @@
 		background: var(--green, #00ff41);
 	}
 	.band-fill.band-close {
-		background: var(--teal, #2ec4a6);
+		background: var(--status-info-solid, #2ec4a6);
 	}
 	.band-fill.band-near,
 	.band-fill.band-far {

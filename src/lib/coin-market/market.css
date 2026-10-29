@@ -261,8 +261,10 @@ button.mk-tile {
 	height: 1.1rem;
 }
 
-/* ---- Chips ---- */
-.mk-chip {
+/* ---- A listing's kind (Offer or Request, and its category) ----
+   A label, not a status: every status on these pages is the one StatusChip
+   (ledger 0466). */
+.mk-kind {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.3rem;
@@ -276,29 +278,6 @@ button.mk-tile {
 	border-radius: 4px;
 	padding: 0.12rem 0.45rem;
 	color: var(--text-2);
-}
-.mk-chip::before {
-	content: '';
-	width: 0.42rem;
-	height: 0.42rem;
-	border-radius: 50%;
-	background: currentColor;
-	opacity: 0.85;
-}
-.mk-chip.good {
-	color: var(--green);
-}
-.mk-chip.bad {
-	color: var(--amber);
-}
-.mk-chip.wait {
-	color: var(--cyan);
-}
-.mk-chip.gold {
-	color: var(--gold);
-}
-.mk-chip.plain::before {
-	content: none;
 }
 
 /* ---- Toolbar ---- */

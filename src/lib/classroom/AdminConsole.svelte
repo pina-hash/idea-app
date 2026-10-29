@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import {
 		emailLocal,
@@ -232,7 +233,7 @@
 						<li>
 							<a class="section-link" href={`/classroom/${s.id}`} data-testid="admin-section-link">
 								<span class="section-name">{sectionTitle(s)}</span>
-								{#if s.active === false}<span class="draft-chip">Archived</span>{/if}
+								{#if s.active === false}<StatusChip tone="neutral" label="Archived" />{/if}
 							</a>
 							<span class="section-jump">
 								<a class="btn secondary tiny" href={`/classroom/${s.id}/people`}>People</a>
@@ -257,7 +258,7 @@
 							<span class="course-main">
 								<span class="course-code">{c.code}</span>
 								<span class="course-title">{c.title}</span>
-								{#if !c.active}<span class="draft-chip">Inactive</span>{/if}
+								{#if !c.active}<StatusChip tone="neutral" label="Inactive" />{/if}
 							</span>
 							<button
 								type="button"

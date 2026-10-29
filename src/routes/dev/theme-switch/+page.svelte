@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
@@ -64,8 +65,10 @@
 				<p class="ts-meta">Due Aug 20 · 40 pts · Unit Labs</p>
 				<div class="ts-row">
 					<button type="button" class="btn">Turn in</button>
-					<span class="ts-chip ok" data-testid="ts-chip-ok">Returned</span>
-					<span class="ts-chip warn" data-testid="ts-chip-warn">Late</span>
+					<!-- `ts-chip` is the browser pass's hook (routes/theme-switch.mjs),
+					     not a style: the chips are the one StatusChip. -->
+					<StatusChip tone="ok" class="ts-chip" label="Returned" data-testid="ts-chip-ok" />
+					<StatusChip tone="warn" glyph="clock" class="ts-chip" label="Late" data-testid="ts-chip-warn" />
 				</div>
 			</section>
 		</main>
@@ -109,19 +112,5 @@
 		gap: 0.75rem;
 		flex-wrap: wrap;
 		margin-top: var(--space-4);
-	}
-	.ts-chip {
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		padding: 0.2rem 0.55rem;
-		border-radius: var(--radius-chip);
-	}
-	.ts-chip.ok {
-		color: var(--status-ok);
-		background: var(--status-ok-fill);
-	}
-	.ts-chip.warn {
-		color: var(--status-warn);
-		background: var(--status-warn-fill);
 	}
 </style>

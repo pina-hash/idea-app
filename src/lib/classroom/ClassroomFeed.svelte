@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { STATUS_GLYPHS, toneStyle } from '$lib/ui/status-tone';
 	import { itemTitle, sectionTitle, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
 	import {
 		actionSummary,
@@ -9,6 +11,7 @@
 		emptyMessage,
 		feedCover,
 		feedIndicator,
+		reasonGlyph,
 		reasonTone,
 		type FeedEntry,
 		type SectionFeed
@@ -291,7 +294,7 @@
 			{@render thumb(feed, entry, shape === 'off')}
 		{/if}
 		<div class="assignment-name">{itemTitle(entry.item)}</div>
-		<span class="feed-flag tone-{reasonTone(entry.reason)}">{feedIndicator(entry, now)}</span>
+		<StatusChip class="feed-flag" tone={reasonTone(entry.reason)} glyph={reasonGlyph(entry.reason)} label={feedIndicator(entry, now)} />
 	</a>
 {/snippet}
 
@@ -357,14 +360,10 @@
 							<span class="course-id">{code}</span>
 							<span class="course-badge badge-block">{label}</span>
 							{#if summary && !feed.manages}
-								<span class="feed-flag tone-attention feed-attn" data-testid="feed-attention"
-									><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
-										><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
-									>{summary}</span
-								>
+								<StatusChip tone="warn" label={summary} data-testid="feed-attention" />
 							{/if}
 							{#if soonSummary}
-								<span class="feed-flag tone-info feed-attn" data-testid="feed-due-soon">{soonSummary}</span>
+								<StatusChip tone="info" glyph="clock" label={soonSummary} data-testid="feed-due-soon" />
 							{/if}
 						</div>
 						<div class="feed-subline">
@@ -392,18 +391,20 @@
 					-->
 					{#if feed.attention.length === 1}
 						<a
-							class="feed-flag tone-attention feed-attn feed-attn-key"
+							class="feed-attn feed-attn-key"
+							style={toneStyle('warn')}
 							href={itemHref(feed.section, feed.attention[0], true)}
 							data-testid="feed-attention"
 							title="{attentionWords(feed.attention[0])}: {itemTitle(feed.attention[0].item)}"
 							><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
-								><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
+								><path d={STATUS_GLYPHS.alert.d} /></svg
 							>{summary}<span class="feed-sr">: {attentionWords(feed.attention[0])}, {itemTitle(feed.attention[0].item)}</span></a
 						>
 					{:else}
 						<button
 							type="button"
-							class="feed-flag tone-attention feed-attn feed-attn-key"
+							class="feed-attn feed-attn-key"
+							style={toneStyle('warn')}
 							class:on={openAttention === feed.section.id}
 							aria-expanded={openAttention === feed.section.id}
 							aria-controls="feed-needs-{feed.section.id}"
@@ -416,7 +417,7 @@
 								}
 							}}
 							><svg class="feed-attn-mark" viewBox="0 0 24 24" aria-hidden="true"
-								><path d="M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.01" /></svg
+								><path d={STATUS_GLYPHS.alert.d} /></svg
 							>{summary}<span class="feed-sr">&nbsp;in {code} {label}: show what</span></button
 						>
 					{/if}
@@ -451,7 +452,7 @@
 					{#each feed.attention as entry (entry.item.id)}
 						<li>
 							<a class="feed-need" href={itemHref(feed.section, entry, true)} data-reason={entry.reason}>
-								<span class="feed-need-what tone-{reasonTone(entry.reason)}">{attentionWords(entry)}</span>
+								<span class="feed-need-what" style={toneStyle(reasonTone(entry.reason))}>{attentionWords(entry)}</span>
 								<span class="feed-need-title">{itemTitle(entry.item)}</span>
 								<span class="feed-need-go" aria-hidden="true">&rsaquo;</span>
 							</a>
@@ -545,7 +546,7 @@
 	.feed-row .assignment-name {
 		grid-area: name;
 	}
-	.feed-row .feed-flag {
+	.feed-row :global(.feed-flag) {
 		grid-area: flag;
 		justify-self: start;
 	}
@@ -560,7 +561,7 @@
 			grid-template-columns: auto minmax(0, 1fr) auto;
 			grid-template-areas: 'icon name flag';
 		}
-		.feed-row .feed-flag {
+		.feed-row :global(.feed-flag) {
 			justify-self: end;
 		}
 	}
@@ -595,9 +596,9 @@
 	 * same date is stated; there is no wording, no fading and no de-emphasis that
 	 * would read as "this one can wait", including on `soon`.
 	 */
-	.feed-row[data-urgency='imminent'] .feed-flag,
-	.feed-row[data-urgency='today'] .feed-flag,
-	.feed-row[data-urgency='overdue'] .feed-flag {
+	.feed-row[data-urgency='imminent'] :global(.feed-flag),
+	.feed-row[data-urgency='today'] :global(.feed-flag),
+	.feed-row[data-urgency='overdue'] :global(.feed-flag) {
 		font-weight: 700;
 	}
 	.feed-row[data-urgency='today'] .assignment-name,
@@ -859,13 +860,16 @@
 		min-width: 0;
 	}
 	/* THE ATTENTION COUNT (ledger 0392, report 54b43698). A mark beside the
-	   words, never color alone; the plate gives it a warm wash (plate.css),
-	   so it is the one warm thing on the card. */
+	   words, never color alone; the warn tone's solid face and its word
+	   (ledger 0466, the one tone map), so it is the one warm thing on the card. */
 	.feed-attn {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;
 		font-weight: 700;
+		color: var(--st-on);
+		background: var(--st-solid);
+		border: 1px solid var(--st-edge);
 	}
 	/* THE TEACHER'S KEY: the same warm flag, pressable, at least 44px tall,
 	   between the class's identity and its fold. */
@@ -892,7 +896,7 @@
 		outline-offset: 2px;
 	}
 	.feed-head .feed-attn-key.on {
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 60%, transparent);
+		box-shadow: inset 0 0 0 2px var(--st-edge);
 	}
 	/* THE KEY ANSWERS ITS WHOLE COLUMN, as the fold does: the header around it
 	   (above it, below it, and the gap to the fold) is the key, never the bare
@@ -946,11 +950,8 @@
 		font-size: 0.72rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--amber);
+		color: var(--st-ink);
 		white-space: nowrap;
-	}
-	.feed-need-what.tone-muted {
-		color: var(--dim);
 	}
 	.feed-need-title {
 		min-width: 0;

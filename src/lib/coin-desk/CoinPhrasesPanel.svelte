@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	/**
 	 * THE PHRASES THE COIN TOOL LEARNED (ledger 0432, feedback fba5bfcd). When
 	 * Mr. Pina logs coins by voice through Claude, a new phrase he gives with a
@@ -87,7 +88,7 @@
 				<li class="ph" data-testid="cd-coin-phrase">
 					<div class="ph-head">
 						<q class="ph-words">{p.phrase}</q>
-						<span class="cdx-chip">{p.kind}</span>
+						<StatusChip tone="neutral" label={p.kind} />
 						<span class="ph-cat">{p.category}</span>
 						<span class="ph-amount">
 							{#if p.pricing_model === 'flat' && p.categoryAmount !== null}

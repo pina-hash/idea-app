@@ -140,7 +140,7 @@ describe('the module body disclosure', () => {
 		expect(html).toContain('data-open="false"');
 		// The header survives the collapse, and carries the completion state.
 		expect(html).toContain('Write-up');
-		expect(html).toContain('done-chip');
+		expect(html).toContain('data-testid="module-done"');
 		expect(html).toMatch(/2\s*\/\s*2\s*done/);
 		// The body is still in the DOM: the instructions prose, the answer text
 		// and the filled table rows are all still there to print or reopen.

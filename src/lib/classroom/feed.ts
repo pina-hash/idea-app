@@ -31,6 +31,7 @@ import {
 } from '$lib/classroom/classroom';
 import { itemBodyDoc, itemCoverImage } from '$lib/classroom/classroom-doc';
 import { daysBetween, schoolDayOf } from '$lib/classroom/school-calendar';
+import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 
 /** How far ahead "due soon" reaches. */
 export const DUE_SOON_DAYS = 7;
@@ -146,7 +147,7 @@ export type FeedReasonId =
 	| 'draft'
 	| 'reference';
 
-export type FeedTone = 'attention' | 'good' | 'info' | 'note' | 'muted';
+export type FeedTone = StatusTone;
 
 export interface FeedEntry {
 	item: ClassroomItem;
@@ -202,23 +203,30 @@ export function isActionable(reason: FeedReasonId, manages = false): boolean {
 }
 
 /**
- * Deliberately no crimson anywhere: that token is reserved for LIVE/REC/error,
- * and this surface has no live state by design.
+ * Each reason's tone and mark in the one tone map (`$lib/ui/status-tone`,
+ * ledger 0466). Deliberately no danger anywhere: that tone is reserved for
+ * LIVE/REC/error, and this surface has no live state by design. Updated is
+ * info, the class page's own Updated chip; pinned is the brass special tone
+ * every Pinned chip wears; a draft wears the draft tone, never a warning.
  */
-const TONES: Record<FeedReasonId, FeedTone> = {
-	overdue: 'attention',
-	returned: 'good',
-	'due-soon': 'info',
-	unsubmitted: 'info',
-	updated: 'note',
-	pinned: 'muted',
-	ungraded: 'attention',
-	draft: 'muted',
-	reference: 'muted'
+const TONES: Record<FeedReasonId, { tone: FeedTone; glyph: StatusGlyph }> = {
+	overdue: { tone: 'warn', glyph: 'alert' },
+	returned: { tone: 'ok', glyph: 'check' },
+	'due-soon': { tone: 'info', glyph: 'clock' },
+	unsubmitted: { tone: 'info', glyph: 'clock' },
+	updated: { tone: 'info', glyph: 'info' },
+	pinned: { tone: 'special', glyph: 'pin' },
+	ungraded: { tone: 'warn', glyph: 'alert' },
+	draft: { tone: 'draft', glyph: 'draft' },
+	reference: { tone: 'neutral', glyph: 'dash' }
 };
 
 export function reasonTone(reason: FeedReasonId): FeedTone {
-	return TONES[reason];
+	return TONES[reason].tone;
+}
+
+export function reasonGlyph(reason: FeedReasonId): StatusGlyph {
+	return TONES[reason].glyph;
 }
 
 // ---------------------------------------------------------------------------

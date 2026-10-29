@@ -108,7 +108,7 @@ export default {
 		{
 			label: 'the roster says Closed, not Submitted',
 			evaluate: `() => {
-				const words = [...document.querySelectorAll('.roster-chip')].map((c) => c.textContent.trim());
+				const words = [...document.querySelectorAll('[data-roster-state]')].map((c) => c.textContent.trim());
 				return [
 					'closedChips=' + words.filter((w) => w === 'Closed').length,
 					/* THE NEGATIVE CONTROL, and it is the whole point of the row: the
@@ -233,7 +233,7 @@ export default {
 
 	contrast: [
 		{ selector: '[data-hx-lock]', label: 'the lock notice on its own plate', min: 4.5 },
-		{ selector: '.roster-chip.closed', label: 'the Closed chip, which is a word and not only a hue', min: 4.5 },
+		{ selector: '[data-roster-state="closed"]', label: 'the Closed chip, which is a word and not only a hue', min: 4.5 },
 		{ selector: '[data-testid="close-counts"]', label: 'the open/closed counts', min: 4.5 },
 		{ selector: '.close-order', label: 'the grade-first-then-close sentence', min: 4.5 }
 	],

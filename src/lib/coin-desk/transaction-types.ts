@@ -23,19 +23,19 @@
 
 import { COIN_TXN_TYPES, coinTxnType, type CoinTxnType } from '$lib/coin-format';
 import type { CoinCategory } from '$lib/coin-desk';
+import type { StatusTone } from '$lib/ui/status-tone';
 
 // ---------------------------------------------------------------------------
-// 1. TONE -- which existing token paints each type
+// 1. TONE -- which tone of the one tone map paints each type (ledger 0466)
 //
-// EVERY VALUE IS AN EXISTING TOKEN IN ITS DOCUMENTED ROLE. `--green` is
-// success and completion, so an award takes it; `--amber` is warning, so a
-// fine takes it; `--violet` is "special, sparingly", which an admin correction
-// is; `--cyan` is already the payout chip's colour and stays there. That
-// leaves `--gold`, the secondary brass accent, for a purchase -- the loosest
-// of the five and the one worth saying out loud, because gold and amber are
-// the closest pair in the set (brass #c8a848 against copper #d08030). THAT IS
-// EXACTLY WHY COLOUR IS NEVER THE ONLY SIGNAL HERE: every place these are
-// rendered also carries the type's own glyph AND its word.
+// A type's chip is the one StatusChip, so its colours are a status tone's and
+// nothing else: award ok, fine warn, payout and deposit info, and the two
+// that had hues of their own take the nearest tone by meaning. An
+// ADJUSTMENT is an admin's correction, which is exactly the special tone
+// (brass: instructor only), and a PURCHASE is ordinary spending, neutral. The
+// argument below is the record of how each type got a hue at all; the rule
+// that survives it is the same: never danger for a fine, glyph and word
+// beside every hue.
 //
 // THE LEDGER PAINTS FINE RED AND THIS DELIBERATELY DOES NOT.
 // `src/lib/legacy/coins/index.html` styles `.type-fine` with its own `--red`; the portal reserves
@@ -46,31 +46,20 @@ import type { CoinCategory } from '$lib/coin-desk';
 // fixed semantic role to match a legacy page's palette is the one thing
 // "match the ledger" does not license.
 //
-// A TONE IS A CLASS NAME, NEVER A COLOUR STRING. The value below is the token
-// a stylesheet reads; nothing here writes an inline custom property, because
-// an inline custom property beats every class rule and would make the
-// stylesheet's own defaults unreachable (the AppLauncher lesson, CLAUDE.md).
+// A TONE IS A NAME, NEVER A COLOUR STRING. The value below names a tone of
+// `$lib/ui/status-tone`, and the tokens behind it are that module's, so a
+// theme repaints every type by moving its status tokens and nothing here.
 // ---------------------------------------------------------------------------
 
-export interface CoinTypeTone {
-	/** The token that paints the WORD and the glyph. */
-	ink: string;
-	/** The token the edge and the fill are mixed from. */
-	accent: string;
-}
-
-export const COIN_TYPE_TONES: Record<CoinTxnType, CoinTypeTone> = {
-	award: { ink: 'var(--green)', accent: 'var(--green)' },
-	fine: { ink: 'var(--amber)', accent: 'var(--amber)' },
-	purchase: { ink: 'var(--gold)', accent: 'var(--gold)' },
-	// The WORD takes the ink, the EDGE keeps the accent: raw --violet measures
-	// 2.45:1 as text on --bg1. This pair is already shipped in
-	// CoinTransactionRows and is restated here only so the record is total.
-	adjustment: { ink: 'var(--violet-ink)', accent: 'var(--violet)' },
-	payout: { ink: 'var(--cyan)', accent: 'var(--cyan)' },
+export const COIN_TYPE_TONES: Record<CoinTxnType, StatusTone> = {
+	award: 'ok',
+	fine: 'warn',
+	purchase: 'neutral',
+	adjustment: 'special',
+	payout: 'info',
 	// A deposit is a payout run the other way, physical to digital: the same
-	// boundary, so the same token, told apart by its own glyph and word.
-	deposit: { ink: 'var(--cyan)', accent: 'var(--cyan)' }
+	// boundary, so the same tone, told apart by its own glyph and word.
+	deposit: 'info'
 };
 
 // ---------------------------------------------------------------------------

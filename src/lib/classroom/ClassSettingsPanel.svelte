@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ClassThemeSettings from '$lib/classroom/ClassThemeSettings.svelte';
 	import ClassThumbnailSettings from '$lib/classroom/ClassThumbnailSettings.svelte';
@@ -156,7 +157,7 @@
 		<p class="section-line">
 			{formatSectionLabel(section.label, section.block)}
 			{#if section.course?.title}&nbsp;&middot; {section.course.title}{/if}
-			{#if archived}&nbsp;&middot; <span class="draft-chip" data-testid="settings-archived-chip">Archived</span>{/if}
+			{#if archived}&nbsp;&middot; <StatusChip tone="neutral" label="Archived" data-testid="settings-archived-chip" />{/if}
 		</p>
 	</section>
 

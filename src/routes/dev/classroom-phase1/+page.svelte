@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
@@ -1195,13 +1196,13 @@
 									{it.title ?? '(untitled)'}
 									<span class="kind-chip">{it.kind}</span>
 									{#if !it.published}
-										<span class="draft-chip" data-testid="chip-draft-{it.id}">Draft</span>
+										<StatusChip tone="draft" label="Draft" data-testid="chip-draft-{it.id}" />
 									{:else if isScheduled(it)}
-										<span class="sched-chip" data-testid="chip-sched-{it.id}">
+										<StatusChip tone="neutral" glyph="clock" wrap data-testid="chip-sched-{it.id}">
 											Scheduled &middot; {scheduleLabel(it)}
-										</span>
+										</StatusChip>
 									{:else}
-										<span class="live-chip" data-testid="chip-live-{it.id}">Live</span>
+										<StatusChip tone="ok" label="Live" data-testid="chip-live-{it.id}" />
 									{/if}
 								</span>
 								<span class="content-when mono">
@@ -1506,15 +1507,6 @@
 	.content-when {
 		font-size: 0.66rem;
 		color: var(--text-2);
-	}
-	.live-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		letter-spacing: 0.04em;
-		color: var(--green);
-		border: 1px solid var(--line-strong);
-		border-radius: 999px;
-		padding: 0.02rem 0.45rem;
 	}
 	.mono {
 		font-family: 'Share Tech Mono', monospace;

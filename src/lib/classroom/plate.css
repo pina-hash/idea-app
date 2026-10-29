@@ -874,7 +874,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   page sideways), a plain rounded rectangle,
 	   every band drawn INSIDE the box (so it costs no width), the label at the
 	   11px floor. A chip's tone class keeps colouring its word. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip, .chip):not(a, button, label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.kind-chip, .chip):not(a, button, label) {
 		display: inline-flex;
 		align-items: center;
 		gap: 3px;
@@ -895,7 +895,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 			inset 0 -1px 0 0 var(--plate-chip-lip),
 			0 1px 0 0 var(--plate-chip-lip);
 	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip) {
+	:root :scope:is(.cr-plate, .site-plate) .kind-chip {
 		color: var(--plate-ink);
 	}
 	/* A chip that is a link or a button is a small key and keeps its own
@@ -905,14 +905,15 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 		padding: 0 4px;
 		letter-spacing: var(--plate-chip-track-tight);
 	}
-	/* EVERY OTHER STATUS TAG IS THE SAME RECESSED TAG, MATERIAL ONLY. A
-	   surface's own chip (a submission's state, a roster status, a queue
-	   entry, a points or override mark) keeps its size, padding, case and
-	   tone ink, and its border keeps its width in a transparent colour, so
+	/* EVERY OTHER TAG IS THE SAME RECESSED TAG, MATERIAL ONLY. A status is
+	   the one StatusChip (`$lib/ui/StatusChip.svelte`, ledger 0466), which
+	   draws its own face and is not listed here; what is left is a surface's
+	   own label (a points mark, a count, a course badge), which keeps its
+	   size, padding, case and ink, and its border keeps its width in a transparent colour, so
 	   not one of them grows by a pixel; what changes is that it is set INTO
 	   the surface instead of drawn on it. A chip that is a LINK or a BUTTON
 	   is excluded here and is a raised key (below), because it is pressable. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed, .feed-flag, :where(.legacy-index) .cl-tag, .course-badge, .td-owed, .medium-chip, .strike-chip, .type-chip, .status-tag, .fg-chip, .mp-chip, .ar-tag, .chip-count, .pl-chip, :where(.ar-root) :is(.ar-chip, .ar-readout), :where(.cert-root) .cert-readout, :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.points-chip, .pill, :where(.legacy-index) .cl-tag, .course-badge, .fg-chip, .ar-tag, .chip-count, :where(.ar-root) :is(.ar-chip, .ar-readout), :where(.cert-root) .cert-readout, :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
 		border-color: transparent;
 		border-radius: var(--plate-r-small);
 		background-color: var(--plate-chip-ground);
@@ -923,52 +924,11 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 			inset 0 -1px 0 0 var(--plate-chip-lip),
 			0 1px 0 0 var(--plate-chip-lip);
 	}
-	/* THE STATUS TAG UNDER "YOUR WORK" IS A WHOLE CHIP, SHAPE AND ALL (ledger
-	   0346). The rule above gives every surface's own tag the material only and
-	   leaves its size alone, because those tags sit in rows whose width is
-	   budgeted; this one sits alone in its row, so it can take the shared
-	   chip's 22px height, 11px label and caps, and at 18px in mixed case it read
-	   as the old flat outline beside everything else on the page. */
-	:root :scope:is(.cr-plate, .site-plate) .status-row > .state-chip {
-		display: inline-flex;
-		align-items: center;
-		box-sizing: border-box;
-		min-height: var(--plate-chip-h);
-		padding: 0 6px;
-		font-size: var(--plate-label-size);
-		line-height: 1;
-		letter-spacing: var(--plate-chip-track);
-		text-transform: uppercase;
-	}
-	/* A missing count keeps its warning wash, laid over the tag's own ground
-	   rather than over whatever is under the tag: on a key face or a panel
-	   the see-through wash left the warning ink at 3.4:1 and 4.42:1. */
-	:root :scope:is(.cr-plate, .site-plate) .owed.owed-missing {
-		background-color: color-mix(in srgb, var(--amber) 14%, var(--plate-chip-ground));
-		background-image: none;
-	}
-	/* So does a home class card's "needs attention" count (ledger 0392, report
-	   54b43698: on Space White the amber word sat on a gray well and "the color
-	   doesn't look nice"), with the same wash, so the one warm thing on the
-	   card is the thing to look at. */
-	:root :scope:is(.cr-plate, .site-plate) .feed-flag.tone-attention {
-		background-color: color-mix(in srgb, var(--amber) 14%, var(--plate-chip-ground));
-		background-image: none;
-		box-shadow:
-			inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent),
-			inset 0 2px 2px -1px var(--plate-chip-shade);
-	}
-	/* On Space White the wash is laid over WHITE, not the gray tag ground: the
-	   gray under 14% amber came out a muddy beige (207, 203, 202), the color
-	   the report was about, and its word only just cleared (4.74:1). */
-	:root[data-theme='space-white'] :scope:is(.cr-plate, .site-plate) .feed-flag.tone-attention {
-		background-color: color-mix(in srgb, var(--amber) 14%, #fff);
-	}
 	/* A chip that goes somewhere, or that does something, is pressable, so it
 	   is a small raised key: a link chip, a chip-shaped button (the notebook's
 	   next check-in and drafts counts) and the composer's insert-a-template
 	   buttons, which were dashed capsules. */
-	:root :scope:is(.cr-plate, .site-plate) :is(a.chip, button.chip, button.lg-chip, .chip-link, button.template) {
+	:root :scope:is(.cr-plate, .site-plate) :is(a.chip, button.chip, button.lg-key, .chip-link, button.template) {
 		border: 1px solid;
 		border-color: var(--plate-hair-top) var(--plate-hair) var(--plate-hair);
 		border-radius: var(--plate-r-small);
@@ -994,12 +954,12 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   negative on a lamp chip) and the padding after it, never from the 11px
 	   floor, so the chip is still no wider than
 	   today's holding the same word. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip.pinned, :where(.legacy-index) .cl-type:is(.cl-type-feature, .cl-type-fix, .cl-type-visual)) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.kind-chip.pinned, :where(.legacy-index) .cl-type:is(.cl-type-feature, .cl-type-fix, .cl-type-visual)) {
 		gap: var(--plate-led-gap);
 		padding: 0 var(--plate-led-pad-end) 0 var(--plate-led-gap);
 		letter-spacing: var(--plate-led-word-track);
 	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip.pinned, :where(.legacy-index) .cl-type:is(.cl-type-feature, .cl-type-fix, .cl-type-visual))::before {
+	:root :scope:is(.cr-plate, .site-plate) :is(.kind-chip.pinned, :where(.legacy-index) .cl-type:is(.cl-type-feature, .cl-type-fix, .cl-type-visual))::before {
 		content: '';
 		flex: none;
 		width: var(--plate-led-chip);
@@ -1010,9 +970,6 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 			0 0 0 1px var(--plate-led-ring),
 			0 0 4px 1px var(--plate-led-color);
 		pointer-events: none;
-	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip) {
-		--plate-led-color: var(--plate-led-amber);
 	}
 	:root :scope:is(.cr-plate, .site-plate) .kind-chip.pinned {
 		--plate-led-color: var(--plate-led-gold);
@@ -1356,7 +1313,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 		color: var(--plate-sel-ink);
 	}
 	/* A chip on the selected row is a tag RECESSED into the lit row. */
-	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected) :is(.chip, .draft-chip, .sched-chip, .kind-chip) {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected) :is(.chip, .kind-chip) {
 		background: var(--plate-selchip-face);
 		box-shadow:
 			inset 0 1px 1px 0 var(--plate-press-shade),

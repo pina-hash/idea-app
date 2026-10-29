@@ -69,6 +69,7 @@ import {
 	type SectionGrid
 } from '$lib/notebook-review';
 import type { CoinDisplayRow } from '$lib/coin-format';
+import type { StatusTone } from '$lib/ui/status-tone';
 
 // ---------------------------------------------------------------------------
 // 1. The new read's payload, validated
@@ -567,12 +568,24 @@ export interface StudentScoreBar {
  * signal.
  */
 export type GradeBand = 'excellent' | 'good' | 'fair' | 'low';
-export const GRADE_BANDS: readonly { band: GradeBand; min: number; word: string }[] = [
-	{ band: 'excellent', min: 90, word: 'Excellent' },
-	{ band: 'good', min: 80, word: 'Good' },
-	{ band: 'fair', min: 70, word: 'Fair' },
-	{ band: 'low', min: -Infinity, word: 'Needs improvement' }
+/*
+ * Each band's tone is the one tone map's (ledger 0466). NO GRADE IS EVER
+ * DANGER: crimson is reserved for live, recording and error, so the lowest
+ * band is `warn`, the hue Fair already wore, and its alert mark and its word
+ * set it apart from Fair.
+ */
+export const GRADE_BANDS: readonly { band: GradeBand; min: number; word: string; tone: StatusTone }[] = [
+	{ band: 'excellent', min: 90, word: 'Excellent', tone: 'ok' },
+	{ band: 'good', min: 80, word: 'Good', tone: 'ok' },
+	{ band: 'fair', min: 70, word: 'Fair', tone: 'warn' },
+	{ band: 'low', min: -Infinity, word: 'Needs improvement', tone: 'warn' }
 ];
+
+/** The band's tone, or neutral for no grade yet. */
+export function gradeBandTone(percent: number | null): StatusTone {
+	const band = gradeBand(percent);
+	return band ? GRADE_BANDS.find((b) => b.band === band)!.tone : 'neutral';
+}
 
 /** The band a percent falls in, or null for no grade yet (or a value that is not a number). */
 export function gradeBand(percent: number | null): GradeBand | null {

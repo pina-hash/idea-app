@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
@@ -24,6 +25,7 @@
 		sessionMeta,
 		showsStatus,
 		statusLabel,
+		statusTone,
 		type EntryActionResult,
 		type NoteSaveResult,
 		type NotebookEntry,
@@ -672,19 +674,13 @@
 					<span class="row-title">
 						<span class="row-name" class:untitled={isUntitled(entry)}>{title}</span>
 						{#if isDraft}
-							<span class="chip draft-chip" data-testid="row-draft">Draft</span>
+							<StatusChip tone="draft" label="Draft" data-testid="row-draft" />
 						{/if}
 						{#if pinned}
-							<span class="chip pin-chip" data-testid="row-pinned">Pinned</span>
+							<StatusChip tone="special" glyph="pin" label="Pinned" data-testid="row-pinned" />
 						{/if}
 						{#if showsStatus(entry.status)}
-							<span
-								class="chip status"
-								class:warn={entry.status === 'flagged'}
-								class:pending={entry.status === 'pending_review'}
-							>
-								{statusLabel(entry.status)}
-							</span>
+							<StatusChip {...statusTone(entry.status)} label={statusLabel(entry.status)} />
 						{/if}
 					</span>
 					<span class="row-meta">
@@ -763,7 +759,7 @@
 				<span class="row-meta">
 					<span class="stamp">{collapsed ? shortWhen(entry.upload_timestamp) : when(entry.upload_timestamp)}</span>
 					{#if isDraft}
-						<span class="draft-chip" data-testid="entry-draft-chip">Draft</span>
+						<StatusChip tone="draft" label="Draft" data-testid="entry-draft-chip" />
 					{/if}
 					{#if pages.length}
 						<span class="dot" aria-hidden="true">·</span>
@@ -792,13 +788,7 @@
 						</span>
 					{/if}
 					{#if showsStatus(entry.status)}
-						<span
-							class="status"
-							class:warn={entry.status === 'flagged'}
-							class:pending={entry.status === 'pending_review'}
-						>
-							{statusLabel(entry.status)}
-						</span>
+						<StatusChip {...statusTone(entry.status)} label={statusLabel(entry.status)} />
 					{/if}
 				</span>
 			</span>
@@ -1424,35 +1414,6 @@
 		background: var(--dot, var(--nb-folder-none));
 		flex: 0 0 auto;
 	}
-	.status {
-		padding: var(--space-1) var(--space-2);
-		border-radius: 999px;
-		border: 1px solid currentColor;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		font-size: 0.62rem;
-		font-weight: 600;
-	}
-	/* The flag status carries the gold thread; awaiting-review stays a quiet gray. */
-	.status.warn {
-		color: var(--nb-accent-ink);
-	}
-	.status.pending {
-		color: var(--text-2);
-	}
-	/* UNMISTAKABLE ON PURPOSE: a draft must never read as turned-in work, so it
-	   gets the warning thread rather than a neutral chip a reader could skim
-	   past. Same shape as .status so it reads as one family of markers. */
-	.draft-chip {
-		padding: var(--space-1) var(--space-2);
-		border-radius: 999px;
-		border: 1px solid currentColor;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		font-size: 0.62rem;
-		font-weight: 700;
-		color: var(--nb-warn);
-	}
 
 	/* --- folder + pin + copy ------------------------------------------------
 	   A quiet group at the end of the row. They sit outside the disclosure so
@@ -1946,24 +1907,6 @@
 		border-radius: 50%;
 		background: var(--dot, var(--nb-folder-none));
 		flex: 0 0 auto;
-	}
-	.entry-row .chip {
-		flex: none;
-		font-size: 0.6rem;
-		font-weight: 600;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		padding: var(--space-1) var(--space-2);
-		border: 1px solid currentColor;
-		border-radius: 999px;
-		white-space: nowrap;
-	}
-	.entry-row .pin-chip,
-	.entry-row .status.warn {
-		color: var(--nb-accent-ink);
-	}
-	.entry-row .status.pending {
-		color: var(--text-2);
 	}
 	/*
 	 * THE ROW YOU ARE READING, indicated the way the classroom indicates it: a

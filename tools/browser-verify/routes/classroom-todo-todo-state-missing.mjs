@@ -61,7 +61,7 @@ export default {
 		/* The deadline later tonight and the check-in dated today are owed, not
 		   missing: absent here, beside the six present above. */
 		{ selector: '[data-testid="todo-row"][data-key="item:i-loadlog"], [data-testid="todo-row"][data-key="check-in:ns-13:s-idea"]', label: 'nothing due later today', expectPresent: 0 },
-		{ selector: '.todo-chip .todo-chip-mark', label: 'a mark beside every missing word (colour is never the only signal)', expectPresent: 6, maxPresent: 6, expectVisible: 6 }
+		{ selector: '[data-testid="todo-state"][data-tone="warn"] .status-chip-glyph[data-glyph="alert"]', label: 'a mark beside every missing word (colour is never the only signal)', expectPresent: 6, maxPresent: 6, expectVisible: 6 }
 	],
 	contrast: [
 		{ selector: '[data-testid="todo-state"]', label: 'missing chip', min: 4.5 },

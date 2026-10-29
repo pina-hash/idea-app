@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneFrom } from '$lib/ui/status-tone';
 	import { coins } from '$lib/coin-format';
 	import Glyph from './Glyph.svelte';
 	import Stars from './Stars.svelte';
@@ -26,11 +28,11 @@
 		data-kind={listing.kind}
 	>
 		<span class="mk-tile-top">
-			<span class="mk-chip plain" data-testid="mk-listing-kind">
+			<span class="mk-kind" data-testid="mk-listing-kind">
 				<Glyph name={listing.kind === 'request' ? 'request' : 'offer'} size={12} />
 				{listing.kind === 'request' ? 'Request' : 'Offer'} · {categoryLabel(listing.category)}
 			</span>
-			{#if stateChip}<span class="mk-chip {stateChip.tone}">{stateChip.label}</span>{/if}
+			{#if stateChip}<StatusChip tone={toneFrom(stateChip.tone as 'bad' | 'plain' | 'gold')} label={stateChip.label} />{/if}
 		</span>
 		{#if listing.photo_url}
 			<img class="mk-photo" src={listing.photo_url} alt="" loading="lazy" />

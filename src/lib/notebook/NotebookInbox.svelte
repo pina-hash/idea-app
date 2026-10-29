@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import {
 		entryTitle,
@@ -195,7 +196,7 @@
 
 					<div class="ib-actions">
 						{#if writing}
-							<span class="ib-chip" data-testid="nb-inbox-writing">Still open in Quick note</span>
+							<StatusChip tone="info" glyph="progress" label="Still open in Quick note" data-testid="nb-inbox-writing" />
 						{:else if state?.kind === 'busy'}
 							<span class="ib-status">Filing...</span>
 						{:else if state?.kind === 'orphan'}
@@ -394,18 +395,10 @@
 		font-size: 0.84rem;
 		color: var(--text-2);
 	}
-	.ib-chip,
 	.ib-status {
 		margin: 0;
 		font-size: 0.82rem;
 		color: var(--text-2);
-	}
-	.ib-chip {
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		padding: 0.2rem 0.5rem;
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-card);
 	}
 	.ib-error {
 		margin: 0;

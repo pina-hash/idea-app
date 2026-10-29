@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneStyle } from '$lib/ui/status-tone';
 	import ViewAsButtons from '$lib/shell/ViewAsButtons.svelte';
 	import { onMount } from 'svelte';
 	import Avatar from '$lib/Avatar.svelte';
@@ -48,6 +50,7 @@
 	import {
 		foundryAppHref,
 		gradeBand,
+		gradeBandTone,
 		gradeBandWord,
 		isStudentAssignmentSortKey,
 		sortStudentAssignments,
@@ -421,12 +424,12 @@
 						<p class="so-class">{sectionTitle(section)}</p>
 						<p class="so-id-chips">
 							{#if data.student.active}
-								<span class="chip tone-good" data-testid="so-roster-chip">On the class roster</span>
+								<StatusChip tone="ok" label="On the class roster" data-testid="so-roster-chip" />
 							{:else}
-								<span class="chip tone-attention" data-testid="so-roster-chip">Not on the live roster</span>
+								<StatusChip tone="warn" label="Not on the live roster" data-testid="so-roster-chip" />
 							{/if}
 							{#if data.student.has_account === false}
-								<span class="chip tone-muted" data-testid="so-no-account">Has not signed in yet</span>
+								<StatusChip tone="neutral" label="Has not signed in yet" data-testid="so-no-account" />
 							{/if}
 							{#if data.student.enrolled_at}
 								<span class="so-meta">On this roster since {day(data.student.enrolled_at)}</span>
@@ -451,6 +454,7 @@
 								class="so-grade"
 								class:so-noprint={!layout.grade.prints}
 								data-band={band ?? 'none'}
+								style={toneStyle(gradeBandTone(grade.percent))}
 								data-testid="so-grade"
 							>
 								<span class="so-grade-glow" aria-hidden="true"></span>
@@ -631,10 +635,7 @@
 							{#each attention as row (row.itemId)}
 								<li class="so-list-row so-attention-item" data-testid="so-attention-row">
 									<span class="so-attention-mark">
-										<span class="chip work-chip tone-{row.chip.tone}">
-											{#if row.chip.missing}<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>{/if}
-											{row.chip.missing ? 'Missing' : 'Late'}
-										</span>
+										<StatusChip tone="warn" glyph={row.chip.missing ? 'alert' : 'clock'} label={row.chip.missing ? 'Missing' : 'Late'} />
 									</span>
 									<span class="so-list-main so-attention-title">
 										<a class="so-link tap-44" href={itemHref(row.itemId)}>{row.title}</a>
@@ -672,7 +673,7 @@
 								<li class="so-bar-row" data-testid="so-score-bar">
 									<span class="so-bar-title" title={b.title}>{b.title}</span>
 									<span class="so-bar-track" aria-hidden="true">
-										<span class="so-bar-fill" data-band={gradeBand(b.percent)} style="width: {Math.min(100, Math.max(0, b.percent))}%"></span>
+										<span class="so-bar-fill" data-band={gradeBand(b.percent)} style="{toneStyle(gradeBandTone(b.percent))}; width: {Math.min(100, Math.max(0, b.percent))}%"></span>
 									</span>
 									<span class="so-bar-figure"
 										><CountFigure value={b.score} /> of {b.points} <span class="so-meta">(<CountFigure value={b.percent} places={Number.isInteger(b.percent) ? 0 : 1} format={pctOf(b.percent)} />)</span></span
@@ -741,19 +742,12 @@
 								<tr data-testid="so-assignment-row" data-item={row.itemId}>
 									<th scope="row" class="so-col-title" data-label="Assignment">
 										<a class="so-link tap-44" href={itemHref(row.itemId)}>{row.title}</a>
-										{#if !row.posted}<span class="chip tone-muted">Not posted now</span>{/if}
+										{#if !row.posted}<StatusChip tone="neutral" glyph="hidden" label="Not posted now" />{/if}
 										{@render rowKeys(row.itemId)}
 									</th>
 									<td class="so-when" data-label="Due">{row.dueAt ? when(row.dueAt) : 'No due date'}</td>
 									<td data-label="Status">
-										<span class="chip work-chip tone-{row.chip.tone}" data-testid="so-status" data-missing={row.chip.missing ? 'true' : undefined}>
-											{#if row.chip.missing}
-												<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
-											{:else if row.chip.done}
-												<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
-											{/if}
-											{row.chip.label}
-										</span>
+										<StatusChip tone={row.chip.tone} glyph={row.chip.glyph} label={row.chip.label} data-testid="so-status" data-missing={row.chip.missing ? 'true' : undefined} />
 										{#if row.awaitingGrade}<span class="so-meta">Waiting for grading</span>{/if}
 									</td>
 									<td class="so-when" data-label="Turned in">
@@ -967,7 +961,7 @@
 								<li class="so-list-row" data-testid="so-ideacad">
 									<span class="so-list-main">{d.title}{#if d.itemTitle && d.itemTitle !== d.title}<span class="so-meta">, for {d.itemTitle}</span>{/if}</span>
 									{#if d.updatedAt}<span class="so-meta">Saved {when(d.updatedAt)}</span>{/if}
-									{#if d.archived}<span class="chip tone-muted">Archived</span>{/if}
+									{#if d.archived}<StatusChip tone="neutral" label="Archived" />{/if}
 								</li>
 							{/each}
 						</ul>
@@ -1055,44 +1049,6 @@
 		flex-wrap: wrap;
 		gap: var(--space-2, 0.5rem);
 		margin: 0;
-	}
-	.chip {
-		flex: none;
-		font-family: var(--font-mono);
-		font-size: 0.78rem;
-		color: var(--text-2);
-		border: 1px solid var(--boundary);
-		border-radius: 999px;
-		padding: 0.1rem 0.55rem;
-		white-space: nowrap;
-	}
-	.tone-good {
-		color: var(--green);
-		border-color: var(--green);
-	}
-	.tone-attention {
-		color: var(--amber);
-		border-color: var(--amber);
-	}
-	.tone-info {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
-	.tone-muted {
-		color: var(--text-2);
-	}
-	/* Missing is its own tone, as on the class page: the word leads, and a mark,
-	   a fill and the weight set it apart from "In progress". Never colour alone. */
-	.tone-missing {
-		color: var(--amber);
-		border-color: var(--amber);
-		background: color-mix(in srgb, var(--amber) 14%, transparent);
-		font-weight: 700;
-	}
-	.work-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.2rem;
 	}
 	.chip-mark {
 		flex: none;
@@ -1280,10 +1236,11 @@
 		color: var(--text-2);
 	}
 	/* THE GRADE'S STATUS (ledger 0392): the band colors the rule, a faint
-	   wash, the figure, the meter and the band's word, one hue each --
-	   green for Excellent and Good, amber for Fair, and the room's crimson for
-	   Needs improvement, which is a status and the one place this page uses
-	   it. No grade yet is the quiet ground with no band at all. */
+	   wash, the figure, the meter and the band's word, one hue each, from the
+	   one tone map (`gradeBandTone`, ledger 0466): ok for Excellent and Good,
+	   warn for Fair and for Needs improvement, which is never crimson (that is
+	   live, recording and error only) and carries the alert mark. No grade yet
+	   is the quiet ground with no band at all. */
 	.so-grade {
 		--so-band: var(--boundary);
 		position: relative;
@@ -1297,23 +1254,15 @@
 		background: var(--surface-2, var(--bg2));
 		isolation: isolate;
 	}
-	.so-grade[data-band='excellent'],
-	.so-grade[data-band='good'] {
-		--so-band: var(--green);
-	}
-	.so-grade[data-band='fair'] {
-		--so-band: var(--amber);
-	}
-	.so-grade[data-band='low'] {
-		--so-band: var(--crimson);
+	.so-grade:not([data-band='none']) {
+		--so-band: var(--st-ink);
 	}
 	.so-grade:not([data-band='none']) {
 		background: color-mix(in srgb, var(--so-band) 7%, var(--surface-2, var(--bg2)));
 	}
 	/* Words take the band moved a step toward the room's own text color, so
-	   they clear 4.5:1 on the washed ground in every theme (crimson alone
-	   measured 4.46 on the dark wash); the rule, the meter and the glow keep
-	   the band itself. */
+	   they clear 4.5:1 on the washed ground in every theme; the rule, the
+	   meter and the glow keep the band itself. */
 	.so-grade {
 		--so-band-ink: color-mix(in srgb, var(--so-band) 80%, var(--text-1));
 	}
@@ -1568,11 +1517,8 @@
 	.so-bar-fill {
 		transform-origin: left center;
 	}
-	.so-bar-fill[data-band='fair'] {
-		background: var(--amber);
-	}
-	.so-bar-fill[data-band='low'] {
-		background: var(--crimson);
+	.so-bar-fill[data-band] {
+		background: var(--st-solid);
 	}
 	.so-bar-figure {
 		grid-area: figure;
@@ -1870,7 +1816,7 @@
 		font-weight: 700;
 		min-width: 10rem;
 	}
-	.so-col-title .chip {
+	.so-col-title :global(.status-chip) {
 		margin-left: 0.3rem;
 	}
 	.so-table td .so-meta {
@@ -2081,6 +2027,7 @@
 		}
 		.so-root :global(.card),
 		.so-root :global(.chip),
+		.so-root :global(.status-chip),
 		.so-tile,
 		.so-grade,
 		.so-table th,
@@ -2148,6 +2095,7 @@
 		.so-class,
 		.so-meta,
 		.so-root :global(.chip),
+		.so-root :global(.status-chip),
 		.so-tile-label,
 		.so-tile-sub,
 		.so-grade-label,

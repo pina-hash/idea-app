@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import { coins } from '$lib/coin-format';
 	import Disclosure from '$lib/Disclosure.svelte';
@@ -316,7 +317,7 @@
 					{@const amountLine = cardAmountWords(card)}
 					<li class="q-card" data-testid="cd-queue-card" data-kind={card.kind}>
 						<div class="q-top">
-							<span class="cdx-chip q-kind" data-testid="cd-queue-kind">{QUEUE_KIND_WORDS[card.kind].one}</span>
+							<StatusChip tone="info" label={QUEUE_KIND_WORDS[card.kind].one} data-testid="cd-queue-kind" />
 							<span class="q-when">{cardWhen(card.created_at)}</span>
 						</div>
 						<div class="q-who">
@@ -426,16 +427,14 @@
 			<div class="q-recent cdx-disc" data-testid="cd-queue-recent">
 				<Disclosure label="Decided in the last two weeks" collapseWhen={true}>
 					{#snippet meta()}
-						<span class="cdx-chip">{data?.recent.length ?? 0}</span>
+						<StatusChip tone="neutral" label={data?.recent.length ?? 0} />
 					{/snippet}
 					<ul class="q-recent-rows">
 						{#each data?.recent ?? [] as card (card.id)}
 							<li class="q-recent-row" data-testid="cd-queue-recent-row">
 								<span class="person-name" title={card.name}>{card.name}</span>
 								<span class="q-recent-kind">{QUEUE_KIND_WORDS[card.kind].one}</span>
-								<span class="cdx-chip" class:ok={card.status === 'approved'} class:warn={card.status === 'denied'}>
-									{recentWords(card)}
-								</span>
+								<StatusChip tone={card.status === 'approved' ? 'ok' : card.status === 'denied' ? 'warn' : 'neutral'} label={recentWords(card)} />
 								{#if card.amount != null && card.status === 'approved' && card.kind !== 'reported_coins'}
 									<span class="q-recent-amount">{coins(num(card.amount))}</span>
 								{/if}
@@ -541,10 +540,6 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-wrap: wrap;
-	}
-	.q-kind {
-		color: var(--cyan);
-		border-color: var(--cyan);
 	}
 	.q-when,
 	.q-section {

@@ -1,7 +1,8 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import './coin-page.css';
 	import Disclosure from '$lib/Disclosure.svelte';
-	import CoinTypeGlyph from '$lib/coin-desk/CoinTypeGlyph.svelte';
+	import { COIN_TYPE_GLYPHS, COIN_TYPE_TONES } from '$lib/coin-desk/transaction-types';
 	import CoinBuy from './CoinBuy.svelte';
 	import CoinPayout from './CoinPayout.svelte';
 	import CoinBackgroundPanel from './CoinBackgroundPanel.svelte';
@@ -222,7 +223,7 @@
 				<div class="cp-balance-row">
 					<span class="cp-balance" class:neg={inDebt} data-testid="coin-balance">{coins(page.balance)}</span>
 					{#if inDebt}
-						<span class="cp-debt-chip" data-testid="coin-debt">In debt</span>
+						<StatusChip tone="warn" label="In debt" data-testid="coin-debt" />
 					{/if}
 				</div>
 				{#if inDebt}
@@ -515,15 +516,19 @@
 									<span class="cp-reason">{named.label}</span>
 									{#if row.note && !named.fromNote}<span class="cp-row-note">{row.note}</span>{/if}
 									<span class="cp-row-meta">
-										<span class="cp-chip {type}" data-testid="coin-type">
-											<CoinTypeGlyph {type} size={12} />
-											{COIN_TXN_TYPE_LABELS[type]}
-										</span>
+										<StatusChip
+											tone={COIN_TYPE_TONES[type]}
+											paths={COIN_TYPE_GLYPHS[type].paths}
+						pathsName={COIN_TYPE_GLYPHS[type].name}
+											label={COIN_TXN_TYPE_LABELS[type]}
+											data-type={type}
+											data-testid="coin-type"
+										/>
 										{#if row.automatic}
-											<span class="cp-chip auto" data-testid="coin-auto">Automatic</span>
+											<StatusChip tone="info" glyph="clock" label="Automatic" data-testid="coin-auto" />
 										{/if}
 										{#if row.edited}
-											<span class="cp-chip edited" data-testid="coin-edited">Edited</span>
+											<StatusChip tone="special" label="Edited" data-testid="coin-edited" />
 										{/if}
 										<span class="cp-when">{coinWhen(row.at)}</span>
 									</span>
@@ -635,9 +640,6 @@
 	.cp-wide {
 		min-width: 0;
 	}
-	.cp-chip.edited {
-		color: var(--violet-ink);
-	}
 	.cp-edits {
 		margin: 0.15rem 0 0;
 		padding-left: 1rem;
@@ -662,16 +664,6 @@
 	}
 	.cp-balance.neg {
 		color: var(--amber);
-	}
-	.cp-debt-chip {
-		font-family: var(--font-mono);
-		font-size: 0.8rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--amber);
-		border: 1px solid var(--amber);
-		border-radius: 999px;
-		padding: 0.15rem 0.6rem;
 	}
 	.cp-debt-line {
 		color: var(--text-1);
@@ -797,39 +789,6 @@
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
-	}
-	.cp-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		white-space: nowrap;
-		border: 1px solid var(--boundary);
-		border-radius: 3px;
-		padding: 0.05rem 0.35rem;
-		color: var(--text-2);
-	}
-	.cp-chip.award {
-		color: var(--green);
-	}
-	.cp-chip.fine {
-		color: var(--amber);
-	}
-	.cp-chip.purchase {
-		color: var(--gold);
-	}
-	.cp-chip.adjustment {
-		color: var(--violet-ink);
-	}
-	.cp-chip.payout,
-	.cp-chip.deposit {
-		color: var(--cyan);
-	}
-	.cp-chip.auto {
-		color: var(--cyan);
 	}
 	.cp-amount {
 		font-family: var(--font-mono);

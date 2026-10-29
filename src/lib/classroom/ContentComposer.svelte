@@ -4147,7 +4147,7 @@
 		gap: var(--space-1);
 	}
 	/* Dashed border + gold accent: the same "this is not ordinary content"
-	   treatment the engine-slot / draft-chip pattern uses, applied to a
+	   treatment the engine-slot / draft tag pattern uses, applied to a
 	   section that is private rather than incomplete. */
 	.instructor-editor {
 		display: flex;

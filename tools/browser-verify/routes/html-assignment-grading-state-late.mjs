@@ -14,8 +14,8 @@ export default {
 		{ label: 'late says so in words', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Complete, late', 'Bruno Baptiste: None of 3 answered'] }
 	],
 	presence: [
-		{ selector: '.roster-chip.late', label: 'the late chip', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.roster-chip.submitted', label: 'no on-time Complete chip', expectPresent: 0 }
+		{ selector: '[data-roster-state="late"]', label: 'the late chip', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-roster-state="submitted"]', label: 'no on-time Complete chip', expectPresent: 0 }
 	],
-	contrast: [{ selector: '.roster-chip.late', label: 'Complete, late chip', min: 4.5 }]
+	contrast: [{ selector: '[data-roster-state="late"]', label: 'Complete, late chip', min: 4.5 }]
 };

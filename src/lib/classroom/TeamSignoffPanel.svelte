@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	/**
 	 * THE TEAMS PANEL ON A TEAM POST (ledger 0456; gap 87b6bd95, report
 	 * d23bc63d.1). One screen per class, for its instructor: every team, who
@@ -14,7 +15,7 @@
 	import { untrack } from 'svelte';
 	import SignoffCard from './SignoffCard.svelte';
 	import { parseSignoffBoard, signoffBoardHeadline, type SignoffBoard, type SignoffBoardTeam } from './signoffs';
-	import { TEAM_CHECKPOINT_WORDS, teamDayWords } from './team-plan';
+	import { TEAM_CHECKPOINT_WORDS, teamCheckpointTone, teamDayWords } from './team-plan';
 	import { startPoller } from './poll';
 
 	type Out = { ok: boolean; reason?: string } | null;
@@ -142,9 +143,12 @@
 										>
 									{/each}
 								</span>
-								<span class={`tsp-chip st-${head?.state ?? 'approved'}`}>
-									{head ? `${head.title}: ${TEAM_CHECKPOINT_WORDS[head.state] ?? head.state}` : 'All signed off'}
-								</span>
+								<StatusChip
+									{...teamCheckpointTone(head?.state ?? 'approved')}
+									class="tsp-status"
+									wrap
+									label={head ? `${head.title}: ${TEAM_CHECKPOINT_WORDS[head.state] ?? head.state}` : 'All signed off'}
+								/>
 							</button>
 							<ul class="tsp-parts" aria-label={`${t.name} progress`}>
 								{#each t.parts as p (p.id)}
@@ -323,25 +327,12 @@
 	.tsp-person.in {
 		color: var(--text-1, var(--white));
 	}
+	/* Checked in today: present, the ok tone's ink. */
 	.tsp-in {
-		color: var(--teal);
+		color: var(--status-ok);
 	}
-	.tsp-chip {
+	.tsp-row :global(.tsp-status) {
 		margin-left: auto;
-		padding: 0.15rem 0.55rem;
-		border: 1px solid var(--boundary, var(--dim));
-		border-radius: 999px;
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		color: var(--text-2, var(--dim));
-	}
-	.tsp-chip.st-requested {
-		border-color: var(--green);
-		color: var(--green);
-	}
-	.tsp-chip.st-sent-back {
-		border-color: var(--amber);
-		color: var(--amber);
 	}
 	.tsp-parts {
 		list-style: none;
@@ -375,10 +366,11 @@
 		background: color-mix(in srgb, var(--dim) 25%, transparent);
 		overflow: hidden;
 	}
+	/* Work under way: the info tone, which carries in progress. */
 	.tsp-bar span {
 		display: block;
 		height: 100%;
-		background: var(--teal);
+		background: var(--status-info-solid);
 	}
 	.tsp-part-n {
 		font-family: var(--font-mono);

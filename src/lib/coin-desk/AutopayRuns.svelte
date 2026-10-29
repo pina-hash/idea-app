@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { signedCoins } from '$lib/coin-format';
@@ -118,9 +119,9 @@
 		<h2>Autopay runs</h2>
 		{#if phase === 'ready' && recent}
 			{#if recent.paused}
-				<span class="cdx-chip warn" data-testid="cd-autopay-paused">Paused</span>
+				<StatusChip tone="warn" label="Paused" data-testid="cd-autopay-paused" />
 			{:else}
-				<span class="cdx-chip ok">On</span>
+				<StatusChip tone="ok" label="On" />
 			{/if}
 		{/if}
 		<button
@@ -160,7 +161,7 @@
 				<div class="group cdx-disc" data-testid="cd-autopay-run-group">
 					<Disclosure label={groupLabel(g)} collapseWhen={true}>
 						{#snippet meta()}
-							<span class="cdx-chip">{g.rows.length} paid</span>
+							<StatusChip tone="neutral" label="{g.rows.length} paid" />
 						{/snippet}
 						{#if !g.rows.length}
 							<p class="cdx-note">This run paid nobody: everything was already paid.</p>
@@ -172,7 +173,7 @@
 										<span class="what">{row.category}</span>
 										<span class="amount" class:struck={row.reversed}>{signedCoins(num(row.amount))}</span>
 										{#if row.reversed}
-											<span class="cdx-chip warn">Reversed</span>
+											<StatusChip tone="warn" label="Reversed" />
 										{:else if armed === row.id}
 											<button
 												type="button"

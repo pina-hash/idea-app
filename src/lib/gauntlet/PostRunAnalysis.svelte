@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toneStyle } from '$lib/ui/status-tone';
 	import { eventNum, formatMass, formatTime, type RunEvent, type TelemetryTargets } from '$lib/gauntlet';
 
 	/**
@@ -254,7 +255,7 @@
 		<!-- Coaching callouts -->
 		<div class="pra-coach">
 			{#each callouts as c (c.text)}
-				<div class="pra-callout tone-{c.tone}">{c.text}</div>
+				<div class="pra-callout" data-tone={c.tone} style={toneStyle(c.tone)}>{c.text}</div>
 			{/each}
 		</div>
 
@@ -408,14 +409,9 @@
 		border-radius: 0 4px 4px 0;
 		color: var(--white, #e8ffe8);
 	}
-	.pra-callout.tone-warn {
-		border-left-color: var(--amber, #ff8c00);
-	}
-	.pra-callout.tone-ok {
-		border-left-color: var(--green, #00ff41);
-	}
-	.pra-callout.tone-info {
-		border-left-color: var(--cyan, #00f0ff);
+	/* The callout's rule is its tone's ink, from the one tone map (ledger 0466). */
+	.pra-callout[data-tone] {
+		border-left-color: var(--st-ink);
 	}
 	.pra-block {
 		display: flex;

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneStyle } from '$lib/ui/status-tone';
 	/**
 	 * ONE TEAM'S PLAN AND TRACKER (ledger 0436, 0303; decision 71).
 	 *
@@ -18,7 +20,9 @@
 	 */
 	import {
 		TEAM_CHECKPOINT_WORDS,
+		TEAM_STATUS_TONES,
 		TEAM_STATUS_WORDS,
+		teamCheckpointTone,
 		teamCheckpointReady,
 		teamDayWords,
 		teamDueChoices,
@@ -243,7 +247,7 @@
 						<div class="tp-cp-head">
 							<strong class="tp-cp-title">{cp.title}</strong>
 							{#if cp.date}<span class="tp-cp-date">{teamDayWords(cp.date)}</span>{/if}
-							<span class={`tp-chip cp-${cp.state}`}>{TEAM_CHECKPOINT_WORDS[cp.state] ?? cp.state}</span>
+							<StatusChip {...teamCheckpointTone(cp.state)} label={TEAM_CHECKPOINT_WORDS[cp.state] ?? cp.state} />
 						</div>
 						{#if cp.gate}<p class="tp-cp-gate">{cp.gate}</p>{/if}
 						{#if cp.decision?.status === 'approved'}
@@ -298,6 +302,7 @@
 								<button
 									type="button"
 									class={`tp-block st-${statusOf(t)}`}
+									style={toneStyle(TEAM_STATUS_TONES[statusOf(t)].tone)}
 									title={`${t.title}: ${TEAM_STATUS_WORDS[statusOf(t)]}`}
 									onclick={() => (open = t.id)}
 								>
@@ -325,7 +330,7 @@
 				{@const st = statusOf(t)}
 				<li class="tp-task" class:open={open === t.id} data-task={t.id}>
 					<button type="button" class="tp-task-row" aria-expanded={open === t.id} onclick={() => (open = open === t.id ? null : t.id)}>
-						<span class={`tp-chip st-${st}`}>{TEAM_STATUS_WORDS[st]}</span>
+						<StatusChip {...TEAM_STATUS_TONES[st]} class="tp-status" label={TEAM_STATUS_WORDS[st]} />
 						<span class="tp-task-title">{t.title}</span>
 						<span class="tp-task-meta">{nameOf(t.owner) ?? 'No owner'}{t.dueOn ? `, ${teamDayWords(t.dueOn)}` : ''}{t.points ? `, ${t.points} pts` : ''}</span>
 					</button>
@@ -663,15 +668,8 @@
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
 	}
-	.tp-block.st-done {
-		border-color: color-mix(in srgb, var(--green) 70%, transparent);
-	}
-	.tp-block.st-behind,
-	.tp-block.st-blocked {
-		border-color: var(--amber);
-	}
-	.tp-block.st-on-it {
-		border-color: color-mix(in srgb, var(--teal, var(--cyan)) 80%, transparent);
+	.tp-block:is(.st-done, .st-behind, .st-blocked, .st-on-it) {
+		border-color: var(--st-edge);
 	}
 	.tp-legend {
 		list-style: none;
@@ -726,29 +724,9 @@
 		font-size: 0.88rem;
 		color: var(--text-2, var(--dim));
 	}
-	.tp-chip {
+	.tp-task-row :global(.tp-status) {
 		grid-row: span 2;
 		align-self: center;
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-		padding: 0.2rem 0.45rem;
-		border-radius: 0.4rem;
-		border: 1px solid color-mix(in srgb, var(--dim) 40%, transparent);
-		color: var(--text-2, var(--dim));
-	}
-	.tp-chip.st-done {
-		color: var(--green);
-		border-color: color-mix(in srgb, var(--green) 60%, transparent);
-	}
-	.tp-chip.st-behind,
-	.tp-chip.st-blocked {
-		color: var(--amber);
-		border-color: var(--amber);
-	}
-	.tp-chip.st-on-it {
-		color: var(--teal, var(--cyan));
 	}
 	.tp-task-edit {
 		display: grid;
@@ -826,14 +804,6 @@
 		font-size: 0.78rem;
 		color: var(--text-2, var(--dim));
 		margin-right: auto;
-	}
-	.tp-chip.cp-approved {
-		color: var(--green);
-		border-color: color-mix(in srgb, var(--green) 60%, transparent);
-	}
-	.tp-chip.cp-sent-back {
-		color: var(--amber);
-		border-color: var(--amber);
 	}
 	.tp-cp-gate,
 	.tp-cp-stamp,

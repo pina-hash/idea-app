@@ -19,7 +19,7 @@ export default {
 	],
 	textContains: [
 		{ selector: 'h1.err-title', label: 'the heading', contains: 'That page is not here' },
-		{ selector: '.err-chip', label: 'the status in words', contains: 'Not found' }
+		{ selector: '.err-status', label: 'the status in words', contains: 'Not found' }
 	],
 	orderResult: [
 		{
@@ -32,6 +32,6 @@ export default {
 		{ selector: '.err-lead', label: 'the sentence', min: 4.5 },
 		{ selector: '.err-facts dd', label: 'the page address', min: 4.5 },
 		{ selector: '.err-facts dt', label: 'the fact labels', min: 4.5 },
-		{ selector: '.err-chip', label: 'the status word', min: 4.5 }
+		{ selector: '.err-status', label: 'the status word', min: 4.5 }
 	]
 };

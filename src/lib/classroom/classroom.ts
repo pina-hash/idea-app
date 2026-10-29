@@ -14,6 +14,7 @@
 import type { ItemThumbnail } from './thumbnail';
 import type { ThumbShape } from './thumbnail-shape';
 import { formatSectionLabel } from '$lib/section-label';
+import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
 import { parseMarkdown } from '$lib/classroom/reference-spec';
 import type { UploadGate } from '$lib/classroom/upload-errors';
@@ -1443,16 +1444,18 @@ export function assignmentStandings(
  * surface has no clock to ask, and then the chip says only what the work
  * itself says, never a guess about the deadline.
  *
- * `missing` IS ITS OWN TONE, not `attention`: "In progress" already wears
- * amber, and a missing assignment is the one state a student must not be able
- * to mistake for work under way. The word leads, and the stylesheet adds a
- * fill and a mark, so colour is never the only signal.
+ * THE TONE IS THE ONE TONE MAP'S (`$lib/ui/status-tone`, ledger 0466).
+ * Missing is `warn` with the alert glyph; "In progress" is `info` with the
+ * progress ring, because work under way is not a warning, so a missing
+ * assignment cannot be mistaken for it by hue, glyph or word.
  */
-export type WorkChipTone = 'good' | 'attention' | 'muted' | 'info' | 'missing';
+export type WorkChipTone = StatusTone;
 
 export interface WorkChip {
 	label: string;
 	tone: WorkChipTone;
+	/** The chip's mark: the alert for missing, the check for done, otherwise the state's own. */
+	glyph: StatusGlyph;
 	/** Turned in or returned: the row gets a checkmark and counts toward a unit's progress. */
 	done: boolean;
 	missing: boolean;
@@ -1468,7 +1471,8 @@ export function studentWorkChip(
 	if (standing === 'missing') {
 		return {
 			label: mine.state === 'in-progress' ? 'Missing, draft saved' : 'Missing',
-			tone: 'missing',
+			tone: 'warn',
+			glyph: 'alert',
 			done: false,
 			missing: true
 		};
@@ -1484,13 +1488,20 @@ export function studentWorkChip(
 		const late = completionIsLate(item, mine.completedAt);
 		return {
 			label: late ? 'Complete, late' : 'Complete',
-			tone: late ? 'attention' : 'info',
+			tone: late ? 'warn' : 'info',
+			glyph: 'check',
 			done: true,
 			missing: false
 		};
 	}
 	const done = mine.state === 'submitted' || mine.state === 'returned';
-	return { label: workStateLabel(mine, item.points), tone: workStateTone(mine.state), done, missing: false };
+	return {
+		label: workStateLabel(mine, item.points),
+		tone: workStateTone(mine.state),
+		glyph: done ? 'check' : workStateGlyph(mine.state),
+		done,
+		missing: false
+	};
 }
 
 /**
@@ -1524,18 +1535,26 @@ export function completionIsLate(
 	return Number.isFinite(due) && Number.isFinite(at) && at > due;
 }
 
-/** Existing tones only -- crimson stays reserved for LIVE/REC/error. */
-export function workStateTone(state: WorkState): 'good' | 'attention' | 'muted' | 'info' {
+/**
+ * A work state's tone in the one tone map. Crimson stays reserved for
+ * LIVE/REC/error, and IN PROGRESS IS INFO, NOT THE WARNING HUE (ledger 0466):
+ * a student working on an assignment is doing what was asked.
+ */
+export function workStateTone(state: WorkState): 'ok' | 'info' | 'neutral' {
 	switch (state) {
 		case 'returned':
-			return 'good';
+			return 'ok';
 		case 'submitted':
-			return 'info';
 		case 'in-progress':
-			return 'attention';
+			return 'info';
 		default:
-			return 'muted';
+			return 'neutral';
 	}
+}
+
+/** The mark beside a work state's word when the work is not done. */
+export function workStateGlyph(state: WorkState): StatusGlyph {
+	return state === 'in-progress' ? 'progress' : state === 'not-started' ? 'dash' : 'info';
 }
 
 /**

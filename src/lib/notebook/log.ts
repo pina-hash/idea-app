@@ -22,12 +22,14 @@
 import {
 	checkInIsScheduled,
 	checkInStatus,
+	checkInGlyph,
 	checkInStatusLabel,
 	checkInTone,
 	type CheckInEntry,
 	type CheckInStatus,
 	type CheckInTone
 } from '$lib/classroom/class-check-ins';
+import type { StatusGlyph } from '$lib/ui/status-tone';
 import {
 	nearestOutstanding,
 	sessionHasDraft,
@@ -40,6 +42,7 @@ export interface LogCheckInState {
 	status: CheckInStatus | 'all-filed';
 	word: string;
 	tone: CheckInTone;
+	glyph: StatusGlyph;
 }
 
 type EntryFacts = Pick<NotebookEntry, 'session_id' | 'section_id' | 'submitted_at' | 'status'>;
@@ -99,7 +102,7 @@ export function checkInState(
 	if (turnedIn) entry = { submitted: true, status: turnedIn.status };
 	else if (sessionHasDraft(session, [...entries])) entry = { submitted: false, status: 'compliant' };
 	const status = checkInStatus(entry, false, checkInIsScheduled(session.session_date, today));
-	return { status, word: checkInStatusLabel(status), tone: checkInTone(status) };
+	return { status, word: checkInStatusLabel(status), tone: checkInTone(status), glyph: checkInGlyph(status) };
 }
 
 /** The words for "every check-in you have is turned in". */
@@ -123,7 +126,7 @@ export function logCheckIn(
 	if (sessions.length === 0) return null;
 	const next = nearestOutstanding(sessions, entries, today);
 	if (next) return { kind: 'next', session: next, state: checkInState(next, entries, today) };
-	return { kind: 'clear', state: { status: 'all-filed', word: ALL_CHECK_INS_FILED, tone: 'good' } };
+	return { kind: 'clear', state: { status: 'all-filed', word: ALL_CHECK_INS_FILED, tone: 'ok', glyph: 'check' } };
 }
 
 /**

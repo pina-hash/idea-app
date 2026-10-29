@@ -32,8 +32,8 @@ export default {
 		{ selector: '[data-testid="work-presence"] [data-presence-state="open-elsewhere"]', label: 'the state in the work head', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	contrast: [
-		{ selector: '[data-testid="roster-card"] .pword', label: 'OPEN ELSEWHERE, in the card', min: 4.5 },
-		{ selector: '[data-testid="work-presence"] .pword', label: 'OPEN ELSEWHERE, in the work head', min: 4.5 },
+		{ selector: '[data-testid="roster-card"] [data-testid="presence-chip"] .status-chip-word', label: 'OPEN ELSEWHERE, in the card', min: 4.5 },
+		{ selector: '[data-testid="work-presence"] [data-testid="presence-chip"] .status-chip-word', label: 'OPEN ELSEWHERE, in the work head', min: 4.5 },
 		{ selector: '[data-testid="roster-presence"]', label: 'the row glyph (graphical, 3:1)', min: 3 }
 	]
 };

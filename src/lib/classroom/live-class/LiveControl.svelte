@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount, untrack } from 'svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import { page } from '$app/state';
@@ -67,7 +68,6 @@
 		openProjectorChannel,
 		PROJECTOR_GONE_MS,
 		WALL_ACTIVITY_GROUPS,
-		WALL_HALL_GLYPH,
 		type ProjectorChannel,
 		type ProjectorChannelHost,
 		type ProjectorMessage,
@@ -855,10 +855,12 @@
 					{#if wallHall}
 						<p class="lc-wall-line" data-testid="live-hall-wall">
 							<span class="lc-wall-tag">On the wall</span>
-							<span class="lc-wall-chip" data-tone={wallHall.tone}>
-								<span aria-hidden="true">{WALL_HALL_GLYPH[wallHall.tone]}</span>
-								{wallHall.word}
-							</span>
+							<StatusChip
+								tone={wallHall.tone === 'taken' ? 'warn' : 'neutral'}
+								glyph={wallHall.tone === 'taken' ? 'progress' : 'ring'}
+								label={wallHall.word}
+								data-hall={wallHall.tone}
+							/>
 						</p>
 					{/if}
 				</section>
@@ -892,7 +894,7 @@
 				<h2 id="lc-agenda-title" class="lc-panel-title">
 					Today
 					{#if !agendaKept}
-						<span class="lc-chip-quiet" data-testid="live-agenda-unkept">This page only</span>
+						<StatusChip tone="warn" label="This page only" data-testid="live-agenda-unkept" />
 					{/if}
 				</h2>
 				{#if lines.length > 0}
@@ -1363,19 +1365,6 @@
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
-	.lc-wall-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.35rem;
-		padding: 0.15rem 0.55rem;
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-chip);
-		color: var(--text-1);
-	}
-	.lc-wall-chip[data-tone='taken'] {
-		color: var(--status-warn);
-		border-color: currentColor;
-	}
 	.lc-wall-note {
 		margin: var(--space-3) 0 0;
 		color: var(--text-1);
@@ -1385,16 +1374,6 @@
 		margin: var(--space-2) 0 0;
 		font-size: 0.9rem;
 		color: var(--text-2);
-	}
-	.lc-chip-quiet {
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--status-warn);
-		border: 1px solid currentColor;
-		border-radius: var(--radius-chip);
-		padding: 0.05rem 0.4rem;
 	}
 	.lc-lines {
 		list-style: none;

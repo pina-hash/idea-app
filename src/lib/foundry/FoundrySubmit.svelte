@@ -1103,7 +1103,7 @@
 	.fdy-busy {
 		font-family: var(--font-mono);
 		font-size: 0.85rem;
-		color: var(--teal);
+		color: var(--status-info);
 		margin: var(--space-2, 0.5rem) 0;
 	}
 

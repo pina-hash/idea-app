@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import type { Snippet } from 'svelte';
 	import ClassThemeBanner from '$lib/classroom/ClassThemeBanner.svelte';
 	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
@@ -107,7 +108,7 @@
 			<!-- The identity, recessed: a tag, not a control. It truncates rather
 			     than wrapping, and its full words are its title. -->
 			<span class="chip pane-meta ch-meta" title={meta} data-testid="class-header-meta">{meta}</span>
-			{#if section.active === false}<span class="draft-chip">Archived</span>{/if}
+			{#if section.active === false}<StatusChip tone="neutral" label="Archived" />{/if}
 			{#if tools}
 				<div class="ch-tools">{@render tools()}</div>
 			{/if}

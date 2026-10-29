@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount, untrack } from 'svelte';
 	import { coins, coinNumber } from '$lib/coin-format';
 	import { startPoller, type Poller, type PollOutcome } from '$lib/classroom/poll';
@@ -447,7 +448,7 @@
 			</label>
 		{/if}
 		{#if current?.in_session}
-			<span class="fs-chip fs-chip-live" data-testid="fine-in-session"><span aria-hidden="true">●</span> In session</span>
+			<StatusChip tone="ok" glyph="live" label="In session" data-testid="fine-in-session" />
 		{/if}
 	</div>
 
@@ -692,20 +693,6 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card, 4px);
 		padding: 0 0.6rem;
-	}
-	.fs-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.3rem;
-		min-height: 32px;
-		padding: 0 0.6rem;
-		border-radius: 999px;
-		font-family: var(--font-mono, monospace);
-		font-size: 0.8rem;
-		border: 1px solid var(--boundary);
-	}
-	.fs-chip-live {
-		color: var(--status-ok, var(--green));
 	}
 	.fs-banner {
 		margin: 0;

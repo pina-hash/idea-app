@@ -70,6 +70,7 @@ import { laCalendarDay, schoolDayOf } from '$lib/classroom/school-calendar';
 import { hallPassElapsedLabel } from '$lib/classroom/hall-pass';
 import { withWorksheetCompletions, worksheetCompletedAtAcross, worksheetKey } from '$lib/classroom/student-work';
 import type { PastManifest } from '$lib/classroom/assignment-spec';
+import type { StatusTone } from '$lib/ui/status-tone';
 
 /**
  * HOW LONG WITHOUT TYPING BEFORE A STUDENT WHO HAS THE ASSIGNMENT OPEN READS AS
@@ -141,16 +142,18 @@ export const LIVE_GROUP_ORDER: readonly LiveCellState[] = [
  */
 export const LIVE_CELL_DISPLAY: Record<
 	LiveCellState,
-	{ label: string; glyph: string; tone: 'ok' | 'warn' | 'info' | 'quiet' | 'done' }
+	/* `tone` is the one tone map's (ledger 0466). Handed in is neutral here,
+	   not ok: in a live view the finished students are the quiet ones. */
+	{ label: string; glyph: string; tone: StatusTone }
 > = {
 	idle: { label: 'Idle', glyph: '○', tone: 'warn' },
-	away: { label: 'Away', glyph: '◇', tone: 'quiet' },
-	'not-opened': { label: 'Not opened', glyph: '◌', tone: 'quiet' },
+	away: { label: 'Away', glyph: '◇', tone: 'neutral' },
+	'not-opened': { label: 'Not opened', glyph: '◌', tone: 'neutral' },
 	working: { label: 'Working', glyph: '●', tone: 'ok' },
 	'needs-grading': { label: 'Needs grading', glyph: '↑', tone: 'info' },
-	submitted: { label: 'Handed in', glyph: '✓', tone: 'done' },
-	unknown: { label: 'Not known', glyph: '?', tone: 'quiet' },
-	'no-signal': { label: 'No signal', glyph: '⌀', tone: 'quiet' }
+	submitted: { label: 'Handed in', glyph: '✓', tone: 'neutral' },
+	unknown: { label: 'Not known', glyph: '?', tone: 'neutral' },
+	'no-signal': { label: 'No signal', glyph: '⌀', tone: 'neutral' }
 };
 
 /**

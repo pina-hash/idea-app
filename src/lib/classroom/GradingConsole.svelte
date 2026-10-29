@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneStyle, type StatusGlyph, type StatusTone } from '$lib/ui/status-tone';
 	import { classNotebookHref } from '$lib/classroom/nav';
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
@@ -1966,7 +1968,10 @@
 		return assignmentLockState(s.submission);
 	}
 
-	function statusChip(s: StudentWork): { label: string; cls: string } {
+	type RosterChipClass = 'returned' | 'submitted' | 'progress' | 'late' | 'closed' | 'none';
+	type RosterChip = { label: string; cls: RosterChipClass; tone: StatusTone; glyph: StatusGlyph };
+
+	function statusChipWords(s: StudentWork): { label: string; cls: RosterChipClass } {
 		const state = s.submission?.state ?? null;
 		if (state === 'returned') {
 			// Blind hides every stored score, the roster's included.
@@ -2012,6 +2017,27 @@
 		}
 		if (s.responses.length || s.files.length) return { label: 'In progress', cls: 'progress' };
 		return { label: 'Not submitted', cls: 'none' };
+	}
+
+	/*
+	 * THE ROW'S STATE IN THE ONE TONE MAP (ledger 0466). `cls` is kept because
+	 * `workArrived` and the card read it as the state's name; the tone and the
+	 * mark are what the chip draws. Closed is an instructor's act, so it is
+	 * neutral with a lock, never the "handed in" tone; in progress is info, and
+	 * late is warn.
+	 */
+	const ROSTER_TONES: Record<RosterChipClass, { tone: StatusTone; glyph: StatusGlyph }> = {
+		returned: { tone: 'ok', glyph: 'check' },
+		submitted: { tone: 'info', glyph: 'check' },
+		progress: { tone: 'info', glyph: 'progress' },
+		late: { tone: 'warn', glyph: 'clock' },
+		closed: { tone: 'neutral', glyph: 'lock' },
+		none: { tone: 'neutral', glyph: 'dash' }
+	};
+
+	function statusChip(s: StudentWork): RosterChip {
+		const words = statusChipWords(s);
+		return { ...words, ...ROSTER_TONES[words.cls] };
 	}
 
 	/**
@@ -2216,7 +2242,7 @@
 	}
 
 	/** The one-glyph presence mark on a row, or null (no row, or no region). */
-	function presenceMark(s: StudentWork): { glyph: string; label: string; tone: string } | null {
+	function presenceMark(s: StudentWork): { glyph: string; label: string; tone: StatusTone } | null {
 		if (!presenceShown) return null;
 		const row = presenceRows.get(s.email);
 		if (!row) return null;
@@ -4009,11 +4035,11 @@
 									it, because the instructor teaches both.
 								-->
 								{#if crossClass}
-									<span class="roster-chip section" data-testid="roster-section">
+									<span class="roster-section" data-testid="roster-section">
 										{sectionTitles.get(sectionOf.get(s.email) ?? '') ?? 'No class'}
 									</span>
 								{/if}
-								<span class="roster-chip {chip.cls}">{chip.label}</span>
+								<StatusChip tone={chip.tone} glyph={chip.glyph} label={chip.label} data-roster-state={chip.cls} />
 								<!--
 									"Was it finished when it arrived" and "has it moved since I
 									graded it" are their own questions, so each keeps its own mark,
@@ -4023,14 +4049,16 @@
 								-->
 								{#if short > 0}
 									<span
-										class="roster-chip incomplete roster-mark"
+										class="roster-mark incomplete"
+										style={toneStyle('special')}
 										data-testid="roster-incomplete"
 										title={`Incomplete: ${short} unfinished`}
 									><span class="visually-hidden">Incomplete &middot; </span>{short}</span>
 								{/if}
 								{#if changedLabel}
 									<span
-										class="roster-chip changed roster-mark"
+										class="roster-mark changed"
+										style={toneStyle('warn')}
 										data-testid="roster-changed"
 										title={changedLabel}
 									><span class="visually-hidden">{changedLabel}</span></span>
@@ -4040,7 +4068,9 @@
 									     and hue, never the hue alone (four distinct shapes), with
 									     the word in the card. -->
 									<span
-										class="roster-presence tone-{mark.tone}"
+										class="roster-presence"
+										style={toneStyle(mark.tone)}
+										data-presence-tone={mark.tone}
 										data-testid="roster-presence"
 										title={mark.label}
 										aria-hidden="true">{mark.glyph}</span
@@ -4317,7 +4347,7 @@
 									<span class="due-says">
 										Due {formatDue(dueFor(selected) ?? item.due_at)}{own?.daysOut != null ? ` (moved ${own.daysOut} school ${own.daysOut === 1 ? 'day' : 'days'})` : own?.dueAt ? ' (own date)' : ''}
 									</span>
-									{#if own?.absent}<span class="mark-chip absent" data-testid="student-absent">Absent, still has time</span>{/if}
+									{#if own?.absent}<StatusChip tone="warn" glyph="clock" label="Absent, still has time" data-testid="student-absent" />{/if}
 									<label class="due-days">
 										Days out
 										<input class="ec-input tap-44" type="number" min="0" max="60" step="1" bind:value={daysOutInput} data-testid="student-days-out" />
@@ -4366,7 +4396,7 @@
 							{#if teamsOn && selectedTeam}
 								<section class="team-merge" data-testid="team-merge">
 									<p class="team-head">
-										<span class="mark-chip team">{selectedTeam.name}</span>
+										<span class="team-tag">{selectedTeam.name}</span>
 										{selectedTeam.members.map((m) => nameOfEmail.get(m) ?? m.split('@')[0]).join(', ')}
 										<button type="button" class="btn tiny tap-44" onclick={pickTeam} data-testid="team-pick">Grade this team together</button>
 									</p>
@@ -4752,17 +4782,17 @@
 														{:else}
 															{scores[c.id] ?? '—'} / {max}
 														{/if}
-														{#if override}<span class="override-chip">Override</span>{/if}
+														{#if override}<StatusChip tone="warn" class="override-mark" label="Override" />{/if}
 													</span>
 												</div>
 												{#if lateLines.has(c.id) || hiddenLines.has(c.id)}
 													<p class="score-marks">
 														{#if lateLines.has(c.id)}
-															<span class="mark-chip late" data-testid="rubric-late">Answered after due</span>
+															<StatusChip tone="warn" glyph="clock" label="Answered after due" data-testid="rubric-late" />
 														{/if}
 														{#if hiddenLines.has(c.id)}
-															<span class="mark-chip hidden-req" data-testid="rubric-hidden"
-																>Only in {hiddenLines.get(c.id)?.where}: check the student could see it</span
+															<StatusChip tone="special" glyph="hidden" wrap data-testid="rubric-hidden"
+																>Only in {hiddenLines.get(c.id)?.where}: check the student could see it</StatusChip
 															>
 														{/if}
 													</p>
@@ -5022,7 +5052,7 @@
 										{#if lateCredit}
 											<div class="late-credit" data-testid="late-credit">
 												<p class="late-head">
-													<span class="mark-chip late">Late credit</span>
+													<StatusChip tone="warn" glyph="clock" label="Late credit" />
 													On time earns full credit; what improved after {selected?.displayName}'s due date earns {ratePercent(lateRate)}.
 												</p>
 												<ul class="late-lines">
@@ -5878,7 +5908,13 @@
 	   whole signal here, so it takes the body ink and the load-bearing edge and
 	   is simply the most legible chip in the row -- which is what it should be,
 	   since grading the wrong class's student is the silent failure. */
-	.roster-chip.section {
+	.roster-section {
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		padding: 0.06rem 0.45rem;
+		white-space: nowrap;
 		color: var(--text-1);
 		border-color: var(--boundary);
 		background: var(--surface-0);
@@ -6097,43 +6133,6 @@
 	.outcome-list li.refused .outcome-sentence {
 		color: var(--amber);
 	}
-	.roster-chip {
-		font-family: var(--font-mono);
-		font-size: 0.6rem;
-		border: 1px solid var(--hairline);
-		border-radius: 999px;
-		padding: 0.06rem 0.45rem;
-		color: var(--text-2);
-		white-space: nowrap;
-	}
-	.roster-chip.submitted {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
-	.roster-chip.returned {
-		color: var(--green);
-		border-color: var(--line-strong);
-	}
-	.roster-chip.progress {
-		color: var(--teal);
-		border-color: var(--teal);
-	}
-	/* COMPLETE, LATE (decision 37): --amber, this file's warning edge, because
-	   late work is a fact the grader acts on; the WORD says late either way. */
-	.roster-chip.late {
-		color: var(--amber);
-		border-color: var(--amber);
-	}
-	/* CLOSED IS NOT SUBMITTED AND MUST NOT LOOK LIKE IT. --cyan is this file's
-	   "the student handed it in"; a close is an act of the instructor's, so it
-	   takes --violet through --violet-ink, which is the corrected value the
-	   register keeps for a word painted in violet (the raw accent measures 2.88
-	   / 2.45 / 2.30 as text on the three portal grounds -- unreadable, not a
-	   near miss). The WORD is what carries the meaning either way. */
-	.roster-chip.closed {
-		color: var(--violet-ink);
-		border-color: var(--violet-ink);
-	}
 	/* AS ABOVE: the `Disclosure` around this draws the edge, so the card's own
 	   border and bottom margin are gone and what is left is the stack. */
 	.close-tool {
@@ -6206,10 +6205,6 @@
 	   accepts on purpose since 0160, so gold says "special, look at this"; work
 	   that moved after it was graded is a grade that may no longer describe what
 	   is there, which is a warning in the ordinary sense of the word. */
-	.roster-chip.changed {
-		color: var(--amber);
-		border-color: var(--amber);
-	}
 	/* The blocks that moved after the grade: the changed line's own register,
 	   one per line so a long worksheet's list reads down rather than wrapping. */
 	.changed-blocks {
@@ -6222,28 +6217,31 @@
 	.changed-block-name {
 		color: var(--text-1);
 	}
-	.roster-chip.incomplete {
-		color: var(--gold);
-		border-color: var(--gold);
-	}
 	/* THE COMPACT MARKS (ledger 0360): "unfinished" and "changed after grading"
 	   as a glyph and, for unfinished, its count, so a row stays one line. The
 	   glyph is the stylesheet's (`::before`, so it is not part of the mark's
 	   text); the whole sentence is inside the mark for a screen reader, in its
 	   `title` for a pointer, and in the card. Each keeps its own hue and its own
 	   SHAPE, so neither is told apart by colour alone. */
-	.roster-chip.roster-mark {
+	.roster-mark {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.15rem;
 		padding: 0.06rem 0.35rem;
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		border: 1px solid var(--st-edge);
+		border-radius: 999px;
+		color: var(--st-ink);
+		white-space: nowrap;
 	}
-	.roster-chip.incomplete.roster-mark::before {
+	.roster-mark.incomplete::before {
 		content: '!';
 		font-weight: 700;
 	}
-	.roster-chip.changed.roster-mark::before {
-		content: '\270E';
+	/* Turned back, not a pencil: the pencil is the draft tone's own mark. */
+	.roster-mark.changed::before {
+		content: '\21BA';
 	}
 	/* WHO IS WORKING: the presence state's own glyph, in its own tone (the
 	   chip's tokens, `PresenceChip`'s measured set). */
@@ -6253,16 +6251,7 @@
 		line-height: 1;
 		min-width: 1em;
 		text-align: center;
-		color: var(--text-2);
-	}
-	.roster-presence.tone-working {
-		color: var(--green);
-	}
-	.roster-presence.tone-viewing {
-		color: var(--teal);
-	}
-	.roster-presence.tone-elsewhere {
-		color: var(--amber);
+		color: var(--st-ink, var(--text-2));
 	}
 	/* The two chips are their own group so a long name shrinks against the pair
 	   rather than shoving the second one out of the row, and so they wrap
@@ -6276,7 +6265,7 @@
 	}
 	/* Same shape as .off-roster and .manager-note above -- this is the third
 	   member of that family -- with the callout token rather than either of
-	   theirs, for the reason written on .roster-chip.incomplete. */
+	   theirs, for the reason written on the incomplete mark. */
 	.incomplete-card {
 		border-color: var(--gold);
 	}
@@ -6857,27 +6846,16 @@
 		gap: 0.3rem;
 		margin: 0.15rem 0 0.25rem;
 	}
-	.mark-chip {
+	/* A team's name is an identity, not a status: the body ink and the
+	   load-bearing edge, the roster's section tag's own argument. */
+	.team-tag {
 		font-family: var(--font-mono);
 		font-size: 0.62rem;
 		letter-spacing: 0.04em;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--boundary);
 		border-radius: 999px;
 		padding: 0.06rem 0.45rem;
-		color: var(--text-2);
-	}
-	.mark-chip.late,
-	.mark-chip.absent {
-		color: var(--amber);
-		border-color: var(--amber);
-	}
-	.mark-chip.hidden-req {
-		color: var(--gold);
-		border-color: var(--gold);
-	}
-	.mark-chip.team {
-		color: var(--teal);
-		border-color: var(--teal);
+		color: var(--text-1);
 	}
 	/* Blind: the typed score stays in the box (so a save keeps it) but is not readable. */
 	.blind-input {
@@ -6905,7 +6883,7 @@
 		padding-left: 0.6rem;
 	}
 	.scale-note.on {
-		border-left-color: var(--teal);
+		border-left-color: var(--status-info);
 	}
 	.due-days {
 		display: inline-flex;
@@ -6926,7 +6904,7 @@
 		margin: 0.5rem 0;
 	}
 	.team-merge {
-		border-left-color: var(--teal);
+		border-left-color: var(--status-info);
 	}
 	.late-head {
 		display: flex;
@@ -7011,13 +6989,7 @@
 		text-transform: uppercase;
 		color: var(--amber);
 	}
-	.override-chip {
-		font-size: 0.58rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		border: 1px solid var(--amber);
-		border-radius: 999px;
-		padding: 0.05rem 0.4rem;
+	:global(.override-mark) {
 		margin-left: 0.3rem;
 	}
 	.level-picker {

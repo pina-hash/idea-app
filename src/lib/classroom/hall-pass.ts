@@ -1,4 +1,5 @@
 import { coins } from '$lib/coin-format';
+import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 
 /**
  * THE DIGITAL BATHROOM PASS -- the pure half.
@@ -724,6 +725,29 @@ export function classroomLivePausedLine(pollMs: number): string {
 	// Unreachable with the two real polls (120s, 300s), but it is a sentence a
 	// person reads, so it agrees with itself at one second too.
 	return `Live updates paused, still checking every ${seconds} second${seconds === 1 ? '' : 's'}.`;
+}
+
+/**
+ * A class tool's state in the one tone map (ledger 0466), for the hall pass
+ * and the song queue alike. An open pass and a waiting request are INFO, in
+ * progress: somebody being out is neither a fault nor an alarm, and nothing
+ * here enforces a time limit. Free and approved are ok; nobody out is quiet.
+ * A refused song is warn, never danger: the student did nothing wrong by
+ * asking.
+ */
+export const CLASS_TOOL_TONES: Record<string, { tone: StatusTone; glyph: StatusGlyph }> = {
+	free: { tone: 'ok', glyph: 'ring' },
+	approved: { tone: 'ok', glyph: 'check' },
+	taken: { tone: 'info', glyph: 'progress' },
+	mine: { tone: 'info', glyph: 'progress' },
+	out: { tone: 'info', glyph: 'progress' },
+	pending: { tone: 'info', glyph: 'clock' },
+	idle: { tone: 'neutral', glyph: 'dash' },
+	rejected: { tone: 'warn', glyph: 'error' }
+};
+
+export function classToolTone(tone: string): { tone: StatusTone; glyph: StatusGlyph } {
+	return CLASS_TOOL_TONES[tone] ?? { tone: 'neutral', glyph: 'dash' };
 }
 
 /** What the trigger's chip paints: a tone for the hue and a word for everything else. */

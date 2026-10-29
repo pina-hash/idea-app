@@ -44,6 +44,13 @@ import { dropRootWhitespace, renderCase, renderCases } from './classroom-panel-l
  * ClassView's scope class, because the stylesheet now gives it one width in
  * every class. The count of a narrowed list moved to the row's end, which no
  * case shows (none of them is filtered).
+ * Ledger 0466 spliced the STATUS CHIPS the same way: every old chip span
+ * (`chip work-chip tone-*`, five in two cases) was swapped, in order, for the
+ * one StatusChip the current render draws in its place, and nothing else was
+ * touched. Before and after the splice the rest of each case differed from
+ * the current render by the same whitespace and the same "20" against "19"
+ * in every case, chips or none, which is this file's standing failure and
+ * not the chips'.
  * `tests/classroom-class-toolbar.test.ts` asserts the row's composition. This replays the
  * same props through ClassView as it stands now, with no `panelLayout`, and
  * requires the markup to match character for character once Svelte's

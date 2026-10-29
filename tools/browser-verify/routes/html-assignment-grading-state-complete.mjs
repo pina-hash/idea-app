@@ -18,9 +18,9 @@ export default {
 		{ label: 'no grade, so nothing changed after one', evaluate: CHANGED_BLOCKS, expected: [] }
 	],
 	presence: [
-		{ selector: '.roster-chip.submitted', label: 'the Complete chip', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.roster-chip.late', label: 'no late chip', expectPresent: 0 },
+		{ selector: '[data-roster-state="submitted"]', label: 'the Complete chip', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-roster-state="late"]', label: 'no late chip', expectPresent: 0 },
 		{ selector: '[data-testid="changed-blocks"]', label: 'no changed-block list', expectPresent: 0 }
 	],
-	contrast: [{ selector: '.roster-chip.submitted', label: 'Complete chip', min: 4.5 }]
+	contrast: [{ selector: '[data-roster-state="submitted"]', label: 'Complete chip', min: 4.5 }]
 };

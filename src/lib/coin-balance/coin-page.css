@@ -145,29 +145,6 @@
 	font-size: 1.4rem;
 	color: var(--text-1);
 }
-.cpx-chip {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.3rem;
-	font-family: var(--font-mono);
-	font-size: 0.66rem;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	white-space: nowrap;
-	border: 1px solid var(--boundary);
-	border-radius: 3px;
-	padding: 0.08rem 0.4rem;
-	color: var(--text-2);
-}
-.cpx-chip.good {
-	color: var(--green);
-}
-.cpx-chip.bad {
-	color: var(--amber);
-}
-.cpx-chip.wait {
-	color: var(--cyan);
-}
 .cpx-list {
 	list-style: none;
 	margin: 0;
@@ -308,8 +285,4 @@
 .cpx-card {
 	margin: 0 0 1.1rem;
 	min-width: 0;
-}
-.cpx-chip.wrap {
-	white-space: normal;
-	align-self: flex-start;
 }

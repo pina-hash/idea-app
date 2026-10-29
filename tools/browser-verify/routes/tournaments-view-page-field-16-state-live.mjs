@@ -58,7 +58,7 @@ export default {
 		{ selector: '.tnm-shell .card a', label: 'bare link', min: 4.5 },
 		{ selector: '.bracket-scroll .round-label', label: 'bracket round label', min: 4.5 },
 		{ selector: '.bracket-scroll .match-head', label: 'bracket node head', min: 4.5 },
-		{ selector: '.bracket-scroll .live-chip', label: 'bracket LIVE chip (crimson)', min: 4.5 },
+		{ selector: '.bracket-scroll .bracket-live', label: 'bracket LIVE chip (the danger tone)', min: 4.5 },
 		{ selector: '.bracket-scroll .section-title', label: 'bracket section title', min: 4.5 },
 		{ selector: '[data-testid="bracket-fullscreen"]', label: 'the Full screen control', min: 4.5 },
 		{ selector: '[data-testid="bracket-stage"] h2', label: 'the stage heading', min: 4.5 }

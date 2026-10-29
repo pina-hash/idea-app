@@ -75,7 +75,7 @@ function open(values: Record<string, ResponseValue> = {}) {
 const MODULE_KEY = 'idea:disclosure:1:user-a:mc-1:m1:module';
 
 const chip = (m: { all<T extends Element>(s: string): T[] }) =>
-	(m.all('.done-chip')[0]?.textContent ?? '').trim().replace(/\s+/g, ' ');
+	(m.all('[data-testid="module-done"]')[0]?.textContent ?? '').trim().replace(/\s+/g, ' ');
 
 beforeEach(() => {
 	localStorage.clear();

@@ -303,7 +303,7 @@
 	/* Colour is never the only signal: the word inside the tag says the same
 	   thing the hue does. */
 	.tag[data-tag='stated'] {
-		color: var(--teal);
+		color: var(--status-info);
 	}
 	.tag[data-tag='unstated'] {
 		color: var(--amber);

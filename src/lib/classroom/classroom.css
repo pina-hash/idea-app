@@ -5,7 +5,7 @@
    component -- `.feedback` and its two variants in eleven files, `.btn.tiny`
    sizing in ten, `.btn.danger` in six, the mono micro-label in three -- and
    several of the copies had already drifted apart (a `.feedback` with
-   `margin: 0` beside one with `margin: 0 0 0.8rem`, a `.draft-chip` at
+   `margin: 0` beside one with `margin: 0 0 0.8rem`, a draft tag at
    0.6rem beside one at 0.62rem). They are all the same control; they are
    written once now, and a component that wants one just uses the class.
 
@@ -368,13 +368,9 @@ body:has(.cr-root) {
 	border-color: var(--crimson);
 }
 
-/* --- Status chips ---------------------------------------------------------
-   One shape, three meanings. Draft and Scheduled are both "students cannot
-   see this yet", which is why they share amber -- the difference is whether
-   anything will change that on its own, and that is what the words say.
-   ------------------------------------------------------------------------ */
-.cr-root .draft-chip,
-.cr-root .sched-chip,
+/* --- The kind chip ----------------------------------------------------------
+   An item's kind ("Assignment", a revision's target) is a label, not a status;
+   every status is the one StatusChip (ledger 0466). */
 .cr-root .kind-chip {
 	font-family: var(--font-mono);
 	font-size: 0.62rem;
@@ -383,13 +379,6 @@ body:has(.cr-root) {
 	border-radius: 999px;
 	padding: 0.02rem 0.45rem;
 	white-space: nowrap;
-}
-.cr-root .draft-chip,
-.cr-root .sched-chip {
-	color: var(--amber);
-	border-color: var(--amber);
-}
-.cr-root .kind-chip {
 	color: var(--text-2);
 }
 /* Pinned is the one chip that marks a teacher's own deliberate choice, so it
@@ -397,20 +386,6 @@ body:has(.cr-root) {
 .cr-root .kind-chip.pinned {
 	color: var(--gold);
 	border-color: var(--gold);
-}
-
-/* THE SCHEDULED CHIP MAY WRAP ON A PHONE, and must.
-   It is the one chip carrying a whole timestamp ("Scheduled · Aug 18, 9:00 AM"),
-   which measures ~200px -- so `white-space: nowrap`, right everywhere there is
-   room, pushed the manage console's content row 4px past a 375px viewport and
-   gave the whole page a horizontal scrollbar. Measured while verifying Phase 2;
-   the chip predates it, and nothing about the overflow pointed at this chip
-   rather than at the row it sits in. Keeping the phrase on one line is a
-   nicety; not scrolling the page sideways is not. */
-@media (max-width: 32rem) {
-	.cr-root .sched-chip {
-		white-space: normal;
-	}
 }
 
 /* --- Selected / emphasised rows ------------------------------------------

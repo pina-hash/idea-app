@@ -2406,7 +2406,7 @@ a:hover {
 .legacy-index .hero-eyebrow {
 	font-size: 0.65rem;
 	letter-spacing: 0.25em;
-	color: var(--teal);
+	color: var(--cyan);
 	text-transform: uppercase;
 	margin-bottom: 1rem;
 	font-family: 'Orbitron', sans-serif;
@@ -3010,44 +3010,6 @@ a:hover {
 .legacy-index button.course-header:focus-visible {
 	outline: 2px solid var(--green);
 	outline-offset: -2px;
-}
-
-/* The row's right-side indicator: what to do about this item. Tones come only
-   from existing tokens, and --crimson is deliberately absent -- it stays
-   reserved for LIVE/REC/error, and this surface carries no live state. */
-.legacy-index .feed-flag {
-	font-size: 0.58rem;
-	letter-spacing: 0.1em;
-	text-transform: uppercase;
-	font-family: 'Share Tech Mono', monospace;
-	padding: 0.2rem 0.5rem;
-	border-radius: 2px;
-	white-space: nowrap;
-	border: 1px solid transparent;
-}
-.legacy-index .feed-flag.tone-attention {
-	color: var(--amber);
-	border-color: color-mix(in srgb, var(--amber) 30%, transparent);
-	background: color-mix(in srgb, var(--amber) 6%, transparent);
-}
-.legacy-index .feed-flag.tone-good {
-	color: var(--green);
-	border-color: color-mix(in srgb, var(--green) 30%, transparent);
-	background: color-mix(in srgb, var(--green) 6%, transparent);
-}
-.legacy-index .feed-flag.tone-info {
-	color: var(--cyan);
-	border-color: color-mix(in srgb, var(--cyan) 30%, transparent);
-	background: color-mix(in srgb, var(--cyan) 6%, transparent);
-}
-.legacy-index .feed-flag.tone-note {
-	color: var(--gold);
-	border-color: color-mix(in srgb, var(--gold) 30%, transparent);
-	background: color-mix(in srgb, var(--gold) 6%, transparent);
-}
-.legacy-index .feed-flag.tone-muted {
-	color: var(--dim);
-	border-color: color-mix(in srgb, var(--dim) 25%, transparent);
 }
 
 /* The standing-reference shelf: present, and visibly not competing with the
@@ -3682,16 +3644,6 @@ a:hover {
 }
 :root[data-theme='space-white'] .legacy-index .hero:not(.console-hero) .hero-stat :is(.value, .v-staff-a, .v-staff-b) {
 	color: var(--text-1);
-}
-/* The class feed's Updated flag painted its word in --gold, brown here. It
-   takes --cyan, the classroom's own Updated chip's ink. Wrapped in `:where()`
-   so the rule is (0,3,0): it ties the base flag rule and wins on order, and
-   still loses to plate.css's recessed-tag material, which draws the tag's
-   edge and ground under the site plate. */
-:where(:root[data-theme='space-white']) .legacy-index .feed-flag.tone-note {
-	color: var(--cyan);
-	border-color: color-mix(in srgb, var(--cyan) 30%, transparent);
-	background: color-mix(in srgb, var(--cyan) 6%, transparent);
 }
 /* The class feed's "Open class" link painted gold at rest too (its sibling
    "See all in To-do" is ClassroomFeed's own rule and moves there). Both take

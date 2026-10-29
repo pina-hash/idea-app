@@ -44,7 +44,7 @@ describe('the shared history rows', () => {
 		expect(rows.filter((r) => (r.textContent ?? '').includes('Custom Award'))).toHaveLength(0);
 		const chips = m.all('[data-testid="type-chip"]').map((c) => c.textContent?.trim());
 		expect(chips).toEqual(['Award', 'Deposit', 'Fine', 'Fine']);
-		expect(m.all('[data-testid="type-chip"].deposit')).toHaveLength(1);
+		expect(m.all('[data-testid="type-chip"][data-type="deposit"]')).toHaveLength(1);
 	});
 });
 

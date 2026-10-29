@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
@@ -1118,7 +1119,7 @@
 			{#if activeSplit.managers.length}&nbsp;&middot; {activeSplit.managers.length}
 				{activeSplit.managers.length === 1 ? 'manages' : 'manage'} this class{/if}
 			{#if inactive.length}&nbsp;&middot; {inactive.length} inactive{/if}
-			{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
+			{#if section.active === false}&nbsp;&middot; <StatusChip tone="neutral" label="Archived" />{/if}
 		</p>
 	</section>
 

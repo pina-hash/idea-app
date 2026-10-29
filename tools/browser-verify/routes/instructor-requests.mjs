@@ -274,13 +274,13 @@ export default {
 
 				AND IT TAKES NO TAP-TARGET ROW. A first draft put one here at the
 				24px floor and it reported the chip at 18.5px -- correctly, and for
-				a control that does not exist: `.fb-status` is a LABEL, nothing
+				a control that does not exist: the status chip is a LABEL, nothing
 				presses it, and the floor is about targets. Inflating a status chip
 				to satisfy a check written for buttons is the shape CLAUDE.md calls
 				breaking a real invariant to satisfy a guideline; the reason it is
 				not measured is recorded here instead.
 			*/
-			selector: '.fb-status',
+			selector: '.status-chip[data-status]',
 			label: 'the status chip on the row still in the queue',
 			min: 4.5
 		},

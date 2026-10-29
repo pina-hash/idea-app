@@ -71,10 +71,10 @@ export default {
 	],
 	contrast: [
 		{ selector: '.roster-row .roster-name', label: 'a name on a row', min: 4.5 },
-		{ selector: '.roster-row .roster-chip', label: 'a state chip on a row', min: 4.5 },
+		{ selector: '.roster-row [data-roster-state]', label: 'a state chip on a row', min: 4.5 },
 		{ selector: '[data-testid="roster-presence"]', label: 'a presence glyph (graphical, 3:1)', min: 3 },
 		{ selector: '[data-testid="roster-card"] .rc-name', label: 'the name on the card', min: 4.5 },
-		{ selector: '[data-testid="roster-card"] .pword', label: 'the presence word on the card', min: 4.5 },
+		{ selector: '[data-testid="roster-card"] [data-testid="presence-chip"] .status-chip-word', label: 'the presence word on the card', min: 4.5 },
 		{ selector: '[data-testid="roster-card"] .rc-hint', label: 'the card’s key hint', min: 4.5 }
 	],
 	orderResult: [

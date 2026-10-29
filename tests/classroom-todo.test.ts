@@ -251,22 +251,24 @@ describe('the row chip asks the one missing predicate', () => {
 	const handedIn: StudentWork = { state: 'submitted', score: null };
 
 	it('past due with nothing turned in is Missing in its own tone, never "Not started"', () => {
-		expect(studentWorkChip(due(-12), none, NOW)).toEqual({ label: 'Missing', tone: 'missing', done: false, missing: true });
+		expect(studentWorkChip(due(-12), none, NOW)).toEqual({ label: 'Missing', tone: 'warn', glyph: 'alert', done: false, missing: true });
 		expect(studentWorkChip(due(-30), draft, NOW)).toEqual({
 			label: 'Missing, draft saved',
-			tone: 'missing',
+			tone: 'warn',
+			glyph: 'alert',
 			done: false,
 			missing: true
 		});
 	});
 
 	it('the same assignments before their deadline, and turned in after it, are not (both directions)', () => {
-		expect(studentWorkChip(due(4), none, NOW)).toMatchObject({ label: 'Not started', tone: 'muted', missing: false });
-		expect(studentWorkChip(due(4), draft, NOW)).toMatchObject({ label: 'In progress', tone: 'attention', missing: false });
+		expect(studentWorkChip(due(4), none, NOW)).toMatchObject({ label: 'Not started', tone: 'neutral', glyph: 'dash', missing: false });
+		// IN PROGRESS IS NOT THE WARNING HUE (ledger 0466): info, with the progress ring.
+		expect(studentWorkChip(due(4), draft, NOW)).toMatchObject({ label: 'In progress', tone: 'info', glyph: 'progress', missing: false });
 		expect(studentWorkChip(due(-12), handedIn, NOW)).toMatchObject({ label: 'Submitted', done: true, missing: false });
 		expect(studentWorkChip({ ...due(-12), points: 20 }, { state: 'returned', score: 18 }, NOW)).toMatchObject({
 			label: 'Returned · 18/20',
-			tone: 'good',
+			tone: 'ok',
 			done: true
 		});
 	});
@@ -376,7 +378,11 @@ describe('todoGroups: the three views, grouped by week, at the pinned instant', 
 			['i-overdue-lastweek'],
 			['i-overdue-earlier']
 		]);
-		for (const g of groups) for (const r of g.rows) expect(r.tone, r.key).toBe('missing');
+		for (const g of groups)
+			for (const r of g.rows) {
+				expect(r.tone, r.key).toBe('warn');
+				expect(r.glyph, r.key).toBe('alert');
+			}
 	});
 
 	it('Done: by when it was turned in or handed back, most recent first', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COIN_TXN_TYPES, coinRowLabel, coinTxnType, type CoinTxnType } from '../src/lib/coin-format';
+import { STATUS_TONE_NAMES } from '../src/lib/ui/status-tone';
 import {
 	categoryTxnType,
 	COIN_TYPE_GLYPHS,
@@ -55,20 +56,22 @@ describe('coin transaction type presentation', () => {
 		}
 	});
 
-	it('paints every type from a token, and never from the reserved status red', () => {
+	it('paints every type from the one tone map, and never from the danger tone', () => {
+		// A tone is a NAME in the one tone map (ledger 0466), never a colour:
+		// the tokens behind it are `$lib/ui/status-tone`'s, so a hex or a
+		// token here would be a second map.
 		for (const t of COIN_TXN_TYPES) {
 			const tone = COIN_TYPE_TONES[t];
-			// A tone is a token reference, never a literal colour: a hex here
-			// would be a colour invented outside the design system.
-			expect(tone.ink).toMatch(/^var\(--[a-z-]+\)$/);
-			expect(tone.accent).toMatch(/^var\(--[a-z-]+\)$/);
-			expect(tone.ink).not.toContain('crimson');
-			expect(tone.accent).not.toContain('crimson');
+			expect(STATUS_TONE_NAMES).toContain(tone);
+			expect(tone).not.toBe('danger');
 		}
-		// The ink and the accent differ for exactly one type, and it is the one
-		// whose raw accent cannot carry text (--violet at 2.45:1).
-		const split = COIN_TXN_TYPES.filter((t) => COIN_TYPE_TONES[t].ink !== COIN_TYPE_TONES[t].accent);
-		expect(split).toEqual(['adjustment']);
+		// A fine is a warning, never the live, recording and error red.
+		expect(COIN_TYPE_TONES.fine).toBe('warn');
+		// The four kinds a reader tells apart at a glance take four different
+		// tones; a deposit shares the payout's, told apart by glyph and word.
+		const distinct = new Set((['award', 'fine', 'purchase', 'adjustment', 'payout'] as const).map((t) => COIN_TYPE_TONES[t]));
+		expect(distinct.size).toBe(5);
+		expect(COIN_TYPE_TONES.deposit).toBe(COIN_TYPE_TONES.payout);
 	});
 
 	it('reads a payout category as a payout, not as the purchase its kind says', () => {

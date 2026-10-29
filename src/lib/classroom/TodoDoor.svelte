@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { ICONS } from '$lib/shell/commands';
 	import { summaryWords, type TodoSummary } from '$lib/classroom/todo';
 
@@ -28,16 +29,13 @@
 	<span class="td-word">Your to-do</span>
 	<span class="td-counts">
 		{#if words.missing}
-			<span class="td-owed td-missing" data-testid="todo-strip-missing">
-				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
-				{words.missing}
-			</span>
+			<StatusChip tone="warn" class="td-owed" label={words.missing} data-testid="todo-strip-missing" />
 		{/if}
 		{#if words.dueThisWeek}
-			<span class="td-owed" data-testid="todo-strip-due">{words.dueThisWeek}</span>
+			<StatusChip tone="info" glyph="clock" class="td-owed" label={words.dueThisWeek} data-testid="todo-strip-due" />
 		{/if}
 		{#if words.feedback}
-			<span class="td-owed td-returned">{words.feedback}</span>
+			<StatusChip tone="ok" class="td-owed" label={words.feedback} />
 		{/if}
 		{#if quiet}
 			<span class="td-quiet">Nothing due this week</span>
@@ -90,37 +88,6 @@
 		flex-wrap: wrap;
 		gap: 0.35rem;
 		min-width: 0;
-	}
-	.td-owed {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		padding: 0.14rem 0.55rem;
-		border: 1px solid var(--cyan);
-		border-radius: 999px;
-		color: var(--cyan);
-		white-space: nowrap;
-	}
-	.td-owed svg {
-		width: 11px;
-		height: 11px;
-		fill: none;
-		stroke: currentColor;
-		stroke-width: 2.2;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	.td-missing {
-		color: var(--amber);
-		border-color: var(--amber);
-		background: color-mix(in srgb, var(--amber) 14%, transparent);
-		font-weight: 700;
-	}
-	.td-returned {
-		color: var(--green);
-		border-color: var(--green);
 	}
 	.td-quiet {
 		font-family: var(--font-mono);

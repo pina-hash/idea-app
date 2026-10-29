@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import ReturnedGrade from '$lib/classroom/ReturnedGrade.svelte';
 	import SubmissionFileList from '$lib/classroom/SubmissionFileList.svelte';
@@ -618,9 +619,12 @@
 		<!-- THE WORD FOLLOWS THE ROW, not the state column alone: "Submitted" over
 		     an assignment the student never handed in is a claim about them that
 		     is not true. -->
-		<span class="state-chip {lock === 'closed' ? 'closed' : (subState ?? 'none')}">
-			{lock === 'closed' ? ASSIGNMENT_LOCK_CHIP.closed : submissionStateLabel(subState)}
-		</span>
+		<StatusChip
+			tone={lock === 'closed' ? 'neutral' : subState === 'returned' ? 'ok' : subState === 'submitted' ? 'info' : 'neutral'}
+			glyph={lock === 'closed' ? 'lock' : subState === 'returned' || subState === 'submitted' ? 'check' : 'dash'}
+			label={lock === 'closed' ? ASSIGNMENT_LOCK_CHIP.closed : submissionStateLabel(subState)}
+			data-state={lock === 'closed' ? 'closed' : (subState ?? 'none')}
+		/>
 		<!-- GATED ON THE STAMP, which a close never writes, so the line cannot
 		     print "Submitted <date>" for an assignment nobody submitted. -->
 		{#if submission?.submitted_at && lock === 'turned-in'}
@@ -867,29 +871,6 @@
 		gap: 0.6rem;
 		flex-wrap: wrap;
 		margin-bottom: 0.7rem;
-	}
-	.state-chip {
-		font-family: var(--font-mono);
-		font-size: 0.66rem;
-		border: 1px solid var(--hairline);
-		border-radius: 999px;
-		padding: 0.1rem 0.55rem;
-		color: var(--text-2);
-	}
-	.state-chip.submitted {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
-	.state-chip.returned {
-		color: var(--green);
-		border-color: var(--line-strong);
-	}
-	/* The same pair the grading console's roster gives a closed row, so the two
-	   surfaces read the same. --violet through --violet-ink, which is the
-	   corrected value the register keeps for a word painted in violet. */
-	.state-chip.closed {
-		color: var(--violet-ink);
-		border-color: var(--violet-ink);
 	}
 	.status-meta {
 		font-family: var(--font-mono);

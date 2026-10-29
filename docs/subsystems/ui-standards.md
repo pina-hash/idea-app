@@ -51,6 +51,27 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Layout, previ
 - **Every control carries a visible word, not only a glyph.** A `title` tooltip is
   not discoverable and a phone cannot hover.
 - **Colour is never the only signal** -- glyph AND word, or an icon beside the hue.
+- **A STATUS IS DRAWN BY ONE COMPONENT FROM ONE TONE MAP (ledger 0466).**
+  `src/lib/ui/StatusChip.svelte` is every status tag on the site and
+  `src/lib/ui/status-tone.ts` is its only vocabulary: seven tones (`ok`,
+  `warn`, `danger`, `info`, `special`, `draft`, `neutral`), each with its
+  colours and a glyph, and the word always shown. Something that says a status
+  without being a chip (a callout's rule, a coloured word in a list) reads the
+  same colours through `toneStyle()`, as `var(--st-ink)` and its siblings. A
+  new status adds a tone use, never a `*-chip` class or a `.tone-*` rule of
+  its own; `tests/status-tone.test.ts` sweeps `src/` for both and holds the
+  rules that fail silently:
+  - **`danger` is live, recording and error and nothing else.** No grade, fine,
+    refusal or presence state wears it, however bad the news.
+  - **In progress is `info`, never `warn`**: work under way is not a warning.
+  - **A draft is the `draft` tone with its pencil, never the warning sign.**
+  - The five coloured tones are the status tokens' `-solid` with `-on`, the
+    only colorblind-safe set (`tests/color-tokens.test.ts`); `draft` and
+    `neutral` carry no hue, which is why there can be a sixth and seventh.
+  - **Rooms with a documented vocabulary of their own keep it**: the
+    Foundry's heat language (`ForgeStatus.svelte`), GAUNTLET, GREENLINE,
+    IdeaCAD, FRC, FSP, Armory, the certifications' `cert-tone-*`, and the
+    frozen legacy pages.
 - **44px minimum tap targets** on anything a phone touches, AND on every
   student-facing surface at every width, with 24px as the absolute floor
   everywhere else (`IDEA_INTERFACE_STANDARDS` 10).

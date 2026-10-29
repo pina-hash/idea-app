@@ -48,6 +48,7 @@ import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import type { TiptapNode } from '$lib/rich-text';
 import { checkInStanding, streamItems, type ClassroomItem } from '$lib/classroom/classroom';
 import { classNotebookHref } from '$lib/classroom/nav';
+import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 
 // ---------------------------------------------------------------------------
 // Rows
@@ -266,7 +267,7 @@ const STATUS_LABELS: Record<CheckInStatus, string> = {
 	flagged: 'Needs another look',
 	excused: 'Excused',
 	// NOT "Scheduled", and the collision is the reason. This stream already
-	// renders a `.sched-chip` reading "Scheduled" on a classroom ITEM, in amber,
+	// renders a chip reading "Scheduled" on a classroom ITEM,
 	// meaning "students cannot see this yet" -- a manager-only chip about
 	// PUBLICATION. A check-in dated ahead is the opposite: everybody can see it,
 	// and what has not happened is the DUE DAY. So the label says the thing the
@@ -282,30 +283,45 @@ export function checkInStatusLabel(status: CheckInStatus): string {
 }
 
 /**
- * Reuses the feed's tone vocabulary so a status reads the same way across the
- * module. No crimson anywhere: that token is reserved for LIVE/REC/error.
+ * A check-in's tone in the one tone map (`$lib/ui/status-tone`, ledger 0466).
+ * No danger anywhere: that tone is reserved for LIVE/REC/error.
  */
-export type CheckInTone = 'attention' | 'good' | 'info' | 'muted';
+export type CheckInTone = StatusTone;
 
 const STATUS_TONES: Record<CheckInStatus, CheckInTone> = {
-	filed: 'good',
-	// The same tone as `missing`, because from the student's side it is the same
-	// obligation: this check-in still needs something from you.
-	draft: 'attention',
+	filed: 'ok',
+	// A page that exists and has not been turned in. It still counts as owed
+	// (`isOutstanding` says so, not the tone), but a draft is not a problem:
+	// it wears the draft tone and its pencil, never a warning sign (2c3cacb2).
+	draft: 'draft',
 	awaiting_review: 'info',
-	flagged: 'attention',
-	excused: 'muted',
+	flagged: 'warn',
+	excused: 'neutral',
 	// The `excused` tone, for the `excused` reason: a state that stops something
 	// counting must not wear the tone of a state that asks for something. This
 	// card sits at the BOTTOM of the stream as well (see mergeCheckIns) -- the
 	// tone and the position are one decision made twice, because either alone
 	// still lets a future check-in read as work.
-	scheduled: 'muted',
-	missing: 'attention'
+	scheduled: 'neutral',
+	missing: 'warn'
+};
+
+const STATUS_GLYPHS: Record<CheckInStatus, StatusGlyph> = {
+	filed: 'check',
+	draft: 'draft',
+	awaiting_review: 'clock',
+	flagged: 'alert',
+	excused: 'dash',
+	scheduled: 'clock',
+	missing: 'alert'
 };
 
 export function checkInTone(status: CheckInStatus): CheckInTone {
 	return STATUS_TONES[status];
+}
+
+export function checkInGlyph(status: CheckInStatus): StatusGlyph {
+	return STATUS_GLYPHS[status];
 }
 
 /**
@@ -720,7 +736,7 @@ export function checkInsByItem(checkIns: readonly ClassCheckIn[]): Map<string, C
  * "Check-in: " LEADS THE WORD because the row already carries the item's own
  * chip, and "Not filed yet" beside "Complete" has to say which of the two
  * things on the row it is about. A check-in past its day and not filed takes
- * the `missing` tone, the way the to-do's own row for it does, so the row the
+ * the missing tone and mark, the way the to-do's own row for it does, so the row the
  * Missing count points to shows why it is there. Null for a check-in with no
  * status of the viewer's own (every manager).
  */
@@ -728,7 +744,7 @@ export function attachedCheckInChip(
 	checkIn: ClassCheckIn,
 	today: string,
 	flagLabel?: (reason: ClassCheckIn['flag_reason']) => string | null
-): { label: string; tone: 'good' | 'attention' | 'muted' | 'info' | 'missing'; missing: boolean; done: boolean } | null {
+): { label: string; tone: StatusTone; glyph: StatusGlyph; missing: boolean; done: boolean } | null {
 	if (!checkIn.status) return null;
 	const standing = checkInStanding(checkIn, today);
 	const word =
@@ -737,7 +753,8 @@ export function attachedCheckInChip(
 			: checkInStatusLabel(checkIn.status);
 	return {
 		label: `Check-in: ${word}`,
-		tone: standing === 'missing' ? 'missing' : checkInTone(checkIn.status),
+		tone: standing === 'missing' ? 'warn' : checkInTone(checkIn.status),
+		glyph: standing === 'missing' ? 'alert' : standing === 'done' ? 'check' : checkInGlyph(checkIn.status),
 		missing: standing === 'missing',
 		done: standing === 'done'
 	};

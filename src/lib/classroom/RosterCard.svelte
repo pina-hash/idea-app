@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 	/**
 	 * ONE STUDENT'S DETAIL, BESIDE THEIR NAME, WHILE A GRADER POINTS AT IT OR
 	 * FOCUSES IT (ledger 0360, report 7933566a).
@@ -51,7 +53,7 @@
 		anchor: HTMLElement | null;
 		name: string;
 		/** The row's own state chip, word and tone, from `statusChip`. */
-		chip: { label: string; cls: string };
+		chip: { label: string; cls: string; tone: StatusTone; glyph: StatusGlyph };
 		/** The class, when more than one is on screen. */
 		sectionLabel?: string | null;
 		/** Requirements a hand-in left unfinished (`incompleteCount`). */
@@ -109,7 +111,7 @@
 		<p class="rc-name">{name}</p>
 		{#if sectionLabel}<p class="rc-section" data-testid="roster-card-section">{sectionLabel}</p>{/if}
 		<p class="rc-line">
-			<span class="roster-chip {chip.cls}" data-testid="roster-card-state">{chip.label}</span>
+			<StatusChip tone={chip.tone} glyph={chip.glyph} label={chip.label} data-roster-state={chip.cls} data-testid="roster-card-state" />
 		</p>
 		{#if incomplete > 0}
 			<p class="rc-line" data-testid="roster-card-incomplete">

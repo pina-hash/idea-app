@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { sortDrag } from '$lib/classroom/sort-drag';
 	import {
 		anchorOf,
@@ -117,9 +118,9 @@
 					<span class="pl-name">
 						<span class="pl-label">{def.label}</span>
 						{#if hidden.has(id)}
-							<span class="pl-chip" data-testid="panel-hidden-chip">Hidden</span>
+							<StatusChip tone="neutral" glyph="hidden" label="Hidden" data-testid="panel-hidden-chip" />
 						{:else if !def.hideable}
-							<span class="pl-chip pl-chip-keep" data-testid="panel-always">Always shown</span>{#if def.keep}<span class="sr-only">{def.keep}</span>{/if}
+							<StatusChip tone="neutral" glyph="lock" label="Always shown" data-testid="panel-always" />{#if def.keep}<span class="sr-only">{def.keep}</span>{/if}
 						{/if}
 					</span>
 					{#if id !== anchor}
@@ -156,9 +157,9 @@
 									<span class="pl-name">
 										<span class="pl-label">{piece.label}</span>
 										{#if hidden.has(piece.id)}
-											<span class="pl-chip" data-testid="panel-hidden-chip">Hidden</span>
+											<StatusChip tone="neutral" glyph="hidden" label="Hidden" data-testid="panel-hidden-chip" />
 										{:else}
-											<span class="pl-chip pl-chip-keep" data-testid="panel-within">In the {def.label.toLowerCase()}</span>
+											<StatusChip tone="neutral" label="In the {def.label.toLowerCase()}" data-testid="panel-within" />
 										{/if}
 									</span>
 									<span class="pl-controls">
@@ -255,17 +256,6 @@
 	}
 	.pl-row.is-hidden .pl-label {
 		color: var(--text-2);
-	}
-	/* A recessed status tag, never a key: it is not pressable. The word is the
-	   signal; the plate's tag list gives it the inset look where it is listed. */
-	.pl-chip {
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		letter-spacing: 0.04em;
-		padding: 0.1rem 0.4rem;
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-card);
-		color: var(--text-1);
 	}
 	.pl-controls {
 		display: inline-flex;

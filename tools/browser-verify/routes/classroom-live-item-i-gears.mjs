@@ -78,7 +78,7 @@ export default {
 	contrast: [
 		{ selector: '.lc-root .lg-name', label: 'student name', min: 4.5 },
 		{ selector: '.lc-root .lg-detail', label: 'row detail', min: 4.5 },
-		{ selector: '.lc-root .lg-missing', label: 'Missing mark', min: 4.5 }
+		{ selector: '.lc-root [data-testid="live-cell-missing"]', label: 'Missing mark', min: 4.5 }
 	],
 	tapTargets: [
 		{ selector: '.lc-root button', label: 'buttons' },

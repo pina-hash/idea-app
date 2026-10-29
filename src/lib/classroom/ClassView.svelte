@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick, untrack, type Snippet } from 'svelte';
 	import ClassHeader from '$lib/classroom/ClassHeader.svelte';
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { nextDueFor, type ClassHeaderTeams } from '$lib/classroom/class-header';
 	import type { ClassTheme } from '$lib/classroom/class-theme';
 	import { goto } from '$app/navigation';
@@ -84,6 +85,7 @@
 		checkInHref,
 		checkInMeta,
 		checkInStatusLabel,
+		checkInGlyph,
 		checkInTone,
 		streamCheckIns,
 		mergeCheckIns,
@@ -1760,17 +1762,15 @@
 
 {#snippet badges(item: ClassroomItem)}
 	{#if item.pinned}
-		<span class="chip pin-chip" title="Pinned to the top of its unit">
-			<span aria-hidden="true">&#9679;</span> Pinned
-		</span>
+		<StatusChip tone="special" glyph="pin" label="Pinned" title="Pinned to the top of its unit" />
 	{/if}
-	<!-- THE DATE IS IN THE TOOLTIP, NOT THE CHIP. `.sched-chip` carries a whole
+	<!-- THE DATE IS IN THE TOOLTIP, NOT THE CHIP. A scheduled chip with a date carries a whole
 	     timestamp and is deliberately allowed to WRAP below 32rem (classroom.css,
 	     to stop it pushing a page sideways) -- which in a two-line row means a
 	     third line every time. The row's signal is that this is scheduled at all;
 	     the item page's own strip carries the date in full. -->
-	{#if canManage && !item.published}<span class="draft-chip">Draft</span>{:else if canManage && isScheduled(item)}<span class="sched-chip row-sched" title="Students see this from {scheduleLabel(item)}">Scheduled</span>{/if}
-	{#if updated(item)}<span class="chip updated-chip">Updated</span>{/if}
+	{#if canManage && !item.published}<StatusChip tone="draft" label="Draft" />{:else if canManage && isScheduled(item)}<StatusChip tone="neutral" glyph="clock" label="Scheduled" title="Students see this from {scheduleLabel(item)}" />{/if}
+	{#if updated(item)}<StatusChip tone="info" label="Updated" />{/if}
 {/snippet}
 
 {#snippet detailLinks(item: ClassroomItem)}
@@ -1846,7 +1846,7 @@
 		{/if}
 		{#if canManage && exportFailed(exportStatusFor(item.id))}
 			<p class="export-line">
-				<span class="chip export-chip">{exportChipLabel(item.id)}</span>
+				<StatusChip tone="warn" label={exportChipLabel(item.id)} />
 				<span class="export-why">{exportStatusFor(item.id)?.lastExportError}</span>
 				{#if retryExport}
 					<button
@@ -1998,18 +1998,13 @@
 							     started". A finished row carries a checkmark, a missing one
 							     a mark and a fill, each beside the word. -->
 							{@const chip = studentWorkChip(item, my, clock?.now)}
-							<span
-								class="chip work-chip tone-{chip.tone}"
+							<StatusChip
+								tone={chip.tone}
+								glyph={chip.glyph}
+								label={chip.label}
 								data-testid="work-status"
 								data-missing={chip.missing ? 'true' : undefined}
-							>
-								{#if chip.missing}
-									<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
-								{:else if chip.done}
-									<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
-								{/if}
-								{chip.label}
-							</span>
+							/>
 						{/if}
 						{#if !canManage && clock}
 							<!-- THE CHECK-IN THIS ITEM CARRIES (0120), ON ITS ROW (ledger 0298,
@@ -2020,18 +2015,13 @@
 							{#each attachedByItem.get(item.id) ?? [] as ci (`${ci.session_id}:${ci.section_id}`)}
 								{@const cchip = attachedCheckInChip(ci, clock.today, flagReasonLabel)}
 								{#if cchip}
-									<span
-										class="chip work-chip tone-{cchip.tone}"
+									<StatusChip
+										tone={cchip.tone}
+										glyph={cchip.glyph}
+										label={cchip.label}
 										data-testid="item-check-in-status"
 										data-missing={cchip.missing ? 'true' : undefined}
-									>
-										{#if cchip.missing}
-											<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
-										{:else if cchip.done}
-											<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
-										{/if}
-										{cchip.label}
-									</span>
+									/>
 								{/if}
 							{/each}
 						{/if}
@@ -2042,9 +2032,7 @@
 							     palette's "needs attention" -- the content itself saved. The WORD
 							     varies with the failure class: a lost race and a refused write
 							     want different things from the person reading the row. -->
-							<span class="chip export-chip" data-testid="export-fail-{item.id}">
-								{exportChipLabel(item.id)}
-							</span>
+							<StatusChip tone="warn" label={exportChipLabel(item.id)} data-testid="export-fail-{item.id}" />
 						{/if}
 					</span>
 					<!--
@@ -2319,11 +2307,14 @@
 					<span class="row-title">
 						<span class="row-name">{checkIn.session_label}</span>
 						{#if checkIn.status}
-							<span class="chip tone-{checkInTone(checkIn.status)}" data-testid="check-in-status">
-								{checkIn.status === 'flagged'
+							<StatusChip
+								tone={checkInTone(checkIn.status)}
+								glyph={checkInGlyph(checkIn.status)}
+								label={checkIn.status === 'flagged'
 									? (flagReasonLabel(checkIn.flag_reason) ?? checkInStatusLabel(checkIn.status))
 									: checkInStatusLabel(checkIn.status)}
-							</span>
+								data-testid="check-in-status"
+							/>
 						{/if}
 					</span>
 					<span class="row-meta">
@@ -3918,58 +3909,6 @@
 		height: 0.72rem;
 		display: block;
 	}
-	.chip {
-		flex: none;
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		color: var(--cyan);
-		border: 1px solid var(--hairline);
-		border-radius: 999px;
-		padding: 0.06rem 0.45rem;
-		white-space: nowrap;
-	}
-	/* One word, so it can never take the wrapping the shared rule allows it. */
-	.row-sched {
-		flex: none;
-		white-space: nowrap;
-	}
-	.pin-chip {
-		color: var(--gold);
-		border-color: var(--gold);
-	}
-	.updated-chip {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
-	.tone-good {
-		color: var(--green);
-		border-color: var(--green);
-	}
-	.tone-attention {
-		color: var(--amber);
-		border-color: var(--amber);
-	}
-	.tone-info {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
-	.tone-muted {
-		color: var(--text-2);
-	}
-	/* MISSING IS ITS OWN TONE (`studentWorkChip`): the word leads, and a mark,
-	   a fill and the heavier weight set it apart from "In progress", which wears
-	   the same hue as an outline only. Never colour alone. */
-	.tone-missing {
-		color: var(--amber);
-		border-color: var(--amber);
-		background: color-mix(in srgb, var(--amber) 14%, transparent);
-		font-weight: 700;
-	}
-	.work-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.2rem;
-	}
 	.chip-mark {
 		flex: none;
 		width: 0.7rem;
@@ -4186,10 +4125,6 @@
 		font-family: var(--font-mono);
 		font-size: 0.66rem;
 		color: var(--text-2);
-	}
-	.export-chip {
-		color: var(--amber);
-		border-color: var(--amber);
 	}
 	.export-line {
 		display: flex;

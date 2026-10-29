@@ -23,7 +23,7 @@ export default {
 	],
 	contrast: [
 		{ selector: `${EDITOR} .pl-label`, label: 'section names', min: 4.5, all: true },
-		{ selector: `${EDITOR} .pl-chip`, label: 'the Always shown and In the class header tags', min: 4.5, all: true },
+		{ selector: `${EDITOR} .status-chip`, label: 'the Always shown and In the class header tags', min: 4.5, all: true },
 		{ selector: `${EDITOR} .btn`, label: 'every editor key', min: 4.5, all: true },
 		{ selector: '[data-testid="settings-arrange-class"] .disc-meta', label: 'the arrangement summary', min: 4.5 }
 	],

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
@@ -474,12 +475,12 @@
 		<h2>Autopay</h2>
 		<div class="cdx-row">
 			{#if values.autopay_paused}
-				<span class="cdx-chip warn" data-testid="cd-set-paused">Paused</span>
+				<StatusChip tone="warn" label="Paused" data-testid="cd-set-paused" />
 				<button type="button" class="btn" disabled={busy.autopay} onclick={() => setPaused(false)}>
 					Turn autopay back on
 				</button>
 			{:else}
-				<span class="cdx-chip ok">On</span>
+				<StatusChip tone="ok" label="On" />
 				<button type="button" class="btn secondary" disabled={busy.autopay} onclick={() => setPaused(true)}>
 					Pause autopay
 				</button>
@@ -800,9 +801,9 @@
 					<Disclosure label={c.name} collapseWhen={true}>
 						{#snippet meta()}
 							<span class="cat-meta">
-								<span class="cdx-chip">{c.kind}</span>
+								<StatusChip tone="neutral" label={c.kind} />
 								<span class="cat-price">{priceLine(c)}</span>
-								{#if !c.active}<span class="cdx-chip warn">Off</span>{/if}
+								{#if !c.active}<StatusChip tone="warn" label="Off" />{/if}
 							</span>
 						{/snippet}
 						{#if d}

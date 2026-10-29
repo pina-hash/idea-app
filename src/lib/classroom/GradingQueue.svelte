@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	/**
 	 * WHAT NEEDS GRADING, EVERY CLASS AT ONCE (ledger 0457, gap ba704a08).
 	 *
@@ -139,7 +140,7 @@
 		<section class="card class-card" data-testid="queue-class">
 			<header class="class-head">
 				<h2 class="class-title">{classTitle(c)}</h2>
-				<span class="chip tone-attention">{c.waiting} waiting</span>
+				<StatusChip tone="warn" label="{c.waiting} waiting" />
 				<button type="button" class="btn secondary tiny tap-44 leave-out" onclick={() => leaveOut(c.sectionId)} data-testid="queue-leave-out">
 					Leave out
 				</button>
@@ -340,19 +341,6 @@
 	}
 	.who-saved.late {
 		color: var(--amber);
-	}
-	.chip {
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		border: 1px solid var(--hairline);
-		border-radius: 999px;
-		padding: 0.06rem 0.45rem;
-		white-space: nowrap;
-		color: var(--text-2);
-	}
-	.tone-attention {
-		color: var(--amber);
-		border-color: var(--amber);
 	}
 	.page-footer {
 		margin-top: 1.4rem;

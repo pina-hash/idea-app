@@ -527,9 +527,10 @@ describe('a check-in scheduled for the future', () => {
 		// there and still does not count.
 		expect(isOutstanding(future.status)).toBe(false);
 
-		// AND IT IS NOT TONED AS WORK. `attention` is the tone `missing` and
-		// `draft` wear; a row a student cannot act on yet must not wear it.
-		expect(checkInTone('scheduled')).toBe('muted');
+		// AND IT IS NOT TONED AS WORK. `warn` is the tone `missing` wears; a
+		// row a student cannot act on yet must not wear it (ledger 0466).
+		expect(checkInTone('scheduled')).toBe('neutral');
+		expect(checkInTone('missing')).toBe('warn');
 
 		// THE POSITIVE CONTROLS. Both of these have no entry filed against them,
 		// so they resolve to `missing` for exactly the reason the future one used

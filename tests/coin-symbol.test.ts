@@ -76,7 +76,6 @@ const COIN_SOURCES = [
 	'src/lib/coin-desk/AuditorsPanel.svelte',
 	'src/lib/coin-desk/CoinDeskNav.svelte',
 	'src/lib/coin-desk/CoinExport.svelte',
-	'src/lib/coin-desk/CoinTypeGlyph.svelte',
 	'src/lib/coin-desk/DigestView.svelte',
 	'src/lib/coin-desk/DonationItemsPanel.svelte',
 	'src/lib/coin-desk/FullAdminsPanel.svelte',

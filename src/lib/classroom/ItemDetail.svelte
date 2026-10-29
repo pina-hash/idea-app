@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import type { HxTeamProgress } from '$lib/classroom/html-assignment/team';
 	import type { HxSteps } from '$lib/classroom/html-assignment/bridge';
 	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
@@ -200,6 +201,7 @@
 		checkInHref,
 		checkInMeta,
 		checkInStatusLabel,
+		checkInGlyph,
 		checkInTone,
 		type CheckInDraft,
 		type ClassCheckIn,
@@ -1739,13 +1741,13 @@
 					     the one surface that says whether a class can see this. -->
 					<span class="insp-state">
 						{#if !item.published}
-							<span class="draft-chip">Draft</span>
+							<StatusChip tone="draft" label="Draft" />
 						{:else if isScheduled(item)}
-							<span class="sched-chip" title="Students see this from {scheduleLabel(item)}"
-								>Scheduled &middot; {scheduleLabel(item)}</span
+							<StatusChip tone="neutral" glyph="clock" wrap title="Students see this from {scheduleLabel(item)}"
+								>Scheduled &middot; {scheduleLabel(item)}</StatusChip
 							>
 						{/if}
-						{#if item.is_public}<span class="chip pin-chip">Public link</span>{/if}
+						{#if item.is_public}<StatusChip tone="special" glyph="link" label="Public link" />{/if}
 					</span>
 					<span class="insp-hint">{inspectorOpen ? 'Hide' : 'Show'}</span>
 				</button>
@@ -2356,8 +2358,8 @@
 		-->
 		<div class="hero-top">
 			<span class="eyebrow">{itemKindLabel(item.kind)}</span>
-			{#if item.pinned}<span class="chip pin-chip">Pinned</span>{/if}
-			{#if showUpdated}<span class="chip updated-chip">Updated</span>{/if}
+			{#if item.pinned}<StatusChip tone="special" glyph="pin" label="Pinned" />{/if}
+			{#if showUpdated}<StatusChip tone="info" label="Updated" />{/if}
 		</div>
 		<!-- A PORTED HTML ASSIGNMENT CARRIES ITS OWN TITLE INSIDE THE DOCUMENT, so the
 		     post title is hidden by default and a per-post switch brings it back
@@ -2428,14 +2430,14 @@
 							<span class="ci-head">
 								<span class="ci-name">{checkIn.session_label}</span>
 								{#if checkIn.status}
-									<span
-										class="chip tone-{checkInTone(checkIn.status)}"
-										data-testid="item-check-in-status"
-									>
-										{checkIn.status === 'flagged'
+									<StatusChip
+										tone={checkInTone(checkIn.status)}
+										glyph={checkInGlyph(checkIn.status)}
+										label={checkIn.status === 'flagged'
 											? (flagReasonLabel(checkIn.flag_reason) ?? checkInStatusLabel(checkIn.status))
 											: checkInStatusLabel(checkIn.status)}
-									</span>
+										data-testid="item-check-in-status"
+									/>
 								{/if}
 							</span>
 							<span class="ci-meta">{checkInMeta(checkIn)}</span>
@@ -3885,23 +3887,6 @@
 		color: var(--text-2);
 		font-size: 0.9rem;
 		margin: 0;
-	}
-	.chip {
-		font-family: var(--font-mono);
-		font-size: 0.65rem;
-		color: var(--cyan);
-		border: 1px solid var(--hairline);
-		border-radius: 999px;
-		padding: 0.08rem 0.5rem;
-		white-space: nowrap;
-	}
-	.pin-chip {
-		color: var(--gold);
-		border-color: var(--gold);
-	}
-	.updated-chip {
-		color: var(--cyan);
-		border-color: var(--cyan);
 	}
 	.page-footer {
 		margin-top: 1.4rem;

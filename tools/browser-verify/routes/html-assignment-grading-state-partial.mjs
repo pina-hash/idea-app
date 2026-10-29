@@ -15,7 +15,7 @@ export default {
 		{ label: 'not complete', evaluate: ROSTER_STATES, expected: ['Alice Alvarez: Answered 2 of 3', 'Bruno Baptiste: None of 3 answered'] }
 	],
 	presence: [
-		{ selector: '.roster-chip.submitted, .roster-chip.late', label: 'no Complete chip of either kind', expectPresent: 0 },
-		{ selector: '.roster-chip.progress', label: 'the in-progress (Answered 2 of 3) chip', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
+		{ selector: '[data-roster-state="submitted"], [data-roster-state="late"]', label: 'no Complete chip of either kind', expectPresent: 0 },
+		{ selector: '.roster-row [data-roster-state="progress"]', label: 'the in-progress (Answered 2 of 3) chip', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	]
 };

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import {
 		coinAmountDisplay,
 		coinRowLabel,
@@ -7,7 +8,7 @@
 		signedCoins,
 		type CoinAmountDisplay
 	} from '$lib/coin-format';
-	import CoinTypeGlyph from './CoinTypeGlyph.svelte';
+	import { COIN_TYPE_GLYPHS, COIN_TYPE_TONES } from './transaction-types';
 	import { deskHistoryRows, isUndoable, num, type DeskHistoryRow, type DeskTxn } from './v2';
 	import {
 		editLine,
@@ -193,23 +194,24 @@
 			<li class="row" class:undone={t.undone} class:uncounted={!t.counted} data-testid="cd-history-row">
 				<div class="who">
 					<span class="reason">{t.isPayout ? 'Payout' : named.label}</span>
-					<span class="type-chip {type}">
-						<CoinTypeGlyph {type} size={12} />
-						{t.isPayout ? 'Payout' : COIN_TXN_TYPE_LABELS[type]}
-					</span>
+					<StatusChip
+						tone={COIN_TYPE_TONES[type]}
+						paths={COIN_TYPE_GLYPHS[type].paths}
+						pathsName={COIN_TYPE_GLYPHS[type].name}
+						label={t.isPayout ? 'Payout' : COIN_TXN_TYPE_LABELS[type]}
+						data-type={type}
+					/>
 					{#if t.undone}
-						<span class="cdx-chip warn" data-testid="cd-undone-chip">Undone</span>
+						<StatusChip tone="warn" glyph="undo" label="Undone" data-testid="cd-undone-chip" />
 					{/if}
 					{#if !t.counted}
-						<span class="cdx-chip" title="A physical coin row is history and does not count toward the balance.">
-							Not counted
-						</span>
+						<StatusChip tone="neutral" label="Not counted" title="A physical coin row is history and does not count toward the balance." />
 					{/if}
 					{#if t.reverses}
-						<span class="cdx-chip">Undo of an older row</span>
+						<StatusChip tone="neutral" glyph="undo" label="Undo of an older row" />
 					{/if}
 					{#if wasEdited(t)}
-						<span class="cdx-chip warn" data-testid="cd-edited-chip">Edited</span>
+						<StatusChip tone="warn" label="Edited" data-testid="cd-edited-chip" />
 					{/if}
 				</div>
 				<div class="meta">
@@ -419,41 +421,6 @@
 	.edit-hint {
 		flex-basis: 100%;
 		margin: 0;
-	}
-	.type-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		font-family: var(--font-mono);
-		font-size: 0.55rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		white-space: nowrap;
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		padding: 0.05rem 0.3rem;
-		color: var(--text-2, var(--dim));
-	}
-	.type-chip.award {
-		color: var(--green);
-		border-color: color-mix(in srgb, var(--green) 40%, transparent);
-	}
-	.type-chip.fine {
-		color: var(--amber);
-		border-color: color-mix(in srgb, var(--amber) 40%, transparent);
-	}
-	.type-chip.purchase {
-		color: var(--gold);
-		border-color: color-mix(in srgb, var(--gold) 40%, transparent);
-	}
-	.type-chip.adjustment {
-		color: var(--violet-ink);
-		border-color: var(--violet);
-	}
-	.type-chip.payout,
-	.type-chip.deposit {
-		color: var(--cyan);
-		border-color: var(--cyan);
 	}
 	.amount {
 		font-family: var(--font-mono);

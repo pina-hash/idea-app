@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneStyle } from '$lib/ui/status-tone';
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { SupabaseClient } from '@supabase/supabase-js';
@@ -18,8 +20,7 @@
 		type CoinRefusal,
 		type DeskTxn
 	} from './v2';
-	import CoinTypeGlyph from './CoinTypeGlyph.svelte';
-	import { categoryTxnType } from './transaction-types';
+	import { COIN_TYPE_GLYPHS, COIN_TYPE_TONES, categoryTxnType } from './transaction-types';
 	import {
 		coinLogMode,
 		EXTRA_CREDIT_GRADING_CATEGORIES,
@@ -1136,7 +1137,8 @@
 										type="button"
 										role="option"
 										aria-selected={i === highlighted}
-										class="combo-option tone-{categoryTxnType(c)}"
+										class="combo-option"
+										style={toneStyle(COIN_TYPE_TONES[categoryTxnType(c)])}
 										class:highlighted={i === highlighted}
 										data-type={categoryTxnType(c)}
 										onmousedown={() => pickCategory(c)}
@@ -1147,10 +1149,12 @@
 										     type's glyph, the type's tone and the type's WORD, so the
 										     row is identifiable at a glance, in greyscale, and to a
 										     screen reader, and no one of the three is load-bearing. -->
-										<span class="combo-kind">
-											<CoinTypeGlyph type={categoryTxnType(c)} />
-											{KIND_LABELS[c.kind]}
-										</span>
+										<StatusChip
+											tone={COIN_TYPE_TONES[categoryTxnType(c)]}
+											paths={COIN_TYPE_GLYPHS[categoryTxnType(c)].paths}
+						pathsName={COIN_TYPE_GLYPHS[categoryTxnType(c)].name}
+											label={KIND_LABELS[c.kind]}
+										/>
 										<span class="combo-price">{priceHint(c)}</span>
 									</button>
 								</li>
@@ -1698,7 +1702,7 @@
 		   it is what makes the list scannable by type once the order stops
 		   being grouped by type. `transparent` is the default so a type with no
 		   tone can never paint a stripe in the ink colour by accident. */
-		border-left: 3px solid var(--cd-tone-accent, transparent);
+		border-left: 3px solid var(--st-edge, transparent);
 		color: var(--white);
 		cursor: pointer;
 		font-family: var(--font-display);
@@ -1724,66 +1728,6 @@
 		font-size: 0.68rem;
 	}
 
-	/* --- The type chip -------------------------------------------------------
-	   GLYPH + TONE + WORD, and the recipe is the one already in `src/app.css`
-	   for the home feed's flags (`color-mix` at 30% for the edge and 6% for the
-	   fill over the row's own ground) rather than a fourth spelling of it.
-	   `--cd-tone-accent` is set on the SAME element the stripe reads it from,
-	   which keeps the var()-resolves-where-declared trap off this: it is not a
-	   descendant redeclaration. ---------------------------------------------- */
-	.combo-kind {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.28rem;
-		color: var(--dim);
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		white-space: nowrap;
-		border: 1px solid var(--line);
-		border-radius: 2px;
-		padding: 0.1rem 0.34rem;
-	}
-	/* THE PAIR IS DECLARED ON THE ROW, NOT ON THE CHIP, and that is forced
-	   rather than tidy: a custom property inherits DOWNWARD only, and the
-	   stripe above reads `--cd-tone-accent` on `.combo-option` itself while
-	   the chip inside reads both. Declared on the chip they would reach the
-	   stripe never. */
-	.combo-option.tone-award {
-		--cd-tone-accent: var(--green);
-		--cd-tone-ink: var(--green);
-	}
-	.combo-option.tone-fine {
-		--cd-tone-accent: var(--amber);
-		--cd-tone-ink: var(--amber);
-	}
-	/* On the HIGHLIGHTED row the ground lifts, and --amber as a word measured
-	   4.23:1 there (the first fine is the highlighted row now the list is in
-	   sort_order). The ink moves in lightness only, on the dark themes, to the
-	   same hue at 60% (4.89:1 on that ground); Space White keeps its own amber. */
-	:global(:root:not([data-theme='space-white'])) .combo-option.highlighted.tone-fine {
-		--cd-tone-ink: hsl(30 63% 60%);
-	}
-	.combo-option.tone-purchase {
-		--cd-tone-accent: var(--gold);
-		--cd-tone-ink: var(--gold);
-	}
-	/* The WORD takes the ink and the EDGE keeps the accent: raw --violet
-	   measures 2.45:1 as text on --bg1. Same pair CoinTransactionRows uses. */
-	.combo-option.tone-adjustment {
-		--cd-tone-accent: var(--violet);
-		--cd-tone-ink: var(--violet-ink);
-	}
-	.combo-option.tone-payout {
-		--cd-tone-accent: var(--cyan);
-		--cd-tone-ink: var(--cyan);
-	}
-	.combo-option[class*='tone-'] .combo-kind {
-		color: var(--cd-tone-ink);
-		border-color: color-mix(in srgb, var(--cd-tone-accent) 30%, transparent);
-		background: color-mix(in srgb, var(--cd-tone-accent) 6%, transparent);
-	}
 	.combo-empty {
 		color: var(--dim);
 		font-size: 0.82rem;
@@ -1815,8 +1759,7 @@
 		width: 100%;
 	}
 
-	.preview,
-	.hint {
+	.preview {
 		color: var(--dim);
 		font-size: 0.8rem;
 		margin: 0;

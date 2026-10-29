@@ -248,8 +248,8 @@
 		color: var(--dim);
 	}
 	.status-pending {
-		color: var(--teal);
-		border-color: var(--teal);
+		color: var(--status-info);
+		border-color: var(--status-info);
 	}
 	.status-listed {
 		color: var(--green);
@@ -355,7 +355,7 @@
 		color: var(--green);
 	}
 	.cr-held {
-		color: var(--teal);
+		color: var(--status-info);
 	}
 	.board {
 		width: 100%;

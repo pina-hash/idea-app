@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { callV2, V2_UNAVAILABLE } from './v2';
@@ -89,9 +90,9 @@
 					<li data-testid="cd-full-admin">
 						<span class="who">{a.email}</span>
 						{#if a.is_site_admin}
-							<span class="cdx-chip ok">Full coin powers</span>
+							<StatusChip tone="ok" label="Full coin powers" />
 						{:else}
-							<span class="cdx-chip warn">Not a site admin, so not full</span>
+							<StatusChip tone="warn" label="Not a site admin, so not full" />
 						{/if}
 						{#if a.note}<span class="cdx-note">{a.note}</span>{/if}
 						{#if armed === a.email}

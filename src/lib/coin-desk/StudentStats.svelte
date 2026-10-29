@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { coins, signedCoins } from '$lib/coin-format';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import { balanceLine, COIN_CHART_BOX as BOX, weekBars } from '$lib/coin-balance/charts';
@@ -60,7 +61,7 @@
 			<span class="cdx-balance stat-value" class:negative={num(stats.balance) < 0} data-testid="cd-stats-balance">
 				{coins(num(stats.balance))}
 			</span>
-			{#if num(stats.balance) < 0}<span class="cdx-chip warn">In debt</span>{/if}
+			{#if num(stats.balance) < 0}<StatusChip tone="warn" label="In debt" />{/if}
 		</div>
 		<div class="stat">
 			<span class="stat-label">Desktop background</span>
@@ -182,12 +183,10 @@
 				<ul class="event-list">
 					{#each stats.events as e (e.id)}
 						<li>
-							<span class="cdx-chip" class:warn={e.kind === 'fine'} class:ok={e.kind === 'award'}>
-								{EVENT_KIND_WORDS[e.kind] ?? e.kind}
-							</span>
+							<StatusChip tone={e.kind === 'award' ? 'ok' : e.kind === 'fine' ? 'warn' : 'neutral'} label={EVENT_KIND_WORDS[e.kind] ?? e.kind} />
 							<span class="event-name">{e.name}</span>
 							<span class="event-amount" class:neg={num(e.amount) < 0}>{signedCoins(num(e.amount))}</span>
-							{#if e.edited}<span class="cdx-chip warn">Edited</span>{/if}
+							{#if e.edited}<StatusChip tone="warn" label="Edited" />{/if}
 							<span class="event-when">{when(e.at)}</span>
 						</li>
 					{/each}

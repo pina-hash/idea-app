@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneFrom, verdictGlyph } from '$lib/ui/status-tone';
 	import './coin-page.css';
 	import { coins } from '$lib/coin-format';
 	import { coinWhen, type CoinMyRequest } from '$lib/coin-balance';
@@ -69,7 +71,7 @@
 						{/if}
 					</div>
 					<div class="cpx-row">
-						<span class="cpx-chip {tone(r)}">{requestStatusShort(r)}</span>
+						<StatusChip tone={toneFrom(tone(r))} glyph={verdictGlyph(tone(r))} label={requestStatusShort(r)} />
 						<span class="cpx-meta">Sent {coinWhen(r.created_at)}</span>
 					</div>
 					<p class="cpx-text" data-testid="request-status">{sentence(requestStatusWords(r))}</p>

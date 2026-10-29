@@ -57,7 +57,7 @@ export default {
 	],
 	contrast: [
 		{ selector: `${EDITOR} .pl-label`, label: 'section names', min: 4.5, all: true },
-		{ selector: `${EDITOR} .pl-chip`, label: 'the Always shown and Hidden tags', min: 4.5, all: true },
+		{ selector: `${EDITOR} .status-chip`, label: 'the Always shown and Hidden tags', min: 4.5, all: true },
 		{ selector: `${EDITOR} .btn`, label: 'every editor key', min: 4.5, all: true }
 	],
 	tapTargets: [{ selector: `${EDITOR} button`, label: 'every editor control, at the 44px student floor', min: 44 }],

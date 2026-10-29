@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { untrack } from 'svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import {
@@ -20,7 +21,7 @@
 	} from '$lib/classroom/song-queue';
 	// The debounce and the stalled sentence are shared with `HallPass.svelte`;
 	// `hall-pass.ts` explains why they sit there rather than in `live.ts`.
-	import { CLASSROOM_LIVE_DEBOUNCE_MS, classroomLivePausedLine } from '$lib/classroom/hall-pass';
+	import { CLASSROOM_LIVE_DEBOUNCE_MS, classToolTone, classroomLivePausedLine } from '$lib/classroom/hall-pass';
 	import type { ClassroomLive, ClassroomLiveStatus } from '$lib/classroom/live';
 	import { page } from '$app/state';
 	import { PollSignedOut, startPoller, type Poller, type PollOutcome } from '$lib/classroom/poll';
@@ -589,7 +590,7 @@
 										target="_blank"
 										rel="noopener noreferrer">{songLinkLabel(row.url)}</a
 									>
-									<span class="sq-chip" data-tone={row.status}>{songStatusLabel(row.status)}</span>
+									<StatusChip {...classToolTone(row.status)} label={songStatusLabel(row.status)} data-song={row.status} />
 								</span>
 								<span class="sq-meta">asked {songWaitingLabel(row.created_at, now)} ago</span>
 								{#if row.rejection_reason}
@@ -713,7 +714,7 @@
 										target="_blank"
 										rel="noopener noreferrer">{songLinkLabel(row.url)}</a
 									>
-									<span class="sq-chip" data-tone={row.status}>{songStatusLabel(row.status)}</span>
+									<StatusChip {...classToolTone(row.status)} label={songStatusLabel(row.status)} data-song={row.status} />
 								</span>
 								<span class="sq-meta">
 									{row.student_name} &middot; {songClockLabel(row.decided_at)}
@@ -760,9 +761,7 @@
 				<circle cx="13.5" cy="13" r="2.5" fill="currentColor" />
 			</svg>
 			<span class="ctool-word">Music</span>
-			<span class="ctool-chip" data-tone={toolChip.tone} data-testid="song-queue-tool-chip"
-				>{toolChip.word}</span
-			>
+			<StatusChip {...classToolTone(toolChip.tone)} class="ctool-status" label={toolChip.word} data-song={toolChip.tone} data-testid="song-queue-tool-chip" />
 		</button>
 		{#if liveStatus === 'stalled'}
 			<!--
@@ -1030,28 +1029,6 @@
 		line-height: 1.4;
 		overflow-wrap: anywhere;
 	}
-	/* COLOUR IS NEVER THE ONLY SIGNAL: every chip carries a word, and the words
-	   differ. The hue is the second signal, not the first. */
-	.sq-chip {
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		white-space: nowrap;
-	}
-	.sq-chip[data-tone='pending'] {
-		/* `--teal` is this palette's "in progress", which is what waiting is. */
-		color: var(--teal);
-	}
-	.sq-chip[data-tone='approved'] {
-		color: var(--green);
-	}
-	.sq-chip[data-tone='rejected'] {
-		/* `--amber` is the warning token. NOT `--crimson`, which is reserved for
-		   live/rec/error: a song that will not be played is neither a fault nor an
-		   alarm, and the student did nothing wrong by asking. */
-		color: var(--amber);
-	}
 
 	/*
 	 * THE TOOL SHELL (`ctool-`). THESE RULES ARE MIRRORED BYTE FOR BYTE IN
@@ -1113,29 +1090,11 @@
 	.ctool-word {
 		flex: none;
 	}
-	.ctool-chip {
-		/* The chip carries a WORD in every state and a hue in most; the word is
-		   the signal and the hue is the second one. Pushed to the trailing edge
-		   so the word and the status read as two columns across both tools. */
+	/* The status chip sits at the trigger's trailing edge, so the word and the
+	   status read as two columns across both tools. */
+	.ctool :global(.ctool-status) {
 		margin-left: auto;
 		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 0.74rem;
-		letter-spacing: 0.06em;
-		text-transform: none;
-		color: var(--text-2);
-	}
-	.ctool-chip[data-tone='free'],
-	.ctool-chip[data-tone='approved'] {
-		color: var(--green);
-	}
-	.ctool-chip[data-tone='taken'],
-	.ctool-chip[data-tone='mine'],
-	.ctool-chip[data-tone='out'],
-	.ctool-chip[data-tone='pending'] {
-		color: var(--teal);
 	}
 	.ctool-live {
 		/* The stalled-channel sentence beneath the trigger: the quiet metadata

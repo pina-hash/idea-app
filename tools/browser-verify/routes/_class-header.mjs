@@ -58,7 +58,7 @@ export const WHOLE = `() => {
 	};
 	return [
 		'tool words whole=' + whole('[data-testid="class-header-row"] :is(.ctool-word, .ld-word)'),
-		'tool statuses whole=' + whole('[data-testid="class-header-row"] .ctool-chip'),
+		'tool statuses whole=' + whole('[data-testid="class-header-row"] .ctool-status'),
 		'theme word whole=' + whole('[data-testid="class-header-row"] .disc-label'),
 		'next due words whole=' + whole('[data-testid="class-next-due"] :is(.ch-lead, .ch-when)')
 	];

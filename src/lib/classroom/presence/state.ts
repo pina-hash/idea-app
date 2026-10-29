@@ -1,3 +1,4 @@
+import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 /**
  * THE PRESENCE VOCABULARY: the four states, their words, their glyphs, their
  * tones, and the two labels a surface prints beside them.
@@ -195,30 +196,42 @@ export function presenceState(
  */
 export const PRESENCE_DISPLAY: Record<
 	PresenceState,
-	{ label: string; glyph: string; tone: 'working' | 'viewing' | 'elsewhere' | 'away'; hint: string }
+	/*
+	 * `tone` is the one tone map's (ledger 0466): working is ok, viewing is
+	 * info (present, not typing; it read the retired teal), open elsewhere is
+	 * warn, the one an instructor may act on, and away is neutral, the resting
+	 * state of most of a roster. Never danger: nobody being away is an error.
+	 * `glyph` is the one-character mark the grading roster draws; `mark` is the
+	 * chip's drawn glyph.
+	 */
+	{ label: string; glyph: string; mark: StatusGlyph; tone: StatusTone; hint: string }
 > = {
 	working: {
 		label: 'Working',
 		glyph: '●',
-		tone: 'working',
+		mark: 'live',
+		tone: 'ok',
 		hint: 'Typed in the last minute.'
 	},
 	viewing: {
 		label: 'Viewing',
 		glyph: '○',
-		tone: 'viewing',
+		mark: 'ring',
+		tone: 'info',
 		hint: 'On the page, no input lately.'
 	},
 	'open-elsewhere': {
 		label: 'Open elsewhere',
 		glyph: '»',
-		tone: 'elsewhere',
+		mark: 'elsewhere',
+		tone: 'warn',
 		hint: 'The assignment is open in a tab they are not looking at.'
 	},
 	away: {
 		label: 'Away',
 		glyph: '—',
-		tone: 'away',
+		mark: 'dash',
+		tone: 'neutral',
 		hint: 'No sign of them for a couple of minutes.'
 	}
 };

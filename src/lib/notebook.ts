@@ -10,6 +10,7 @@
  */
 
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
+import type { StatusGlyph, StatusTone } from '$lib/ui/status-tone';
 import {
 	docSummary,
 	docText,
@@ -361,6 +362,15 @@ const STATUS_LABELS: Record<NotebookStatus, string> = {
 
 export function statusLabel(status: NotebookStatus): string {
 	return STATUS_LABELS[status] ?? status;
+}
+
+/** An entry status's tone and mark in the one tone map (ledger 0466). */
+export function statusTone(status: NotebookStatus): { tone: StatusTone; glyph: StatusGlyph } {
+	return status === 'flagged'
+		? { tone: 'warn', glyph: 'alert' }
+		: status === 'pending_review'
+			? { tone: 'info', glyph: 'clock' }
+			: { tone: 'ok', glyph: 'check' };
 }
 
 /**

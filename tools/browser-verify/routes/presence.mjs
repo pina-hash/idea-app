@@ -97,8 +97,8 @@ export default {
 	],
 	contrast: [
 		{ selector: '[data-testid="roster-presence"]', label: 'the four row glyphs (graphical, 3:1)', min: 3 },
-		{ selector: '[data-testid="work-presence"] .pword', label: 'WORKING, in the work head', min: 4.5 },
-		{ selector: '[data-testid="roster-card"] .pword', label: 'VIEWING, in the card', min: 4.5 },
+		{ selector: '[data-testid="work-presence"] [data-testid="presence-chip"] .status-chip-word', label: 'WORKING, in the work head', min: 4.5 },
+		{ selector: '[data-testid="roster-card"] [data-testid="presence-chip"] .status-chip-word', label: 'VIEWING, in the card', min: 4.5 },
 		{ selector: '[data-testid="presence-worked"]', label: 'when the student last worked (card and head)', min: 4.5 },
 		{ selector: '[data-testid="presence-active"]', label: 'how long they have worked (card and head)', min: 4.5 },
 		{ selector: '[data-testid="roster-card"] .rc-name', label: 'the name on the card', min: 4.5 },

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import './market.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
@@ -147,7 +148,7 @@
 								<a class="mk-tile" class:featured={t.featured} href={t.href} data-testid="mk-official-tile" data-kind={t.kind}>
 									<span class="mk-tile-top">
 										<span class="mk-glyph"><Glyph name={glyphFor[t.kind]} /></span>
-										{#if t.featured}<span class="mk-chip gold">Featured</span>{/if}
+										{#if t.featured}<StatusChip tone="special" label="Featured" />{/if}
 									</span>
 									<span class="mk-tile-title">{t.title}</span>
 									<span class="mk-tile-line">{t.line}</span>

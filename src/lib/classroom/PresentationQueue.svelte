@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	/**
 	 * PRESENTATION CHECK-OFF FROM THE PHONE (ledger 0438, feedback 68d4780e):
 	 * who is up, Presented / Absent / Redo, notes while they talk, and the
@@ -211,7 +212,7 @@
 				<p class="pq-kicker">Up now · {up.position} of {queue.entries.length}</p>
 				<h2 class="pq-name">{up.name}</h2>
 				{#if up.kind === 'team'}<p class="pq-members">{up.members.map((m) => m.name).join(', ')}</p>{/if}
-				{#if up.status === 'redo'}<p class="pq-chip">Redo</p>{/if}
+				{#if up.status === 'redo'}<p class="pq-redo"><StatusChip tone="warn" glyph="undo" label="Redo" /></p>{/if}
 				<div class="pq-marks">
 					<button type="button" class="btn tap-44 pq-mark pq-presented" disabled={busy} onclick={() => mark(up, 'presented')} data-testid="pq-mark-presented">Presented</button>
 					<button type="button" class="btn secondary tap-44 pq-mark" disabled={busy} onclick={() => mark(up, 'absent')} data-testid="pq-mark-absent">Absent</button>
@@ -343,7 +344,9 @@
 		margin: 0;
 		color: var(--text-1);
 	}
-	.pq-chip,
+	.pq-redo {
+		margin: 0;
+	}
 	.pq-tag {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;

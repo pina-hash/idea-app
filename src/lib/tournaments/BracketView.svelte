@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import EntryChip from './EntryChip.svelte';
 	import {
 		bracketLayout,
@@ -94,11 +95,11 @@
 											<span class="best-of">Bo{m.best_of}</span>
 										{/if}
 										{#if m.status === 'in_progress'}
-											<span class="live-chip">LIVE</span>
+											<StatusChip tone="danger" glyph="live" class="bracket-live" label="LIVE" />
 										{:else if isByeMatch(m)}
-											<span class="bye-chip">{m.winner_id ? 'BYE' : '—'}</span>
+											<StatusChip tone="neutral" class="bracket-tag" label={m.winner_id ? 'BYE' : '—'} />
 										{:else if isForfeitMatch(m)}
-											<span class="ff-chip" title={m.forfeit_reason ?? 'Awarded by forfeit'}>FF</span>
+											<StatusChip tone="special" glyph="alert" class="bracket-tag" label="FF" title={m.forfeit_reason ?? 'Awarded by forfeit'} />
 										{:else if scoreline}
 											<span class="scoreline">{scoreline}</span>
 										{/if}
@@ -209,10 +210,6 @@
 		border-style: dashed;
 		border-color: var(--gold, #c8a848);
 	}
-	.ff-chip {
-		margin-left: auto;
-		color: var(--gold, #c8a848);
-	}
 	.match-head {
 		display: flex;
 		align-items: center;
@@ -228,22 +225,20 @@
 		margin-left: auto;
 		color: var(--white, #e8ffe8);
 	}
-	.live-chip {
+	/* The match head's one status, at its right edge. LIVE is the danger tone
+	   (live, recording and error are its only uses) and its dot breathes,
+	   only where motion is welcome. */
+	.match-head :global(:is(.bracket-live, .bracket-tag)) {
 		margin-left: auto;
-		color: var(--crimson, #ff3355);
-		animation: pulse 1.2s ease-in-out infinite;
 	}
-	.bye-chip {
-		margin-left: auto;
+	@media (prefers-reduced-motion: no-preference) {
+		.match-head :global(.bracket-live .status-chip-glyph) {
+			animation: pulse 1.2s ease-in-out infinite;
+		}
 	}
 	@keyframes pulse {
 		50% {
 			opacity: 0.35;
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.live-chip {
-			animation: none;
 		}
 	}
 	.side {

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
+	import { toneFrom, verdictGlyph } from '$lib/ui/status-tone';
 	import './coin-page.css';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import CoinBar from '$lib/coin-bar/CoinBar.svelte';
@@ -181,10 +183,13 @@
 								<span class="cpx-name">{roleDayLabel(d.day)}</span>
 								<span class="cpx-meta">{d.photos} photo{d.photos === 1 ? '' : 's'}</span>
 							</div>
-							<span class="cpx-chip wrap {tone}" data-testid="role-day-status">
-								<span aria-hidden="true">{tone === 'good' ? '✓' : tone === 'bad' ? '✕' : '–'}</span>
-								{roleDayWords(d, role.rules)}
-							</span>
+							<StatusChip
+								tone={toneFrom(tone === 'none' ? '' : tone)}
+								glyph={verdictGlyph(tone === 'none' ? '' : tone)}
+								wrap
+								label={roleDayWords(d, role.rules)}
+								data-testid="role-day-status"
+							/>
 							{#if transports.requestException && roleDayCheckable(d, role.today)}
 								{#if askFor === askKey(role, d)}
 									<div class="cpx-confirm">

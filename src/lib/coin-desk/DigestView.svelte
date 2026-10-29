@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import { coins, signedCoins } from '$lib/coin-format';
 	import { num, V2_UNAVAILABLE } from './v2';
@@ -254,7 +255,7 @@
 						<span class="d-what">{row.category}</span>
 						<span class="d-amount" class:struck={row.reversed}>{signedCoins(num(row.amount))}</span>
 						{#if row.reversed}
-							<span class="cdx-chip warn">Undone</span>
+							<StatusChip tone="warn" label="Undone" />
 						{:else if row.reversible && transports.reverse}
 							{#if armed === row.id}
 								<button

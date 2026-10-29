@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import { onMount } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import Disclosure from '$lib/Disclosure.svelte';
@@ -422,8 +423,8 @@
 					<li class="app" data-testid="cd-role-app">
 						<div class="head">
 							<span class="who" title={a.email}>{personName(a)}</span>
-							<span class="cdx-chip">{a.role}</span>
-							<span class="cdx-chip" class:warn={!a.section_id}>{a.section ?? 'No class yet'}</span>
+							<StatusChip tone="neutral" label={a.role} />
+							<StatusChip tone={!a.section_id ? 'warn' : 'neutral'} label={a.section ?? 'No class yet'} />
 							<span class="meta">Applied {when(a.submitted_at)}</span>
 						</div>
 						{#if a.answers.length}
@@ -436,9 +437,7 @@
 										{:else}
 											<span class="ans">
 												{q.options?.[q.selected_option_index ?? -1] ?? 'No answer'}
-												<span class="cdx-chip" class:ok={q.is_correct === true} class:warn={q.is_correct === false}>
-													{q.is_correct ? 'Right answer' : 'Not the key'}
-												</span>
+												<StatusChip tone={q.is_correct === true ? 'ok' : q.is_correct === false ? 'warn' : 'neutral'} label={q.is_correct ? 'Right answer' : 'Not the key'} />
 											</span>
 										{/if}
 									</li>
@@ -588,8 +587,8 @@
 					<li class="holder" data-testid="cd-role-holder">
 						<div class="head">
 							<span class="who" title={h.email}>{personName(h)}</span>
-							<span class="cdx-chip ok">{h.role}</span>
-							<span class="cdx-chip" class:warn={!h.section_id}>{h.section ?? 'No class yet'}</span>
+							<StatusChip tone="ok" label={h.role} />
+							<StatusChip tone={!h.section_id ? 'warn' : 'neutral'} label={h.section ?? 'No class yet'} />
 							<span class="meta">Since {when(h.since)}{h.expires_at ? `, ends ${when(h.expires_at)}` : ''}</span>
 						</div>
 						<p class="meta">{proofSummary(h.days)}{h.rules.own ? '. Has rules of their own' : ''}.</p>
@@ -612,13 +611,7 @@
 											<li class="day" data-status={d.status} data-testid="cd-role-day">
 												<div class="day-head">
 													<span class="day-name">{dayLabel(d.day)}</span>
-													<span
-														class="cdx-chip"
-														class:ok={d.status === 'passed' || d.status === 'accepted'}
-														class:warn={d.status === 'failed' || d.status === 'rejected'}
-													>
-														{ROLE_DAY_STATUS_WORDS[d.status]}
-													</span>
+													<StatusChip tone={d.status === 'passed' || d.status === 'accepted' ? 'ok' : d.status === 'failed' || d.status === 'rejected' ? 'warn' : 'neutral'} label={ROLE_DAY_STATUS_WORDS[d.status]} />
 													<span class="meta">{roleDayDetail(d)}</span>
 												</div>
 												{#if d.photo_paths.length}

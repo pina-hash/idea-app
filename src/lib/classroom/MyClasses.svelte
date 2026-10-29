@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	import type { Snippet } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
@@ -112,13 +113,10 @@
 				<!-- Zero is no news, so a class with nothing owed says nothing. -->
 				<span class="class-owed" data-testid="class-owed">
 					{#if words.missing}
-						<span class="owed owed-missing">
-							<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
-							{words.missing}
-						</span>
+						<StatusChip tone="warn" class="owed owed-missing" label={words.missing} />
 					{/if}
 					{#if words.dueThisWeek}
-						<span class="owed">{words.dueThisWeek}</span>
+						<StatusChip tone="info" glyph="clock" class="owed" label={words.dueThisWeek} />
 					{/if}
 				</span>
 			{/if}
@@ -157,13 +155,10 @@
 					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.checklist} /></svg>
 					<span class="todo-link-word">To-do</span>
 					{#if totalWords.missing}
-						<span class="owed owed-missing">
-							<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
-							{totalWords.missing}
-						</span>
+						<StatusChip tone="warn" class="owed owed-missing" label={totalWords.missing} />
 					{/if}
 					{#if totalWords.dueThisWeek}
-						<span class="owed">{totalWords.dueThisWeek}</span>
+						<StatusChip tone="info" glyph="clock" class="owed" label={totalWords.dueThisWeek} />
 					{/if}
 				</a>
 			</p>
@@ -456,33 +451,6 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.35rem;
-	}
-	.owed {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		font-family: var(--font-mono);
-		font-size: 0.68rem;
-		padding: 0.12rem 0.5rem;
-		border: 1px solid var(--cyan);
-		border-radius: 999px;
-		color: var(--cyan);
-		white-space: nowrap;
-	}
-	.owed svg {
-		width: 11px;
-		height: 11px;
-		fill: none;
-		stroke: currentColor;
-		stroke-width: 2.2;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	.owed-missing {
-		color: var(--amber);
-		border-color: var(--amber);
-		background: color-mix(in srgb, var(--amber) 14%, transparent);
-		font-weight: 700;
 	}
 	/* The door: the header tools' look, 44px, a glyph and a word before the
 	   counts. */

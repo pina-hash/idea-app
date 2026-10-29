@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StatusChip from '$lib/ui/StatusChip.svelte';
 	/**
 	 * LINKS IN A STUDENT'S ANSWERS, EACH WITH AN OPEN KEY (ledger 0360).
 	 *
@@ -58,7 +59,7 @@
 						<!-- A DECLARED LINK FIELD HOLDING SOMETHING THAT IS NOT A LINK is
 						     said in words, with what the student typed, and offers no key:
 						     a control whose only outcome is a dead tab must not be offered. -->
-						<span class="status-tag al-bad" data-testid="answer-link-bad">Not a working link</span>
+						<StatusChip tone="warn" label="Not a working link" data-testid="answer-link-bad" />
 						{#if link.raw}<span class="al-raw">{link.raw}</span>{/if}
 					{/if}
 				</li>
@@ -109,14 +110,6 @@
 	.al-open {
 		flex: none;
 		text-decoration: none;
-	}
-	.al-bad {
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		color: var(--amber);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-chip, 4px);
-		padding: 0.1rem 0.4rem;
 	}
 	.al-raw {
 		font-size: 0.78rem;
