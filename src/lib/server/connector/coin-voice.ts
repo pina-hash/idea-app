@@ -16,9 +16,24 @@
  *     when no category fits) and saves the phrase with that number;
  *   - no number and nothing listed: one question asking for the number, and
  *     nothing is written.
+ *
+ * THE NOTE IS THE REASON, NEVER HIS REQUEST (ledger 0455, report 3bcf3c90).
+ * Seventeen tournament awards on 2026-10-28 carried "also go ahead all" as
+ * their note: the words of the request, filler stripped, while the chat had
+ * passed what each award was for separately. `said` is the request, kept in
+ * the connector's own log; what a student reads is `reason`, the words for
+ * what it was for. With no reason, a listed category writes no note (its name
+ * says what it was), and a record that needs one, a Custom record or a
+ * category priced by hand, asks "What was it for?" and writes nothing.
+ * His words still choose the category and the amount; they never become the
+ * note.
+ *
+ * A DEPOSIT (ledger 0455, 218b6169): "deposit 5 coins for Dominic" is physical
+ * coins becoming digital, logged through coin_log_deposit, which holds the
+ * minimum.
  */
 
-import { COIN_SYMBOL, coins } from '$lib/coin-format';
+import { COIN_CUSTOM_CATEGORY_IDS, COIN_SYMBOL, coins } from '$lib/coin-format';
 
 export type CoinKind = 'award' | 'fine' | 'purchase';
 
@@ -45,7 +60,7 @@ export interface VoiceCatalog {
 	aliases: VoiceAlias[];
 }
 
-export const CUSTOM_CATEGORY: Record<CoinKind, string> = { award: 'custom_award', fine: 'custom_fine', purchase: 'custom_purchase' };
+export const CUSTOM_CATEGORY: Record<CoinKind, string> = COIN_CUSTOM_CATEGORY_IDS;
 
 /** Lowercase letters and digits, single spaces: the alias table's own shape (0300's `_coin_phrase`). */
 export function phraseOf(text: string): string {
@@ -90,6 +105,12 @@ export function numberIn(said: string): number | null {
 	// A version like 0.3.3 or a block number is not an amount: only a lone number counts.
 	const plain = values.filter((v) => !/^(block|period|section|question|version)$/.test(tokens[v.at - 1] ?? ''));
 	return plain.length === 1 ? plain[0].n : null;
+}
+
+/** Whether he asked for a deposit: physical coins handed in, made digital. */
+export function depositIn(said: string): boolean {
+	const s = said.toLowerCase();
+	return /\b(deposit|deposits|deposited|depositing)\b/.test(s) || /\bphysical (idea )?(coins? )?(to|into) digital\b/.test(s);
 }
 
 /** Award, fine or purchase, from his verb, or null when he did not say. */
@@ -173,25 +194,42 @@ export function matchCoin(reasonPhrase: string, saidPhrase: string, kind: CoinKi
 }
 
 export type CoinDecision =
-	| { action: 'log'; kind: CoinKind; category: VoiceCategory; amount: number | null; note: string; phrase: string | null; amountFrom: 'listed' | 'said' | 'saved' }
-	| { action: 'ask'; status: 'needs_kind' | 'needs_amount' | 'needs_choice'; question: string };
+	| { action: 'log'; kind: CoinKind; category: VoiceCategory; amount: number | null; note: string | null; phrase: string | null; amountFrom: 'listed' | 'said' | 'saved' }
+	| { action: 'deposit'; amount: number; note: string | null }
+	| { action: 'ask'; status: 'needs_kind' | 'needs_amount' | 'needs_choice' | 'needs_reason'; question: string };
+
+/** The reason as a record keeps it: one line, at most 300 characters, or nothing. */
+export function noteOf(reason: string | null | undefined): string | null {
+	const t = (reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 300).trim();
+	return t || null;
+}
+
+const NEEDS_REASON = 'What was it for? Say it in a few words; it is what the student reads on the record.';
 
 const KIND_WORD: Record<CoinKind, string> = { award: 'Award', fine: 'Fine', purchase: 'Purchase' };
 const coinsWord = (n: number) => coins(n);
 
-/** One decision from his words: what to log at what amount, or the one question to ask. */
-export function decideCoin(input: { said: string; amount: number | null; nameWords: string[]; catalog: VoiceCatalog }): CoinDecision {
+/**
+ * One decision from his words: what to log at what amount, or the one question
+ * to ask. `said` chooses; `reason` (what it was for, passed apart from his
+ * request) is the only thing a note is ever made of.
+ */
+export function decideCoin(input: { said: string; reason?: string | null; amount: number | null; nameWords: string[]; catalog: VoiceCatalog }): CoinDecision {
 	const number = input.amount ?? numberIn(input.said.replace(new RegExp(`\\b(${input.nameWords.map((w) => w.replace(/[^A-Za-z]/g, '')).filter(Boolean).join('|') || 'zzzz'})\\b`, 'gi'), ' '));
-	const reason = reasonIn(input.said, input.nameWords);
-	const reasonPhrase = phraseOf(reason);
-	const saidPhrase = phraseOf(input.said);
-	let kind = kindIn(input.said);
+	const note = noteOf(input.reason);
+	if (depositIn(input.said)) {
+		if (number === null) return { action: 'ask', status: 'needs_amount', question: 'How many coins is the deposit?' };
+		return { action: 'deposit', amount: number, note };
+	}
+	const words = note ? `${input.said} ${note}` : input.said;
+	const reasonPhrase = phraseOf(note ?? reasonIn(input.said, input.nameWords));
+	const saidPhrase = phraseOf(words);
+	let kind = kindIn(input.said) ?? (note ? kindIn(note) : null);
 	const match = matchCoin(reasonPhrase, saidPhrase, kind, input.catalog);
 	kind = kind ?? match?.category.kind ?? null;
 	if (!kind) {
 		return { action: 'ask', status: 'needs_kind', question: 'Is this an award, a fine or a purchase?' };
 	}
-	const note = (reason || input.said).replace(/\s+/g, ' ').trim().slice(0, 300);
 	const phrase = reasonPhrase || null;
 	if (match) {
 		const c = match.category;
@@ -211,6 +249,9 @@ export function decideCoin(input: { said: string; amount: number | null; nameWor
 			const range = c.pricing_model === 'range' && c.min_amount !== null && c.max_amount !== null ? ` ${c.name} takes ${c.min_amount} to ${c.max_amount}.` : '';
 			return { action: 'ask', status: 'needs_amount', question: `How many coins for ${c.name}?${range}` };
 		}
+		if (c.pricing_model === 'variable' && !note) {
+			return { action: 'ask', status: 'needs_reason', question: NEEDS_REASON };
+		}
 		if (c.pricing_model === 'range' && c.min_amount !== null && c.max_amount !== null && (amount < c.min_amount || amount > c.max_amount)) {
 			return {
 				action: 'ask',
@@ -224,10 +265,13 @@ export function decideCoin(input: { said: string; amount: number | null; nameWor
 	if (number === null) {
 		return { action: 'ask', status: 'needs_amount', question: `How many coins for this ${kind}?` };
 	}
+	if (!note) {
+		return { action: 'ask', status: 'needs_reason', question: NEEDS_REASON };
+	}
 	if (!custom) {
 		return { action: 'ask', status: 'needs_choice', question: `No ${kind} category fits "${note}". Which category is it?` };
 	}
-	return { action: 'log', kind, category: custom, amount: number, note: note || input.said, phrase, amountFrom: 'said' };
+	return { action: 'log', kind, category: custom, amount: number, note, phrase, amountFrom: 'said' };
 }
 
 /** `coin_voice_catalog()`'s answer, numbers made numbers; anything malformed is dropped. */

@@ -14,6 +14,7 @@
 	import {
 		coinAmountDisplay,
 		coinNumber,
+		coinRowLabel,
 		coins,
 		signedCoins,
 		coinTxnType,
@@ -508,10 +509,11 @@
 						{#each history.rows as row (row.id)}
 							{@const type = coinTxnType({ category_id: row.category_id }, row.kind)}
 							{@const amount = coinAmountDisplay(row.amount, type)}
+							{@const named = coinRowLabel({ category_id: row.category_id, category_name: row.name, note: row.note })}
 							<li class="cp-row" data-testid="coin-row">
 								<div class="cp-row-main">
-									<span class="cp-reason">{row.name}</span>
-									{#if row.note}<span class="cp-row-note">{row.note}</span>{/if}
+									<span class="cp-reason">{named.label}</span>
+									{#if row.note && !named.fromNote}<span class="cp-row-note">{row.note}</span>{/if}
 									<span class="cp-row-meta">
 										<span class="cp-chip {type}" data-testid="coin-type">
 											<CoinTypeGlyph {type} size={12} />
@@ -822,7 +824,8 @@
 	.cp-chip.adjustment {
 		color: var(--violet-ink);
 	}
-	.cp-chip.payout {
+	.cp-chip.payout,
+	.cp-chip.deposit {
 		color: var(--cyan);
 	}
 	.cp-chip.auto {

@@ -47,6 +47,7 @@ import {
 import { opaqueToken } from './crypto';
 import { lookupId, lookupKindFor, looksLikeId, lookupWords } from './lookup';
 import { decideCoin, parseVoiceCatalog } from './coin-voice';
+import { coinRowLabel } from '$lib/coin-format';
 import { notesForExport, parseThreads } from '$lib/classroom/feedback/notes';
 import { hxIsTeamManifest } from '$lib/classroom/html-assignment/team-doc';
 import { worksheetAnswered, worksheetAnsweredWords, type AnswerFile, type AnswerRow, type WorksheetAnswered } from '$lib/classroom/grading-work';
@@ -1004,7 +1005,11 @@ async function coinBalance(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput
 		status: 'ok',
 		student: s.value.name,
 		balance: Number(r.data?.balance ?? 0),
-		recent: (r.data?.recent_transactions ?? []).slice(0, 5)
+		// A Custom record reads as what it was for, as every list on the site does (ledger 0455).
+		recent: (r.data?.recent_transactions ?? []).slice(0, 5).map((t) => {
+			const named = coinRowLabel({ category_id: str(t.category_id), category_name: str(t.category_name) ?? str(t.name) ?? '', note: str(t.note) });
+			return named.fromNote ? { ...t, name: named.label, category_name: named.label } : t;
+		})
 	};
 }
 
@@ -2115,9 +2120,10 @@ async function coins(ctx: ToolContext, args: ToolArgs, kind: 'award' | 'fine'): 
 async function coinTransact(ctx: ToolContext, args: ToolArgs): Promise<ToolOutput> {
 	const opts = writeOptions(args);
 	const said = str(args.said) ?? '';
-	const what = str(args.what);
-	const words = what ? `${said} ${what}`.trim() : said;
-	if (!words) return { status: 'invalid', message: 'Pass his words in said. Nothing was changed.' };
+	// What it was for: `reason`, or `what` from a chat that still sends the old
+	// name. It is the only text a coin record's note is made of (ledger 0455).
+	const reason = str(args.reason) ?? str(args.what) ?? null;
+	if (!said.trim()) return { status: 'invalid', message: 'Pass his words in said. Nothing was changed.' };
 	const names = list(args.student);
 	const classSaid = str(args.class);
 	let people: RosterStudent[] = [];
@@ -2137,12 +2143,32 @@ async function coinTransact(ctx: ToolContext, args: ToolArgs): Promise<ToolOutpu
 	const cat = await ctx.backend.rpc<unknown>(ctx.session, 'coin_voice_catalog', {});
 	if (cat.error) return { status: 'refused', message: cat.error.message };
 	const nameWords = [...names.flatMap((n) => n.split(/\s+/)), ...people.flatMap((p) => p.name.split(/\s+/)), ...(classSaid ? classSaid.split(/\s+/) : [])];
-	const decision = decideCoin({ said: words, amount: num(args.amount) ?? null, nameWords, catalog: parseVoiceCatalog(cat.data) });
+	const decision = decideCoin({ said, reason, amount: num(args.amount) ?? null, nameWords, catalog: parseVoiceCatalog(cat.data) });
 	if (decision.action === 'ask') {
-		return { status: decision.status, question: decision.question, students: people.map((p) => p.name), message: `Nothing was changed. Ask him: ${decision.question} Then call again with his answer.` };
+		const then = decision.status === 'needs_reason' ? 'Then call again with the same said and his answer as reason.' : 'Then call again with his answer.';
+		return { status: decision.status, question: decision.question, students: people.map((p) => p.name), message: `Nothing was changed. Ask him: ${decision.question} ${then}` };
 	}
 	const groupKey = `coin_transact:${opts.requestId ?? opaqueToken(ctx.random).slice(0, 16)}`;
 	const results: ToolOutput[] = [];
+	if (decision.action === 'deposit') {
+		for (const person of people) {
+			const o = await write(
+				ctx,
+				{ tool: 'coin_transact', fn: 'coin_log_deposit', args: { p_email: person.email, p_amount: decision.amount, p_note: decision.note }, groupKey },
+				opts
+			);
+			results.push({ student: person.name, ...outcomeWords(o) });
+		}
+		const ok = results.filter((r) => r.status === 'done' || r.status === 'repeated').length;
+		return {
+			status: opts.dryRun || ctx.practice ? 'preview' : ok === results.length ? 'done' : ok === 0 ? 'refused' : 'partial',
+			kind: 'deposit',
+			category: 'Deposit',
+			each: decision.amount,
+			reason: decision.note ? `Physical to digital: ${decision.note}` : 'Physical to digital',
+			students: results
+		};
+	}
 	for (const person of people) {
 		const o = await write(
 			ctx,

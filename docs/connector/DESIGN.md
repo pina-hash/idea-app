@@ -313,7 +313,7 @@ Generated from the overlay on 2026-10-28.
 | GREENLINE | 2 | 3 | 1 | 0 | 6 |
 | IDEA Armory | 19 | 6 | 9 | 0 | 11 |
 | IDEA Classroom | 34 | 58 | 33 | 3 | 25 |
-| IDEA Coin | 27 | 8 | 9 | 1 | 26 |
+| IDEA Coin | 27 | 9 | 10 | 1 | 26 |
 | IDEA Maps | 3 | 2 | 1 | 0 | 0 |
 | IdeaCAD | 5 | 2 | 0 | 0 | 1 |
 | market.yaml | 6 | 0 | 9 | 1 | 0 |
@@ -323,7 +323,7 @@ Generated from the overlay on 2026-10-28.
 | The connector itself | 5 | 1 | 3 | 0 | 7 |
 | Tournaments | 4 | 7 | 11 | 1 | 11 |
 | view-as.yaml | 1 | 0 | 1 | 0 | 3 |
-| **All** | **171** | **119** | **116** | **8** | **246** |
+| **All** | **171** | **120** | **117** | **8** | **246** |
 
 <details><summary>calendar.yaml</summary>
 
@@ -391,8 +391,8 @@ Generated from the overlay on 2026-10-28.
 <details><summary>IDEA Coin</summary>
 
 - **Read:** `coin_admin_lookup`, `coin_alias_list`, `coin_auditor_queue`, `coin_donation_items_list`, `coin_economy_health`, `coin_export`, `coin_fine_roster`, `coin_fine_sections`, `coin_me`, `coin_my_page`, `coin_my_role`, `coin_my_stats`, `coin_no_shop_today`, `coin_public_leaderboard`, `coin_public_reasons`, `coin_public_reported_coins`, `coin_public_role_badges`, `coin_public_role_questions`, `coin_public_roles`, `coin_public_student`, `coin_public_transactions`, `coin_queue`, `coin_section_role_badges`, `coin_settings_get`, `coin_staff_scope`, `coin_student_stats`, `coin_voice_catalog`
-- **Undo:** `coin_alias_set_amount`, `coin_log_extra_credit` (extra_credit_coins), `coin_log_pay_raise`, `coin_log_perfect_score`, `coin_log_property_damage_careless`, `coin_log_three_d_printing`, `coin_log_transaction`, `coin_voice_log`
-- **Asks first:** `coin_admin_create_category`, `coin_admin_set_category_active`, `coin_alias_delete`, `coin_alias_promote`, `coin_bulk_log_students`, `coin_fine_log`, `coin_reverse_transaction`, `coin_settings_set_category`, `coin_settings_set`
+- **Undo:** `coin_alias_set_amount`, `coin_log_deposit`, `coin_log_extra_credit` (extra_credit_coins), `coin_log_pay_raise`, `coin_log_perfect_score`, `coin_log_property_damage_careless`, `coin_log_three_d_printing`, `coin_log_transaction`, `coin_voice_log`
+- **Asks first:** `coin_admin_create_category`, `coin_admin_set_category_active`, `coin_alias_delete`, `coin_alias_promote`, `coin_bulk_log_students`, `coin_fine_log`, `coin_reverse_transaction`, `coin_settings_set_category`, `coin_settings_set`, `coin_transactions_relabel`
 - **By argument:** `coin_admin_adjust_balance` (adjust_balance): undo when p_amount > 0, otherwise confirm
 - **Excluded (the reason is in the YAML):** `coin_admin_assign_contract`, `coin_admin_cancel_contract`, `coin_admin_edit_contract`, `coin_admin_reset_contract`, `coin_admin_restore_contract`, `coin_autopay_run`, `coin_banner`, `coin_buy_hall_pass_minutes`, `coin_contract_mark_done`, `coin_contract_post`, `coin_contract_self_claim`, `coin_contracts_admin`, `coin_digest_push_due`, `coin_hall_pass_minutes_mine`, `coin_hall_pass_minutes_quote`, `coin_market_board`, `coin_my_contract_claims`, `coin_my_contracts`, `coin_my_portfolio`, `coin_public_contracts`, `coin_public_stocks`, `coin_public_transfers`, `coin_role_self_apply`, `coin_stock_detail`, `coin_stocks_board`, `coin_stocks_tick`
 

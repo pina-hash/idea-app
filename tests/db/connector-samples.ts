@@ -328,6 +328,12 @@ export function connectorSamples(w: ConnectorWorld): Samples {
 			return { p_transaction_id: r.transaction_id, p_note: 'reversing' };
 		},
 		coin_admin_adjust_balance: async () => ({ p_email: w.students.mateo, p_amount: 20, p_note: 'Shop Fix bonus' }),
+		// ledger 0455: a deposit, and correcting what a past record says
+		coin_log_deposit: async () => ({ p_email: w.students.mateo, p_amount: 6, p_note: null }),
+		coin_transactions_relabel: async () => {
+			const r = await asAdminRpc('coin_log_transaction', { p_email: w.students.leo, p_category_id: 'custom_award', p_amount: 2, p_note: 'also go ahead all' });
+			return { p_changes: [{ id: r.transaction_id, note: `helping clean the shop ${letters()}` }] };
+		},
 		// ledger 0432: voice to action
 		coin_voice_log: async () => ({ p_email: w.students.mateo, p_category_id: 'custom_award', p_amount: 4, p_note: 'a sick trick shot', p_phrase: `trick shot ${letters()}` }),
 		coin_alias_set_amount: async () => ({ p_id: await phraseId(), p_amount: 3 }),

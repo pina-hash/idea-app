@@ -3,7 +3,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
-	import { coins, COIN_SYMBOL, signedCoins } from '$lib/coin-format';
+	import { coins, COIN_DEPOSIT_CATEGORY_ID, COIN_SYMBOL, signedCoins } from '$lib/coin-format';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import DebtPaymentPanel from './DebtPaymentPanel.svelte';
 	import DeskHistory from './DeskHistory.svelte';
@@ -420,6 +420,8 @@
 	let pointsInput = $state<string | number>(''); // perfect score + extra credit
 	let gradingCategory = $state('');
 	let costDollarsInput = $state<string | number>('');
+	/** Ledger 0455: the coins a student handed in, for a Deposit. */
+	let depositInput = $state<string | number>('');
 	let gramsInput = $state<string | number>('');
 	let noteText = $state('');
 
@@ -431,6 +433,7 @@
 		pointsInput = '';
 		gradingCategory = '';
 		costDollarsInput = '';
+		depositInput = '';
 		gramsInput = '';
 		noteText = '';
 	}
@@ -442,6 +445,7 @@
 		pointsInput = '';
 		gradingCategory = '';
 		costDollarsInput = '';
+		depositInput = '';
 		gramsInput = '';
 		entryError = '';
 		entryNotice = '';
@@ -491,6 +495,9 @@
 			/* nothing but a note, and that is optional */
 		} else if (c.id === 'property_damage_careless') {
 			need('cd-cost', filled(costDollarsInput) && num(costDollarsInput) >= 0);
+		} else if (c.id === COIN_DEPOSIT_CATEGORY_ID) {
+			// The minimum is the server's (deposit_minimum); under it, it says so.
+			need('cd-deposit', filled(depositInput) && Number.isInteger(num(depositInput)) && num(depositInput) > 0);
 		} else if (c.id === 'three_d_printing') {
 			need('cd-grams', filled(gramsInput) && num(gramsInput) >= 0);
 		} else if (c.id === 'extra_credit') {
@@ -611,6 +618,12 @@
 				p_email: email,
 				p_cost_dollars: num(costDollarsInput),
 				p_note: noteText.trim()
+			});
+		} else if (category.id === COIN_DEPOSIT_CATEGORY_ID) {
+			resp = await supabase.rpc('coin_log_deposit', {
+				p_email: email,
+				p_amount: num(depositInput),
+				p_note: noteOrNull()
 			});
 		} else if (category.id === 'three_d_printing') {
 			resp = await supabase.rpc('coin_log_three_d_printing', {
@@ -1193,6 +1206,18 @@
 					{#if filled(costDollarsInput)}
 						<p class="preview">Preview: {coins(propertyDamagePreview(num(costDollarsInput)))}</p>
 					{/if}
+				{:else if !bulkTarget && category.id === COIN_DEPOSIT_CATEGORY_ID}
+					<div class="field-row">
+						<label for="cd-deposit">Coins handed in (physical to digital)</label>
+						<input
+							id="cd-deposit"
+							type="number"
+							min="1"
+							step="1"
+							bind:value={depositInput}
+							onkeydown={onFieldKeydown}
+						/>
+					</div>
 				{:else if !bulkTarget && category.id === 'three_d_printing'}
 					<div class="field-row">
 						<label for="cd-grams">Grams (slicer's reported weight)</label>

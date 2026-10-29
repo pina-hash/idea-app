@@ -99,8 +99,9 @@ describe('the sequence sweep bites: a granted privilege is named', () => {
 				'by name in the migration that creates it. Fifteen since the IDEA Stocks relaunch (0283): ' +
 				'coin_stock_ticks, its identity sequence revoked from every client role by name. ' +
 				'Sixteen since view as and act as (0288, ledger 0422): act_as_log, revoked the same way. ' +
-				'Seventeen since the Unit 4 team documents (0302, ledger 0436): classroom_team_log, revoked the same way.'
-		).toBe(17);
+				'Seventeen since the Unit 4 team documents (0302, ledger 0436): classroom_team_log, revoked the same way. ' +
+				'Eighteen since coin record relabeling (0322, ledger 0455): coin_relabel_log, revoked the same way.'
+		).toBe(18);
 	});
 
 	it('BEFORE: reads clean, which is what 0203 leaves behind', async () => {

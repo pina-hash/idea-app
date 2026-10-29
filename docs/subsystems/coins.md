@@ -103,9 +103,34 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). Coin write ga
   there renders an EMPTY `<svg>` in the tone of `--dim`, which throws nothing
   and type-checks, so `tests/coin-transaction-types.test.ts` asserts both maps
   exhaustive at runtime.
-  - **GLYPH PER TYPE, NEVER PER CATEGORY.** Five types against forty-odd
-    categories: five silhouettes a reader can learn beats forty they cannot,
+  - **GLYPH PER TYPE, NEVER PER CATEGORY.** Six types against forty-odd
+    categories: six silhouettes a reader can learn beats forty they cannot,
     and forty would mean inventing lookalikes, which is worse than no glyph.
+  - **A DEPOSIT IS A TYPE READ FROM ITS CATEGORY ID, LIKE A PAYOUT (ledger
+    0455, migration 0322).** `coin_deposit` is kind `award` in the price list,
+    so every path that treats an award as a credit keeps working, and
+    `coinTxnType` and both public reads call it Deposit
+    (`COIN_DEPOSIT_CATEGORY_ID`). It is priced `formula`, so only
+    `coin_log_deposit` writes it, and that function holds the
+    `deposit_minimum` setting (default 5) and writes "Physical to digital" on
+    the record. Physical coins stay untracked cash: a deposit adds to the
+    digital balance and records nothing physical.
+- **A CUSTOM RECORD IS CALLED BY WHAT IT WAS FOR, EVERYWHERE IT IS LISTED
+  (ledger 0455, report 65c46fcf).** `coinRowLabel` in `$lib/coin-format.ts` is
+  the one rule for a list: a Custom Award, Fine or Purchase
+  (`COIN_CUSTOM_CATEGORY_IDS`) shows its note, every other row its category
+  name. The public reads (`coin_public_transactions`, `coin_public_student`)
+  make the same choice in SQL, cut to 120 characters; that widened a public
+  payload by Mr. Pina's own request, for those three categories only, and
+  every other row's note stays off the public reads.
+- **A COIN RECORD'S NOTE IS THE REASON, NEVER THE REQUEST (ledger 0455, report
+  3bcf3c90).** On the connector `said` is the request, kept in its own log;
+  `decideCoin` makes a note only from the `reason` passed with the call, and a
+  Custom record or a category priced by hand with no reason asks and writes
+  nothing. A past record's note or category is corrected through
+  `coin_transactions_relabel` (full coin admin, all or nothing, amounts
+  untouched, every change kept in `coin_relabel_log`), never by a reversal
+  and a new record.
   - **COLOUR IS NEVER THE ONLY SIGNAL AND NEVER THE ONLY THING THAT MOVED.**
     Every place a type is rendered carries the glyph, the tone AND the type's
     own word; the glyph is `aria-hidden` precisely because the word is always

@@ -67,7 +67,10 @@ export const COIN_TYPE_TONES: Record<CoinTxnType, CoinTypeTone> = {
 	// 2.45:1 as text on --bg1. This pair is already shipped in
 	// CoinTransactionRows and is restated here only so the record is total.
 	adjustment: { ink: 'var(--violet-ink)', accent: 'var(--violet)' },
-	payout: { ink: 'var(--cyan)', accent: 'var(--cyan)' }
+	payout: { ink: 'var(--cyan)', accent: 'var(--cyan)' },
+	// A deposit is a payout run the other way, physical to digital: the same
+	// boundary, so the same token, told apart by its own glyph and word.
+	deposit: { ink: 'var(--cyan)', accent: 'var(--cyan)' }
 };
 
 // ---------------------------------------------------------------------------
@@ -122,6 +125,10 @@ export const COIN_TYPE_GLYPHS: Record<CoinTxnType, CoinTypeGlyph> = {
 	payout: {
 		name: 'arrow out of a bracket',
 		paths: ['M14 3.5h4.5a2 2 0 012 2v13a2 2 0 01-2 2H14', 'M3.5 12h11', 'M10.5 8l4 4-4 4']
+	},
+	deposit: {
+		name: 'arrow into a bracket',
+		paths: ['M10 3.5H5.5a2 2 0 00-2 2v13a2 2 0 002 2H10', 'M20.5 12h-11', 'M13.5 8l-4 4 4 4']
 	}
 };
 

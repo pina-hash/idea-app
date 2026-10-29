@@ -85,18 +85,19 @@ export function coinMediumLabel(medium: string | null | undefined): string {
 }
 
 /**
- * The five type strings a coin row can display as -- the same five
- * `coin_public_transactions` derives server-side (0103), so the Ledger and
- * these surfaces can never disagree about what a row IS.
+ * The six type strings a coin row can display as -- the same six
+ * `coin_public_transactions` derives server-side (0103, Deposit since 0322),
+ * so the Ledger and these surfaces can never disagree about what a row IS.
  */
-export type CoinTxnType = 'award' | 'fine' | 'purchase' | 'adjustment' | 'payout';
+export type CoinTxnType = 'award' | 'fine' | 'purchase' | 'adjustment' | 'payout' | 'deposit';
 
 export const COIN_TXN_TYPES: CoinTxnType[] = [
 	'award',
 	'fine',
 	'purchase',
 	'adjustment',
-	'payout'
+	'payout',
+	'deposit'
 ];
 
 export const COIN_TXN_TYPE_LABELS: Record<CoinTxnType, string> = {
@@ -104,7 +105,8 @@ export const COIN_TXN_TYPE_LABELS: Record<CoinTxnType, string> = {
 	fine: 'Fine',
 	purchase: 'Purchase',
 	adjustment: 'Adjustment',
-	payout: 'Payout'
+	payout: 'Payout',
+	deposit: 'Deposit'
 };
 
 /**
@@ -117,6 +119,35 @@ export const COIN_TXN_TYPE_LABELS: Record<CoinTxnType, string> = {
  */
 export const COIN_PAYOUT_CATEGORY_IDS = ['coin_payout', 'legacy_payout'];
 
+/**
+ * THE DEPOSIT CATEGORY (ledger 0455, migration 0322): physical coins handed in
+ * become digital coins. Kind `award` in the price list, so every path that
+ * treats an award as a credit keeps working, and read as a DEPOSIT wherever a
+ * row is rendered, exactly as a payout category is read as a payout.
+ */
+export const COIN_DEPOSIT_CATEGORY_ID = 'coin_deposit';
+
+/**
+ * The three categories whose note IS what the record was for (0300): a Custom
+ * Award, Fine or Purchase is logged with the reason he gave and nothing else.
+ */
+export const COIN_CUSTOM_CATEGORY_IDS = { award: 'custom_award', fine: 'custom_fine', purchase: 'custom_purchase' } as const;
+const CUSTOM_IDS: readonly string[] = Object.values(COIN_CUSTOM_CATEGORY_IDS);
+
+/**
+ * WHAT A ROW IS CALLED IN A LIST (ledger 0455, report 65c46fcf: "It shouldn't
+ * just say custom ... I should say what the award fine or transaction was
+ * for."). A Custom record is called by its note, and by its category name only
+ * when it has none; every other row by its category name. `fromNote` tells a
+ * list to leave the note line off, since the label already is the note. The
+ * public reads make the same choice in SQL (0322), cut to 120 characters.
+ */
+export function coinRowLabel(row: { category_id?: string | null; category_name: string; note?: string | null }): { label: string; fromNote: boolean } {
+	const note = (row.note ?? '').trim();
+	if (row.category_id && CUSTOM_IDS.includes(row.category_id) && note) return { label: note.slice(0, 120), fromNote: true };
+	return { label: row.category_name, fromNote: false };
+}
+
 export interface CoinTypeInput {
 	category_id?: string | null;
 	transfer_id?: string | null;
@@ -128,6 +159,7 @@ export interface CoinTypeInput {
  *
  *   transfer_id present            -> payout
  *   a payout category              -> payout
+ *   the deposit category           -> deposit (0322)
  *   category kind fine/award/purchase -> that
  *   anything else                  -> adjustment
  *
@@ -140,6 +172,7 @@ export interface CoinTypeInput {
 export function coinTxnType(row: CoinTypeInput, kind?: string | null): CoinTxnType {
 	if (row.transfer_id) return 'payout';
 	if (row.category_id && COIN_PAYOUT_CATEGORY_IDS.includes(row.category_id)) return 'payout';
+	if (row.category_id === COIN_DEPOSIT_CATEGORY_ID) return 'deposit';
 	const k = String(kind ?? '').toLowerCase();
 	if (k === 'fine') return 'fine';
 	if (k === 'award') return 'award';

@@ -9,6 +9,10 @@
 //     no phrase), with the same words plus a number as the control;
 //   - a record lands on the one student named, never a classmate;
 //   - an ambiguous name writes nothing for anybody.
+//   - ledger 0455 (3bcf3c90): a record's note is the reason passed with the
+//     call, never the words of the request, and a Custom record with no
+//     reason asks and writes nothing; a deposit under the minimum writes
+//     nothing.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { connectorWorld, type ConnectorWorld } from './connector-fixture';
@@ -33,7 +37,7 @@ const phrase = async (p: string) =>
 
 describe('coin_transact, one call from his words', () => {
 	it('a listed fine by its everyday word: "fine Daniel R, phone out"', async () => {
-		const out = await run({ said: 'fine Daniel R, phone out', student: ['Daniel R'] });
+		const out = await run({ said: 'fine Daniel R, phone out', student: ['Daniel R'], reason: 'phone out' });
 		expect(out.status, JSON.stringify(out)).toBe('done');
 		expect(await rows(w.students.danielR)).toEqual([{ category_id: 'off_task_device_use', amount: '-2.00', note: 'phone out' }]);
 		// Control: the other Daniel was not touched.
@@ -49,16 +53,16 @@ describe('coin_transact, one call from his words', () => {
 	});
 
 	it('a new phrase with a number is a Custom Award with his words, and the number becomes its default', async () => {
-		const out = await run({ said: 'give Mateo 4 coins for fixing the bandsaw guard', student: ['Mateo'] });
+		const out = await run({ said: 'give Mateo 4 coins for fixing the bandsaw guard', student: ['Mateo'], reason: 'fixing the bandsaw guard' });
 		expect(out.status, JSON.stringify(out)).toBe('done');
 		expect((await rows(w.students.mateo)).at(-1)).toEqual({ category_id: 'custom_award', amount: '4.00', note: 'fixing the bandsaw guard' });
 		expect(await phrase('fixing the bandsaw guard')).toMatchObject({ category_id: 'custom_award', amount: '4.00', uses: 1 });
 	});
 
 	it('the next time, no number uses the saved default; a new number replaces it', async () => {
-		expect((await run({ said: 'give Leo coins for fixing the bandsaw guard', student: ['Leo'] })).status).toBe('done');
+		expect((await run({ said: 'give Leo coins for fixing the bandsaw guard', student: ['Leo'], reason: 'fixing the bandsaw guard' })).status).toBe('done');
 		expect((await rows(w.students.leo)).at(-1)).toMatchObject({ category_id: 'custom_award', amount: '4.00' });
-		expect((await run({ said: 'give Leo 6 coins for fixing the bandsaw guard', student: ['Leo'] })).status).toBe('done');
+		expect((await run({ said: 'give Leo 6 coins for fixing the bandsaw guard', student: ['Leo'], reason: 'fixing the bandsaw guard' })).status).toBe('done');
 		expect((await rows(w.students.leo)).at(-1)).toMatchObject({ amount: '6.00' });
 		expect(await phrase('fixing the bandsaw guard')).toMatchObject({ amount: '6.00', uses: 3 });
 	});
@@ -78,11 +82,44 @@ describe('coin_transact, one call from his words', () => {
 	});
 
 	it('undo takes the last record back', async () => {
-		await run({ said: 'give Mateo 3 coins for sweeping the shop', student: ['Mateo'] });
+		await run({ said: 'give Mateo 3 coins for sweeping the shop', student: ['Mateo'], reason: 'sweeping the shop' });
 		expect((await rows(w.students.mateo)).at(-1)).toMatchObject({ amount: '3.00' });
 		const undone = await runTool(await w.ctx(w.admin), 'undo_last', { said: 'undo that' });
 		expect(undone.status, JSON.stringify(undone)).toBe('done');
 		expect((await rows(w.students.mateo)).at(-1)).toMatchObject({ amount: '4.00' });
+	});
+
+	it('the note is the reason passed with the call, never his words (ledger 0455, report 3bcf3c90)', async () => {
+		const said = 'Also go ahead and award them all';
+		const reason = 'IDEA-Blade Rotation 2 tournament: 1st place, 12 wins';
+		const out = await run({ said, student: ['Leo'], amount: 22, reason });
+		expect(out.status, JSON.stringify(out)).toBe('done');
+		const last = (await rows(w.students.leo)).at(-1);
+		expect(last).toEqual({ category_id: 'custom_award', amount: '22.00', note: reason });
+		expect(last?.note).not.toContain('go ahead');
+		// Nothing anywhere carries the words of the request: not a record, not a phrase.
+		expect(Number((await w.db.sql<{ n: string }>(`select count(*) as n from public.coin_transactions where note ilike '%go ahead%'`)).rows[0].n)).toBe(0);
+		expect(await phrase('also go ahead all')).toBeNull();
+	});
+
+	it('a Custom record with no reason asks what it was for and writes nothing (the same call with a reason is the control)', async () => {
+		const before = await all();
+		const out = await run({ said: 'Also go ahead and award them all', student: ['Mateo'], amount: 4 });
+		expect(out).toMatchObject({ status: 'needs_reason' });
+		expect(await all()).toBe(before);
+		expect((await run({ said: 'Also go ahead and award them all', student: ['Mateo'], amount: 4, reason: 'Hook tournament, 4 wins' })).status).toBe('done');
+		expect(await all()).toBe(before + 1);
+	});
+
+	it('"deposit 5 coins for Mateo" is a deposit; under the minimum it writes nothing', async () => {
+		const out = await run({ said: 'deposit 5 coins for Mateo', student: ['Mateo'] });
+		expect(out, JSON.stringify(out)).toMatchObject({ status: 'done', kind: 'deposit', each: 5 });
+		expect((await rows(w.students.mateo)).at(-1)).toEqual({ category_id: 'coin_deposit', amount: '5.00', note: 'Physical to digital' });
+		const before = await all();
+		const low = await run({ said: 'deposit 2 coins for Mateo', student: ['Mateo'] });
+		expect(low.status).toBe('refused');
+		expect(JSON.stringify(low)).toContain('at least 5 coins');
+		expect(await all()).toBe(before);
 	});
 
 	it('the old award tool still answers by name, but is not offered', async () => {

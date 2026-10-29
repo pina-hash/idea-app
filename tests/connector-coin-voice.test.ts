@@ -6,9 +6,12 @@
 // a listed amount is used; a saved phrase's default is used unless he says a
 // number; a new phrase with a number becomes Custom with that number; no number
 // and nothing listed asks, and writes nothing.
+//
+// Ledger 0455 (report 3bcf3c90): the note is the reason passed apart from his
+// request, never the request. Seventeen awards carried "also go ahead all".
 
 import { describe, expect, test } from 'vitest';
-import { decideCoin, kindIn, numberIn, phraseOf, reasonIn, type VoiceCatalog } from '../src/lib/server/connector/coin-voice';
+import { decideCoin, depositIn, kindIn, numberIn, phraseOf, reasonIn, type VoiceCatalog } from '../src/lib/server/connector/coin-voice';
 
 const CATALOG: VoiceCatalog = {
 	categories: [
@@ -33,7 +36,9 @@ const CATALOG: VoiceCatalog = {
 		{ id: 'a7', phrase: 'hitting a sick trick shot', kind: 'award', category_id: 'custom_award', amount: 10 }
 	]
 };
-const decide = (said: string, names: string[], amount: number | null = null, catalog = CATALOG) => decideCoin({ said, amount, nameWords: names, catalog });
+const decide = (said: string, names: string[], amount: number | null = null, catalog = CATALOG, reason: string | null = null) =>
+	decideCoin({ said, reason, amount, nameWords: names, catalog });
+const decideFor = (said: string, names: string[], reason: string, amount: number | null = null) => decide(said, names, amount, CATALOG, reason);
 
 describe('reading his words', () => {
 	test('numbers: figures, words, beside a coin word, and never a version or a block', () => {
@@ -76,20 +81,20 @@ describe('the amount rule (Mr. Pina, 2026-10-23)', () => {
 	});
 	test('a saved phrase uses its default; a new number replaces it', () => {
 		// No verb, but the phrase he used before says it was an award.
-		expect(decide('Farzad, hitting a sick trick shot', ['Farzad'])).toMatchObject({ action: 'log', kind: 'award', amount: 10, amountFrom: 'saved' });
+		expect(decideFor('Farzad, hitting a sick trick shot', ['Farzad'], 'hitting a sick trick shot')).toMatchObject({ action: 'log', kind: 'award', amount: 10, amountFrom: 'saved' });
 		// His real request of 2026-10-23, word for word.
-		expect(decide('A word of Farzad, 10 idea coins for hitting a sick trick shot. Hell yeah!', ['Farzad'])).toMatchObject({ action: 'log', kind: 'award', category: { id: 'custom_award' }, amount: 10, amountFrom: 'said' });
+		expect(decideFor('A word of Farzad, 10 idea coins for hitting a sick trick shot. Hell yeah!', ['Farzad'], 'hitting a sick trick shot')).toMatchObject({ action: 'log', kind: 'award', category: { id: 'custom_award' }, amount: 10, amountFrom: 'said', note: 'hitting a sick trick shot' });
 		// No verb and no phrase he used before: one question.
 		expect(decide('Farzad, juggling', ['Farzad'])).toMatchObject({ action: 'ask', status: 'needs_kind' });
-		expect(decide('give Farzad coins for hitting a sick trick shot', ['Farzad'])).toMatchObject({ action: 'log', category: { id: 'custom_award' }, amount: 10, amountFrom: 'saved', phrase: 'hitting a sick trick shot' });
-		expect(decide('give Farzad 6 coins for hitting a sick trick shot', ['Farzad'])).toMatchObject({ action: 'log', amount: 6, amountFrom: 'said', phrase: 'hitting a sick trick shot' });
+		expect(decideFor('give Farzad coins for hitting a sick trick shot', ['Farzad'], 'hitting a sick trick shot')).toMatchObject({ action: 'log', category: { id: 'custom_award' }, amount: 10, amountFrom: 'saved', phrase: 'hitting a sick trick shot' });
+		expect(decideFor('give Farzad 6 coins for hitting a sick trick shot', ['Farzad'], 'hitting a sick trick shot')).toMatchObject({ action: 'log', amount: 6, amountFrom: 'said', phrase: 'hitting a sick trick shot' });
 		expect(decide('give the class coins for wearing green', [])).toMatchObject({ action: 'log', category: { id: 'above_and_beyond' }, amount: 1, amountFrom: 'saved' });
 	});
-	test('a new phrase with a number is a Custom record with his words, saved for next time', () => {
-		const d = decide('give Ana 4 coins for fixing the bandsaw guard', ['Ana']);
+	test('a new phrase with a number is a Custom record with the reason as its note, saved for next time', () => {
+		const d = decideFor('give Ana 4 coins for fixing the bandsaw guard', ['Ana'], 'fixing the bandsaw guard');
 		expect(d).toMatchObject({ action: 'log', kind: 'award', category: { id: 'custom_award' }, amount: 4, note: 'fixing the bandsaw guard', phrase: 'fixing the bandsaw guard' });
-		expect(decide('fine Leo 2 for throwing scraps', ['Leo'])).toMatchObject({ category: { id: 'custom_fine' }, amount: 2 });
-		expect(decide('Leo bought a sticker for 3 coins', ['Leo'])).toMatchObject({ kind: 'purchase', category: { id: 'custom_purchase' }, amount: 3 });
+		expect(decideFor('fine Leo 2 for throwing scraps', ['Leo'], 'throwing scraps')).toMatchObject({ category: { id: 'custom_fine' }, amount: 2 });
+		expect(decideFor('Leo bought a sticker for 3 coins', ['Leo'], 'a sticker')).toMatchObject({ kind: 'purchase', category: { id: 'custom_purchase' }, amount: 3 });
 	});
 	test('no number and nothing listed asks for the number, and writes nothing', () => {
 		expect(decide('give Ana coins for fixing the bandsaw guard', ['Ana'])).toEqual({ action: 'ask', status: 'needs_amount', question: 'How many coins for this award?' });
@@ -101,10 +106,56 @@ describe('the amount rule (Mr. Pina, 2026-10-23)', () => {
 		expect(decide('give Mateo 9 coins, above and beyond', ['Mateo'])).toMatchObject({ action: 'ask', status: 'needs_choice' });
 	});
 	test('an explicit amount argument wins over the words', () => {
-		expect(decide('give Ana coins for fixing the bandsaw guard', ['Ana'], 7)).toMatchObject({ action: 'log', amount: 7 });
+		expect(decideFor('give Ana coins for fixing the bandsaw guard', ['Ana'], 'fixing the bandsaw guard', 7)).toMatchObject({ action: 'log', amount: 7 });
 	});
 	test('a fine never matches an award phrase, and a purchase never a fine (control)', () => {
 		expect(decide('Leo bought an eating pass', ['Leo'])).not.toMatchObject({ category: { id: 'eating_violation' } });
 		expect(decide('fine Leo for eating', ['Leo'])).toMatchObject({ category: { id: 'eating_violation' } });
+	});
+});
+
+describe('the note is the reason, never his request (ledger 0455, report 3bcf3c90)', () => {
+	// His request on 2026-10-28, as the chat passed it: the words of the
+	// request, and what each award was for passed apart from them.
+	// "also go ahead all" is what was left of it once the verb and the filler
+	// were taken out, which is how it became the note.
+	const SAID = 'Also go ahead and award them all';
+	const REASON = 'IDEA-Blade Rotation 2 tournament: 1st place, 12 wins';
+	test('a record logged with a reason carries the reason, and nothing of what he said', () => {
+		const d = decide(SAID, ['Tempe', 'Bushman'], 22, CATALOG, REASON);
+		expect(d).toMatchObject({ action: 'log', category: { id: 'custom_award' }, amount: 22, note: REASON });
+		expect((d as { note: string }).note).not.toContain('go ahead');
+	});
+	test('no reason: a Custom record asks what it was for and writes nothing; it never falls back to his words', () => {
+		const d = decide(SAID, ['Tempe', 'Bushman'], 22);
+		expect(d).toEqual({ action: 'ask', status: 'needs_reason', question: expect.stringContaining('What was it for?') });
+		// The same request with the reason is the control.
+		expect(decide(SAID, ['Tempe', 'Bushman'], 22, CATALOG, REASON).action).toBe('log');
+		expect(decide('give Ana 4 coins for fixing the bandsaw guard', ['Ana'])).toMatchObject({ action: 'ask', status: 'needs_reason' });
+	});
+	test('a category priced by hand needs a reason too; a listed category does not, and keeps no note from his words', () => {
+		expect(decide('give Ana 5 coins, competition winnings', ['Ana'])).toMatchObject({ action: 'ask', status: 'needs_reason' });
+		expect(decide('give Ana 5 coins, competition winnings', ['Ana'], null, CATALOG, 'Hook tournament, 2nd place')).toMatchObject({ action: 'log', category: { id: 'competition_winnings' }, note: 'Hook tournament, 2nd place' });
+		expect(decide('fine Daniel R, phone out', ['Daniel', 'R'])).toMatchObject({ action: 'log', category: { id: 'off_task_device_use' }, note: null });
+		expect(decide('fine Daniel R, phone out', ['Daniel', 'R'], null, CATALOG, 'phone out')).toMatchObject({ note: 'phone out' });
+	});
+	test('the reason still helps choose the category, and its note is one clean line', () => {
+		expect(decide('fine Valentino 2 coins', ['Valentino'], null, CATALOG, ' off task  device\nuse ')).toMatchObject({ category: { id: 'off_task_device_use' }, note: 'off task device use' });
+	});
+});
+
+describe('a deposit (ledger 0455, report 218b6169)', () => {
+	test('"deposit 5 coins for Dominic" is a deposit of 5, with no note but what was passed as the reason', () => {
+		expect(depositIn('deposit 5 coins for Dominic')).toBe(true);
+		expect(depositIn('Ana deposited eight coins')).toBe(true);
+		expect(depositIn('convert his physical coins to digital')).toBe(true);
+		expect(depositIn('his physical notebook')).toBe(false);
+		expect(depositIn('physical coins to digital for Leo')).toBe(true);
+		expect(depositIn('give Leo 5 coins')).toBe(false);
+		expect(decide('deposit 5 coins for Dominic', ['Dominic'])).toEqual({ action: 'deposit', amount: 5, note: null });
+		expect(decide('Ana deposited eight coins', ['Ana'], null, CATALOG, 'jar on the desk')).toEqual({ action: 'deposit', amount: 8, note: 'jar on the desk' });
+	});
+	test('a deposit with no number asks for it and writes nothing', () => {
+		expect(decide('deposit coins for Dominic', ['Dominic'])).toEqual({ action: 'ask', status: 'needs_amount', question: 'How many coins is the deposit?' });
 	});
 });

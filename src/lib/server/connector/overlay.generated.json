@@ -5344,6 +5344,57 @@
 				}
 			]
 		},
+		"coin_log_deposit": {
+			"surface": "call",
+			"level": "undo",
+			"describe": "Deposit a student's physical IDEA Coins as digital coins; a deposit under the minimum on the settings page is refused.",
+			"say": [
+				"deposit 5 coins for Dominic",
+				"Ana handed in 8 physical coins",
+				"turn Leo's 10 physical coins into digital"
+			],
+			"args": {
+				"p_email": {
+					"name": "student",
+					"resolve": "student",
+					"describe": "The student, as you said the name."
+				},
+				"p_amount": {
+					"name": "amount",
+					"describe": "How many physical coins they handed in, a whole number."
+				},
+				"p_note": {
+					"name": "reason",
+					"default": null,
+					"describe": "Anything else to keep on the record; it already says physical to digital."
+				}
+			},
+			"undo": [
+				{
+					"function": "coin_reverse_transaction",
+					"args": {
+						"p_transaction_id": "$result.transaction_id",
+						"p_note": "Undone through the IDEA Website connector."
+					}
+				}
+			]
+		},
+		"coin_transactions_relabel": {
+			"surface": "call",
+			"level": "confirm",
+			"describe": "Correct what past coin records say, their note or their category, in one all or nothing step; amounts and balances never change. It asks first.",
+			"say": [
+				"fix the notes on the tournament awards",
+				"make those balance corrections deposits",
+				"change that award's note"
+			],
+			"args": {
+				"p_changes": {
+					"name": "changes",
+					"describe": "Each record's id with its new note, its new category's short name, or both."
+				}
+			}
+		},
 		"coin_reverse_transaction": {
 			"surface": "call",
 			"level": "confirm",
@@ -12127,15 +12178,17 @@
 			"facade": true,
 			"level": "undo",
 			"uses": [
-				"coin_voice_log"
+				"coin_voice_log",
+				"coin_log_deposit"
 			],
-			"describe": "Give, fine or charge a student IDEA Coins from your own words, one call; it finds the student and the category, and asks only for a missing number.",
+			"describe": "Give, fine, charge or deposit a student's IDEA Coins from your own words, one call; it finds the student and the category, and asks only for what is missing.",
 			"say": [
 				"give Mateo 5 coins for helping clean the shop",
 				"fine Daniel R, phone out",
 				"Farzad, 10 coins for hitting a sick trick shot",
 				"Leo bought an eating pass",
-				"fine Ana 3 for leaving her station a mess"
+				"fine Ana 3 for leaving her station a mess",
+				"deposit 5 coins for Dominic"
 			],
 			"args": {
 				"student": {
@@ -12151,9 +12204,13 @@
 					"type": "string",
 					"describe": "A class to look in for the name, or the whole class when no student is named."
 				},
+				"reason": {
+					"type": "string",
+					"describe": "What it was for, in a few words, like helping clean the shop. It is the note the student reads; never his whole request."
+				},
 				"what": {
 					"type": "string",
-					"describe": "Only if he said what it was for in a separate sentence: those words."
+					"describe": "The older name for reason; send reason instead."
 				}
 			}
 		},
@@ -12762,6 +12819,8 @@
 		"classroom_item_team_draw": "classroom.yaml",
 		"classroom_set_grade_targets": "classroom.yaml",
 		"coin_log_transaction": "coin.yaml",
+		"coin_log_deposit": "coin.yaml",
+		"coin_transactions_relabel": "coin.yaml",
 		"coin_reverse_transaction": "coin.yaml",
 		"coin_admin_lookup": "coin.yaml",
 		"coin_settings_get": "coin.yaml",

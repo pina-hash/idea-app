@@ -304,19 +304,21 @@ send_feedback:
 coin_transact:
   facade: true
   level: undo
-  uses: [coin_voice_log]
-  describe: Give, fine or charge a student IDEA Coins from your own words, one call; it finds the student and the category, and asks only for a missing number.
+  uses: [coin_voice_log, coin_log_deposit]
+  describe: Give, fine, charge or deposit a student's IDEA Coins from your own words, one call; it finds the student and the category, and asks only for what is missing.
   say:
     - give Mateo 5 coins for helping clean the shop
     - fine Daniel R, phone out
     - Farzad, 10 coins for hitting a sick trick shot
     - Leo bought an eating pass
     - fine Ana 3 for leaving her station a mess
+    - deposit 5 coins for Dominic
   args:
     student: {type: array, items: string, describe: "The student, or each student, as he said the name. Leave it out and name a class for the whole class."}
     amount: {type: number, describe: "The number of coins, if he said one. Leave it out when he did not."}
     class: {type: string, describe: "A class to look in for the name, or the whole class when no student is named."}
-    what: {type: string, describe: "Only if he said what it was for in a separate sentence: those words."}
+    reason: {type: string, describe: "What it was for, in a few words, like helping clean the shop. It is the note the student reads; never his whole request."}
+    what: {type: string, describe: "The older name for reason; send reason instead."}
 
 award_coins:
   facade: true

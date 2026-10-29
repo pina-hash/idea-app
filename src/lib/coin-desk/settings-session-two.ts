@@ -66,6 +66,14 @@ export const SESSION_TWO_GROUPS: SettingGroup[] = [
 		]
 	},
 	{
+		id: 'deposits',
+		title: 'Deposits',
+		intro: 'Physical coins a student hands in become digital coins. A deposit smaller than this is refused, so single coins wait until there are enough.',
+		fields: [
+			{ key: 'deposit_minimum', label: 'Smallest deposit (coins)', help: 'A whole number from 1 to 1000.', kind: 'int', min: 1, max: 1000 }
+		]
+	},
+	{
 		id: 'roles',
 		title: 'Roles',
 		intro: 'The everyday rules for a role\'s photos, and when the stipend pays. A holder can be given rules of their own on the Roles page.',

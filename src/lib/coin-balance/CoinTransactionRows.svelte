@@ -2,6 +2,7 @@
 	import {
 		coinAmountDisplay,
 		coinMediumNote,
+		coinRowLabel,
 		coinTxnType,
 		collapseCoinTransfers,
 		COIN_TXN_TYPE_LABELS,
@@ -63,9 +64,10 @@
 			{@const type = coinTxnType(t, kinds[t.category_id])}
 			{@const amount = coinAmountDisplay(t.amount, type)}
 			{@const note = coinMediumNote(t)}
+			{@const named = coinRowLabel(t)}
 			<div class="row" data-testid="coin-row">
 				<div class="who">
-					<span class="reason">{t.isTransfer ? 'Withdrawal' : t.category_name}</span>
+					<span class="reason">{t.isTransfer ? 'Withdrawal' : named.label}</span>
 					<!-- GLYPH, TONE AND WORD, the same three signals the category
 					     picker carries, from the same module -- so a fine reads as a
 					     fine in the list you choose it from and in the history it
@@ -77,7 +79,7 @@
 					</span>
 				</div>
 				<div class="meta">
-					{#if t.note}<span class="note-text">{t.note}</span>{/if}
+					{#if t.note && !named.fromNote}<span class="note-text">{t.note}</span>{/if}
 					<span class="since">
 						{#if showActor && t.actor_email}by {t.actor_email} &middot; {/if}{when(t.created_at)}
 					</span>
@@ -195,7 +197,8 @@
 		border-color: var(--violet);
 		background: color-mix(in srgb, var(--violet) 8%, transparent);
 	}
-	.type-chip.payout {
+	.type-chip.payout,
+	.type-chip.deposit {
 		color: var(--cyan);
 		border-color: var(--cyan);
 		background: color-mix(in srgb, var(--cyan) 6%, transparent);

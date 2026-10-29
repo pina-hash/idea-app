@@ -217,6 +217,10 @@ describe('the session-two settings (mirroring 0245)', () => {
 		expect(fieldValue(field('role_window_start'), '7:30')).toHaveProperty('problem');
 		expect(fieldValue(field('debt_relief_fines_since'), '2026-02-30')).toHaveProperty('problem');
 		expect(fieldValue(field('background_guidance'), 'x'.repeat(4001))).toHaveProperty('problem');
+		// Ledger 0455: the deposit minimum, a whole number from 1 to 1000 (0322's rule).
+		expect(fieldValue(field('deposit_minimum'), '5')).toEqual({ value: 5 });
+		expect(fieldValue(field('deposit_minimum'), '0')).toHaveProperty('problem');
+		expect(fieldValue(field('deposit_minimum'), '2.5')).toHaveProperty('problem');
 	});
 
 	it('keeps a date list sorted, unique and clean', () => {

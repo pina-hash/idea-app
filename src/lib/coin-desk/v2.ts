@@ -229,6 +229,10 @@ export function coinRefusalWords(r: CoinRefusal): string {
 			return 'Refused: this student already holds an Eating Pass.';
 		case 'cap_exceeded':
 			return `Refused: the Extra Credit cap is reached (${r.used_points} of ${r.cap_points} points used this semester, ${r.remaining_points} left).`;
+		case 'below_minimum':
+			return `Refused: a deposit is at least ${coins(num(r.minimum as number | string | undefined))}. Nothing was recorded.`;
+		case 'deposit_amount':
+			return 'Refused: a deposit is a whole number of coins.';
 		case 'error':
 			return r.message ? `Error: ${r.message}` : 'Something went wrong on the server.';
 		default:

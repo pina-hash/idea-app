@@ -427,6 +427,7 @@ const settings: Record<string, unknown> = {
 	background_min_kb_per_megapixel: 100,
 	background_days_between: 14,
 	donation_cap_coins: 10,
+	deposit_minimum: 5,
 	donation_cap_days: 14,
 	payday_dates: [],
 	no_class_days: ['2026-11-11', '2027-01-04', '2027-01-18'],
@@ -502,6 +503,8 @@ function settingOk(key: string, v: unknown): boolean {
 		case 'chronic_debt_weeks':
 		case 'role_stipend_weeks':
 			return whole(v, 1, 120);
+		case 'deposit_minimum':
+			return whole(v, 1, 1000);
 		case 'donation_cap_coins':
 		case 'digest_gain_threshold':
 			return between(v, 0, 100000);

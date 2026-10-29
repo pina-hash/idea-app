@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COIN_TXN_TYPES, coinTxnType, type CoinTxnType } from '../src/lib/coin-format';
+import { COIN_TXN_TYPES, coinRowLabel, coinTxnType, type CoinTxnType } from '../src/lib/coin-format';
 import {
 	categoryTxnType,
 	COIN_TYPE_GLYPHS,
@@ -34,7 +34,7 @@ describe('coin transaction type presentation', () => {
 		// extra one is a type this app no longer has, styled forever.
 		expect(Object.keys(COIN_TYPE_TONES).sort()).toEqual([...COIN_TXN_TYPES].sort());
 		expect(Object.keys(COIN_TYPE_GLYPHS).sort()).toEqual([...COIN_TXN_TYPES].sort());
-		expect(COIN_TXN_TYPES.length).toBe(5);
+		expect(COIN_TXN_TYPES.length).toBe(6);
 	});
 
 	it('gives every type a glyph that is distinct in name and in geometry', () => {
@@ -84,6 +84,9 @@ describe('coin transaction type presentation', () => {
 		expect(categoryTxnType({ id: 'weekly_wage', kind: 'award' })).toBe('award');
 		expect(categoryTxnType({ id: 'eating_violation', kind: 'fine' })).toBe('fine');
 		expect(categoryTxnType({ id: 'balance_correction', kind: 'adjustment' })).toBe('adjustment');
+		// Ledger 0455: the deposit category is kind award and reads as a deposit,
+		// the same shape as the payout.
+		expect(categoryTxnType({ id: 'coin_deposit', kind: 'award' })).toBe('deposit');
 
 		// Every answer it can give has a glyph and a tone: the two maps above
 		// are exhaustive over the union, and this is the union in practice.
@@ -93,10 +96,22 @@ describe('coin transaction type presentation', () => {
 			['eating_pass', 'purchase'],
 			['weekly_wage', 'award'],
 			['eating_violation', 'fine'],
-			['balance_correction', 'adjustment']
+			['balance_correction', 'adjustment'],
+			['coin_deposit', 'award']
 		] as const) {
 			seen.add(categoryTxnType({ id, kind }));
 		}
 		expect([...seen].sort()).toEqual([...COIN_TXN_TYPES].sort());
+	});
+});
+
+describe('what a row is called in a list (ledger 0455, report 65c46fcf)', () => {
+	it('a Custom record is called by its note; every other row by its category, notes and all', () => {
+		expect(coinRowLabel({ category_id: 'custom_award', category_name: 'Custom Award', note: ' IDEA-Blade finals: 1st place ' })).toEqual({ label: 'IDEA-Blade finals: 1st place', fromNote: true });
+		expect(coinRowLabel({ category_id: 'custom_fine', category_name: 'Custom Fine', note: 'pointing a laser' }).label).toBe('pointing a laser');
+		expect(coinRowLabel({ category_id: 'custom_purchase', category_name: 'Custom Purchase', note: '' })).toEqual({ label: 'Custom Purchase', fromNote: false });
+		// Control: a listed category keeps its name, even with a note.
+		expect(coinRowLabel({ category_id: 'off_task_device_use', category_name: 'Off-Task', note: 'phone out' })).toEqual({ label: 'Off-Task', fromNote: false });
+		expect(coinRowLabel({ category_id: 'custom_award', category_name: 'Custom Award', note: 'x'.repeat(300) }).label).toHaveLength(120);
 	});
 });

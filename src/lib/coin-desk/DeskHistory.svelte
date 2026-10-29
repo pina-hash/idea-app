@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		coinAmountDisplay,
+		coinRowLabel,
 		coinTxnType,
 		COIN_TXN_TYPE_LABELS,
 		signedCoins,
@@ -188,9 +189,10 @@
 		{#each rows as t (t.id)}
 			{@const type = coinTxnType(t, kinds[t.category_id])}
 			{@const amount = amountOf(t)}
+			{@const named = coinRowLabel(t)}
 			<li class="row" class:undone={t.undone} class:uncounted={!t.counted} data-testid="cd-history-row">
 				<div class="who">
-					<span class="reason">{t.isPayout ? 'Payout' : t.category_name}</span>
+					<span class="reason">{t.isPayout ? 'Payout' : named.label}</span>
 					<span class="type-chip {type}">
 						<CoinTypeGlyph {type} size={12} />
 						{t.isPayout ? 'Payout' : COIN_TXN_TYPE_LABELS[type]}
@@ -211,7 +213,7 @@
 					{/if}
 				</div>
 				<div class="meta">
-					{#if t.note}<span class="note-text">{t.note}</span>{/if}
+					{#if t.note && !named.fromNote}<span class="note-text">{t.note}</span>{/if}
 					<span class="since">{sinceLine(t)}</span>
 				</div>
 				<div class="actions">
@@ -448,7 +450,8 @@
 		color: var(--violet-ink);
 		border-color: var(--violet);
 	}
-	.type-chip.payout {
+	.type-chip.payout,
+	.type-chip.deposit {
 		color: var(--cyan);
 		border-color: var(--cyan);
 	}
