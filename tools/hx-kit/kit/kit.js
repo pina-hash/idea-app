@@ -138,9 +138,32 @@ function kitRenderPlan() {
         var off = d.off === true;
         return '<button type="button" class="hx-day' + (today ? ' is-today' : '') + (off ? ' is-off' : '') + '"' +
           (off ? ' disabled' : '') + ' data-go-phase="' + kitEsc(p.id) + '" data-go-day="' + kitEsc(d.label) + '" aria-pressed="false">' +
-          '<span class="d1">' + kitEsc(d.label) + '</span><span class="d2">' + kitEsc(d.short || p.name) + '</span></button>';
+          '<span class="d1">' + kitEsc(kitDayLabel(d)) + '</span><span class="d2">' + kitEsc(d.short || p.name) + '</span></button>';
       }).join('') + '</div></div>';
   }).join('');
+}
+
+/* A day's words. A day that names a pacing step ("pace": "<step id>", ledger 0458,
+   report f8c1b1d8) shows its typed label and the date the portal resolved from the
+   class calendar ("Class 5 · Oct 26"), so no date is typed into the page; with no
+   portal, or no matching step, it shows the label alone. */
+function kitDayLabel(d) {
+  if (d.pace && d.paced) return (d.label ? d.label + ' · ' : '') + kitDay(d.date);
+  return d.label;
+}
+/* Give each pace day its date from the schedule's pacing; true when anything moved. */
+function kitApplyPacing(steps) {
+  if (!KIT.plan || !Array.isArray(KIT.plan.phases)) return false;
+  var byId = {};
+  steps.forEach(function (p) { if (p && typeof p.id === 'string' && typeof p.day === 'string') byId[p.id] = p.day; });
+  var moved = false;
+  KIT.plan.phases.forEach(function (ph) {
+    (ph.days || []).forEach(function (d) {
+      if (!d || typeof d.pace !== 'string' || !byId[d.pace]) return;
+      if (d.date !== byId[d.pace] || !d.paced) { d.date = byId[d.pace]; d.paced = true; moved = true; }
+    });
+  });
+  return moved;
 }
 
 /* ---- Steps --------------------------------------------------------------- */
@@ -335,6 +358,7 @@ function kitRefresh() {
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
   kitMarkPaste();
+  kitSendSteps();
 }
 
 /* ---- Tap tips: a tap toggles, the width fits inside the page ------------ */
@@ -417,7 +441,7 @@ HX.onSaved.push(function (d) {
   var b = document.getElementById('hx-failed');
   if (b) { b.hidden = !!d.ok; if (!d.ok) b.textContent = 'Not saved yet: ' + (d.reason || 'check the connection.') + ' Keep this page open and try again.'; }
 });
-new MutationObserver(kitLabelThemeKey).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+new MutationObserver(function () { kitLabelThemeKey(); kitSendSteps(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
 /* ---- The glossary: one definition per term, used by every tip ---------- */
 /* A JSON script element with id hx-glossary holds {"term": "definition"}; a
@@ -529,6 +553,10 @@ function kitDay(day) {
 HX.onState.push(function (d) {
   var s = d && d.schedule;
   if (!s || typeof s !== 'object') return;
+  /* The school's today, and the plan's days from the calendar (ledger 0458). */
+  var dayMoved = false;
+  if (typeof s.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.today) && s.today !== KIT.today) { KIT.today = s.today; dayMoved = true; }
+  if (kitApplyPacing(Array.isArray(s.pacing) ? s.pacing : []) || dayMoved) { kitRenderPlan(); kitRefresh(); }
   var due = s.due && s.due.day ? 'Due ' + kitDay(s.due.day) : 'No due date';
   kitQ('[data-idea-due]').forEach(function (el) { el.textContent = due; });
   var steps = Array.isArray(s.pacing) ? s.pacing : [];
@@ -541,4 +569,48 @@ HX.onState.push(function (d) {
         }).join('') + '</ol>'
       : '');
   });
+});
+
+/* ---- One header and one rail (ledger 0458, report 4930ba0e) -------------
+   A portal that can draw the steps says so with idea:host { steps, title }
+   after the first state. From then on the page tells it its steps after every
+   refresh, with idea:steps { steps: [{ title, done, optional, phase, color }],
+   current, next }, color being the step's phase fill for the current theme.
+   With steps: true the kit hides its own step track and its "You are here"
+   line; with title: true it hides its own title, so a student sees one header
+   and one rail. idea:go-step { index } shows that step. A portal that never
+   sends idea:host hears no idea:steps and changes nothing here. */
+KIT.host = { steps: false, title: false, heard: false };
+var KIT_STEPS_SENT = '';
+function kitSendSteps() {
+  if (!KIT.steps.length || !HX.ready || !KIT.host.heard) return;
+  var steps = KIT.steps.map(function (s, i) {
+    var fill = '';
+    try { fill = getComputedStyle(s.el).getPropertyValue('--hx-fill').trim(); } catch (e) { fill = ''; }
+    return { title: s.title, done: kitStepDone(i), optional: kitStepOptional(i), phase: s.phaseName || '', color: fill };
+  });
+  var msg = { type: 'idea:steps', steps: steps, current: KIT.cur, next: kitFirstOpen(0) };
+  var key = JSON.stringify(msg);
+  if (key === KIT_STEPS_SENT) return;
+  KIT_STEPS_SENT = key;
+  send(msg);
+}
+function kitHostShow(el, show) { if (el) el.style.display = show ? '' : 'none'; }
+function kitApplyHost() {
+  kitHostShow(document.getElementById('hx-track'), !KIT.host.steps);
+  kitHostShow(document.querySelector('#hx-bar .hx-where'), !KIT.host.steps);
+  kitQ('.hx-hero h1, .hx-hero .hx-crumb').forEach(function (el) { kitHostShow(el, !KIT.host.title); });
+  hxQueueLayout();
+}
+addEventListener('message', function (e) {
+  var d = e.data;
+  if (e.source !== parent || !d || typeof d !== 'object') return;
+  if (d.type === 'idea:host') {
+    KIT.host = { steps: d.steps === true, title: d.title === true, heard: true };
+    kitApplyHost();
+    KIT_STEPS_SENT = '';
+    kitSendSteps();
+  } else if (d.type === 'idea:go-step' && typeof d.index === 'number' && d.index >= 0 && d.index < KIT.steps.length && Math.floor(d.index) === d.index) {
+    kitShow(d.index, { focus: true });
+  }
 });

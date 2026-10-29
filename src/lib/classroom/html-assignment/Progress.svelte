@@ -85,7 +85,7 @@
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import AnswersLeft from '$lib/classroom/html-assignment/AnswersLeft.svelte';
 	import { hxAnswersLeft, type HxJumpResult } from '$lib/classroom/html-assignment/answers-left';
-	import type { HxImageState } from '$lib/classroom/html-assignment/bridge';
+	import { hxStepsCount, type HxImageState, type HxSteps } from '$lib/classroom/html-assignment/bridge';
 	import type { HxSaveStatus } from '$lib/classroom/html-assignment/answers';
 	import {
 		HX_MIRROR_UNAVAILABLE,
@@ -109,7 +109,9 @@
 		values,
 		images = {},
 		status = null,
-		onjump = null
+		onjump = null,
+		steps = null,
+		ongostep = null
 	}: {
 		/** The manifest STORED AT IMPORT, never one a frame sent. */
 		manifest: HtmlAssignmentManifest;
@@ -128,6 +130,14 @@
 		 * absent (a read-only mount), the chips stay words.
 		 */
 		onjump?: ((field: string) => Promise<HxJumpResult> | HxJumpResult) | null;
+		/**
+		 * THE DOCUMENT'S STEPS (ledger 0458, report 4930ba0e): a kit document
+		 * reports them and the rail draws them, so the page shows one rail.
+		 * Counted over REQUIRED steps only (report 88ad281b). Null draws none.
+		 */
+		steps?: HxSteps | null;
+		/** A step key was pressed; the page sends `idea:go-step`. Null draws the steps as words. */
+		ongostep?: ((index: number) => void) | null;
 	} = $props();
 
 	const progress = $derived(hxProgress(manifest, values, images, { unsaved: status?.unsaved ?? [] }));
@@ -163,6 +173,9 @@
 
 	const leftGroups = $derived(onjump ? hxAnswersLeft(manifest, progress) : []);
 	let left = $state<ReturnType<typeof AnswersLeft> | null>(null);
+
+	const stepCount = $derived(steps ? hxStepsCount(steps) : null);
+	const stepHere = $derived(steps ? steps.steps[steps.current] : null);
 
 	/** A stable id for `aria-describedby`; one rail per mount. */
 	const noteId = `hxp-note-${Math.random().toString(36).slice(2, 8)}`;
@@ -284,6 +297,48 @@
 		</ul>
 	{/if}
 
+	{#if steps && stepCount && stepHere}
+		<!-- THE DOCUMENT'S STEPS, drawn here so the page has one rail (ledger
+		     0458). The count is over required steps; an extra step after the
+		     finish is drawn and marked, never counted. -->
+		<nav class="hxp-steps" aria-label="Steps in this assignment" data-testid="hxp-steps">
+			<p class="hxp-steps-line" data-testid="hxp-steps-line">
+				{#if stepHere.optional}
+					Extra step: {stepHere.title}
+				{:else}
+					Step {steps.steps.slice(0, steps.current + 1).filter((x) => !x.optional).length} of {stepCount.of}: {stepHere.title}
+				{/if}
+				<span class="hxp-steps-count">{stepCount.done} of {stepCount.of} steps done</span>
+			</p>
+			<ol class="hxp-step-keys">
+				{#each steps.steps as step, i (i)}
+					<li>
+						{#if ongostep}
+							<button
+								type="button"
+								class="hxp-step"
+								class:is-done={step.done}
+								class:is-here={i === steps.current}
+								class:is-extra={step.optional}
+								style={step.color ? `--hxp-step: ${step.color};` : undefined}
+								aria-current={i === steps.current ? 'step' : undefined}
+								aria-label="{step.optional ? 'Extra step' : `Step ${i + 1}`}: {step.title}{step.done ? ', done' : ''}"
+								data-testid="hxp-step"
+								onclick={() => ongostep?.(i)}
+							>
+								<span class="hxp-step-mark" aria-hidden="true">{step.done ? '✓' : step.optional ? '+' : i + 1}</span>
+							</button>
+						{:else}
+							<span class="hxp-step" class:is-done={step.done} class:is-here={i === steps.current} class:is-extra={step.optional}>
+								<span class="hxp-step-mark" aria-hidden="true">{step.done ? '✓' : step.optional ? '+' : i + 1}</span>
+							</span>
+						{/if}
+					</li>
+				{/each}
+			</ol>
+		</nav>
+	{/if}
+
 	{#if onjump && leftGroups.length}
 		<AnswersLeft bind:this={left} groups={leftGroups} {onjump} />
 	{/if}
@@ -307,6 +362,71 @@
 		background: var(--surface-1);
 		color: var(--text-1);
 		min-width: 0;
+	}
+
+	/* THE DOCUMENT'S STEPS (ledger 0458). Each key is a 44px tap target; the
+	   phase colour the document sent rings it, and green says done. */
+	.hxp-steps {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		min-width: 0;
+	}
+	.hxp-steps-line {
+		margin: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 var(--space-2);
+		font-family: var(--font-display);
+		font-weight: 600;
+		color: var(--text-1);
+		overflow-wrap: anywhere;
+	}
+	.hxp-steps-count {
+		font-family: var(--font-mono);
+		font-weight: 400;
+		font-size: 0.8rem;
+		color: var(--text-2);
+	}
+	.hxp-step-keys {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.hxp-step {
+		--hxp-step: var(--boundary);
+		display: inline-grid;
+		place-items: center;
+		min-width: 44px;
+		min-height: 44px;
+		padding: 0;
+		border: 2px solid var(--hxp-step);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+		color: var(--text-1);
+		font-family: var(--font-mono);
+		font-size: 0.9rem;
+	}
+	button.hxp-step {
+		cursor: pointer;
+	}
+	.hxp-step.is-extra {
+		border-style: dashed;
+		color: var(--text-2);
+	}
+	.hxp-step.is-done {
+		background: color-mix(in oklab, var(--green) 22%, var(--surface-2));
+		color: var(--text-1);
+	}
+	.hxp-step.is-here {
+		box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--text-1);
+	}
+	button.hxp-step:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 3px;
 	}
 
 	.hxp-head {

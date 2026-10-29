@@ -195,6 +195,8 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		 *   `onexpand`   -- full page opened or closed (ledger 0431); the page
 		 *                   lifts its stacking context. A boolean of the frame's own
 		 *                   chrome, nothing from the document.
+		 *   `onsteps`    -- the document's steps (ledger 0458): titles and done
+		 *                   flags the rail draws, never a value stored anywhere.
 		 * None of them can reach `classroom_save_response`.
 		 *
 		 * THE LIST IS PINNED, so a FIFTH callback added to the frame lands in
@@ -206,7 +208,7 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		// nothing a student typed: they take and release a team box's lock. The
 		// grading mount hands neither down, and the instructor's team view uses
 		// focus only to open a box's history.
-		const NOTIFY_PROPS = ['onannotate', 'ondropped', 'onexpand', 'onfieldblur', 'onfieldfocus', 'onheight', 'onnote', 'onready'];
+		const NOTIFY_PROPS = ['onannotate', 'ondropped', 'onexpand', 'onfieldblur', 'onfieldfocus', 'onheight', 'onnote', 'onready', 'onsteps'];
 		const unaccounted = unique.filter(
 			(p) => !WRITE_PROPS.includes(p as (typeof WRITE_PROPS)[number]) && !NOTIFY_PROPS.includes(p)
 		);

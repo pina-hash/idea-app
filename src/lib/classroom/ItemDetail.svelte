@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { HxTeamProgress } from '$lib/classroom/html-assignment/team';
+	import type { HxSteps } from '$lib/classroom/html-assignment/bridge';
 	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
 	import {
 		ideacadMount,
@@ -779,6 +780,14 @@
 	 */
 	let htmlFrame = $state<ReturnType<typeof HtmlAssignmentFrame> | null>(null);
 	let htmlExpanded = $state(false);
+	/**
+	 * THE DOCUMENT'S STEPS (ledger 0458, report 4930ba0e): a kit document
+	 * reports them, the rail draws them, and while the rail is on screen the
+	 * document is told to hide its own track (and its title when this page
+	 * shows one), so a student sees one header and one rail. Full page has no
+	 * rail, so there the document keeps its own.
+	 */
+	let htmlSteps = $state<HxSteps | null>(null);
 	const htmlJump = $derived(
 		htmlAnswers && htmlProgressManifest ? (field: string) => htmlFrame?.focusField(field) ?? 'none' : null
 	);
@@ -2994,6 +3003,8 @@
 						images={htmlImages}
 						status={htmlAnswers.status ?? null}
 						onjump={htmlJump}
+						steps={htmlSteps}
+						ongostep={(i) => htmlFrame?.goStep(i)}
 					/>
 					<!-- A PRESENTATION LINK THE STUDENT PASTED, CHECKED WHERE THEY CAN SEE
 					     IT (ledger 0360): the service it opens on and a Test key, in
@@ -3106,6 +3117,9 @@
 						lock={htmlLockNow}
 						expandable
 						onexpand={(on) => (htmlExpanded = on)}
+						onsteps={(s) => (htmlSteps = s)}
+						hostSteps={!!(htmlAnswers && htmlProgressManifest) && !htmlExpanded}
+						hostTitle={titleShown && !htmlExpanded}
 						chrome={htmlJump && htmlLeftGroups.length ? fullPageChrome : null}
 						readOnly={!htmlWrites}
 						onchange={htmlWrites?.onchange}

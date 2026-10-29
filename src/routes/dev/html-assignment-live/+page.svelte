@@ -23,6 +23,7 @@
 	import { hxProgress } from '$lib/classroom/html-assignment/progress';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import type { AssignmentLockState } from '$lib/classroom/html-assignment/lock';
+	import type { HxSteps } from '$lib/classroom/html-assignment/bridge';
 
 	let { data } = $props();
 
@@ -45,6 +46,8 @@
 	let expanded = $state(false);
 	let jumps = $state<{ field: string; result: HxJumpResult }[]>([]);
 	let frame = $state<ReturnType<typeof HtmlAssignmentFrame> | null>(null);
+	/** The document's steps (ledger 0458), drawn in the rail as the item page does. */
+	let steps = $state<HxSteps | null>(null);
 
 	const src = $derived(`${data.sandboxOrigin}/hx/${data.docId}`);
 	const groups = $derived(hxAnswersLeft(manifest, hxProgress(manifest, values, {})));
@@ -62,7 +65,8 @@
 			expanded,
 			values: { ...values },
 			left: groups.flatMap((g) => g.items.map((i) => i.field)),
-			jumps: jumps.map((j) => `${j.field}=${j.result}`)
+			jumps: jumps.map((j) => `${j.field}=${j.result}`),
+			steps: steps ? { n: steps.steps.length, current: steps.current } : null
 		};
 	});
 </script>
@@ -83,7 +87,11 @@
 		<p class="note" data-testid="live-lock">lock: {lock}</p>
 	</header>
 
-	<Progress {manifest} {values} onjump={jump} />
+	{#if data.showTitle}
+		<h2 class="live-title" data-testid="live-post-title">{manifest.title}</h2>
+	{/if}
+
+	<Progress {manifest} {values} onjump={jump} {steps} ongostep={(i) => frame?.goStep(i)} />
 
 	{#if data.spacer}
 		<div class="spacer" aria-hidden="true" data-testid="live-spacer"></div>
@@ -102,6 +110,9 @@
 		minHeight={240}
 		onready={() => (ready = true)}
 		onchange={(c) => (values = { ...values, [c.field]: c.value })}
+		onsteps={(s) => (steps = s)}
+		hostSteps={data.hostSteps && !expanded}
+		hostTitle={data.showTitle && !expanded}
 	/>
 </main>
 
@@ -134,6 +145,10 @@
 		display: flex;
 		gap: var(--space-2, 0.5rem);
 		flex-wrap: wrap;
+	}
+	.live-title {
+		margin: 0;
+		font-family: var(--font-display);
 	}
 	.spacer {
 		height: 1400px;

@@ -956,3 +956,22 @@ export function hxDocument(docId: string, isDev: boolean): HxDocument | null {
 export function hxFieldMap(docId: string, isDev: boolean): Record<string, string> {
 	return hxDocument(docId, isDev)?.fieldToBlockId ?? {};
 }
+
+/**
+ * THE KIT'S OWN STARTER, BUILT ON THE KIT IN THIS TREE (ledger 0458), for the
+ * browser pass over one header and one rail. Dev only, and built when asked:
+ * `tools/hx-kit/build.mjs` reads the kit off disk, which only a dev server
+ * has, so the import is kept out of every bundle. Null everywhere else.
+ */
+export const HX_KIT_FIXTURE_ID = 'kit-starter';
+
+export async function hxKitFixture(docId: string, isDev: boolean): Promise<HxDocument | null> {
+	if (!isDev || docId !== HX_KIT_FIXTURE_ID) return null;
+	const { pathToFileURL } = await import('node:url');
+	const { readFileSync } = await import('node:fs');
+	const { resolve } = await import('node:path');
+	const kit = pathToFileURL(resolve('tools/hx-kit/build.mjs')).href;
+	const { build } = (await import(/* @vite-ignore */ kit)) as { build: (source: string) => string };
+	const html = build(readFileSync(resolve('tools/hx-kit/starter.src.html'), 'utf8'));
+	return { html, devOnly: true, fieldToBlockId: {} };
+}

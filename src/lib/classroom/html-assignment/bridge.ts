@@ -383,6 +383,77 @@ export const HX_TEAM_STATE_TYPE = 'idea:team-state';
 export const HX_TEAM_TRACKER_TYPE = 'idea:team-tracker';
 
 /**
+ * ONE HEADER AND ONE RAIL (ledger 0458, report 4930ba0e). The parent sends
+ * `idea:host` (it draws the steps, and the title when the item page shows
+ * one); a kit document then hides its own track (and title) and reports its
+ * steps with `idea:steps` (titles, done, optional, phase, the phase's fill for
+ * the current theme, the step on screen and the next one to do), which the
+ * parent draws in the progress rail, sending `idea:go-step` when a student
+ * picks a step. Advisory both ways: a document that never answers keeps its
+ * own track and title, and a document is never sent to a parent that did not
+ * ask (the kit reports nothing until it hears `idea:host`).
+ */
+export const HX_STEPS_TYPE = 'idea:steps';
+export const HX_HOST_TYPE = 'idea:host';
+export const HX_GO_STEP_TYPE = 'idea:go-step';
+
+/** At most this many steps are drawn; a document reporting more is refused. */
+export const HX_MAX_STEPS = 60;
+/** A step title is a line, not a paragraph. Longer ones are cut. */
+export const HX_STEP_TITLE_MAX = 120;
+
+/** One step as the parent draws it. */
+export interface HxStep {
+	title: string;
+	done: boolean;
+	/** Depth after the finish line: drawn, never counted. */
+	optional: boolean;
+	phase: string;
+	/** A CSS colour the document resolved for its phase, or '' when it sent none the parent accepts. */
+	color: string;
+}
+
+/** What `idea:steps` becomes. `current` and `next` are indexes; `next` is -1 when every counted step is done. */
+export interface HxSteps {
+	steps: HxStep[];
+	current: number;
+	next: number;
+}
+
+/**
+ * THE ONE COLOUR SHAPE ACCEPTED FROM A DOCUMENT: a hex colour or a plain
+ * `rgb()`, `rgba()`, `hsl()` or `oklch()` of numbers, percentages, dots,
+ * commas, spaces and slashes. It lands in a parent `style` attribute, so
+ * anything else (a `url(`, a `var(`, a semicolon) is dropped to ''.
+ */
+const HX_STEP_COLOR = /^(#[0-9a-fA-F]{3,8}|(rgb|rgba|hsl|hsla|oklch)\([0-9.,%\s/deg-]{1,80}\))$/;
+
+export function hxStepColor(raw: unknown): string {
+	if (typeof raw !== 'string') return '';
+	const c = raw.trim();
+	return HX_STEP_COLOR.test(c) ? c : '';
+}
+
+/** The parent taking over the track (and the title). */
+export function hxHostMessage(steps: boolean, title: boolean): HxParentMessage {
+	return { type: HX_HOST_TYPE, steps, title };
+}
+
+/** Show this step. */
+export function hxGoStepMessage(index: number): HxParentMessage {
+	return { type: HX_GO_STEP_TYPE, index };
+}
+
+/**
+ * HOW FAR ALONG THE REPORTED STEPS ARE, COUNTING REQUIRED STEPS ONLY (report
+ * 88ad281b: the Rotation 2 Survey read "0 of 10 done" with 5 required).
+ */
+export function hxStepsCount(s: HxSteps): { done: number; of: number } {
+	const counted = s.steps.filter((x) => !x.optional);
+	return { done: counted.filter((x) => x.done).length, of: counted.length };
+}
+
+/**
  * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
  *
  * BYTES GO FRAME-TO-PARENT ONLY, NEVER BACK. An `idea:image` carries a
@@ -483,6 +554,17 @@ export type HxParentMessage =
 	  }
 	| ({ type: typeof HX_TEAM_TRACKER_TYPE } & HxTeamTracker)
 	| {
+			/** The parent draws the steps (and the title). See `HX_HOST_TYPE`. */
+			type: typeof HX_HOST_TYPE;
+			steps: boolean;
+			title: boolean;
+	  }
+	| {
+			/** Show this step. See `HX_GO_STEP_TYPE`. */
+			type: typeof HX_GO_STEP_TYPE;
+			index: number;
+	  }
+	| {
 			/** Who may type where in a team document. See `HX_TEAM_STATE_TYPE`. */
 			type: typeof HX_TEAM_STATE_TYPE;
 			team: string;
@@ -528,7 +610,9 @@ export type HxAccepted =
 	 * parent locks that row and not the whole table.
 	 */
 	| { kind: 'field-focus'; blockId: string; field: string; row?: number }
-	| { kind: 'field-blur'; blockId: string; field: string; row?: number };
+	| { kind: 'field-blur'; blockId: string; field: string; row?: number }
+	/** The document's steps (ledger 0458). */
+	| ({ kind: 'steps' } & HxSteps);
 
 /**
  * Why a message was dropped. These are DISTINCT on purpose: "a message from
@@ -547,7 +631,8 @@ export type HxDropReason =
 	| 'height'
 	| 'video'
 	| 'image-box'
-	| 'field-box';
+	| 'field-box'
+	| 'steps';
 
 export type HxVerdict =
 	| { ok: true; message: HxAccepted }
@@ -903,6 +988,39 @@ export function hxReceive(incoming: HxIncoming, gate: HxGate): HxVerdict {
 					...(row === undefined ? {} : { row })
 				}
 			};
+		}
+
+		/**
+		 * THE DOCUMENT'S STEPS (ledger 0458). Words and flags only: a title is
+		 * text the parent prints as text, a colour passes `hxStepColor` or is
+		 * dropped, and the indexes must point inside the list (`next` may be -1).
+		 */
+		case HX_STEPS_TYPE: {
+			const raw = data.steps;
+			if (!Array.isArray(raw) || raw.length === 0 || raw.length > HX_MAX_STEPS) {
+				return { ok: false, reason: 'steps', detail: `idea:steps needs 1 to ${HX_MAX_STEPS} steps` };
+			}
+			const steps: HxStep[] = [];
+			for (const one of raw) {
+				if (!isRecord(one) || typeof one.title !== 'string' || typeof one.done !== 'boolean') {
+					return { ok: false, reason: 'steps', detail: 'idea:steps carries a step without a title and done' };
+				}
+				steps.push({
+					title: one.title.trim().slice(0, HX_STEP_TITLE_MAX),
+					done: one.done,
+					optional: one.optional === true,
+					phase: typeof one.phase === 'string' ? one.phase.trim().slice(0, HX_STEP_TITLE_MAX) : '',
+					color: hxStepColor(one.color)
+				});
+			}
+			const index = (v: unknown, min: number) =>
+				typeof v === 'number' && Number.isInteger(v) && v >= min && v < steps.length ? v : null;
+			const current = index(data.current, 0);
+			const next = data.next === -1 ? -1 : index(data.next, 0);
+			if (current === null || next === null) {
+				return { ok: false, reason: 'steps', detail: 'idea:steps current or next is not a step' };
+			}
+			return { ok: true, message: { kind: 'steps', steps, current, next } };
 		}
 
 		default:

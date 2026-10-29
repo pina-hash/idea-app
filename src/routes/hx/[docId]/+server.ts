@@ -5,7 +5,7 @@ import {
 	hxIfNoneMatchHits,
 	hxStoredDocumentHead
 } from '$lib/server/html-assignment-document';
-import { hxDocument } from '../_documents';
+import { hxDocument, hxKitFixture } from '../_documents';
 import { hxDocumentHeaders, hxOnServingHost, hxPortalOrigin } from '../_headers';
 import type { RequestHandler } from './$types';
 
@@ -103,7 +103,7 @@ const handle: RequestHandler = async ({ params, url, request }) => {
 	const csp = headers.get('content-security-policy') ?? '';
 
 	const docId = params.docId ?? '';
-	const fixture = dev ? hxDocument(docId, dev) : null;
+	const fixture = dev ? (hxDocument(docId, dev) ?? (await hxKitFixture(docId, dev))) : null;
 	let html: string;
 	if (fixture) {
 		html = fixture.html;

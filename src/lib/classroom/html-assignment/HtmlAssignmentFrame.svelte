@@ -74,6 +74,9 @@
 		hxVideoStateMessage,
 		hxThemeMessage,
 		hxThemeOf,
+		hxHostMessage,
+		hxGoStepMessage,
+		type HxSteps,
 		type HxAccepted,
 		type HxImageBox,
 		type HxVideoRect,
@@ -190,7 +193,16 @@
 		 * rendering and nothing anywhere says why. An OPTIONAL callback, so a
 		 * production surface may ignore drops while the harness counts them.
 		 */
-		ondropped
+		ondropped,
+		/**
+		 * ONE HEADER AND ONE RAIL (ledger 0458). With `hostSteps` the frame
+		 * sends `idea:host` so a kit document hides its own track and reports
+		 * its steps, which `onsteps` hears; with `hostTitle` it hides its own
+		 * title too. Absent, a document keeps both.
+		 */
+		onsteps,
+		hostSteps = false,
+		hostTitle = false
 	}: {
 		src: string;
 		title: string;
@@ -222,7 +234,13 @@
 		chrome?: Snippet | null;
 		onexpand?: (expanded: boolean) => void;
 		ondropped?: (drop: { reason: HxDropReason; detail: string }) => void;
+		onsteps?: (steps: HxSteps) => void;
+		hostSteps?: boolean;
+		hostTitle?: boolean;
 	} = $props();
+
+	/** The last `idea:host` sent, so a change is sent once. */
+	let toldHost: string | null = null;
 
 	let frame = $state<HTMLIFrameElement | null>(null);
 	let ready = $state(false);
@@ -300,6 +318,7 @@
 				toldTeam = null;
 				toldTeamState = null;
 				toldTracker = null;
+				toldHost = null;
 				video = null;
 				onready?.(message.schemaVersion);
 				// The document is listening now, so the state it should open on goes
@@ -375,6 +394,9 @@
 				break;
 			case 'field-blur':
 				onfieldblur?.({ blockId: message.blockId, field: message.field, row: message.row });
+				break;
+			case 'steps':
+				onsteps?.({ steps: message.steps, current: message.current, next: message.next });
 				break;
 			case 'field-box': {
 				const { [message.field]: _gone, ...others } = fieldBoxes;
@@ -491,6 +513,24 @@
 		watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 		return () => watch.disconnect();
 	});
+
+	/** The parent says it draws the steps (and the title) once the document is
+	    listening, and again whenever either changes. A kit document starts
+	    reporting its steps when it hears this; any other ignores it. */
+	$effect(() => {
+		if (!ready) return;
+		if (!hostSteps && !hostTitle && toldHost === null) return;
+		const key = `${hostSteps}:${hostTitle}`;
+		if (key === toldHost) return;
+		toldHost = key;
+		post(hxHostMessage(hostSteps, hostTitle));
+	});
+
+	/** Show one of the document's steps (the rail's step keys). */
+	export function goStep(index: number): void {
+		if (!ready || !Number.isInteger(index) || index < 0) return;
+		post(hxGoStepMessage(index));
+	}
 
 	/** State down, whenever it moves and the document is listening. A document
 	    that has not said `idea:ready` has no listener yet, so a send would go

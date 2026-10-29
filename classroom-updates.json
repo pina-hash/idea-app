@@ -20,6 +20,12 @@
 		},
 		{
 			"date": "2026-10-28",
+			"title": "One progress bar on page-by-page assignments, and \"any one of these\" boxes count",
+			"body": "On assignments built in steps, the step buttons now sit in the progress bar at the top of the page, so you see one title and one bar instead of two. Press a step number to go to that step. Extra steps after the finish are marked with a plus and never count against you. Where a step says to fill any one of several boxes, filling one is enough, and the bar now waits until you fill at least one. On some pages the class days now show their real dates from the class calendar.",
+			"tags": ["Assignments"]
+		},
+		{
+			"date": "2026-10-28",
 			"title": "New rotations start with their posts ready, and seeded tournaments start again",
 			"body": "When a new rotation starts, your teacher can copy the last class's assignments into your class in one step, with every due date and day-by-day plan moved to your class's own calendar, so check the dates in your own class, not the ones a friend in another rotation had. Nothing anyone else wrote, turned in or was graded on comes with it. Tournaments that use seeding matches can start their bracket again, and until the first bracket match begins your teacher can still change how many games each match is, with a longer final if they want one.",
 			"tags": ["Assignments", "Tournaments"]

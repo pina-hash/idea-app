@@ -1,7 +1,8 @@
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/public';
-import { hxDocument, hxFieldMap } from '../../hx/_documents';
+import { hxDocument, hxFieldMap, hxKitFixture } from '../../hx/_documents';
+import { fieldBlockMap, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -15,15 +16,20 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ url }) => {
 	if (!dev) error(404, 'Not found');
 	const docId = url.searchParams.get('doc') ?? 'worksheet';
-	const doc = hxDocument(docId, dev);
+	const doc = hxDocument(docId, dev) ?? (await hxKitFixture(docId, dev));
 	if (!doc) error(404, 'Not found');
 	const raw = /<script type="application\/json" id="idea-manifest">([\s\S]*?)<\/script>/.exec(doc.html)?.[1] ?? 'null';
+	// The kit starter (ledger 0458) is built here, so its field map is read
+	// off its own manifest, as the item page reads the one it stored.
+	const kitMap = hxDocument(docId, dev) ? null : Object.fromEntries(fieldBlockMap(JSON.parse(raw) as HtmlAssignmentManifest));
 	const configured = (env.PUBLIC_HX_SANDBOX_ORIGIN ?? '').trim().replace(/\/+$/, '');
 	return {
 		docId,
 		manifest: JSON.parse(raw) as unknown,
 		sandboxOrigin: configured || url.origin,
-		fieldToBlockId: hxFieldMap(docId, dev),
+		fieldToBlockId: kitMap ?? hxFieldMap(docId, dev),
+		hostSteps: url.searchParams.get('host') !== '0',
+		showTitle: url.searchParams.get('title') !== '0',
 		lock: url.searchParams.get('lock') === 'closed' ? ('closed' as const) : ('open' as const),
 		expanded: url.searchParams.get('full') === '1',
 		spacer: url.searchParams.get('spacer') !== '0'
