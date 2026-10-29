@@ -1,0 +1,118 @@
+[
+  {
+    "id": "or-class-or-class-rules",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All four count",
+        "points": 3,
+        "descriptor": "The aluminum phone stand; any project picked; stop them; two school days later."
+      },
+      {
+        "label": "Proficient",
+        "short": "Three of four",
+        "points": 2,
+        "descriptor": "Three of the four count."
+      },
+      {
+        "label": "Developing",
+        "short": "One or two",
+        "points": 1,
+        "descriptor": "One or two of the four count."
+      },
+      {
+        "label": "Absent",
+        "short": "None",
+        "points": 0,
+        "descriptor": "Nothing counts, or nothing picked."
+      }
+    ],
+    "points": 3,
+    "criterion": "The class: Knows what IDEA is, picks a project, and applies the shop and deadline rules",
+    "incomplete": false
+  },
+  {
+    "id": "or-site-or-site-use",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All three right",
+        "points": 3,
+        "descriptor": "A personal Gmail; the answers are saved; the Music price on the class page (2 on 2026-10-28)."
+      },
+      {
+        "label": "Proficient",
+        "short": "Two right",
+        "points": 2,
+        "descriptor": "Two of the three are right."
+      },
+      {
+        "label": "Developing",
+        "short": "One right",
+        "points": 1,
+        "descriptor": "One of the three is right."
+      },
+      {
+        "label": "Absent",
+        "short": "None right",
+        "points": 0,
+        "descriptor": "Nothing right, or nothing answered."
+      }
+    ],
+    "points": 3,
+    "criterion": "The site: Knows how the site works and can read it for an answer",
+    "incomplete": false
+  },
+  {
+    "id": "or-proof-or-proof-both",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both, readable",
+        "points": 2,
+        "descriptor": "The sketch can be made out, and the screenshot shows the student's own folder in the IDEA 100 project."
+      },
+      {
+        "label": "Developing",
+        "short": "One of the two",
+        "points": 1,
+        "descriptor": "Only one is in, the sketch cannot be made out, or the screenshot shows no folder of theirs."
+      },
+      {
+        "label": "Absent",
+        "short": "Neither",
+        "points": 0,
+        "descriptor": "No photo and no screenshot."
+      }
+    ],
+    "points": 2,
+    "criterion": "Your sketch and your folder: A readable sketch photo and the student's own Armory folder",
+    "incomplete": false
+  },
+  {
+    "id": "or-files-or-files-right",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both right",
+        "points": 2,
+        "descriptor": "Ask them to save and close it, then open it; export the sliced plate file to the card or drive."
+      },
+      {
+        "label": "Developing",
+        "short": "One right",
+        "points": 1,
+        "descriptor": "One of the two picks is right."
+      },
+      {
+        "label": "Absent",
+        "short": "Neither right",
+        "points": 0,
+        "descriptor": "Neither pick is right, or none is made."
+      }
+    ],
+    "points": 2,
+    "criterion": "Files and printing: Handles a file a teammate has open, and the print hand-off",
+    "incomplete": false
+  }
+]

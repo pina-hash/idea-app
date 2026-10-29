@@ -1,0 +1,238 @@
+{
+  "kind": "html-assignment",
+  "title": "Orientation",
+  "course": "IDEA 100",
+  "points": 10,
+  "modules": [
+    {
+      "id": "or-class",
+      "title": "The class",
+      "blocks": [
+        {
+          "id": "or-class-idea",
+          "type": "radio",
+          "field": "ideaPick",
+          "prompt": "Three freshmen describe a project they want to do. Which one is IDEA?"
+        },
+        {
+          "id": "or-class-team",
+          "type": "radio",
+          "field": "teamPick",
+          "prompt": "Which project are you most looking forward to?"
+        },
+        {
+          "id": "or-class-machine",
+          "type": "radio",
+          "field": "machinePick",
+          "prompt": "Your group learned the drill press today. Your partner grabs a part and heads for the bandsaw."
+        },
+        {
+          "id": "or-class-absent",
+          "type": "radio",
+          "field": "absentPick",
+          "prompt": "You are out sick, excused, for two days. A hook step was due the first day."
+        }
+      ],
+      "points": 3,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "or-class-rules",
+          "text": "Knows what IDEA is, picks a project, and applies the shop and deadline rules",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All four count",
+              "points": 3,
+              "descriptor": "The aluminum phone stand; any project picked; stop them; two school days later."
+            },
+            {
+              "label": "Proficient",
+              "short": "Three of four",
+              "points": 2,
+              "descriptor": "Three of the four count."
+            },
+            {
+              "label": "Developing",
+              "short": "One or two",
+              "points": 1,
+              "descriptor": "One or two of the four count."
+            },
+            {
+              "label": "Absent",
+              "short": "None",
+              "points": 0,
+              "descriptor": "Nothing counts, or nothing picked."
+            }
+          ],
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "or-site",
+      "title": "The site",
+      "blocks": [
+        {
+          "id": "or-site-visitor",
+          "type": "radio",
+          "field": "visitorPick",
+          "prompt": "Your neighbor's site calls them a Visitor and shows no classes. Why?"
+        },
+        {
+          "id": "or-site-saved",
+          "type": "radio",
+          "field": "savedPick",
+          "prompt": "The bell rings halfway through a post and you close the tab. Tomorrow you open it again."
+        },
+        {
+          "id": "or-site-song",
+          "type": "text",
+          "field": "songCost",
+          "prompt": "On the class page, open Music. What does a song cost, in i¢?"
+        },
+        {
+          "id": "or-site-feedback",
+          "type": "longText",
+          "field": "feedbackNote",
+          "prompt": "Stretch: what you reported through Send feedback",
+          "optional": true
+        }
+      ],
+      "points": 3,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "or-site-use",
+          "text": "Knows how the site works and can read it for an answer",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All three right",
+              "points": 3,
+              "descriptor": "A personal Gmail; the answers are saved; the Music price on the class page (2 on 2026-10-28)."
+            },
+            {
+              "label": "Proficient",
+              "short": "Two right",
+              "points": 2,
+              "descriptor": "Two of the three are right."
+            },
+            {
+              "label": "Developing",
+              "short": "One right",
+              "points": 1,
+              "descriptor": "One of the three is right."
+            },
+            {
+              "label": "Absent",
+              "short": "None right",
+              "points": 0,
+              "descriptor": "Nothing right, or nothing answered."
+            }
+          ],
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "or-proof",
+      "title": "Your sketch and your folder",
+      "blocks": [
+        {
+          "id": "or-proof-sketch",
+          "type": "image",
+          "field": "sketch",
+          "prompt": "Photo: your sketch"
+        },
+        {
+          "id": "or-proof-armory",
+          "type": "image",
+          "field": "armoryShot",
+          "prompt": "Screenshot: your folder in the class Armory project"
+        }
+      ],
+      "points": 2,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "or-proof-both",
+          "text": "A readable sketch photo and the student's own Armory folder",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both, readable",
+              "points": 2,
+              "descriptor": "The sketch can be made out, and the screenshot shows the student's own folder in the IDEA 100 project."
+            },
+            {
+              "label": "Developing",
+              "short": "One of the two",
+              "points": 1,
+              "descriptor": "Only one is in, the sketch cannot be made out, or the screenshot shows no folder of theirs."
+            },
+            {
+              "label": "Absent",
+              "short": "Neither",
+              "points": 0,
+              "descriptor": "No photo and no screenshot."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "or-files",
+      "title": "Files and printing",
+      "blocks": [
+        {
+          "id": "or-files-lock",
+          "type": "radio",
+          "field": "lockPick",
+          "prompt": "Armory shows your teammate has the base part open. You need to change one hole in it."
+        },
+        {
+          "id": "or-files-print",
+          "type": "radio",
+          "field": "printPick",
+          "prompt": "Your friend sliced their hook and pressed Print plate. What should they have done?"
+        }
+      ],
+      "points": 2,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "or-files-right",
+          "text": "Handles a file a teammate has open, and the print hand-off",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both right",
+              "points": 2,
+              "descriptor": "Ask them to save and close it, then open it; export the sliced plate file to the card or drive."
+            },
+            {
+              "label": "Developing",
+              "short": "One right",
+              "points": 1,
+              "descriptor": "One of the two picks is right."
+            },
+            {
+              "label": "Absent",
+              "short": "Neither right",
+              "points": 0,
+              "descriptor": "Neither pick is right, or none is made."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    }
+  ],
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
+  "schemaVersion": 3
+}
