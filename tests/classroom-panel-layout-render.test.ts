@@ -51,6 +51,17 @@ import { dropRootWhitespace, renderCase, renderCases } from './classroom-panel-l
  * the current render by the same whitespace and the same "20" against "19"
  * in every case, chips or none, which is this file's standing failure and
  * not the chips'.
+ * Ledger 0473 found that standing failure was the machine's clock, not the
+ * page: a first-published date at 00:00Z rendered as the 19th on a Pacific
+ * machine and the 20th in UTC, where CI and the golden live. The suite now
+ * runs in UTC (`vitest.config.ts`), and in UTC it was equal. The same ledger
+ * spliced two spans, by the same check, in the two teacher cases only (the
+ * student, bare and empty cases were equal whole): the `style` attribute of
+ * every element carrying `--ct-` banner colours (two per case, the banner and
+ * its pattern layer), because ledger 0467 moved class palettes onto the solved
+ * identity colours; and the whitespace after the New post key, which is one
+ * space wider because 9b816a6c put the Copy to class key, absent in these
+ * cases, between it and the next one.
  * `tests/classroom-class-toolbar.test.ts` asserts the row's composition. This replays the
  * same props through ClassView as it stands now, with no `panelLayout`, and
  * requires the markup to match character for character once Svelte's

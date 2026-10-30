@@ -148,6 +148,18 @@ This is the **only** automated suite, and it is deliberately narrow.
 - **Generalize, never delete, an assertion a legitimate change breaks.** If a test
   spelled out a list that adding a member necessarily breaks, assert the RULE
   instead, then re-mutate to confirm it still bites.
+- **THE SUITE RUNS IN UTC, AND A TEST MUST PASS AT EVERY HOUR (ledger 0473).**
+  `vitest.config.ts` sets `process.env.TZ` to UTC before anything starts, so the
+  embedded Postgres (whose `timezone` comes from `TZ` at initdb) and every server
+  render read the clock production and CI read; a Pacific shell used to fail 15
+  tests CI passed. That fixes the ZONE, not the HOUR: a fixture that back-dates
+  two related rows by fixed intervals from `now()` puts them on different Los
+  Angeles days in the minutes after midnight Pacific, and the test is red for
+  that half hour only. Date each row from the row it belongs to (the pass's own
+  `opened_at`, its own day), never from two separate intervals, and prove it by
+  shifting the whole process's clock (an `LD_PRELOAD` shim over `clock_gettime`
+  and `gettimeofday`, readable by the `postgres` user) to just after midnight
+  Pacific. `tests/db/coin-hallpass-minutes.test.ts` is the worked case.
 - **Drive the REAL route handler / load function**, imported from its own file, not
   a reimplementation of it.
 - **Characterize behaviour BEFORE extracting it.** Record a golden fixture from the

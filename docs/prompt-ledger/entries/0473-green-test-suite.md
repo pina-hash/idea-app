@@ -7,7 +7,7 @@
 - Owns: the failing tests and the code or fixtures they test, as listed in this entry's queue below; `tests/db/coin-hallpass-minutes.test.ts` (a midnight-dependent clock); its `docs/history/` entry; this entry.
 - Does not touch: anything lane 0469 or 0472 is editing (type, taps and width; the launcher), and student-facing content under `materials/` except where the validator, not the content, is wrong. A content fault in a material, or a header fault in a mirrored standard, is written up for the chat that owns it, never fixed here.
 - Migration permitted: no. Claims: none
-- Status: issued
+- Status: pushed
 - Mode: solo
 - Branch: main (solo)
 

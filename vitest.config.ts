@@ -56,6 +56,21 @@ import IdeaSequencer from './tests/db/sequencer';
  * the resolve condition. A second alias list is a second thing to keep in step.
  */
 
+/**
+ * THE SUITE RUNS IN UTC, WHATEVER THE MACHINE'S OWN ZONE IS (ledger 0473).
+ * Production renders on a UTC server and stores in a UTC database, and CI runs
+ * in UTC, so that is the clock every expected value in this suite was written
+ * against. A Pacific machine (Mr. Pina's, or a container whose shell exports
+ * `TZ=America/Los_Angeles`) used to fail 15 tests that pass on CI: the
+ * embedded Postgres takes its `timezone` setting from `TZ` when initdb runs,
+ * so every `timestamptz` came back as `-08:00`, and a server render of a date
+ * at 00:00Z said the 19th where the golden says the 20th. Set here, once,
+ * before the cluster (`tests/db/cluster.ts`, which inherits this environment)
+ * or any worker starts. Code that means Los Angeles names it (`America/Los_Angeles`),
+ * so this pins only what was implicit.
+ */
+process.env.TZ = 'UTC';
+
 const alias = {
 	$lib: fileURLToPath(new URL('./src/lib', import.meta.url)),
 	'$env/dynamic/private': fileURLToPath(

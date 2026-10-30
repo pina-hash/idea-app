@@ -7,6 +7,7 @@
 // a purchase quietly undoing a fine already posted. Each beside its control.
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { enrollStudent } from './harness';
 import { startCoinWorld, type CoinWorld, type Json } from './coin-market-world';
 
 let w: CoinWorld;
@@ -28,8 +29,32 @@ async function warnings(email: string): Promise<number> {
 		)
 	);
 }
-/** A pass opened by the student, back-dated to have lasted `minutes`, closed by them. */
-async function pass(u: typeof w.ana, minutes: number) {
+/**
+ * Dates every purchase `email` made as bought at the moment their open pass
+ * opened, on that moment's Los Angeles day, so it counts for that pass.
+ *
+ * WHY (ledger 0473): a pass back-dated N minutes opens on YESTERDAY in the first
+ * N minutes after midnight Pacific, while a purchase made a moment ago is
+ * stamped TODAY, and bought minutes count only on their own day. Back-dating
+ * the purchase by a fixed interval as well made the fine tests fail in the 35
+ * minutes after midnight and pass the rest of the day. Taking both the time and
+ * the day from the pass itself keeps them on one day at every hour, and the row
+ * stays one the purchase RPC can write (its `on_date` is the Los Angeles day of
+ * its own `created_at`).
+ */
+async function boughtWhenPassOpened(email: string) {
+	await w.db.sql(
+		`update public.coin_hall_pass_minutes m set created_at = h.opened_at, on_date = public._coin_la_today(h.opened_at)
+		 from public.classroom_hall_passes h
+		 where m.student_email = $1 and h.student_email = $1 and h.section_id = $2 and h.closed_at is null`,
+		[email, w.s1]
+	);
+}
+/**
+ * A pass opened by the student, back-dated to have lasted `minutes`, closed by
+ * them. With `bought`, their purchases are dated to just when it opened.
+ */
+async function pass(u: typeof w.ana, minutes: number, bought = false) {
 	const open = await w.rpc<Json>(u, `public.classroom_hall_pass_open($1::uuid)`, [w.s1]);
 	expect(open.ok, JSON.stringify(open)).toBe(true);
 	await w.db.sql(
@@ -37,6 +62,7 @@ async function pass(u: typeof w.ana, minutes: number) {
 		 where section_id = $1 and closed_at is null`,
 		[w.s1, minutes * 60]
 	);
+	if (bought) await boughtWhenPassOpened(u.email);
 	const close = await w.rpc<Json>(u, `public.classroom_hall_pass_close_mine($1::uuid)`, [w.s1]);
 	expect(close.ok, JSON.stringify(close)).toBe(true);
 }
@@ -50,7 +76,9 @@ beforeAll(async () => {
 	await w.db.sql(`update public.classroom_hall_pass_budget_start set effective_at = now() - interval '1 day'`);
 	// A day budget big enough that the passes below are never blocked.
 	await w.db.sql(`update public.classroom_sections set hall_pass_daily_minutes = 120 where id = $1`, [w.s1]);
-	for (const s of [w.ana, w.ben, w.dee, w.eve]) await w.give(s.email, 20);
+	// Cal joins this class too, for the auto check-in test's own purchase.
+	await enrollStudent(w.db, { as: w.owner, sectionId: w.s1, email: w.cal.email, displayName: 'cal (roster)', createdAt: new Date(Date.now() - 90 * 86400000).toISOString() });
+	for (const s of [w.ana, w.ben, w.cal, w.dee, w.eve]) await w.give(s.email, 20);
 }, 600_000);
 
 afterAll(async () => w?.db.stop());
@@ -93,21 +121,25 @@ describe('the warning and fine lines move only for passes opened after the purch
 
 	test('a pass opened after buying 15 minutes is not fined at 25 minutes (lines at 25 and 30)', async () => {
 		expect((await buy(w.dee, 3)).ok).toBe(true);
-		await w.db.sql(`update public.coin_hall_pass_minutes set created_at = now() - interval '40 minutes' where student_email = $1`, [w.dee.email]);
-		await pass(w.dee, 25);
+		await pass(w.dee, 25, true);
 		expect(await fines(w.dee.email)).toBe(0);
 		// The warning moved from 10 to 25: at 25 it warns.
 		expect(await warnings(w.dee.email)).toBe(1);
 	});
 
 	test('the fine line never passes the auto check-in: a pass run to it is fined', async () => {
-		// Dee bought 15 (lines 25 and min(35, 30) = 30). A pass to the 30-minute auto check-in is fined.
-		await w.rpc(w.dee, `public.classroom_hall_pass_open($1::uuid)`, [w.s1]);
-		await w.db.sql(`update public.classroom_hall_passes set opened_at = now() - interval '35 minutes' where section_id = $1 and closed_at is null`, [w.s1]);
-		// The bought minutes still predate this pass.
-		await w.rpc(w.dee, `public.classroom_hall_pass_state($1::uuid)`, [w.s1]);
-		expect(await fines(w.dee.email)).toBe(1);
-		const minutes = Number(await w.scalar(`select (meta ->> 'bought_minutes') v from public.coin_transactions where student_email = $1 and category_id = 'long_bathroom_break'`, [w.dee.email]));
+		// Cal buys 15 (lines 25 and min(35, 30) = 30). A pass to the 30-minute auto
+		// check-in is fined. Cal and not Dee (ledger 0473): Dee's pass above opened
+		// 25 minutes ago and this one 35, and between 00:25 and 00:35 Pacific those
+		// are two different days, which one purchase cannot both belong to.
+		expect((await buy(w.cal, 3)).ok).toBe(true);
+		await w.rpc(w.cal, `public.classroom_hall_pass_open($1::uuid)`, [w.s1]);
+		await w.db.sql(`update public.classroom_hall_passes set opened_at = now() - interval '35 minutes' where section_id = $1 and student_email = $2 and closed_at is null`, [w.s1, w.cal.email]);
+		// The bought minutes predate this pass, on its day.
+		await boughtWhenPassOpened(w.cal.email);
+		await w.rpc(w.cal, `public.classroom_hall_pass_state($1::uuid)`, [w.s1]);
+		expect(await fines(w.cal.email)).toBe(1);
+		const minutes = Number(await w.scalar(`select (meta ->> 'bought_minutes') v from public.coin_transactions where student_email = $1 and category_id = 'long_bathroom_break'`, [w.cal.email]));
 		expect(minutes).toBe(15);
 	});
 

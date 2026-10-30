@@ -8,15 +8,28 @@
 // manifest gate in the database (0195, 0301) never reads `pacing`, so the only
 // gate this push touches is `validateHtmlManifest`, and only by adding WARNINGS.
 // So, for every HTML assignment exported under `materials/` (one per document
-// ever imported, ledger 0431):
-//   1. it carries no `pacing` key, so the new reader and the new warnings say
-//      nothing about it: its validation is unchanged by construction;
-//   2. the same document with a well-formed `pacing` added validates with the
+// ever imported, ledger 0431), taken with its own `pacing` removed (the
+// document as it was before the key existed):
+//   1. the reader and the warnings say nothing about the bare document;
+//   2. the document AS STORED, with whatever plan its author gave it, validates
+//      with the identical errors, and only gains the warnings its own plan
+//      earns (none for a well-formed plan);
+//   3. the same document with a well-formed `pacing` added validates with the
 //      identical errors and warnings, and the reader returns the steps;
-//   3. the same document with a malformed `pacing` added still validates with
+//   4. the same document with a malformed `pacing` added still validates with
 //      the identical ERRORS (no refusal) and only gains warnings.
-// The positive control is (2)'s reader output and (3)'s extra warnings: a
+// The positive control is (3)'s reader output and (4)'s extra warnings: a
 // no-op reader or a validator that never ran would fail them.
+//
+// LEDGER 0473: this used to assert that NO stored document carries the key,
+// which was true on the day the gate widened (ledger 0439) and stopped being
+// true the day a teacher used the feature: the two IDEA209H Launcher posts
+// were given real plans on 2026-10-29 and the sweep went red over content
+// that is exactly what the key is for. That assertion was a fact about
+// `materials/`, a directory the app writes (docs/subsystems/testing.md, "never
+// assert over a directory the app writes"); the rule it stood in for, that a
+// plan never decides whether a document imports, is what (2) now asserts over
+// every stored plan, whatever is in the directory on the day.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -62,13 +75,20 @@ describe('pacing on every stored HTML assignment', () => {
 		it(`${doc.name} validates exactly as before, with pacing added or broken`, () => {
 			const json = extractManifestScript(doc.html).json;
 			expect(json).not.toBeNull();
-			const manifest = JSON.parse(json!) as Record<string, unknown>;
-			const before = validateHtmlManifest(doc.html);
+			const stored = JSON.parse(json!) as Record<string, unknown>;
+			const { pacing: ownPacing, ...manifest } = stored;
+			const bareHtml = ownPacing === undefined ? doc.html : withManifest(doc.html, manifest);
+			const before = validateHtmlManifest(bareHtml);
 
-			// 1. Nothing stored carries the key, so the reader is silent.
-			expect(manifest.pacing).toBeUndefined();
+			// 1. With no plan, the reader is silent.
 			expect(manifestPacing(manifest)).toEqual([]);
 			expect(manifestPacingWarnings(manifest)).toEqual([]);
+
+			// 2. The document as stored: its own plan never changes the errors, and
+			// adds only the warnings that plan earns.
+			const asStored = validateHtmlManifest(doc.html);
+			expect(asStored.errors).toEqual(before.errors);
+			expect([...asStored.warnings].sort()).toEqual([...before.warnings, ...manifestPacingWarnings(stored)].sort());
 
 			const moduleIds = (manifest.modules as { id: string }[]).map((m) => m.id);
 			const good = {
@@ -79,14 +99,14 @@ describe('pacing on every stored HTML assignment', () => {
 				]
 			};
 			const withGood = validateHtmlManifest(withManifest(doc.html, good));
-			// 2. Identical answer; the reader sees both steps.
+			// 3. Identical answer; the reader sees both steps.
 			expect(withGood.errors).toEqual(before.errors);
 			expect(withGood.warnings).toEqual(before.warnings);
 			expect(manifestPacing(good).map((s) => s.id)).toEqual(['d1', 'd2']);
 
 			const bad = { ...manifest, pacing: [{ id: 'bad id', day: 0 }, { id: 'x', title: 'Both', day: 2, date: '2026-11-02' }] };
 			const withBad = validateHtmlManifest(withManifest(doc.html, bad));
-			// 3. No refusal, only warnings.
+			// 4. No refusal, only warnings.
 			expect(withBad.errors).toEqual(before.errors);
 			expect(withBad.warnings.length).toBe(before.warnings.length + 2);
 			expect(manifestPacing(bad)).toEqual([]);
