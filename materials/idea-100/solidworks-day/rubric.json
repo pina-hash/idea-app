@@ -1,112 +1,86 @@
 [
   {
-    "id": "swday-wrench-steps",
+    "id": "swd-wrench-steps",
     "levels": [
       {
         "label": "Complete",
-        "short": "All twelve steps shown",
-        "points": 4,
-        "descriptor": "Twelve screenshots, each showing what its step asks for."
+        "short": "All twelve",
+        "points": 6,
+        "descriptor": "Twelve screenshots, each showing what its step's You should see line describes."
       },
       {
         "label": "Proficient",
-        "short": "Nine to eleven steps",
-        "points": 3,
+        "short": "Nine to eleven",
+        "points": 4,
         "descriptor": "Nine to eleven steps have a matching screenshot."
       },
       {
         "label": "Developing",
-        "short": "Fewer than nine steps",
-        "points": 1,
+        "short": "One to eight",
+        "points": 2,
         "descriptor": "One to eight steps have a matching screenshot."
       },
       {
         "label": "Absent",
-        "short": "No screenshots",
+        "short": "None",
         "points": 0,
-        "descriptor": "No screenshots pasted."
+        "descriptor": "No screenshots."
       }
     ],
-    "points": 4,
-    "criterion": "The Wrench: A screenshot for every wrench step, each showing what the step asks for",
+    "points": 6,
+    "criterion": "The wrench: A screenshot for every wrench step, each showing what its step asks for",
     "incomplete": false
   },
   {
-    "id": "swday-drills-drills",
+    "id": "swd-hook-start",
     "levels": [
       {
         "label": "Complete",
-        "short": "All three drills shown",
+        "short": "Started, named",
         "points": 2,
-        "descriptor": "Three drill screenshots, each showing its goal."
+        "descriptor": "The screenshot shows V1_ and the student's last name at the top, and at least the two rule circles sized from their own sketch."
       },
       {
         "label": "Developing",
-        "short": "One or two drills",
+        "short": "Misnamed or empty",
         "points": 1,
-        "descriptor": "One or two drills have a matching screenshot."
+        "descriptor": "A part, but misnamed, or nothing from their own design in it yet."
       },
       {
         "label": "Absent",
-        "short": "No drills shown",
+        "short": "No screenshot",
         "points": 0,
-        "descriptor": "No drill screenshots."
+        "descriptor": "No screenshot."
       }
     ],
     "points": 2,
-    "criterion": "Drills: A screenshot for each drill, done with the hints or without them",
+    "criterion": "Your V1: V1 is started from the student's own sketch and saved under the V1_ name",
     "incomplete": false
   },
   {
-    "id": "swday-hook-file",
+    "id": "swd-hook-note",
     "levels": [
       {
         "label": "Complete",
-        "short": "Started, named, handed in",
+        "short": "Both, specific",
         "points": 2,
-        "descriptor": "V1_LASTNAME.SLDPRT is handed in and holds at least the two rule circles from your own sketch."
+        "descriptor": "Says what they built and names a specific problem and what they did about it."
       },
       {
         "label": "Developing",
-        "short": "Misnamed or nearly empty",
+        "short": "Vague",
         "points": 1,
-        "descriptor": "A part file is handed in but is misnamed or holds no sketch from your design."
+        "descriptor": "One sentence, or nothing specific."
       },
       {
         "label": "Absent",
-        "short": "No part file",
+        "short": "Blank",
         "points": 0,
-        "descriptor": "No part file handed in."
+        "descriptor": "Nothing written."
       }
     ],
     "points": 2,
-    "criterion": "Your Hook: The hook part file is started from your own sketch and handed in",
-    "incomplete": false
-  },
-  {
-    "id": "swday-hook-shot",
-    "levels": [
-      {
-        "label": "Complete",
-        "short": "Shown and described",
-        "points": 2,
-        "descriptor": "A screenshot of your hook so far and two sentences."
-      },
-      {
-        "label": "Developing",
-        "short": "Shown or described",
-        "points": 1,
-        "descriptor": "Only the screenshot or only the sentences."
-      },
-      {
-        "label": "Absent",
-        "short": "Nothing here",
-        "points": 0,
-        "descriptor": "No screenshot and no sentences."
-      }
-    ],
-    "points": 2,
-    "criterion": "Your Hook: A screenshot of the hook so far and two sentences on what you did and what stopped you",
+    "criterion": "Your V1: Two sentences on what was made and what stopped them or what they solved alone",
     "incomplete": false
   }
 ]
