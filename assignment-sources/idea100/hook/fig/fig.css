@@ -1,0 +1,115 @@
+/* Mr. Pina's Rotation 2 hook diagrams (class "fg"), drawn with the kit's roles.
+   The highlight is the element's own named color (--hx-*); a break is --fg-no, set by a stress-high wrapper. */
+.r2 { --fig-hl: var(--hx-ink); --fig-hl-fill: var(--hx-wash); --fig-line: var(--plate-ink); --fig-part: var(--panel-top);
+  --fig-part2: var(--well-face); --fig-plate: var(--well-face); --fig-lay: var(--text-2); --ink: var(--plate-ink); --ink2: var(--plate-ink);
+  --ink3: var(--text-2); --edge: var(--hair); --fg-win: var(--panel-top); --fg-winbar: var(--well-face); --fg-ui: var(--well-face);
+  --fg-field: var(--well-face); --fg-menu: var(--panel-top); --fg-scr: var(--screen-top); --fg-scr-ink: var(--screen-ink);
+  --fg-scr-dim: var(--text-2); --fg-scr-row: var(--well-face); --fg-glass: var(--well-face); --fg-bed: var(--well-face);
+  --fg-paper: var(--panel-top); --fg-paper-ink: var(--plate-ink); --fg-ok: var(--accent); --mono: var(--font-mono); --panel: var(--panel-top); --drop: transparent; }
+.r2-no { --fg-no: var(--hx-ink); }
+.r2 .fg { display: block; width: 100%; height: auto; max-height: 230px; overflow: visible; }
+.fg {display: block; width: 100%; height: auto; overflow: visible;}
+.fg text {font-family: var(--mono);}
+.fg .tx {font-size: 11px; fill: var(--ink2);}
+.fg .txs {font-size: 10px; fill: var(--ink3); font-weight: 700;}
+.fg .txg {font-size: 11px; fill: var(--fig-hl); font-weight: 700;}
+.fg .txr {font-size: 11px; fill: var(--fg-no); font-weight: 700;}
+.fg .tb {font-size: 11.5px; fill: var(--ink); font-weight: 700;}
+.fg .tbg {font-size: 11.5px; fill: var(--fig-hl); font-weight: 700;}
+.fg .tbr {font-size: 11.5px; fill: var(--fg-no); font-weight: 700;}
+.fg .tbw {font-size: 11.5px; fill: var(--hx-on, var(--plate-ink)); font-weight: 700;}
+.fg .tf {font-size: 11px; fill: var(--ink);}
+.fg .tfg {font-size: 11px; fill: var(--fig-hl); font-weight: 700;}
+.fg .wt {font-size: 9.5px; fill: var(--ink3); font-weight: 700; letter-spacing: .06em;}
+.fg .big {font-size: 22px; fill: var(--fig-hl); font-weight: 700;}
+.fg .big2 {font-size: 15px; fill: var(--fig-hl); font-weight: 700;}
+.fg .win {fill: var(--fg-win); stroke: var(--edge); stroke-width: 1.2;}
+.fg .winbar {fill: var(--fg-winbar);}
+.fg .ui {fill: var(--fg-ui); stroke: var(--edge); stroke-width: 1;}
+.fg .field {fill: var(--fg-field); stroke: var(--edge); stroke-width: 1;}
+.fg .menu {fill: var(--fg-menu); stroke: var(--edge); stroke-width: 1; filter: drop-shadow(0 3px 4px var(--drop));}
+.fg .btn {fill: var(--fg-ui); stroke: var(--edge); stroke-width: 1;}
+.fg .btng {fill: var(--fig-hl);}
+.fg .hl {fill: var(--fig-hl-fill); stroke: var(--fig-hl); stroke-width: 1.6;}
+.fg .hlo {fill: none; stroke: var(--fig-hl); stroke-width: 2.4; stroke-dasharray: 5 3;}
+.fg .ink {stroke: var(--fig-line); stroke-width: 1.6; fill: none;}
+.fg .ink2 {stroke: var(--fig-line); stroke-width: 3; fill: none; stroke-linecap: round;}
+.fg .hair {stroke: var(--ink3); stroke-width: 1; fill: none; stroke-dasharray: 3 3;}
+.fg .fg-ahp {fill: var(--fig-line);}
+.fg .fg-ahg {fill: var(--fig-hl);}
+.fg .fg-ahr {fill: var(--fg-no);}
+.fg .bd, .fg use.bd {fill: var(--fig-part); stroke: var(--fig-line); stroke-width: 1.6; stroke-linejoin: round;}
+.fg .bd2 {fill: var(--fig-part2); stroke: var(--fig-line); stroke-width: 1.4;}
+.fg use.bdg, .fg .bdg {fill: var(--fig-hl-fill); stroke: var(--fig-hl); stroke-width: 1.8;}
+.fg use.ghost {fill: none; stroke: var(--ink3); stroke-width: 1.4; stroke-dasharray: 4 3;}
+.fg use {vector-effect: non-scaling-stroke;}
+.fg use * {vector-effect: non-scaling-stroke;}
+.fg .spool {fill: var(--fig-part2); stroke: var(--fig-line); stroke-width: 1;}
+.fg .glass {fill: var(--fg-glass); stroke: var(--fig-line); stroke-width: 1.2;}
+.fg .plate, .fg .plate2 {fill: var(--fig-plate); stroke: var(--fig-line); stroke-width: 1.4;}
+.fg .bed {fill: var(--fg-bed); stroke: var(--fig-line); stroke-width: 1.2;}
+.fg .scr {fill: var(--fg-scr); stroke: var(--edge); stroke-width: 1;}
+.fg .st {font-size: 11px; fill: var(--fg-scr-ink); font-weight: 700;}
+.fg .sts {font-size: 10px; fill: var(--fg-scr-dim);}
+.fg .stg {font-size: 11px; fill: var(--screen-ink); font-weight: 700;}
+.fg .stbig {font-size: 17px; fill: var(--screen-ink); font-weight: 700;}
+.fg .scrhl {fill: transparent; stroke: var(--screen-ink); stroke-width: 1.4;}
+.fg .scrrow {fill: var(--fg-scr-row);}
+.fg .slotc {fill: var(--fg-scr-row); stroke: var(--hair);}
+.fg .slothl {fill: transparent; stroke: var(--screen-ink); stroke-width: 1.4;}
+.fg .spoolc {fill: none; stroke: var(--fg-scr-dim); stroke-width: 3;}
+.fg .slot {fill: var(--fig-line);}
+.fg .noz {fill: var(--fig-line);}
+.fg .tube {fill: none; stroke: var(--fig-hl); stroke-width: 3; stroke-linecap: round;}
+.fg .tube2 {fill: none; stroke: var(--ink3); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 4;}
+.fg .file {fill: var(--fg-win); stroke: var(--fig-line); stroke-width: 1.4;}
+.fg .arr {fill: none; stroke: var(--fig-hl); stroke-width: 2.4; stroke-dasharray: 6 4;}
+.fg .ptr {fill: var(--panel-top); stroke: var(--plate-ink); stroke-width: 1.2; stroke-linejoin: round;}
+.fg .lay {stroke: var(--fig-lay); stroke-width: 1;}
+.fg .pullr {stroke: var(--fg-no); stroke-width: 3; stroke-linecap: round;}
+.fg .pullg {stroke: var(--fig-hl); stroke-width: 3; stroke-linecap: round;}
+.fg .okc {fill: var(--fg-ok);}
+.fg .okm {fill: none; stroke: var(--hx-on, var(--plate-ink)); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;}
+.fg .noc {fill: var(--fg-no);}
+.fg .nom {fill: none; stroke: var(--hx-on, var(--plate-ink)); stroke-width: 2.4; stroke-linecap: round;}
+.fg .sect {fill: var(--fig-part2);}
+.fg .wall {fill: var(--fig-part); stroke: var(--fig-line); stroke-width: 1.2;}
+.fg .infill {stroke: var(--fig-lay); stroke-width: 1.2; fill: none;}
+.fg .knob {fill: var(--fig-hl); stroke: var(--fg-win); stroke-width: 2;}
+.fg .stop {fill: var(--fig-line);}
+.fg .glue {fill: transparent; stroke: var(--text-2); stroke-dasharray: 3 3;}
+.fg .paper {fill: var(--fg-paper); stroke: var(--edge);}
+.fg .tbp {font-size: 12px; fill: var(--fg-paper-ink); font-weight: 700; letter-spacing: .1em;}
+.fg .txp {font-size: 10px; fill: var(--text-2); font-weight: 700;}
+.fg .hairp {stroke: var(--hair); stroke-width: 1;}
+.fg .lineg {stroke: var(--fig-hl); stroke-width: 3; stroke-linecap: round;}
+.fg .liner {fill: none; stroke: var(--fg-no); stroke-width: 3; stroke-linecap: round;}
+.fg .blob {fill: var(--fg-no);}
+.fg .crack {fill: none; stroke: var(--fg-no); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;}
+.fg .tagc {fill: var(--fig-hl);}
+.fg .tagt {font-size: 9px; fill: var(--hx-on, var(--plate-ink)); font-weight: 700;}
+.fg .dml {stroke: var(--fig-hl); stroke-width: 2;}
+.fg .dmring {fill: none; stroke: var(--fig-hl); stroke-width: 2; stroke-dasharray: 4 3;}
+.fg .dmc {fill: var(--panel); stroke: var(--fig-hl); stroke-width: 1.6;}
+.fg .dmt {font-size: 12px; font-weight: 700; fill: var(--fig-hl);}
+.fg .dmg, .fg .dm {transition: opacity .15s;}
+.fg.dimfocus .dmg:not(.on), .fg.dimfocus .dm:not(.on) {opacity: .25;}
+.fg .dm.on .dmc {fill: var(--fig-hl);}
+.fg .dm.on .dmt {fill: var(--hx-on, var(--plate-ink));}
+.fg .jo {fill: none; stroke: var(--fig-line); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round;}
+.fg .ji {fill: none; stroke: var(--fig-part); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round;}
+.fg .jg {fill: none; stroke: var(--ink3); stroke-width: 2; stroke-dasharray: 4 3;}
+.fg .jgi {fill: none; stroke: none;}
+.fg .jgreen {fill: none; stroke: var(--fig-hl-fill); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round;}
+.fg .tooth {fill: none; stroke: var(--fig-hl); stroke-width: 2; stroke-linejoin: round;}
+.fg .ghost {fill: none; stroke: var(--ink3); stroke-width: 1.4; stroke-dasharray: 4 3;}
+.fg .pin {fill: var(--fg-win); stroke: var(--fig-line); stroke-width: 2;}
+.fg .rope {fill: none; stroke: var(--fig-hl); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;}
+.fg .lam {fill: none; stroke: var(--fig-lay); stroke-width: 1;}
+.fg .cm {stroke: var(--ink3); stroke-width: 1; fill: none;}
+.fg .qm {font-size: 34px; font-weight: 700; fill: var(--fig-hl); font-family: var(--mono);}
+.fg .hot {fill: var(--fg-no); stroke: var(--fg-no); stroke-width: 1; opacity: .9;}
+.fg .add {fill: var(--fig-hl); stroke: none; opacity: .95;}
+.fg .lens {fill: var(--fg-glass); stroke: var(--fig-hl); stroke-width: 3;}
+.fg .lensh {stroke: var(--fig-hl); stroke-width: 5; stroke-linecap: round;}
+.fg .simo {stroke: var(--fig-line); stroke-width: 1.4;}
