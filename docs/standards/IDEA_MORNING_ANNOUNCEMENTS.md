@@ -1,5 +1,5 @@
 # IDEA Morning Announcements Standard
-**Version 1.6 - 2026-10-21**
+**Version 1.7 - 2026-10-26**
 
 How FRC Team 5669 and the IDEA pathway get an item into Bosco Tech's morning
 announcements: where the request goes, when it is due, what the email looks like, how the
