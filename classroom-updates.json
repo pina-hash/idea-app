@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-10-30",
+			"title": "Home screen apps are lit like film stills",
+			"body": "Every app card on the home screen is now a dark scene lit by one light in the app's own color: a brass light on a board for Classroom, a coin on its edge for the Coin Ledger, a floodlight over the track for GREENLINE, a molten pour for the Foundry. The app's icon and name sit on the left, nothing else is written on the card, and the cards look the same in every theme.",
+			"tags": ["Visual"]
+		},
+		{
 			"date": "2026-10-29",
 			"title": "Calendar links open your own class",
 			"body": "On your class page, clicking a post on the calendar or the week strip now opens it in your class, not another block's copy.",

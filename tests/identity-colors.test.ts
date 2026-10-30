@@ -10,9 +10,10 @@
  *
  * THE LAUNCHER IS NOT IN THIS ANY MORE (ledger 0472, decision 73). Ledger 0467
  * put the home screen's apps into six shared colour families under this rule;
- * Mr. Pina called the result off-brand and decided every card is a miniature
- * of its own app, "unique visually, completely, like real apps on a
- * computer". So a launcher card quotes its room's own colours (held by
+ * Mr. Pina called the result off-brand and decided every card is its own
+ * app's, "unique visually, completely, like real apps on a computer" (since
+ * ledger 0474, its icon and title on a banner in the room's own colours). So
+ * a launcher card quotes its room's own colours (held by
  * tests/home-order-and-accent.test.ts), reads no `--id-*` token, is under no
  * hue budget, and may be neon where its room is.
  *
@@ -201,10 +202,12 @@ describe('3. each screen holds at most seven hues, told apart in every vision', 
 		const launcher = read('src/lib/AppLauncher.svelte');
 		const cards = read('src/lib/launcher/cards.css');
 		const art = read('src/lib/launcher/CardArt.svelte');
+		const scenes = read('src/lib/launcher/art.ts');
 		// Positive control: these are the files that paint the cards.
 		expect(cards).toMatch(/\.app-card\[data-app='coins'\]/);
-		expect(art).toMatch(/app === 'greenline'/);
-		for (const [name, src] of [['AppLauncher', launcher], ['cards.css', cards], ['CardArt', art]] as const) {
+		expect(art).toContain('sceneSvg(app)');
+		expect(scenes).toMatch(/\bgreenline\(app: App, ctx: Ctx\)/);
+		for (const [name, src] of [['AppLauncher', launcher], ['cards.css', cards], ['CardArt', art], ['art.ts', scenes]] as const) {
 			expect(src, name).not.toMatch(/--id-[a-z]+(?:-[a-z]+)*-(ink|fill|on|line|wash)\b/);
 			expect(src, name).not.toContain('data-family');
 		}
@@ -296,8 +299,7 @@ const NEON_ALLOWED: Record<string, string> = {
 	'src/app.css': 'var(--green) fallbacks in two shared rules',
 	'src/routes/admin/': 'the Drive connect pages, a standalone admin response',
 	'src/routes/dashboard/': 'a comment recording a measurement',
-	'src/routes/dev/': 'dev harness fixtures',
-	'src/lib/launcher/cards.css': 'decision 73: a card quotes its room, and the Coin Ledger, VANGUARD and GAUNTLET are neon rooms (held block by block below)'
+	'src/routes/dev/': 'dev harness fixtures'
 };
 
 /** This lane's own surfaces: none may be covered by the list above. */
@@ -306,6 +308,8 @@ const OWNED = [
 	'src/lib/portal-apps.ts',
 	'src/lib/launcher/CardArt.svelte',
 	'src/lib/launcher/rooms.ts',
+	'src/lib/launcher/art.ts',
+	'src/lib/launcher/cards.css',
 	'src/lib/marks/',
 	'src/lib/calendar/',
 	'src/lib/classroom/class-theme.ts',
@@ -335,19 +339,14 @@ describe('4. no neon literal left in src/', () => {
 		expect(stale).toEqual([]);
 	});
 
-	it('the launcher carries neon only on the cards of rooms that are neon themselves', () => {
-		const bare = read('src/lib/launcher/cards.css').replace(/\/\*[\s\S]*?\*\//g, '');
-		const neonRooms = new Set(LAUNCHER_ROOMS.filter((r) => r.neon).map((r) => r.id));
-		const carriers: string[] = [];
-		for (const m of bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-			if (!NEON.test(m[2])) continue;
-			const id = m[1].match(/data-app='([a-z-]+)'/)?.[1] ?? m[1].trim();
-			carriers.push(id);
-		}
-		// Positive control: the neon rooms' cards were found carrying it.
-		expect(carriers.length).toBeGreaterThan(2);
-		expect(carriers.filter((id) => !neonRooms.has(id))).toEqual([]);
-		expect([...neonRooms].sort()).toEqual(['coins', 'gauntlet', 'vanguard']);
+	it('the launcher carries no neon: every card is lit by its sample hue, toned off neon (ledger 0475)', () => {
+		/* Decision 73's second amendment: the chosen sample governs, and it
+		   tones the Coin Ledger, VANGUARD and GAUNTLET off neon. */
+		const cards = read('src/lib/launcher/cards.css');
+		expect(cards).toMatch(/data-app='coins'/); // positive control: the file was read
+		expect(NEON.test(cards)).toBe(false);
+		expect(NEON.test(read('src/lib/launcher/art.ts'))).toBe(false);
+		for (const r of LAUNCHER_ROOMS) expect(NEON.test([r.hue, r.core, r.ground].join(' ')), r.id).toBe(false);
 	});
 
 	it('POSITIVE CONTROL: the pattern finds each spelling the site used', () => {

@@ -20,8 +20,6 @@ export interface PortalApp {
 	id: string;
 	title: string;
 	sub: string;
-	/** Icon id rendered by the launcher (line-art SVG). */
-	icon: string;
 	href: string;
 	/** Card CTA label. */
 	cta: string;
@@ -44,13 +42,15 @@ export interface PortalApp {
 	 * and VANGUARD carry their own product colours and the FRC card carries
 	 * FIRST's brand.
 	 *
-	 * Every card's look is its own app's now (ledger 0472, decision 73), and it
-	 * lives in `$lib/launcher/cards.css`, keyed on the `data-app` attribute the
-	 * card already carries, with the site plate as the live default for any app
-	 * that declares nothing. There is no `family` field either: ledger 0467
+	 * Every card's look is its own app's light now (ledger 0475, decision 73
+	 * as amended), and it lives in `$lib/launcher/cards.css`, keyed on the
+	 * `data-app` attribute the card already carries, with the site plate as
+	 * the live default for any app that declares nothing; its scene and icon
+	 * are drawn from the app's `id` by `$lib/launcher/art.ts`. There is no `family` field either: ledger 0467
 	 * grouped the apps into six shared hues and decision 73 retired that. A
 	 * new app therefore arrives as a plain plate card, and gets its own look
-	 * with one block in cards.css and one entry in `$lib/launcher/rooms.ts`.
+	 * with one entry in `$lib/launcher/rooms.ts`, one scene and icon in
+	 * `$lib/launcher/art.ts` and one block in cards.css.
 	 *
 	 * What belongs in THIS file is the app's identity (`id`), not its paint. A
 	 * colour field here would put the value back on the losing side of the
@@ -77,7 +77,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'classroom',
 		title: 'Classroom',
 		sub: 'Announcements, assignments and due dates.',
-		icon: 'classroom',
 		href: '/classroom',
 		cta: 'Open',
 		requiresAuth: true
@@ -86,7 +85,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'notebook',
 		title: 'My Notebook',
 		sub: 'Photograph notebook pages and keep every entry.',
-		icon: 'notebook',
 		href: '/classroom/notebook',
 		cta: 'Open',
 		// Every signed-in account, whatever their role: a notebook is a
@@ -97,7 +95,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'ideacad',
 		title: 'IdeaCAD',
 		sub: '3D CAD for your models, features and design rules.',
-		icon: 'ideacad',
 		href: '/ideacad',
 		cta: 'Design',
 		requiresAuth: true
@@ -106,7 +103,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'armory',
 		title: 'IDEA Armory',
 		sub: 'Team CAD files on every computer, every version kept.',
-		icon: 'armory',
 		href: '/armory',
 		cta: 'Open',
 		// A signed-in surface: every /armory page renders its own sign-in, and
@@ -117,7 +113,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'maps',
 		title: 'IDEA Maps',
 		sub: 'Find any room, tool or drawer in the shop.',
-		icon: 'maps',
 		href: '/maps',
 		cta: 'Find',
 		// NO `requiresAuth`, AND THAT IS THE ENTRY'S ONE REAL DECISION.
@@ -160,7 +155,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		// question "which of these two do I want" is answered by either card on
 		// its own rather than by comparing them.
 		sub: 'Where everyone reads coins. Nothing here changes a balance.',
-		icon: 'coins',
 		href: '/coins/index.html',
 		cta: 'View live'
 	},
@@ -175,7 +169,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'market',
 		title: 'IDEA Market',
 		sub: 'The shop, listings, jobs that pay, and the stock market.',
-		icon: 'market',
 		href: '/market',
 		cta: 'Shop',
 		requiresAuth: true
@@ -184,7 +177,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'gauntlet',
 		title: 'IDEA · GAUNTLET',
 		sub: 'CAD skills dojo: read drawings, model against the clock.',
-		icon: 'gauntlet',
 		href: '/gauntlet',
 		cta: 'Enter',
 		requiresAuth: true
@@ -193,7 +185,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'frc',
 		title: 'FRC Training',
 		sub: 'Team 5669 training: CAD, mechanisms, controls, strategy.',
-		icon: 'frc',
 		href: '/frc',
 		cta: 'Enter',
 		requiresAuth: true,
@@ -205,7 +196,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'greenline',
 		title: 'IDEA · GREENLINE',
 		sub: 'Combat racing under the floodlights. Hold the line.',
-		icon: 'greenline',
 		href: '/greenline',
 		cta: 'Race',
 		requiresAuth: true
@@ -214,7 +204,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'vanguard',
 		title: 'IDEA · VANGUARD',
 		sub: 'Top-down arcade shooter. Chase the high score.',
-		icon: 'vanguard',
 		href: '/vanguard/',
 		cta: 'Play'
 	},
@@ -222,7 +211,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'foundry',
 		title: 'IDEA · FOUNDRY',
 		sub: 'Web apps built and published by students.',
-		icon: 'foundry',
 		href: '/foundry',
 		cta: 'Browse',
 		// Signed-in: this flag is about the GALLERY, and it is not a claim about
@@ -249,7 +237,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'tournaments',
 		title: 'Tournaments',
 		sub: 'Live brackets: register, qualify, follow every match.',
-		icon: 'tournament',
 		href: '/tournaments',
 		cta: 'View'
 	},
@@ -277,7 +264,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		// string. A stored `admin` id is simply never matched again, which is
 		// what a retired id has always done here.
 		sub: 'Reviews, feedback, rosters and site tools. Admin only.',
-		icon: 'dashboard',
 		href: '/dashboard',
 		cta: 'Open',
 		adminOnly: true

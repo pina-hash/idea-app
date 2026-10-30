@@ -18,7 +18,7 @@
 // change to a ground re-measures every twin with no edit to this file.
 //
 // THE LAUNCHER IS NOT A TWIN AT ALL ANY MORE (ledger 0472, decision 73). A
-// home-screen card is a miniature of its own app, so on Space White it does
+// home-screen card is its own app's banner, so on Space White it does
 // what its ROOM does: a room that turns light (the plate rooms, the Coin
 // Ledger, the Foundry, Tournaments) turns its card light with the room's own
 // light values, and a room that keeps its look on every theme (GAUNTLET,
@@ -32,6 +32,8 @@
 // floor renders perfectly and reads as a slightly different color, which
 // nobody reports. That is the silent regression the suite exists for.
 
+import { iconSvg, mix } from '$lib/launcher/art';
+import { LAUNCHER_ROOMS } from '$lib/launcher/rooms';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { PATHWAYS } from '$lib/pathways';
@@ -225,17 +227,15 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 	const style = launcher.slice(launcher.indexOf('<style>'));
 	const cards = readFileSync('src/lib/launcher/cards.css', 'utf8');
 
-	it('AppLauncher paints no card per theme; the rooms that turn light carry their own Space White block', () => {
+	it('AppLauncher paints no card per theme, and no card has a theme block: a card is a film, not plate (ledger 0475)', () => {
 		// ABSENT: no theme-keyed rule in the launcher sets a card's paint.
 		expect(style).not.toMatch(/:global\(:root\[data-theme='space-white'\]\) \.app-card\b[^{]*\{[^}]*--rm-/);
 		expect(style).not.toMatch(/--acc-(ink|edge|primary)/);
-		// PRESENT: the Ledger, the Foundry, Tournaments and Maps (its own darker jade) each have one.
-		for (const id of ['coins', 'foundry', 'tournaments', 'maps']) {
-			expect(cards, id).toContain(`:root[data-theme='space-white'] .app-card[data-app='${id}']`);
-		}
-		// And the rooms that never change have none.
-		for (const id of ['gauntlet', 'greenline', 'vanguard', 'ideacad', 'frc']) {
-			expect(cards, id).not.toContain(`:root[data-theme='space-white'] .app-card[data-app='${id}']`);
+		// ABSENT: no card's ink block is keyed on a theme, so Space White keeps the dark still.
+		expect(cards.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/data-theme/);
+		// PRESENT: every app's one block (positive control on the reader).
+		for (const id of ['coins', 'foundry', 'tournaments', 'maps', 'gauntlet', 'greenline', 'vanguard', 'ideacad', 'frc']) {
+			expect(cards, id).toContain(`.app-card[data-app='${id}'] {`);
 		}
 	});
 
@@ -255,17 +255,18 @@ describe('a launcher card on a light ground (AppLauncher under Space White)', ()
 		expect(ratio(token('--boundary'), PAGE)).toBeGreaterThanOrEqual(3);
 	});
 
-	it('no launcher mark paints a literal colour, so the card ink reaches every stroke with no theme rule', () => {
-		const imported = [...launcher.matchAll(/import ([A-Z][A-Za-z]*Mark) from '\$lib\/marks\//g)].map((m) => m[1]);
-		expect(imported.length).toBeGreaterThanOrEqual(12); // positive control on the reader
+	it('every launcher icon is lit only by its own app\'s light, so no theme rule can reach a stroke (ledger 0475)', () => {
+		const ids = LAUNCHER_ROOMS.map((r) => r.id).filter((id) => id !== 'frc');
+		expect(ids.length).toBeGreaterThanOrEqual(13); // positive control on the reader
 		const offenders: string[] = [];
-		for (const name of imported) {
-			const src = readFileSync(`src/lib/marks/${name}.svelte`, 'utf8')
-				.replace(/<!--[\s\S]*?-->/g, '')
-				.replace(/\/\*[\s\S]*?\*\//g, '');
-			// Ledger 0467: no hex at all, not even as a var() fallback (the game
-			// marks' fallback was the neon chartreuse).
-			if (/#[0-9a-fA-F]{3,8}\b/.test(src)) offenders.push(name);
+		for (const id of ids) {
+			const room = LAUNCHER_ROOMS.find((r) => r.id === id)!;
+			const svg = iconSvg(id);
+			// The mask's black and white, and the core running into the hue: nothing else.
+			const allowed = new Set(['#fff', '#000', room.core, room.hue, mix(room.core, room.hue, 0.6)]);
+			for (const h of svg.match(/#[0-9a-f]{3,8}\b/gi) ?? []) if (!allowed.has(h.toLowerCase())) offenders.push(`${id} ${h}`);
+			if (!svg.includes(room.core) || !svg.includes(room.hue)) offenders.push(`${id} is not lit by its own light`);
+			if (/var\(--/.test(svg)) offenders.push(`${id} reads a theme token`);
 		}
 		expect(offenders).toEqual([]);
 		expect(ratio(parse('#eafff3').rgb, PANEL)).toBeLessThan(1.5);

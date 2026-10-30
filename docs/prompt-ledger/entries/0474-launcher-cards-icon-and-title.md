@@ -7,6 +7,6 @@
 - Owns: the same files ledger 0472 owned: `src/lib/AppLauncher.svelte`, `src/lib/portal-apps.ts`, `src/lib/launcher/**`, `src/lib/marks/**`, the launcher parts of `tools/identity-colors.mjs`, `identity.css`, `identity.ts` and `tests/identity-colors.test.ts`, `tests/home-order-and-accent.test.ts`, the launcher browser specs, `docs/subsystems/themes.md` launcher section, the CLAUDE.md launcher bullet, one `classroom-updates.json` entry, its `docs/history/` entry, this entry.
 - Does not touch: the GREENLINE and FOUNDRY cards beyond keeping them working, any app's own room, the frozen Coin Ledger page, `tools/hx-kit/`.
 - Migration permitted: no. Claims: none
-- Status: issued
+- Status: superseded by 0475, never pushed
 - Mode: solo
 - Branch: main (solo)

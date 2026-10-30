@@ -7,17 +7,20 @@
 //    completely ordinary on screen -- nobody holds both roles at once, and the
 //    only symptom is a scroll distance nobody measures.
 //
-// 2. EVERY LAUNCHER CARD IS A MINIATURE OF ITS OWN APP (ledger 0472,
-//    decision 73). Mr. Pina asked for it at least four times; every earlier
-//    attempt styled the cards from a palette instead of from the apps. What is
-//    pinned here is what he asked for, as far as source can say it: every card
-//    has its app's own paint, drawing and room entry; every colour on a card
-//    TRACES to its app's own files; no two cards share a look; a card follows
-//    its room (not the site theme) on Space White; and every word on a card
-//    clears 4.5:1 in every theme. The paint still arrives through the cascade
-//    (`$lib/launcher/cards.css`, keyed on `data-app`), never stamped inline,
-//    because an inline custom property beats every rule and a stamped colour
-//    is how eleven wrong accents once painted for months.
+// 2. EVERY LAUNCHER CARD IS A FILM STILL LIT BY ITS APP'S LIGHT (ledger
+//    0475, decision 73 as amended the second time). Mr. Pina chose
+//    "cinematic light" from four samples. What is pinned here is that choice,
+//    as far as source can say it: every card has a room, an ink block, a
+//    scene and an icon; every colour on a card is DERIVED from its app's
+//    light, recorded in rooms.ts with the sample as its source; no two cards
+//    share a look; a card is a film and looks the same on every theme; the
+//    art carries no words; and every word clears 4.5:1. The paint still
+//    arrives through the cascade (`$lib/launcher/cards.css`, keyed on
+//    `data-app`), never stamped inline, because an inline custom property
+//    beats every rule and a stamped colour is how eleven wrong accents once
+//    painted for months. What a test cannot see (the title over the
+//    brightest pixel of its scene) is measured in the browser and recorded in
+//    docs/history/launcher-cinematic-light-0475.md.
 //
 // 3. THE ACTIVE COURSES TILE. The hero's first stat is a NUMBER, which is the
 //    most silent thing a page can be wrong about: it renders, it is plausible,
@@ -34,12 +37,14 @@
 // the thing actually worth pinning.
 
 import { beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { render } from 'svelte/server';
 import Home from '../src/routes/+page.svelte';
 import AppLauncher from '$lib/AppLauncher.svelte';
+import CardArt from '$lib/launcher/CardArt.svelte';
 import { PORTAL_APPS, visibleApps, type PortalApp } from '$lib/portal-apps';
 import { LAUNCHER_ROOMS, launcherRoom, type LauncherRoom } from '$lib/launcher/rooms';
+import { ICON_IDS, SCENE_IDS, cardInks, iconSvg, sceneSvg } from '$lib/launcher/art';
 import { SECTIONS, activeCourseCount } from '$lib/curriculum';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 
@@ -330,10 +335,11 @@ describe('home page: which block comes first', () => {
 const LAUNCHER_SRC = readFileSync(new URL('../src/lib/AppLauncher.svelte', import.meta.url), 'utf8');
 const LAUNCHER_CSS = LAUNCHER_SRC.slice(LAUNCHER_SRC.lastIndexOf('<style>'));
 
-/* ---- the room paint, read from its own file ---------------------------- */
+/* ---- the card inks, read from their own file ---------------------------- */
 
 const CARDS_CSS = readFileSync(new URL('../src/lib/launcher/cards.css', import.meta.url), 'utf8');
 const CARD_ART = readFileSync(new URL('../src/lib/launcher/CardArt.svelte', import.meta.url), 'utf8');
+const ART_SRC = readFileSync(new URL('../src/lib/launcher/art.ts', import.meta.url), 'utf8');
 type Theme = 'idea' | 'matrix' | 'space-white';
 const THEMES: Theme[] = ['idea', 'matrix', 'space-white'];
 
@@ -355,37 +361,51 @@ function cardPaint(id: string, theme: Theme): Record<string, string> {
 }
 
 /** The properties that carry a colour (the rest are faces, sizes and radii). */
-const COLOUR_PROPS = /^--rm-(ground|edge|edge-hover|title|title-glow|title-img|title-fill|title-filter|accent|accent-glow|icon|sub|cta-ink|cta-bg|cta-img|cta-edge|cta-glow|cta-led|cta-dot|glow|art-bg|seam-glow|a\d+|g\d+)$/;
-
-/** The text of every source file a card names, and of its ROOM files (the site token file aside). */
-const SITE_FILE = 'src/lib/design-system/colors.css';
-const sourceText = (files: readonly string[]) => files.map((f) => readFileSync(f, 'utf8')).join('\n');
-const normalTriple = (t: string) => t.split(',').slice(0, 3).map((x) => x.trim()).join(',');
+const COLOUR_PROPS = /^--rm-(ground|edge|title|title-glow|accent|icon|icon-filter|sub|cta-ink|cta-bg|cta-edge|glow)$/;
 
 /**
- * WHY A VALUE IS NOT TRACEABLE TO ITS ROOM, or null. A literal (a hex, or an
- * rgb()/rgba() triple) must appear in one of the card's source files; a token
- * `var(--x)` must be read or declared by one of its ROOM files (not only by
- * the site token file, which declares every token there is and so would
- * vouch for anything). The fallback inside a `var()` is a literal like any
- * other. Font, size and radius tokens are not colours and are not asked.
+ * WHAT THE CARD'S BLOCK MUST SAY, from its room's light (ledger 0475). Every
+ * colour on a card is `cardInks()` of its `LAUNCHER_ROOMS` entry, whose hue,
+ * core and ground are the chosen sample's; the faces and sizes are its
+ * `title`. Returns each property the block must carry, exactly.
  */
-function untraceable(value: string, room: LauncherRoom): string | null {
-	const all = sourceText(room.sources).toLowerCase();
-	const roomText = sourceText(room.sources.filter((f) => f !== SITE_FILE));
-	for (const h of value.match(/#[0-9a-f]{3,8}\b/gi) ?? []) if (!all.includes(h.toLowerCase())) return `${h} is not in ${room.sources.join(', ')}`;
-	const triples = [...all.matchAll(/rgba?\(([^)]*)\)/g)].map((m) => normalTriple(m[1]));
-	for (const m of value.matchAll(/rgba?\(([^)]*)\)/gi)) if (!triples.includes(normalTriple(m[1]))) return `rgb(${m[1]}) is not in ${room.sources.join(', ')}`;
-	// A room may name a family of tokens through a template, as status-tone.ts
-	// does (`var(--status-${t}-solid)`): any token that fits it is read there.
-	const templates = [...roomText.matchAll(/var\((--[a-z0-9-]*)\$\{[^}]+\}([a-z0-9-]*)\)/g)].map((m) => [m[1], m[2]] as const);
-	for (const m of value.matchAll(/var\((--[a-z0-9-]+)/g)) {
-		const t = m[1];
-		if (t.startsWith('--rm-') || /^--(font|radius|plate-r)-/.test(t)) continue;
-		if (roomText.includes(`var(${t}`) || roomText.includes(`${t}:`)) continue;
-		if (templates.some(([pre, post]) => pre.length > 3 && t.startsWith(pre) && t.endsWith(post) && t.length > pre.length + post.length)) continue;
-		return `${t} is read by none of ${room.sources.filter((f) => f !== SITE_FILE).join(', ')}`;
-	}
+function expectedBlock(room: LauncherRoom): Record<string, string> {
+	const k = cardInks(room);
+	const t = room.title;
+	const out: Record<string, string> = {
+		'--rm-ground': k.ground,
+		'--rm-edge': k.edge,
+		'--rm-radius': '4px',
+		'--rm-title': k.title,
+		'--rm-title-glow': k.titleGlow,
+		'--rm-title-font': t.font,
+		'--rm-title-weight': String(t.weight),
+		'--rm-title-size': `${+(t.size / 16).toFixed(5)}rem`,
+		'--rm-title-track': t.track,
+		'--rm-icon': k.icon,
+		'--rm-sub': k.sub,
+		'--rm-cta-ink': k.ctaInk,
+		'--rm-cta-edge': k.ctaEdge,
+		'--rm-cta-bg': k.ctaBg,
+		'--rm-glow': k.glow
+	};
+	if (t.case) out['--rm-title-case'] = t.case;
+	if (t.style) out['--rm-title-style'] = t.style;
+	if (k.accent) out['--rm-accent'] = k.accent;
+	// The FIRST mark is never filtered.
+	if (room.id !== 'frc') out['--rm-icon-filter'] = k.iconFilter;
+	return out;
+}
+
+/**
+ * WHY A BLOCK DOES NOT TRACE TO ITS ROOM'S LIGHT, or null: a property it
+ * should carry and does not, one it carries that it should not, or a value
+ * that is not the derivation's.
+ */
+function untraceable(block: Record<string, string>, room: LauncherRoom): string | null {
+	const want = expectedBlock(room);
+	for (const [prop, value] of Object.entries(want)) if (block[prop] !== value) return `${prop} is ${block[prop] ?? 'missing'}, the light gives ${value}`;
+	for (const prop of Object.keys(block)) if (!(prop in want)) return `${prop} is not one of the card's inks`;
 	return null;
 }
 
@@ -487,7 +507,7 @@ describe('launcher cards: the paint arrives through the cascade, never inline', 
 		// draws, on the plate, rather than borrowing another app's look.
 		const reads = [...LAUNCHER_CSS.matchAll(/var\((--rm-[a-z0-9-]+)(\s*,|\))/g)];
 		expect(reads.length).toBeGreaterThan(15); // positive control on the reader
-		const bare = reads.filter((m) => m[2] === ')' && !['--rm-band'].includes(m[1])).map((m) => m[1]);
+		const bare = reads.filter((m) => m[2] === ')').map((m) => m[1]);
 		expect(bare).toEqual([]);
 		// And the launcher's own stylesheet declares no room paint itself.
 		expect(LAUNCHER_CSS).not.toMatch(/\.app-card\[data-app=/);
@@ -495,7 +515,7 @@ describe('launcher cards: the paint arrives through the cascade, never inline', 
 	});
 });
 
-describe('every launcher card is a miniature of its own app (ledger 0472, decision 73)', () => {
+describe('every launcher card is a film still lit by its app\'s light (ledger 0475, decision 73 as amended the second time)', () => {
 	type Rgb = { r: number; g: number; b: number };
 	type Kit = {
 		hex: (h: string) => Rgb;
@@ -530,9 +550,7 @@ describe('every launcher card is a miniature of its own app (ledger 0472, decisi
 		const groundP = col('--rm-ground', 'var(--bg1)');
 		expect(groundP.a, `${id} ${theme}: the ground is opaque`).toBe(1);
 		const ground = groundP.rgb;
-		const ctaBgP = col('--rm-cta-bg', 'transparent');
-		const ctaGround = over(ctaBgP, ground);
-		const ctaStops = (p['--rm-cta-img'] ?? '').match(/#[0-9a-f]{6}\b/gi)?.map((h) => K.hex(h)) ?? [];
+		const ctaGround = over(col('--rm-cta-bg', 'transparent'), ground);
 		return {
 			ground,
 			title: over(col('--rm-title', 'var(--text-1)'), ground),
@@ -540,138 +558,154 @@ describe('every launcher card is a miniature of its own app (ledger 0472, decisi
 			icon: over(col('--rm-icon', 'var(--text-1)'), ground),
 			sub: over(col('--rm-sub', 'var(--text-2)'), ground),
 			cta: over(col('--rm-cta-ink', 'var(--text-1)'), ctaGround),
-			ctaGrounds: [ctaGround, ...ctaStops],
+			ctaGround,
 			// The title's whole treatment: face, weight, case and tracking.
 			titleFace: [p['--rm-title-font'] ?? 'var(--font-display)', p['--rm-title-weight'] ?? '700', p['--rm-title-case'] ?? 'none', p['--rm-title-track'] ?? '0.02em'].join(' ')
 		};
 	}
+	const sceneText = (id: string) =>
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		render(CardArt as any, { props: { app: id } })
+			.body.replace(/<!--[\s\S]*?-->/g, '')
+			.replace(/<style[\s\S]*?<\/style>/g, '')
+			.replace(/<[^>]+>/g, '')
+			.trim();
 
-	it('gives every app the launcher can draw a room entry, a paint block and a drawing, and nothing else one', () => {
+	it('gives every app the launcher can draw a room, an ink block, a scene and an icon (FRC\'s is FIRST\'s), and nothing else one', () => {
 		const ids = EVERY_APP.map((a) => a.id).sort();
 		expect(ids.length).toBeGreaterThanOrEqual(14); // positive control: an admin's whole launcher
 		expect(LAUNCHER_ROOMS.map((r) => r.id).sort()).toEqual(ids);
 		const blocks = [...CARDS_CSS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/^\.app-card\[data-app='([a-z-]+)'\]\s*\{/gm)].map((m) => m[1]).sort();
 		expect(blocks).toEqual(ids);
-		const drawings = [...CARD_ART.matchAll(/app === '([a-z-]+)'/g)].map((m) => m[1]);
-		// Every app is drawn, and the Foundry's seam is the one second branch.
-		for (const id of ids) expect(drawings, id).toContain(id);
-		expect(drawings.filter((d) => !ids.includes(d))).toEqual([]);
-		// Each paint block says something: a ground, a title and an icon at least.
-		for (const id of ids) for (const prop of ['--rm-ground', '--rm-title', '--rm-icon']) expect(cardBlock(id)[prop], `${id} ${prop}`).toBeDefined();
+		expect([...SCENE_IDS].sort()).toEqual(ids);
+		expect([...ICON_IDS].sort()).toEqual(ids.filter((id) => id !== 'frc'));
+		for (const id of ids) expect(sceneSvg(id), id).toMatch(/^<svg class="scene" viewBox="0 0 340 88"/);
+		// An app nobody registered draws nothing rather than somebody else's scene.
+		expect(sceneSvg('nobody')).toBe('');
+		expect(iconSvg('nobody')).toBe('');
 	});
 
-	it('traces every colour on every card to its own app\'s files', () => {
+	it('draws one lit scene and no words on every card (decision 73: "no words in the art")', () => {
+		const drawn = EVERY_APP.map((a) => [a.id, sceneText(a.id)] as const);
+		expect(drawn.length).toBeGreaterThanOrEqual(14); // positive control
+		expect(drawn.filter(([, t]) => t !== '')).toEqual([]);
+		// Positive control on the reader: it does read text where there is some.
+		expect(sceneText('nobody')).toBe('');
+		for (const room of LAUNCHER_ROOMS) {
+			const svg = sceneSvg(room.id);
+			// Every card draws something: a ground, its light, a scrim and a vignette.
+			expect((svg.match(/<(rect|path|ellipse|circle|polygon)\b/g) ?? []).length, room.id).toBeGreaterThan(5);
+			expect(svg, `${room.id} is not lit by its own light`).toContain(room.glow ?? room.hue);
+			expect(svg, `${room.id} has no scrim in its ground`).toContain(`stop-color="${room.ground}" stop-opacity="0.940"`);
+			expect(svg, room.id).not.toMatch(/<text\b/);
+			expect(room.scene.length, room.id).toBeGreaterThan(10);
+		}
+		// The ids are the app's own, so a server render and a browser render agree and no two cards share one.
+		const ids = LAUNCHER_ROOMS.flatMap((r) => [...sceneSvg(r.id).matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
+		expect(new Set(ids).size).toBe(ids.length);
+		expect(sceneSvg('greenline')).toBe(sceneSvg('greenline'));
+	});
+
+	it('records every hue with its source: the sample Mr. Pina chose', () => {
+		for (const room of LAUNCHER_ROOMS) {
+			expect(room.source, room.id).toMatch(/^chosen sample A, 2026-10-30/);
+			for (const c of [room.hue, room.core, room.ground, room.light, room.glow].filter(Boolean)) expect(c, room.id).toMatch(/^#[0-9a-f]{6}$/);
+		}
+		// GREENLINE and the Foundry were redrawn in the same grammar at his request, and say so.
+		expect(LAUNCHER_ROOMS.filter((r) => /redrawn/.test(r.source)).map((r) => r.id).sort()).toEqual(['foundry', 'greenline']);
+	});
+
+	it('traces every colour on every card to its own app\'s light', () => {
 		const offenders: string[] = [];
 		let checked = 0;
 		for (const room of LAUNCHER_ROOMS) {
-			for (const theme of THEMES) {
-				const block = theme === 'idea' ? cardBlock(room.id) : cardBlock(room.id, theme);
-				for (const [prop, value] of Object.entries(block)) {
-					if (!COLOUR_PROPS.test(prop)) continue;
-					checked++;
-					const why = untraceable(value, room);
-					if (why) offenders.push(`${room.id} ${theme} ${prop}: ${why}`);
-				}
-			}
+			const block = cardBlock(room.id);
+			checked += Object.keys(block).filter((p) => COLOUR_PROPS.test(p)).length;
+			const why = untraceable(block, room);
+			if (why) offenders.push(`${room.id}: ${why}`);
 		}
-		expect(checked).toBeGreaterThan(150); // positive control: the reader found the paint
+		expect(checked).toBeGreaterThan(14 * 10); // positive control: the reader found the paint
 		expect(offenders).toEqual([]);
 	});
 
-	it('NEGATIVE CONTROL: the tracer refuses a colour the room does not use, and a token it does not read', () => {
+	it('NEGATIVE CONTROL: the tracer refuses a colour the light does not give, a missing ink and a stray property', () => {
 		const gauntlet = launcherRoom('gauntlet')!;
-		expect(untraceable('#00ff41', gauntlet)).toBeNull();
-		expect(untraceable('#123456', gauntlet)).toMatch(/not in/);
-		expect(untraceable('rgba(1, 2, 3, 0.4)', gauntlet)).toMatch(/not in/);
-		// The plate's tokens are the Armory's own; GAUNTLET's VIEWPORT reads none of them.
-		expect(untraceable('var(--plate-panel-top)', launcherRoom('armory')!)).toBeNull();
-		expect(untraceable('var(--plate-panel-top)', gauntlet)).toMatch(/read by none/);
-		// And the same planted value in a parsed block is caught by the block reader.
-		const planted = CARDS_CSS + "\n.app-card[data-app='gauntlet'] { --rm-a8: #123456; }\n";
-		expect(untraceable(cardBlock('gauntlet', 'idea', planted)['--rm-a8'], gauntlet)).toMatch(/not in/);
+		expect(untraceable(cardBlock('gauntlet'), gauntlet)).toBeNull();
+		const plant = (decl: string) => cardBlock('gauntlet', 'idea', CARDS_CSS + `\n.app-card[data-app='gauntlet'] { ${decl} }\n`);
+		expect(untraceable(plant('--rm-title: #123456;'), gauntlet)).toMatch(/--rm-title is #123456/);
+		expect(untraceable(plant('--rm-a8: #7fcfee;'), gauntlet)).toMatch(/--rm-a8 is not one of/);
+		const { ['--rm-sub']: _gone, ...noSub } = cardBlock('gauntlet');
+		expect(untraceable(noSub, gauntlet)).toMatch(/--rm-sub is missing/);
+		// Another card's light is refused too: the inks are this app's own.
+		expect(untraceable(cardBlock('vanguard'), gauntlet)).not.toBeNull();
 	});
 
-	it('draws no colour of its own in CardArt but the Foundry pour, which is the forge\'s own', () => {
-		const foundry = sourceText(launcherRoom('foundry')!.sources).toLowerCase();
-		const literals = CARD_ART.replace(/<!--[\s\S]*?-->/g, '').match(/#[0-9a-f]{6}\b/gi) ?? [];
-		expect(literals.length).toBeGreaterThan(5); // positive control: the seam's stops were read
-		for (const h of literals) expect(foundry, h).toContain(h.toLowerCase());
-		// The cover tiles are the gallery's generated covers, at the gallery's own saturation and lightness.
-		expect(CARD_ART).toContain('34% 27%');
-		expect(CARD_ART).toContain('40% 15%');
-		expect(foundry).toContain('34% 27%');
-		expect(foundry).toContain('40% 15%');
-		// It does not move: the mark is what plays, once, gated.
-		expect(CARD_ART).not.toMatch(/@keyframes|animation\s*:/);
-	});
-
-	it('looks like no other card: under every theme each pair differs in its ground, words, mark or face', () => {
+	it('looks like no other card: each pair differs in its ground, words, icon or face', () => {
 		const near = (a: Rgb, b: Rgb) => K.deltaE2000(a, b) < 10;
+		const r = EVERY_APP.map((a) => [a.id, resolved(a.id, 'idea')] as const);
 		let pairs = 0;
 		const same: string[] = [];
-		for (const theme of THEMES) {
-			const r = EVERY_APP.map((a) => [a.id, resolved(a.id, theme)] as const);
-			for (let i = 0; i < r.length; i++)
-				for (let j = i + 1; j < r.length; j++) {
-					pairs++;
-					const [a, x] = r[i];
-					const [b, y] = r[j];
-					const alike = near(x.ground, y.ground) && near(x.title, y.title) && near(x.icon, y.icon) && near(x.cta, y.cta) && x.titleFace === y.titleFace;
-					if (alike) same.push(`${theme}: ${a} / ${b}`);
-				}
-		}
-		expect(pairs).toBeGreaterThan(200); // positive control
-		expect(same).toEqual([]);
-	});
-
-	it('follows its ROOM on Space White: a room that never changes keeps its card, a room that turns light turns its card', () => {
-		const key = (x: ReturnType<typeof resolved>) => [x.ground, x.title, x.icon, x.cta].map((c) => `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`).join(' ');
-		for (const room of LAUNCHER_ROOMS) {
-			const idea = resolved(room.id, 'idea');
-			const sw = resolved(room.id, 'space-white');
-			if (room.followsTheme) {
-				// Its ground turns light, as its room's does (positive direction).
-				expect(K.contrast(sw.ground, K.hex('#0d1311')), `${room.id} turns light`).toBeGreaterThan(10);
-			} else {
-				// GAUNTLET, GREENLINE, VANGUARD, IdeaCAD, FRC: identical on every theme.
-				expect(key(sw), `${room.id} on Space White`).toBe(key(idea));
-				expect(key(resolved(room.id, 'matrix')), `${room.id} on Matrix`).toBe(key(idea));
-				expect(cardBlock(room.id, 'space-white'), room.id).toEqual({});
-				expect(cardBlock(room.id, 'matrix'), room.id).toEqual({});
+		for (let i = 0; i < r.length; i++)
+			for (let j = i + 1; j < r.length; j++) {
+				pairs++;
+				const [a, x] = r[i];
+				const [b, y] = r[j];
+				if (near(x.ground, y.ground) && near(x.title, y.title) && near(x.icon, y.icon) && near(x.cta, y.cta) && x.titleFace === y.titleFace) same.push(`${a} / ${b}`);
 			}
-		}
-		// Both kinds exist, so neither direction above passed empty.
-		expect(LAUNCHER_ROOMS.filter((r) => r.followsTheme).length).toBeGreaterThan(3);
-		expect(LAUNCHER_ROOMS.filter((r) => !r.followsTheme).map((r) => r.id).sort()).toEqual(['frc', 'gauntlet', 'greenline', 'ideacad', 'vanguard']);
+		expect(pairs).toBeGreaterThan(80); // positive control
+		expect(same).toEqual([]);
+		// And no two cards are lit by the same light.
+		const hues = LAUNCHER_ROOMS.map((room) => room.hue);
+		expect(new Set(hues).size).toBe(hues.length);
 	});
 
-	it('clears 4.5:1 for every word on every card in every theme (title, its accent, description, call to action) and 3:1 for its mark', () => {
+	it('is a film, not plate: every card looks the same on every theme, Space White included', () => {
+		const key = (x: ReturnType<typeof resolved>) => [x.ground, x.title, x.icon, x.sub, x.cta].map((c) => `${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)}`).join(' ');
+		for (const room of LAUNCHER_ROOMS) {
+			for (const theme of THEMES) {
+				expect(cardBlock(room.id, theme === 'idea' ? 'idea' : theme), `${room.id} ${theme}`).toEqual(theme === 'idea' ? cardBlock(room.id) : {});
+				expect(key(resolved(room.id, theme)), `${room.id} on ${theme}`).toBe(key(resolved(room.id, 'idea')));
+			}
+			// PRESENT: a dark ground on every theme (the positive direction).
+			expect(K.contrast(resolved(room.id, 'space-white').ground, K.hex('#0d1311')), room.id).toBeLessThan(1.3);
+		}
+		// No theme selector in the ink file at all.
+		expect(CARDS_CSS.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/data-theme/);
+	});
+
+	it('clears 4.5:1 for every word on every card (title, its accent, description, key) and 3:1 for its icon', () => {
 		const fails: string[] = [];
 		let n = 0;
-		for (const theme of THEMES)
-			for (const app of EVERY_APP) {
-				const x = resolved(app.id, theme);
-				const check = (what: string, ink: Rgb, ground: Rgb) => {
-					n++;
-					const c = K.contrast(ink, ground);
-					if (c < 4.5) fails.push(`${theme} ${app.id} ${what} ${c.toFixed(2)}`);
-				};
-				check('title', x.title, x.ground);
-				if (x.accent) check('title accent', x.accent, x.ground);
-				check('description', x.sub, x.ground);
-				for (const g of x.ctaGrounds) check('call to action', x.cta, g);
-				// The mark is a graphical object: 3:1 on its card.
+		for (const app of EVERY_APP) {
+			const x = resolved(app.id, 'idea');
+			const check = (what: string, ink: Rgb, ground: Rgb, min = 4.5) => {
 				n++;
-				const glyph = K.contrast(x.icon, x.ground);
-				if (glyph < 3) fails.push(`${theme} ${app.id} mark ${glyph.toFixed(2)}`);
-			}
-		// Positive control: 14 cards x 3 themes x (title, description, call to action), and more.
-		expect(n).toBeGreaterThanOrEqual(14 * 3 * 3);
+				const c = K.contrast(ink, ground);
+				if (c < min) fails.push(`${app.id} ${what} ${c.toFixed(2)}`);
+			};
+			check('title', x.title, x.ground);
+			if (x.accent) check('title accent', x.accent, x.ground);
+			check('description', x.sub, x.ground);
+			check('key', x.cta, x.ctaGround);
+			check('icon', x.icon, x.ground, 3);
+		}
+		// Positive control: 14 cards x (title, description, key, icon), and the accents.
+		expect(n).toBeGreaterThanOrEqual(14 * 4 + 2);
 		expect(fails).toEqual([]);
+	});
+
+	it('draws no neon and no colour outside the light and the sample\'s darks', () => {
+		const NEON = /#00ff41\b|#c8ff00\b|\b0\s*,\s*255\s*,\s*65\b|\b200\s*,\s*255\s*,\s*0\b/i;
+		expect(NEON.test(CARDS_CSS)).toBe(false);
+		expect(NEON.test(ART_SRC)).toBe(false);
+		// CardArt names no colour of its own: the scene and the grain are all it draws.
+		expect(CARD_ART.replace(/<!--[\s\S]*?-->/g, '').match(/#[0-9a-f]{6}\b/gi) ?? []).toEqual([]);
+		// It does not move.
+		expect(CARD_ART).not.toMatch(/@keyframes|animation\s*:/);
 	});
 });
 
-describe('launcher cards: the marks', () => {
+describe('the app marks in $lib/marks, and the launcher\'s still icons (ledger 0475)', () => {
 	it('gives the Foundry card an animated mark that hides nothing at rest', () => {
 		// EVERY app mark in $lib/marks animates under
 		// prefers-reduced-motion: no-preference AND is fully visible with the
@@ -689,11 +723,9 @@ describe('launcher cards: the marks', () => {
 		const outsideKeyframes = styleBody.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
 		expect(outsideKeyframes).not.toMatch(/opacity:\s*0/);
 
-		// And the launcher actually renders it, rather than falling through to
-		// the generic inline fallback glyph.
-		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
-		expect(launcher).toContain("id === 'foundry'");
-		expect(launcher).toContain('<FoundryMark once />');
+		// The launcher no longer mounts it (ledger 0475): its card wears the
+		// filled Foundry icon from the chosen sample instead.
+		expect(iconSvg('foundry')).toMatch(/^<svg /);
 
 		// THE MARK STOPS WHEN NOBODY CAN SEE IT (the MoltenSeam contract, scaled
 		// down to a card): an IntersectionObserver plus a visibilitychange
@@ -721,10 +753,9 @@ describe('launcher cards: the marks', () => {
 	it('puts Maps in the registry, so the accent rule has a card to paint', () => {
 		const maps = PORTAL_APPS.find((a) => a.id === 'maps');
 		expect(maps, 'no `maps` entry in PORTAL_APPS: the accent rule paints nothing').toBeDefined();
-		// The rule keys on `data-app`, which is stamped from the id, and the
-		// icon snippet keys on `icon`. Two different fields, and a mismatch
-		// costs the glyph silently while the colour still lands.
-		expect((maps as PortalApp).icon).toBe('maps');
+		// The paint keys on `data-app` and the icon on the same id (ledger
+		// 0475 retired the separate `icon` field), so the two cannot disagree.
+		expect(iconSvg((maps as PortalApp).id)).toMatch(/^<svg /);
 		expect((maps as PortalApp).href).toBe('/maps');
 
 		// AND IT IS VISIBLE TO A SIGNED-OUT VISITOR, which is the whole point of
@@ -766,12 +797,8 @@ describe('launcher cards: the marks', () => {
 		expect(mark).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
 		expect(mark).toContain('stroke="currentColor"');
 
-		// And the launcher actually renders it rather than falling through to
-		// the generic inline fallback glyph, which is the silent failure: the
-		// card appears, correctly coloured, wearing somebody else's shape.
-		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
-		expect(launcher).toContain("id === 'maps'");
-		expect(launcher).toContain('<MapsMark once />');
+		// The launcher's Maps card wears the filled locator icon (ledger 0475).
+		expect(iconSvg('maps')).toMatch(/^<svg /);
 	});
 
 	it('gives the IdeaCAD card an animated extrude mark that hides nothing at rest', () => {
@@ -829,12 +856,10 @@ describe('launcher cards: the marks', () => {
 		expect(at50(cut)).toEqual(['scale(1)', 'scale(1)']);
 		expect(mark).toContain('animation-iteration-count: 0.5');
 
-		// The launcher renders it, and the inline cube it replaced is gone
-		// rather than left as a second drawing of the same logo.
-		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
-		expect(launcher).toContain("id === 'ideacad'");
-		expect(launcher).toContain('<IdeaCadMark once />');
-		expect(launcher).not.toContain('m16 4 11 6-11 6L5 10l11-6Z');
+		// The inline cube it once replaced stays gone from the launcher, which
+		// now draws the filled block icon (ledger 0475).
+		expect(LAUNCHER_SRC).not.toContain('m16 4 11 6-11 6L5 10l11-6Z');
+		expect(iconSvg('ideacad')).toMatch(/^<svg /);
 	});
 
 	// The Classroom and Notebook marks were REDESIGNED IN PLACE to the IdeaCAD
@@ -888,10 +913,8 @@ describe('launcher cards: the marks', () => {
 			expect(mark).toContain('animation-iteration-count: 0.5');
 			expect(mark).toMatch(/let \{ once = false \}/);
 
-			// And the launcher still renders it from its own call site.
-			const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
-			expect(launcher).toContain(`id === '${c.app}'`);
-			expect(launcher).toContain(`<${c.file} once />`);
+			// The launcher draws this app's filled icon instead (ledger 0475).
+			expect(iconSvg(c.app)).toMatch(/^<svg /);
 		});
 	}
 
@@ -951,31 +974,34 @@ describe('launcher cards: the marks', () => {
 			}
 			expect(mark).toContain('animation-iteration-count: 0.5');
 			expect(mark).toMatch(/let \{ once = false \}/);
-			const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
-			expect(launcher).toContain(`id === '${c.app}'`);
-			expect(launcher).toContain(`<${c.file} once />`);
+			expect(iconSvg(c.app)).toMatch(/^<svg /);
 		});
 	}
 
-	it('mounts EVERY launcher mark with `once`, and every mark in $lib/marks accepts it', () => {
-		/* NO CARD LOOPS FOREVER (ledger 0298, decision 40 item 3). The launcher
-		   used to mount every mark looping, so a grid of glyphs never stopped
-		   moving and IdeaCAD's showed a collapsed diamond for 18% of every
-		   loop. A mark mounted without `once` still type-checks and still looks
-		   right in a screenshot, so the mount is asserted here. */
-		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
-		const snippet = launcher.slice(launcher.indexOf('{#snippet appIcon'), launcher.indexOf('{/snippet}', launcher.indexOf('{#snippet appIcon')));
-		const mounts = [...snippet.matchAll(/<([A-Z][A-Za-z]*Mark)\b([^>]*)\/>/g)];
-		// Positive control: the reader found the marks the launcher imports.
-		const imported = [...launcher.matchAll(/import ([A-Z][A-Za-z]*Mark) from '\$lib\/marks\//g)].map((m) => m[1]);
-		expect(imported.length).toBeGreaterThanOrEqual(12);
-		expect(mounts.map((m) => m[1]).sort()).toEqual([...imported].sort());
-		for (const m of mounts) expect(m[2], m[1]).toMatch(/\bonce\b/);
-		for (const name of imported) {
-			const mark = readFileSync(`src/lib/marks/${name}.svelte`, 'utf8');
+	it('mounts no $lib/marks component: every launcher icon is the still, filled mark, and every mark still accepts `once` for its other homes', () => {
+		/* LEDGER 0475: the launcher's icons are the filled marks of the sample
+		   Mr. Pina chose, drawn by `iconSvg`, and they do not move (a card is
+		   a door, not a screensaver, ledger 0298). The animated marks in
+		   $lib/marks still serve the Foundry house card, the Armory and the
+		   IdeaCAD launch page, so their own contract is still held here. */
+		const snippet = LAUNCHER_SRC.slice(LAUNCHER_SRC.indexOf('{#snippet appIcon'), LAUNCHER_SRC.indexOf('{/snippet}', LAUNCHER_SRC.indexOf('{#snippet appIcon')));
+		// ABSENT: no mark component imported or mounted.
+		expect(LAUNCHER_SRC).not.toMatch(/from '\$lib\/marks\//);
+		expect(snippet).not.toMatch(/<[A-Z][A-Za-z]*Mark\b/);
+		// PRESENT: every app but FRC has a filled icon, and the snippet draws it.
+		expect(snippet).toContain('{@html iconSvg(id)}');
+		const drawn = visibleApps(true).filter((a) => a.id !== 'frc');
+		expect(drawn.length).toBeGreaterThanOrEqual(13);
+		for (const a of drawn) expect(iconSvg(a.id), a.id).toMatch(/^<svg viewBox="0 0 32 32"/);
+		expect(iconSvg('frc')).toBe('');
+		// Still: nothing in the launcher's drawing animates.
+		expect(ART_SRC).not.toMatch(/<animate|@keyframes|animation/);
+		// AdminMark was never a launcher mark and never took `once`.
+		const marks = readdirSync('src/lib/marks').filter((f) => f.endsWith('Mark.svelte') && f !== 'AdminMark.svelte');
+		expect(marks.length).toBeGreaterThanOrEqual(12);
+		for (const name of marks) {
+			const mark = readFileSync(`src/lib/marks/${name}`, 'utf8');
 			expect(mark, name).toMatch(/let \{[^}]*\bonce = false\b[^}]*\}/);
-			expect(mark, name).toContain('class:once');
-			expect(mark, name).toMatch(/\.once[^{]*\{\s*animation-iteration-count:\s*(0\.5|1);/);
 		}
 	});
 

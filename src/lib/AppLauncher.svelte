@@ -1,37 +1,24 @@
 <script lang="ts">
-	import { COIN_SYMBOL } from '$lib/coin-format';
 	import { onMount } from 'svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { UserProfile } from '$lib/profile';
-	import GauntletMark from '$lib/marks/GauntletMark.svelte';
-	import VanguardMark from '$lib/marks/VanguardMark.svelte';
-	import GreenlineMark from '$lib/marks/GreenlineMark.svelte';
-	import CoinMark from '$lib/marks/CoinMark.svelte';
-	import MarketMark from '$lib/marks/MarketMark.svelte';
-	import ClassroomMark from '$lib/marks/ClassroomMark.svelte';
-	import NotebookMark from '$lib/marks/NotebookMark.svelte';
-	import TournamentMark from '$lib/marks/TournamentMark.svelte';
-	import DashboardMark from '$lib/marks/DashboardMark.svelte';
-	import FoundryMark from '$lib/marks/FoundryMark.svelte';
-	import MapsMark from '$lib/marks/MapsMark.svelte';
-	import ArmoryMark from '$lib/marks/ArmoryMark.svelte';
-	import IdeaCadMark from '$lib/marks/IdeaCadMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
 	import frcIcon from '$lib/frc/assets/frc-icon.png';
-	// EVERY CARD IS A MINIATURE OF ITS OWN APP (ledger 0472, decision 73): the
-	// room's paint (`cards.css`, keyed on `data-app`), its shapes (`CardArt`)
-	// and, where the room's type is not already on the page, its faces. A
-	// face downloads only when a card draws a letter in it, so the FRC card's
-	// Roboto costs nothing to anybody who is not shown that card.
+	// EVERY CARD IS A FILM STILL LIT BY ITS APP'S LIGHT (ledger 0475, decision
+	// 73 as amended the second time): the inks (`cards.css`, keyed on
+	// `data-app`), the scene (`CardArt`) and the filled icon (`iconSvg`), all
+	// from the sample Mr. Pina chose. Where a card's title face is not already
+	// on the page it is loaded here, and a face downloads only when a card
+	// draws a letter in it, so the FRC card's Roboto costs nothing to anybody
+	// who is not shown that card.
 	import CardArt from '$lib/launcher/CardArt.svelte';
+	import { iconSvg } from '$lib/launcher/art';
 	import { launcherRoom } from '$lib/launcher/rooms';
 	import '$lib/launcher/cards.css';
 	import '@fontsource/archivo-black/400.css';
-	import '@fontsource/saira-condensed/600.css';
-	import '@fontsource/roboto/700.css';
 	import '@fontsource/roboto/700-italic.css';
 	import {
 		APP_SORT_MODES,
@@ -221,10 +208,10 @@
 	}
 
 	/**
-	 * A CARD'S LOOK IS ITS ROOM'S, AND IT ARRIVES THROUGH THE CASCADE (ledger
-	 * 0472). The paint is `$lib/launcher/cards.css`, keyed on `data-app`; the
-	 * shapes are `CardArt`; neither is ever an inline style read out of the
-	 * registry, for the reason `PortalApp`'s own comment gives.
+	 * A CARD'S LOOK IS ITS APP'S LIGHT, AND IT ARRIVES THROUGH THE CASCADE
+	 * (ledger 0475). The inks are `$lib/launcher/cards.css`, keyed on
+	 * `data-app`; the scene is `CardArt`; neither is ever an inline style read
+	 * out of the registry, for the reason `PortalApp`'s own comment gives.
 	 */
 
 	/**
@@ -283,72 +270,26 @@
 </script>
 
 <!--
-	EVERY APP MARK IS A COMPONENT IN $lib/marks NOW, except the two that cannot
-	be. Six of these glyphs used to be inline paths in the {#else} branch below,
-	and being inline is exactly what kept them still: an animation belongs beside
-	the geometry it moves, and putting six sets of keyframes into this file's
-	400-line <style> block would have been the wrong home for all of them. They
-	are the SAME PATHS, extracted rather than redrawn.
+	EVERY APP'S ICON IS ITS FILLED MARK, LIT (ledger 0475): one shared
+	treatment from the sample Mr. Pina chose, the app's white-hot core running
+	down into its hue, lifted by a shadow and a glow in that hue
+	(`--rm-icon-filter`). It does not move: a card is a door, not a
+	screensaver, and the scene behind it is a still.
 
-	TWO EXCEPTIONS, each for its own reason. FRC is the official FIRST emblem,
-	used unmodified: FIRST's brand guidelines prohibit altering the mark, and
-	that outranks looking consistent with the cards either side of it, so it is
-	an <img> and it does not move. `coin-balance` has no app card pointing at it
-	(a student reaches their coin page from the profile menu's My coins) and is
-	left inline as the generic fallback branch rather than promoted.
-
-	EVERY MARK PLAYS ONCE HERE AND RESTS ON ITS FINISHED FRAME (ledger 0298,
-	decision 40 item 3). The launcher used to mount them looping, so a grid of
-	eleven glyphs never stopped moving and IdeaCAD's showed a collapsed diamond
-	for 18% of every loop; a card is a door, not a screensaver. `once` is each
-	mark's own prop and each mark decides what "once" means for its keyframes
-	(half a cycle where the rest frame sits at 50%, one cycle where it sits at
-	both ends). `/dev/marks` mounts them WITHOUT it, because the reduced-motion
-	sweep needs an animation still running to measure.
+	ONE EXCEPTION: FRC is the official FIRST emblem, used unmodified. FIRST's
+	brand guidelines prohibit altering the mark, and that outranks looking
+	consistent with the cards either side of it, so it is an <img>, with no
+	filter and no motion.
 -->
 {#snippet appIcon(id: string)}
-	{#if id === 'vanguard'}
-		<VanguardMark once />
-	{:else if id === 'gauntlet'}
-		<GauntletMark once />
-	{:else if id === 'greenline'}
-		<GreenlineMark once />
-	{:else if id === 'coins'}
-		<CoinMark once />
-	{:else if id === 'market'}
-		<MarketMark once />
-	{:else if id === 'classroom'}
-		<ClassroomMark once />
-	{:else if id === 'notebook'}
-		<NotebookMark once />
-	{:else if id === 'tournament'}
-		<TournamentMark once />
-	{:else if id === 'dashboard'}
-		<DashboardMark once />
-	{:else if id === 'foundry'}
-		<FoundryMark once />
-	{:else if id === 'maps'}
-		<MapsMark once />
-	{:else if id === 'armory'}
-		<ArmoryMark once />
-	{:else if id === 'ideacad'}
-		<IdeaCadMark once />
-	{:else if id === 'frc'}
+	{#if id === 'frc'}
 		<!-- Official FIRST icon (emblem only), used unmodified: intrinsic
 		     dimensions set so width:auto preserves the exact aspect (no crop or
-		     distortion) while it fills the icon slot like every other app mark.
-		     UNANIMATED, deliberately: altering the mark, motion included, is what
-		     FIRST's guidelines forbid. -->
+		     distortion) while it fills the icon slot like every other app mark. -->
 		<img class="frc-icon-img" src={frcIcon} width="516" height="309" alt="FIRST Robotics Competition" />
 	{:else}
-	<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		{#if id === 'coin-balance'}
-			<!-- IDEA Coin (i¢) with short ledger lines, reading as a personal statement. -->
-			<circle cx="11" cy="16" r="8" />
-			<text x="11" y="16.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 8px 'Share Tech Mono', monospace">{COIN_SYMBOL}</text>
-			<path d="M22 9h6M22 14h6M22 19h4" />
-		{/if}
-	</svg>
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+		{@html iconSvg(id)}
 	{/if}
 {/snippet}
 
@@ -391,7 +332,7 @@
 				ondragstart={(e) => onDragStart(e, i)}
 				ondragend={onDragEnd}
 			>&#10283;</span>
-			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
+			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.id)}</span>
 			<span class="app-text">
 				<span class="app-title-row">
 					{@render appTitle(app)}
@@ -438,7 +379,7 @@
 			data-app={app.id}
 		>
 			<CardArt app={app.id} />
-			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
+			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.id)}</span>
 			<span class="app-text">
 				<span class="app-title-row">
 					{@render appTitle(app)}
@@ -698,16 +639,15 @@
 	.app-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-		gap: 0.8rem;
+		gap: 0.75rem;
 	}
-	/* 300px IN EVERY VIEW NOW (ledger 0472). At 210px the title took the
-	   whole compact card and the app's own drawing had nowhere to stand but
-	   under the words; at 300px a title ends by about 216px and the drawing
-	   has the card's right third. Three columns at 1440 (four at 1920), one
-	   at 375, which is what it already was. */
+	/* 300px IN EVERY VIEW (ledgers 0472 and 0475). The longest title ends
+	   about 220px into its card, so at 300px the scene's light, two-thirds
+	   across, stands clear of the words. Three columns at 1440 (four at
+	   1920), one at 375; 12px apart, the chosen sample's gap. */
 	.app-grid.compact {
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-		gap: 0.6rem;
+		gap: 0.75rem;
 	}
 	/* Customizing adds a grip and three tool buttons to every row. At the compact
 	   track width that leaves the title so little room it breaks mid-word
@@ -717,64 +657,52 @@
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	}
 	/* ======================================================================
-	   EVERY CARD IS A MINIATURE OF ITS OWN APP (ledger 0472, decision 73).
+	   EVERY CARD IS A FILM STILL LIT BY ITS APP'S LIGHT (ledger 0475,
+	   decision 73 as amended the second time, 2026-10-30).
 
-	   Mr. Pina: "I don't want it to be like some palette. It has to be
-	   representative, perfectly representative of what is inside that page
-	   visually", and "each app should be unique visually, completely, like
-	   real apps on a computer." This replaced ledger 0467's six colour
-	   families (one hue shared by several apps), which he called off-brand.
-
-	   So the card is the app's own surface: its ground, edge, title face and
-	   ink, its accent, its call to action, and its shapes drawn by
-	   `CardArt`. Every one of those arrives as a `--rm-*` custom property
-	   from `$lib/launcher/cards.css`, keyed on `data-app`, quoting the
-	   room's own stylesheet (`$lib/launcher/rooms.ts` lists the files, and
-	   tests/home-order-and-accent.test.ts traces every colour to them). This
-	   rule only READS them, each with a fallback to the site plate, so an
-	   app that declares nothing arrives as a plain plate card rather than
+	   Mr. Pina chose "cinematic light" from four samples, and asked for
+	   GREENLINE and the Foundry to be "adjusted in the same way". So every
+	   card is one shape, ported from that sample: the app's filled icon and
+	   its title at the left, 16px in, 12px apart, on the eased scrim of a
+	   dark scene lit by one light in the app's hue (`CardArt`, drawn by
+	   `$lib/launcher/art`), 88px tall. The comfortable view adds a 56px foot
+	   under the scene: the description and the key on the card's own
+	   ground. Every colour arrives as a `--rm-*` custom property from
+	   `$lib/launcher/cards.css`, keyed on `data-app` and derived from the
+	   app's light (`$lib/launcher/rooms.ts` records each hue and where it
+	   came from). This rule only READS them, each with a site fallback, so
+	   an app that declares nothing arrives as a plain plate card rather than
 	   borrowing somebody else's look.
 
 	   THE WORDS STAND ON THE CARD'S OWN GROUND. `--rm-ground` is the card's
-	   background colour, which is what every contrast check walks up to,
-	   and the drawing fades in from its own left edge so the title keeps that
-	   ground behind it. Under the site plate this rule outranks
-	   site-plate.css's `--bg1` face (see the `:global(:root .site-plate)`
-	   rule below), which took the plate's depth and kept one ground for every
-	   card.
+	   background colour, the scene's scrim is that ground at 94% where the
+	   title starts, and the title carries a halo of it, so every contrast
+	   check walks up to the colour the title is actually read on. Under the
+	   site plate this rule outranks site-plate.css's `--bg1` face (see the
+	   `:global(:root .site-plate)` rule below). A card is a film, not plate:
+	   it looks the same on every theme.
 	   ====================================================================== */
-	/* THE TITLE SITS WHERE THE APP'S PAGE PUTS ITS NAME, and that differs
-	   from card to card (the second review: four plate cards that all put
-	   an icon and a title top left over a row of tiles read as one chassis).
-	   cards.css places it with layout properties, never a colour:
-	   `--rm-align` (top, centre or foot of the card), `--rm-justify` with
-	   `--rm-text-flex` (centred along the card, as My Classes, the Admin
-	   console and GREENLINE's title screen centre theirs), and
-	   `--rm-head-drop` (pushed under a rail drawn across the card's top).
-	   CardArt's drawing fills the rest. Every card is 88px, so a row of the
-	   grid is one height whichever composition stands in it. */
+	/* 88px of scene inside a 1px edge, which is the sample's band. */
 	.app-card {
 		position: relative;
 		isolation: isolate;
 		display: flex;
-		align-items: var(--rm-align, center);
-		justify-content: var(--rm-justify, flex-start);
-		gap: 0.9rem;
+		align-items: center;
+		gap: 12px;
 		background-color: var(--rm-ground, var(--bg1));
 		border: 1px solid var(--rm-edge, var(--boundary));
 		border-radius: var(--rm-radius, var(--radius-card));
-		box-shadow: var(--bevel-raised);
-		padding: 0.85rem 1rem;
-		min-height: 88px;
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.07),
+			0 1px 0 rgba(0, 0, 0, 0.5),
+			0 8px 18px -10px rgba(0, 0, 0, 0.8);
+		padding: 0 16px;
+		min-height: 90px;
 		text-decoration: none;
 		overflow: hidden;
 		transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 	}
-	.app-card:not(.static) .app-icon,
-	.app-card:not(.static) .app-text {
-		margin-top: var(--rm-head-drop, 0);
-	}
-	/* Everything a reader uses sits above the drawing. */
+	/* Everything a reader uses sits above the scene. */
 	.app-icon,
 	.app-text,
 	.app-cta,
@@ -788,37 +716,30 @@
 	}
 	a.app-card:hover {
 		transform: translateY(-2px);
-		box-shadow: var(--bevel-raised), 0 0 16px var(--rm-glow, transparent);
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.07),
+			0 0 16px var(--rm-glow, transparent);
 	}
 	a.app-card:active {
 		transform: translateY(0);
 		box-shadow: var(--bevel-inset);
 	}
 
-	.app-card.compact {
-		padding: 0.6rem 0.8rem;
-	}
-	/* Compact cards are icon + title only: drop the CTA pill so a long title
-	   ("Courses & Assignments", "IDEA Coin Ledger") has the full row and never
-	   collides with the pill or the neighboring tile. */
+	/* Compact cards are the scene alone, icon and title: no key. */
 	.app-card.compact .app-cta {
 		display: none;
 	}
-	.app-title {
-		overflow-wrap: anywhere;
-	}
 	.app-title-row {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		flex-wrap: wrap;
 		gap: 0.4rem;
 	}
-	/* The admin-only review reminder on the Foundry card. --amber is the
-	   portal's own warning copper and measures 4.90:1 on --bg1 / 4.60 on
-	   --bg2, so the count is read, not just noticed. */
+	/* The admin-only review reminder on the Foundry card. Measured on the
+	   card's own ground with the amber the portal warns in. */
 	.review-count {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
+		font-family: var(--font-mono);
+		font-size: var(--plate-label-size, 0.6875rem);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--amber);
@@ -841,8 +762,7 @@
 		flex-shrink: 0;
 	}
 	/* Legacy tools: dimmed and dashed, so a superseded tool never reads as
-	   equal-weight with its replacement, without inventing a per-card accent
-	   color (the uniform-chrome rule). The badge above carries the "why". */
+	   equal-weight with its replacement. The badge above carries the "why". */
 	.app-card.legacy {
 		border-style: dashed;
 		opacity: 0.82;
@@ -850,40 +770,29 @@
 	a.app-card.legacy:hover {
 		opacity: 1;
 	}
+	/* The icon, 30px in every view, lit by its own hue (`--rm-icon-filter`).
+	   `--rm-icon` is the hue itself, the colour the glyph check measures. */
 	.app-icon {
-		width: 34px;
-		height: 34px;
+		width: 30px;
+		height: 30px;
 		flex-shrink: 0;
 		color: var(--rm-icon, var(--text-1));
 		filter: var(--rm-icon-filter, none);
 	}
-	.app-card.compact .app-icon {
-		width: 24px;
-		height: 24px;
-	}
-	.app-icon svg {
+	.app-icon :global(svg) {
+		display: block;
 		width: 100%;
 		height: 100%;
+		overflow: visible;
 	}
-	/* FRC card: the official FIRST icon replaces the glyph, sized to the same
-	   height as every other app-icon so the card reads consistently; width
-	   follows the icon's own aspect (auto), never stretched or cropped. No
-	   green glow (it is a full-color mark); a faint FIRST-Blue underglow ties
-	   it to FRC on the dark card. */
+	/* FRC card: the official FIRST icon replaces the glyph, at the same
+	   height as every other icon; width follows the icon's own aspect (auto),
+	   never stretched or cropped, and nothing is laid over it. */
 	.app-icon.frc-icon {
 		width: auto;
-		height: 34px;
-		filter: none;
+		height: 30px;
 		display: inline-flex;
 		align-items: center;
-	}
-	.app-card.compact .app-icon.frc-icon {
-		/* Restate width:auto: `.app-card.compact .app-icon` (3 classes) otherwise
-		   outranks `.app-icon.frc-icon` (2 classes) on specificity and would
-		   clip this span back to a fixed 24px, letting the image silently
-		   overflow its box. */
-		width: auto;
-		height: 24px;
 	}
 	.app-icon.frc-icon :global(.frc-icon-img) {
 		height: 100%;
@@ -895,13 +804,13 @@
 		flex-direction: column;
 		gap: 0.25rem;
 		min-width: 0;
-		flex: var(--rm-text-flex, 1);
+		flex: 1;
 	}
-	/* THE TITLE IS SET THE WAY ITS ROOM SETS ITS OWN NAME: Orbitron 900 for
-	   the Ledger, Archivo Black italic for GREENLINE, Roboto bold italic for
-	   FRC, Chakra Petch for IdeaCAD and VANGUARD, Rajdhani for the plate
-	   rooms. The halo is the card's own ground, so a stroke of the drawing
-	   passing behind a letter never touches the letter's edge. */
+	/* THE TITLE IS SET THE WAY ITS ROOM SETS ITS OWN NAME, at the sample's
+	   size: Orbitron for the Ledger, GAUNTLET, VANGUARD, the Foundry and
+	   Admin, Archivo Black italic for GREENLINE, Roboto bold italic for FRC,
+	   Share Tech Mono for Maps, Rajdhani for the rest. One line: a title is a
+	   name, and every one fits a 300px card. */
 	.app-title {
 		font-family: var(--rm-title-font, var(--font-display));
 		font-size: var(--rm-title-size, 1rem);
@@ -909,81 +818,46 @@
 		font-style: var(--rm-title-style, normal);
 		letter-spacing: var(--rm-title-track, 0.02em);
 		text-transform: var(--rm-title-case, none);
-		line-height: 1.15;
+		line-height: 1.1;
+		white-space: nowrap;
 		color: var(--rm-title, var(--text-1));
 		text-shadow: var(--rm-title-glow, 0 0 3px var(--rm-ground, var(--bg1)), 0 0 6px var(--rm-ground, var(--bg1)));
-		/* A room whose wordmark is a material, not an ink (GREENLINE's chrome):
-		   the gradient is clipped to the letters, and --rm-title stays the
-		   solid ink every instrument reads and the gradient's own light. */
-		background-image: var(--rm-title-img, none);
-		-webkit-background-clip: text;
-		background-clip: text;
-		-webkit-text-fill-color: var(--rm-title-fill, currentColor);
-		filter: var(--rm-title-filter, none);
 	}
-	/* "IDEA <Coin> Ledger", "IDEA<CAD>": the part the room paints in its accent. */
+	/* While customizing, the grip and the tools share the row, so a long
+	   title may wrap rather than run under them. */
+	.app-card.static .app-title {
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+	/* "IDEA <Coin> Ledger", "IDEA<CAD>": the part painted in the light. */
 	.app-title-accent {
 		color: var(--rm-accent, inherit);
-		text-shadow: var(--rm-accent-glow, inherit);
 	}
-	/* The description and the call to action are at the site's 11px label
-	   floor (`--plate-label-size`). The description was 10.9px and the call to
-	   action an 8.3px Orbitron the rest of the site does not use for a label;
-	   the action now takes the mono label face every key on the site wears. */
+	/* The description and the key are at the site's 11px label floor
+	   (`--plate-label-size`), in the mono label face. */
 	.app-sub {
 		font-family: var(--font-mono);
 		font-size: var(--plate-label-size, 0.6875rem);
 		color: var(--rm-sub, var(--text-2));
-		line-height: 1.5;
-		text-shadow: 0 0 3px var(--rm-ground, var(--bg1)), 0 0 6px var(--rm-ground, var(--bg1));
+		line-height: 1.4;
 	}
-	/* THE CALL TO ACTION IS THE ROOM'S OWN KEY: GAUNTLET's green-to-lime key,
-	   VANGUARD's filled neon, IdeaCAD's green New model key, the Armory's
-	   plate key with its screw dot, GREENLINE's START box, a link word on
-	   FRC paper. `--rm-cta-bg` is a colour, so the word is measured on it;
-	   `--rm-cta-img` lays a gradient over that colour where the room's key
-	   is one. */
+	/* THE KEY: the app's light at 8% behind its own ink, edged in the light. */
 	.app-cta {
 		display: inline-flex;
 		align-items: center;
-		font-family: var(--rm-cta-font, var(--font-mono));
+		font-family: var(--font-mono);
 		font-size: var(--plate-label-size, 0.6875rem);
-		font-weight: var(--rm-cta-weight, 400);
-		letter-spacing: var(--rm-cta-track, 0.08em);
-		text-transform: var(--rm-cta-case, uppercase);
+		line-height: 1;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		color: var(--rm-cta-ink, var(--text-1));
 		background-color: var(--rm-cta-bg, transparent);
-		background-image: var(--rm-cta-img, none);
 		border: 1px solid var(--rm-cta-edge, transparent);
-		border-radius: var(--rm-cta-radius, var(--radius-chip));
-		text-shadow: var(--rm-cta-glow, none);
-		padding: 0.3rem 0.6rem;
+		border-radius: 2px;
+		padding: 7px 10px;
 		white-space: nowrap;
 		flex-shrink: 0;
 		transition: box-shadow 0.2s;
-	}
-	/* A lit LED before the word, where the room's key carries one. */
-	.app-cta::before {
-		content: '';
-		flex: none;
-		width: var(--rm-cta-led-size, 0px);
-		height: var(--rm-cta-led-size, 0px);
-		margin-right: calc(var(--rm-cta-led-size, 0px) * 0.8);
-		border-radius: 50%;
-		background: var(--rm-cta-led, transparent);
-		box-shadow: 0 0 6px var(--rm-cta-led, transparent);
-	}
-	/* A screw dot in the key's corner, where the room's key carries one (the
-	   Armory's plate keys). */
-	.app-cta::after {
-		content: '';
-		position: absolute;
-		right: 3px;
-		bottom: 3px;
-		width: var(--rm-cta-dot-size, 3px);
-		height: var(--rm-cta-dot-size, 3px);
-		border-radius: 50%;
-		background: var(--rm-cta-dot, transparent);
 	}
 	a.app-card:hover .app-cta {
 		box-shadow: 0 0 10px var(--rm-glow, transparent);
@@ -1048,52 +922,43 @@
 		box-shadow: inset 0 0 0 1px var(--rm-glow, transparent);
 	}
 	/* ======================================================================
-	   THE COMFORTABLE VIEW IS A TIGHT CARD (ledger 0380, reports 4895b22f and
-	   b4fd83d4: "ugly, too much dead space, a lot of text, not like the rest
-	   of the site"). It was a flex row that centred the icon, a text column
-	   and a CTA pinned to the far edge, so a card with a short description
-	   showed bands of nothing above and below and a gap before the button,
-	   and one 170-character description made every card in its row seven
-	   lines tall.
-
-	   SINCE LEDGER 0472 IT IS A BANNER OVER A LINE OF TEXT: the first row is
-	   the compact card exactly (the icon, the title, the app's drawing behind
-	   them, the same 88px), and under it the description, clamped to two lines,
-	   with the call to action at its end. The drawing is confined to the banner
-	   (`--rm-band`), so it never runs under the description or the key, which
-	   is what a single row did when the drawing came back. Only the link card;
-	   the Customize card keeps its row, which carries a grip and tools. The
-	   full text is on the link's `title`. */
+	   THE COMFORTABLE VIEW IS THE SCENE OVER A FOOT (ledger 0475, the chosen
+	   sample's 144px card): the first 88px are the compact card exactly (the
+	   scene, the icon, the title), and under it a 56px foot on the card's
+	   own ground, a hairline above it, with the description at the left and
+	   the key at the right. The description is clamped to two lines; the full
+	   text is on the link's `title`. Only the link card: the Customize card
+	   keeps its row, which carries a grip and tools.
+	   ====================================================================== */
 	a.app-card:not(.compact) {
-		--rm-band: 5.75rem;
-		--rm-scene-top: 40px;
 		display: grid;
-		grid-template-columns: var(--rm-cols, auto minmax(0, 1fr) auto);
-		grid-template-rows: calc(var(--rm-band) - 0.6rem) auto;
-		column-gap: 0.75rem;
-		row-gap: 0.55rem;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		grid-template-rows: 88px 56px;
+		gap: 0 12px;
 		align-items: center;
-		align-content: start;
-		padding: 0.6rem 0.85rem 0.65rem;
+		padding: 0 16px;
+		min-height: 146px;
 	}
 	a.app-card:not(.compact) :global(.art) {
 		bottom: auto;
-		height: var(--rm-band);
+		height: 88px;
+	}
+	/* The hairline between the scene and the foot. */
+	a.app-card:not(.compact)::after {
+		content: '';
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 88px;
+		height: 1px;
+		background: rgba(255, 255, 255, 0.06);
 	}
 	a.app-card:not(.compact) .app-icon {
-		grid-column: var(--rm-icon-col, 1);
+		grid-column: 1;
 		grid-row: 1;
-		align-self: var(--rm-align, center);
-	}
-	a.app-card:not(.compact) .app-icon:not(.frc-icon) {
-		width: 28px;
-		height: 28px;
-	}
-	a.app-card:not(.compact) .app-icon.frc-icon {
-		height: 28px;
 	}
 	/* `display: contents` takes the text column's box away, so its two
-	   children are positioned themselves to stay above the drawing. */
+	   children are placed themselves, above the scene. */
 	a.app-card:not(.compact) .app-text {
 		display: contents;
 	}
@@ -1103,48 +968,31 @@
 		z-index: 1;
 	}
 	a.app-card:not(.compact) .app-title-row {
-		grid-column: var(--rm-title-col, 2 / -1);
+		grid-column: 2 / -1;
 		grid-row: 1;
 		min-width: 0;
-		align-self: var(--rm-align, center);
-		margin-top: var(--rm-head-drop, 0);
-	}
-	/* The title row of a scene card is the 28px icon's height, so it lines up
-	   with the icon rather than with the row's own top. */
-	a.app-card:not(.compact) .app-icon ~ .app-text .app-title-row {
-		min-height: 28px;
-		align-items: center;
-	}
-	a.app-card:not(.compact) .app-cta {
-		grid-column: var(--rm-cta-col, 3);
-		grid-row: 2;
-		align-self: end;
-		justify-self: end;
 	}
 	a.app-card:not(.compact) .app-sub {
-		grid-column: var(--rm-sub-col, 1 / 3);
-		padding-right: var(--rm-sub-room, 0);
+		grid-column: 1 / 3;
 		grid-row: 2;
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
 		overflow: hidden;
-		font-size: var(--plate-label-size, 0.6875rem);
-		line-height: 1.4;
 	}
-	/* 300px, the Customize track's width: the description reads at 11px now,
-	   and at 280px its two clamped lines cut most descriptions short. It is
-	   still three columns at 1440 and 1258, and the wider home measure makes it
-	   four at 1920 and ten at 3840 rather than three in a band. */
+	a.app-card:not(.compact) .app-cta {
+		grid-column: 3;
+		grid-row: 2;
+		justify-self: end;
+	}
 	.app-grid:not(.compact) {
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-		gap: 0.6rem;
+		gap: 0.75rem;
 	}
 	.app-grid.customizing:not(.compact) {
 		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	}
-
 	/* HIDE AND SHOW (ledger 0380, report 125e674f). */
 	.app-card.put-away {
 		opacity: 0.55;
@@ -1226,15 +1074,12 @@
 	}
 
 	/* ======================================================================
-	   UNDER SPACE WHITE A CARD DOES WHAT ITS ROOM DOES (ledger 0472, decision
-	   73). The plate rooms read site tokens, so their cards turn light with
-	   the theme on their own; the Coin Ledger, the Foundry and Tournaments
-	   carry their rooms' own Space White twins in `cards.css`; GAUNTLET,
-	   GREENLINE, VANGUARD, IdeaCAD and FRC do not change in their rooms, so
-	   their cards do not change here. Nothing in this file names a theme for
-	   a card any more: decisions 55 and 62 (one green, then one curated ink
-	   per card) and ledger 0467 (one ink per family) are all replaced by the
-	   room's own answer.
+	   UNDER SPACE WHITE A CARD KEEPS ITS DARK FILM STILL (ledger 0475,
+	   decision 73 as amended the second time). A card is a film, not plate,
+	   so neither this file nor `cards.css` names a theme for a card: decisions
+	   55 and 62, ledger 0467's family inks and 0472's "a card follows its
+	   room" are all replaced by the app's own light. Only the bar's and the
+	   tools' controls below move with the theme.
 	   ====================================================================== */
 	/* The bar's and the tools' own controls: their outer edge is the theme's
 	   load-bearing boundary, and the neon hover and pin tints become the

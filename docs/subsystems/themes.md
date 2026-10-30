@@ -69,108 +69,86 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
   means act and done (only the IDEA class palette is green, because it is
   named for the brand); no neon literal in `src/` outside a named, shrink-only
   list of rooms the lane did not own.
-- **EVERY LAUNCHER CARD IS A MINIATURE OF ITS OWN APP (ledger 0472, decision
-  73, `docs/decisions/entries/73-launcher-cards-are-their-apps.md`).** Mr.
-  Pina asked for this at least four times; every earlier attempt styled the
-  cards from a palette (one accent per app, then one green, then ledger 0467's
-  six shared families) and he called the last "very off-brand": "It has to be
-  representative, perfectly representative of what is inside that page
-  visually ... like real apps on a computer." So a card is its app's own
-  surface: the room's ground, edge, title face and ink, its accent, its own key
-  as the call to action, and the app itself, drawn by
-  `src/lib/launcher/CardArt.svelte` in one of two ways.
-  - **TOLD APART WITH EVERY WORD HIDDEN, AND TWO REVIEWS SET THAT BAR.** A
-    card is drawn as its page's own composition, not one chassis with
-    different contents: My Classes' name centred over two tall class tiles;
-    the Armory's file list with its name at the foot; the Market's two
-    columns, offers left and Your trades right; the Admin console's tab rail
-    over a centred name and the glowing identity strip; GREENLINE's title
-    screen, the chrome wordmark centred between floodlights over the streak
-    and its spark burst; FRC's white header strip, blue rule and domain cards;
-    the notebook's camera and keys; IdeaCAD's three panes; the Maps plan with
-    its labelled rooms and zoom column; GAUNTLET's first-clear verdict; the
-    Tournaments bracket; the Coin Ledger's stat tiles and tab keys under its
-    name; VANGUARD's playfield column on black with the pathway panel at its
-    left. The Foundry alone keeps one picture at the right end beside its
-    title. Where the title sits is the
-    card's own, set in `cards.css` by layout properties only (`--rm-align`,
-    `--rm-justify` with `--rm-text-flex`, `--rm-head-drop`, and the
-    comfortable grid's `--rm-cols` and column picks). The first pass put a
-    small picture in each card's corner and read as one template eight
-    times; the second still gave four plate cards one chassis (icon and
-    title top left over a row of bordered tiles). The check is a capture of
-    the grid with every word and mark hidden. A scene's words are
-    placeholders that read like the page, never a real person's name, none
-    under 9px, and the whole drawing is `aria-hidden`. A card's description
-    fits its two clamped lines in the comfortable view.
-  - **THE INVENTORY IS DATA, AND IT IS WHERE A CARD'S COLOURS MAY COME FROM.**
-    `LAUNCHER_ROOMS` in `src/lib/launcher/rooms.ts` records, per app, the
-    dominant colours, accent, faces and remembered shapes, and the room files
-    the card quotes (`sources`). Every colour in `src/lib/launcher/cards.css`
-    is a literal that appears in one of those files or a token one of the
-    ROOM files (not the site token file alone) reads;
-    `tests/home-order-and-accent.test.ts` traces each, with a planted control.
-    Never invent a colour for a card: read it off the room.
-  - **THE MECHANISM IS THE CASCADE, AND THE PAINT IS `--rm-*`.** `cards.css` is
-    one block per app on the card's `data-app` attribute, declaring only
-    custom properties (`--rm-ground`, `--rm-edge`, `--rm-title` and its face,
-    `--rm-accent`, `--rm-icon`, `--rm-sub`, the call to action's, the face
-    texture, and `--rm-a1` up and `--rm-g1` up for the drawing's colours and
-    glows); `AppLauncher.svelte`
-    only reads them, each with a site fallback, so an app with no block is a
-    plain plate card. **There is still no colour field on `PortalApp`**, and
-    no `family`: an inline custom property beats every rule, which is how
-    eleven wrong accents once painted for months. A new app gets one block in
-    `cards.css`, one entry in `LAUNCHER_ROOMS` and one drawing in `CardArt`.
-  - **THE WORDS STAND ON THE CARD'S OWN GROUND.** `--rm-ground` is the card's
-    background colour (AppLauncher's rule outranks `site-plate.css`'s shared
-    `--bg1` face), so every contrast check walks up to the right ground; a
-    motif fades in from its own left edge, a scene fills what the title leaves,
-    and the title and description carry a halo of the ground. A plate room's
-    scene stands its tiles on plate panels over the plate's page ground, as
-    the room does, which is also what keeps its small words above 4.5:1 on
-    Space White. Every card is 88px; in the comfortable view the drawing is
-    confined to the 92px banner row (`--rm-band`) and the description and key
-    sit under it. The grid track is 300px in every view.
-  - **A CARD FOLLOWS ITS ROOM, NOT THE SITE THEME.** The plate rooms
-    (Classroom, Notebook, Armory, Maps, Market, Admin) read site tokens and
-    turn light or Matrix-green with the theme exactly as their rooms do; the
-    Coin Ledger, the Foundry and Tournaments copy their rooms' own Space White
-    twins (and the Ledger its Matrix grounds) as theme blocks in `cards.css`;
-    GAUNTLET, GREENLINE, VANGUARD, IdeaCAD and FRC never change in their rooms,
-    so their cards have no theme block and read no token a theme moves
-    (IdeaCAD's green is the literal its out-of-scope room resolves to). The
-    test holds both directions. This replaces decisions 55 and 62 (one green,
-    then one curated ink per card on Space White) and ledger 0467's one ink
-    per family.
-  - **NO FAMILIES, NO HUE BUDGET, AND NEON WHERE THE ROOM IS NEON.** The
-    launcher is outside the identity library's seven-hue rule, and the
-    Ledger's, VANGUARD's and GAUNTLET's cards may carry their rooms' neon
-    (`tests/identity-colors.test.ts` allows it in those three blocks only).
-  - **READABILITY STILL BINDS.** Title, its accent word, description and call
-    to action clear 4.5:1 on the card in every theme (computed from source by
-    the test, measured on pixels by the browser specs), and so does every word
-    a scene draws (measured on its own glyph box, nothing under 9px). The one
-    deliberate exception is GREENLINE's chrome wordmark (`--rm-title-img`),
-    the room's own gradient, whose horizon band and foot fall to about 2:1
-    on the night ground over roughly a sixth of the letter height; its solid
-    `--rm-title` ink is what the instruments read; cards and keys are 44px
-    or more; every card carries its words; the drawing does not move, and each
-    mark plays once under `prefers-reduced-motion: no-preference`.
+- **EVERY LAUNCHER CARD IS A FILM STILL LIT BY ITS APP'S LIGHT (ledger 0475,
+  decision 73 as amended the second time, 2026-10-30,
+  `docs/decisions/entries/73-launcher-cards-are-their-apps.md`).** Mr. Pina
+  asked for cards that are "representative ... like real apps on a computer"
+  at least four times. Ledger 0472's miniature screens were "way too busy"
+  on his phone, ledger 0474's icon-and-motif cards "looks like Play-Doh",
+  and from four researched samples he chose direction A, cinematic light:
+  "Gotta go with a cinematic light ... adjust green line and foundry in the
+  same way." So every card, GREENLINE and the Foundry included, is one shape:
+  the app's filled icon and its title at the left (16px in, 12px apart, the
+  icon 30px), on the eased scrim of a dark scene lit by ONE light source in
+  the app's hue about two-thirds across, with haze, one object, a vignette
+  and faint grain, and no words in the art. The compact card is that scene,
+  88px tall; the comfortable card adds a 56px foot on the card's ground, a
+  hairline above it, with the description (two lines at most) and the key.
+  The grid track is 300px in every view, 12px apart.
+  - **THE SAMPLE IS THE SOURCE OF TRUTH, AND IT IS PORTED, NOT
+    REINTERPRETED.** `src/lib/launcher/art.ts` is the chosen sample's
+    scenes, helpers and filled icons (its generator's direction-A and shared
+    library files, outside the repo), transcribed; its
+    output was compared to the sample's own SVG, card by card, and matched
+    with ids normalised (docs/history/launcher-cinematic-light-0475.md).
+    `sceneSvg(id)` draws a card's scene (CardArt mounts it under a grain
+    layer) and `iconSvg(id)` its icon (AppLauncher's icon snippet). Both
+    return SVG built only from constants, which is why `{@html}` is allowed
+    there; their ids derive from the app's id, so a server render and a
+    browser render agree. Change a scene in `art.ts` and nowhere else.
+  - **THE HUES ARE RECORDED, WITH THEIR SOURCE.** `LAUNCHER_ROOMS` in
+    `src/lib/launcher/rooms.ts` holds each app's `hue` (the light), `core`
+    (its white-hot centre), `ground` (the card's deep), any second light
+    (`light`, `glow`), its title face and size, its `titleAccent` and, in
+    words, its `scene`. `source` is "chosen sample A, 2026-10-30" for all
+    fourteen; GREENLINE's and the Foundry's say they were redrawn in the same
+    grammar at his request. Where a hue departs from its room (the Market's
+    violet, the Armory's steel blue, the Ledger and VANGUARD toned off
+    neon), the sample governs.
+  - **EVERY COLOUR ON A CARD IS DERIVED FROM ITS LIGHT.** `cardInks()` in
+    `art.ts` gives the edge, the title ink and its halo, the accent, the
+    icon's lift and glow, the description, the key and the hover halo, the
+    way the sample derives them. `src/lib/launcher/cards.css` is one block
+    per app on `data-app`, declaring only those `--rm-*` custom properties
+    (`--rm-ground`, `--rm-edge`, `--rm-radius`, `--rm-title` and its face,
+    `--rm-accent`, `--rm-icon`, `--rm-icon-filter`, `--rm-sub`,
+    `--rm-cta-ink`, `--rm-cta-edge`, `--rm-cta-bg`, `--rm-glow`), and
+    `tests/home-order-and-accent.test.ts` holds every block to the
+    derivation, value for value, with a planted control. To change a card's
+    colour, change its room's light and write the block again.
+    `AppLauncher.svelte` only reads the properties, each with a site
+    fallback, so an app with no block is a plain plate card. **There is
+    still no colour field on `PortalApp`**, and no `family`: an inline custom
+    property beats every rule, which is how eleven wrong accents once painted
+    for months. A new app gets a room entry, a scene, an icon and a block.
+  - **A CARD IS A FILM, NOT PLATE: IT LOOKS THE SAME ON EVERY THEME.** On
+    Space White and Matrix the cards keep their dark cinematic look, as the
+    sample does; `cards.css` has no theme block and the test holds every card
+    identical across the three themes. This replaces 0472's "a card follows
+    its room", decisions 55 and 62 and ledger 0467's family inks.
+  - **NO FAMILIES, NO HUE BUDGET, NO NEON.** The launcher is outside the
+    identity library's seven-hue rule; no two cards share a light; and the
+    sample's hues carry no neon literal (`tests/identity-colors.test.ts`).
+  - **READABILITY STILL BINDS.** Every word clears 4.5:1 on the card's ground
+    (title, its accent word, description, key, computed from source by the
+    test), the icon 3:1, and in the browser each title clears 4.5:1 over the
+    BRIGHTEST pixel of the scene behind its glyph box (11.6:1 at worst on
+    2026-10-30). A star VANGUARD's sample drew behind its title was moved out
+    from under it for that reason. Cards are 88px or more; nothing on a card
+    is under 11px; nothing moves.
   - **THE FRC MARK IS NEVER ANIMATED OR ALTERED, and that outranks matching the
     cards either side of it.** FIRST's brand guidelines prohibit altering the
-    mark, and motion is an alteration. It is the unmodified image, with no
-    filter. Every other app mark is a component in `$lib/marks` with a
-    3-4.6s cycle gated behind `prefers-reduced-motion: no-preference`, which the
-    launcher plays ONCE (each mark's `once` prop, ledger 0298), and
-    **nothing is hidden in a base state**: with the animation cancelled every
-    animated element is at full opacity and no transform, so a reduced-motion
-    reader sees the whole glyph.
-  - **A CARD QUOTES ITS ROOM'S FACE**: Orbitron 900 for the Ledger, Archivo
-    Black italic for GREENLINE, Roboto bold italic for FRC, Chakra Petch for
-    IdeaCAD and VANGUARD, Rajdhani or Share Tech Mono for the plate rooms. The
-    faces not already on the page are `@fontsource` imports in AppLauncher and
-    download only when a card draws a letter in them.
+    mark. It is the unmodified image, with no filter (the sample's glow on it
+    was left off for that reason). Every other icon is the app's filled mark,
+    still. The animated marks in `$lib/marks` serve other surfaces (the
+    Foundry house card, the Armory, the IdeaCAD launch page), and **nothing in
+    them is hidden in a base state**.
+  - **A CARD QUOTES ITS ROOM'S FACE, AT THE SAMPLE'S SIZE**: Orbitron for the
+    Ledger (900), GAUNTLET, VANGUARD, the Foundry and Admin; Archivo Black
+    italic for GREENLINE; Roboto bold italic for FRC; Share Tech Mono for
+    Maps; Rajdhani for the rest. The faces not already on the page are
+    `@fontsource` imports in AppLauncher and download only when a card draws
+    a letter in them.
 
 - **AN IDENTITY COLOUR IS NEVER MOVED TO PASS A CONTRAST CHECK; the derived
   value moves.** The identity paints the fill and the edge; an INK beside it
@@ -180,8 +158,8 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
   was the same hue and the same saturation at 68% lightness instead of 52%.
   **Lightness only -- desaturating is how a brand quietly stops being itself.**
   If a colour cannot clear while staying recognisable, say so and stop. (The
-  launcher no longer derives inks at all: a card quotes its room, whose own
-  words already clear on its own ground.)
+  launcher derives its inks from each app's light, `cardInks()`, and every
+  one clears on the card's own dark ground.)
   - **THERE ARE TWO OF IT on a dark ground and three light-ground twins beside
     them (ledger 0297, see the scoped-theme rule below).** `--violet-ink` for
     anything painting a WORD in `--violet` (the raw accent measures 2.88 /
@@ -235,17 +213,18 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
   - **A LIGHT THEME HAS LIGHT-GROUND TWINS FOR EVERY IDENTITY INK, and the
     rule is the ink rule above.** `Pathway.inkOnLight`, `fgOnLight` on an
     avatar preset and `AVATAR_TINTS_ON_LIGHT` (a launcher card has none since
-    ledger 0472: it follows its room): the identity color never moves, the
+    ledger 0475: it is a film and keeps its dark ground on every theme): the identity color never moves, the
     twin moves lightness only. `tests/space-white-inks.test.ts` parses the real grounds out of the
     theme file. A hover wash under a light theme mixes into `--bg1`, never into
     transparent, or it disappears on white. A theme difference inside a
     component is a theme-keyed override there, never a new token in the theme
     file: theme files hold tokens only.
-    - **ON SPACE WHITE A LAUNCHER CARD DOES WHAT ITS ROOM DOES (ledger
-      0472, decision 73, superseding 0467's family inks and decisions 55 and
-      62).** See the launcher rule above; `AppLauncher.svelte` has no Space
-      White rule that paints a card, and `tests/space-white-inks.test.ts`
-      holds that.
+    - **ON SPACE WHITE A LAUNCHER CARD KEEPS ITS DARK FILM STILL (ledger
+      0475, decision 73 as amended the second time, superseding 0472's
+      "follows its room", 0467's family inks and decisions 55 and 62).** See
+      the launcher rule above; neither `AppLauncher.svelte` nor `cards.css`
+      has a theme rule that paints a card, and
+      `tests/space-white-inks.test.ts` holds that.
   - **A PHONE AT 30 FPS IS NOT A SLOW DEVICE (report R09).** The Matrix rain
     degrades only when the median of a 90-frame window is 45ms or longer
     (`judgeFrame` in `$lib/design-system/themes/matrix-rain.ts`), after a 3s
@@ -280,7 +259,8 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
     a dark theme never fetches it. `.legacy-index` reads its neon tints through
     `--li-*` room hooks so a light theme can point them at its inks. App marks
     follow the once-only standard `IdeaCadMark` set: one pass, rest frame held,
-    nothing hidden in a base state, and the launcher mounts every mark `once`.
+    nothing hidden in a base state. The launcher mounts none of them since
+    ledger 0475: its icons are the still, filled marks of `art.ts`.
   - **THE HOME PARTICLES ARE OFF ON SPACE WHITE (Mr. Pina, 2026-10-07,
     reversing his 2026-09-29 answer that kept them).** The theme takes the
     canvas away the way Matrix does, and the page's frame loop stops while the
@@ -295,7 +275,7 @@ _Moved word for word from `CLAUDE.md` on 2026-10-19 (ledger 0415). The boundary 
     flag and the change log's Visual tag, moved off it on Space White; gold
     stays for true special callouts. (Launcher cards took the green ink there
     from decision 40 until ledger 0472, when each card began quoting its own
-    room instead.)
+    room, and since ledger 0475 each is lit by its own app's light.)
     Classroom words and glyphs that painted `--gold` (the assignment glyph,
     file badges, rubric points, course codes, small links, My Classes' card
     ink) read `--hover-ink` since report R14; `--gold` stays only on pins,

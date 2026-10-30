@@ -1,201 +1,215 @@
 /**
- * WHAT EACH HOME-SCREEN CARD QUOTES (ledger 0472, decision 73).
+ * WHAT EACH HOME-SCREEN CARD IS LIT BY (ledger 0475, decision 73 as amended
+ * the second time, 2026-10-30).
  *
- * Mr. Pina, 2026-10-29: "The apps on the home screen are terrible right now
- * ... I would like for the apps to reflect the content. If the app is green
- * inside, it should be green ... It has to be representative, perfectly
- * representative of what is inside that page visually." And: "Each app should
- * be unique visually, completely, like real apps on a computer."
+ * Mr. Pina chose direction A, "cinematic light", from four samples: "Gotta
+ * go with a cinematic light. But now green line and foundry look weird
+ * because they weren't adjusted in the same way. So adjust green line and
+ * foundry in the same way and go for that." Every card, GREENLINE and the
+ * Foundry included, is a dark film still: the app's filled icon and its
+ * title at the left over an eased scrim, ONE light source in the app's hue
+ * about two-thirds across, haze, one object, a vignette and faint grain, and
+ * no words in the art.
  *
- * So a launcher card is a miniature of its own app: its ground, its accent,
- * its type and the shapes it is remembered by, read off the app's own page
- * and its own stylesheet. This file is the INVENTORY that design was made
- * from, as plain data, and the list of files each card's colours come from.
+ * THE HUES ARE THE CHOSEN SAMPLE'S, and this file is where they are written
+ * down. `source` says where each came from: twelve from the sample he chose
+ * (`banners/A.html`, built by its own `dirA.js` and `lib.js`), and GREENLINE
+ * and the Foundry from the same sample as redrawn by this ledger, which took
+ * their hues from their rooms (GREENLINE's streak green, the Foundry's molten
+ * seam). Where a hue departs from its room (the Market's violet, the
+ * Armory's steel blue, the Coin Ledger and VANGUARD toned off neon), the
+ * sample he chose governs (decision 73, second amendment).
  *
- *   - `sources` are the room's own files. Every colour `cards.css` names for
- *     a card is either a literal that appears in one of these files or a site
- *     token one of them reads; `tests/home-order-and-accent.test.ts` holds
- *     every card to that, so a colour nobody can trace to the app is refused.
- *   - `followsTheme` says whether the ROOM repaints under Space White. A card
- *     follows its room, not the site theme: GAUNTLET, GREENLINE, VANGUARD,
- *     IdeaCAD and FRC keep their own look on every theme, so their cards do
- *     too.
- *   - `neon` marks the rooms that are neon themselves (decision 73: "Where the
- *     room itself is neon, the card may be neon"). Only their cards may carry
- *     a neon literal (`tests/identity-colors.test.ts`).
- *   - `titleAccent` is the part of the title the room paints in its accent
- *     ("IDEA <Coin> Ledger", "IDEA<CAD>"), so the card says it the same way.
+ *   - `hue` is the light; `core` its white-hot centre; `ground` the card's
+ *     deep, the colour every word is measured on. `light` is a second, cold
+ *     source two scenes use (IdeaCAD's studio light, GREENLINE's floodlight)
+ *     and `glow` Maps' beacon, a shade under its hue.
+ *   - `title` is how the room sets its own name, in the site's faces.
+ *   - `titleAccent` is the part of the title the room paints ("IDEA <Coin>
+ *     Ledger", "IDEA<CAD>").
+ *   - `scene` says in words what the banner shows, and why a student knows
+ *     the app by it.
  *
- * PLAIN DATA, client-safe, like portal-apps.ts. No colour lives here: the
- * paint is `cards.css`, keyed on the card's `data-app`, for the cascade
- * reason portal-apps.ts records.
+ * EVERY COLOUR ON A CARD COMES FROM HERE. `./art.ts` draws the scene and the
+ * icon from these values, and `cardInks()` there derives the words' inks the
+ * way the sample does; `./cards.css` writes those inks out per card, and
+ * `tests/home-order-and-accent.test.ts` holds every colour in it to the
+ * derivation. A card is a film, not plate: it looks the same on every theme.
+ *
+ * PLAIN DATA, client-safe, like portal-apps.ts.
  */
+
+export interface LauncherTitle {
+	/** A site face token: `--font-display` (Rajdhani), `--font-title` (Orbitron), `--font-mono`, or a room's own face. */
+	font: string;
+	weight: number;
+	/** In px, as the sample sets it; cards.css writes it in rem. */
+	size: number;
+	track: string;
+	case?: 'uppercase';
+	style?: 'italic';
+}
 
 export interface LauncherRoom {
 	/** The `PortalApp.id` this card belongs to. */
 	id: string;
-	/** Repo paths whose colours the card quotes. */
-	sources: readonly string[];
-	/** The room repaints under Space White (and Matrix), so the card does too. */
-	followsTheme: boolean;
-	/** The room itself is neon, so its card may be. */
-	neon?: boolean;
-	/** The part of the title painted in the room's accent, as the room writes it. */
+	/** The light, as a hex. */
+	hue: string;
+	/** The white-hot centre of the light. */
+	core: string;
+	/** The card's deep: its background and the ground every word is measured on. */
+	ground: string;
+	/** A second, cold light (IdeaCAD's studio light, GREENLINE's floodlight). */
+	light?: string;
+	/** Maps' beacon, a shade under its hue. */
+	glow?: string;
+	/** Where these colours were chosen. */
+	source: string;
+	title: LauncherTitle;
+	/** The part of the title painted in the light, as the room writes it. */
 	titleAccent?: string;
-	/** The inventory, in words: what dominates the page by area. */
-	dominant: string;
-	/** Its accent. */
-	accent: string;
-	/** Its type faces. */
-	faces: string;
-	/** The shapes and textures a person remembers it by. */
-	remembered: string;
+	/** What the banner shows, in words. */
+	scene: string;
 }
 
-const PLATE = 'src/lib/classroom/plate.css';
-const SITE = 'src/lib/design-system/colors.css';
+const SAMPLE = 'chosen sample A, 2026-10-30';
+const REDRAWN = 'chosen sample A, 2026-10-30, as redrawn by ledger 0475 at his request';
+
+const RAJ = (size: number, weight = 700, extra: Partial<LauncherTitle> = {}): LauncherTitle => ({ font: 'var(--font-display)', weight, size, track: '0.01em', ...extra });
+const ORB = (size: number, weight: number, track: string, upper = false): LauncherTitle => ({ font: 'var(--font-title)', weight, size, track, ...(upper ? { case: 'uppercase' as const } : {}) });
 
 export const LAUNCHER_ROOMS: readonly LauncherRoom[] = [
 	{
 		id: 'classroom',
-		sources: ['src/lib/classroom/classroom.css', 'src/lib/classroom/MyClasses.svelte', PLATE, SITE],
-		followsTheme: true,
-		dominant: 'the site plate: charcoal page, My Classes as two columns of raised class tiles',
-		accent: 'the hover ink (brass on the dark themes, green on Space White) on the mortarboard, the course code and Open',
-		faces: 'Rajdhani 700 class titles, Share Tech Mono course codes and Open',
-		remembered: 'MY CLASSES centred over two tall class tiles side by side, each a big mortarboard in a square, the code over the title, Open at its foot'
+		hue: '#c8a848',
+		core: '#f7e6b0',
+		ground: '#100e09',
+		source: SAMPLE,
+		title: RAJ(20),
+		scene: 'the lit board: a picture light along the top of a dark board, its brass light falling down the face'
 	},
 	{
 		id: 'notebook',
-		sources: ['src/lib/notebook/notebook-theme.css', 'src/lib/ui/status-tone.ts', SITE, PLATE],
-		followsTheme: true,
-		dominant: 'the classroom plate, with the dark camera island the photos are corrected on',
-		accent: 'the warn tone of the NOT FILED YET tag, the paper white of the photo handles',
-		faces: 'Rajdhani 600, Share Tech Mono for the status tags',
-		remembered: 'a photographed page squared up by four corner handles, the NOT FILED YET tag, the big rounded Take a photo and Choose a photo keys'
+		hue: '#ea984b',
+		core: '#fff0dc',
+		ground: '#110d09',
+		source: SAMPLE,
+		title: RAJ(20),
+		scene: 'a page under the lamp: one sheet on the desk in a pool of amber light, its far edge catching the bulb'
 	},
 	{
 		id: 'ideacad',
-		sources: ['src/lib/ideacad/ideacad.css', 'src/lib/ideacad/solid/launch/LaunchPage.svelte', 'src/lib/ideacad/solid/appearance.ts', SITE],
-		followsTheme: false,
+		hue: '#78b870',
+		core: '#e4f2e2',
+		ground: '#0c1013',
+		light: '#b9cbd8',
+		source: SAMPLE,
+		title: RAJ(19, 700, { track: '0.08em', case: 'uppercase' }),
 		titleAccent: 'CAD',
-		dominant: 'three panes under a head band: the FeatureManager, the graphite viewport, the PropertyManager',
-		accent: 'the brand green: the CAD half of the wordmark, the selected row, the PASS chips, the New model key',
-		faces: 'Chakra Petch 700 wordmark, Rajdhani tree rows, Share Tech Mono readouts',
-		remembered: 'a green-lit Body Revolve row, a shaded revolved body on a floor grid, readouts each with a PASS chip'
+		scene: 'the part on the turntable: a revolved part rim-lit in cool studio light, its revolve axis the one green line'
 	},
 	{
 		id: 'armory',
-		sources: ['src/lib/armory/armory.css', PLATE, SITE],
-		followsTheme: true,
-		dominant: 'the site plate: charcoal page, a row of tab keys over the file list',
-		accent: 'the green ring of the lit tab key, green check rings and Available on a file nobody holds',
-		faces: 'Rajdhani 600 file names, Share Tech Mono keys and chips',
-		remembered: 'the FILES (5), CHECKED OUT (2), TEAM tab keys with FILES ringed green over the file list: rows with a check ring and a green Available, the DRIVETRAIN folder, plate keys with a screw dot in the corner'
+		hue: '#86aecb',
+		core: '#e8f2fa',
+		ground: '#0a0e12',
+		source: SAMPLE,
+		title: RAJ(20),
+		scene: 'the vault seam: two steel doors, one drawn back a hand’s width, cold light standing in the gap'
 	},
 	{
 		id: 'maps',
-		sources: ['src/lib/maps/viewer/MapsViewer.svelte', 'src/lib/maps/viewer/MapsPlan.svelte', PLATE, SITE],
-		followsTheme: true,
-		dominant: 'the plan canvas, its tint to the edges, the frame and rooms washed in the plan accent',
-		accent: 'the plan jade (its own darker jade on Space White)',
-		faces: 'Share Tech Mono room labels and scale, Rajdhani prose',
-		remembered: 'a floor plan: Machine Shop, Mill Room and Weld Bay outlined and filled in a frame, the stacked +In, -Out and Fit keys beside it'
+		hue: '#40e3b1',
+		core: '#dcfff2',
+		ground: '#07110e',
+		glow: '#2fc79a',
+		source: SAMPLE,
+		title: { font: 'var(--font-mono)', weight: 400, size: 17, track: '0.02em' },
+		scene: 'the locator on the shop plan, seen from above: one beacon lighting the walls of the room it is in'
 	},
 	{
 		id: 'coins',
-		sources: ['src/lib/legacy/coins/index.html'],
-		followsTheme: true,
-		neon: true,
+		hue: '#b9d43c',
+		core: '#f3ffcf',
+		ground: '#0b0e06',
+		source: SAMPLE,
+		title: ORB(14.5, 900, '0.01em'),
 		titleAccent: 'Coin',
-		dominant: 'near-black green page, a field of drifting particles',
-		accent: 'neon green and the chartreuse of "Coin", the active key and the i¢ mark (an olive and a forest green on Space White)',
-		faces: 'Orbitron 900 title, Share Tech Mono everything else',
-		remembered: 'IDEA Coin Ledger with Coin glowing, the COINS IN CIRCULATION and STUDENTS IN DEBT stat tiles with their lime and red dashes, the tab keys with LEADERBOARD lit, the particle field'
+		scene: 'a coin standing on its edge on black glass, its milled rim catching the light from behind'
 	},
 	{
 		id: 'market',
-		sources: ['src/lib/coin-market/market.css', 'src/lib/ui/status-tone.ts', PLATE, SITE],
-		followsTheme: true,
-		dominant: 'the site plate with a grid of shop tiles on panel faces, the trades beside them',
-		accent: 'the gold Featured tile and tag, the lit readout of the dark balance glass (dark on every theme), the trade bar in green and cyan',
-		faces: 'Rajdhani 700 item names, Share Tech Mono prices in i¢ and the balance',
-		remembered: 'two columns: the offers grid with its gold Featured tile on the left, Your trades with HELD, DONE, PAID bars down the right'
+		hue: '#a58bea',
+		core: '#efe8ff',
+		ground: '#0d0a14',
+		source: SAMPLE,
+		title: RAJ(20),
+		scene: 'the ticker light: the last trades as one luminous trace, its head the brightest point on the floor'
 	},
 	{
 		id: 'gauntlet',
-		sources: ['src/lib/gauntlet/viewport/viewport.css'],
-		followsTheme: false,
-		neon: true,
-		dominant: 'VIEWPORT void, near-black blue, with steel fog and a starfield of particulate',
-		accent: 'neon green running into lime on the primary key and the first-clear banner, cyan readouts',
-		faces: 'Orbitron headings and the FIRST CLEAR flash, Share Tech Mono data, Rajdhani body',
-		remembered: 'the lime-ringed CLEARED banner of a first clear, the run time in glowing cyan, the green-to-lime key'
+		hue: '#7fcfee',
+		core: '#e6f9ff',
+		ground: '#05080b',
+		source: SAMPLE,
+		title: ORB(13.5, 700, '0.06em', true),
+		scene: 'the clock sweep: a great dial’s edge in steel fog, the hand sweeping, the time already run trailing behind it as light'
 	},
 	{
 		id: 'frc',
-		sources: ['src/lib/frc/frc-theme.css'],
-		followsTheme: false,
-		dominant: 'FIRST paper: a near-white page and white cards',
-		accent: 'FIRST blue on the rule, the links and the triangle; FIRST red on the circle',
-		faces: 'Roboto 700 italic headings, Roboto body',
-		remembered: 'the white header strip and the blue rule under it, domain cards with a blue top edge holding a triangle, a circle and a square'
+		hue: '#2f8fe0',
+		core: '#e0efff',
+		ground: '#050a12',
+		source: SAMPLE,
+		title: { font: "'Roboto', sans-serif", weight: 700, size: 18, track: '0', style: 'italic' },
+		scene: 'the alliance wall at night: the field’s blue LED rail along the floor and one stack light standing over it'
 	},
 	{
 		id: 'greenline',
-		sources: ['src/lib/greenline/brand/brand.css'],
-		followsTheme: false,
-		dominant: 'night: near-black blue with haze rising to the horizon',
-		accent: 'the green racing line with its white-hot core, amber sparks, floodlight white',
-		faces: 'Archivo Black italic chrome wordmark, Saira Condensed letterspaced UI',
-		remembered: 'the chrome italic wordmark centred between floodlight cones on poles, the green streak raking under it, the orange spark burst where they meet, the START box'
+		hue: '#2ae57e',
+		core: '#eafff3',
+		ground: '#04060a',
+		light: '#eaf4ff',
+		source: REDRAWN,
+		title: { font: "'Archivo Black', sans-serif", weight: 400, size: 15.5, track: '0.01em', case: 'uppercase', style: 'italic' },
+		scene: 'the night track: one floodlight on its mast, its cold cone falling on the asphalt, and the green streak burning across the track where the light lands'
 	},
 	{
 		id: 'vanguard',
-		sources: ['src/lib/legacy/vanguard/index.html'],
-		followsTheme: false,
-		neon: true,
-		dominant: 'black, the playfield column ruled in green down the middle, the RIVAL PATHWAYS panel at its left',
-		accent: 'neon green, glowing',
-		faces: 'Chakra Petch 700 letterspaced wordmark, Share Tech Mono',
-		remembered: 'the arcade column between two thin green rules with the ship and its shots, the rival pathway squares in five colours, a filled green key'
+		hue: '#52d06e',
+		core: '#e4ffe9',
+		ground: '#050906',
+		source: SAMPLE,
+		title: ORB(13.5, 700, '0.1em', true),
+		scene: 'the climb: the ship nose-up in the dark, its exhaust burning a straight line down the screen'
 	},
 	{
 		id: 'foundry',
-		sources: ['src/lib/foundry/forge.css', 'src/lib/foundry/MoltenSeam.svelte', 'src/lib/foundry/FoundryCard.svelte'],
-		followsTheme: true,
-		dominant: 'iron black with a warm cast (light on Space White), the gallery mosaic of generated covers',
-		accent: 'the molten seam: ember, amber and a white-hot core',
-		faces: 'Orbitron wordmark, Rajdhani, Share Tech Mono',
-		remembered: 'the glowing molten seam under the header, a mosaic of cover tiles'
+		hue: '#f0782a',
+		core: '#ffd9a3',
+		ground: '#0d0c0a',
+		source: REDRAWN,
+		title: ORB(14, 600, '0.12em', true),
+		scene: 'the pour: iron black, a crucible tipped high on the right, its molten stream falling into the ingot mould, the floor seam glowing near it'
 	},
 	{
 		id: 'tournaments',
-		sources: [
-			'src/lib/tournaments/tournaments-theme.css',
-			'src/lib/tournaments/BracketView.svelte',
-			'src/lib/tournaments/EventRail.svelte',
-			'src/lib/identity-style.ts',
-			'src/lib/ui/status-tone.ts'
-		],
-		followsTheme: true,
-		dominant: 'deep green-black page, match boxes on a darker panel',
-		accent: 'the tournament jade on seeds, the entrants\' own accent bars, the status red of the live match and its pip',
-		faces: 'Rajdhani 600 entry names, Share Tech Mono seeds and rounds',
-		remembered: 'a bracket of seeded match boxes joined into round two, the LIVE chip on M1, the pip strip of matches'
+		hue: '#2fcb8b',
+		core: '#dcfff0',
+		ground: '#06100c',
+		source: SAMPLE,
+		title: RAJ(18, 600, { track: '0.16em', case: 'uppercase' }),
+		scene: 'the final: two seeds’ lines of light meeting in one point under a spotlight, the winner’s line running on'
 	},
 	{
 		id: 'dashboard',
-		sources: ['src/routes/dashboard/+page.svelte', 'src/app.css', PLATE, SITE],
-		followsTheme: true,
-		dominant: 'the site plate: the identity plate over a row of queue keys and the panels',
-		accent: 'the glowing cyan name, the brass role, the green count waiting, cyan counts on the keys',
-		faces: 'Orbitron identity readout, Share Tech Mono keys and counts',
-		remembered: 'the bordered tab rail across the top, ADMIN CONSOLE centred, the glowing identity strip (who, teacher, WAITING ON YOU) under it'
+		hue: '#5abda8',
+		core: '#dcfbf4',
+		ground: '#070f0e',
+		source: SAMPLE,
+		title: ORB(15.5, 700, '0.04em'),
+		scene: 'light through the keyhole: a dark escutcheon on a dark door, the room beyond it lit, the light falling out across the floor'
 	}
 ];
 
-/** One room's entry, by app id. */
-export function launcherRoom(id: string): LauncherRoom | undefined {
-	return LAUNCHER_ROOMS.find((r) => r.id === id);
-}
+export const launcherRoom = (id: string): LauncherRoom | undefined => LAUNCHER_ROOMS.find((r) => r.id === id);

@@ -635,18 +635,24 @@ the source of truth; **do not invent colours or swap fonts.**
   through `solve()`; never type an identity hex there. At most seven hues on
   one screen, each beside a word or a glyph, and no neon.
   `tests/identity-colors.test.ts` holds it.
-  - **A HOME-SCREEN CARD IS A MINIATURE OF ITS OWN APP**
+  - **A HOME-SCREEN CARD IS A FILM STILL LIT BY ITS APP'S LIGHT**
     (`docs/decisions/entries/73-launcher-cards-are-their-apps.md`, which
-    retired 0467's six colour families): its ground, ink, title face, call to
-    action and drawn shapes are its room's own, in
-    `src/lib/launcher/cards.css` and `src/lib/launcher/CardArt.svelte`, and
-    every colour there must appear in the room files `LAUNCHER_ROOMS` names
-    for that card (`tests/home-order-and-accent.test.ts` traces each one). No
-    families and no hue budget; neon only where the room itself is neon; a
-    card follows its room, not the site theme, on Space White; every word on
-    a card clears 4.5:1; the FRC mark is never altered. A card quotes its
-    room's face too, so the FRC card's Roboto and GREENLINE's Archivo Black
-    are not the shell-font exception the Fonts rule below forbids.
+    retired 0467's six colour families, as amended a second time on
+    2026-10-30 when Mr. Pina chose the "cinematic light" sample): the app's
+    filled icon and title at the left over an eased scrim, one light in the
+    app's hue about two-thirds across, haze, one object, a vignette and
+    grain, no words in the art, for every card including GREENLINE and the
+    Foundry. The scenes and icons are the chosen sample ported into
+    `src/lib/launcher/art.ts` (drawn by `src/lib/launcher/CardArt.svelte` and
+    AppLauncher); each app's hue, core and ground are in `LAUNCHER_ROOMS`
+    with their source, and every colour in `src/lib/launcher/cards.css` is
+    `cardInks()` of them (`tests/home-order-and-accent.test.ts` holds each
+    value). No families and no hue budget; no neon; a card is a film, so it
+    keeps its dark look on every theme, Space White included; every word on
+    a card clears 4.5:1 and every title 4.5:1 over the brightest pixel of
+    its scene; the FRC mark is never altered. A card quotes its room's face
+    too, so the FRC card's Roboto and GREENLINE's Archivo Black are not the
+    shell-font exception the Fonts rule below forbids.
     `docs/subsystems/themes.md` has the detail.
 - **`--crimson` is reserved for live / rec / error status only**, never a general
   accent and never an identity colour.
