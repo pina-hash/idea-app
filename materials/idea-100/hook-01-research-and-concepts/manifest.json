@@ -63,15 +63,15 @@
         },
         {
           "id": "h1-feature",
-          "type": "radio",
+          "type": "text",
           "field": "featurePick",
-          "prompt": "The 3D feature your hook will use"
+          "prompt": "The 3D features your hook will use (one or more)"
         },
         {
           "id": "h1-feature-where",
           "type": "text",
           "field": "featureWhere",
-          "prompt": "Where on your hook it goes, and why there"
+          "prompt": "Where on your hook each one goes, and why there"
         }
       ],
       "points": 5,
@@ -110,19 +110,19 @@
         },
         {
           "id": "feature",
-          "text": "A 3D feature is picked, placed on the hook, and justified",
+          "text": "One or more 3D features are picked, placed on the hook, and justified",
           "levels": [
             {
               "label": "Complete",
               "short": "Picked, placed, why",
               "points": 2,
-              "descriptor": "A feature is picked, and the line says where on the hook it goes and why there."
+              "descriptor": "One or more features are picked, and the line says where on the hook each goes and why there."
             },
             {
               "label": "Developing",
               "short": "Picked, no place or why",
               "points": 1,
-              "descriptor": "A feature is picked, but the line gives no place or no reason."
+              "descriptor": "Features are picked, but the line gives no place or no reason."
             },
             {
               "label": "Absent",
