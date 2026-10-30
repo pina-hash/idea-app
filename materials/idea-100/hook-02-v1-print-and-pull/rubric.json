@@ -1,60 +1,34 @@
 [
   {
-    "id": "h2-v1-file",
-    "levels": [
-      {
-        "label": "Complete",
-        "short": "Named, opens, rebuilds clean",
-        "points": 4,
-        "descriptor": "Every part file the hook needs is handed in (one for a standard hook or a piece printed twice, one per piece otherwise), named V1_ or V1A_, V1B_, V1C_ with the student's last name, opens, is a whole hook rather than a start, and shows no red or yellow marks in the tree."
-      },
-      {
-        "label": "Proficient",
-        "short": "Whole hook, tree has marks",
-        "points": 3,
-        "descriptor": "A whole hook that opens, but the tree carries red or yellow marks, or a name does not follow the pattern."
-      },
-      {
-        "label": "Developing",
-        "short": "Unfinished, or a piece missing",
-        "points": 2,
-        "descriptor": "The file is still a start (a sketch or a partial body), or a multi-part hook is missing a piece."
-      },
-      {
-        "label": "Absent",
-        "short": "No part file",
-        "points": 0,
-        "descriptor": "No part file handed in."
-      }
-    ],
-    "points": 4,
-    "criterion": "V1: The V1 part files are handed in, named, and rebuild",
-    "incomplete": false
-  },
-  {
     "id": "h2-v1-shot",
     "levels": [
       {
         "label": "Complete",
-        "short": "Part and tree readable",
-        "points": 2,
-        "descriptor": "The whole SolidWorks window: the solid part and the full FeatureManager tree, readable."
+        "short": "Whole hook, name, tree",
+        "points": 4,
+        "descriptor": "The screenshot shows a whole hook (not a start), V1_ and the student's last name at the top, and a readable tree with no red or yellow."
+      },
+      {
+        "label": "Proficient",
+        "short": "Whole hook, one thing off",
+        "points": 3,
+        "descriptor": "A whole hook, but the tree has red or yellow, or the name does not follow V1_LASTNAME."
       },
       {
         "label": "Developing",
-        "short": "Tree cropped or collapsed",
-        "points": 1,
-        "descriptor": "The part shows, but the tree is cropped, collapsed, or too small to read."
+        "short": "Still a start",
+        "points": 2,
+        "descriptor": "A sketch or a partial body, or the tree and name cannot be read."
       },
       {
         "label": "Absent",
         "short": "No screenshot",
         "points": 0,
-        "descriptor": "No screenshot uploaded."
+        "descriptor": "No screenshot."
       }
     ],
-    "points": 2,
-    "criterion": "V1: The screenshot shows the whole part and a readable tree",
+    "points": 4,
+    "criterion": "V1: V1 is a whole hook in its own file, shown with its name and a readable tree",
     "incomplete": false
   },
   {
@@ -62,15 +36,15 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "All measured, every miss planned",
-        "points": 4,
-        "descriptor": "Every row carries a number measured on the student's own model, and every row outside the rule says what changes and by how much."
+        "short": "All measured, every miss fixed",
+        "points": 6,
+        "descriptor": "Every row carries a number measured on the student's own model, and every row outside its rule says what changes and by how much."
       },
       {
         "label": "Proficient",
-        "short": "One row missing or unplanned",
-        "points": 3,
-        "descriptor": "One row has no measurement, or one row outside the rule has no fix."
+        "short": "One row missing or unfixed",
+        "points": 4,
+        "descriptor": "One row has no measurement, or one row outside its rule has no fix."
       },
       {
         "label": "Developing",
@@ -80,13 +54,13 @@
       },
       {
         "label": "Absent",
-        "short": "Table empty",
+        "short": "Empty",
         "points": 0,
-        "descriptor": "No measurements entered."
+        "descriptor": "No measurements."
       }
     ],
-    "points": 4,
-    "criterion": "V1: Every dimension is measured on the model, and every one outside the rule has a fix",
+    "points": 6,
+    "criterion": "V1: Every dimension is measured on the model, and every one outside a rule has a fix",
     "incomplete": false
   },
   {
@@ -94,25 +68,51 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Set up right, print started",
+        "short": "Right settings, printing",
         "points": 4,
-        "descriptor": "Nozzle, plate and Generic ABS picked to match the printer, lying flat so the pull runs along the layers (seen in the preview), 50 percent, one plate with every piece of this one hook on it, and the printer it is running on named."
+        "descriptor": "The nozzle matches the printer picked, Generic ABS, and the printer it runs on is named."
       },
       {
         "label": "Developing",
-        "short": "Printing, setup partly wrong",
+        "short": "Printing, a setting off",
         "points": 2,
-        "descriptor": "The copy is printing, but it is standing up, the wrong size, missing a piece, or sharing a plate with someone else."
+        "descriptor": "Printing, but the nozzle does not match the printer or the filament is not Generic ABS."
       },
       {
         "label": "Absent",
-        "short": "Not sliced or not printing",
+        "short": "Not printing",
         "points": 0,
-        "descriptor": "No test copy sliced or started."
+        "descriptor": "No printer named and no settings picked."
       }
     ],
     "points": 4,
-    "criterion": "Slice and Print: The half-scale test copy is set up right and printing",
+    "criterion": "Slice and print: The half-size copy is set up right and printing",
+    "incomplete": false
+  },
+  {
+    "id": "h2-print-weights",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both weights, judged",
+        "points": 3,
+        "descriptor": "Full-size and half-size weights from the slicer, and the full size is at or under 50.0 g, or the page's warning was acted on."
+      },
+      {
+        "label": "Proficient",
+        "short": "One weight",
+        "points": 2,
+        "descriptor": "One weight is missing or is not a slicer reading."
+      },
+      {
+        "label": "Absent",
+        "short": "None",
+        "points": 0,
+        "descriptor": "No weights."
+      }
+    ],
+    "points": 3,
+    "criterion": "Slice and print: Both weights are read off Bambu Studio and the full size is judged against 50.0 g",
     "incomplete": false
   },
   {
@@ -120,103 +120,83 @@
     "levels": [
       {
         "label": "Complete",
-        "short": "Preview with the weight",
-        "points": 2,
-        "descriptor": "A screenshot of the sliced layer preview with the filament weight readable."
-      },
-      {
-        "label": "Developing",
-        "short": "Preview, weight not showing",
-        "points": 1,
-        "descriptor": "A screenshot of the part, but not sliced, or the weight is not in the picture."
-      },
-      {
-        "label": "Absent",
-        "short": "No screenshot",
-        "points": 0,
-        "descriptor": "No screenshot uploaded."
-      }
-    ],
-    "points": 2,
-    "criterion": "Slice and Print: The layer preview screenshot shows the estimated weight",
-    "incomplete": false
-  },
-  {
-    "id": "h2-print-mass",
-    "levels": [
-      {
-        "label": "Complete",
-        "short": "Both weights, compared, explained",
-        "points": 2,
-        "descriptor": "Full-size and half-scale weights from the slicer, the full size judged against 50.0 g, and a reason the half scale is or is not one eighth."
-      },
-      {
-        "label": "Developing",
-        "short": "Weights only",
-        "points": 1,
-        "descriptor": "One or both weights, with no comparison to the cap or no reason."
-      },
-      {
-        "label": "Absent",
-        "short": "Blank",
-        "points": 0,
-        "descriptor": "No weights entered."
-      }
-    ],
-    "points": 2,
-    "criterion": "Slice and Print: Both weights are read off the slicer and the full size is judged against 50.0 g",
-    "incomplete": false
-  },
-  {
-    "id": "h2-print-walls",
-    "levels": [
-      {
-        "label": "Complete",
-        "short": "Found it, and why it matters",
-        "points": 2,
-        "descriptor": "Names where the part is thinnest, what the preview shows there, and why that matters for a part pulled until it breaks."
-      },
-      {
-        "label": "Developing",
-        "short": "Names it, no why",
-        "points": 1,
-        "descriptor": "Says walls or infill without the place or the reason."
-      },
-      {
-        "label": "Absent",
-        "short": "Blank",
-        "points": 0,
-        "descriptor": "Nothing written."
-      }
-    ],
-    "points": 2,
-    "criterion": "Slice and Print: Says whether the thinnest part is solid walls or walls with infill, and why that matters under a pull",
-    "incomplete": false
-  },
-  {
-    "id": "h2-pull-test",
-    "levels": [
-      {
-        "label": "Complete",
-        "short": "Pulled, recorded, pieces kept",
-        "points": 5,
-        "descriptor": "Pulled at the rig, the breaking load written down from the score sheet, and the pieces kept."
+        "short": "Found it, and why",
+        "points": 3,
+        "descriptor": "A sliced preview at the thinnest spot with the weight readable, and a sentence on walls or infill there and why it matters in a pull."
       },
       {
         "label": "Proficient",
-        "short": "Pulled, one thing missing",
+        "short": "Shot or sentence weak",
+        "points": 2,
+        "descriptor": "The screenshot is not at the thinnest spot or the weight is hidden, or the sentence names walls or infill with no why."
+      },
+      {
+        "label": "Developing",
+        "short": "One of the two",
+        "points": 1,
+        "descriptor": "Only the screenshot or only the sentence."
+      },
+      {
+        "label": "Absent",
+        "short": "Neither",
+        "points": 0,
+        "descriptor": "Nothing."
+      }
+    ],
+    "points": 3,
+    "criterion": "Slice and print: The preview shows the thinnest spot, and the line says why walls or infill matter there",
+    "incomplete": false
+  },
+  {
+    "id": "h2-pull-call",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Spot and a real reason",
+        "points": 4,
+        "descriptor": "A spot picked before the pull, and a reason about where the load goes or where the hook is thinnest. A wrong call earns the same as a right one."
+      },
+      {
+        "label": "Developing",
+        "short": "Spot, vague reason",
+        "points": 2,
+        "descriptor": "A spot with a reason that could fit any hook."
+      },
+      {
+        "label": "Absent",
+        "short": "No call",
+        "points": 0,
+        "descriptor": "No spot picked."
+      }
+    ],
+    "points": 4,
+    "criterion": "The pull: A call made before the pull, with a reason",
+    "incomplete": false
+  },
+  {
+    "id": "h2-pull-pulled",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Pulled, load in",
         "points": 3,
-        "descriptor": "Pulled at the rig, but the load is not recorded or the pieces were not kept."
+        "descriptor": "The breaking load from the score sheet, in pounds."
+      },
+      {
+        "label": "Developing",
+        "short": "Load not a reading",
+        "points": 1,
+        "descriptor": "A load that is not from the rig's score sheet, or no unit."
       },
       {
         "label": "Absent",
         "short": "Not pulled",
         "points": 0,
-        "descriptor": "No pull recorded."
+        "descriptor": "No load."
       }
     ],
-    "points": 5,
-    "criterion": "The Pull: The copy is pulled at the rig, the load is recorded, and the pieces are kept",
+    "points": 3,
+    "criterion": "The pull: The copy is pulled at the rig and the load recorded",
     "incomplete": false
   },
   {
@@ -226,81 +206,55 @@
         "label": "Complete",
         "short": "Close, sharp, broken face",
         "points": 3,
-        "descriptor": "At least one photo that is close, in focus, and shows the broken face."
+        "descriptor": "At least one photo close and in focus on the broken face."
       },
       {
         "label": "Proficient",
-        "short": "Blurry, or too far",
+        "short": "Blurry or far",
         "points": 2,
-        "descriptor": "Photos of the break that are blurry, far away, or do not show the broken face."
+        "descriptor": "A photo of the break that is blurry, far away, or misses the broken face."
       },
       {
         "label": "Absent",
         "short": "No photo",
         "points": 0,
-        "descriptor": "No photo uploaded."
+        "descriptor": "No photo."
       }
     ],
     "points": 3,
-    "criterion": "The Pull: The fracture photos are close, in focus, and show the broken face",
+    "criterion": "The pull: The break photo is close, in focus, and shows the broken face",
     "incomplete": false
   },
   {
-    "id": "h2-pull-where",
+    "id": "h2-pull-read",
     "levels": [
       {
         "label": "Complete",
-        "short": "Place on the part, and mode",
-        "points": 4,
-        "descriptor": "Names the exact place on the part, and picks how it failed: snapped, pulled open, layers split, the joint let go, or something else described."
+        "short": "Mode, spot, change",
+        "points": 5,
+        "descriptor": "Picks how it failed and where, and names one change for V2 at that place, by how much."
       },
       {
         "label": "Proficient",
-        "short": "Place or mode, not both",
-        "points": 2,
-        "descriptor": "Names the place but not the mode, or the mode but not the place."
+        "short": "Change is vague",
+        "points": 3,
+        "descriptor": "Mode and spot picked, but the change is not tied to where it broke."
       },
       {
         "label": "Developing",
-        "short": "It broke, nothing more",
+        "short": "Partly read",
         "points": 1,
-        "descriptor": "Says it broke with no place and no mode."
+        "descriptor": "Only the mode or only the spot."
       },
       {
         "label": "Absent",
-        "short": "Blank",
+        "short": "Not read",
         "points": 0,
-        "descriptor": "Nothing written."
+        "descriptor": "Nothing."
       }
     ],
-    "points": 4,
-    "criterion": "The Pull: Says where it broke on the part and how it failed",
-    "incomplete": false
-  },
-  {
-    "id": "h2-pull-call",
-    "levels": [
-      {
-        "label": "Complete",
-        "short": "Called, checked, next change",
-        "points": 3,
-        "descriptor": "A call made before the pull, right, half right or wrong picked after, and one thing the next version changes because of it. A wrong call earns the same as a right one."
-      },
-      {
-        "label": "Proficient",
-        "short": "Checked, no next change",
-        "points": 2,
-        "descriptor": "The call is checked, but nothing says what changes next, or the call is too vague to check."
-      },
-      {
-        "label": "Absent",
-        "short": "Blank",
-        "points": 0,
-        "descriptor": "No call, or no check."
-      }
-    ],
-    "points": 3,
-    "criterion": "The Pull: The call is written before the pull and checked honestly after",
+    "points": 5,
+    "criterion": "The pull: Reads the break: how it failed, where, and what V2 changes",
     "incomplete": false
   }
 ]
