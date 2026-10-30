@@ -227,5 +227,7 @@ tpl = f'''<!doctype html>
 </body>
 </html>
 '''
+import hookart
+tpl = hookart.inject(tpl, 'pull', 'HOOK 05', 'The Final')
 (HERE / 'hook-05.src.html').write_text(tpl)
 print('wrote hook-05.src.html', len(tpl))

@@ -218,5 +218,7 @@ out = (tpl.replace('%%MANIFEST%%', json.dumps(manifest, indent=1, ensure_ascii=F
           .replace('%%DRILLS%%', ''.join(drill_steps))
           .replace('%%KB%%', json.dumps(kb, ensure_ascii=False).replace('</', '<\\/'))
           .replace('%%GLOSS%%', json.dumps({k: v for k, v in GLOSS.items() if k in USED}, ensure_ascii=False)))
+import hookart
+out = hookart.inject(out, 'cad', 'HOOK PROJECT', 'SolidWorks Day')
 (here / 'swday.src.html').write_text(out)
 print('wrote swday.src.html', len(out), 'wrench', len(wrench_steps), 'drills', len(drill_steps))
