@@ -199,7 +199,7 @@
  ]
 }
 </script>
-<meta name="hx-kit" content="80cb9a8 2026-10-29">
+<meta name="hx-kit" content="5b20db5 2026-10-29">
 <meta name="hx-standard" content="2.17">
 <style id="hx-kit-css">
 /* hx-kit: fonts, design-system tokens (main@4452876, synced 2026-10-17), Plate, kit. Rebuilt by tools/hx-kit/build.mjs; edit the kit, not this block. */
@@ -226,7 +226,14 @@
    fails until both have it). */
 
 /* ---- The ground: the page is the plate. ---------------------------------- */
+/* THE 11px LABEL FLOOR, SAID ONCE (ledger 0469). Every mono label part (the
+   eyebrow, the chip, the select's word, the pad and the display's label)
+   reads `--plate-label-size`; an assignment gets it here, and the site from
+   the Plate's own token (src/lib/classroom/plate.css, which reads the site's
+   type scale `--fs-micro`). The fallback is the same 11px, so a part used
+   outside `.idea-plate` still stands on the floor. */
 .idea-plate {
+	--plate-label-size: 0.6875rem;
 	background-color: var(--page-bot);
 	background-image: linear-gradient(to bottom, var(--page-top), var(--page-bot) 28rem);
 	background-repeat: no-repeat;
@@ -249,7 +256,7 @@
 	display: block;
 	margin: 0;
 	font-family: var(--font-mono);
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	font-weight: 400;
 	line-height: 1.6;
 	letter-spacing: 0.14em;
@@ -413,7 +420,7 @@ a.idea-panel:hover {
 	border: 0;
 	border-radius: var(--radius-small);
 	font-family: var(--font-mono);
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	font-weight: 400;
 	line-height: 1;
 	letter-spacing: 0.02em;
@@ -539,7 +546,7 @@ a.idea-panel:hover {
 .idea-well--select {
 	padding-right: 2.2rem;
 	font-family: var(--font-mono);
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
 	cursor: pointer;
@@ -676,7 +683,7 @@ a.idea-panel:hover {
 	padding: 0 calc(0.85rem + 7px) 0 0.85rem;
 	margin: 0;
 	font-family: var(--font-mono);
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	font-weight: 400;
 	line-height: 1.2;
 	letter-spacing: 0.08em;
@@ -839,7 +846,7 @@ a.idea-panel:hover {
 }
 /* The words on the glass that name the number: the caption face, dimmer. */
 .idea-display-label {
-	font-size: 0.6875rem;
+	font-size: var(--plate-label-size, 0.6875rem);
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
 }
@@ -1750,16 +1757,19 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 </style>
 <template id="idea-thumbnail">
 <style>
-  :root { --a: #1e2228; --b: #121416; --ink: #b9c3cf; --line: #e6e9ee; --hot: #f05a3c; }
-  :root[data-idea-scheme="light"] { --a: #e9edf2; --b: #d3dae3; --ink: #4a5563; --line: #20252c; --hot: #b42e14; }
-  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6%; background: radial-gradient(circle at 30% 30%, var(--a), var(--b) 80%); color: var(--line); font: 700 clamp(11px, 30vh, 22px)/1 Rajdhani, system-ui, sans-serif; white-space: nowrap; }
-  .t svg { height: 78%; }
+  :root { --a: #1e2228; --b: #121416; --line: #e6e9ee; }
+  :root[data-idea-scheme="light"] { --a: #e9edf2; --b: #d3dae3; --line: #20252c; }
+  .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 5%; background: radial-gradient(120% 140% at 20% 30%, var(--a), var(--b) 75%); color: var(--line); font: 700 clamp(11px, 30vh, 22px)/1 Rajdhani, system-ui, sans-serif; white-space: nowrap; overflow: hidden; }
+  .t svg { height: 86%; overflow: visible; flex: none; }
   .t span { display: none; }
-  .t small { display: block; font-size: max(11px, 0.62em); opacity: 0.8; letter-spacing: 0.08em; }
+  .t small { display: block; font: 400 max(11px, 0.6em)/1.2 "Share Tech Mono", monospace; opacity: 0.8; letter-spacing: 0.12em; }
+  :root[data-idea-shape="wide"] .t, :root[data-idea-shape="banner"] .t { justify-content: flex-start; padding-left: 5%; }
   :root[data-idea-shape="wide"] .t span, :root[data-idea-shape="banner"] .t span { display: block; }
+  :root[data-idea-shape="wide"] .t svg { height: 62%; }
+  :root[data-idea-shape="wide"] .t span { white-space: normal; line-height: 1.05; max-width: 58%; }
 </style>
 <div class="t">
-  <svg viewBox="80 0 160 310" aria-hidden="true"><path d="M150 0 V28" stroke="var(--ink)" stroke-width="8"/><g fill="none" stroke="var(--line)" stroke-width="14" stroke-linejoin="round"><circle cx="150" cy="70" r="40"/><path d="M118 104 V200"/><path d="M196 198 A54 54 0 1 1 120 196"/></g><path d="M150 252 V310" stroke="var(--hot)" stroke-width="8"/><path d="M136 296 L150 310 L164 296" fill="none" stroke="var(--hot)" stroke-width="8" stroke-linejoin="round"/></svg>
+  <svg viewBox="-6 -4 190 222" aria-hidden="true"><defs><linearGradient id="mtpull" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6a35a"/><stop offset=".55" stop-color="#d8701f"/><stop offset="1" stop-color="#7a3510"/></linearGradient><filter id="btpull" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3.2" result="bl"/><feSpecularLighting in="bl" surfaceScale="5" specularConstant=".9" specularExponent="22" lighting-color="#fff" result="sp"><feDistantLight azimuth="225" elevation="42"/></feSpecularLighting><feComposite in="sp" in2="SourceAlpha" operator="in" result="spi"/><feComposite in="SourceGraphic" in2="spi" operator="arithmetic" k1="0" k2="1" k3=".75" k4="0" result="lit"/><feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity=".45"/></filter><pattern id="ltpull" width="6" height="3.2" patternUnits="userSpaceOnUse"><rect width="6" height="1.1" fill="#000" opacity=".22"/></pattern><linearGradient id="stpull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9edf2"/><stop offset=".45" stop-color="#9aa4b1"/><stop offset="1" stop-color="#4b525c"/></linearGradient></defs><g transform="translate(0 0) scale(1)"><g filter="url(#btpull)" fill="url(#mtpull)"><path d="M66 10 a36 36 0 1 0 0.01 0 Z M66 28 a18 18 0 1 1 -0.01 0 Z" fill-rule="evenodd"/><path d="M50 74 L50 150 A58 58 0 1 0 158.2 121 L151 103 A6.5 6.5 0 0 0 138.6 107 L133.2 131.4 A29 29 0 1 1 82 150 L82 74 Z"/></g><path d="M64 194 L72 186 L69 180 L78 176 L76 170 L86 168" fill="none" stroke="#ff5a3c" stroke-width="7" opacity=".45" stroke-linecap="round" stroke-linejoin="round"/><path d="M64 194 L72 186 L69 180 L78 176 L76 170 L86 168" fill="none" stroke="#1a0b05" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
   <span><small>HOOK 05</small>The Final</span>
 </div>
 </template>
@@ -1778,7 +1788,7 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
         <span class="idea-chip">Done early? Pounds per gram, for coins</span>
       </div>
     </div>
-    <div class="hx-hero-art" aria-hidden="true"><figure class="hx-fig r2 r2-no " data-color="stress-high"><div class="r2" data-color="filament-orange"><svg class="fg" viewBox="0 0 120 100" role="img" aria-label="Failure analysis: what actually happened."><path class="bd" d="M34.8 11.5 L36.9 15.5 L37.1 16.9 L37.1 42.8 L36.4 44.9 L33.2 49.1 L31.4 53.2 L30.7 57.7 L30.8 60.4 L31.2 62.6 L32.4 65.8 L34.2 68.7 L36.5 71.2 L39.3 73.2 L42.4 74.6 L45.7 75.4 L49.1 75.5 L52.5 74.9 L56.2 73.5 L59.5 71.2 L62.4 67.9 L64.2 64.3 L65.2 60.4 L65.2 56.0 L64.2 52.1 L62.4 48.5 L60.7 46.4 L58.8 44.7 L57.7 44.5 L56.8 45.1 L56.5 45.9 L56.5 57.3 L56.1 59.5 L55.2 61.5 L54.0 63.0 L52.5 64.2 L50.7 65.0 L48.6 65.5 L46.3 65.3 L44.5 64.7 L42.6 63.6 L41.3 62.2 L40.1 60.3 L39.6 58.1 L39.5 56.2 L40.4 53.2 L42.2 50.8 L45.0 49.0 L48.0 48.5 L48.0 24.8 L48.6 22.5 L49.4 21.3 L50.5 20.4 L54.8 18.6 L57.7 16.5 L59.9 13.9 L61.5 10.6 L62.2 7.4 L62.2 4.1 L61.4 0.9 L59.8 -2.0 L58.1 -4.1 L55.9 -5.9 L53.4 -7.2 L50.8 -8.0 L48.0 -8.3 L45.2 -8.0 L42.5 -7.2 L40.0 -5.8 L37.9 -4.1 L36.1 -1.9 L34.8 0.6 L34.0 3.3 L33.7 6.0 L34.0 8.8 L34.8 11.5ZM56.5 6.6 L55.6 9.8 L53.6 12.4 L50.7 14.0 L47.4 14.5 L44.2 13.6 L41.6 11.6 L40.0 8.7 L39.5 5.4 L40.4 2.2 L42.4 -0.4 L45.3 -2.0 L48.6 -2.5 L51.8 -1.6 L54.4 0.4 L56.0 3.3 L56.5 6.6Z" fill-rule="evenodd"/><circle class="lens" cx="74" cy="70" r="17"/><path class="lensh" d="M86 82 l14 14"/></svg></div></figure></div>
+    <div class="hx-hero-art" aria-hidden="true"><svg viewBox="0 0 400 200" role="img" aria-label="The hook project"><defs><linearGradient id="mhpull" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6a35a"/><stop offset=".55" stop-color="#d8701f"/><stop offset="1" stop-color="#7a3510"/></linearGradient><filter id="bhpull" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="3.2" result="bl"/><feSpecularLighting in="bl" surfaceScale="5" specularConstant=".9" specularExponent="22" lighting-color="#fff" result="sp"><feDistantLight azimuth="225" elevation="42"/></feSpecularLighting><feComposite in="sp" in2="SourceAlpha" operator="in" result="spi"/><feComposite in="SourceGraphic" in2="spi" operator="arithmetic" k1="0" k2="1" k3=".75" k4="0" result="lit"/><feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity=".45"/></filter><pattern id="lhpull" width="6" height="3.2" patternUnits="userSpaceOnUse"><rect width="6" height="1.1" fill="#000" opacity=".22"/></pattern><linearGradient id="shpull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9edf2"/><stop offset=".45" stop-color="#9aa4b1"/><stop offset="1" stop-color="#4b525c"/></linearGradient></defs><rect x="8" y="40.6" width="190" height="14" rx="7" fill="url(#shpull)"/><rect x="8" y="42.1" width="190" height="3" rx="1.5" fill="#fff" opacity=".6"/><g transform="translate(38 8) scale(0.86)"><g filter="url(#bhpull)" fill="url(#mhpull)"><path d="M66 10 a36 36 0 1 0 0.01 0 Z M66 28 a18 18 0 1 1 -0.01 0 Z" fill-rule="evenodd"/><path d="M50 74 L50 150 A58 58 0 1 0 158.2 121 L151 103 A6.5 6.5 0 0 0 138.6 107 L133.2 131.4 A29 29 0 1 1 82 150 L82 74 Z"/></g><path d="M64 194 L72 186 L69 180 L78 176 L76 170 L86 168" fill="none" stroke="#ff5a3c" stroke-width="7" opacity=".45" stroke-linecap="round" stroke-linejoin="round"/><path d="M64 194 L72 186 L69 180 L78 176 L76 170 L86 168" fill="none" stroke="#1a0b05" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="translate(296 128)"><path d="M-62 0 A62 62 0 0 1 62 0" fill="none" stroke="var(--panel-top, #2a2d31)" stroke-width="12" stroke-linecap="round"/><path d="M-62 0 A62 62 0 0 1 44 -44" fill="none" stroke="#e5352b" stroke-width="12" stroke-linecap="round"/><path d="M0 0 L40 -40" stroke="var(--plate-ink, #e8eaed)" stroke-width="4" stroke-linecap="round"/><circle r="7" fill="var(--plate-ink, #e8eaed)"/></g><text x="296" y="166" text-anchor="middle" font-family="Share Tech Mono, monospace" font-size="16" fill="var(--caption, #9aa0a6)" letter-spacing="1">PEAK LOAD</text></svg></div>
   </header>
   <nav class="hx-plan idea-panel" id="hx-plan" aria-label="Classes in this assignment"></nav>
   <div class="hx-bar idea-panel" id="hx-bar"></div>
