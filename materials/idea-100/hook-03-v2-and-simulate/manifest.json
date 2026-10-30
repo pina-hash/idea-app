@@ -1,0 +1,307 @@
+{
+  "kind": "html-assignment",
+  "title": "Hook 03 · V2 and Simulate",
+  "course": "IDEA100",
+  "points": 35,
+  "modules": [
+    {
+      "id": "h3-v2",
+      "title": "V2",
+      "blocks": [
+        {
+          "id": "h3-v2-break-at",
+          "type": "radio",
+          "field": "breakAt",
+          "prompt": "Where Test 1 broke"
+        },
+        {
+          "id": "h3-v2-break-other",
+          "type": "text",
+          "field": "breakOther",
+          "prompt": "Somewhere else: where it broke",
+          "optional": true
+        },
+        {
+          "id": "h3-v2-shot",
+          "type": "image",
+          "field": "v2shot",
+          "prompt": "Screenshot of V2 with the change highlighted"
+        },
+        {
+          "id": "h3-v2-dims",
+          "type": "table",
+          "field": "dims",
+          "prompt": "V2 measurements against the rules, with a fix for any that miss"
+        },
+        {
+          "id": "h3-v2-mass",
+          "type": "text",
+          "field": "v2mass",
+          "prompt": "V2 full-size weight from Bambu Studio, grams"
+        },
+        {
+          "id": "h3-v2-what",
+          "type": "longText",
+          "field": "v2what",
+          "prompt": "What changed, where, and by how much",
+          "minSentences": 1
+        },
+        {
+          "id": "h3-v2-cost",
+          "type": "radio",
+          "field": "v2cost",
+          "prompt": "What the change cost in weight"
+        },
+        {
+          "id": "h3-v2-cost-why",
+          "type": "text",
+          "field": "v2costWhy",
+          "prompt": "How many grams, and from where (or why nothing)"
+        }
+      ],
+      "points": 20,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "file",
+          "text": "V2 is its own file, changed at the place Test 1 broke, and shown with the change highlighted",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "V2, at the break, shown",
+              "points": 8,
+              "descriptor": "A V2_ file (V1 left as it was), the change at the spot Test 1 broke, highlighted in the screenshot, no red or yellow in the tree."
+            },
+            {
+              "label": "Proficient",
+              "short": "Changed elsewhere, or not shown",
+              "points": 5,
+              "descriptor": "V2 exists, but the change is not at the break, or the screenshot does not show which change."
+            },
+            {
+              "label": "Developing",
+              "short": "Saved over V1, or barely changed",
+              "points": 2,
+              "descriptor": "V1 was changed instead of a new V2, or nothing visible changed."
+            },
+            {
+              "label": "Absent",
+              "short": "No V2",
+              "points": 0,
+              "descriptor": "No screenshot."
+            }
+          ],
+          "points": 8
+        },
+        {
+          "id": "measure",
+          "text": "Every dimension and the full-size weight are measured on V2, and V2 is legal or has its fix",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Measured and legal",
+              "points": 6,
+              "descriptor": "Five measurements from V2 and a slicer weight, each inside its rule or with its fix."
+            },
+            {
+              "label": "Proficient",
+              "short": "One missing",
+              "points": 4,
+              "descriptor": "One measurement or the weight is missing, or one miss has no fix."
+            },
+            {
+              "label": "Developing",
+              "short": "Copied or partial",
+              "points": 2,
+              "descriptor": "Numbers repeat the rules, or two or more are missing."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing",
+              "points": 0,
+              "descriptor": "No measurements."
+            }
+          ],
+          "points": 6
+        },
+        {
+          "id": "say",
+          "text": "Says what changed and what it cost",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Where, how much, the grams",
+              "points": 6,
+              "descriptor": "Names the place, the amount, and the grams it cost or saved, and where they came from."
+            },
+            {
+              "label": "Proficient",
+              "short": "Change clear, cost vague",
+              "points": 4,
+              "descriptor": "The change is clear but the cost is not."
+            },
+            {
+              "label": "Developing",
+              "short": "General",
+              "points": 2,
+              "descriptor": "Says it was made stronger, nothing specific."
+            },
+            {
+              "label": "Absent",
+              "short": "Blank",
+              "points": 0,
+              "descriptor": "Nothing written."
+            }
+          ],
+          "points": 6
+        }
+      ]
+    },
+    {
+      "id": "h3-sim",
+      "title": "Simulate",
+      "blocks": [
+        {
+          "id": "h3-sim-split",
+          "type": "image",
+          "field": "split",
+          "prompt": "Screenshot: both split faces"
+        },
+        {
+          "id": "h3-sim-setup",
+          "type": "image",
+          "field": "setup",
+          "prompt": "Screenshot before the run: fixture, 400 lbf load, study list"
+        },
+        {
+          "id": "h3-sim-stress",
+          "type": "image",
+          "field": "stress",
+          "prompt": "The stress plot with its color scale"
+        },
+        {
+          "id": "h3-sim-red",
+          "type": "radio",
+          "field": "redAt",
+          "prompt": "Where the most red is"
+        },
+        {
+          "id": "h3-sim-match",
+          "type": "radio",
+          "field": "match",
+          "prompt": "Is that where Test 1 broke?"
+        },
+        {
+          "id": "h3-sim-v3",
+          "type": "longText",
+          "field": "v3plan",
+          "prompt": "What V3 will change: material at the red, and where the grams come from",
+          "minSentences": 2
+        },
+        {
+          "id": "h3-sim-insight",
+          "type": "image",
+          "field": "insight",
+          "prompt": "Stretch: a Design Insight screenshot",
+          "optional": true
+        }
+      ],
+      "points": 15,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "setup",
+          "text": "The study is set up right: split faces, fixture on the top face, 400 lbf down on the bowl face",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All three right",
+              "points": 6,
+              "descriptor": "Both split faces show, the fixture is on the small top face only, and the load is 400 lbf pointing down on the small bowl face."
+            },
+            {
+              "label": "Proficient",
+              "short": "One thing off",
+              "points": 4,
+              "descriptor": "One of the three is on the wrong face, the wrong size, or the wrong way."
+            },
+            {
+              "label": "Developing",
+              "short": "Two off",
+              "points": 2,
+              "descriptor": "Two of the three are off, or a screenshot is missing."
+            },
+            {
+              "label": "Absent",
+              "short": "No study",
+              "points": 0,
+              "descriptor": "No setup screenshots."
+            }
+          ],
+          "points": 6
+        },
+        {
+          "id": "plot",
+          "text": "The stress plot is in, with its color scale",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Plot and scale",
+              "points": 3,
+              "descriptor": "The hook in blue to red with the color scale beside it."
+            },
+            {
+              "label": "Developing",
+              "short": "No scale, or one color",
+              "points": 1,
+              "descriptor": "No scale, or the whole hook is one color."
+            },
+            {
+              "label": "Absent",
+              "short": "No plot",
+              "points": 0,
+              "descriptor": "No plot."
+            }
+          ],
+          "points": 3
+        },
+        {
+          "id": "plan",
+          "text": "Reads the plot against Test 1 and plans V3 from it",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Red located, plan from it",
+              "points": 6,
+              "descriptor": "Picks where the red is and whether it matches Test 1, and the plan adds material at the red and names the blue areas the grams come from."
+            },
+            {
+              "label": "Proficient",
+              "short": "Plan vague",
+              "points": 4,
+              "descriptor": "The red is located, but the plan does not say where the grams come from."
+            },
+            {
+              "label": "Developing",
+              "short": "Not from the plot",
+              "points": 2,
+              "descriptor": "A plan that does not use the plot."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing",
+              "points": 0,
+              "descriptor": "Nothing."
+            }
+          ],
+          "points": 6
+        }
+      ]
+    }
+  ],
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
+  "schemaVersion": 3
+}
