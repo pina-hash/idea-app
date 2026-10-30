@@ -8,21 +8,18 @@
   IDEA209H Unit 4, post 2 of 6: Launcher: Prototype and Detail Design (Unit Assignments).
   Split from post 1 at Sign-off 1 (AUTHORING C: at most 20 required blocks per post).
 
-  BLOCK 4 COPY (Mr. Pina 2026-10-28): IDEA209H Block 4 runs one school day behind Blocks 2
-  and 3 (Oct 28 was its day 2), on its own dates; future Block 4 posts stay separate.
-
   BRIEF (Mr. Pina, 2026-10-20 to 2026-10-28)
   1 Skill: answer one design question with a throwaway rig and a measured number; turn a
     concept into numbers, CAD, drawings and a machine plan someone else could build from.
   2 Proof per role: the prototype question, result with a number and decision; the part's key
     numbers and stock list; a CAD screenshot at real sizes; a drawing with every dimension,
-    stock and process; a machine plan line. Sign-off 2 (Design, Nov 4) gates any metal.
+    stock and process; a machine plan line. Sign-off 2 (Design, Nov 3) gates any metal.
   3 Stuck points: prototypes that grow into products (one question, one class, the bin);
     results with no number; ignoring drag (a foam ball tops out fast); CAD that skips the
     interfaces; drawings missing dimensions.
   4 Builds on post 1 (sketch, requirement, interfaces) and Units 1 and 3 (forces, process choice).
   5 Problem: does the design reach the speed its target needs, from looked-up drill specs.
-  6 Shape: 4 steps over 4 classes (Oct 30, Nov 2 short day, Nov 3, Nov 4); 20 role blocks;
+  6 Shape: 4 steps over 4 classes (Oct 29, Oct 30, Nov 2 short day, Nov 3); 20 role blocks;
     64 manifest points, a member graded on 16 (one role; the mean of two on a team of three).
   7 Facts: FUEL 5.91 in, 0.448 to 0.5 lb; shop gears, pulleys, belts and hardware allowed,
     anything else made from stock, nothing bought; 6 bearings per team; common-sense safety.
@@ -50,10 +47,10 @@
     "template": "idea-thumbnail"
   },
   "pacing": [
-    {"id": "p1", "date": "2026-10-30", "title": "Prototype: one question, a rough rig, a number"},
-    {"id": "p2", "date": "2026-11-02", "title": "Run the numbers: speed, parts from shop stock"},
-    {"id": "p3", "date": "2026-11-03", "title": "Model your part in CAD"},
-    {"id": "p4", "date": "2026-11-04", "title": "Drawings, machine plan, Sign-off 2"}
+    {"id": "p1", "date": "2026-10-29", "title": "Prototype: one question, a rough rig, a number"},
+    {"id": "p2", "date": "2026-10-30", "title": "Run the numbers: speed, parts from shop stock"},
+    {"id": "p3", "date": "2026-11-02", "title": "Model your part in CAD"},
+    {"id": "p4", "date": "2026-11-03", "title": "Drawings, machine plan, Sign-off 2"}
   ],
   "team": {
     "roles": [
@@ -78,7 +75,7 @@
       {
         "id": "design",
         "title": "Design",
-        "date": "2026-11-04",
+        "date": "2026-11-03",
         "gate": "No metal is cut before this sign-off.",
         "items": [
           {
@@ -2322,10 +2319,11 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
   .u4-calc-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: var(--space-2); }
   .u4-calc-row label { display: grid; gap: 2px; font-size: 0.88rem; color: var(--text-2); }
   #s-draw .u4-rp-2 .hx-box { height: 92px; min-height: 92px; }
-  @media (max-width: 520px) { .u4-how tr { display: grid; } .u4-how td:first-child { padding-bottom: 0; } }
   .u4-calc-row input, .u4-calc-row select { width: 100%; }
   .u4-unit { font-family: var(--font-mono); font-size: 0.75rem; }
-  .u4-how td:first-child { white-space: nowrap; color: var(--plate-ink); font-weight: 600; }
+  .u4-how b { display: block; color: var(--plate-ink); font-weight: 600; }
+  /* A hover card on a calculator box opens beside the box, never under the next row's field. */
+  .u4-calc-row label .it::after { z-index: 6; }
 </style>
 <template id="idea-thumbnail">
 <style>
@@ -2400,9 +2398,9 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
   <p class="hx-banner-failed" id="hx-failed" role="alert" hidden></p>
 
   <!-- STEP 1: the prototype, one question per role, built rough and thrown away. -->
-  <section class="hx-step idea-panel" id="s-proto" data-phase="prototype" data-day="Oct 30" data-title="Answer one question with a rough rig">
+  <section class="hx-step idea-panel" id="s-proto" data-phase="prototype" data-day="Oct 29" data-title="Answer one question with a rough rig">
     <div class="hx-step-head">
-      <div><span class="hx-phase-tag">Prototype · Oct 30 · One class</span><h2>Answer one question with a rough rig</h2></div>
+      <div><span class="hx-phase-tag">Prototype · Oct 29 · One class</span><h2>Answer one question with a rough rig</h2></div>
     </div>
     <div class="hx-step-body">
       <div class="hx-stack">
@@ -2448,9 +2446,9 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
   </section>
 
   <!-- STEP 2: the numbers, from the launch calculator, and each part's stock. -->
-  <section class="hx-step idea-panel" id="s-calc" data-phase="detail" data-day="Nov 2" data-title="Run the numbers">
+  <section class="hx-step idea-panel" id="s-calc" data-phase="detail" data-day="Oct 30" data-title="Run the numbers">
     <div class="hx-step-head">
-      <div><span class="hx-phase-tag">Detail design · Nov 2 · Short day</span><h2>Run the numbers</h2></div>
+      <div><span class="hx-phase-tag">Detail design · Oct 30</span><h2>Run the numbers</h2></div>
     </div>
     <div class="hx-step-body">
       <div class="hx-stack">
@@ -2460,13 +2458,13 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
         </ol>
         <div class="u4-calc" aria-label="Launch calculator">
           <div class="u4-calc-row">
-            <label><span>Target distance <span class="u4-unit">ft</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-dist" value="90"></label>
-            <label><span>Launch angle <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-ang" value="35"></label>
-            <label><span>Launch height <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-h" value="24"></label>
+            <label><span><span class="it" data-term="target distance">Target distance</span> <span class="u4-unit">ft</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-dist" value="90"></label>
+            <label><span><span class="it" data-term="launch angle">Launch angle</span> <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-ang" value="35"></label>
+            <label><span><span class="it" data-term="launch height">Launch height</span> <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-h" value="24"></label>
           </div>
           <p class="hx-readout" id="c-need" aria-live="polite">Speed needed appears here.</p>
           <div class="u4-calc-row">
-            <label><span>Your design </span><select class="idea-well idea-well--field" id="c-kind">
+            <label><span><span class="it" data-term="your design">Your design</span></span><select class="idea-well idea-well--field" id="c-kind">
               <optgroup label="Spinning">
                 <option value="fw1">Flywheel, one wheel and a hood</option>
                 <option value="fw2">Flywheel, two wheels (or a wheel and a belt)</option>
@@ -2491,62 +2489,60 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
             </select></label>
           </div>
           <div class="u4-calc-row" data-calc="fw1 fw2 arm">
-            <label><span>Drill or motor speed, no load <span class="u4-unit">rpm</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rpm" placeholder="from its spec"></label>
-            <label><span>Turns per motor turn</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-ratio" value="1"></label>
-            <label data-calc="fw1 fw2"><span>Wheel diameter <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-wd" value="4"></label>
-            <label data-calc="arm"><span>Pivot to ball <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-alen" value="12"></label>
+            <label><span><span class="it" data-term="motor speed">Drill or motor speed, no load</span> <span class="u4-unit">rpm</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rpm" placeholder="from its spec"></label>
+            <label><span><span class="it" data-term="turns per motor turn">Turns per motor turn</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-ratio" value="1"></label>
+            <label data-calc="fw1 fw2"><span><span class="it" data-term="wheel diameter">Wheel diameter</span> <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-wd" value="4"></label>
+            <label data-calc="arm"><span><span class="it" data-term="pivot to ball spin">Pivot to ball</span> <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-alen" value="12"></label>
           </div>
           <div class="u4-calc-row" data-calc="cat push" hidden>
-            <label><span>Pull of one band or spring, fully stretched <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-pull" placeholder="measured"></label>
-            <label><span>Stretch or squeeze <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-str" placeholder="measured"></label>
-            <label><span>How many</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-n" value="2"></label>
-            <label data-calc="push"><span>What moves with the ball <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-sled" value="0.5"></label>
+            <label><span><span class="it" data-term="band pull">Pull of one band or spring, fully stretched</span> <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-pull" placeholder="measured"></label>
+            <label><span><span class="it" data-term="stretch">Stretch or squeeze</span> <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-str" placeholder="measured"></label>
+            <label><span><span class="it" data-term="how many bands">How many</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-n" value="2"></label>
+            <label data-calc="push"><span><span class="it" data-term="moving with ball">What moves with the ball</span> <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-sled" value="0.5"></label>
           </div>
           <div class="u4-calc-row" data-calc="tor" hidden>
-            <label><span>Twist at full wind <span class="u4-unit">in-lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tq" placeholder="scale pull × inches"></label>
-            <label><span>Wind-up angle <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-wind" value="90"></label>
-            <label><span>How many bundles or springs</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tn" value="1"></label>
+            <label><span><span class="it" data-term="twist">Twist at full wind</span> <span class="u4-unit">in-lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tq" placeholder="scale pull × inches"></label>
+            <label><span><span class="it" data-term="wind-up angle">Wind-up angle</span> <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-wind" value="90"></label>
+            <label><span><span class="it" data-term="how many bundles">How many bundles or springs</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tn" value="1"></label>
           </div>
           <div class="u4-calc-row" data-calc="treb drop ham" hidden>
-            <label><span><span data-calc="treb drop">Falling weight</span><span data-calc="ham">Hammer head</span> <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-cw" placeholder="weighed"></label>
-            <label><span>How far it falls <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-drop" placeholder="measured"></label>
-            <label data-calc="treb drop"><span>Pivot to the weight or its rope <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rs" value="6"></label>
-            <label data-calc="treb drop"><span>Pivot to the ball, sling included <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rl" value="30"></label>
+            <label><span><span data-calc="treb drop"><span class="it" data-term="falling weight">Falling weight</span></span><span data-calc="ham"><span class="it" data-term="hammer head">Hammer head</span></span> <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-cw" placeholder="weighed"></label>
+            <label><span><span class="it" data-term="how far it falls">How far it falls</span> <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-drop" placeholder="measured"></label>
+            <label data-calc="treb drop"><span><span class="it" data-term="pivot to weight">Pivot to the weight or its rope</span> <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rs" value="6"></label>
+            <label data-calc="treb drop"><span><span class="it" data-term="pivot to ball">Pivot to the ball, sling included</span> <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rl" value="30"></label>
           </div>
           <div class="u4-calc-row" data-calc="cat tor treb drop" hidden>
-            <label><span>Arm weight <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-arm" value="1"></label>
+            <label><span><span class="it" data-term="arm weight">Arm weight</span> <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-arm" value="1"></label>
           </div>
           <div class="u4-calc-row" data-calc="air" hidden>
-            <label><span>Tank pressure, gauge <span class="u4-unit">psi</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-psi" placeholder="what you fill to"></label>
-            <label><span>Tank volume <span class="u4-unit">cu in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-vol" placeholder="0.785 × dia² × length"></label>
-            <label><span>Barrel length <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-bl" value="12"></label>
+            <label><span><span class="it" data-term="tank pressure">Tank pressure, gauge</span> <span class="u4-unit">psi</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-psi" placeholder="what you fill to"></label>
+            <label><span><span class="it" data-term="tank volume">Tank volume</span> <span class="u4-unit">cu in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-vol" placeholder="0.785 × dia² × length"></label>
+            <label><span><span class="it" data-term="barrel length">Barrel length</span> <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-bl" value="12"></label>
           </div>
           <p class="hx-note" data-calc="air" hidden>Air: a tank and valve rated above your fill pressure. PVC pipe can shatter under air pressure.</p>
           <div class="u4-calc-row">
-            <label data-calc="fw1 fw2 arm cat tor push treb drop ham air"><span id="c-eff-lab">Ball speed, % of rim speed</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-eff" value="50"></label>
-            <label><span>Test throw: how far it flew <span class="u4-unit">ft</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tdist" placeholder="from your prototype"></label>
-            <label><span>Test throw angle <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tang" value="35"></label>
+            <label data-calc="fw1 fw2 arm cat tor push treb drop ham air"><span class="it" data-term="percent"><span id="c-eff-lab">Ball speed, % of rim speed</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-eff" value="50"></label>
+            <label><span><span class="it" data-term="test throw">Test throw: how far it flew</span> <span class="u4-unit">ft</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tdist" placeholder="from your prototype"></label>
+            <label><span><span class="it" data-term="test throw angle">Test throw angle</span> <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tang" value="35"></label>
           </div>
           <p class="hx-readout" id="c-got" aria-live="polite">Your design's estimate appears here.</p>
           <p class="hx-readout" id="c-cal" aria-live="polite" hidden></p>
         </div>
         <details class="hx-more">
           <summary>How the calculator works</summary>
-          <table class="hx-table u4-how">
-            <tbody>
-              <tr><td>Drag</td><td>A foam ball slows fast. The calculator flies it in small time steps with air drag (FUEL: 5.91 in, about 0.47 lb, drag coefficient taken as 0.5).</td></tr>
-              <tr><td>Stored energy</td><td>Everything except spinning designs works the same way: energy stored, times the percent that reaches the ball, shared between the ball and whatever moves with it. Speed comes from that energy.</td></tr>
-              <tr><td>Motor speed</td><td>The model number is on the drill's or motor's label. Search it with "no load speed". The calculator assumes 80% of that under load.</td></tr>
-              <tr><td>Flywheel</td><td>Rule of thumb from FRC teams: one wheel and a hood throws at about half the wheel's rim speed, two wheels at about 90%.</td></tr>
-              <tr><td>Spinning arm</td><td>The ball leaves at about the arm tip's speed, less some slip.</td></tr>
-              <tr><td>Bands, springs</td><td>Energy is half the full pull times the stretch, for each one. A spring's pull is its rate (lb per in) times how far you squeeze it. A third of a swinging arm's weight moves with the ball.</td></tr>
-              <tr><td>Twist</td><td>Energy is half the twist at full wind times the wind-up angle. Measure the twist: pull the arm with a luggage scale and multiply by the inches from the pivot.</td></tr>
-              <tr><td>Falling weight</td><td>Energy is the weight times how far it falls. The weight keeps some of it: the closer it hangs to the pivot, compared with the ball, the less it keeps. A sling adds to the ball's distance.</td></tr>
-              <tr><td>Hammer</td><td>The head swings down and hits the ball. A foam ball is soft, so it bounces off at about 1.5 times the head's speed at most, less for a light head.</td></tr>
-              <tr><td>Air</td><td>The air expands from the tank down the barrel and pushes on the ball's full width. The calculator assumes it expands fast, the way it does in a real shot, and starts at 30% for valve and leak losses. A barrel longer than the air can fill slows the ball, and the calculator says the length where that starts.</td></tr>
-              <tr><td>Test throw</td><td>Throw your prototype, measure where the ball lands, and put it in. The calculator works out the real launch speed and the percent that matches it. A number you measured beats every estimate here.</td></tr>
-            </tbody>
-          </table>
+          <ul class="hx-list u4-how">
+            <li><b>Drag</b>A foam ball slows fast. The calculator flies it in small time steps with air drag (FUEL: 5.91 in, about 0.47 lb, drag coefficient taken as 0.5).</li>
+            <li><b>Stored energy</b>Everything except spinning designs works the same way: energy stored, times the percent that reaches the ball, shared between the ball and whatever moves with it. Speed comes from that energy.</li>
+            <li><b>Motor speed</b>The model number is on the drill's or motor's label. Search it with "no load speed". The calculator assumes 80% of that under load.</li>
+            <li><b>Flywheel</b>Rule of thumb from FRC teams: one wheel and a hood throws at about half the wheel's rim speed, two wheels at about 90%.</li>
+            <li><b>Spinning arm</b>The ball leaves at about the arm tip's speed, less some slip.</li>
+            <li><b>Bands, springs</b>Energy is half the full pull times the stretch, for each one. A spring's pull is its rate (lb per in) times how far you squeeze it. A third of a swinging arm's weight moves with the ball.</li>
+            <li><b>Twist</b>Energy is half the twist at full wind times the wind-up angle. Measure the twist: pull the arm with a luggage scale and multiply by the inches from the pivot.</li>
+            <li><b>Falling weight</b>Energy is the weight times how far it falls. The weight keeps some of it: the closer it hangs to the pivot, compared with the ball, the less it keeps. A sling adds to the ball's distance.</li>
+            <li><b>Hammer</b>The head swings down and hits the ball. A foam ball is soft, so it bounces off at about 1.5 times the head's speed at most, less for a light head.</li>
+            <li><b>Air</b>The air expands from the tank down the barrel and pushes on the ball's full width. The calculator assumes it expands fast, the way it does in a real shot, and starts at 30% for valve and leak losses. A barrel longer than the air can fill slows the ball, and the calculator says the length where that starts.</li>
+            <li><b>Test throw</b>Throw your prototype, measure where the ball lands, and put it in. The calculator works out the real launch speed and the percent that matches it. A number you measured beats every estimate here.</li>
+          </ul>
         </details>
       </div>
       <div class="hx-evidence idea-panel">
@@ -2570,9 +2566,9 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
   </section>
 
   <!-- STEP 3: CAD of each part; the frame owner assembles. -->
-  <section class="hx-step idea-panel" id="s-cad" data-phase="detail" data-day="Nov 3" data-title="Model your part in CAD">
+  <section class="hx-step idea-panel" id="s-cad" data-phase="detail" data-day="Nov 2" data-title="Model your part in CAD">
     <div class="hx-step-head">
-      <div><span class="hx-phase-tag">Detail design · Nov 3</span><h2>Model your part in CAD</h2></div>
+      <div><span class="hx-phase-tag">Detail design · Nov 2 · Short day</span><h2>Model your part in CAD</h2></div>
     </div>
     <div class="hx-step-body">
       <div class="hx-stack">
@@ -2626,15 +2622,15 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
   </section>
 
   <!-- STEP 4: drawings, the machine plan, Sign-off 2. -->
-  <section class="hx-step idea-panel" id="s-draw" data-phase="detail" data-day="Nov 4" data-title="Drawings, machine plan, Sign-off 2">
+  <section class="hx-step idea-panel" id="s-draw" data-phase="detail" data-day="Nov 3" data-title="Drawings, machine plan, Sign-off 2">
     <div class="hx-step-head">
-      <div><span class="hx-phase-tag">Detail design · Nov 4</span><h2>Drawings, machine plan, Sign-off 2</h2></div>
+      <div><span class="hx-phase-tag">Detail design · Nov 3</span><h2>Drawings, machine plan, Sign-off 2</h2></div>
     </div>
     <div class="hx-step-body">
       <div class="hx-stack">
         <ol class="hx-do">
           <li><span>Make a drawing of your part: the views, every dimension needed to make it, the stock and the process.</span></li>
-          <li><span>Write your machine plan: which machine, who runs it, which day from Nov 5 to 12.</span></li>
+          <li><span>Write your machine plan: which machine, who runs it, which day from Nov 4 to 10.</span></li>
           <li><span>Every box filled? Open <strong>Team plan</strong>, find <strong>Sign-offs</strong>, and press <strong>Request sign-off</strong> on Design.</span></li>
           <li><span>No metal is cut before it is approved. Sent back: fix what it names and request again.</span></li>
         </ol>
@@ -2657,28 +2653,28 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
             <div class="hx-box" data-image-box="frameDrawing" data-empty="Frame and mount drawing">Frame and mount drawing</div>
             <input type="file" data-field="frameDrawing" accept="image/*" hidden>
             <p class="hx-note" data-file-note="frameDrawing"></p>
-            <input class="idea-well idea-well--field" type="text" data-field="frameMachine" aria-label="Frame and mount machine plan" placeholder="e.g. Router, ..., Nov 6: base plate">
+            <input class="idea-well idea-well--field" type="text" data-field="frameMachine" aria-label="Frame and mount machine plan" placeholder="e.g. Router, ..., Nov 5: base plate">
           </div>
           <div class="hx-tile u4-rp" data-role="energy">
             <div class="u4-rp-head"><b><span class="it" data-term="energy store">Energy store</span></b><span data-role-owner="energy"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="energyDrawing">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="energyDrawing" hidden>Remove</button></span></div>
             <div class="hx-box" data-image-box="energyDrawing" data-empty="Energy store drawing">Energy store drawing</div>
             <input type="file" data-field="energyDrawing" accept="image/*" hidden>
             <p class="hx-note" data-file-note="energyDrawing"></p>
-            <input class="idea-well idea-well--field" type="text" data-field="energyMachine" aria-label="Energy store machine plan" placeholder="e.g. Lathe, ..., Nov 9: wheel hubs">
+            <input class="idea-well idea-well--field" type="text" data-field="energyMachine" aria-label="Energy store machine plan" placeholder="e.g. Lathe, ..., Nov 6: wheel hubs">
           </div>
           <div class="hx-tile u4-rp" data-role="drive">
             <div class="u4-rp-head"><b><span class="it" data-term="drive">Drive</span></b><span data-role-owner="drive"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="driveDrawing">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="driveDrawing" hidden>Remove</button></span></div>
             <div class="hx-box" data-image-box="driveDrawing" data-empty="Drive drawing">Drive drawing</div>
             <input type="file" data-field="driveDrawing" accept="image/*" hidden>
             <p class="hx-note" data-file-note="driveDrawing"></p>
-            <input class="idea-well idea-well--field" type="text" data-field="driveMachine" aria-label="Drive machine plan" placeholder="e.g. Printer, ..., Nov 5: drill coupler">
+            <input class="idea-well idea-well--field" type="text" data-field="driveMachine" aria-label="Drive machine plan" placeholder="e.g. Printer, ..., Nov 4: drill coupler">
           </div>
           <div class="hx-tile u4-rp" data-role="ballpath">
             <div class="u4-rp-head"><b><span class="it" data-term="ball path">Ball path</span></b><span data-role-owner="ballpath"></span><span class="hx-row hx-edit-only"><button type="button" class="idea-key" data-edits data-choose="ballpathDrawing">Choose photo</button><button type="button" class="idea-key" data-edits data-remove="ballpathDrawing" hidden>Remove</button></span></div>
             <div class="hx-box" data-image-box="ballpathDrawing" data-empty="Ball path drawing">Ball path drawing</div>
             <input type="file" data-field="ballpathDrawing" accept="image/*" hidden>
             <p class="hx-note" data-file-note="ballpathDrawing"></p>
-            <input class="idea-well idea-well--field" type="text" data-field="ballpathMachine" aria-label="Ball path machine plan" placeholder="e.g. Laser, ..., Nov 6: hood sides">
+            <input class="idea-well idea-well--field" type="text" data-field="ballpathMachine" aria-label="Ball path machine plan" placeholder="e.g. Laser, ..., Nov 5: hood sides">
           </div>
         </div>
       </div>
@@ -2691,23 +2687,50 @@ details.hx-more > summary .idea-chip { margin-left: var(--space-2); }
 {
   "phases": [
     {"id": "prototype", "name": "Prototype", "color": "cardboard", "days": [
-      {"label": "Oct 30", "short": "One question, a rough rig", "date": "2026-10-30"}
+      {"label": "Oct 29", "short": "One question, a rough rig", "date": "2026-10-29"}
     ]},
     {"id": "detail", "name": "Detail design", "color": "solidworks-red", "days": [
-      {"label": "Nov 2", "short": "Run the numbers", "date": "2026-11-02"},
-      {"label": "Nov 3", "short": "CAD", "date": "2026-11-03"},
-      {"label": "Nov 4", "short": "Drawings, Sign-off 2", "date": "2026-11-04"}
+      {"label": "Oct 30", "short": "Run the numbers", "date": "2026-10-30"},
+      {"label": "Nov 2", "short": "CAD", "date": "2026-11-02"},
+      {"label": "Nov 3", "short": "Drawings, Sign-off 2", "date": "2026-11-03"}
     ]}
   ]
 }
 </script>
 <script type="application/json" id="hx-glossary">
 {
-  "frame and mount": "The structure everything bolts to, and what holds the launcher at its angle and height. Yours: the base, the side plates, the drill mount. Flywheel: the plates that carry the wheel's shaft. Catapult: the base and the posts the arm pivots on.",
-  "energy store": "The part that stores the energy that throws the ball, and sets how fast it leaves. Yours: the flywheel with its hub and shaft, or the catapult arm with its bands or springs.",
-  "drive": "How power gets from the drill to the wheel or arm, and how a shot starts. Yours: the drill coupling, any gears, pulleys or belts, and the trigger or release. Catapult: what pulls the arm back and lets it go.",
-  "ball path": "How the ball goes in, is held, and is guided out. Yours: the loader or hopper, the hood or cup, and the exit. Flywheel: the hood that presses the ball onto the wheel. Catapult: the cup on the arm.",
-  "interface": "Where two parts of the launcher meet and how they are joined: bolts, a shaft, a clamp."
+  "frame and mount": "The structure everything bolts to, and what holds the launcher at its angle and height: the base, the side plates, the mounts. Flywheel: the plates that carry the wheel's shaft. Catapult or trebuchet: the base and the posts the arm pivots on. Air cannon: what holds the tank and barrel.",
+  "energy store": "The part that stores the energy that throws the ball, and sets how fast it leaves: the flywheel with its hub and shaft, the arm with its bands, springs or twisted rope, the counterweight, or the air tank.",
+  "drive": "How power gets into the energy store, and how a shot starts: the drill coupling, any gears, pulleys or belts, the winch that pulls an arm back or lifts a weight, the valve on an air tank, and the trigger or release.",
+  "ball path": "How the ball goes in, is held, and is guided out: the loader, the hood, cup, sling or barrel, and the exit. Flywheel: the hood that presses the ball onto the wheel. Catapult: the cup on the arm. Trebuchet: the sling and its release. Air cannon: the barrel.",
+  "interface": "Where two parts of the launcher meet and how they are joined: bolts, a shaft, a clamp.",
+  "target distance": "How far you want the ball to land, in feet, along the ground from the front of the launcher. Pick one goal as a team.",
+  "launch angle": "The angle the ball leaves at, measured up from the floor: 0 is flat, 90 is straight up. With drag, the farthest throw is usually between 35 and 42 degrees.",
+  "launch height": "How high the ball is off the floor at the moment it leaves the launcher, in inches.",
+  "your design": "Pick the one that throws the ball the way yours does. The boxes below change to match it. None fits? Pick Not listed and use a test throw.",
+  "motor speed": "How fast the drill or motor spins with nothing attached, in rpm (turns per minute). Find the model number on its label and search it with the words no load speed. A drill lists one speed per gear.",
+  "turns per motor turn": "How many times the wheel or arm turns for each turn of the motor. Straight on the motor: 1. Gears or pulleys: teeth on the motor's gear divided by teeth on the wheel's gear (20 and 40 gives 0.5).",
+  "wheel diameter": "Straight across the wheel through its center, in inches, at the part that touches the ball.",
+  "pivot to ball spin": "From the center the arm spins around to the center of the ball, in inches.",
+  "band pull": "How hard one band or spring pulls when it is loaded for a shot. Hook a luggage scale to it, stretch it that far, and read the pounds. For a spring, its rate (lb per in) times how far you squeeze it gives the same number.",
+  "stretch": "How far the band or spring stretches or squeezes from resting to loaded for a shot, in inches.",
+  "how many bands": "How many bands or springs pull together. Two bands side by side: 2.",
+  "moving with ball": "The weight of everything that shoots forward with the ball: the pouch, plunger or sled, in pounds. The lighter it is, the more energy the ball gets.",
+  "twist": "How hard the twisted rope or torsion spring pushes back when wound for a shot, in inch-pounds. Pull the arm back with a luggage scale, read the pounds, and multiply by the inches from the pivot to the scale.",
+  "wind-up angle": "How far the arm turns, in degrees, from where the twist is relaxed to where it is loaded for a shot.",
+  "how many bundles": "How many twisted rope bundles or torsion springs drive the arm.",
+  "falling weight": "What the counterweight or dropping weight weighs, in pounds, with its box or holder.",
+  "hammer head": "What the swinging head that hits the ball weighs, in pounds.",
+  "how far it falls": "How far the weight drops straight down, in inches, from loaded to the moment the ball leaves (or the hammer hits it). Measure the change in height, not the path it swings along.",
+  "pivot to weight": "From the arm's pivot to where the weight hangs or its rope pulls on the arm, in inches: the short side of a trebuchet arm.",
+  "pivot to ball": "From the arm's pivot to the ball at the moment it lets go, in inches: the long side of the arm, plus the sling's length if it has one.",
+  "arm weight": "What the swinging arm weighs, in pounds, without the ball or the weight. A heavy arm soaks up energy the ball could have had.",
+  "tank pressure": "The pressure you fill the tank to, read on its gauge, in psi. Never above what the tank and valve are rated for.",
+  "tank volume": "How much air the tank holds, in cubic inches. A round tank: 0.785 times the inside diameter squared times the inside length. 1 liter is 61 cubic inches.",
+  "barrel length": "From where the ball sits to the open end of the barrel, in inches. The barrel must fit the 5.91 in ball.",
+  "test throw": "From your prototype: how far the ball flew before it first touched the ground, in feet. Leave it empty until you have thrown.",
+  "test throw angle": "The angle your prototype threw at when you measured that distance, in degrees up from the floor.",
+  "percent": "How much of the design's power reaches the ball. Spinning designs: the ball's speed as a percent of the wheel rim or arm tip speed. Everything else: the share of the stored energy the ball gets; friction, wobble and noise take the rest. Start with the number shown, then let a test throw set it."
 }
 </script>
 <script id="hx-kit-js">
@@ -4193,7 +4216,7 @@ document.addEventListener('input', u4CalcRefresh);
 document.addEventListener('change', u4CalcRefresh);
 u4CalcRefresh();
 /* The finish line says what comes next. */
-(function () { var f = document.querySelector('.hx-finish'); if (f) f.innerHTML = '<strong>Design is in.</strong> Nothing to turn in: your work saves as you go. Build starts Nov 5, after Sign-off 2.'; })();
+(function () { var f = document.querySelector('.hx-finish'); if (f) f.innerHTML = '<strong>Design is in.</strong> Nothing to turn in: your work saves as you go. Build starts Nov 4, after Sign-off 2.'; })();
 </script>
 </body>
 </html>
