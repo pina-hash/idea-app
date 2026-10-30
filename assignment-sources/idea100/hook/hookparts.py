@@ -108,9 +108,11 @@ KIT_CSS = '''
   .hk-pp b { font-size: 0.86rem; line-height: 1.15; }
   .hx-evidence .hx-box { width: min(100%, 250px); }
   .hk-figcap .fg { max-height: 120px; }
-  .hk-pp { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding-top: 8px; padding-bottom: 8px; }
+  .hx-picks label.hx-pick.hk-pp { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0; padding-top: 6px; padding-bottom: 6px; }
   .hk-pp input { align-self: flex-start; }
-  .hk-ppfig { display: block; width: 64px; }
+  .hk-pp .hk-ppfig.r2 { display: block; width: 64px; max-width: 100%; flex: none; }
+  .hk-pp .hk-ppfig > .r2 { display: block; width: 100%; }
+  .hk-pp { min-width: 0; }
   .hk-ppfig .fg { max-height: 60px; }
   .hk-pp small { font-family: var(--font-display); text-transform: none; letter-spacing: 0; font-size: 0.78rem; color: var(--text-2); line-height: 1.2; }
   .hk-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: var(--space-3); align-items: start; }

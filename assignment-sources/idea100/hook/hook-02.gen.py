@@ -363,7 +363,7 @@ steps = f'''
       </div>
       <div class="hx-evidence idea-panel">
         <span class="idea-eyebrow">Your break</span>
-        {picture_picks('breakAt', 'Where did it break? White marks show where it stretched first.', SPOTS)}
+        {picture_picks('breakAt', 'Where did it break? White marks: it stretched there first.', SPOTS)}
         <p class="hx-readout" id="hk-call-out" aria-live="polite">Your call against the real break shows here.</p>
         <label>One thing V2 changes because of it: where, and by how much
           <textarea class="idea-well" data-field="nextChange" data-min-sentences="1" placeholder="V2 makes the ... thicker by ..., because it broke at ..."></textarea></label>
