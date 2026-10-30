@@ -1,0 +1,98 @@
+[
+  {
+    "id": "h5-final-result",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All four",
+        "points": 4,
+        "descriptor": "What happened, the load in pounds, the spot, and a close photo. Not pulled: what happened and why, and a photo of the hook."
+      },
+      {
+        "label": "Proficient",
+        "short": "One missing",
+        "points": 3,
+        "descriptor": "One of the four is missing."
+      },
+      {
+        "label": "Developing",
+        "short": "Two or more missing",
+        "points": 1,
+        "descriptor": "Only one or two are in."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing",
+        "points": 0,
+        "descriptor": "Nothing."
+      }
+    ],
+    "points": 4,
+    "criterion": "The final: The result is recorded: what happened, the load, where, and a photo",
+    "incomplete": false
+  },
+  {
+    "id": "h5-final-reflect",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Both, specific",
+        "points": 4,
+        "descriptor": "Says how close the load and the spot were and why, and one V4 change at a named place."
+      },
+      {
+        "label": "Proficient",
+        "short": "Vague",
+        "points": 2,
+        "descriptor": "Compares in general, or the V4 change is not tied to the break."
+      },
+      {
+        "label": "Developing",
+        "short": "One of the two",
+        "points": 1,
+        "descriptor": "Only the comparison or only the change."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing",
+        "points": 0,
+        "descriptor": "Nothing."
+      }
+    ],
+    "points": 4,
+    "criterion": "The final: Compares the locked call to what happened, and names one V4 change tied to the break",
+    "incomplete": false
+  },
+  {
+    "id": "h5-final-slide",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "All six",
+        "points": 4,
+        "descriptor": "Hook name and student name, the load, a CAD image of V3, V3's stress plot with its scale, a photo of the printed hook, a slicer view."
+      },
+      {
+        "label": "Proficient",
+        "short": "Four or five",
+        "points": 2,
+        "descriptor": "Four or five of the six."
+      },
+      {
+        "label": "Developing",
+        "short": "Three or fewer",
+        "points": 1,
+        "descriptor": "Three or fewer."
+      },
+      {
+        "label": "Absent",
+        "short": "No slide",
+        "points": 0,
+        "descriptor": "No slide."
+      }
+    ],
+    "points": 4,
+    "criterion": "The final: One slide in the IDEA Hook Designs deck carrying all six things",
+    "incomplete": false
+  }
+]

@@ -1,0 +1,175 @@
+{
+  "kind": "html-assignment",
+  "title": "Hook 05 · The Final",
+  "course": "IDEA100",
+  "points": 12,
+  "modules": [
+    {
+      "id": "h5-final",
+      "title": "The final",
+      "blocks": [
+        {
+          "id": "h5-result",
+          "type": "radio",
+          "field": "result",
+          "prompt": "What happened to V3 at the final"
+        },
+        {
+          "id": "h5-result-load",
+          "type": "text",
+          "field": "heldLoad",
+          "prompt": "The most V3 held, lb (left blank only if it was not pulled)",
+          "optional": true
+        },
+        {
+          "id": "h5-result-at",
+          "type": "radio",
+          "field": "brokeAt",
+          "prompt": "Where V3 broke, or stretched most (left blank only if it was not pulled)",
+          "optional": true
+        },
+        {
+          "id": "h5-photo",
+          "type": "image",
+          "field": "photo",
+          "prompt": "Photo of V3: the break, or the whole hook if it never broke or was not pulled"
+        },
+        {
+          "id": "h5-my-call",
+          "type": "text",
+          "field": "myCall",
+          "prompt": "Your call, copied from Hook 04"
+        },
+        {
+          "id": "h5-call-real",
+          "type": "longText",
+          "field": "callReal",
+          "prompt": "Your call against what happened, on the load and the spot, and why",
+          "minSentences": 2
+        },
+        {
+          "id": "h5-v4",
+          "type": "longText",
+          "field": "v4",
+          "prompt": "One change for V4: what, where, and why",
+          "minSentences": 1
+        },
+        {
+          "id": "h5-slide",
+          "type": "image",
+          "field": "slide",
+          "prompt": "Screenshot of your slide in the IDEA Hook Designs deck"
+        },
+        {
+          "id": "h5-per-gram",
+          "type": "text",
+          "field": "perGram",
+          "prompt": "Stretch: V3's weight from Hook 04, for pounds held per gram",
+          "optional": true
+        }
+      ],
+      "points": 12,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "result",
+          "text": "The result is recorded: what happened, the load, where, and a photo",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All four",
+              "points": 4,
+              "descriptor": "What happened, the load in pounds, the spot, and a close photo. Not pulled: what happened and why, and a photo of the hook."
+            },
+            {
+              "label": "Proficient",
+              "short": "One missing",
+              "points": 3,
+              "descriptor": "One of the four is missing."
+            },
+            {
+              "label": "Developing",
+              "short": "Two or more missing",
+              "points": 1,
+              "descriptor": "Only one or two are in."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing",
+              "points": 0,
+              "descriptor": "Nothing."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "reflect",
+          "text": "Compares the locked call to what happened, and names one V4 change tied to the break",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both, specific",
+              "points": 4,
+              "descriptor": "Says how close the load and the spot were and why, and one V4 change at a named place."
+            },
+            {
+              "label": "Proficient",
+              "short": "Vague",
+              "points": 2,
+              "descriptor": "Compares in general, or the V4 change is not tied to the break."
+            },
+            {
+              "label": "Developing",
+              "short": "One of the two",
+              "points": 1,
+              "descriptor": "Only the comparison or only the change."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing",
+              "points": 0,
+              "descriptor": "Nothing."
+            }
+          ],
+          "points": 4
+        },
+        {
+          "id": "slide",
+          "text": "One slide in the IDEA Hook Designs deck carrying all six things",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All six",
+              "points": 4,
+              "descriptor": "Hook name and student name, the load, a CAD image of V3, V3's stress plot with its scale, a photo of the printed hook, a slicer view."
+            },
+            {
+              "label": "Proficient",
+              "short": "Four or five",
+              "points": 2,
+              "descriptor": "Four or five of the six."
+            },
+            {
+              "label": "Developing",
+              "short": "Three or fewer",
+              "points": 1,
+              "descriptor": "Three or fewer."
+            },
+            {
+              "label": "Absent",
+              "short": "No slide",
+              "points": 0,
+              "descriptor": "No slide."
+            }
+          ],
+          "points": 4
+        }
+      ]
+    }
+  ],
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
+  "schemaVersion": 3
+}
