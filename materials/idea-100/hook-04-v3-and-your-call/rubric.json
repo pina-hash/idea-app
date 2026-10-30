@@ -1,0 +1,124 @@
+[
+  {
+    "id": "h4-v3-build",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "At the red, plotted, explained",
+        "points": 6,
+        "descriptor": "A V3_ file with the change highlighted where V2's plot was red, a V3 stress plot with its scale, and a line naming the change and where the grams came from."
+      },
+      {
+        "label": "Proficient",
+        "short": "One thing short",
+        "points": 4,
+        "descriptor": "The change is elsewhere, or no V3 plot, or the line does not say where the grams came from."
+      },
+      {
+        "label": "Developing",
+        "short": "Barely changed",
+        "points": 2,
+        "descriptor": "V3 is V2 renamed, or nothing can be seen."
+      },
+      {
+        "label": "Absent",
+        "short": "No V3",
+        "points": 0,
+        "descriptor": "No screenshot."
+      }
+    ],
+    "points": 6,
+    "criterion": "V3 and your call: V3 is its own file, built at the red, checked with a new plot, and the change is explained",
+    "incomplete": false
+  },
+  {
+    "id": "h4-v3-legal",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Measured, weighed, legal",
+        "points": 3,
+        "descriptor": "Five measurements from V3 inside the rules, a slicer weight at or under 0.110 lb (50.0 g), and the walls and infill named."
+      },
+      {
+        "label": "Proficient",
+        "short": "One gap",
+        "points": 2,
+        "descriptor": "One measurement or the settings missing, or one miss with its fix written."
+      },
+      {
+        "label": "Developing",
+        "short": "Over or mostly missing",
+        "points": 1,
+        "descriptor": "Over 50.0 g, or most of it missing."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing",
+        "points": 0,
+        "descriptor": "Nothing."
+      }
+    ],
+    "points": 3,
+    "criterion": "V3 and your call: V3 is measured and weighed at full size, and it is legal",
+    "incomplete": false
+  },
+  {
+    "id": "h4-v3-call",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Load, spot, real reason",
+        "points": 6,
+        "descriptor": "A load in pounds and a spot, and a reason that uses their own pulls or plot. A wrong call earns the same as a right one."
+      },
+      {
+        "label": "Proficient",
+        "short": "Reason general",
+        "points": 4,
+        "descriptor": "A load and a spot with a reason that could fit any hook."
+      },
+      {
+        "label": "Developing",
+        "short": "Half a call",
+        "points": 2,
+        "descriptor": "Only a load or only a spot."
+      },
+      {
+        "label": "Absent",
+        "short": "No call",
+        "points": 0,
+        "descriptor": "Nothing."
+      }
+    ],
+    "points": 6,
+    "criterion": "V3 and your call: The call is a load and a spot, with a reason from the tests or the plot",
+    "incomplete": false
+  },
+  {
+    "id": "h4-print-printed",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Sliced, legal, printing",
+        "points": 3,
+        "descriptor": "The sliced plate at full size with the weight showing, at or under 50.0 g, and the printer named."
+      },
+      {
+        "label": "Proficient",
+        "short": "One thing missing",
+        "points": 2,
+        "descriptor": "The weight is hidden or over, or no printer named."
+      },
+      {
+        "label": "Absent",
+        "short": "Not printed",
+        "points": 0,
+        "descriptor": "Nothing."
+      }
+    ],
+    "points": 3,
+    "criterion": "Final print: V3 is sliced at full size, legal, and printing",
+    "incomplete": false
+  }
+]
