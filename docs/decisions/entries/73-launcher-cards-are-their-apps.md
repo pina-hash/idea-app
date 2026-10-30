@@ -19,3 +19,11 @@ His words: "The idea, green line, and foundry title cards are fine, but all the 
 - No words on a card except the title, plus the description and key in the comfortable view. No placeholder text, no tiny labels, no mini interface.
 - The reference cards are IDEA · GREENLINE (night field, floodlight cones, the green streak) and IDEA · FOUNDRY (iron black, the molten seam, a quiet tile mosaic) as shipped in ledger 0472. Every other card matches their density.
 - Everything else in this decision stands: colours from the app's own room, unique per app, readable, the FRC mark untouched.
+
+## Amended 2026-10-30 (second time): the cinematic light direction, chosen from four samples
+
+Mr. Pina rejected ledger 0474's icon-plus-motif cards ("looks like Play-Doh", "kiddie"; "it's dark and deep and cool and high tech ... the future of education") and asked for samples to choose from. Four directions were built from research (`/home/claude/reports/Premium app banner tile design.md` in that session): A cinematic light, B dark glass, C machined, D deep field. His choice, his words: "Gotta go with a cinematic light. But now green line and foundry look weird because they weren't adjusted in the same way. So adjust green line and foundry in the same way and go for that. Live on the website as soon as it's ready."
+
+- Every card, GREENLINE and FOUNDRY included, is a dark film still lit by one light source in the app's hue, with haze and one object: the filled app icon and the title at the left over an eased scrim, the focal light about two-thirds across, a vignette and faint grain, no words in the art.
+- The hue per app is the one in the chosen sample. Where it departs from the room (Market violet, Armory steel blue, the Coin Ledger and VANGUARD greens toned off neon), the sample he chose governs.
+- This replaces the "reference cards" bullet of the first amendment: GREENLINE and FOUNDRY are no longer kept as they were; they are redrawn in the same grammar as the rest.
