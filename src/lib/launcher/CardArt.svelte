@@ -25,8 +25,11 @@
 	 * a placeholder that reads like the page, never anybody's name, and none
 	 * is smaller than 9px, because a phone shows the card at the same size.
 	 *
-	 * DECORATION, AND MARKED AS SUCH: the whole layer is aria-hidden and takes
-	 * no pointer events; the card's real words are its title and its key. It
+	 * DECORATION, AND MARKED AS SUCH: the whole layer is aria-hidden, takes
+	 * no pointer events, and declares itself `data-miniature`, the browser
+	 * pass's mark for a picture of text (ledger 0469's 11px type floor reads
+	 * a card's real words, its title, description and key, and counts the
+	 * drawing's 9px placeholders as a picture rather than judging them); the card's real words are its title and its key. It
 	 * does not move; the card's mark is the one thing that plays, once, under
 	 * prefers-reduced-motion: no-preference.
 	 */
@@ -35,7 +38,7 @@
 	let { app }: { app: string } = $props();
 </script>
 
-<span class="art" data-art={app} aria-hidden="true">
+<span class="art" data-art={app} aria-hidden="true" data-miniature>
 	{#if app === 'classroom'}
 		<!-- My Classes: two class tiles edge to edge, each a big brass mortarboard, the code and Open, the title on up to two lines. -->
 		<span class="scene cls">
