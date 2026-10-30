@@ -10,3 +10,12 @@
   - A card follows its room, not the site theme: where the room keeps its look on Space White, the card keeps it too. Where the room itself is neon (the Coin Ledger, VANGUARD), the card may be neon.
   - Readability still binds: the title and call to action clear 4.5:1 on the card, controls stay 44px, the FRC mark is never animated or altered, and motion is gated behind prefers-reduced-motion.
 - Context: `src/lib/AppLauncher.svelte`, `src/lib/portal-apps.ts`, `docs/subsystems/themes.md` (the launcher section), ledger 0472.
+
+## Amended 2026-10-30 by Mr. Pina, after seeing ledger 0472 on his phone
+
+His words: "The idea, green line, and foundry title cards are fine, but all the other ones are way too busy. When I pulled this up on my phone for the first time this morning, it was extremely confusing ... There's too much stuff on each banner. There's like all these little words. It's ridiculous. I said to do it like it would be on a computer, like you have like an icon for the app and a title. And since it's a banner format, you'd have icon, title, you know, I think green line and idea green line and idea foundry are well made. All the other ones, they're way too busy."
+
+- A card is an app icon and its title on a banner, like an app on a computer. The banner carries the app's own colours and ONE bold motif from its page (a texture, a light, a shape), never a miniature screen.
+- No words on a card except the title, plus the description and key in the comfortable view. No placeholder text, no tiny labels, no mini interface.
+- The reference cards are IDEA · GREENLINE (night field, floodlight cones, the green streak) and IDEA · FOUNDRY (iron black, the molten seam, a quiet tile mosaic) as shipped in ledger 0472. Every other card matches their density.
+- Everything else in this decision stands: colours from the app's own room, unique per app, readable, the FRC mark untouched.
