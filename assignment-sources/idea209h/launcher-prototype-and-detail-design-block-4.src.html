@@ -27,8 +27,13 @@
   7 Facts: FUEL 5.91 in, 0.448 to 0.5 lb; shop gears, pulleys, belts and hardware allowed,
     anything else made from stock, nothing bought; 6 bearings per team; common-sense safety.
     Estimates: drag coefficient 0.5; 80% of no-load drill speed under load; one wheel and a hood
-    about half the rim speed, two wheels about 90% (FRC rule of thumb); catapult half the band
-    energy, a third of the arm's weight. Measured numbers beat them.
+    about half the rim speed, two wheels about 90% (FRC rule of thumb). Every other design
+    (bands, springs, torsion, trebuchet, drop weight, hammer, air) is stored energy times an
+    editable percent, shared with what moves with the ball (a third of an arm's weight, a
+    counterweight scaled by its lever ratio squared); air is a fast (adiabatic) expansion
+    down a ball-width bore. A test throw works back to the real speed and the percent that
+    matches it (Mr. Pina, 2026-10-30: "as many things as you can account for").
+    Measured numbers beat them.
   8 Look: its own identity, a drawing sheet: Prototype cardboard, Detail design SolidWorks red;
     hero and thumbnail are a dimensioned drawing of the wheel and hood (SolidWorks red
     dimensions, a cardboard rig, the FUEL ball), so it never reads as post 1's launcher.
@@ -1056,8 +1061,7 @@
     <div class="hx-step-body">
       <div class="hx-stack">
         <ol class="hx-do">
-          <li><span>As a team, set the target and angle. The calculator gives the speed you need.</span></li>
-          <li><span>Put in your design. Drill speed: its model number plus "no load speed".</span></li>
+          <li><span>As a team: target, angle, then your design. Not listed? Use a test throw.</span></li>
           <li><span>Write your part's numbers and its parts from shop stock. 6 bearings, tops.</span></li>
         </ol>
         <div class="u4-calc" aria-label="Launch calculator">
@@ -1068,30 +1072,85 @@
           </div>
           <p class="hx-readout" id="c-need" aria-live="polite">Speed needed appears here.</p>
           <div class="u4-calc-row">
-            <label><span>Your design </span><select class="idea-well idea-well--field" id="c-kind"><option value="fw1">Flywheel, one wheel and a hood</option><option value="fw2">Flywheel, two wheels</option><option value="cat">Catapult with bands or springs</option></select></label>
+            <label><span>Your design </span><select class="idea-well idea-well--field" id="c-kind">
+              <optgroup label="Spinning">
+                <option value="fw1">Flywheel, one wheel and a hood</option>
+                <option value="fw2">Flywheel, two wheels (or a wheel and a belt)</option>
+                <option value="arm">Spinning arm that lets go of the ball</option>
+              </optgroup>
+              <optgroup label="Bands or springs">
+                <option value="cat">Catapult arm with bands or springs</option>
+                <option value="tor">Twisted rope or torsion spring (mangonel)</option>
+                <option value="push">Slingshot, plunger or puncher (pushes the ball straight)</option>
+              </optgroup>
+              <optgroup label="A falling weight">
+                <option value="treb">Trebuchet (counterweight, with or without a sling)</option>
+                <option value="drop">Weighted catapult (a falling weight pulls the arm)</option>
+                <option value="ham">Swinging hammer or pendulum that hits the ball</option>
+              </optgroup>
+              <optgroup label="Air">
+                <option value="air">Air cannon</option>
+              </optgroup>
+              <optgroup label="Anything else">
+                <option value="test">Not listed: work back from a test throw</option>
+              </optgroup>
+            </select></label>
           </div>
-          <div class="u4-calc-row" id="c-fw">
-            <label><span>Drill speed, no load <span class="u4-unit">rpm</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rpm" placeholder="from its spec"></label>
-            <label><span>Wheel turns per drill turn</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-ratio" value="1"></label>
-            <label><span>Wheel diameter <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-wd" value="4"></label>
+          <div class="u4-calc-row" data-calc="fw1 fw2 arm">
+            <label><span>Drill or motor speed, no load <span class="u4-unit">rpm</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rpm" placeholder="from its spec"></label>
+            <label><span>Turns per motor turn</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-ratio" value="1"></label>
+            <label data-calc="fw1 fw2"><span>Wheel diameter <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-wd" value="4"></label>
+            <label data-calc="arm"><span>Pivot to ball <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-alen" value="12"></label>
           </div>
-          <div class="u4-calc-row" id="c-cat" hidden>
-            <label><span>Pull per band, fully stretched <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-pull" placeholder="measured"></label>
-            <label><span>Stretch <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-str" placeholder="measured"></label>
-            <label><span>Bands</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-n" value="2"></label>
+          <div class="u4-calc-row" data-calc="cat push" hidden>
+            <label><span>Pull of one band or spring, fully stretched <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-pull" placeholder="measured"></label>
+            <label><span>Stretch or squeeze <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-str" placeholder="measured"></label>
+            <label><span>How many</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-n" value="2"></label>
+            <label data-calc="push"><span>What moves with the ball <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-sled" value="0.5"></label>
+          </div>
+          <div class="u4-calc-row" data-calc="tor" hidden>
+            <label><span>Twist at full wind <span class="u4-unit">in-lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tq" placeholder="scale pull × inches"></label>
+            <label><span>Wind-up angle <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-wind" value="90"></label>
+            <label><span>How many bundles or springs</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tn" value="1"></label>
+          </div>
+          <div class="u4-calc-row" data-calc="treb drop ham" hidden>
+            <label><span><span data-calc="treb drop">Falling weight</span><span data-calc="ham">Hammer head</span> <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-cw" placeholder="weighed"></label>
+            <label><span>How far it falls <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-drop" placeholder="measured"></label>
+            <label data-calc="treb drop"><span>Pivot to the weight or its rope <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rs" value="6"></label>
+            <label data-calc="treb drop"><span>Pivot to the ball, sling included <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-rl" value="30"></label>
+          </div>
+          <div class="u4-calc-row" data-calc="cat tor treb drop" hidden>
             <label><span>Arm weight <span class="u4-unit">lb</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-arm" value="1"></label>
           </div>
+          <div class="u4-calc-row" data-calc="air" hidden>
+            <label><span>Tank pressure, gauge <span class="u4-unit">psi</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-psi" placeholder="what you fill to"></label>
+            <label><span>Tank volume <span class="u4-unit">cu in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-vol" placeholder="0.785 × dia² × length"></label>
+            <label><span>Barrel length <span class="u4-unit">in</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-bl" value="12"></label>
+          </div>
+          <p class="hx-note" data-calc="air" hidden>Air: a tank and valve rated above your fill pressure. PVC pipe can shatter under air pressure.</p>
+          <div class="u4-calc-row">
+            <label data-calc="fw1 fw2 arm cat tor push treb drop ham air"><span id="c-eff-lab">Ball speed, % of rim speed</span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-eff" value="50"></label>
+            <label><span>Test throw: how far it flew <span class="u4-unit">ft</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tdist" placeholder="from your prototype"></label>
+            <label><span>Test throw angle <span class="u4-unit">deg</span></span><input class="idea-well idea-well--field" type="text" inputmode="decimal" id="c-tang" value="35"></label>
+          </div>
           <p class="hx-readout" id="c-got" aria-live="polite">Your design's estimate appears here.</p>
+          <p class="hx-readout" id="c-cal" aria-live="polite" hidden></p>
         </div>
         <details class="hx-more">
           <summary>How the calculator works</summary>
           <table class="hx-table u4-how">
             <tbody>
               <tr><td>Drag</td><td>A foam ball slows fast. The calculator flies it in small time steps with air drag (FUEL: 5.91 in, about 0.47 lb, drag coefficient taken as 0.5).</td></tr>
-              <tr><td>Drill speed</td><td>The model number is on the drill's label. Search it with "no load speed" for each gear. The calculator assumes 80% of that under load.</td></tr>
+              <tr><td>Stored energy</td><td>Everything except spinning designs works the same way: energy stored, times the percent that reaches the ball, shared between the ball and whatever moves with it. Speed comes from that energy.</td></tr>
+              <tr><td>Motor speed</td><td>The model number is on the drill's or motor's label. Search it with "no load speed". The calculator assumes 80% of that under load.</td></tr>
               <tr><td>Flywheel</td><td>Rule of thumb from FRC teams: one wheel and a hood throws at about half the wheel's rim speed, two wheels at about 90%.</td></tr>
-              <tr><td>Catapult</td><td>Band energy is half the pull times the stretch. The calculator assumes half of it reaches the ball, and a third of the arm's weight moves with it.</td></tr>
-              <tr><td>Your prototype</td><td>A number you measured beats every estimate here.</td></tr>
+              <tr><td>Spinning arm</td><td>The ball leaves at about the arm tip's speed, less some slip.</td></tr>
+              <tr><td>Bands, springs</td><td>Energy is half the full pull times the stretch, for each one. A spring's pull is its rate (lb per in) times how far you squeeze it. A third of a swinging arm's weight moves with the ball.</td></tr>
+              <tr><td>Twist</td><td>Energy is half the twist at full wind times the wind-up angle. Measure the twist: pull the arm with a luggage scale and multiply by the inches from the pivot.</td></tr>
+              <tr><td>Falling weight</td><td>Energy is the weight times how far it falls. The weight keeps some of it: the closer it hangs to the pivot, compared with the ball, the less it keeps. A sling adds to the ball's distance.</td></tr>
+              <tr><td>Hammer</td><td>The head swings down and hits the ball. A foam ball is soft, so it bounces off at about 1.5 times the head's speed at most, less for a light head.</td></tr>
+              <tr><td>Air</td><td>The air expands from the tank down the barrel and pushes on the ball's full width. The calculator assumes it expands fast, the way it does in a real shot, and starts at 30% for valve and leak losses. A barrel longer than the air can fill slows the ball, and the calculator says the length where that starts.</td></tr>
+              <tr><td>Test throw</td><td>Throw your prototype, measure where the ball lands, and put it in. The calculator works out the real launch speed and the percent that matches it. A number you measured beats every estimate here.</td></tr>
             </tbody>
           </table>
         </details>
@@ -1103,13 +1162,13 @@
             <textarea class="idea-well" rows="2" data-field="frameCalc" data-min-sentences="1" placeholder="e.g. 1 in extrusion: 2 at ... in, 2 at ... in. Drill held by ... Base plate 1/4 in, ... by ... in."></textarea>
           </label>
           <label class="hx-tile u4-rp" data-role="energy"><span class="u4-rp-head"><b><span class="it" data-term="energy store">Energy store</span></b><span data-role-owner="energy"></span></span>
-            <textarea class="idea-well" rows="2" data-field="energyCalc" data-min-sentences="1" placeholder="e.g. Two ... in wheels, ... ft/s estimated against ... ft/s needed. Squeeze ... in from the prototype."></textarea>
+            <textarea class="idea-well" rows="2" data-field="energyCalc" data-min-sentences="1" placeholder="e.g. Stores ... J in ..., about ... ft/s against ... ft/s needed. Test throw: ... ft."></textarea>
           </label>
           <label class="hx-tile u4-rp" data-role="drive"><span class="u4-rp-head"><b><span class="it" data-term="drive">Drive</span></b><span data-role-owner="drive"></span></span>
-            <textarea class="idea-well" rows="2" data-field="driveCalc" data-min-sentences="1" placeholder="e.g. Drill model ..., gear ..., ... rpm no load, ... wheel turns per drill turn, hex coupler from ..."></textarea>
+            <textarea class="idea-well" rows="2" data-field="driveCalc" data-min-sentences="1" placeholder="e.g. Drill model ..., gear ..., ... rpm no load, ... turns per drill turn. Or the trigger and release: ..."></textarea>
           </label>
           <label class="hx-tile u4-rp" data-role="ballpath"><span class="u4-rp-head"><b><span class="it" data-term="ball path">Ball path</span></b><span data-role-owner="ballpath"></span></span>
-            <textarea class="idea-well" rows="2" data-field="ballpathCalc" data-min-sentences="1" placeholder="e.g. Hood radius ... in at ... degrees, holds ... balls, gap ... in, from ..."></textarea>
+            <textarea class="idea-well" rows="2" data-field="ballpathCalc" data-min-sentences="1" placeholder="e.g. Hood, cup, sling or barrel: ... in, holds ... balls, leaves at ... degrees, from ..."></textarea>
           </label>
         </div>
       </div>
@@ -1260,10 +1319,19 @@
 <!-- hx:script -->
 <script id="hx-page-js">
 /* Launcher: Prototype and Detail Design. The launch calculator is a live mirror, never a
-   gate (AUTHORING F9); its inputs are not graded and are not saved. */
-var U4 = { g: 9.81, d: 0.1501, m: 0.215, cd: 0.5, rho: 1.2 };
+   gate (AUTHORING F9); its inputs are not graded and are not saved. Every design family
+   students build is one of three kinds of estimate: a spinning part's surface speed, a
+   stored energy shared between the ball and what moves with it, or a measured test throw. */
+var U4 = { g: 9.81, d: 0.1501, m: 0.215, cd: 0.5, rho: 1.2, IN: 0.0254, LB: 0.4536, LBF: 4.448, INLB: 0.113, PSI: 6894.76, ATM: 101325 };
 U4.k = 0.5 * U4.rho * U4.cd * Math.PI * Math.pow(U4.d / 2, 2) / U4.m;
+U4.area = Math.PI * Math.pow(U4.d / 2, 2);
+/* The percent each design starts at, and what it means. A student's own value for a design
+   is kept while they switch between designs. */
+var U4_EFF = { fw1: 50, fw2: 90, arm: 90, cat: 70, tor: 60, push: 80, treb: 70, drop: 70, ham: 70, air: 30 };
+var U4_SPIN = { fw1: 'Ball speed, % of rim speed', fw2: 'Ball speed, % of rim speed', arm: 'Ball speed, % of arm tip speed' };
+var u4Kind = null;
 function u4n(id) { var el = document.getElementById(id); var n = parseFloat(String(el && el.value || '').replace(/,/g, '')); return isFinite(n) ? n : null; }
+function u4pos(id) { var n = u4n(id); return n !== null && n > 0 ? n : null; }
 /* Distance in m for a ball leaving at v m/s, ang degrees, h m up; k is the drag constant. */
 function u4Range(v, ang, h, k) {
   var a = ang * Math.PI / 180, vx = v * Math.cos(a), vy = v * Math.sin(a), x = 0, y = h, dt = 0.002, px = 0, py = h;
@@ -1290,14 +1358,68 @@ function u4Best(v, h) {
 function u4fps(v) { return Math.round(v / 0.3048); }
 function u4mph(v) { return Math.round(v * 2.23694); }
 function u4ft(m) { return Math.round(m / 0.3048); }
+function u4J(e) { return e >= 100 ? Math.round(e) : Math.round(e * 10) / 10; }
+/* Speed from stored energy e (J), the share that reaches the ball, and the mass (kg) that
+   moves with it. */
+function u4FromEnergy(e, share, moving) { return Math.sqrt(2 * share * e / (U4.m + moving)); }
+/* One design's estimate: { v } in m/s, or { ask } naming what is missing, plus notes. */
+function u4Estimate(kind, pct) {
+  var share = pct / 100, IN = U4.IN, LB = U4.LB;
+  if (kind === 'fw1' || kind === 'fw2' || kind === 'arm') {
+    var rpm = u4pos('c-rpm'), ratio = u4pos('c-ratio');
+    var size = kind === 'arm' ? u4pos('c-alen') : u4pos('c-wd');
+    if (!rpm || !ratio || !size) return { ask: kind === 'arm' ? 'Put in the motor speed, its turns and the pivot-to-ball distance.' : 'Put in the motor speed for your gear and the wheel size.' };
+    var turnsPerSec = rpm * 0.8 * ratio / 60;
+    var surface = kind === 'arm' ? 2 * Math.PI * size * IN * turnsPerSec : Math.PI * size * IN * turnsPerSec;
+    return { v: surface * share, note: (kind === 'arm' ? 'Arm tip' : 'Wheel rim') + ' about ' + u4fps(surface) + ' ft/s.' };
+  }
+  var e = null, moving = 0;
+  if (kind === 'cat' || kind === 'push') {
+    var pull = u4pos('c-pull'), str = u4pos('c-str'), n = u4pos('c-n');
+    if (!pull || !str || !n) return { ask: 'Put in the pull and stretch you measured, and how many.' };
+    e = n * 0.5 * pull * U4.LBF * str * IN;
+    moving = kind === 'cat' ? (u4n('c-arm') || 0) * LB / 3 : (u4n('c-sled') || 0) * LB;
+  } else if (kind === 'tor') {
+    var tq = u4pos('c-tq'), wind = u4pos('c-wind'), tn = u4pos('c-tn');
+    if (!tq || !wind || !tn) return { ask: 'Put in the twist at full wind, the wind-up angle and how many.' };
+    e = tn * 0.5 * tq * U4.INLB * wind * Math.PI / 180;
+    moving = (u4n('c-arm') || 0) * LB / 3;
+  } else if (kind === 'treb' || kind === 'drop') {
+    var cw = u4pos('c-cw'), drop = u4pos('c-drop'), rs = u4pos('c-rs'), rl = u4pos('c-rl');
+    if (!cw || !drop || !rs || !rl) return { ask: 'Put in the weight, how far it falls, and both distances from the pivot.' };
+    e = cw * LB * U4.g * drop * IN;
+    moving = cw * LB * Math.pow(rs / rl, 2) + (u4n('c-arm') || 0) * LB / 3;
+  } else if (kind === 'ham') {
+    var hm = u4pos('c-cw'), hd = u4pos('c-drop');
+    if (!hm || !hd) return { ask: 'Put in the hammer head weight and how far it falls.' };
+    var M = hm * LB, head = Math.sqrt(2 * U4.g * hd * IN * share);
+    return { v: 1.5 * M / (M + U4.m) * head, e: M * U4.g * hd * IN, note: 'Head about ' + u4fps(head) + ' ft/s when it hits.' };
+  } else if (kind === 'air') {
+    var psi = u4pos('c-psi'), vol = u4pos('c-vol'), bl = u4pos('c-bl');
+    if (!psi || !vol || !bl) return { ask: 'Put in the fill pressure, the tank volume and the barrel length.' };
+    var P0 = (psi + 14.7) * U4.PSI, V0 = vol * Math.pow(IN, 3), swept = U4.area * bl * IN;
+    /* Fast expansion (no time to take in heat), gamma 1.4, against the air outside. */
+    e = P0 * V0 / 0.4 * (1 - Math.pow(V0 / (V0 + swept), 0.4)) - U4.ATM * swept;
+    var best = V0 * (Math.pow(P0 / U4.ATM, 1 / 1.4) - 1) / U4.area / IN;
+    var tip = bl > best * 1.05 ? ' A barrel longer than about ' + Math.round(best) + ' in slows the ball: the air runs out.' : '';
+    if (e <= 0) return { ask: 'This barrel is too long for that much air: past about ' + Math.round(best) + ' in the ball slows down. Shorten it or add tank volume.', warn: true };
+    return { v: u4FromEnergy(e, share, 0), e: e, note: 'The barrel must fit the 5.91 in ball. A valve that opens slowly wastes most of the air: a test throw tells you the real percent.' + tip };
+  }
+  return { v: u4FromEnergy(e, share, moving), e: e };
+}
 function u4CalcRefresh() {
-  var need = document.getElementById('c-need'), got = document.getElementById('c-got'), kindEl = document.getElementById('c-kind');
-  if (!need || !got || !kindEl) return;
+  var need = document.getElementById('c-need'), got = document.getElementById('c-got'), cal = document.getElementById('c-cal'), kindEl = document.getElementById('c-kind'), effEl = document.getElementById('c-eff');
+  if (!need || !got || !cal || !kindEl || !effEl) return;
   var kind = kindEl.value;
-  document.getElementById('c-fw').hidden = kind === 'cat';
-  document.getElementById('c-cat').hidden = kind !== 'cat';
-  if (typeof hxQueueLayout === 'function') hxQueueLayout();
-  var dist = u4n('c-dist'), ang = u4n('c-ang'), h = (u4n('c-h') || 0) * 0.0254, vNeed = null;
+  if (kind !== u4Kind) {
+    if (u4Kind && U4_EFF[u4Kind] !== undefined && u4n('c-eff') !== null) U4_EFF[u4Kind] = u4n('c-eff');
+    u4Kind = kind;
+    if (U4_EFF[kind] !== undefined) effEl.value = U4_EFF[kind];
+    document.getElementById('c-eff-lab').textContent = U4_SPIN[kind] || 'Energy that reaches the ball, %';
+    document.querySelectorAll('[data-calc]').forEach(function (el) { el.hidden = el.getAttribute('data-calc').split(' ').indexOf(kind) < 0; });
+    if (typeof hxQueueLayout === 'function') hxQueueLayout();
+  } else if (u4n('c-eff') !== null) U4_EFF[kind] = u4n('c-eff');
+  var dist = u4n('c-dist'), ang = u4n('c-ang'), h = (u4n('c-h') || 0) * U4.IN, vNeed = null;
   if (dist && ang !== null && ang > 0 && ang < 90) {
     vNeed = u4Need(dist * 0.3048, ang, h, U4.k);
     if (vNeed === null) {
@@ -1305,37 +1427,58 @@ function u4CalcRefresh() {
       need.classList.add('warn');
     } else {
       var vAir = u4Need(dist * 0.3048, ang, h, 0);
-      need.textContent = 'Needed: ' + u4fps(vNeed) + ' ft/s (' + u4mph(vNeed) + ' mph) at ' + ang + ' degrees. With no air it would be ' + u4fps(vAir) + ' ft/s: drag costs ' + (u4fps(vNeed) - u4fps(vAir)) + ' ft/s.';
+      need.textContent = 'Needed: ' + u4fps(vNeed) + ' ft/s (' + u4mph(vNeed) + ' mph) at ' + ang + ' degrees. Drag costs ' + (u4fps(vNeed) - u4fps(vAir)) + ' ft/s of that.';
       need.classList.remove('warn');
     }
   } else {
     need.textContent = 'Put in a distance and an angle between 0 and 90 degrees.';
     need.classList.remove('warn');
   }
-  var v = null;
-  if (kind === 'cat') {
-    var pull = u4n('c-pull'), str = u4n('c-str'), n = u4n('c-n'), arm = u4n('c-arm') || 0;
-    if (pull && str && n) {
-      var energy = n * 0.5 * pull * 4.448 * str * 0.0254;
-      v = Math.sqrt(energy / (U4.m + arm * 0.4536 / 3));
-    }
-  } else {
-    var rpm = u4n('c-rpm'), ratio = u4n('c-ratio'), wd = u4n('c-wd');
-    if (rpm && ratio && wd) {
-      var rim = Math.PI * wd * 0.0254 * rpm * 0.8 * ratio / 60;
-      v = rim * (kind === 'fw2' ? 0.9 : 0.5);
-    }
+  /* The test throw: the real launch speed of the prototype, from where its ball landed. */
+  var tdist = u4pos('c-tdist'), tang = u4n('c-tang'), vTest = null;
+  if (tdist && tang !== null && tang > 0 && tang < 90) vTest = u4Need(tdist * 0.3048, tang, h, U4.k);
+  var a = ang && ang > 0 && ang < 90 ? ang : 35;
+  function speedLine(label, v) {
+    var throwFt = u4ft(u4Range(v, a, h, U4.k)), best = u4Best(v, h);
+    var line = label + u4fps(v) + ' ft/s (' + u4mph(v) + ' mph), about ' + throwFt + ' ft at ' + a + ' degrees. Best angle for that speed: ' + best.a + ' degrees, about ' + u4ft(best.r) + ' ft.';
+    if (vNeed !== null) line += v >= vNeed ? ' Enough for your target.' : ' Short of the ' + u4fps(vNeed) + ' ft/s your target needs.';
+    return line;
   }
-  if (v === null) {
-    got.textContent = kind === 'cat' ? 'Put in the pull and stretch you measured, and the bands.' : 'Put in the drill speed for your gear and the wheel size.';
-    got.classList.remove('warn');
+  if (kind === 'test') {
+    cal.hidden = true;
+    if (vTest === null) {
+      got.textContent = tdist ? 'That throw is farther than a foam ball can go at that angle. Check the distance and angle.' : 'Throw your prototype, measure where the ball first lands, and put in the distance and the angle it left at.';
+      got.classList.remove('warn');
+      return;
+    }
+    got.textContent = speedLine('Your test throw left at about ', vTest);
+    got.classList.toggle('warn', vNeed !== null && vTest < vNeed);
     return;
   }
-  var a = ang && ang > 0 && ang < 90 ? ang : 35, throwFt = u4ft(u4Range(v, a, h, U4.k)), best = u4Best(v, h);
-  var line = 'Your design: about ' + u4fps(v) + ' ft/s (' + u4mph(v) + ' mph), about ' + throwFt + ' ft at ' + a + ' degrees. Best angle for that speed: ' + best.a + ' degrees, about ' + u4ft(best.r) + ' ft.';
-  if (vNeed !== null) line += v >= vNeed ? ' Enough for your target.' : ' Short of the ' + u4fps(vNeed) + ' ft/s your target needs.';
+  var pct = u4n('c-eff');
+  if (pct === null || pct <= 0 || pct > 100) {
+    got.textContent = 'Put in a percent from 1 to 100.';
+    got.classList.add('warn'); cal.hidden = true;
+    return;
+  }
+  var est = u4Estimate(kind, pct);
+  if (est.v === undefined) {
+    got.textContent = est.ask;
+    got.classList.toggle('warn', !!est.warn); cal.hidden = true;
+    return;
+  }
+  var line = speedLine('Your design: about ', est.v);
+  if (est.e !== undefined) line += ' Stores ' + u4J(est.e) + ' J; ' + u4J(est.e * pct / 100) + ' J reaches the ball.';
+  if (est.note) line += ' ' + est.note;
   got.textContent = line;
-  got.classList.toggle('warn', vNeed !== null && v < vNeed);
+  got.classList.toggle('warn', vNeed !== null && est.v < vNeed);
+  if (vTest === null) { cal.hidden = true; return; }
+  /* Spinning designs scale with the percent; stored energy with its square root. */
+  var ratio = vTest / est.v, spin = !!U4_SPIN[kind];
+  var match = Math.min(100, Math.max(1, Math.round(spin ? pct * ratio : pct * ratio * ratio)));
+  cal.hidden = false;
+  cal.textContent = 'Test throw: about ' + u4fps(vTest) + ' ft/s, ' + Math.round(ratio * 100) + '% of this estimate. If the prototype is this design at full size, ' + (match >= 100 && ratio > 1 ? 'your numbers above are low: recheck them.' : 'set the percent to ' + match + ' and your estimate matches what you measured.');
+  if (typeof hxQueueLayout === 'function') hxQueueLayout();
 }
 document.addEventListener('input', u4CalcRefresh);
 document.addEventListener('change', u4CalcRefresh);
