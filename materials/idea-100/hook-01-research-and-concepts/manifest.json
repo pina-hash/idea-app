@@ -1,59 +1,80 @@
 {
   "kind": "html-assignment",
-  "title": "Hook 01 - Research and Concepts",
+  "title": "Hook 01 · Research and Concepts",
   "course": "IDEA100",
-  "header": [
-    {
-      "id": "hook01-teammate",
-      "type": "text",
-      "field": "teammate",
-      "prompt": "Teammate, first and last name"
-    },
-    {
-      "id": "hook01-theme",
-      "type": "text",
-      "field": "theme",
-      "prompt": "Your team's theme"
-    },
-    {
-      "id": "hook01-hook-name",
-      "type": "text",
-      "field": "hookName",
-      "prompt": "Your hook's working name"
-    },
-    {
-      "id": "hook01-photo-2",
-      "type": "image",
-      "field": "photo2",
-      "prompt": "A second sketch photo, if you have one"
-    },
-    {
-      "id": "hook01-photo-3",
-      "type": "image",
-      "field": "photo3",
-      "prompt": "A third sketch photo, if you have one"
-    }
-  ],
   "points": 15,
   "modules": [
     {
-      "id": "hook01-research",
+      "id": "h1-rules",
+      "title": "The rules",
+      "blocks": [
+        {
+          "id": "h1-rules-check",
+          "type": "radio",
+          "field": "rulesCheck",
+          "prompt": "Leo's hook: is it legal, and if not, what fails?"
+        },
+        {
+          "id": "h1-rules-multi",
+          "type": "radio",
+          "field": "rulesMulti",
+          "prompt": "Mia's multi-part hook: is it legal, and if not, what fails?"
+        }
+      ],
+      "points": 2,
+      "audience": "individual",
+      "criteria": [
+        {
+          "id": "rules-check",
+          "text": "Judges two unfamiliar hooks against the rules",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Both calls right",
+              "points": 2,
+              "descriptor": "Leo: the top hole (0.875 in is under 1.000 in). Mia: opening it takes too long (30 s, and a tool, against 10 s by hand)."
+            },
+            {
+              "label": "Developing",
+              "short": "One call right",
+              "points": 1,
+              "descriptor": "One of the two picks is right."
+            },
+            {
+              "label": "Absent",
+              "short": "Neither right",
+              "points": 0,
+              "descriptor": "Neither pick is right, or none is made."
+            }
+          ],
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "h1-research",
       "title": "Research",
       "blocks": [
         {
-          "id": "hook01-borrow",
+          "id": "h1-borrow",
           "type": "table",
           "field": "borrowTable",
-          "prompt": "Research: two ideas borrowed, where the load goes, and how each helps"
+          "prompt": "Two ideas borrowed: where from, the idea, and why it holds more load"
         },
         {
-          "id": "hook01-feature3d",
-          "type": "longText",
-          "field": "feature3d",
-          "prompt": "Your 3D feature: which one, where on the hook, and why there"
+          "id": "h1-feature",
+          "type": "radio",
+          "field": "featurePick",
+          "prompt": "The 3D feature your hook will use"
+        },
+        {
+          "id": "h1-feature-where",
+          "type": "text",
+          "field": "featureWhere",
+          "prompt": "Where on your hook it goes, and why there"
         }
       ],
-      "points": 6,
+      "points": 5,
       "audience": "individual",
       "criteria": [
         {
@@ -62,52 +83,52 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "Two designs, specific, load-based",
-              "points": 4,
-              "descriptor": "Two ideas from two different sources: the deck, an image search, or anywhere else. Each row names one specific feature taken and says where the load goes and how that feature handles it."
+              "short": "Two, specific, load-based",
+              "points": 3,
+              "descriptor": "Two ideas from two different sources. Each row names one specific feature and says how it handles the load."
             },
             {
               "label": "Proficient",
-              "short": "Both specific, one reason vague",
-              "points": 3,
-              "descriptor": "Both rows name a specific feature, but one reason is general (\"it held a lot\") rather than about the load path."
+              "short": "One reason vague",
+              "points": 2,
+              "descriptor": "Both rows name a specific feature, but one reason is general (\"it held a lot\")."
             },
             {
               "label": "Developing",
               "short": "General, or one row",
-              "points": 2,
-              "descriptor": "The designs are described in general terms, or only one row is complete."
+              "points": 1,
+              "descriptor": "The ideas are described in general terms, or only one row is filled."
             },
             {
               "label": "Absent",
-              "short": "Blank or repeated source",
+              "short": "Blank or one source",
               "points": 0,
-              "descriptor": "The table is empty, or both rows take from the same design."
+              "descriptor": "The table is empty, or both rows come from the same design."
             }
           ],
-          "points": 4
+          "points": 3
         },
         {
-          "id": "feature3d",
-          "text": "A 3D feature is named, placed on the hook, and justified",
+          "id": "feature",
+          "text": "A 3D feature is picked, placed on the hook, and justified",
           "levels": [
             {
               "label": "Complete",
-              "short": "Named, placed, and justified",
+              "short": "Picked, placed, why",
               "points": 2,
-              "descriptor": "Names a feature that uses the thickness direction, says where on the hook it goes, and says why there."
+              "descriptor": "A feature is picked, and the line says where on the hook it goes and why there."
             },
             {
               "label": "Developing",
-              "short": "Named without a reason",
+              "short": "Picked, no place or why",
               "points": 1,
-              "descriptor": "Names a feature but not where it goes or why."
+              "descriptor": "A feature is picked, but the line gives no place or no reason."
             },
             {
               "label": "Absent",
-              "short": "Blank or flat outline",
+              "short": "Nothing",
               "points": 0,
-              "descriptor": "Blank, or describes only a flat outline with no use of thickness."
+              "descriptor": "No feature picked."
             }
           ],
           "points": 2
@@ -115,41 +136,69 @@
       ]
     },
     {
-      "id": "hook01-sketch",
-      "title": "Concept Sketches",
+      "id": "h1-sketch",
+      "title": "Concept sketches",
       "blocks": [
         {
-          "id": "hook01-photo-1",
+          "id": "h1-sketch-photo",
           "type": "image",
-          "field": "photo1",
+          "field": "sketchPhoto",
           "prompt": "Photo of your two concept sketches"
         },
         {
-          "id": "hook01-type-a",
+          "id": "h1-sketch-photo-2",
+          "type": "image",
+          "field": "sketchPhoto2",
+          "prompt": "A second sketch photo, if you have one",
+          "optional": true
+        },
+        {
+          "id": "h1-type-a",
           "type": "radio",
           "field": "typeA",
           "prompt": "Sketch A: standard or multi-part"
         },
         {
-          "id": "hook01-note-a",
+          "id": "h1-note-a",
           "type": "text",
           "field": "noteA",
           "prompt": "Sketch A: the idea in one line, and what is 3D about it"
         },
         {
-          "id": "hook01-type-b",
+          "id": "h1-type-b",
           "type": "radio",
           "field": "typeB",
           "prompt": "Sketch B: standard or multi-part"
         },
         {
-          "id": "hook01-note-b",
+          "id": "h1-note-b",
           "type": "text",
           "field": "noteB",
           "prompt": "Sketch B: the idea in one line, and what is 3D about it"
+        },
+        {
+          "id": "h1-stretch-joint",
+          "type": "image",
+          "field": "stretchJoint",
+          "prompt": "Stretch: a key joint sketched to fit your hook",
+          "optional": true
+        },
+        {
+          "id": "h1-hook-name",
+          "type": "text",
+          "field": "hookName",
+          "prompt": "Your hook's name",
+          "optional": true
+        },
+        {
+          "id": "h1-theme",
+          "type": "text",
+          "field": "theme",
+          "prompt": "Your hook's theme",
+          "optional": true
         }
       ],
-      "points": 9,
+      "points": 8,
       "audience": "individual",
       "criteria": [
         {
@@ -158,30 +207,30 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "Two distinct hooks, 3D shown",
-              "points": 6,
-              "descriptor": "Two photographed sketches of two genuinely different hooks, both readable, and at least one shows a 3D feature through a side view, a section, or shading."
+              "short": "Two different hooks, 3D shown",
+              "points": 5,
+              "descriptor": "Two readable sketches of two genuinely different hooks, and at least one shows a 3D feature in a side view, a section or shading."
             },
             {
               "label": "Proficient",
-              "short": "Two sketches, same idea or flat",
-              "points": 4,
-              "descriptor": "Two sketches, but they are the same idea redrawn, or neither shows anything beyond a flat outline."
+              "short": "Same idea, or flat",
+              "points": 3,
+              "descriptor": "Two sketches, but they are the same hook redrawn, or neither shows anything beyond a flat outline."
             },
             {
               "label": "Developing",
               "short": "One sketch",
-              "points": 2,
-              "descriptor": "Only one sketch is in the photos, or one of the two cannot be read."
+              "points": 1,
+              "descriptor": "Only one sketch is in the photo, or one cannot be read."
             },
             {
               "label": "Absent",
-              "short": "No sketch",
+              "short": "No photo",
               "points": 0,
-              "descriptor": "No photo attached."
+              "descriptor": "No photo."
             }
           ],
-          "points": 6
+          "points": 5
         },
         {
           "id": "notes",
@@ -189,27 +238,27 @@
           "levels": [
             {
               "label": "Complete",
-              "short": "Both typed and explained",
+              "short": "Both typed and stated",
               "points": 3,
-              "descriptor": "Both sketches are marked standard or multi-part, and each note states the idea and its 3D feature."
+              "descriptor": "Both sketches are marked standard or multi-part, and each line states the idea and its 3D feature."
             },
             {
               "label": "Proficient",
-              "short": "Both present, one generic",
+              "short": "One line generic",
               "points": 2,
-              "descriptor": "Both notes are present, but one could describe any hook."
+              "descriptor": "Both lines are there, but one could describe any hook."
             },
             {
               "label": "Developing",
-              "short": "One note only",
+              "short": "One sketch only",
               "points": 1,
-              "descriptor": "Only one sketch is typed and explained."
+              "descriptor": "Only one sketch is typed and stated."
             },
             {
               "label": "Absent",
-              "short": "No notes",
+              "short": "Nothing",
               "points": 0,
-              "descriptor": "Neither sketch is typed or explained."
+              "descriptor": "Neither sketch is typed or stated."
             }
           ],
           "points": 3
@@ -217,5 +266,9 @@
       ]
     }
   ],
+  "thumbnail": {
+    "kind": "html",
+    "template": "idea-thumbnail"
+  },
   "schemaVersion": 3
 }
